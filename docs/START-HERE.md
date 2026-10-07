@@ -28,7 +28,7 @@ There is no remote. Development stays local until you publish (ADR 0013; section
 cd ~/h4reet-ai/h4reet-ai && claude
 ```
 
-Paste `docs/KICKOFF-PROMPT.md`. Expected shape of the session: it reads the governance docs, verifies the environment (`specify check`, `docker`, `nvidia-smi`, the hook matrix), creates the `chore/repo-hygiene` branch, adds the repo-hygiene files (README linking every artifact, `LICENSE` MIT, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, `.editorconfig`, `.gitignore`, `.github/dependabot.yml`), runs `/speckit-clarify` on `specs/000-local-foundations/spec.md`, and ends with a merge-request note. It cannot merge; you do.
+Paste `docs/KICKOFF-PROMPT.md`. Expected shape of the session: it reads the governance docs, verifies the environment (`specify check`, `docker`, `nvidia-smi`, `make check`), creates the `chore/repo-hygiene` branch, adds the repo-hygiene files (README linking every artifact, `LICENSE` MIT, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, `.editorconfig`, `.gitignore`, `.github/dependabot.yml`), runs `/speckit-clarify` on `specs/000-local-foundations/spec.md`, and ends with a merge-request note. It cannot merge; you do.
 
 Session 2: `/speckit-plan` in plan mode for spec 000 — it must name the compose services, the images, the gateway interface, the meter, the hooks' test harness, the CI workflows, and the ADRs 0001–0006, with cost impact and degraded modes. Iterate until an engineer who never saw the conversation could implement from `plan.md` alone. Then `/speckit-tasks`, `/speckit-analyze`, and only then `/speckit-implement`, one feature branch per task group, each merged by you.
 
@@ -55,12 +55,17 @@ Before Phase 1: the job/role/task corpus, and a final read of `intent/000-ai-twi
 
 ## 6. Going public (later, by you)
 
-When spec 000's success criteria pass locally and you're ready for interviews (ADR 0013):
+When spec 000's success criteria pass locally (as far as they can before publication) and you're ready for interviews (ADR 0013), run these in your own terminal; the hooks block them for agents:
 
-```bash
-cd ~/h4reet-ai/h4reet-ai && git switch main
-make corpus-check                                     # with your local denylist in place
-gh repo create h4reet-ai --public --source . --push  # pushes main with its full history, unchanged
-```
+1. Scan the whole history, not just the working tree, for secrets, amounts, and denylisted phrases. Spec 000 should add a `make publish-check` that does this. If it finds anything, clean it out of history before the first push; ADR 0013 allows that one rewrite.
+2. Check GitHub's email privacy setting. With "Block command line pushes that expose my email" on, GitHub rejects commits authored with your personal address (GH007).
+3. Publish:
 
-Then, on GitHub: branch protection on `main` (require PR, require the Author's review, require status checks, no force push, include admins). Add a `production` environment with required reviewers = you (used by spec 001's apply). Enable secret scanning and Dependabot. Replace the local-only lines in `CLAUDE.md` and `docs/KICKOFF-PROMPT.md`, and supersede ADR 0013 with an ADR for the switch. Only after protection is on, start the next Claude Code session; from then on, agents push feature branches and open PRs.
+   ```bash
+   cd ~/h4reet-ai/h4reet-ai && git switch main
+   make corpus-check                                     # with your local denylist in place
+   gh repo create h4reet-ai --public --source . --push  # pushes main with its full history
+   ```
+
+4. On GitHub: branch protection on `main` (require PR, require the Author's review, require status checks, no force push, include admins). Add a `production` environment with required reviewers = you (used by spec 001's apply). Enable secret scanning and Dependabot.
+5. Leave local mode: replace the local-only lines in `CLAUDE.md` and `docs/KICKOFF-PROMPT.md`; relax the local-phase rules in `.claude/hooks/bash-gate.sh` and their matrix rows, so agents push feature branches again while `main` stays yours; and supersede ADR 0013 with an ADR for the switch. Only after protection is on, start the next Claude Code session. From then on, agents push feature branches and open PRs.

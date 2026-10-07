@@ -11,7 +11,7 @@ Local until the Author publishes (ADR 0013): commit on a feature branch and end 
 ## Commands
 - Setup: `make setup` (devcontainer already has the toolchain)
 - Build: `make build` — must end with `BUILD OK`
-- Test: `make test` (all), `make test-fast` (pre-commit subset), `make evals`, `make redteam` (hook matrix alone: `bash redteam/forbidden-actions.sh`)
+- Test: `make test` (all), `make test-fast` (pre-commit subset), `make evals`, `make redteam`. Until spec 000 adds what those need: `make check` (corpus gate, tests, lint, hook matrix)
 - Lint/format: `make lint` (zero warnings), `make fmt`
 - Local production stack: `make up` / `make down` (whole topology, local models)
 - Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action in the protected CI environment.
@@ -39,7 +39,7 @@ spec-writer · implementer · reviewer (read-only) · red-teamer (read-only) · 
 The agent that implements never reviews. Agent teams are experimental here; use only for independent workstreams.
 
 ## Verifying your work
-Run `make lint`, `make test`, and `make evals` before reporting any task complete, and paste the output.
+Run `make lint`, `make test`, and `make evals` (until they can run, `make check`) before reporting any task complete, and paste the output.
 If a test fails, fix the code, not the test. Do not edit test files during a fix task (a hook blocks it).
 
 ## Things Claude gets wrong

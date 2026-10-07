@@ -23,13 +23,15 @@ A skill makes a violation rare; a hook makes it close to impossible; the sandbox
 |---|---|---|---|
 | No code without a spec | `CLAUDE.md` lifecycle | — | CI required check (spec link) |
 | Agent never applies infra | `ops` agent prompt | `bash-gate.sh` | IAM role has no apply permission; protected environment |
-| No push to `main` | `CLAUDE.md` | `bash-gate.sh` | Branch protection |
-| No remote until publication (ADR 0013) | `CLAUDE.md` | `bash-gate.sh` | — (nothing outside the session until publication) |
+| No push to `main` | `CLAUDE.md` | `bash-gate.sh` | Branch protection (after publication) |
+| Until publication: no push, no remote, and only the Author changes `main` (ADR 0013) | `CLAUDE.md` | `bash-gate.sh` | The Author's review; nothing else outside the session yet |
 | Enforcement layer is human-only | `CLAUDE.md` | `protected-paths.sh`, `permissions.deny` | Agent-config evals + CODEOWNERS on `.claude/**` |
 | No secrets in context | — | `permissions.deny`, sandbox credential denies | Secret scanning in pre-commit and CI |
 | No arbitrary egress | — | `bash-gate.sh` | Sandbox network allowlist |
 | Fix the code, not the test | `CLAUDE.md` verification block | `protected-paths.sh` under `FIX_TASK=1` | Reviewer compliance pass |
 | Cost bounded | `constitution-check` skill | — | Real-time meter + kill switch; AWS Budgets as safety net |
+
+Until publication (ADR 0013), the GitHub and AWS entries in the last column don't exist yet. What remains is the sandbox, the hooks, `make check`, and the Author's review.
 
 ## The first control band: the budget
 
@@ -48,4 +50,4 @@ The playbook is written for organizations. Here one person is product owner, eng
 - **Role switches are deliberate.** Accepting an intent, approving a spec, and approving a plan are separate commits on separate occasions, so the product-owner decision is visible as distinct from the engineering one.
 - **No self-hosted runners.** CI runs on hosted runners only; the local tier pulls deployments. A public repository must never execute a stranger's PR on the Author's hardware.
 - **Enterprise-only plays are noted, not adopted.** Hosted scheduled security scanning and Slack on-call are replaced by CI static analysis plus the red-team suite, and by Telegram alerts.
-- **Local until publication** (ADR 0013). There is no remote yet. Each change is a feature branch the Author merges locally; a note in `docs/merge-requests/` stands in for the PR, and the `make` targets plus `redteam/forbidden-actions.sh` are the gates before a merge. The history is published unchanged.
+- **Local until publication** (ADR 0013). There is no remote yet. Each change is a feature branch the Author merges locally; a note in `docs/merge-requests/` stands in for the PR, and `make check` is the gate before a merge. The history is published unchanged.
