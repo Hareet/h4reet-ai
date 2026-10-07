@@ -1,4 +1,4 @@
-# ADR 0013: Develop locally until publication; publish the history unchanged
+# ADR 0013: Develop locally until publication; publish the history from its first commit
 
 Status: accepted by the Author, 2026-10-07 · Spec: 000 (FR-001, User Story 4), 001
 
@@ -8,7 +8,7 @@ The plan was a public GitHub repository from the first commit, with pull request
 
 ## Decision
 
-- No GitHub repository, remote, or push until the Author publishes, and only the Author changes `main`. `bash-gate.sh` blocks agents from `git push`; from creating or changing a remote or a repository (including the `git -C` and `git -c` forms, `git config remote.*`, and repository creation through `gh api`); from switching to `main`; and from commits, merges, resets, and ref updates that would move it. A regex gate can be evaded by obfuscation, and the forbidden-action matrix records that as a known gap. These rules add to the Author's review; they don't replace branch protection after publication.
+- No GitHub repository, remote, or push until the Author publishes, and only the Author changes `main`. `bash-gate.sh` blocks agents from `git push`; from creating or changing a remote or a repository (including the `git -C` and `git -c` forms, `git config remote.*`, and repository creation through `gh api`); from switching to `main` (including `switch -`), pointing HEAD at it, rebasing it, or checking it out in a worktree; from commits, merges, resets, and ref updates that would move it; from rewriting history; from defining git aliases; and from writing `.git/` internals. A regex gate sees spellings, not intent: obfuscated commands and aliases that already exist get through, and the forbidden-action matrix lists them as known gaps. These rules add to the Author's review; they don't replace branch protection after publication.
 - Every change is a feature branch. The agent commits there and never merges; the Author reviews and merges locally with `git merge --no-ff`.
 - A merge-request note in `docs/merge-requests/` stands in for the pull request: what changed, the spec it satisfies, the constitution check, the `REVIEW.md` passes from an agent that didn't write the change, and the verification output.
 - Before a merge, the gate is `make check`: the corpus gate, the tests, lint, and the forbidden-action matrix. It stays the gate until spec 000 makes `make lint`, `make test`, and `make evals` runnable. Hooks, permissions, and the sandbox work as before.

@@ -42,7 +42,7 @@ Spec 001 is specified in full only after spec 000's success criteria pass on you
 - **Ports**: the stack should bind to `127.0.0.1` by default; WSL2 forwards localhost to Windows, which is convenient and also why nothing may bind `0.0.0.0` until spec 001's tunnel exists.
 - **Bedrock adapter tests** use your SSO session (`aws sso login`) from your shell, never from inside the agent sandbox (credentials are denied there by design). Run them yourself or in CI via OIDC later.
 - **Telegram**: create the bot with `@BotFather`, get your chat id, store the token in your shell profile or a local env file outside the repo (`deploy/env/*.env` is gitignored; `.env*` reads are denied to agents).
-- **Hooks and humans**: hooks govern agents. You can still edit `.claude/**` in your editor — `CODEOWNERS` and the agent-config evals govern you.
+- **Hooks and humans**: hooks govern agents. You can still edit `.claude/**` in your editor — `CODEOWNERS` and the agent-config evals govern you once they exist (at publication and in spec 000); until then, your own review does.
 - **Denylist**: `corpus/intake/private/denylist.txt` exists only on this machine and is gitignored. Keep a copy somewhere safe: a fresh clone won't have it, and without it `make corpus-check` skips the denylist rule silently.
 
 ## 5. Decision state

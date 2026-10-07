@@ -45,7 +45,7 @@ If a test fails, fix the code, not the test. Do not edit test files during a fix
 ## Things Claude gets wrong
 - Adding a provider call outside the gateway, or a call without cost attributes.
 - Treating the local tier as a demo. It is production; `make up` must always work.
-- Editing `.claude/**`, `REVIEW.md`, or the constitution from an agent session. These change only via human PR.
+- Editing `.claude/**`, `REVIEW.md`, or the constitution from an agent session. These change only by the Author's hand (a human PR after publication).
 - Running `terraform apply`. Never. Plan only.
 - Editing `corpus/`, or stating a number about the Author that isn't in the corpus or a filled `facts/` slot.
 - Widening `permissions.allow` or sandbox domains to make a task easier. Ask instead.
