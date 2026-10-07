@@ -4,6 +4,7 @@
 # Belt and braces: permissions.deny in settings.json catches the obvious forms;
 # this catches variants (chained commands, aliases, scripts) and writes the audit record.
 set -euo pipefail
+# shellcheck source=_audit.sh
 source "$(dirname "$0")/_audit.sh"
 # Fail closed: in Claude Code only exit 2 blocks, so a missing dependency or an unexpected
 # error must become exit 2 — otherwise the gate silently disappears.
@@ -16,15 +17,17 @@ block() { audit BLOCK bash "$1 :: $cmd"; echo "Blocked by .claude/hooks/bash-gat
 
 # Infrastructure mutation is a human action in the protected CI environment.
 echo "$cmd" | grep -Eq '(^|[;&| ])terraform +(apply|destroy|import|state +(rm|mv|push))' \
-  && block "terraform mutation" "open a PR; apply runs in the protected environment after the Author approves"
+  && block "terraform mutation" "commit the change on your feature branch; apply runs in the protected environment after the Author approves"
 # No agent path to main, ever.
 echo "$cmd" | grep -Eq 'git +push[^;&|]*(--force|-f\b|\+refs|origin +main|origin +HEAD:main)' \
-  && block "push to main or force-push" "push your feature branch and open a PR"
+  && block "push to main or force-push" "commit on your feature branch; the Author merges"
 echo "$cmd" | grep -Eq '(^|[;&| ])gh +pr +merge' && block "PR merge" "only the Author merges"
 # Cloud control surfaces the agent may not touch.
 echo "$cmd" | grep -Eq '(^|[;&| ])aws +(iam|budgets|ce|wafv2|waf|cloudfront +update|ssm +put-parameter[^;&|]*kill-switch)' \
   && block "IAM/budget/edge/kill-switch mutation" "write an ADR and a spec; the Author applies"
 # Destructive filesystem operations outside the workspace.
+# The pattern matches a literal "$HOME" in the command text, so the single quotes are intended.
+# shellcheck disable=SC2016
 echo "$cmd" | grep -Eq '(^|[;&| ])rm +-[a-zA-Z]*r[a-zA-Z]* +(/|~|\$HOME|\.\.)' \
   && block "recursive delete outside workspace" "delete only inside the repo"
 # Arbitrary egress. The sandbox enforces the domain allowlist at the OS level; this adds the audit trail.

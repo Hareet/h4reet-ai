@@ -3,10 +3,14 @@
 # Claude Code neutralizes instruction-shaped text in subagent reports itself (v2.1.210+);
 # this hook adds the audit record the constitution requires and surfaces a warning.
 set -uo pipefail
+# shellcheck source=_audit.sh
 source "$(dirname "$0")/_audit.sh"
 input="$(cat)"
 transcript="$(echo "$input" | jq -r '.agent_transcript_path // .transcript_path // empty')"
-[ -n "$transcript" ] && [ -f "$transcript" ] || { audit INFO subagent "no transcript path in payload"; exit 0; }
+if [ -z "$transcript" ] || [ ! -f "$transcript" ]; then
+  audit INFO subagent "no transcript path in payload"
+  exit 0
+fi
 tail -c 20000 "$transcript" > /tmp/subagent-tail.$$ 2>/dev/null || exit 0
 pattern='<system-reminder>|^Human:|^Assistant:|dangerously-skip-permissions|bypassPermissions|allowManagedHooksOnly|settings\.json|ignore (all )?previous instructions'
 if grep -Eiq "$pattern" /tmp/subagent-tail.$$; then
