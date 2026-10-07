@@ -15,3 +15,4 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | 0009 | Pull-based deployment to the local tier; no inbound ports; no self-hosted runners | proposed | 001 |
 | 0010 | Real-time 3D avatar rig (not generated video); GTA V-inspired original art direction | proposed | Phase 2 |
 | 0011 | Cloned voice for the twin, disclosed | proposed | Phase 2 |
+| [0012](0012-constitution-1-0-1-spec-kit-lifecycle.md) | Constitution 1.0.1: Spec Kit 1.0.8 lifecycle order and command names | accepted | — |

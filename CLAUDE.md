@@ -4,7 +4,7 @@ Public, production-grade portfolio: an AI twin of the Author, local-first, built
 `.specify/memory/constitution.md` supersedes this file. When they disagree, fix this file.
 
 ## Lifecycle (every change)
-intent (`intent/`) → `/speckit-specify` → `/speckit-clarify` → `/speckit-plan` (plan mode) → `/speckit-tasks` → implement → `REVIEW.md` passes → human merge.
+intent (`intent/`) → `/speckit-specify` → `/speckit-clarify` → `/speckit-plan` (plan mode) → `/speckit-tasks` → `/speckit-analyze` → implement → `/speckit-converge` → `REVIEW.md` passes → human merge.
 Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`. If implementation departs from the plan, update `plan.md` in the same commit.
 
 ## Commands

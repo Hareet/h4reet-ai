@@ -8,7 +8,7 @@ This repository follows the AI-native SDLC pattern — six stages as a loop, eac
 |---|---|---|---|---|
 | Plan | `intent.md` | Originator + Claude (`intent-capture` skill) | Author accepts (moves into spec folder) or closes | `intent/` → `specs/NNN-*/intent.md` |
 | Design | `spec.md` | `spec-writer` via `/speckit-specify`, `/speckit-clarify`, skills loaded | Spec PR approved by the Author | `specs/NNN-*/spec.md` |
-| Build | `plan.md`, `tasks.md`, the diff + tests | `/speckit-plan` in plan mode, `/speckit-tasks`, `implementer` | Plan accepted before code; `plan.md` updated when the diff diverges | `specs/NNN-*/`, feature branch |
+| Build | `plan.md`, `tasks.md`, the diff + tests | `/speckit-plan` in plan mode, `/speckit-tasks`, `/speckit-analyze`, `implementer`, `/speckit-converge` | Plan accepted before code; `plan.md` updated when the diff diverges | `specs/NNN-*/`, feature branch |
 | Test | Test output pasted in the report; eval and red-team results | The session's own feedback loop; `red-teamer`; CI | Thresholds in CI | `evals/`, `redteam/`, PR checks |
 | Deploy | PR with `REVIEW.md` findings; Terraform plan; container images | `reviewer` (read-only); CI; Author approval | Branch protection + protected environment for `apply` | PR history, `infra/`, GHCR |
 | Maintain | Incident note; the next `intent.md` | Deterministic control bands; `ops` for diagnosis; `docs` for the note | Author triage | `docs/incidents/`, `intent/` |

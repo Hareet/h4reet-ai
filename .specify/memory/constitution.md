@@ -14,7 +14,7 @@ The visitor's device is the first place computation happens and the last place d
 
 ### III. Intent Before Spec, Spec Before Code, Humans Merge
 
-Every change begins as an `intent.md` in the originator's own words — problem, proposed outcome, affected users and systems, constraints, open questions — committed to `intent/` and accepted or closed by the Author. An accepted intent becomes a specification through the Spec Kit lifecycle (`specify` → `clarify` → `plan` → `tasks` → `implement` → `analyze`), with acceptance criteria in EARS form ("WHEN … THE SYSTEM SHALL …") or Given/When/Then so they are testable without interpretation. Each stage ends by committing an artifact the next stage reads: intent, spec, plan, the diff with its tests, the PR with its review findings, the incident record. That chain of commits is the audit trail. Architecture decisions are recorded as ADRs in `docs/adr/`. Agents may write any of these artifacts; only a human merges to `main`, applies infrastructure, or amends this constitution.
+Every change begins as an `intent.md` in the originator's own words — problem, proposed outcome, affected users and systems, constraints, open questions — committed to `intent/` and accepted or closed by the Author. An accepted intent becomes a specification through the Spec Kit lifecycle (`specify` → `clarify` → `plan` → `tasks` → `analyze` → `implement` → `converge`), with acceptance criteria in EARS form ("WHEN … THE SYSTEM SHALL …") or Given/When/Then so they are testable without interpretation. Each stage ends by committing an artifact the next stage reads: intent, spec, plan, the diff with its tests, the PR with its review findings, the incident record. That chain of commits is the audit trail. Architecture decisions are recorded as ADRs in `docs/adr/`. Agents may write any of these artifacts; only a human merges to `main`, applies infrastructure, or amends this constitution.
 
 ### IV. Least Privilege for Humans and Agents Alike
 
@@ -60,8 +60,8 @@ The twin is always disclosed as an AI representation of the Author, never presen
 ## Development Workflow & Quality Gates
 
 1. **Capture**: the originator writes `intent/NNN-name.md` from the template, with Claude's help. The Author accepts (it moves into the spec folder) or closes it. Author, timestamp, and revisions are the git history.
-2. **Specify**: `/speckit.specify` from the accepted intent, with the project's skills loaded so policy is applied while the spec is written. `spec.md` opens as a PR with no code and is approved by the Author.
-3. **Plan & tasks**: in plan mode, `/speckit.plan` and `/speckit.tasks` from the spec. The plan names the files that change, the order of work, the risks, the proof, the cost impact, and the degraded-mode behavior. Approved `plan.md` is committed before code exists.
+2. **Specify**: `/speckit-specify` from the accepted intent, with the project's skills loaded so policy is applied while the spec is written. `spec.md` opens as a PR with no code and is approved by the Author.
+3. **Plan & tasks**: in plan mode, `/speckit-plan` and `/speckit-tasks` from the spec. The plan names the files that change, the order of work, the risks, the proof, the cost impact, and the degraded-mode behavior. Approved `plan.md` is committed before code exists.
 4. **Implement**: the implementer agent works on a feature branch in the sandbox. Tests are written with or before code. Bug fixes start from a failing test the agent may not edit. When implementation departs from the plan, `plan.md` changes in the same commit.
 5. **Verify**: the session checks its own work (`make test`, `make lint`, `make evals`) and pastes the output before reporting done. CI requires — a linked spec; passing tests; the evaluation suite above its thresholds; the red-team suite clean; telemetry present for new paths; Terraform plan reviewed if infra changed; the `REVIEW.md` passes posted by the reviewer agent; a human approval.
 6. **Ship**: trunk-based; containers built once and promoted; canary where the surface allows; rollback rehearsed and runnable as one command.
@@ -74,4 +74,4 @@ This constitution supersedes `CLAUDE.md`, `REVIEW.md`, agent, skill, and hook de
 
 Amendments are made by PR with an ADR explaining the change, follow semantic versioning (MAJOR for removing or redefining a principle, MINOR for adding a principle or section, PATCH for clarification), and update the version line below. Only the Author can approve an amendment.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-07 | **Last Amended**: 2026-09-07
+**Version**: 1.0.1 | **Ratified**: 2026-09-07 | **Last Amended**: 2026-10-07
