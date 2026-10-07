@@ -49,3 +49,4 @@ If a test fails, fix the code, not the test. Do not edit test files during a fix
 - Running `terraform apply`. Never. Plan only.
 - Editing `corpus/`, or stating a number about the Author that isn't in the corpus or a filled `facts/` slot.
 - Widening `permissions.allow` or sandbox domains to make a task easier. Ask instead.
+- Writing a bash-gate rule that matches only the canonical spelling. Also test `git -C`/`-c`, `bash -c`, subshells, quoting, and config or API equivalents, and add a gap row to `redteam/forbidden-actions.sh` for any that get through.
