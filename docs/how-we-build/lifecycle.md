@@ -10,7 +10,7 @@ This repository follows the AI-native SDLC pattern — six stages as a loop, eac
 | Design | `spec.md` | `spec-writer` via `/speckit-specify`, `/speckit-clarify`, skills loaded | Spec PR approved by the Author | `specs/NNN-*/spec.md` |
 | Build | `plan.md`, `tasks.md`, the diff + tests | `/speckit-plan` in plan mode, `/speckit-tasks`, `/speckit-analyze`, `implementer`, `/speckit-converge` | Plan accepted before code; `plan.md` updated when the diff diverges | `specs/NNN-*/`, feature branch |
 | Test | Test output pasted in the report; eval and red-team results | The session's own feedback loop; `red-teamer`; CI | Thresholds in CI | `evals/`, `redteam/`, PR checks |
-| Deploy | PR with `REVIEW.md` findings; Terraform plan; container images | `reviewer` (read-only); CI; Author approval | Branch protection + protected environment for `apply` | PR history, `infra/`, GHCR |
+| Deploy | PR (until publication, a merge-request note) with `REVIEW.md` findings; Terraform plan; container images | `reviewer` (read-only); CI; Author approval | Branch protection + protected environment for `apply` | PR history (until publication, `docs/merge-requests/`), `infra/`, GHCR |
 | Maintain | Incident note; the next `intent.md` | Deterministic control bands; `ops` for diagnosis; `docs` for the note | Author triage | `docs/incidents/`, `intent/` |
 
 Where Spec Kit and the playbook differ, we use both: Spec Kit's `spec.md` is more structured than the playbook's example (prioritized, independently testable user stories, EARS requirements, measurable success criteria), and Spec Kit adds `tasks.md` and the `analyze`/`checklist` steps. The playbook adds `intent.md` upstream, `REVIEW.md` downstream, and the closing-the-loop pattern. The `constitution` is Spec Kit's; the skills that apply policy while the spec is written are the playbook's.
@@ -24,6 +24,7 @@ A skill makes a violation rare; a hook makes it close to impossible; the sandbox
 | No code without a spec | `CLAUDE.md` lifecycle | — | CI required check (spec link) |
 | Agent never applies infra | `ops` agent prompt | `bash-gate.sh` | IAM role has no apply permission; protected environment |
 | No push to `main` | `CLAUDE.md` | `bash-gate.sh` | Branch protection |
+| No remote until publication (ADR 0013) | `CLAUDE.md` | `bash-gate.sh` | — (nothing outside the session until publication) |
 | Enforcement layer is human-only | `CLAUDE.md` | `protected-paths.sh`, `permissions.deny` | Agent-config evals + CODEOWNERS on `.claude/**` |
 | No secrets in context | — | `permissions.deny`, sandbox credential denies | Secret scanning in pre-commit and CI |
 | No arbitrary egress | — | `bash-gate.sh` | Sandbox network allowlist |
@@ -43,7 +44,8 @@ The lifecycle above runs on Claude Code, under the permissions, hooks, and sandb
 The playbook is written for organizations. Here one person is product owner, engineer, tech lead, and release manager, so the roles are made explicit by the artifacts and the gates rather than by people:
 
 - **Managed settings don't exist for one person.** The non-negotiable controls live in the committed `.claude/settings.json` and hooks, and are backed by things a session cannot change: branch protection, IAM, the sandbox, and CODEOWNERS on `.claude/**`. A change to the enforcement layer runs the agent-configuration evals before merge.
-- **Separation of duties is between agents and gates, not between people.** The implementer never reviews; the reviewer never writes; the Author merges. The reviewer's findings are posted on the PR before the Author approves, so the human's review is of the findings, not of every line.
+- **Separation of duties is between agents and gates, not between people.** The implementer never reviews; the reviewer never writes; the Author merges. The reviewer's findings are posted on the PR (until publication, in the merge-request note) before the Author approves, so the human's review is of the findings, not of every line.
 - **Role switches are deliberate.** Accepting an intent, approving a spec, and approving a plan are separate commits on separate occasions, so the product-owner decision is visible as distinct from the engineering one.
 - **No self-hosted runners.** CI runs on hosted runners only; the local tier pulls deployments. A public repository must never execute a stranger's PR on the Author's hardware.
 - **Enterprise-only plays are noted, not adopted.** Hosted scheduled security scanning and Slack on-call are replaced by CI static analysis plus the red-team suite, and by Telegram alerts.
+- **Local until publication** (ADR 0013). There is no remote yet. Each change is a feature branch the Author merges locally; a note in `docs/merge-requests/` stands in for the PR, and the `make` targets plus `redteam/forbidden-actions.sh` are the gates before a merge. The history is published unchanged.

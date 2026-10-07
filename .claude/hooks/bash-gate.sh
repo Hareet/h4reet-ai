@@ -22,6 +22,9 @@ echo "$cmd" | grep -Eq '(^|[;&| ])terraform +(apply|destroy|import|state +(rm|mv
 echo "$cmd" | grep -Eq 'git +push[^;&|]*(--force|-f\b|\+refs|origin +main|origin +HEAD:main)' \
   && block "push to main or force-push" "commit on your feature branch; the Author merges"
 echo "$cmd" | grep -Eq '(^|[;&| ])gh +pr +merge' && block "PR merge" "only the Author merges"
+# Local until publication (ADR 0013): only the Author creates a remote or a GitHub repository.
+echo "$cmd" | grep -Eq '(^|[;&| ])(gh +repo +(create|fork)|git +remote +(add|set-url))' \
+  && block "creating a remote or a GitHub repository" "development stays local until the Author publishes (ADR 0013)"
 # Cloud control surfaces the agent may not touch.
 echo "$cmd" | grep -Eq '(^|[;&| ])aws +(iam|budgets|ce|wafv2|waf|cloudfront +update|ssm +put-parameter[^;&|]*kill-switch)' \
   && block "IAM/budget/edge/kill-switch mutation" "write an ADR and a spec; the Author applies"
