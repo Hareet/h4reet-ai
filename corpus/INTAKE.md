@@ -19,14 +19,14 @@ Save the output as `corpus/intake/sre-to-applied-ai-export.md` and upload any ar
 
 ## Part 2 — What's left (2026-09-27, second pass)
 
-Resolved: Voice for CHT ownership (you designed the idea, the project, and the capability, found the partner, and built Medic's side), the pilot underway, and the in-house Nepali plan; the strategy cleared as public, so its partners, attributions, and reach figures are in; national deployments generalized to `facts/national-projects.yaml`, with Uganda, Mali, and Zanzibar.
+Resolved: Voice for CHT ownership (you designed the idea, the project, and the capability, found the partner, and built Medic's side), the pilot underway, and the in-house Nepali plan; the strategy cleared as public, so its partners, attributions, and reach figures are in; national deployments generalized to `facts/national-projects.yaml`, with Uganda, Mali, and Zanzibar. Resolved 2026-10-07: the Ground Truth recording is not public, so the corpus uses the notes without a link; the title Applied AI Engineering Lead is confirmed.
 
 ### The one open item that still holds content back
 - May the twin name the Voice for CHT partners and the pilot language, and quote the controlled-test result? If yes, fill `facts/voice-for-cht.yaml`.
 
 ### Whenever you're ready
 - Fill `facts/national-projects.yaml`: Kenya's numbers, and one line each — what you did, and when — for Uganda, Mali, and Zanzibar.
-- Create `intake/private/denylist.txt` — one phrase per line that must never appear publicly.
+- ~~Create `intake/private/denylist.txt`~~ Created 2026-10-07, local only. Fill in the private values in your own editor, and keep a copy outside the repository.
 - Voice for CHT credits and any Anthropic credits: program and year.
 - The 2026 finalist program's name, if you want it named.
 - Which stages "the full loop" covers for cht-agent (for engineer mode).
@@ -34,7 +34,8 @@ Resolved: Voice for CHT ownership (you designed the idea, the project, and the c
 - A public-safe example of the change-management work: a talk, a workshop, adoption of cht-ai-tools.
 - A public reference for the Mali deployment, if one exists.
 - Artificial Indian Games (no topic file yet): status; rickshaw-walla in two sentences; which cultures and stories it centers.
-- Surname, or confirm the twin never gives one.
+- ~~Surname, or confirm the twin never gives one.~~ Resolved 2026-10-07: the twin never gives or confirms it in conversation; it may appear in git history and on GitHub.
 
 ### For the Phase 1 spec, not the corpus
 - The twin's grammatical person: golden answers use first person when a visitor addresses the twin ("I designed…") and third person when they ask about Hareet. Choose one rule in the persona spec — first person with persistent disclosure, or third person throughout — because it shapes how Principle VIII's disclosure works.
+- Surname guardrail (2026-10-07): the twin never gives or confirms Hareet's surname, although git history and GitHub show it. The denylist keeps it out of the corpus; the Phase 1 red-team suite needs a case that tries to extract or confirm it.
