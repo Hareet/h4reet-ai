@@ -1,0 +1,34 @@
+# Organization-level context from the Medic AI Strategy, which is public (cleared 2026-09-27).
+# Figures as stated in the strategy at publication; update if Medic publishes newer ones.
+# This file is public.
+
+topic: 01-ai-strategy-and-cht#the-strategy
+facts:
+  - id: medic.community_of_practice
+    label: Organizations in the CHT community of practice
+    value: "47+"
+    tag: C
+    source: "Medic AI Strategy (public, 2025), docs.google.com/document/d/1HkAQwnArp-tTaO1bA7yCe1gNtSjWizAI8LlOyIch6BU"
+    public_safe: true
+    phrasing: "The CHT community of practice spans {value} organizations."
+  - id: medic.health_workers_equipped
+    label: Health workers the community has equipped
+    value: "182,000+"
+    tag: C
+    source: "Medic AI Strategy (public, 2025), docs.google.com/document/d/1HkAQwnArp-tTaO1bA7yCe1gNtSjWizAI8LlOyIch6BU"
+    public_safe: true
+    phrasing: "Together, the community has equipped {value} health workers."
+  - id: medic.countries
+    label: Countries where the community works
+    value: "24"
+    tag: C
+    source: "Medic AI Strategy (public, 2025), docs.google.com/document/d/1HkAQwnArp-tTaO1bA7yCe1gNtSjWizAI8LlOyIch6BU"
+    public_safe: true
+    phrasing: "The community works across {value} countries."
+  - id: medic.people_reached
+    label: People the community delivers care to (the strategy's estimate)
+    value: "90 million"
+    tag: C
+    source: "Medic AI Strategy (public, 2025), docs.google.com/document/d/1HkAQwnArp-tTaO1bA7yCe1gNtSjWizAI8LlOyIch6BU"
+    public_safe: true
+    phrasing: "The community delivers care to an estimated {value} people."

@@ -1,0 +1,97 @@
+# Plug-in numbers for 02-production-infrastructure-national-scale.md: Kenya's eCHIS in full,
+# one-line involvement slots for Uganda, Mali, and Zanzibar, and the platform work behind them.
+#
+# The twin talks without these until a slot is filled, and never estimates.
+# To fill a slot: set value, tag (A or C), source, and public_safe: true. Nothing else changes.
+# This file is public. Never put a value here that is not public-safe.
+# `make corpus-check` enforces these rules on every PR.
+
+topic: 02-production-infrastructure-national-scale
+facts:
+  # Kenya — eCHIS-KE (primary)
+  - id: echis_ke.deployment_start
+    label: When Kenya's national-scale deployment went live
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "Kenya's national deployment went live in {value}."
+  - id: echis_ke.moh_engineers_trained
+    label: Kenya Ministry of Health engineers trained in DevOps practices
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: " That work trained {value} Ministry of Health engineers in DevOps practices."
+  - id: echis_ke.projects_deployed
+    label: CHT projects deployed for Kenya's national rollout
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "The rollout deployed {value} CHT projects."
+  - id: echis_ke.national_partners
+    label: National-scale partners in Kenya (count or names)
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "The deployment brought together {value} national-scale partners."
+  - id: echis_ke.chws_supported
+    label: Community health workers Kenya's national system supports
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "Kenya's national system supports {value} community health workers."
+  - id: echis_ke.counties
+    label: Counties covered in Kenya
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "It covers {value} counties."
+  - id: echis_ke.datacenter_migration
+    label: The data-center migration (when, from where, to where)
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "The data-center migration: {value}."
+  # Lesser involvement — one line each: what Hareet did, and when
+  - id: echis_ug.involvement
+    label: Hareet's involvement in Uganda's eCHIS (what and when, one line)
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: " In Uganda: {value}."
+  - id: moh_mali.involvement
+    label: Hareet's involvement in Mali's Ministry of Health deployment (what and when, one line)
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: " In Mali: {value}."
+  - id: moh_zanzibar.involvement
+    label: Hareet's involvement in Zanzibar's Ministry of Health deployment (what and when, one line)
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: " In Zanzibar: {value}."
+  # Platform work behind the national deployments
+  - id: cht4.release
+    label: When CHT 4.0 shipped with the Docker-based architecture
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "CHT 4.0 shipped in {value}."
+  - id: postgres.benchmark_finding
+    label: The benchmark result showing get-ids would not hold at national scale
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "In benchmarking, {value}."

@@ -1,0 +1,34 @@
+# Plug-in details for the Voice for CHT section of 01-ai-strategy-and-cht.md.
+# The values are in the pilot brief (intake/private/). They stay empty here until Hareet
+# confirms they are public-safe. This file is public.
+
+topic: 01-ai-strategy-and-cht#voice-for-cht
+facts:
+  - id: voice.speech_partner
+    label: The speech-model partner
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "The speech model comes from {value}."
+  - id: voice.chw_partner
+    label: The CHW partner organization for the first pilot
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "The first pilot is with CHWs from {value}."
+  - id: voice.pilot_language
+    label: The first pilot language
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "The first pilot language is {value}."
+  - id: voice.controlled_test_result
+    label: Accuracy gain from tuning in a controlled test, stated with its method
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: "In a controlled test, {value}."
