@@ -1,0 +1,4 @@
+# Python caches. Session 1's repo-hygiene task completes this file (Node, Terraform, env files).
+__pycache__/
+.pytest_cache/
+.ruff_cache/
