@@ -20,7 +20,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]  # corpus/
 PRIVATE = ROOT / "intake" / "private"
 SLOT = re.compile(r"\{\{slot:([a-z0-9_.-]+)(?:\s*\|[^}]*)?\}\}")
-CURRENCY = re.compile(r"[$€£]\s?\d|\b\d[\d,.]*\s?[kKmM]?\s?(?:USD|dollars|EUR|GBP)\b")
+# A symbol or code before the number ("$5", "KES 5,000", "Rs. 400"), or a code or word after it
+# ("5 USD", "1.2 million shillings"). Codes cover the Author's contexts: USD, EUR, GBP, KES/KSh (Kenya),
+# INR/Rs/₹ (India), NPR (Nepal).
+CURRENCY = re.compile(
+    r"[$€£₹]\s?\d"
+    r"|\b(?:USD|EUR|GBP|KES|KSh|Ksh|KSH|INR|NPR|Rs\.?)\s?\d"
+    r"|\b\d[\d,.]*\s?(?:[kKmM]|(?i:thousand|million|billion|lakh|crore))?\s?"
+    r"(?:USD|EUR|GBP|KES|KSh|INR|NPR|(?i:dollars?|euros?|shillings?|rupees?))\b"
+)
 TEXT = {".md", ".yaml", ".yml", ".txt"}
 
 
