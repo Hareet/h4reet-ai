@@ -24,7 +24,7 @@ A skill makes a violation rare; a hook makes it close to impossible; the sandbox
 | No code without a spec | `CLAUDE.md` lifecycle | — | CI required check (spec link) |
 | Agent never applies infra | `ops` agent prompt | `bash-gate.sh` | IAM role has no apply permission; protected environment |
 | No push to `main` | `CLAUDE.md` | `bash-gate.sh` | Branch protection (after publication) |
-| Until publication: no push, no remote, and only the Author changes `main` (ADR 0013) | `CLAUDE.md` | `bash-gate.sh` | The Author's review; nothing else outside the session yet |
+| Until publication: no push, no remote, and only the Author changes `main` (ADR 0013) | `CLAUDE.md` | `bash-gate.sh` | The git hook in `.claude/git-hooks/` refuses changes to `main` from inside Claude Code; the Author's review |
 | Enforcement layer is human-only | `CLAUDE.md` | `protected-paths.sh`, `permissions.deny` | Agent-config evals + CODEOWNERS on `.claude/**` |
 | No secrets in context | — | `permissions.deny`, sandbox credential denies | Secret scanning in pre-commit and CI |
 | No arbitrary egress | — | `bash-gate.sh` | Sandbox network allowlist |

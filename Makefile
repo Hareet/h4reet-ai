@@ -9,7 +9,7 @@ PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv ru
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
 
-setup: ## Install toolchain deps (devcontainer already has them)
+setup: git-hooks ## Install toolchain deps (devcontainer already has them)
 	npm ci && pip install -r requirements.txt --break-system-packages
 	pre-commit install
 
@@ -29,7 +29,16 @@ corpus-check: ## Public-corpus gate: attested facts slots, no amounts, local den
 lint: ## Zero warnings or fail
 	npm run lint --workspaces && ruff check . && shellcheck .claude/hooks/*.sh redteam/forbidden-actions.sh
 
-check: corpus-check ## Every gate that runs today, before spec 000 adds the rest: tests, lint, hook matrix
+git-hooks: ## Install the git hook that keeps main the Author's, once per clone (ADR 0013)
+	install -m 0755 .claude/git-hooks/reference-transaction "$$(git rev-parse --git-path hooks)/reference-transaction"
+	git config gc.packRefs false
+
+check: corpus-check ## Every gate that runs today, before spec 000 adds the rest: git hook, tests, lint, hook matrix
+	@hook="$$(git rev-parse --git-path hooks)/reference-transaction"; \
+	if cmp -s .claude/git-hooks/reference-transaction "$$hook" && [ -z "$$(git config --get core.hooksPath)" ] \
+	  && [ "$$(git config --get gc.packRefs)" = false ]; then echo "git hook guarding main: installed"; \
+	elif [ -n "$${CI:-}" ]; then echo "git hook guarding main: not checked in CI"; \
+	else echo "git hook guarding main: missing, modified, or bypassed; run make git-hooks" >&2; exit 1; fi
 	$(PYTEST) -q -p no:cacheprovider corpus/tools
 	ruff check .
 	shellcheck .claude/hooks/*.sh redteam/forbidden-actions.sh
@@ -66,4 +75,4 @@ breach-test: ## Synthetic budget breach against dev; asserts every step of spec 
 	@[ "$(ENV)" = "dev" ] || { echo "breach-test runs against dev only (ENV=dev)"; exit 1; }
 	python -m evals.breach --env dev
 
-.PHONY: help setup build corpus-check test test-fast lint check fmt fmt-file lint-file evals redteam up down plan breach-test
+.PHONY: help setup git-hooks build corpus-check test test-fast lint check fmt fmt-file lint-file evals redteam up down plan breach-test

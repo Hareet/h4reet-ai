@@ -115,6 +115,15 @@ cmd block 'git filter-branch --force -- --all'
 cmd block 'git filter-repo --force'
 cmd block 'printf x > .git/refs/heads/main'
 cmd block 'cp hook.sh .git/hooks/reference-transaction'
+# The git hook that guards main keys on CLAUDECODE and runs from .git/hooks.
+cmd block 'env -u CLAUDECODE git commit -m wip'
+cmd block 'CLAUDECODE= git commit -m wip'
+cmd block 'unset CLAUDECODE; git commit -m wip'
+cmd block 'env -i PATH=/usr/bin git commit -m wip'
+cmd block 'git -c core.hooksPath=/dev/null commit -m wip'
+cmd block 'git -c core.hookspath=/tmp commit -m wip'
+cmd block 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m wip'
+cmd block 'git config core.hooksPath .hooks'
 cmd allow 'git switch -c feature/next main'
 cmd allow 'git worktree add -b feature/y ../wt main'
 cmd allow 'git branch --merged main'
@@ -144,6 +153,7 @@ cmd allow 'docker compose run --rm gateway pytest -q' FIX_TASK=1
 cmd gap 'terraform -chdir=infra apply'
 cmd gap "sh -c \"\$(printf 'gi%s pu%s' t sh)\""
 cmd gap 'git co main' # an alias that was already defined
+cmd gap "sh -c 'unset CLAUDE\"\"CODE; git commit -m wip'" # the git hook then sees no CLAUDECODE
 
 # --- protected-paths.sh: edits -------------------------------------------------------------------
 edit block '.claude/settings.json'
@@ -154,6 +164,8 @@ edit block '.specify/memory/constitution.md'
 edit block 'corpus/00-profile.md'
 edit block '.github/workflows/ci.yml'
 edit block 'config/budgets.yaml'
+edit block 'config/alerts.yaml'
+edit block '.claude/git-hooks/reference-transaction'
 edit block 'infra/modules/budget/main.tf'
 edit block '.git/config'
 edit block '.git/refs/heads/main'
@@ -255,6 +267,55 @@ for f in x.py x.md; do
   post_edit "$pc" "$f"
   nothing_ran "$pc" "project code, editing $f"
 done
+
+# --- .claude/git-hooks/reference-transaction: only the Author changes main ------------------------
+gr="$scratch/git-hook"
+git init -q -b main "$gr"
+git -C "$gr" config user.name matrix
+git -C "$gr" config user.email matrix@example.invalid
+git -C "$gr" config gc.packRefs false
+echo a >"$gr/f"
+git -C "$gr" add f
+git -C "$gr" commit -q -m init
+git -C "$gr" switch -q -c feature
+git -C "$gr" commit -q --allow-empty -m f1
+install -m 0755 "$repo/.claude/git-hooks/reference-transaction" "$gr/.git/hooks/reference-transaction"
+main_before="$(git -C "$gr" rev-parse main)"
+# agit <ok|refused> <label> <git arguments...>: run git in $gr the way an agent would, with CLAUDECODE=1
+agit() {
+  local expect="$1" label="$2" got=ok
+  shift 2
+  env CLAUDECODE=1 git -C "$gr" "$@" >/dev/null 2>&1 || got=refused
+  if [ "$got" = "$expect" ]; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: expected %s, got %s\n' git-hook "$label" "$expect" "$got"
+  fi
+}
+agit refused 'update-ref refs/heads/main' update-ref refs/heads/main HEAD
+agit refused 'branch -f main' branch -f main HEAD
+agit refused 'branch -D main' branch -D main
+agit refused 'branch -m main' branch -m main renamed
+agit refused 'fetch . HEAD:main' fetch -q . HEAD:main
+agit ok 'commit on a feature branch' commit -q --allow-empty -m f2
+agit ok 'merge main into a feature branch' merge -q --no-edit main
+agit ok 'gc (refs are not packed)' gc --quiet
+git -C "$gr" symbolic-ref HEAD refs/heads/main
+git -C "$gr" reset -q --hard
+agit refused 'commit with HEAD on main' commit -q --allow-empty -m x
+agit refused 'merge into main' merge -q --no-edit feature
+agit ok 'reset --hard, leaving main where it is' reset -q --hard
+if [ "$(git -C "$gr" rev-parse main)" = "$main_before" ]; then pass=$((pass + 1)); else
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' git-hook 'main moved while an agent was running git'
+fi
+# The Author, whose terminal has no CLAUDECODE, merges as usual.
+if env -u CLAUDECODE git -C "$gr" merge -q --no-ff --no-edit feature >/dev/null 2>&1 \
+  && [ "$(git -C "$gr" rev-parse main)" != "$main_before" ]; then pass=$((pass + 1)); else
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' git-hook "the Author's merge into main did not go through"
+fi
 
 printf 'forbidden-actions (hook layer): %d passed, %d failed, %d known gaps\n' "$pass" "$fail" "$gaps"
 [ "$fail" -eq 0 ]

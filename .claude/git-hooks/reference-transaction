@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# git reference-transaction hook: only the Author changes main (ADR 0013).
+# `make git-hooks` installs it into .git/hooks. It refuses any update that would change refs/heads/main
+# (a commit, merge, reset, rebase, rename, deletion, or direct ref write, from any worktree) when the
+# command runs inside Claude Code, which sets CLAUDECODE=1 in the shells it starts. The Author's own
+# terminal doesn't set it, so the Author's merges go through. bash-gate.sh blocks agents from
+# unsetting CLAUDECODE or redirecting core.hooksPath.
+# git passes the state ("prepared", "committed", or "aborted") as $1 and one line per update on stdin:
+# "<old-value> <new-value> <ref-name>". Only a failure in "prepared" aborts the transaction. The old
+# value is all zeros whenever the caller didn't state one, so the check compares the new value with
+# main's current value instead: an update that leaves main where it is (a recovery such as
+# `git rebase --abort`) goes through. `make git-hooks` also sets gc.packRefs=false, because packing
+# refs would rewrite main's ref without changing it.
+set -euo pipefail
+[ "${1:-}" = prepared ] || exit 0
+[ -n "${CLAUDECODE:-}" ] || exit 0
+current="$(git rev-parse -q --verify refs/heads/main 2>/dev/null || true)"
+while read -r _old new ref; do
+  if [ "$ref" = refs/heads/main ] && [ "$new" != "$current" ]; then
+    echo "Blocked by .claude/git-hooks/reference-transaction: only the Author changes main (ADR 0013). Work on a feature branch; the Author merges it." >&2
+    exit 1
+  fi
+done
+exit 0

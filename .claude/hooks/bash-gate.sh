@@ -65,6 +65,12 @@ echo "$cmd" | grep -Eq '\bgh\b[^;&|]*[[:space:]]api\b.*createRepository' \
 # shellcheck disable=SC2016
 echo "$cmd" | grep -Eq '(>|(^|[;&|(`[:space:]])(tee|cp|mv|ln|install|truncate|rm|sed[[:space:]]+-i)[[:space:]])[^;&|]*\.git/(config|HEAD|refs/|hooks/|packed-refs|info/)' \
   && block "writing git internals" "$main_route"
+# The git hook that guards main (.claude/git-hooks/reference-transaction) keys on CLAUDECODE and runs
+# from .git/hooks, so agents may not unset or clear that variable or point git at other hooks or config.
+echo "$cmd" | grep -Eq 'CLAUDECODE|(^|[^[:alnum:]_])env[[:space:]]+(-[a-zA-Z]*i|--ignore-environment)\b|\bexec[[:space:]]+-[a-zA-Z]*c' \
+  && block "changing the environment the git hook relies on" "$main_route"
+echo "$cmd" | grep -Eiq 'core\.hookspath|GIT_CONFIG_(COUNT|KEY_|VALUE_|PARAMETERS|GLOBAL|SYSTEM|NOSYSTEM)' \
+  && block "redirecting git hooks or config" "$main_route"
 head="$(git -C "$root" symbolic-ref --short -q HEAD 2>/dev/null || true)"
 if [ "$head" = "main" ] && echo "$cmd" | grep -Eq "${git_cmd}(commit|merge|cherry-pick|revert|rebase|am|pull|reset|update-ref)\b"; then
   block "changing main (HEAD is main)" "$main_route"

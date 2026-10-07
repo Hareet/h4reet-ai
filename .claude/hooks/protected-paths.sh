@@ -43,7 +43,7 @@ check() {
     corpus/proposals/*) ;; # agents propose corpus changes here; a human applies them
     .claude/* | CLAUDE.md | REVIEW.md | .specify/memory/constitution.md) block "protected governance path" ;;
     .git | .git/*) block "git internals (refs, config, and hooks change through git, and main only by the Author)" ;;
-    infra/*budget* | infra/*alert* | infra/*iam* | infra/*edge* | infra/*waf* | config/budgets* | config/kill-switch*) block "cost/edge/kill-switch configuration" ;;
+    infra/*budget* | infra/*alert* | infra/*iam* | infra/*edge* | infra/*waf* | config/budgets* | config/alert* | config/kill-switch*) block "cost/alert/edge/kill-switch configuration" ;;
     corpus/*) block "the corpus (claims about the Author are human-authored; write a proposal under corpus/proposals/)" ;;
     .github/workflows/*) block "CI workflow (a gate must not be edited by what it gates)" ;;
   esac
