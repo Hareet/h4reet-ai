@@ -3,7 +3,8 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 ENV ?= local
-FILE ?=
+# pytest from the toolchain when present (the devcontainer); otherwise an ephemeral uv environment.
+PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --quiet --with pytest --with pyyaml pytest)
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -26,16 +27,24 @@ corpus-check: ## Public-corpus gate: attested facts slots, no amounts, local den
 	python3 corpus/tools/check_corpus.py
 
 lint: ## Zero warnings or fail
-	npm run lint --workspaces && ruff check . && shellcheck .claude/hooks/*.sh
+	npm run lint --workspaces && ruff check . && shellcheck .claude/hooks/*.sh redteam/forbidden-actions.sh
+
+check: corpus-check ## Every gate that runs today, before spec 000 adds the rest: tests, lint, hook matrix
+	$(PYTEST) -q -p no:cacheprovider corpus/tools
+	ruff check .
+	shellcheck .claude/hooks/*.sh redteam/forbidden-actions.sh
+	bash redteam/forbidden-actions.sh
 
 fmt: ## Format everything
 	npm run fmt --workspaces && ruff format .
 
-fmt-file: ## Format one file (used by the post-edit hook): make fmt-file FILE=path
-	@case "$(FILE)" in *.ts|*.tsx|*.js|*.json|*.md) npx prettier --write "$(FILE)" >/dev/null ;; *.py) ruff format "$(FILE)" >/dev/null ;; esac
+# The file name arrives in the environment and is read by the shell as "$$FILE", never as $(FILE):
+# make would expand $(...) inside it. Call these as FILE=path make fmt-file, not make fmt-file FILE=path.
+fmt-file: ## Format one file (used by the post-edit hook): FILE=path make fmt-file
+	@case "$$FILE" in *.ts|*.tsx|*.js|*.json|*.md) npx prettier --write "$$FILE" >/dev/null ;; *.py) ruff format "$$FILE" >/dev/null ;; esac
 
-lint-file: ## Lint one file (used by the post-edit hook): make lint-file FILE=path
-	@case "$(FILE)" in *.ts|*.tsx|*.js) npx eslint "$(FILE)" ;; *.py) ruff check "$(FILE)" ;; *.sh) shellcheck "$(FILE)" ;; esac
+lint-file: ## Lint one file (used by the post-edit hook): FILE=path make lint-file
+	@case "$$FILE" in *.ts|*.tsx|*.js) npx eslint "$$FILE" ;; *.py) ruff check "$$FILE" ;; *.sh) shellcheck "$$FILE" ;; esac
 
 evals: ## Product evals (twin, gateway) against the configured adapter; agent-config evals when .claude changed
 	python -m evals.run --suite product --adapter $${ADAPTER:-local}
@@ -57,4 +66,4 @@ breach-test: ## Synthetic budget breach against dev; asserts every step of spec 
 	@[ "$(ENV)" = "dev" ] || { echo "breach-test runs against dev only (ENV=dev)"; exit 1; }
 	python -m evals.breach --env dev
 
-.PHONY: help setup build corpus-check test test-fast lint fmt fmt-file lint-file evals redteam up down plan breach-test
+.PHONY: help setup build corpus-check test test-fast lint check fmt fmt-file lint-file evals redteam up down plan breach-test

@@ -3,17 +3,20 @@
 # Exit 2 blocks the command and returns stderr to Claude. Exit 0 allows.
 # Belt and braces: permissions.deny in settings.json catches the obvious forms;
 # this catches variants (chained commands, aliases, scripts) and writes the audit record.
-set -euo pipefail
-# shellcheck source=_audit.sh
-source "$(dirname "$0")/_audit.sh"
+set -Eeuo pipefail
 # Fail closed: in Claude Code only exit 2 blocks, so a missing dependency or an unexpected
-# error must become exit 2 — otherwise the gate silently disappears.
-command -v jq >/dev/null 2>&1 || { echo "Blocked: .claude/hooks requires jq (install it); failing closed." >&2; exit 2; }
+# error must become exit 2 — otherwise the gate silently disappears. -E carries the trap into
+# functions and command substitutions, and the trap is set before anything else can fail.
 trap 'echo "Blocked: error in $(basename "$0"); failing closed." >&2; exit 2' ERR
+# shellcheck source=_audit.sh
+source "$(dirname "$0")/_audit.sh" || { echo "Blocked: $(basename "$0") cannot load _audit.sh; failing closed." >&2; exit 2; }
+command -v jq >/dev/null 2>&1 || { echo "Blocked: .claude/hooks requires jq (install it); failing closed." >&2; exit 2; }
 cmd="$(jq -r '.tool_input.command // empty')"
 [ -z "$cmd" ] && exit 0
+root="${CLAUDE_PROJECT_DIR:-$PWD}"
 
-block() { audit BLOCK bash "$1 :: $cmd"; echo "Blocked by .claude/hooks/bash-gate.sh — $1. Route: $2" >&2; exit 2; }
+# The block still happens when the audit record cannot be written.
+block() { audit BLOCK bash "$1 :: $cmd" || true; echo "Blocked by .claude/hooks/bash-gate.sh — $1. Route: $2" >&2; exit 2; }
 
 # Infrastructure mutation is a human action in the protected CI environment.
 echo "$cmd" | grep -Eq '(^|[;&| ])terraform +(apply|destroy|import|state +(rm|mv|push))' \
@@ -22,9 +25,33 @@ echo "$cmd" | grep -Eq '(^|[;&| ])terraform +(apply|destroy|import|state +(rm|mv
 echo "$cmd" | grep -Eq 'git +push[^;&|]*(--force|-f\b|\+refs|origin +main|origin +HEAD:main)' \
   && block "push to main or force-push" "commit on your feature branch; the Author merges"
 echo "$cmd" | grep -Eq '(^|[;&| ])gh +pr +merge' && block "PR merge" "only the Author merges"
-# Local until publication (ADR 0013): only the Author creates a remote or a GitHub repository.
-echo "$cmd" | grep -Eq '(^|[;&| ])(gh +repo +(create|fork)|git +remote +(add|set-url))' \
-  && block "creating a remote or a GitHub repository" "development stays local until the Author publishes (ADR 0013)"
+
+# Local until publication (ADR 0013): agents never push, never create or change a remote or a
+# repository, and never move main; the Author merges feature branches locally. A git subcommand
+# matches after git's global options (git -C dir, git -c k=v, --no-pager) and inside any wrapper,
+# such as a subshell or bash -c, but `git stash push` is not `git push`.
+git_cmd='\bgit([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|-[^[:space:]]+))*[[:space:]]+'
+main_ref='(refs/heads/)?main([^[:alnum:]_./-]|$)'
+local_route="development stays local until the Author publishes (ADR 0013)"
+main_route="work on a feature branch (git switch -c <branch>); only the Author changes main"
+echo "$cmd" | grep -Eq "${git_cmd}push\b" && block "git push" "$local_route"
+echo "$cmd" | grep -Eq "${git_cmd}(remote[[:space:]]+(add|set-url)\b|config\b[^;&|]*[[:space:]]remote\.)" \
+  && block "creating or changing a remote" "$local_route"
+echo "$cmd" | grep -Eq '\bgh([[:space:]]+-[^[:space:]]+)*[[:space:]]+repo[[:space:]]+(create|fork)\b|\bgh\b[^;&|]*[[:space:]]api\b[^;&|]*\b(user|orgs/[^/[:space:]]+)/repos\b' \
+  && block "creating a GitHub repository" "$local_route"
+echo "$cmd" | grep -Eq "${git_cmd}(switch|checkout)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*${main_ref}" \
+  && block "switching to main" "$main_route"
+echo "$cmd" | grep -Eq "${git_cmd}(update-ref\b[^;&|]*[[:space:]]|fetch\b[^;&|]*:)${main_ref}" \
+  && block "moving main" "$main_route"
+if echo "$cmd" | grep -Eq "${git_cmd}branch\b[^;&|]*[[:space:]](-[a-zA-Z]*[fdDmMcC]|--force|--delete|--move|--copy)\b" \
+  && echo "$cmd" | grep -Eq "(^|[^[:alnum:]_./-])${main_ref}"; then
+  block "moving or deleting main" "$main_route"
+fi
+head="$(git -C "$root" symbolic-ref --short -q HEAD 2>/dev/null || true)"
+if [ "$head" = "main" ] && echo "$cmd" | grep -Eq "${git_cmd}(commit|merge|cherry-pick|revert|rebase|am|pull|reset)\b"; then
+  block "changing main (HEAD is main)" "$main_route"
+fi
+
 # Cloud control surfaces the agent may not touch.
 echo "$cmd" | grep -Eq '(^|[;&| ])aws +(iam|budgets|ce|wafv2|waf|cloudfront +update|ssm +put-parameter[^;&|]*kill-switch)' \
   && block "IAM/budget/edge/kill-switch mutation" "write an ADR and a spec; the Author applies"
@@ -36,8 +63,10 @@ echo "$cmd" | grep -Eq '(^|[;&| ])rm +-[a-zA-Z]*r[a-zA-Z]* +(/|~|\$HOME|\.\.)' \
 # Arbitrary egress. The sandbox enforces the domain allowlist at the OS level; this adds the audit trail.
 echo "$cmd" | grep -Eq '(^|[;&| ])(curl|wget|nc|ncat|ssh|scp) ' \
   && block "network egress tool" "package installs go through the toolchain; fetching docs is a human step"
-# Fix tasks: the check on the code may not be weakened.
-if [ "${FIX_TASK:-0}" = "1" ] && echo "$cmd" | grep -Eq '(rm|mv|sed +-i|truncate|>).*(test|spec)\.(ts|tsx|py|js)'; then
+# Fix tasks: the check on the code may not be weakened. Mirrors protected-paths.sh: any path with
+# "test" in it, *.spec.*, evals/, and redteam/, written by rm, mv, cp, tee, sed -i, truncate, or ">".
+if [ "${FIX_TASK:-0}" = "1" ] \
+  && echo "$cmd" | grep -Eq '((^|[^[:alnum:]_])(rm|mv|cp|tee|sed +-i|truncate)|>)[^;&|]*(test|\.spec\.|evals/|redteam/)'; then
   block "test-file modification during a fix task" "fix the code, not the test"
 fi
 
