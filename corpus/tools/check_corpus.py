@@ -8,7 +8,8 @@ Rules
 3. No currency amounts in corpus Markdown. Amounts are not public-safe by policy; one that ever
    becomes public-safe goes through an attested facts slot.
 4. If intake/private/denylist.txt exists (gitignored, local only), none of its phrases may appear
-   in any public corpus file. Phrases are never printed.
+   in any public corpus file. Phrases are never printed; the summary line says whether the
+   denylist was applied, because a fresh clone doesn't have it.
 Exit 0 when clean, 1 with one line per problem.
 """
 from __future__ import annotations
@@ -20,14 +21,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]  # corpus/
 PRIVATE = ROOT / "intake" / "private"
 SLOT = re.compile(r"\{\{slot:([a-z0-9_.-]+)(?:\s*\|[^}]*)?\}\}")
-# A symbol or code before the number ("$5", "KES 5,000", "Rs. 400"), or a code or word after it
-# ("5 USD", "1.2 million shillings"). Codes cover the Author's contexts: USD, EUR, GBP, KES/KSh (Kenya),
-# INR/Rs/₹ (India), NPR (Nepal).
+# Money in the forms the corpus could use: a symbol or code before the number ("$5", "KSh. 2,500",
+# "Sh5 billion", "NRs 25,000"), a code or currency word after it ("5bn USD", "50,000 Kenyan shillings"),
+# a hyphenated amount ("a 5-million-dollar award"), or East African "5,000/=". Codes cover the Author's
+# contexts: USD, EUR, GBP; Kenya KES/KSh/Sh; India INR/Rs/₹; Nepal NPR/NRs/₨; Uganda UGX/USh; Tanzania
+# and Zanzibar TZS/TSh; Mali XOF/CFA. "NPR 2024" (the broadcaster, then a year) is flagged too, on
+# purpose: a missed amount costs more than a rephrased sentence.
 CURRENCY = re.compile(
-    r"[$€£₹]\s?\d"
-    r"|\b(?:USD|EUR|GBP|KES|KSh|Ksh|KSH|INR|NPR|Rs\.?)\s?\d"
-    r"|\b\d[\d,.]*\s?(?:[kKmM]|(?i:thousand|million|billion|lakh|crore))?\s?"
-    r"(?:USD|EUR|GBP|KES|KSh|INR|NPR|(?i:dollars?|euros?|shillings?|rupees?))\b"
+    r"[$€£₹₨]\s?\d"
+    r"|\b(?:USD|EUR|GBP|KES|INR|NPR|UGX|USh|TZS|TSh|XOF|F?CFA|(?i:usd|kes|kshs?)\.?|K?Shs?\.?|N?Rs\.?)\s?\d"
+    r"|\b\d[\d,.]*\s?(?:[kKmMbB]n?|(?i:thousand|million|billion|lakh|crore))?\s?"
+    r"(?:(?i:US|U\.S\.|Kenyan|Indian|Nepali|Nepalese|Ugandan|Tanzanian)\s)?"
+    r"(?:USD|EUR|GBP|KES|KSh|INR|NPR|UGX|TZS|XOF|CFA|(?i:dollars?|euros?|shillings?|rupees?|francs?))\b"
+    r"|\b\d[\d,.]*-(?:(?i:thousand|million|billion|lakh|crore)-)?(?i:dollar|shilling|rupee|franc)\b"
+    r"|\b\d[\d,]*\s?/[=-]"
 )
 TEXT = {".md", ".yaml", ".yml", ".txt"}
 
@@ -79,9 +86,11 @@ def main() -> int:
                 errors.append(f"{rel}:{n}: currency amount in a public corpus file")
 
     denylist = PRIVATE / "denylist.txt"
+    deny_note = "denylist missing, so rule 4 was skipped"
     if denylist.exists():
         phrases = [s.strip().lower() for s in denylist.read_text().splitlines()
                    if s.strip() and not s.lstrip().startswith("#")]
+        deny_note = f"denylist applied ({len(phrases)} {'phrase' if len(phrases) == 1 else 'phrases'})"
         for p in public("*"):
             if p.suffix in TEXT and any(ph in p.read_text().lower() for ph in phrases):
                 errors.append(f"{p.relative_to(ROOT)}: contains a denylisted phrase")
@@ -89,7 +98,7 @@ def main() -> int:
     for e in errors:
         print(e)
     filled = sum(1 for f in facts.values() if f.get("value") is not None)
-    print(f"corpus-check: {'FAIL' if errors else 'OK'} — {len(facts)} slots, {filled} filled, {len(errors)} problems")
+    print(f"corpus-check: {'FAIL' if errors else 'OK'} — {len(facts)} slots, {filled} filled, {deny_note}, {len(errors)} problems")
     return 1 if errors else 0
 
 
