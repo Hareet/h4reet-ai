@@ -28,10 +28,10 @@ echo "$cmd" | grep -Eq '(^|[;&| ])gh +pr +merge' && block "PR merge" "only the A
 
 # Local until publication (ADR 0013): agents never push, never create or change a remote or a
 # repository, and never move main; the Author merges feature branches locally. A git subcommand
-# matches after git's global options (git -C dir, git -c k=v, --no-pager) and inside any wrapper,
-# such as a subshell or bash -c, but `git stash push` is not `git push`.
-git_cmd='\bgit([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|-[^[:space:]]+))*[[:space:]]+'
-main_ref='(refs/heads/)?main([^[:alnum:]_./-]|$)'
+# matches after git's global options (git -C dir, git -c k=v, --no-pager), with or without quotes,
+# and inside any wrapper, such as a subshell or bash -c, but `git stash push` is not `git push`.
+git_cmd="\\bgit[\"']?([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|-[^[:space:]]+))*[[:space:]]+[\"']?"
+main_ref="[\"']?(refs/heads/)?main[\"']?([^[:alnum:]_./-]|\$)"
 local_route="development stays local until the Author publishes (ADR 0013)"
 main_route="work on a feature branch (git switch -c <branch>); only the Author changes main"
 echo "$cmd" | grep -Eq "${git_cmd}push\b" && block "git push" "$local_route"
@@ -47,9 +47,31 @@ if echo "$cmd" | grep -Eq "${git_cmd}branch\b[^;&|]*[[:space:]](-[a-zA-Z]*[fdDmM
   && echo "$cmd" | grep -Eq "(^|[^[:alnum:]_./-])${main_ref}"; then
   block "moving or deleting main" "$main_route"
 fi
+echo "$cmd" | grep -Eq "${git_cmd}symbolic-ref\b[^;&|]*[[:space:]]${main_ref}" \
+  && block "pointing HEAD at main" "$main_route"
+echo "$cmd" | grep -Eq "${git_cmd}rebase([[:space:]]+-[^[:space:]]+)*[[:space:]]+[^-[:space:]][^[:space:]]*[[:space:]]+${main_ref}" \
+  && block "rebasing main" "$main_route"
+echo "$cmd" | grep -Eq "${git_cmd}worktree[[:space:]]+add([[:space:]]+-[^bB[:space:]][^[:space:]]*)*[[:space:]]+[^-[:space:]][^[:space:]]*[[:space:]]+${main_ref}" \
+  && block "checking out main in a worktree" "$main_route"
+echo "$cmd" | grep -Eq "${git_cmd}(filter-branch|filter-repo)\b" \
+  && block "rewriting history" "only the Author rewrites history (ADR 0013 allows one pre-publication cleanup)"
+# An alias can stand in for any subcommand, so agents don't define them.
+echo "$cmd" | grep -Eq '\bgit\b[^;&|]*(-c[[:space:]]*|[[:space:]]config\b[^;&|]*[[:space:]])alias\.' \
+  && block "defining a git alias" "$local_route"
+echo "$cmd" | grep -Eq '\bgh\b[^;&|]*[[:space:]]api\b.*createRepository' \
+  && block "creating a GitHub repository" "$local_route"
+# Git internals change through git, never by writing the files directly. The backtick in the
+# pattern is a literal (a command started inside backticks), not an expansion.
+# shellcheck disable=SC2016
+echo "$cmd" | grep -Eq '(>|(^|[;&|(`[:space:]])(tee|cp|mv|ln|install|truncate|rm|sed[[:space:]]+-i)[[:space:]])[^;&|]*\.git/(config|HEAD|refs/|hooks/|packed-refs|info/)' \
+  && block "writing git internals" "$main_route"
 head="$(git -C "$root" symbolic-ref --short -q HEAD 2>/dev/null || true)"
-if [ "$head" = "main" ] && echo "$cmd" | grep -Eq "${git_cmd}(commit|merge|cherry-pick|revert|rebase|am|pull|reset)\b"; then
+if [ "$head" = "main" ] && echo "$cmd" | grep -Eq "${git_cmd}(commit|merge|cherry-pick|revert|rebase|am|pull|reset|update-ref)\b"; then
   block "changing main (HEAD is main)" "$main_route"
+fi
+previous="$(git -C "$root" rev-parse --symbolic-full-name '@{-1}' 2>/dev/null || true)"
+if [ "$previous" = "refs/heads/main" ] && echo "$cmd" | grep -Eq "${git_cmd}(switch|checkout)[[:space:]]+-([[:space:]]|\$)"; then
+  block "switching back to main" "$main_route"
 fi
 
 # Cloud control surfaces the agent may not touch.
@@ -65,8 +87,11 @@ echo "$cmd" | grep -Eq '(^|[;&| ])(curl|wget|nc|ncat|ssh|scp) ' \
   && block "network egress tool" "package installs go through the toolchain; fetching docs is a human step"
 # Fix tasks: the check on the code may not be weakened. Mirrors protected-paths.sh: any path with
 # "test" in it, *.spec.*, evals/, and redteam/, written by rm, mv, cp, tee, sed -i, truncate, or ">".
+# The write must be a command of its own, so `docker compose run --rm … pytest` still runs.
+# The backtick in the pattern is a literal (a command started inside backticks), not an expansion.
+# shellcheck disable=SC2016
 if [ "${FIX_TASK:-0}" = "1" ] \
-  && echo "$cmd" | grep -Eq '((^|[^[:alnum:]_])(rm|mv|cp|tee|sed +-i|truncate)|>)[^;&|]*(test|\.spec\.|evals/|redteam/)'; then
+  && echo "$cmd" | grep -Eq '((^|[;&|(`[:space:]])(rm|mv|cp|tee|truncate)[[:space:]]|(^|[;&|(`[:space:]])sed[[:space:]]+-i|>)[^;&|]*(test|\.spec\.|evals/|redteam/)'; then
   block "test-file modification during a fix task" "fix the code, not the test"
 fi
 

@@ -40,10 +40,10 @@ fmt: ## Format everything
 
 # The file name arrives in the environment and is read by the shell as "$$FILE", never as $(FILE):
 # make would expand $(...) inside it. Call these as FILE=path make fmt-file, not make fmt-file FILE=path.
-fmt-file: ## Format one file (used by the post-edit hook): FILE=path make fmt-file
+fmt-file: ## Format one file: FILE=path make fmt-file
 	@case "$$FILE" in *.ts|*.tsx|*.js|*.json|*.md) npx prettier --write "$$FILE" >/dev/null ;; *.py) ruff format "$$FILE" >/dev/null ;; esac
 
-lint-file: ## Lint one file (used by the post-edit hook): FILE=path make lint-file
+lint-file: ## Lint one file: FILE=path make lint-file
 	@case "$$FILE" in *.ts|*.tsx|*.js) npx eslint "$$FILE" ;; *.py) ruff check "$$FILE" ;; *.sh) shellcheck "$$FILE" ;; esac
 
 evals: ## Product evals (twin, gateway) against the configured adapter; agent-config evals when .claude changed
