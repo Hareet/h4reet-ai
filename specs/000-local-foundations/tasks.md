@@ -89,7 +89,7 @@ description: "Task list for spec 000, Local Foundations"
 
   `make evals` runs it.
 - [X] T013 **Author**, on this branch, before its note: quickstart.md §0.3. `make tools`, which installs Node 24.21.0 through nvm and leaves your default Node alone, then `make toolchain-check`, which must pass, and `gitleaks version`, which must print 8.30.1. Tools that `make tools` doesn't install (uv, ruff, shellcheck, jq, Python, and Claude Code) must already match their pins in `toolchain.vars`. T007 writes those pins from the host's versions; Claude Code updates itself until the early patch sets `DISABLE_AUTOUPDATER`, so if it moved since T007, update its pin on this branch. The early patch's hooks fail closed without gitleaks (T045).
-- [ ] T014 Write the merge-request note `docs/merge-requests/<date>-feat-000-setup.md`, with `make check`'s full output and a reviewer agent's REVIEW.md passes.
+- [X] T014 Write the merge-request note `docs/merge-requests/<date>-feat-000-setup.md`, with `make check`'s full output and a reviewer agent's REVIEW.md passes.
 
 **Checkpoint**: `make check` runs every target, with SKIPs and PLANNED items named, and `make toolchain-check` passes once the Author has run `make tools` (T013).
 
