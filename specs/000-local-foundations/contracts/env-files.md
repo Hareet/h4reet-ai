@@ -334,12 +334,13 @@ The gateway validates the variables it receives at startup (`src/config/validate
 
 | Check | Reason |
 |---|---|
-| `H4_STACK` is `prod`, `dev`, or `dev-cpu`, and `H4_ENV` is its class | named by the gateway (plan §5.8) |
-| A dev-only switch outside `H4_ENV=dev` (D1 to D3) | named by the gateway (plan §5.8; [data-model.md §4](../data-model.md#4-configuration-the-gateway-loads)) |
+| `H4_STACK` is `prod`, `dev`, or `dev-cpu`, and `H4_ENV` is its class | `invalid_stack`, `stack_env_mismatch` (plan §5.8) |
+| A dev-only switch outside `H4_ENV=dev` (D1, D2), or a switch value that isn't listed (D3) | `dev_switch_outside_dev`, `invalid_switch_value` (plan §5.8; [data-model.md §4](../data-model.md#4-configuration-the-gateway-loads)) |
 | A paid route outside prod; `synthetic` in prod; the local base URL not an in-stack service, or its keys unset | `paid_route_outside_prod`, `synthetic_in_prod`, `local_url_not_in_stack`, `missing_env` ([config-files.md §1.4](config-files.md#14-startup-refusals-exit-78)) |
-| prod's `ALERT_DELIVERY` isn't `real`; in real mode, the Telegram base, SMTP's TLS, and every channel key | `alert_delivery_not_real`, `telegram_base_not_bot_api`, `smtp_without_tls`, `missing_alert_env` ([config-files.md §4.4](config-files.md#44-startup-refusals-exit-78-that-combine-this-file-with-the-environment)) |
-| `OPERATOR_TOKEN_SHA256` malformed, or on prod equal to the dev-cpu dummy's hash | [data-model.md §5](../data-model.md#5-the-operator-credential) |
-| prod's `stack_state.test_clock_offset_ms` isn't null (checked once the store answers) | plan §5.8 |
+| prod's `ALERT_DELIVERY` isn't `real`, or any stack's is neither `real` nor `standin`; in real mode, the Telegram base, SMTP's TLS, and every channel key | `alert_delivery_not_real`, `invalid_alert_delivery`, `telegram_base_not_bot_api`, `smtp_without_tls`, `missing_alert_env` ([config-files.md §4.4](config-files.md#44-startup-refusals-exit-78-that-combine-this-file-with-the-environment)) |
+| `OPERATOR_TOKEN_SHA256` malformed, or on prod equal to the dev-cpu dummy's hash | `operator_hash_malformed`, `operator_hash_is_dummy` ([data-model.md §5](../data-model.md#5-the-operator-credential)) |
+| prod's `AWS_PROFILE`, which compose sets from `GATEWAY_AWS_PROFILE`, is unset or `none` | `aws_profile_unset` (tasks.md T023) |
+| prod's `stack_state.test_clock_offset_ms` isn't null (checked once the store answers) | `test_clock_in_prod` (plan §5.8) |
 
 `validate-config` (`make check`) runs the same validators over the three committed files: both templates, with `__GENERATE__` and `__ASK__` counting as present values of the right shape, and `dev-cpu.vars` ([config-files.md §5](config-files.md#5-validate-config)). It reads only the keys the gateway reads, so the path placeholders don't concern it.
 
