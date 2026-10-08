@@ -4,10 +4,16 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 ENV ?= local
 # pytest from the toolchain when present (the devcontainer); otherwise an ephemeral uv environment.
-# uv's default cache (~/.cache/uv) is read-only inside the agent sandbox, so uv caches inside the
-# repository instead (.cache/ is gitignored). A UV_CACHE_DIR already set in the environment wins.
-export UV_CACHE_DIR ?= $(CURDIR)/.cache/uv
-PYTEST :=$(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --quiet --with pytest --with pyyaml pytest)
+# uv's default cache is read-only inside the agent sandbox, which made that fallback fail. Only where the
+# default cache can't be written (the sandbox) does uv use the session's temporary directory instead.
+# Never a cache inside the repository: agents can write there, and the Author's terminal would run its code.
+ifeq ($(origin UV_CACHE_DIR),undefined)
+UV_SANDBOX_CACHE := $(shell d="$${XDG_CACHE_HOME:-$$HOME/.cache}/uv"; mkdir -p "$$d" 2>/dev/null; [ -w "$$d" ] || echo "$${TMPDIR:-/tmp}/uv-cache")
+ifneq ($(UV_SANDBOX_CACHE),)
+export UV_CACHE_DIR := $(UV_SANDBOX_CACHE)
+endif
+endif
+PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --quiet --with pytest --with pyyaml pytest)
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -61,8 +67,9 @@ lint-file: ## Lint one file: FILE=path make lint-file
 evals: ## Product evals (twin, gateway) against the configured adapter; agent-config evals when .claude changed
 	python -m evals.run --suite product --adapter $${ADAPTER:-local}
 	@# Compared with main's merge base, so changes already committed on the branch count too (FR-011).
-	@base="$$(git merge-base HEAD main 2>/dev/null || git rev-parse HEAD)"; \
-	if git diff --quiet "$$base" -- CLAUDE.md REVIEW.md .claude; then :; else python -m evals.run --suite agent-config; fi
+	@# Without a base to compare with, the suite runs rather than being skipped.
+	@base="$$(git merge-base HEAD main 2>/dev/null)" || base=""; \
+	if [ -n "$$base" ] && git diff --quiet "$$base" -- CLAUDE.md REVIEW.md .claude; then :; else python -m evals.run --suite agent-config; fi
 
 redteam: ## Adversarial suite + forbidden-action matrix
 	python -m redteam.run && bash redteam/forbidden-actions.sh
