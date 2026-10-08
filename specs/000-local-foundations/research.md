@@ -1,11 +1,34 @@
 # Research: Local Foundations (spec 000)
 
-Phase 0 output of `/speckit-plan`. One entry per decision the plan rests on: the decision, why, and what else was weighed. Entries marked **(the Author)** record the Author's answer in the plan interview (2026-10-07 and 2026-10-08); the rest are design choices made within the spec and the constitution. Hardware facts come from the Author's two verification runs in their own terminal, on 2026-10-07 (check 1) and 2026-10-08 (check 2). Nothing here was measured inside the agent sandbox, which has no Docker and no GPU.
+Phase 0 output of `/speckit-plan`. One entry per decision the plan rests on: the decision, why, and what else was weighed. Entries marked **(the Author)** rest on an answer from the plan interview of 2026-10-08. The answers are quoted word for word in [The plan interview, word for word](#the-plan-interview-word-for-word): the option chosen and its text as offered. The entries give the plan's reading beside them. The rest are design choices made within the spec and the constitution. Hardware facts come from the Author's two verification runs in their own terminal, on 2026-10-07 (check 1) and 2026-10-08 (check 2). Nothing here was measured inside the agent sandbox, which has no Docker and no GPU.
 
 No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stopped early when its download filled the Windows C: drive and WSL crashed (R-32). Three measurements are therefore still open, and all three run in the first stack task, as a separate Author step with no agents working and after the disk preflight:
 - the production model's load time and VRAM (R-03);
 - whether an internal-only network blocks egress, and whether a container on one can publish a port (R-06);
 - the SeaweedFS image tag (R-09).
+
+## The plan interview, word for word
+
+Each row gives the question as asked, the option the Author chose, and that option's text as it was offered, all copied from the session. The answers from 2026-10-07 are in spec.md's Clarifications.
+
+| Question (2026-10-08) | Chosen | The option's text as offered | Entry |
+|---|---|---|---|
+| Answer 7 (the fallback sub-budget): I read it as running out also alerts you, and a day that ends WITHOUT running it out starts the next with the full $2. Is that right? | Yes, both readings (Recommended) | Running out alerts you and fallback stays off until you approve renewal; an unexhausted day resets to $2 normally. | R-15 |
+| Answer 8: I read it as the dev stack makes no paid calls (no Bedrock configured), and development work (Claude Code and the agents) runs on your Team plan. Right? | Yes (Recommended) | Only production calls Bedrock; dev and the agents' engine use local or stand-in models only; dev tooling is on the Team plan. | R-05, R-28 |
+| Which clock defines the budget day and month? | UTC (Recommended) | Matches AWS billing and Budgets (spec 001), no daylight-saving edge cases. | R-13 |
+| FR-001 still lists a code of conduct, which needs an enforcement contact. Where should it land? | Publication spec (Recommended) | It only matters once outsiders can take part; move it with a contact chosen then (e.g. an address on the h4reet.ai domain from spec 001). | spec FR-001 |
+| The Makefile defaults to ENV=local, but the design runs 'prod' (the production local tier) and 'dev' on the 5090, plus 'dev-cpu' on the agents' engine. Retire 'local'? | Retire local (Recommended) | Environments: prod and dev on the 5090, dev-cpu for agents; the Makefile defaults to ENV=prod. Spec 001 can split prod into cloud and local files later. | R-05 |
+| Should 'make up ENV=prod' refuse to run from anything but a clean main? | No | Prod can run from any branch; you're trusted to know what you started. | R-14 |
+| Anonymous Docker Hub pulls are rate-limited. Log in with a free account and a read-only token (denied to agents)? | No, stay anonymous | Fine for occasional pulls; cold starts may hit the limit. | R-29 |
+| May payload sampling (prompts and completions in traces) ever be switched on in production during spec 000? | Dev only (Recommended) | Prod refuses TELEMETRY_PAYLOAD_SAMPLING=on in spec 000; revisit in Phase 1 with the data-flow disclosure. | R-30 |
+| Which Bedrock model should the production fallback use? (You'll confirm the exact ID with `aws bedrock list-inference-profiles` and copy its prices from the Bedrock pricing page into config/prices.yaml.) | Claude Haiku 5.5 (Recommended) | Newest small Claude, the cheapest Claude by list price; used only if Bedrock offers it in your region, else falls back to Haiku 4.5. Region us-east-1 unless you say otherwise in Other. | R-12 |
+| When the $2 fallback sub-budget runs out and you approve renewal the SAME day, what does renewal give? | Fresh $2 immediately | Renewal grants another $2 today, still inside the $5 daily ceiling. | R-15 |
+| How should you prove you're the operator when resetting the kill switch, renewing the sub-budget, or initializing a store? | Token file per stack (Recommended) | A random token in ~/.config/h4reet-ai/operator/<stack>.token (mode 0600), sent to an admin port on 127.0.0.1; the gateway stores only its hash. | R-16 |
+| Which AWS identity should the Bedrock adapter use (via SSO, mounted read-only into prod's gateway)? | Narrow permission set (Recommended) | A dedicated SSO permission set allowing only bedrock:InvokeModel on the one model; you create it in IAM Identity Center. | R-17 |
+| Where should agent sessions run? The spec (user story 3, scenario 1) currently says agents run with the repository opened in the devcontainer. | WSL, devcontainer versions (Recommended) | Agents keep the full sandbox on WSL. The devcontainer still sets every tool version, and make toolchain-check fails if WSL drifts from it. Means amending that scenario; ADR 0018 records why. | R-20 |
+| What should the agents' own container engine be (FR-039)? | Rootless Docker, own user | A second Docker daemon under a separate Linux user. No VM, but it shares the host's kernel. It also needs per-user firewall rules to limit internet access, a permission change to keep it out of your Windows files, and its own fix to keep it off the GPU. | R-21 |
+| MinIO is gone. What should Langfuse use for its S3 file storage? | SeaweedFS (Recommended) | Open source (Apache-2.0), actively maintained, with official images; runs as one container. Langfuse doesn't officially test it, so our own end-to-end trace checks serve as the test. | R-09 |
+| At the end of spec 000, which files should become human-only? Agents could then change them only through patches you apply, as with .claude/**. | Gates only | Only tools/gates/** becomes human-only, and you run the gate directly. The Makefile and stack scripts stay agent-editable and are checked in review. Faster to change, but a branch's Makefile could run unreviewed code in your terminal. | R-14 |
 
 ## Hardware and platform
 
@@ -282,7 +305,9 @@ No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stoppe
     - cost configuration, `config/prices*`, next to the already-protected `config/budgets*` and `config/alert*`.
   - The Makefile, `deploy/scripts/**`, `scripts/operator.py`, and `.devcontainer/**` stay agent-editable and are reviewed.
   - Every merge-request note lists changes to anything that runs in the Author's terminal first.
-- **Rationale**: the Author chose iteration speed over a human-only Makefile, and accepted that a branch's Makefile could run unreviewed code in their terminal. Together with **no prod guard** (`make up ENV=prod` runs from any branch, also the Author's call), that is an accepted risk, mitigated by review, the note's heading, the compose policy, and the clean-room gate, which never runs project code outside a container.
+- **Rationale**: the Author chose "Gates only", which read: "Only tools/gates/** becomes human-only, and you run the gate directly. The Makefile and stack scripts stay agent-editable and are checked in review. Faster to change, but a branch's Makefile could run unreviewed code in your terminal."
+  - **The plan's reading:** the other files listed above are gate definitions or the FR-039 boundary, so they count as gates. The approved session plan named each of them for the Author to veto, and none was vetoed.
+  - **The accepted risk:** the Author also answered "No" to a prod guard ("Prod can run from any branch; you're trusted to know what you started."). Together, the two answers are an accepted risk, mitigated by review, the note's heading, the compose policy, and the clean-room gate, which never runs project code outside a container.
 - **Alternatives**: a human-only Makefile and `tools/**`, which design C recommended and the Author declined.
 
 ### R-15. Same-day renewal grants a fresh $2 at once (the Author)
@@ -292,7 +317,7 @@ No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stoppe
   - Each UTC day's `fallback_day` meter row carries `allowance_micro`, which starts at 2,000,000.
   - A renewal sets it to today's fallback spend plus reservations plus 2,000,000, so exactly $2 more is available from that moment, on any day.
   - Warnings fire at 70% of each $2 grant.
-- **Rationale**: this is the Author's answer, stated so it can't over-grant. A per-day count of renewals would leave $4 available after a renewal on a later day, when nothing had been spent yet. FR-030 was reworded in the same commit as this entry.
+- **Rationale**: the Author chose "Fresh $2 immediately", which read: "Renewal grants another $2 today, still inside the $5 daily ceiling." The plan's reading measures the $2 from what is already spent or reserved. A per-day count of renewals would leave $4 available after a renewal on a later day, when nothing had been spent yet. FR-030 states the rule.
 - **Alternatives**: a renewal re-arms fallback only for the next day. Design B recommended it; the Author declined.
 
 ### R-16. The operator credential: a bearer token per stack (the Author)
@@ -307,6 +332,8 @@ No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stoppe
   - A Node CLI from `dist/`: it would run unreviewed code with the credential.
 
 ### R-17. The runtime AWS identity (the Author, narrowed by the plan)
+
+The Author chose "Narrow permission set (Recommended)", which read: "A dedicated SSO permission set allowing only bedrock:InvokeModel on the one model; you create it in IAM Identity Center." The dedicated Identity Center user below is the plan's addition, for the Author to confirm or decline.
 
 - **Decision**:
   - The Author creates, in IAM Identity Center, a permission set allowing only `bedrock:InvokeModel` on the one inference profile and the foundation models it routes to.
@@ -332,7 +359,7 @@ No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stoppe
 - **Rationale**:
   - Degradation never waits on delivery, and a crash can't lose an alert.
   - "Detection never involves a model" (lifecycle.md).
-  - SMTP from a dedicated alerts mailbox is the Author's answer of 2026-10-07.
+  - SMTP from a dedicated alerts mailbox: the Author chose "SMTP, dedicated mailbox (Recommended)" on 2026-10-07 (spec Clarifications).
 - **Alternatives**:
   - Sending inline: a crash loses the alert, and a slow channel delays the request.
   - SNS or SES: cloud resources.
@@ -380,7 +407,9 @@ No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stoppe
     Each of these is a limit the setup or the admission plugin must hold.
   - **Seeding:** the host's Docker uses the classic `overlay2` store, so the Author switches it to the containerd image store before the first seed, and prunes first while C: is short of space (R-32).
 - **Rationale**:
-  - The Author chose it over the KVM VM that design C recommended: no VM, no QEMU, and about 12 GB of RAM saved.
+  - The Author chose "Rootless Docker, own user" over the KVM VM that design C recommended. That option read: "A second Docker daemon under a separate Linux user. No VM, but it shares the host's kernel. It also needs per-user firewall rules to limit internet access, a permission change to keep it out of your Windows files, and its own fix to keep it off the GPU."
+  - Over the VM, it saves QEMU and about 12 GB of RAM while running.
+  - It replaces one Consequence of the accepted ADR 0015, "The plan chooses the engine: a VM, or a devcontainer on an isolated runtime". ADR 0016 records that, as ADR 0014 did for ADR 0013.
   - Without the authorization plugin, a container could bind `/run/WSL`, Windows interop, and reach the Windows user's files. The plugin is what closes that.
 - **Consequences**:
   - The kernel is shared, so a kernel exploit from a container reaches the host as `h4agents`.
@@ -490,7 +519,7 @@ No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stoppe
   - Prod's and dev's real env files are `~/.config/h4reet-ai/env/<stack>.env`, mode 0600 in a 0700 directory, made by `make init-env`.
   - `deploy/env/` stays in the tree, empty, and denied to agents as a tripwire. Preflight refuses to start while any env file sits in the working tree.
 - **Rationale**:
-  - FR-032 and the Author's answer of 2026-10-07 put the SMTP credentials in "a local environment file outside the repository and outside agent context". A gitignored file inside the working tree is outside version control, but not outside the repository's directory.
+  - FR-032 keeps the alert mailbox's credentials "in a local environment file outside the repository and outside agent context". The option the Author chose on 2026-10-07 read: "its app password lives in a local env file outside the repo and agent context". A gitignored file inside the working tree is outside version control, but not outside the repository's directory.
   - Moving every host-stack secret there also keeps it out of `git clean -fdx`, out of copies of the working tree, and out of anything that scans it.
   - The operator tokens and the runtime AWS identity already live in `~/.config/h4reet-ai/`, so the patch's single deny on that directory covers every secret.
 - **Alternatives**:
@@ -508,8 +537,8 @@ No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stoppe
   - **Preflight.** `make up`, `make pull`, `pull-models.sh`, and `make engine-seed` check both the drive holding the `ext4.vhdx` (`df /mnt/c` by default; `H4_VHDX_MOUNT` names another) and ext4, for the bytes they will write plus a 20 GB margin. They refuse, naming both figures, rather than start.
   - **Timing.** Heavy runs (big downloads, model loads, stack bring-ups) are their own step, taken when no agents are working and the branch is committed.
 - **State and options** for the Author:
-  - **Freed so far:** 23.3 GB of C:.
-  - **Moving the distro:** D: has 250 GB free. `wsl --manage <distro> --move` would put the distro there, but only once the virtual disk fits: it holds 581 GB today.
+  - **Freed:** the Author pruned Docker's build cache (76 GB) and unused images (20 GB), cleared the home caches, ran `fstrim`, and compacted the virtual disk with `diskpart`. C: went from 0 to 129 GB free, and WSL now holds 461 GB.
+  - **Moving the distro:** D: has 250 GB free. `wsl --manage <distro> --move` would put the distro there, but only once the virtual disk fits. It holds 461 GB after the cleanup, so a move needs ComfyUI's models or Docker's volumes to go elsewhere first. With 129 GB free on C:, it isn't needed.
   - **Reclaiming space:** deleting inside WSL doesn't shrink the virtual disk. Giving the space back to C: takes `fstrim`, `wsl --shutdown`, and `diskpart compact vdisk`.
   - **Not recommended:** sparse virtual disks, which current WSL disables because of data-corruption reports.
   - **What spec 000 needs:** about 50 GB beyond today's use: 10 GB of images, 19 GB of models, the engine's copy of the images, and data.

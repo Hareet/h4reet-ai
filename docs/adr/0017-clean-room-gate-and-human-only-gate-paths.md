@@ -8,7 +8,7 @@ FR-041 requires `make check` to run every local gate, and every merge-request no
 
 Session 1 found the holes one at a time. Commit `c78c6a7` opened a cache hole, closed in `dbd7561`. Commit `8329697` fixed a fallback that trusted a planted `.venv` and `uv.toml`. Agents can also write `.git/info/exclude`, which can hide a planted `GNUmakefile` that would shadow the Makefile.
 
-The plan records the Author's choice of 2026-10-08 as "gates only". That phrase is the plan's, not spec.md's, so this ADR paraphrases the choice rather than quoting it as the Author's words.
+On 2026-10-08 the Author chose "Gates only", which read: "Only tools/gates/** becomes human-only, and you run the gate directly. The Makefile and stack scripts stay agent-editable and are checked in review. Faster to change, but a branch's Makefile could run unreviewed code in your terminal." (plan research, "The plan interview, word for word"). The other paths below are the plan's reading: they are gate definitions or the FR-039 boundary. The approved session plan named each of them for the Author to veto.
 
 ## Decision
 

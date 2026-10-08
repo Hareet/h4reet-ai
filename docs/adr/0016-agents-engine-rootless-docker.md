@@ -6,9 +6,9 @@ Status: proposed, 2026-10-08 · Spec: 000 (FR-007, FR-008, FR-017, FR-018, FR-03
 
 FR-039 requires agent sessions to run the stack CPU-only, including `make up`, `make down`, and `make breach-test`, on a container engine of their own. That engine must not run privileged on the host's engine. It must not reach the host's engine, the GPU, the host's stacks, or the Author's files and credentials. ADR 0015 set these limits and left the engine's design to the plan.
 
-The Author's answer on 2026-10-07, from spec.md's Clarifications: "Agents get a separate, disposable container engine (a VM or devcontainer with its own daemon) for CPU-only stacks; the host's Docker socket, the GPU, and the host's stacks stay out of their reach. GPU checks and Bedrock calls run in the Author's terminal."
+On 2026-10-07 the Author chose "Separate Docker for agents", which read: "A disposable VM or devcontainer with its own Docker engine for CPU-only stacks; host socket, GPU, and the prod stack stay out of reach. GPU and Bedrock checks stay with you. More setup." (spec.md's Clarifications). ADR 0015, accepted, turned that into FR-039's engine, and among its Consequences said: "The plan chooses the engine: a VM, or a devcontainer on an isolated runtime."
 
-On 2026-10-08 the Author chose rootless Docker under a dedicated user, `h4agents`, instead of the KVM virtual machine that the plan's first design recommended. The VM stays the documented upgrade. The price of the choice is a shared kernel (see Consequences).
+On 2026-10-08 the Author chose "Rootless Docker, own user", which read: "A second Docker daemon under a separate Linux user. No VM, but it shares the host's kernel. It also needs per-user firewall rules to limit internet access, a permission change to keep it out of your Windows files, and its own fix to keep it off the GPU." That is neither a VM nor a devcontainer. **This ADR therefore replaces that one Consequence of ADR 0015**, as ADR 0014 replaced one of ADR 0013's. The rest of ADR 0015 stands: the engine is the agents' own, disposable, not privileged on the host's engine, and changed only by the Author's hand. The KVM VM the plan's first design recommended stays the documented upgrade. The price of the choice is a shared kernel (see Consequences).
 
 ## Decision
 

@@ -6,7 +6,7 @@ Status: proposed, 2026-10-08 · Spec: 000 (FR-007, FR-032, FR-033, FR-034, FR-03
 
 FR-032: a warning threshold alerts through Telegram (primary) and email (secondary) within 5 minutes. Alerts carry operational facts only. The constitution sets the same channels: "Telegram bot as primary channel, email as secondary; both free. Automated degradation never depends on an alert being delivered."
 
-The Author's answer on the email channel, from spec.md's Clarifications of 2026-10-07: "Over SMTP from a dedicated alerts mailbox (a free account used only to send alerts), with its app password in a local environment file outside the repository and outside agent context."
+On the email channel, on 2026-10-07, the Author chose "SMTP, dedicated mailbox (Recommended)", which read: "A free account used only to send alerts; its app password lives in a local env file outside the repo and agent context. No new vendor; spec 001 can swap in SES by configuration." (spec.md's Clarifications). FR-032 carries the requirement: credentials "in a local environment file outside the repository and outside agent context".
 
 Taken literally: the password, like every other secret the host stacks run with, sits in `~/.config/h4reet-ai/env/<stack>.env`, outside the repository's directory, mode 0600 in a 0700 directory, never committed, and denied to agents by name and by path (FR-007). The operator tokens and the runtime AWS identity live in the same directory, so one deny covers all three. `deploy/env/` inside the working tree stays empty and denied, as a tripwire.
 

@@ -1171,7 +1171,7 @@ Spec 000 is done when every success criterion passes on the 5090 and the matrix 
 Re-checked against the design above:
 - **No new violation.**
 - **Principle IV** is stronger than at the pre-design check. The Author-run gate keeps project code out of the Author's terminal, and the dedicated runtime identity keeps the Author's own AWS session out of every container.
-- **The narrower human-only set** (the Author's "gates only") leaves the Makefile and the stack scripts agent-editable. Review guards them, and every note lists them first. ADR 0017 records it, and the "No prod guard" decision ([research.md R-14](research.md#r-14-human-only-paths-gates-only)) is the related accepted risk.
+- **The narrower human-only set** (the Author chose "Gates only") leaves the Makefile and the stack scripts agent-editable. Review guards them, and every note lists them first. ADR 0017 records it, and the "No prod guard" decision ([research.md R-14](research.md#r-14-human-only-paths-gates-only)) is the related accepted risk.
 - **The rootless engine's shared kernel** is a recorded risk, not a constitution deviation. ADR 0016 states it.
 
 Verdict: **PASS**.
@@ -1184,5 +1184,5 @@ Verdict: **PASS**.
 | GitHub-side controls deferred: CI secret scanning, SBOMs, vulnerability scans, automated updates, build-once-and-promote (ADR 0014) | They need GitHub; spec 000 closes on local criteria | Local stand-ins exist for some, listed in the spec's Assumptions |
 | Image variant for the model server, GPU or CPU (ADR 0015) | The agents' engine has no GPU | One CPU-only image would cripple prod; one GPU-only image won't run on the engine |
 | Agents on WSL, not inside the devcontainer, with the devcontainer's pins (ADR 0018) | Bubblewrap inside Docker needs a custom seccomp profile and an unmasked /proc, or the weaker nested sandbox | Running agents in the devcontainer weakens one boundary to add another |
-| A shared kernel on the agents' engine (ADR 0016) | The Author chose rootless Docker over a VM | The VM stays the documented upgrade |
-| Human-only gates, but an agent-editable Makefile (ADR 0017) | The Author's "gates only": iteration speed | A human-only Makefile and scripts; the Author declined it |
+| A shared kernel on the agents' engine (ADR 0016, which replaces one Consequence of the accepted ADR 0015) | The Author chose "Rootless Docker, own user" over a VM | The VM stays the documented upgrade |
+| Human-only gates, but an agent-editable Makefile (ADR 0017) | The Author chose "Gates only" ("Faster to change, but a branch's Makefile could run unreviewed code in your terminal.") | A human-only Makefile and scripts; the Author declined it |

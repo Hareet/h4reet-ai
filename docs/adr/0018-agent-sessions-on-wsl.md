@@ -4,7 +4,7 @@ Status: proposed, 2026-10-08 · Spec: 000 (FR-005, FR-014, FR-037; SC-007; User 
 
 ## Context
 
-On 2026-10-08 the Author chose "WSL, devcontainer versions" over running agents inside the devcontainer. spec.md's Clarifications record it: agent sessions run on the WSL host, under the full sandbox, with the devcontainer's tool versions, and a check fails when the host's versions drift from the devcontainer's.
+On 2026-10-08 the Author chose "WSL, devcontainer versions (Recommended)" over running agents inside the devcontainer. That option read: "Agents keep the full sandbox on WSL. The devcontainer still sets every tool version, and make toolchain-check fails if WSL drifts from it. Means amending that scenario; ADR 0018 records why." In this ADR's words: agent sessions run on the WSL host, under the full sandbox, with the devcontainer's tool versions, and a check fails when the host's versions drift from the devcontainer's.
 
 The constitution says "a devcontainer defines the single toolchain used by humans, agents, and CI" (Development). Read literally, that puts agent sessions inside the devcontainer.
 

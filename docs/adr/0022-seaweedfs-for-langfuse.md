@@ -8,7 +8,7 @@ Langfuse writes event data to an S3-compatible object store. The first design us
 
 Langfuse does not test SeaweedFS officially. This stack treats it as community-supported and tests it itself.
 
-The Author chose SeaweedFS in the plan interview of 2026-10-08.
+In the plan interview of 2026-10-08 the Author chose "SeaweedFS (Recommended)", which read: "Open source (Apache-2.0), actively maintained, with official images; runs as one container. Langfuse doesn't officially test it, so our own end-to-end trace checks serve as the test."
 
 ## Decision
 

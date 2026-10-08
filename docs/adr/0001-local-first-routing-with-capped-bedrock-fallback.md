@@ -6,9 +6,9 @@ Status: proposed, 2026-10-08 · Spec: 000 (FR-021, FR-022, FR-023, FR-024, FR-03
 
 Hello answers from a local model on the Author's RTX 5090. When that model is down, production may fall back to Bedrock, but only inside a cap. The constitution's initial policy is "local-first with Bedrock as fallback inside a capped sub-budget" (Technology Standards, Model access). Every capability also needs a degraded mode before its happy path (Principle I).
 
-The cap, from spec.md's Clarifications of 2026-10-07, in the Author's words: "$2/day, inside the daily ceiling, with a 70% warning at $1.40 like the other ceilings." Renewal is a human act: "it does not renew on its own, a human approves renewal."
+The cap: on 2026-10-07 the Author chose "$2/day (Recommended)", which read: "The proposal. Leaves $3/day for other metered spend; a long local outage reaches the $20 month in 10 days. Adds a 70% warning at $1.40, like the other ceilings." (spec.md's Clarifications). Renewal is a human act, in the Author's own words: "it does not renew on its own, a human approves renewal."
 
-On 2026-10-08, asked whether a renewal on the day the sub-budget ran out brings fallback back that day, the Author chose "Fresh $2 immediately" (recorded in spec.md's Clarifications). FR-030 now reads: "from that moment, up to $2 more can go to fallback that day, whatever was spent before it." Our reading: a renewal measures $2 from what is already spent or reserved. It does not add $2 to a fixed daily count. The difference shows after an overshoot. It also means a renewal on a later day gives $2, not $4.
+On 2026-10-08, asked whether a renewal on the day the sub-budget ran out brings fallback back that day, the Author chose "Fresh $2 immediately" (recorded in spec.md's Clarifications). That option read: "Renewal grants another $2 today, still inside the $5 daily ceiling." FR-030 now reads: "from that moment, up to $2 more can go to fallback that day, whatever was spent before it." Our reading: a renewal measures $2 from what is already spent or reserved. It does not add $2 to a fixed daily count. The difference shows after an overshoot. It also means a renewal on a later day gives $2, not $4.
 
 ## Decision
 
@@ -36,7 +36,7 @@ Worked cases:
 
 Other rules:
 
-- Budget days and months are UTC. The Author's answer: "UTC."
+- Budget days and months are UTC. The Author chose "UTC (Recommended)" (spec.md's Clarifications, 2026-10-08).
 - Every metered call counts toward the $5 daily and $20 monthly ceilings, fallback included (FR-030).
 - Bedrock model: Claude Haiku 5.5 through Converse in us-east-1 if Bedrock offers it there, otherwise Claude Haiku 4.5's `us.` inference profile. The Author confirms the ID and copies the prices into `config/prices.yaml`, which is human-only.
 - `config/routing.yaml` is agent-editable. Its schema keeps every stack's primary local and allows a paid route only in prod.
@@ -55,7 +55,7 @@ Other rules:
 
 - Cost: fallback is capped at $2 per grant, and each grant needs a human. Metered spend cannot pass $5 a day or $20 a month, however many renewals there are (FR-030, FR-033). The live Bedrock contract test is about 10 calls, charged to the same meters with attribution `test` (FR-024, FR-031, FR-037).
 - Overshoot is at most 4 calls in flight times the maximum cost per call (plan.md). A renewal measures from actual spend and reservations, so an overshoot does not reduce the next $2.
-- Degraded mode: local down with fallback refused gives the degraded response, with cause `fallback_awaiting_renewal`, `meter_at_ceiling`, or `kill_switch_tripped`, as applies. A tripped ceiling sets `degraded` (FR-033). Only an operator reset restores `normal`. The Author's answer: "A rollover alone never restores service." A reset does not renew fallback; renewal is a separate action.
+- Degraded mode: local down with fallback refused gives the degraded response, with cause `fallback_awaiting_renewal`, `meter_at_ceiling`, or `kill_switch_tripped`, as applies. A tripped ceiling sets `degraded` (FR-033). Only an operator reset restores `normal`. The Author chose "Your reset only (Recommended)", which read in part: "The reset brings local answers back at once; paid fallback calls stay refused until the tripped meter rolls over." A rollover alone never restores service: that is the spec's reading (FR-033). A reset does not renew fallback; renewal is a separate action.
 - Failover in SC-005 (within 5 seconds) rests on a fast connect failure and a 4-second Bedrock request timeout (plan.md).
 - Decided in the plan:
   - Renewal when the flag is not set is refused (409 `not_awaiting_renewal`), so each renewal answers an exhaustion. Initialization's `--renew` is the only other way to clear the flag.

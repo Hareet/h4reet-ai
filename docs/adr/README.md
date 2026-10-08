@@ -18,8 +18,8 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0012](0012-constitution-1-0-1-spec-kit-lifecycle.md) | Constitution 1.0.1: Spec Kit 1.0.8 lifecycle order and command names | accepted | — |
 | [0013](0013-local-until-publication.md) | Develop locally until publication; publish the history from its first commit | accepted (one Consequence replaced by 0014) | 000, 001 |
 | [0014](0014-github-side-requirements-to-a-publication-spec.md) | Spec 000's GitHub-side requirements move to a publication spec (replaces one Consequence of 0013) | accepted | 000, publication |
-| [0015](0015-agents-run-containers-on-their-own-engine.md) | Agent sessions run containers on their own disposable engine, never the host's | accepted | 000 |
-| [0016](0016-agents-engine-rootless-docker.md) | Agents' containers run on rootless Docker under their own user, reached through one sandbox opening | proposed | 000 |
+| [0015](0015-agents-run-containers-on-their-own-engine.md) | Agent sessions run containers on their own disposable engine, never the host's | accepted (one Consequence replaced by 0016) | 000 |
+| [0016](0016-agents-engine-rootless-docker.md) | Agents' containers run on rootless Docker under their own user, reached through one sandbox opening (replaces one Consequence of 0015) | proposed | 000 |
 | [0017](0017-clean-room-gate-and-human-only-gate-paths.md) | A clean-room gate, and gate code only the Author runs | proposed | 000 |
 | [0018](0018-agent-sessions-on-wsl.md) | Agent sessions run on WSL under the full sandbox, with the devcontainer's tool versions | proposed | 000 |
 | [0019](0019-llama-cpp-model-server.md) | llama.cpp's llama-server as the model server, on one build for GPU and CPU | proposed | 000 |
