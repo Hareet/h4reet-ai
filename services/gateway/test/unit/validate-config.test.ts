@@ -19,11 +19,9 @@ const sha256 = (s: string): string => createHash("sha256").update(s, "utf8").dig
 
 // The three committed env files, as tasks.md T031 writes them, with only the keys these checks read. Built at run
 // time: the dev-cpu dummy token is public, but no token-shaped literal sits in a test file.
-const DUMMY_TOKEN = [
-  "h4op",
-  "devcpu",
-  ["devcpu", "public", "dummy", "operator", "token", "not", "real"].join("_"),
-].join("_");
+const DUMMY_TOKEN = ["h4op", "devcpu", ["devcpu", "public", "dummy", "operator", "token", "00000000"].join("-")].join(
+  "_",
+);
 type Vars = Record<string, string>;
 const PROD_TEMPLATE: Vars = {
   H4_STACK: "prod",
@@ -239,7 +237,7 @@ describe("validate-config", () => {
       "deploy/env.agents/dev-cpu.vars: OPERATOR_TOKEN_SHA256: must be the SHA-256 of H4_DEVCPU_OPERATOR_TOKEN (dummy_token)",
     );
 
-    const other = DUMMY_TOKEN.replace("not_real", "not_mine");
+    const other = DUMMY_TOKEN.replace("00000000", "11111111");
     await writeTemplates(root, {
       cpu: { ...DEVCPU_VARS, H4_DEVCPU_OPERATOR_TOKEN: other, OPERATOR_TOKEN_SHA256: sha256(other) },
     });

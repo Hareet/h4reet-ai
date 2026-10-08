@@ -9,7 +9,7 @@ import type { ConfigIssue } from "./load.js";
  * validate-config check this constant against that file. Its name carries no credential keyword, so gitleaks'
  * generic-api-key rule doesn't read a public hash as a secret.
  */
-export const DEVCPU_DUMMY_OPERATOR_SHA256 = "5a6584bae9a4d9dccf8fe6663678865a5e48a69e6ab49d1dcfc1fb4b839f3fb6";
+export const DEVCPU_DUMMY_OPERATOR_SHA256 = "a2d31213fa06fe88ace640f1a44aa2a1ae9131e6cfed89384db03311a3217f48";
 
 export type GatewayEnv = Readonly<Record<string, string | undefined>>;
 
