@@ -146,7 +146,7 @@ These are checked with the stack's environment:
 | `paid_route_outside_prod` | the route selected by `H4_ENV` names a `paid` adapter and `H4_ENV` isn't `prod`. R2 already makes this impossible in a valid file; the gateway checks it again against its own environment ([plan.md §5.8](../plan.md#58-startup-refusals)). |
 | `synthetic_in_prod` | a `prod` route names a `synthetic` adapter |
 | `placeholder_value` | the route uses an adapter with a placeholder value |
-| `local_url_not_in_stack` | the URL in `base_url_env` isn't `http://<single-label host>[:port][/path]`, so it isn't an in-stack service |
+| `local_url_not_in_stack` | the URL in `base_url_env` isn't `http://<single-label host>[:port][/path]`, so it isn't an in-stack service. The label starts with a letter, as a compose service name does, and must come back unchanged and not an address from URL parsing: a label like `2852039166` or `0x7f000001` is an IPv4 address in decimal or hex. |
 | `missing_env` | a key named by `base_url_env` or `model_env` is unset |
 | `invalid_config` | any §1.3 error |
 
@@ -346,7 +346,7 @@ It sets the channel order, the retry schedule, the daily reminder, the subject p
 | `standin.smtp_host` | string | a single-label host, the in-network Mailpit |
 | `standin.smtp_port` | integer | 1 to 65,535 |
 
-The stand-in endpoints must be single-label, in-network hosts, so stand-in mode can't be pointed at a real service.
+The stand-in endpoints must be single-label, in-network hosts, so stand-in mode can't be pointed at a real service: a label that starts with a letter, under the same rule as `local_url_not_in_stack` (§1.4), so no IPv4 address in any notation passes.
 
 ### 4.2 Example (the plan's values)
 

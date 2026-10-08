@@ -7,6 +7,7 @@ import {
   ADAPTER_TYPE_SPECS,
   PLACEHOLDER,
   REGISTERED_ADAPTER_TYPES,
+  isServiceHost,
   type AdapterTypeSpec,
   type Env,
 } from "../adapters/_settings.js";
@@ -819,8 +820,8 @@ export interface AlertsConfig {
   readonly standin: { readonly telegramBase: string; readonly smtpHost: string; readonly smtpPort: number };
 }
 
-const LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-const STANDIN_BASE = /^http:\/\/([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?::([0-9]{1,5}))?$/;
+/** A stand-in is an in-network service: one label starting with a letter, never an address in any notation. */
+const STANDIN_BASE = /^http:\/\/([a-z][a-z0-9-]{0,62})(?::([0-9]{1,5}))?$/;
 const ALERTS_TOP = z.strictObject({
   schema: z.literal(1),
   channels: z.strictObject({
@@ -874,10 +875,10 @@ export function validateAlerts(parsed: ParsedYaml): { value?: AlertsConfig; issu
   if (!prefixesOk) out.error("prefixes", "A5", "needs prod, dev, and dev-cpu, each distinct, of 1 to 32 characters");
 
   const base = STANDIN_BASE.exec(doc.standin.telegram_base);
-  if (!base || (base[2] !== undefined && Number(base[2]) > 65_535)) {
+  if (!base || !isServiceHost(base[1] as string) || (base[2] !== undefined && Number(base[2]) > 65_535)) {
     out.error("standin.telegram_base", "A6", "must be an in-network host (a single-label name): http://<host>[:port]");
   }
-  if (!LABEL.test(doc.standin.smtp_host)) {
+  if (!isServiceHost(doc.standin.smtp_host)) {
     out.error("standin.smtp_host", "A6", "must be an in-network host (a single-label name)");
   }
 

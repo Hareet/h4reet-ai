@@ -188,7 +188,7 @@ export class ProviderError extends Error {
 | Aspect | Contract |
 |---|---|
 | Module | `src/adapters/local-openai.ts` |
-| Kind and provider | `kind: local`, `provider: local`. In spec 000 this type accepts only `kind: local`. The base URL must use `http` and a single-label host (an in-stack service such as `model-server`), so no paid service can be declared local and escape the meter. |
+| Kind and provider | `kind: local`, `provider: local`. In spec 000 this type accepts only `kind: local`. The base URL must use `http` and a single-label host (an in-stack service such as `model-server`), so no paid service can be declared local and escape the meter. The label starts with a letter, so no IPv4 address in decimal, hex, or octal passes as one ([config-files.md §1.4](config-files.md#14-startup-refusals-exit-78)). |
 | Settings | `base_url_env` (the env key holding the base URL: `LOCAL_MODEL_BASE_URL` = `http://model-server:8080/v1`), `model_env` (`LOCAL_MODEL_NAME`, the stack's `MODEL_ALIAS`), `timeouts`, `health` ([config-files.md §1](config-files.md#1-configroutingyaml)) |
 | Request | `fetch` `POST {base}/chat/completions`, with `Content-Type: application/json` and the body `{model, messages, max_tokens: maxOutputTokens, temperature?, stream: false}`. No `Authorization` header and no `user` field. |
 | Response | `choices[0].message.content` becomes `text`. `usage.prompt_tokens`, `usage.completion_tokens`, and `usage.prompt_tokens_details.cached_tokens` become the usage. `choices[0].finish_reason`: `stop` → `stop`, `length` → `length`, `content_filter` → `content_filter`, anything else → `other`. `model` → `responseModel`, `id` → `responseId`. Missing `usage` is a `provider_error`. |

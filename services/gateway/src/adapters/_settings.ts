@@ -5,6 +5,8 @@
 // It lives in src/adapters/ because it names providers, and nothing outside src/adapters/ may (SC-006). Each
 // adapter's factory (tasks.md T051, T073, T102) takes its type, kinds, and settings schema from here, so
 // validate-config and the registry check the same rules.
+import { isIP } from "node:net";
+
 import { z } from "zod";
 
 import type { AdapterKind, ProviderErrorKind } from "../core/types.js";
@@ -62,8 +64,37 @@ export const PROVIDER_ERROR_KINDS = Object.keys(PROVIDER_ERROR_KIND_SET) as Prov
 const int = (min: number, max: number) => z.number().int().min(min).max(max);
 const envKey = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 
-/** An in-stack service: http, one DNS label, an optional port and path, and nothing else (provider-adapter.md §3.1). */
-export const IN_STACK_URL = /^http:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~/-]*)?$/;
+/**
+ * A compose service's name: one DNS label that starts with a letter. A label of digits, or of hex or octal digits
+ * after a 0, is an IPv4 address to URL parsing and to getaddrinfo (http://2852039166/ is 169.254.169.254), so a label
+ * that doesn't start with a letter is never in-stack.
+ */
+export const SERVICE_LABEL = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/** A service name, checked again as a URL parser reads it: the host must come back unchanged, and not an address. */
+export function isServiceHost(host: string): boolean {
+  if (!SERVICE_LABEL.test(host)) return false;
+  try {
+    const parsed = new URL(`http://${host}/`).hostname;
+    return parsed === host && isIP(parsed) === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** An in-stack service: http, a service host, an optional port and path, and nothing else (provider-adapter.md §3.1). */
+export const IN_STACK_URL = /^http:\/\/([a-z][a-z0-9-]{0,62})(?::([0-9]{1,5}))?(?:\/[A-Za-z0-9._~/-]*)?$/;
+
+export function isInStackUrl(url: string): boolean {
+  const m = IN_STACK_URL.exec(url);
+  if (!m || !isServiceHost(m[1] as string)) return false;
+  if (m[2] !== undefined && Number(m[2]) > 65_535) return false;
+  try {
+    return new URL(url).hostname === m[1];
+  } catch {
+    return false;
+  }
+}
 
 const get = (settings: Record<string, unknown>, ...path: string[]): unknown =>
   path.reduce<unknown>((at, key) => (at as Record<string, unknown> | undefined)?.[key], settings);
@@ -108,7 +139,7 @@ const openAICompatible: AdapterTypeSpec = {
       const value = env[key];
       if (value === undefined || value === "") {
         refusals.push({ reason: "missing_env", key, message: `${key} is unset; routing.yaml's ${field} names it` });
-      } else if (field === "base_url_env" && !IN_STACK_URL.test(value)) {
+      } else if (field === "base_url_env" && !isInStackUrl(value)) {
         refusals.push({
           reason: "local_url_not_in_stack",
           key,

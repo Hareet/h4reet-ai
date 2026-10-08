@@ -365,12 +365,24 @@ describe("routing.yaml's startup refusals (§1.4)", () => {
       "http://model-server:8080/v1?debug=1",
       "http://operator@model-server/v1",
       "http://MODEL-SERVER/v1",
+      // One label that URL parsing and getaddrinfo read as an IPv4 address, in decimal, hex, or octal:
+      "http://134744072:8080/v1", // 8.8.8.8
+      "http://2852039166/latest", // 169.254.169.254, the instance-metadata address
+      "http://0x7f000001:8080/v1", // 127.0.0.1
+      "http://017700000001/v1", // 127.0.0.1
+      // A compose service name starts with a letter.
+      "http://1model/v1",
     ]) {
       const refusals = checkStartup({ routing: config, prices: table }, { ...DEV_ENV, LOCAL_MODEL_BASE_URL: url }, NOW);
       expect(refusals.map((r) => [r.reason, r.key])).toEqual([["local_url_not_in_stack", "LOCAL_MODEL_BASE_URL"]]);
       expect(JSON.stringify(refusals)).not.toContain(url);
     }
-    for (const url of ["http://model-server:8080/v1", "http://model-server", "http://model-server/v1/"]) {
+    for (const url of [
+      "http://model-server:8080/v1",
+      "http://model-server",
+      "http://model-server/v1/",
+      "http://deadbeef/v1",
+    ]) {
       expect(checkStartup({ routing: config, prices: table }, { ...DEV_ENV, LOCAL_MODEL_BASE_URL: url }, NOW)).toEqual(
         [],
       );
@@ -901,6 +913,15 @@ describe("alerts.yaml (§4.3)", () => {
     expect(a("smtp_host: mailpit", "smtp_host: mail.example.com")).toEqual([
       "config/alerts.yaml: standin.smtp_host: must be an in-network host (a single-label name)",
     ]);
+    // One label that URL parsing and getaddrinfo read as an IPv4 address, in decimal, hex, or octal.
+    for (const host of ["134744072", "2852039166", "0x7f000001", "017700000001", "1mailpit"]) {
+      expect(a('"http://telegram-standin:8080"', `"http://${host}:8080"`), host).toEqual([
+        "config/alerts.yaml: standin.telegram_base: must be an in-network host (a single-label name): http://<host>[:port]",
+      ]);
+      expect(a("smtp_host: mailpit", `smtp_host: "${host}"`), host).toEqual([
+        "config/alerts.yaml: standin.smtp_host: must be an in-network host (a single-label name)",
+      ]);
+    }
   });
 
   it("A7: unknown keys, wrong types, and out-of-range values", () => {
