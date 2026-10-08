@@ -188,6 +188,7 @@ raw block '~/CLAUDE.md'
 raw block '/proc/self/cwd/CLAUDE.md'
 raw block '//proc/self/cwd/CLAUDE.md'
 raw block '/./proc/self/cwd/CLAUDE.md'
+check protected-paths.sh block 'NotebookEdit on .claude/x.ipynb' "$(jq -cn --arg p "$project/.claude/x.ipynb" '{notebook_path:$p}')"
 # Fix tasks may not touch tests or evals.
 edit block 'services/gateway/src/router.test.ts' FIX_TASK=1
 edit block 'services/gateway/src/router.spec.ts' FIX_TASK=1
@@ -316,6 +317,27 @@ if env -u CLAUDECODE git -C "$gr" merge -q --no-ff --no-edit feature >/dev/null 
   fail=$((fail + 1))
   printf 'FAIL        %-21s %s\n' git-hook "the Author's merge into main did not go through"
 fi
+
+# --- .claude/settings.json keeps the layers behind the hooks ---------------------------------------
+settings="$repo/.claude/settings.json"
+# has <label> <jq filter that must be true>
+has() {
+  if jq -e "$2" "$settings" >/dev/null 2>&1; then pass=$((pass + 1)); else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' settings.json "$1"
+  fi
+}
+has 'no Write(...) rules (ignored by Claude Code; Edit covers writes)' '[.permissions.deny[] | select(startswith("Write("))] | length == 0'
+# shellcheck disable=SC2016 # $d is a jq variable, not a shell expansion
+has 'CLAUDE.md, REVIEW.md, and the constitution are Edit-denied' '.permissions.deny as $d | ["Edit(CLAUDE.md)", "Edit(REVIEW.md)", "Edit(.specify/memory/constitution.md)"] | all(. as $r | $d | index($r) != null)'
+has 'the private intake is Read-denied' '.permissions.deny | index("Read(/corpus/intake/private/**)") != null'
+# shellcheck disable=SC2016 # $w is a jq variable, not a shell expansion
+has 'the sandbox denies writes to the governance files' '.sandbox.filesystem.denyWrite as $w | ["./CLAUDE.md", "./REVIEW.md", "./.claude", "./.specify/memory/constitution.md", "./.git/hooks", "./.git/config"] | all(. as $p | $w | index($p) != null)'
+has 'the sandbox hides the private intake' '.sandbox.filesystem.denyRead | index("./corpus/intake/private") != null'
+has 'GitHub is denied, not allowed, until publication' '(.sandbox.network.deniedDomains | index("github.com") != null and index("api.github.com") != null) and ([.sandbox.network.allowedDomains[] | select(test("github\\.com$"))] | length == 0)'
+has 'the sandbox denies ~/.git-credentials' '[.sandbox.credentials.files[] | select(.path == "~/.git-credentials" and .mode == "deny")] | length == 1'
+has 'the sandbox is required and has no unsandboxed retry' '.sandbox.enabled == true and .sandbox.failIfUnavailable == true and .sandbox.allowUnsandboxedCommands == false'
+has 'protected-paths.sh also covers NotebookEdit' '[.hooks.PreToolUse[] | select(.matcher | test("NotebookEdit"))] | length == 1'
 
 printf 'forbidden-actions (hook layer): %d passed, %d failed, %d known gaps\n' "$pass" "$fail" "$gaps"
 [ "$fail" -eq 0 ]

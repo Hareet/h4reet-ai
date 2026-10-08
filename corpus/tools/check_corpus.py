@@ -86,9 +86,15 @@ def main() -> int:
                 errors.append(f"{rel}:{n}: currency amount in a public corpus file")
 
     denylist = PRIVATE / "denylist.txt"
-    deny_note = "denylist missing, so rule 4 was skipped"
+    deny_note = "denylist missing or hidden from this session, so rule 4 was skipped"
+    deny_text = None
     if denylist.exists():
-        phrases = [s.strip().lower() for s in denylist.read_text().splitlines()
+        try:
+            deny_text = denylist.read_text()
+        except OSError:  # agent sessions may not read intake/private/; the Author's own run applies it
+            deny_note = "denylist not readable here, so rule 4 was skipped"
+    if deny_text is not None:
+        phrases = [s.strip().lower() for s in deny_text.splitlines()
                    if s.strip() and not s.lstrip().startswith("#")]
         deny_note = f"denylist applied ({len(phrases)} {'phrase' if len(phrases) == 1 else 'phrases'})"
         for p in public("*"):

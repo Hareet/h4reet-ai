@@ -6,6 +6,8 @@
       "Read(~/.aws/**)",
       "Read(~/.ssh/**)",
       "Read(~/.config/gh/**)",
+      "Read(~/.git-credentials)",
+      "Read(/corpus/intake/private/**)",
       "WebFetch",
       "Bash(curl *)",
       "Bash(wget *)",
@@ -15,11 +17,20 @@
       "Bash(git push -f*)",
       "Bash(gh pr merge*)",
       "Edit(.claude/**)",
-      "Write(.claude/**)",
       "Edit(.specify/memory/constitution.md)",
-      "Write(.specify/memory/constitution.md)",
       "Edit(REVIEW.md)",
-      "Write(REVIEW.md)"
+      "Edit(CLAUDE.md)",
+      "Edit(/corpus/*.md)",
+      "Edit(/corpus/.gitignore)",
+      "Edit(/corpus/facts/**)",
+      "Edit(/corpus/intake/**)",
+      "Edit(/corpus/tools/**)",
+      "Edit(/.github/workflows/**)",
+      "Edit(/.git/hooks/**)",
+      "Edit(/.git/config)",
+      "Edit(/config/budgets*)",
+      "Edit(/config/alert*)",
+      "Edit(/config/kill-switch*)"
     ],
     "allow": [
       "Bash(git status*)",
@@ -41,14 +52,39 @@
     "enabled": true,
     "failIfUnavailable": true,
     "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyWrite": [
+        "./CLAUDE.md",
+        "./REVIEW.md",
+        "./.claude",
+        "./.specify/memory/constitution.md",
+        "./corpus/00-profile.md",
+        "./corpus/01-ai-strategy-and-cht.md",
+        "./corpus/02-production-infrastructure-national-scale.md",
+        "./corpus/03-grants-and-credits.md",
+        "./corpus/INTAKE.md",
+        "./corpus/README.md",
+        "./corpus/.gitignore",
+        "./corpus/facts",
+        "./corpus/intake",
+        "./corpus/tools",
+        "./.git/hooks",
+        "./.git/config"
+      ],
+      "denyRead": [
+        "./corpus/intake/private"
+      ]
+    },
     "network": {
       "allowedDomains": [
-        "github.com",
-        "api.github.com",
         "registry.npmjs.org",
         "pypi.org",
         "files.pythonhosted.org",
         "ghcr.io"
+      ],
+      "deniedDomains": [
+        "github.com",
+        "api.github.com"
       ]
     },
     "credentials": {
@@ -63,6 +99,10 @@
         },
         {
           "path": "~/.config/gh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.git-credentials",
           "mode": "deny"
         }
       ],
@@ -106,7 +146,7 @@
         ]
       },
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",

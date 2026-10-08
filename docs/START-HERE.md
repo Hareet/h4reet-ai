@@ -20,7 +20,7 @@ The enforcement layer cannot gate its own creation, so the scaffold went in as o
 
 What was done, locally, in `~/h4reet-ai/h4reet-ai`: `specify init` (Spec Kit 1.0.8 for Claude, Python scripts) combined with the scaffold, the hooks made executable, `.gitattributes` forcing LF, Spec Kit's git extension added (`specify extension add git`), and `.specify/feature.json` pointed at spec 000.
 
-There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal. Inside Claude Code, the hooks and the git hook that guards `main` refuse it. After a fresh clone, run `make git-hooks` once; `make check` fails until you do.
+There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; `make check` fails until you do.
 
 ## 3. First Claude Code session
 
@@ -37,7 +37,7 @@ Spec 001 is specified in full only after spec 000's success criteria pass on you
 ## 4. Gotchas worth knowing in advance
 
 - **Sandbox on Linux** depends on OS packages (`bubblewrap`, `socat`). `.claude/settings.json` sets `failIfUnavailable: true`, so Claude Code refuses to start until they're present — that is the intended behavior, not a bug. Check the sandboxing doc for the current dependency list.
-- **`settings.json` keys**: the sandbox and credential blocks follow the playbook's managed-settings example; a few keys may be managed-only. If Claude Code warns about an unknown key, remove it and note the removal in the session 1 merge-request note.
+- **`settings.json` keys**: the sandbox and credential blocks follow the playbook's managed-settings example; a few keys may be managed-only. If Claude Code warns about an unknown key, remove it and note the removal in the session 1 merge-request note. (The scaffold's `Write(...)` rules were removed on 2026-10-07: Claude Code consults only `Edit(...)` rules for writes. Run `claude doctor` after any settings change; it lists rejected entries.)
 - **Local model server**: the RTX 5090 is Blackwell; use CUDA 12.8+ images and confirm the server build supports the architecture before choosing it in `/speckit-plan`. Model download on first `make up` can dominate the 10-minute budget — pre-pull in the plan.
 - **Ports**: the stack should bind to `127.0.0.1` by default; WSL2 forwards localhost to Windows, which is convenient and also why nothing may bind `0.0.0.0` until spec 001's tunnel exists.
 - **Bedrock adapter tests** use your SSO session (`aws sso login`) from your shell, never from inside the agent sandbox (credentials are denied there by design). Run them yourself or in CI via OIDC later.
@@ -68,4 +68,4 @@ When spec 000's success criteria pass locally (as far as they can before publica
    ```
 
 4. On GitHub: branch protection on `main` (require PR, require the Author's review, require status checks, no force push, include admins). Add a `production` environment with required reviewers = you (used by spec 001's apply). Enable secret scanning and Dependabot.
-5. Leave local mode: replace the local-only lines in `CLAUDE.md` and `docs/KICKOFF-PROMPT.md`; relax the local-phase rules in `.claude/hooks/bash-gate.sh` and their matrix rows, so agents push feature branches again while `main` stays yours; and supersede ADR 0013 with an ADR for the switch. Only after protection is on, start the next Claude Code session. From then on, agents push feature branches and open PRs.
+5. Leave local mode: replace the local-only lines in `CLAUDE.md` and `docs/KICKOFF-PROMPT.md`; relax the local-phase rules in `.claude/hooks/bash-gate.sh` and their matrix rows, so agents push feature branches again while `main` stays yours; move github.com and api.github.com from `sandbox.network.deniedDomains` back to `allowedDomains` in `.claude/settings.json`; and supersede ADR 0013 with an ADR for the switch. Only after protection is on, start the next Claude Code session. From then on, agents push feature branches and open PRs.

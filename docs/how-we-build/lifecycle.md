@@ -25,9 +25,9 @@ A skill makes a violation rare; a hook makes it close to impossible; the sandbox
 | Agent never applies infra | `ops` agent prompt | `bash-gate.sh` | IAM role has no apply permission; protected environment |
 | No push to `main` | `CLAUDE.md` | `bash-gate.sh` | Branch protection (after publication) |
 | Until publication: no push, no remote, and only the Author changes `main` (ADR 0013) | `CLAUDE.md` | `bash-gate.sh` | The git hook in `.claude/git-hooks/` refuses changes to `main` from inside Claude Code; the Author's review |
-| Enforcement layer is human-only | `CLAUDE.md` | `protected-paths.sh`, `permissions.deny` | Agent-config evals + CODEOWNERS on `.claude/**` |
+| Enforcement layer is human-only | `CLAUDE.md` | `protected-paths.sh`, `permissions.deny`, sandbox `denyWrite` | Agent-config evals + CODEOWNERS on `.claude/**` |
 | No secrets in context | — | `permissions.deny`, sandbox credential denies | Secret scanning in pre-commit and CI |
-| No arbitrary egress | — | `bash-gate.sh` | Sandbox network allowlist |
+| No arbitrary egress | — | `bash-gate.sh` | Sandbox network allowlist; GitHub denied until publication |
 | Fix the code, not the test | `CLAUDE.md` verification block | `protected-paths.sh` under `FIX_TASK=1` | Reviewer compliance pass |
 | Cost bounded | `constitution-check` skill | — | Real-time meter + kill switch; AWS Budgets as safety net |
 

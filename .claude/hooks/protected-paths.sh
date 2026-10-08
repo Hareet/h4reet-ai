@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse(Edit|Write|MultiEdit): agents may not modify the enforcement layer, the constitution,
+# PreToolUse(Edit|Write|MultiEdit|NotebookEdit): agents may not modify the enforcement layer, the constitution,
 # the review policy, git internals, cost/edge/kill-switch configuration, or test files during a fix task.
 set -Eeuo pipefail
 # Fail closed: in Claude Code only exit 2 blocks, so a missing dependency or an unexpected
@@ -9,7 +9,7 @@ trap 'echo "Blocked: error in $(basename "$0"); failing closed." >&2; exit 2' ER
 # shellcheck source=_audit.sh
 source "$(dirname "$0")/_audit.sh" || { echo "Blocked: $(basename "$0") cannot load _audit.sh; failing closed." >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "Blocked: .claude/hooks requires jq (install it); failing closed." >&2; exit 2; }
-path="$(jq -r '.tool_input.file_path // .tool_input.path // empty')"
+path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty')"
 [ -z "$path" ] && exit 0
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
 
