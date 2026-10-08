@@ -121,11 +121,14 @@ def test_a_tools_line_outside_the_frontmatter_grants_nothing(
     )
 
 
-def test_an_empty_expected_entry_fails(tree: Path) -> None:
+def test_an_empty_expected_entry_fails(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     (tree / "tools" / "gates" / "roles.expected").write_text(
         "reviewer:\n", encoding="utf-8"
     )
     assert static.main(tree) == 1
+    assert "roles.expected lists no tools for it" in capsys.readouterr().out
 
 
 def test_an_unregistered_current_hook_fails_but_a_planned_one_does_not(

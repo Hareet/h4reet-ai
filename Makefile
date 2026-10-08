@@ -27,8 +27,9 @@ else
 ENVFILE := $(HOME)/.config/h4reet-ai/env/$(ENV).env
 # A host stack runs the commit `make up` exported, which its run file names (contracts/env-files.md §12). The run
 # file is in the stack's H4_STATE_DIR, which preflight holds to this path, so make never reads the env file.
-# TREE is read when a recipe runs, not when make starts, so `make up` sees the run file its export step has just
-# written (tasks.md T036). Before the stack's first `make up` there is no run file, and the stack targets say so.
+# TREE is read when a recipe runs, not when make starts. So once the export runs as its own target that `make up`
+# depends on, up's recipe sees the run file the export has just written (tasks.md T036); a line inside the same
+# recipe would still see the old one, because make expands a whole recipe before running it. Before the stack's first `make up` there is no run file, and the stack targets say so.
 RUNFILE := $(HOME)/.local/state/h4reet/$(ENV)/run.env
 TREE = $(shell sed -n 's/^H4_TREE=//p' "$(RUNFILE)" 2>/dev/null)
 endif
