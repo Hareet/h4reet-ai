@@ -223,7 +223,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 - **Fields on every record:** `time`; `level`; `msg`, a fixed sentence per event that never interpolates request content; `event`; `h4.stack`; and `trace_id`, `span_id`, and `trace_flags` when a span is active (the instrumentation injects them). The OTel severity follows pino's level: info 9, warn 13, error 17, fatal 21.
 - **Audit records** also carry `event.name=h4.audit` ([data-model.md §2.6](../data-model.md#26-audit_log-who-when-why-fr-034)).
 - **In Loki,** the resource's `service.name`, `service.namespace`, and `deployment.environment.name` are index labels (`service_name`, …). Everything else is structured metadata with dots turned into underscores (`event`, `event_name`, `trace_id`, the fields), so a query reads `{service_name="gateway"} | event="alert.delivered"`.
-- **The level** is `info`, fixed in compose. Fastify's own request logging is off (`disableRequestLogging: true`), so no URL, header, or body reaches a log; the gateway logs only the events below.
+- **The level** is `info`, fixed in compose. Fastify's own logger is off (`logger: false`, so it writes no request lines; Fastify 5.12 deprecates `disableRequestLogging`), so no URL, header, or body reaches a log; the gateway logs only the events below.
 
 ### 5.2 Events
 
@@ -231,6 +231,9 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 |---|---|---|---|
 | `gateway.started` | info | startup finished | `routing_sha`, `price_version`, `adapters` (IDs), `h4_env` |
 | `gateway.config_refused` | fatal | a startup refusal, just before exit 78 | `reason` (the code in [config-files.md](config-files.md) or plan §5.8), `key` or `path` (never a value) |
+| `gateway.fatal` | fatal | a store problem retrying can't fix, just before exit 1: a migration whose file changed, or one older than the store's latest | `reason` (`migration_changed`, `migration_gap`) |
+| `gateway.stopping` | info | SIGTERM or SIGINT: the listeners stop accepting, and requests in flight finish | `signal` |
+| `request.failed` | error | an unexpected error answered with 500 `internal_error` | `error_class` (the error's code or class name, never its message), `route` (the route template, or `other`) |
 | `migrations.applied` | info | after migrations | `versions` (the ones applied now), `grafana_ro_login` (`enabled` once the gateway has set its password, else `disabled`) |
 | `call.completed` | info | each provider attempt, as its ledger row commits | `route_decision`, `route_reason`, `attribution`, `adapter`, `provider`, `request_model`, `response_model`, `input_tokens`, `output_tokens`, `latency_ms`, `cost_micro`, `cost_basis`, `price_version`, `outcome`, `error_kind` |
 | `call.degraded` | warn | each degraded response | `cause`, `route_decision` |
