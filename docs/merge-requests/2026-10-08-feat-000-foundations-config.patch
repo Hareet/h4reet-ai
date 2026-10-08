@@ -58,3 +58,19 @@ index 0000000..0c2ab98
 +  per_client:  { requests_per_minute: 20, burst: 5, requests_per_day: 500, metered_in_flight: 1 }
 +  global:      { metered_in_flight: 4, metered_per_minute: 60 }
 +  per_call:    { max_input_chars: 2000, hello_max_output_tokens: 128, max_output_tokens: 512 }
+diff --git a/services/gateway/src/config/load.ts b/services/gateway/src/config/load.ts
+index 6f52288..a793461 100644
+--- a/services/gateway/src/config/load.ts
++++ b/services/gateway/src/config/load.ts
+@@ -17,10 +17,7 @@ export type ConfigFileName = (typeof CONFIG_FILES)[number];
+  * deletes these entries, and a mark whose file exists fails validate-config until then (tasks.md, Notes).
+  * The gateway itself never starts without these files: the runtime has no PLANNED state.
+  */
+-export const PLANNED_CONFIG_FILES: Readonly<Partial<Record<ConfigFileName, string>>> = {
+-  "budgets.yaml": "T022",
+-  "alerts.yaml": "T022",
+-};
++export const PLANNED_CONFIG_FILES: Readonly<Partial<Record<ConfigFileName, string>>> = {};
+ 
+ export interface ConfigIssue {
+   severity: "error" | "note";
