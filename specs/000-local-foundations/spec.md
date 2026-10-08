@@ -2,7 +2,7 @@
 
 **Feature Branch**: `000-local-foundations`
 
-**Created**: 2026-09-04 · **Revised**: 2026-09-07
+**Created**: 2026-09-04 · **Revised**: 2026-10-07
 
 **Status**: Draft
 
@@ -219,6 +219,7 @@ Intent · Specification · ADR · Agent Role · Policy Hook · Provider Adapter 
 ## Assumptions
 
 - A single Author builds and operates; the agent roles are the team.
+- **Local until publication** (ADR 0013; the Author's decision of 2026-10-07). Every phase is developed locally and published later. For the local phase, this deviates from Principle VI (a public repository) and from the pull-request wording of Principle III, the Review section, and Development Workflow steps 2 and 5. Each change is a feature branch the Author merges locally; a note in `docs/merge-requests/` stands in for the PR, and `make check` stands in for CI. FR-001 still holds: the history is published from its first commit, with only the pre-publication cleanup that ADR 0013 allows. Before the first push, this spec also owes a `make publish-check` that scans the whole history for secrets, amounts, and denylisted phrases (START-HERE section 6). [NEEDS CLARIFICATION: how each GitHub-side requirement (User Story 4, User Story 6 scenario 1, FR-001, FR-005, FR-011, FR-012, FR-014, FR-015, FR-016, SC-004, SC-008) is verified locally before publication and confirmed after it]
 - The RTX 5090 machine runs Windows with WSL2; the stack runs in WSL2 with GPU passthrough. It is on wall power and wired network.
 - No cloud resources are created in this spec. The Bedrock adapter is exercised with the Author's SSO credentials; AWS Budgets, Terraform, the domain, edge protection, the public dashboard snapshot, and the outbound tunnel are spec `001-cloud-elevation`.
 - Spec Kit is the lifecycle tooling and Claude Code the harness, under the committed project settings; dev-time model access is a subscription or key separate from the production budget.

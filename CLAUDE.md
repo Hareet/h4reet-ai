@@ -6,11 +6,12 @@ Public, production-grade portfolio: an AI twin of the Author, local-first, built
 ## Lifecycle (every change)
 intent (`intent/`) → `/speckit-specify` → `/speckit-clarify` → `/speckit-plan` (plan mode) → `/speckit-tasks` → `/speckit-analyze` → implement → `/speckit-converge` → `REVIEW.md` passes → human merge.
 Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`. If implementation departs from the plan, update `plan.md` in the same commit.
+Local until the Author publishes (ADR 0013): commit on a feature branch and end it with a note in `docs/merge-requests/`; never merge, push, or create a remote. The Author merges locally.
 
 ## Commands
 - Setup: `make setup` (devcontainer already has the toolchain)
 - Build: `make build` — must end with `BUILD OK`
-- Test: `make test` (all), `make test-fast` (pre-commit subset), `make evals`, `make redteam`
+- Test: `make test` (all), `make test-fast` (pre-commit subset), `make evals`, `make redteam`. Until spec 000 adds what those need: `make check` (corpus gate, tests, lint, hook matrix)
 - Lint/format: `make lint` (zero warnings), `make fmt`
 - Local production stack: `make up` / `make down` (whole topology, local models)
 - Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action in the protected CI environment.
@@ -38,13 +39,14 @@ spec-writer · implementer · reviewer (read-only) · red-teamer (read-only) · 
 The agent that implements never reviews. Agent teams are experimental here; use only for independent workstreams.
 
 ## Verifying your work
-Run `make lint`, `make test`, and `make evals` before reporting any task complete, and paste the output.
+Run `make lint`, `make test`, and `make evals` (until they can run, `make check`) before reporting any task complete, and paste the output.
 If a test fails, fix the code, not the test. Do not edit test files during a fix task (a hook blocks it).
 
 ## Things Claude gets wrong
 - Adding a provider call outside the gateway, or a call without cost attributes.
 - Treating the local tier as a demo. It is production; `make up` must always work.
-- Editing `.claude/**`, `REVIEW.md`, or the constitution from an agent session. These change only via human PR.
+- Editing `.claude/**`, `REVIEW.md`, or the constitution from an agent session. These change only by the Author's hand (a human PR after publication).
 - Running `terraform apply`. Never. Plan only.
 - Editing `corpus/`, or stating a number about the Author that isn't in the corpus or a filled `facts/` slot.
 - Widening `permissions.allow` or sandbox domains to make a task easier. Ask instead.
+- Writing a bash-gate rule that matches only the canonical spelling. Also test `git -C`/`-c`, `bash -c`, subshells, quoting, and config or API equivalents, and add a gap row to `redteam/forbidden-actions.sh` for any that get through.

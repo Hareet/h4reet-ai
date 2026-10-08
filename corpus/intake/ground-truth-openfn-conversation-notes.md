@@ -1,4 +1,4 @@
-<!-- Source: transcript supplied by Hareet on 2026-09-15 of a recorded "Ground Truth" conversation (Medic's series on technology in community health) between Andra, Medic's chief executive (introduced in the recording as co-executive director), and Taylor Downs, founder and CEO of OpenFn. The raw transcript is deliberately NOT stored in this public repository; the corpus cites the public recording once its link is supplied ([?]). These are attributed notes, paraphrased. -->
+<!-- Source: transcript supplied by Hareet on 2026-09-15 of a recorded "Ground Truth" conversation (Medic's series on technology in community health) between Andra, Medic's chief executive (introduced in the recording as co-executive director), and Taylor Downs, founder and CEO of OpenFn. The raw transcript is deliberately NOT stored in this public repository. The recording is not public. Hareet cleared these attributed, paraphrased notes for the public corpus on 2026-10-07; the corpus never links to the recording or says a link is coming. -->
 
 # Notes: Ground Truth — Andra (Medic) with Taylor Downs (OpenFn)
 

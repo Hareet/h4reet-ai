@@ -1,0 +1,4 @@
+# Lets `make lint` follow `source "$(dirname "$0")/_audit.sh"` without -x: each hook names the
+# file with a `# shellcheck source=_audit.sh` directive, resolved from the hook's own directory.
+external-sources=true
+source-path=SCRIPTDIR

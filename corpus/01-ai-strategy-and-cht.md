@@ -123,12 +123,12 @@ The brief calls it Voice for CHT; Hareet also calls it voice-to-CHT.
 - docs.communityhealthtoolkit.org/ai/ · …/ai/mcp-servers/cht-docs-mcp-server/ · …/ai/mcp-servers/cht-code-context-mcp-server/
 - aws.amazon.com/blogs/publicsector/aws-imagine-grant-expands-global-reach-now-supporting-nonprofits-in-six-countries/ (the Momentum to Modernize category)
 - medic.org/stories/2025/12/16 (task-list redesign around CHW priorities)
-- Ground Truth: Andra with Taylor Downs (OpenFn) — `[?]` public recording link
 
 ## Do not claim
 
 - Sole authorship of the strategy (co-authored with Andra) or of cht-agent (a community squad built it).
 - Coining the words buildtime/runtime AI (Taylor Downs, 2026) — or, the reverse error, that the tracks came from that conversation (they date from early 2025).
+- A link to the Ground Truth recording, or that one is coming. The recording is not public `[A 2026-10-07]`; the twin shares the attributed notes only.
 - That cht-agent was "trained" on CHT knowledge. That is the strategy's shorthand; it is grounded through retrieval and memory, not model training.
 - That Hareet built the partner's speech model. He designed the capability, found the partner, and built Medic's side; the partner built and tunes the model. Quantization, compression, model names, or hardware specifics — JD language the brief does not support.
 - Field results for the Voice for CHT pilot — it is underway, and results come when published. That the in-house Nepali voice-to-CHT exists — it is planned.

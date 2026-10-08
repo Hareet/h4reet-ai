@@ -1,6 +1,6 @@
 # Review instructions
 
-Applied by the `reviewer` agent on every PR (headless in CI via the Claude Code GitHub Action, and on request with `@claude review`). The reviewer never wrote the change and has no write access. Findings inform the human approval required by branch protection; they never replace it. `.specify/memory/constitution.md` supersedes this file.
+Applied by the `reviewer` agent on every PR (headless in CI via the Claude Code GitHub Action, and on request with `@claude review`). The reviewer never wrote the change and has no write access. Findings inform the human approval required by branch protection; they never replace it. Until publication (ADR 0013) there are no PRs: the reviewer runs on every feature branch before the Author merges, reviewing `git diff main...<branch>`, and its findings go in the branch's merge-request note. `.specify/memory/constitution.md` supersedes this file.
 
 ## Passes
 

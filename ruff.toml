@@ -1,0 +1,3 @@
+# Ruff settings for this repository's own Python (ML, evals, corpus tools).
+# .specify/ holds Spec Kit's vendored scripts, which `specify` refreshes from upstream; lint them there.
+extend-exclude = [".specify"]
