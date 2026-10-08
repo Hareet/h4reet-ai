@@ -175,7 +175,7 @@ None of these can be switched on from an env file: they aren't template keys, so
 
 - Every secret-shaped key in `dev-cpu.vars` holds a fixed, public dummy. The engine holds nothing the Author needs (FR-039), so they protect nothing, and they are committed so agents can run the stack.
 - Each dummy has its key's shape (64 hex, `pk-lf-…`, …), so the same validators pass. Each dummy text starts with `devcpu` or, where the shape forbids letters beyond hex, is a repeated pattern, so no one mistakes it for a real value. gitleaks allowlists this one path (plan §11).
-- `dev-cpu.vars` has exactly the dev template's keys, plus `H4_DEVCPU_OPERATOR_TOKEN`. `validate-config` and preflight both check that, so the two dev-class stacks can't drift apart.
+- `dev-cpu.vars` has exactly the dev template's keys, plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE` ([§2](#2-stack-keys), P4). `validate-config` and preflight both check that, so the two dev-class stacks can't drift apart.
 
 ## 7. Dev-only switches and overlays
 

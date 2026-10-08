@@ -91,7 +91,7 @@ PRE_COMMIT_PLANNED := T045
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := githooks-check toolchain-check policy@T037 validate-config@T019 lint test secrets@T091 evals redteam=redteam-suite matrix image@T036
+CHECK_GATES := githooks-check toolchain-check policy validate-config@T019 lint test secrets@T091 evals redteam=redteam-suite matrix image@T036
 
 help: ## List the targets
 	@grep -E '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -108,6 +108,9 @@ toolchain-check: ## Compare the installed tools with .devcontainer/toolchain.var
 
 check: ## Every local gate (FR-041): PASS, FAIL, SKIP, PENDING, or PLANNED for each, then a summary
 	@$(PY_HOST) tools/gates/run_checks.py $(CHECK_GATES)
+
+policy: ## The compose and file policy, over each committed env file; needs the docker CLI, not a daemon (plan §11)
+	$(PY_HOST) tools/gates/compose_policy.py
 
 githooks-check: ## The git hooks are installed and match .claude/git-hooks/, and main is a loose ref (plan §11)
 	@hooks="$$(git rev-parse --git-path hooks)"; ok=1; \
@@ -207,6 +210,6 @@ breach-test: ## The kill-switch rehearsal on dev or dev-cpu, which arrives with 
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
-.PHONY: help setup tools toolchain-check check githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
+.PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
 	corpus-check evals redteam redteam-suite matrix up down logs status pull pin-images init-env isolation-check \
 	breach-test plan

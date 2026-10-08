@@ -844,18 +844,19 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 
 The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `label[=target][@Tnnn]`, so a gate whose target a later task adds is SKIP, naming that task. Every gate is `.PHONY`: a file or directory with a gate's name makes make print "Nothing to be done" and exit 0, so the runner tells a missing target from a path that only shadows one, and a gate make would do nothing for fails. Marks expire. The task that adds a target removes its `@Tnnn`, and a patch's task deletes its PLANNED entries in the static tier and clears `PRE_COMMIT_PLANNED`. A mark whose enforcement exists fails, so a later rename or regression can't hide as SKIP or PLANNED. Spec 000's acceptance requires no PLANNED line and no SKIP that names a task (tasks.md T118). The red-team gate runs `make redteam-suite`; `make redteam` runs the suite and the matrix together, which is what the red-teamer role's `make redteam*` grant reaches. `make git-hooks` says so and does nothing where `.git/hooks` can't be written, as in the agent sandbox.
 
-**The compose and file policy** (`compose_policy.py`) runs on `docker compose config --no-interpolate`, once per env file. It refuses:
-- privileged mode; host pid, ipc, or network; `docker.sock`;
+**The compose and file policy** (`compose_policy.py`) runs on `docker compose config --no-interpolate --no-path-resolution --format json`, once per committed env file (the two templates and `dev-cpu.vars`), in an environment holding only `PATH` and `HOME`. `--no-path-resolution` keeps bind sources and build contexts as written, so `${H4_TREE}/…` and `..` aren't resolved against the working directory. It needs the docker CLI with compose, not a daemon; without them (the devcontainer) it prints SKIP with that reason. It refuses:
+- privileged mode; a pid, ipc, uts, userns, or cgroup namespace shared with the host or another container; any `network_mode`; `docker.sock`;
 - devices, except the model server's GPU reservation in the `gpu` profile;
-- binds outside `${H4_TREE}/deploy`, `${H4_TREE}/config`, `${H4_MODEL_DIR}`, `${H4_STATE_DIR}`, and `${H4_AWS_DIR}`;
+- binds outside `${H4_TREE}/deploy`, `${H4_TREE}/config`, `${H4_MODEL_DIR}`, `${H4_STATE_DIR}`, and `${H4_AWS_DIR}`, or writable outside `${H4_STATE_DIR}`; a volume that isn't a declared, local named volume (a short-syntax bind renders as one, so binds use the long syntax);
 - ports not on `127.0.0.1`, or on any service but `edge`;
-- the `egress` network on any service but `gateway`;
+- the `egress` network on any service but `gateway`, the `edge` network on any service but `edge`, a service off `internal`, and any network but the three;
+- [§1](#1-topology)'s rules for every service: no `container_name`, `env_file`, `external`, `extra_hosts`, or `volumes_from`; `cap_drop: [ALL]`, with `cap_add` only within the five capabilities; `no-new-privileges`, and nothing that relaxes it; `restart: unless-stopped`; and the `local` log driver, so no log leaves the host;
 - an image without a digest, or one that differs from `images.lock`;
-- a Dockerfile `FROM` without a digest;
-- a dev-only switch, or payload sampling, enabled in the prod template (FR-036);
+- a Dockerfile `FROM` without a digest, or with one `images.lock` doesn't pin (the agents' engine is seeded from the lock alone);
+- a dev-only switch, or payload sampling, enabled in the prod template (FR-036), or set by compose itself rather than taken from the env file; and, in any committed env file, a `COMPOSE_*` key other than `COMPOSE_PROJECT_NAME` and `COMPOSE_PROFILES`, or a `DOCKER_*` key;
 - a `*.env` file anywhere in the working tree (the real ones live in `~/.config/h4reet-ai/env/`);
-- a service with no row in `docs/data-flow-disclosure.md`;
-- in `.devcontainer/`: features, `initializeCommand`, host mounts, or privileged `runArgs`;
+- a service with no row in `docs/data-flow-disclosure.md`: a row whose From → To cell names it in backticks before the arrow;
+- in `.devcontainer/`: features, `initializeCommand`, host mounts, privileged `runArgs`, or a `${localEnv:…}` reference, which would carry the host's environment in;
 - `.npmrc` keys outside an allowlist (`node-options` and `script-shell` run code);
 - a `build.context` that is absolute, or that resolves outside the compose file's tree. Each image builds from the tree the compose file came from: on a host stack, the export, so `--build` can't pick up the live working tree ([§4](#4-environment-files-preflight-and-the-stack-targets)).
 
