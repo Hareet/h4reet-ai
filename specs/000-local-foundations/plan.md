@@ -433,7 +433,7 @@ Exit codes:
    3. If the local adapter is healthy, call it. A local call is free; it writes a ledger row with zero cost and no reservation. If the call fails as `unavailable` or `timeout`, mark local unhealthy and continue.
    4. A stack without a fallback adapter returns `no_fallback_in_stack`. Otherwise run the metered admission check (5.4), which refuses with `meter_at_ceiling`, `fallback_awaiting_renewal`, `fallback_spent_today`, `fallback_unavailable` (the adapter is unhealthy or its circuit is open), or `journal_unwritable`.
    5. Call the fallback adapter inside the reservation, then commit (5.4).
-4. **The answer.** 200 with the answer, route, provider, model, usage, cost, latency, and trace ID. Or **503** with the degraded body and `X-H4-Degraded-Cause`; every degraded response records its cause in the span, a counter, and the log (FR-022, FR-038).
+4. **The answer.** 200 with the answer, route, provider, model, usage, cost, latency, and trace ID. Or **503** with the degraded body and `X-H4-Degraded-Cause`; every degraded response records its cause in the span, a counter, and the log (FR-022, FR-038). Or **429** `metered_capacity_exceeded` when 4 metered calls are already in flight, or 60 were admitted in the last minute. Or **502** `local_error` when the local model rejects the request (no failover: FR-022 fails over on an unhealthy adapter, not a rejected request). The bodies are in [contracts/gateway-http.md](contracts/gateway-http.md).
 
 A request in flight when the state flips completes: the state is read at request start (the spec's edge case).
 
@@ -454,7 +454,7 @@ One interface, `ProviderAdapter { id, provider, kind, model, complete(req), heal
   - Credentials: the default chain, with `AWS_PROFILE=h4reet-bedrock` and `HOME=/home/node`. The Author's SSO session for the dedicated Identity Center user `h4reet-runtime` is mounted read-only from `~/.config/h4reet-ai/aws-home/.aws`. That user holds only a permission set allowing `bedrock:InvokeModel` on the one inference profile and the foundation models it routes to. The Author creates both: IAM is a human action, and they are not resources this spec creates.
   - Because the mount is read-only, the SDK can't refresh the SSO token. When it nears expiry, the gateway raises `credentials_expiring` 2 h before the end, and the Author runs `make aws-login`.
   - Non-prod stacks mount `deploy/aws-none` (empty), so no Bedrock call is possible there even by mistake.
-- **`synthetic`** (`type: synthetic`): dev only. It returns a fixed text with 1,000 output tokens priced at $100 per million tokens in dev's price entry, so each call costs exactly $0.10. It is refused at startup outside `H4_ENV=dev` and needs `GATEWAY_TEST_SYNTHETIC_SPEND=1`.
+- **`synthetic`** (`type: synthetic`): dev only. It returns a fixed text with 1,000 output tokens priced at $100 per million tokens in dev's price entry, so each call costs exactly $0.10. It declares that usage (`fixedUsage`), so it also reserves exactly $0.10. It is refused at startup outside `H4_ENV=dev` and needs `GATEWAY_TEST_SYNTHETIC_SPEND=1`.
 
 Future adapters (direct vendor APIs, OpenRouter; FR-021) are new `type` modules registered in `registry.ts` and named in `routing.yaml`; nothing else changes.
 
@@ -493,7 +493,9 @@ The schema, the state machines, and both transactions in full are in [data-model
   3. Refuse if the state isn't `normal`; if spent plus reserved is at or above any ceiling; or, for fallback, if renewal is pending or fallback spent plus reserved is at or above the allowance.
   4. Reserve the call's maximum cost: the input cap plus the output cap, at the active price.
 
-  Then two journal records are fsync'd before the call. Overshoot is bounded by 4 in flight × the maximum per call (about $0.0002 with Haiku 5.5).
+  Then a `reserve` journal record is fsync'd before the call, and a `commit` record after it.
+  - **Overshoot** is bounded by 4 in flight × the maximum per call. That maximum is about $0.0003 with Haiku 5.5: the 2,000-character input cap counted as 2,000 tokens, plus 128 output tokens, at its first-party list price.
+  - **Expiry.** A reservation that outlives its 120 s TTL without a commit (a crash, or a long store outage) is settled at its maximum by a sweep, with `cost_basis` `expired`. Admissions, renewals, and a 10 s background task run the sweep, so the live meter never counts less than was spent ([data-model.md §2.4](data-model.md#24-reservations-metered-calls-in-flight)).
 - **Commit:**
   - Insert the ledger row, add to spent, and release the reservation.
   - A warning crossing inserts a `warn` outbox row: 70% of a ceiling, or 70% of each $2 fallback grant.
@@ -521,10 +523,11 @@ The full API is in [contracts/operator-admin.md](contracts/operator-admin.md).
 - **Endpoints**, on the admin listener, published by edge on x003:
   - `POST /admin/{reset,renew,init}` and `GET /admin/{status,audit,incidents}`.
   - Dev only: `POST /admin/test/{clock,synthetic}`.
-  - Prod only: `POST /admin/adapters/bedrock/complete` for the live contract test, charged to prod's meters as `attribution=test`.
+  - Live adapter calls: `POST /admin/adapters/{id}/complete`, for local on any stack and for bedrock on prod only. A paid call is charged to prod's meters as `attribution=test`, not to the sub-budget.
+  - Refusals: 409 `not_degraded` (a reset while normal), 409 `not_awaiting_renewal`, 409 `already_initialized`, and 409 `confirm_zero_required`.
   - Every write needs a reason of at least 10 characters. It writes `audit_log` and a journal record, and sends an `operator_action` confirmation alert.
   - Failed authentication is audited (`auth_failed`) and alerted after 3 failures in 10 minutes.
-- **CLI:** `scripts/operator.py`, stdlib only, run as `python3 -I`. Its commands are `mint`, `status`, `reset`, `renew`, `init`, `audit`, and `incidents`. It reads the token from the file and never takes it from the environment; the variable name `H4_OPERATOR_TOKEN` is denied to agents by name all the same. Make targets: `operator-status`, `operator-reset`, `operator-renew`, `operator-init`, `operator-audit`, `operator-incidents`, and `operator-token`, each with `ENV=<stack> REASON="…"` plus `RENEW=1`, `CONFIRM_ZERO=1`, and `DAY_USD=`, `MONTH_USD=`, `FALLBACK_TODAY_USD=` where they apply.
+- **CLI:** `scripts/operator.py`, stdlib only, run as `python3 -I`. Its commands are `mint`, `status`, `reset`, `renew`, `init`, `audit`, `incidents`, and `contract-record`. It reads the token from the file and never takes it from the environment; the variable name `H4_OPERATOR_TOKEN` is denied to agents by name all the same. Make targets: `operator-status`, `operator-reset`, `operator-renew`, `operator-init`, `operator-audit`, `operator-incidents`, and `operator-token`, each with `ENV=<stack> REASON="…"` plus `RENEW=1`, `CONFIRM_ZERO=1`, and `DAY_USD=`, `MONTH_USD=`, `FALLBACK_TODAY_USD=` where they apply.
 - **What keeps agents out:**
   - the token files and the variable are denied by name (FR-007);
   - the sandbox can't reach the host's 127.0.0.1 ports;
@@ -673,8 +676,11 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
 
   Three run modes:
   1. **In the sandbox** (`make test`): local against an in-process stub OpenAI server on the sandbox's own loopback; Bedrock against `aws-sdk-client-mock`.
-  2. **Live, local** (`make contract-live ENV=prod ADAPTER=local`): against the real model server.
-  3. **Live, Bedrock** (`make contract-live ENV=prod ADAPTER=bedrock`, the Author's terminal): through prod's admin endpoint with the operator token, so every paid call passes prod's admission and is charged to its meters as `test`, not to the sub-budget (FR-031). About 10 calls, under $0.05.
+  2. **Live, recorded then replayed** (`make contract-live ENV=prod ADAPTER=local|bedrock`, the Author's terminal):
+     - `scripts/operator.py contract-record` (stdlib, `python3 -I`) sends each case to `POST /admin/adapters/{id}/complete` with the operator token and writes a recording.
+     - The vitest suite then replays the recording in the devcontainer image with `--network none`.
+     - No project code runs with the token, and nothing from `node_modules` runs in the Author's terminal ([research.md R-16](research.md#r-16-the-operator-credential-a-bearer-token-per-stack-the-author), [§11](#11-local-gates-fr-041)).
+     - Every paid call passes prod's admission and is charged to its meters as `test`, not to the sub-budget (FR-031). About 10 Bedrock calls, under $0.05.
 - **Integration tests** (vitest with PGlite, so no Docker is needed): the migrations, both transactions, init from ledger and journal, the outbox, and every exit-78 refusal ([§5.8](#58-startup-refusals)).
 - **Python tests** (pytest): the probe's assertion helpers, preflight, init-env, pin-images parsing, the compose policy, publish-check (on fixture repositories), `authz.py` and `egress-proxy.py` (on recorded API bodies), the eval and red-team scaffolds, and the existing corpus tests.
 
@@ -689,21 +695,27 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
   - `POST /admin/test/synthetic`: `attribution` fallback or metered, `count`, $0.10 each, through the real pipeline.
 - **The operator token:** the dev-cpu dummy from `dev-cpu.vars`, or, for dev, the Author's `dev.token` file.
 
-The steps, each asserted from a trace (T), a metric (M), or a log (L):
-1. `init --confirm-zero --renew`, then set the clock to the 27th of the month, 08:00 UTC.
-2. **US2-1:** one metered call. T: `h4.cost.usd=0.10`. M: the daily meter shows 0.10 within 60 s.
-3. **US2-2:** spend to $3.50. L: `alert.delivered` on both channels, and both stand-ins show the message within 300 s. M: the warning is on the dashboard.
-4. Stop `model-server`, then fallback calls to $1.40 (the fallback warning), and on to $1.50.
-5. **US5-7:** restart `gateway`. M: fallback today is still 1.50. Five more fallback calls pass; the sixth gets `fallback_awaiting_renewal`, with the exhaustion alert (L).
+The steps, each asserted from a trace (T), a metric (M), or a log (L). Every metered and fallback call is synthetic, at $0.10. The figures are laid out so no ceiling trips before the step that tests it: the daily ceiling is $5, so the metered steps and the fallback steps fall on different days.
+1. **Clean start.** Stop `gateway-state`, remove its volume, and start it again (dev only). Then `init --confirm-zero --renew`. In dev, init restores the test clock from the journal's newest `clock` record, so the gateway's time carries on from the last run. Read the gateway's time from `/health`, and set the clock to the 20th of the following month, 08:00 UTC. That month's periods hold no records from any earlier run (data-model.md §8).
+2. **US2-1** (the 20th): one metered call. T: `h4.cost.usd=0.10`. M: the daily meter shows 0.10 within 60 s.
+3. **US2-2:** metered calls to $3.50 today. L: `alert.delivered` on both channels, and both stand-ins show the warning within 300 s. M: the warning is on the dashboard.
+4. **Advance one day** (the 21st). The daily meter starts at zero, and the month carries $3.50. Stop `model-server`, then make fallback calls to $1.40 (the first grant's warning), and on to $1.50.
+5. **US5-7:** restart `gateway`. M: fallback today is still 1.50. Five more fallback calls pass; the fifth brings fallback to $2.00 and sets the renewal flag, with the `fallback_exhausted` alert (L). The sixth gets `fallback_awaiting_renewal`.
 6. **US5-6:**
-   - `renew` with a reason the same day: fallback passes again at once, with $2 more available (L, and the audit row).
-   - Spend that to the new allowance, advance one day, and restart: hello still returns 503 `fallback_awaiting_renewal`.
-   - `renew` again: exactly $2 is available, not $4.
-7. **US2-3:** start `model-server`, then metered calls to $5.00. Within 60 s, M shows `degraded`, the trip alert arrives, hello returns `kill_switch_tripped`, and local answers are refused too.
+   - `renew` with a reason, the same day: fallback passes again at once (L, and the audit row), with the allowance at $4.00 (M).
+   - Spend it to $4.00: the second grant warns at $3.40, and the flag is set again at $4.00. The day stands at $4.00, under its ceiling.
+   - Advance one day (the 22nd) and restart: hello still returns 503 `fallback_awaiting_renewal`.
+   - `renew` again: the allowance is $2.00, not $4.00 (M).
+7. **US2-3:** start `model-server`, then make metered calls to $5.00 today. Within 60 s, M shows `degraded`, the trip alert arrives, hello returns `kill_switch_tripped`, and local answers are refused too.
 8. **US2-6:** `GET /admin/incidents` returns a draft with the evidence fields.
-9. **US2-4:** `reset` with a reason. Local hello answers again, a metered call is refused with `meter_at_ceiling`, and the audit row (who, when, why) and M are both visible.
-10. **US2-5:** advance day by day while spending under $5 a day, until the month reaches $14 (warning) and then $20 (trip). Advance a day: the meters roll over, but the state is still `degraded`. Advance into the next month: still `degraded`. Reset: `normal`.
-11. **US2-7:** stop `gateway-state`, and hello returns `store_unreachable`. Remove the store's container and volume and bring it back: `store_uninitialized`. Run `init`: the meters equal their pre-wipe values (rebuilt from the journal), and renewal is pending.
+9. **US2-4:** `reset` with a reason, the same day. Local hello answers again; a metered call is refused with `meter_at_ceiling`; the audit row (who, when, why) and M are both visible.
+10. **US2-5:**
+    - Advance to the 23rd and spend $1.50: the month reaches $14.00 and warns. Spend $3.40 more ($4.90 today, $17.40 this month).
+    - Advance to the 24th and spend $2.60: the month reaches $20.00 and trips.
+    - Advance one day: the daily meter rolls over, but the state is still `degraded`.
+    - Advance into the next month: the monthly meter rolls over, and the state is still `degraded`.
+    - Reset: `normal`, and one metered call passes in the new month.
+11. **US2-7:** stop `gateway-state`: hello returns `store_unreachable`. Remove the store's container and volume and bring it back: `store_uninitialized`. Run `init` with no stated values. The test clock comes back from the journal, the meters equal their pre-wipe values for the current periods (rebuilt from the journal: $0.10 today and this month), and renewal is pending (M, L, and the audit row's candidates).
 12. **US2-8:** print a table of every assertion with its source (T, M, or L), and exit non-zero on any miss.
 
 **Delivery:**
@@ -985,7 +997,8 @@ Agents never edit `.claude/**` or `CLAUDE.md`. The closing task group writes `do
 - **`docs/data-flow-disclosure.md`** (FR-040). Columns: ID · From → To · Trigger · Carries · Never carries · Why · Default · How to switch it off · FR. Rows as in [§17](#17-data-flows-that-leave-the-local-tier-fr-040). It closes with "No visitor data flows in this spec." It is linked from the README, SECURITY.md, and CLAUDE.md (in the patch).
 - **Runbooks** (`docs/runbooks/`), one page each:
   - cost warning, kill-switch trip, kill-switch reset, fallback renewal, store initialization;
-  - alert channel down, Bedrock credentials expiring, model server down;
+  - alert channel down, Bedrock credentials expiring, Bedrock unavailable, model server down;
+  - store unreachable, journal unwritable, gateway down, operator authentication failures;
   - the agents' engine, and the local gate.
 
   Each has: Symptoms · Impact · Act (with the make targets) · Verify · Undo · Record.
@@ -1171,7 +1184,7 @@ Spec 000 is done when every success criterion passes on the 5090 and the matrix 
 Re-checked against the design above:
 - **No new violation.**
 - **Principle IV** is stronger than at the pre-design check. The Author-run gate keeps project code out of the Author's terminal, and the dedicated runtime identity keeps the Author's own AWS session out of every container.
-- **The narrower human-only set** (the Author chose "Gates only") leaves the Makefile and the stack scripts agent-editable. Review guards them, and every note lists them first. ADR 0017 records it, and the "No prod guard" decision ([research.md R-14](research.md#r-14-human-only-paths-gates-only)) is the related accepted risk.
+- **The narrower human-only set** (the Author chose "Gates only") leaves the Makefile and the stack scripts agent-editable. Review guards them, and every note lists them first. ADR 0017 records it, and the "No prod guard" decision ([research.md R-14](research.md#r-14-human-only-paths-gates-only-adr-0017-the-author)) is the related accepted risk.
 - **The rootless engine's shared kernel** is a recorded risk, not a constitution deviation. ADR 0016 states it.
 
 Verdict: **PASS**.

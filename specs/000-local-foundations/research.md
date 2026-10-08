@@ -288,7 +288,8 @@ Each row gives the question as asked, the option the Author chose, and that opti
 - **Rationale**:
   - UTC matches AWS billing and has no daylight-saving edges.
   - Integers make the thresholds exact.
-  - Reservations bound the overshoot to 4 calls in flight × the maximum per call: about $0.0002 with Haiku 5.5, $0.0016 with Haiku 4.5.
+  - Reservations bound the overshoot to 4 calls in flight × the maximum per call. The maximum, with the 2,000-character input cap counted as 2,000 tokens and 128 output tokens at first-party list prices, is about $0.0003 with Haiku 5.5 and $0.0026 with Haiku 4.5.
+  - A reservation that expires without a commit is charged its maximum by a sweep, so the meter fails safe (data-model.md §2.4).
 - **Alternatives**:
   - The Author's local time zone.
   - `numeric`: fine, but clumsy in TypeScript.
