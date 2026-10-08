@@ -4,7 +4,7 @@ Spec 000's clarification of 2026-10-07 moved everything that only GitHub can enf
 
 ## Moved whole
 
-### User Story 4 - No Code Merges Without a Spec, and Every PR Is Reviewed by Someone Who Didn't Write It (P1 in spec 000)
+### User Story 4 - No Code Merges Without a Spec, and Every PR Is Reviewed by Someone Who Didn't Write It (Priority: P1)
 
 As the Author, I want CI on hosted runners to refuse any implementation PR without an approved spec, run the tests and the eval and red-team scaffolds, and post the `REVIEW.md` passes from a reviewer with no write access.
 
@@ -39,6 +39,7 @@ Each requirement below keeps its local half in `spec.md`. The original text is q
 - **SC-008**: "The agent-configuration evals run on every `.claude/**` change and their history is public." Moved: the history is public.
 - **User Story 6, scenario 1**: "**Given** the public repository, **When** opened, **Then** the README links the constitution, `intent/`, the spec index, the ADR index, `docs/how-we-build/`, `SECURITY.md`, and the MIT license." Moved: the check on the public repository.
 - **Edge case**: "Legitimate change to budgets, alerting, or the kill switch: ADR plus Author approval; CI flags it sensitive." Moved: CI flags it sensitive.
+- **Edge case**: "Indirect forbidden actions (a script that does the thing): hooks plus sandbox network and credential denies plus branch protection. The matrix includes one indirect variant per action." Moved: branch protection. Until publication, spec 000 names the git hook that keeps `main` the Author's in its place.
 
 ## Also for the publication intent
 
@@ -46,4 +47,5 @@ Found while specifying and reviewing spec 000 on 2026-10-07 (`docs/merge-request
 
 - **Branch protection.** GitHub doesn't count a pull request author's own approval. Agent pull requests need an identity of their own, the Author's own pull requests to the governance files need a way to merge, and CODEOWNERS works only if the rules require code-owner review.
 - **Dependabot.** `.github/dependabot.yml` covers npm, pip, GitHub Actions, and Dockerfile base images. Images pinned in compose files, Terraform providers, and devcontainer features aren't covered yet. Dependabot pull requests that touch manifests under `apps/` or `services/` need an exemption from the spec-link check.
-- **Locally checkable items.** Some moved items could also run before publication: a spec-link check, SBOM and vulnerability scans through the allowlisted registries, and image digests compared across environments. The Author moved them with the rest and may bring any back into spec 000.
+- **Locally checkable items.** Some moved items could also run before publication: a spec-link check, SBOM and vulnerability scans through the allowlisted registries, and image digests compared across environments. The Author moved them with the rest and may bring any back into spec 000. Until then, nothing local stands in for vulnerability scanning, SBOMs, automated updates, or building images once and promoting them.
+- **Timing.** The Author set no timing for the publication spec. Some of its criteria can only be met once the repository exists on GitHub, such as branch protection refusing a merge and a negative test PR left open, so it can't be finished before the first push.

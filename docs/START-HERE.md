@@ -49,15 +49,15 @@ Spec 001 is specified in full only after spec 000's success criteria pass on you
 
 Settled: MIT; $5/day, $20/month with 70% warnings; a $2/day Bedrock fallback sub-budget inside the daily ceiling; Telegram + email (SMTP from a dedicated alerts mailbox); only a human reset restores service after a ceiling trips (local answers at once, metered calls once the tripped meter rolls over); Langfuse self-hosted in the stack; one AWS account; containers on VMs; Terraform with human apply; local-first routing; rig avatar; cloned voice; GTA V-inspired original art direction; engineer/non-engineer paths; compose first, Terraform second; local development until publication (ADR 0013); spec 000's GitHub-side requirements move to a separate publication spec; agents run containers on their own disposable engine, never the host's. The spec 000 decisions are recorded in its Clarifications section (2026-10-07).
 
-Open: idle-infrastructure target (proposed ≤ $10/month) and edge rate-limiting mechanism, both for spec 001's `/speckit-clarify`; an intent for the publication spec.
+Open: three spec 000 decisions found in review, marked `[NEEDS CLARIFICATION]` in FR-017, FR-030, and FR-031 (answer them before `/speckit-plan`, which stops on them); idle-infrastructure target (proposed ≤ $10/month) and edge rate-limiting mechanism, both for spec 001's `/speckit-clarify`; an intent for the publication spec.
 
 Before Phase 1: the job/role/task corpus, and a final read of `intent/000-ai-twin-portfolio.md` → `Status: accepted`.
 
 ## 6. Going public (later, by you)
 
-When spec 000's success criteria pass locally, the publication spec is built (ADR 0014), and you're ready for interviews (ADR 0013), run these in your own terminal; the hooks block them for agents:
+When spec 000's success criteria pass locally and you're ready for interviews (ADR 0013), run these in your own terminal; the hooks block them for agents:
 
-1. Scan the whole history, not just the working tree, for secrets, amounts, and denylisted phrases. Spec 000 should add a `make publish-check` that does this. If it finds anything, clean it out of history before the first push; ADR 0013 allows that one rewrite.
+1. Scan the whole history, not just the working tree, for secrets and denylisted phrases, and the corpus for amounts. Spec 000's `make publish-check` (FR-042) does this. If it finds anything, clean it out of history before the first push; ADR 0013 allows that one rewrite.
 2. Check GitHub's email privacy setting. With "Block command line pushes that expose my email" on, GitHub rejects commits authored with your personal address (GH007).
 3. Publish:
 
