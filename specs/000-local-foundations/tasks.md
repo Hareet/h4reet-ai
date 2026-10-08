@@ -236,7 +236,7 @@ description: "Task list for spec 000, Local Foundations"
   - `.claude/hooks/protected-paths.sh`: `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, and `.gitleaks*`.
   - The secret scanners (FR-008, FR-012):
     - `.gitleaks.toml`: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and `sk-lf-` keys, allowlisting only `deploy/env.agents/dev-cpu.vars`;
-    - the new `.claude/hooks/content-scan.sh`, a PreToolUse check on Edit, Write, and MultiEdit that runs `gitleaks stdin --no-banner --redact`;
+    - the new `.claude/hooks/content-scan.sh`, a PreToolUse check on Edit, Write, and MultiEdit. It writes the edit's text into a fresh directory under its own path relative to the project and runs `gitleaks dir` there, rather than `gitleaks stdin`, so the config's one path allowlist (dev-cpu.vars) applies. It refuses any `.gitleaksignore` outright;
     - `.claude/git-hooks/pre-commit`, which runs gitleaks on the staged changes, with `make git-hooks` installing it.
 
     Each passes `--config` with the main tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`, refuses to run while a `.gitleaksignore` exists at its scan source (research.md R-36), and fails closed when gitleaks is missing (§11).

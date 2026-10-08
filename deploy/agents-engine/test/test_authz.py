@@ -561,3 +561,68 @@ def test_audit_log_rotates_and_keeps_five(
     assert "authz.jsonl" in rotated
     assert not (tmp_path / f"authz.jsonl.{authz.AuditLog.KEEP + 1}").exists()
     assert len([p for p in rotated if p != "authz.jsonl"]) <= authz.AuditLog.KEEP
+
+
+# --------------------------------------------------------------------------------------------------
+# The server path: what dockerd's AuthZReq call reaches. The rules above are judged directly; these
+# drive the handler, so a request that never reaches the rules (as a wrong call once did) fails here.
+# --------------------------------------------------------------------------------------------------
+class _Recorder(authz._Handler):
+    """The plugin's handler without a socket (AF_UNIX is blocked in the sandbox): it keeps what it sends."""
+
+    def __init__(
+        self, log: authz.AuditLog
+    ) -> None:  # skips BaseHTTPRequestHandler's socket setup
+        self.server = type("Server", (), {"audit_log": log})()
+        self.sent: list[dict] = []
+
+    def _send(self, payload: dict) -> None:
+        self.sent.append(payload)
+
+
+def authz_req(log: authz.AuditLog, request: dict) -> dict:
+    handler = _Recorder(log)
+    handler._handle_req(json.dumps(request).encode("utf-8"))
+    assert len(handler.sent) == 1
+    return handler.sent[0]
+
+
+def encoded(body: dict) -> str:
+    import base64
+
+    return base64.b64encode(json.dumps(body).encode("utf-8")).decode("ascii")
+
+
+def test_the_server_path_judges_each_request_and_audits_it(tmp_path: Path) -> None:
+    log = authz.AuditLog(str(tmp_path / "authz.jsonl"))
+    read = {
+        "RequestMethod": "GET",
+        "RequestUri": API + "/containers/json",
+        "User": "h4agents",
+    }
+    assert authz_req(log, read) == {"Allow": True}
+    privileged = {
+        "RequestMethod": "POST",
+        "RequestUri": API + "/containers/create",
+        "RequestBody": encoded(
+            {"Image": "img@sha256:" + "0" * 64, "HostConfig": {"Privileged": True}}
+        ),
+    }
+    refused = authz_req(log, privileged)
+    assert refused["Allow"] is False
+    assert refused["Msg"].startswith("refused by h4-authz (")
+    records = [
+        json.loads(line) for line in (tmp_path / "authz.jsonl").read_text().splitlines()
+    ]
+    assert [r["decision"] for r in records] == ["allow", "refuse"]
+    assert records[0]["user"] == "h4agents"
+    assert (
+        records[1]["user"] == "h4agents-sandbox"
+    )  # no User in the request: the default
+
+
+def test_the_server_path_refuses_an_unreadable_request(tmp_path: Path) -> None:
+    log = authz.AuditLog(str(tmp_path / "authz.jsonl"))
+    handler = _Recorder(log)
+    handler._handle_req(b"{not json")
+    assert handler.sent == [{"Allow": False, "Msg": "unreadable authz request"}]

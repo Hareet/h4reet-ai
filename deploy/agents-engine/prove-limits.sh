@@ -218,13 +218,17 @@ e13_slice() {
 }
 
 e14_ports() {
-	local ok=true port
+	local ok=true port silent=""
+	# With dev-cpu up, every port answers on the host's loopback: RootlessKit publishes them there for the
+	# Author's browser (contracts/agents-engine.md §7). Any HTTP answer counts, whatever its status; a refused
+	# or timed-out connection fails the row. The sandbox half (refused there) is row E9's stage S.
 	for port in 18300 18301 18302 18303 18304; do
-		curl -s -o /dev/null --max-time 3 "http://127.0.0.1:$port/" 2>/dev/null
-		# A refused connection (nothing up) and an answer both prove the publish is on the host's loopback;
-		# the sandbox half (refused there) is row E9's stage S. Record reachability for the note.
+		if ! curl -s -o /dev/null --max-time 3 "http://127.0.0.1:$port/" 2>/dev/null; then
+			ok=false
+			silent="$silent $port"
+		fi
 	done
-	record E14 "$(verdict $ok)" "dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18304); the sandbox cannot reach them (stage S)"
+	record E14 "$(verdict $ok)" "dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18304)${silent:+; no answer on$silent}; the sandbox cannot reach them (stage S)"
 }
 
 nft_drop_count() {

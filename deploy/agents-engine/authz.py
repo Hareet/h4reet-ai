@@ -670,7 +670,7 @@ class _Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError):  # binascii.Error subclasses ValueError
             self._send({"Allow": False, "Msg": "unreadable authz request"})
             return
-        decision = judge(method, uri, body, user)
+        decision = judge(method, uri, body)
         log.write(audit_record(decision, user))
         if decision.allow:
             self._send({"Allow": True})

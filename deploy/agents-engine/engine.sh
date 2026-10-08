@@ -286,11 +286,11 @@ seed_model() {
 	cache="${H4_MODEL_DIR:-$HOME/.local/share/h4reet/models}"
 	src="$cache/$model_file"
 	[ -f "$src" ] || die "the stand-in model is not in the host cache: $src (run make pull MODELS=all)"
-	model_sha="$(awk -v f="$model_file" '$0 ~ f {print}' "$models_lock" | grep -oE '[0-9a-f]{64}' | head -n1)"
-	if [ -n "$model_sha" ]; then
-		echo "$model_sha  $src" | sha256sum -c - >/dev/null 2>&1 ||
-			die "the stand-in model's sha256 does not match $models_lock (fail closed)"
-	fi
+	# The file name is matched as text, not as a pattern: its dots aren't wildcards.
+	model_sha="$(awk -v f="$model_file" 'index($0, f) {print}' "$models_lock" | grep -oE '[0-9a-f]{64}' | head -n1)"
+	[ -n "$model_sha" ] || die "$model_file has no sha256 in $models_lock, so it can't be verified (fail closed)"
+	echo "$model_sha  $src" | sha256sum -c - >/dev/null 2>&1 ||
+		die "the stand-in model's sha256 does not match $models_lock (fail closed)"
 	echo "== copying the stand-in model into $H4_MODELS_SRC"
 	local tmp="$H4_MODELS_SRC/.$model_file.tmp.$$"
 	sudo install -d -o root -g root -m 0755 "$H4_MODELS_SRC"
