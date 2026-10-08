@@ -218,8 +218,8 @@ deploy/
   clickhouse/{low-memory,no-crash-reports,prometheus}.xml   [A] new
   seaweedfs/entrypoint.sh        [A] new: renders s3.json from env, creates the bucket, runs weed
   grafana/provisioning/{datasources,dashboards}/*.yaml, grafana/dashboards/h4-runtime.json   [A] new
-  scripts/                       [A] new: preflight.py, init_env.py, export_tree.py, pull-models.sh, pin_images.py,
-                                     status.py, isolation-check.sh, redact.sh, aws-login.sh
+  scripts/                       [A] new: preflight.py, init_env.py, export_tree.py, pull_images.py, pull-models.sh,
+                                     pin_images.py, status.py, isolation-check.sh, redact.sh, aws-login.sh
   agents-engine/                 [H] new: the FR-039 boundary (§10)
     setup-host.sh, engine.sh, authz.py, egress-proxy.py, docker-relay, prove-limits.sh, daemon.json,
     tree-masks.txt, nftables/h4agents.nft, systemd/*, test/*.py
@@ -393,11 +393,12 @@ Keys that select the stack:
 - `ENV`, from the command line only (`make up ENV=dev`), defaulting to `prod`. It must be exactly one word: `prod`, `dev`, or `dev-cpu`. POSIX shells export `ENV` to name a startup file, so make ignores the environment's value, and refuses one that names a stack (`ENV=dev make down` would otherwise act on prod).
 - `ENVFILE` is `deploy/env.agents/dev-cpu.vars` for dev-cpu, and `$(HOME)/.config/h4reet-ai/env/$(ENV).env` otherwise.
 - Every compose call is `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks. `TREE` is the running export on host stacks and the working tree on dev-cpu. Make finds a host stack's run file at `~/.local/state/h4reet/<stack>/run.env`, the only `H4_STATE_DIR` preflight allows there, so it never reads the env file. It reads `TREE` when a recipe runs, not when it starts. So `make up`, whose export runs as its own prerequisite target, sees the run file the export has just written; make expands a whole recipe before running it, so a line inside the same recipe would not.
+- `REF`, from the command line only, like `ENV`: the commit a host stack runs (`HEAD` by default). Recipes pass it as `--ref="$REF"`, read by the shell, so make never splices it into a command line, and the script refuses one that starts with `-` before git sees it.
 - `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null`. Every Python the Makefile runs in the Author's terminal goes through it, by script path and never with `-m`. `-I` keeps out `PYTHON*` variables, the user's site directory, and the working directory, but it still loads bytecode from `__pycache__`, which an agent could plant and git doesn't show. With the cache under `/dev/null`, which can never hold a directory, Python reads no bytecode and compiles the source, and `-B` keeps it from trying to write any (research.md R-35).
 
 **`make up`:**
 0. **The commit** (host stacks). `REF` defaults to `HEAD`. `deploy/scripts/export_tree.py` resolves it to a SHA, exports it once with `git archive` into `${H4_STATE_DIR}/tree/<sha>` (read-only), and writes `${H4_STATE_DIR}/run.env`: `H4_TREE`, `H4_REF`, `H4_REF_BRANCH`, and `H4_REF_PREVIOUS` ([contracts/env-files.md §12](contracts/env-files.md#12-the-run-file-host-stacks)). The stack then runs that commit's compose file, configuration, and images, whatever the shared working tree holds later. A gateway restart rereads the export, so an agent switching branches can't change a running stack. Uncommitted changes under the stack's paths are named as a WARN (P21). The Author chose no prod guard, so prod may run any branch, and `make status` says which commit it is.
-1. **Preflight**, `deploy/scripts/preflight.py`, run through `PY_HOST`. It parses env files as data and never `source`s them, and it refuses with a named reason:
+1. **Preflight**, `deploy/scripts/preflight.py`, run through `PY_HOST`. On a host stack make runs the export's own copy, with `--repo` naming the working tree, so the templates, locks, and compose file it checks are the started commit's; `status.py`, `redact.sh`, and `pull-models.sh` run from the export the same way. It parses env files as data and never `source`s them, and it refuses with a named reason:
    - the env file is missing, isn't mode 0600 (host stacks), still has a placeholder, or its keys differ from its template's;
    - `COMPOSE_PROJECT_NAME`, `H4_STACK`, `H4_ENV`, and `ENV` disagree, or not exactly one of `gpu` and `cpu` is selected;
    - a dev-only switch (`GATEWAY_TEST_CLOCK`, `GATEWAY_TEST_SYNTHETIC_SPEND`, `TELEMETRY_PAYLOAD_SAMPLING=on`) is set outside `H4_ENV=dev`, or a paid adapter is routed outside `H4_ENV=prod` (FR-031, FR-036);
@@ -410,7 +411,7 @@ Keys that select the stack:
    - a port is held by another process or project;
    - an image is unpinned or differs from `images.lock`.
 2. `pull-models.sh` for the stack's model.
-3. `up -d --build --wait --wait-timeout 600`. The images are built from the export (host stacks) or the working tree (dev-cpu) on every run. Unchanged layers come from the cache, so this costs seconds, and a stale image can't certify code the commit doesn't contain.
+3. `up -d --build --remove-orphans --wait --wait-timeout 600`. `--remove-orphans` retires a service the commit no longer defines, so a rollback brings back the older topology exactly. The images are built from the export (host stacks) or the working tree (dev-cpu) on every run. Unchanged layers come from the cache, so this costs seconds, and a stale image can't certify code the commit doesn't contain.
 4. `deploy/scripts/status.py`. It prints each service's state and health and the gateway's `/health`. If the store is `uninitialized`, it prints the one-time `make operator-init ENV=<stack> REASON=...` command. It never initializes anything itself (FR-031).
 
 Exit codes:
@@ -424,10 +425,10 @@ Exit codes:
 
 | Target | Who runs it | What it does |
 |---|---|---|
-| `down` | anyone | `down --timeout 30`, never `-v`, with the running export's compose file on host stacks |
-| `pull` | the Author | pulls images for every profile, one Docker Hub image at a time, with backoff (5, 15, 45 s) that names an HTTP 429; then `pull-models.sh` (`MODELS=all` fetches every lock entry) |
+| `down` | anyone | `down --timeout 30 --remove-orphans`, never `-v`, with the running export's compose file on host stacks |
+| `pull` | the Author | `pull_images.py`: pulls images for every profile by digest, skipping those already present, one Docker Hub image at a time, with backoff (5, 15, 45 s) that names an HTTP 429; then `pull-models.sh` (`MODELS=all` fetches every lock entry) |
 | `pin-images` | the Author | `pin_images.py`: resolves digests, rewrites `compose.yaml` and `images.lock`, prints the table |
-| `build` | agents and the devcontainer (it refuses elsewhere, since `npm run build` runs `node_modules`, §11) | `npm run build --workspaces`, then `docker compose build` (gateway, telegram-standin, breach-probe) on the current engine; prints `BUILD OK` |
+| `build` | agents and the devcontainer (it refuses elsewhere, since `npm run build` runs `node_modules`, §11) | `npm run build --workspaces`, then `docker compose build` (gateway, telegram-standin, breach-probe) on the current engine, with dev-cpu's env file and every profile, through the relay in the sandbox; prints `BUILD OK`. Before the agents' engine exists, or without a docker CLI (the devcontainer), it says so and builds the workspaces alone |
 | `logs` | anyone | `logs --timestamps --tail ${TAIL:-200} ${SERVICE}`, piped through `deploy/scripts/redact.sh` (ops.md's filter); the model server shows warnings and errors only |
 | `status` | anyone | `status.py`: the running commit, its branch, and the previous commit (from the run file); state, health, the running digest against the pin, the gateway's `/health`, Prometheus target health, GPU memory, `docker system df` |
 | `init-env` | the Author | `init_env.py`: copies the template to `~/.config/h4reet-ai/env/<stack>.env` (0600, directory 0700), generates each `__GENERATE__` value in its own shape, refuses to overwrite, prints the names of the `__ASK__` keys left; `SYNC=1` appends new template keys without touching existing values |

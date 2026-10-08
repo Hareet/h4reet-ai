@@ -293,7 +293,7 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 
 ## 10. `make up` preflight
 
-`deploy/scripts/preflight.py`, run as `python3 -I -B -X pycache_prefix=/dev/null deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE) [--ref <sha>]`, like every Python the Author's terminal runs ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). It parses env files as data and never sources them (§1.1). It runs every check, prints one line per check (`PASS`, `WARN`, or `FAIL`, the check's ID, and a reason that names keys, paths, and figures, never a value), and exits 1 if any check failed. `make up` stops there, before anything starts.
+`deploy/scripts/preflight.py`, run as `python3 -I -B -X pycache_prefix=/dev/null $(TREE)/deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE) [--run-file <the run file>] --repo <the working tree> [--ref=<REF>]`: on a host stack the export's own copy, so it checks the started commit's templates, locks, and compose file, like every Python the Author's terminal runs ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). It parses env files as data and never sources them (§1.1). It runs every check, prints one line per check (`PASS`, `WARN`, or `FAIL`, the check's ID, and a reason that names keys, paths, and figures, never a value), and exits 1 if any check failed. `make up` stops there, before anything starts.
 
 | ID | Refuses when | Stacks |
 |---|---|---|
