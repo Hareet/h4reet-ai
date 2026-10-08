@@ -183,7 +183,8 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
 .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
                                      allowlists deploy/env.agents/dev-cpu.vars only
 GNUmakefile, makefile            never exist: denied at the OS level from the early patch on, so nothing shadows the Makefile
-.devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.txt
+.devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
+                                     hashed requirements-tools.txt
 config/
   routing.yaml                   [A] new: adapters and per-stack routes; schema-validated
   prices.yaml                    [H] new: versioned, append-only price table
@@ -224,6 +225,7 @@ deploy/
     tree-masks.txt, nftables/h4agents.nft, systemd/*, test/*.py
 scripts/operator.py              [A] new: stdlib operator CLI (§5.5)
 tools/gates/                     [H] new: gate, compose_policy.py, publish_check.py, toolchain_check.py,
+                                     run_checks.py (make check's runner), install-tools.sh (make tools),
                                      matrix-required.txt, roles.expected, test/*.py,
                                      lint-node/ (the post-edit hook's lint toolchain, installed by make tools)
 evals/                           [A] new: __init__.py, run.py, breach.py, breach_probe.py, Dockerfile.probe, docs_links.py,
@@ -747,7 +749,7 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
     - gitleaks 8.30.1, from its pinned image;
     - pytest 9.1.1 and pyyaml 6.0.3, from `requirements-tools.txt` with hashes, into `/opt/tools`;
     - the lint toolchain in `/opt/h4reet/lint-node`.
-  - **Behind build arguments that default to off:** Claude Code 2.1.294 (`WITH_CLAUDE=0`), the host's version when the pins were written and Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
+  - **Behind build arguments that default to off:** Claude Code 2.1.294, the host's version when the pins were written (`WITH_CLAUDE=0`), and Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
   - **`devcontainer.json`:**
     - no features (they are fetched unpinned), no `initializeCommand`, no Docker socket, no home mounts;
     - `runArgs: ["--cap-drop=ALL", "--security-opt=no-new-privileges"]`;
@@ -831,12 +833,12 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 | Compose and file policy | `policy` | `tools/gates/compose_policy.py` (below) | runs (no daemon needed) |
 | Config validation | `validate-config` | the gateway's `validate-config` over `config/*.yaml` and the env templates | runs; a protected file whose patch isn't applied yet is PLANNED, naming its task (T022) |
 | Lint | `lint` | [§9](#9-development-environment) | runs |
-| Tests | `test` | `corpus-check`; `vitest run`; `pytest -q -p no:cacheprovider` | runs |
+| Tests | `test` | `corpus-check`; `vitest run`; `pytest -q -p no:cacheprovider --import-mode=importlib`, which never puts a test's folder or the repository root at the front of `sys.path` ([§14](#14-evals-and-red-team-scaffolds-agent-configuration-evals)) | runs |
 | Secret scan | `secrets` | gitleaks over staged and unstaged changes (`gitleaks git --pre-commit`, with and without `--staged`) and over `$(git merge-base main HEAD)..HEAD` | runs |
 | Evals | `evals` | the product scaffold on `fake`; the agent-config static tier; the behavioral tier when triggered ([§14](#14-evals-and-red-team-scaffolds-agent-configuration-evals)) | PENDING when triggered; PLANNED for a case or a check whose enforcement waits for a patch |
 | Red-team suite | `redteam` | `redteam/run.py` | runs |
 | Forbidden-action matrix | `matrix` | `redteam/forbidden-actions.sh`: stage H everywhere; stage S inside the sandbox | runs |
-| Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the current engine, and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs nodejs.org and Ubuntu's mirrors, and the allowlist stays as it is |
+| Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the current engine, and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs Ubuntu's mirrors, and the allowlist stays as it is |
 
 `make check` keeps going after a failure and prints PASS, FAIL, SKIP (always with a reason), PENDING, or PLANNED per target, then a summary line. It exits non-zero on any FAIL or PENDING. PLANNED marks enforcement that a patch adds and the Author hasn't applied yet, such as the `pre-commit` hook or an FR-007 name. It works like the matrix's planned rows ([§13](#13-the-forbidden-action-matrix)): the line names the task that writes the patch, the patch clears the mark when it adds the enforcement, and a PLANNED line doesn't fail the run. Spec 000's acceptance requires none (tasks.md T118). Inside the sandbox it sets `npm_config_cache` to `$TMPDIR`, as it already does for `UV_CACHE_DIR`. Its output, pasted whole, goes into every merge-request note (FR-041).
 
@@ -1083,7 +1085,7 @@ The closing patch holds:
 | Development time: the engine's proxied pulls | npm, PyPI, ghcr.io | package and image names; the IP address | agent sessions on the engine | `egress-proxy.py` and the allowlist |
 | The Author's browser | whatever the Grafana and Langfuse pages fetch | the IP address, the user agent | while viewing | checked once in devtools, and listed |
 | The devcontainer build | Ubuntu's archive mirrors (apt), pypi.org and files.pythonhosted.org (the pinned tools), registry.npmjs.org (the lint toolchain), ECR Public and ghcr.io (the bases, Node's among them) | package and image names; the IP address | opening the devcontainer; the Author's gate | digests, checksums, and hashes |
-| `make tools` | nodejs.org (through nvm), pypi.org (uv), ghcr.io (the gitleaks image), registry.npmjs.org (the lint toolchain) | package and image names; the IP address | the Author, once per pin change | the same pins as the devcontainer |
+| `make tools` | nodejs.org (through nvm), pypi.org and files.pythonhosted.org (uv), ghcr.io (the gitleaks image), registry.npmjs.org (the lint toolchain) | package and image names; the IP address | the Author, once per pin change | the same pins as the devcontainer |
 
 No visitor data flows in this spec.
 
