@@ -230,7 +230,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 |---|---|---|---|
 | `gateway.started` | info | startup finished | `routing_sha`, `price_version`, `adapters` (IDs), `h4_env` |
 | `gateway.config_refused` | fatal | a startup refusal, just before exit 78 | `reason` (the code in [config-files.md](config-files.md) or plan §5.8), `key` or `path` (never a value) |
-| `migrations.applied` | info | after migrations | `versions` |
+| `migrations.applied` | info | after migrations | `versions` (the ones applied now), `grafana_ro_login` (`enabled` once the gateway has set its password, else `disabled`) |
 | `call.completed` | info | each provider attempt, as its ledger row commits | `route_decision`, `route_reason`, `attribution`, `adapter`, `provider`, `request_model`, `response_model`, `input_tokens`, `output_tokens`, `latency_ms`, `cost_micro`, `cost_basis`, `price_version`, `outcome`, `error_kind` |
 | `call.degraded` | warn | each degraded response | `cause`, `route_decision` |
 | `call.refused` | info | each 429 | `error` (`client_cap_exceeded`, `metered_capacity_exceeded`), `limit` |
@@ -245,7 +245,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s` |
 | `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class` |
 | `incident.drafted` | info | a draft is written | `incident_id`, `path` (relative to the state directory), `sha256` |
-| `state.unknown` | error | the store is unreachable or empty: once when it starts, then once a minute | `condition` (`store_unreachable`, `store_uninitialized`), `since` |
+| `state.unknown` | error | the store is unreachable or empty: once when it starts, then once a minute | `condition` (`store_unreachable`, `store_uninitialized`), `since`, `error_class` (a SQLSTATE or Node error code, never a message) |
 | `state.recovered` | info | the store answers again | `outage_s` |
 | `journal.unwritable` | error | a `reserve` append fails | `error_class` |
 | `adapter.health_changed` | info | an adapter's effective health flips | `adapter`, `healthy`, `reason` |

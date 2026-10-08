@@ -44,6 +44,7 @@ Related contracts: [gateway-http.md](contracts/gateway-http.md) (what a request 
 ### 2.1 Migrations, roles, and connections
 
 - **Files:** `services/gateway/migrations/0001_state.sql` (every table, trigger, and the view) and `0002_grafana_ro.sql` (the read-only role). Migrations are append-only: a new change is a new file.
+- **Constraints the tables below imply:** a column whose `CHECK` lists its values is also NOT NULL, except where its row says when it is NULL (`route_reason`, `finish_reason`, `error_kind`); `audit_log.actor` and `ledger.error_kind` are held to the values their rows list; and the ledger's row rules (§2.5) are `CHECK`s.
 - **Applying them:** at startup, in file order, one transaction each, under a fixed `pg_advisory_lock` key. Each is recorded in `gateway.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, sha256 text NOT NULL, applied_at timestamptz NOT NULL)`. If a recorded migration's file no longer matches its SHA-256, the gateway stops (exit 1). If the store records a migration the gateway's build doesn't have, which is what a rollback to an older commit across a migration looks like, the gateway exits 78 with `schema_newer_than_code`, naming the version: it never runs against a schema it doesn't know ([plan.md §4](plan.md#4-environment-files-preflight-and-the-stack-targets)).
 - **A store that is down at startup** doesn't stop the gateway. It starts, answers every request with `store_unreachable`, and retries the migrations every 5 s.
 - **Roles:**
@@ -105,6 +106,8 @@ Metrics derived from it (every 10 s, [telemetry.md](contracts/telemetry.md)): `h
 | `period_day`, `period_month` | `text` | NOT NULL: the periods the call is charged to, fixed at admission |
 | `created_at` | `timestamptz` | NOT NULL |
 | `expires_at` | `timestamptz` | NOT NULL: `created_at` plus `reservation_ttl_s` (120 s) |
+| `request_id`, `trace_id`, `purpose`, `routing_sha` | `text` | NOT NULL, with the ledger's `CHECK`s: the call's identity, so a sweep can write its ledger row (§2.5) |
+| `route_reason` | `text` | the ledger's `CHECK`, and NULL unless `attribution = 'fallback'` |
 
 - **Index:** (`expires_at`).
 - **Expiry:** a reservation that outlives its TTL never committed: the gateway crashed, or the store was down for the whole retry window (§7.3). The call may have been billed, so a **sweep settles it at its maximum**, failing safe. The sweep runs in the admission and renewal transactions and in the 10 s background task (§7.7). For each expired row it:
@@ -147,7 +150,7 @@ One row per provider attempt. A request that fails over from local to Bedrock wr
 | `client_label` | `text` | `CHECK (client_label ~ '^[a-z0-9-]{1,32}$')`; NULL without an `X-H4-Client` header | |
 
 - **Row rules:**
-  - `attribution = 'none'` means `cost_micro = 0`, `cost_basis = 'none'`, and no `reservation_id`.
+  - `attribution = 'none'` means `cost_micro = 0`, `cost_basis = 'none'`, and no `reservation_id`; any other attribution has one.
   - `cost_basis = 'reservation'` means the call failed as `possiblyBilled` and was charged its reserved maximum.
   - `cost_basis = 'none'` with a paid attribution means the call failed before anything could be billed.
   - `cost_basis = 'expired'` means the reservation outlived its TTL without a commit, and a sweep charged its maximum (§2.4). The row's tokens, latency, and finish reason are NULL or 0, and its `trace_id` is the reservation's.
@@ -461,7 +464,8 @@ BEGIN
       fallback only: fb.spent + fb.reserved >= fb.allowance                  → fallback_spent_today
       the adapter's cached health is unhealthy, or its circuit is open       → fallback_unavailable
  6. INSERT INTO gateway.reservations (id, attribution, adapter_id, provider, model, price_version,
-        max_micro, period_day, period_month, created_at, expires_at)
+        max_micro, period_day, period_month, created_at, expires_at,
+        request_id, trace_id, purpose, route_reason, routing_sha)
       VALUES (…, now, now + reservation_ttl_s)
  7. UPDATE gateway.meters SET reserved_micro = reserved_micro + max_micro, updated_at = now
       on day and month, and on fallback_day when attribution = fallback

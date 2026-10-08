@@ -202,7 +202,7 @@ services/gateway/                [A] new: the gateway (§5)
   src/incidents/draft.ts
   src/config/{load,validate,validate-env,validate-config}.ts   (validate-config: the npm script's entry)
   src/telemetry/{otel,metrics,log,redact}.ts
-  test/{unit,contract,integration}/**
+  test/{unit,contract,integration,helpers,fixtures}/**
 deploy/
   compose.yaml                   [A] new: the one topology (§2)
   images.lock                    [A] new: every image as tag@sha256, written by make pin-images
