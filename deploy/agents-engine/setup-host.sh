@@ -275,6 +275,16 @@ ensure_pki() {
 	issue_ca
 	issue_server
 	set_pki_modes
+	# install -d would create missing parents as root, mode 0755, where the Author couldn't later write. So
+	# create the missing ones as the Author first, never loosening one that exists. ~/.config/h4reet-ai holds the
+	# env files and the tokens too, so it is held to 0700 whether or not it existed (contracts/env-files.md §8).
+	local d
+	for d in "$author_home/.config" "$author_home/.config/h4reet" "$(dirname -- "$agent_cert_dir")"; do
+		[ -d "$d" ] || install -d -o "$author" -g "$author" -m 0700 "$d"
+	done
+	install -d -o "$author" -g "$author" -m 0700 "$author_home/.config/h4reet-ai"
+	[ -d "$(dirname -- "$author_cert_dir")" ] ||
+		install -d -o "$author" -g "$author" -m 0700 "$(dirname -- "$author_cert_dir")"
 	# The agents' certificate: readable, not writable, outside the sandbox's write roots.
 	issue_client "h4agents-sandbox" "$agent_cert_dir" "$author" 0555 0444
 	# The Author's certificate: private to the Author.

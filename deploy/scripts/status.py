@@ -290,8 +290,7 @@ class Status:
             self.say(f"  {name}'s error lines, redacted:")
             self.say(redact("\n".join(errors) + "\n").rstrip())
 
-    def services(self, tree: Path) -> bool:
-        expected = self.expected(tree)
+    def services(self, tree: Path, expected: dict[str, dict] | None) -> bool:
         ps = self.compose(tree, "ps", "-a", "--format", "json")
         if expected is None or ps.returncode != 0:
             self.say("Docker didn't answer, or compose refused the stack's files")
@@ -426,7 +425,10 @@ class Status:
         tree = self.commit()
         if tree is None:
             return 0
-        self.services(tree)
+        expected = self.expected(
+            tree
+        )  # one `docker compose config` per run, for both uses
+        self.services(tree, expected)
         if "docker" in self.failing:
             self.say("status: Docker didn't answer")
             return 1
@@ -435,7 +437,7 @@ class Status:
             self.health(tree)
         else:
             self.say("gateway /health: not asked, because edge or the gateway is down")
-        self.prometheus(tree, self.expected(tree))
+        self.prometheus(tree, expected)
         profiles = read_env(self.env_file).get("COMPOSE_PROFILES", "")
         if self.stack in HOST_STACKS and "gpu" in profiles.split(","):
             gpu = self.docker.nvidia()

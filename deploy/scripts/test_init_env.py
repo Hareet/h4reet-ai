@@ -119,9 +119,18 @@ def test_generated_values_differ_between_keys_and_runs(home: Path) -> None:
     assert all(first[k] != second[k] for k in SHAPES)
 
 
+def private_base(home: Path) -> Path:
+    """~/.config/h4reet-ai as it must be: 0700 (mkdir's mode applies only to the last directory it makes)."""
+    base = home / ".config/h4reet-ai"
+    base.mkdir(parents=True)
+    base.chmod(0o700)
+    return base
+
+
 def test_it_never_overwrites(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = home / ".config/h4reet-ai/env/prod.env"
-    path.parent.mkdir(parents=True, mode=0o700)
+    private_base(home)
+    path.parent.mkdir(mode=0o700)
     path.write_text("MINE=1\n", encoding="utf-8")
     assert ie.main(["--stack", "prod"]) == 5
     assert "exists; to start again, move it aside yourself" in capsys.readouterr().err
@@ -131,7 +140,8 @@ def test_it_never_overwrites(home: Path, capsys: pytest.CaptureFixture[str]) -> 
 def test_a_symlink_in_its_place_is_refused(home: Path, tmp_path: Path) -> None:
     target = tmp_path / "elsewhere"
     path = home / ".config/h4reet-ai/env/dev.env"
-    path.parent.mkdir(parents=True, mode=0o700)
+    private_base(home)
+    path.parent.mkdir(mode=0o700)
     path.symlink_to(target)
     assert ie.main(["--stack", "dev"]) == 5
     assert not target.exists()
@@ -159,8 +169,8 @@ def test_inside_the_sandbox_it_refuses(
 def test_a_loose_directory_is_refused(
     home: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    env_dir = home / ".config/h4reet-ai/env"
-    env_dir.mkdir(parents=True)
+    env_dir = private_base(home) / "env"
+    env_dir.mkdir()
     env_dir.chmod(0o755)
     assert ie.main(["--stack", "dev"]) == 5
     assert "mode 0755; it must be 0700" in capsys.readouterr().err
@@ -168,7 +178,7 @@ def test_a_loose_directory_is_refused(
 
 
 def test_a_loose_aws_directory_is_refused(home: Path) -> None:
-    aws = home / ".config/h4reet-ai/aws-home/.aws"
+    aws = private_base(home) / "aws-home/.aws"
     aws.mkdir(parents=True)
     aws.parent.chmod(0o700)
     aws.chmod(0o755)
@@ -189,8 +199,8 @@ def test_another_owner_is_refused(
 def test_sync_appends_only_the_missing_keys(
     home: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    env_dir = home / ".config/h4reet-ai/env"
-    env_dir.mkdir(parents=True, mode=0o700)
+    env_dir = private_base(home) / "env"
+    env_dir.mkdir(mode=0o700)
     path = env_dir / "dev.env"
     kept = [
         ln
@@ -249,3 +259,15 @@ def test_sync_needs_the_file_and_its_mode(home: Path) -> None:
 def test_a_template_secret_without_a_shape_is_refused() -> None:
     with pytest.raises(ie.FileProblem):
         ie.generate("NEW_SECRET")
+
+
+def test_a_loose_base_directory_is_refused(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The base holds the env files and the tokens too, so it is held to 0700 like env/ (review round 1).
+    base = home / ".config/h4reet-ai"
+    base.mkdir(parents=True)
+    base.chmod(0o755)
+    assert ie.main(["--stack", "dev"]) == 5
+    assert f"{base} is mode 0755; it must be 0700" in capsys.readouterr().err
+    assert list(base.iterdir()) == []

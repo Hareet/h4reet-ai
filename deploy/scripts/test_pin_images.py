@@ -351,3 +351,16 @@ def test_unknown_services_and_the_sandbox_are_refused(
     assert "Author's terminal" in capsys.readouterr().err
     monkeypatch.delenv("SANDBOX_RUNTIME")
     assert pi.main(["--root", str(root), "--tag", "seaweedfs"]) == 2
+
+
+def test_atomic_write_never_writes_through_a_planted_link(tmp_path: Path) -> None:
+    # deploy/ is agent-writable, so a link at the predictable temp name could point at the Author's env file.
+    deploy = tmp_path / "deploy"
+    deploy.mkdir()
+    target = tmp_path / "prod.env"
+    target.write_text("KEEP=1\n", encoding="utf-8")
+    (deploy / ".images.lock.pin-images").symlink_to(target)
+    pi.atomic_write(deploy / "images.lock", "pinned\n")
+    assert target.read_text(encoding="utf-8") == "KEEP=1\n"
+    assert (deploy / "images.lock").read_text(encoding="utf-8") == "pinned\n"
+    assert not (deploy / ".images.lock.pin-images").exists()

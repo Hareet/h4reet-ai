@@ -92,6 +92,12 @@ FORBIDDEN_SERVICE_KEYS = {
     "devices": "no devices (plan §11)",
     "device_cgroup_rules": "no device cgroup rules (plan §11)",
     "runtime": "no runtime switch: the GPU is a reservation in the gpu profile (plan §3)",
+    # The engine's API socket under a newer name: on the host's rootful engine it is root on the host (FR-039).
+    "use_api_socket": "use_api_socket mounts the engine's API socket into the container, as docker.sock would",
+    # Lifecycle hooks run commands with their own user and privileged flag, outside the service's own settings.
+    "post_start": "no lifecycle hooks: they run with their own user and privileges (no service needs one)",
+    "pre_stop": "no lifecycle hooks: they run with their own user and privileges (no service needs one)",
+    "develop": "no develop section: compose watch syncs host paths into containers (make up never watches)",
 }
 SOCKETS = (
     "docker.sock",
@@ -577,6 +583,11 @@ def check_build(where: str, build: object, image: object, tree: Path) -> list[Fi
         ("additional_contexts", "extra contexts can reach outside the tree"),
         ("entitlements", "build entitlements"),
         ("privileged", "a privileged build"),
+        ("ssh", "a build's SSH forwarding hands it the host's agent or keys"),
+        ("secrets", "build secrets mount host files into the build"),
+        ("cache_from", "a build cache source can name a host path"),
+        ("cache_to", "a build cache target can write a host path"),
+        ("extra_hosts", "build extra_hosts can point the build at the host"),
     ):
         if build.get(key):
             found.append(Finding(where, f"build.{key}", why))

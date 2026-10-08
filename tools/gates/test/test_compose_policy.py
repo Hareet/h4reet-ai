@@ -224,6 +224,21 @@ def test_a_valid_stack_passes(tmp_path: Path) -> None:
         ),
         ("gateway", "restart", "always", "restart"),
         ("gateway", "logging", {"driver": "syslog"}, "logging"),
+        # The socket and privilege under other names (review round 1 of feat/000-foundations).
+        ("gateway", "use_api_socket", True, "use_api_socket"),
+        (
+            "gateway",
+            "post_start",
+            [{"command": ["sh", "-c", "id"], "user": "root", "privileged": True}],
+            "post_start",
+        ),
+        ("gateway", "pre_stop", [{"command": ["true"]}], "pre_stop"),
+        (
+            "gateway",
+            "develop",
+            {"watch": [{"action": "sync", "path": "/", "target": "/host"}]},
+            "develop",
+        ),
     ],
 )
 def test_service_refusals(
@@ -436,6 +451,11 @@ def test_an_image_with_no_lock_line_is_refused(tmp_path: Path) -> None:
         ),
         ({"context": "..", "network": "host"}, "build.network"),
         ({"context": "..", "entitlements": ["network.host"]}, "build.entitlements"),
+        ({"context": "..", "ssh": ["default"]}, "build.ssh"),
+        ({"context": "..", "secrets": ["aws"]}, "build.secrets"),
+        ({"context": "..", "cache_from": ["type=local,src=/home"]}, "build.cache_from"),
+        ({"context": "..", "cache_to": ["type=local,dest=/home"]}, "build.cache_to"),
+        ({"context": "..", "extra_hosts": ["x:host-gateway"]}, "build.extra_hosts"),
     ],
 )
 def test_build_refusals(tmp_path: Path, build: dict, rule: str) -> None:

@@ -247,8 +247,15 @@ def dockerfiles_using(root: Path, repository: str) -> list[str]:
 
 
 def atomic_write(path: Path, text: str) -> None:
+    """Write through a temp file beside the target, never through a link: deploy/ is agent-writable."""
     tmp = path.with_name(f".{path.name}.pin-images")
-    with open(tmp, "w", encoding="utf-8") as handle:
+    try:
+        tmp.unlink()  # a stale temp, or a planted link: removing a link never touches what it names
+    except FileNotFoundError:
+        pass
+    # O_EXCL and O_NOFOLLOW: a link planted again in between makes this fail, rather than write through it.
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
         handle.write(text)
         handle.flush()
         os.fsync(handle.fileno())

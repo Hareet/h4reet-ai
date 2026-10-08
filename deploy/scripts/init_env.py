@@ -180,10 +180,9 @@ def init(stack: str, sync: bool, home: Path) -> int:
     lines = template_lines(stack)
     base = home / ".config" / "h4reet-ai"
     base.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        base.mkdir(mode=0o700)
-    except FileExistsError:
-        pass
+    check_private_dir(
+        base
+    )  # it holds the env files and the tokens, like env/ itself (contracts/env-files.md §9.1)
     env_dir = base / "env"
     check_private_dir(env_dir)
     if stack == "prod":
