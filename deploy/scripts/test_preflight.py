@@ -529,6 +529,10 @@ def test_p6_the_stack_agrees(dev: Stage) -> None:
             {"LOCAL_MODEL_BASE_URL": "https://api.example.com/v1"},
             "LOCAL_MODEL_BASE_URL",
         ),
+        # Numeric hosts are IPv4 addresses (8.8.8.8, 127.0.0.1, 127.0.0.1 again), never in-stack services.
+        ({"LOCAL_MODEL_BASE_URL": "http://134744072:8080/v1"}, "LOCAL_MODEL_BASE_URL"),
+        ({"LOCAL_MODEL_BASE_URL": "http://0x7f000001:8080/v1"}, "LOCAL_MODEL_BASE_URL"),
+        ({"LOCAL_MODEL_BASE_URL": "http://017700000001/v1"}, "LOCAL_MODEL_BASE_URL"),
         (
             {"LANGFUSE_SECRET_KEY": "pk-lf-x"},
             "LANGFUSE_SECRET_KEY doesn't start sk-lf-",
