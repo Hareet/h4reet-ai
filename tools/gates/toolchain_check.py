@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Compare the installed tool versions against .devcontainer/toolchain.vars (spec 000, plan §9, ADR 0018).
 
-Run as `python3 -I tools/gates/toolchain_check.py` (`make toolchain-check`). Standard library only. It prints one
-row per tool and exits 1 when any required tool is missing or differs from its pin.
+Run through PY_HOST, `python3 -I -B -X pycache_prefix=/dev/null tools/gates/toolchain_check.py`
+(`make toolchain-check`). Standard library only. It prints one row per tool and exits 1 when any required tool is
+missing or differs from its pin.
 
 A pin matches its exact version, or any release in its series: "3.12" matches 3.12.3, and "1.7" matches 1.7.1.
 Claude Code is required where agent sessions run (the host), not inside the devcontainer, which sets

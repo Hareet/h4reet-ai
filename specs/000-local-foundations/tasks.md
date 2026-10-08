@@ -35,10 +35,10 @@ description: "Task list for spec 000, Local Foundations"
 **Purpose**: one toolchain for humans and agents, the workspace, and the local gate's skeleton.
 
 - [X] T001 Rework the head of `Makefile` per §4:
-  - `ENV ?= prod`, with a check that refuses anything but `prod`, `dev`, or `dev-cpu`;
+  - `ENV`, from the command line only and defaulting to `prod`, with a check that refuses anything but exactly `prod`, `dev`, or `dev-cpu`;
   - `ENVFILE`: `deploy/env.agents/dev-cpu.vars` for dev-cpu, `$(HOME)/.config/h4reet-ai/env/$(ENV).env` otherwise;
   - `COMPOSE`, per §4: `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks, where `TREE` is the running export (from the run file) on host stacks and `.` on dev-cpu;
-  - `PY_HOST := python3 -I -X pycache_prefix=$$(mktemp -d)`, for every Python a recipe runs in the Author's terminal, by script path and never with `-m` (research.md R-35).
+  - `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null` (Phase 1's review replaced the `mktemp -d` prefix, which loads planted bytecode when mktemp fails), for every Python a recipe runs in the Author's terminal, by script path and never with `-m` (research.md R-35).
 
   Keep the existing UV_CACHE_DIR and PYTEST logic, pinning pytest to `--with pytest==9.1.1 --with pyyaml==6.0.3`.
 - [X] T002 [P] Create the root `package.json`: private, `workspaces: ["services/*"]`, `engines.node ">=24.21 <25"`, scripts that delegate to the workspaces. Generate `package-lock.json` with `npm install --ignore-scripts` (the registry is allowlisted). Commit no `.npmrc`.
@@ -79,7 +79,7 @@ description: "Task list for spec 000, Local Foundations"
   - `evals/test_run.py`.
 
   `make evals` runs `python3 evals/run.py --suite product --adapter fake` in the sandbox, and `$(PY_HOST) evals/run.py` for the Author's `ADAPTER=local` or `bedrock` runs: by path, never `-m`.
-- [X] T011 [P] Create the red-team scaffold: `redteam/__init__.py`, `redteam/run.py` (one benign case passes, and one planted unsafe response must be detected), `redteam/cases/*.yaml`, and `redteam/test_run.py`. Make `make redteam` run `python3 redteam/run.py`, and add `make matrix` for `bash redteam/forbidden-actions.sh` (§13, §14).
+- [X] T011 [P] Create the red-team scaffold: `redteam/__init__.py`, `redteam/run.py` (one benign case passes, and one planted unsafe response must be detected), `redteam/cases/*.yaml`, and `redteam/test_run.py`. Make `make redteam-suite` run it through `PY_HOST`, add `make matrix` for `bash redteam/forbidden-actions.sh`, and make `make redteam` run both (§11, §13, §14).
 - [X] T012 [P] Create the static agent-config checks per §14: `evals/agent-config/static.py`, `tools/gates/roles.expected`, and `evals/agent-config/test_static.py`. They check:
   - CLAUDE.md has at most 60 lines and 6 KB (FR-006);
   - CLAUDE.md and REVIEW.md name the constitution as superseding (FR-002);
@@ -183,7 +183,7 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T034 [P] Create `deploy/scripts/redact.sh` (ops.md's filter, verbatim), `deploy/scripts/status.py`, and its test. `status.py` shows the running commit, its branch, and the previous commit, from the run file, and reports a host stack with no run file as not started by `make up` (contracts/env-files.md §12). Wire `make logs` (through `redact.sh`) and `make status` (§4).
 - [ ] T035 [P] Create `deploy/scripts/pin_images.py` and its test, which uses recorded `docker buildx imagetools inspect` output. It resolves tags to index digests, rewrites `deploy/compose.yaml` and `deploy/images.lock`, and prints the table. Create `deploy/images.lock` with research.md R-02's pins. Wire `make pin-images` (Author).
 - [ ] T036 Implement `make up`, `make down`, `make build`, `make pull`, and `make image` in `Makefile` per §4, and create `deploy/scripts/export_tree.py` and its test:
-  - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback;
+  - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback. The export runs as its own target, which `up` depends on: make expands a recipe just before running it, and the Makefile reads `TREE` from the run file then, so the compose call uses the commit just exported;
   - `up`, on dev-cpu: the same from the working tree and `dev-cpu.vars`, with no export;
   - `down`: `down --timeout 30`, never `-v`, with the running export's compose file. With no run file, `down` and `logs` say the stack wasn't started by `make up`, and do nothing (§12);
   - `build`: ends with `BUILD OK`;
@@ -431,12 +431,12 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 3
 
-- [ ] T091 [P] [US3] Create `make secrets` per §11: `gitleaks git --pre-commit` with and without `--staged`, plus `$(git merge-base main HEAD)..HEAD`, each with `--config` (the main tree's `.gitleaks.toml`, from T045's patch), `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`. Missing gitleaks fails closed.
+- [ ] T091 [P] [US3] Create `make secrets` per §11 (make the fresh empty directory for `--gitleaks-ignore-path` with a checked `mktemp -d`, and refuse an empty path: an unchecked `mktemp` failing gave an empty `pycache_prefix`, which loaded planted bytecode, research.md R-35): `gitleaks git --pre-commit` with and without `--staged`, plus `$(git merge-base main HEAD)..HEAD`, each with `--config` (the main tree's `.gitleaks.toml`, from T045's patch), `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`. Missing gitleaks fails closed.
 - [ ] T092 [P] [US3] Create `tools/gates/gate` (the Author's clean-room gate, §11) and `tools/gates/test/test_gate.py`:
   - export the ref with `git archive`;
   - build the devcontainer image, tagged by `.devcontainer/`'s hash;
   - the container phase: `npm ci --ignore-scripts`, then lint, test, the scaffolds, and stage H with `--network none`;
-  - the host phase: githooks, toolchain, policy, `corpus-check` with the denylist through `python3 -I -X pycache_prefix=…`, gitleaks, the image build on the engine, and stage E plus the behavioral evals when triggered;
+  - the host phase: githooks, toolchain, policy, `corpus-check` with the denylist through `PY_HOST`, gitleaks, the image build on the engine, and stage E plus the behavioral evals when triggered;
   - every gitleaks call with the flags of §11;
   - the push of the agent-config eval history as the `h4.devtime.eval.*` metrics to prod's x004 (§4.4);
   - a summary line for the merge commit;
@@ -543,7 +543,7 @@ description: "Task list for spec 000, Local Foundations"
   - `.claude/hooks/subagent-report-check.sh` (FR-010): the payload's `last_assistant_message` checked first, every result logged with the `agent_type`, and instruction-shaped text flagged rather than any mention of `settings.json`;
   - the CLAUDE.md lines of §15, each folded into an existing line except one, keeping it under 60 lines;
   - in `redteam/forbidden-actions.sh`, every planned row switched to block or allow, and in `make check`, every PLANNED mark cleared.
-- [ ] T118 **Author**: apply `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, then run `claude doctor`, `make git-hooks`, and `tools/gates/gate` on the branch, not `make check` in your own terminal (§11). The result must be 0 failures, 0 planned rows, and no PLANNED line (SC-003). The trigger fires, so run `make evals-agent-config` and commit its history entry (SC-008).
+- [ ] T118 **Author**: apply `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, then run `claude doctor`, `make git-hooks`, and `tools/gates/gate` on the branch, not `make check` in your own terminal (§11). The result must be 0 failures, 0 planned rows, no PLANNED line, and no SKIP that names a task (SC-003). The trigger fires, so run `make evals-agent-config` and commit its history entry (SC-008).
 - [ ] T119 **Author** (Heavy, with no agents working): run quickstart.md §7's done-when table end to end, and fill the success-criteria table (SC-001, 002, 003, 005, 006, 007, 008, 009) in `docs/merge-requests/<date>-feat-000-enforcement.md`.
 - [ ] T120 Write the merge-request note `docs/merge-requests/<date>-feat-000-enforcement.md`. `make publish-check` runs later, before the first push (START-HERE §6), not at this merge.
 
@@ -613,6 +613,7 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
 ## Notes
 
 - [P] tasks touch different files and depend on nothing unfinished.
+- Marks expire (plan §11). A task that adds a make target named with `@Tnnn` in the Makefile's `CHECK_GATES` removes the mark in the same commit. Once a patch is applied, the next commit deletes the patch's PLANNED entries in `evals/agent-config/static.py` and clears `PRE_COMMIT_PLANNED` (T046). `make check` fails on a stale mark.
 - Every task names its file, and the section of the contract or plan it implements. Where a detail is in a contract, the contract governs, and plan.md is fixed if they disagree.
 - No task edits `.claude/**`, `REVIEW.md`, `CLAUDE.md`, the constitution, `config/budgets*`, or `config/alert*` directly, nor, once a patch protects them, `config/prices*`, `deploy/agents-engine/**`, `tools/gates/**`, `evals/agent-config/**`, or the gitleaks files. Those go through Patch tasks.
 

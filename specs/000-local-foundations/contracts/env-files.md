@@ -59,7 +59,7 @@ Compose and preflight read these; the gateway reads `H4_STACK`, `H4_ENV`, and tw
 | `COMPOSE_PROFILES` | `gpu` | `gpu,dev-receivers` | `cpu,dev-receivers` | no | fixed | compose | preflight: exactly these values; exactly one of `gpu` and `cpu`; never `breach` (the breach test adds it per run) |
 | `H4_TREE` | – | – | `/run/h4agents/tree` | no | dev-cpu only. Host stacks get it from the run file `make up` writes ([§12](#12-the-run-file-host-stacks)), never from the env file | compose: every bind under `deploy/` and `config/` | preflight: on a host stack, the key in the env file is refused, and the run file's value must be the export of the commit being started (P7); on dev-cpu, exactly `/run/h4agents/tree` ([§7.3](#73-the-worktree-question)) |
 | `H4_MODEL_DIR` | `__HOME__/.local/share/h4reet/models` | the same | `/run/h4agents/models` | no | filled; fixed for dev-cpu | compose (`/models:ro`), `pull-models.sh`, preflight | preflight: absolute, not under `/mnt/`, on ext4 for host stacks; dev-cpu exactly as shown |
-| `H4_STATE_DIR` | `__HOME__/.local/state/h4reet/prod` | `__HOME__/.local/state/h4reet/dev` | `/var/lib/h4agents/state/dev-cpu` | no | filled; fixed for dev-cpu | compose: the gateway's journal and incident drafts at `${H4_STATE_DIR}/gateway` ([data-model.md §1](../data-model.md#1-where-state-lives)) | preflight: absolute, ends in the stack's name; host stacks under `$HOME/.local/state/h4reet/`, created 0700 if missing |
+| `H4_STATE_DIR` | `__HOME__/.local/state/h4reet/prod` | `__HOME__/.local/state/h4reet/dev` | `/var/lib/h4agents/state/dev-cpu` | no | filled; fixed for dev-cpu | compose: the gateway's journal and incident drafts at `${H4_STATE_DIR}/gateway` ([data-model.md §1](../data-model.md#1-where-state-lives)) | preflight: absolute, ends in the stack's name; on a host stack exactly `$HOME/.local/state/h4reet/<stack>`, where make finds the run file without reading the env file (plan §4), created 0700 if missing |
 | `H4_AWS_DIR` | `__HOME__/.config/h4reet-ai/aws-home/.aws` | `__REPO__/deploy/aws-none` | `/run/h4agents/tree/deploy/aws-none` | no (a path; the directory it names holds the SSO cache) | filled; fixed for dev-cpu | compose: the gateway's `/home/node/.aws:ro` | preflight: prod's exists, is mode 0700, and holds a `config` file; the others name `deploy/aws-none`, which holds only its README |
 | `H4_VHDX_MOUNT` | `/mnt/c` | `/mnt/c` | `/mnt/c` | no | fixed; the Author changes it if WSL's disk moves | preflight, `pull-models.sh`, `make pull` | preflight: a mounted Windows drive (`9p` with `aname=drvfs` in `/proc/mounts`) |
 | `H4_API_PORT` | `18000` | `18100` | `18300` | no | fixed | compose (edge publishes x000) | preflight: the stack's value exactly, and free ([§10](#10-make-up-preflight)) |
@@ -257,7 +257,7 @@ FR-007: every secret this spec introduces is denied by name, both its variable a
 
 ## 9. `make init-env`
 
-`make init-env ENV=prod|dev [SYNC=1]`, the Author's terminal. It runs `python3 -I -X pycache_prefix=$(mktemp -d) deploy/scripts/init_env.py --stack $(ENV) [--sync]`, stdlib only.
+`make init-env ENV=prod|dev [SYNC=1]`, the Author's terminal. It runs `python3 -I -B -X pycache_prefix=/dev/null deploy/scripts/init_env.py --stack $(ENV) [--sync]`, stdlib only.
 
 ### 9.1 What it does
 
@@ -293,7 +293,7 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 
 ## 10. `make up` preflight
 
-`deploy/scripts/preflight.py`, run as `python3 -I -X pycache_prefix=$(mktemp -d) deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE) [--ref <sha>]`, like every Python the Author's terminal runs ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). It parses env files as data and never sources them (§1.1). It runs every check, prints one line per check (`PASS`, `WARN`, or `FAIL`, the check's ID, and a reason that names keys, paths, and figures, never a value), and exits 1 if any check failed. `make up` stops there, before anything starts.
+`deploy/scripts/preflight.py`, run as `python3 -I -B -X pycache_prefix=/dev/null deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE) [--ref <sha>]`, like every Python the Author's terminal runs ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). It parses env files as data and never sources them (§1.1). It runs every check, prints one line per check (`PASS`, `WARN`, or `FAIL`, the check's ID, and a reason that names keys, paths, and figures, never a value), and exits 1 if any check failed. `make up` stops there, before anything starts.
 
 | ID | Refuses when | Stacks |
 |---|---|---|
@@ -321,7 +321,7 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 
 **The other commands that share these checks:**
 - `make pull` runs P1 to P7, P10, P13 (for every image and model it will fetch), and P14.
-- `pull-models.sh` runs P13 and P14 for its own bytes, through `python3 -I -X pycache_prefix=$(mktemp -d) deploy/scripts/preflight.py --disk-only --bytes <n> --path "$H4_MODEL_DIR"`, before each download.
+- `pull-models.sh` runs P13 and P14 for its own bytes, through `python3 -I -B -X pycache_prefix=/dev/null deploy/scripts/preflight.py --disk-only --bytes <n> --path "$H4_MODEL_DIR"`, before each download.
 - `deploy/agents-engine/engine.sh seed` has its own copy of the disk check in `deploy/agents-engine/engine.sh`, so the human-only boundary code never calls agent-editable code ([agents-engine.md §6](agents-engine.md#6-seeding)).
 
 pytest covers every refusal with a fixture env file and a stubbed `docker` (plan §7).

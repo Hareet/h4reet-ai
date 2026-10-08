@@ -328,7 +328,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 - **Decision**:
   - A 256-bit token per stack, `h4op_<stack>_` followed by 43 base64url characters, kept in `~/.config/h4reet-ai/operator/<stack>.token` (0600) outside the repository.
   - The gateway keeps only its SHA-256 and checks the prefix before hashing.
-  - The CLI is stdlib Python run through `PY_HOST` (`python3 -I` with an empty `pycache_prefix`, R-35), so the credential never passes through `node_modules`, `dist/`, or a planted `__pycache__`, which agents can write and git doesn't show.
+  - The CLI is stdlib Python run through `PY_HOST` (`python3 -I -B` with its bytecode cache under `/dev/null`, R-35), so the credential never passes through `node_modules`, `dist/`, or a planted `__pycache__`, which agents can write and git doesn't show.
   - The dev-cpu token is a public dummy committed in `dev-cpu.vars`, and prod refuses it.
 - **Alternatives**:
   - An SSH or FIDO2 signature: stronger, about 80 more lines, revisitable later.
@@ -573,12 +573,15 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
 
 ### R-35. Python in the Author's terminal ignores bytecode too (review, 2026-10-08)
 
-- **Decision:** `PY_HOST := python3 -I -X pycache_prefix=$(mktemp -d)`, by script path and never with `-m`, for every Python the Author's terminal runs.
+- **Decision:** `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null`, by script path and never with `-m`, for every Python the Author's terminal runs. Phase 1's review replaced the first form, `pycache_prefix=$(mktemp -d)`.
 - **Rationale:**
   - `-I` keeps out `PYTHON*` variables, the user's site directory, and the working directory, but Python still loads a `__pycache__/*.pyc` whose header matches the source. An agent can write one, and git doesn't show it.
   - A reviewer reproduced it: under `-I` the planted bytecode ran instead of the source, and with the empty prefix the source ran.
   - `-m` would also import the package from the working directory, which `-I` can't then find.
-- **Alternatives:** `-B` alone. It stops writing bytecode, not reading it.
+  - **No temporary directory** (Phase 1's review). When `mktemp -d` fails, on a full or unwritable temporary filesystem, the prefix comes out empty, and an empty prefix loads the planted file; a reviewer reproduced that too. `/dev/null` can never hold a directory, so Python finds no bytecode under it and compiles the source, and `-B` keeps it from trying to write any. Nothing is left behind, where each mktemp prefix left a directory of bytecode.
+- **Alternatives:**
+  - `-B` alone. It stops writing bytecode, not reading it.
+  - `pycache_prefix=$(mktemp -d)`. It fails open when mktemp fails, and litters the temporary directory.
 
 ### R-36. gitleaks takes its configuration and ignore list only from the Author (review, 2026-10-08)
 

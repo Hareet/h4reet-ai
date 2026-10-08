@@ -68,7 +68,8 @@ def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     # yaml (-c) it prints PyYAML's, which is how toolchain_check finds the version in pytest's own environment.
     fake_python = bin_dir / "fake-python"
     fake_python.write_text(
-        '#!/bin/sh\ncase "$*" in *-c*) echo 6.0.3 ;; *) echo "pytest 9.1.1" ;; esac\n',
+        # Only the yaml probe passes "-I -c" first; a pattern on all of "$*" would also match a path holding "-c".
+        '#!/bin/sh\ncase "$1 $2" in "-I -c") echo 6.0.3 ;; *) echo "pytest 9.1.1" ;; esac\n',
         encoding="utf-8",
     )
     fake_python.chmod(0o755)
@@ -178,3 +179,17 @@ def test_the_repository_pins_and_the_dockerfile_agree() -> None:
         assert pins.get(key) == value, (
             f"{key}: Dockerfile {value}, toolchain.vars {pins.get(key)}"
         )
+
+
+def test_make_tools_pulls_the_same_gitleaks_image_as_the_dockerfile() -> None:
+    """install-tools.sh copies gitleaks out of an image it names by digest; it must be the devcontainer's."""
+    dockerfile = (REPO / ".devcontainer" / "Dockerfile").read_text(encoding="utf-8")
+    script = (REPO / "tools" / "gates" / "install-tools.sh").read_text(encoding="utf-8")
+    pinned = re.findall(
+        r"ghcr\.io/gitleaks/gitleaks:v\$\{GITLEAKS_VERSION\}@(sha256:[0-9a-f]{64})",
+        dockerfile,
+    )
+    copied = re.findall(
+        r"ghcr\.io/gitleaks/gitleaks:v\$\{gitleaks_v\}@(sha256:[0-9a-f]{64})", script
+    )
+    assert len(pinned) == 1 and copied == pinned

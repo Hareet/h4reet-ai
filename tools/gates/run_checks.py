@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
 """make check's runner (spec 000 FR-041, plan §11): every local gate in order, a status for each, then a summary.
 
-    python3 -I tools/gates/run_checks.py githooks-check lint redteam=redteam-suite policy@T037 ...
+    python3 -I -B -X pycache_prefix=/dev/null tools/gates/run_checks.py githooks-check lint redteam=redteam-suite policy@T037 ...
 
 Each argument is a gate: `label`, `label=target` to run another make target under the gate's name, and `@Tnnn` to
 name the task that adds the target, so that its absence is SKIP rather than FAIL. The runner keeps going after a
 failure. A gate's status:
 
-    FAIL     its target exited non-zero;
+    FAIL     its target exited non-zero; or it has no target and no task; or make would do nothing for it;
+             or its @Tnnn mark is stale, because the target exists now (the task that adds it removes the mark);
     PENDING  it passed but printed a line starting "PENDING": a run the Author must make (the merge waits);
     PLANNED  it passed but printed "PLANNED (Tnnn): ...": enforcement a patch adds, which the patch clears;
-    SKIP     it printed "SKIP: <reason>", or its target doesn't exist yet;
+    SKIP     it printed "SKIP: <reason>", or its target doesn't exist yet and a task is named to add it;
     PASS     otherwise.
 
+Every gate is a .PHONY target. A file or directory with a gate's name, and no .PHONY rule claiming it, makes make
+print "Nothing to be done" and exit 0, which would otherwise read as PASS.
 Exit 1 when any gate is FAIL or PENDING; PLANNED and SKIP don't fail the run. Spec 000's acceptance requires
-no PLANNED line (tasks.md T118).
+no PLANNED line and no SKIP that names a task (tasks.md T118).
 """
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -46,15 +50,32 @@ def parse(argument: str) -> Gate:
     return Gate(found["label"], found["target"] or found["label"], found["task"])
 
 
-def exists(target: str) -> bool:
-    """`make -q` exits 2 only when make can't run the target at all, such as when there is no rule for it."""
-    probe = subprocess.run(
-        ["make", "--no-print-directory", "-q", target],
+def make(*args: str) -> subprocess.CompletedProcess[str]:
+    # LC_ALL=C keeps make's own messages untranslated, so probe() can read them.
+    return subprocess.run(
+        ["make", "--no-print-directory", *args],
         capture_output=True,
         text=True,
+        env={**os.environ, "LC_ALL": "C"},
         check=False,
     )
-    return probe.returncode in (0, 1)
+
+
+def probe(target: str) -> str:
+    """What make would do for the target: "gate", "missing", "idle", or "not-phony".
+
+    `make -q` exits 1 when a recipe would run, as it always does for a .PHONY gate, and 2 when there is no rule. It
+    exits 0 when make thinks there is nothing to do: either no recipe, or a file or directory with the target's name
+    that no .PHONY rule claims ("idle"), or a rule that isn't .PHONY and whose same-named path is up to date
+    ("not-phony"). The dry run tells those two apart. Both `-q` and `-n` still run `$(MAKE)` lines, passing the flag on.
+    """
+    query = make("-q", target)
+    if query.returncode == 1:
+        return "gate"
+    if query.returncode != 0:
+        return "missing"
+    dry = make("-n", target)
+    return "not-phony" if "is up to date" in dry.stdout + dry.stderr else "idle"
 
 
 def classify(gate: Gate, returncode: int, output: str) -> None:
@@ -73,15 +94,34 @@ def classify(gate: Gate, returncode: int, output: str) -> None:
         gate.status, gate.notes = "SKIP", skipped
 
 
+def absent(gate: Gate, state: str) -> None:
+    """The status of a gate whose target make wouldn't run."""
+    path = (
+        f"; a path named {gate.target!r} exists, so the gate must be .PHONY"
+        if state == "idle"
+        else ""
+    )
+    if state == "not-phony":
+        gate.status = "FAIL"
+        gate.notes = [
+            f"{gate.target!r} has a rule, but a path with its name makes it look done: declare it .PHONY"
+        ]
+    elif gate.task:
+        gate.status, gate.notes = "SKIP", [f"added by {gate.task}{path}"]
+    elif state == "idle":
+        gate.status = "FAIL"
+        gate.notes = [
+            f"make would do nothing for {gate.target!r}: no recipe, or a file or directory with its name"
+        ]
+    else:
+        gate.status, gate.notes = "FAIL", [f"no make target {gate.target!r}"]
+
+
 def run(gate: Gate) -> None:
     print(f"== {gate.label}", flush=True)
-    if not exists(gate.target):
-        gate.status = "SKIP"
-        gate.notes = [
-            f"added by {gate.task}" if gate.task else f"no make target {gate.target!r}"
-        ]
-        if not gate.task:
-            gate.status = "FAIL"
+    state = probe(gate.target)
+    if state != "gate":
+        absent(gate, state)
         print(f"-> {gate.status} {gate.label} ({gate.notes[0]})", flush=True)
         return
     done = subprocess.run(
@@ -93,6 +133,12 @@ def run(gate: Gate) -> None:
     )
     sys.stdout.write(done.stdout)
     classify(gate, done.returncode, done.stdout)
+    if gate.task:
+        # The task that adds the target removes its mark, so a later rename can't turn the gate into a silent SKIP.
+        gate.status = "FAIL"
+        gate.notes.append(
+            f"stale mark: make {gate.target} exists now, so remove @{gate.task} from the gate list"
+        )
     note = f" ({'; '.join(gate.notes)})" if gate.notes else ""
     print(f"-> {gate.status} {gate.label}{note}", flush=True)
 

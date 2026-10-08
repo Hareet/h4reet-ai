@@ -10,7 +10,7 @@ Work inside the Linux filesystem (here, `~/h4reet-ai/h4reet-ai`), never under `/
 - **`.wslconfig`** (`%UserProfile%\.wslconfig`): give WSL2 enough memory for model containers (e.g. `memory=48GB`, `swap=8GB`), then `wsl --shutdown`.
 - **Distro packages**: `git`, `make`, `jq`, `shellcheck`, `bubblewrap`, `socat`, `unzip`, `build-essential`, `python3-yaml`.
 - **Toolchain**: `nvm` with a Node LTS as your default, for Claude Code (spec 000's `make tools` adds the pinned Node 24 through nvm and leaves your default alone), Python 3.12 + `uv`, `ruff` (`uv tool install ruff`), `gh` (GitHub CLI), AWS CLI v2 configured with IAM Identity Center (`aws configure sso`; no access keys), Terraform (spec 001; install now, use later).
-- **Claude Code**: `npm install -g @anthropic-ai/claude-code`, then `claude` once to sign in with your subscription. Dev-time model spend is separate from the production budget by constitution — do not point Claude Code at the production Bedrock path.
+- **Claude Code**: `npm install -g @anthropic-ai/claude-code@<version>`, with the version `.devcontainer/toolchain.vars` pins (`make toolchain-check` fails on any other), then `claude` once to sign in with your subscription. Dev-time model spend is separate from the production budget by constitution — do not point Claude Code at the production Bedrock path.
 - **Spec Kit**: `uv tool install specify-cli` (or `--from git+https://github.com/github/spec-kit.git@<tag>` to pin), then `specify check`.
 - **Line endings**: `git config --global core.autocrlf input`. The repo ships `.gitattributes` with `* text=auto eol=lf`; hooks fail with CRLF.
 

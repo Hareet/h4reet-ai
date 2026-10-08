@@ -86,16 +86,44 @@ def test_a_missing_supersedes_line_fails(tree: Path) -> None:
     assert static.main(tree) == 1
 
 
-def test_a_role_whose_tools_drift_fails(tree: Path) -> None:
+def test_a_role_whose_tools_drift_fails(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     (tree / ".claude" / "agents" / "reviewer.md").write_text(
-        "tools: Read, Grep, Bash\n", encoding="utf-8"
+        "---\nname: reviewer\ntools: Read, Grep, Bash\n---\n", encoding="utf-8"
     )
     assert static.main(tree) == 1
+    assert "tools are 'Read, Grep, Bash'; roles.expected says 'Read, Grep'" in (
+        capsys.readouterr().out
+    )
 
 
-def test_a_role_without_an_expected_line_fails(tree: Path) -> None:
+def test_a_role_without_an_expected_line_fails(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     (tree / ".claude" / "agents" / "ops.md").write_text(
-        "tools: Read\n", encoding="utf-8"
+        "---\nname: ops\ntools: Read\n---\n", encoding="utf-8"
+    )
+    assert static.main(tree) == 1
+    assert "role ops: .claude/agents/ops.md has no line" in capsys.readouterr().out
+
+
+def test_a_tools_line_outside_the_frontmatter_grants_nothing(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Claude Code would give this role every tool, so the matching text in its body mustn't pass.
+    (tree / ".claude" / "agents" / "reviewer.md").write_text(
+        "---\nname: reviewer\n---\ntools: Read, Grep\n", encoding="utf-8"
+    )
+    assert static.main(tree) == 1
+    assert "no tools: line in .claude/agents/reviewer.md's frontmatter" in (
+        capsys.readouterr().out
+    )
+
+
+def test_an_empty_expected_entry_fails(tree: Path) -> None:
+    (tree / "tools" / "gates" / "roles.expected").write_text(
+        "reviewer:\n", encoding="utf-8"
     )
     assert static.main(tree) == 1
 
@@ -127,7 +155,13 @@ def test_an_fr007_name_that_is_neither_denied_nor_planned_fails(
     assert static.main(tree) == 1
 
 
-def test_a_denied_name_is_reported_as_denied(
+def waiting(out: str) -> list[str]:
+    """The names on the static tier's "waiting:" line."""
+    lines = [ln for ln in out.splitlines() if ln.strip().startswith("waiting:")]
+    return lines[0].split()[1:] if lines else []
+
+
+def test_denying_a_planned_name_makes_its_mark_stale(
     tree: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     current = [h for h in static.HOOKS if f"hook {h[2]}" not in static.PLANNED]
@@ -135,10 +169,44 @@ def test_a_denied_name_is_reported_as_denied(
     (tree / ".claude" / "settings.json").write_text(
         json.dumps(settings(names, current)), encoding="utf-8"
     )
+    assert static.main(tree) == 1
+    assert "stale PLANNED mark: variable SMTP_PASSWORD is enforced now" in (
+        capsys.readouterr().out
+    )
+
+
+def test_a_denied_name_whose_mark_is_gone_leaves_the_waiting_list(
+    tree: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert static.main(tree) == 0
+    assert "SMTP_PASSWORD" in waiting(capsys.readouterr().out)
+    monkeypatch.setattr(
+        static,
+        "PLANNED",
+        {k: v for k, v in static.PLANNED.items() if k != "variable SMTP_PASSWORD"},
+    )
+    current = [h for h in static.HOOKS if f"hook {h[2]}" not in static.PLANNED]
+    names = sorted(static.DENIED_BEFORE_SPEC_000 | {"SMTP_PASSWORD"})
+    (tree / ".claude" / "settings.json").write_text(
+        json.dumps(settings(names, current)), encoding="utf-8"
+    )
     assert static.main(tree) == 0
     out = capsys.readouterr().out
-    assert "variable SMTP_PASSWORD" not in out
+    assert "SMTP_PASSWORD" not in waiting(out)
     assert (
         f"{len(static.DENIED_BEFORE_SPEC_000) + 1} of {len(static.FR007_VARIABLES)} variables"
         in out
+    )
+
+
+def test_registering_a_planned_hook_makes_its_mark_stale(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    names = sorted(static.DENIED_BEFORE_SPEC_000)
+    (tree / ".claude" / "settings.json").write_text(
+        json.dumps(settings(names, list(static.HOOKS))), encoding="utf-8"
+    )
+    assert static.main(tree) == 1
+    assert "stale PLANNED mark: hook .claude/hooks/content-scan.sh" in (
+        capsys.readouterr().out
     )

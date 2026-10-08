@@ -48,7 +48,9 @@ fi
 
 echo "== 2. pytest $pytest_v with PyYAML $pyyaml_v, as a uv tool"
 # The interpreter is pinned and configuration files are skipped, so nothing git doesn't show steers the install.
-uv tool install --no-config --python "$(command -v python3)" --force "pytest==$pytest_v" --with "pyyaml==$pyyaml_v"
+# pytest's own dependencies take the devcontainer's versions, from its hashed requirements file (FR-014).
+uv tool install --no-config --python "$(command -v python3)" --force "pytest==$pytest_v" --with "pyyaml==$pyyaml_v" \
+  --constraints "$repo/.devcontainer/requirements-tools.txt"
 
 echo "== 3. gitleaks $gitleaks_v, from its pinned image"
 command -v docker >/dev/null || { echo "gitleaks comes out of its pinned image, so this step needs Docker" >&2; exit 1; }

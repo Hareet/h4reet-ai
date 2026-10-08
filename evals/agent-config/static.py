@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """The static tier of the agent-configuration evals (spec 000 FR-002, FR-006, FR-007, FR-011; plan §14).
 
-Run as `python3 -I evals/agent-config/static.py` (`make evals`). Standard library only. It checks the governance
+Run through PY_HOST, `python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py` (`make evals`). Standard library only. It checks the governance
 files as data, and never runs them:
   - CLAUDE.md has at most 60 lines and 6 KB (FR-006);
   - CLAUDE.md and REVIEW.md name the constitution as superseding them (FR-002);
-  - each .claude/agents/<role>.md tools: line equals tools/gates/roles.expected (FR-006);
+  - each .claude/agents/<role>.md has a tools: line in its frontmatter, equal to tools/gates/roles.expected (FR-006);
   - the hooks are registered in .claude/settings.json;
   - every FR-007 variable is denied by name in the sandbox's credentials.envVars.
 
 A check whose enforcement a patch hasn't applied yet prints PLANNED, naming the task that writes the patch, and
-doesn't fail (plan §11). The patch removes its entries from PLANNED when it adds the enforcement.
+doesn't fail (plan §11). Once the enforcement is there, its PLANNED entry is stale and fails, so the entries are
+removed as the patch lands (tasks.md T046), and a later regression can't hide behind one.
 Exit codes: 0 every check passed or is planned, 1 a check failed.
 """
 
@@ -80,7 +81,7 @@ DENIED_BEFORE_SPEC_000 = {
 }
 
 # Enforcement a patch hasn't applied yet: the item, and the task that writes the patch (tasks.md).
-# The early patch (T045) deletes these entries when it adds the hook and the denies.
+# Once the early patch (T045) adds the hook and the denies, these entries fail as stale until they're deleted (T046).
 PLANNED = {
     "hook .claude/hooks/content-scan.sh": "T045",
     **{
@@ -102,6 +103,18 @@ class Report:
     def fail(self, what: str) -> None:
         self.failed += 1
         print(f"FAIL  {what}")
+
+    def info(self, what: str) -> None:
+        print(f"      {what}")
+
+    def present(self, item: str, what: str | None = None) -> None:
+        """Enforcement that is there. A PLANNED entry for it is stale, and fails until it's deleted."""
+        if item in PLANNED:
+            self.fail(
+                f"stale PLANNED mark: {item} is enforced now, so delete its PLANNED entry (tasks.md T046)"
+            )
+        elif what:
+            self.ok(what)
 
     def missing(self, item: str, what: str) -> None:
         """Enforcement that isn't there: PLANNED if a patch is due to add it, otherwise a failure."""
@@ -143,15 +156,40 @@ def read_roles(path: Path) -> dict[str, str]:
     return roles
 
 
+def frontmatter_tools(text: str) -> str:
+    """The tools: value in the frontmatter, the --- block that opens the file; "" when there is none.
+
+    Claude Code reads a role's tools only from there. A tools: line anywhere else in the file grants nothing, and a
+    role without one gets every tool.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return ""
+    for line in lines[1:]:
+        if line.strip() == "---":
+            return ""
+        found = re.match(r"tools:\s*(.*)$", line)
+        if found:
+            return found.group(1).strip()
+    return ""
+
+
 def check_roles(report: Report, repo: Path) -> None:
     expected = read_roles(repo / "tools" / "gates" / "roles.expected")
-    found = {}
-    for agent in sorted((repo / ".claude" / "agents").glob("*.md")):
-        text = agent.read_text(encoding="utf-8")
-        tools = re.search(r"^tools:\s*(.*)$", text, re.MULTILINE)
-        found[agent.stem] = tools.group(1).strip() if tools else ""
+    found = {
+        agent.stem: frontmatter_tools(agent.read_text(encoding="utf-8"))
+        for agent in sorted((repo / ".claude" / "agents").glob("*.md"))
+    }
     for role in sorted(set(expected) | set(found)):
-        if role not in found:
+        if role in found and not found[role]:
+            report.fail(
+                f"role {role}: no tools: line in .claude/agents/{role}.md's frontmatter, so it would get every tool"
+            )
+        elif role in expected and not expected[role]:
+            report.fail(
+                f"role {role}: tools/gates/roles.expected lists no tools for it"
+            )
+        elif role not in found:
             report.fail(
                 f"role {role}: in roles.expected but no .claude/agents/{role}.md"
             )
@@ -183,8 +221,9 @@ def check_hooks(report: Report, settings: dict) -> None:
     found = registered_hooks(settings)
     for event, matcher, script in HOOKS:
         if (event, matcher, script) in found:
-            report.ok(
-                f"hook {script} is registered for {event} {matcher or '(every subagent)'}"
+            report.present(
+                f"hook {script}",
+                f"hook {script} is registered for {event} {matcher or '(every subagent)'}",
             )
         else:
             report.missing(
@@ -202,14 +241,18 @@ def check_fr007(report: Report, settings: dict) -> None:
     }
     present = [name for name in FR007_VARIABLES if name in denied]
     for name in FR007_VARIABLES:
-        if name not in denied:
+        if name in denied:
+            report.present(f"variable {name}")
+        else:
             report.missing(
                 f"variable {name}",
                 f"FR-007: {name} isn't denied by name in credentials.envVars",
             )
-    report.ok(
-        f"FR-007: {len(present)} of {len(FR007_VARIABLES)} variables denied by name"
-    )
+    count = f"FR-007: {len(present)} of {len(FR007_VARIABLES)} variables denied by name"
+    if len(present) == len(FR007_VARIABLES):
+        report.ok(count)
+    else:
+        report.info(count)
 
 
 def main(repo: Path = REPO) -> int:

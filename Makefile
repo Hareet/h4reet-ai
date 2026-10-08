@@ -4,9 +4,13 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-# The stack (plan §4): prod and dev on the 5090, dev-cpu on the agents' engine.
-ENV ?= prod
-ifeq ($(filter $(ENV),prod dev dev-cpu),)
+# The stack (plan §4): prod and dev on the 5090, dev-cpu on the agents' engine. Only the command line picks it
+# (make up ENV=dev): POSIX shells export ENV to name a startup file, and that must never choose a stack.
+ifneq ($(origin ENV),command line)
+ENV := prod
+endif
+# Exactly one word, and one of the three. $(filter) would read ENV as a pattern, so "%" or "prod junk" would pass.
+ifneq ($(filter-out prod dev dev-cpu,$(ENV))$(filter-out 1,$(words $(ENV))),)
 $(error ENV must be prod, dev, or dev-cpu, not "$(ENV)")
 endif
 ifeq ($(ENV),dev-cpu)
@@ -15,16 +19,20 @@ RUNFILE :=
 TREE := .
 else
 ENVFILE := $(HOME)/.config/h4reet-ai/env/$(ENV).env
-# A host stack runs the commit `make up` exported, which its run file names (contracts/env-files.md §12).
-# Before the stack's first `make up` there is no run file, and the stack targets say so.
+# A host stack runs the commit `make up` exported, which its run file names (contracts/env-files.md §12). The run
+# file is in the stack's H4_STATE_DIR, which preflight holds to this path, so make never reads the env file.
+# TREE is read when a recipe runs, not when make starts, so `make up` sees the run file its export step has just
+# written (tasks.md T036). Before the stack's first `make up` there is no run file, and the stack targets say so.
 RUNFILE := $(HOME)/.local/state/h4reet/$(ENV)/run.env
-TREE := $(shell sed -n 's/^H4_TREE=//p' "$(RUNFILE)" 2>/dev/null)
+TREE = $(shell sed -n 's/^H4_TREE=//p' "$(RUNFILE)" 2>/dev/null)
 endif
 COMPOSE = docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)$(if $(RUNFILE), --env-file $(RUNFILE))
 
 # Every Python a recipe runs: isolated, and blind to bytecode an agent could plant, by script path and never with -m
-# (research.md R-35). -I alone still loads __pycache__; the empty prefix keeps that out too.
-PY_HOST := python3 -I -X pycache_prefix=$$(mktemp -d)
+# (research.md R-35). -I alone still loads a planted __pycache__/*.pyc. Under /dev/null, which can never hold a
+# directory, Python finds no bytecode and compiles the source, and -B keeps it from trying to write any. A mktemp
+# prefix comes out empty when mktemp fails, and an empty prefix loads the planted file.
+PY_HOST := python3 -I -B -X pycache_prefix=/dev/null
 
 # Node for make's own recipes: the pinned version from nvm, first on PATH, without changing the shell's default
 # Node or the Claude Code installed under it (plan §9).
@@ -54,21 +62,31 @@ PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv ru
 PYTEST_ARGS := -q -p no:cacheprovider --import-mode=importlib
 PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts)
 
+# node_modules and pytest, with any conftest.py, run code that agents can write and git doesn't show. The targets
+# that run them work only in the agent sandbox or the devcontainer. In your own terminal, read the merge-request
+# note's make check output, or run the gate (tools/gates/gate, tasks.md T092; plan §11).
+CONTAINED = @if [ "$${SANDBOX_RUNTIME:-}" != 1 ] && [ "$${H4_DEVCONTAINER:-}" != 1 ]; then \
+  echo "make $@ runs node_modules or pytest, which agents can write: run it in the devcontainer, or read the merge-request note's make check output (plan §11)" >&2; exit 2; fi
+
 # npm runs a workspace script only once a workspace exists; with none, it fails with "No workspaces found".
 WORKSPACES := $(wildcard services/*/package.json)
+WORKSPACE_DIRS := $(patsubst %/package.json,%,$(WORKSPACES))
 NPM_WS = $(if $(WORKSPACES),npm $(1) --workspaces --if-present,@echo "npm $(1): no workspaces yet")
-# Every tracked shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), and the git hooks.
-SHELL_SCRIPTS := $(shell git ls-files '*.sh' | grep -v '^\.specify/') $(wildcard .claude/git-hooks/*)
+# Every shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), and the git hooks. The gate
+# lints a git archive export, which has no .git, so outside a repository the list comes from the files themselves.
+SH_FILES := $(shell { git ls-files '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\n'; } | grep -v '^\.specify/' | sort)
+SHELL_SCRIPTS := $(SH_FILES) $(wildcard .claude/git-hooks/*)
 
-# Removed by the early patch when it adds the pre-commit hook (tasks.md T045, T046).
+# Cleared once the early patch adds the pre-commit hook (tasks.md T045, T046); githooks-check fails while both exist.
 PRE_COMMIT_PLANNED := T045
 
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
-# task that adds the target, so its absence is SKIP rather than FAIL.
+# task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
+# exists fails, so a later rename can't turn a gate into a silent SKIP.
 CHECK_GATES := githooks-check toolchain-check policy@T037 validate-config@T019 lint test secrets@T091 evals redteam=redteam-suite matrix image@T036
 
 help: ## List the targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
 
 setup: ## Install the workspace's dependencies, then the git hooks (the devcontainer runs this)
 	npm ci --ignore-scripts
@@ -91,6 +109,7 @@ githooks-check: ## The git hooks are installed and match .claude/git-hooks/, and
 	  echo "reference-transaction: installed"; \
 	else echo "reference-transaction: missing, modified, or bypassed: run make git-hooks" >&2; ok=0; fi; \
 	if [ -f .claude/git-hooks/pre-commit ]; then \
+	  if [ -n "$(PRE_COMMIT_PLANNED)" ]; then echo "pre-commit: the hook exists now, so clear PRE_COMMIT_PLANNED in the Makefile (tasks.md T046)" >&2; ok=0; fi; \
 	  if cmp -s .claude/git-hooks/pre-commit "$$hooks/pre-commit"; then echo "pre-commit: installed"; \
 	  else echo "pre-commit: missing or modified: run make git-hooks" >&2; ok=0; fi; \
 	elif [ -n "$(PRE_COMMIT_PLANNED)" ]; then \
@@ -102,7 +121,7 @@ githooks-check: ## The git hooks are installed and match .claude/git-hooks/, and
 	[ "$$ok" = 1 ]
 
 git-hooks: ## Install the git hooks that keep main the Author's, once per clone (ADR 0013)
-	@hooks="$$(git rev-parse --git-path hooks)"; \
+	@set -e; hooks="$$(git rev-parse --git-path hooks)"; \
 	if [ ! -w "$$hooks" ]; then echo "git hooks: $$hooks isn't writable here (the agent sandbox); the Author runs make git-hooks"; exit 0; fi; \
 	install -m 0755 .claude/git-hooks/reference-transaction "$$hooks/reference-transaction"; \
 	if [ -f .claude/git-hooks/pre-commit ]; then install -m 0755 .claude/git-hooks/pre-commit "$$hooks/pre-commit"; fi; \
@@ -110,37 +129,46 @@ git-hooks: ## Install the git hooks that keep main the Author's, once per clone 
 	echo "git hooks: installed in $$hooks"
 
 build: ## Build the workspaces, and the compose images once deploy/compose.yaml exists; prints BUILD OK
+	$(CONTAINED)
 	$(call NPM_WS,run build)
 	@if [ -f deploy/compose.yaml ]; then docker compose -f deploy/compose.yaml build; else echo "compose images: none yet (tasks.md T029, T036)"; fi
 	@echo BUILD OK
 
 lint: ## Zero warnings: ESLint, tsc, Prettier, ruff, shellcheck (plan §9)
+	$(CONTAINED)
 	@[ -x node_modules/.bin/eslint ] || { echo "node_modules is missing: run make setup" >&2; exit 1; }
 	node_modules/.bin/eslint --max-warnings 0 .
-	$(call NPM_WS,run typecheck)
+	@# tsc itself, per workspace: a workspace without a typecheck script would otherwise skip it silently.
+	$(if $(WORKSPACE_DIRS),for ws in $(WORKSPACE_DIRS); do node_modules/.bin/tsc --noEmit -p "$$ws" || exit 1; done,@echo "tsc: no workspaces yet")
 	node_modules/.bin/prettier --check .
 	ruff check .
 	@# corpus/ is human-authored and agents can't edit it, so ruff lints it but doesn't hold it to ruff's format.
-	ruff format --check --no-cache --exclude corpus .
+	ruff format --check --no-cache --extend-exclude corpus .
+	@[ -n "$(SH_FILES)" ] || { echo "lint: found no shell scripts to check" >&2; exit 1; }
 	shellcheck $(SHELL_SCRIPTS)
 
 fmt: ## Format what Prettier and ruff own (not the human-authored documents or the corpus)
+	$(CONTAINED)
 	node_modules/.bin/prettier --write .
-	ruff format --no-cache --exclude corpus .
+	ruff format --no-cache --extend-exclude corpus .
 
 # The file name arrives in the environment and is read by the shell as "$$FILE", never as $(FILE):
 # make would expand $(...) inside it. Call these as FILE=path make fmt-file, not make fmt-file FILE=path.
 fmt-file: ## Format one file: FILE=path make fmt-file
+	$(CONTAINED)
 	@case "$$FILE" in *.ts|*.tsx|*.js|*.json|*.md) npx prettier --write "$$FILE" >/dev/null ;; *.py) ruff format "$$FILE" >/dev/null ;; esac
 
 lint-file: ## Lint one file: FILE=path make lint-file
+	$(CONTAINED)
 	@case "$$FILE" in *.ts|*.tsx|*.js) npx eslint "$$FILE" ;; *.py) ruff check "$$FILE" ;; *.sh) shellcheck "$$FILE" ;; esac
 
 test: corpus-check ## Every test: the corpus gate, the workspaces' tests, and pytest
+	$(CONTAINED)
 	$(call NPM_WS,test)
 	$(PYTEST) $(PYTEST_ARGS) $(PYTEST_DIRS)
 
 test-fast: ## The quick subset
+	$(CONTAINED)
 	$(call NPM_WS,run test:unit)
 	$(PYTEST) $(PYTEST_ARGS) -m "not slow" $(PYTEST_DIRS)
 

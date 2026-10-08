@@ -394,8 +394,8 @@ Request:
 ## 6. The operator CLI, `scripts/operator.py`
 
 **How it runs.**
-- Python 3.12, standard library only, run as `python3 -I -X pycache_prefix=$(mktemp -d) scripts/operator.py …`.
-- Isolated mode ignores `PYTHON*` variables, the user's site directory, and the script's directory on `sys.path`. It still loads bytecode from `__pycache__`, which an agent could plant and git doesn't show; the empty `pycache_prefix` makes Python read and write bytecode only in a new temporary directory. Together, nothing an agent could plant in the tree, a cache, or a virtualenv runs with the Author's token ([research.md R-16](../research.md#r-16-the-operator-credential-a-bearer-token-per-stack-the-author)).
+- Python 3.12, standard library only, run as `python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py …`.
+- Isolated mode ignores `PYTHON*` variables, the user's site directory, and the script's directory on `sys.path`. It still loads bytecode from `__pycache__`, which an agent could plant and git doesn't show. With the cache under `/dev/null`, which can never hold a directory, Python reads no bytecode and compiles the source, and `-B` keeps it from writing any. Together, nothing an agent could plant in the tree, a cache, or a virtualenv runs with the Author's token ([research.md R-16](../research.md#r-16-the-operator-credential-a-bearer-token-per-stack-the-author)).
 - The file is agent-editable and reviewed. Every merge-request note lists changes to it first, because it runs in the Author's terminal ([research.md R-14](../research.md#r-14-human-only-paths-gates-only-adr-0017-the-author); ADR 0017).
 
 **Where the token comes from:**
@@ -452,7 +452,12 @@ fallback today 0.40 / 2.00 USD   (grant 1, warning 1.40, available 1.48) · awai
 adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:00Z
 ```
 
-**For other tools.** `operator.py` also exposes an `AdminClient` class. `evals/run.py` (its `bedrock` adapter) and `evals/breach.py` import it by path, so the token is handled in one reviewed file. Both are launched the same way in the Author's terminal: by path, with the same flags, never with `-m` ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)).
+**For other tools.** `operator.py` also exposes an `AdminClient` class:
+- `AdminClient(stack)` reads the stack's token as above, and talks to its admin listener as above.
+- `.adapter_complete(adapter_id, messages, *, max_output_tokens, purpose, reason, temperature=None)` calls §5 and returns its 200 body as a dict: the answer is `result["text"]`, the cost `cost_micro_usd`.
+- Every other answer raises `AdminError`, with `.status` (the HTTP status) and `.error` (the body's `error` field). It never holds the token or a payload.
+
+ `evals/run.py` (its `bedrock` adapter) and `evals/breach.py` import it by path, so the token is handled in one reviewed file. Both are launched the same way in the Author's terminal: by path, with the same flags, never with `-m` ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)).
 
 ### 6.1 Make targets
 

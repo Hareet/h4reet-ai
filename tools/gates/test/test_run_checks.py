@@ -77,3 +77,38 @@ def test_a_missing_target_is_skip_with_its_task_or_fail_without(
 
 def test_no_gates_is_a_usage_error() -> None:
     assert rc.main([]) == 2
+
+
+def test_a_path_named_like_a_missing_gate_is_skip_with_its_task_or_fail_without(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # make prints "Nothing to be done" and exits 0 for a directory with no rule, which used to read as PASS.
+    (project / "secrets").mkdir()
+    assert rc.main(["secrets@T091"]) == 0
+    assert (
+        "-> SKIP secrets (added by T091; a path named 'secrets' exists, so the gate must be .PHONY)"
+        in capsys.readouterr().out
+    )
+    assert rc.main(["secrets"]) == 1
+    assert "make would do nothing for 'secrets'" in capsys.readouterr().out
+
+
+def test_a_rule_that_isnt_phony_fails_when_its_path_makes_it_look_done(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (project / "Makefile").write_text(
+        MAKEFILE + "built:\n\t@echo building\n", encoding="utf-8"
+    )
+    (project / "built").write_text("", encoding="utf-8")
+    assert rc.main(["built"]) == 1
+    assert "declare it .PHONY" in capsys.readouterr().out
+
+
+def test_a_task_mark_is_stale_once_its_target_exists(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert rc.main(["pass@T045"]) == 1
+    out = capsys.readouterr().out
+    assert "all good" in out  # the gate still ran, so its own result shows
+    assert "-> FAIL pass" in out
+    assert "stale mark: make pass exists now, so remove @T045 from the gate list" in out
