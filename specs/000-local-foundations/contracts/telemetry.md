@@ -56,6 +56,7 @@ The gateway configures `@opentelemetry/sdk-node` in `src/telemetry/otel.ts`. Com
 - Health probes produce no spans: the HTTP instrumentation ignores `/health/live` and `/health` (`ignoreIncomingRequestHook`), and the collector's filter drops any that get through ([§6.3](#63-processors)).
 - The gateway removes `client.address`, `client.port`, `network.peer.address`, `network.peer.port`, and `user_agent.original` from its server spans in a span processor before export. The collector deletes them again.
 - **Outbound HTTP.** `instrumentation-undici` is configured with an `ignoreRequestHook` that skips the Telegram API host, because that URL's path carries the bot token ([alerts.md §4.1](alerts.md#41-the-dispatcher)), so no client span records it. The collector's redaction (§6.3) stays the second layer.
+- **Outgoing spans need a parent.** The HTTP, undici, and pg instrumentations make spans only inside a request's trace (`requireParentforOutgoingSpans`, `requireParentforSpans`, `requireParentSpan`), so the model server's 1 s health probe, the store's background queries, and startup make no traces of their own. pg spans carry statements with placeholders, never values, and the statement that sets `grafana_ro`'s password is scrubbed from its span, because the verifier is as sensitive as a password hash.
 
 ### 3.2 The spans of one request
 
@@ -186,7 +187,7 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 |---|---|---|---|---|
 | `gen_ai.client.token.usage` | histogram, `{token}` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.token.type` (`input`, `output`) | `gen_ai_client_token_usage` (`_bucket`, `_sum`, `_count`) | the gateway, once per token type per successful attempt. Buckets: 1, 4, 16, 64, 256, 1,024, 4,096, 16,384, 65,536 (the conventions' advice, cut at the stack's context size). |
 | `gen_ai.client.operation.duration` | histogram, `s` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model` (on success), `server.address`, `error.type` (on failure) | `gen_ai_client_operation_duration_seconds` | the gateway, once per attempt |
-| `http.server.request.duration` | histogram, `s` | `http.request.method`, `http.route`, `http.response.status_code`, `url.scheme`, `network.protocol.version`, `error.type` | `http_server_request_duration_seconds` | `@opentelemetry/instrumentation-http`, for every route on both listeners, health checks included (they produce no spans, but they are counted) |
+| `http.server.request.duration` | histogram, `s` | `http.request.method`, `http.route`, `http.response.status_code`, `url.scheme`, `network.protocol.version`, `error.type` | `http_server_request_duration_seconds` | `@opentelemetry/instrumentation-http`, for every route on both listeners except the health checks: the ignore hook that keeps them out of traces (§3.1) skips their measurement too |
 
 ### 4.3 Metrics scraped by Prometheus
 
@@ -257,7 +258,7 @@ The breach test's L assertions read `alert.delivered`, `fallback.exhausted`, `ki
 ### 5.3 Redaction in the gateway
 
 - **pino's `redact`** censors the fixed paths `req.headers.authorization`, `req.headers.cookie`, `*.authorization`, `*.password`, `*.token`, `messages`, and `*.messages`, with `[redacted]`.
-- **A `formatters.log` hook** censors any key, at any depth, whose name contains `token`, `password`, `secret`, `authorization`, `cookie`, or `api_key` (any case), or that equals `messages`, `prompt`, `completion`, `answer`, `system`, or `body`. The hook exists because `redact` matches whole path segments, not parts of a key, so it can't express plan §5.7's `*token*` and `*password*` on its own.
+- **A `formatters.log` hook** censors any key, at any depth, whose name contains `token`, `password`, `secret`, `authorization`, `cookie`, or `api_key` (any case), unless its value is a number or a boolean, as `call.completed`'s `input_tokens` and `output_tokens` are; or that equals `messages`, `prompt`, `completion`, `answer`, `system`, or `body`, whatever its value. The hook exists because `redact` matches whole path segments, not parts of a key, so it can't express plan §5.7's `*token*` and `*password*` on its own.
 - **Never in a record:** a payload; a client address or label; a token, password, or key; a request URL (Telegram's carries the bot token, [alerts.md §4.1](alerts.md#41-the-dispatcher)); a provider's error body.
 
 ## 6. The collector
