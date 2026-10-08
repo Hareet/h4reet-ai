@@ -964,7 +964,13 @@ If gitleaks is missing, the hooks fail closed.
 
 ## 15. The enforcement-layer patch
 
-Agents never edit `.claude/**` or `CLAUDE.md`. The closing task group writes `docs/merge-requests/<date>-<branch>-enforcement.patch`, as session 1 did. The Author reviews it, applies it with `git apply`, runs `claude doctor`, and then the matrix's planned rows become block or allow rows. The patch holds:
+Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert*`. Their changes travel as patch files in `docs/merge-requests/`, as in session 1. The Author reviews each, applies it with `git apply`, and runs `claude doctor`. There are three:
+
+- **The foundations branch's config patch:** `config/budgets.yaml` and `config/alerts.yaml`, exactly as contracts/config-files.md gives them (tasks.md T021).
+- **The foundations branch's engine-opening patch:** the `allowedDomains` entry `198.18.0.1:2376`, `DOCKER_CONFIG` and `DISABLE_AUTOUPDATER` in `env`, the ops role's `docker-relay` grant, and the bash-gate rule for `make engine-*` (tasks.md T043). It comes early because agents can't run any container until it is applied.
+- **The closing patch,** with everything below and the matrix's planned rows turned into block or allow rows (tasks.md T113).
+
+The closing patch holds:
 
 - **`.claude/settings.json`:**
   - `sandbox.network.allowedDomains` gets `"198.18.0.1:2376"`.
@@ -1131,24 +1137,24 @@ FR-015, SC-004, and User Story 4 moved to the publication spec and map to no tas
 
 ## 21. Order of work, risks, and proof
 
-**Task groups.** Each is one feature branch, merged by the Author in this order. `tasks.md` refines the split.
-1. **`feat/000-toolchain`:**
-   - the npm workspace, the lint and format configs, and the devcontainer;
-   - `make setup`, `tools`, `toolchain-check`, `lint`, `test`, and `fmt` updates, with pytest pinned;
-   - the `evals/run.py` and `redteam/run.py` scaffolds, and the static agent-config tier;
-   - the `make check` summary format.
-2. **`feat/000-gateway`:** `services/gateway` complete: adapters, config, store, meter, operator, alerts, incidents, telemetry, and the unit, contract, and integration tests. Also `config/routing.yaml` and `config/*.yaml` placeholders for the human-only files, which the Author fills: `prices.yaml` (the Bedrock entry), `budgets.yaml`, and `alerts.yaml`. Plus `scripts/operator.py`.
-3. **`feat/000-stack`:**
-   - `deploy/compose.yaml` and every config under `deploy/`;
-   - the env templates and `dev-cpu.vars`;
-   - preflight, init-env, pull-models, pin-images, status, logs, isolation-check, and aws-login;
-   - `images.lock` and `models.lock`;
-   - the stand-ins and Dockerfiles;
-   - the dashboard.
-4. **`feat/000-breach`:** `evals/breach.py`, `breach_probe.py`, the dev-only machinery's end-to-end wiring, `make breach-test`, and `make contract-live`.
-5. **`feat/000-agents-engine`:** `deploy/agents-engine/**`, with tests for `authz.py` and `egress-proxy.py`, and the `engine-*` targets. It can start after group 1. `engine-smoke` needs group 3.
-6. **`feat/000-gates-and-matrix`:** `tools/gates/**` (gate, compose policy, publish-check, toolchain check, required rows, roles), `.gitleaks.toml`, matrix stages H, S, and E, the behavioral agent-config tier, `make publish-check`, `matrix-canary`, and `evals-agent-config`.
-7. **`feat/000-docs-and-enforcement`:** the disclosure, the runbooks, the README, START-HERE, lifecycle.md, and the recording slot; then the enforcement patch ([§15](#15-the-enforcement-layer-patch)), and the matrix rows switched from planned.
+**Task groups.** Each is one feature branch, merged by the Author in this order; [tasks.md](tasks.md) has the tasks. The groups follow the spec's user stories, as Spec Kit asks, with the shared work first:
+1. **`feat/000-setup`** (Phase 1):
+   - the workspace, the lint and format configs, and the devcontainer;
+   - `make setup`, `tools`, `toolchain-check`, `lint`, `test`, and the `make check` summary;
+   - the eval and red-team scaffolds, and the static agent-config tier.
+2. **`feat/000-foundations`** (Phase 2):
+   - the gateway's skeleton: types, clock, config, env checks, store and migrations, telemetry, and the app;
+   - the compose skeleton, edge, the env files, init-env, preflight, status, logs, pin-images, and the policy;
+   - the agents' engine with its tests;
+   - the config patch and the engine-opening patch.
+
+   Then the Author sets up the engine.
+3. **`feat/000-us1-local-stack`** (Phase 3, the MVP): the local adapter and its contract suite, hello, health, init, the operator CLI's first commands, the model server, the observability stack, Langfuse with SeaweedFS, the first dashboard panels, and the Author's first-stack measurements and SC-001.
+4. **`feat/000-us2-kill-switch`** (Phase 4): admission, commit and sweep, the synthetic adapter, the full FR-022 order, reset and renew, the dev-only machinery, alerts, incident drafts, the stand-ins, the breach test, the spend and state panels, and the runbooks.
+5. **`feat/000-us3-governance`** (Phase 5): the matrix's growth (stages H, S, E and the required rows), gitleaks, the clean-room gate, publish-check, the behavioral agent-config evals, and the canary. It can run beside groups 3 and 4; its engine smoke needs group 4.
+6. **`feat/000-us5-fallback`** (Phase 6): the Bedrock adapter and its contract tests, the live adapter endpoint with `contract-record`, `make aws-login`, and the Author's IAM, price, and SC-005 and SC-006 runs.
+7. **`feat/000-us6-docs`** (Phase 7): the README, the data-flow disclosure, the runbook index, START-HERE, lifecycle.md, CODEOWNERS, and the docs-link check.
+8. **`feat/000-enforcement`** (Phase 8): the closing patch, the planned rows switched, and the full validation.
 
 The prerequisites in the Author's terminal are in [quickstart.md](quickstart.md):
 - **disk first:** about 50 GB free on the Windows drive holding WSL's `ext4.vhdx`, or the distro moved to a drive that has it ([research.md R-32](research.md#r-32-host-disk-space-is-the-windows-drives)). Optionally, `.wslconfig` lowered to `memory=48GB`, so Windows keeps headroom;

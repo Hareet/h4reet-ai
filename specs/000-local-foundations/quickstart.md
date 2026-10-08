@@ -114,7 +114,10 @@ Both run the disk check before they write. **Record:** the durations; any Docker
 
 ### 0.10 The enforcement patch
 
-Matrix stage S, the canary, and every agent-session run on the engine need the opening and the denies that the closing task group's patch adds (plan [§15](plan.md#15-the-enforcement-layer-patch)). The Author reviews it, applies it with `git apply`, and runs `claude doctor`. Until then, the matrix reports those rows as planned.
+There are two patches, and the Author applies each with `git apply` and then runs `claude doctor` (plan [§15](plan.md#15-the-enforcement-layer-patch)):
+
+- **The engine-opening patch** comes with the foundations branch (tasks.md T043). It holds the sandbox's one allowlist entry for the engine, `DOCKER_CONFIG`, the ops role's relay grant, and the bash-gate rule for `make engine-*`. Every agent-session run on the engine needs it.
+- **The closing patch** comes with the last branch (T113). It holds the remaining denies, hooks, and git hooks. Until it lands, the matrix reports the rows that need it as planned. Stage S and the canary need it.
 
 ## 1. User Story 1: the whole production stack runs locally
 
