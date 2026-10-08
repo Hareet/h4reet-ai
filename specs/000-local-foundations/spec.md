@@ -2,7 +2,7 @@
 
 **Feature Branch**: `000-local-foundations`
 
-**Created**: 2026-09-04 · **Revised**: 2026-10-07
+**Created**: 2026-09-04 · **Revised**: 2026-10-08
 
 **Status**: Draft
 
@@ -20,6 +20,13 @@
 - Q: Does an image, a compose profile, or a dev-only test switch chosen by the environment file count as "only an environment file" (FR-017)? → A: "yes the env file can count as only a config change"
 - Q: When the fallback sub-budget runs out, does fallback come back the next day on its own, or only after a human restores it (FR-030)? → A: "it does not renew on its own, a human approves renewal"
 - Q: Does each environment on the host have its own ceilings, or do all environments share one budget (FR-031)? → A: "Yes each stack will have its own meter as we are only concerned for production environment, the dev environment won't use spend and will use a Claude Team plan"
+
+### Session 2026-10-08 (plan interview)
+
+- Q: The code of conduct names a contact, which only matters once the repository is public. Does it stay in spec 000 (FR-001)? → A: No. It moves to the publication spec, and its contact is chosen then.
+- Q: Which clock defines the budget day and month (FR-030, FR-031)? → A: UTC.
+- Q: When the operator renews the fallback sub-budget on the day it ran out, does fallback return that day (FR-030)? → A: Yes. A renewal grants a fresh $2 at once, still inside the $5 daily ceiling.
+- Q: The sandbox can't run inside the devcontainer without being weakened. Where do agent sessions run (User Story 3, scenario 1)? → A: On the WSL host, under the full sandbox, with the devcontainer's tool versions. A check fails when the host's versions drift from the devcontainer's.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -74,7 +81,7 @@ As the Author, I want to delegate work to agents in named roles inside a sandbox
 
 **Acceptance Scenarios**:
 
-1. **Given** the repository opened in the devcontainer with the committed permissions, hooks, and sandbox settings, **When** any role is invoked, **Then** it has only its allowlisted tools, cannot read credential files or secret-bearing environment variables, cannot reach non-allowlisted domains, and cannot reach the host's container engine or the GPU (FR-039).
+1. **Given** an agent session in the development environment (the WSL host with the devcontainer's tool versions; Clarifications, 2026-10-08) under the committed permissions, hooks, and sandbox settings, **When** any role is invoked, **Then** it has only its allowlisted tools, cannot read credential files or secret-bearing environment variables, cannot reach non-allowlisted domains, and cannot reach the host's container engine or the GPU (FR-039).
 2. **Given** the implementer, **When** it attempts a prohibited shell command, **Then** the pre-execution hook blocks it, returns the reason, and appends an audit record.
 3. **Given** the reviewer, red-teamer, or docs agent, **When** it attempts to modify source, **Then** the write is refused.
 4. **Given** the ops agent, **When** it runs Terraform, **Then** `plan` succeeds and `apply`/`destroy` are refused.
@@ -143,7 +150,7 @@ As a hiring manager or principal engineer landing cold, I want to understand wit
 
 **Repository & governance**
 
-- **FR-001**: The repository MUST contain the MIT license, `SECURITY.md`, `CONTRIBUTING.md`, a code of conduct, `CODEOWNERS` covering the enforcement layer, `intent/` with the template, `docs/adr/`, `docs/incidents/`, and `docs/how-we-build/`, and its history MUST stay publishable from its first commit (ADR 0013). (Making it public moved to the publication spec.)
+- **FR-001**: The repository MUST contain the MIT license, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS` covering the enforcement layer, `intent/` with the template, `docs/adr/`, `docs/incidents/`, and `docs/how-we-build/`, and its history MUST stay publishable from its first commit (ADR 0013). (Making it public and the code of conduct moved to the publication spec; Clarifications, 2026-10-07 and 2026-10-08.)
 - **FR-002**: The constitution MUST be at `.specify/memory/constitution.md` and linked from the README; `CLAUDE.md` and `REVIEW.md` MUST reference it as superseding.
 - **FR-003**: WHEN a decision listed in User Story 6 is made, THE SYSTEM SHALL record it as an ADR in the same PR.
 - **FR-004**: Every spec folder MUST contain the `intent.md` it was specified from.
@@ -193,8 +200,8 @@ As a hiring manager or principal engineer landing cold, I want to understand wit
 
 **Cost control**
 
-- **FR-030**: Production's ceilings MUST be $5/day and $20/month, each with a warning threshold at 70% ($3.50 and $14). Its Bedrock fallback sub-budget MUST be $2/day, counted inside the daily ceiling, with a warning at 70% ($1.40); it limits the calls routed to Bedrock as fallback (FR-022), and every metered call counts toward the ceilings. WHEN the sub-budget runs out, THE SYSTEM SHALL refuse fallback and alert, and fallback SHALL stay refused, across day rollovers, until the operator approves its renewal with the operator credential and a reason, recorded in the audit log as for FR-034. A day that ends without running it out starts the next with the full $2. All of these MUST live in version-controlled configuration.
-- **FR-031**: A real-time meter in the stack MUST track daily and monthly metered spend and be checked at request start; it is the enforcement point. The meters, today's fallback spend, which ceilings have been crossed, whether the fallback sub-budget awaits renewal (FR-030), and the kill-switch state MUST survive a restart and `make down`. A store that is unreachable counts as unknown, which is `degraded` (fail closed). A store found empty, on a new host or after its data was removed, leaves the runtime `degraded` until the operator initializes it. Initialization is a reset under FR-034 (credential, reason, audit): it rebuilds the meters and today's fallback spend from the surviving call records (FR-023), and where none survive, it takes starting values the operator states in the reason; it leaves the fallback sub-budget awaiting renewal unless the operator renews it in the same action. Nothing sets the meters to zero silently. Each stack has its own meter, and production is the only stack that spends: FR-030's ceilings and sub-budget govern it, and a stack other than production MUST refuse to start with a paid adapter configured. The dev stack's meter applies the same thresholds to the breach test's synthetic spend (FR-036). Paid calls the Author makes while testing, such as the Bedrock contract test (FR-024) and Bedrock evals, count toward production's meter.
+- **FR-030**: Production's ceilings MUST be $5/day and $20/month, each with a warning threshold at 70% ($3.50 and $14). Its Bedrock fallback sub-budget MUST be $2/day, counted inside the daily ceiling, with a warning at 70% ($1.40); it limits the calls routed to Bedrock as fallback (FR-022), and every metered call counts toward the ceilings. WHEN the sub-budget runs out, THE SYSTEM SHALL refuse fallback and alert, and fallback SHALL stay refused, across day rollovers, until the operator approves its renewal with the operator credential and a reason, recorded in the audit log as for FR-034. A renewal grants a fresh $2 at once, still inside the daily ceiling, so a day's fallback allowance is $2 plus $2 for each renewal that day (Clarifications, 2026-10-08). A day that ends without running it out starts the next with the full $2. All of these MUST live in version-controlled configuration.
+- **FR-031**: A real-time meter in the stack MUST track daily and monthly metered spend, by UTC day and month (Clarifications, 2026-10-08), and be checked at request start; it is the enforcement point. The meters, today's fallback spend, which ceilings have been crossed, whether the fallback sub-budget awaits renewal (FR-030), and the kill-switch state MUST survive a restart and `make down`. A store that is unreachable counts as unknown, which is `degraded` (fail closed). A store found empty, on a new host or after its data was removed, leaves the runtime `degraded` until the operator initializes it. Initialization is a reset under FR-034 (credential, reason, audit): it rebuilds the meters and today's fallback spend from the surviving call records (FR-023), and where none survive, it takes starting values the operator states in the reason; it leaves the fallback sub-budget awaiting renewal unless the operator renews it in the same action. Nothing sets the meters to zero silently. Each stack has its own meter, and production is the only stack that spends: FR-030's ceilings and sub-budget govern it, and a stack other than production MUST refuse to start with a paid adapter configured. The dev stack's meter applies the same thresholds to the breach test's synthetic spend (FR-036). Paid calls the Author makes while testing, such as the Bedrock contract test (FR-024) and Bedrock evals, count toward production's meter.
 - **FR-032**: WHEN a warning threshold is crossed, THE SYSTEM SHALL alert via Telegram (primary) and email (secondary) within 5 minutes. Email goes over SMTP from a dedicated alerts mailbox whose credentials stay in a local environment file outside the repository and outside agent context (FR-007). Alerts MUST carry only operational facts (which threshold, the meter values, the runtime state, the time), never payloads, client identifiers, or secrets.
 - **FR-033**: WHEN a ceiling is reached, THE SYSTEM SHALL set `degraded` (every request then gets the degraded response, FR-022) and alert — without human action. Only an operator reset (FR-034) SHALL restore `normal`; a meter rolling over SHALL NOT.
 - **FR-034**: WHEN the operator resets, THE SYSTEM SHALL require an operator credential kept outside the repository and agent context (FR-007) and a reason, and record who and why in an audit log shown on the dashboard. Local answers resume at once; metered calls SHALL stay refused while any meter is at or above its ceiling (FR-022). Agents can't reset the kill switch of any stack outside their own engine (FR-008).

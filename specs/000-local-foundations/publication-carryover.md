@@ -30,7 +30,7 @@ As the Author, I want CI on hosted runners to refuse any implementation PR witho
 
 Each requirement below keeps its local half in `spec.md`. The original text is quoted in full, and the part that moved is named after it.
 
-- **FR-001**: "The repository MUST be public from its first commit and contain the MIT license, `SECURITY.md`, `CONTRIBUTING.md`, a code of conduct, `CODEOWNERS` covering the enforcement layer, `intent/` with the template, `docs/adr/`, `docs/incidents/`, and `docs/how-we-build/`." Moved: public from its first commit.
+- **FR-001**: "The repository MUST be public from its first commit and contain the MIT license, `SECURITY.md`, `CONTRIBUTING.md`, a code of conduct, `CODEOWNERS` covering the enforcement layer, `intent/` with the template, `docs/adr/`, `docs/incidents/`, and `docs/how-we-build/`." Moved: public from its first commit; and, on 2026-10-08 (spec 000's plan interview), the code of conduct, whose contact is chosen at publication.
 - **FR-005**: "A devcontainer MUST provide the complete toolchain, and CI MUST run in the same image." Moved: CI runs in the same image.
 - **FR-011**: "WHEN `CLAUDE.md`, `REVIEW.md`, or `.claude/**` changes, THE SYSTEM SHALL run the agent-configuration evals in CI and block merge below threshold." Moved: running them in CI and blocking the merge there.
 - **FR-012**: "No secret MUST exist in the repository, agent context, or telemetry; secret scanning MUST run on pre-commit and CI." Moved: scanning in CI.
