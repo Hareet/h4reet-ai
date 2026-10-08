@@ -183,7 +183,8 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
 .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
                                      allowlists deploy/env.agents/dev-cpu.vars only
 GNUmakefile, makefile            never exist: denied at the OS level from the early patch on, so nothing shadows the Makefile
-.devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.txt
+.devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
+                                     hashed requirements-tools.txt
 config/
   routing.yaml                   [A] new: adapters and per-stack routes; schema-validated
   prices.yaml                    [H] new: versioned, append-only price table
@@ -224,6 +225,7 @@ deploy/
     tree-masks.txt, nftables/h4agents.nft, systemd/*, test/*.py
 scripts/operator.py              [A] new: stdlib operator CLI (§5.5)
 tools/gates/                     [H] new: gate, compose_policy.py, publish_check.py, toolchain_check.py,
+                                     run_checks.py (make check's runner), install-tools.sh (make tools),
                                      matrix-required.txt, roles.expected, test/*.py,
                                      lint-node/ (the post-edit hook's lint toolchain, installed by make tools)
 evals/                           [A] new: __init__.py, run.py, breach.py, breach_probe.py, Dockerfile.probe, docs_links.py,
@@ -388,10 +390,10 @@ Keys that select the stack:
 - The five port keys.
 
 **Make variables.**
-- `ENV ?= prod`, which must be one of `prod`, `dev`, or `dev-cpu`.
+- `ENV`, from the command line only (`make up ENV=dev`), defaulting to `prod`. It must be exactly one word: `prod`, `dev`, or `dev-cpu`. POSIX shells export `ENV` to name a startup file, so make ignores the environment's value, and refuses one that names a stack (`ENV=dev make down` would otherwise act on prod).
 - `ENVFILE` is `deploy/env.agents/dev-cpu.vars` for dev-cpu, and `$(HOME)/.config/h4reet-ai/env/$(ENV).env` otherwise.
-- Every compose call is `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks. `TREE` is the running export on host stacks and the working tree on dev-cpu.
-- `PY_HOST := python3 -I -X pycache_prefix=$$(mktemp -d)`. Every Python the Makefile runs in the Author's terminal goes through it, by script path and never with `-m`. `-I` keeps out `PYTHON*` variables, the user's site directory, and the working directory, but it still loads bytecode from `__pycache__`, which an agent could plant and git doesn't show; the empty prefix keeps that out too.
+- Every compose call is `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks. `TREE` is the running export on host stacks and the working tree on dev-cpu. Make finds a host stack's run file at `~/.local/state/h4reet/<stack>/run.env`, the only `H4_STATE_DIR` preflight allows there, so it never reads the env file. It reads `TREE` when a recipe runs, not when it starts. So `make up`, whose export runs as its own prerequisite target, sees the run file the export has just written; make expands a whole recipe before running it, so a line inside the same recipe would not.
+- `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null`. Every Python the Makefile runs in the Author's terminal goes through it, by script path and never with `-m`. `-I` keeps out `PYTHON*` variables, the user's site directory, and the working directory, but it still loads bytecode from `__pycache__`, which an agent could plant and git doesn't show. With the cache under `/dev/null`, which can never hold a directory, Python reads no bytecode and compiles the source, and `-B` keeps it from trying to write any (research.md R-35).
 
 **`make up`:**
 0. **The commit** (host stacks). `REF` defaults to `HEAD`. `deploy/scripts/export_tree.py` resolves it to a SHA, exports it once with `git archive` into `${H4_STATE_DIR}/tree/<sha>` (read-only), and writes `${H4_STATE_DIR}/run.env`: `H4_TREE`, `H4_REF`, `H4_REF_BRANCH`, and `H4_REF_PREVIOUS` ([contracts/env-files.md §12](contracts/env-files.md#12-the-run-file-host-stacks)). The stack then runs that commit's compose file, configuration, and images, whatever the shared working tree holds later. A gateway restart rereads the export, so an agent switching branches can't change a running stack. Uncommitted changes under the stack's paths are named as a WARN (P21). The Author chose no prod guard, so prod may run any branch, and `make status` says which commit it is.
@@ -425,7 +427,7 @@ Exit codes:
 | `down` | anyone | `down --timeout 30`, never `-v`, with the running export's compose file on host stacks |
 | `pull` | the Author | pulls images for every profile, one Docker Hub image at a time, with backoff (5, 15, 45 s) that names an HTTP 429; then `pull-models.sh` (`MODELS=all` fetches every lock entry) |
 | `pin-images` | the Author | `pin_images.py`: resolves digests, rewrites `compose.yaml` and `images.lock`, prints the table |
-| `build` | anyone | `npm run build --workspaces`, then `docker compose build` (gateway, telegram-standin, breach-probe) on the current engine; prints `BUILD OK` |
+| `build` | agents and the devcontainer (it refuses elsewhere, since `npm run build` runs `node_modules`, §11) | `npm run build --workspaces`, then `docker compose build` (gateway, telegram-standin, breach-probe) on the current engine; prints `BUILD OK` |
 | `logs` | anyone | `logs --timestamps --tail ${TAIL:-200} ${SERVICE}`, piped through `deploy/scripts/redact.sh` (ops.md's filter); the model server shows warnings and errors only |
 | `status` | anyone | `status.py`: the running commit, its branch, and the previous commit (from the run file); state, health, the running digest against the pin, the gateway's `/health`, Prometheus target health, GPU memory, `docker system df` |
 | `init-env` | the Author | `init_env.py`: copies the template to `~/.config/h4reet-ai/env/<stack>.env` (0600, directory 0700), generates each `__GENERATE__` value in its own shape, refuses to overwrite, prints the names of the `__ASK__` keys left; `SYNC=1` appends new template keys without touching existing values |
@@ -742,12 +744,12 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
 - **Devcontainer** (`.devcontainer/`, agent-editable, policy-checked):
   - **Base:** `public.ecr.aws/docker/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55`, the host's distro, so apt gives the same shellcheck 0.9.0, jq 1.7, bubblewrap, socat, git, make, and python3 3.12 with python3-yaml. The build deletes the image's `ubuntu` user and adds `dev` (uid 1000) with no sudo.
   - **Pins,** all in `toolchain.vars`:
-    - Node 24.21.0 from the nodejs.org tarball, checked against SHASUMS256;
+    - Node 24.21.0, copied from the digest-pinned official Node image, which installs nodejs.org's release tarball after checking it against the release's signed SHASUMS256. The agent sandbox can't reach nodejs.org to record that checksum itself, and the image's digest pins the same binary. Phase 1 changed this from a direct tarball download;
     - uv 0.8.22 and ruff 0.16.10, copied from their pinned ghcr images;
     - gitleaks 8.30.1, from its pinned image;
     - pytest 9.1.1 and pyyaml 6.0.3, from `requirements-tools.txt` with hashes, into `/opt/tools`;
     - the lint toolchain in `/opt/h4reet/lint-node`.
-  - **Behind build arguments that default to off:** Claude Code 2.1.293 (`WITH_CLAUDE=0`) and Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
+  - **Behind build arguments that default to off:** Claude Code 2.1.295, the host's version (`WITH_CLAUDE=0`). It updated itself from 2.1.294 during Phase 1, so its pin moved as T013 says; the early patch's `DISABLE_AUTOUPDATER` stops that, and Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
   - **`devcontainer.json`:**
     - no features (they are fetched unpinned), no `initializeCommand`, no Docker socket, no home mounts;
     - `runArgs: ["--cap-drop=ALL", "--security-opt=no-new-privileges"]`;
@@ -755,18 +757,21 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
   - **Who builds it:** the person opening it (VS Code, or `npx @devcontainers/cli@0.89.0 up`), never the sandbox. The Author's gate builds the same Dockerfile.
   - **SC-007:** a fresh clone with an empty build cache, then build, `make setup`, and `make test`, all inside 30 minutes. It's timed and recorded in the note. No Claude login, engine, GPU, or denylist is needed.
 - **Agent sessions** run on WSL under the full sandbox (ADR 0018, Clarifications 2026-10-08). The host mirrors the devcontainer's pins:
-  - `make tools` (the Author) installs the non-distro pins in places agents can't write:
-    - Node 24.21.0 through `fnm`;
-    - pytest through `uv tool install pytest==9.1.1 --with pyyaml==6.0.3`;
+  - `make tools` (the Author; `tools/gates/install-tools.sh`) installs the non-distro pins in places agents can't write:
+    - Node 24.21.0 through nvm, which the host already uses. It leaves the shell's default Node alone, because the Claude Code installed under that default would otherwise vanish from new shells. The Makefile puts the pinned Node first on PATH for its own recipes;
+    - pytest through `uv tool install --no-config --python "$(command -v python3)" pytest==9.1.1 --with pyyaml==6.0.3 --constraints .devcontainer/requirements-tools.txt`, with the interpreter pinned, no configuration file read, and pytest's own dependencies at the devcontainer's versions;
     - gitleaks via `docker cp` from the pinned image into `~/.local/bin`;
     - the lint toolchain in `~/.local/share/h4reet/lint-node`.
-  - `make toolchain-check` (`tools/gates/toolchain_check.py`) fails on any version drift, Claude Code included. `DISABLE_AUTOUPDATER=1` keeps Claude Code still, since the sandbox's behavior lives in that binary. The Author runs `make tools` on the setup branch before its note is written (tasks.md T013), so the check passes from Phase 1 on; until then it fails, and saying so is its job.
+  - `make toolchain-check` (`tools/gates/toolchain_check.py`) fails on any version drift, Claude Code included. A pin matches its exact version, or a release in its series (`3.12` matches 3.12.3). Claude Code is required on the host, where agent sessions run, and not in the devcontainer, which builds without it. `DISABLE_AUTOUPDATER=1` keeps Claude Code still, since the sandbox's behavior lives in that binary. The Author runs `make tools` on the setup branch before its note is written (tasks.md T013), so the check passes from Phase 1 on; until then it fails, and saying so is its job.
 - **Dependencies:**
   - **npm:** `package-lock.json` is committed, and installs use `npm ci --ignore-scripts`.
-  - **Python:** no repository `.venv` and no `pyproject.toml`. pytest comes from the toolchain, or from the Makefile's existing fallback `uv run --no-project --no-config --python "$(command -v python3)" --with pytest==9.1.1 --with pyyaml==6.0.3`, which is now pinned.
+  - **Python:** no repository `.venv` and no `pyproject.toml`. pytest comes from the toolchain, or from the Makefile's existing fallback `uv run --no-project --no-config --python "$(command -v python3)" --with-requirements .devcontainer/requirements-tools.txt`, which installs the devcontainer's six pinned packages.
   - **The setup target:** `make setup` becomes `npm ci --ignore-scripts` plus `make git-hooks`. The old `pip install -r requirements.txt` and `pre-commit install` lines go: no `requirements.txt` exists, and gitleaks runs from a plain git hook (ADR 0017).
 - **Lint and format (FR-009):**
-  - `make lint` runs `eslint --max-warnings 0`, `tsc --noEmit`, and `prettier --check` (ts, js, json, yaml, md) from the repository's configs inside the sandbox, plus `ruff check`, `ruff format --check` (`--no-cache`), and `shellcheck` on every tracked `*.sh`, the hooks, and the git hooks.
+  - `make lint` runs `eslint --max-warnings 0`, `tsc --noEmit -p <workspace>` for each workspace (a workspace without a `typecheck` script can't skip it), and `prettier --check` from the repository's configs inside the sandbox, plus `ruff check`, `ruff format --check` (`--no-cache`), and `shellcheck`:
+    - Prettier covers code and configuration: TypeScript, JavaScript, JSON, YAML, and Markdown in code folders. `.prettierignore` leaves out the documentation and governance trees (`docs/`, `specs/`, `intent/`, `corpus/`, `.specify/`, `.claude/`, and the root's Markdown), where it would realign tables in human-authored and protected files;
+    - `ruff format --check` leaves out `corpus/` with `--extend-exclude`, which keeps ruff's default exclusions, because the corpus is human-authored and agents can't edit it; `ruff check` still covers it;
+    - shellcheck covers every tracked `*.sh` except Spec Kit's vendored scripts, and the git hooks. In the gate's `git archive` export, which has no `.git`, the list comes from the files themselves, and lint fails if it finds none. Names travel NUL-separated to shellcheck, so the shell never splits or reads one.
   - The post-edit hook, which runs outside the sandbox, lints TypeScript, JSON, YAML, and Markdown with the human-only toolchain in `~/.local/share/h4reet/lint-node` and that toolchain's own configs. It never runs the repository's `node_modules` or JavaScript configs (in the closing patch).
 
 ## 10. The agents' engine and the sandbox opening
@@ -828,14 +833,16 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 | Compose and file policy | `policy` | `tools/gates/compose_policy.py` (below) | runs (no daemon needed) |
 | Config validation | `validate-config` | the gateway's `validate-config` over `config/*.yaml` and the env templates | runs; a protected file whose patch isn't applied yet is PLANNED, naming its task (T022) |
 | Lint | `lint` | [§9](#9-development-environment) | runs |
-| Tests | `test` | `corpus-check`; `vitest run`; `pytest -q -p no:cacheprovider` | runs |
+| Tests | `test` | `corpus-check`; `vitest run`; `pytest -q -p no:cacheprovider --import-mode=importlib`, which never puts a test's folder or the repository root at the front of `sys.path` ([§14](#14-evals-and-red-team-scaffolds-agent-configuration-evals)) | runs |
 | Secret scan | `secrets` | gitleaks over staged and unstaged changes (`gitleaks git --pre-commit`, with and without `--staged`) and over `$(git merge-base main HEAD)..HEAD` | runs |
 | Evals | `evals` | the product scaffold on `fake`; the agent-config static tier; the behavioral tier when triggered ([§14](#14-evals-and-red-team-scaffolds-agent-configuration-evals)) | PENDING when triggered; PLANNED for a case or a check whose enforcement waits for a patch |
 | Red-team suite | `redteam` | `redteam/run.py` | runs |
 | Forbidden-action matrix | `matrix` | `redteam/forbidden-actions.sh`: stage H everywhere; stage S inside the sandbox | runs |
-| Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the current engine, and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs nodejs.org and Ubuntu's mirrors, and the allowlist stays as it is |
+| Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the current engine, and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs Ubuntu's mirrors, and the allowlist stays as it is |
 
 `make check` keeps going after a failure and prints PASS, FAIL, SKIP (always with a reason), PENDING, or PLANNED per target, then a summary line. It exits non-zero on any FAIL or PENDING. PLANNED marks enforcement that a patch adds and the Author hasn't applied yet, such as the `pre-commit` hook or an FR-007 name. It works like the matrix's planned rows ([§13](#13-the-forbidden-action-matrix)): the line names the task that writes the patch, the patch clears the mark when it adds the enforcement, and a PLANNED line doesn't fail the run. Spec 000's acceptance requires none (tasks.md T118). Inside the sandbox it sets `npm_config_cache` to `$TMPDIR`, as it already does for `UV_CACHE_DIR`. Its output, pasted whole, goes into every merge-request note (FR-041).
+
+The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `label[=target][@Tnnn]`, so a gate whose target a later task adds is SKIP, naming that task. Every gate is `.PHONY`: a file or directory with a gate's name makes make print "Nothing to be done" and exit 0, so the runner tells a missing target from a path that only shadows one, and a gate make would do nothing for fails. Marks expire. The task that adds a target removes its `@Tnnn`, and a patch's task deletes its PLANNED entries in the static tier and clears `PRE_COMMIT_PLANNED`. A mark whose enforcement exists fails, so a later rename or regression can't hide as SKIP or PLANNED. Spec 000's acceptance requires no PLANNED line and no SKIP that names a task (tasks.md T118). The red-team gate runs `make redteam-suite`; `make redteam` runs the suite and the matrix together, which is what the red-teamer role's `make redteam*` grant reaches. `make git-hooks` says so and does nothing where `.git/hooks` can't be written, as in the agent sandbox.
 
 **The compose and file policy** (`compose_policy.py`) runs on `docker compose config --no-interpolate`, once per env file. It refuses:
 - privileged mode; host pid, ipc, or network; `docker.sock`;
@@ -857,12 +864,12 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 2. **Container phase:** in the devcontainer image (built from the exported `.devcontainer/`, tagged by its hash), `npm ci --ignore-scripts`, then, with `--network none`, lint, tests, the scaffolds, and matrix stage H.
 3. **Host phase:**
    - `githooks-check`, `toolchain-check`, and the policy;
-   - `corpus-check` with the Author's denylist, through `python3 -I -X pycache_prefix=$(mktemp -d)`;
+   - `corpus-check` with the Author's denylist, through `PY_HOST` (`python3 -I -B -X pycache_prefix=/dev/null`);
    - gitleaks on the range;
    - the image build on the agents' engine;
    - matrix stage E and the behavioral evals when the branch touches their triggers.
 
-Its summary line goes into the merge commit message. Project code never runs outside a container in the Author's terminal. That closes the whole class of holes session 1 found one at a time: caches, `.venv`, `uv.toml`, ignored `conftest.py`, and `node_modules/.bin`. So the Author never runs `make check`, `make test`, or `make lint` in their own terminal: those run the working tree's `node_modules`, which agents installed and git doesn't show. Agents run them in the sandbox; the Author runs the gate.
+Its summary line goes into the merge commit message. Project code never runs outside a container in the Author's terminal. That closes the whole class of holes session 1 found one at a time: caches, `.venv`, `uv.toml`, ignored `conftest.py`, and `node_modules/.bin`. So the Author never runs `make check`, `make test`, or `make lint` in their own terminal: those run the working tree's `node_modules`, which agents installed and git doesn't show. Agents run them in the sandbox; the Author runs the gate. The targets enforce it: `lint`, `test`, `test-fast`, `fmt`, `fmt-file`, `lint-file`, and `build` run only where `SANDBOX_RUNTIME=1` (the agent sandbox) or `H4_DEVCONTAINER=1` (the devcontainer, and the gate's container phase) is set, and elsewhere say why and exit 2.
 
 **gitleaks** (`.gitleaks.toml`, human-only, in the early patch: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and Langfuse `sk-lf-` keys, with an allowlist of `deploy/env.agents/dev-cpu.vars` only) runs in four places:
 - the plain `pre-commit` git hook, `.claude/git-hooks/pre-commit`, installed by `make git-hooks` (in the early patch);
@@ -870,13 +877,13 @@ Its summary line goes into the merge commit message. Project code never runs out
 - `make secrets`;
 - publish-check.
 
-Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`. Without them, gitleaks would obey a `.gitleaks.toml` or `.gitleaksignore` an agent wrote in the scanned directory, and any line marked `gitleaks:allow`. The matrix proves none of the three can switch a rule off. If gitleaks is missing, the hooks fail closed.
+Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`. Without them, gitleaks would obey a `.gitleaks.toml` or `.gitleaksignore` an agent wrote in the scanned directory, and any line marked `gitleaks:allow`. The ignore flag doesn't stop gitleaks reading a `.gitleaksignore` at the scan's source, so every call also refuses to run while one exists there: the scanned directory, the repository root for `git`, or the working directory for `stdin`, which runs from a fresh empty directory (research.md R-36). The matrix proves none of these can switch a rule off, with the file planted at the source's root. If gitleaks is missing, the hooks fail closed.
 
 ## 12. `make publish-check` (FR-042)
 
-`tools/gates/publish_check.py` (human-only, the Author's terminal, `python3 -I -X pycache_prefix=…`):
+`tools/gates/publish_check.py` (human-only, the Author's terminal, `python3 -I -B -X pycache_prefix=/dev/null`):
 1. **Exit 3, "cannot certify",** when it runs inside the sandbox (`SANDBOX_RUNTIME=1`), the clone is shallow, gitleaks isn't the pinned version, or the denylist is missing or unreadable.
-2. **Secrets:** `gitleaks git --log-opts="--all" --redact --no-banner --config .gitleaks.toml --gitleaks-ignore-path <an empty directory> --ignore-gitleaks-allow`. The report goes to a 0700 temporary directory that is deleted on exit.
+2. **Secrets:** `gitleaks git --log-opts="--all" --redact --no-banner --config .gitleaks.toml --gitleaks-ignore-path <an empty directory> --ignore-gitleaks-allow`, after refusing (exit 3) if a `.gitleaksignore` exists at the repository root. The report goes to a 0700 temporary directory that is deleted on exit.
 3. **Corpus rules:** it loads `corpus/tools/check_corpus.py` with `importlib.util.spec_from_file_location`, as its own test does, to use its `CURRENCY` rule. It reads the denylist exactly as `check_corpus` does: strip, lowercase, skip blank and `#` lines.
 4. **Every commit:**
    - it collects the blobs of every commit in `git rev-list --all` with `ls-tree -r`;
@@ -913,7 +920,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
     - `deploy/agents-engine/engine.sh` with any subcommand but `smoke` and `status`, by any spelling;
     - `make operator-*` and admin URLs for any stack but dev-cpu;
     - `make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`, `make aws-login`, and `make contract-live`.
-  - **Secret content:** fake keys assembled at run time, so the matrix file itself contains none. Three rows prove gitleaks can't be talked out of a finding: a planted `.gitleaksignore` naming the fake finding's fingerprint, a `gitleaks:allow` comment on its line, and a `.gitleaks.toml` in the scanned directory.
+  - **Secret content:** fake keys assembled at run time, so the matrix file itself contains none. Three rows prove gitleaks can't be talked out of a finding: a planted `.gitleaksignore` naming the fake finding's fingerprint, at the scan source's root, a `gitleaks:allow` comment on its line, and a `.gitleaks.toml` in the scanned directory.
   - **Settings rows:**
     - exactly one IP entry in `allowedDomains`;
     - no `allowAllUnixSockets`, `allowUnixSockets`, `enableWeakerNestedSandbox`, or `tlsTerminate`;
@@ -958,9 +965,11 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
 - **`evals/run.py`** (stdlib plus pyyaml):
   - It reads `evals/<suite>/cases/*.yaml`.
   - Adapters: `fake` (deterministic), and `local` and `bedrock` through the gateway's hello and admin APIs. `bedrock` is the Author's only, charged to prod's meter, and launched through `PY_HOST` by path.
-  - Scoring is deterministic, and history is written only for real runs.
+    - `local` accepts only answers from the local route. A fallback answer stops the run, so the local model is never scored on another provider's answer, and the run spends no more. A 429 waits out its `Retry-After`, except the daily cap.
+    - `bedrock` calls `POST /admin/adapters/bedrock/complete` through `AdminClient.adapter_complete` (contracts/operator-admin.md §5, §6), which never fails over.
+  - Scoring is deterministic, and every case needs at least one check. History is written only for real runs: per case, the route, provider, model, tokens, cost, and trace ID, with a hash of the answer and never its text; per run, the stack, the commit it runs, and the totals. The history folder is untracked, so the file is created without following a link and never replaces one.
   - One product case passes on `fake`, so the scaffold "runs and passes trivially" (spec Assumptions).
-- **`redteam/run.py`**: one benign case passes, and one planted unsafe response must be detected. It is wired into `make redteam`.
+- **`redteam/run.py`**: one benign case passes, and one planted unsafe response must be caught by the detector the case names. It is wired into `make redteam`.
 - Both append the repository root to `sys.path` rather than prepending it.
 - **The agent-configuration evals (FR-011, SC-008; `evals/agent-config/**`, human-only from the governance patch on):**
   - **Static tier,** in `make check` everywhere:
@@ -1057,7 +1066,7 @@ The closing patch holds:
 - **ADRs** 0001–0006 and 0016–0022, linked from the ADR index, which the README links (SC-009).
 - **README:** the status, a devcontainer quickstart, the non-engineer path's link to the breach-test recording (`docs/recordings/`, an asciinema cast plus a GIF, scanned with gitleaks before commit), and links to the disclosure and runbooks.
 - **START-HERE:**
-  - §1: the NVIDIA runtime step (`sudo nvidia-ctk runtime configure --runtime=docker`, then restart Docker); Node 24 through `fnm`; `make tools`; `deploy/agents-engine/engine.sh setup` and its `wsl --shutdown`.
+  - §1: the NVIDIA runtime step (`sudo nvidia-ctk runtime configure --runtime=docker`, then restart Docker); `make tools`, with Node 24 through nvm and the default Node left alone; `deploy/agents-engine/engine.sh setup` and its `wsl --shutdown`.
   - A new "Before you merge" section: the gate (never `make check` or `make test` in your own terminal), the agent-config evals, and committing their history. The engine's commands run directly, never through make.
   - §4 gotchas: glob denies are ignored on Linux; `-p` silently ignores invalid settings, so run `claude doctor` after every settings change; user-level settings merge into the allowlist.
   - §6 step 1: `make publish-check`.
@@ -1077,8 +1086,8 @@ The closing patch holds:
 | Development time: Claude Code | Anthropic | repository content an agent reads, prompts, completions | agent sessions, on the Team plan (FR-037) | the sandbox, the deny lists |
 | Development time: the engine's proxied pulls | npm, PyPI, ghcr.io | package and image names; the IP address | agent sessions on the engine | `egress-proxy.py` and the allowlist |
 | The Author's browser | whatever the Grafana and Langfuse pages fetch | the IP address, the user agent | while viewing | checked once in devtools, and listed |
-| The devcontainer build | nodejs.org (the Node tarball and SHASUMS256), Ubuntu's archive mirrors (apt), pypi.org and files.pythonhosted.org (the pinned tools), ECR Public and ghcr.io (the bases) | package and image names; the IP address | opening the devcontainer; the Author's gate | digests, checksums, and hashes |
-| `make tools` | nodejs.org (through fnm), pypi.org (uv), ghcr.io (the gitleaks image), registry.npmjs.org (the lint toolchain) | package and image names; the IP address | the Author, once per pin change | the same pins as the devcontainer |
+| The devcontainer build | Ubuntu's archive mirrors (apt), pypi.org and files.pythonhosted.org (the pinned tools), registry.npmjs.org (the lint toolchain), ECR Public and ghcr.io (the bases, Node's among them) | package and image names; the IP address | opening the devcontainer; the Author's gate | digests, checksums, and hashes |
+| `make tools` | nodejs.org (through nvm), pypi.org and files.pythonhosted.org (uv), ghcr.io (the gitleaks image), registry.npmjs.org (the lint toolchain) | package and image names; the IP address | the Author, once per pin change | the same pins as the devcontainer |
 
 No visitor data flows in this spec.
 
@@ -1227,7 +1236,7 @@ The prerequisites in the Author's terminal are in [quickstart.md](quickstart.md)
 | The sandbox proxy's handling of an IP-literal allowlist entry (C read it from minified code) | Matrix row E9; `claude doctor`. |
 | Claude Haiku 5.5 not on Bedrock in us-east-1 | Haiku 4.5's `us.` profile; a configuration change. |
 | typescript-eslint requires TypeScript below 6.1 | TypeScript stays at 6.0.3. |
-| The host on Node 22.18.0 | `make toolchain-check` fails until `fnm install 24.21.0`, the first prerequisite. |
+| The host on Node 22.18.0 | `make toolchain-check` fails until `make tools` installs Node 24.21.0 through nvm, the first prerequisite. |
 | Docker Hub anonymous limits | 5 Docker Hub pulls per cold start, against a live allowance of 100 per hour; backoff; 429s named. |
 | The engine's memory | The 16 GB slice holds dev-cpu's summed limits (about 13.2 GiB); if ClickHouse needs more under load, the cap rises before any limit is cut. |
 | A rollback across a schema migration | The gateway refuses to start against a newer schema (exit 78), so it fails closed; within spec 000 the migrations land before prod's real use. |

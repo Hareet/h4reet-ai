@@ -32,7 +32,7 @@ The twin will ask each visitor which version they want, and this repository offe
 4. [**The ADRs**](docs/adr/): each decision and the alternatives turned down.
 5. [**The merge requests**](docs/merge-requests/): review findings and what was done about each.
 6. [**The corpus rules**](corpus/README.md): how claims about the Author are tagged, attested, and turned into evals.
-7. **Run the gates yourself**: `make git-hooks && make check`. You need GNU make and coreutils, `python3` with PyYAML, `uv`, `ruff`, `shellcheck`, and `jq`; [`docs/START-HERE.md`](docs/START-HERE.md) has the full setup.
+7. **Run the gates yourself**, in the devcontainer ([`.devcontainer/`](.devcontainer/)), which has every pinned tool: `make setup && make check`. Outside it, `make check`'s lint and test steps refuse to run, because they execute `node_modules` and test code from the working tree; each merge-request note carries their output instead. [`docs/START-HERE.md`](docs/START-HERE.md) has the full setup.
 
 ## The artifact chain
 

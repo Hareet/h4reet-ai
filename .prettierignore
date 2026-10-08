@@ -1,0 +1,32 @@
+# Prettier formats code and configuration: TypeScript, JavaScript, JSON, YAML, and Markdown in code folders.
+# It skips generated files, and the human-authored and protected documentation, where it would realign tables
+# and lists in files agents may not change (plan §9).
+node_modules/
+dist/
+coverage/
+package-lock.json
+**/package-lock.json
+.specify/
+.claude/
+.github/
+corpus/
+docs/
+intent/
+specs/
+CLAUDE.md
+REVIEW.md
+README.md
+CONTRIBUTING.md
+SECURITY.md
+# Inside the agent sandbox, paths the sandbox denies appear at the root as unreadable stubs.
+.bash_profile
+.bashrc
+.gitconfig
+.gitmodules
+.idea
+.mcp.json
+.profile
+.ripgreprc
+.vscode
+.zprofile
+.zshrc

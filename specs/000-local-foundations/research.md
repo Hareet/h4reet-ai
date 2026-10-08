@@ -328,7 +328,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 - **Decision**:
   - A 256-bit token per stack, `h4op_<stack>_` followed by 43 base64url characters, kept in `~/.config/h4reet-ai/operator/<stack>.token` (0600) outside the repository.
   - The gateway keeps only its SHA-256 and checks the prefix before hashing.
-  - The CLI is stdlib Python run through `PY_HOST` (`python3 -I` with an empty `pycache_prefix`, R-35), so the credential never passes through `node_modules`, `dist/`, or a planted `__pycache__`, which agents can write and git doesn't show.
+  - The CLI is stdlib Python run through `PY_HOST` (`python3 -I -B` with its bytecode cache under `/dev/null`, R-35), so the credential never passes through `node_modules`, `dist/`, or a planted `__pycache__`, which agents can write and git doesn't show.
   - The dev-cpu token is a public dummy committed in `dev-cpu.vars`, and prod refuses it.
 - **Alternatives**:
   - An SSH or FIDO2 signature: stronger, about 80 more lines, revisitable later.
@@ -372,7 +372,7 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
 
 ### R-19. Node 24 LTS everywhere
 
-- **Decision**: Node 24 (24.21.0 at the time of writing) on the host through `fnm`, in the devcontainer from the nodejs.org tarball, and as the gateway image's base. `@types/node` 24.19.1.
+- **Decision**: Node 24 (24.21.0 at the time of writing) on the host through nvm, which the host already used (the default Node stays, with the Claude Code installed under it), in the devcontainer from the digest-pinned official Node image, and as the gateway image's base. `@types/node` 24.19.1.
 - **Rationale**:
   - Node 22 leaves maintenance in April 2027, within this project's first year.
   - Every package in the gateway's list supports 24.
@@ -573,20 +573,27 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
 
 ### R-35. Python in the Author's terminal ignores bytecode too (review, 2026-10-08)
 
-- **Decision:** `PY_HOST := python3 -I -X pycache_prefix=$(mktemp -d)`, by script path and never with `-m`, for every Python the Author's terminal runs.
+- **Decision:** `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null`, by script path and never with `-m`, for every Python the Author's terminal runs. Phase 1's review replaced the first form, `pycache_prefix=$(mktemp -d)`.
 - **Rationale:**
   - `-I` keeps out `PYTHON*` variables, the user's site directory, and the working directory, but Python still loads a `__pycache__/*.pyc` whose header matches the source. An agent can write one, and git doesn't show it.
-  - A reviewer reproduced it: under `-I` the planted bytecode ran instead of the source, and with the empty prefix the source ran.
+  - A reviewer reproduced it: under `-I` the planted bytecode ran instead of the source, and with a fresh, empty prefix directory the source ran.
   - `-m` would also import the package from the working directory, which `-I` can't then find.
-- **Alternatives:** `-B` alone. It stops writing bytecode, not reading it.
+  - **No temporary directory** (Phase 1's review). When `mktemp -d` fails, on a full or unwritable temporary filesystem, the prefix comes out as an empty string, and an empty-string prefix loads the planted file; a reviewer reproduced that too. `/dev/null` can never hold a directory, so Python finds no bytecode under it and compiles the source, and `-B` keeps it from trying to write any. Nothing is left behind, where each mktemp prefix left a directory of bytecode.
+- **Alternatives:**
+  - `-B` alone. It stops writing bytecode, not reading it.
+  - `pycache_prefix=$(mktemp -d)`. It fails open when mktemp fails, and litters the temporary directory.
 
 ### R-36. gitleaks takes its configuration and ignore list only from the Author (review, 2026-10-08)
 
 - **Decision:** every gitleaks call passes:
   - `--config` with the main working tree's `.gitleaks.toml`, which is human-only from the early patch on;
-  - `--gitleaks-ignore-path` naming a fresh empty directory;
-  - `--ignore-gitleaks-allow`.
+  - `--gitleaks-ignore-path` naming a fresh empty directory, made with a checked `mktemp -d`;
+  - `--ignore-gitleaks-allow`;
+
+  and refuses to run while a `.gitleaksignore` exists at its scan source: the scanned directory, the repository root in `git` mode, or the working directory for `stdin`, which therefore runs from a fresh empty directory.
 - **Rationale:** without them, gitleaks loads a `.gitleaks.toml` from the directory it scans, honours a `.gitleaksignore` there, and skips any line marked `gitleaks:allow`. All three are agent-writable, and the hooks run outside the sandbox as the Author.
+  - **The ignore flag isn't enough** (Phase 1's review). `--gitleaks-ignore-path` adds an ignore location; it doesn't stop gitleaks 8.30.1 from reading the source's own `.gitleaksignore`. A planted fingerprint suppressed a finding in `dir`, `git --pre-commit --staged`, and `stdin` modes, with the flag naming an empty directory (reproduced twice).
+  - **What holds:** the early patch denies agents `./.gitleaksignore` at the root, but a source such as `docs/recordings` has no deny, so the refusal is what holds there.
 - **Alternatives:** none kept. Protecting the file alone leaves the ignore list and the inline marker.
 
 ### R-37. The agents' engine's memory cap is 16 GB (review, 2026-10-08)

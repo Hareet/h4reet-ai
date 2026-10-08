@@ -9,8 +9,8 @@ Work inside the Linux filesystem (here, `~/h4reet-ai/h4reet-ai`), never under `/
 - **Windows side**: current NVIDIA driver (the Windows driver provides GPU access to WSL2 — do not install a Linux GPU driver inside the distro); Docker Desktop with the WSL2 backend, or Docker Engine + `nvidia-container-toolkit` inside the distro. Verify: `docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi` shows the RTX 5090.
 - **`.wslconfig`** (`%UserProfile%\.wslconfig`): give WSL2 enough memory for model containers (e.g. `memory=48GB`, `swap=8GB`), then `wsl --shutdown`.
 - **Distro packages**: `git`, `make`, `jq`, `shellcheck`, `bubblewrap`, `socat`, `unzip`, `build-essential`, `python3-yaml`.
-- **Toolchain**: Node 22 LTS (via `fnm` or `nvm`), Python 3.12 + `uv`, `ruff` (`uv tool install ruff`), `gh` (GitHub CLI), AWS CLI v2 configured with IAM Identity Center (`aws configure sso`; no access keys), Terraform (spec 001; install now, use later).
-- **Claude Code**: `npm install -g @anthropic-ai/claude-code`, then `claude` once to sign in with your subscription. Dev-time model spend is separate from the production budget by constitution — do not point Claude Code at the production Bedrock path.
+- **Toolchain**: `nvm` with a Node LTS as your default, for Claude Code (spec 000's `make tools` adds the pinned Node 24 through nvm and leaves your default alone), Python 3.12 + `uv`, `ruff` (`uv tool install ruff`), `gh` (GitHub CLI), AWS CLI v2 configured with IAM Identity Center (`aws configure sso`; no access keys), Terraform (spec 001; install now, use later).
+- **Claude Code**: `npm install -g @anthropic-ai/claude-code@<version>`, with the version `.devcontainer/toolchain.vars` pins (`make toolchain-check` fails on any other), then `claude` once to sign in with your subscription. Dev-time model spend is separate from the production budget by constitution — do not point Claude Code at the production Bedrock path.
 - **Spec Kit**: `uv tool install specify-cli` (or `--from git+https://github.com/github/spec-kit.git@<tag>` to pin), then `specify check`.
 - **Line endings**: `git config --global core.autocrlf input`. The repo ships `.gitattributes` with `* text=auto eol=lf`; hooks fail with CRLF.
 
@@ -20,7 +20,7 @@ The enforcement layer cannot gate its own creation, so the scaffold went in as o
 
 What was done, locally, in `~/h4reet-ai/h4reet-ai`: `specify init` (Spec Kit 1.0.8 for Claude, Python scripts) combined with the scaffold, the hooks made executable, `.gitattributes` forcing LF, Spec Kit's git extension added (`specify extension add git`), and `.specify/feature.json` pointed at spec 000.
 
-There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; `make check` fails until you do.
+There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; the agents' `make check` fails until you do.
 
 ## 3. First Claude Code session
 

@@ -29,6 +29,6 @@ There is no remote yet ([ADR 0013](docs/adr/0013-local-until-publication.md)), s
 
 1. An agent creates a feature branch, commits there, and never merges or pushes.
 2. The branch's last commit adds a note to [`docs/merge-requests/`](docs/merge-requests/README.md): what changed, the spec it satisfies, the constitution check, the review findings and what was done about them, and the verification output.
-3. The Author runs `make check`, reviews the note and the diff, and merges in their own terminal with `git merge --no-ff <branch>`. The hooks and a git hook keep `main` the Author's.
+3. The Author reads the note's `make check` output, reviews the note and the diff, runs the corpus check, `python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py` (the corpus denylist is hidden from agents; run directly rather than through make, since until spec 000's early patch an agent could plant a `GNUmakefile`, which make prefers), and merges in their own terminal with `git merge --no-ff <branch>`. The hooks and a git hook keep `main` the Author's. The Author doesn't run `make check` itself: its lint and test steps execute the working tree's `node_modules` and test code, which agents can write, so they refuse to run outside the agent sandbox and the devcontainer. Spec 000's clean-room gate, `tools/gates/gate`, takes their place in the Author's terminal.
 
 After publication, agents push feature branches and open pull requests, which replace the notes, and CI runs the same gates.

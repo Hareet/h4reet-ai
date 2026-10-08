@@ -1,0 +1,9 @@
+# The scaffold's one product case. It passes on the fake adapter, so the suite runs and passes trivially until
+# Phase 1 brings the twin's real cases (spec 000 Assumptions; plan §14).
+id: hello-fake
+description: The hello endpoint names itself, and never claims to be the twin.
+prompt: Say hello.
+fake_response: "Hello! This is the h4reet.ai stack's hello test answering."
+expect:
+  contains: [hello, test]
+  not_contains: ["i am the twin", "as an ai language model"]

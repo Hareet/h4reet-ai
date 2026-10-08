@@ -34,53 +34,53 @@ description: "Task list for spec 000, Local Foundations"
 
 **Purpose**: one toolchain for humans and agents, the workspace, and the local gate's skeleton.
 
-- [ ] T001 Rework the head of `Makefile` per §4:
-  - `ENV ?= prod`, with a check that refuses anything but `prod`, `dev`, or `dev-cpu`;
+- [X] T001 Rework the head of `Makefile` per §4:
+  - `ENV`, from the command line only and defaulting to `prod`, with a check that refuses anything but exactly `prod`, `dev`, or `dev-cpu`, and refuses a stack's name from the environment;
   - `ENVFILE`: `deploy/env.agents/dev-cpu.vars` for dev-cpu, `$(HOME)/.config/h4reet-ai/env/$(ENV).env` otherwise;
   - `COMPOSE`, per §4: `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks, where `TREE` is the running export (from the run file) on host stacks and `.` on dev-cpu;
-  - `PY_HOST := python3 -I -X pycache_prefix=$$(mktemp -d)`, for every Python a recipe runs in the Author's terminal, by script path and never with `-m` (research.md R-35).
+  - `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null` (Phase 1's review replaced the `mktemp -d` prefix, which loads planted bytecode when mktemp fails), for every Python a recipe runs in the Author's terminal, by script path and never with `-m` (research.md R-35).
 
-  Keep the existing UV_CACHE_DIR and PYTEST logic, pinning pytest to `--with pytest==9.1.1 --with pyyaml==6.0.3`.
-- [ ] T002 [P] Create the root `package.json`: private, `workspaces: ["services/*"]`, `engines.node ">=24.21 <25"`, scripts that delegate to the workspaces. Generate `package-lock.json` with `npm install --ignore-scripts` (the registry is allowlisted). Commit no `.npmrc`.
-- [ ] T003 [P] Create `tsconfig.base.json` (strict, ES2023, NodeNext), `eslint.config.js` (eslint 10.12.0, typescript-eslint 8.71.1, eslint-config-prettier 10.1.8, globals 17.13.0), `.prettierrc.json`, and `.prettierignore` (§9).
-- [ ] T004 [P] Create `.dockerignore`, excluding `.git`, `deploy/env`, `*.env`, `**/node_modules`, `**/dist`, `**/__pycache__`, `corpus/intake/private`, `.cache`, and `.pytest_cache`.
-- [ ] T005 Update these targets in `Makefile` per §9 and §11:
+  Keep the existing UV_CACHE_DIR and PYTEST logic, pinning pytest to `--with pytest==9.1.1 --with pyyaml==6.0.3` (round 2 of Phase 1's review: `--with-requirements .devcontainer/requirements-tools.txt`, the devcontainer's six pinned packages).
+- [X] T002 [P] Create the root `package.json`: private, `workspaces: ["services/*"]`, `engines.node ">=24.21 <25"`, scripts that delegate to the workspaces. Generate `package-lock.json` with `npm install --ignore-scripts` (the registry is allowlisted). Commit no `.npmrc`.
+- [X] T003 [P] Create `tsconfig.base.json` (strict, ES2023, NodeNext), `eslint.config.js` (eslint 10.12.0, typescript-eslint 8.71.1, eslint-config-prettier 10.1.8, globals 17.13.0), `.prettierrc.json`, and `.prettierignore` (§9).
+- [X] T004 [P] Create `.dockerignore`, excluding `.git`, `deploy/env`, `*.env`, `**/node_modules`, `**/dist`, `**/__pycache__`, `corpus/intake/private`, `.cache`, and `.pytest_cache`.
+- [X] T005 Update these targets in `Makefile` per §9 and §11:
   - `setup`: `npm ci --ignore-scripts`, then `make git-hooks`. Remove the `pip install -r requirements.txt` and `pre-commit install` lines.
   - `lint`: `eslint --max-warnings 0`, `tsc --noEmit` per workspace, `prettier --check`, `ruff check` and `ruff format --check --no-cache`, and `shellcheck` on every tracked `*.sh`, `.claude/hooks/*.sh`, and `.claude/git-hooks/*`.
   - `fmt`.
   - `test`: `corpus-check`, `npm test --workspaces --if-present`, and pytest with `-q -p no:cacheprovider` over `corpus/tools`, `evals`, `redteam`, `tools/gates`, `deploy/scripts`, `deploy/agents-engine`, and `scripts`.
   - `test-fast`.
-- [ ] T006 Restructure `make check` in `Makefile` per §11.
+- [X] T006 Restructure `make check` in `Makefile` per §11.
   - It runs `githooks-check toolchain-check policy validate-config lint test secrets evals redteam matrix image` in that order and keeps going after a failure.
   - It prints PASS, FAIL, SKIP (with a reason), PENDING, or PLANNED (naming the task that writes the patch) per target, then a summary line, and exits non-zero on any FAIL or PENDING. PLANNED doesn't fail the run (§11).
   - Inside the sandbox (`SANDBOX_RUNTIME=1`), it exports `npm_config_cache=$TMPDIR/npm-cache`.
   - A target that doesn't exist yet prints `SKIP (added by Tnnn)`.
   - `githooks-check` keeps the existing reference-transaction check, and reports `.claude/git-hooks/pre-commit` as PLANNED (T045) until the early patch adds it and clears the mark (T046).
-- [ ] T007 [P] Create `.devcontainer/Dockerfile`, `.devcontainer/devcontainer.json`, `.devcontainer/toolchain.vars`, and `.devcontainer/requirements-tools.txt` per §9.
+- [X] T007 [P] Create `.devcontainer/Dockerfile`, `.devcontainer/devcontainer.json`, `.devcontainer/toolchain.vars`, and `.devcontainer/requirements-tools.txt` per §9.
   - **Base:** `public.ecr.aws/docker/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55`.
   - **Tools:**
-    - Node 24.21.0 from the nodejs.org tarball, checked against SHASUMS256;
+    - Node 24.21.0, copied from the digest-pinned official Node image, which installs and checks nodejs.org's release tarball (plan §9);
     - uv 0.8.22 and ruff 0.16.10, copied from their pinned images (research.md R-02);
     - gitleaks 8.30.1, from its pinned image;
     - pytest 9.1.1 and pyyaml 6.0.3, with `--require-hashes` (hashes from pypi.org), into `/opt/tools`.
   - **Users:** the `ubuntu` user is replaced by `dev` (uid 1000) with no sudo.
   - **Build arguments:** `WITH_CLAUDE=0` and `WITH_TERRAFORM=0`.
   - **`devcontainer.json`:** no `features`, no `initializeCommand`, no socket or home mounts; `runArgs ["--cap-drop=ALL","--security-opt=no-new-privileges"]`; `postCreateCommand: make setup`.
-- [ ] T008 [P] Create `tools/gates/toolchain_check.py` (stdlib, `python3 -I`) and `tools/gates/test/test_toolchain_check.py`. The check compares installed versions against `.devcontainer/toolchain.vars`: Node, uv, ruff, shellcheck, jq, Python, gitleaks, pytest, the lint toolchain, and Claude Code. It prints a table and exits 1 on drift. Wire `make toolchain-check` (§9).
-- [ ] T009 [P] Create `tools/gates/lint-node/package.json`, its `package-lock.json`, `eslint.config.mjs`, and `prettier.config.json`: the human-only lint toolchain for the post-edit hook, with versions as in T003 plus typescript 6.0.3 (research.md R-25). Add `make tools` (Author), which installs:
-  - Node 24.21.0 through `fnm`;
-  - `uv tool install pytest==9.1.1 --with pyyaml==6.0.3`;
+- [X] T008 [P] Create `tools/gates/toolchain_check.py` (stdlib, `python3 -I`) and `tools/gates/test/test_toolchain_check.py`. The check compares installed versions against `.devcontainer/toolchain.vars`: Node, uv, ruff, shellcheck, jq, Python, gitleaks, pytest, the lint toolchain, and Claude Code. It prints a table and exits 1 on drift. Wire `make toolchain-check` (§9).
+- [X] T009 [P] Create `tools/gates/lint-node/package.json`, its `package-lock.json`, `eslint.config.mjs`, and `prettier.config.json`: the human-only lint toolchain for the post-edit hook, with versions as in T003 plus typescript 6.0.3 (research.md R-25). Add `make tools` (Author), through `tools/gates/install-tools.sh`, which installs:
+  - Node 24.21.0 through nvm, leaving the shell's default Node alone;
+  - `uv tool install --no-config --python "$(command -v python3)" pytest==9.1.1 --with pyyaml==6.0.3`;
   - gitleaks into `~/.local/bin`, with `docker cp` from the pinned image;
   - this toolchain into `~/.local/share/h4reet/lint-node`, with `npm ci --ignore-scripts`.
-- [ ] T010 [P] Create the eval scaffold in `evals/` per §14:
+- [X] T010 [P] Create the eval scaffold in `evals/` per §14:
   - `evals/__init__.py`;
   - `evals/run.py`: stdlib plus pyyaml; suites in `evals/<suite>/cases/*.yaml`; adapters `fake`, `local`, `bedrock`; deterministic scoring; history only for real runs; the repository root appended to `sys.path`, not prepended;
   - `evals/product/cases/hello-fake.yaml`, one case that passes on `fake`;
   - `evals/test_run.py`.
 
   `make evals` runs `python3 evals/run.py --suite product --adapter fake` in the sandbox, and `$(PY_HOST) evals/run.py` for the Author's `ADAPTER=local` or `bedrock` runs: by path, never `-m`.
-- [ ] T011 [P] Create the red-team scaffold: `redteam/__init__.py`, `redteam/run.py` (one benign case passes, and one planted unsafe response must be detected), `redteam/cases/*.yaml`, and `redteam/test_run.py`. Make `make redteam` run `python3 redteam/run.py`, and add `make matrix` for `bash redteam/forbidden-actions.sh` (§13, §14).
-- [ ] T012 [P] Create the static agent-config checks per §14: `evals/agent-config/static.py`, `tools/gates/roles.expected`, and `evals/agent-config/test_static.py`. They check:
+- [X] T011 [P] Create the red-team scaffold: `redteam/__init__.py`, `redteam/run.py` (one benign case passes, and one planted unsafe response must be detected), `redteam/cases/*.yaml`, and `redteam/test_run.py`. Make `make redteam-suite` run it through `PY_HOST`, add `make matrix` for `bash redteam/forbidden-actions.sh`, and make `make redteam` run both (§11, §13, §14).
+- [X] T012 [P] Create the static agent-config checks per §14: `evals/agent-config/static.py`, `tools/gates/roles.expected`, and `evals/agent-config/test_static.py`. They check:
   - CLAUDE.md has at most 60 lines and 6 KB (FR-006);
   - CLAUDE.md and REVIEW.md name the constitution as superseding (FR-002);
   - each `.claude/agents/*.md` `tools:` line equals `tools/gates/roles.expected`;
@@ -88,8 +88,8 @@ description: "Task list for spec 000, Local Foundations"
   - every FR-007 variable is denied (contracts/env-files.md §8). A name whose deny a patch hasn't applied yet is reported as PLANNED, naming the task that writes the patch (T045), not as FAIL.
 
   `make evals` runs it.
-- [ ] T013 **Author**, on this branch, before its note: quickstart.md §0.3. `fnm install 24.21.0`, then `make tools`, then `make toolchain-check`, which must pass, and `gitleaks version`, which must print 8.30.1. Tools that `make tools` doesn't install (uv, ruff, shellcheck, jq, Python, and Claude Code) must already match their pins in `toolchain.vars`. T007 writes those pins from the host's versions; Claude Code updates itself until the early patch sets `DISABLE_AUTOUPDATER`, so if it moved since T007, update its pin on this branch. The early patch's hooks fail closed without gitleaks (T045).
-- [ ] T014 Write the merge-request note `docs/merge-requests/<date>-feat-000-setup.md`, with `make check`'s full output and a reviewer agent's REVIEW.md passes.
+- [X] T013 **Author**, on this branch, before its note: quickstart.md §0.3. `make tools`, which installs Node 24.21.0 through nvm and leaves your default Node alone, then `make toolchain-check`, which must pass, and `gitleaks version`, which must print 8.30.1. Tools that `make tools` doesn't install (uv, ruff, shellcheck, jq, Python, and Claude Code) must already match their pins in `toolchain.vars`. T007 writes those pins from the host's versions; Claude Code updates itself until the early patch sets `DISABLE_AUTOUPDATER`, so if it moved since T007, update its pin on this branch. The early patch's hooks fail closed without gitleaks (T045).
+- [X] T014 Write the merge-request note `docs/merge-requests/<date>-feat-000-setup.md`, with `make check`'s full output and a reviewer agent's REVIEW.md passes.
 
 **Checkpoint**: `make check` runs every target, with SKIPs and PLANNED items named, and `make toolchain-check` passes once the Author has run `make tools` (T013).
 
@@ -183,10 +183,10 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T034 [P] Create `deploy/scripts/redact.sh` (ops.md's filter, verbatim), `deploy/scripts/status.py`, and its test. `status.py` shows the running commit, its branch, and the previous commit, from the run file, and reports a host stack with no run file as not started by `make up` (contracts/env-files.md §12). Wire `make logs` (through `redact.sh`) and `make status` (§4).
 - [ ] T035 [P] Create `deploy/scripts/pin_images.py` and its test, which uses recorded `docker buildx imagetools inspect` output. It resolves tags to index digests, rewrites `deploy/compose.yaml` and `deploy/images.lock`, and prints the table. Create `deploy/images.lock` with research.md R-02's pins. Wire `make pin-images` (Author).
 - [ ] T036 Implement `make up`, `make down`, `make build`, `make pull`, and `make image` in `Makefile` per §4, and create `deploy/scripts/export_tree.py` and its test:
-  - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback;
+  - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback. The export runs as its own target, which `up` depends on: make expands a recipe just before running it, and the Makefile reads `TREE` from the run file then, so the compose call uses the commit just exported;
   - `up`, on dev-cpu: the same from the working tree and `dev-cpu.vars`, with no export;
   - `down`: `down --timeout 30`, never `-v`, with the running export's compose file. With no run file, `down` and `logs` say the stack wasn't started by `make up`, and do nothing (§12);
-  - `build`: ends with `BUILD OK`;
+  - `build`: ends with `BUILD OK`. It refuses outside the sandbox and the devcontainer (§11), so the gate's host phase builds images with `make image`, never `make build`. The devcontainer has no Docker, so there `build` builds the workspaces and says the images are the gate's;
   - `pull`: Docker Hub images one at a time, with 5, 15, and 45 s backoff, naming an HTTP 429 (research.md R-29);
   - `image`, §11's gate: the compose images built on the current engine. It reports SKIP ("no engine yet: tasks.md T046") before the engine exists, and FAIL ("ask the Author: deploy/agents-engine/engine.sh up") once it exists and is down.
 - [ ] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list, build contexts included. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
@@ -239,9 +239,9 @@ description: "Task list for spec 000, Local Foundations"
     - the new `.claude/hooks/content-scan.sh`, a PreToolUse check on Edit, Write, and MultiEdit that runs `gitleaks stdin --no-banner --redact`;
     - `.claude/git-hooks/pre-commit`, which runs gitleaks on the staged changes, with `make git-hooks` installing it.
 
-    Each passes `--config` with the main tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`, and fails closed when gitleaks is missing (§11).
+    Each passes `--config` with the main tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`, refuses to run while a `.gitleaksignore` exists at its scan source (research.md R-36), and fails closed when gitleaks is missing (§11).
   - CLAUDE.md: the engine line and the test line rewritten in place, and the "Things Claude gets wrong" line on deny timing added (§15), for 57 lines.
-  - The matrix rows for all of these, in `redteam/forbidden-actions.sh`, and the PLANNED marks they clear: `githooks-check`'s for `pre-commit` (T006) and the static tier's for the FR-007 names (T012).
+  - The matrix rows for all of these, in `redteam/forbidden-actions.sh`, and the PLANNED marks they clear: `githooks-check`'s for `pre-commit` (T006) and the static tier's for the FR-007 names (T012). The patch itself carries those edits: it deletes `evals/agent-config/static.py`'s PLANNED entries and clears the Makefile's `PRE_COMMIT_PLANNED`, so `make check` passes right after `git apply` (a stale mark fails).
 - [ ] T046 **Author** (Heavy, after this branch merges): check `gitleaks version` (T013 installed it). Apply the two patches from T022 and T045, then run `claude doctor`, `make git-hooks`, and `make evals` (the static agent-config tier: the early patch's only agent-config eval, spec Assumptions). This comes before T065: no real secret may exist before the credential denies do (Principle IV). Then quickstart.md §0.4 and §0.5:
   - switch the host's Docker to the containerd image store, pruning first and checking the disk;
   - `deploy/agents-engine/engine.sh setup`, then `wsl --shutdown`;
@@ -422,7 +422,7 @@ description: "Task list for spec 000, Local Foundations"
   - the relay: `docker-relay` with `sh -c`, `bash -c`, `python3 -c`, or a path, refused with exit 2; for ops, `docker-relay make …` refused by its grant;
   - `engine.sh`'s Author subcommands, by any spelling;
   - a planted `__pycache__/*.pyc` for `scripts/operator.py`, in a scratch copy, that doesn't run under `PY_HOST`;
-  - gitleaks bypasses that must fail: a planted `.gitleaksignore` naming a fake finding's fingerprint, a `gitleaks:allow` comment, and a `.gitleaks.toml` in the scanned directory.
+  - gitleaks bypasses that must fail: a planted `.gitleaksignore` naming a fake finding's fingerprint, at the scan source's root, a `gitleaks:allow` comment, and a `.gitleaks.toml` in the scanned directory.
 
   T045's patch already added the rows for its own changes; T087 adds the rest, plus the indirect variants of those. Rows whose enforcement waits for a patch are `planned`: reported, but not failing.
 - [ ] T088 [US3] Create `tools/gates/matrix-required.txt`, listing every row ID, and make the matrix fail when a listed row is missing.
@@ -431,17 +431,17 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 3
 
-- [ ] T091 [P] [US3] Create `make secrets` per §11: `gitleaks git --pre-commit` with and without `--staged`, plus `$(git merge-base main HEAD)..HEAD`, each with `--config` (the main tree's `.gitleaks.toml`, from T045's patch), `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`. Missing gitleaks fails closed.
+- [ ] T091 [P] [US3] Create `make secrets` per §11 (make the fresh empty directory for `--gitleaks-ignore-path` with a checked `mktemp -d`, and refuse an empty path: an unchecked `mktemp` failing gave an empty `pycache_prefix`, which loaded planted bytecode, research.md R-35): `gitleaks git --pre-commit` with and without `--staged`, plus `$(git merge-base main HEAD)..HEAD`, each with `--config` (the main tree's `.gitleaks.toml`, from T045's patch), `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow (and refusing to run while a `.gitleaksignore` exists at its scan source (research.md R-36))`. Missing gitleaks fails closed.
 - [ ] T092 [P] [US3] Create `tools/gates/gate` (the Author's clean-room gate, §11) and `tools/gates/test/test_gate.py`:
   - export the ref with `git archive`;
   - build the devcontainer image, tagged by `.devcontainer/`'s hash;
   - the container phase: `npm ci --ignore-scripts`, then lint, test, the scaffolds, and stage H with `--network none`;
-  - the host phase: githooks, toolchain, policy, `corpus-check` with the denylist through `python3 -I -X pycache_prefix=…`, gitleaks, the image build on the engine, and stage E plus the behavioral evals when triggered;
+  - the host phase: githooks, toolchain, policy, `corpus-check` with the denylist through `PY_HOST`, gitleaks, the image build on the engine, and stage E plus the behavioral evals when triggered;
   - every gitleaks call with the flags of §11;
   - the push of the agent-config eval history as the `h4.devtime.eval.*` metrics to prod's x004 (§4.4);
   - a summary line for the merge commit;
   - `gate --host`, marked DEGRADED.
-- [ ] T093 [P] [US3] Create `tools/gates/publish_check.py` per §12 (exit codes 0, 1, 3) and `tools/gates/test/test_publish_check.py`, with fixture repositories:
+- [ ] T093 [P] [US3] Create `tools/gates/publish_check.py` per §12 (exit codes 0, 1, 3; it refuses with 3 while a `.gitleaksignore` exists at the repository root, research.md R-36) and `tools/gates/test/test_publish_check.py`, with fixture repositories:
   - a fake secret assembled at run time in an old commit;
   - a denylisted phrase in a removed file;
   - a currency amount in corpus Markdown;
@@ -520,7 +520,7 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T110 [P] [US6] Complete `docs/data-flow-disclosure.md` with every row of §17, closing with "No visitor data flows in this spec.". Link it from `SECURITY.md`.
 - [ ] T111 [P] [US6] Create `docs/runbooks/README.md`, an index of every runbook, and the runbooks for the agents' engine and the local gate. Update `docs/how-we-build/lifecycle.md`'s enforcement table with the new layers.
 - [ ] T112 [P] [US6] Update `docs/START-HERE.md` per §16:
-  - §1: the NVIDIA runtime step, Node 24 through `fnm`, the disk check, `make tools`, and `deploy/agents-engine/engine.sh setup` with its `wsl --shutdown`;
+  - §1: the NVIDIA runtime step, the disk check, `make tools` (Node 24 through nvm, the default Node left alone), and `deploy/agents-engine/engine.sh setup` with its `wsl --shutdown`;
   - a new "Before you merge" section;
   - §4's gotchas;
   - §6 step 1: `make publish-check`.
@@ -543,7 +543,7 @@ description: "Task list for spec 000, Local Foundations"
   - `.claude/hooks/subagent-report-check.sh` (FR-010): the payload's `last_assistant_message` checked first, every result logged with the `agent_type`, and instruction-shaped text flagged rather than any mention of `settings.json`;
   - the CLAUDE.md lines of §15, each folded into an existing line except one, keeping it under 60 lines;
   - in `redteam/forbidden-actions.sh`, every planned row switched to block or allow, and in `make check`, every PLANNED mark cleared.
-- [ ] T118 **Author**: apply `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, then run `claude doctor`, `make git-hooks`, and `tools/gates/gate` on the branch, not `make check` in your own terminal (§11). The result must be 0 failures, 0 planned rows, and no PLANNED line (SC-003). The trigger fires, so run `make evals-agent-config` and commit its history entry (SC-008).
+- [ ] T118 **Author**: apply `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, then run `claude doctor`, `make git-hooks`, and `tools/gates/gate` on the branch, not `make check` in your own terminal (§11). The result must be 0 failures, 0 planned rows, no PLANNED line, and no SKIP that names a task (SC-003). The trigger fires, so run `make evals-agent-config` and commit its history entry (SC-008).
 - [ ] T119 **Author** (Heavy, with no agents working): run quickstart.md §7's done-when table end to end, and fill the success-criteria table (SC-001, 002, 003, 005, 006, 007, 008, 009) in `docs/merge-requests/<date>-feat-000-enforcement.md`.
 - [ ] T120 Write the merge-request note `docs/merge-requests/<date>-feat-000-enforcement.md`. `make publish-check` runs later, before the first push (START-HERE §6), not at this merge.
 
@@ -613,5 +613,13 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
 ## Notes
 
 - [P] tasks touch different files and depend on nothing unfinished.
+- Marks expire (plan §11). A task that adds a make target named with `@Tnnn` in the Makefile's `CHECK_GATES` removes the mark in the same commit. A patch carries the edits that clear its own marks: T045's patch deletes its PLANNED entries in `evals/agent-config/static.py` and clears `PRE_COMMIT_PLANNED`. `make check` fails on a stale mark.
 - Every task names its file, and the section of the contract or plan it implements. Where a detail is in a contract, the contract governs, and plan.md is fixed if they disagree.
 - No task edits `.claude/**`, `REVIEW.md`, `CLAUDE.md`, the constitution, `config/budgets*`, or `config/alert*` directly, nor, once a patch protects them, `config/prices*`, `deploy/agents-engine/**`, `tools/gates/**`, `evals/agent-config/**`, or the gitleaks files. Those go through Patch tasks.
+
+## Phase 9: Convergence
+
+- [X] T121 Correct plan.md §11's image-gate row on feat/000-setup: the devcontainer build needs Ubuntu's mirrors, not nodejs.org, because `.devcontainer/Dockerfile` copies Node from the digest-pinned official image (T007) per plan §11 (partial)
+- [X] T122 Record `--import-mode=importlib` (Makefile `PYTEST_ARGS`) in plan.md §11's test row, with its reason: pytest then never puts a test's folder or the repository root at the front of `sys.path`, as §14 requires of the `run.py` scaffolds, per plan §11 (partial)
+- [X] T123 Add `tools/gates/run_checks.py`, `tools/gates/install-tools.sh`, and `.devcontainer/requirements-tools.in` to plan.md's Source Code tree per plan: Project Structure (partial)
+- [X] T124 Name files.pythonhosted.org in plan.md §17's `make tools` row, where uv downloads pytest's and PyYAML's wheels (`tools/gates/install-tools.sh`), as the devcontainer row already does, per FR-040 (partial)

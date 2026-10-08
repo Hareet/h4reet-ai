@@ -1,0 +1,17 @@
+# Build contexts never carry secrets, git internals, or local build state (spec 000, plan §9).
+.git
+deploy/env
+# A pattern without **/ matches at the context's root only.
+**/*.env
+**/.env
+**/.env.*
+**/secrets
+**/node_modules
+**/dist
+**/__pycache__
+**/*.py[cod]
+corpus/intake/private
+.cache
+.pytest_cache
+.ruff_cache
+coverage

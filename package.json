@@ -1,0 +1,28 @@
+{
+  "name": "h4reet-ai",
+  "private": true,
+  "description": "h4reet.ai, an AI twin portfolio: the workspace root. Scripts delegate to the workspaces under services/.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "services/*"
+  ],
+  "engines": {
+    "node": ">=24.21 <25"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1"
+  }
+}

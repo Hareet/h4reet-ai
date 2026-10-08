@@ -1,0 +1,291 @@
+"""Tests for evals/run.py: case loading, deterministic scoring, adapters, and history only for real runs."""
+
+from __future__ import annotations
+
+import datetime as dt
+import importlib.util
+import io
+import json
+import sys
+import urllib.error
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, Self
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location("evals_run", REPO / "evals" / "run.py")
+assert SPEC and SPEC.loader
+run = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = run
+SPEC.loader.exec_module(run)
+
+# A 200 from POST /hello, as contracts/gateway-http.md §2.5.1 shows it.
+HELLO = {
+    "answer": "Hello! This is the h4reet.ai stack's hello test answering.",
+    "route": "local",
+    "route_reason": None,
+    "provider": "local",
+    "model": "qwen3-30b-a3b",
+    "usage": {"input_tokens": 71, "output_tokens": 14},
+    "cost_usd": 0,
+    "cost_micro_usd": 0,
+    "stack": "dev",
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+}
+CASE = {"id": "a", "prompt": "Say hello.", "expect": {"contains": ["hello"]}}
+
+
+class FakeResponse(io.BytesIO):
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+
+class FakeOpener:
+    """Answers each request with the next item: a dict is a 200's body, an exception is raised."""
+
+    def __init__(self, *answers: Any) -> None:
+        self.answers = list(answers)
+        self.requests: list[Any] = []
+
+    def open(self, request: Any, timeout: float | None = None) -> FakeResponse:
+        self.requests.append(request)
+        answer = self.answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return FakeResponse(json.dumps(answer).encode("utf-8"))
+
+
+def too_many(limit: str, seconds: int) -> urllib.error.HTTPError:
+    """A 429 as gateway-http.md §2.5.3 shows it."""
+    body = {"error": "client_cap_exceeded", "limit": limit, "retry_after_s": seconds}
+    return urllib.error.HTTPError(
+        "http://127.0.0.1:18100/hello",
+        429,
+        "Too Many Requests",
+        {"Retry-After": str(seconds)},  # type: ignore[arg-type]
+        io.BytesIO(json.dumps(body).encode("utf-8")),
+    )
+
+
+@pytest.fixture
+def suite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An isolated evals/ tree with one suite, so tests never write into the repository or read the home."""
+    monkeypatch.setattr(run, "EVALS", tmp_path / "evals")
+    monkeypatch.setattr(run, "STATE", tmp_path / "state")
+    cases = tmp_path / "evals" / "demo" / "cases"
+    cases.mkdir(parents=True)
+    (cases / "a.yaml").write_text(
+        "id: a\nprompt: Say hello.\nfake_response: Hello there.\nexpect:\n  contains: [hello]\n",
+        encoding="utf-8",
+    )
+    return tmp_path / "evals"
+
+
+def test_the_committed_product_suite_passes_on_fake(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert run.main(["--suite", "product", "--adapter", "fake"]) == 0
+    assert "1 passed, 0 failed" in capsys.readouterr().out
+
+
+def test_scoring_is_deterministic() -> None:
+    case = {
+        "id": "x",
+        "prompt": "p",
+        "expect": {"contains": ["Hello"], "not_contains": ["twin"], "regex": "^H"},
+    }
+    assert run.score(case, "hello world") == ["doesn't match /^H/"]
+    assert run.score(case, "Hello, I am the twin") == ["contains 'twin'"]
+    assert run.score(case, "Hello") == []
+
+
+def test_a_failing_case_exits_one(suite: Path) -> None:
+    (suite / "demo" / "cases" / "b.yaml").write_text(
+        "id: b\nprompt: p\nfake_response: nope\nexpect:\n  contains: [agree]\n",
+        encoding="utf-8",
+    )
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 1
+
+
+def test_fake_runs_write_no_history(suite: Path) -> None:
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 0
+    assert not (suite / "demo" / "history").exists()
+
+
+def test_malformed_cases_and_unknown_suites_are_usage_errors(suite: Path) -> None:
+    (suite / "demo" / "cases" / "c.yaml").write_text(
+        "id: c\nprompt: p\nsurprise: 1\n", encoding="utf-8"
+    )
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 2
+    assert run.main(["--suite", "no-such-suite", "--adapter", "fake"]) == 2
+    assert run.main(["--suite", "../escape", "--adapter", "fake"]) == 2
+
+
+def test_non_string_expectations_are_usage_errors(suite: Path) -> None:
+    (suite / "demo" / "cases" / "a.yaml").write_text(
+        "id: a\nprompt: p\nfake_response: x\nexpect:\n  contains: [yes]\n",
+        encoding="utf-8",
+    )
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 2
+
+
+def test_a_case_needs_a_check_and_a_regex_that_compiles(
+    suite: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    case = suite / "demo" / "cases" / "a.yaml"
+    case.write_text("id: a\nprompt: p\nfake_response: x\n", encoding="utf-8")
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 2
+    assert "at least one check" in capsys.readouterr().err
+    case.write_text(
+        "id: a\nprompt: p\nfake_response: x\nexpect:\n  regex: '('\n", encoding="utf-8"
+    )
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 2
+    assert "doesn't compile" in capsys.readouterr().err
+
+
+def test_the_fake_adapter_needs_a_fake_response(suite: Path) -> None:
+    (suite / "demo" / "cases" / "a.yaml").write_text(
+        "id: a\nprompt: p\nexpect:\n  contains: [x]\n", encoding="utf-8"
+    )
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 2
+
+
+def test_local_takes_only_known_stacks() -> None:
+    with pytest.raises(run.AdapterError):
+        run.local_adapter("dev-cpu")
+
+
+def test_local_records_what_the_gateway_says_about_each_answer() -> None:
+    opener = FakeOpener(HELLO)
+    answer = run.local_adapter("dev", opener=opener)(CASE)
+    assert opener.requests[0].full_url == "http://127.0.0.1:18100/hello"
+    assert (answer["route"], answer["provider"], answer["model"]) == (
+        "local",
+        "local",
+        "qwen3-30b-a3b",
+    )
+    assert answer["usage"] == {"input_tokens": 71, "output_tokens": 14}
+    assert (answer["cost_micro_usd"], answer["trace_id"]) == (0, HELLO["trace_id"])
+
+
+def test_local_refuses_an_answer_from_the_fallback() -> None:
+    fallback = {
+        **HELLO,
+        "route": "fallback",
+        "route_reason": "local_unhealthy",
+        "provider": "aws.bedrock",
+        "cost_micro_usd": 1200,
+    }
+    with pytest.raises(run.AdapterError, match="'fallback' route answered"):
+        run.local_adapter("prod", opener=FakeOpener(fallback))(CASE)
+
+
+def test_local_waits_out_a_429_then_retries() -> None:
+    waits: list[float] = []
+    opener = FakeOpener(too_many("per_minute", 3), HELLO)
+    answer = run.local_adapter("dev", opener=opener, sleep=waits.append)(CASE)
+    assert waits == [3.0]
+    assert answer["route"] == "local"
+    assert len(opener.requests) == 2
+
+
+def test_local_stops_at_the_daily_cap() -> None:
+    waits: list[float] = []
+    opener = FakeOpener(too_many("per_day", 3600))
+    with pytest.raises(run.AdapterError, match="HTTP 429"):
+        run.local_adapter("dev", opener=opener, sleep=waits.append)(CASE)
+    assert waits == []
+
+
+def test_bedrock_says_what_it_needs_until_the_operator_cli_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(run, "REPO", tmp_path / "empty-repo")
+    with pytest.raises(run.AdapterError, match="T056"):
+        run.bedrock_adapter("demo")
+
+
+def test_bedrock_reads_the_admin_endpoints_reply(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A stand-in for scripts/operator.py's AdminClient, returning operator-admin.md §5's 200 body.
+    scripts = tmp_path / "repo" / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "operator.py").write_text(
+        "class AdminClient:\n"
+        "    def __init__(self, stack):\n"
+        "        assert stack == 'prod'\n"
+        "    def adapter_complete(self, adapter_id, messages, *, max_output_tokens, purpose, reason):\n"
+        "        assert (adapter_id, purpose) == ('bedrock', 'eval')\n"
+        "        return {'adapter': 'bedrock', 'attribution': 'test', 'cost_micro_usd': 31,\n"
+        "                'trace_id': 'ab' * 16,\n"
+        "                'result': {'text': 'Hello.', 'response_model': 'us.haiku',\n"
+        "                           'usage': {'input_tokens': 9, 'output_tokens': 2}}}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run, "REPO", tmp_path / "repo")
+    answer = run.bedrock_adapter("demo")(CASE)
+    assert answer == {
+        "answer": "Hello.",
+        "route": "admin",
+        "provider": "aws.bedrock",
+        "model": "us.haiku",
+        "usage": {"input_tokens": 9, "output_tokens": 2},
+        "cost_micro_usd": 31,
+        "trace_id": "ab" * 16,
+    }
+
+
+def test_a_real_run_writes_history_with_route_and_cost_but_no_answer(
+    suite: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def adapter(stack: str) -> Any:
+        usage = {"input_tokens": 1, "output_tokens": 2}
+        return lambda case: run.reply(
+            "Hello there.", "local", "local", "m", usage, 0, None
+        )
+
+    monkeypatch.setattr(run, "local_adapter", adapter)
+    assert run.main(["--suite", "demo", "--adapter", "local", "--stack", "dev"]) == 0
+    (path,) = (suite / "demo" / "history").iterdir()
+    record = json.loads(path.read_text(encoding="utf-8"))
+    assert (record["stack"], record["cost_micro_usd"], record["tokens"]) == (
+        "dev",
+        0,
+        {"input_tokens": 1, "output_tokens": 2},
+    )
+    assert record["results"][0]["route"] == "local"
+    assert "Hello there." not in path.read_text(encoding="utf-8")
+
+
+def test_history_never_goes_through_a_link(suite: Path, tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (suite / "demo" / "history").symlink_to(outside)
+    with pytest.raises(run.AdapterError, match="isn't a plain folder"):
+        run.write_history("demo", "local", {"x": 1})
+    assert list(outside.iterdir()) == []
+
+
+def test_history_never_replaces_an_existing_path(
+    suite: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Frozen(dt.datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> Frozen:
+            return cls(2026, 10, 8, 12, 0, 0, tzinfo=tz)
+
+    monkeypatch.setattr(run, "dt", SimpleNamespace(datetime=Frozen, UTC=dt.UTC))
+    target = tmp_path / "prod.env"
+    target.write_text("KEEP=1\n", encoding="utf-8")
+    history = suite / "demo" / "history"
+    history.mkdir()
+    (history / "2026-10-08T120000Z-local.json").symlink_to(target)
+    with pytest.raises(run.AdapterError, match="FileExistsError"):
+        run.write_history("demo", "local", {"x": 1})
+    assert target.read_text(encoding="utf-8") == "KEEP=1\n"

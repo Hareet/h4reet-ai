@@ -43,15 +43,14 @@ Expected: the RTX 5090 Laptop GPU, driver 592.01, compute capability 12.0, 24,46
 ### 0.3 Node 24 and the tools
 
 ```bash
-fnm install 24.21.0 && fnm default 24.21.0
-make tools             # pytest, gitleaks, and the lint toolchain, where agents can't write (plan §9)
+make tools             # Node 24.21.0 through nvm, pytest, gitleaks, and the lint toolchain, where agents can't write (plan §9)
 make toolchain-check   # PASS: every version matches .devcontainer/toolchain.vars
 gitleaks version       # 8.30.1: the early patch's hooks fail closed without it
 ```
 
 This is tasks.md T013, on the setup branch, before its note is written.
 
-Also remove from your shell profile any variable an env template uses, such as `TELEGRAM_BOT_TOKEN`, and any `COMPOSE_*` or `H4_*`. Preflight refuses to start while the shell sets one, because compose would let it override the env file ([env-files.md §10](contracts/env-files.md#10-make-up-preflight), P5).
+Don't make Node 24 your default (`nvm alias default`): Claude Code is installed under your default Node, and the Makefile finds the pinned one itself. Also remove from your shell profile any variable an env template uses, such as `TELEGRAM_BOT_TOKEN`, and any `COMPOSE_*` or `H4_*`. Preflight refuses to start while the shell sets one, because compose would let it override the env file ([env-files.md §10](contracts/env-files.md#10-make-up-preflight), P5).
 
 ### 0.4 The host's Docker moves to the containerd image store (Heavy)
 
@@ -332,7 +331,7 @@ make down ENV=dev-cpu
    ```
 
    It adds the one-line overlay `ALERT_DELIVERY=real` to dev's gateway for the run, and puts the stand-ins back at the end ([env-files.md §7.2](contracts/env-files.md#72-the-delivery-overlay)). The alerts carry `[dev]` and go to the same chat and mailbox as prod's. Film the phone as the warning and the trip arrive.
-3. Before committing the recording: `gitleaks dir docs/recordings --redact --no-banner --config .gitleaks.toml --gitleaks-ignore-path "$(mktemp -d)" --ignore-gitleaks-allow` finds nothing (the flags keep a `.gitleaks.toml` or `.gitleaksignore` planted in the directory from switching rules off), and the cast shows no token, chat ID, or address (the run prints only dedupe keys and message IDs). Make the GIF from the cast. What gets committed is the cast and the GIF (plan [§16](plan.md#16-documentation-deliverables)); the camera recording is the Author's to keep or publish.
+3. Before committing the recording: `test ! -e docs/recordings/.gitleaksignore && gitleaks dir docs/recordings --redact --no-banner --config .gitleaks.toml --gitleaks-ignore-path "$(mktemp -d)" --ignore-gitleaks-allow` finds nothing. The flags keep a planted `.gitleaks.toml` and inline `gitleaks:allow` markers from switching rules off. The test refuses a planted `.gitleaksignore`, which gitleaks reads from the scanned directory whatever its flags say (research.md R-36). and the cast shows no token, chat ID, or address (the run prints only dedupe keys and message IDs). Make the GIF from the cast. What gets committed is the cast and the GIF (plan [§16](plan.md#16-documentation-deliverables)); the camera recording is the Author's to keep or publish.
 
 **Expected, and SC-002's two figures,** from the run's L records ([telemetry.md §5.2](contracts/telemetry.md#52-events)):
 - `degraded` is active within 60 s of the ceiling: the `killswitch.tripped` record's time against the crossing call's. They commit in one transaction, so the gap is about 0 s.
