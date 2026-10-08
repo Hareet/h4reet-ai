@@ -1,0 +1,18 @@
+# The agents' engine firewall (spec 000, FR-039; contracts/agents-engine.md §5, H4).
+# Loads table inet h4agents, which lets h4agents' traffic reach 198.18.0.1:3128 and nothing else.
+# The ruleset replaces only its own table and never flushes, so rootful Docker's rules stay untouched.
+# Installed to /etc/systemd/system/ by engine.sh setup.
+[Unit]
+Description=h4agents engine firewall (nftables table inet h4agents)
+After=h4agents-net.service
+Wants=h4agents-net.service
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /usr/local/lib/h4agents/h4agents.nft
+ExecStop=-/usr/sbin/nft delete table inet h4agents
+
+[Install]
+WantedBy=multi-user.target

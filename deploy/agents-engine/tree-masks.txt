@@ -1,0 +1,10 @@
+# Paths masked out of the engine's read-only view of the working tree (contracts/agents-engine.md §5, H8).
+# h4agents-tree.service mounts an empty read-only tmpfs over each; where .git is a file (a linked
+# worktree), an empty file replaces it instead. engine.sh up creates a listed directory that does not
+# exist yet as an empty 0700 directory, so its mask always applies, and refuses to start the tree while
+# the sandbox read-denies a path inside the tree that this list lacks.
+# One path per line, relative to the repository root. Blank lines and # comments are ignored.
+deploy/env
+corpus/intake/private
+secrets
+.git

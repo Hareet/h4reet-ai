@@ -1,0 +1,18 @@
+# The agents' engine egress proxy (spec 000, FR-039; contracts/agents-engine.md §4).
+# A systemd *user* service of the Author's, listening on 198.18.0.1:3128. Lingering is on for the
+# Author's user (H1), so it runs without a login. It reads sandbox.network.allowedDomains from the
+# repository's .claude/settings.json (H4_EGRESS_SETTINGS) at start, and fails closed on an unreadable
+# or empty list. Installed to ~/.config/systemd/user/ by engine.sh setup.
+[Unit]
+Description=h4agents engine egress proxy (198.18.0.1:3128)
+After=h4agents-net.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/h4agents/engine.env
+ExecStart=/usr/bin/python3 -I -B -X pycache_prefix=/dev/null /usr/local/lib/h4agents/egress-proxy.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

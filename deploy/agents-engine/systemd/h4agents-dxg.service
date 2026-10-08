@@ -1,0 +1,17 @@
+# The GPU stays with the host's rootful Docker (spec 000, FR-039; contracts/agents-engine.md §5, H6).
+# Sets /dev/dxg to root:h4gpu, mode 0660, at every boot (check 2 found it 0666, open to every user).
+# h4agents is not in h4gpu, so it cannot open the device even if a container somehow had it passed in
+# (the admission plugin refuses that first, A2 and A3). Installed to /etc/systemd/system/.
+[Unit]
+Description=h4agents GPU device permissions (/dev/dxg root:h4gpu 0660)
+After=systemd-udev-settle.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Tolerate a missing device (no GPU present): the engine runs CPU-only regardless.
+ExecStart=-/usr/bin/chgrp h4gpu /dev/dxg
+ExecStart=-/usr/bin/chmod 0660 /dev/dxg
+
+[Install]
+WantedBy=multi-user.target

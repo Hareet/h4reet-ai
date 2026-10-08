@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# The agents' engine relay (spec 000, FR-039; contracts/agents-engine.md §2.2).
+#
+# Runs `docker` or `make` against the engine from inside an agent session. Docker's exec, attach, and
+# BuildKit streams do not pass through an HTTP proxy, so a plain HTTPS_PROXY client cannot run them;
+# this relay tunnels a local TCP listener through the sandbox proxy to 198.18.0.1:2376 with socat, and
+# runs the command against it over mutual TLS. It runs only `docker` or `make`, so a role granted
+# `docker-relay docker *` cannot turn it into a general shell.
+#
+# Human-only: the copy engine.sh setup installs is what agents reach.
+set -euo pipefail
+
+endpoint="tcp://127.0.0.1:2376"
+
+# A TCP liveness probe for the local listener, using bash's /dev/tcp in a subshell so the fd is closed.
+port_open() { (exec 3<>"/dev/tcp/127.0.0.1/2376") 2>/dev/null; }
+
+# 1. Outside the sandbox it refuses: there the Author runs docker directly, or engine.sh.
+if [ -z "${SANDBOX_RUNTIME:-}" ]; then
+	echo "outside the sandbox, run docker directly, or deploy/agents-engine/engine.sh" >&2
+	exit 2
+fi
+
+# 2. Only the Docker CLI and make. Anything else (sh, bash, python3, a path) is refused.
+tool="${1:-}"
+case "$tool" in
+docker | make) ;;
+*)
+	echo "docker-relay runs only 'docker' or 'make', not '${tool:-(nothing)}'" >&2
+	echo "usage: deploy/agents-engine/docker-relay docker|make [arguments...]" >&2
+	exit 2
+	;;
+esac
+
+# 3. Nesting: when a relay already answers at the endpoint (a make target that calls another one),
+# run the command directly rather than starting a second relay.
+if [ "${DOCKER_HOST:-}" = "$endpoint" ] && port_open; then
+	exec env \
+		DOCKER_HOST="$endpoint" \
+		DOCKER_TLS_VERIFY=1 \
+		BUILDX_CONFIG="${TMPDIR:-/tmp}/buildx" \
+		DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.config/h4reet/agents-engine/docker}" \
+		"$@"
+fi
+
+# 4. The tunnel, through the sandbox proxy named in HTTPS_PROXY.
+proxy="${HTTPS_PROXY:-${https_proxy:-}}"
+if [ -z "$proxy" ]; then
+	echo "no HTTPS_PROXY in this session; the engine's opening isn't reachable" >&2
+	exit 2
+fi
+# Strip the scheme, split an optional user:pass@, then host:port.
+proxy_noscheme="${proxy#*://}"
+proxy_auth=""
+case "$proxy_noscheme" in
+*@*)
+	proxy_auth="${proxy_noscheme%@*}"
+	proxy_hostport="${proxy_noscheme##*@}"
+	;;
+*) proxy_hostport="$proxy_noscheme" ;;
+esac
+proxy_host="${proxy_hostport%%:*}"
+proxy_port="${proxy_hostport##*:}"
+if [ "$proxy_port" = "$proxy_host" ]; then proxy_port=3128; fi # no port named
+
+work="$(mktemp -d "${TMPDIR:-/tmp}/docker-relay.XXXXXX")"
+socat_pid=""
+# Inlined (not a function) so shellcheck doesn't read it as unreachable; it runs at exit, where
+# socat_pid and work are already set. It stops the background socat and removes the work directory.
+trap 'if [ -n "$socat_pid" ]; then kill "$socat_pid" 2>/dev/null || true; fi; rm -rf -- "$work"' EXIT
+
+# The proxy's credentials, when present, go to socat through a file (mode 0600) rather than its
+# argument list, so they are not visible in the process table. This augments §2.2's socat line; the
+# sandbox proxy requires Basic authentication.
+socat_dst="PROXY:${proxy_host}:198.18.0.1:2376,proxyport=${proxy_port}"
+if [ -n "$proxy_auth" ]; then
+	auth_file="$work/proxy-auth"
+	(
+		umask 077
+		printf '%s' "$proxy_auth" >"$auth_file"
+	)
+	socat_dst="${socat_dst},proxy-authorization-file=${auth_file}"
+fi
+
+socat "TCP-LISTEN:2376,bind=127.0.0.1,reuseaddr,fork" "$socat_dst" &
+socat_pid=$!
+
+# Wait up to 5 s for the listener.
+ready=""
+for _ in $(seq 1 50); do
+	if port_open; then
+		ready=1
+		break
+	fi
+	sleep 0.1
+done
+if [ -z "$ready" ]; then
+	echo "the engine's opening isn't reachable; ask the Author: deploy/agents-engine/engine.sh up" >&2
+	exit 2
+fi
+
+# 5 & 6. Run the command against the endpoint, then clean up and exit with its status.
+status=0
+env \
+	DOCKER_HOST="$endpoint" \
+	DOCKER_TLS_VERIFY=1 \
+	BUILDX_CONFIG="${TMPDIR:-/tmp}/buildx" \
+	DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.config/h4reet/agents-engine/docker}" \
+	"$@" || status=$?
+exit "$status"
