@@ -1,5 +1,5 @@
 # chore/repo-hygiene
-Spec: specs/000-local-foundations/ (clarified on this branch; the hygiene files serve FR-001 and User Story 6 scenario 1) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5), main session; reviewed by four separate read-only `reviewer` agents · Date: 2026-10-07
+Spec: specs/000-local-foundations/ (clarified on this branch; the hygiene files serve FR-001 and User Story 6 scenario 1) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5), main session; reviewed by six separate read-only `reviewer` agents · Date: 2026-10-07
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes. Every command and edit in this session left a record in `.claude/audit/hooks.log`, for example:
 
 ```
@@ -7,8 +7,8 @@ Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks
 2026-10-08T00:30:54Z	edit	ALLOW	.editorconfig
 ```
 
-One command was blocked, correctly. A script I wrote to update this note contained the merge command quoted under For the Author, and `bash-gate.sh`'s switch-to-main rule fired on that text, a false positive the last branch's note already lists. I rewrote it as a file. The `SubagentStop` hook found a transcript for 3 of 42 events (see For the Author).
-Authorized by: the Author's session 1 kickoff (`docs/KICKOFF-PROMPT.md`, tasks 1–5), and the Author's answers in this session: the CODEOWNERS handle `@hareet`, the LICENSE holder "Hareet", and the five clarifications below. The kickoff was pasted in its pre-ADR-0013 form; this session ran the current version in the repository (no `gh`, no pull request, `make check` added, a second known question). Some of this branch goes beyond the kickoff: the review fixes, ADRs 0014 and 0015, the new requirements FR-040 to FR-042, and three new clarification markers. Each comes from a reviewer finding and an accepted source, and each is yours to accept or strike (Review).
+Three commands were blocked, all correctly. One was mine: a script that contained the merge command quoted under For the Author, which tripped `bash-gate.sh`'s switch-to-main rule (a false positive the last branch's note already lists); I rewrote it as a file. Two came from reviewer agents: an `echo` that mentioned the git hook's environment variable, and a recursive delete of their own probe files outside the repository. The `SubagentStop` hook found a transcript for 5 of 78 events (see For the Author).
+Authorized by: the Author's session 1 kickoff (`docs/KICKOFF-PROMPT.md`, tasks 1–5), and the Author's answers in this session: the CODEOWNERS handle `@hareet`, the LICENSE holder "Hareet", and the eight clarifications below. Later in the session the Author also directed: record their answers to the three open decisions, and make the settings changes and governance fixes. Agents can't make the parts in `.claude/**` and `CLAUDE.md`, so those are a patch for the Author to apply. The kickoff was pasted in its pre-ADR-0013 form; this session ran the current version in the repository (no `gh`, no pull request, `make check` added, a second known question). Some of this branch goes beyond the kickoff: the review fixes, ADRs 0014 and 0015, the new requirements FR-040 to FR-042, and the three questions the review put to you as clarification markers, since answered. Each comes from a reviewer finding and an accepted source, and each is yours to accept or strike (Review).
 
 ## What changed and why
 
@@ -21,9 +21,19 @@ Authorized by: the Author's session 1 kickoff (`docs/KICKOFF-PROMPT.md`, tasks 1
 | 868d0cf | **Second review's fixes**: the answers carried through the rest of the spec; the moved text in `publication-carryover.md`; FR-040 to FR-042; ADRs 0014 and 0015 (proposed). |
 | e4869b7 | **Third review's fixes**: your answer 1 restored word for word; level-triggered ceilings; a meter that fails closed and survives restarts; FR-039's limits on the working tree; three clarification markers for decisions only you can make. |
 | 257634d | **Final review's fixes**: initializing an empty store is your audited reset; the runtime refuses the dev-only test machinery outside dev. |
-| this commit | This note, with the environment report (task 1) and the constitution check (task 4). |
+| 978a4a1 | The first version of this note. |
+| 3f29d97 | **Your answers to the three open decisions**, recorded word for word and applied; no clarification markers remain. |
+| c78c6a7 | **Makefile fixes**: uv's cache moves inside the repository, so `make check` works in the sandbox; the agent-config evals trigger compares with `main`'s merge base. The cache move opened a hole, which dbd7561 closes. |
+| 2a1d7be | **The enforcement-layer patch** (`docs/merge-requests/2026-10-07-chore-repo-hygiene-enforcement.patch`), for you to review and apply: env-file denies, `ops.md`'s batched requests, the subagent hook, `spec-writer.md`, your `CLAUDE.md` lines, and six matrix rows. Rebuilt in 2c6cd8b. |
+| dbd7561 | **Closes the hole c78c6a7 opened** (round 5): uv's cache is out of the repository again. It moves to the session's temporary directory only inside the sandbox. The repository's `.cache/` is deleted, and no ignore rule hides one. |
+| 8f6eac0 | **Round 5's spec fixes**: the renewal state survives restarts; "only production spends" is enforced; answer 6 recorded as a deviation. |
+| 2c6cd8b | **The patch, rebuilt**, replacing 2a1d7be's version: `ops.md` asks only for redacted error lines, with a filter tested as written; the matrix tests every new rule. |
+| 8329697 | **The pytest fallback ignores a planted `.venv` and `uv.toml`** (round 6): it pins the system interpreter and skips uv's config files. |
+| 96b345e | **Today's fallback spend survives a restart** (round 6), so a restart can't hand out a fresh $2. |
+| bba1fae | **The patch, rebuilt again**: the redaction filter closes the gaps round 6 found, and `CLAUDE.md` gains a third line. |
+| this commit | This note, updated: the environment report (task 1), the constitution check (task 4), and all six review rounds. |
 
-### The five clarifications
+### The clarifications
 
 | # | Question | Your answer | Where it landed |
 |---|---|---|---|
@@ -32,6 +42,14 @@ Authorized by: the Author's session 1 kickoff (`docs/KICKOFF-PROMPT.md`, tasks 1
 | 3 | Does service come back on its own after a ceiling trips? | Only your reset restores it, for both ceilings; the reset brings local answers back at once, and metered calls stay refused until the tripped meter rolls over | User Story 2 scenarios 3–5 and 7 and its Independent Test; FR-022 (fallback refused while any meter is at or above its ceiling), FR-031 (fail closed; state survives restarts; an empty store stays degraded until you initialize it), FR-033, FR-034 (an operator credential); User Story 5 scenario 3. This also removes scenario 5's automatic restore, which contradicted Principle V. |
 | 4 | Who runs the container-level checks the sandbox blocks? | Agents get their own disposable container engine for CPU-only stacks; the host's engine, the GPU, and the host's stacks stay out of reach; GPU and Bedrock checks run in your terminal | FR-039 (unprivileged; allowlisted egress; the working tree read-only without the sandbox's denied paths; its definition human-only); FR-018; FR-036; User Story 3 scenarios 1 and 9. ADR 0015 (proposed). |
 | 5 | How are alert emails sent without cloud resources? | SMTP from a dedicated alerts mailbox; its credentials stay local, outside the repository and agent context | FR-032 (and what an alert may carry); FR-007 (deny entries by name); FR-040 (the data-flow disclosure) |
+| 6 | Does what the environment file selects count as "only configuration"? | "yes the env file can count as only a config change" | FR-017; User Story 1 scenario 5; FR-039 (the agents' stack may use a CPU image); ADR 0015 |
+| 7 | Does the fallback sub-budget renew on its own? | "it does not renew on its own, a human approves renewal" | FR-030 (refused and alerted when it runs out, until you approve renewal with your credential and a reason); FR-022; FR-008; User Story 5 scenario 6 |
+| 8 | One budget for the host, or one per environment? | "Yes each stack will have its own meter as we are only concerned for production environment, the dev environment won't use spend and will use a Claude Team plan" | FR-031; FR-030 (production's numbers); FR-036; FR-037; User Story 5's Independent Test; the Assumptions |
+
+Answers 6 to 8 are quoted exactly. My readings of answers 7 and 8 are mine, not yours, so please confirm them:
+- Answer 7: running out of the sub-budget also alerts you, because a renewal needs you to know.
+- Answer 7: a day that ends without running the sub-budget out starts the next with the full $2.
+- Answer 8: the dev stack has no paid adapter, and development work (Claude Code and the agents) runs on your Team plan. So the Bedrock steps of User Story 5 run against production from your terminal, and dev's synthetic spend can exhaust the sub-budget to test renewal.
 
 The plan has to know why FR-036 needs synthetic spend. Bedrock is spec 000's only metered provider, and its $2/day sub-budget sits below the $5 daily ceiling. So until a later phase adds other metered spend, only synthetic spend can reach the daily ceiling. The monthly ceiling is reachable for real, after ten days of full fallback.
 
@@ -45,15 +63,15 @@ The plan has to know why FR-036 needs synthetic spend. Bedrock is spec 000's onl
 
 ## Constitution check
 
-The `constitution-check` skill, run on the clarified spec (096dc28), again after each round of fixes, and last on the final spec (257634d); this table is the final one.
+The `constitution-check` skill, run on the clarified spec (096dc28), again after each round of fixes, and last on the final spec (96b345e); this table is the final one.
 
 | Principle | Touched? | How the spec complies, or the justified deviation |
 |---|---|---|
 | I. Data-local | Yes | No byte leaves a visitor's device: spec 000 has no visitor surface, `hello` is stateless, and telemetry carries no payloads (FR-029). No biometrics. Degraded modes are defined first, and a degraded response names its cause (FR-022, FR-028, FR-038): the kill switch, an exhausted sub-budget, a meter at or above its ceiling after a reset, a failed cold start, or a down alert channel. The three flows that leave the local tier (Bedrock, Telegram, and SMTP) must be in the data-flow disclosure (FR-040). The local tier stays production, and the agents' CPU-only stack uses the same topology (FR-017, FR-039). |
 | II. Production-grade | Yes | The contract test (FR-024), the breach test (FR-036), the forbidden-action matrix (SC-003), telemetry (FR-026 to FR-029), cost per call (FR-023), the local gate (FR-041), and docs and ADRs. The expected cost is now in the spec (Assumptions). **Gap:** no runbook requirement, although the alerts page a human and the reset is an operator procedure. The plan should add runbook entries for the warning, the trip, and the reset. |
-| III. Intent → spec → code | Yes | Linked intent (FR-004); clarified before any plan; only the Author merges. Both deviations are written in the Assumptions: local until publication (ADR 0013), and the controls that need CI, deferred to the publication spec (ADR 0014, proposed). The moved text waits in `publication-carryover.md` until the publication spec has an intent. Three decisions only you can make carry clarification markers (FR-017, FR-030, FR-031), so `/speckit-plan` can't plan past them. |
-| IV. Least privilege | Yes | The spec widens nothing. FR-039 keeps the agents' containers off the host's engine, the GPU, the host's stacks, and non-allowlisted domains, and User Story 3 scenarios 1 and 9 test both directions (ADR 0015, proposed). The engine sees the working tree read-only and without the sandbox's denied paths, and its definition is human-only. Agents can't reset the kill switch of any stack outside their own engine, and a reset needs an operator credential (FR-008, FR-034). FR-007 names the secrets for deny entries. Both the sandbox opening (FR-039) and the deny entries (FR-007) are settings changes only you can make; until then, FR-039 can't be built and the secrets aren't enforced. |
-| V. Cost | Yes | Model calls only through the gateway, with cost attributes (FR-021, FR-023). Ceilings of $5 a day and $20 a month with 70% warnings, and a $2/day fallback sub-budget with a $1.40 warning (FR-030). The meter is checked at request start (FR-031). The system degrades without a human, and only a human restores it (FR-033, FR-034). Ceilings are level-triggered: fallback stays refused while any meter is at or above its ceiling (FR-022), so overspend is limited to requests already in flight within the per-client cap (Edge cases). The meter fails closed, its state survives restarts, and an empty store stays degraded until you initialize it, so a wiped store can't reopen fallback (FR-031). A deliberate breach proves it, with dev-only synthetic spend and clock that prod's configuration may not enable (FR-036). **Open, as clarification markers:** whether the sub-budget renews by itself (FR-030), and per-environment ceilings (FR-031). |
+| III. Intent → spec → code | Yes | Linked intent (FR-004); clarified before any plan; only the Author merges. The deviations are written in the Assumptions: local until publication (ADR 0013); the controls that need CI, deferred to the publication spec (ADR 0014, proposed); and image variants chosen by the environment file (answer 6; ADR 0015, proposed). The moved text waits in `publication-carryover.md` until the publication spec has an intent. The three decisions the review left open are answered (Clarifications 6 to 8); no markers remain. |
+| IV. Least privilege | Yes | The spec widens nothing. FR-039 keeps the agents' containers off the host's engine, the GPU, the host's stacks, and non-allowlisted domains, and User Story 3 scenarios 1 and 9 test both directions (ADR 0015, proposed). The engine sees the working tree read-only and without the sandbox's denied paths, and its definition is human-only. Agents can't reset the kill switch of any stack outside their own engine, and a reset needs an operator credential (FR-008, FR-034). FR-007 names the secrets for deny entries. The env-file denies are in the patch for you to apply. The per-secret variables (FR-007) and the sandbox opening (FR-039) wait for the plan and the engine; until then, FR-039 can't be built and those secrets aren't enforced. |
+| V. Cost | Yes | Model calls only through the gateway, with cost attributes (FR-021, FR-023). Ceilings of $5 a day and $20 a month with 70% warnings, and a $2/day fallback sub-budget with a $1.40 warning (FR-030). The meter is checked at request start (FR-031). The system degrades without a human, and only a human restores it (FR-033, FR-034). Ceilings are level-triggered: fallback stays refused while any meter is at or above its ceiling (FR-022), so overspend is limited to requests already in flight within the per-client cap (Edge cases). The meter fails closed, its state survives restarts, and an empty store stays degraded until you initialize it, so a wiped store can't reopen fallback (FR-031). A deliberate breach proves it, with dev-only synthetic spend and clock that prod's configuration may not enable (FR-036). A sub-budget that runs out stays out, across rollovers and restarts, until you approve its renewal, and today's fallback spend survives a restart too (FR-030, FR-031). Only production spends: any other stack refuses to start with a paid adapter, and your test calls count toward production's meter (FR-031). |
 | VI. Build in public | Yes | **Deviation (temporary):** local until publication (ADR 0013). The history stays publishable from its first commit (FR-001) and is scanned before the first push (FR-042). No secret in the repository, agent context, or telemetry (FR-012), and alerts carry only operational facts (FR-032). |
 | VII. Own the whole product | Partly | The spec makes no claim about the Author's work. The product reasoning (guardrails before features, so they aren't retrofitted) lives in the intent and User Story 6. |
 | VIII. Honest AI | No | No twin behavior in this spec: the persona, the corpus, and the guardrail evals are Phases 1–3. The eval and red-team scaffolds are ready for them. |
@@ -62,7 +80,7 @@ The rest of the branch touches no runtime and widens nothing. `CODEOWNERS` and D
 
 ## Review
 
-Four separate, read-only `reviewer` agents ran `REVIEW.md`'s four passes in the background while this session worked. None of them wrote any of the change.
+Five separate, read-only `reviewer` agents ran `REVIEW.md`'s four passes in the background while this session worked. None of them wrote any of the change.
 
 **Round 1: `git diff main...8282a29` (hygiene).** Not ready as it stood: five Important findings, thirteen nits, and one Important finding outside the diff.
 
@@ -117,16 +135,52 @@ Eight of the nine fixes close their findings. A trace of the kill-switch state m
 
 The reviewer counted nine minor items without describing them. As planned for this last round, 257634d was not reviewed again; its spec changes are the two rows above.
 
+**Round 5: `git diff 978a4a1..2a1d7be` (your answers, the Makefile fixes, and the patch), Important findings only.**
+
+Five Important findings, and the worst was mine: c78c6a7 opened a hole.
+
+| # | Pass, severity | Finding | What was done |
+|---|---|---|---|
+| 1 | Security, Important | c78c6a7 put uv's cache inside the repository for every `make` run. Agents can write there, git doesn't show it, and your own `make check`, run with your credentials, would have run code from it. | Fixed in dbd7561. uv keeps its default cache unless that can't be written, which happens only in the sandbox; there it uses the session's temporary directory. Checked in all three cases. The repository's `.cache/` is deleted, and no ignore rule hides one. |
+| 2 | Security, Important | The patch's `ops.md` asked for raw service logs, which can carry tokens, connection strings, and prompts, and its output goes into agent context and notes. | Fixed in 2c6cd8b. Only error lines, through a redaction filter defined in the script and tested exactly as written. Never the model server's request logs. You read the output before pasting it, and raw output stays out of commits. FR-039 now says what goes into a note carries no secrets or payloads. |
+| 3 | Compliance, Important | Answer 6 departs from the constitution's "identical images" but wasn't recorded as a deviation, and ADR 0015 still said "the same images". | Fixed in 8f6eac0: a deviation bullet in the Assumptions with its justification, and ADR 0015 corrected. |
+| 4 | Bugs, Cost & telemetry, Important | The sub-budget's "awaiting renewal" state wasn't among what survives a restart, so a restart or re-initialization could renew fallback without you. | Fixed in 8f6eac0. FR-031 persists it. Initialization leaves fallback awaiting renewal unless you renew it in the same action. User Story 5 scenario 6 covers restarts. |
+| 5 | Cost & telemetry, Important | "Only production spends" was stated, not enforced. The Bedrock contract test and Bedrock evals spent outside any meter, FR-037 had dropped the constitution's definition of dev-time spend, and FR-022 routed to Bedrock in stacks without it. | Fixed in 8f6eac0. Other stacks refuse to start with a paid adapter. Your test calls count toward production's meter. FR-037 is restored to "agents and agent evals". FR-022 routes to Bedrock only where a stack has it. |
+
+The reviewer also confirmed:
+- the three recorded answers are verbatim;
+- the patch weakens no existing rule and applies cleanly;
+- the evals trigger is right with a local `main`.
+
+It flagged one more reading of answer 7 for you to confirm (now listed under The clarifications). Its smaller points are fixed in 2c6cd8b:
+- the matrix now tests the `deploy/env/` rule alone and the hook's missing-file branch;
+- `ops.md`'s last line and `CLAUDE.md`'s container line no longer contradict FR-039;
+- the stale `.gitignore` and `lifecycle.md` lines are in the patch.
+
+**Round 6: `git diff 2a1d7be..2c6cd8b` (round 5's fixes), Important findings only.**
+
+Round 5's fixes held. Three of its five findings are fully closed: the log redaction, the image deviation, and "only production spends". The cache fix closes the cache as stated, and the renewal fix holds once the sub-budget has run out. Two Important findings remained; neither came from round 5's fixes:
+
+| # | Pass, severity | Finding | What was done |
+|---|---|---|---|
+| A | Security, Important | Older than this branch, and made worse by its `.gitignore`. The pytest fallback (`uv run --no-project …`) ran a `.venv` interpreter it found in the working directory, and obeyed a repo-root `uv.toml` that can move uv's cache back into the repository. Both are agent-writable, and `.venv/` is gitignored. Your `make check` takes that route, because pytest isn't on your PATH. The reviewer reproduced it. | Fixed in 8329697: the fallback pins the system interpreter (`--python`) and skips uv's config files (`--no-config`). Reproduced before and after with a planted `.venv` and `uv.toml`: the old fallback ran the one and obeyed the other, and the new one does neither. |
+| B | Cost & telemetry, Important | FR-031 didn't keep today's fallback spend across a restart, so a restart before the $2 ran out could hand out a fresh $2, again and again, without you. | Fixed in 96b345e: FR-031 keeps it, initialization rebuilds it, and User Story 5 scenario 7 tests a restart with the sub-budget partly spent. |
+| — | Minor, counted | The redaction filter missed URL credentials with an empty username, `Authorization` written as JSON, and values with spaces, and its description claimed more than it did. | Fixed in bba1fae and tested exactly as written. The description now claims only what the filter does. |
+
+The reviewer proposed a third line for `CLAUDE.md`, because A is the third time agent-writable code that git doesn't show has run in your terminal: first the hooks, then c78c6a7's cache, now `.venv` and `uv.toml`. That line is in the patch.
+
+8329697, 96b345e, and bba1fae were not reviewed again by an agent. Instead, the fallback fix was verified by reproducing the attack before and after, and the patch by the matrix: 164 passed against it, and the new rows fail against the current layer.
+
 ## Verification
 
-`make check` at 257634d, run inside the agent sandbox. The plain `make check` fails there (Environment report), so uv's cache moved to the session's temporary directory; the target itself is unchanged.
+`make check` at bba1fae, run inside the agent sandbox with no override. Since dbd7561 the plain target works there: inside the sandbox only, the Makefile points uv at the session's temporary directory.
 
 ```
-$ UV_CACHE_DIR="$TMPDIR/uv-cache" make check
+$ make check
 python3 corpus/tools/check_corpus.py
 corpus-check: OK — 20 slots, 4 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
 git hook guarding main: installed
-uv run --no-project --quiet --with pytest --with pyyaml pytest -q -p no:cacheprovider corpus/tools
+uv run --no-project --no-config --python /usr/bin/python3 --quiet --with pytest --with pyyaml pytest -q -p no:cacheprovider corpus/tools
 ..................................................                       [100%]
 50 passed in 0.04s
 ruff check .
@@ -146,8 +200,8 @@ Also checked:
 - All 54 relative links in the README, CONTRIBUTING, SECURITY, START-HERE, `intent/README.md`, `lifecycle.md`, the ADR index, ADRs 0014 and 0015, and the carryover file resolve.
 - `.github/dependabot.yml` parses (version 2; npm, pip, github-actions, docker).
 - No tracked file matches the `.gitignore`.
-- The spec's five clarification bullets match 096dc28 word for word.
-- The spec carries three clarification markers (FR-017, FR-030, FR-031), for decisions only you can make.
+- The spec's eight clarification bullets are verbatim: the first five match 096dc28, and the last three are your words.
+- No clarification markers remain.
 - It adds only the two headings `/speckit-clarify` allows.
 - No moved requirement remains in the sections Spec Kit inventories.
 
@@ -165,9 +219,9 @@ Also checked:
 | `terraform version` | Not installed |
 | Others | git 2.43.0, make 4.3, jq 1.7, shellcheck 0.9.0, ruff 0.16.10, bubblewrap 0.9.0, socat 1.8.0.0, aws-cli 2.29.1, gh 2.45.0. Not on the PATH: pytest (the Makefile falls back to uv) and pre-commit (`make setup` needs it). |
 | Sandbox | Initialized: `NoNewPrivs: 1` and a seccomp filter (mode 2). Every `denyWrite` path is mounted read-only (`CLAUDE.md`, `REVIEW.md`, `.claude`, the constitution, `corpus/facts`, `.git/hooks`, `.git/config`, and the rest). `corpus/intake/private` is hidden. `HTTP_PROXY` and `HTTPS_PROXY` route egress through the domain filter. With `failIfUnavailable: true`, the session would not have started otherwise. |
-| `make check` | Fails inside the sandbox: `error: failed to open file /home/h4reet/.cache/uv/sdists-v9/.git: Read-only file system (os error 30)`. With uv's cache moved, the same target passes (Verification). The corpus denylist rule is skipped in the sandbox, because the private intake is hidden from it by design. |
+| `make check` | Fails inside the sandbox: `error: failed to open file /home/h4reet/.cache/uv/sdists-v9/.git: Read-only file system (os error 30)`. Fixed on this branch: since dbd7561, inside the sandbox only, uv caches in the session's temporary directory, and the plain target passes (Verification). c78c6a7's first fix put the cache inside the repository, a hole round 5 found. Since 8329697 the fallback also pins the system interpreter and skips uv's config files, so a planted `.venv` or `uv.toml` can't run in your terminal. The corpus denylist rule is skipped in the sandbox, because the private intake is hidden from it by design. |
 
-Nothing in the environment was changed.
+Nothing in the environment was changed. This session wrote only to the repository and to its temporary directory.
 
 ## Cost and data-flow impact
 
@@ -178,6 +232,15 @@ None now: no model calls, no runtime, no new egress. The clarifications set futu
 **Before you merge**
 
 - Read ADRs 0014 and 0015. If they say what you decided, set each Status to accepted; ADRs are immutable once accepted.
+- Review the enforcement-layer patch, then apply it in your own terminal, since agents can't write `.claude/**` or `CLAUDE.md`:
+  1. `mkdir -p deploy/env`, so the new sandbox deny covers a real folder, not a placeholder.
+  2. `git apply docs/merge-requests/2026-10-07-chore-repo-hygiene-enforcement.patch`
+  3. Run `make check`; expect `164 passed, 0 failed, 4 known gaps`.
+  4. Run `claude doctor` to confirm the new settings entries are accepted.
+  5. Commit it.
+  6. Restart Claude Code, so the sandbox picks up the new denies.
+
+  Drop any hunk you don't want, such as the `CLAUDE.md` lines. Once applied, agents can neither read nor write `deploy/env/` or any `*.env` file. So env templates belong elsewhere (for example `deploy/env.example/`). The CPU environment file for the agents' engine (FR-039) also needs a path outside `deploy/env/` and a name that doesn't end in `.env`; the plan sets that up.
 - Run `make corpus-check` in your own terminal. Inside the agent sandbox the private intake is hidden, so the denylist rule was skipped on this branch.
 - Merge in your own terminal, not through Claude Code; the hooks block agents from switching to `main`:
 
@@ -187,28 +250,37 @@ None now: no model calls, no runtime, no new egress. The clarifications set futu
 
 **Before session 2**
 
-- Answer the three clarification markers: FR-017 (does an image, profile, or dev-only switch chosen by the environment file count as "only configuration"?), FR-030 (does the fallback sub-budget renew by itself, or only after you restore it?), and FR-031 (one budget for the host, or one per environment?). `/speckit-plan` stops on unresolved clarifications; a short `/speckit-clarify` run, or your answers at the start of session 2, settles them.
+- Confirm my reading of answers 7 and 8 (The clarifications).
 - SC-001 and User Story 1 now count a one-time initialization of the store on a new host, which is a reset under FR-034 (FR-031). If you'd rather `make up` do that on a brand-new host by itself, the plan has to tell a new host from a wiped one.
 - This branch edited your session 2 prompt three times (cb25542, 868d0cf, e4869b7), each time to match the spec. Revert any wording you don't want.
 
-**Settings changes only you can make; the clarified spec depends on them**
+**Settings changes: what the patch covers, and what is still yours later**
 
-- FR-007: deny each secret by name, once the plan names them. That covers the Telegram token, the SMTP password, the operator's reset credential, and the stack's own service credentials: their environment variables in `sandbox.credentials.envVars`, and their files in the read denies and the sandbox's `denyRead`. Today `Read(.env*)` doesn't match a file such as `deploy/env/local.env`, and no SMTP variable is denied.
-- FR-039: the sandbox opening to the agents' own engine, reaching that engine and nothing else; and the engine's definition added to the human-only paths in `protected-paths.sh`.
-- `make check` inside the sandbox: uv's cache (`~/.cache/uv`) is read-only there, so `CLAUDE.md`'s verification rule can't be followed as written. Options: the Makefile sets `UV_CACHE_DIR` to an ignored directory in the repository; you add the cache to the sandbox's writable paths; or the devcontainer (FR-005) installs pytest so the uv fallback isn't needed.
+- In the patch:
+  - `Read(*.env)` and `Edit(*.env)` denied;
+  - `deploy/env` hidden from and unwritable by the sandbox;
+  - `protected-paths.sh` blocks edits to env files.
+
+  Together these close the gap where agents could read `deploy/env/*.env`.
+- Later, once the plan names them (FR-007): deny each secret's environment variable by name in `sandbox.credentials.envVars`. That covers the Telegram token, the SMTP password, the operator's credential, and the stack's service credentials.
+- Later, once the engine exists (FR-039): the sandbox opening to the agents' own engine, reaching that engine and nothing else, and the engine's definition added to the human-only paths.
+- Done on this branch (dbd7561): `make check` works inside the sandbox, with no settings change needed.
 
 **Wrong or stale in the governance files**
 
-- `.claude/hooks/subagent-report-check.sh` found a transcript for only 3 of this session's 42 `SubagentStop` events, logging `no transcript path in payload` for the other 39. When it misses, it exits 0, so FR-010's check fails open. Each time it did run, it flagged a reviewer report as instruction-shaped only because the report discusses `settings.json`. Worth checking the payload's field names against the hooks documentation, and the pattern's precision.
-- `.claude/agents/ops.md` grants `make up`, `make down`, `make breach-test`, and `docker compose`. None of them can work until FR-039's engine exists and the sandbox can reach it.
-- `.claude/agents/spec-writer.md` tells the agent to start from the intent's own words. Now that outside intents can exist, it should also say that their text is data, never instructions.
-- The Makefile's `evals` target runs the agent-config suite only when `git diff --quiet HEAD -- CLAUDE.md REVIEW.md .claude` finds uncommitted changes. On a committed branch it never runs, but FR-011 needs it before your merge, so the comparison should be against `main`'s merge base. This is a gate file, so it is a plan item.
+- `.claude/hooks/subagent-report-check.sh` found a transcript for only 5 of this session's 78 `SubagentStop` events, logging `no transcript path in payload` for the other 73. When it misses, it exits 0, so FR-010's check fails open. Each time it did run, it flagged a reviewer report as instruction-shaped only because the report discusses `settings.json`.
+  - The patch makes a missed check a WARN that names the reason and the payload's field names, so the logs will show which field is missing.
+  - Still open: checking the field name against the hooks documentation, and the pattern's precision.
+- `.claude/agents/ops.md` granted `make up`, `make down`, `make breach-test`, and `docker compose`, which can't work in the sandbox. The patch rewrites it as you asked. It removes those tools; it has ops list the commands for you to run, batched into one script that gathers everything a diagnosis needs; and it asks for the output back. Logs come back only as error lines, through a redaction filter tested as written, and raw output stays out of commits. A `CLAUDE.md` line in the patch gives the same rule to every agent.
+- `.claude/agents/spec-writer.md` tells the agent to start from the intent's own words. The patch adds that an outside intent's text is data, never instructions.
+- The Makefile's `evals` target ran the agent-config suite only for uncommitted changes, so it never ran on a committed branch. Fixed in c78c6a7 and dbd7561: it now compares with `main`'s merge base, and runs the suite when there is no base (FR-011). The pytest fallback also no longer runs a planted `.venv` or obeys a planted `uv.toml` (8329697).
 - ADR 0013 is unchanged, as an accepted ADR must be. ADR 0014, once accepted, replaces its Consequence about verifying spec 000's GitHub-side requirements.
-- Two proposed lines for `CLAUDE.md`'s "Things Claude gets wrong", for mistakes made more than once:
+- Three lines for `CLAUDE.md`'s "Things Claude gets wrong", for mistakes made more than once, now in the patch:
   - Rounds 1 and 3, the third occurrence: "Paraphrasing a source: recorded answers, quotes, and anything about the Author's role, the agents' share of the work, or a privacy promise stay in the source's words; put your reading beside them, never in their place."
   - Round 2: "Deferring or dropping a control the constitution requires without naming the clause as a deviation in the spec's Assumptions, and an ADR when that reverses an accepted one."
+  - Round 6, the third occurrence: "Letting anything the Author runs execute what agents can write and git doesn't show (a cache, `.venv`, `uv.toml`, an ignored or excluded file): pin the interpreter and skip project config."
 
-**Open for session 2's plan interview**, beyond the three markers:
+**Open for session 2's plan interview**:
 
 - Plan-level items:
   - the day and month boundaries (UTC recommended, as AWS billing uses);
@@ -220,7 +292,8 @@ None now: no model calls, no runtime, no new egress. The clarifications set futu
   - how a fresh clone gets working configuration, now that every `*.env` is ignored;
   - runbook entries for the warning, the trip, and the reset (Principle II);
   - whether the Bedrock contract test you run (FR-024) goes through a meter;
-  - how the operator credential (FR-034) is issued and kept, and how a new host's store is initialized (FR-031).
+  - how the operator credential (FR-030, FR-034) is issued and kept, and how a new host's store is initialized (FR-031);
+  - where env templates live, since agents can't read or write `deploy/env/` once the patch is applied.
 
 **Decisions for later**
 
