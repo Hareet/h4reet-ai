@@ -4,7 +4,10 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 ENV ?= local
 # pytest from the toolchain when present (the devcontainer); otherwise an ephemeral uv environment.
-PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --quiet --with pytest --with pyyaml pytest)
+# uv's default cache (~/.cache/uv) is read-only inside the agent sandbox, so uv caches inside the
+# repository instead (.cache/ is gitignored). A UV_CACHE_DIR already set in the environment wins.
+export UV_CACHE_DIR ?= $(CURDIR)/.cache/uv
+PYTEST :=$(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --quiet --with pytest --with pyyaml pytest)
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -57,7 +60,9 @@ lint-file: ## Lint one file: FILE=path make lint-file
 
 evals: ## Product evals (twin, gateway) against the configured adapter; agent-config evals when .claude changed
 	python -m evals.run --suite product --adapter $${ADAPTER:-local}
-	@if git diff --quiet HEAD -- CLAUDE.md REVIEW.md .claude; then :; else python -m evals.run --suite agent-config; fi
+	@# Compared with main's merge base, so changes already committed on the branch count too (FR-011).
+	@base="$$(git merge-base HEAD main 2>/dev/null || git rev-parse HEAD)"; \
+	if git diff --quiet "$$base" -- CLAUDE.md REVIEW.md .claude; then :; else python -m evals.run --suite agent-config; fi
 
 redteam: ## Adversarial suite + forbidden-action matrix
 	python -m redteam.run && bash redteam/forbidden-actions.sh

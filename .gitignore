@@ -11,6 +11,8 @@ __pycache__/
 *.egg-info/
 .coverage
 htmlcov/
+# uv's cache, which the Makefile keeps inside the repository (UV_CACHE_DIR)
+.cache/
 
 # Node
 node_modules/
