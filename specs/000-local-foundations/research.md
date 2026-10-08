@@ -22,6 +22,8 @@ Each row gives the question as asked, the option the Author chose, and that opti
 | Anonymous Docker Hub pulls are rate-limited. Log in with a free account and a read-only token (denied to agents)? | No, stay anonymous | Fine for occasional pulls; cold starts may hit the limit. | R-29 |
 | May payload sampling (prompts and completions in traces) ever be switched on in production during spec 000? | Dev only (Recommended) | Prod refuses TELEMETRY_PAYLOAD_SAMPLING=on in spec 000; revisit in Phase 1 with the data-flow disclosure. | R-30 |
 | Which Bedrock model should the production fallback use? (You'll confirm the exact ID with `aws bedrock list-inference-profiles` and copy its prices from the Bedrock pricing page into config/prices.yaml.) | Claude Haiku 5.5 (Recommended) | Newest small Claude, the cheapest Claude by list price; used only if Bedrock offers it in your region, else falls back to Haiku 4.5. Region us-east-1 unless you say otherwise in Other. | R-12 |
+
+**Correction, 2026-10-08, after the interview.** The recommended Bedrock option described Haiku 5.5 as "the cheapest Claude by list price". That wasn't verified: Haiku 5.5's price hadn't been published by 2026-10-08 ([R-12](#r-12-bedrock-through-converse-claude-haiku-55-the-author)). The row above stays as offered, and the merge-request note asks the Author whether the choice stands.
 | When the $2 fallback sub-budget runs out and you approve renewal the SAME day, what does renewal give? | Fresh $2 immediately | Renewal grants another $2 today, still inside the $5 daily ceiling. | R-15 |
 | How should you prove you're the operator when resetting the kill switch, renewing the sub-budget, or initializing a store? | Token file per stack (Recommended) | A random token in ~/.config/h4reet-ai/operator/<stack>.token (mode 0600), sent to an admin port on 127.0.0.1; the gateway stores only its hash. | R-16 |
 | Which AWS identity should the Bedrock adapter use (via SSO, mounted read-only into prod's gateway)? | Narrow permission set (Recommended) | A dedicated SSO permission set allowing only bedrock:InvokeModel on the one model; you create it in IAM Identity Center. | R-17 |
@@ -272,7 +274,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 - **Rationale**:
   - One request and response shape across model families, so changing the model is configuration (SC-006).
   - Usage and `latencyMs` come back with every answer.
-  - At first-party list prices, Haiku 5.5 is about 10× cheaper than Haiku 4.5.
+  - Haiku 5.5's price hadn't been published by 2026-10-08, so the interview option's "the cheapest Claude by list price" is unverified (the correction under [the interview table](#the-plan-interview-word-for-word)). Haiku 4.5's list price is $1 per million input tokens and $5 per million output tokens. Whichever model Bedrock serves, the Author copies its price into `config/prices.yaml` (tasks.md T102), and the gateway refuses a paid model without one.
   - No streaming: providers can't be switched mid-stream, usage arrives at the end, and the contract test is simpler.
 - **Alternatives**:
   - InvokeModel: a body mapper per model family.
@@ -288,7 +290,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 - **Rationale**:
   - UTC matches AWS billing and has no daylight-saving edges.
   - Integers make the thresholds exact.
-  - Reservations bound the overshoot to 4 calls in flight × the maximum per call. The maximum, with the 2,000-character input cap counted as 2,000 tokens and 128 output tokens at first-party list prices, is about $0.0003 with Haiku 5.5 and $0.0026 with Haiku 4.5.
+  - Reservations bound the overshoot to 4 calls in flight × the maximum per call. The maximum, with the 2,000-character input cap counted as 2,000 tokens and 128 output tokens at first-party list prices, is about $0.0026 at Haiku 4.5's list price. Haiku 5.5's price hadn't been published (R-12).
   - A reservation that expires without a commit is charged its maximum by a sweep, so the meter fails safe (data-model.md §2.4).
 - **Alternatives**:
   - The Author's local time zone.

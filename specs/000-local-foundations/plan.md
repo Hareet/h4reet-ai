@@ -497,7 +497,7 @@ The schema, the state machines, and both transactions in full are in [data-model
   4. Reserve the call's maximum cost: the input cap plus the output cap, at the active price.
 
   Then a `reserve` journal record is fsync'd before the call, and a `commit` record after it.
-  - **Overshoot** is bounded by 4 in flight × the maximum per call. That maximum is about $0.0003 with Haiku 5.5: the 2,000-character input cap counted as 2,000 tokens, plus 128 output tokens, at its first-party list price.
+  - **Overshoot** is bounded by 4 in flight × the maximum per call. That maximum is about $0.0026 at Haiku 4.5's list price ($1 and $5 per million tokens): the 2,000-character input cap counted as 2,000 tokens, plus 128 output tokens. Haiku 5.5's price hadn't been published by 2026-10-08 ([research.md R-12](research.md#r-12-bedrock-through-converse-claude-haiku-55-the-author)).
   - **Expiry.** A reservation that outlives its 120 s TTL without a commit (a crash, or a long store outage) is settled at its maximum by a sweep, with `cost_basis` `expired`. Admissions, renewals, and a 10 s background task run the sweep, so the live meter never counts less than was spent ([data-model.md §2.4](data-model.md#24-reservations-metered-calls-in-flight)).
 - **Commit:**
   - Insert the ledger row, add to spent, and release the reservation.
@@ -1046,7 +1046,7 @@ No visitor data flows in this spec.
 
 | Component | Cloud cost | Host resources |
 |---|---|---|
-| Bedrock fallback (prod only) | Worst case $5/day and $20/month, the ceilings. A fallback day is $2, plus $2 per renewal the Author grants, inside $5. Expected during spec 000: under $0.10 in total (about 10 live contract calls and a few US5 calls; Haiku 5.5's first-party list price is $0.10/$0.50 per million tokens; the Author confirms Bedrock's). | – |
+| Bedrock fallback (prod only) | Worst case $5/day and $20/month, the ceilings. A fallback day is $2, plus $2 per renewal the Author grants, inside $5. Expected during spec 000: under $0.10 in total: about 10 live contract calls and a few US5 calls, each at most about $0.0026 at Haiku 4.5's list price. Haiku 5.5's price hadn't been published by 2026-10-08; the Author confirms Bedrock's. | – |
 | Model server | $0 | prod: about 21 GiB of the laptop GPU's 24 GB of VRAM, 8 GiB RAM cap; dev stand-in about 1.5 GB of VRAM. Prod and dev can't both hold the GPU with the prod model loaded plus Phase 2's speech; Phase 1 revisits the model with that budget. |
 | Gateway and `gateway-state` | $0 | about 0.6 GB of RAM |
 | Langfuse v4 and its stores | $0 | about 3–4 GB of RAM, growing with traces |
