@@ -221,7 +221,7 @@ The Author's recorded run, `make breach-test ENV=dev DELIVERY=real` (`evals/brea
 
 ## 8. The FR-007 deny list
 
-FR-007: every secret this spec introduces is denied by name, both its variable and the file that holds it, with a matrix row for each; the env files the host stacks run with are denied for writing as well as reading. The enforcement patch adds what isn't denied yet ([plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
+FR-007: every secret this spec introduces is denied by name, both its variable and the file that holds it, with a matrix row for each; the env files the host stacks run with are denied for writing as well as reading. The early patch (tasks.md T043) adds what isn't denied yet, before the first real secret exists ([plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
 
 | Secret | Variables, denied in the sandbox's `credentials.envVars` | File that holds it | Denied today? |
 |---|---|---|---|
@@ -239,9 +239,9 @@ FR-007: every secret this spec introduces is denied by name, both its variable a
 | The engine's Author client key | – | `~/.config/h4reet-ai/agents-engine/` ([agents-engine.md §2](agents-engine.md#2-the-endpoint-and-the-client-configuration)) | no |
 | The engine's server key and CA key | – | `/etc/h4agents/pki/` | no |
 
-**The path rules the patch adds or keeps:**
+**The path rules the early patch adds or keeps:**
 - `denyRead` and `denyWrite` on `~/.config/h4reet-ai`, which covers the env files, the operator tokens, the runtime AWS identity, and the Author's engine certificate in one entry (R-31).
-- `denyRead` on `/etc/h4agents/pki` (the patch's "engine's server key directory").
+- `denyRead` on `/etc/h4agents/pki` (plan §15's "engine's server key directory").
 - Kept: `./deploy/env` in `denyRead` and `denyWrite`, `Read(*.env)` and `Edit(*.env)`, and `~/.aws` in the credential files.
 
 **Not denied, on purpose:**

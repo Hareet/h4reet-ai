@@ -40,7 +40,7 @@ Each layer holds a different limit. The table in [§7](#7-the-fr-039-limits-and-
 | Client certificate | Common name | Directory | Modes | Who reads it |
 |---|---|---|---|---|
 | The agents' | `h4agents-sandbox` | `~/.config/h4reet/agents-engine/docker/` (`ca.pem`, `cert.pem`, `key.pem`) | files 0444, directory 0555 | agent sessions. Outside the sandbox's write roots, so agents can read it and not write it (plan §10). |
-| The Author's | `h4agents-author` | `~/.config/h4reet-ai/agents-engine/docker/` | files 0600, directory 0700 | the Author's `make engine-*` targets. Denied to agents by the patch's deny on `~/.config/h4reet-ai`. |
+| The Author's | `h4agents-author` | `~/.config/h4reet-ai/agents-engine/docker/` | files 0600, directory 0700 | the Author's `make engine-*` targets. Denied to agents by the early patch's deny on `~/.config/h4reet-ai` (tasks.md T043). |
 
 Both identities are held to the same admission rules ([§3](#3-admission-authzpy)). The common name only tells the audit log who acted: the Author's seeding from an agent session's commands.
 
@@ -60,7 +60,7 @@ Why a relay at all: Docker's exec, attach, and BuildKit streams don't go through
 
 | Setting | Value | Set by |
 |---|---|---|
-| `DOCKER_CONFIG` | `~/.config/h4reet/agents-engine/docker` | the settings `env`, in the patch |
+| `DOCKER_CONFIG` | `~/.config/h4reet/agents-engine/docker` | the settings `env`, in the early patch |
 | The client certificate | `$DOCKER_CONFIG/ca.pem`, `cert.pem`, `key.pem`. The Docker CLI looks for its certificates in its config directory when `DOCKER_CERT_PATH` is unset. | `make engine-setup` writes them |
 | `DOCKER_HOST`, `DOCKER_TLS_VERIFY` | `tcp://127.0.0.1:2376`, `1` | the relay only. Outside the relay a session has no engine at all: the default Unix socket is blocked by the sandbox. |
 | `BUILDX_CONFIG` | `$TMPDIR/buildx` | the relay |
@@ -69,7 +69,7 @@ Why a relay at all: Docker's exec, attach, and BuildKit streams don't go through
 
 There is no `proxies` entry because the CLI would inject the proxy variables into every container, and Python's urllib in the breach probe and the Telegram stand-in honours them, which would send in-network calls to the proxy. Builds get the proxy as build arguments instead (`H4_BUILD_PROXY`, [env-files.md §2](env-files.md#2-stack-keys)).
 
-**The opening itself** (in the patch): one `sandbox.network.allowedDomains` entry, `"198.18.0.1:2376"`, and nothing else. Rejected: `allowUnixSockets`, which Linux ignores, and `allowAllUnixSockets`, which would open the host's `docker.sock` and every other socket (R-22, ADR 0016).
+**The opening itself** (in the early patch, tasks.md T043): one `sandbox.network.allowedDomains` entry, `"198.18.0.1:2376"`, and nothing else. Rejected: `allowUnixSockets`, which Linux ignores, and `allowAllUnixSockets`, which would open the host's `docker.sock` and every other socket (R-22, ADR 0016).
 
 ## 3. Admission: `authz.py`
 
@@ -189,7 +189,7 @@ The plugin's log, the egress proxy's log ([§4](#4-egress-the-proxy)), and the f
 
 **Limits:** 64 tunnels at once; 10 s to connect; 120 s idle.
 
-**The log:** one JSON line per decision in `~/.local/state/h4reet/agents-engine/egress.jsonl`, owned by the Author; the patch's `denyWrite` on `~/.local/state/h4reet` keeps agents from editing it. Fields: `ts`; `decision`; `reason` (`allowed`, `not_on_list`, `denied_domain`, `ip_literal`, `non_global_address`, `method`, `port`); `method`; `host`; `port`; `path` for a GET, without its query; `bytes_up`; `bytes_down`; `duration_ms`.
+**The log:** one JSON line per decision in `~/.local/state/h4reet/agents-engine/egress.jsonl`, owned by the Author; the early patch's `denyWrite` on `~/.local/state/h4reet` keeps agents from editing it. Fields: `ts`; `decision`; `reason` (`allowed`, `not_on_list`, `denied_domain`, `ip_literal`, `non_global_address`, `method`, `port`); `method`; `host`; `port`; `path` for a GET, without its query; `bytes_up`; `bytes_down`; `duration_ms`.
 
 **Who uses it:**
 - the rootless daemon's own pulls: the unit sets `HTTPS_PROXY=http://198.18.0.1:3128` and `NO_PROXY=127.0.0.1,localhost`;
@@ -281,7 +281,7 @@ Rows E1 to E11 are plan §13's list, E9 by its own number. E12 to E14 are this c
 
 ## 8. Make targets
 
-Every target is the Author's except `engine-smoke` and `engine-status`. bash-gate blocks the rest for agents, in the patch (plan §13, §15).
+Every target is the Author's except `engine-smoke` and `engine-status`. bash-gate blocks the rest for agents, in the early patch (plan §13, §15).
 
 | Target | Who runs it | What it does |
 |---|---|---|
@@ -293,7 +293,7 @@ Every target is the Author's except `engine-smoke` and `engine-status`. bash-gat
 | `engine-seed` | the Author | [§6.2](#62-make-engine-seed) |
 | `engine-prove` | the Author | `deploy/agents-engine/prove-limits.sh`: rows E1 to E14 with PASS or FAIL, the log excerpts, and the counter. Non-zero on any FAIL. Its output goes in the merge-request note. |
 | `engine-status` | anyone: it changes nothing | through the API: reachable, the engine's ID, rootless, the plugin listed, images present against `images.lock`, `docker system df`. In the Author's terminal it adds the units' states, the proxy's list hash against the settings', and the plugin's last 20 refusals. |
-| `engine-smoke` | an agent session, through the relay | `make up ENV=dev-cpu`, `make breach-test ENV=dev-cpu`, `make down ENV=dev-cpu`. It needs the patch's opening ([§2.3](#23-what-a-sessions-client-uses)). |
+| `engine-smoke` | an agent session, through the relay | `make up ENV=dev-cpu`, `make breach-test ENV=dev-cpu`, `make down ENV=dev-cpu`. It needs the early patch's opening ([§2.3](#23-what-a-sessions-client-uses)). |
 
 Plan §10 lists `engine-status` among the Author's targets, and plan §13 exempts it from bash-gate's block. It is read-only, so this contract lets both run it.
 

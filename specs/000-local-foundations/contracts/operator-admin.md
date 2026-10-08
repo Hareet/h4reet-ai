@@ -469,7 +469,7 @@ adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:
 - **The reason.** Recipes pass it as `--reason "$$REASON"`, so make never splices the text into a shell line. A write target without `REASON` fails before any call, with exit 2.
 - **The flags.** `RENEW=1` and `CONFIRM_ZERO=1` become `--renew` and `--confirm-zero`. `DAY_USD`, `MONTH_USD`, and `FALLBACK_TODAY_USD` become the stated values.
 - **dev-cpu** recipes use the probe hop.
-- **Agents** are kept off every stack but dev-cpu: bash-gate blocks the `operator-*` targets and admin URLs for any other stack (FR-008, in the enforcement patch, [plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
+- **Agents** are kept off every stack but dev-cpu: bash-gate blocks the `operator-*` targets and admin URLs for any other stack (FR-008, in the closing patch, [plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
 
 Examples, from the Author's terminal:
 
@@ -495,7 +495,7 @@ Make reports any non-zero exit as its own error 2, so the CLI's last line names 
 
 ## 7. What keeps agents away from the operator credential (FR-007, FR-008)
 
-- **Denied by name** in the enforcement patch: the token files (`~/.config/h4reet-ai`, read and write) and the variable `H4_OPERATOR_TOKEN`.
+- **Denied by name** in the early patch (tasks.md T043), before the first token exists: the token files (`~/.config/h4reet-ai`, read and write) and the variable `H4_OPERATOR_TOKEN`.
 - **No route to the listener.** The sandbox can't reach the host's `127.0.0.1` stack and admin ports (matrix stage S).
 - **bash-gate** blocks `make operator-*` and admin URLs for prod and dev.
 - **The prefix check.** Prod's gateway refuses any token without `h4op_prod_`, and refuses at startup an `OPERATOR_TOKEN_SHA256` equal to the dev-cpu dummy's hash.

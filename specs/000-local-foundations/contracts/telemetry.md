@@ -202,7 +202,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 
 | Source | OTel name | Prometheus name | Attributes kept |
 |---|---|---|---|
-| Claude Code's own exporter (`service.name=claude-code`; the patch's four settings variables, [plan.md §6](../plan.md#6-observability)) | `claude_code.cost.usage` (counter, `USD`) | `claude_code_cost_usage_USD_total` | `model`, `session.id` |
+| Claude Code's own exporter (`service.name=claude-code`; the closing patch's four settings variables, [plan.md §6](../plan.md#6-observability)) | `claude_code.cost.usage` (counter, `USD`) | `claude_code_cost_usage_USD_total` | `model`, `session.id` |
 | the same | `claude_code.token.usage` (counter, `tokens`) | `claude_code_token_usage_tokens_total` | `model`, `type` (`input`, `output`, `cacheRead`, `cacheCreation`), `session.id` |
 | `tools/gates/gate` (`service.name=h4-gate`), one export per agent-config eval run it records | `h4.devtime.eval.cost_usd` (gauge, `{USD}`) | `h4_devtime_eval_cost_usd` | `h4.eval.run`: the history file's name (`<UTC>-<branch>-<sha>`); `h4.eval.verdict`: `pass`, `fail` |
 | the same | `h4.devtime.eval.tokens` (gauge, `{token}`) | `h4_devtime_eval_tokens` | `h4.eval.run`; `gen_ai.token.type`: `input`, `output`, `cache_read`, `cache_creation` |

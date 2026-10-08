@@ -218,7 +218,8 @@ deploy/
     nftables/h4agents.nft, systemd/*, test/*.py
 scripts/operator.py              [A] new: stdlib operator CLI (§5.5)
 tools/gates/                     [H] new: gate, compose_policy.py, publish_check.py, toolchain_check.py,
-                                     matrix-required.txt, roles.expected, test/*.py
+                                     matrix-required.txt, roles.expected, test/*.py,
+                                     lint-node/ (the post-edit hook's lint toolchain, installed by make tools)
 evals/                           [A] new: __init__.py, run.py, breach.py, breach_probe.py, Dockerfile.probe,
                                      standins/{telegram_standin.py,Dockerfile}, product/cases/*.yaml, test_*.py
 evals/agent-config/              [H] new: static.py, behavioral.py, cases/*.yaml, thresholds.yaml, history/
@@ -464,7 +465,7 @@ Future adapters (direct vendor APIs, OpenRouter; FR-021) are new `type` modules 
 
 Schemas, examples, and validation errors are in [contracts/config-files.md](contracts/config-files.md).
 
-- **`config/routing.yaml`** (agent-editable): the adapters and each stack class's route (`prod: {primary: local, fallback: bedrock}`, `dev: {primary: local, fallback: synthetic}`). The schema requires every primary to be a `local` adapter (local-first) and allows a `paid` adapter only in the `prod` route. Its SHA-256 goes on every span and ledger row (`h4.routing.sha`).
+- **`config/routing.yaml`** (agent-editable): the adapters and each stack class's route (`prod: {primary: local, fallback: bedrock}`, `dev: {primary: local, fallback: synthetic}`). Prod's fallback is added only once the Author has confirmed the Bedrock model and its price (tasks.md T019, T102), so prod starts before Bedrock is set up. The schema requires every primary to be a `local` adapter (local-first) and allows a `paid` adapter only in the `prod` route. Its SHA-256 goes on every span and ledger row (`h4.routing.sha`).
 - **`config/prices.yaml`** (human-only): versions are append-only, each with an `id`, `effective_from`, `source`, and entries (provider, model, input, output, cache read, per million tokens). The active version is the latest whose `effective_from` is at or before now. A paid model without an entry stops the gateway from starting. Cost = input × input price + output × output price + cache reads × cache price, rounded up to the next micro-USD.
 - **`config/budgets.yaml`** (human-only):
   - **prod:** `daily_usd: 5.00`, `monthly_usd: 20.00`, `fallback_daily_usd: 2.00`, `warn_ratio: 0.70`.
@@ -810,7 +811,7 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 
 | Gate | Target | What it runs | In the sandbox |
 |---|---|---|---|
-| Git hooks installed | `githooks-check` | `reference-transaction` and `pre-commit` match `.claude/git-hooks/`; `core.hooksPath` is unset; `gc.packRefs=false`; `main` is a loose ref | runs |
+| Git hooks installed | `githooks-check` | `reference-transaction` and `pre-commit` match `.claude/git-hooks/` (`pre-commit` is PLANNED until the early patch adds it); `core.hooksPath` is unset; `gc.packRefs=false`; `main` is a loose ref | runs |
 | Toolchain pins | `toolchain-check` | `toolchain_check.py` against `.devcontainer/toolchain.env` | runs |
 | Compose and file policy | `policy` | `tools/gates/compose_policy.py` (below) | runs (no daemon needed) |
 | Config validation | `validate-config` | the gateway's `validate-config` over `config/*.yaml` and the env templates | runs |
@@ -822,7 +823,7 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 | Forbidden-action matrix | `matrix` | `redteam/forbidden-actions.sh`: stage H everywhere; stage S inside the sandbox | runs |
 | Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the current engine, and the devcontainer image outside the sandbox | the compose images on the agents' engine; FAIL "ask the Author: make engine-up" if it's down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs nodejs.org and Ubuntu's mirrors, and the allowlist stays as it is |
 
-`make check` keeps going after a failure and prints PASS, FAIL, SKIP (always with a reason), or PENDING per target, then a summary line. It exits non-zero on any FAIL or PENDING. Inside the sandbox it sets `npm_config_cache` to `$TMPDIR`, as it already does for `UV_CACHE_DIR`. Its output, pasted whole, goes into every merge-request note (FR-041).
+`make check` keeps going after a failure and prints PASS, FAIL, SKIP (always with a reason), PENDING, or PLANNED per target, then a summary line. It exits non-zero on any FAIL or PENDING. PLANNED marks enforcement that a patch adds and the Author hasn't applied yet, such as the `pre-commit` hook or an FR-007 name. It works like the matrix's planned rows ([§13](#13-the-forbidden-action-matrix)): the line names the task that writes the patch, the patch clears the mark when it adds the enforcement, and a PLANNED line doesn't fail the run. Spec 000's acceptance requires none (tasks.md T114). Inside the sandbox it sets `npm_config_cache` to `$TMPDIR`, as it already does for `UV_CACHE_DIR`. Its output, pasted whole, goes into every merge-request note (FR-041).
 
 **The compose and file policy** (`compose_policy.py`) runs on `docker compose config --no-interpolate`, once per env file. It refuses:
 - privileged mode; host pid, ipc, or network; `docker.sock`;
@@ -851,8 +852,8 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 Its summary line goes into the merge commit message. Project code never runs outside a container in the Author's terminal. That closes the whole class of holes session 1 found one at a time: caches, `.venv`, `uv.toml`, ignored `conftest.py`, and `node_modules/.bin`.
 
 **gitleaks** (`.gitleaks.toml`, human-only: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and Langfuse `sk-lf-` keys, with an allowlist of `deploy/env.agents/dev-cpu.vars` only) runs in four places:
-- the plain `pre-commit` git hook, `.claude/git-hooks/pre-commit`, installed by `make git-hooks`;
-- the PreToolUse content check on Write and Edit (FR-008's secret-pattern content, in the patch);
+- the plain `pre-commit` git hook, `.claude/git-hooks/pre-commit`, installed by `make git-hooks` (in the early patch);
+- the PreToolUse content check on Write and Edit (FR-008's secret-pattern content, in the early patch);
 - `make secrets`;
 - publish-check.
 
@@ -878,7 +879,7 @@ If gitleaks is missing, the hooks fail closed.
 `redteam/forbidden-actions.sh` grows from its hook-layer seed. Its existing rows and helpers (`check`, `cmd`, `edit`, `raw`) stay.
 - **Report:** `passed / failed / known gaps / planned / skipped (why)`.
 - **Required rows:** it fails if any row ID listed in the human-only `tools/gates/matrix-required.txt` is missing, so rows can't be dropped quietly.
-- **Planned rows** test enforcement the patch hasn't applied yet. They are reported but don't fail, like gap rows. The closing task group turns them into block or allow rows once the Author applies the patch ([§15](#15-the-enforcement-layer-patch)). Acceptance requires zero planned rows and zero failures (SC-003).
+- **Planned rows** test enforcement the patch hasn't applied yet. They are reported but don't fail, like gap rows. Each patch switches its own rows, so applying it is what switches them ([§15](#15-the-enforcement-layer-patch)): the early patch adds its rows as block or allow rows, and the closing patch switches every row still planned. Acceptance requires zero planned rows and zero failures (SC-003).
 - **Stage H, the hook layer** (runs anywhere):
   - **Role rows,** generated from each `.claude/agents/*.md` `tools:` line, with `agent_type` set in the hook input:
 
@@ -967,35 +968,39 @@ If gitleaks is missing, the hooks fail closed.
 Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert*`. Their changes travel as patch files in `docs/merge-requests/`, as in session 1. The Author reviews each, applies it with `git apply`, and runs `claude doctor`. There are three:
 
 - **The foundations branch's config patch:** `config/budgets.yaml` and `config/alerts.yaml`, exactly as contracts/config-files.md gives them (tasks.md T021).
-- **The foundations branch's engine-opening patch:** the `allowedDomains` entry `198.18.0.1:2376`, `DOCKER_CONFIG` and `DISABLE_AUTOUPDATER` in `env`, the ops role's `docker-relay` grant, and the bash-gate rule for `make engine-*` (tasks.md T043). It comes early because agents can't run any container until it is applied.
+- **The foundations branch's early patch** (tasks.md T043). It holds:
+  - the engine opening: the `allowedDomains` entry `198.18.0.1:2376`, `DOCKER_CONFIG` and `DISABLE_AUTOUPDATER` in `env`, the ops role's `docker-relay` grant, and the bash-gate rule for `make engine-*`;
+  - every credential deny, in `.claude/settings.json`:
+    - `sandbox.filesystem.denyRead` and `denyWrite` on `~/.config/h4reet-ai`, `denyWrite` on `~/.local/state/h4reet`, and `Edit(...)` denies for both;
+    - `denyRead` on the other credential stores (`~/.docker/config.json`, `~/.npmrc`, `~/.pypirc`, `~/.netrc`, `~/.gnupg`), the shell histories, the Windows files under `/mnt/c/Users`, and the engine's server key directory, `/etc/h4agents/pki`;
+    - `credentials.envVars` naming every FR-007 variable: `H4_OPERATOR_TOKEN`, `SMTP_PASSWORD`, `SMTP_USER`, `TELEGRAM_BOT_TOKEN` (already there), `GATEWAY_DB_PASSWORD`, `GATEWAY_GRAFANA_RO_PASSWORD`, every `LANGFUSE_*` secret, `CLICKHOUSE_PASSWORD`, `VALKEY_PASSWORD`, `SEAWEEDFS_S3_SECRET_KEY`, `GF_SECURITY_ADMIN_PASSWORD`, and the `AWS_*` names of [contracts/env-files.md §8](contracts/env-files.md#8-the-fr-007-deny-list);
+  - secret scanning: `content-scan.sh` and the `pre-commit` git hook, with gitleaks' default rules until `.gitleaks.toml` lands;
+  - the matrix rows for these changes, and the PLANNED marks they clear in `make check` ([§11](#11-local-gates-fr-041)).
+
+  It comes early for two reasons: agents can't run any container until it is applied, and no real secret may exist while an agent session could read it (Principle IV). The first real secrets come with US1 (tasks.md T063).
 - **The closing patch,** with everything below and the matrix's planned rows turned into block or allow rows (tasks.md T113).
 
 The closing patch holds:
 
 - **`.claude/settings.json`:**
-  - `sandbox.network.allowedDomains` gets `"198.18.0.1:2376"`.
-  - `env` gets `DOCKER_CONFIG`, `DISABLE_AUTOUPDATER=1`, and the four Claude Code telemetry variables ([§6](#6-observability)).
-  - `sandbox.filesystem.denyWrite` gets `./tools/gates`, `./evals/agent-config`, `./.gitleaks.toml`, `./deploy/agents-engine`, `./.mcp.json`, `./config/prices.yaml`, `./config/budgets.yaml`, `./config/alerts.yaml`, `./.git/info`, `./.git/refs/heads/main`, and `~/.local/state/h4reet`. This also closes the shell-write gap B found on `config/`.
-  - `denyRead` gets:
-    - credential stores: `~/.config/h4reet-ai`, `~/.docker/config.json`, `~/.npmrc`, `~/.pypirc`, `~/.netrc`, `~/.gnupg`;
-    - shell histories;
-    - Windows files: `/mnt/c/Users`;
-    - the engine's server key directory.
-  - The credential deny lists name every FR-007 variable: `H4_OPERATOR_TOKEN`, `SMTP_PASSWORD`, `SMTP_USER`, `TELEGRAM_BOT_TOKEN` (already there), `GATEWAY_DB_PASSWORD`, `GATEWAY_GRAFANA_RO_PASSWORD`, every `LANGFUSE_*` secret, `CLICKHOUSE_PASSWORD`, `VALKEY_PASSWORD`, `SEAWEEDFS_S3_SECRET_KEY`, `GF_SECURITY_ADMIN_PASSWORD`, and `AWS_*`.
+  - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)).
+  - `sandbox.filesystem.denyWrite` gets `./tools/gates`, `./evals/agent-config`, `./.gitleaks.toml`, `./deploy/agents-engine`, `./.mcp.json`, `./config/prices.yaml`, `./config/budgets.yaml`, `./config/alerts.yaml`, `./.git/info`, and `./.git/refs/heads/main`. This also closes the shell-write gap B found on `config/`.
   - `permissions.deny` gets `Edit(...)` for the same human-only paths.
+
+  The engine opening and every credential deny come with the early patch.
 - **`.claude/hooks/bash-gate.sh`:**
-  - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*`, `engine-*`, and Author-only targets, `--no-verify`, `claude mcp add`;
+  - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` and Author-only targets, `--no-verify`, `claude mcp add`. The `engine-*` rule comes with the early patch;
   - git-alias expansion;
   - the `terraform` global-flag pattern.
 - **`.claude/hooks/protected-paths.sh`:** the new human-only paths; `GNUmakefile` and `makefile`; role write scopes from `agent_type`; and denying every write to a subagent that has an `agent_id` but no `agent_type`.
-- **New `.claude/hooks/content-scan.sh`** (PreToolUse on Edit, Write, and MultiEdit): pipes the new content to `gitleaks stdin --no-banner --redact` and blocks on a finding. It fails closed if gitleaks is missing.
+- **`.claude/hooks/content-scan.sh`** (PreToolUse on Edit, Write, and MultiEdit, added by the early patch): its gitleaks rules move to `.gitleaks.toml` once that exists.
 - **`.claude/hooks/post-edit-check.sh`:** TypeScript, JSON, YAML, and Markdown linting through the human-only toolchain ([§9](#9-development-environment)).
-- **`.claude/git-hooks/pre-commit`:** gitleaks on the staged changes. `make git-hooks` installs it next to `reference-transaction`.
-- **`.claude/agents/ops.md`:** grants `Bash(deploy/agents-engine/docker-relay *)`, as ADR 0015 anticipated, and removes the paragraph that says no engine exists.
+- **`.claude/git-hooks/pre-commit`** (added by the early patch): it uses `.gitleaks.toml` once that exists. `make git-hooks` installs it next to `reference-transaction`.
 - **CLAUDE.md:**
   - the `ENV` values;
   - the relay rule ("prefix ad-hoc docker commands with `deploy/agents-engine/docker-relay`");
   - the engine and gate commands;
+  - a link to `docs/data-flow-disclosure.md`;
   - two new "Things Claude gets wrong" lines: a gate rule that only matches the canonical spelling, and running project code from a hook.
 
   It must stay under 60 lines.
@@ -1146,9 +1151,9 @@ FR-015, SC-004, and User Story 4 moved to the publication spec and map to no tas
    - the gateway's skeleton: types, clock, config, env checks, store and migrations, telemetry, and the app;
    - the compose skeleton, edge, the env files, init-env, preflight, status, logs, pin-images, and the policy;
    - the agents' engine with its tests;
-   - the config patch and the engine-opening patch.
+   - the config patch and the early patch.
 
-   Then the Author sets up the engine.
+   Then the Author applies both patches and sets up the engine, before any real secret exists.
 3. **`feat/000-us1-local-stack`** (Phase 3, the MVP): the local adapter and its contract suite, hello, health, init, the operator CLI's first commands, the model server, the observability stack, Langfuse with SeaweedFS, the first dashboard panels, and the Author's first-stack measurements and SC-001.
 4. **`feat/000-us2-kill-switch`** (Phase 4): admission, commit and sweep, the synthetic adapter, the full FR-022 order, reset and renew, the dev-only machinery, alerts, incident drafts, the stand-ins, the breach test, the spend and state panels, and the runbooks.
 5. **`feat/000-us3-governance`** (Phase 5): the matrix's growth (stages H, S, E and the required rows), gitleaks, the clean-room gate, publish-check, the behavioral agent-config evals, and the canary. It can run beside groups 3 and 4; its engine smoke needs group 4.
@@ -1192,7 +1197,7 @@ Spec 000 is done when every success criterion passes on the 5090 and the matrix 
 
 Re-checked against the design above:
 - **No new violation.**
-- **Principle IV** is stronger than at the pre-design check. The Author-run gate keeps project code out of the Author's terminal, and the dedicated runtime identity keeps the Author's own AWS session out of every container.
+- **Principle IV** is stronger than at the pre-design check. The Author-run gate keeps project code out of the Author's terminal, and the dedicated runtime identity keeps the Author's own AWS session out of every container. Every credential deny lands with the early patch, before the first real secret exists.
 - **The narrower human-only set** (the Author chose "Gates only") leaves the Makefile and the stack scripts agent-editable. Review guards them, and every note lists them first. ADR 0017 records it, and the "No prod guard" decision ([research.md R-14](research.md#r-14-human-only-paths-gates-only-adr-0017-the-author)) is the related accepted risk.
 - **The rootless engine's shared kernel** is a recorded risk, not a constitution deviation. ADR 0016 states it.
 

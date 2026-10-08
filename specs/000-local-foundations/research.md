@@ -298,7 +298,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 ### R-14. Human-only paths: gates only (ADR 0017; the Author)
 
 - **Decision**:
-  - Human-only, added by spec 000's enforcement patch:
+  - Human-only, added by spec 000's closing enforcement patch:
     - `tools/gates/**`;
     - the other gate definitions: `evals/agent-config/**` and `.gitleaks.toml`;
     - the FR-039 boundary, `deploy/agents-engine/**`;
@@ -522,7 +522,7 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
 - **Rationale**:
   - FR-032 keeps the alert mailbox's credentials "in a local environment file outside the repository and outside agent context". The option the Author chose on 2026-10-07 read: "its app password lives in a local env file outside the repo and agent context". A gitignored file inside the working tree is outside version control, but not outside the repository's directory.
   - Moving every host-stack secret there also keeps it out of `git clean -fdx`, out of copies of the working tree, and out of anything that scans it.
-  - The operator tokens and the runtime AWS identity already live in `~/.config/h4reet-ai/`, so the patch's single deny on that directory covers every secret.
+  - The operator tokens and the runtime AWS identity already live in `~/.config/h4reet-ai/`, so the early patch's single deny on that directory covers every secret.
 - **Alternatives**:
   - `deploy/env/` as design A had it: outside version control only.
   - Splitting the alert secrets into a second file: two files for one stack, and a harder preflight.

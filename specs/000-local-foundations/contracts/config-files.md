@@ -25,9 +25,9 @@ For each file it gives every field, the rules, an example, the validation errors
   | File | Edited by | Enforced by |
   |---|---|---|
   | `config/routing.yaml` | agents, reviewed in the merge-request note | the schema below: local-first, paid only in prod, synthetic only in dev |
-  | `config/prices.yaml` | the Author only (human-only) | `protected-paths.sh`, `permissions.deny`, and sandbox `denyWrite`, from the enforcement patch ([plan.md §15](../plan.md#15-the-enforcement-layer-patch)) |
-  | `config/budgets.yaml` | the Author only (already protected by `config/budgets*`) | the same; the patch adds `denyWrite` |
-  | `config/alerts.yaml` | the Author only (already protected by `config/alert*`) | the same; the patch adds `denyWrite` |
+  | `config/prices.yaml` | the Author only (human-only) | `protected-paths.sh`, `permissions.deny`, and sandbox `denyWrite`, from the closing patch ([plan.md §15](../plan.md#15-the-enforcement-layer-patch)) |
+  | `config/budgets.yaml` | the Author only (already protected by `config/budgets*`) | the same; the closing patch adds `denyWrite` |
+  | `config/alerts.yaml` | the Author only (already protected by `config/alert*`) | the same; the closing patch adds `denyWrite` |
 
   A change to budgets, alerting, or the kill switch needs an ADR and the Author's approval (the spec's edge cases). Agents propose such changes in a merge-request note, never in the file.
 

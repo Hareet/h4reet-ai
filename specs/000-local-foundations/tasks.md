@@ -51,10 +51,10 @@ description: "Task list for spec 000, Local Foundations"
   - `test-fast`.
 - [ ] T006 Restructure `make check` in `Makefile` per §11.
   - It runs `githooks-check toolchain-check policy validate-config lint test secrets evals redteam matrix image` in that order and keeps going after a failure.
-  - It prints PASS, FAIL, SKIP (with a reason), or PENDING per target, then a summary line, and exits non-zero on any FAIL or PENDING.
+  - It prints PASS, FAIL, SKIP (with a reason), PENDING, or PLANNED (naming the task that writes the patch) per target, then a summary line, and exits non-zero on any FAIL or PENDING. PLANNED doesn't fail the run (§11).
   - Inside the sandbox (`SANDBOX_RUNTIME=1`), it exports `npm_config_cache=$TMPDIR/npm-cache`.
   - A target that doesn't exist yet prints `SKIP (added by Tnnn)`.
-  - `githooks-check` keeps the existing reference-transaction check, and reports `.claude/git-hooks/pre-commit` as PENDING until the closing patch adds it (T113, T114).
+  - `githooks-check` keeps the existing reference-transaction check, and reports `.claude/git-hooks/pre-commit` as PLANNED (T043) until the early patch adds it and clears the mark (T044).
 - [ ] T007 [P] Create `.devcontainer/Dockerfile`, `.devcontainer/devcontainer.json`, `.devcontainer/toolchain.env`, and `.devcontainer/requirements-tools.txt` per §9.
   - **Base:** `public.ecr.aws/docker/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55`.
   - **Tools:**
@@ -84,12 +84,12 @@ description: "Task list for spec 000, Local Foundations"
   - CLAUDE.md and REVIEW.md name the constitution as superseding (FR-002);
   - each `.claude/agents/*.md` `tools:` line equals `tools/gates/roles.expected`;
   - the hooks are registered in `.claude/settings.json`;
-  - every FR-007 variable is denied (contracts/env-files.md §8).
+  - every FR-007 variable is denied (contracts/env-files.md §8). A name whose deny a patch hasn't applied yet is reported as PLANNED, naming the task that writes the patch (T043), not as FAIL.
 
   `make evals` runs it.
 - [ ] T013 Write the merge-request note `docs/merge-requests/<date>-feat-000-setup.md`, with `make check`'s full output and a reviewer agent's REVIEW.md passes.
 
-**Checkpoint**: `make check` runs every target, with SKIPs named, and `make toolchain-check` reports drift until the Author runs `make tools`.
+**Checkpoint**: `make check` runs every target, with SKIPs and PLANNED items named, and `make toolchain-check` reports drift until the Author runs `make tools`.
 
 ---
 
@@ -118,7 +118,7 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T022 Write `services/gateway/test/unit/validate-env.test.ts` first, then implement `services/gateway/src/config/validate-env.ts` per contracts/env-files.md §4 and §11 and §5.8. Exit 78 with a named reason when:
   - `H4_STACK` and `H4_ENV` disagree;
   - a dev-only switch is set outside `H4_ENV=dev`;
-  - prod's `ALERT_DELIVERY` isn't `real`, its `TELEGRAM_API_BASE` isn't `https://api.telegram.org`, or `SMTP_TLS` isn't on;
+  - prod's `ALERT_DELIVERY` isn't `real`, its `TELEGRAM_API_BASE` isn't `https://api.telegram.org`, or `SMTP_TLS` isn't `implicit` or `starttls`;
   - `OPERATOR_TOKEN_SHA256` doesn't match `^[0-9a-f]{64}$`, or equals the dev-cpu dummy's hash on prod (a constant in the source, checked against `deploy/env.agents/dev-cpu.vars` by a test);
   - prod's `GATEWAY_AWS_PROFILE` is unset.
 - [ ] T023 Write `services/gateway/migrations/0001_state.sql` and `0002_grafana_ro.sql` with every table, column, CHECK, key, index, trigger, and the view exactly as data-model.md §2.1–§2.9. Among others:
@@ -210,12 +210,19 @@ description: "Task list for spec 000, Local Foundations"
   - `seed` checks the host's image store and the disk preflight, then moves each digest in `images.lock` with `docker save | docker load`, and copies the stand-in into `/var/lib/h4agents/models`.
   - `up` chowns the state directory through the rootless namespace.
 - [ ] T042 Create `deploy/agents-engine/prove-limits.sh`, implementing rows E1–E14 of contracts/agents-engine.md §7. Its report goes into the merge-request note. Wire `make engine-prove` (Author).
-- [ ] T043 **Patch**: write the engine-opening patch, `docs/merge-requests/<date>-feat-000-foundations-enforcement.patch`, per §10 and §15. It holds:
-  - `.claude/settings.json`: `sandbox.network.allowedDomains` gains `"198.18.0.1:2376"`, and `env` gains `DOCKER_CONFIG=~/.config/h4reet/agents-engine/docker` and `DISABLE_AUTOUPDATER=1`;
-  - `.claude/agents/ops.md`: grants `Bash(deploy/agents-engine/docker-relay *)` and drops the paragraph saying no engine exists;
-  - `.claude/hooks/bash-gate.sh`: blocks `make engine-*` except `engine-smoke` and `engine-status`;
-  - the matrix rows for these, in `redteam/forbidden-actions.sh`.
-- [ ] T044 **Author** (Heavy, after this branch merges): apply the two patches from T021 and T043, then run `claude doctor`. Then quickstart.md §0.4 and §0.5:
+- [ ] T043 **Patch**: write the early patch, `docs/merge-requests/<date>-feat-000-foundations-enforcement.patch`, per §10 and §15. It must be applied before any real secret exists (T063), so it carries the engine opening, the credential denies, and secret scanning:
+  - `.claude/settings.json`:
+    - `sandbox.network.allowedDomains` gains `"198.18.0.1:2376"`;
+    - `env` gains `DOCKER_CONFIG=~/.config/h4reet/agents-engine/docker` and `DISABLE_AUTOUPDATER=1`;
+    - every credential deny of §15: `~/.config/h4reet-ai` (read and write), `~/.local/state/h4reet` (write), the other credential stores, the shell histories, `/mnt/c/Users`, and `/etc/h4agents/pki`, with `Edit(...)` denies for the first two;
+    - every FR-007 variable name of contracts/env-files.md §8, in `credentials.envVars`.
+  - `.claude/agents/ops.md`: grants `Bash(deploy/agents-engine/docker-relay *)`, and drops the paragraph saying no engine exists.
+  - `.claude/hooks/bash-gate.sh`: blocks `make engine-*` except `engine-smoke` and `engine-status`.
+  - The secret scanners (FR-008, FR-012), using gitleaks' default rules until `.gitleaks.toml` lands (T089):
+    - the new `.claude/hooks/content-scan.sh`, a PreToolUse check on Edit, Write, and MultiEdit that runs `gitleaks stdin --no-banner --redact` and fails closed when gitleaks is missing;
+    - `.claude/git-hooks/pre-commit`, which runs gitleaks on the staged changes, with `make git-hooks` installing it.
+  - The matrix rows for all of these, in `redteam/forbidden-actions.sh`, and the PLANNED marks they clear: `githooks-check`'s for `pre-commit` (T006) and the static tier's for the FR-007 names (T012).
+- [ ] T044 **Author** (Heavy, after this branch merges): apply the two patches from T021 and T043, then run `claude doctor` and `make git-hooks`. This comes before T063: no real secret may exist before the credential denies do (Principle IV). Then quickstart.md §0.4 and §0.5:
   - switch the host's Docker to the containerd image store, pruning first and checking the disk;
   - `make engine-setup`, then `wsl --shutdown`;
   - `make engine-seed`;
@@ -224,7 +231,7 @@ description: "Task list for spec 000, Local Foundations"
   Record the results in the next branch's note.
 - [ ] T045 Write the merge-request note `docs/merge-requests/<date>-feat-000-foundations.md`. It lists every change to anything that runs in the Author's terminal under its own heading, first: the Makefile, `deploy/scripts/**`, `deploy/agents-engine/**`, and `tools/gates/**` (ADR 0017).
 
-**Checkpoint**: the gateway starts and refuses bad configuration with exit 78; `make up ENV=dev-cpu` passes preflight; and once T044 is done, agents reach the engine through the relay.
+**Checkpoint**: the gateway starts and refuses bad configuration with exit 78. Once T044 is done, agents reach the engine through the relay, and `make up ENV=dev-cpu` passes preflight.
 
 ---
 
@@ -267,7 +274,7 @@ description: "Task list for spec 000, Local Foundations"
   - responses 200, 503 (with `X-H4-Degraded-Cause`), 429, 400, 415, and 502 `local_error`.
 - [ ] T052 [US1] Implement `GET /health` in `services/gateway/src/routes/health.ts`, exactly as contracts/gateway-http.md §5.
 - [ ] T053 [US1] Implement the admin listener's authentication and initialization per contracts/operator-admin.md §1, §2.3, and §4.1:
-  - in `services/gateway/src/routes/admin.ts`, bearer authentication with the prefix check before hashing and `timingSafeEqual`, auditing `auth_failed`, with an `auth_failed` alert after 3 failures in 10 minutes;
+  - in `services/gateway/src/routes/admin.ts`, bearer authentication with the prefix check before hashing and `timingSafeEqual`, auditing `auth_failed`, with an `auth_failed` alert after 3 failures in 10 minutes. In US1, alerts are queued as `alert_outbox` rows; US2 adds their delivery (T075);
   - `POST /admin/init` and `GET /admin/status`;
   - `src/meter/init.ts`, following data-model.md §8;
   - `src/meter/journal.ts`, following §3: `O_APPEND`, `fsync`, monthly files at 0600 in a 0700 directory, and the `operator` and `clock` record kinds.
@@ -385,9 +392,10 @@ description: "Task list for spec 000, Local Foundations"
   - `--no-verify` and `-n`, `claude mcp add`, `make operator-*` and admin URLs outside dev-cpu, and every Author-only target;
   - secret-content rows, with keys assembled at run time;
   - the settings rows;
-  - the FR-007 rows, one per secret in contracts/env-files.md §8.
+  - the FR-007 rows, one per secret in contracts/env-files.md §8;
+  - one indirect variant per prohibited action (the spec's edge case): a script, `bash -c`, a subshell, quoting, or a config or API equivalent.
 
-  Rows whose enforcement waits for the closing patch are `planned`: reported, but not failing.
+  T043's patch already added the rows for its own changes; T085 adds the rest, plus the indirect variants of those. Rows whose enforcement waits for a patch are `planned`: reported, but not failing.
 - [ ] T086 [US3] Create `tools/gates/matrix-required.txt`, listing every row ID, and make the matrix fail when a listed row is missing.
 - [ ] T087 [P] [US3] Add stage S rows to `redteam/forbidden-actions.sh` per §13. They run when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable, and are skipped with a notice otherwise. All are non-destructive.
 - [ ] T088 [P] [US3] Make `redteam/forbidden-actions.sh` report stage E. On the host, after `make engine-prove`, it reads `prove-limits.sh`'s report and folds rows E1–E14 into its summary.
@@ -409,7 +417,7 @@ description: "Task list for spec 000, Local Foundations"
   - a denylisted author email.
 
   Wire `make publish-check` (Author).
-- [ ] T092 [P] [US3] Create the behavioral agent-config evals per §14: `evals/agent-config/behavioral.py`, about 12 cases in `evals/agent-config/cases/*.yaml`, `evals/agent-config/thresholds.yaml`, and the history format under `evals/agent-config/history/`. `make evals-agent-config` (Author) runs them. `make evals` shows PENDING with the command when the trigger hash has no passing entry.
+- [ ] T092 [P] [US3] Create the dev-time usage panel (FR-037) and the behavioral agent-config evals. The panel goes in `deploy/grafana/dashboards/h4-runtime.json`, with contracts/telemetry.md §7.7's queries. `tools/gates/gate` pushes the eval history as the `h4.devtime.eval.*` metrics to prod's x004 (§4.4). The evals follow §14: `evals/agent-config/behavioral.py`, about 12 cases in `evals/agent-config/cases/*.yaml`, `evals/agent-config/thresholds.yaml`, and the history format under `evals/agent-config/history/`. `make evals-agent-config` (Author) runs them. `make evals` shows PENDING with the command when the trigger hash has no passing entry.
 - [ ] T093 [P] [US3] Add `make matrix-canary` (Author): `claude -p --setting-sources project` with fake values for every FR-007 variable, asserting that none appears in the session's environment or transcript (§13).
 - [ ] T094 [US3] Agent session: run stage H and stage S of `redteam/forbidden-actions.sh`, and paste the matrix report, planned rows listed, into `docs/merge-requests/<date>-feat-000-us3-governance.md`.
 - [ ] T095 [US3] Agent session, after Phase 4 has merged: `make engine-smoke` (`deploy/agents-engine/engine.sh smoke`), meaning `make up ENV=dev-cpu` comes up healthy and `make breach-test ENV=dev-cpu` passes (US3-9's positive half, quickstart.md §3.4).
@@ -490,15 +498,13 @@ description: "Task list for spec 000, Local Foundations"
 **Purpose**: the closing enforcement patch, the switch from planned rows to enforced rows, and the final validation.
 
 - [ ] T113 **Patch**: write the closing enforcement patch, `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, per §15:
-  - `.claude/settings.json`: the `denyWrite` and `denyRead` additions, the FR-007 variable names, the `Edit(...)` denies for the human-only paths, and the Claude Code telemetry `env` entries;
+  - `.claude/settings.json`: the `denyWrite` additions of §15 for the human-only paths, their `Edit(...)` denies, and the Claude Code telemetry `env` entries. Every credential deny came with T043;
   - `.claude/hooks/bash-gate.sh`: `operator-*` and admin URLs outside dev-cpu, the Author-only targets, `--no-verify`, `claude mcp add`, git-alias expansion, and the `terraform` global-flag pattern;
   - `.claude/hooks/protected-paths.sh`: the new human-only paths, `GNUmakefile` and `makefile`, role write scopes from `agent_type`, and writes denied when `agent_id` comes without `agent_type`;
-  - the new `.claude/hooks/content-scan.sh` (PreToolUse, `gitleaks stdin`, failing closed);
   - `.claude/hooks/post-edit-check.sh`: TypeScript, JSON, YAML, and Markdown through `~/.local/share/h4reet/lint-node` with its own configs;
-  - `.claude/git-hooks/pre-commit`;
   - the CLAUDE.md lines, keeping it under 60 lines;
-  - in `redteam/forbidden-actions.sh`, every planned row switched to block or allow.
-- [ ] T114 **Author**: apply `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, then run `claude doctor`, `make git-hooks`, and `make check`. The result must be 0 failures and 0 planned rows (SC-003). The trigger fires, so run `make evals-agent-config` and commit its history entry (SC-008).
+  - in `redteam/forbidden-actions.sh`, every planned row switched to block or allow, and in `make check`, every PLANNED mark cleared.
+- [ ] T114 **Author**: apply `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, then run `claude doctor`, `make git-hooks`, and `make check`. The result must be 0 failures, 0 planned rows, and no PLANNED line (SC-003). The trigger fires, so run `make evals-agent-config` and commit its history entry (SC-008).
 - [ ] T115 **Author**: run quickstart.md §7's done-when table end to end, and fill the success-criteria table (SC-001, 002, 003, 005, 006, 007, 008, 009) in `docs/merge-requests/<date>-feat-000-enforcement.md`.
 - [ ] T116 Write the merge-request note `docs/merge-requests/<date>-feat-000-enforcement.md`. `make publish-check` runs later, before the first push (START-HERE §6), not at this merge.
 
@@ -509,13 +515,13 @@ description: "Task list for spec 000, Local Foundations"
 ### Phase dependencies
 
 - **Setup (Phase 1)**: none.
-- **Foundational (Phase 2)**: after Setup. It blocks every story. T044 (the Author's engine setup) blocks every agent-run container task: T062, T082, and T095.
+- **Foundational (Phase 2)**: after Setup. It blocks every story. T044 (the Author's patches and engine setup) blocks every agent-run container task (T062, T082, and T095) and T063, which creates the first real secrets: the early patch's credential denies must already be in place (Principle IV).
 - **US1 (Phase 3)**: after Foundational.
 - **US2 (Phase 4)**: after US1. It extends the gateway US1 builds, and the breach test runs the US1 stack.
 - **US3 (Phase 5)**: after Foundational. T085–T094 can run in parallel with US1 and US2. T095 needs US2 merged.
 - **US5 (Phase 6)**: after US2, which supplies the meter and the fallback branch. T102 (the Author's IAM and price steps) blocks T104.
 - **US6 (Phase 7)**: after US1. It can run in parallel with US2, US3, and US5, but its link check (T111) is final only after them.
-- **Polish (Phase 8)**: after every story. The closing patch switches every planned row.
+- **Polish (Phase 8)**: after every story. The closing patch switches every planned row and clears every PLANNED mark left.
 
 ### Within each story
 

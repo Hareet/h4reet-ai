@@ -73,7 +73,7 @@ In IAM Identity Center, with the Author's own console session (IAM is a human ac
 1. Create the user `h4reet-runtime`, and a permission set that allows only `bedrock:InvokeModel` on the one inference profile and the foundation models it routes to. Assign it to the account. Grant model access in the Bedrock console if Anthropic's models need it.
 2. Confirm the model ID with the Author's own session, not the runtime identity, which can only invoke: `aws bedrock list-inference-profiles --region us-east-1`. Claude Haiku 5.5 if it is offered, otherwise Claude Haiku 4.5's `us.` profile (research.md R-12).
 3. Write the ID into `config/routing.yaml` (`adapters.bedrock.model`), and the ID and its prices from the Bedrock pricing page into `config/prices.yaml`, which is human-only. Prod refuses to start while either holds a placeholder ([config-files.md §5](contracts/config-files.md#5-validate-config)).
-4. Configure the runtime identity's profile once, then log in:
+4. Once the early patch is applied ([§0.10](#010-the-enforcement-patch)), so that no agent session can read the SSO cache, configure the runtime identity's profile once, then log in:
 
    ```bash
    HOME="$HOME/.config/h4reet-ai/aws-home" aws configure sso --profile h4reet-bedrock   # region us-east-1; the runtime user's portal
@@ -89,6 +89,8 @@ In IAM Identity Center, with the Author's own console session (IAM is a human ac
 - **Email:** a free mailbox used only to send alerts (ADR 0005), with an app password, its SMTP host, and port 465 (implicit TLS) or 587 (STARTTLS).
 
 ### 0.8 The env files and the operator tokens
+
+Only after the early patch is applied ([§0.10](#010-the-enforcement-patch)): until then an agent session could read `~/.config/h4reet-ai` (Principle IV).
 
 ```bash
 make init-env ENV=prod           # writes ~/.config/h4reet-ai/env/prod.env, 0600; prints the keys left to fill
@@ -114,10 +116,16 @@ Both run the disk check before they write. **Record:** the durations; any Docker
 
 ### 0.10 The enforcement patch
 
-There are two patches, and the Author applies each with `git apply` and then runs `claude doctor` (plan [§15](plan.md#15-the-enforcement-layer-patch)):
+There are three patches. The Author reviews each, applies it with `git apply`, and then runs `claude doctor` and `make git-hooks` (plan [§15](plan.md#15-the-enforcement-layer-patch)):
 
-- **The engine-opening patch** comes with the foundations branch (tasks.md T043). It holds the sandbox's one allowlist entry for the engine, `DOCKER_CONFIG`, the ops role's relay grant, and the bash-gate rule for `make engine-*`. Every agent-session run on the engine needs it.
-- **The closing patch** comes with the last branch (T113). It holds the remaining denies, hooks, and git hooks. Until it lands, the matrix reports the rows that need it as planned. Stage S and the canary need it.
+- **The config patch** comes with the foundations branch (tasks.md T021): `config/budgets.yaml` and `config/alerts.yaml`.
+- **The early patch** comes with the foundations branch too (T043). It holds:
+  - the engine opening: the sandbox's one allowlist entry for the engine, `DOCKER_CONFIG`, the ops role's relay grant, and the bash-gate rule for `make engine-*`;
+  - every credential deny: `~/.config/h4reet-ai`, the other credential stores, and every FR-007 variable;
+  - the secret scanners: `content-scan.sh` and the `pre-commit` hook.
+
+  Apply it before §0.6's login and before §0.8: no real secret may exist while an agent session could read it (Principle IV). Every agent-session run on the engine needs it too.
+- **The closing patch** comes with the last branch (T113). It holds the remaining denies and hooks. Until it lands, the matrix reports the rows that need it as planned, and `make check` reports the items that need it as PLANNED. Stage S needs both patches; the canary needs the early one.
 
 ## 1. User Story 1: the whole production stack runs locally
 
@@ -269,7 +277,7 @@ The breach test's steps, their order, and their figures are plan [§8](plan.md#8
 
 ### 2.1 On the agents' engine, by an agent (US2, FR-036, FR-039)
 
-**Prerequisites:** the patch applied (§0.10); the engine up and seeded (§0.5, §0.9). **Where:** an agent session.
+**Prerequisites:** the early patch applied (§0.10); the engine up and seeded (§0.5, §0.9). **Where:** an agent session.
 
 ```bash
 make up ENV=dev-cpu
@@ -314,11 +322,11 @@ The matrix and its stages are plan [§13](plan.md#13-the-forbidden-action-matrix
 make matrix
 ```
 
-**Expected:** a report of `passed / failed / known gaps / planned / skipped (why)`, with 0 failed. Before the patch (§0.10) the patch's rows show as planned. After it, 0 planned. A row ID listed in `tools/gates/matrix-required.txt` that is missing fails the run.
+**Expected:** a report of `passed / failed / known gaps / planned / skipped (why)`, with 0 failed. Before each patch (§0.10), the rows that need it show as planned. After the closing patch, 0 planned. A row ID listed in `tools/gates/matrix-required.txt` that is missing fails the run.
 
 ### 3.2 Stage S, inside the sandbox (US3-1, FR-007)
 
-**Where:** an agent session, after the patch. The same `make matrix` runs stage S when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable. **Expected:** every unwritable, unreadable, and refused-connection row passes, including the FR-007 file of each secret ([env-files.md §8](contracts/env-files.md#8-the-fr-007-deny-list)), and the opening's half of row E9: `198.18.0.1:2376` answers with the agents' certificate, and `198.18.0.1:3128` and the stack ports are refused.
+**Where:** an agent session, after the early patch; the rows that need the closing patch show as planned until it lands. The same `make matrix` runs stage S when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable. **Expected:** every unwritable, unreadable, and refused-connection row passes, including the FR-007 file of each secret ([env-files.md §8](contracts/env-files.md#8-the-fr-007-deny-list)), and the opening's half of row E9: `198.18.0.1:2376` answers with the agents' certificate, and `198.18.0.1:3128` and the stack ports are refused.
 
 ### 3.3 Stage E, the engine's limits from the host (US3-9, FR-039)
 
@@ -332,7 +340,7 @@ make engine-prove
 
 ### 3.4 The engine's positive half (US3-9)
 
-**Where:** an agent session, after the patch.
+**Where:** an agent session, after the early patch.
 
 ```bash
 make engine-smoke     # make up ENV=dev-cpu, make breach-test ENV=dev-cpu, make down ENV=dev-cpu
@@ -480,7 +488,7 @@ time npx @devcontainers/cli@0.89.0 exec --workspace-folder . make test
 
 ### 6.3 The local gate (FR-041, SC-008)
 
-1. **`make check`,** in an agent session and in the Author's terminal. Expected: one line per gate, PASS, FAIL, SKIP (with its reason), or PENDING, then a summary. It exits non-zero on any FAIL or PENDING (plan [§11](plan.md#11-local-gates-fr-041)). The whole output goes into every merge-request note.
+1. **`make check`,** in an agent session and in the Author's terminal. Expected: one line per gate, PASS, FAIL, SKIP (with its reason), PENDING, or PLANNED (naming the patch's task), then a summary. It exits non-zero on any FAIL or PENDING; a PLANNED line doesn't fail it (plan [§11](plan.md#11-local-gates-fr-041)). The whole output goes into every merge-request note.
 2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, or `evals/agent-config/**`): the Author runs `make evals-agent-config`, commits the new `evals/agent-config/history/` entry (SC-008), and runs `make check` again.
 3. **The Author's gate,** run directly and not through make, because a planted `GNUmakefile` would shadow the Makefile:
 
