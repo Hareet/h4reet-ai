@@ -13,7 +13,9 @@ ifneq ($(UV_SANDBOX_CACHE),)
 export UV_CACHE_DIR := $(UV_SANDBOX_CACHE)
 endif
 endif
-PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --quiet --with pytest --with pyyaml pytest)
+# The fallback pins the system interpreter and skips uv's config files: a planted .venv (gitignored) or uv.toml is
+# agent-writable, and without these flags uv would run or obey it in the Author's terminal.
+PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --no-config --python "$$(command -v python3)" --quiet --with pytest --with pyyaml pytest)
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
