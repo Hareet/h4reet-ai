@@ -103,27 +103,27 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Gateway skeleton and store
 
-- [ ] T015 Create the gateway package in `services/gateway/`:
+- [X] T015 Create the gateway package in `services/gateway/`:
   - `services/gateway/package.json`, with the exact runtime and dev versions in plan.md's Technical Context, including @types/node 24.19.1;
   - `tsconfig.json`, `tsconfig.build.json`, and `vitest.config.ts`;
   - scripts `build`, `test`, `test:unit`, `lint`, `fmt`, `validate-config`, and `contract:replay`.
-- [ ] T016 [P] Create `services/gateway/src/core/types.ts` exactly as contracts/provider-adapter.md §2: `ProviderAdapter`, `CompletionRequest`, `AdapterResult`, `HealthStatus`, the `ProviderError` kinds, `DegradedCause`, and `RouteDecision`, with attribution `none|fallback|metered|test` and the `fixedUsage`, `type`, `server`, and `retry` members.
-- [ ] T017 [P] Create `services/gateway/src/core/clock.ts` and its test `test/unit/clock.test.ts`.
+- [X] T016 [P] Create `services/gateway/src/core/types.ts` exactly as contracts/provider-adapter.md §2: `ProviderAdapter`, `CompletionRequest`, `AdapterResult`, `HealthStatus`, the `ProviderError` kinds, `DegradedCause`, and `RouteDecision`, with attribution `none|fallback|metered|test` and the `fixedUsage`, `type`, `server`, and `retry` members.
+- [X] T017 [P] Create `services/gateway/src/core/clock.ts` and its test `test/unit/clock.test.ts`.
   - The gateway clock is real UTC time plus `stack_state.test_clock_offset_ms`.
   - Day keys are `YYYY-MM-DD` and month keys `YYYY-MM`, in UTC.
   - Timeouts, retries, rate limits, and health intervals use the real clock (data-model.md, Conventions).
-- [ ] T018 Write `services/gateway/test/unit/config.test.ts` first. It covers every validation error and exit-78 refusal in contracts/config-files.md §1.3–§1.4, §2.4–§2.5, §3.3, and §4.3–§4.4 (P7's paid price above 0 and B8's dev thresholds equal to prod's among them), and a pin test for prod's thresholds: 3,500,000, 14,000,000, and a first-grant warning at 1,400,000 micro-USD.
-- [ ] T019 Implement `services/gateway/src/config/load.ts` and `validate.ts` (zod) for the four config files, making T018 pass. Then implement `npm run validate-config` (contracts/config-files.md §5) and `make validate-config`. A protected file that a patch hasn't applied yet (`budgets.yaml` and `alerts.yaml`, before T022's patch) is reported PLANNED (T022), not FAIL (§11).
-- [ ] T020 [P] Create `config/routing.yaml` at the first of contracts/config-files.md §1.2's steps: the `local` adapter alone, and no fallback in either route (`prod: {primary: local}`, `dev: {primary: local}`). Every adapter the file defines must be registered when it lands (rule R6), so T073 adds `synthetic` and dev's fallback, T102 adds `bedrock` with its placeholder model, and the Author adds prod's fallback (T105).
-- [ ] T021 [P] Create `config/prices.yaml` per contracts/config-files.md §2.2: version `2026-10-08.1`, local at 0, dev's synthetic at an output price of 100 per million tokens, and no Bedrock entry. The Author appends a new version for Bedrock (T105), because a published version never changes (P5).
+- [X] T018 Write `services/gateway/test/unit/config.test.ts` first. It covers every validation error and exit-78 refusal in contracts/config-files.md §1.3–§1.4, §2.4–§2.5, §3.3, and §4.3–§4.4 (P7's paid price above 0 and B8's dev thresholds equal to prod's among them), and a pin test for prod's thresholds: 3,500,000, 14,000,000, and a first-grant warning at 1,400,000 micro-USD.
+- [X] T019 Implement `services/gateway/src/config/load.ts` and `validate.ts` (zod) for the four config files, making T018 pass. Then implement `npm run validate-config` (contracts/config-files.md §5) and `make validate-config`. A protected file that a patch hasn't applied yet (`budgets.yaml` and `alerts.yaml`, before T022's patch) is reported PLANNED (T022), not FAIL (§11).
+- [X] T020 [P] Create `config/routing.yaml` at the first of contracts/config-files.md §1.2's steps: the `local` adapter alone, and no fallback in either route (`prod: {primary: local}`, `dev: {primary: local}`). Every adapter the file defines must be registered when it lands (rule R6), so T073 adds `synthetic` and dev's fallback, T102 adds `bedrock` with its placeholder model, and the Author adds prod's fallback (T105).
+- [X] T021 [P] Create `config/prices.yaml` per contracts/config-files.md §2.2: version `2026-10-08.1`, local at 0, dev's synthetic at an output price of 100 per million tokens, and no Bedrock entry. The Author appends a new version for Bedrock (T105), because a published version never changes (P5).
 - [X] T022 **Patch**: write `config/budgets.yaml` and `config/alerts.yaml` exactly as contracts/config-files.md §3.2 and §4.2, as the patch file `docs/merge-requests/<date>-feat-000-foundations-config.patch`. Both paths are protected (FR-008), so the Author applies it. The unit tests use fixtures in `services/gateway/test/fixtures/`.
-- [ ] T023 Write `services/gateway/test/unit/validate-env.test.ts` first, then implement `services/gateway/src/config/validate-env.ts` per contracts/env-files.md §4 and §11 and §5.8. Exit 78 with a named reason when:
+- [X] T023 Write `services/gateway/test/unit/validate-env.test.ts` first, then implement `services/gateway/src/config/validate-env.ts` per contracts/env-files.md §4 and §11 and §5.8. Exit 78 with a named reason when:
   - `H4_STACK` and `H4_ENV` disagree;
   - a dev-only switch is set outside `H4_ENV=dev`;
   - prod's `ALERT_DELIVERY` isn't `real`, its `TELEGRAM_API_BASE` isn't `https://api.telegram.org`, or `SMTP_TLS` isn't `implicit` or `starttls`;
   - `OPERATOR_TOKEN_SHA256` doesn't match `^[0-9a-f]{64}$`, or equals the dev-cpu dummy's hash on prod (a constant in the source, checked against `deploy/env.agents/dev-cpu.vars` by a test);
   - prod's `GATEWAY_AWS_PROFILE` is unset.
-- [ ] T024 Write `services/gateway/migrations/0001_state.sql` and `0002_grafana_ro.sql` with every table, column, CHECK, key, index, trigger, and the view exactly as data-model.md §2.1–§2.9. Among others:
+- [X] T024 Write `services/gateway/migrations/0001_state.sql` and `0002_grafana_ro.sql` with every table, column, CHECK, key, index, trigger, and the view exactly as data-model.md §2.1–§2.9. Among others:
   - `stack_state.id` `CHECK (id = 1)`;
   - `CHECK ((state = 'degraded') = (cardinality(crossed) > 0))`;
   - `meters` primary key (`meter`, `period_key`), with `allowance_micro` and `grant_no` set only on `fallback_day`;
@@ -133,13 +133,13 @@ description: "Task list for spec 000, Local Foundations"
   - `alert_outbox.dedupe_key` `UNIQUE`;
   - `incidents` `UNIQUE (ceiling, period_key)`;
   - `v_state`, and `grafana_ro` with SELECT on `audit_log` and `v_state` only.
-- [ ] T025 Write `services/gateway/test/integration/migrations.test.ts` on PGlite first. It covers applying both migrations, the `schema_migrations` SHA-256 check (exit 1 on a changed file), the audit trigger refusing UPDATE and DELETE, and `grafana_ro` refused on every other table. Then implement `services/gateway/src/meter/store.ts`:
+- [X] T025 Write `services/gateway/test/integration/migrations.test.ts` on PGlite first. It covers applying both migrations, the `schema_migrations` SHA-256 check (exit 1 on a changed file), the audit trigger refusing UPDATE and DELETE, and `grafana_ro` refused on every other table. Then implement `services/gateway/src/meter/store.ts`:
   - the `pg` pool with `statement_timeout=250ms`, `lock_timeout=250ms`, `idle_in_transaction_session_timeout=2s`, and `connectionTimeoutMillis=500`, at most 10 connections plus one LISTEN connection;
   - migrations under a fixed advisory lock;
   - a store that is down at startup retried every 5 s, with every request answered `store_unreachable` meanwhile (data-model.md §2.1);
   - exit 78 `schema_newer_than_code` when the store records a migration this build doesn't have, the way a rollback across a migration fails closed (§2.1);
   - the `grafana_ro` password set from `GATEWAY_GRAFANA_RO_PASSWORD` as a SCRAM verifier (§2.9).
-- [ ] T026 [P] Create the gateway's telemetry, `services/gateway/src/telemetry/otel.ts`, `metrics.ts`, `log.ts`, and `redact.ts`, per contracts/telemetry.md §2, §3.1, §4.1, and §5:
+- [X] T026 [P] Create the gateway's telemetry, `services/gateway/src/telemetry/otel.ts`, `metrics.ts`, `log.ts`, and `redact.ts`, per contracts/telemetry.md §2, §3.1, §4.1, and §5:
   - the OTLP/HTTP exporters, with metrics every 10 s, cumulative temporality, and explicit buckets up to 120 s;
   - every canonical instrument, with units `{USD}` and `{flag}` as §4.1 gives them;
   - pino `redact` paths for `authorization`, `*token*`, `*password*`, and `messages`;
@@ -147,22 +147,22 @@ description: "Task list for spec 000, Local Foundations"
   - `instrumentation-undici`'s `ignoreRequestHook` skipping the Telegram API host, whose URL carries the bot token (contracts/telemetry.md §3.1).
 
   Test it in `test/unit/telemetry.test.ts` with in-memory exporters.
-- [ ] T027 Create `services/gateway/src/app.ts` and `src/server.ts`:
+- [X] T027 Create `services/gateway/src/app.ts` and `src/server.ts`:
   - two listeners, the api on 8080 and admin on 8081, and graceful shutdown;
   - startup order: validate env and config (exit 78 on failure), connect the store (retrying), then start the listeners and background tasks;
   - `GET /health/live` in `src/routes/health.ts` (contracts/gateway-http.md §4).
-- [ ] T028 Create `services/gateway/Dockerfile`, built from the repository root as its context: in `deploy/compose.yaml` the gateway's `build.context` is `..`, relative to the compose file, so on a host stack it resolves inside the export, and on dev-cpu inside the working tree (the compose policy, T037, refuses any other context):
+- [X] T028 Create `services/gateway/Dockerfile`, built from the repository root as its context: in `deploy/compose.yaml` the gateway's `build.context` is `..`, relative to the compose file, so on a host stack it resolves inside the export, and on dev-cpu inside the working tree (the compose policy, T037, refuses any other context):
   - build stage on `public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66`: `npm ci --ignore-scripts`, with the `H4_BUILD_PROXY` build arguments passed through as `HTTP(S)_PROXY`, then `npm run build -w services/gateway`, then the dev dependencies pruned;
   - runtime stage on the same base, as `USER node`, running `node dist/server.js`.
 
 ### Compose skeleton, env files, preflight
 
-- [ ] T029 Create `deploy/compose.yaml` with the networks `internal` (`internal: true`), `edge`, and `egress`, and the services `edge`, `gateway`, and `gateway-state`, with the images, binds, health checks, limits, and every-service rules of §1 and §2.
+- [X] T029 Create `deploy/compose.yaml` with the networks `internal` (`internal: true`), `edge`, and `egress`, and the services `edge`, `gateway`, and `gateway-state`, with the images, binds, health checks, limits, and every-service rules of §1 and §2.
   - Only `edge` publishes ports, on literal `127.0.0.1`, mapping `${H4_API_PORT}` through `${H4_OTLP_PORT}` to 8080–8084.
   - Only `gateway` joins `egress`.
   - Bind sources come from `${H4_TREE}`, `${H4_STATE_DIR}`, and `${H4_AWS_DIR}`.
   - There is no `container_name`, no `env_file:`, and no `external:`.
-- [ ] T030 [P] Create `deploy/edge/nginx.conf` per §2's edge paragraph and contracts/gateway-http.md §6:
+- [X] T030 [P] Create `deploy/edge/nginx.conf` per §2's edge paragraph and contracts/gateway-http.md §6:
   - five server blocks: 8080 to `gateway:8080`, 8081 to `langfuse-web:3000`, 8082 to `grafana:3000`, 8083 to `gateway:8081`, and 8084 forwarding only `POST /v1/metrics` to `otel-collector:4319`;
   - `resolver 127.0.0.11 valid=10s`;
   - `X-Forwarded-For $remote_addr`, replacing any the client sent;
@@ -171,27 +171,27 @@ description: "Task list for spec 000, Local Foundations"
   - body limits of 16 KB on 8080 and 4 KB on 8083;
   - access logs without payloads;
   - `/ping` on 8090.
-- [ ] T031 [P] Create the env files with every key in contracts/env-files.md §2–§6, using the values, placeholders (`__GENERATE__`, `__ASK__`, `__REPO__`, `__HOME__`), and dummies the contract gives:
+- [X] T031 [P] Create the env files with every key in contracts/env-files.md §2–§6, using the values, placeholders (`__GENERATE__`, `__ASK__`, `__REPO__`, `__HOME__`), and dummies the contract gives:
   - `deploy/env.example/prod.env.example`;
   - `deploy/env.example/dev.env.example`;
   - `deploy/env.agents/dev-cpu.vars`, with dummies only (§6.1). Only it has `H4_TREE`; host stacks get theirs from the run file (§12);
   - `deploy/aws-none/README.md`.
-- [ ] T032 [P] Create `deploy/scripts/init_env.py` (stdlib, `python3 -I`) and `deploy/scripts/test_init_env.py` per contracts/env-files.md §9. Run through `PY_HOST`. It writes `~/.config/h4reet-ai/env/<stack>.env` at 0600 in a 0700 directory, and for prod creates `~/.config/h4reet-ai/aws-home/.aws` (0700, empty), generates each `__GENERATE__` value in the shape §9.2 gives, refuses to overwrite, prints the names of the `__ASK__` keys left, and supports `SYNC=1`. Wire `make init-env` (Author).
-- [ ] T033 Create `deploy/scripts/preflight.py` (stdlib, `python3 -I`; env files parsed as data, never sourced) and `deploy/scripts/test_preflight.py`, with fixture env files and a stubbed `df` and `docker`. Run through `PY_HOST`. It implements checks P1–P21 of contracts/env-files.md §10, including:
+- [X] T032 [P] Create `deploy/scripts/init_env.py` (stdlib, `python3 -I`) and `deploy/scripts/test_init_env.py` per contracts/env-files.md §9. Run through `PY_HOST`. It writes `~/.config/h4reet-ai/env/<stack>.env` at 0600 in a 0700 directory, and for prod creates `~/.config/h4reet-ai/aws-home/.aws` (0700, empty), generates each `__GENERATE__` value in the shape §9.2 gives, refuses to overwrite, prints the names of the `__ASK__` keys left, and supports `SYNC=1`. Wire `make init-env` (Author).
+- [X] T033 Create `deploy/scripts/preflight.py` (stdlib, `python3 -I`; env files parsed as data, never sourced) and `deploy/scripts/test_preflight.py`, with fixture env files and a stubbed `df` and `docker`. Run through `PY_HOST`. It implements checks P1–P21 of contracts/env-files.md §10, including:
   - the free space on the Windows drive holding the vhdx (`df` on `H4_VHDX_MOUNT`, default `/mnt/c`) and on ext4, for the bytes the run will write plus 20 GB;
   - a dev-cpu run from a linked worktree (P20).
-- [ ] T034 [P] Create `deploy/scripts/redact.sh` (ops.md's filter, verbatim), `deploy/scripts/status.py`, and its test. `status.py` shows the running commit, its branch, and the previous commit, from the run file, and reports a host stack with no run file as not started by `make up` (contracts/env-files.md §12). Wire `make logs` (through `redact.sh`) and `make status` (§4).
-- [ ] T035 [P] Create `deploy/scripts/pin_images.py` and its test, which uses recorded `docker buildx imagetools inspect` output. It resolves tags to index digests, rewrites `deploy/compose.yaml` and `deploy/images.lock`, and prints the table. Create `deploy/images.lock` with research.md R-02's pins. Wire `make pin-images` (Author).
-- [ ] T036 Implement `make up`, `make down`, `make build`, `make pull`, and `make image` in `Makefile` per §4, and create `deploy/scripts/export_tree.py` and its test:
+- [X] T034 [P] Create `deploy/scripts/redact.sh` (ops.md's filter, verbatim), `deploy/scripts/status.py`, and its test. `status.py` shows the running commit, its branch, and the previous commit, from the run file, and reports a host stack with no run file as not started by `make up` (contracts/env-files.md §12). Wire `make logs` (through `redact.sh`) and `make status` (§4).
+- [X] T035 [P] Create `deploy/scripts/pin_images.py` and its test, which uses recorded `docker buildx imagetools inspect` output. It resolves tags to index digests, rewrites `deploy/compose.yaml` and `deploy/images.lock`, and prints the table. Create `deploy/images.lock` with research.md R-02's pins. Wire `make pin-images` (Author).
+- [X] T036 Implement `make up`, `make down`, `make build`, `make pull`, and `make image` in `Makefile` per §4, and create `deploy/scripts/export_tree.py` and its test:
   - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback. The export runs as its own target, which `up` depends on: make expands a recipe just before running it, and the Makefile reads `TREE` from the run file then, so the compose call uses the commit just exported;
   - `up`, on dev-cpu: the same from the working tree and `dev-cpu.vars`, with no export;
   - `down`: `down --timeout 30`, never `-v`, with the running export's compose file. With no run file, `down` and `logs` say the stack wasn't started by `make up`, and do nothing (§12);
   - `build`: ends with `BUILD OK`. It refuses outside the sandbox and the devcontainer (§11), so the gate's host phase builds images with `make image`, never `make build`. The devcontainer has no Docker, so there `build` builds the workspaces and says the images are the gate's;
   - `pull`: Docker Hub images one at a time, with 5, 15, and 45 s backoff, naming an HTTP 429 (research.md R-29);
   - `image`, §11's gate: the compose images built on the current engine. It reports SKIP ("no engine yet: tasks.md T046") before the engine exists, and FAIL ("ask the Author: deploy/agents-engine/engine.sh up") once it exists and is down.
-- [ ] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list, build contexts included. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
+- [X] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list, build contexts included. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
 
-- [ ] T038 [P] Start `docs/data-flow-disclosure.md` with the columns of §16, and rows for every service this branch's compose file defines (edge, gateway, gateway-state), for image pulls, and for the phone-homes switched off (§17). The compose policy requires a row per service, so every later task that adds a service adds its row.
+- [X] T038 [P] Start `docs/data-flow-disclosure.md` with the columns of §16, and rows for every service this branch's compose file defines (edge, gateway, gateway-state), for image pulls, and for the phone-homes switched off (§17). The compose policy requires a row per service, so every later task that adds a service adds its row.
 
 ### The agents' engine (FR-039)
 
