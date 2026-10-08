@@ -331,8 +331,12 @@ def test_server_refuses_unlisted_without_egress(
     client.close()
     assert response.startswith(b"HTTP/1.1 403")
     log_path = tmp_path / "egress.jsonl"
-    deadline = time.monotonic() + 2.0  # the handler writes the log after it answers
-    while not log_path.exists() and time.monotonic() < deadline:
+    # The handler writes the log after it answers, and the file exists a moment before its line does,
+    # so wait for a whole line.
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if log_path.exists() and log_path.read_text(encoding="utf-8").endswith("\n"):
+            break
         time.sleep(0.01)
     proxy.shutdown()
     logged = json.loads(log_path.read_text(encoding="utf-8").splitlines()[-1])
