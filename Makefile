@@ -201,8 +201,11 @@ redteam-suite: ## The adversarial scaffold alone (plan §14)
 matrix: ## The forbidden-action matrix alone (plan §13)
 	bash redteam/forbidden-actions.sh
 
-up down logs status pull init-env isolation-check: ## The stack targets arrive with feat/000-foundations
+up down logs status pull isolation-check: ## The stack targets arrive with feat/000-foundations
 	@echo "make $@ arrives with feat/000-foundations (tasks.md T032 to T036, plan §4)" >&2; exit 2
+
+init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its template; SYNC=1 adds new keys
+	$(PY_HOST) deploy/scripts/init_env.py --stack $(ENV) $(if $(filter 1,$(SYNC)),--sync)
 
 # The Author's terminal: it reaches the registries. ONLY=svc,... limits it; TAG="svc=tag ..." pins a tag (an open
 # one, such as seaweedfs's, otherwise gets the newest release); DRY_RUN=1 prints the table and writes nothing.
