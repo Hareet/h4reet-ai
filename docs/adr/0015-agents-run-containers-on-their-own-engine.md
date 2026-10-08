@@ -12,7 +12,7 @@ The Author's recorded answer: "Agents get a separate, disposable container engin
 
 The spec turns that into FR-039, and adds constraints that follow from Principle IV and the sandbox. These additions are this session's reading, not the Author's words, and the Author may change them:
 
-- The engine runs the stack with the same compose definition and images as every other environment (FR-017), selected by an environment file.
+- The engine runs the stack with the same compose definition as every other environment, selected by an environment file. That file may pick a CPU variant of an image, which the Author counts as configuration (spec 000, Clarifications, answer 6). This departs from the constitution's "identical images", and spec 000's Assumptions record the deviation.
 - It doesn't run privileged on the host's engine. That rules out the usual Docker-in-Docker devcontainer, which needs privileged mode, so a devcontainer would need an isolated runtime instead.
 - It sees the working tree only read-only and without the paths the sandbox denies, so no container can write what the sandbox protects or read what it hides.
 - Its containers are held to the sandbox's network allowlist.
@@ -29,7 +29,7 @@ The spec turns that into FR-039, and adds constraints that follow from Principle
 
 - The plan chooses the engine: a VM, or a devcontainer on an isolated runtime. It also chooses how the sandbox reaches the engine, and how images and the CPU stand-in model arrive: from allowlisted sources, pulled in advance by the Author, or through an allowlist change the Author makes.
 - An image or profile chosen by the environment file counts as configuration (spec 000, Clarifications), so the CPU stand-in may use the model server's CPU image.
-- The `make up`, `make down`, `make breach-test`, and `docker compose` permissions in `.claude/agents/ops.md` become usable only once this engine exists.
+- Until this engine exists, ops can't run containers. The enforcement-layer patch proposed on 2026-10-07 removes `make up`, `make down`, `make breach-test`, and `docker compose` from `.claude/agents/ops.md`, and the Author can grant them back for this engine.
 
 ## Links
 
