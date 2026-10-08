@@ -299,7 +299,7 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 |---|---|---|
 | P1 | The env file is missing or unreadable. On host stacks: its mode isn't 0600, its owner isn't the user, or its directory isn't 0700. | all; the modes on prod and dev |
 | P2 | A line breaks the grammar (§1.1), or a key appears twice. | all |
-| P3 | A placeholder is left: `__GENERATE__`, `__ASK__`, `__REPO__`, or `__HOME__`. dev's optional channel keys may be empty. | all |
+| P3 | A placeholder is left: `__GENERATE__`, `__ASK__`, `__REPO__`, or `__HOME__`; or a value is empty. Only dev's optional channel keys, and `H4_BUILD_PROXY` on host stacks, may be empty. | all |
 | P4 | The keys differ from the template's (each missing and extra key is named). dev-cpu is compared with the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE`. | all |
 | P5 | The calling shell sets any `COMPOSE_*` or `H4_*` variable, or any key of the template. Compose would let the shell's value silently override the file's. | all |
 | P6 | `ENV`, `H4_STACK`, `H4_ENV`, and `COMPOSE_PROJECT_NAME` disagree, or `COMPOSE_PROFILES` isn't the stack's exact value, with exactly one of `gpu` and `cpu`. | all |
@@ -318,6 +318,8 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 | P19 | prod's AWS directory, `H4_AWS_DIR`: missing, or not mode 0700 (`make init-env ENV=prod` creates it empty). Once prod's route in `config/routing.yaml` names a paid adapter, also a `config` with no `[profile h4reet-bedrock]` section; before that (US1, before the Author sets up Bedrock) the directory may be empty. Preflight never reads the SSO cache; the gateway's `/health` and the `credentials_expiring` alert report the session. | prod |
 | P20 | dev-cpu only: the run starts from a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`). The engine serves the main working tree only ([§7.3](#73-the-worktree-question)): "run dev-cpu from the main working tree". | dev-cpu |
 | P21 | Host stacks: a WARN, not a refusal, when the working tree has uncommitted changes under `config/`, `deploy/`, `services/`, `evals/`, or `scripts/`: they aren't in the export of the commit being started, and the message names them. A `REF` that doesn't resolve to a commit is a FAIL. | prod, dev |
+
+Until the compose file defines a model server (tasks.md T057), P7's model keys, P12, and P18 are WARN, naming T057, so the foundations' skeleton (edge, gateway, gateway-state) can start.
 
 **The other commands that share these checks:**
 - `make pull` runs P1 to P7, P10, P13 (for every image and model it will fetch), and P14.
