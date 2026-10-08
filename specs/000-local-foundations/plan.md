@@ -196,11 +196,11 @@ services/gateway/                [A] new: the gateway (§5)
   src/{server,app}.ts
   src/routes/{hello,health,admin,test}.ts
   src/core/{types,gateway,router,limits,clock}.ts
-  src/adapters/{registry,local-openai,bedrock-converse,synthetic}.ts
+  src/adapters/{registry,local-openai,bedrock-converse,synthetic,_settings}.ts   (_settings: each type's routing.yaml settings and the registered types)
   src/meter/{store,admission,commit,rollover,init,journal}.ts
   src/alerts/{outbox,dispatcher,telegram,smtp,format}.ts
   src/incidents/draft.ts
-  src/config/{load,validate,validate-env}.ts
+  src/config/{load,validate,validate-env,validate-config}.ts   (validate-config: the npm script's entry)
   src/telemetry/{otel,metrics,log,redact}.ts
   test/{unit,contract,integration}/**
 deploy/

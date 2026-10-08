@@ -18,7 +18,7 @@ For each file it gives every field, the rules, an example, the validation errors
 - **Money:** a USD amount is a number or a decimal string, at least 0, with at most 6 decimal places. It is converted exactly to integer micro-USD, never through a float, and more decimals are an error. Prices are per million tokens and become integer micro-USD per million tokens.
 - **Placeholders:**
   - A string of the form `<…>` marks a value only the Author can supply, such as `"<inference-profile ID the Author confirms>"`.
-  - `validate-config` reports each one as a NOTE and still passes.
+  - `validate-config` reports each one as a NOTE and still passes. A placeholder is accepted only in a field whose rule allows one: routing.yaml's Bedrock `model`, and a prices.yaml entry's `model` and prices. Anywhere else it fails that field's rule.
   - A gateway whose own route uses a placeholder value refuses to start (exit 78, `placeholder_value`). In spec 000 that is prod's Bedrock model and price until the Author fills them, so dev and dev-cpu run on the committed files.
 - **Who edits what:**
 
