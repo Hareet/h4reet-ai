@@ -334,6 +334,61 @@ describe("the schema (data-model.md §2.2–§2.9)", () => {
     await expect(ledger({ latency_ms: -1 })).rejects.toThrow(/latency_ms/);
   });
 
+  // data-model.md §2.5's row rules for a paid call's cost_basis, and §7.3's commit table.
+  let r = 0;
+  const paid = (fields: Record<string, unknown>) => {
+    r += 1;
+    return ledger({ ...metered, reservation_id: `00000000-0000-4000-a000-${String(r).padStart(12, "0")}`, ...fields });
+  };
+  const failed = { outcome: "error", error_kind: "timeout", finish_reason: "error" };
+  const sweep = {
+    outcome: "unknown",
+    cost_basis: "expired",
+    cost_micro: 250_000,
+    input_tokens: null,
+    output_tokens: null,
+    latency_ms: 0,
+    finish_reason: null,
+    response_model: null,
+  };
+
+  it("ledger: cost_basis 'reservation' only for a call that failed (possiblyBilled)", async () => {
+    await expect(paid({ ...failed, cost_basis: "reservation", cost_micro: 250_000 })).resolves.toBeDefined();
+    await expect(paid({ cost_basis: "reservation", cost_micro: 250_000 })).rejects.toThrow(
+      /ledger_reservation_basis_failed/,
+    );
+  });
+
+  it("ledger: a paid call with cost_basis 'none' failed, and cost nothing", async () => {
+    await expect(
+      paid({ outcome: "error", error_kind: "unavailable", finish_reason: null, cost_basis: "none", cost_micro: 0 }),
+    ).resolves.toBeDefined();
+    await expect(
+      paid({ outcome: "error", error_kind: "unavailable", finish_reason: null, cost_basis: "none", cost_micro: 5000 }),
+    ).rejects.toThrow(/ledger_paid_none_basis_failed/);
+    await expect(paid({ cost_basis: "none", cost_micro: 0 })).rejects.toThrow(/ledger_paid_none_basis_failed/);
+    // An unmetered call costs nothing whatever its outcome (the row rules' first line).
+    await expect(ledger({ ...failed, error_kind: "unavailable" })).resolves.toBeDefined();
+  });
+
+  it("ledger: cost_basis 'expired' is a sweep's row, with no outcome, tokens, latency, or finish reason", async () => {
+    await expect(paid(sweep)).resolves.toBeDefined();
+    await expect(paid({ ...sweep, input_tokens: 0, output_tokens: 0, cache_read_tokens: 0 })).resolves.toBeDefined();
+    await expect(paid({ ...sweep, outcome: "ok", input_tokens: 71, output_tokens: 14 })).rejects.toThrow(
+      /ledger_expired_never_settled/,
+    );
+    await expect(paid({ ...sweep, outcome: "ok" })).rejects.toThrow(/ledger_expired_never_settled/);
+    await expect(paid({ ...sweep, input_tokens: 71 })).rejects.toThrow(/ledger_expired_never_settled/);
+    await expect(paid({ ...sweep, output_tokens: 14 })).rejects.toThrow(/ledger_expired_never_settled/);
+    await expect(paid({ ...sweep, cache_read_tokens: 3 })).rejects.toThrow(/ledger_expired_never_settled/);
+    await expect(paid({ ...sweep, latency_ms: 212 })).rejects.toThrow(/ledger_expired_never_settled/);
+    await expect(paid({ ...sweep, finish_reason: "stop" })).rejects.toThrow(/ledger_expired_never_settled/);
+    // With an error kind, outcome 'error' passes ledger_error_kind_iff_error; this CHECK still refuses it.
+    await expect(paid({ ...sweep, outcome: "error", error_kind: "timeout" })).rejects.toThrow(
+      /ledger_expired_never_settled/,
+    );
+  });
+
   const audit = (fields: Record<string, unknown>) => {
     const row = { ts: "2026-10-08T10:00:00Z", stack: "dev", actor: "operator:dev#0123abcd", ...fields };
     const keys = Object.keys(row);

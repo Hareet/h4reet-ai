@@ -106,7 +106,20 @@ CREATE TABLE gateway.ledger (
   CONSTRAINT ledger_error_kind_iff_error CHECK ((outcome = 'error') = (error_kind IS NOT NULL)),
   -- The row rules: an unmetered call costs nothing and has no reservation; a metered one always has one.
   CONSTRAINT ledger_reservation_iff_metered CHECK ((attribution = 'none') = (reservation_id IS NULL)),
-  CONSTRAINT ledger_unmetered_costs_nothing CHECK (attribution <> 'none' OR (cost_micro = 0 AND cost_basis = 'none'))
+  CONSTRAINT ledger_unmetered_costs_nothing CHECK (attribution <> 'none' OR (cost_micro = 0 AND cost_basis = 'none')),
+  -- Charged its reserved maximum: only a call that failed as possiblyBilled.
+  CONSTRAINT ledger_reservation_basis_failed CHECK (cost_basis <> 'reservation' OR outcome = 'error'),
+  -- cost_basis 'none' on a paid call: it failed before anything could be billed, and costs nothing.
+  CONSTRAINT ledger_paid_none_basis_failed CHECK (
+    attribution = 'none' OR cost_basis <> 'none' OR (outcome = 'error' AND cost_micro = 0)
+  ),
+  -- A sweep's row: no commit came, so the outcome is unknown, and its tokens, latency, and finish reason NULL or 0.
+  CONSTRAINT ledger_expired_never_settled CHECK (
+    cost_basis <> 'expired' OR (
+      outcome = 'unknown' AND latency_ms = 0 AND finish_reason IS NULL AND coalesce(input_tokens, 0) = 0
+      AND coalesce(output_tokens, 0) = 0 AND coalesce(cache_read_tokens, 0) = 0
+    )
+  )
 );
 CREATE INDEX ledger_ts ON gateway.ledger (ts);
 CREATE INDEX ledger_period_day_attribution ON gateway.ledger (period_day, attribution);
