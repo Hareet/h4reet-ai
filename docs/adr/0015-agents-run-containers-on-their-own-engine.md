@@ -1,6 +1,6 @@
 # ADR 0015: Agent sessions run containers on their own disposable engine, never the host's
 
-Status: proposed, 2026-10-07, awaiting the Author's acceptance. It records the Author's answer in spec 000's `/speckit-clarify` session. · Spec: 000 (FR-039, FR-018, FR-036; User Story 3)
+Status: accepted by the Author, 2026-10-07 · Spec: 000 (FR-039, FR-018, FR-036; User Story 3)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR 0014: Spec 000's GitHub-side requirements move to a publication spec
 
-Status: proposed, 2026-10-07, awaiting the Author's acceptance. It records the Author's answer in spec 000's `/speckit-clarify` session. · Spec: 000; the publication spec, which has no intent yet · Once accepted, it replaces one Consequence of ADR 0013; the rest of ADR 0013 stands.
+Status: accepted by the Author, 2026-10-07 · Spec: 000; the publication spec, which has no intent yet · Replaces one Consequence of ADR 0013; the rest of ADR 0013 stands.
 
 ## Context
 
