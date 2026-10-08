@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { CONFIG_FILES, PLANNED_CONFIG_FILES, type PlannedFiles } from "../../src/config/load.js";
 import { validateConfig } from "../../src/config/validate-config.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -102,9 +103,22 @@ async function checkout(names: string[], opts: { templates?: boolean } = {}): Pr
   return root;
 }
 
-async function run(root: string, mainPrices?: string): Promise<{ code: number; lines: string[] }> {
+// The marks as the foundations branch carries them until the config patch (tasks.md T022) adds the two files and
+// empties the build's own map. The in-process runs name their marks, so their output holds in either state.
+const T022_MARKS: PlannedFiles = { "budgets.yaml": "T022", "alerts.yaml": "T022" };
+
+async function run(
+  root: string,
+  mainPrices?: string,
+  plannedFiles: PlannedFiles = T022_MARKS,
+): Promise<{ code: number; lines: string[] }> {
   const lines: string[] = [];
-  const code = await validateConfig({ root, readMainPrices: () => mainPrices, print: (l) => lines.push(l) });
+  const code = await validateConfig({
+    root,
+    readMainPrices: () => mainPrices,
+    print: (l) => lines.push(l),
+    plannedFiles,
+  });
   return { code, lines };
 }
 
@@ -167,17 +181,32 @@ describe("validate-config", () => {
   });
 
   it("runs as the npm script does, through node --import tsx, and exits with its status", async () => {
-    const root = await checkout(["routing.yaml", "prices.yaml"]);
+    // The script applies the build's own marks, which the config patch (tasks.md T022) empties. The checkout holds
+    // exactly the files those marks leave out, so it passes in either state, and the summary counts the marks.
+    const marked = CONFIG_FILES.filter((f) => PLANNED_CONFIG_FILES[f] !== undefined);
+    const root = await checkout(CONFIG_FILES.filter((f) => !marked.includes(f)));
+    const planned = marked.length > 0 ? `, ${marked.length} planned` : "";
     const exec = promisify(execFile);
     const ok = await exec(process.execPath, ["--import", "tsx", "src/config/validate-config.ts", "--root", root], {
       cwd: PACKAGE,
     });
-    expect(ok.stdout.trimEnd().split("\n").at(-1)).toMatch(/^validate-config: 0 errors, 1 note, 2 planned$/);
+    expect(ok.stdout.trimEnd().split("\n").at(-1)).toBe(`validate-config: 0 errors, 1 note${planned}`);
     await writeFile(join(root, "config", "routing.yaml"), "schema: 2\n");
     const failed = await exec(process.execPath, ["--import", "tsx", "src/config/validate-config.ts", "--root", root], {
       cwd: PACKAGE,
     }).catch((err: { code: number; stdout: string }) => err);
     expect("code" in failed && failed.code).toBe(78);
+  });
+
+  it("passes with all four files once the marks are gone, and fails a missing one, as after the config patch", async () => {
+    const main = await readFile(join(FIXTURES, "prices.yaml"), "utf8");
+    const full = await checkout(["routing.yaml", "prices.yaml", "budgets.yaml", "alerts.yaml"]);
+    expect(await run(full, main, {})).toEqual({ code: 0, lines: ["validate-config: 0 errors, 0 notes"] });
+    const partial = await checkout(["routing.yaml", "prices.yaml"]);
+    expect(await run(partial, main, {})).toEqual({
+      code: 78,
+      lines: ["config/budgets.yaml: missing", "config/alerts.yaml: missing", "validate-config: 2 errors, 0 notes"],
+    });
   });
 
   it("fails while the env templates are missing, naming the task that writes them", async () => {

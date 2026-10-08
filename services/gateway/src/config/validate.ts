@@ -19,6 +19,7 @@ import {
   type ConfigIssue,
   type ParsedYaml,
   type PathSegment,
+  type PlannedFiles,
 } from "./load.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -973,9 +974,18 @@ export interface LoadedConfig extends ConfigSet {
   planned: { file: string; task: string }[];
 }
 
-/** Read and validate a config directory: /app/config at startup, config/ for validate-config. */
-export async function loadConfig(dir: string, opts: { allowPlanned: boolean } & RoutingOptions): Promise<LoadedConfig> {
-  const files = await readConfigDir(dir, { allowPlanned: opts.allowPlanned });
+/**
+ * Read and validate a config directory: /app/config at startup, config/ for validate-config. `plannedFiles` replaces
+ * the build's PLANNED marks in validate-config's mode (readConfigDir).
+ */
+export async function loadConfig(
+  dir: string,
+  opts: { allowPlanned: boolean; plannedFiles?: PlannedFiles } & RoutingOptions,
+): Promise<LoadedConfig> {
+  const files = await readConfigDir(dir, {
+    allowPlanned: opts.allowPlanned,
+    ...(opts.plannedFiles === undefined ? {} : { plannedFiles: opts.plannedFiles }),
+  });
   const set = validateConfigFiles(files.parsed, opts);
   return { ...set, issues: [...files.issues, ...set.issues], parsed: files.parsed, planned: files.planned };
 }

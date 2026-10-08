@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { formatIssue, parseYaml, type ConfigIssue } from "./load.js";
+import { formatIssue, parseYaml, type ConfigIssue, type PlannedFiles } from "./load.js";
 import { checkPricesAppendOnly, checkStartup, loadConfig, type LoadedConfig } from "./validate.js";
 import { DEVCPU_DUMMY_OPERATOR_SHA256, gatewayEnvFromFile, parseEnvFile, validateGatewayEnv } from "./validate-env.js";
 
@@ -130,6 +130,8 @@ export interface ValidateConfigOptions {
   print?: (line: string) => void;
   /** The gateway clock for the startup checks: now. */
   now?: () => number;
+  /** The PLANNED marks to apply: the build's own, PLANNED_CONFIG_FILES, unless a test names others. */
+  plannedFiles?: PlannedFiles;
 }
 
 /** `git show main:config/prices.yaml`, or undefined when there is no git, no main, or no such file on main. */
@@ -149,7 +151,10 @@ const count = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" :
 
 export async function validateConfig(opts: ValidateConfigOptions): Promise<number> {
   const print = opts.print ?? ((line: string) => void process.stdout.write(`${line}\n`));
-  const set = await loadConfig(join(opts.root, "config"), { allowPlanned: true });
+  const set = await loadConfig(join(opts.root, "config"), {
+    allowPlanned: true,
+    ...(opts.plannedFiles === undefined ? {} : { plannedFiles: opts.plannedFiles }),
+  });
   const issues: ConfigIssue[] = [...set.issues];
 
   // P5: the append-only check against main, in a git checkout.

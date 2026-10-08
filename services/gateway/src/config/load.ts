@@ -93,6 +93,9 @@ export function parseYaml(file: string, text: string): ParsedYaml {
   return { file, data: doc.toJS(), numberSources, issues, sha256 };
 }
 
+/** Protected files a patch hasn't applied yet, each with the task that writes the patch. */
+export type PlannedFiles = Readonly<Partial<Record<ConfigFileName, string>>>;
+
 export interface ConfigDirFiles {
   /** The files that exist, parsed. */
   parsed: Partial<Record<ConfigFileName, ParsedYaml>>;
@@ -104,13 +107,18 @@ export interface ConfigDirFiles {
 /**
  * Read the four files from a config directory: /app/config in the container, `config/` in a checkout.
  * `allowPlanned` is validate-config's mode: a missing protected file whose patch is due is PLANNED, not an error, and
- * a PLANNED mark whose file exists is stale.
+ * a PLANNED mark whose file exists is stale. The marks are the build's own, PLANNED_CONFIG_FILES, unless the caller
+ * names others, as the tests do, so they hold whichever state the config patch leaves the build's marks in.
  */
-export async function readConfigDir(dir: string, opts: { allowPlanned: boolean }): Promise<ConfigDirFiles> {
+export async function readConfigDir(
+  dir: string,
+  opts: { allowPlanned: boolean; plannedFiles?: PlannedFiles },
+): Promise<ConfigDirFiles> {
+  const marks = opts.plannedFiles ?? PLANNED_CONFIG_FILES;
   const out: ConfigDirFiles = { parsed: {}, issues: [], planned: [] };
   for (const name of CONFIG_FILES) {
     const file = `config/${name}`;
-    const task = PLANNED_CONFIG_FILES[name];
+    const task = marks[name];
     let text: string;
     try {
       text = await readFile(join(dir, name), "utf8");

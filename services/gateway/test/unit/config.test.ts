@@ -11,7 +11,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parse as parseYamlText, stringify } from "yaml";
 
 import { ADAPTER_TYPE_SPECS, type Env } from "../../src/adapters/_settings.js";
-import { formatIssue, parseYaml, readConfigDir, type ConfigIssue } from "../../src/config/load.js";
+import {
+  PLANNED_CONFIG_FILES,
+  formatIssue,
+  parseYaml,
+  readConfigDir,
+  type ConfigIssue,
+  type PlannedFiles,
+} from "../../src/config/load.js";
 import {
   PriceTable,
   checkPricesAppendOnly,
@@ -916,6 +923,9 @@ describe("alerts.yaml (§4.3)", () => {
 });
 
 describe("the config directory", () => {
+  // The marks as the foundations branch carries them until the config patch (tasks.md T022) adds the two files and
+  // empties the build's own map. The tests name their marks, so they hold in either state.
+  const T022_MARKS: PlannedFiles = { "budgets.yaml": "T022", "alerts.yaml": "T022" };
   const dirs: string[] = [];
   afterEach(async () => {
     for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
@@ -937,7 +947,7 @@ describe("the config directory", () => {
 
   it("reports the protected files a patch hasn't applied yet as PLANNED (T022) for validate-config", async () => {
     const dir = await dirWith(["routing.yaml", "prices.yaml"]);
-    const files = await readConfigDir(dir, { allowPlanned: true });
+    const files = await readConfigDir(dir, { allowPlanned: true, plannedFiles: T022_MARKS });
     expect(files.issues).toEqual([]);
     expect(files.planned).toEqual([
       { file: "config/budgets.yaml", task: "T022" },
@@ -954,7 +964,7 @@ describe("the config directory", () => {
 
   it("fails a stale mark: once the file exists, its PLANNED entry must go", async () => {
     const dir = await dirWith(["routing.yaml", "prices.yaml", "budgets.yaml"]);
-    const files = await readConfigDir(dir, { allowPlanned: true });
+    const files = await readConfigDir(dir, { allowPlanned: true, plannedFiles: T022_MARKS });
     expect(files.planned).toEqual([{ file: "config/alerts.yaml", task: "T022" }]);
     expect(errorLines(files.issues)).toEqual([
       "config/budgets.yaml: exists now, so its PLANNED (T022) mark is stale: delete it from PLANNED_CONFIG_FILES in services/gateway/src/config/load.ts",
@@ -964,8 +974,32 @@ describe("the config directory", () => {
   it("treats a missing unprotected file as an error in both modes", async () => {
     const dir = await dirWith(["prices.yaml"]);
     for (const allowPlanned of [true, false]) {
-      const files = await readConfigDir(dir, { allowPlanned });
+      const files = await readConfigDir(dir, { allowPlanned, plannedFiles: T022_MARKS });
       expect(errorLines(files.issues)).toContain("config/routing.yaml: missing");
+    }
+  });
+
+  it("holds a missing protected file to an error once its mark is gone, as after the config patch", async () => {
+    const two = await dirWith(["routing.yaml", "prices.yaml"]);
+    const missing = await readConfigDir(two, { allowPlanned: true, plannedFiles: {} });
+    expect(missing.planned).toEqual([]);
+    expect(errorLines(missing.issues)).toEqual(["config/budgets.yaml: missing", "config/alerts.yaml: missing"]);
+    const four = await dirWith(["routing.yaml", "prices.yaml", "budgets.yaml", "alerts.yaml"]);
+    const present = await readConfigDir(four, { allowPlanned: true, plannedFiles: {} });
+    expect(present.issues).toEqual([]);
+    expect(present.planned).toEqual([]);
+    expect(Object.keys(present.parsed)).toEqual(["routing.yaml", "prices.yaml", "budgets.yaml", "alerts.yaml"]);
+  });
+
+  it("applies the build's own marks, PLANNED_CONFIG_FILES, when the caller names none", async () => {
+    for (const names of [
+      ["routing.yaml", "prices.yaml"],
+      ["routing.yaml", "prices.yaml", "budgets.yaml", "alerts.yaml"],
+    ]) {
+      const dir = await dirWith(names);
+      const implicit = await readConfigDir(dir, { allowPlanned: true });
+      const explicit = await readConfigDir(dir, { allowPlanned: true, plannedFiles: PLANNED_CONFIG_FILES });
+      expect([implicit.issues, implicit.planned], names.join(" ")).toEqual([explicit.issues, explicit.planned]);
     }
   });
 
