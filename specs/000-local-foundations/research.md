@@ -372,7 +372,7 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
 
 ### R-19. Node 24 LTS everywhere
 
-- **Decision**: Node 24 (24.21.0 at the time of writing) on the host through `fnm`, in the devcontainer from the nodejs.org tarball, and as the gateway image's base. `@types/node` 24.19.1.
+- **Decision**: Node 24 (24.21.0 at the time of writing) on the host through nvm, which the host already used (the default Node stays, with the Claude Code installed under it), in the devcontainer from the digest-pinned official Node image, and as the gateway image's base. `@types/node` 24.19.1.
 - **Rationale**:
   - Node 22 leaves maintenance in April 2027, within this project's first year.
   - Every package in the gateway's list supports 24.

@@ -742,12 +742,12 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
 - **Devcontainer** (`.devcontainer/`, agent-editable, policy-checked):
   - **Base:** `public.ecr.aws/docker/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55`, the host's distro, so apt gives the same shellcheck 0.9.0, jq 1.7, bubblewrap, socat, git, make, and python3 3.12 with python3-yaml. The build deletes the image's `ubuntu` user and adds `dev` (uid 1000) with no sudo.
   - **Pins,** all in `toolchain.vars`:
-    - Node 24.21.0 from the nodejs.org tarball, checked against SHASUMS256;
+    - Node 24.21.0, copied from the digest-pinned official Node image, which installs nodejs.org's release tarball after checking it against the release's signed SHASUMS256. The agent sandbox can't reach nodejs.org to record that checksum itself, and the image's digest pins the same binary. Phase 1 changed this from a direct tarball download;
     - uv 0.8.22 and ruff 0.16.10, copied from their pinned ghcr images;
     - gitleaks 8.30.1, from its pinned image;
     - pytest 9.1.1 and pyyaml 6.0.3, from `requirements-tools.txt` with hashes, into `/opt/tools`;
     - the lint toolchain in `/opt/h4reet/lint-node`.
-  - **Behind build arguments that default to off:** Claude Code 2.1.293 (`WITH_CLAUDE=0`) and Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
+  - **Behind build arguments that default to off:** Claude Code 2.1.294 (`WITH_CLAUDE=0`), the host's version when the pins were written and Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
   - **`devcontainer.json`:**
     - no features (they are fetched unpinned), no `initializeCommand`, no Docker socket, no home mounts;
     - `runArgs: ["--cap-drop=ALL", "--security-opt=no-new-privileges"]`;
@@ -755,18 +755,21 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
   - **Who builds it:** the person opening it (VS Code, or `npx @devcontainers/cli@0.89.0 up`), never the sandbox. The Author's gate builds the same Dockerfile.
   - **SC-007:** a fresh clone with an empty build cache, then build, `make setup`, and `make test`, all inside 30 minutes. It's timed and recorded in the note. No Claude login, engine, GPU, or denylist is needed.
 - **Agent sessions** run on WSL under the full sandbox (ADR 0018, Clarifications 2026-10-08). The host mirrors the devcontainer's pins:
-  - `make tools` (the Author) installs the non-distro pins in places agents can't write:
-    - Node 24.21.0 through `fnm`;
-    - pytest through `uv tool install pytest==9.1.1 --with pyyaml==6.0.3`;
+  - `make tools` (the Author; `tools/gates/install-tools.sh`) installs the non-distro pins in places agents can't write:
+    - Node 24.21.0 through nvm, which the host already uses. It leaves the shell's default Node alone, because the Claude Code installed under that default would otherwise vanish from new shells. The Makefile puts the pinned Node first on PATH for its own recipes;
+    - pytest through `uv tool install --no-config --python "$(command -v python3)" pytest==9.1.1 --with pyyaml==6.0.3`, with the interpreter pinned and no configuration file read;
     - gitleaks via `docker cp` from the pinned image into `~/.local/bin`;
     - the lint toolchain in `~/.local/share/h4reet/lint-node`.
-  - `make toolchain-check` (`tools/gates/toolchain_check.py`) fails on any version drift, Claude Code included. `DISABLE_AUTOUPDATER=1` keeps Claude Code still, since the sandbox's behavior lives in that binary. The Author runs `make tools` on the setup branch before its note is written (tasks.md T013), so the check passes from Phase 1 on; until then it fails, and saying so is its job.
+  - `make toolchain-check` (`tools/gates/toolchain_check.py`) fails on any version drift, Claude Code included. A pin matches its exact version, or a release in its series (`3.12` matches 3.12.3). Claude Code is required on the host, where agent sessions run, and not in the devcontainer, which builds without it. `DISABLE_AUTOUPDATER=1` keeps Claude Code still, since the sandbox's behavior lives in that binary. The Author runs `make tools` on the setup branch before its note is written (tasks.md T013), so the check passes from Phase 1 on; until then it fails, and saying so is its job.
 - **Dependencies:**
   - **npm:** `package-lock.json` is committed, and installs use `npm ci --ignore-scripts`.
   - **Python:** no repository `.venv` and no `pyproject.toml`. pytest comes from the toolchain, or from the Makefile's existing fallback `uv run --no-project --no-config --python "$(command -v python3)" --with pytest==9.1.1 --with pyyaml==6.0.3`, which is now pinned.
   - **The setup target:** `make setup` becomes `npm ci --ignore-scripts` plus `make git-hooks`. The old `pip install -r requirements.txt` and `pre-commit install` lines go: no `requirements.txt` exists, and gitleaks runs from a plain git hook (ADR 0017).
 - **Lint and format (FR-009):**
-  - `make lint` runs `eslint --max-warnings 0`, `tsc --noEmit`, and `prettier --check` (ts, js, json, yaml, md) from the repository's configs inside the sandbox, plus `ruff check`, `ruff format --check` (`--no-cache`), and `shellcheck` on every tracked `*.sh`, the hooks, and the git hooks.
+  - `make lint` runs `eslint --max-warnings 0`, `tsc --noEmit`, and `prettier --check` from the repository's configs inside the sandbox, plus `ruff check`, `ruff format --check` (`--no-cache`), and `shellcheck`:
+    - Prettier covers code and configuration: TypeScript, JavaScript, JSON, YAML, and Markdown in code folders. `.prettierignore` leaves out the documentation and governance trees (`docs/`, `specs/`, `intent/`, `corpus/`, `.specify/`, `.claude/`, and the root's Markdown), where it would realign tables in human-authored and protected files;
+    - `ruff format --check` leaves out `corpus/`, which is human-authored and which agents can't edit; `ruff check` still covers it;
+    - shellcheck covers every tracked `*.sh` except Spec Kit's vendored scripts, and the git hooks.
   - The post-edit hook, which runs outside the sandbox, lints TypeScript, JSON, YAML, and Markdown with the human-only toolchain in `~/.local/share/h4reet/lint-node` and that toolchain's own configs. It never runs the repository's `node_modules` or JavaScript configs (in the closing patch).
 
 ## 10. The agents' engine and the sandbox opening
@@ -836,6 +839,8 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 | Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the current engine, and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs nodejs.org and Ubuntu's mirrors, and the allowlist stays as it is |
 
 `make check` keeps going after a failure and prints PASS, FAIL, SKIP (always with a reason), PENDING, or PLANNED per target, then a summary line. It exits non-zero on any FAIL or PENDING. PLANNED marks enforcement that a patch adds and the Author hasn't applied yet, such as the `pre-commit` hook or an FR-007 name. It works like the matrix's planned rows ([§13](#13-the-forbidden-action-matrix)): the line names the task that writes the patch, the patch clears the mark when it adds the enforcement, and a PLANNED line doesn't fail the run. Spec 000's acceptance requires none (tasks.md T118). Inside the sandbox it sets `npm_config_cache` to `$TMPDIR`, as it already does for `UV_CACHE_DIR`. Its output, pasted whole, goes into every merge-request note (FR-041).
+
+The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `label[=target][@Tnnn]`, so a gate whose target a later task adds is SKIP, naming that task. The red-team gate runs `make redteam-suite`; `make redteam` runs the suite and the matrix together, which is what the red-teamer role's `make redteam*` grant reaches. `make git-hooks` says so and does nothing where `.git/hooks` can't be written, as in the agent sandbox.
 
 **The compose and file policy** (`compose_policy.py`) runs on `docker compose config --no-interpolate`, once per env file. It refuses:
 - privileged mode; host pid, ipc, or network; `docker.sock`;
@@ -1057,7 +1062,7 @@ The closing patch holds:
 - **ADRs** 0001–0006 and 0016–0022, linked from the ADR index, which the README links (SC-009).
 - **README:** the status, a devcontainer quickstart, the non-engineer path's link to the breach-test recording (`docs/recordings/`, an asciinema cast plus a GIF, scanned with gitleaks before commit), and links to the disclosure and runbooks.
 - **START-HERE:**
-  - §1: the NVIDIA runtime step (`sudo nvidia-ctk runtime configure --runtime=docker`, then restart Docker); Node 24 through `fnm`; `make tools`; `deploy/agents-engine/engine.sh setup` and its `wsl --shutdown`.
+  - §1: the NVIDIA runtime step (`sudo nvidia-ctk runtime configure --runtime=docker`, then restart Docker); `make tools`, with Node 24 through nvm and the default Node left alone; `deploy/agents-engine/engine.sh setup` and its `wsl --shutdown`.
   - A new "Before you merge" section: the gate (never `make check` or `make test` in your own terminal), the agent-config evals, and committing their history. The engine's commands run directly, never through make.
   - §4 gotchas: glob denies are ignored on Linux; `-p` silently ignores invalid settings, so run `claude doctor` after every settings change; user-level settings merge into the allowlist.
   - §6 step 1: `make publish-check`.
@@ -1077,8 +1082,8 @@ The closing patch holds:
 | Development time: Claude Code | Anthropic | repository content an agent reads, prompts, completions | agent sessions, on the Team plan (FR-037) | the sandbox, the deny lists |
 | Development time: the engine's proxied pulls | npm, PyPI, ghcr.io | package and image names; the IP address | agent sessions on the engine | `egress-proxy.py` and the allowlist |
 | The Author's browser | whatever the Grafana and Langfuse pages fetch | the IP address, the user agent | while viewing | checked once in devtools, and listed |
-| The devcontainer build | nodejs.org (the Node tarball and SHASUMS256), Ubuntu's archive mirrors (apt), pypi.org and files.pythonhosted.org (the pinned tools), ECR Public and ghcr.io (the bases) | package and image names; the IP address | opening the devcontainer; the Author's gate | digests, checksums, and hashes |
-| `make tools` | nodejs.org (through fnm), pypi.org (uv), ghcr.io (the gitleaks image), registry.npmjs.org (the lint toolchain) | package and image names; the IP address | the Author, once per pin change | the same pins as the devcontainer |
+| The devcontainer build | Ubuntu's archive mirrors (apt), pypi.org and files.pythonhosted.org (the pinned tools), registry.npmjs.org (the lint toolchain), ECR Public and ghcr.io (the bases, Node's among them) | package and image names; the IP address | opening the devcontainer; the Author's gate | digests, checksums, and hashes |
+| `make tools` | nodejs.org (through nvm), pypi.org (uv), ghcr.io (the gitleaks image), registry.npmjs.org (the lint toolchain) | package and image names; the IP address | the Author, once per pin change | the same pins as the devcontainer |
 
 No visitor data flows in this spec.
 
@@ -1227,7 +1232,7 @@ The prerequisites in the Author's terminal are in [quickstart.md](quickstart.md)
 | The sandbox proxy's handling of an IP-literal allowlist entry (C read it from minified code) | Matrix row E9; `claude doctor`. |
 | Claude Haiku 5.5 not on Bedrock in us-east-1 | Haiku 4.5's `us.` profile; a configuration change. |
 | typescript-eslint requires TypeScript below 6.1 | TypeScript stays at 6.0.3. |
-| The host on Node 22.18.0 | `make toolchain-check` fails until `fnm install 24.21.0`, the first prerequisite. |
+| The host on Node 22.18.0 | `make toolchain-check` fails until `make tools` installs Node 24.21.0 through nvm, the first prerequisite. |
 | Docker Hub anonymous limits | 5 Docker Hub pulls per cold start, against a live allowance of 100 per hour; backoff; 429s named. |
 | The engine's memory | The 16 GB slice holds dev-cpu's summed limits (about 13.2 GiB); if ClickHouse needs more under load, the cap rises before any limit is cut. |
 | A rollback across a schema migration | The gateway refuses to start against a newer schema (exit 78), so it fails closed; within spec 000 the migrations land before prod's real use. |

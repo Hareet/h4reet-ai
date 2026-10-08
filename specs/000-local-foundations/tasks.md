@@ -34,53 +34,53 @@ description: "Task list for spec 000, Local Foundations"
 
 **Purpose**: one toolchain for humans and agents, the workspace, and the local gate's skeleton.
 
-- [ ] T001 Rework the head of `Makefile` per §4:
+- [X] T001 Rework the head of `Makefile` per §4:
   - `ENV ?= prod`, with a check that refuses anything but `prod`, `dev`, or `dev-cpu`;
   - `ENVFILE`: `deploy/env.agents/dev-cpu.vars` for dev-cpu, `$(HOME)/.config/h4reet-ai/env/$(ENV).env` otherwise;
   - `COMPOSE`, per §4: `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks, where `TREE` is the running export (from the run file) on host stacks and `.` on dev-cpu;
   - `PY_HOST := python3 -I -X pycache_prefix=$$(mktemp -d)`, for every Python a recipe runs in the Author's terminal, by script path and never with `-m` (research.md R-35).
 
   Keep the existing UV_CACHE_DIR and PYTEST logic, pinning pytest to `--with pytest==9.1.1 --with pyyaml==6.0.3`.
-- [ ] T002 [P] Create the root `package.json`: private, `workspaces: ["services/*"]`, `engines.node ">=24.21 <25"`, scripts that delegate to the workspaces. Generate `package-lock.json` with `npm install --ignore-scripts` (the registry is allowlisted). Commit no `.npmrc`.
-- [ ] T003 [P] Create `tsconfig.base.json` (strict, ES2023, NodeNext), `eslint.config.js` (eslint 10.12.0, typescript-eslint 8.71.1, eslint-config-prettier 10.1.8, globals 17.13.0), `.prettierrc.json`, and `.prettierignore` (§9).
-- [ ] T004 [P] Create `.dockerignore`, excluding `.git`, `deploy/env`, `*.env`, `**/node_modules`, `**/dist`, `**/__pycache__`, `corpus/intake/private`, `.cache`, and `.pytest_cache`.
-- [ ] T005 Update these targets in `Makefile` per §9 and §11:
+- [X] T002 [P] Create the root `package.json`: private, `workspaces: ["services/*"]`, `engines.node ">=24.21 <25"`, scripts that delegate to the workspaces. Generate `package-lock.json` with `npm install --ignore-scripts` (the registry is allowlisted). Commit no `.npmrc`.
+- [X] T003 [P] Create `tsconfig.base.json` (strict, ES2023, NodeNext), `eslint.config.js` (eslint 10.12.0, typescript-eslint 8.71.1, eslint-config-prettier 10.1.8, globals 17.13.0), `.prettierrc.json`, and `.prettierignore` (§9).
+- [X] T004 [P] Create `.dockerignore`, excluding `.git`, `deploy/env`, `*.env`, `**/node_modules`, `**/dist`, `**/__pycache__`, `corpus/intake/private`, `.cache`, and `.pytest_cache`.
+- [X] T005 Update these targets in `Makefile` per §9 and §11:
   - `setup`: `npm ci --ignore-scripts`, then `make git-hooks`. Remove the `pip install -r requirements.txt` and `pre-commit install` lines.
   - `lint`: `eslint --max-warnings 0`, `tsc --noEmit` per workspace, `prettier --check`, `ruff check` and `ruff format --check --no-cache`, and `shellcheck` on every tracked `*.sh`, `.claude/hooks/*.sh`, and `.claude/git-hooks/*`.
   - `fmt`.
   - `test`: `corpus-check`, `npm test --workspaces --if-present`, and pytest with `-q -p no:cacheprovider` over `corpus/tools`, `evals`, `redteam`, `tools/gates`, `deploy/scripts`, `deploy/agents-engine`, and `scripts`.
   - `test-fast`.
-- [ ] T006 Restructure `make check` in `Makefile` per §11.
+- [X] T006 Restructure `make check` in `Makefile` per §11.
   - It runs `githooks-check toolchain-check policy validate-config lint test secrets evals redteam matrix image` in that order and keeps going after a failure.
   - It prints PASS, FAIL, SKIP (with a reason), PENDING, or PLANNED (naming the task that writes the patch) per target, then a summary line, and exits non-zero on any FAIL or PENDING. PLANNED doesn't fail the run (§11).
   - Inside the sandbox (`SANDBOX_RUNTIME=1`), it exports `npm_config_cache=$TMPDIR/npm-cache`.
   - A target that doesn't exist yet prints `SKIP (added by Tnnn)`.
   - `githooks-check` keeps the existing reference-transaction check, and reports `.claude/git-hooks/pre-commit` as PLANNED (T045) until the early patch adds it and clears the mark (T046).
-- [ ] T007 [P] Create `.devcontainer/Dockerfile`, `.devcontainer/devcontainer.json`, `.devcontainer/toolchain.vars`, and `.devcontainer/requirements-tools.txt` per §9.
+- [X] T007 [P] Create `.devcontainer/Dockerfile`, `.devcontainer/devcontainer.json`, `.devcontainer/toolchain.vars`, and `.devcontainer/requirements-tools.txt` per §9.
   - **Base:** `public.ecr.aws/docker/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55`.
   - **Tools:**
-    - Node 24.21.0 from the nodejs.org tarball, checked against SHASUMS256;
+    - Node 24.21.0, copied from the digest-pinned official Node image, which installs and checks nodejs.org's release tarball (plan §9);
     - uv 0.8.22 and ruff 0.16.10, copied from their pinned images (research.md R-02);
     - gitleaks 8.30.1, from its pinned image;
     - pytest 9.1.1 and pyyaml 6.0.3, with `--require-hashes` (hashes from pypi.org), into `/opt/tools`.
   - **Users:** the `ubuntu` user is replaced by `dev` (uid 1000) with no sudo.
   - **Build arguments:** `WITH_CLAUDE=0` and `WITH_TERRAFORM=0`.
   - **`devcontainer.json`:** no `features`, no `initializeCommand`, no socket or home mounts; `runArgs ["--cap-drop=ALL","--security-opt=no-new-privileges"]`; `postCreateCommand: make setup`.
-- [ ] T008 [P] Create `tools/gates/toolchain_check.py` (stdlib, `python3 -I`) and `tools/gates/test/test_toolchain_check.py`. The check compares installed versions against `.devcontainer/toolchain.vars`: Node, uv, ruff, shellcheck, jq, Python, gitleaks, pytest, the lint toolchain, and Claude Code. It prints a table and exits 1 on drift. Wire `make toolchain-check` (§9).
-- [ ] T009 [P] Create `tools/gates/lint-node/package.json`, its `package-lock.json`, `eslint.config.mjs`, and `prettier.config.json`: the human-only lint toolchain for the post-edit hook, with versions as in T003 plus typescript 6.0.3 (research.md R-25). Add `make tools` (Author), which installs:
-  - Node 24.21.0 through `fnm`;
-  - `uv tool install pytest==9.1.1 --with pyyaml==6.0.3`;
+- [X] T008 [P] Create `tools/gates/toolchain_check.py` (stdlib, `python3 -I`) and `tools/gates/test/test_toolchain_check.py`. The check compares installed versions against `.devcontainer/toolchain.vars`: Node, uv, ruff, shellcheck, jq, Python, gitleaks, pytest, the lint toolchain, and Claude Code. It prints a table and exits 1 on drift. Wire `make toolchain-check` (§9).
+- [X] T009 [P] Create `tools/gates/lint-node/package.json`, its `package-lock.json`, `eslint.config.mjs`, and `prettier.config.json`: the human-only lint toolchain for the post-edit hook, with versions as in T003 plus typescript 6.0.3 (research.md R-25). Add `make tools` (Author), through `tools/gates/install-tools.sh`, which installs:
+  - Node 24.21.0 through nvm, leaving the shell's default Node alone;
+  - `uv tool install --no-config --python "$(command -v python3)" pytest==9.1.1 --with pyyaml==6.0.3`;
   - gitleaks into `~/.local/bin`, with `docker cp` from the pinned image;
   - this toolchain into `~/.local/share/h4reet/lint-node`, with `npm ci --ignore-scripts`.
-- [ ] T010 [P] Create the eval scaffold in `evals/` per §14:
+- [X] T010 [P] Create the eval scaffold in `evals/` per §14:
   - `evals/__init__.py`;
   - `evals/run.py`: stdlib plus pyyaml; suites in `evals/<suite>/cases/*.yaml`; adapters `fake`, `local`, `bedrock`; deterministic scoring; history only for real runs; the repository root appended to `sys.path`, not prepended;
   - `evals/product/cases/hello-fake.yaml`, one case that passes on `fake`;
   - `evals/test_run.py`.
 
   `make evals` runs `python3 evals/run.py --suite product --adapter fake` in the sandbox, and `$(PY_HOST) evals/run.py` for the Author's `ADAPTER=local` or `bedrock` runs: by path, never `-m`.
-- [ ] T011 [P] Create the red-team scaffold: `redteam/__init__.py`, `redteam/run.py` (one benign case passes, and one planted unsafe response must be detected), `redteam/cases/*.yaml`, and `redteam/test_run.py`. Make `make redteam` run `python3 redteam/run.py`, and add `make matrix` for `bash redteam/forbidden-actions.sh` (§13, §14).
-- [ ] T012 [P] Create the static agent-config checks per §14: `evals/agent-config/static.py`, `tools/gates/roles.expected`, and `evals/agent-config/test_static.py`. They check:
+- [X] T011 [P] Create the red-team scaffold: `redteam/__init__.py`, `redteam/run.py` (one benign case passes, and one planted unsafe response must be detected), `redteam/cases/*.yaml`, and `redteam/test_run.py`. Make `make redteam` run `python3 redteam/run.py`, and add `make matrix` for `bash redteam/forbidden-actions.sh` (§13, §14).
+- [X] T012 [P] Create the static agent-config checks per §14: `evals/agent-config/static.py`, `tools/gates/roles.expected`, and `evals/agent-config/test_static.py`. They check:
   - CLAUDE.md has at most 60 lines and 6 KB (FR-006);
   - CLAUDE.md and REVIEW.md name the constitution as superseding (FR-002);
   - each `.claude/agents/*.md` `tools:` line equals `tools/gates/roles.expected`;
@@ -88,7 +88,7 @@ description: "Task list for spec 000, Local Foundations"
   - every FR-007 variable is denied (contracts/env-files.md §8). A name whose deny a patch hasn't applied yet is reported as PLANNED, naming the task that writes the patch (T045), not as FAIL.
 
   `make evals` runs it.
-- [ ] T013 **Author**, on this branch, before its note: quickstart.md §0.3. `fnm install 24.21.0`, then `make tools`, then `make toolchain-check`, which must pass, and `gitleaks version`, which must print 8.30.1. Tools that `make tools` doesn't install (uv, ruff, shellcheck, jq, Python, and Claude Code) must already match their pins in `toolchain.vars`. T007 writes those pins from the host's versions; Claude Code updates itself until the early patch sets `DISABLE_AUTOUPDATER`, so if it moved since T007, update its pin on this branch. The early patch's hooks fail closed without gitleaks (T045).
+- [ ] T013 **Author**, on this branch, before its note: quickstart.md §0.3. `make tools`, which installs Node 24.21.0 through nvm and leaves your default Node alone, then `make toolchain-check`, which must pass, and `gitleaks version`, which must print 8.30.1. Tools that `make tools` doesn't install (uv, ruff, shellcheck, jq, Python, and Claude Code) must already match their pins in `toolchain.vars`. T007 writes those pins from the host's versions; Claude Code updates itself until the early patch sets `DISABLE_AUTOUPDATER`, so if it moved since T007, update its pin on this branch. The early patch's hooks fail closed without gitleaks (T045).
 - [ ] T014 Write the merge-request note `docs/merge-requests/<date>-feat-000-setup.md`, with `make check`'s full output and a reviewer agent's REVIEW.md passes.
 
 **Checkpoint**: `make check` runs every target, with SKIPs and PLANNED items named, and `make toolchain-check` passes once the Author has run `make tools` (T013).
@@ -520,7 +520,7 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T110 [P] [US6] Complete `docs/data-flow-disclosure.md` with every row of §17, closing with "No visitor data flows in this spec.". Link it from `SECURITY.md`.
 - [ ] T111 [P] [US6] Create `docs/runbooks/README.md`, an index of every runbook, and the runbooks for the agents' engine and the local gate. Update `docs/how-we-build/lifecycle.md`'s enforcement table with the new layers.
 - [ ] T112 [P] [US6] Update `docs/START-HERE.md` per §16:
-  - §1: the NVIDIA runtime step, Node 24 through `fnm`, the disk check, `make tools`, and `deploy/agents-engine/engine.sh setup` with its `wsl --shutdown`;
+  - §1: the NVIDIA runtime step, the disk check, `make tools` (Node 24 through nvm, the default Node left alone), and `deploy/agents-engine/engine.sh setup` with its `wsl --shutdown`;
   - a new "Before you merge" section;
   - §4's gotchas;
   - §6 step 1: `make publish-check`.

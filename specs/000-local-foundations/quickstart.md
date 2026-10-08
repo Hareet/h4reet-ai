@@ -43,15 +43,14 @@ Expected: the RTX 5090 Laptop GPU, driver 592.01, compute capability 12.0, 24,46
 ### 0.3 Node 24 and the tools
 
 ```bash
-fnm install 24.21.0 && fnm default 24.21.0
-make tools             # pytest, gitleaks, and the lint toolchain, where agents can't write (plan §9)
+make tools             # Node 24.21.0 through nvm, pytest, gitleaks, and the lint toolchain, where agents can't write (plan §9)
 make toolchain-check   # PASS: every version matches .devcontainer/toolchain.vars
 gitleaks version       # 8.30.1: the early patch's hooks fail closed without it
 ```
 
 This is tasks.md T013, on the setup branch, before its note is written.
 
-Also remove from your shell profile any variable an env template uses, such as `TELEGRAM_BOT_TOKEN`, and any `COMPOSE_*` or `H4_*`. Preflight refuses to start while the shell sets one, because compose would let it override the env file ([env-files.md §10](contracts/env-files.md#10-make-up-preflight), P5).
+Don't make Node 24 your default (`nvm alias default`): Claude Code is installed under your default Node, and the Makefile finds the pinned one itself. Also remove from your shell profile any variable an env template uses, such as `TELEGRAM_BOT_TOKEN`, and any `COMPOSE_*` or `H4_*`. Preflight refuses to start while the shell sets one, because compose would let it override the env file ([env-files.md §10](contracts/env-files.md#10-make-up-preflight), P5).
 
 ### 0.4 The host's Docker moves to the containerd image store (Heavy)
 

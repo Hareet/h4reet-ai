@@ -1,0 +1,12 @@
+{
+  "name": "h4reet.ai",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": { "WITH_CLAUDE": "0", "WITH_TERRAFORM": "0" }
+  },
+  "containerUser": "dev",
+  "remoteUser": "dev",
+  "runArgs": ["--cap-drop=ALL", "--security-opt=no-new-privileges"],
+  "postCreateCommand": "make setup"
+}

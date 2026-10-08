@@ -1,0 +1,16 @@
+{
+  "name": "h4reet-lint-node",
+  "private": true,
+  "description": "The human-only lint toolchain for the post-edit hook. make tools installs it into ~/.local/share/h4reet/lint-node, where agents can't write (plan §9, research R-25).",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1"
+  }
+}
