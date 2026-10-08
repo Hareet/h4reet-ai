@@ -32,6 +32,15 @@ docker | make) ;;
 	;;
 esac
 
+# The settings' env gives DOCKER_CONFIG as ~/..., and neither Claude Code nor the Docker CLI expands the
+# tilde, so the relay does (contracts/agents-engine.md §2.3).
+docker_config="${DOCKER_CONFIG:-$HOME/.config/h4reet/agents-engine/docker}"
+# A literal ~/ is what this matches, so the quotes are intended.
+# shellcheck disable=SC2088
+case "$docker_config" in
+"~/"*) docker_config="$HOME/${docker_config#"~/"}" ;;
+esac
+
 # 3. Nesting: when a relay already answers at the endpoint (a make target that calls another one),
 # run the command directly rather than starting a second relay.
 if [ "${DOCKER_HOST:-}" = "$endpoint" ] && port_open; then
@@ -39,7 +48,7 @@ if [ "${DOCKER_HOST:-}" = "$endpoint" ] && port_open; then
 		DOCKER_HOST="$endpoint" \
 		DOCKER_TLS_VERIFY=1 \
 		BUILDX_CONFIG="${TMPDIR:-/tmp}/buildx" \
-		DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.config/h4reet/agents-engine/docker}" \
+		DOCKER_CONFIG="$docker_config" \
 		"$@"
 fi
 
@@ -105,6 +114,6 @@ env \
 	DOCKER_HOST="$endpoint" \
 	DOCKER_TLS_VERIFY=1 \
 	BUILDX_CONFIG="${TMPDIR:-/tmp}/buildx" \
-	DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.config/h4reet/agents-engine/docker}" \
+	DOCKER_CONFIG="$docker_config" \
 	"$@" || status=$?
 exit "$status"

@@ -100,9 +100,10 @@ WORKSPACE_DIRS := $(patsubst %/package.json,%,$(WORKSPACES))
 NPM_WS = $(if $(WORKSPACES),npm $(1) --workspaces --if-present,@echo "npm $(1): no workspaces yet")
 # Every shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), NUL-separated, so no name is
 # split or read by the shell. The gate lints a git archive export, which has no .git, so outside a repository the
-# list comes from the files themselves. The git hooks are added by name: .claude/git-hooks is human-only.
+# list comes from the files themselves. Scripts without .sh are added by name: the git hooks (human-only), and
+# the engine's relay, which runs by name.
 LIST_SH = { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/'
-GIT_HOOKS := $(wildcard .claude/git-hooks/*)
+NAMED_SCRIPTS := $(wildcard .claude/git-hooks/*) $(wildcard deploy/agents-engine/docker-relay)
 
 # Cleared once the early patch adds the pre-commit hook (tasks.md T045, T046); githooks-check fails while both exist.
 PRE_COMMIT_PLANNED := T045
@@ -110,7 +111,7 @@ PRE_COMMIT_PLANNED := T045
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := githooks-check toolchain-check policy validate-config@T019 lint test secrets@T091 evals redteam=redteam-suite matrix image
+CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets@T091 evals redteam=redteam-suite matrix image
 
 help: ## List the targets
 	@grep -E '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -127,6 +128,18 @@ toolchain-check: ## Compare the installed tools with .devcontainer/toolchain.var
 
 check: ## Every local gate (FR-041): PASS, FAIL, SKIP, PENDING, or PLANNED for each, then a summary
 	@$(PY_HOST) tools/gates/run_checks.py $(CHECK_GATES)
+
+validate-config: ## The gateway's config files and env templates, through the gateway's own validators (contracts/config-files.md §5)
+	$(CONTAINED)
+	npm run --silent -w services/gateway validate-config -- --root "$(CURDIR)"
+
+engine-status: ## The agents' engine: reachable, rootless, its plugin, its images (contracts/agents-engine.md §8)
+	@# In the sandbox the engine is reached only through the relay, which sets DOCKER_HOST, so the nested run is direct.
+	@if [ "$${SANDBOX_RUNTIME:-}" = 1 ] && [ -z "$${DOCKER_HOST:-}" ]; then deploy/agents-engine/docker-relay make engine-status; \
+	else deploy/agents-engine/engine.sh status; fi
+
+engine-smoke: ## dev-cpu up, its breach test, and down, on the agents' engine (contracts/agents-engine.md §8)
+	deploy/agents-engine/engine.sh smoke
 
 policy: ## The compose and file policy, over each committed env file; needs the docker CLI, not a daemon (plan §11)
 	$(PY_HOST) tools/gates/compose_policy.py
@@ -181,7 +194,7 @@ lint: ## Zero warnings: ESLint, tsc, Prettier, ruff, shellcheck (plan §9)
 	@# corpus/ is human-authored and agents can't edit it, so ruff lints it but doesn't hold it to ruff's format.
 	ruff format --check --no-cache --extend-exclude corpus .
 	@[ "$$($(LIST_SH) | tr -cd '\0' | wc -c)" -gt 0 ] || { echo "lint: found no shell scripts to check" >&2; exit 1; }
-	$(LIST_SH) | xargs -0 -t shellcheck -- $(GIT_HOOKS)
+	$(LIST_SH) | xargs -0 -t shellcheck -- $(NAMED_SCRIPTS)
 
 fmt: ## Format what Prettier and ruff own (not the human-authored documents or the corpus)
 	$(CONTAINED)
@@ -325,5 +338,5 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
+	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
 	init-env isolation-check breach-test plan
