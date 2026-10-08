@@ -51,8 +51,9 @@ Each stage ends by committing the artifact the next stage reads. The full table,
 
 | Spec | Scope | Status |
 |---|---|---|
-| [000: local foundations](specs/000-local-foundations/spec.md) | Governance, agents, CI gates, and the whole production stack in compose on the local tier, metered and kill-switched | Draft; plan next |
+| [000: local foundations](specs/000-local-foundations/spec.md) | Governance, agents, and the whole production stack in compose on the local tier, metered and kill-switched | Draft, clarified; plan next |
 | [001: cloud elevation](specs/001-cloud-elevation/spec.md) | The same stack in one AWS account, with Terraform | Draft; specified in full once 000 is built |
+| Publication (not yet numbered) | What only GitHub can enforce or show: CI gates, the reviewer GitHub Action, branch protection, secret scanning, Dependabot | Moved out of 000 on 2026-10-07; needs an intent |
 
 ## Links
 

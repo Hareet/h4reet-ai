@@ -47,9 +47,9 @@ Spec 001 is specified in full only after spec 000's success criteria pass on you
 
 ## 5. Decision state
 
-Settled: MIT; $5/day, $20/month with 70% warnings; Telegram + email; Langfuse self-hosted in the stack; one AWS account; containers on VMs; Terraform with human apply; local-first routing; rig avatar; cloned voice; GTA V-inspired original art direction; engineer/non-engineer paths; compose first, Terraform second; local development until publication (ADR 0013).
+Settled: MIT; $5/day, $20/month with 70% warnings; a $2/day Bedrock fallback sub-budget inside the daily ceiling; Telegram + email (SMTP from a dedicated alerts mailbox); only a human reset restores service after a ceiling trips; Langfuse self-hosted in the stack; one AWS account; containers on VMs; Terraform with human apply; local-first routing; rig avatar; cloned voice; GTA V-inspired original art direction; engineer/non-engineer paths; compose first, Terraform second; local development until publication (ADR 0013); spec 000's GitHub-side requirements move to a separate publication spec; agents run containers on their own disposable engine, never the host's. The spec 000 decisions are recorded in its Clarifications section (2026-10-07).
 
-Open (resolve in `/speckit-clarify`): Bedrock fallback sub-budget (proposed $2/day); how spec 000's GitHub-side requirements are verified while local (ADR 0013); idle-infrastructure target (proposed ≤ $10/month, spec 001); edge rate-limiting mechanism (spec 001).
+Open: idle-infrastructure target (proposed ≤ $10/month) and edge rate-limiting mechanism, both for spec 001's `/speckit-clarify`; an intent for the publication spec.
 
 Before Phase 1: the job/role/task corpus, and a final read of `intent/000-ai-twin-portfolio.md` → `Status: accepted`.
 
