@@ -195,21 +195,21 @@ description: "Task list for spec 000, Local Foundations"
 
 ### The agents' engine (FR-039)
 
-- [ ] T039 [P] Write `deploy/agents-engine/test/test_authz.py` first, on recorded Docker API request bodies, with a case for every rule A0–A35 of contracts/agents-engine.md §3. Then implement `deploy/agents-engine/authz.py`, a stdlib Docker authorization plugin on a Unix socket in `h4agents`' plugin directory:
+- [X] T039 [P] Write `deploy/agents-engine/test/test_authz.py` first, on recorded Docker API request bodies, with a case for every rule A0–A35 of contracts/agents-engine.md §3. Then implement `deploy/agents-engine/authz.py`, a stdlib Docker authorization plugin on a Unix socket in `h4agents`' plugin directory:
   - the allowed bind roots are `/run/h4agents/tree` (read-only), `/run/h4agents/models` (read-only), and `/var/lib/h4agents/state`;
   - `CapAdd` is allowed only within Docker's default capability set;
   - the audit record follows §3.5.
-- [ ] T040 [P] Write `deploy/agents-engine/test/test_egress_proxy.py` first, then implement `deploy/agents-engine/egress-proxy.py` (stdlib) per contracts/agents-engine.md §4:
+- [X] T040 [P] Write `deploy/agents-engine/test/test_egress_proxy.py` first, then implement `deploy/agents-engine/egress-proxy.py` (stdlib) per contracts/agents-engine.md §4:
   - CONNECT to 443, and absolute-form GET to 80, only for the hosts in `.claude/settings.json` `sandbox.network.allowedDomains`, read at start;
   - IP literals refused, and names that resolve to non-global addresses refused;
   - a missing, unreadable, or invalid settings file, or an empty list, refuses every request (`no_list`): fail closed;
   - every decision logged.
-- [ ] T041 [P] Create `deploy/agents-engine/daemon.json`, `deploy/agents-engine/systemd/*`, and `deploy/agents-engine/docker-relay` per contracts/agents-engine.md §2 and §5:
+- [X] T041 [P] Create `deploy/agents-engine/daemon.json`, `deploy/agents-engine/systemd/*`, and `deploy/agents-engine/docker-relay` per contracts/agents-engine.md §2 and §5:
   - `daemon.json`: the containerd image store, `authorization-plugins: ["h4-authz"]`, and no BuildKit entitlements;
   - the systemd units: the dummy interface `h4agents0` holding `198.18.0.1/32`, the tree and models binds mounted `nosymfollow`, the `/dev/dxg` group, the `h4agents` slice limits, and the user services for `dockerd-rootless`, `h4-authz`, and the egress proxy;
   - `docker-relay`: socat through the sandbox proxy, `DOCKER_HOST=tcp://127.0.0.1:2376`, `DOCKER_TLS_VERIFY=1`; it runs only `docker` or `make` as its command, and refuses anything else with exit 2 (§2.2);
   - `tree-masks.txt`: `deploy/env`, `corpus/intake/private`, `secrets`, and `.git` (H8).
-- [ ] T042 Create `deploy/agents-engine/setup-host.sh` (sudo, idempotent) per contracts/agents-engine.md §5 (H1–H14). It sets up:
+- [X] T042 Create `deploy/agents-engine/setup-host.sh` (sudo, idempotent) per contracts/agents-engine.md §5 (H1–H14). It sets up:
   - the `h4agents` user, its own subuid and subgid range, and lingering, and lingering for the Author's user too (the egress proxy is the Author's user service);
   - the slice limits: `CPUQuota=400%`, `MemoryMax=16G`, `TasksMax=4096` (H12);
   - the `h4gpu` group and `/dev/dxg` mode 0660;
@@ -218,11 +218,11 @@ description: "Task list for spec 000, Local Foundations"
   - `/var/lib/h4agents/models` (root-owned) and `/var/lib/h4agents/state` (owned by `h4agents`);
   - root-owned installed copies of `authz.py` and `egress-proxy.py`;
   - the PKI: a CA, a server certificate with SANs `198.18.0.1` and `127.0.0.1`, and a client certificate in `~/.config/h4reet/agents-engine/docker/`.
-- [ ] T043 Create `deploy/agents-engine/engine.sh` with the subcommands `setup`, `up`, `down`, `reset`, `destroy`, `seed`, `status`, `prove`, and `smoke` (contracts/agents-engine.md §8). The Author runs it directly; the Makefile gets only `make engine-smoke` and `make engine-status`, for agents.
+- [X] T043 Create `deploy/agents-engine/engine.sh` with the subcommands `setup`, `up`, `down`, `reset`, `destroy`, `seed`, `status`, `prove`, and `smoke` (contracts/agents-engine.md §8). The Author runs it directly; the Makefile gets only `make engine-smoke` and `make engine-status`, for agents.
   - `up` checks `tree-masks.txt` against the sandbox's read denies inside the tree, creates any masked directory that doesn't exist, and refuses while a file matching a denied glob sits outside a mask, naming it (H8).
   - `seed` checks the host's image store and the disk preflight, then moves each digest in `images.lock` with `docker save | docker load`, and copies the stand-in into `/var/lib/h4agents/models`.
   - `up` chowns the state directory through the rootless namespace.
-- [ ] T044 Create `deploy/agents-engine/prove-limits.sh`, implementing rows E1–E14 of contracts/agents-engine.md §7. Its report goes into the merge-request note. `engine.sh prove` runs it (Author; Heavy).
+- [X] T044 Create `deploy/agents-engine/prove-limits.sh`, implementing rows E1–E14 of contracts/agents-engine.md §7. Its report goes into the merge-request note. `engine.sh prove` runs it (Author; Heavy).
 - [ ] T045 **Patch**: write the early patch, `docs/merge-requests/<date>-feat-000-foundations-enforcement.patch`, per §10 and §15. It must be applied before any real secret exists (T065), so it carries the engine opening, the credential denies, and secret scanning:
   - `.claude/settings.json`:
     - `sandbox.network.allowedDomains` gains `"198.18.0.1:2376"`;
