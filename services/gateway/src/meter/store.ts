@@ -96,21 +96,37 @@ export function pgDatabase(s: PgSettings): Database {
   return {
     query: async <R>(text: string, params?: unknown[]) => (await pool.query(text, params)) as unknown as { rows: R[] },
     async withSession(fn, opts) {
+      // pg emits 'error' on a client whose connection fails, and pg-pool stops listening on a client it hands out.
+      // An 'error' with no listener throws, so a dropped connection would crash the process. Each session listens
+      // for its whole length instead: the query in flight rejects, and the caller answers store_unreachable
+      // (data-model.md §2.1). A failed client keeps the listener while pg tears it down.
+      let failure: Error | undefined;
+      const onError = (err: Error): void => {
+        failure ??= err;
+      };
       if (opts?.purpose === "migrate") {
         // Migrations aren't on a request's path: they may wait on the lock and take longer than 250 ms.
         const client = new Client({ ...config, statement_timeout: 60_000, lock_timeout: 60_000 });
-        await client.connect();
+        client.on("error", onError);
         try {
+          await client.connect();
           return await fn(sessionOf(client));
         } finally {
           await client.end().catch(() => {});
         }
       }
       const client = await pool.connect();
+      client.on("error", onError);
       try {
         return await fn(sessionOf(client));
+      } catch (err) {
+        failure ??= err instanceof Error ? err : new Error("the session failed");
+        throw err;
       } finally {
-        client.release();
+        // A client whose connection failed, or whose session threw (perhaps inside a transaction), is discarded
+        // rather than handed to the next caller. A healthy one goes back, and the pool listens while it's idle.
+        if (failure === undefined) client.off("error", onError);
+        client.release(failure);
       }
     },
     async listen(channel, onNotify) {
