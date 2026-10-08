@@ -1,0 +1,8 @@
+# The enforcement layer, the governance documents, and the corpus change only by the Author's hand
+# (constitution, Security & Agent Governance). Takes effect at publication (ADR 0013).
+/.claude/    @hareet
+/CLAUDE.md   @hareet
+/REVIEW.md   @hareet
+/.specify/   @hareet
+/.github/    @hareet
+/corpus/     @hareet

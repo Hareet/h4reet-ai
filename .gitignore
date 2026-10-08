@@ -1,4 +1,53 @@
-# Python caches. Session 1's repo-hygiene task completes this file (Node, Terraform, env files).
+# Never commit secrets, local state, or build output. Three more .gitignore files cover their own folders:
+# .claude/ (the hook audit log), corpus/ (the private intake), and .specify/ (Spec Kit's machine-local state).
+
+# Python
 __pycache__/
+*.py[cod]
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.venv/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+npm-debug.log*
+*.tsbuildinfo
+coverage/
+dist/
+
+# Terraform. State and plans describe real resources and can hold secrets; the remote state is the source of truth.
+# .terraform.lock.hcl is committed: it pins the providers (spec 000 FR-014).
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tf.plan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# Variable files can hold secrets. If spec 001 commits non-secret per-environment values, its plan names the exception.
+*.tfvars
+*.tfvars.json
+
+# Environment files hold real values and stay on the machine that runs the stack (docs/START-HERE.md).
+# Commit templates as *.env.example.
+deploy/env/*.env
+.env
+.env.*
+!.env.example
+secrets/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+.idea/

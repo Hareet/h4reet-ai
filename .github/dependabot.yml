@@ -1,0 +1,37 @@
+# Weekly update pull requests for every ecosystem the repository uses: the constitution asks for lockfile-pinned
+# dependencies with automated updates (spec 000 FR-014). Takes effect at publication (ADR 0013), when Dependabot is enabled.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+
+  # Updates the SHA pins of CI actions, and the version comments next to them.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+
+  # Base images in the Dockerfiles, wherever spec 000's plan puts them.
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /apps/*
+      - /services/*
+      - /deploy
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)

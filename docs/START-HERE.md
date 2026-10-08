@@ -67,5 +67,5 @@ When spec 000's success criteria pass locally (as far as they can before publica
    gh repo create h4reet-ai --public --source . --push  # pushes main with its full history
    ```
 
-4. On GitHub: branch protection on `main` (require PR, require the Author's review, require status checks, no force push, include admins). Add a `production` environment with required reviewers = you (used by spec 001's apply). Enable secret scanning and Dependabot.
+4. On GitHub: branch protection on `main` (require PR, require the Author's review, require status checks, no force push, include admins). Add a `production` environment with required reviewers = you (used by spec 001's apply). Enable secret scanning, Dependabot, and private vulnerability reporting (`SECURITY.md` sends reporters there).
 5. Leave local mode: replace the local-only lines in `CLAUDE.md` and `docs/KICKOFF-PROMPT.md`; relax the local-phase rules in `.claude/hooks/bash-gate.sh` and their matrix rows, so agents push feature branches again while `main` stays yours; move github.com and api.github.com from `sandbox.network.deniedDomains` back to `allowedDomains` in `.claude/settings.json`; and supersede ADR 0013 with an ADR for the switch. Only after protection is on, start the next Claude Code session. From then on, agents push feature branches and open PRs.
