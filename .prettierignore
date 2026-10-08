@@ -10,6 +10,9 @@ package-lock.json
 .claude/
 .github/
 corpus/
+# Human-only configuration, kept exactly as contracts/config-files.md gives it (tasks.md T022).
+config/budgets.yaml
+config/alerts.yaml
 docs/
 intent/
 specs/
