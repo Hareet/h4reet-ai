@@ -19,7 +19,7 @@ The agents' engine has no GPU (FR-039), so it needs a CPU model-server image. Sp
   - `~/.config/h4reet-ai/env/prod.env` and `dev.env`: real files, outside the repository (FR-032), mode 0600 in a 0700 directory, made by `make init-env`, never committed, denied to agents for reading and writing (FR-007). `deploy/env/` stays empty and denied, as a tripwire.
   - `deploy/env.agents/dev-cpu.vars`: committed, agent-editable, dummy credentials only. The name avoids the `*.env` deny rules, and gitleaks allowlists this one path.
 - The env file selects the model server's compose profile, `gpu` or `cpu`. Both answer at `model-server:8080/v1` and come from one llama.cpp build (ADR 0019). The difference is the backend, not the server.
-- Isolation (FR-020): compose project `h4reet-<stack>`, a network and a volume per project, and ports on 127.0.0.1 only, published by `edge` (ADR 0021). Ports: prod 18000–18004, dev 18100–18104, dev-cpu 18300–18304, the last inside the engine only.
+- Isolation (FR-020): compose project `h4reet-<stack>`, a network and a volume per project, and ports on 127.0.0.1 only, published by `edge` (ADR 0021). Ports: prod 18000–18004, dev 18100–18104, dev-cpu 18300–18304. RootlessKit publishes dev-cpu's on the host's 127.0.0.1 as `h4agents`, so host processes reach them and the sandbox doesn't (plan §1).
 - Every image is pinned by tag and digest. Digests are in `deploy/images.lock`. The local gate refuses unpinned images (ADR 0017).
 - Shell variables named `COMPOSE_*` or `H4_*` are refused at preflight, because they would silently override the env file.
 - Prod has no branch guard. `make up ENV=prod` runs from any branch, which the Author chose.

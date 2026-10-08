@@ -44,7 +44,7 @@ Related contracts: [gateway-http.md](contracts/gateway-http.md) (what a request 
 ### 2.1 Migrations, roles, and connections
 
 - **Files:** `services/gateway/migrations/0001_state.sql` (every table, trigger, and the view) and `0002_grafana_ro.sql` (the read-only role). Migrations are append-only: a new change is a new file.
-- **Applying them:** at startup, in file order, one transaction each, under a fixed `pg_advisory_lock` key. Each is recorded in `gateway.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, sha256 text NOT NULL, applied_at timestamptz NOT NULL)`. If a recorded migration's file no longer matches its SHA-256, the gateway stops (exit 1).
+- **Applying them:** at startup, in file order, one transaction each, under a fixed `pg_advisory_lock` key. Each is recorded in `gateway.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, sha256 text NOT NULL, applied_at timestamptz NOT NULL)`. If a recorded migration's file no longer matches its SHA-256, the gateway stops (exit 1). If the store records a migration the gateway's build doesn't have, which is what a rollback to an older commit across a migration looks like, the gateway exits 78 with `schema_newer_than_code`, naming the version: it never runs against a schema it doesn't know ([plan.md §4](plan.md#4-environment-files-preflight-and-the-stack-targets)).
 - **A store that is down at startup** doesn't stop the gateway. It starts, answers every request with `store_unreachable`, and retries the migrations every 5 s.
 - **Roles:**
   - `gateway`, the database owner, used by the gateway with `GATEWAY_DB_PASSWORD`.
@@ -164,7 +164,7 @@ One row per provider attempt. A request that fails over from local to Bedrock wr
 | `recorded_at` | `timestamptz` | NOT NULL, `DEFAULT now()`: real time |
 | `stack` | `text` | NOT NULL |
 | `actor` | `text` | NOT NULL: `operator:<stack>#<first 8 hex of the token's SHA-256>`, `gateway`, or `unknown` |
-| `action` | `text` | `CHECK (action IN ('init','reset','renew','trip','fallback_exhausted','auth_failed','test_clock','test_synthetic','adapter_call'))` |
+| `action` | `text` | `CHECK (action IN ('init','reset','renew','trip','fallback_exhausted','auth_failed','test_clock','test_synthetic','adapter_call','journal_failed'))` |
 | `reason` | `text` | required, 10 to 500 characters, for `init`, `reset`, `renew`, `test_clock`, `test_synthetic`, and `adapter_call`; NULL otherwise (a `CHECK` enforces both) |
 | `before`, `after` | `jsonb` | the state the action changed, where it changed one |
 | `detail` | `jsonb` | NOT NULL, `DEFAULT '{}'` |
@@ -180,10 +180,11 @@ One row per provider attempt. A request that fails over from local to Bedrock wr
   | `renew` | operator | `fallback_day`'s `allowance_micro`, `grant_no`, `spent_micro`, `reserved_micro`, and the flag | |
   | `trip` | `gateway` | `state`, `crossed` | the ceiling, the period, the crossing ledger ID |
   | `fallback_exhausted` | `gateway` | the flag | the grant, the allowance, the crossing ledger ID |
-  | `auth_failed` | `unknown` | – | `{"class": "missing" \| "malformed" \| "wrong_prefix" \| "mismatch", "path": …}` |
+  | `auth_failed` | `unknown` | – | `{"class": "missing" \| "malformed" \| "wrong_prefix" \| "mismatch", "route": …, "window_start": …}`; at most one row per class per 10-minute window ([operator-admin.md §1.1](contracts/operator-admin.md#11-authentication)) |
   | `test_clock` | operator (dev) | the offset | the new gateway time |
   | `test_synthetic` | operator (dev) | – | attribution, count requested, calls answered |
   | `adapter_call` | operator | – | adapter, purpose, cost, the ledger ID |
+  | `journal_failed` | `gateway` | – | the `audit_id` of the operator action whose `operator` journal record couldn't be appended, and the error class (§7.5) |
 
 - **Readers:** Grafana's audit panel reads this table through `grafana_ro` (FR-034; [research.md R-10](research.md#r-10-grafanas-audit-panel-reads-the-store-not-telemetry)), so it still works when telemetry is down.
 - **Metrics and logs:** each accepted operator write increments `h4.operator.actions` (`h4.action`) and logs a record with `event.name=h4.audit` ([telemetry.md](contracts/telemetry.md)).
@@ -284,7 +285,7 @@ LEFT JOIN gateway.meters f ON f.meter = 'fallback_day' AND f.period_key = to_cha
 |---|---|---|
 | `reserve` | after the admission transaction commits, before the provider call (§7.2 step 8). A failed append refuses the call with `journal_unwritable`. | `reservation_id`, `attribution`, `adapter`, `provider`, `model`, `price_version`, `max_micro`, `period_day`, `period_month`, `expires_at` |
 | `commit` | after the commit transaction (§7.3 step 8). A failed append doesn't undo the commit. | `reservation_id`, `ledger_id`, `cost_micro`, `cost_basis`, `outcome`, `error_kind`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `attribution`, `period_day`, `period_month`, `trace_id` |
-| `operator` | after an `init`, `reset`, or `renew` commits | `action`, `audit_id`, `actor`, `period_day`; for `renew`, and for `init` with `renewed: true`: `allowance_micro`, `grant_no`; for `init`: the chosen meter values and `confirm_zero` |
+| `operator` | after an `init`, `reset`, or `renew` commits | `action`, `audit_id`, `actor`, `period_day`, `period_month`; for `renew`, and for `init` with `renewed: true`: `allowance_micro`, `grant_no`; for `init`: the chosen meter values and `confirm_zero` |
 | `clock` | dev only, after `POST /admin/test/clock` commits | `offset_ms`, `gateway_time`, `audit_id` |
 
 Example lines, from dev's synthetic spend:
@@ -302,6 +303,7 @@ Example lines, from dev's synthetic spend:
 3. **Which meters.** A record counts toward a meter only if its `period_day` or `period_month` is a current period. `fallback` counts toward `day`, `month`, and `fallback_day`; `metered` and `test` toward `day` and `month`.
 4. **The allowance.** It takes `allowance_micro` and `grant_no` from the last `operator` record that set them for today (a `renew`, or an `init` with `renewed: true`). With none, they are 2,000,000 and 1.
 5. **The dev clock.** In dev only, the newest `clock` record gives the offset to restore before the current periods are computed (§8).
+6. **Floors from the last initialization.** The newest `operator` record with action `init` gives a floor to each meter whose period it shares with today: the value that initialization chose for the meter, plus the cost of every `reserve` and `commit` record with a later `ts`, paired as in step 2. So a second loss of the store's volume can't rebuild a meter below what the first initialization stated, even when the stated value isn't in the journal's call records.
 
 **Retention.** None in spec 000. At test-traffic volume a month's file stays in the kilobytes.
 
@@ -500,8 +502,10 @@ COMMIT
  8. Append the journal's `commit` record and fsync it. A failed append doesn't undo the commit.
       The next metered admission's `reserve` append fails too, so metered calls stop until the journal
       is writable again.
- 9. Release the in-memory slots, and add cost_micro to h4.cost.usd.
+ 9. Add cost_micro to h4.cost.usd, only when this transaction inserted the ledger row (step 4 ran).
 ```
+
+**The in-memory slots** (§7.2) are released in a `finally` on every way out of the call: a commit, the step-2 no-op after a lost acknowledgement, a retry that gives up at `expires_at`, and any error. A slot never outlives its call; afterwards the reservation row, not the slot, keeps the ceiling honest.
 
 Crossings in step 6. Each fires only when the old value is below the threshold and the new one is at or above it:
 
@@ -515,7 +519,7 @@ Crossings in step 6. Each fires only when the old value is below the threshold a
 
 Degradation is committed before any delivery is attempted: the alert rows are in the same transaction, and the dispatcher reads them afterwards (FR-032, FR-033; [plan.md §5.6](plan.md#56-alerts-and-incidents)).
 
-**If the commit transaction fails.** This happens when the store becomes unreachable during the call. The gateway keeps the settled call in memory and retries the commit every 2 s until the reservation's `expires_at`. The commit is idempotent (step 2). It doesn't need the reservation row, so a late retry still charges the call. Meanwhile:
+**If the commit transaction fails.** This happens when the store becomes unreachable during the call. The gateway keeps the settled call in memory and retries the commit every 2 s until the reservation's `expires_at`. If the retries give up, the slots are released (above), and the sweep settles the reservation at its maximum. The commit is idempotent (step 2). It doesn't need the reservation row, so a late retry still charges the call. Meanwhile:
 - hello returns the answer it already has: the call happened, and new requests fail closed on `store_unreachable` anyway;
 - the span and the log record the pending commit.
 
@@ -527,7 +531,7 @@ If the process stops first, the reservation stays counted as reserved, which sti
 
 ### 7.5 Operator transactions
 
-Each locks `stack_state` first. Each writes its audit row and its `operator_action` alert in the same transaction, then appends an `operator` journal record. A failed journal append is reported in the response and in the audit row's `detail`, and doesn't undo the action. The HTTP side, with its 409s, is in [operator-admin.md §2](contracts/operator-admin.md#2-operator-writes).
+Each locks `stack_state` first. Each writes its audit row and its `operator_action` alert in the same transaction, then appends an `operator` journal record. A failed journal append is reported in the response and in a second audit row, `journal_failed`, which carries the action's `audit_id`: the first row is append-only and can't change. It doesn't undo the action. The HTTP side, with its 409s, is in [operator-admin.md §2](contracts/operator-admin.md#2-operator-writes).
 
 - **Reset:**
   1. No row means 409 `store_uninitialized`. `state = 'normal'` means 409 `not_degraded`.
@@ -580,6 +584,7 @@ A store found empty (no `stack_state` row) leaves the runtime degraded with `sto
    | the surviving ledger | the sum of `cost_micro` for the current periods by attribution, plus any rows left in `reservations` at their `max_micro` |
    | the journal (§3) | committed calls at their cost, and reservations with no commit at their maximum |
    | the operator's stated values | `day_usd`, `month_usd`, `fallback_today_usd`, converted exactly to micro-USD |
+   | the newest `init` record (§3 step 6) | its chosen value for a meter whose period is current, plus the journal's later records |
 
 5. **The max rule.** Each meter takes the largest candidate. A stated value can raise a meter but never lower it below what was rebuilt.
 6. **The allowance** is neither summed nor maxed ([ADR 0020](../../docs/adr/0020-gateway-state-store-and-meter.md)). It is the value of today's last renewal, with its grant number, from the journal (or the surviving audit log). With no renewal today, it is 2,000,000 and grant 1.

@@ -23,7 +23,7 @@ A dedupe key has the form `<stack>:<kind>:<meter or subject>:<period>`, with `:g
 | `operator_action` | an accepted `reset`, `renew`, or `init` (FR-034), so an unexpected one gets noticed | the operator transaction | `<stack>:operator_action:<action>:<audit id>` | `prod:operator_action:reset:41` |
 | `credentials_expiring` | the paid adapter's SSO session ends within `credentials_warn_before_s` (2 h) | the 10 s ticker | `<stack>:credentials_expiring:<adapter>:<session end, YYYY-MM-DDTHH:MMZ>` | `prod:credentials_expiring:bedrock:2026-10-29T18:00Z` |
 | `fallback_unavailable` | the paid fallback adapter's effective health turns unhealthy: credentials missing or expired, or the circuit opened | the 10 s ticker | `<stack>:fallback_unavailable:<adapter>:<YYYY-MM-DDTHHZ>` (at most one an hour) | `prod:fallback_unavailable:bedrock:2026-10-29T16Z` |
-| `auth_failed` | the third `auth_failed` audit row within 10 minutes | the admin listener | `<stack>:auth_failed:admin:<start of the 10-minute window, YYYY-MM-DDTHH:M0Z>` | `prod:auth_failed:admin:2026-10-29T16:00Z` |
+| `auth_failed` | the third failed authentication in a 10-minute window, counted in memory ([operator-admin.md §1.1](operator-admin.md#11-authentication)) | the admin listener | `<stack>:auth_failed:admin:<start of the 10-minute window, YYYY-MM-DDTHH:M0Z>` | `prod:auth_failed:admin:2026-10-29T16:00Z` |
 | `store_unreachable` | the store has been unreachable for 60 s straight | in memory: the outbox is in the unreachable store | `<stack>:store_unreachable:store:<outage start, to the second>`, deduplicated in memory | `prod:store_unreachable:store:2026-10-29T16:01:00Z` |
 | `reminder` | 09:00 UTC by the gateway clock, while the stack is degraded or awaiting renewal | the 10 s ticker | `<stack>:reminder:daily:<YYYY-MM-DD>` | `prod:reminder:daily:2026-10-30` |
 
@@ -243,7 +243,7 @@ How this is enforced:
 
 ## 6. Runbooks
 
-Each alert, and each degraded cause, points at one page in `docs/runbooks/`. Plan.md §16 lists most of them. The pages marked *new* aren't in [plan.md §16](../plan.md#16-documentation-deliverables)'s list and should be added to it.
+Each alert, and each degraded cause, points at one page in `docs/runbooks/`, every one listed in [plan.md §16](../plan.md#16-documentation-deliverables).
 
 | Alert or cause | Runbook |
 |---|---|
@@ -255,11 +255,11 @@ Each alert, and each degraded cause, points at one page in `docs/runbooks/`. Pla
 | `credentials_expiring` | `bedrock-credentials-expiring.md` |
 | failed deliveries (the alert panel) | `alert-channel-down.md` |
 | the cause `no_fallback_in_stack`; local down in prod | `model-server-down.md` |
-| `fallback_unavailable`; the cause `fallback_unavailable` | `bedrock-unavailable.md` (*new*) |
-| `auth_failed` | `operator-auth-failures.md` (*new*) |
-| `store_unreachable`; the cause `store_unreachable` | `store-unreachable.md` (*new*) |
-| the cause `journal_unwritable` | `journal-unwritable.md` (*new*) |
-| the cause `api_unavailable` | `gateway-down.md` (*new*) |
+| `fallback_unavailable`; the cause `fallback_unavailable` | `bedrock-unavailable.md` |
+| `auth_failed` | `operator-auth-failures.md` |
+| `store_unreachable`; the cause `store_unreachable` | `store-unreachable.md` |
+| the cause `journal_unwritable` | `journal-unwritable.md` |
+| the cause `api_unavailable` | `gateway-down.md` |
 
 ## 7. Incident drafts (FR-035)
 

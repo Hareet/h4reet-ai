@@ -11,7 +11,7 @@ No `NEEDS CLARIFICATION` remains in the plan's Technical Context. Check 2 stoppe
 
 Each row gives the question as asked, the option the Author chose, and that option's text as it was offered, all copied from the session. The answers from 2026-10-07 are in spec.md's Clarifications.
 
-| Question (2026-10-08) | Chosen | The option's text as offered | Entry |
+| Question (asked 2026-10-08 UTC) | Chosen | The option's text as offered | Entry |
 |---|---|---|---|
 | Answer 7 (the fallback sub-budget): I read it as running out also alerts you, and a day that ends WITHOUT running it out starts the next with the full $2. Is that right? | Yes, both readings (Recommended) | Running out alerts you and fallback stays off until you approve renewal; an unexhausted day resets to $2 normally. | R-15 |
 | Answer 8: I read it as the dev stack makes no paid calls (no Bedrock configured), and development work (Claude Code and the agents) runs on your Team plan. Right? | Yes (Recommended) | Only production calls Bedrock; dev and the agents' engine use local or stand-in models only; dev tooling is on the Team plan. | R-05, R-28 |
@@ -274,7 +274,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 - **Rationale**:
   - One request and response shape across model families, so changing the model is configuration (SC-006).
   - Usage and `latencyMs` come back with every answer.
-  - Haiku 5.5's price hadn't been published by 2026-10-08, so the interview option's "the cheapest Claude by list price" is unverified (the correction under [the interview table](#the-plan-interview-word-for-word)). Haiku 4.5's list price is $1 per million input tokens and $5 per million output tokens. Whichever model Bedrock serves, the Author copies its price into `config/prices.yaml` (tasks.md T102), and the gateway refuses a paid model without one.
+  - Haiku 5.5's price hadn't been published by 2026-10-08, so the interview option's "the cheapest Claude by list price" is unverified (the correction under [the interview table](#the-plan-interview-word-for-word)). Haiku 4.5's list price is $1 per million input tokens and $5 per million output tokens. Whichever model Bedrock serves, the Author copies its price into `config/prices.yaml` (tasks.md T105), and the gateway refuses a paid model without one.
   - No streaming: providers can't be switched mid-stream, usage arrives at the end, and the contract test is simpler.
 - **Alternatives**:
   - InvokeModel: a body mapper per model family.
@@ -290,7 +290,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 - **Rationale**:
   - UTC matches AWS billing and has no daylight-saving edges.
   - Integers make the thresholds exact.
-  - Reservations bound the overshoot to 4 calls in flight × the maximum per call. The maximum, with the 2,000-character input cap counted as 2,000 tokens and 128 output tokens at first-party list prices, is about $0.0026 at Haiku 4.5's list price. Haiku 5.5's price hadn't been published (R-12).
+  - Reservations bound the overshoot to 4 calls in flight × the maximum per call. The maximum, with the 2,000-character input cap counted as 2,000 tokens and 128 output tokens, is about $0.0026 at Haiku 4.5's list price. Haiku 5.5's price hadn't been published (R-12).
   - A reservation that expires without a commit is charged its maximum by a sweep, so the meter fails safe (data-model.md §2.4).
 - **Alternatives**:
   - The Author's local time zone.
@@ -486,7 +486,7 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
 - **Decision**:
   - `evals/breach.py` runs where `make` runs, the Author's terminal or an agent sandbox, and drives lifecycle steps with `docker compose` on the current engine.
   - Each HTTP assertion runs in a one-off `breach-probe` container on the stack's internal network.
-- **Rationale**: on the agents' engine, stack ports are published only inside the engine's namespace, so the sandbox can reach nothing but the Docker API. The probe sees what the stack sees. This reconciles design B's compose-driven steps with design A and C's in-network runs.
+- **Rationale**: on the agents' engine, stack ports are published on the host's loopback, which the sandbox's proxy refuses, so the sandbox can reach nothing but the Docker API. The probe sees what the stack sees. This reconciles design B's compose-driven steps with design A and C's in-network runs.
 - **Alternatives**:
   - Opening stack ports to the sandbox: a second opening, against FR-039's "nothing else".
   - Running everything inside a container: it would need the Docker socket inside, which the plugin refuses.
@@ -537,7 +537,7 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
   - C: had about 2.6 GB left. When it filled, the virtual disk couldn't grow, ext4 got write errors and remounted read-only, and WSL failed.
   - Check 1 had measured only the ext4 figure.
 - **Decision**:
-  - **Preflight.** `make up`, `make pull`, `pull-models.sh`, and `make engine-seed` check both the drive holding the `ext4.vhdx` (`df /mnt/c` by default; `H4_VHDX_MOUNT` names another) and ext4, for the bytes they will write plus a 20 GB margin. They refuse, naming both figures, rather than start.
+  - **Preflight.** `make up`, `make pull`, `pull-models.sh`, and `deploy/agents-engine/engine.sh seed` check both the drive holding the `ext4.vhdx` (`df /mnt/c` by default; `H4_VHDX_MOUNT` names another) and ext4, for the bytes they will write plus a 20 GB margin. They refuse, naming both figures, rather than start.
   - **Timing.** Heavy runs (big downloads, model loads, stack bring-ups) are their own step, taken when no agents are working and the branch is committed.
 - **State and options** for the Author:
   - **Freed:** the Author pruned Docker's build cache (76 GB) and unused images (20 GB), cleared the home caches, ran `fstrim`, and compacted the virtual disk with `diskpart`. C: went from 0 to 129 GB free, and WSL now holds 461 GB.
@@ -546,8 +546,55 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
   - **Not recommended:** sparse virtual disks, which current WSL disables because of data-corruption reports.
   - **What spec 000 needs:** about 50 GB beyond today's use: 10 GB of images, 19 GB of models, the engine's copy of the images, and data.
 
+### R-33. Host stacks run the commit they were started from; rollback is one command (review, 2026-10-08)
+
+- **Decision:**
+  - `make up` for prod and dev exports the commit (`REF`, default `HEAD`) with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, builds the images from it, and runs its compose file and configuration. The run file names the commit and the one before it ([contracts/env-files.md §12](contracts/env-files.md#12-the-run-file-host-stacks)).
+  - `make up REF=<previous sha>` is the rollback. The gateway refuses a store whose schema is newer than its migrations (exit 78), so a rollback across a migration fails closed. The quickstart rehearses it on dev.
+- **Rationale:**
+  - Two reviewers found that prod reread `config/` and `deploy/` from the shared working tree on every restart, so it ran whatever branch an agent had checked out. That isn't "you're trusted to know what you started" (R-14).
+  - `make up` never rebuilt the images, so a stale image could certify code the branch didn't contain.
+  - The constitution's Development Workflow step 6 asks for a rollback that is "rehearsed and runnable as one command", and the spec hadn't named the clause.
+- **Alternatives:**
+  - Recording the live-tree behavior as an accepted risk: rejected, because it contradicts the decision it would rest on.
+  - A prod guard: the Author declined one (R-14).
+  - Naming step 6's rollback clause as a deviation: unnecessary once the export exists.
+
+### R-34. Every deny lands before the risk it guards; four patches (review, 2026-10-08)
+
+- **Decision:** plan §15's rule. A deny ships in a patch applied before its risk exists:
+  - **the early patch** (Phase 2): credentials, the files prod reads, the code the Author runs, and secret scanning;
+  - **the governance patch** (Phase 5): the gate and the agent-config evals;
+  - **the closing patch** (Phase 8): only what is risky at the end.
+- **Rationale:** the same mistake surfaced three times in one round. `/speckit-analyze` found the credential denies after the first secrets. The reviewers found the config denies after the first paid route, and the gitleaks configuration agent-writable while the hooks obey it.
+- **Alternatives:** one patch at the end, as first planned. Rejected, because each gap was real for several phases.
+
+### R-35. Python in the Author's terminal ignores bytecode too (review, 2026-10-08)
+
+- **Decision:** `PY_HOST := python3 -I -X pycache_prefix=$(mktemp -d)`, by script path and never with `-m`, for every Python the Author's terminal runs.
+- **Rationale:**
+  - `-I` keeps out `PYTHON*` variables, the user's site directory, and the working directory, but Python still loads a `__pycache__/*.pyc` whose header matches the source. An agent can write one, and git doesn't show it.
+  - A reviewer reproduced it: under `-I` the planted bytecode ran instead of the source, and with the empty prefix the source ran.
+  - `-m` would also import the package from the working directory, which `-I` can't then find.
+- **Alternatives:** `-B` alone. It stops writing bytecode, not reading it.
+
+### R-36. gitleaks takes its configuration and ignore list only from the Author (review, 2026-10-08)
+
+- **Decision:** every gitleaks call passes:
+  - `--config` with the main working tree's `.gitleaks.toml`, which is human-only from the early patch on;
+  - `--gitleaks-ignore-path` naming a fresh empty directory;
+  - `--ignore-gitleaks-allow`.
+- **Rationale:** without them, gitleaks loads a `.gitleaks.toml` from the directory it scans, honours a `.gitleaksignore` there, and skips any line marked `gitleaks:allow`. All three are agent-writable, and the hooks run outside the sandbox as the Author.
+- **Alternatives:** none kept. Protecting the file alone leaves the ignore list and the inline marker.
+
+### R-37. The agents' engine's memory cap is 16 GB (review, 2026-10-08)
+
+- **Decision:** the `h4agents` slice gets `MemoryMax=16G`, up from 12 GB, and preflight P15 checks the summed limits against it, less 1 GiB.
+- **Rationale:** dev-cpu's summed memory limits come to about 13.2 GiB with the breach probe (ClickHouse alone is 4 GiB), so at 12 GB P15 would refuse every dev-cpu start. The limits are ceilings; real use is 5–6 GB. Even with every stack at every ceiling, the host's 62 GB holds them.
+- **Alternatives:** smaller memory limits on dev-cpu only, through new env keys. Rejected for now: more configuration that differs between stacks, and ClickHouse under 4 GiB is untested with Langfuse.
+
 ## Rejected for now, revisit later
 
-- **An egress allowlist for prod's gateway** (a CONNECT proxy in front of `egress`): it would enforce FR-040's runtime flows rather than list them. It needs proxy support in the AWS SDK's HTTP handler, the Telegram `fetch`, and nodemailer. Deferred to spec 001, where the relay and edge get their own controls. Today the gateway is the only service with a route out, and its code is reviewed.
+- **An egress allowlist for prod's gateway** (a CONNECT proxy in front of `egress`): it would enforce FR-040's runtime flows rather than list them. It needs proxy support in the AWS SDK's HTTP handler, the Telegram `fetch`, and nodemailer. Deferred to spec 001, where the relay and edge get their own controls. **The premise needed correcting** (review, 2026-10-08). The gateway is the only service with a route out, but that route has no destination limit, and with no prod guard (R-14) prod's gateway may be built from any branch. A compromised dependency, or an unreviewed branch's gateway, could send the bot token, the SMTP password, or the SSO session anywhere. A stolen SSO session could call Bedrock outside the meter until it expires, and spec 000 has no AWS Budgets to cap that (spec 001 does); the runtime identity limits it to `bedrock:InvokeModel` on one model. **The Author decides,** in the merge-request note: accept the open route for spec 000, or ask for the allowlist now (`egress-proxy.py` is its template).
 - **A human-only Makefile:** declined by the Author (R-14).
 - **The KVM VM for the agents' engine:** the documented upgrade (R-21).

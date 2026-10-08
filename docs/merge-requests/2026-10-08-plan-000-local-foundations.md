@@ -8,7 +8,7 @@ Authorized by: the session 2 prompt in `docs/KICKOFF-PROMPT.md`, and the Author'
 ## Done
 - **The spec touch-ups**, plan.md, research.md, data-model.md, the eight contracts, and quickstart.md. Then the 13 ADRs (0001–0006 and 0016–0022) and tasks.md (fcb5e8d … 47db416).
 - **`/speckit-analyze`** (e7d5ab5):
-  - the credential denies, the FR-007 names, `content-scan.sh`, and the `pre-commit` hook move into the early patch (T043);
+  - the credential denies, the FR-007 names, `content-scan.sh`, and the `pre-commit` hook move into the early patch (T045);
   - `make check` gains a PLANNED status;
   - M1–M5 and L1–L5 are fixed;
   - H1, L6, and L7 are left for the Author.
@@ -19,9 +19,9 @@ Authorized by: the session 2 prompt in `docs/KICKOFF-PROMPT.md`, and the Author'
 Reviewer slices: **P** = plan, research, spec, and ADRs; **G** = data model and gateway contracts; **T** = tasks and quickstart. ✓ means verified against the text.
 
 **Enforcement timing: a deny must land before the risk it guards** (a repeated mistake; see the CLAUDE.md line under For the Author):
-1. ✓ The prices, budgets, and alerts files stay writable by shell until the closing patch, after real Bedrock spend starts (P-I3, G-1, T-11). Fix: move `denyWrite`, `Edit(config/prices*)`, and the protected-paths rule into T043. Also have validate-config refuse a zero price on a paid entry.
-2. gitleaks reads an agent-writable `.gitleaks.toml`, `.gitleaksignore`, and `gitleaks:allow` (T-10). Fix: ship `.gitleaks.toml` in T043. Every gitleaks call then passes `--config` and an empty ignore file, with `--ignore-gitleaks-allow`, and the matrix gets a row per bypass.
-3. A planted `GNUmakefile` could shadow every Make target the Author runs, including the sudo engine targets (P nit). Fix: T043 adds an OS-level `denyWrite` on `./GNUmakefile`, `./makefile`, and `./deploy/agents-engine`. The Author runs `deploy/agents-engine/engine.sh <cmd>` directly.
+1. ✓ The prices, budgets, and alerts files stay writable by shell until the closing patch, after real Bedrock spend starts (P-I3, G-1, T-11). Fix: move `denyWrite`, `Edit(config/prices*)`, and the protected-paths rule into T045. Also have validate-config refuse a zero price on a paid entry.
+2. gitleaks reads an agent-writable `.gitleaks.toml`, `.gitleaksignore`, and `gitleaks:allow` (T-10). Fix: ship `.gitleaks.toml` in T045. Every gitleaks call then passes `--config` and an empty ignore file, with `--ignore-gitleaks-allow`, and the matrix gets a row per bypass.
+3. A planted `GNUmakefile` could shadow every Make target the Author runs, including the sudo engine targets (P nit). Fix: T045 adds an OS-level `denyWrite` on `./GNUmakefile`, `./makefile`, and `./deploy/agents-engine`. The Author runs `deploy/agents-engine/engine.sh <cmd>` directly.
 4. The ops grant `docker-relay *` is an unrestricted shell (T-12). Fix: the relay runs only `docker`, and the grant becomes `docker-relay docker *`. Add `sh -c` rows to the matrix.
 5. The early patch must also update `tools/gates/roles.expected` (T-6) and the stale CLAUDE.md lines (T feedback; P-N3 is the line budget).
 
@@ -35,31 +35,31 @@ Reviewer slices: **P** = plan, research, spec, and ADRs; **G** = data model and 
 **Task order and gate statuses** (tasks.md will be renumbered by script, so every T-reference across the docs is remapped):
 8. P19 refuses prod before AWS is set up (T-1). Fix: apply it only once prod's route names a paid adapter.
 9. Stage `routing.yaml` (T-2):
-   - T019 has `local` only;
-   - T071 adds `synthetic` and dev's fallback;
-   - T099 adds `bedrock` with a placeholder;
-   - T102 fills it in, adds prod's fallback, and appends a new price version (T nit).
-10. T044 seeds and proves too early (T-3). Fix: T044 stops at setup and up. A new Author step (Heavy) after T055 runs `pin-images`, `pull`, and `seed` before T062.
-11. No task runs `make tools` (T-4). Fix: an Author step before Phase 1's note, and T044 checks `gitleaks version`.
+   - T020 has `local` only;
+   - T073 adds `synthetic` and dev's fallback;
+   - T102 adds `bedrock` with a placeholder;
+   - T105 fills it in, adds prod's fallback, and appends a new price version (T nit).
+10. T046 seeds and proves too early (T-3). Fix: T046 stops at setup and up. A new Author step (Heavy) after T057 runs `pin-images`, `pull`, and `seed` before T064.
+11. No task runs `make tools` (T-4). Fix: an Author step before Phase 1's note, and T046 checks `gitleaks version`.
 12. Three checks fail with no PLANNED mark (T-6):
-    - `validate-config` before T021's patch;
+    - `validate-config` before T022's patch;
     - the disclosure rows the policy requires (start the disclosure in Phase 2);
     - `roles.expected`.
 13. The behavioral evals stay PENDING in Phases 5 and 7 (T-7). Fix:
-    - T096 commits the history entry;
+    - T099 commits the history entry;
     - add a Phase 7 Author rerun;
     - cases that need the closing patch are PLANNED.
-14. T113 lacks bash-gate rules for the read-only roles, keyed on `agent_type` (T-8).
-15. Heavy markers are missing on T096, T115, and quickstart §3.3, §4.2, and §6.2. T096 must run after T095 (T-9).
+14. T117 lacks bash-gate rules for the read-only roles, keyed on `agent_type` (T-8).
+15. Heavy markers are missing on T099, T119, and quickstart §3.3, §4.2, and §6.2. T099 must run after T097 (T-9).
 16. No task creates the `image` target (T-16).
-17. The early patch changes `.claude/**` before the behavioral evals exist (T-17). Fix: T044 runs the static tier, and the Assumptions name it as a deviation.
+17. The early patch changes `.claude/**` before the behavioral evals exist (T-17). Fix: T046 runs the static tier, and the Assumptions name it as a deviation.
 
 **Security:**
 18. ✓ `python3 -I` still loads planted `__pycache__` bytecode (G-2). Fix: every Python launched in the Author's terminal runs as `python3 -I -X pycache_prefix=$(mktemp -d) <script path>`; `make evals` must not use `-m`. Correct operator-admin.md's claim.
-19. The Author's own `make check` and `make test` run `node_modules` (T-13). Fix: the Author runs `tools/gates/gate`, in quickstart §6 and in T114.
+19. The Author's own `make check` and `make test` run `node_modules` (T-13). Fix: the Author runs `tools/gates/gate`, in quickstart §6 and in T118.
 20. The engine's masked tree misses `secrets/` and the `*.env` globs (P-I5). Fix: build the mask list from the sandbox's read denies; refuse to start while a denied path is unmasked; E7 checks every path on the list.
-21. T087's "main can't move" row would really move `main` before the patch (T-14). Fix: use `test -w` on the ref, and skip any planned row that writes.
-22. §0.7 creates the bot token before the early patch, and `getUpdates` puts it in a URL (T-15). Fix: gate §0.7 like §0.8, use `curl -K -`, and add it to T063.
+21. T089's "main can't move" row would really move `main` before the patch (T-14). Fix: use `test -w` on the ref, and skip any planned row that writes.
+22. §0.7 creates the bot token before the early patch, and `getUpdates` puts it in a URL (T-15). Fix: gate §0.7 like §0.8, use `curl -K -`, and add it to T065.
 23. Telegram's token can reach undici client spans (G nit). Fix: `ignoreRequestHook`, or strip `url.*`.
 24. Failed admin logins write one row each, with no rate limit (G nit). Fix: aggregate per window, and store the route template.
 25. Edge forwards the client's `traceparent` (G nit). Fix: clear it on x000.
@@ -111,7 +111,7 @@ Reviewer slices: **P** = plan, research, spec, and ADRs; **G** = data model and 
 - **Proposed CLAUDE.md lines** (from the reviewers' feedback):
   - "Scheduling a deny after the risk it guards: a secret, a paid route, or a file prod reads gets its deny in the same patch that creates it, or an earlier one."
   - "Treating `python3 -I` as isolation: it still loads `__pycache__`."
-- **Stale CLAUDE.md lines:** `services/relay` and the kill switch; the engine line once T044 lands; and the "until spec 000" note on `make check`.
+- **Stale CLAUDE.md lines:** `services/relay` and the kill switch; the engine line once T046 lands; and the "until spec 000" note on `make check`.
 
 ## Verification
 `make check` at e7d5ab5: exit 0 (164 matrix rows passed, 4 known gaps). It wasn't rerun for this save point, which changes only documents.

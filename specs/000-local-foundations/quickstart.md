@@ -10,7 +10,7 @@ Contracts: [gateway-http.md](contracts/gateway-http.md), [operator-admin.md](con
 - **An agent session:** inside Claude Code's sandbox. Container commands go through `deploy/agents-engine/docker-relay`, which the make targets add themselves ([agents-engine.md §2.2](contracts/agents-engine.md#22-the-relay)).
 - **Heavy:** a big download, a model load, a stack bring-up, an image-store switch, or a `wsl --shutdown`. Run it only when no agent session is open and the branch is committed, after the disk check in [§0.1](#01-disk-first). A full Windows drive crashed WSL, and every session in it, on 2026-10-08 ([research.md R-32](research.md#r-32-host-disk-space-is-the-windows-drives)).
 - **The evidence** goes into the merge-request note of the task group that runs the scenario (plan [§21](plan.md#21-order-of-work-risks-and-proof)), under a heading for Author-terminal results. Record commands, exit codes, timings, counts, and identifiers (trace IDs, alert dedupe keys, Telegram's `message_id`). Never a secret, a token, an env-file value, a payload, or raw logs. Logs come only through `make logs`, which redacts, and only the lines a result needs.
-- **Ports,** per stack: prod 18000–18004, dev 18100–18104, dev-cpu 18300–18304 inside the agents' engine (x000 api, x001 Langfuse, x002 Grafana, x003 admin, x004 OTLP; plan [§1](plan.md#1-topology)).
+- **Ports,** per stack: prod 18000–18004, dev 18100–18104, dev-cpu 18300–18304, published by the agents' engine on the host's `127.0.0.1`, which the Author's terminal can reach and the sandbox can't (x000 api, x001 Langfuse, x002 Grafana, x003 admin, x004 OTLP; plan [§1](plan.md#1-topology)).
 
 ## 0. One-time host prerequisites
 
@@ -45,8 +45,11 @@ Expected: the RTX 5090 Laptop GPU, driver 592.01, compute capability 12.0, 24,46
 ```bash
 fnm install 24.21.0 && fnm default 24.21.0
 make tools             # pytest, gitleaks, and the lint toolchain, where agents can't write (plan §9)
-make toolchain-check   # PASS: every version matches .devcontainer/toolchain.env
+make toolchain-check   # PASS: every version matches .devcontainer/toolchain.vars
+gitleaks version       # 8.30.1: the early patch's hooks fail closed without it
 ```
+
+This is tasks.md T013, on the setup branch, before its note is written.
 
 Also remove from your shell profile any variable an env template uses, such as `TELEGRAM_BOT_TOKEN`, and any `COMPOSE_*` or `H4_*`. Preflight refuses to start while the shell sets one, because compose would let it override the env file ([env-files.md §10](contracts/env-files.md#10-make-up-preflight), P5).
 
@@ -57,22 +60,22 @@ Follow [agents-engine.md §6.1](contracts/agents-engine.md#61-the-hosts-docker-m
 ### 0.5 The agents' engine (Heavy: it ends with `wsl --shutdown`)
 
 ```bash
-make engine-setup      # sudo; the user h4agents, the firewall, /dev/dxg, the tree, the PKI (agents-engine.md §5)
+deploy/agents-engine/engine.sh setup      # sudo; the user h4agents, the firewall, /dev/dxg, the tree, the PKI (agents-engine.md §5)
 # then in PowerShell: wsl --shutdown, and open a new WSL shell
 id -nG                 # includes h4gpu
 stat -c '%a %U:%G' /dev/dxg /mnt/c/Users   # 660 root:h4gpu, and 700 for /mnt/c/Users
-make engine-up
+deploy/agents-engine/engine.sh up
 make engine-status     # reachable, rootless, plugin h4-authz listed
 ```
 
-`wsl --shutdown` ends every WSL session, agents' included. Seeding comes after the pull ([§0.9](#09-the-first-pull-and-the-seed)).
+`wsl --shutdown` ends every WSL session, agents' included. Run the engine's commands directly, never through make ([agents-engine.md §8](contracts/agents-engine.md#8-commands)). Seeding comes after the pull ([§0.9](#09-the-first-pull-and-the-seed)), once US1 has the models' lock and the last image pin.
 
 ### 0.6 The runtime AWS identity (FR-013)
 
-In IAM Identity Center, with the Author's own console session (IAM is a human action, and nothing here is a resource this spec creates; research.md [R-17](research.md#r-17-the-runtime-aws-identity-the-author-narrowed-by-the-plan)):
-1. Create the user `h4reet-runtime`, and a permission set that allows only `bedrock:InvokeModel` on the one inference profile and the foundation models it routes to. Assign it to the account. Grant model access in the Bedrock console if Anthropic's models need it.
+In IAM Identity Center, with the Author's own console session. IAM is a human action; this hand-made identity is a named deviation from "Infrastructure exclusively via Terraform" until spec 001 imports it (spec Assumptions; research.md [R-17](research.md#r-17-the-runtime-aws-identity-the-author-narrowed-by-the-plan)). It comes with US5 (tasks.md T105); prod starts without it.
+1. Create the user `h4reet-runtime` (the plan's proposal, pending your confirmation), and a permission set that allows only `bedrock:InvokeModel` on the one inference profile and the foundation models it routes to. Assign it to the account. Grant model access in the Bedrock console if Anthropic's models need it.
 2. Confirm the model ID with the Author's own session, not the runtime identity, which can only invoke: `aws bedrock list-inference-profiles --region us-east-1`. Claude Haiku 5.5 if it is offered, otherwise Claude Haiku 4.5's `us.` profile (research.md R-12).
-3. Write the ID into `config/routing.yaml` (`adapters.bedrock.model`), and the ID and its prices from the Bedrock pricing page into `config/prices.yaml`, which is human-only. Prod refuses to start while either holds a placeholder ([config-files.md §5](contracts/config-files.md#5-validate-config)).
+3. Write the ID into `config/routing.yaml` (`adapters.bedrock.model`), and add `fallback: bedrock` to prod's route. Append a new version to `config/prices.yaml`, which is human-only, with the ID and its prices from the Bedrock pricing page: a published version never changes, so the new one repeats the local and synthetic entries ([config-files.md §2.2](contracts/config-files.md#22-example)). Commit both, then `make up ENV=prod`: prod runs the committed files, and refuses to start while a routed adapter holds a placeholder ([config-files.md §5](contracts/config-files.md#5-validate-config)).
 4. Once the early patch is applied ([§0.10](#010-the-enforcement-patch)), so that no agent session can read the SSO cache, configure the runtime identity's profile once, then log in:
 
    ```bash
@@ -85,7 +88,14 @@ In IAM Identity Center, with the Author's own console session (IAM is a human ac
 
 ### 0.7 The Telegram bot and the alerts mailbox
 
-- **Telegram:** create the bot with @BotFather; send it one message; read your chat ID from the Bot API's `getUpdates`. Type the bot token only into the env file and that one request, never into a command that lands in shell history.
+Only after the early patch is applied ([§0.10](#010-the-enforcement-patch)), and after `make init-env` (§0.8): the bot token is a secret from its first moment, and it goes straight into the env file.
+
+- **Telegram:** create the bot with @BotFather, send it one message, and paste the token into `TELEGRAM_BOT_TOKEN` in the env file, in an editor. Then read your chat ID. The `getUpdates` URL holds the token, so keep it out of the browser, argv, and shell history. In this command the token goes from the file through bash builtins into curl's configuration on standard input:
+
+  ```bash
+  { IFS= read -r t; printf 'url = "https://api.telegram.org/bot%s/getUpdates"\n' "$t"; } \
+    < <(sed -n 's/^TELEGRAM_BOT_TOKEN=//p' ~/.config/h4reet-ai/env/prod.env) | curl -sS -K - | jq '.result[-1].message.chat.id'
+  ```
 - **Email:** a free mailbox used only to send alerts (ADR 0005), with an app password, its SMTP host, and port 465 (implicit TLS) or 587 (STARTTLS).
 
 ### 0.8 The env files and the operator tokens
@@ -109,29 +119,31 @@ Heavy: about 19 GB of models and 10 GB of images.
 
 ```bash
 make pull MODELS=all     # every profile's images, Docker Hub one at a time with backoff; then both models
-make engine-seed         # every image dev-cpu needs, by digest, and the stand-in model (agents-engine.md §6.2)
+deploy/agents-engine/engine.sh seed         # every image dev-cpu needs, by digest, and the stand-in model (agents-engine.md §6.2)
 ```
 
 Both run the disk check before they write. **Record:** the durations; any Docker Hub 429, named by `make pull`; `docker system df`; and the seed's table.
 
 ### 0.10 The enforcement patch
 
-There are three patches. The Author reviews each, applies it with `git apply`, and then runs `claude doctor` and `make git-hooks` (plan [§15](plan.md#15-the-enforcement-layer-patch)):
+There are four patches. The Author reviews each, applies it with `git apply`, and then runs `claude doctor` and `make git-hooks` (plan [§15](plan.md#15-the-enforcement-layer-patch)). Each lands before the risk it guards:
 
-- **The config patch** comes with the foundations branch (tasks.md T021): `config/budgets.yaml` and `config/alerts.yaml`.
-- **The early patch** comes with the foundations branch too (T043). It holds:
-  - the engine opening: the sandbox's one allowlist entry for the engine, `DOCKER_CONFIG`, the ops role's relay grant, and the bash-gate rule for `make engine-*`;
+- **The config patch** comes with the foundations branch (tasks.md T022): `config/budgets.yaml` and `config/alerts.yaml`.
+- **The early patch** comes with the foundations branch too (T045). It holds:
+  - the engine opening: the sandbox's one allowlist entry for the engine, `DOCKER_CONFIG`, the ops role's relay grant (`docker-relay docker *`), and the bash-gate rule that keeps agents off `engine.sh`'s Author subcommands;
   - every credential deny: `~/.config/h4reet-ai`, the other credential stores, and every FR-007 variable;
-  - the secret scanners: `content-scan.sh` and the `pre-commit` hook.
+  - the files prod reads and the code you run: the three config files, `GNUmakefile` and `makefile`, `deploy/agents-engine`, and the gitleaks files;
+  - the secret scanners: `.gitleaks.toml`, `content-scan.sh`, and the `pre-commit` hook.
 
-  Apply it before §0.6's login and before §0.8: no real secret may exist while an agent session could read it (Principle IV). Every agent-session run on the engine needs it too.
-- **The closing patch** comes with the last branch (T113). It holds the remaining denies and hooks. Until it lands, the matrix reports the rows that need it as planned, and `make check` reports the items that need it as PLANNED. Stage S needs both patches; the canary needs the early one.
+  Apply it before §0.6's login, §0.7, and §0.8: no real secret may exist while an agent session could read it (Principle IV). Every agent-session run on the engine needs it too.
+- **The governance patch** comes with the US3 branch (T098): `tools/gates` and `evals/agent-config` become human-only when you first run the gate.
+- **The closing patch** comes with the last branch (T117). It holds the remaining denies and hooks. Until it lands, the matrix reports the rows that need it as planned, and `make check` reports the items that need it as PLANNED. Stage S needs both patches; the canary needs the early one.
 
 ## 1. User Story 1: the whole production stack runs locally
 
 ### 1.1 First start, and the one-time initialization (US1-1, FR-031)
 
-**Prerequisites:** §0.1 to §0.9, with prices and the Bedrock model filled (§0.6). **Where:** the Author's terminal. Heavy.
+**Prerequisites:** §0.1 to §0.5, and §0.7 to §0.9. Bedrock (§0.6) comes with US5; prod starts without it. **Where:** the Author's terminal. Heavy.
 
 ```bash
 make up ENV=prod
@@ -140,7 +152,7 @@ make operator-status ENV=prod
 ```
 
 **Expected:**
-- `make up` runs preflight, fetches what is missing, waits for every health check, and exits 0 with a WARN: the store is uninitialized, and it prints the `make operator-init` command. It never initializes anything itself (plan §4).
+- `make up` prints the commit it runs, runs preflight, fetches what is missing, builds the images from that commit, waits for every health check, and exits 0 with a WARN: the store is uninitialized, and it prints the `make operator-init` command. It never initializes anything itself (plan §4).
 - Until the init, hello answers 503 `store_uninitialized` ([gateway-http.md §3](contracts/gateway-http.md#3-degraded-causes)).
 - After it, `operator-status` shows `state normal`, every meter at 0.00, and fallback not awaiting renewal ([operator-admin.md §6](contracts/operator-admin.md#6-the-operator-cli-scriptsoperatorpy)).
 
@@ -189,10 +201,11 @@ Open `http://localhost:18001/project/h4reet-prod/traces/<trace_id>`. Log in as `
 
 Open `http://localhost:18002/d/h4-runtime` and log in as `admin` with `GF_SECURITY_ADMIN_PASSWORD`. **Expected,** within about 25 s of the call ([telemetry.md §6.5](contracts/telemetry.md#65-the-freshness-budget)):
 - the request count shows the call, with route `local`;
-- the kill switch is `normal`, and the degraded cause `none`;
-- model-server health is 1, and the local adapter healthy;
-- spend today and this month are 0.00;
-- spend freshness is under 30 s.
+- latency and the error rate show it too;
+- model-server health is 1;
+- telemetry health shows the collector's exports succeeding.
+
+The spend, kill-switch, and degraded-cause panels arrive with US2 (tasks.md T081), and §2 checks them.
 
 The panels and their queries are in [telemetry.md §7](contracts/telemetry.md#7-the-dashboard-h4-runtime).
 
@@ -271,6 +284,24 @@ make operator-status ENV=prod
 
 **Expected:** the second status equals the first: state, meters, and the renewal flag.
 
+### 1.12 Rollback, rehearsed on dev (FR-018; the constitution's Development Workflow step 6)
+
+**Where:** the Author's terminal, dev. Heavy: three stack restarts.
+
+```bash
+make up ENV=dev                  # prints the commit it runs: call it A
+make up ENV=dev REF=HEAD~1       # another commit, B; make status shows the previous as A
+make operator-status ENV=dev
+make up ENV=dev REF=<A>          # the rollback: one command
+make status ENV=dev              # running A again
+make operator-status ENV=dev
+curl -sS -X POST http://127.0.0.1:18100/hello -H 'Content-Type: application/json' -d '{"message":"Say hello."}'
+```
+
+**Expected:** each `make up` exits 0; `make status` names the running commit and the one before it; hello answers after the rollback; and the two `operator-status` summaries match, because the store and the journal stay as they are. If B's migrations are newer than A's, the rollback refuses with exit 78 `schema_newer_than_code`, naming the migration. That is the designed failure: record it, and roll forward instead. The runbook is `docs/runbooks/rollback.md`.
+
+**Record:** the three commits, the exit codes, and the two status summaries.
+
 ## 2. User Story 2: the kill switch fires before anyone can run up a bill
 
 The breach test's steps, their order, and their figures are plan [§8](plan.md#8-the-breach-test). The test starts on the 20th of a month at 08:00 UTC on the dev clock, and advances a day before its fallback steps, so no ceiling trips before the step that tests it. Its first step wipes the dev stack's store. It asserts every step from a trace, a metric, or a log, and ends with a table of every assertion.
@@ -301,7 +332,7 @@ make down ENV=dev-cpu
    ```
 
    It adds the one-line overlay `ALERT_DELIVERY=real` to dev's gateway for the run, and puts the stand-ins back at the end ([env-files.md §7.2](contracts/env-files.md#72-the-delivery-overlay)). The alerts carry `[dev]` and go to the same chat and mailbox as prod's. Film the phone as the warning and the trip arrive.
-3. Before committing the recording: `gitleaks dir docs/recordings --redact --no-banner` finds nothing, and the cast shows no token, chat ID, or address (the run prints only dedupe keys and message IDs). Make the GIF from the cast. What gets committed is the cast and the GIF (plan [§16](plan.md#16-documentation-deliverables)); the camera recording is the Author's to keep or publish.
+3. Before committing the recording: `gitleaks dir docs/recordings --redact --no-banner --config .gitleaks.toml --gitleaks-ignore-path "$(mktemp -d)" --ignore-gitleaks-allow` finds nothing (the flags keep a `.gitleaks.toml` or `.gitleaksignore` planted in the directory from switching rules off), and the cast shows no token, chat ID, or address (the run prints only dedupe keys and message IDs). Make the GIF from the cast. What gets committed is the cast and the GIF (plan [§16](plan.md#16-documentation-deliverables)); the camera recording is the Author's to keep or publish.
 
 **Expected, and SC-002's two figures,** from the run's L records ([telemetry.md §5.2](contracts/telemetry.md#52-events)):
 - `degraded` is active within 60 s of the ceiling: the `killswitch.tripped` record's time against the crossing call's. They commit in one transaction, so the gap is about 0 s.
@@ -330,10 +361,10 @@ make matrix
 
 ### 3.3 Stage E, the engine's limits from the host (US3-9, FR-039)
 
-**Where:** the Author's terminal.
+**Where:** the Author's terminal, with no agent session using the engine. Heavy: row E10 resets and reseeds the engine (about 10 GB), and row E14 needs dev-cpu up.
 
 ```bash
-make engine-prove
+deploy/agents-engine/engine.sh prove
 ```
 
 **Expected:** rows E1 to E14 pass ([agents-engine.md §7](contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs)), with excerpts from the admission plugin's log, the egress proxy's log, and the firewall's drop counter. Row E14 carries an open question about its mechanism; record what it finds.
@@ -368,16 +399,16 @@ make matrix-canary
 
 ### 4.2 Bedrock answers within 5 s when the model server stops (US5-2, SC-005)
 
-**Prerequisites:** prod up; `make aws-login` within the SSO session's life; `make operator-status ENV=prod` shows Bedrock healthy and fallback not awaiting renewal. **Where:** the Author's terminal, prod, because production is the only stack that spends (FR-031).
+**Prerequisites:** prod up; `make aws-login` within the SSO session's life; `make operator-status ENV=prod` shows Bedrock healthy and fallback not awaiting renewal. **Where:** the Author's terminal, prod, because production is the only stack that spends (FR-031). Heavy: the prod model reloads afterwards.
 
 ```bash
-docker compose -p h4reet-prod -f deploy/compose.yaml --env-file ~/.config/h4reet-ai/env/prod.env stop model-server-gpu
+docker stop h4reet-prod-model-server-gpu-1
 curl -sS -w '\n%{http_code} %{time_total}\n' -X POST http://127.0.0.1:18000/hello \
   -H 'Content-Type: application/json' -d '{"message":"Say hello."}'
 sleep 3
 curl -sS -w '\n%{http_code} %{time_total}\n' -X POST http://127.0.0.1:18000/hello \
   -H 'Content-Type: application/json' -d '{"message":"Say hello."}'
-docker compose -p h4reet-prod -f deploy/compose.yaml --env-file ~/.config/h4reet-ai/env/prod.env start model-server-gpu
+docker start h4reet-prod-model-server-gpu-1
 ```
 
 **Expected:**
@@ -411,10 +442,10 @@ To watch it by hand, run `make breach-test ENV=dev` in the Author's terminal, wi
 
 1. **Prod, sampling off:** after §4.2, Grafana's Explore on Loki: `{service_name="gateway"} |= "Say hello"` returns nothing, because the message is never logged. The prod traces show no input or output.
 2. **Dev, sampling on:**
-   - set `TELEMETRY_PAYLOAD_SAMPLING=on` in dev's env file, and recreate the gateway and the collector: `docker compose -p h4reet-dev -f deploy/compose.yaml --env-file ~/.config/h4reet-ai/env/dev.env up -d gateway otel-collector`;
-   - call dev's hello on port 18100 with a message that embeds a string shaped like an operator token, built at run time, for example from `printf 'h4op_dev_%s' "$(head -c 32 /dev/urandom | base64 | tr -d '=+/' | cut -c1-43)"`;
+   - set `TELEMETRY_PAYLOAD_SAMPLING=on` in dev's env file, and run `make up ENV=dev`, which recreates the gateway and the collector;
+   - call dev's hello on port 18100 with a message that embeds a string shaped like an operator token, built at run time, for example from `printf 'h4op_dev_%s' "$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=')"`, which is always 43 characters after the prefix;
    - expected: dev's trace shows the input and output messages, with that string masked as `****` ([telemetry.md §3.4](contracts/telemetry.md#34-the-payload-rule), [§6.3](contracts/telemetry.md#63-processors));
-   - set it back to `off` and recreate both again.
+   - set it back to `off`, and `make up ENV=dev` again.
 3. **Prod refuses sampling:** preflight's P8 and the gateway's exit 78 are proved by the integration tests and the matrix rows (plan §5.8), never on the live prod stack.
 
 **Record:** the query results as counts, never their contents.
@@ -448,7 +479,7 @@ done
 
 ### 6.1 Both adapters pass one contract suite (SC-006, FR-024, US5-4)
 
-1. **Stub mode,** anywhere, agents included:
+1. **Stub mode,** in an agent session or in the gate's container phase. The Author never runs `make test` in their own terminal (plan §11):
 
    ```bash
    make test
@@ -464,7 +495,7 @@ done
    make operator-status ENV=prod
    ```
 
-   Each run records first: `scripts/operator.py contract-record` reads `/admin/status`, sends each committed case to `POST /admin/adapters/{id}/complete` with the operator token, and writes the recording into a 0700 temporary directory. Then the vitest suite replays the recording in the devcontainer image with `--network none`, so no project code runs with the token in the Author's terminal (plan [§7](plan.md#7-tests-unit-contract-integration-live)). The temporary directory is deleted.
+   Each run records first: `scripts/operator.py contract-record` reads `/admin/status`, sends each committed case to `POST /admin/adapters/{id}/complete` with the operator token, and writes the recording into a 0700 temporary directory. Then the vitest suite replays the recording in the devcontainer image with `--network none`, so the suite and the dependencies it loads never run with the token in the Author's terminal; `scripts/operator.py` and the Makefile, both reviewed, do (plan [§7](plan.md#7-tests-unit-contract-integration-live), ADR 0017). The temporary directory is deleted.
 
    Expected:
    - both runs pass every live assertion;
@@ -475,7 +506,7 @@ done
 
 ### 6.2 A newcomer's devcontainer in under 30 minutes (SC-007, FR-005)
 
-**Where:** the Author's terminal, with an empty build cache. No Claude login, engine, GPU, or denylist is needed (plan §9).
+**Where:** the Author's terminal, with an empty build cache. Heavy: `docker builder prune -af` empties the whole build cache, and the build downloads about 1.5 GB. No Claude login, engine, GPU, or denylist is needed (plan §9).
 
 ```bash
 docker builder prune -af
@@ -488,8 +519,8 @@ time npx @devcontainers/cli@0.89.0 exec --workspace-folder . make test
 
 ### 6.3 The local gate (FR-041, SC-008)
 
-1. **`make check`,** in an agent session and in the Author's terminal. Expected: one line per gate, PASS, FAIL, SKIP (with its reason), PENDING, or PLANNED (naming the patch's task), then a summary. It exits non-zero on any FAIL or PENDING; a PLANNED line doesn't fail it (plan [§11](plan.md#11-local-gates-fr-041)). The whole output goes into every merge-request note.
-2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, or `evals/agent-config/**`): the Author runs `make evals-agent-config`, commits the new `evals/agent-config/history/` entry (SC-008), and runs `make check` again.
+1. **`make check`,** in an agent session. The Author doesn't run it: in the Author's terminal the gate is step 3 (plan §11). Expected: one line per gate, PASS, FAIL, SKIP (with its reason), PENDING, or PLANNED (naming the patch's task), then a summary. It exits non-zero on any FAIL or PENDING; a PLANNED line doesn't fail it (plan [§11](plan.md#11-local-gates-fr-041)). The whole output goes into every merge-request note.
+2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, or `evals/agent-config/**`): the Author runs `make evals-agent-config`, commits the new `evals/agent-config/history/` entry (SC-008), and runs the gate again.
 3. **The Author's gate,** run directly and not through make, because a planted `GNUmakefile` would shadow the Makefile:
 
    ```bash

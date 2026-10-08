@@ -57,7 +57,7 @@ Compose and preflight read these; the gateway reads `H4_STACK`, `H4_ENV`, and tw
 | `H4_ENV` | `prod` | `dev` | `dev` | no | fixed | the gateway (routes, thresholds, dev-only switches), preflight | preflight: `prod` for prod, `dev` otherwise. Gateway: the same pairing (exit 78). |
 | `COMPOSE_PROJECT_NAME` | `h4reet-prod` | `h4reet-dev` | `h4reet-dev-cpu` | no | fixed | compose (it also gets `-p h4reet-$(ENV)`) | preflight: equals `h4reet-<H4_STACK>` |
 | `COMPOSE_PROFILES` | `gpu` | `gpu,dev-receivers` | `cpu,dev-receivers` | no | fixed | compose | preflight: exactly these values; exactly one of `gpu` and `cpu`; never `breach` (the breach test adds it per run) |
-| `H4_TREE` | `__REPO__` | `__REPO__` | `/run/h4agents/tree` | no | filled; fixed for dev-cpu | compose: every bind under `deploy/` and `config/` | preflight: host stacks, the real path of the checkout running `make`; dev-cpu, exactly `/run/h4agents/tree` ([§7.3](#73-the-worktree-question)) |
+| `H4_TREE` | – | – | `/run/h4agents/tree` | no | dev-cpu only. Host stacks get it from the run file `make up` writes ([§12](#12-the-run-file-host-stacks)), never from the env file | compose: every bind under `deploy/` and `config/` | preflight: on a host stack, the key in the env file is refused, and the run file's value must be the export of the commit being started (P7); on dev-cpu, exactly `/run/h4agents/tree` ([§7.3](#73-the-worktree-question)) |
 | `H4_MODEL_DIR` | `__HOME__/.local/share/h4reet/models` | the same | `/run/h4agents/models` | no | filled; fixed for dev-cpu | compose (`/models:ro`), `pull-models.sh`, preflight | preflight: absolute, not under `/mnt/`, on ext4 for host stacks; dev-cpu exactly as shown |
 | `H4_STATE_DIR` | `__HOME__/.local/state/h4reet/prod` | `__HOME__/.local/state/h4reet/dev` | `/var/lib/h4agents/state/dev-cpu` | no | filled; fixed for dev-cpu | compose: the gateway's journal and incident drafts at `${H4_STATE_DIR}/gateway` ([data-model.md §1](../data-model.md#1-where-state-lives)) | preflight: absolute, ends in the stack's name; host stacks under `$HOME/.local/state/h4reet/`, created 0700 if missing |
 | `H4_AWS_DIR` | `__HOME__/.config/h4reet-ai/aws-home/.aws` | `__REPO__/deploy/aws-none` | `/run/h4agents/tree/deploy/aws-none` | no (a path; the directory it names holds the SSO cache) | filled; fixed for dev-cpu | compose: the gateway's `/home/node/.aws:ro` | preflight: prod's exists, is mode 0700, and holds a `config` file; the others name `deploy/aws-none`, which holds only its README |
@@ -69,14 +69,14 @@ Compose and preflight read these; the gateway reads `H4_STACK`, `H4_ENV`, and tw
 | `H4_OTLP_PORT` | `18004` | `18104` | `18304` | no | fixed | compose (x004, dev-time metrics; only prod's receives any, [telemetry.md §6.1](telemetry.md#61-receivers)) | the same |
 | `H4_BUILD_PROXY` | empty | empty | `http://198.18.0.1:3128` | no | fixed | compose: the `HTTP_PROXY` and `HTTPS_PROXY` build arguments of the gateway, `telegram-standin`, and `breach-probe` images, never a container's environment | preflight: empty on host stacks; exactly this value on dev-cpu ([agents-engine.md §4](agents-engine.md#4-egress-the-proxy)) |
 
-- The ports are fixed per stack, so the stacks never overlap (FR-020), and compose binds them to the literal `127.0.0.1`, which no env file can change (plan §1). On dev-cpu they exist only inside the agents' engine.
+- The ports are fixed per stack, so the stacks never overlap (FR-020), and compose binds them to the literal `127.0.0.1`, which no env file can change (plan §1). On dev-cpu, RootlessKit publishes them on the host's `127.0.0.1` as `h4agents`: host processes reach them, and the sandbox doesn't (agents-engine.md row E14).
 - `H4_BUILD_PROXY` exists because the engine's builds reach npm only through the egress proxy. It is a build argument and not a container variable, because Python's urllib in the probe and the stand-in honours `HTTP_PROXY`, and would then send in-network calls to the proxy.
 
 ## 3. Model keys
 
 | Key | prod | dev | dev-cpu | Secret | Source | Consumed by | Validated by |
 |---|---|---|---|---|---|---|---|
-| `MODEL_FILE` | `Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf` | `qwen2.5-0.5b-instruct-q4_k_m.gguf` | the same as dev | no | fixed | the model server's `-m /models/${MODEL_FILE}`; `pull-models.sh` | preflight: names a `deploy/models.lock` entry whose `stacks` include `H4_STACK`; for host stacks the file exists with the lock's size, or is fetched; on dev-cpu it must exist ("ask the Author to run make engine-seed") |
+| `MODEL_FILE` | `Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf` | `qwen2.5-0.5b-instruct-q4_k_m.gguf` | the same as dev | no | fixed | the model server's `-m /models/${MODEL_FILE}`; `pull-models.sh` | preflight: names a `deploy/models.lock` entry whose `stacks` include `H4_STACK`; for host stacks the file exists with the lock's size, or is fetched; on dev-cpu it must exist ("ask the Author to run deploy/agents-engine/engine.sh seed") |
 | `MODEL_ALIAS` | the lock entry's alias for the prod model | the stand-in's alias | the same as dev | no | fixed | `--alias`; the gateway's `LOCAL_MODEL_NAME` (`gen_ai.request.model`) | preflight: equals the lock entry's `alias` |
 | `MODEL_CTX_SIZE` | `32768` | `8192` | `8192` | no | fixed | `-c` | preflight: a positive integer divisible by `MODEL_PARALLEL`. The first stack task may set prod to `16384` if the model doesn't fit (plan §3). |
 | `MODEL_PARALLEL` | `4` | `2` | `2` | no | fixed | `-np` | preflight: 1 to 8 |
@@ -221,7 +221,7 @@ The Author's recorded run, `make breach-test ENV=dev DELIVERY=real` (`evals/brea
 
 ## 8. The FR-007 deny list
 
-FR-007: every secret this spec introduces is denied by name, both its variable and the file that holds it, with a matrix row for each; the env files the host stacks run with are denied for writing as well as reading. The early patch (tasks.md T043) adds what isn't denied yet, before the first real secret exists ([plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
+FR-007: every secret this spec introduces is denied by name, both its variable and the file that holds it, with a matrix row for each; the env files the host stacks run with are denied for writing as well as reading. The early patch (tasks.md T045) adds what isn't denied yet, before the first real secret exists ([plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
 
 | Secret | Variables, denied in the sandbox's `credentials.envVars` | File that holds it | Denied today? |
 |---|---|---|---|
@@ -242,6 +242,7 @@ FR-007: every secret this spec introduces is denied by name, both its variable a
 **The path rules the early patch adds or keeps:**
 - `denyRead` and `denyWrite` on `~/.config/h4reet-ai`, which covers the env files, the operator tokens, the runtime AWS identity, and the Author's engine certificate in one entry (R-31).
 - `denyRead` on `/etc/h4agents/pki` (plan §15's "engine's server key directory").
+- For the Read and Edit tools as well as Bash: `Read(~/.config/h4reet-ai/**)` and `Edit(~/.config/h4reet-ai/**)` in `permissions.deny`, and `~/.config/h4reet-ai` in `credentials.files`, the three layers `~/.aws` already has.
 - Kept: `./deploy/env` in `denyRead` and `denyWrite`, `Read(*.env)` and `Edit(*.env)`, and `~/.aws` in the credential files.
 
 **Not denied, on purpose:**
@@ -256,15 +257,15 @@ FR-007: every secret this spec introduces is denied by name, both its variable a
 
 ## 9. `make init-env`
 
-`make init-env ENV=prod|dev [SYNC=1]`, the Author's terminal. It runs `python3 -I deploy/scripts/init_env.py --stack $(ENV) [--sync]`, stdlib only.
+`make init-env ENV=prod|dev [SYNC=1]`, the Author's terminal. It runs `python3 -I -X pycache_prefix=$(mktemp -d) deploy/scripts/init_env.py --stack $(ENV) [--sync]`, stdlib only.
 
 ### 9.1 What it does
 
 1. **Refuses** `ENV=dev-cpu` (its file is committed), an unknown stack, and a run inside the sandbox (`SANDBOX_RUNTIME=1`), with exit 2.
-2. **The directory.** Creates `~/.config/h4reet-ai/env/` with mode 0700 if it is missing. Refuses, with exit 5, a directory with a looser mode or another owner.
+2. **The directory.** Creates `~/.config/h4reet-ai/env/` with mode 0700 if it is missing. Refuses, with exit 5, a directory with a looser mode or another owner. For prod it also creates `~/.config/h4reet-ai/aws-home/.aws/` (0700, empty), so the gateway's bind source exists before the Author sets up Bedrock, and Docker never creates it as root.
 3. **A new file** (without `SYNC`):
    - It refuses with exit 5 if `<stack>.env` exists: "exists; to start again, move it aside yourself". It never overwrites.
-   - It copies the template line by line, comments included, and replaces `__GENERATE__` with a value in the key's shape (§9.2), `__REPO__` with the repository's real path, and `__HOME__` with the user's home. It leaves `__ASK__` in place.
+   - It copies the template line by line, comments included, and replaces `__GENERATE__` with a value in the key's shape (§9.2), `__REPO__` with the repository's real path (dev's `H4_AWS_DIR` only), and `__HOME__` with the user's home. It leaves `__ASK__` in place.
    - It writes with `O_WRONLY|O_CREAT|O_EXCL` and mode 0600, then fsyncs the file and the directory.
 4. **`SYNC=1`** brings an existing file up to date with a template that has gained keys:
    - It requires the file to exist (exit 5 if not).
@@ -292,17 +293,17 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 
 ## 10. `make up` preflight
 
-`deploy/scripts/preflight.py`, run as `python3 -I deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE)`. It parses env files as data and never sources them (§1.1). It runs every check, prints one line per check (`PASS`, `WARN`, or `FAIL`, the check's ID, and a reason that names keys, paths, and figures, never a value), and exits 1 if any check failed. `make up` stops there, before anything starts.
+`deploy/scripts/preflight.py`, run as `python3 -I -X pycache_prefix=$(mktemp -d) deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE) [--ref <sha>]`, like every Python the Author's terminal runs ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). It parses env files as data and never sources them (§1.1). It runs every check, prints one line per check (`PASS`, `WARN`, or `FAIL`, the check's ID, and a reason that names keys, paths, and figures, never a value), and exits 1 if any check failed. `make up` stops there, before anything starts.
 
 | ID | Refuses when | Stacks |
 |---|---|---|
 | P1 | The env file is missing or unreadable. On host stacks: its mode isn't 0600, its owner isn't the user, or its directory isn't 0700. | all; the modes on prod and dev |
 | P2 | A line breaks the grammar (§1.1), or a key appears twice. | all |
 | P3 | A placeholder is left: `__GENERATE__`, `__ASK__`, `__REPO__`, or `__HOME__`. dev's optional channel keys may be empty. | all |
-| P4 | The keys differ from the template's (each missing and extra key is named). dev-cpu is compared with the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN`. | all |
+| P4 | The keys differ from the template's (each missing and extra key is named). dev-cpu is compared with the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE`. | all |
 | P5 | The calling shell sets any `COMPOSE_*` or `H4_*` variable, or any key of the template. Compose would let the shell's value silently override the file's. | all |
 | P6 | `ENV`, `H4_STACK`, `H4_ENV`, and `COMPOSE_PROJECT_NAME` disagree, or `COMPOSE_PROFILES` isn't the stack's exact value, with exactly one of `gpu` and `cpu`. | all |
-| P7 | A key's value fails the checks in §2 to §6: a port that isn't the stack's, a path in the wrong place, `H4_TREE` not this checkout (or not `/run/h4agents/tree`), `MODEL_FILE` or `MODEL_ALIAS` not matching `models.lock`, `ALERT_DELIVERY` or `SMTP_TLS` not allowed for the stack, prod's `GATEWAY_AWS_PROFILE`, `H4_BUILD_PROXY`, an `OPERATOR_TOKEN_SHA256` that isn't 64 lowercase hex, a missing token file (prod, dev), or a dummy token that doesn't match its hash (dev-cpu). | all |
+| P7 | A key's value fails the checks in §2 to §6: a port that isn't the stack's, a path in the wrong place, `H4_TREE` set in a host stack's env file, a run file whose `H4_TREE` isn't the export of its `H4_REF`, dev-cpu's `H4_TREE` not `/run/h4agents/tree`, `MODEL_FILE` or `MODEL_ALIAS` not matching `models.lock`, `ALERT_DELIVERY` or `SMTP_TLS` not allowed for the stack, prod's `GATEWAY_AWS_PROFILE`, `H4_BUILD_PROXY`, an `OPERATOR_TOKEN_SHA256` that isn't 64 lowercase hex, a missing token file (prod, dev), or a dummy token that doesn't match its hash (dev-cpu). | all |
 | P8 | A dev-only switch is set outside `H4_ENV=dev`, or the route `config/routing.yaml` gives this `H4_ENV` names a paid adapter outside `H4_ENV=prod` (D1 to D4, FR-031, FR-036). | all |
 | P9 | A stray file exists: `deploy/.env`; a `compose.override.yaml` or `.yml`, or a `docker-compose.override.*`, beside the compose file; or an env file anywhere in the working tree (`*.env`, `.env`, `.env.*`, except `*.env.example`), including the legacy `deploy/env/`. The message names the path and says to move it to `~/.config/h4reet-ai/env/`. | all |
 | P10 | Docker is unreachable, or Compose is older than 2.30. | all |
@@ -310,17 +311,18 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 | P12 | For the `gpu` profile: the `nvidia` runtime is missing from `docker info`, or free VRAM is below the model's need in `models.lock` (read with `nvidia-smi` on the host, or with the pinned `nvidia/cuda` probe image when the host has no `nvidia-smi`). A model server this stack already runs is counted as free. | prod, dev |
 | P13 | **Disk** (R-32). Free space falls short of what this run writes, on both: the Windows drive that holds WSL's `ext4.vhdx` (`H4_VHDX_MOUNT`, `/mnt/c` by default, through `statvfs`), and ext4 (Docker's root directory from `docker info`, and `H4_MODEL_DIR`). Required: the bytes of the stack's models still to download (from `models.lock`), plus 12 GB if any of the stack's images is missing locally, plus a 20 GB margin. The message names every figure. `df /` inside WSL alone is not enough: it measures the virtual disk, not the drive under it. On dev-cpu the ext4 figure is `/`, because the engine's data root is on the same WSL disk; a Windows drive that can't be read fails closed. | all |
 | P14 | `H4_MODEL_DIR` is under `/mnt/`, or (host stacks) isn't on ext4. | all |
-| P15 | Memory: on host stacks, WSL's `MemAvailable` is below the sum of the stack's memory limits (from `docker compose config`) plus 4 GiB. On dev-cpu, the sum of the limits is above the engine's 12 GB cap minus 1 GiB. | all |
+| P15 | Memory: on host stacks, WSL's `MemAvailable` is below the sum of the stack's memory limits (from `docker compose config`) plus 4 GiB. On dev-cpu, the sum of the limits, with the breach probe's, is above the engine's 16 GB cap minus 1 GiB. The message names both figures: today about 13.2 GiB against 15 GiB. | all |
 | P16 | A port is held by another process or project. A port held by this same project's `edge` passes. On dev-cpu the check reads the engine's published ports through the API. | all |
 | P17 | An image is unpinned, or its digest differs from `deploy/images.lock` (`docker compose config --no-interpolate`, the same rule as the compose policy, plan §11). | all |
-| P18 | The model: on dev-cpu, `/run/h4agents/models/${MODEL_FILE}` is missing or the wrong size ("ask the Author to run make engine-seed"). On host stacks a missing model is a WARN: `make up`'s next step, `pull-models.sh`, fetches and verifies it, and P13 has already counted its bytes. A present file must have the lock's size and mode 0444 (`pull-models.sh` checked its sha256 when it downloaded it). | all |
-| P19 | prod's AWS directory, `H4_AWS_DIR`: missing, not mode 0700, or its `config` has no `[profile h4reet-bedrock]` section. Preflight never reads the SSO cache; the gateway's `/health` and the `credentials_expiring` alert report the session. | prod |
-| P20 | dev-cpu only: the run starts from a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`). The engine serves the main working tree only ([§7.3](#73-the-worktree-question)): "run dev-cpu from the main working tree". |
+| P18 | The model: on dev-cpu, `/run/h4agents/models/${MODEL_FILE}` is missing or the wrong size ("ask the Author to run deploy/agents-engine/engine.sh seed"). On host stacks a missing model is a WARN: `make up`'s next step, `pull-models.sh`, fetches and verifies it, and P13 has already counted its bytes. A present file must have the lock's size and mode 0444 (`pull-models.sh` checked its sha256 when it downloaded it). | all |
+| P19 | prod's AWS directory, `H4_AWS_DIR`: missing, or not mode 0700 (`make init-env ENV=prod` creates it empty). Once prod's route in `config/routing.yaml` names a paid adapter, also a `config` with no `[profile h4reet-bedrock]` section; before that (US1, before the Author sets up Bedrock) the directory may be empty. Preflight never reads the SSO cache; the gateway's `/health` and the `credentials_expiring` alert report the session. | prod |
+| P20 | dev-cpu only: the run starts from a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`). The engine serves the main working tree only ([§7.3](#73-the-worktree-question)): "run dev-cpu from the main working tree". | dev-cpu |
+| P21 | Host stacks: a WARN, not a refusal, when the working tree has uncommitted changes under `config/`, `deploy/`, `services/`, `evals/`, or `scripts/`: they aren't in the export of the commit being started, and the message names them. A `REF` that doesn't resolve to a commit is a FAIL. | prod, dev |
 
 **The other commands that share these checks:**
 - `make pull` runs P1 to P7, P10, P13 (for every image and model it will fetch), and P14.
-- `pull-models.sh` runs P13 and P14 for its own bytes, through `python3 -I deploy/scripts/preflight.py --disk-only --bytes <n> --path "$H4_MODEL_DIR"`, before each download.
-- `make engine-seed` has its own copy of the disk check in `deploy/agents-engine/engine.sh`, so the human-only boundary code never calls agent-editable code ([agents-engine.md §6](agents-engine.md#6-seeding)).
+- `pull-models.sh` runs P13 and P14 for its own bytes, through `python3 -I -X pycache_prefix=$(mktemp -d) deploy/scripts/preflight.py --disk-only --bytes <n> --path "$H4_MODEL_DIR"`, before each download.
+- `deploy/agents-engine/engine.sh seed` has its own copy of the disk check in `deploy/agents-engine/engine.sh`, so the human-only boundary code never calls agent-editable code ([agents-engine.md §6](agents-engine.md#6-seeding)).
 
 pytest covers every refusal with a fixture env file and a stubbed `docker` (plan §7).
 
@@ -338,3 +340,21 @@ The gateway validates the variables it receives at startup (`src/config/validate
 | prod's `stack_state.test_clock_offset_ms` isn't null (checked once the store answers) | plan §5.8 |
 
 `validate-config` (`make check`) runs the same validators over the three committed files: both templates, with `__GENERATE__` and `__ASK__` counting as present values of the right shape, and `dev-cpu.vars` ([config-files.md §5](config-files.md#5-validate-config)). It reads only the keys the gateway reads, so the path placeholders don't concern it.
+
+## 12. The run file (host stacks)
+
+A host stack runs the commit it was started from, not whatever the shared working tree holds later ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). `make up ENV=prod|dev [REF=<commit>]` exports the commit (`HEAD` by default) and writes `${H4_STATE_DIR}/run.env`, mode 0600, which every later compose call for the stack passes as a second `--env-file`, after the stack's own:
+
+| Key | Value |
+|---|---|
+| `H4_TREE` | `${H4_STATE_DIR}/tree/<sha>`: `git archive <sha>`, extracted once per commit and made read-only |
+| `H4_REF` | the full SHA being run |
+| `H4_REF_BRANCH` | the branch name at start, or `detached` |
+| `H4_REF_PREVIOUS` | the SHA that ran before, which `make up REF=$H4_REF_PREVIOUS` brings back (the rollback) |
+
+- The compose file itself comes from the export too (`-f ${H4_TREE}/deploy/compose.yaml`), so the services, binds, and images are the started commit's.
+- `make up` builds the stack's images from the export, every time (`--build`; unchanged layers come from the cache), so a stale image can't certify code the commit doesn't contain.
+- It keeps the exports of the running and the previous commit, and at most three in all; it deletes older ones.
+- The file is the stack's, not a template's: P4 doesn't compare it, P5 doesn't apply to it, and P7 checks it.
+- dev-cpu has no run file: the engine serves the masked live tree, so agents test what they are writing ([§7.3](#73-the-worktree-question)).
+

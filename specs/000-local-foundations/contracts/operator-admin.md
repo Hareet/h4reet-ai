@@ -11,7 +11,7 @@ The state these endpoints change is in [data-model.md](../data-model.md), and th
 
 ## 1. The admin listener and authentication
 
-- **Where it listens.** The gateway listens on port 8081 in its container. Edge publishes it as the stack's x003 port on `127.0.0.1` only: 18003 for prod, 18103 for dev, and 18303 for dev-cpu (inside the agents' engine's namespace). In-network callers (the breach probe, the CLI's dev-cpu hop) use `http://gateway:8081`.
+- **Where it listens.** The gateway listens on port 8081 in its container. Edge publishes it as the stack's x003 port on `127.0.0.1` only: 18003 for prod, 18103 for dev, and 18303 for dev-cpu (published by the agents' engine on the host's `127.0.0.1`, which the Author's terminal can reach and the sandbox can't). In-network callers (the breach probe, the CLI's dev-cpu hop) use `http://gateway:8081`.
 - **Edge's limits on x003:** bodies up to 4 KB (413 `{"error":"body_too_large","limit_bytes":4096}`), 2 s to connect, and 30 s to read. When the gateway can't answer, edge serves 503 `{"error":"admin_unavailable"}`. The gateway's own body limit on this listener is also 4 KB.
 - **Common rules:** JSON in and out (`Content-Type: application/json`, else 415), `Cache-Control: no-store`, and `X-Request-Id` on every response, as in [gateway-http.md §1](gateway-http.md#1-listener-reachability-and-common-rules). An endpoint that needs the store answers 503 `{"error":"store_unreachable"}` when the store can't be read.
 
@@ -28,8 +28,8 @@ Every endpoint, reads included, requires `Authorization: Bearer <token>`. The ga
 
 - **Authentication comes first,** before validation, before the store, and before the dev-only checks. An unauthenticated caller learns nothing about the stack.
 - **A failure** answers 401 `{"error":"unauthorized"}` with `WWW-Authenticate: Bearer realm="h4reet-admin"`. The body is the same for every class, so there is no oracle.
-- **Auditing.** Each failure writes an `audit_log` row: action `auth_failed`, actor `unknown`, and `detail` `{"class": …, "path": …}`. The token is never stored or logged, in any part. If the store is unreachable, the failure is only logged.
-- **Alerting.** When the store counts 3 `auth_failed` rows in the last 10 minutes of real time, the gateway queues one `auth_failed` alert, deduplicated per 10-minute window ([alerts.md §2](alerts.md#2-kinds-triggers-and-dedupe-keys)).
+- **Auditing, without a write per failure.** Failures are counted in memory, by class, in fixed 10-minute windows of real time, and each increments `h4.operator.auth_failures` ([telemetry.md §4.1](telemetry.md#41-the-gateways-instruments)). The first failure of each class in a window writes one `audit_log` row: action `auth_failed`, actor `unknown`, `detail` `{"class": …, "route": …, "window_start": …}`, where `route` is the route template (`/admin/reset`), or `other` for a path the listener doesn't serve, never the raw path. So a flood of bad tokens costs at most four rows per window and no store round trip per request, and hello's state reads keep their pool. The token is never stored or logged, in any part. If the store is unreachable, the failure is only counted and logged.
+- **Alerting.** When a window's in-memory count reaches 3, the gateway queues one `auth_failed` alert, deduplicated per 10-minute window ([alerts.md §2](alerts.md#2-kinds-triggers-and-dedupe-keys)).
 - **The actor.** On success the actor is `operator:<stack>#<first 8 hex of the hash>`, as in `operator:prod#<8 hex>`. The credential itself is defined in [data-model.md §5](../data-model.md#5-the-operator-credential).
 
 ### 1.2 The reason rule
@@ -394,8 +394,8 @@ Request:
 ## 6. The operator CLI, `scripts/operator.py`
 
 **How it runs.**
-- Python 3.12, standard library only, run as `python3 -I scripts/operator.py …`.
-- Isolated mode ignores `PYTHON*` variables, the user's site directory, and the script's directory on `sys.path`. So nothing an agent could plant in the tree, a cache, or a virtualenv runs with the Author's token ([research.md R-16](../research.md#r-16-the-operator-credential-a-bearer-token-per-stack-the-author)).
+- Python 3.12, standard library only, run as `python3 -I -X pycache_prefix=$(mktemp -d) scripts/operator.py …`.
+- Isolated mode ignores `PYTHON*` variables, the user's site directory, and the script's directory on `sys.path`. It still loads bytecode from `__pycache__`, which an agent could plant and git doesn't show; the empty `pycache_prefix` makes Python read and write bytecode only in a new temporary directory. Together, nothing an agent could plant in the tree, a cache, or a virtualenv runs with the Author's token ([research.md R-16](../research.md#r-16-the-operator-credential-a-bearer-token-per-stack-the-author)).
 - The file is agent-editable and reviewed. Every merge-request note lists changes to it first, because it runs in the Author's terminal ([research.md R-14](../research.md#r-14-human-only-paths-gates-only-adr-0017-the-author); ADR 0017).
 
 **Where the token comes from:**
@@ -411,7 +411,7 @@ Request:
 
 **Transport.**
 - **prod and dev:** `http://127.0.0.1:18003` and `http://127.0.0.1:18103`, through urllib with an empty `ProxyHandler`, so `HTTP_PROXY` settings can't send the token to a proxy. A `--url` override must name `127.0.0.1`, `localhost`, or a single-label in-network host, or the CLI refuses with exit 2.
-- **dev-cpu:** its ports exist only inside the agents' engine, so the CLI makes one hop through a one-off probe container on the stack's `internal` network:
+- **dev-cpu:** a session can't reach its ports (they are on the host's loopback, which the sandbox's proxy refuses), so the CLI makes one hop through a one-off probe container on the stack's `internal` network:
 
   ```text
   docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars \
@@ -452,7 +452,7 @@ fallback today 0.40 / 2.00 USD   (grant 1, warning 1.40, available 1.48) · awai
 adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:00Z
 ```
 
-**For other tools.** `operator.py` also exposes an `AdminClient` class. `evals/run.py` (its `bedrock` adapter) and `evals/breach.py` import it by path, so the token is handled in one reviewed file.
+**For other tools.** `operator.py` also exposes an `AdminClient` class. `evals/run.py` (its `bedrock` adapter) and `evals/breach.py` import it by path, so the token is handled in one reviewed file. Both are launched the same way in the Author's terminal: by path, with the same flags, never with `-m` ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)).
 
 ### 6.1 Make targets
 
@@ -495,7 +495,7 @@ Make reports any non-zero exit as its own error 2, so the CLI's last line names 
 
 ## 7. What keeps agents away from the operator credential (FR-007, FR-008)
 
-- **Denied by name** in the early patch (tasks.md T043), before the first token exists: the token files (`~/.config/h4reet-ai`, read and write) and the variable `H4_OPERATOR_TOKEN`.
+- **Denied by name** in the early patch (tasks.md T045), before the first token exists: the token files (`~/.config/h4reet-ai`, read and write) and the variable `H4_OPERATOR_TOKEN`.
 - **No route to the listener.** The sandbox can't reach the host's `127.0.0.1` stack and admin ports (matrix stage S).
 - **bash-gate** blocks `make operator-*` and admin URLs for prod and dev.
 - **The prefix check.** Prod's gateway refuses any token without `h4op_prod_`, and refuses at startup an `OPERATOR_TOKEN_SHA256` equal to the dev-cpu dummy's hash.

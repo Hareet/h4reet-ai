@@ -115,6 +115,12 @@ envs:
   dev:  { primary: local, fallback: synthetic }   # synthetic only with GATEWAY_TEST_SYNTHETIC_SPEND=1
 ```
 
+**It reaches this form in steps,** so every adapter it defines is registered when it lands, and rule R6 holds on every branch ([tasks.md](../tasks.md) T020, T073, T102, T105):
+1. the foundations branch: `local` alone, and no fallback in either route;
+2. US2 adds `synthetic` and dev's fallback, with the synthetic adapter's code;
+3. US5 adds `bedrock`, with its placeholder model and the adapter's code; prod's route doesn't name it yet, so prod starts;
+4. the Author fills the model and adds prod's fallback, after confirming the model and its price.
+
 ### 1.3 Validation errors
 
 | Rule | Error | Requirement |
@@ -169,6 +175,8 @@ This is the versioned price table every cost is computed from (FR-023). It is hu
 
 ### 2.2 Example
 
+The foundations branch commits the first version. The Author appends the second in US5, once the Bedrock model and its price are confirmed: a published version never changes (P5), so the Bedrock price arrives as a new, complete version that repeats the other entries.
+
 ```yaml
 schema: 1
 currency: USD
@@ -176,13 +184,8 @@ unit: per_million_tokens
 versions:
   - id: "2026-10-08.1"
     effective_from: "2026-10-08T00:00:00Z"
-    source: "<where and when the Author read the Bedrock prices: the pricing page, us-east-1 on-demand>"
+    source: "spec 000: local and synthetic only"
     entries:
-      - provider: aws.bedrock
-        model: "<inference-profile ID the Author confirms>"          # the same string as routing.yaml
-        input: "<USD per million input tokens, from the Bedrock pricing page>"
-        output: "<USD per million output tokens, from the Bedrock pricing page>"
-        cache_read_input: "<USD per million cache-read tokens, from the Bedrock pricing page>"
       - provider: local
         model: "*"                                                   # zero marginal cost
         input: 0
@@ -191,7 +194,26 @@ versions:
         model: metered-test                                          # dev's synthetic spend: $0.10 a call
         input: 0
         output: 100
+  - id: "<YYYY-MM-DD>.1"                                             # appended by the Author (tasks.md T105)
+    effective_from: "<that day, 00:00:00Z or later>"
+    source: "<where and when the Author read the Bedrock prices: the pricing page, us-east-1 on-demand>"
+    entries:
+      - provider: aws.bedrock
+        model: "<inference-profile ID the Author confirms>"          # the same string as routing.yaml
+        input: "<USD per million input tokens, from the Bedrock pricing page>"
+        output: "<USD per million output tokens, from the Bedrock pricing page>"
+        cache_read_input: "<USD per million cache-read tokens, from the Bedrock pricing page>"
+      - provider: local
+        model: "*"
+        input: 0
+        output: 0
+      - provider: synthetic
+        model: metered-test
+        input: 0
+        output: 100
 ```
+
+The placeholders show what the Author fills before committing the second version; a committed version holds none.
 
 ### 2.3 How cost is computed
 
@@ -215,6 +237,7 @@ cost_micro = ceil( (input_tokens × P_in + output_tokens × P_out + cache_read_t
 | P4 | `versions[<i>].entries: provider and model "<p>/<m>" appear twice` |
 | P5 | append-only, checked by `validate-config` in a git checkout: `versions[<i>]: differs from the same version on main; published versions never change`. When `main` has the file, its versions must open this file's list unchanged and in order. Without git or without the file on `main`, this is a NOTE. |
 | P6 | any unknown key, wrong type, or bad timestamp, named by its path |
+| P7 | `versions[<i>].entries[<j>]`: the model of a `paid` adapter in routing.yaml is priced at 0 for input or output; a paid model is never free (checked across files) |
 
 ### 2.5 Startup refusals (exit 78)
 
@@ -296,6 +319,7 @@ A unit test pins prod's derived warnings at 3,500,000, 14,000,000, and 1,400,000
 | B5 | `limits.<path>: <rule above>` |
 | B6 | `timing.reservation_ttl_s: must be more than twice routing.yaml's deadline_ms in seconds` (checked across files) |
 | B7 | any unknown key, wrong type, or more than 6 decimal places, named by its path |
+| B8 | `envs.dev: must equal envs.prod`: FR-031's "the dev stack's meter applies the same thresholds", so the breach test always rehearses prod's ceilings |
 
 Any of these at startup is exit 78 (`invalid_config`).
 
@@ -399,9 +423,8 @@ With `ALERT_DELIVERY=standin`, the gateway uses `standin.*` and ignores the real
 It prints one line per error or note, then a summary:
 
 ```text
-NOTE config/routing.yaml: adapters.bedrock.model: placeholder; prod won't start until the Author fills it
-NOTE config/prices.yaml: versions[0].entries[0]: placeholder; prod won't start until the Author fills it
-validate-config: 0 errors, 2 notes
+NOTE config/routing.yaml: adapters.bedrock.model: placeholder; no route names it until the Author fills it
+validate-config: 0 errors, 1 note
 ```
 
 It exits 0 when there are no errors, notes or not, and 78 when there is any error. `make check` shows the result as PASS or FAIL.

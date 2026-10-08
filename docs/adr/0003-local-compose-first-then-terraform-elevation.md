@@ -1,6 +1,6 @@
 # ADR 0003: Local-compose-first delivery, then Terraform elevation to AWS
 
-Status: proposed, 2026-10-08 · Spec: 000 and 001 (FR-013, FR-018, FR-037; SC-001; User Story 1; Assumptions, "No cloud resources are created in this spec")
+Status: proposed, 2026-10-08 · Spec: 000 and 001 (FR-013, FR-018, FR-037; SC-001; User Story 1; Assumptions, "Deviation: the runtime identity is made by hand")
 
 ## Context
 

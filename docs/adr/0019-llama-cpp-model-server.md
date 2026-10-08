@@ -6,7 +6,7 @@ Status: proposed, 2026-10-08 · Spec: 000 (FR-014, FR-018, FR-019, FR-021; SC-00
 
 FR-019 asks for a local model server with an OpenAI-compatible endpoint, and for images that support the RTX 5090's GPU architecture. FR-039 needs the same stack on a CPU-only engine, so the server must also run on CPU with the same behavior.
 
-The prod model is Qwen3-30B-A3B-Instruct-2507, quantized to GGUF Q4_K_M. It is about 18.6 GB and needs about 22 GB of VRAM at 4 slots of 8K context. The dev and engine stand-in is Qwen2.5-0.5B-Instruct, Q4_K_M, about 0.4 GB.
+The prod model is Qwen3-30B-A3B-Instruct-2507, quantized to GGUF Q4_K_M. It is about 18.6 GB and needs about 22 GB of VRAM at 4 slots of 8K context. The dev and engine stand-in is Qwen2.5-0.5B-Instruct, Q4_K_M, about 0.5 GB (491,400,032 bytes).
 
 Hardware check 1 (2026-10-07) measured the download at 786 Mbps, so the 18.6 GB model takes about 3.2 minutes. That keeps SC-001's 10 minutes achievable.
 
@@ -34,7 +34,7 @@ Hardware check 1 (2026-10-07) measured the download at 786 Mbps, so the 18.6 GB 
 ## Consequences
 
 - Cost: $0 cloud. Models use about 19 GB of disk, once per host. VRAM: an estimated 21.3 GiB for prod on the laptop RTX 5090's 24 GB, of which the Windows desktop holds about 0.5 GB, so about 2 GiB of headroom; and about 1.5 GB for the dev stand-in. The first stack task measures the prod figure. `-c 16384 -np 2` is the fallback (research.md R-03).
-- Degraded mode: an unhealthy server fails the gateway's health check. Prod then falls back within the sub-budget (ADR 0001). Dev returns a degraded `local_unhealthy` answer. The dashboard's model-server panel turns red (FR-028). `make up` names the failing service. On a host without the GPU runtime or enough VRAM, `make up` refuses at preflight.
+- Degraded mode: an unhealthy server fails the gateway's health check. Prod then falls back within the sub-budget (ADR 0001). Dev uses its synthetic fallback when enabled, and otherwise answers degraded with `no_fallback_in_stack`. The dashboard's model-server panel turns red (FR-028). `make up` names the failing service. On a host without the GPU runtime or enough VRAM, `make up` refuses at preflight.
 - The model file and alias are configuration. Swapping them changes no code (FR-021).
 - Trade-off: the prod model is 18.6 GB, so a cold start includes that download, which SC-001 counts.
 

@@ -15,10 +15,10 @@ On 2026-10-08 the Author chose "Gates only", which read: "Only tools/gates/** be
 The clean-room gate is `tools/gates/gate <ref>`, run directly, not through `make`. A planted `GNUmakefile` could shadow the Makefile.
 
 1. Export: `git archive <ref>`. Only committed content gets in. A cache, a `.venv`, a `uv.toml`, or an ignored file cannot change the result.
-2. Container phase: in the devcontainer image. Dependencies come from the lockfiles with scripts off (`npm ci --ignore-scripts`, `uv sync --frozen`). Then, with `--network none`, lint, tests, the scaffolds, and matrix stage H run. Project code runs without network.
+2. Container phase: in the devcontainer image. Dependencies come from the lockfiles with scripts off (`npm ci --ignore-scripts`; there is no Python project to sync). Then, with `--network none`, lint, tests, the scaffolds, and matrix stage H run. Project code runs without network.
 3. Host phase: githooks, toolchain, and compose policy; `corpus-check` with the denylist; gitleaks; the image build on the engine; and matrix stage E and the behavioral evals when their triggers change.
 
-`make check` runs the same targets inside the sandbox and prints PASS, FAIL, SKIP (with a reason), or PENDING for each. Any FAIL or PENDING fails the run. The gate's summary line goes into the merge commit message.
+`make check` runs the same targets inside the sandbox and prints PASS, FAIL, SKIP (with a reason), PENDING, or PLANNED for each. Any FAIL or PENDING fails the run. PLANNED marks enforcement a patch hasn't applied yet, and acceptance requires none. In the Author's terminal the gate replaces `make check`, which would run the working tree's `node_modules`. The gate's summary line goes into the merge commit message.
 
 Gate code only the Author runs (human-only):
 

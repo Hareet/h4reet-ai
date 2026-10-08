@@ -4,11 +4,12 @@ This contract covers the api listener of `services/gateway`: the hello endpoint 
 
 ## 1. Listener, reachability, and common rules
 
-- **Where it listens.** The gateway listens on port 8080 in its container. Edge publishes it as the stack's x000 port on `127.0.0.1` only: 18000 for prod, 18100 for dev, and 18300 for dev-cpu (inside the agents' engine's namespace, [plan.md §1](../plan.md#1-topology)). Containers on the stack's `internal` network, such as the breach probe, call `http://gateway:8080` directly.
+- **Where it listens.** The gateway listens on port 8080 in its container. Edge publishes it as the stack's x000 port on `127.0.0.1` only: 18000 for prod, 18100 for dev, and 18300 for dev-cpu (published by the agents' engine on the host's `127.0.0.1`, which the Author's terminal can reach and the sandbox can't; [plan.md §1](../plan.md#1-topology)). Containers on the stack's `internal` network, such as the breach probe, call `http://gateway:8080` directly.
 - **Headers on every response:**
   - `Content-Type: application/json; charset=utf-8`, `Cache-Control: no-store`, and `X-Content-Type-Options: nosniff`.
   - `X-Request-Id`. Edge sets `X-Request-Id` to its `$request_id`, overwriting any client value. The gateway adopts it when it is 32 lowercase hex characters, and otherwise generates one. The same ID is in the body as `request_id`.
   - No CORS headers. Spec 000 has no browser clients; spec 001's relay sits in front.
+- **Trace context.** Edge clears `traceparent`, `tracestate`, and `baggage` on the api port, x000, so a client can neither switch off sampling for its own call (the sampler is parent-based, [telemetry.md §3.1](telemetry.md#31-sdk-setup)) nor choose the trace ID the ledger and the body record. The gateway starts every hello trace itself.
 - **Body size.** Edge caps request bodies at 16 KB and answers 413 `{"error":"body_too_large","limit_bytes":16384}`. The gateway's own body limit is also 16 KB.
 - **Unknown routes and methods** get 404 `{"error":"not_found","request_id":"…"}`.
 - **Health probes** (`/health/live`, `/health`) produce no spans ([plan.md §5.7](../plan.md#57-telemetry)).

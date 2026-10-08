@@ -55,6 +55,7 @@ The gateway configures `@opentelemetry/sdk-node` in `src/telemetry/otel.ts`. Com
 - Telemetry failures never touch enforcement: the meter and the kill switch live in the store, and nothing in the request path waits on an export.
 - Health probes produce no spans: the HTTP instrumentation ignores `/health/live` and `/health` (`ignoreIncomingRequestHook`), and the collector's filter drops any that get through ([§6.3](#63-processors)).
 - The gateway removes `client.address`, `client.port`, `network.peer.address`, `network.peer.port`, and `user_agent.original` from its server spans in a span processor before export. The collector deletes them again.
+- **Outbound HTTP.** `instrumentation-undici` is configured with an `ignoreRequestHook` that skips the Telegram API host, because that URL's path carries the bot token ([alerts.md §4.1](alerts.md#41-the-dispatcher)), so no client span records it. The collector's redaction (§6.3) stays the second layer.
 
 ### 3.2 The spans of one request
 
@@ -164,8 +165,9 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 | `h4.degraded.responses` | counter, `{response}` | `h4.cause`: the nine causes (not `none`) | `h4_degraded_responses_total` | once per degraded response |
 | `h4.adapter.healthy` | gauge, `{flag}` | `h4.adapter`: the adapter IDs in `config/routing.yaml`: `local`, `bedrock`, `synthetic` | `h4_adapter_healthy` | 1 or 0 per configured adapter, from its effective health (the probe combined with the circuit, [provider-adapter.md §6](provider-adapter.md#6-around-an-adapter-call-what-the-gateway-does)) |
 | `h4.alerts` | counter, `{attempt}` | `h4.channel`: `telegram`, `email`; `h4.alert.kind`: `warn`, `trip`, `fallback_exhausted`, `operator_action`, `credentials_expiring`, `fallback_unavailable`, `auth_failed`, `store_unreachable`, `reminder`; `h4.outcome`: `delivered`, `retry` (an attempt failed and another is due), `failed` (the channel gave up at 300 s) | `h4_alerts_total` | once per delivery attempt's outcome ([alerts.md §4](alerts.md#4-channels-delivery-and-retries)) |
-| `h4.alert.delivery_lag` | histogram, `s` | none | `h4_alert_delivery_lag_seconds` | on each delivery, from the outbox row's `enqueued_at` |
+| `h4.alert.delivery_lag` | histogram, `s` | none | `h4_alert_delivery_lag_seconds` | on each delivery, from the outbox row's `enqueued_at`; for the in-memory `store_unreachable` alert, which has no row, from the moment it was queued in memory |
 | `h4.operator.actions` | counter, `{action}` | `h4.action`: the audit action of an accepted write: `init`, `reset`, `renew`, `test_clock`, `test_synthetic`, `adapter_call` | `h4_operator_actions_total` | once per accepted admin write ([operator-admin.md §1.3](operator-admin.md#13-what-each-write-produces)) |
+| `h4.operator.auth_failures` | counter, `{failure}` | `h4.auth.class`: `missing`, `malformed`, `wrong_prefix`, `mismatch` | `h4_operator_auth_failures_total` | once per failed admin authentication, counted in memory ([operator-admin.md §1.1](operator-admin.md#11-authentication)) |
 | `h4.test_machinery.refused` | counter, `{request}` | none | `h4_test_machinery_refused_total` | each 403 from `POST /admin/test/*` outside dev |
 
 **The gauges.**
@@ -237,7 +239,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `fallback.exhausted` | warn | committed fallback spend reaches the allowance | `grant_no`, `allowance_micro`, `spent_micro` |
 | `reservation.expired` | warn | the sweep settles a reservation ([data-model.md §2.4](../data-model.md#24-reservations-metered-calls-in-flight)) | `reservation_id`, `attribution`, `max_micro` |
 | `operator.init`, `operator.reset`, `operator.renew`, `operator.test_clock`, `operator.test_synthetic`, `operator.adapter_call` | info, with `event.name=h4.audit` | an accepted admin write | `audit_id`, `actor` (`operator:<stack>#<8 hex>`), `action`, `reason`, and `before` and `after` summaries in micro-USD as the audit row has them |
-| `operator.auth_failed` | warn, with `event.name=h4.audit` | a failed authentication | `class` (`missing`, `malformed`, `wrong_prefix`, `mismatch`), `path` |
+| `operator.auth_failed` | warn, with `event.name=h4.audit` | a failed authentication | `class` (`missing`, `malformed`, `wrong_prefix`, `mismatch`), `route` (the route template, or `other`) |
 | `alert.queued` | info | an outbox row commits | `dedupe_key`, `kind` |
 | `alert.delivered` | info | a channel delivers | `dedupe_key`, `kind`, `channel`, `attempt`, `lag_s`, `provider_ref` (Telegram's `message_id`; the SMTP reply code and queue ID) |
 | `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s` |
@@ -270,7 +272,7 @@ The breach test's L assertions read `alert.delivered`, `fallback.exhausted`, `ki
 | `otlp/devtime` | HTTP `0.0.0.0:4319` only | edge's x004 (`127.0.0.1:18004` on prod): Claude Code and `tools/gates/gate` | `metrics/devtime` only |
 
 - **Edge's x004 block** forwards only `POST /v1/metrics`, with bodies up to 1 MiB, to `otel-collector:4319`. Every other path gets 404. So a process on the host's loopback can add dev-time metrics, but it can't inject traces or logs, or write `h4_*` series that look like the gateway's.
-- Plan §2 sends x004 to `otel-collector:4318`. This contract moves it to its own receiver on 4319, for the reason above, and plan.md is fixed to match.
+- x004 goes to its own receiver on 4319, for the reason above; plan §1 and §2 say the same.
 - The one compose file publishes x004 on every stack (18104 on dev, 18304 inside the agents' engine), but only prod's is configured as Claude Code's endpoint.
 
 ### 6.2 Pipelines

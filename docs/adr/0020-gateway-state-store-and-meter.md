@@ -38,7 +38,7 @@ A meter that shares a database with Langfuse would share its migrations and load
 - Cost: one more Postgres container, about 100 MB of RAM. No cloud spend.
 - Degraded mode: store unreachable gives 503 `store_unreachable` for every request (fail closed), with one deduplicated alert after 60 seconds. Store empty gives `store_uninitialized` until `init` runs. A journal that cannot be written refuses metered calls (`journal_unwritable`), and local answers continue (FR-022).
 - Timeouts are short (250 ms per statement, 500 ms to connect, plan.md), so a sick store answers fast instead of hanging.
-- On the agents' engine, the admission plugin allows one read-write bind root besides the read-only tree and models: `/var/lib/h4agents/state`, owned by `h4agents` and wiped by `engine-reset` (ADR 0016). dev-cpu's `H4_STATE_DIR` points there, so the journal's bind is the same compose line on every engine (FR-017). Prod and dev bind `~/.local/state/h4reet/<stack>`.
+- On the agents' engine, the admission plugin allows one read-write bind root besides the read-only tree and models: `/var/lib/h4agents/state`, owned by `h4agents` and wiped by `engine.sh reset` (ADR 0016). dev-cpu's `H4_STATE_DIR` points there, so the journal's bind is the same compose line on every engine (FR-017). Prod and dev bind `~/.local/state/h4reet/<stack>`.
 
 ## Links
 

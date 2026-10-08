@@ -45,7 +45,7 @@ Agent-configuration evals (FR-011, SC-008) run before the Author merges any chan
 - Cost: $0 cloud. Dev-time model use runs on the Claude Team plan, tracked apart from production (FR-037). A triggered behavioral run is about 36 short sessions (plan.md).
 - Degraded mode: a hook that can't run fails closed. Without gitleaks, the commit and content hooks fail, and `make check` fails (FR-012). With the Team plan unavailable, the behavioral tier shows PENDING and the merge waits (FR-011).
 - `claude -p` silently ignores a settings file that fails validation. The behavioral runs therefore require hook events in every case, and the Author runs `claude doctor` after each settings change.
-- Known gaps, listed in the matrix: obfuscated commands and pre-existing aliases can get past the regex gate (ADR 0013). Bash can read `*.env` files outside `deploy/env`, because Linux ignores glob denies. Placement contains that. Exfiltration through an allowlisted registry remains a residual risk. No secrets are in agent context.
+- Known gaps, listed in the matrix: obfuscated commands can get past the regex gate (ADR 0013). Pre-existing git aliases are expanded before matching from the closing patch on (plan §13). Bash can read `*.env` files outside `deploy/env`, because Linux ignores glob denies. Placement contains that. Exfiltration through an allowlisted registry remains a residual risk. No secrets are in agent context.
 - The constitution is explicit that "Findings inform the human approval; they never replace it." The reviewer's passes support the Author's merge. They do not replace it.
 
 ## Links

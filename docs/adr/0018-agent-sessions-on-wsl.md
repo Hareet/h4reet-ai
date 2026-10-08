@@ -18,7 +18,7 @@ Claude Code's sandbox is bubblewrap, which needs unprivileged user namespaces. I
 - `make toolchain-check` compares installed versions with the pins and fails on any drift, Claude Code included. A failed check fails `make check`.
 - The devcontainer is still the newcomer's path (SC-007), the image the gate builds in (ADR 0017), and the place CI will run after publication.
 
-Reading of the clause. The devcontainer defines the one toolchain, so humans, agents, and CI use the same versions. The clause does not say where agents run, and this ADR reads it that way. The literal reading would make agent sessions a deviation. The spec's Assumptions should name the clause and point here. They do not name it yet.
+Reading of the clause. The devcontainer defines the one toolchain, so humans, agents, and CI use the same versions. The clause does not say where agents run, and this ADR reads it that way. The literal reading would make agent sessions a deviation. The spec's Assumptions name the clause ("Agent sessions on WSL") and point here.
 
 Rejected: Claude Code inside the devcontainer. It needs either a custom seccomp profile with an unmasked `/proc`, or the weaker nested sandbox. Both weaken the sandbox that the constitution's enforcement depends on.
 
