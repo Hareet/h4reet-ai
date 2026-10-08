@@ -186,7 +186,7 @@ description: "Task list for spec 000, Local Foundations"
   - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback. The export runs as its own target, which `up` depends on: make expands a recipe just before running it, and the Makefile reads `TREE` from the run file then, so the compose call uses the commit just exported;
   - `up`, on dev-cpu: the same from the working tree and `dev-cpu.vars`, with no export;
   - `down`: `down --timeout 30`, never `-v`, with the running export's compose file. With no run file, `down` and `logs` say the stack wasn't started by `make up`, and do nothing (§12);
-  - `build`: ends with `BUILD OK`. It refuses outside the sandbox and the devcontainer (§11), so the gate's host phase builds images with `make image`, never `make build`;
+  - `build`: ends with `BUILD OK`. It refuses outside the sandbox and the devcontainer (§11), so the gate's host phase builds images with `make image`, never `make build`. The devcontainer has no Docker, so there `build` builds the workspaces and says the images are the gate's;
   - `pull`: Docker Hub images one at a time, with 5, 15, and 45 s backoff, naming an HTTP 429 (research.md R-29);
   - `image`, §11's gate: the compose images built on the current engine. It reports SKIP ("no engine yet: tasks.md T046") before the engine exists, and FAIL ("ask the Author: deploy/agents-engine/engine.sh up") once it exists and is down.
 - [ ] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list, build contexts included. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
@@ -239,9 +239,9 @@ description: "Task list for spec 000, Local Foundations"
     - the new `.claude/hooks/content-scan.sh`, a PreToolUse check on Edit, Write, and MultiEdit that runs `gitleaks stdin --no-banner --redact`;
     - `.claude/git-hooks/pre-commit`, which runs gitleaks on the staged changes, with `make git-hooks` installing it.
 
-    Each passes `--config` with the main tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`, and fails closed when gitleaks is missing (§11).
+    Each passes `--config` with the main tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`, refuses to run while a `.gitleaksignore` exists at its scan source (research.md R-36), and fails closed when gitleaks is missing (§11).
   - CLAUDE.md: the engine line and the test line rewritten in place, and the "Things Claude gets wrong" line on deny timing added (§15), for 57 lines.
-  - The matrix rows for all of these, in `redteam/forbidden-actions.sh`, and the PLANNED marks they clear: `githooks-check`'s for `pre-commit` (T006) and the static tier's for the FR-007 names (T012).
+  - The matrix rows for all of these, in `redteam/forbidden-actions.sh`, and the PLANNED marks they clear: `githooks-check`'s for `pre-commit` (T006) and the static tier's for the FR-007 names (T012). The patch itself carries those edits: it deletes `evals/agent-config/static.py`'s PLANNED entries and clears the Makefile's `PRE_COMMIT_PLANNED`, so `make check` passes right after `git apply` (a stale mark fails).
 - [ ] T046 **Author** (Heavy, after this branch merges): check `gitleaks version` (T013 installed it). Apply the two patches from T022 and T045, then run `claude doctor`, `make git-hooks`, and `make evals` (the static agent-config tier: the early patch's only agent-config eval, spec Assumptions). This comes before T065: no real secret may exist before the credential denies do (Principle IV). Then quickstart.md §0.4 and §0.5:
   - switch the host's Docker to the containerd image store, pruning first and checking the disk;
   - `deploy/agents-engine/engine.sh setup`, then `wsl --shutdown`;
@@ -422,7 +422,7 @@ description: "Task list for spec 000, Local Foundations"
   - the relay: `docker-relay` with `sh -c`, `bash -c`, `python3 -c`, or a path, refused with exit 2; for ops, `docker-relay make …` refused by its grant;
   - `engine.sh`'s Author subcommands, by any spelling;
   - a planted `__pycache__/*.pyc` for `scripts/operator.py`, in a scratch copy, that doesn't run under `PY_HOST`;
-  - gitleaks bypasses that must fail: a planted `.gitleaksignore` naming a fake finding's fingerprint, a `gitleaks:allow` comment, and a `.gitleaks.toml` in the scanned directory.
+  - gitleaks bypasses that must fail: a planted `.gitleaksignore` naming a fake finding's fingerprint, at the scan source's root, a `gitleaks:allow` comment, and a `.gitleaks.toml` in the scanned directory.
 
   T045's patch already added the rows for its own changes; T087 adds the rest, plus the indirect variants of those. Rows whose enforcement waits for a patch are `planned`: reported, but not failing.
 - [ ] T088 [US3] Create `tools/gates/matrix-required.txt`, listing every row ID, and make the matrix fail when a listed row is missing.
@@ -431,7 +431,7 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 3
 
-- [ ] T091 [P] [US3] Create `make secrets` per §11 (make the fresh empty directory for `--gitleaks-ignore-path` with a checked `mktemp -d`, and refuse an empty path: an unchecked `mktemp` failing gave an empty `pycache_prefix`, which loaded planted bytecode, research.md R-35): `gitleaks git --pre-commit` with and without `--staged`, plus `$(git merge-base main HEAD)..HEAD`, each with `--config` (the main tree's `.gitleaks.toml`, from T045's patch), `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`. Missing gitleaks fails closed.
+- [ ] T091 [P] [US3] Create `make secrets` per §11 (make the fresh empty directory for `--gitleaks-ignore-path` with a checked `mktemp -d`, and refuse an empty path: an unchecked `mktemp` failing gave an empty `pycache_prefix`, which loaded planted bytecode, research.md R-35): `gitleaks git --pre-commit` with and without `--staged`, plus `$(git merge-base main HEAD)..HEAD`, each with `--config` (the main tree's `.gitleaks.toml`, from T045's patch), `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow (and refusing to run while a `.gitleaksignore` exists at its scan source (research.md R-36))`. Missing gitleaks fails closed.
 - [ ] T092 [P] [US3] Create `tools/gates/gate` (the Author's clean-room gate, §11) and `tools/gates/test/test_gate.py`:
   - export the ref with `git archive`;
   - build the devcontainer image, tagged by `.devcontainer/`'s hash;
@@ -441,7 +441,7 @@ description: "Task list for spec 000, Local Foundations"
   - the push of the agent-config eval history as the `h4.devtime.eval.*` metrics to prod's x004 (§4.4);
   - a summary line for the merge commit;
   - `gate --host`, marked DEGRADED.
-- [ ] T093 [P] [US3] Create `tools/gates/publish_check.py` per §12 (exit codes 0, 1, 3) and `tools/gates/test/test_publish_check.py`, with fixture repositories:
+- [ ] T093 [P] [US3] Create `tools/gates/publish_check.py` per §12 (exit codes 0, 1, 3; it refuses with 3 while a `.gitleaksignore` exists at the repository root, research.md R-36) and `tools/gates/test/test_publish_check.py`, with fixture repositories:
   - a fake secret assembled at run time in an old commit;
   - a denylisted phrase in a removed file;
   - a currency amount in corpus Markdown;
@@ -613,7 +613,7 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
 ## Notes
 
 - [P] tasks touch different files and depend on nothing unfinished.
-- Marks expire (plan §11). A task that adds a make target named with `@Tnnn` in the Makefile's `CHECK_GATES` removes the mark in the same commit. Once a patch is applied, the next commit deletes the patch's PLANNED entries in `evals/agent-config/static.py` and clears `PRE_COMMIT_PLANNED` (T046). `make check` fails on a stale mark.
+- Marks expire (plan §11). A task that adds a make target named with `@Tnnn` in the Makefile's `CHECK_GATES` removes the mark in the same commit. A patch carries the edits that clear its own marks: T045's patch deletes its PLANNED entries in `evals/agent-config/static.py` and clears `PRE_COMMIT_PLANNED`. `make check` fails on a stale mark.
 - Every task names its file, and the section of the contract or plan it implements. Where a detail is in a contract, the contract governs, and plan.md is fixed if they disagree.
 - No task edits `.claude/**`, `REVIEW.md`, `CLAUDE.md`, the constitution, `config/budgets*`, or `config/alert*` directly, nor, once a patch protects them, `config/prices*`, `deploy/agents-engine/**`, `tools/gates/**`, `evals/agent-config/**`, or the gitleaks files. Those go through Patch tasks.
 

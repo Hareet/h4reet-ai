@@ -392,7 +392,7 @@ Keys that select the stack:
 **Make variables.**
 - `ENV`, from the command line only (`make up ENV=dev`), defaulting to `prod`. It must be exactly one word: `prod`, `dev`, or `dev-cpu`. POSIX shells export `ENV` to name a startup file, so make ignores the environment's value, and refuses one that names a stack (`ENV=dev make down` would otherwise act on prod).
 - `ENVFILE` is `deploy/env.agents/dev-cpu.vars` for dev-cpu, and `$(HOME)/.config/h4reet-ai/env/$(ENV).env` otherwise.
-- Every compose call is `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks. `TREE` is the running export on host stacks and the working tree on dev-cpu. Make finds a host stack's run file at `~/.local/state/h4reet/<stack>/run.env`, the only `H4_STATE_DIR` preflight allows there, so it never reads the env file. It reads `TREE` when a recipe runs, so `make up` sees the run file its export step has just written.
+- Every compose call is `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks. `TREE` is the running export on host stacks and the working tree on dev-cpu. Make finds a host stack's run file at `~/.local/state/h4reet/<stack>/run.env`, the only `H4_STATE_DIR` preflight allows there, so it never reads the env file. It reads `TREE` when a recipe runs, not when it starts. So `make up`, whose export runs as its own prerequisite target, sees the run file the export has just written; make expands a whole recipe before running it, so a line inside the same recipe would not.
 - `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null`. Every Python the Makefile runs in the Author's terminal goes through it, by script path and never with `-m`. `-I` keeps out `PYTHON*` variables, the user's site directory, and the working directory, but it still loads bytecode from `__pycache__`, which an agent could plant and git doesn't show. With the cache under `/dev/null`, which can never hold a directory, Python reads no bytecode and compiles the source, and `-B` keeps it from trying to write any (research.md R-35).
 
 **`make up`:**
@@ -877,13 +877,13 @@ Its summary line goes into the merge commit message. Project code never runs out
 - `make secrets`;
 - publish-check.
 
-Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`. Without them, gitleaks would obey a `.gitleaks.toml` or `.gitleaksignore` an agent wrote in the scanned directory, and any line marked `gitleaks:allow`. The matrix proves none of the three can switch a rule off. If gitleaks is missing, the hooks fail closed.
+Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`. Without them, gitleaks would obey a `.gitleaks.toml` or `.gitleaksignore` an agent wrote in the scanned directory, and any line marked `gitleaks:allow`. The ignore flag doesn't stop gitleaks reading a `.gitleaksignore` at the scan's source, so every call also refuses to run while one exists there: the scanned directory, the repository root for `git`, or the working directory for `stdin`, which runs from a fresh empty directory (research.md R-36). The matrix proves none of these can switch a rule off, with the file planted at the source's root. If gitleaks is missing, the hooks fail closed.
 
 ## 12. `make publish-check` (FR-042)
 
 `tools/gates/publish_check.py` (human-only, the Author's terminal, `python3 -I -B -X pycache_prefix=/dev/null`):
 1. **Exit 3, "cannot certify",** when it runs inside the sandbox (`SANDBOX_RUNTIME=1`), the clone is shallow, gitleaks isn't the pinned version, or the denylist is missing or unreadable.
-2. **Secrets:** `gitleaks git --log-opts="--all" --redact --no-banner --config .gitleaks.toml --gitleaks-ignore-path <an empty directory> --ignore-gitleaks-allow`. The report goes to a 0700 temporary directory that is deleted on exit.
+2. **Secrets:** `gitleaks git --log-opts="--all" --redact --no-banner --config .gitleaks.toml --gitleaks-ignore-path <an empty directory> --ignore-gitleaks-allow`, after refusing (exit 3) if a `.gitleaksignore` exists at the repository root. The report goes to a 0700 temporary directory that is deleted on exit.
 3. **Corpus rules:** it loads `corpus/tools/check_corpus.py` with `importlib.util.spec_from_file_location`, as its own test does, to use its `CURRENCY` rule. It reads the denylist exactly as `check_corpus` does: strip, lowercase, skip blank and `#` lines.
 4. **Every commit:**
    - it collects the blobs of every commit in `git rev-list --all` with `ls-tree -r`;
@@ -920,7 +920,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
     - `deploy/agents-engine/engine.sh` with any subcommand but `smoke` and `status`, by any spelling;
     - `make operator-*` and admin URLs for any stack but dev-cpu;
     - `make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`, `make aws-login`, and `make contract-live`.
-  - **Secret content:** fake keys assembled at run time, so the matrix file itself contains none. Three rows prove gitleaks can't be talked out of a finding: a planted `.gitleaksignore` naming the fake finding's fingerprint, a `gitleaks:allow` comment on its line, and a `.gitleaks.toml` in the scanned directory.
+  - **Secret content:** fake keys assembled at run time, so the matrix file itself contains none. Three rows prove gitleaks can't be talked out of a finding: a planted `.gitleaksignore` naming the fake finding's fingerprint, at the scan source's root, a `gitleaks:allow` comment on its line, and a `.gitleaks.toml` in the scanned directory.
   - **Settings rows:**
     - exactly one IP entry in `allowedDomains`;
     - no `allowAllUnixSockets`, `allowUnixSockets`, `enableWeakerNestedSandbox`, or `tlsTerminate`;

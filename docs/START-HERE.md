@@ -20,7 +20,7 @@ The enforcement layer cannot gate its own creation, so the scaffold went in as o
 
 What was done, locally, in `~/h4reet-ai/h4reet-ai`: `specify init` (Spec Kit 1.0.8 for Claude, Python scripts) combined with the scaffold, the hooks made executable, `.gitattributes` forcing LF, Spec Kit's git extension added (`specify extension add git`), and `.specify/feature.json` pointed at spec 000.
 
-There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; `make check` fails until you do.
+There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; the agents' `make check` fails until you do.
 
 ## 3. First Claude Code session
 

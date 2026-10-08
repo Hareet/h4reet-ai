@@ -81,7 +81,7 @@ DENIED_BEFORE_SPEC_000 = {
 }
 
 # Enforcement a patch hasn't applied yet: the item, and the task that writes the patch (tasks.md).
-# Once the early patch (T045) adds the hook and the denies, these entries fail as stale until they're deleted (T046).
+# The early patch (T045) deletes these entries along with adding the hook and the denies; left behind, they fail as stale.
 PLANNED = {
     "hook .claude/hooks/content-scan.sh": "T045",
     **{
