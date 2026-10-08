@@ -28,7 +28,7 @@ The spec turns that into FR-039, and adds constraints that follow from Principle
 ## Consequences
 
 - The plan chooses the engine: a VM, or a devcontainer on an isolated runtime. It also chooses how the sandbox reaches the engine, and how images and the CPU stand-in model arrive: from allowlisted sources, pulled in advance by the Author, or through an allowlist change the Author makes.
-- The model server has to run CPU-only from the same image, unless the Author decides that an image or profile chosen by the environment file counts as configuration (spec 000, FR-017's open question).
+- An image or profile chosen by the environment file counts as configuration (spec 000, Clarifications), so the CPU stand-in may use the model server's CPU image.
 - The `make up`, `make down`, `make breach-test`, and `docker compose` permissions in `.claude/agents/ops.md` become usable only once this engine exists.
 
 ## Links
