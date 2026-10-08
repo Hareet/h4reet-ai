@@ -67,7 +67,7 @@ Spec 000's code creates no cloud resource. The Author creates one by hand, the B
 - **AWS:** @aws-sdk/client-bedrock-runtime 3.1147.0, @aws-sdk/credential-providers 3.1147.0, @smithy/node-http-handler 4.12.1.
 - **OpenTelemetry:**
   - @opentelemetry/api 1.9.1, sdk-node 0.223.0, sdk-metrics 2.12.0, sdk-logs and api-logs 0.223.0, resources 2.12.0, semantic-conventions 1.43.0;
-  - the OTLP/HTTP exporters 0.223.0;
+  - the OTLP/HTTP exporters 0.223.0 (`exporter-trace-otlp-proto`, `exporter-metrics-otlp-proto`, and `exporter-logs-otlp-proto`, for `http/protobuf`);
   - instrumentation-http 0.223.0, instrumentation-pg 0.75.0, instrumentation-undici 0.33.0, instrumentation-pino 0.69.0, and @fastify/otel 0.21.1.
 - **Gateway dev:** typescript 6.0.3 (typescript-eslint 8.71.1 requires `<6.1`), @types/node 24.19.1, @types/pg 8.23.1, @types/nodemailer 8.0.2, vitest 5.0.3, vite 8.3.3, @vitest/coverage-v8 5.0.3, @electric-sql/pglite 0.5.8, aws-sdk-client-mock 4.1.0, aws-sdk-client-mock-vitest 8.0.0, eslint 10.12.0, @eslint/js 10.0.1, eslint-config-prettier 10.1.8, globals 17.13.0, prettier 3.9.9, tsx 4.23.15.
 - **Containers:** see [§2](#2-compose-services-and-pinned-images).
