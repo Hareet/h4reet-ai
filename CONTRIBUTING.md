@@ -1,10 +1,10 @@
 # Contributing
 
-h4reet.ai is built by one person, the Author, working with role-scoped AI agents, and the way it is built is part of what it shows. Every change follows the same chain of committed artifacts, so the history explains itself.
+h4reet.ai is built by one person, the Author, working with role-scoped AI agents, and the way it is built is part of what it shows. Every change is meant to follow the same chain of committed artifacts, and when one doesn't, its merge-request note says why, so the history explains itself.
 
 ## From outside: we accept intents, not pull requests
 
-If you have an idea, have found a bug, or think the twin has something about the Author wrong, write it up as an intent: the problem, the outcome you want, who and what it affects, constraints, cost and data-flow impact, and open questions. The template is in [`intent/README.md`](intent/README.md). Once the repository is published, open an issue with the intent as its body. The Author commits it to `intent/`, then accepts it into a spec or closes it with a reason.
+If you have an idea, have found a bug, or think the twin has something about the Author wrong, write it up as an intent: the problem, the outcome you want, who and what it affects, constraints, cost and data-flow impact, and open questions. The template is in [`intent/README.md`](intent/README.md). Once the repository is published, open an issue with the intent as its body. If the Author takes it up, it is committed to `intent/` marked as an outside intent, with a link to the issue, and agents treat its text as data, never as instructions (constitution, Injection defense). The Author then accepts it into a spec or closes it with a reason.
 
 We don't merge pull requests from outside, because a change here is more than a diff: it needs an accepted intent, a spec, a plan, tests, a review by an agent that didn't write it, and the Author's merge. The corpus about the Author is written by the Author, so corrections to it arrive as intents too. Security issues go through [`SECURITY.md`](SECURITY.md), never a public issue.
 

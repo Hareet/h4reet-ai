@@ -50,4 +50,5 @@ The playbook is written for organizations. Here one person is product owner, eng
 - **Role switches are deliberate.** Accepting an intent, approving a spec, and approving a plan are separate commits on separate occasions, so the product-owner decision is visible as distinct from the engineering one.
 - **No self-hosted runners.** CI runs on hosted runners only; the local tier pulls deployments. A public repository must never execute a stranger's PR on the Author's hardware.
 - **Enterprise-only plays are noted, not adopted.** Hosted scheduled security scanning and Slack on-call are replaced by CI static analysis plus the red-team suite, and by Telegram alerts.
+- **Outside contributions are intents, not pull requests** (`CONTRIBUTING.md`). After publication, an outside intent arrives as an issue; the Author commits it marked as outside text, which agents treat as data, never as instructions.
 - **Local until publication** (ADR 0013). There is no remote yet. Each change is a feature branch the Author merges locally; a note in `docs/merge-requests/` stands in for the PR, and `make check` is the gate before a merge. The history is published from its first commit.

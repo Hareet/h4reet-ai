@@ -8,8 +8,8 @@ Work inside the Linux filesystem (here, `~/h4reet-ai/h4reet-ai`), never under `/
 
 - **Windows side**: current NVIDIA driver (the Windows driver provides GPU access to WSL2 — do not install a Linux GPU driver inside the distro); Docker Desktop with the WSL2 backend, or Docker Engine + `nvidia-container-toolkit` inside the distro. Verify: `docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi` shows the RTX 5090.
 - **`.wslconfig`** (`%UserProfile%\.wslconfig`): give WSL2 enough memory for model containers (e.g. `memory=48GB`, `swap=8GB`), then `wsl --shutdown`.
-- **Distro packages**: `git`, `make`, `jq`, `shellcheck`, `bubblewrap`, `socat`, `unzip`, `build-essential`.
-- **Toolchain**: Node 22 LTS (via `fnm` or `nvm`), Python 3.12 + `uv`, `gh` (GitHub CLI), AWS CLI v2 configured with IAM Identity Center (`aws configure sso`; no access keys), Terraform (spec 001; install now, use later).
+- **Distro packages**: `git`, `make`, `jq`, `shellcheck`, `bubblewrap`, `socat`, `unzip`, `build-essential`, `python3-yaml`.
+- **Toolchain**: Node 22 LTS (via `fnm` or `nvm`), Python 3.12 + `uv`, `ruff` (`uv tool install ruff`), `gh` (GitHub CLI), AWS CLI v2 configured with IAM Identity Center (`aws configure sso`; no access keys), Terraform (spec 001; install now, use later).
 - **Claude Code**: `npm install -g @anthropic-ai/claude-code`, then `claude` once to sign in with your subscription. Dev-time model spend is separate from the production budget by constitution — do not point Claude Code at the production Bedrock path.
 - **Spec Kit**: `uv tool install specify-cli` (or `--from git+https://github.com/github/spec-kit.git@<tag>` to pin), then `specify check`.
 - **Line endings**: `git config --global core.autocrlf input`. The repo ships `.gitattributes` with `* text=auto eol=lf`; hooks fail with CRLF.
@@ -41,7 +41,7 @@ Spec 001 is specified in full only after spec 000's success criteria pass on you
 - **Local model server**: the RTX 5090 is Blackwell; use CUDA 12.8+ images and confirm the server build supports the architecture before choosing it in `/speckit-plan`. Model download on first `make up` can dominate the 10-minute budget — pre-pull in the plan.
 - **Ports**: the stack should bind to `127.0.0.1` by default; WSL2 forwards localhost to Windows, which is convenient and also why nothing may bind `0.0.0.0` until spec 001's tunnel exists.
 - **Bedrock adapter tests** use your SSO session (`aws sso login`) from your shell, never from inside the agent sandbox (credentials are denied there by design). Run them yourself or in CI via OIDC later.
-- **Telegram**: create the bot with `@BotFather`, get your chat id, store the token in your shell profile or a local env file outside the repo (`deploy/env/*.env` is gitignored; `.env*` reads are denied to agents).
+- **Telegram**: create the bot with `@BotFather`, get your chat id, store the token in your shell profile or a local env file outside the repo. Inside the repo, `*.env` files are gitignored but not yet hidden from agents: `Read(.env*)` only matches names that start with `.env`.
 - **Hooks and humans**: hooks govern agents. You can still edit `.claude/**` in your editor — `CODEOWNERS` and the agent-config evals govern you once they exist (at publication and in spec 000); until then, your own review does.
 - **Denylist**: `corpus/intake/private/denylist.txt` exists only on this machine and is gitignored. Keep a copy somewhere safe: a fresh clone won't have it, and without it `make corpus-check` skips the denylist rule silently.
 
@@ -68,4 +68,4 @@ When spec 000's success criteria pass locally (as far as they can before publica
    ```
 
 4. On GitHub: branch protection on `main` (require PR, require the Author's review, require status checks, no force push, include admins). Add a `production` environment with required reviewers = you (used by spec 001's apply). Enable secret scanning, Dependabot, and private vulnerability reporting (`SECURITY.md` sends reporters there).
-5. Leave local mode: replace the local-only lines in `CLAUDE.md` and `docs/KICKOFF-PROMPT.md`; relax the local-phase rules in `.claude/hooks/bash-gate.sh` and their matrix rows, so agents push feature branches again while `main` stays yours; move github.com and api.github.com from `sandbox.network.deniedDomains` back to `allowedDomains` in `.claude/settings.json`; and supersede ADR 0013 with an ADR for the switch. Only after protection is on, start the next Claude Code session. From then on, agents push feature branches and open PRs.
+5. Leave local mode: replace the local-only lines in `CLAUDE.md`, `docs/KICKOFF-PROMPT.md`, `README.md`, `SECURITY.md`, and `CONTRIBUTING.md`; relax the local-phase rules in `.claude/hooks/bash-gate.sh` and their matrix rows, so agents push feature branches again while `main` stays yours; move github.com and api.github.com from `sandbox.network.deniedDomains` back to `allowedDomains` in `.claude/settings.json`; and supersede ADR 0013 with an ADR for the switch. Only after protection is on, start the next Claude Code session. From then on, agents push feature branches and open PRs.
