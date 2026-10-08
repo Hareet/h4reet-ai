@@ -46,6 +46,7 @@ check() {
     infra/*budget* | infra/*alert* | infra/*iam* | infra/*edge* | infra/*waf* | config/budgets* | config/alert* | config/kill-switch*) block "cost/alert/edge/kill-switch configuration" ;;
     corpus/*) block "the corpus (claims about the Author are human-authored; write a proposal under corpus/proposals/)" ;;
     .github/workflows/*) block "CI workflow (a gate must not be edited by what it gates)" ;;
+    deploy/env/* | *.env) block "environment file (it holds secrets and selects what a stack runs; spec 000 FR-007)" ;;
   esac
   if [ "${FIX_TASK:-0}" = "1" ]; then
     case "$1" in

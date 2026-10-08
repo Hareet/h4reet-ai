@@ -189,6 +189,12 @@ raw block '/proc/self/cwd/CLAUDE.md'
 raw block '//proc/self/cwd/CLAUDE.md'
 raw block '/./proc/self/cwd/CLAUDE.md'
 check protected-paths.sh block 'NotebookEdit on .claude/x.ipynb' "$(jq -cn --arg p "$project/.claude/x.ipynb" '{notebook_path:$p}')"
+# Environment files hold secrets and select what a stack runs (spec 000 FR-007).
+edit block 'deploy/env/prod.env'
+edit block 'deploy/env/notes.txt'          # the folder rule on its own
+edit block 'services/gateway/local.env'    # the *.env rule on its own
+edit allow 'deploy/env.example/prod.env.example'
+
 # Fix tasks may not touch tests or evals.
 edit block 'services/gateway/src/router.test.ts' FIX_TASK=1
 edit block 'services/gateway/src/router.spec.ts' FIX_TASK=1
@@ -318,6 +324,26 @@ if env -u CLAUDECODE git -C "$gr" merge -q --no-ff --no-edit feature >/dev/null 
   printf 'FAIL        %-21s %s\n' git-hook "the Author's merge into main did not go through"
 fi
 
+# --- subagent-report-check.sh: a report it can't check is a warning, never silence (FR-010) ------
+# unchecked <reason>: how many "report not checked" warnings with that reason the audit log holds
+unchecked() {
+  local n
+  n="$(grep -c "$(printf '\tsubagent\tWARN\treport not checked: %s' "$1")" "$log" 2>/dev/null)" || true
+  echo "${n:-0}"
+}
+# subagent_row <label> <SubagentStop payload JSON> <expected reason>
+subagent_row() {
+  local before
+  before="$(unchecked "$3")"
+  printf '%s' "$2" | env CLAUDE_PROJECT_DIR="$project" "$hooks/subagent-report-check.sh" >/dev/null 2>&1 || true
+  if [ "$(unchecked "$3")" -gt "$before" ]; then pass=$((pass + 1)); else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' subagent-report-check.sh "$1"
+  fi
+}
+subagent_row 'a payload with no transcript path is logged as WARN' '{"session_id":"matrix"}' 'no transcript path in payload'
+subagent_row 'a transcript path with no file is logged as WARN' '{"agent_transcript_path":"/nonexistent/agent.jsonl"}' 'no file at the transcript path'
+
 # --- .claude/settings.json keeps the layers behind the hooks ---------------------------------------
 settings="$repo/.claude/settings.json"
 # has <label> <jq filter that must be true>
@@ -337,6 +363,9 @@ has 'the sandbox hides the private intake' '.sandbox.filesystem.denyRead | index
 has 'GitHub is denied, not allowed, until publication' '(.sandbox.network.deniedDomains | index("github.com") != null and index("api.github.com") != null) and ([.sandbox.network.allowedDomains[] | select(test("github\\.com$"))] | length == 0)'
 has 'the sandbox denies ~/.git-credentials' '[.sandbox.credentials.files[] | select(.path == "~/.git-credentials" and .mode == "deny")] | length == 1'
 has 'the sandbox is required and has no unsandboxed retry' '.sandbox.enabled == true and .sandbox.failIfUnavailable == true and .sandbox.allowUnsandboxedCommands == false'
+# shellcheck disable=SC2016 # $d is a jq variable, not a shell expansion
+has 'env files are Read- and Edit-denied, wherever they are (FR-007)' '.permissions.deny as $d | ["Read(*.env)", "Edit(*.env)"] | all(. as $r | $d | index($r) != null)'
+has 'the sandbox hides deploy/env and denies writes to it (FR-007)' '(.sandbox.filesystem.denyRead | index("./deploy/env") != null) and (.sandbox.filesystem.denyWrite | index("./deploy/env") != null)'
 has 'protected-paths.sh also covers NotebookEdit' '[.hooks.PreToolUse[] | select(.matcher | test("NotebookEdit"))] | length == 1'
 
 printf 'forbidden-actions (hook layer): %d passed, %d failed, %d known gaps\n' "$pass" "$fail" "$gaps"

@@ -39,7 +39,8 @@ terraform.rc
 *.tfvars.json
 
 # Environment files hold real values and stay on the machine that runs the stack (docs/START-HERE.md).
-# Commit templates as *.env.example. Ignored everywhere, not only in deploy/env/, so a stray env file can't slip in.
+# Commit templates as *.env.example, outside deploy/env/, which agents can neither read nor write.
+# Ignored everywhere, not only in deploy/env/, so a stray env file can't slip in.
 *.env
 .env
 .env.*

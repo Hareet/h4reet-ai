@@ -2,6 +2,7 @@
   "permissions": {
     "deny": [
       "Read(.env*)",
+      "Read(*.env)",
       "Read(./secrets/**)",
       "Read(~/.aws/**)",
       "Read(~/.ssh/**)",
@@ -28,6 +29,7 @@
       "Edit(/.github/workflows/**)",
       "Edit(/.git/hooks/**)",
       "Edit(/.git/config)",
+      "Edit(*.env)",
       "Edit(/config/budgets*)",
       "Edit(/config/alert*)",
       "Edit(/config/kill-switch*)"
@@ -69,10 +71,12 @@
         "./corpus/intake",
         "./corpus/tools",
         "./.git/hooks",
-        "./.git/config"
+        "./.git/config",
+        "./deploy/env"
       ],
       "denyRead": [
-        "./corpus/intake/private"
+        "./corpus/intake/private",
+        "./deploy/env"
       ]
     },
     "network": {

@@ -16,6 +16,7 @@ Local until the Author publishes (ADR 0013): commit on a feature branch and end 
 - Local production stack: `make up` / `make down` (whole topology, local models)
 - Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action in the protected CI environment.
 - Kill-switch rehearsal: `make breach-test` (dev only)
+- Containers, the GPU, and Bedrock are out of reach in the sandbox until spec 000's FR-039 engine exists. Ask the Author to run them, batched into one script that returns everything a diagnosis needs and nothing secret (`.claude/agents/ops.md` shows how).
 
 ## Conventions
 - TypeScript (web, services), Python (ML, evals). Everything ships as a container; images are built in CI and promoted unchanged.
@@ -50,3 +51,6 @@ If a test fails, fix the code, not the test. Do not edit test files during a fix
 - Editing `corpus/`, or stating a number about the Author that isn't in the corpus or a filled `facts/` slot.
 - Widening `permissions.allow` or sandbox domains to make a task easier. Ask instead.
 - Writing a bash-gate rule that matches only the canonical spelling. Also test `git -C`/`-c`, `bash -c`, subshells, quoting, and config or API equivalents, and add a gap row to `redteam/forbidden-actions.sh` for any that get through.
+- Paraphrasing a source: recorded answers, quotes, and anything about the Author's role, the agents' share of the work, or a privacy promise stay in the source's words; put your reading beside them, never in their place.
+- Deferring or dropping a control the constitution requires without naming the clause as a deviation in the spec's Assumptions, and an ADR when that reverses an accepted one.
+- Letting anything the Author runs execute what agents can write and git doesn't show (a cache, `.venv`, `uv.toml`, an ignored or excluded file): pin the interpreter and skip project config.
