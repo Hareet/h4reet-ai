@@ -276,7 +276,9 @@ CLAUDE.md                        [P] the lines §15 lists
     |---|---|---|---|---|---|
     | prod | 18000 | 18001 | 18002 | 18003 | 18004 |
     | dev | 18100 | 18101 | 18102 | 18103 | 18104 |
-    | dev-cpu | 18300 | 18301 | 18302 | 18303 | 18304 (inside the engine's namespace) |
+    | dev-cpu | 18300 | 18301 | 18302 | 18303 | 18304 |
+
+    Dev-cpu's ports are published on the host's 127.0.0.1 by RootlessKit, running as `h4agents`. Only the Author's own processes can open them, which lets the Author look at dev-cpu's Grafana and Langfuse. The sandbox's proxy refuses loopback, so agent sessions can't, and engine containers can't reach the host's stacks either ([contracts/agents-engine.md](contracts/agents-engine.md) rows E4, E9, E14).
 
   - Only the read-only model cache and the GPU are shared between prod and dev. The stand-in model uses about 1.5 GB of VRAM.
   - `make isolation-check` proves the isolation with both stacks up ([§4](#4-environment-files-preflight-and-the-stack-targets)).
@@ -325,7 +327,7 @@ The bases the gates and the devcontainer use aren't compose services but are pin
 - `nvidia/cuda:12.8.0-base-ubuntu24.04@sha256:e778509d37d66475120929671500377524f7278478ba08131b07ef3ffcc0dce0`, used only by preflight's optional GPU probe.
 
 **Edge** (`deploy/edge/nginx.conf`):
-- **Upstreams.** One server block per published port: 8080 to `gateway:8080`, 8081 to `langfuse-web:3000`, 8082 to `grafana:3000`, 8083 to `gateway:8081`, and 8084 to `otel-collector:4318`. Each resolves its upstream per request (`resolver 127.0.0.11 valid=10s`), so edge starts with no dependencies.
+- **Upstreams.** One server block per published port: 8080 to `gateway:8080`, 8081 to `langfuse-web:3000`, 8082 to `grafana:3000`, 8083 to `gateway:8081`, and 8084 to `otel-collector:4319`, a metrics-only receiver for dev-time metrics. The 8084 block forwards only `POST /v1/metrics`, so a host process can't inject traces or logs, or series that look like the gateway's ([contracts/telemetry.md](contracts/telemetry.md)). Each resolves its upstream per request (`resolver 127.0.0.11 valid=10s`), so edge starts with no dependencies.
 - **Client identity.** It sets `X-Forwarded-For $remote_addr` and drops any `X-Forwarded-For` the client sent.
 - **The api's degraded body.** When the gateway can't answer, the 8080 block returns 503 with `X-H4-Degraded-Cause: api_unavailable` and the JSON body in [contracts/gateway-http.md](contracts/gateway-http.md).
 - **Limits.** Request bodies are capped at 16 KB on 8080, and admin bodies at 4 KB.
@@ -451,7 +453,7 @@ One interface, `ProviderAdapter { id, provider, kind, model, complete(req), heal
   - Retries: one, only on `ThrottlingException`, and only while the deadline allows. A timeout counts as `possiblyBilled`, so the meter charges the reserved maximum.
   - Health never spends: credentials resolve and expire more than 0 s from now, and a circuit breaker (3 failures, 30 s open) is closed.
   - Model: Claude Haiku 5.5 if Bedrock offers it in us-east-1, otherwise Claude Haiku 4.5's `us.` inference profile. The Author confirms the ID (`aws bedrock list-inference-profiles`) and writes it into `routing.yaml` and `prices.yaml`. `additional_request_fields` turns extended thinking off.
-  - Credentials: the default chain, with `AWS_PROFILE=h4reet-bedrock` and `HOME=/home/node`. The Author's SSO session for the dedicated Identity Center user `h4reet-runtime` is mounted read-only from `~/.config/h4reet-ai/aws-home/.aws`. That user holds only a permission set allowing `bedrock:InvokeModel` on the one inference profile and the foundation models it routes to. The Author creates both: IAM is a human action, and they are not resources this spec creates.
+  - Credentials: the default chain, with `HOME=/home/node` and the container's `AWS_PROFILE` set from the env file's `GATEWAY_AWS_PROFILE` (`h4reet-bedrock`). The name differs so a shell's own `AWS_PROFILE` can never stand in for it. The Author's SSO session for the dedicated Identity Center user `h4reet-runtime` is mounted read-only from `~/.config/h4reet-ai/aws-home/.aws`. That user holds only a permission set allowing `bedrock:InvokeModel` on the one inference profile and the foundation models it routes to. The Author creates both: IAM is a human action, and they are not resources this spec creates.
   - Because the mount is read-only, the SDK can't refresh the SSO token. When it nears expiry, the gateway raises `credentials_expiring` 2 h before the end, and the Author runs `make aws-login`.
   - Non-prod stacks mount `deploy/aws-none` (empty), so no Bedrock call is possible there even by mistake.
 - **`synthetic`** (`type: synthetic`): dev only. It returns a fixed text with 1,000 output tokens priced at $100 per million tokens in dev's price entry, so each call costs exactly $0.10. It declares that usage (`fixedUsage`), so it also reserves exactly $0.10. It is refused at startup outside `H4_ENV=dev` and needs `GATEWAY_TEST_SYNTHETIC_SPEND=1`.
@@ -564,7 +566,7 @@ The canonical names, attributes, and Prometheus forms are in [contracts/telemetr
 - **Spans:** the `POST /hello` server span (from `@fastify/otel`), an internal `gateway.route` span, and one client span per provider attempt, named `chat {gen_ai.request.model}`. The client span carries:
   - `gen_ai.operation.name`, `gen_ai.provider.name`, the request and response model, max tokens, input and output tokens, finish reasons, and the response ID;
   - `server.address` and `error.type`;
-  - `h4.cost.usd` (always set, 0 for local, so Langfuse never prices from its own table), `h4.cost.basis`, `h4.price.version`, `h4.route.decision`, `h4.route.reason`, `h4.meter.attribution`, `h4.degraded.cause`, `h4.stack`, and `h4.routing.sha`;
+  - `h4.cost.usd` (always set, 0 for local, so Langfuse never prices from its own table), `h4.cost.basis`, `h4.price.version`, `h4.route.decision`, `h4.route.reason`, `h4.meter.attribution`, `h4.stack`, and `h4.routing.sha`. `h4.degraded.cause` sits on the `gateway.route` and server spans, which see the routing decision; the client span ends before it;
   - Langfuse's generation-type attribute.
 
   Health probes produce no spans.
@@ -589,7 +591,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
 ## 6. Observability
 
 - **Collector** (`deploy/otel/collector.yaml`, mounted read-only so compose never interpolates it):
-  - **Receivers:** OTLP gRPC on 4317 and HTTP on 4318, on `internal` only (plus edge's x004 for Claude Code's metrics).
+  - **Receivers:** OTLP gRPC on 4317 and HTTP on 4318, for the stack's own services on `internal`. Separately, `otlp/devtime` on 4319, reached only through edge's x004, feeds a filtered `metrics/devtime` pipeline for Claude Code's metrics and the eval history (FR-037).
   - **Traces:** memory_limiter → filter (drops health and metrics probes and `h4.probe=true`) → transform/payloads → redaction → transform/redact-text → resource (`deployment.environment.name`, `service.namespace=h4reet`) → batch (2 s) → `otlphttp/langfuse`. The exporter uses basic auth from `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`, sends to `http://langfuse-web:3000/api/public/otel`, and keeps an in-memory retry queue sized for about 10 minutes.
   - **Metrics:** memory_limiter → redaction → resource → batch → `otlphttp/prometheus` (`http://prometheus:9090/api/v1/otlp`).
   - **Logs:** memory_limiter → transform/payloads (always) → redaction → transform/redact-text → resource → batch → `otlphttp/loki` (`http://loki:3100/otlp`).
@@ -648,7 +650,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
 
   The internal network blocks all of these anyway. The Author's browser on the Grafana and Langfuse pages is checked once in devtools, and anything left is listed in the disclosure.
 - **FR-037, dev-time usage:**
-  - **Eval history:** `make evals-agent-config` writes tokens and notional cost per run to `evals/agent-config/history/`, and `tools/gates/gate` turns it into a metric pushed to prod's collector.
+  - **Eval history:** `make evals-agent-config` writes tokens and notional cost per run to `evals/agent-config/history/`, and `tools/gates/gate` pushes it to prod's collector as the `h4.devtime.eval.*` metrics ([contracts/telemetry.md](contracts/telemetry.md)).
   - **Claude Code's own metrics:** in the patch, the settings `env` sets `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_METRICS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`, and `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:18004`. No prompt is exported: `OTEL_LOG_USER_PROMPTS` stays unset, and the logs exporter is off. The panel sums `claude_code.cost.usage` and `claude_code.token.usage` by model, labelled as Team-plan notional cost, outside the production meter.
 
 ## 7. Tests: unit, contract, integration, live
@@ -764,7 +766,7 @@ FR-039, ADR 0016. The rule tables and proofs are in [contracts/agents-engine.md]
   - **The firewall:** nftables table `inet h4agents`, output hook, `meta skuid h4agents`. It accepts established traffic and `198.18.0.1:3128`, and logs and drops everything else, including DNS. Containers, which reach out through slirp4netns as `h4agents`, have no route to the internet, the LAN, the host's stacks, or the bridge networks.
   - **The GPU:** a systemd unit sets `/dev/dxg` to mode 0660, group `h4gpu`, and the Author joins the group. Rootful Docker runs as root and keeps the GPU.
   - **Windows files:** `/etc/wsl.conf` automount `options = "metadata,umask=077,fmask=077"`, so `/mnt/c` is the Author's alone.
-  - **The tree:** a systemd unit, run as root, read-only binds the working tree at `/run/h4agents/tree`, with empty tmpfs over `deploy/env`, `corpus/intake/private`, and `.git`. It also binds the model cache read-only at `/run/h4agents/models`, and creates `/var/lib/h4agents/state`, owned by `h4agents`. `h4agents` never traverses the Author's home, which stays mode 750.
+  - **The tree:** a systemd unit, run as root, read-only binds the working tree at `/run/h4agents/tree`, with empty tmpfs over `deploy/env`, `corpus/intake/private`, and `.git`. It also binds `/var/lib/h4agents/models` read-only at `/run/h4agents/models`. That directory is root-owned and holds only the stand-in, which `make engine-seed` copies in. It creates `/var/lib/h4agents/state`, owned by `h4agents`. All three bind roots are mounted `nosymfollow`, so a planted symlink can't lead outside them. The engine's code runs from root-owned installed copies, not from the tree. `h4agents` never traverses the Author's home, which stays mode 750.
   - **Limits:** a slice drop-in caps `h4agents` at 4 CPUs and 12 GB.
 - **The daemon:**
   - `dockerd-rootless.sh`, as an `h4agents` systemd user service;
@@ -776,7 +778,7 @@ FR-039, ADR 0016. The rule tables and proofs are in [contracts/agents-engine.md]
   - It refuses:
     - privileged containers;
     - devices, device requests (`--gpus`), and device cgroup rules;
-    - added capabilities and relaxed `SecurityOpt`;
+    - added capabilities beyond Docker's default set (the database images' `cap_add` of `CHOWN`, `SETUID`, `SETGID`, `FOWNER`, and `DAC_OVERRIDE` stays within it), and relaxed `SecurityOpt`;
     - host pid, ipc, uts, or userns;
     - binds, mounts, and local-driver volumes that bind host paths outside `/run/h4agents/tree` (read-only), `/run/h4agents/models` (read-only), and `/var/lib/h4agents/state`;
     - plugin installs and swarm endpoints;
@@ -784,7 +786,7 @@ FR-039, ADR 0016. The rule tables and proofs are in [contracts/agents-engine.md]
   - Each decision goes to its audit log.
   - Docker 28.3.3 carries the fix for CVE-2024-41110, the authorization-plugin bypass.
   - If the plugin is down, the daemon refuses every request, so it fails closed.
-- **Egress:** `egress-proxy.py` (stdlib), a CONNECT proxy on `198.18.0.1:3128`, run as the Author's user service. It allows CONNECT to 443, and absolute-form GET to 80, only for the hosts in `.claude/settings.json`'s `sandbox.network.allowedDomains`, read at start, so it's the same list by construction. It logs every decision.
+- **Egress:** `egress-proxy.py` (stdlib), a CONNECT proxy on `198.18.0.1:3128`, run as the Author's user service. It allows CONNECT to 443, and absolute-form GET to 80, only for the hosts in `.claude/settings.json`'s `sandbox.network.allowedDomains`, read at start, so it's the same list by construction. It refuses IP literals, and names that resolve to non-global addresses, so the proxy can't become a way to the LAN or the host. It logs every decision. Builds reach it through the `H4_BUILD_PROXY` build arguments.
 - **Seeding** (`make engine-seed`, the Author): for every digest in `images.lock`, `docker pull` on the host, then `docker save | docker load` into the engine. Both daemons must use the containerd image store, so the digests survive and `@sha256` pins resolve offline. Check 2 found the host's Docker on the classic `overlay2` store. Before the first seed, the Author:
   1. prunes the images nothing uses;
   2. sets `"features": {"containerd-snapshotter": true}` in `/etc/docker/daemon.json`;
@@ -798,7 +800,8 @@ FR-039, ADR 0016. The rule tables and proofs are in [contracts/agents-engine.md]
   - Make targets that touch containers wrap themselves in the relay when `SANDBOX_RUNTIME=1`.
   - Rejected: `allowUnixSockets`, which is macOS-only, and `allowAllUnixSockets`, which would open the host's `docker.sock`.
 - **Disposable:** `make engine-reset` stops the daemon, deletes its data root and every volume, restarts it, and seeds again, in about a minute. `make engine-destroy` removes everything but the user. Nothing of the Author's lives there.
-- **The other targets:** `engine-up`, `engine-down`, `engine-status`, and `engine-prove` are the Author's. `engine-smoke` is the agent session's, and is US3-9's positive half: `make up ENV=dev-cpu` comes up healthy, then `make breach-test ENV=dev-cpu` passes.
+- **The other targets:** `engine-up`, `engine-down`, and `engine-prove` are the Author's. `engine-status` is read-only, and either may run it.
+- **One checkout at a time:** the engine's tree view is the repository's main working tree. An agent working in a linked worktree doesn't run dev-cpu; the session that integrates its work does, from the main tree. Preflight refuses a dev-cpu run from a linked worktree. `engine-smoke` is the agent session's, and is US3-9's positive half: `make up ENV=dev-cpu` comes up healthy, then `make breach-test ENV=dev-cpu` passes.
 - **Residual risk** (ADR 0016): the kernel is shared, so a kernel exploit from a container reaches the host as `h4agents`, and the admission plugin is part of the boundary. Matrix stage E proves each limit ([§13](#13-the-forbidden-action-matrix)). The KVM VM stays the documented upgrade.
 
 ## 11. Local gates (FR-041)
@@ -817,7 +820,7 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 | Evals | `evals` | the product scaffold on `fake`; the agent-config static tier; the behavioral tier when triggered ([§14](#14-evals-and-red-team-scaffolds-agent-configuration-evals)) | PENDING when triggered |
 | Red-team suite | `redteam` | `redteam/run.py` | runs |
 | Forbidden-action matrix | `matrix` | `redteam/forbidden-actions.sh`: stage H everywhere; stage S inside the sandbox | runs |
-| Image build | `image` | `docker compose build` and the devcontainer image, on the current engine (the relay in the sandbox) | runs on the agents' engine; FAIL "ask the Author: make engine-up" if it's down |
+| Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the current engine, and the devcontainer image outside the sandbox | the compose images on the agents' engine; FAIL "ask the Author: make engine-up" if it's down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs nodejs.org and Ubuntu's mirrors, and the allowlist stays as it is |
 
 `make check` keeps going after a failure and prints PASS, FAIL, SKIP (always with a reason), or PENDING per target, then a summary line. It exits non-zero on any FAIL or PENDING. Inside the sandbox it sets `npm_config_cache` to `$TMPDIR`, as it already does for `UV_CACHE_DIR`. Its output, pasted whole, goes into every merge-request note (FR-041).
 
