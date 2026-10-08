@@ -8,11 +8,13 @@
 //   detector runs, since the cloud ones would call instance-metadata endpoints, an undisclosed data flow.
 // - Health probes make no spans; nor do outgoing calls outside a request, such as the model server's 1 s health
 //   probe or the store's background queries, which would otherwise each be a trace of their own.
-// - A span processor drops the client attributes before export, and the undici instrumentation skips the Telegram
-//   API host, whose URL path carries the bot token. The collector repeats both as a second layer (§6.3).
+// - A span processor drops the client attributes and the query string before export, and the undici instrumentation
+//   skips the Telegram API host, whose URL path carries the bot token. The collector repeats both as a second layer
+//   (§6.3).
 //
 // Instrumentations are built switched off, so building this configuration patches nothing; NodeSDK.start() enables
-// them. server.ts starts the SDK before it loads Fastify, pg, or pino, so their instrumentations can wrap them.
+// them, and startTelemetry switches on the undici instrumentation's own flag, which it reads on every request.
+// server.ts starts the SDK before it loads Fastify, pg, or pino, so their instrumentations can wrap them.
 import { FastifyOtelInstrumentation } from "@fastify/otel";
 import type { Context, Span as ApiSpan } from "@opentelemetry/api";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
@@ -49,13 +51,19 @@ export const EXPORT_TIMEOUT_MS = 5_000;
 export const SPAN_BATCH = { maxQueueSize: 2_048, scheduledDelayMillis: 1_000 } as const;
 export const TELEGRAM_API_HOST = "api.telegram.org";
 
-/** What the gateway removes from its spans before export (§3.1); the collector deletes them again (§6.3). */
+/**
+ * What the gateway removes from its spans before export (§3.1): the client's attributes, and the query string, which
+ * the HTTP instrumentation records as url.query on server spans and both client instrumentations inside url.full.
+ * The collector deletes them again (§6.3).
+ */
 export const STRIPPED_SPAN_ATTRIBUTES = [
   "client.address",
   "client.port",
   "network.peer.address",
   "network.peer.port",
   "user_agent.original",
+  "url.query",
+  "url.full",
 ] as const;
 
 const HEALTH_PATHS = new Set(["/health/live", "/health"]);
@@ -225,7 +233,15 @@ export interface Telemetry {
 
 /** Starts the SDK and enables the instrumentations. Call it before loading Fastify, pg, or pino. */
 export function startTelemetry(opts: TelemetryOptions): Telemetry {
-  const sdk = new NodeSDK(buildSdkConfiguration(opts));
+  const config = buildSdkConfiguration(opts);
+  const sdk = new NodeSDK(config);
   sdk.start();
+  // start() subscribes the undici instrumentation, but it makes a span, and injects trace context, only while its
+  // config says enabled; built switched off, it would record no outgoing fetch at all.
+  for (const instrumentation of config.instrumentations ?? []) {
+    if (instrumentation instanceof UndiciInstrumentation) {
+      instrumentation.setConfig({ ...instrumentation.getConfig(), enabled: true });
+    }
+  }
   return { shutdown: () => sdk.shutdown() };
 }

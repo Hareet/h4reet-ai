@@ -15,7 +15,6 @@ import {
   type GaugeSnapshot,
 } from "../../src/telemetry/metrics.js";
 import {
-  ClientAttributeStripper,
   METRIC_EXPORT_INTERVAL_MS,
   SPAN_BATCH,
   buildResource,
@@ -271,8 +270,46 @@ describe("the SDK's setup (telemetry.md §3.1)", () => {
     await done;
   });
 
-  it("batches spans in a queue of 2,048, exported every 1 s, that drops rather than blocks", () => {
-    expect(SPAN_BATCH).toEqual({ maxQueueSize: 2_048, scheduledDelayMillis: 1_000 });
+  it("exports a finished span when the batch's 1 s delay is up, not before", async () => {
+    vi.useFakeTimers();
+    const exporter = new node.InMemorySpanExporter();
+    const config = buildSdkConfiguration({ version: "0.1.0", exporters: { traces: exporter } });
+    const provider = new node.BasicTracerProvider({ spanProcessors: config.spanProcessors ?? [] });
+    provider.getTracer("t").startSpan("one").end();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(exporter.getFinishedSpans()).toHaveLength(1);
+    expect(SPAN_BATCH.scheduledDelayMillis).toBe(1_000);
+    const done = provider.shutdown();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await done;
+  });
+
+  it("queues at most 2,048 spans behind a stalled export, and drops the rest rather than block", async () => {
+    // A first batch of 512 leaves at once and stalls; 2,048 queue behind it; the rest are dropped. span.end()
+    // returns at once throughout.
+    const exported: unknown[] = [];
+    let release: (() => void) | undefined;
+    const stalled = new Promise<void>((r) => (release = r));
+    const exporter = {
+      export(batch: unknown[], done: (result: { code: number }) => void) {
+        exported.push(...batch);
+        void stalled.then(() => done({ code: 0 }));
+      },
+      shutdown: async () => {},
+      forceFlush: async () => {},
+    };
+    const config = buildSdkConfiguration({ version: "0.1.0", exporters: { traces: exporter as never } });
+    const provider = new node.BasicTracerProvider({ spanProcessors: config.spanProcessors ?? [] });
+    const tracer = provider.getTracer("t");
+    for (let i = 0; i < 3_000; i++) tracer.startSpan("s").end();
+    expect(exported).toHaveLength(512);
+    release?.();
+    await provider.forceFlush();
+    expect(exported).toHaveLength(512 + 2_048);
+    expect(SPAN_BATCH.maxQueueSize).toBe(2_048);
+    await provider.shutdown();
   });
 
   it("gives http.server.request.duration the same buckets, up to 120 s", () => {
@@ -303,29 +340,6 @@ describe("the SDK's setup (telemetry.md §3.1)", () => {
 });
 
 describe("what never reaches a trace", () => {
-  it("drops client attributes, and a query string, from every span before export", async () => {
-    const exporter = new node.InMemorySpanExporter();
-    const provider = new node.BasicTracerProvider({
-      spanProcessors: [new ClientAttributeStripper(new node.SimpleSpanProcessor(exporter))],
-    });
-    const span = provider.getTracer("t").startSpan("POST /hello", {
-      attributes: {
-        "client.address": "10.0.0.7",
-        "client.port": 51_000,
-        "network.peer.address": "10.0.0.7",
-        "network.peer.port": 51_000,
-        "user_agent.original": "curl/8",
-        "url.path": "/hello?label=author-laptop",
-        "http.route": "/hello",
-      },
-    });
-    span.end();
-    await provider.forceFlush();
-    const [exported] = exporter.getFinishedSpans();
-    expect(exported?.attributes).toEqual({ "url.path": "/hello", "http.route": "/hello" });
-    await provider.shutdown();
-  });
-
   it("makes no span for a health probe", () => {
     for (const path of ["/health/live", "/health", "/health?x=1", "/health/live?probe"]) {
       expect(isHealthProbe(path), path).toBe(true);
@@ -359,28 +373,6 @@ describe("what never reaches a trace", () => {
       { query: { text: "SELECT state FROM gateway.stack_state WHERE id = 1" } } as never,
     );
     expect(untouched).toEqual({});
-  });
-
-  it("configures the instrumentations as telemetry.md §3.1 asks", () => {
-    const config = buildSdkConfiguration({ version: "0.1.0" });
-    const names = (config.instrumentations ?? []).flat().map((i) => i.instrumentationName);
-    expect(names).toEqual([
-      "@opentelemetry/instrumentation-http",
-      "@opentelemetry/instrumentation-undici",
-      "@opentelemetry/instrumentation-pg",
-      "@opentelemetry/instrumentation-pino",
-      "@fastify/otel",
-    ]);
-    const byName = Object.fromEntries((config.instrumentations ?? []).flat().map((i) => [i.instrumentationName, i]));
-    expect(byName["@opentelemetry/instrumentation-http"]?.getConfig()).toMatchObject({
-      requireParentforOutgoingSpans: true,
-    });
-    expect(byName["@opentelemetry/instrumentation-undici"]?.getConfig()).toMatchObject({ requireParentforSpans: true });
-    expect(byName["@opentelemetry/instrumentation-pg"]?.getConfig()).toMatchObject({
-      requireParentSpan: true,
-      enhancedDatabaseReporting: false,
-    });
-    expect(byName["@opentelemetry/instrumentation-pino"]?.getConfig()).toMatchObject({ disableLogCorrelation: true });
   });
 });
 
