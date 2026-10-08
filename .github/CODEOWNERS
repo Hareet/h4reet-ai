@@ -1,0 +1,9 @@
+# The Author reviews every change to the enforcement layer, the governance documents, and the corpus
+# (CLAUDE.md; constitution, Security & Agent Governance). Takes effect at publication (ADR 0013), and only
+# if branch protection requires code-owner review.
+/.claude/    @hareet
+/CLAUDE.md   @hareet
+/REVIEW.md   @hareet
+/.specify/   @hareet
+/.github/    @hareet
+/corpus/     @hareet
