@@ -112,3 +112,34 @@ def test_a_task_mark_is_stale_once_its_target_exists(
     assert "all good" in out  # the gate still ran, so its own result shows
     assert "-> FAIL pass" in out
     assert "stale mark: make pass exists now, so remove @T045 from the gate list" in out
+
+
+def test_a_gate_that_cant_be_built_fails_even_with_its_task_mark(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The target exists, but a prerequisite has no rule: a broken gate, never "added by Tnnn" (round 2, R2-I1).
+    (project / "Makefile").write_text(
+        MAKEFILE
+        + "policy: deploy/compose.yaml\n\t@echo policy\n"
+        + "validate-config: valdiate-schema\n\t@echo validated\n"
+        + ".PHONY: policy validate-config\n",
+        encoding="utf-8",
+    )
+    assert rc.main(["policy@T037", "validate-config@T019"]) == 1
+    out = capsys.readouterr().out
+    assert "-> FAIL policy (make can't build 'policy'" in out
+    assert "No rule to make target 'deploy/compose.yaml', needed by 'policy'" in out
+    assert "-> FAIL validate-config (make can't build 'validate-config'" in out
+
+
+def test_the_probe_reads_makes_messages_under_an_inherited_silent_flag(
+    project: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `make -s check` passes -s down in MAKEFLAGS, which would hide "is up to date" from the probe.
+    monkeypatch.setenv("MAKEFLAGS", "s")
+    (project / "Makefile").write_text(
+        MAKEFILE + "built:\n\t@echo building\n", encoding="utf-8"
+    )
+    (project / "built").write_text("", encoding="utf-8")
+    assert rc.main(["built"]) == 1
+    assert "declare it .PHONY" in capsys.readouterr().out

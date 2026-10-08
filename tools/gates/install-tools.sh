@@ -48,7 +48,8 @@ fi
 
 echo "== 2. pytest $pytest_v with PyYAML $pyyaml_v, as a uv tool"
 # The interpreter is pinned and configuration files are skipped, so nothing git doesn't show steers the install.
-# pytest's own dependencies take the devcontainer's versions, from its hashed requirements file (FR-014).
+# pytest's own dependencies take the versions in the devcontainer's requirements file (FR-014). uv doesn't check
+# that file's hashes on this path; the devcontainer's pip install does.
 uv tool install --no-config --python "$(command -v python3)" --force "pytest==$pytest_v" --with "pyyaml==$pyyaml_v" \
   --constraints "$repo/.devcontainer/requirements-tools.txt"
 

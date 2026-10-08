@@ -5,10 +5,16 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # The stack (plan §4): prod and dev on the 5090, dev-cpu on the agents' engine. Only the command line picks it
-# (make up ENV=dev): POSIX shells export ENV to name a startup file, and that must never choose a stack.
+# (make up ENV=dev): POSIX shells export ENV to name a startup file, and that must never choose a stack. A stack's
+# name in the environment is refused rather than ignored, so `ENV=dev make down` can't act on prod.
 ifneq ($(origin ENV),command line)
+ifneq ($(filter prod dev dev-cpu,$(ENV)),)
+$(error ENV=$(ENV) comes from the environment, which never picks a stack: run make $(MAKECMDGOALS) ENV=$(ENV))
+endif
 ENV := prod
 endif
+# Sub-makes get a command-line ENV through MAKEFLAGS; the environment's ENV stays out of every recipe.
+unexport ENV
 # Exactly one word, and one of the three. $(filter) would read ENV as a pattern, so "%" or "prod junk" would pass.
 ifneq ($(filter-out prod dev dev-cpu,$(ENV))$(filter-out 1,$(words $(ENV))),)
 $(error ENV must be prod, dev, or dev-cpu, not "$(ENV)")
@@ -58,7 +64,7 @@ endif
 endif
 # The fallback pins the system interpreter and skips uv's config files: a planted .venv (gitignored) or uv.toml is
 # agent-writable, and without these flags uv would run or obey it in the Author's terminal.
-PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --no-config --python "$$(command -v python3)" --quiet --with pytest==9.1.1 --with pyyaml==6.0.3 pytest)
+PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --no-config --python "$$(command -v python3)" --quiet --with-requirements .devcontainer/requirements-tools.txt pytest)
 PYTEST_ARGS := -q -p no:cacheprovider --import-mode=importlib
 PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts)
 
@@ -72,10 +78,11 @@ CONTAINED = @if [ "$${SANDBOX_RUNTIME:-}" != 1 ] && [ "$${H4_DEVCONTAINER:-}" !=
 WORKSPACES := $(wildcard services/*/package.json)
 WORKSPACE_DIRS := $(patsubst %/package.json,%,$(WORKSPACES))
 NPM_WS = $(if $(WORKSPACES),npm $(1) --workspaces --if-present,@echo "npm $(1): no workspaces yet")
-# Every shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), and the git hooks. The gate
-# lints a git archive export, which has no .git, so outside a repository the list comes from the files themselves.
-SH_FILES := $(shell { git ls-files '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\n'; } | grep -v '^\.specify/' | sort)
-SHELL_SCRIPTS := $(SH_FILES) $(wildcard .claude/git-hooks/*)
+# Every shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), NUL-separated, so no name is
+# split or read by the shell. The gate lints a git archive export, which has no .git, so outside a repository the
+# list comes from the files themselves. The git hooks are added by name: .claude/git-hooks is human-only.
+LIST_SH = { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/'
+GIT_HOOKS := $(wildcard .claude/git-hooks/*)
 
 # Cleared once the early patch adds the pre-commit hook (tasks.md T045, T046); githooks-check fails while both exist.
 PRE_COMMIT_PLANNED := T045
@@ -144,8 +151,8 @@ lint: ## Zero warnings: ESLint, tsc, Prettier, ruff, shellcheck (plan §9)
 	ruff check .
 	@# corpus/ is human-authored and agents can't edit it, so ruff lints it but doesn't hold it to ruff's format.
 	ruff format --check --no-cache --extend-exclude corpus .
-	@[ -n "$(SH_FILES)" ] || { echo "lint: found no shell scripts to check" >&2; exit 1; }
-	shellcheck $(SHELL_SCRIPTS)
+	@[ "$$($(LIST_SH) | tr -cd '\0' | wc -c)" -gt 0 ] || { echo "lint: found no shell scripts to check" >&2; exit 1; }
+	$(LIST_SH) | xargs -0 -t shellcheck -- $(GIT_HOOKS)
 
 fmt: ## Format what Prettier and ruff own (not the human-authored documents or the corpus)
 	$(CONTAINED)

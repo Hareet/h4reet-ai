@@ -51,9 +51,10 @@ def parse(argument: str) -> Gate:
 
 
 def make(*args: str) -> subprocess.CompletedProcess[str]:
-    # LC_ALL=C keeps make's own messages untranslated, so probe() can read them.
+    # LC_ALL=C keeps make's own messages untranslated, so probe() can read them, and --no-silent keeps them printed
+    # when MAKEFLAGS carries -s from `make -s check`.
     return subprocess.run(
-        ["make", "--no-print-directory", *args],
+        ["make", "--no-print-directory", "--no-silent", *args],
         capture_output=True,
         text=True,
         env={**os.environ, "LC_ALL": "C"},
@@ -61,21 +62,58 @@ def make(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def probe(target: str) -> str:
-    """What make would do for the target: "gate", "missing", "idle", or "not-phony".
+def probe(target: str) -> tuple[str, str]:
+    """What make would do for the target, and make's own message when it can't.
 
-    `make -q` exits 1 when a recipe would run, as it always does for a .PHONY gate, and 2 when there is no rule. It
-    exits 0 when make thinks there is nothing to do: either no recipe, or a file or directory with the target's name
-    that no .PHONY rule claims ("idle"), or a rule that isn't .PHONY and whose same-named path is up to date
-    ("not-phony"). The dry run tells those two apart. Both `-q` and `-n` still run `$(MAKE)` lines, passing the flag on.
+    The state is "gate", "missing", "broken", "idle", or "not-phony". `make -q` exits 1 when a recipe would run, as it
+    always does for a .PHONY gate. It exits 2 when make can't: "missing" only when the target itself has no rule, and
+    "broken" for anything else, such as a prerequisite with no rule ("..., needed by '<target>'"). It exits 0 when make
+    thinks there is nothing to do: either no recipe, or a file or directory with the target's name that no .PHONY rule
+    claims ("idle"), or a rule that isn't .PHONY and whose same-named path is up to date ("not-phony"). The dry run
+    tells those two apart. Both `-q` and `-n` still run `$(MAKE)` lines, passing the flag on.
     """
     query = make("-q", target)
     if query.returncode == 1:
-        return "gate"
+        return "gate", ""
     if query.returncode != 0:
-        return "missing"
+        lines = query.stderr.strip().splitlines()
+        message = lines[-1] if lines else f"make -q exited {query.returncode}"
+        if re.search(
+            rf"No rule to make target [`']{re.escape(target)}'\.", query.stderr
+        ):
+            return "missing", message
+        return "broken", message
     dry = make("-n", target)
-    return "not-phony" if "is up to date" in dry.stdout + dry.stderr else "idle"
+    return ("not-phony" if "is up to date" in dry.stdout + dry.stderr else "idle"), ""
+
+
+def absent(gate: Gate, state: str, message: str) -> None:
+    """The status of a gate whose target make wouldn't run."""
+    path = (
+        f"; a path named {gate.target!r} exists, so the gate must be .PHONY"
+        if state == "idle"
+        else ""
+    )
+    if state == "broken":
+        # The target exists, so no task mark excuses it.
+        gate.status, gate.notes = (
+            "FAIL",
+            [f"make can't build {gate.target!r}: {message}"],
+        )
+    elif state == "not-phony":
+        gate.status = "FAIL"
+        gate.notes = [
+            f"{gate.target!r} has a rule, but a path with its name makes it look done: declare it .PHONY"
+        ]
+    elif gate.task:
+        gate.status, gate.notes = "SKIP", [f"added by {gate.task}{path}"]
+    elif state == "idle":
+        gate.status = "FAIL"
+        gate.notes = [
+            f"make would do nothing for {gate.target!r}: no recipe, or a file or directory with its name"
+        ]
+    else:
+        gate.status, gate.notes = "FAIL", [f"no make target {gate.target!r}"]
 
 
 def classify(gate: Gate, returncode: int, output: str) -> None:
@@ -94,34 +132,11 @@ def classify(gate: Gate, returncode: int, output: str) -> None:
         gate.status, gate.notes = "SKIP", skipped
 
 
-def absent(gate: Gate, state: str) -> None:
-    """The status of a gate whose target make wouldn't run."""
-    path = (
-        f"; a path named {gate.target!r} exists, so the gate must be .PHONY"
-        if state == "idle"
-        else ""
-    )
-    if state == "not-phony":
-        gate.status = "FAIL"
-        gate.notes = [
-            f"{gate.target!r} has a rule, but a path with its name makes it look done: declare it .PHONY"
-        ]
-    elif gate.task:
-        gate.status, gate.notes = "SKIP", [f"added by {gate.task}{path}"]
-    elif state == "idle":
-        gate.status = "FAIL"
-        gate.notes = [
-            f"make would do nothing for {gate.target!r}: no recipe, or a file or directory with its name"
-        ]
-    else:
-        gate.status, gate.notes = "FAIL", [f"no make target {gate.target!r}"]
-
-
 def run(gate: Gate) -> None:
     print(f"== {gate.label}", flush=True)
-    state = probe(gate.target)
+    state, message = probe(gate.target)
     if state != "gate":
-        absent(gate, state)
+        absent(gate, state, message)
         print(f"-> {gate.status} {gate.label} ({gate.notes[0]})", flush=True)
         return
     done = subprocess.run(

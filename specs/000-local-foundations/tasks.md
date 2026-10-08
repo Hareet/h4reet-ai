@@ -35,12 +35,12 @@ description: "Task list for spec 000, Local Foundations"
 **Purpose**: one toolchain for humans and agents, the workspace, and the local gate's skeleton.
 
 - [X] T001 Rework the head of `Makefile` per §4:
-  - `ENV`, from the command line only and defaulting to `prod`, with a check that refuses anything but exactly `prod`, `dev`, or `dev-cpu`;
+  - `ENV`, from the command line only and defaulting to `prod`, with a check that refuses anything but exactly `prod`, `dev`, or `dev-cpu`, and refuses a stack's name from the environment;
   - `ENVFILE`: `deploy/env.agents/dev-cpu.vars` for dev-cpu, `$(HOME)/.config/h4reet-ai/env/$(ENV).env` otherwise;
   - `COMPOSE`, per §4: `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks, where `TREE` is the running export (from the run file) on host stacks and `.` on dev-cpu;
   - `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null` (Phase 1's review replaced the `mktemp -d` prefix, which loads planted bytecode when mktemp fails), for every Python a recipe runs in the Author's terminal, by script path and never with `-m` (research.md R-35).
 
-  Keep the existing UV_CACHE_DIR and PYTEST logic, pinning pytest to `--with pytest==9.1.1 --with pyyaml==6.0.3`.
+  Keep the existing UV_CACHE_DIR and PYTEST logic, pinning pytest to `--with pytest==9.1.1 --with pyyaml==6.0.3` (round 2 of Phase 1's review: `--with-requirements .devcontainer/requirements-tools.txt`, the devcontainer's six pinned packages).
 - [X] T002 [P] Create the root `package.json`: private, `workspaces: ["services/*"]`, `engines.node ">=24.21 <25"`, scripts that delegate to the workspaces. Generate `package-lock.json` with `npm install --ignore-scripts` (the registry is allowlisted). Commit no `.npmrc`.
 - [X] T003 [P] Create `tsconfig.base.json` (strict, ES2023, NodeNext), `eslint.config.js` (eslint 10.12.0, typescript-eslint 8.71.1, eslint-config-prettier 10.1.8, globals 17.13.0), `.prettierrc.json`, and `.prettierignore` (§9).
 - [X] T004 [P] Create `.dockerignore`, excluding `.git`, `deploy/env`, `*.env`, `**/node_modules`, `**/dist`, `**/__pycache__`, `corpus/intake/private`, `.cache`, and `.pytest_cache`.
@@ -186,7 +186,7 @@ description: "Task list for spec 000, Local Foundations"
   - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback. The export runs as its own target, which `up` depends on: make expands a recipe just before running it, and the Makefile reads `TREE` from the run file then, so the compose call uses the commit just exported;
   - `up`, on dev-cpu: the same from the working tree and `dev-cpu.vars`, with no export;
   - `down`: `down --timeout 30`, never `-v`, with the running export's compose file. With no run file, `down` and `logs` say the stack wasn't started by `make up`, and do nothing (§12);
-  - `build`: ends with `BUILD OK`;
+  - `build`: ends with `BUILD OK`. It refuses outside the sandbox and the devcontainer (§11), so the gate's host phase builds images with `make image`, never `make build`;
   - `pull`: Docker Hub images one at a time, with 5, 15, and 45 s backoff, naming an HTTP 429 (research.md R-29);
   - `image`, §11's gate: the compose images built on the current engine. It reports SKIP ("no engine yet: tasks.md T046") before the engine exists, and FAIL ("ask the Author: deploy/agents-engine/engine.sh up") once it exists and is down.
 - [ ] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list, build contexts included. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
