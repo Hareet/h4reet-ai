@@ -53,7 +53,7 @@ Each stage ends by committing the artifact the next stage reads, and decisions a
 |---|---|---|
 | [000: local foundations](specs/000-local-foundations/spec.md) | Governance, agents, and the whole production stack in compose on the local tier, metered and kill-switched | Draft, clarified; plan next |
 | [001: cloud elevation](specs/001-cloud-elevation/spec.md) | The same stack in one AWS account, with Terraform | Draft; specified in full once 000 is built |
-| Publication (not yet numbered) | What only GitHub can enforce or show: CI gates, the reviewer GitHub Action, branch protection, secret scanning, Dependabot | Moved out of 000 on 2026-10-07; needs an intent |
+| Publication (not yet numbered) | What only GitHub can enforce or show, moved out of spec 000 and listed in [its carryover file](specs/000-local-foundations/publication-carryover.md): the public repository, CI on hosted runners, the reviewer GitHub Action, branch protection, and Dependabot | Moved out of 000 on 2026-10-07 ([ADR 0014](docs/adr/0014-github-side-requirements-to-a-publication-spec.md)); needs an intent |
 
 ## Links
 

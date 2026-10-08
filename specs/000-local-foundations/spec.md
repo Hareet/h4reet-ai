@@ -6,13 +6,13 @@
 
 **Status**: Draft
 
-**Input**: `intent.md` in this folder. Summary: before any visitor-facing feature and before any cloud resource, stand up the public repository under the constitution, the role-scoped multi-agent environment with policy hooks, CI gates that enforce the intent → spec → plan → review chain on hosted runners, and the entire production topology as one compose stack running on the RTX 5090 machine — local model server, provider-agnostic gateway (local adapter and Bedrock adapter, local-first), real-time cost meter and kill switch with Telegram alerts, self-hosted Langfuse and Grafana, and a hello endpoint — proven by deliberately tripping the kill switch. Spec `001-cloud-elevation` then lifts this same stack to AWS with Terraform.
+**Input**: `intent.md` in this folder. Summary: before any visitor-facing feature and before any cloud resource, stand up the public repository under the constitution, the role-scoped multi-agent environment with policy hooks, CI gates that enforce the intent → spec → plan → review chain on hosted runners, and the entire production topology as one compose stack running on the RTX 5090 machine — local model server, provider-agnostic gateway (local adapter and Bedrock adapter, local-first), real-time cost meter and kill switch with Telegram alerts, self-hosted Langfuse and Grafana, and a hello endpoint — proven by deliberately tripping the kill switch. Spec `001-cloud-elevation` then lifts this same stack to AWS with Terraform. (Clarified on 2026-10-07: making the repository public and the CI gates move to a separate publication spec; see Clarifications and Assumptions.)
 
 ## Clarifications
 
 ### Session 2026-10-07
 
-- Q: How much of the $5 daily ceiling may the Bedrock cloud fallback spend per day? → A: $2/day, inside the daily ceiling, with a 70% warning at $1.40 like the other ceilings.
+- Q: How much of the $5 daily ceiling may the Bedrock cloud fallback spend per day? → A: $2/day, inside the daily ceiling, with a 70% warning at $1.40, as the ceilings have.
 - Q: Until publication, how should spec 000 prove the requirements only GitHub can enforce (CI checks, the reviewer Action, branch protection, secret scanning, Dependabot, hosted runners)? → A: It doesn't. Every GitHub-side requirement moves out of spec 000 into a separate publication spec, and spec 000 closes on local criteria only.
 - Q: After a spending ceiling trips the kill switch, should service come back on its own when the day or month rolls over, or only when the operator resets it? → A: Only when the operator resets it, for both ceilings. The reset brings local answers back at once; metered calls stay refused until the tripped meter rolls over. A rollover alone never restores service.
 - Q: The agent sandbox blocks the Docker socket and the GPU; who runs the container-level checks during spec 000? → A: Agents get a separate, disposable container engine (a VM or devcontainer with its own daemon) for CPU-only stacks; the host's Docker socket, the GPU, and the host's stacks stay out of their reach. GPU checks and Bedrock calls run in the Author's terminal.
@@ -46,14 +46,14 @@ As the operator, I want metered spend attributed per request, alerted on, and au
 
 **Why this priority**: Constitution Principle V, and the first control band in the closing-the-loop pattern: deterministic detection, tiered response, agent only afterward.
 
-**Independent Test**: `make breach-test` (ENV=dev) drives synthetic metered calls: warning alert on Telegram at 70%, kill switch flips to `degraded` at 100%, hello returns the degraded response, Grafana shows the state, an incident `intent.md` is drafted, a manual reset with a reason restores service and is audited. Recorded and linked from the README.
+**Independent Test**: `make breach-test` (ENV=dev) drives synthetic metered calls: warning alert on Telegram at 70%, kill switch flips to `degraded` at 100%, hello returns the degraded response, Grafana shows the state, an incident `intent.md` is drafted, and a manual reset with a reason brings local answers back (metered calls stay refused until the tripped meter rolls over) and is audited. Recorded in the Author's terminal and linked from the README.
 
 **Acceptance Scenarios**:
 
 1. **Given** spend below the warning threshold, **When** a metered call completes, **Then** its estimated cost is a telemetry attribute, added to the daily and monthly meters, and visible on the dashboard within 60 seconds.
 2. **Given** the daily meter reaches $3.50, the monthly meter reaches $14, or today's fallback spend reaches $1.40, **When** the threshold is crossed, **Then** Telegram (primary) and email (secondary) alerts arrive within 5 minutes and the dashboard shows warning.
-3. **Given** a meter reaches its ceiling ($5 / $20), **When** the threshold is crossed, **Then** the kill switch sets `degraded`, metered calls are refused with the documented response, and the operator is alerted — with no human action.
-4. **Given** the runtime is `degraded`, **When** the operator resets with a reason, **Then** service resumes and the reset is audited (who, when, why) and shown on the dashboard; while the tripped meter is still at its ceiling, local answers resume and metered calls stay refused until that meter rolls over.
+3. **Given** a meter reaches its ceiling ($5 / $20), **When** the threshold is crossed, **Then** the kill switch sets `degraded`, every request gets the documented degraded response (FR-022), and the operator is alerted — with no human action.
+4. **Given** the runtime is `degraded`, **When** the operator resets with a reason, **Then** local answers resume at once, metered calls stay refused until the tripped meter has rolled over, and the reset is audited (who, when, why) and shown on the dashboard.
 5. **Given** either ceiling was reached, **When** the day or the month rolls over, **Then** the meters roll over but the runtime stays `degraded` until the operator resets it (Principle V: a human consciously restores it).
 6. **Given** a breach occurred, **When** the loop runs, **Then** an incident `intent.md` is drafted in the intent format with evidence attached.
 7. **Given** the kill-switch state store is unreachable, **When** a request arrives, **Then** it is treated as `degraded` (fail closed).
@@ -79,26 +79,13 @@ As the Author, I want to delegate work to agents in named roles inside a sandbox
 6. **Given** any agent, **When** it attempts to edit `.claude/**`, `REVIEW.md`, CI workflows, or the constitution, **Then** the edit is refused.
 7. **Given** a subagent completes, **When** its report returns, **Then** it is checked for instruction-shaped content and the result logged.
 8. **Given** a fresh clone, **When** a contributor follows the README, **Then** they reach a running devcontainer with passing tests in under 30 minutes.
+9. **Given** an agent session, **When** it runs `make up` and `make breach-test` with the CPU-only environment file, **Then** the stack runs on the agents' own engine (FR-039); **When** a container on that engine tries to reach the host's engine, the GPU, the Author's files, or a non-allowlisted domain, **Then** the attempt fails and the matrix records it.
 
 ---
 
-### User Story 4 - No Code Merges Without a Spec, and Every PR Is Reviewed by Someone Who Didn't Write It (Priority: P1) — moved to the publication spec
+### User Story 4 — moved to the publication spec
 
-**Moved to the publication spec** (Clarifications, 2026-10-07): everything in this story needs GitHub. The publication spec, specified from its own intent before the first push, takes it over; the text stays here until that spec exists, and spec 000's completion doesn't depend on it. Until publication, the local stand-ins are the reviewer agent run on every branch, the merge-request note, and the git hook that keeps `main` the Author's (ADR 0013).
-
-As the Author, I want CI on hosted runners to refuse any implementation PR without an approved spec, run the tests and the eval and red-team scaffolds, and post the `REVIEW.md` passes from a reviewer with no write access.
-
-**Why this priority**: Constitution Principle III.
-
-**Independent Test**: A PR changing source without a spec link fails with an actionable message; a PR with a link runs all gates and receives the reviewer's comment; a PR changing a hook runs the agent-configuration evals.
-
-**Acceptance Scenarios**:
-
-1. **Given** a PR touching `apps/`, `services/`, `deploy/`, or `infra/`, **When** it references no `specs/NNN-*/spec.md`, **Then** the required check fails and explains how to link one.
-2. **Given** a linked PR, **When** CI runs, **Then** tests, eval harness, red-team harness, secret scanning, dependency and static analysis, image build, and a constitution check all report status.
-3. **Given** the same PR, **When** the reviewer agent runs headlessly, **Then** it posts one comment with the four `REVIEW.md` passes tagged by severity, and it has no write access.
-4. **Given** a PR changing `CLAUDE.md`, `REVIEW.md`, or `.claude/**`, **When** CI runs, **Then** the agent-configuration eval suite runs and a drop below threshold blocks merge.
-5. **Given** branch protection on `main`, **When** any actor other than the Author attempts to merge, **Then** it is refused.
+Not part of spec 000 (Clarifications, 2026-10-07; ADR 0014). Everything in this story needs GitHub. Its text and acceptance scenarios are in `publication-carryover.md` in this folder, where the publication spec's intent starts. Until publication, the local stand-ins are the local gate (FR-041), the reviewer agent's `REVIEW.md` passes in every merge-request note, and the git hook that keeps `main` the Author's (ADR 0013).
 
 ---
 
@@ -114,7 +101,7 @@ As the builder, I want hello to route local-first with Bedrock as fallback insid
 
 1. **Given** the local adapter is healthy, **When** hello is called, **Then** it is answered locally and the span records provider, model, tokens, latency, and cost (zero marginal) per the GenAI semantic conventions.
 2. **Given** the local adapter fails health checks, **When** hello is called, **Then** Bedrock answers within 5 seconds of the first failed check, the span records the fallback, and cost is metered against the sub-budget.
-3. **Given** the sub-budget is exhausted and the local tier is down, **When** hello is called, **Then** the degraded response is returned and the dashboard shows why.
+3. **Given** the local tier is down and metered calls are refused (the sub-budget is exhausted, or a tripped meter is still at its ceiling after a reset), **When** hello is called, **Then** the degraded response is returned and the dashboard shows which of these applies.
 4. **Given** the configuration names another adapter, **When** the same request is made, **Then** response and span shape are identical apart from provider and model, and the contract test passes for it.
 5. **Given** telemetry is exported, **When** inspected, **Then** it contains no secret material and no payloads unless payload sampling is explicitly enabled.
 
@@ -130,7 +117,7 @@ As a hiring manager or principal engineer landing cold, I want to understand wit
 
 **Acceptance Scenarios**:
 
-1. **Given** a clone of the repository, **When** the README is opened, **Then** it links the constitution, `intent/`, the spec index, the ADR index, `docs/how-we-build/`, `SECURITY.md`, and the MIT license. **Moved to the publication spec:** the same check on the public repository.
+1. **Given** a clone of the repository, **When** the README is opened, **Then** it links the constitution, `intent/`, the spec index, the ADR index, `docs/how-we-build/`, `SECURITY.md`, and the MIT license. (The same check on the public repository moved to the publication spec.)
 2. **Given** a decision made here (local-first routing; one compose topology; Langfuse and Grafana; Telegram alerting; local-compose-first delivery), **When** a reader looks for the reasoning, **Then** an ADR exists.
 
 ---
@@ -140,10 +127,9 @@ As a hiring manager or principal engineer landing cold, I want to understand wit
 - Burst faster than telemetry: the meter is checked at request start, and a per-client request cap inside the gateway bounds overspend by requests, not minutes.
 - Model download or GPU driver failure on cold start: `make up` reports which service failed and why; hello degrades rather than hangs.
 - Indirect forbidden actions (a script that does the thing): hooks plus sandbox network and credential denies plus the git hook that keeps `main` the Author's (ADR 0013; branch protection joins them at publication). The matrix includes one indirect variant per action.
-- Legitimate change to budgets, alerting, or the kill switch: ADR plus Author approval. **Moved to the publication spec:** CI flags it sensitive.
+- Legitimate change to budgets, alerting, or the kill switch: ADR plus Author approval. (CI flagging it as sensitive moved to the publication spec.)
 - Alert channel down: the secondary fires; degradation never depends on delivery.
 - Request in flight when state flips: it completes; the flag is read at request start.
-- **Moved to the publication spec:** fork PR from a stranger: hosted runners, read-only tokens; no self-hosted runner ever.
 - Windows host sleeping or WSL2 restarting: out of scope for the stack itself; the local-tier runbook (spec 001) covers wake, restart, and tunnel.
 
 ## Requirements *(mandatory)*
@@ -152,41 +138,44 @@ As a hiring manager or principal engineer landing cold, I want to understand wit
 
 **Repository & governance**
 
-- **FR-001**: The repository MUST contain the MIT license, `SECURITY.md`, `CONTRIBUTING.md`, a code of conduct, `CODEOWNERS` covering the enforcement layer, `intent/` with the template, `docs/adr/`, `docs/incidents/`, and `docs/how-we-build/`, and its history MUST stay publishable from its first commit (ADR 0013). **Moved to the publication spec:** making the repository public from its first commit.
+- **FR-001**: The repository MUST contain the MIT license, `SECURITY.md`, `CONTRIBUTING.md`, a code of conduct, `CODEOWNERS` covering the enforcement layer, `intent/` with the template, `docs/adr/`, `docs/incidents/`, and `docs/how-we-build/`, and its history MUST stay publishable from its first commit (ADR 0013). (Making it public moved to the publication spec.)
 - **FR-002**: The constitution MUST be at `.specify/memory/constitution.md` and linked from the README; `CLAUDE.md` and `REVIEW.md` MUST reference it as superseding.
 - **FR-003**: WHEN a decision listed in User Story 6 is made, THE SYSTEM SHALL record it as an ADR in the same PR.
 - **FR-004**: Every spec folder MUST contain the `intent.md` it was specified from.
+- **FR-041**: Until publication, `make check` MUST run every gate this spec adds that can run locally (tests, evals, the red-team and forbidden-action suites, lint, the pre-commit secret scan, and the image build), and every branch's merge-request note MUST carry its output and the reviewer agent's `REVIEW.md` passes (ADR 0013).
 
 **Development environment**
 
-- **FR-005**: A devcontainer MUST provide the complete toolchain. **Moved to the publication spec:** CI runs in the same image.
+- **FR-005**: A devcontainer MUST provide the complete toolchain. (CI running in the same image moved to the publication spec.)
 - **FR-006**: Agent roles MUST be defined under `.claude/agents/` with explicit tool allowlists; `CLAUDE.md` MUST stay under one page.
-- **FR-007**: The committed `.claude/settings.json` MUST deny credential-file reads and secret-bearing environment variables, enable the sandbox with a network allowlist, pre-approve the safe inner loop, and register the hooks.
-- **FR-008**: WHEN an agent attempts a prohibited action, THE SYSTEM SHALL block it via a pre-execution hook with a reason and an audit record. Prohibited at minimum: force-push; push to or merge into `main`; `terraform apply`/`destroy`; secret-pattern content; non-allowlisted egress; editing `.claude/**`, `REVIEW.md`, CI workflows, the constitution, or budget/alert/kill-switch configuration; adding MCP servers; editing test files during a fix task.
+- **FR-007**: The committed `.claude/settings.json` MUST deny credential-file reads and secret-bearing environment variables, enable the sandbox with a network allowlist, pre-approve the safe inner loop, and register the hooks. Every secret this spec introduces (the Telegram bot token and the SMTP password) MUST be denied by name, both its environment variable and the file that holds it, and each MUST have a forbidden-action matrix row.
+- **FR-008**: WHEN an agent attempts a prohibited action, THE SYSTEM SHALL block it via a pre-execution hook with a reason and an audit record. Prohibited at minimum: force-push; push to or merge into `main`; `terraform apply`/`destroy`; secret-pattern content; non-allowlisted egress; editing `.claude/**`, `REVIEW.md`, CI workflows, the constitution, or budget/alert/kill-switch configuration; resetting the kill switch; adding MCP servers; editing test files during a fix task.
 - **FR-009**: WHEN an agent edits source, THE SYSTEM SHALL run format and lint via a post-edit hook and report failures.
 - **FR-010**: WHEN a subagent completes, THE SYSTEM SHALL check its report for instruction-shaped content and log the result.
-- **FR-011**: WHEN `CLAUDE.md`, `REVIEW.md`, or `.claude/**` changes, THE SYSTEM SHALL run the agent-configuration evals on the branch before the Author merges it, and a result below threshold SHALL fail the run. **Moved to the publication spec:** running them in CI and blocking the merge there.
-- **FR-039**: Agent sessions MUST have their own disposable container engine, separate from the host's, on which they run the stack CPU-only, including `make up`, `make down`, and `make breach-test`. FR-017 still holds: the same compose definition and images, with only an environment file that selects a CPU stand-in model. That engine MUST NOT reach the host's container engine, the GPU, the host's stacks, or the Author's files and credentials. GPU checks and Bedrock calls run in the Author's terminal, and their output goes into the merge-request note.
+- **FR-011**: WHEN `CLAUDE.md`, `REVIEW.md`, or `.claude/**` changes, THE SYSTEM SHALL run the agent-configuration evals on the branch before the Author merges it, and a result below threshold SHALL fail the run. (Running them in CI and blocking the merge there moved to the publication spec.)
+- **FR-039**: Agent sessions MUST have their own disposable container engine, separate from the host's, on which they run the stack CPU-only, including `make up`, `make down`, and `make breach-test`; disposable means it can be destroyed and recreated with one command and holds nothing the Author needs. FR-017 still holds: the same compose definition and images, with only an environment file that selects a CPU stand-in model. The engine MUST NOT run privileged on the host's engine, and MUST NOT reach the host's container engine, the GPU, the host's stacks, or the Author's files and credentials outside the working tree it builds from. Its containers MUST be held to the sandbox's network allowlist; images and the stand-in model come from allowlisted sources or are pulled in advance by the Author. The sandbox opening that lets agent sessions reach the engine, a settings change only the Author makes, MUST reach that engine and nothing else, and the forbidden-action matrix MUST prove it on the host. GPU checks, Bedrock calls, and real alert delivery run in the Author's terminal, and their output goes into the merge-request note.
 
 **Secrets, identity, supply chain**
 
-- **FR-012**: No secret MUST exist in the repository, agent context, or telemetry; secret scanning MUST run on pre-commit. **Moved to the publication spec:** secret scanning in CI.
+- **FR-012**: No secret MUST exist in the repository, agent context, or telemetry; secret scanning MUST run on pre-commit. (Secret scanning in CI moved to the publication spec.)
 - **FR-013**: Local access to AWS (for the Bedrock adapter) MUST use SSO short-lived credentials held outside the repository and outside the agent sandbox; no IAM user access keys MUST exist.
-- **FR-014**: Dependencies MUST be lockfile-pinned, and images MUST build from pinned bases. **Moved to the publication spec:** automated updates, CI actions pinned by SHA, images built in CI with an SBOM, and vulnerability and static analysis on every PR.
-- **FR-015**: **Moved to the publication spec:** CI MUST run only on hosted runners.
+- **FR-014**: Dependencies MUST be lockfile-pinned, and images MUST build from pinned bases. (Automated updates, CI actions pinned by SHA, images built in CI with an SBOM, and vulnerability and static analysis on every PR moved to the publication spec.)
+- **FR-042**: `make publish-check` MUST scan the whole history for secrets, currency amounts, and denylisted phrases and fail on any finding; the Author runs it before the first push (START-HERE section 6).
+
+FR-015 (CI only on hosted runners) moved whole to the publication spec.
 
 **Compose stack**
 
-- **FR-016**: Every service MUST be a container image. **Moved to the publication spec:** images built in CI and promoted unchanged.
+- **FR-016**: Every service MUST be a container image. (Building images in CI and promoting them unchanged moved to the publication spec.)
 - **FR-017**: One compose definition MUST describe the production topology; environments MUST differ only by an environment file.
-- **FR-018**: `make up` MUST start the entire topology including the local model server with GPU access; `make down` MUST stop it.
+- **FR-018**: On the 5090 host, `make up` MUST start the entire topology including the local model server with GPU access, and `make down` MUST stop it; on the agents' engine, the CPU-only environment file starts it without the GPU (FR-039).
 - **FR-019**: The local model server MUST expose an OpenAI-compatible endpoint; images MUST support the RTX 5090's GPU architecture.
 - **FR-020**: Multiple environments on one host MUST be isolated by network, volume, and port.
 
 **Model gateway**
 
 - **FR-021**: A single gateway interface MUST exist with adapters for a local OpenAI-compatible endpoint, Amazon Bedrock, direct vendor APIs, and OpenRouter. This spec ships local and Bedrock. Provider selection and routing policy MUST be configuration.
-- **FR-022**: Routing MUST be local-first: WHEN the local adapter is healthy, route to it; WHEN unhealthy, route to Bedrock within the fallback sub-budget; WHEN that is exhausted or the kill switch is `degraded` or unknown, return the degraded response.
+- **FR-022**: Routing MUST be local-first: WHEN the local adapter is healthy, route to it; WHEN it is unhealthy, route to Bedrock, unless the fallback sub-budget is exhausted or a tripped meter is still at its ceiling after a reset (FR-034). In those cases, and WHEN the kill switch is `degraded` or unknown, THE SYSTEM SHALL return the degraded response and record which condition applied.
 - **FR-023**: Every gateway call MUST record provider, model, input and output tokens, latency, routing decision, and estimated cost from a versioned price table.
 - **FR-024**: A contract test suite MUST exist that any adapter must pass; both shipped adapters MUST pass it.
 - **FR-025**: The gateway MUST enforce a per-client request cap.
@@ -195,23 +184,24 @@ As a hiring manager or principal engineer landing cold, I want to understand wit
 
 - **FR-026**: Services MUST emit OpenTelemetry traces, metrics, and logs; model spans MUST follow the GenAI semantic conventions.
 - **FR-027**: Langfuse MUST run in the stack as the LLM tracing and evaluation backend, receiving traces via OpenTelemetry.
-- **FR-028**: Grafana MUST run in the stack with a dashboard showing request count, latency p50/p95, error rate, spend today and month-to-date, fallback sub-budget remaining, kill-switch state, and model-server health. Public exposure of this dashboard is spec 001.
+- **FR-028**: Grafana MUST run in the stack with a dashboard showing request count, latency p50/p95, error rate, spend today and month-to-date, fallback sub-budget remaining, kill-switch state, model-server health, and why responses are degraded when they are (FR-022). Public exposure of this dashboard is spec 001.
 - **FR-029**: Payloads MUST NOT be exported unless sampling is explicitly enabled; exported telemetry MUST be redacted of secret patterns.
+- **FR-040**: The data-flow disclosure MUST list every flow that leaves the local tier in this spec (the Bedrock fallback, Telegram alerts, and SMTP alerts) with what each carries and why. No visitor data flows in this spec.
 
 **Cost control**
 
-- **FR-030**: Ceilings MUST be $5/day and $20/month, plus a Bedrock fallback sub-budget of $2/day that counts inside the daily ceiling, each with a warning threshold at 70% ($3.50, $14, and $1.40), all in version-controlled configuration.
+- **FR-030**: Ceilings MUST be $5/day and $20/month, each with a warning threshold at 70% ($3.50 and $14). The Bedrock fallback sub-budget MUST be $2/day, counted inside the daily ceiling, with a warning at 70% ($1.40); it limits the calls routed to Bedrock as fallback (FR-022), and every metered call counts toward the ceilings. All of these MUST live in version-controlled configuration.
 - **FR-031**: A real-time meter in the stack MUST track daily and monthly metered spend and be checked at request start; it is the enforcement point.
-- **FR-032**: WHEN a warning threshold is crossed, THE SYSTEM SHALL alert via Telegram (primary) and email (secondary) within 5 minutes. Email goes over SMTP from a dedicated alerts mailbox whose credentials stay in a local environment file outside the repository and outside agent context.
-- **FR-033**: WHEN a ceiling is reached, THE SYSTEM SHALL set `degraded`, refuse metered calls, and alert — without human action. Only an operator reset (FR-034) SHALL restore `normal`; a meter rolling over SHALL NOT.
-- **FR-034**: WHEN the operator resets, THE SYSTEM SHALL require a reason and record it in an audit log shown on the dashboard; metered calls SHALL stay refused until the tripped meter rolls over.
+- **FR-032**: WHEN a warning threshold is crossed, THE SYSTEM SHALL alert via Telegram (primary) and email (secondary) within 5 minutes. Email goes over SMTP from a dedicated alerts mailbox whose credentials stay in a local environment file outside the repository and outside agent context (FR-007). Alerts MUST carry only operational facts (which threshold, the meter values, the runtime state, the time), never payloads, client identifiers, or secrets.
+- **FR-033**: WHEN a ceiling is reached, THE SYSTEM SHALL set `degraded` (every request then gets the degraded response, FR-022) and alert — without human action. Only an operator reset (FR-034) SHALL restore `normal`; a meter rolling over SHALL NOT.
+- **FR-034**: WHEN the operator resets, THE SYSTEM SHALL require a reason and record it in an audit log shown on the dashboard; local answers resume at once, and metered calls SHALL stay refused until the tripped meter has rolled over. Only a human resets the kill switch (FR-008).
 - **FR-035**: WHEN a ceiling is breached, THE SYSTEM SHALL draft an incident `intent.md` with evidence.
-- **FR-036**: `make breach-test` MUST run against dev only and assert every step of User Story 2.
+- **FR-036**: `make breach-test` MUST run against dev only (on the 5090 host, or CPU-only on the agents' engine, FR-039) and assert every step of User Story 2. It drives a synthetic metered source and a controllable clock for the rollovers; both exist only in the dev configuration, and prod's configuration MUST NOT contain them, because they would get around FR-034. On the agents' engine it asserts alert delivery against stand-in receivers; real delivery and the recorded run (SC-002) are asserted in the Author's terminal.
 - **FR-037**: Development-time model spend MUST be tracked separately and reported on the dashboard.
 
 **Runtime surface (this spec only)**
 
-- **FR-038**: `health` and `hello` endpoints MUST exist; `hello` MUST invoke the gateway; the runtime MUST support `normal` and `degraded` states read at request start.
+- **FR-038**: `health` and `hello` endpoints MUST exist; `hello` MUST invoke the gateway; the runtime MUST support `normal` and `degraded` states read at request start, and a degraded response MUST name its cause (FR-022).
 
 ### Key Entities
 
@@ -220,20 +210,27 @@ Intent · Specification · ADR · Agent Role · Policy Hook · Provider Adapter 
 ## Success Criteria *(mandatory)*
 
 - **SC-001**: `make up` on the 5090 host reaches a locally answered hello with a complete Langfuse trace within 10 minutes of a cold start.
-- **SC-002**: In the recorded breach test, `degraded` is active within 60 seconds of the ceiling and the Telegram alert arrives within 5 minutes, with no human action.
+- **SC-002**: In the recorded breach test, run in the Author's terminal, `degraded` is active within 60 seconds of the ceiling and the Telegram alert arrives within 5 minutes, with no human action.
 - **SC-003**: 100% of the forbidden-action matrix is blocked with an audit record.
-- **SC-004**: **Moved to the publication spec:** zero PRs touching `apps/`, `services/`, `deploy/`, or `infra/` can merge without a linked spec; a negative test PR stays open as evidence.
 - **SC-005**: With the model server stopped, hello fails over to Bedrock within 5 seconds and the fallback cost appears on the dashboard within 60 seconds.
 - **SC-006**: Both adapters pass the identical contract test; switching requires zero source changes.
 - **SC-007**: A newcomer reaches a running devcontainer with passing tests in under 30 minutes.
-- **SC-008**: The agent-configuration evals run on every `.claude/**` change before the Author merges it, and their history is committed. **Moved to the publication spec:** that history is public.
+- **SC-008**: The agent-configuration evals run on every `.claude/**` change before the Author merges it, and their history is committed. (Publishing that history moved to the publication spec.)
 - **SC-009**: Every decision in User Story 6 has an ADR reachable from the README in two clicks.
+
+SC-004 (no PR merges without a linked spec) moved whole to the publication spec.
 
 ## Assumptions
 
 - A single Author builds and operates; the agent roles are the team.
-- **Local until publication** (ADR 0013; the Author's decision of 2026-10-07). Every phase is developed locally and published later. For the local phase, this deviates from Principle VI (a public repository) and from the pull-request wording of Principle III, the Review section, and Development Workflow steps 2 and 5. Each change is a feature branch the Author merges locally; a note in `docs/merge-requests/` stands in for the PR, and `make check` stands in for CI. The history stays publishable from its first commit, with only the pre-publication cleanup that ADR 0013 allows (FR-001). Before the first push, this spec also owes a `make publish-check` that scans the whole history for secrets, amounts, and denylisted phrases (START-HERE section 6). Everything that only GitHub can enforce or show moves to a separate publication spec, specified from its own intent before the first push, and spec 000 closes on local criteria only (Clarifications, 2026-10-07). Moved in whole: User Story 4, FR-015, SC-004, and the fork-PR edge case. Moved in part, each marked where it stands: User Story 6 scenario 1, FR-001, FR-005, FR-011, FR-012, FR-014, FR-016, SC-008, and the edge case on budget changes.
+- **Local until publication** (ADR 0013; the Author's decision of 2026-10-07). Every phase is developed locally and published later. For the local phase, this deviates from Principle VI (a public repository) and from the pull-request wording of Principle III, the Review section, and Development Workflow steps 2 and 5. Each change is a feature branch the Author merges locally; a note in `docs/merge-requests/` stands in for the PR, and `make check` stands in for CI (FR-041). The history stays publishable from its first commit, with only the pre-publication cleanup that ADR 0013 allows (FR-001), and `make publish-check` scans it before the first push (FR-042).
+- **GitHub-side requirements move to a publication spec** (Clarifications, 2026-10-07; ADR 0014, which replaces one Consequence of ADR 0013). Spec 000 closes on local criteria only; a separate spec, specified from its own intent before the first push, takes over what only GitHub can enforce or show. `publication-carryover.md` in this folder holds the moved text word for word: User Story 4, FR-015, SC-004, and the fork-PR edge case in whole, and the GitHub halves of User Story 6 scenario 1, FR-001, FR-005, FR-011, FR-012, FR-014, FR-016, SC-008, and the edge case on budget changes. **Deviation, for the local phase:** this defers the constitution's controls that need CI, namely, from Security & Agent Governance's supply-chain standard, secret scanning in CI, automated dependency updates, images built in CI with an SBOM, vulnerability and static analysis on every PR, and CI actions pinned by SHA; and Development Workflow step 6's containers "built once and promoted". Until publication their stand-ins are pre-commit secret scanning (FR-012), lockfile pins and pinned bases (FR-014), the local gate (FR-041), and the history scan (FR-042).
+- **Expected cost** (the intent's estimate): cloud spend only for Bedrock fallback calls while testing, well under the $2/day sub-budget, and no other cloud resource. Dev-time spend: the agent-configuration evals on `.claude/**` changes, kept small and tracked separately (FR-037).
 - The RTX 5090 machine runs Windows with WSL2; the stack runs in WSL2 with GPU passthrough. It is on wall power and wired network.
 - No cloud resources are created in this spec. The Bedrock adapter is exercised with the Author's SSO credentials; AWS Budgets, Terraform, the domain, edge protection, the public dashboard snapshot, and the outbound tunnel are spec `001-cloud-elevation`.
 - Spec Kit is the lifecycle tooling and Claude Code the harness, under the committed project settings; dev-time model access is a subscription or key separate from the production budget.
 - The twin persona, corpus, guardrail evals, voice, avatar rig, the room, the audience selector, and the rickshaw-walla page are Phases 1–3. Eval and red-team harnesses ship here as scaffolds that run and pass trivially.
+- **Open for the plan interview** (found in review, 2026-10-07):
+  - Does each environment have its own ceilings, or do all environments on the host share one budget? FR-031 puts a meter in each stack, dev and prod share one AWS account, and the constitution separates budgets by environment.
+  - When the fallback sub-budget runs out, does fallback come back the next day on its own (a routing limit, as FR-022 reads), or only after a human restores it (Principle V's reading of a crossed threshold)?
+  - If the chosen model server ships separate CPU and GPU images, does an image or compose profile picked by the environment file count as configuration under FR-017 and User Story 1 scenario 5?

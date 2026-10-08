@@ -30,7 +30,7 @@ cd ~/h4reet-ai/h4reet-ai && claude
 
 Paste `docs/KICKOFF-PROMPT.md`. Expected shape of the session: it reads the governance docs, verifies the environment (`specify check`, `docker`, `nvidia-smi`, `make check`), creates the `chore/repo-hygiene` branch, adds the repo-hygiene files (README linking every artifact, `LICENSE` MIT, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, `.editorconfig`, `.gitignore`, `.github/dependabot.yml`), runs `/speckit-clarify` on `specs/000-local-foundations/spec.md`, and ends with a merge-request note. It cannot merge; you do.
 
-Session 2: `/speckit-plan` in plan mode for spec 000 — it must name the compose services, the images, the gateway interface, the meter, the hooks' test harness, the CI workflows, and the ADRs 0001–0006, with cost impact and degraded modes. Iterate until an engineer who never saw the conversation could implement from `plan.md` alone. Then `/speckit-tasks`, `/speckit-analyze`, and only then `/speckit-implement`, one feature branch per task group, each merged by you.
+Session 2: `/speckit-plan` in plan mode for spec 000 — it must name the compose services, the images, the gateway interface, the meter, the hooks' test harness, the agents' own container engine (FR-039), the local gate (FR-041), and the ADRs 0001–0006, with cost impact and degraded modes. The CI workflows belong to the publication spec (ADR 0014). Iterate until an engineer who never saw the conversation could implement from `plan.md` alone. Then `/speckit-tasks`, `/speckit-analyze`, and only then `/speckit-implement`, one feature branch per task group, each merged by you.
 
 Spec 001 is specified in full only after spec 000's success criteria pass on your machine.
 
@@ -47,7 +47,7 @@ Spec 001 is specified in full only after spec 000's success criteria pass on you
 
 ## 5. Decision state
 
-Settled: MIT; $5/day, $20/month with 70% warnings; a $2/day Bedrock fallback sub-budget inside the daily ceiling; Telegram + email (SMTP from a dedicated alerts mailbox); only a human reset restores service after a ceiling trips; Langfuse self-hosted in the stack; one AWS account; containers on VMs; Terraform with human apply; local-first routing; rig avatar; cloned voice; GTA V-inspired original art direction; engineer/non-engineer paths; compose first, Terraform second; local development until publication (ADR 0013); spec 000's GitHub-side requirements move to a separate publication spec; agents run containers on their own disposable engine, never the host's. The spec 000 decisions are recorded in its Clarifications section (2026-10-07).
+Settled: MIT; $5/day, $20/month with 70% warnings; a $2/day Bedrock fallback sub-budget inside the daily ceiling; Telegram + email (SMTP from a dedicated alerts mailbox); only a human reset restores service after a ceiling trips (local answers at once, metered calls once the tripped meter rolls over); Langfuse self-hosted in the stack; one AWS account; containers on VMs; Terraform with human apply; local-first routing; rig avatar; cloned voice; GTA V-inspired original art direction; engineer/non-engineer paths; compose first, Terraform second; local development until publication (ADR 0013); spec 000's GitHub-side requirements move to a separate publication spec; agents run containers on their own disposable engine, never the host's. The spec 000 decisions are recorded in its Clarifications section (2026-10-07).
 
 Open: idle-infrastructure target (proposed ≤ $10/month) and edge rate-limiting mechanism, both for spec 001's `/speckit-clarify`; an intent for the publication spec.
 
@@ -55,7 +55,7 @@ Before Phase 1: the job/role/task corpus, and a final read of `intent/000-ai-twi
 
 ## 6. Going public (later, by you)
 
-When spec 000's success criteria pass locally (as far as they can before publication) and you're ready for interviews (ADR 0013), run these in your own terminal; the hooks block them for agents:
+When spec 000's success criteria pass locally, the publication spec is built (ADR 0014), and you're ready for interviews (ADR 0013), run these in your own terminal; the hooks block them for agents:
 
 1. Scan the whole history, not just the working tree, for secrets, amounts, and denylisted phrases. Spec 000 should add a `make publish-check` that does this. If it finds anything, clean it out of history before the first push; ADR 0013 allows that one rewrite.
 2. Check GitHub's email privacy setting. With "Block command line pushes that expose my email" on, GitHub rejects commits authored with your personal address (GH007).
