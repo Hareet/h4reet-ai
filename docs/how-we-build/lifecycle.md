@@ -26,10 +26,12 @@ A skill makes a violation rare; a hook makes it close to impossible; the sandbox
 | No push to `main` | `CLAUDE.md` | `bash-gate.sh` | Branch protection (after publication) |
 | Until publication: no push, no remote, and only the Author changes `main` (ADR 0013) | `CLAUDE.md` | `bash-gate.sh` | The git hook in `.claude/git-hooks/` refuses changes to `main` from inside Claude Code; the Author's review |
 | Enforcement layer is human-only | `CLAUDE.md` | `protected-paths.sh`, `permissions.deny`, sandbox `denyWrite` | Agent-config evals + CODEOWNERS on `.claude/**` |
-| No secrets in context | — | `permissions.deny`, sandbox credential denies, `protected-paths.sh` for env files | Secret scanning in pre-commit and CI |
+| No secrets in context | — | `permissions.deny`, sandbox credential denies, `protected-paths.sh` for env files; from the early patch (spec 000 T045), every FR-007 variable denied by name, `~/.config/h4reet-ai` denied in every layer, and `content-scan.sh` running gitleaks over each edit's text | Secret scanning in the `pre-commit` git hook (from the early patch) and in CI; both refuse a `.gitleaksignore` (research.md R-36) |
 | No arbitrary egress | — | `bash-gate.sh` | Sandbox network allowlist; GitHub denied until publication |
 | Fix the code, not the test | `CLAUDE.md` verification block | `protected-paths.sh` under `FIX_TASK=1` | Reviewer compliance pass |
 | Cost bounded | `constitution-check` skill | — | Real-time meter + kill switch; AWS Budgets as safety net |
+| Agents run containers only on their own engine (spec 000 FR-039) | `CLAUDE.md` engine line; `ops` agent prompt | From the early patch, `bash-gate.sh` refuses `engine.sh`'s Author subcommands | The sandbox's one opening (`198.18.0.1:2376`); the engine's admission plugin, firewall, and egress proxy; rootless Docker under `h4agents` |
+| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first |
 
 Until publication (ADR 0013), the GitHub and AWS entries in the last column don't exist yet. What remains is the sandbox, the hooks, `make check`, and the Author's review.
 
