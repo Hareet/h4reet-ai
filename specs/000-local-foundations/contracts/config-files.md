@@ -13,7 +13,7 @@ For each file it gives every field, the rules, an example, the validation errors
 - **Format:** YAML 1.2, parsed with `yaml` 2.9.1: one document per file, duplicate keys refused. Each file starts with `schema: 1`.
 - **Validation:** a strict zod schema per file, so an unknown key is an error, not a warning.
 - **Loading:**
-  - The gateway reads the files once, at startup, from `/app/config`, a read-only bind of `${H4_TREE}/config`. A change takes effect at the next gateway start.
+  - The gateway reads the files once, at startup, from `/app/config`, a read-only bind of `${H4_TREE}/config`. On a host stack, `H4_TREE` is the export of the commit `make up` started, so a committed change takes effect at the next `make up` ([env-files.md §12](env-files.md#12-the-run-file-host-stacks)); on dev-cpu, which runs the live tree, at the next gateway restart.
   - Any validation failure stops startup with **exit 78**, the configuration-error code. The gateway prints every error, one per line, as `config/<file>: <path>: <rule> (<requirement>)`, for example `config/routing.yaml: envs.prod.primary: names "bedrock", a paid adapter; every primary must be local (FR-022)`.
 - **Money:** a USD amount is a number or a decimal string, at least 0, with at most 6 decimal places. It is converted exactly to integer micro-USD, never through a float, and more decimals are an error. Prices are per million tokens and become integer micro-USD per million tokens.
 - **Placeholders:**

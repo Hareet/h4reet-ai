@@ -309,7 +309,7 @@ Example lines, from dev's synthetic spend:
 
 ## 4. Configuration the gateway loads
 
-The file schemas, examples, and validation errors are in [config-files.md](contracts/config-files.md). The four files are read once, at startup, from the read-only mount `/app/config`. A change takes effect at the next gateway start (`docker compose restart gateway`). Any validation failure stops startup with exit 78.
+The file schemas, examples, and validation errors are in [config-files.md](contracts/config-files.md). The four files are read once, at startup, from the read-only mount `/app/config`. On a host stack, a committed change takes effect at the next `make up`, which exports the new commit; `docker compose restart gateway` restarts it on the same export. On dev-cpu, which runs the live tree, a gateway restart rereads the files. An env-file change needs the container recreated (`make up`) on every stack, because `docker compose restart` keeps the environment a container was created with. Any validation failure stops startup with exit 78.
 
 | File | Edited by | Becomes | Recorded on every call as |
 |---|---|---|---|
@@ -340,8 +340,8 @@ Dev and dev-cpu (`H4_ENV=dev`) apply the same numbers to synthetic spend (FR-031
 | Scope check | The gateway accepts only its own stack's prefix, checked before hashing. Then it compares the 32-byte digests with `crypto.timingSafeEqual` ([operator-admin.md §1](contracts/operator-admin.md#1-the-admin-listener-and-authentication)). |
 | Fingerprint | The first 8 hex characters of the hash. They name the actor in `audit_log` (`operator:prod#<8 hex>`) and in confirmation alerts. |
 | Startup refusals (exit 78) | `OPERATOR_TOKEN_SHA256` isn't 64 lowercase hex characters. On prod, it equals the published dev-cpu dummy's hash. The gateway source carries that hash as a constant, and a unit test checks it against `dev-cpu.vars`. |
-| Who can use it | The Author's terminal only, through `scripts/operator.py`, stdlib Python run with `python3 -I`, so the token never passes through `node_modules` or `dist/` ([research.md R-16](research.md#r-16-the-operator-credential-a-bearer-token-per-stack-the-author)). The file and the variable name `H4_OPERATOR_TOKEN` are denied to agents (FR-007), and the collector masks `h4op_` tokens (FR-029). |
-| Rotation | Delete the token file, mint again, put the new hash in the env file, restart the gateway. |
+| Who can use it | The Author's terminal only, through `scripts/operator.py`, stdlib Python run through `PY_HOST` (`python3 -I` with an empty `pycache_prefix`), so the token never passes through `node_modules`, `dist/`, or a planted `__pycache__` ([research.md R-16](research.md#r-16-the-operator-credential-a-bearer-token-per-stack-the-author)). The file and the variable name `H4_OPERATOR_TOKEN` are denied to agents (FR-007), and the collector masks `h4op_` tokens (FR-029). |
+| Rotation | Delete the token file, mint again, put the new hash in the env file, then `make up ENV=<stack>`, which recreates the gateway with it; a `docker compose restart` would keep the old hash (§4). |
 
 ## 6. State machines
 

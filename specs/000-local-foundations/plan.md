@@ -849,7 +849,8 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 - a `*.env` file anywhere in the working tree (the real ones live in `~/.config/h4reet-ai/env/`);
 - a service with no row in `docs/data-flow-disclosure.md`;
 - in `.devcontainer/`: features, `initializeCommand`, host mounts, or privileged `runArgs`;
-- `.npmrc` keys outside an allowlist (`node-options` and `script-shell` run code).
+- `.npmrc` keys outside an allowlist (`node-options` and `script-shell` run code);
+- a `build.context` that is absolute, or that resolves outside the compose file's tree. Each image builds from the tree the compose file came from: on a host stack, the export, so `--build` can't pick up the live working tree ([§4](#4-environment-files-preflight-and-the-stack-targets)).
 
 **The Author's gate** (`tools/gates/gate <ref>`, human-only, run directly rather than through make, because a planted `GNUmakefile` would shadow the Makefile):
 1. **Export:** `git archive <ref>` into a temporary directory.
@@ -1004,9 +1005,10 @@ Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert
      - `.claude/git-hooks/pre-commit`.
 
      Each runs gitleaks with an explicit `--config`, an empty ignore path, and `--ignore-gitleaks-allow`, and fails closed when gitleaks is missing.
-   - **CLAUDE.md:** today's two stale lines are rewritten in place, at no cost in length:
+   - **CLAUDE.md:** two stale lines rewritten in place, and one line added, so 57 lines:
      - the engine line: containers run on the agents' engine through `deploy/agents-engine/docker-relay`, and the GPU and Bedrock stay with the Author;
-     - the test line: `make check` runs every gate.
+     - the test line: `make check` runs every gate;
+     - under "Things Claude gets wrong", the review round's feed-back line (REVIEW.md): "Scheduling a deny after the risk it guards: a secret, a paid route, or a file prod reads gets its deny in the same patch that creates it, or an earlier one." It comes early because the agents writing the later patches need it.
    - **The matrix rows** for these changes, and the PLANNED marks they clear in `make check` ([§11](#11-local-gates-fr-041)).
 3. **The governance patch** (the US3 branch, tasks.md T098), which the Author applies when first running the gate (T099). It holds `denyWrite`, `Edit(...)` denies, and `protected-paths.sh` rules for `./tools/gates` and `./evals/agent-config`, and their matrix rows. From then on, those paths run in the Author's terminal or decide what merges.
 4. **The closing patch** (the last branch, tasks.md T117): everything below, with the matrix's remaining planned rows turned into block or allow rows.
@@ -1260,5 +1262,5 @@ Verdict: **PASS**.
 | A shared kernel on the agents' engine (ADR 0016, which replaces one Consequence of the accepted ADR 0015) | The Author chose "Rootless Docker, own user" over a VM | The VM stays the documented upgrade |
 | The runtime identity made by hand, outside Terraform (spec Assumptions) | IAM is a human action, and Terraform starts in spec 001 | Terraform now would pull spec 001's state, backend, and protected apply into spec 000 for one permission set |
 | The early patch gets the static agent-config tier only (spec Assumptions) | The behavioral tier is built in US3, after the patch must already be in place | Waiting for the behavioral tier would leave secrets and the engine unprotected for three phases |
-| The gateway's `egress` network has no destination allowlist in spec 000 (the Author decides, research.md R-31) | The gateway reaches Bedrock, AWS SSO, Telegram, and an SMTP host; a CONNECT allowlist for nodemailer and the AWS SDK is new work | Recorded, not rejected: the Author may accept it for spec 000 or ask for the allowlist now |
+| The gateway's `egress` network has no destination allowlist in spec 000 (the Author decides; research.md, "Rejected for now, revisit later") | The gateway reaches Bedrock, AWS SSO, Telegram, and an SMTP host; a CONNECT allowlist for nodemailer and the AWS SDK is new work | Recorded, not rejected: the Author may accept it for spec 000 or ask for the allowlist now |
 | Human-only gates, but an agent-editable Makefile (ADR 0017) | The Author chose "Gates only" ("Faster to change, but a branch's Makefile could run unreviewed code in your terminal.") | A human-only Makefile and scripts; the Author declined it |

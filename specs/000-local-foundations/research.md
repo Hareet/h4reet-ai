@@ -328,7 +328,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 - **Decision**:
   - A 256-bit token per stack, `h4op_<stack>_` followed by 43 base64url characters, kept in `~/.config/h4reet-ai/operator/<stack>.token` (0600) outside the repository.
   - The gateway keeps only its SHA-256 and checks the prefix before hashing.
-  - The CLI is stdlib Python run with `python3 -I`, so the credential never passes through `node_modules` or `dist/`, which agents can write and git doesn't show.
+  - The CLI is stdlib Python run through `PY_HOST` (`python3 -I` with an empty `pycache_prefix`, R-35), so the credential never passes through `node_modules`, `dist/`, or a planted `__pycache__`, which agents can write and git doesn't show.
   - The dev-cpu token is a public dummy committed in `dev-cpu.vars`, and prod refuses it.
 - **Alternatives**:
   - An SSH or FIDO2 signature: stronger, about 80 more lines, revisitable later.
@@ -566,6 +566,8 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
   - **the early patch** (Phase 2): credentials, the files prod reads, the code the Author runs, and secret scanning;
   - **the governance patch** (Phase 5): the gate and the agent-config evals;
   - **the closing patch** (Phase 8): only what is risky at the end.
+
+  The fourth patch, the config patch (Phase 2), delivers `budgets.yaml` and `alerts.yaml` and carries no deny.
 - **Rationale:** the same mistake surfaced three times in one round. `/speckit-analyze` found the credential denies after the first secrets. The reviewers found the config denies after the first paid route, and the gitleaks configuration agent-writable while the hooks obey it.
 - **Alternatives:** one patch at the end, as first planned. Rejected, because each gap was real for several phases.
 

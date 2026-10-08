@@ -273,7 +273,7 @@ The breach test's L assertions read `alert.delivered`, `fallback.exhausted`, `ki
 
 - **Edge's x004 block** forwards only `POST /v1/metrics`, with bodies up to 1 MiB, to `otel-collector:4319`. Every other path gets 404. So a process on the host's loopback can add dev-time metrics, but it can't inject traces or logs, or write `h4_*` series that look like the gateway's.
 - x004 goes to its own receiver on 4319, for the reason above; plan §1 and §2 say the same.
-- The one compose file publishes x004 on every stack (18104 on dev, 18304 inside the agents' engine), but only prod's is configured as Claude Code's endpoint.
+- The one compose file publishes x004 on every stack (18104 on dev, and 18304 for dev-cpu, which the agents' engine publishes on the host's `127.0.0.1`), but only prod's is configured as Claude Code's endpoint.
 
 ### 6.2 Pipelines
 

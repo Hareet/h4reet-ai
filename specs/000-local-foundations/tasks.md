@@ -88,7 +88,7 @@ description: "Task list for spec 000, Local Foundations"
   - every FR-007 variable is denied (contracts/env-files.md §8). A name whose deny a patch hasn't applied yet is reported as PLANNED, naming the task that writes the patch (T045), not as FAIL.
 
   `make evals` runs it.
-- [ ] T013 **Author**, on this branch, before its note: quickstart.md §0.3. `fnm install 24.21.0`, then `make tools`, then `make toolchain-check`, which must pass, and `gitleaks version`, which must print 8.30.1. The early patch's hooks fail closed without gitleaks (T045).
+- [ ] T013 **Author**, on this branch, before its note: quickstart.md §0.3. `fnm install 24.21.0`, then `make tools`, then `make toolchain-check`, which must pass, and `gitleaks version`, which must print 8.30.1. Tools that `make tools` doesn't install (uv, ruff, shellcheck, jq, Python, and Claude Code) must already match their pins in `toolchain.vars`. T007 writes those pins from the host's versions; Claude Code updates itself until the early patch sets `DISABLE_AUTOUPDATER`, so if it moved since T007, update its pin on this branch. The early patch's hooks fail closed without gitleaks (T045).
 - [ ] T014 Write the merge-request note `docs/merge-requests/<date>-feat-000-setup.md`, with `make check`'s full output and a reviewer agent's REVIEW.md passes.
 
 **Checkpoint**: `make check` runs every target, with SKIPs and PLANNED items named, and `make toolchain-check` passes once the Author has run `make tools` (T013).
@@ -151,7 +151,7 @@ description: "Task list for spec 000, Local Foundations"
   - two listeners, the api on 8080 and admin on 8081, and graceful shutdown;
   - startup order: validate env and config (exit 78 on failure), connect the store (retrying), then start the listeners and background tasks;
   - `GET /health/live` in `src/routes/health.ts` (contracts/gateway-http.md §4).
-- [ ] T028 Create `services/gateway/Dockerfile`, built from the repository root as its context:
+- [ ] T028 Create `services/gateway/Dockerfile`, built from the repository root as its context: in `deploy/compose.yaml` the gateway's `build.context` is `..`, relative to the compose file, so on a host stack it resolves inside the export, and on dev-cpu inside the working tree (the compose policy, T037, refuses any other context):
   - build stage on `public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66`: `npm ci --ignore-scripts`, with the `H4_BUILD_PROXY` build arguments passed through as `HTTP(S)_PROXY`, then `npm run build -w services/gateway`, then the dev dependencies pruned;
   - runtime stage on the same base, as `USER node`, running `node dist/server.js`.
 
@@ -180,16 +180,16 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T033 Create `deploy/scripts/preflight.py` (stdlib, `python3 -I`; env files parsed as data, never sourced) and `deploy/scripts/test_preflight.py`, with fixture env files and a stubbed `df` and `docker`. Run through `PY_HOST`. It implements checks P1–P21 of contracts/env-files.md §10, including:
   - the free space on the Windows drive holding the vhdx (`df` on `H4_VHDX_MOUNT`, default `/mnt/c`) and on ext4, for the bytes the run will write plus 20 GB;
   - a dev-cpu run from a linked worktree (P20).
-- [ ] T034 [P] Create `deploy/scripts/redact.sh` (ops.md's filter, verbatim), `deploy/scripts/status.py`, and its test. `status.py` shows the running commit, its branch, and the previous commit, from the run file. Wire `make logs` (through `redact.sh`) and `make status` (§4).
+- [ ] T034 [P] Create `deploy/scripts/redact.sh` (ops.md's filter, verbatim), `deploy/scripts/status.py`, and its test. `status.py` shows the running commit, its branch, and the previous commit, from the run file, and reports a host stack with no run file as not started by `make up` (contracts/env-files.md §12). Wire `make logs` (through `redact.sh`) and `make status` (§4).
 - [ ] T035 [P] Create `deploy/scripts/pin_images.py` and its test, which uses recorded `docker buildx imagetools inspect` output. It resolves tags to index digests, rewrites `deploy/compose.yaml` and `deploy/images.lock`, and prints the table. Create `deploy/images.lock` with research.md R-02's pins. Wire `make pin-images` (Author).
 - [ ] T036 Implement `make up`, `make down`, `make build`, `make pull`, and `make image` in `Makefile` per §4, and create `deploy/scripts/export_tree.py` and its test:
   - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback;
   - `up`, on dev-cpu: the same from the working tree and `dev-cpu.vars`, with no export;
-  - `down`: `down --timeout 30`, never `-v`, with the running export's compose file;
+  - `down`: `down --timeout 30`, never `-v`, with the running export's compose file. With no run file, `down` and `logs` say the stack wasn't started by `make up`, and do nothing (§12);
   - `build`: ends with `BUILD OK`;
   - `pull`: Docker Hub images one at a time, with 5, 15, and 45 s backoff, naming an HTTP 429 (research.md R-29);
   - `image`, §11's gate: the compose images built on the current engine. It reports SKIP ("no engine yet: tasks.md T046") before the engine exists, and FAIL ("ask the Author: deploy/agents-engine/engine.sh up") once it exists and is down.
-- [ ] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
+- [ ] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list, build contexts included. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
 
 - [ ] T038 [P] Start `docs/data-flow-disclosure.md` with the columns of §16, and rows for every service this branch's compose file defines (edge, gateway, gateway-state), for image pulls, and for the phone-homes switched off (§17). The compose policy requires a row per service, so every later task that adds a service adds its row.
 
@@ -240,7 +240,7 @@ description: "Task list for spec 000, Local Foundations"
     - `.claude/git-hooks/pre-commit`, which runs gitleaks on the staged changes, with `make git-hooks` installing it.
 
     Each passes `--config` with the main tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`, and fails closed when gitleaks is missing (§11).
-  - CLAUDE.md: the engine line and the test line rewritten in place (§15), keeping the line count.
+  - CLAUDE.md: the engine line and the test line rewritten in place, and the "Things Claude gets wrong" line on deny timing added (§15), for 57 lines.
   - The matrix rows for all of these, in `redteam/forbidden-actions.sh`, and the PLANNED marks they clear: `githooks-check`'s for `pre-commit` (T006) and the static tier's for the FR-007 names (T012).
 - [ ] T046 **Author** (Heavy, after this branch merges): check `gitleaks version` (T013 installed it). Apply the two patches from T022 and T045, then run `claude doctor`, `make git-hooks`, and `make evals` (the static agent-config tier: the early patch's only agent-config eval, spec Assumptions). This comes before T065: no real secret may exist before the credential denies do (Principle IV). Then quickstart.md §0.4 and §0.5:
   - switch the host's Docker to the containerd image store, pruning first and checking the disk;
@@ -571,7 +571,7 @@ description: "Task list for spec 000, Local Foundations"
 ### Parallel opportunities
 
 - **Phase 1:** T002, T003, T004, T007, T008, T009, T010, T011, and T012 touch different files.
-- **Phase 2:** the gateway track (T015–T028) and the engine track (T039–T044) are independent. Within them, T016, T017, T020, T021, T026, T030, T031, T032, T034, T035, T037, T039, T040, and T041.
+- **Phase 2:** the gateway track (T015–T028) and the engine track (T039–T044) are independent. Within them, T016, T017, T020, T021, T026, T030, T031, T032, T034, T035, T037, T038, T039, T040, and T041.
 - **US1:** the tests T048, T049, and T050 together; then T062 beside the compose work.
 - **US2:** the tests T067–T071 together; T082 and T083 beside the code.
 - **US3:** T087, then T089 and T090 in turn (they share the matrix file); T091–T095 in parallel; all alongside Phases 3 and 4.

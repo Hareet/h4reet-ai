@@ -440,7 +440,7 @@ Request:
 3. It refuses with exit 5 if `<stack>.token` exists: delete the file first to rotate.
 4. It generates 32 bytes from `secrets.token_bytes`, encodes them as unpadded base64url (43 characters), and adds the `h4op_<scope>_` prefix.
 5. It writes the token and a newline with `O_WRONLY|O_CREAT|O_EXCL`, mode 0600, then fsyncs.
-6. It prints the path, the SHA-256, the fingerprint, and the next step: "Set OPERATOR_TOKEN_SHA256=<hash> in ~/.config/h4reet-ai/env/<stack>.env, then restart the stack's gateway."
+6. It prints the path, the SHA-256, the fingerprint, and the next step: "Set OPERATOR_TOKEN_SHA256=<hash> in ~/.config/h4reet-ai/env/<stack>.env, then run make up ENV=<stack>, which recreates the gateway with the new hash."
 
 **`status`**, as a summary:
 

@@ -286,19 +286,19 @@ make operator-status ENV=prod
 
 ### 1.12 Rollback, rehearsed on dev (FR-018; the constitution's Development Workflow step 6)
 
-**Where:** the Author's terminal, dev. Heavy: three stack restarts.
+**Where:** the Author's terminal, dev, on a dev stack last started at `HEAD~1` or an older commit. Heavy: three stack restarts.
 
 ```bash
-make up ENV=dev                  # prints the commit it runs: call it A
-make up ENV=dev REF=HEAD~1       # another commit, B; make status shows the previous as A
+make up ENV=dev REF=HEAD~1       # the older commit: call it A
 make operator-status ENV=dev
+make up ENV=dev                  # the newer one, B (HEAD); make status shows the previous as A
 make up ENV=dev REF=<A>          # the rollback: one command
-make status ENV=dev              # running A again
+make status ENV=dev              # running A again, with B as the previous
 make operator-status ENV=dev
 curl -sS -X POST http://127.0.0.1:18100/hello -H 'Content-Type: application/json' -d '{"message":"Say hello."}'
 ```
 
-**Expected:** each `make up` exits 0; `make status` names the running commit and the one before it; hello answers after the rollback; and the two `operator-status` summaries match, because the store and the journal stay as they are. If B's migrations are newer than A's, the rollback refuses with exit 78 `schema_newer_than_code`, naming the migration. That is the designed failure: record it, and roll forward instead. The runbook is `docs/runbooks/rollback.md`.
+**Expected:** each `make up` exits 0; `make status` names the running commit and the one before it; hello answers after the rollback; and the two `operator-status` summaries match, because the store and the journal stay as they are. If B added a migration that A lacks, B's start applied it, and the rollback refuses with exit 78 `schema_newer_than_code`, naming the migration. That is the designed failure: record it, and roll forward instead (`make up ENV=dev`). The runbook is `docs/runbooks/rollback.md`.
 
 **Record:** the three commits, the exit codes, and the two status summaries.
 

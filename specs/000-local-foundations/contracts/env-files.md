@@ -356,5 +356,6 @@ A host stack runs the commit it was started from, not whatever the shared workin
 - `make up` builds the stack's images from the export, every time (`--build`; unchanged layers come from the cache), so a stale image can't certify code the commit doesn't contain.
 - It keeps the exports of the running and the previous commit, and at most three in all; it deletes older ones.
 - The file is the stack's, not a template's: P4 doesn't compare it, P5 doesn't apply to it, and P7 checks it.
+- Before a host stack's first `make up` there is no run file, and nothing of the stack runs. `make down` and `make logs` say so and do nothing; `make status` reports the stack as not started by `make up`. None of them fails on the missing file.
 - dev-cpu has no run file: the engine serves the masked live tree, so agents test what they are writing ([§7.3](#73-the-worktree-question)).
 
