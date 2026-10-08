@@ -201,8 +201,15 @@ redteam-suite: ## The adversarial scaffold alone (plan §14)
 matrix: ## The forbidden-action matrix alone (plan §13)
 	bash redteam/forbidden-actions.sh
 
-up down logs status pull pin-images init-env isolation-check: ## The stack targets arrive with feat/000-foundations
+up down logs status pull init-env isolation-check: ## The stack targets arrive with feat/000-foundations
 	@echo "make $@ arrives with feat/000-foundations (tasks.md T032 to T036, plan §4)" >&2; exit 2
+
+# The Author's terminal: it reaches the registries. ONLY=svc,... limits it; TAG="svc=tag ..." pins a tag (an open
+# one, such as seaweedfs's, otherwise gets the newest release); DRY_RUN=1 prints the table and writes nothing.
+# The values reach the script through the environment, quoted by the shell, never spliced into the command line.
+pin-images: ## (the Author) Resolve deploy/images.lock's tags to digests, and rewrite it and compose.yaml (plan §2)
+	@set -f; set --; for tag in $${TAG:-}; do set -- "$$@" --tag "$$tag"; done; \
+	$(PY_HOST) deploy/scripts/pin_images.py $${ONLY:+--only "$$ONLY"} $${DRY_RUN:+--dry-run} "$$@"
 
 breach-test: ## The kill-switch rehearsal on dev or dev-cpu, which arrives with feat/000-us2-kill-switch
 	@echo "make breach-test arrives with feat/000-us2-kill-switch (tasks.md T080)" >&2; exit 2
