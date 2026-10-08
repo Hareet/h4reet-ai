@@ -1,5 +1,5 @@
 diff --git a/.claude/agents/ops.md b/.claude/agents/ops.md
-index 13d47a3..2abef1e 100644
+index 13d47a3..0ae3714 100644
 --- a/.claude/agents/ops.md
 +++ b/.claude/agents/ops.md
 @@ -1,6 +1,29 @@
@@ -24,10 +24,10 @@ index 13d47a3..2abef1e 100644
 +   - port bindings (`docker compose … ps --format '{{.Name}} {{.Ports}}'`, `ss -ltn`);
 +   - the GPU as the model server sees it (`nvidia-smi` inside its container);
 +   - disk space for images and models (`df -h`, `docker system df`).
-+4. Keep secrets and payloads out of the output. Define this filter at the top of the script and pipe every log through it. It masks URL credentials, Telegram bot tokens, `token`, `password`, `secret`, and `api_key` values, and `Authorization` headers:
++4. Keep secrets and payloads out of the output. Define this filter at the top of the script and pipe every log through it. It masks the usual shapes of URL credentials, Telegram bot tokens, and `Authorization` headers (in JSON too), and everything after a `token`, `password`, `secret`, or `api_key` key to the end of the line, so values with spaces don't leak:
 +
 +   ```bash
-+   redact() { sed -E 's#(://[^/@[:space:]]+:)[^@[:space:]]+@#\1<redacted>@#g; s#bot[0-9]+:[A-Za-z0-9_-]+#bot<redacted>#g; s#((token|password|passwd|secret|api_?key)[^:=[:space:]]*[[:space:]]*[:=][[:space:]]*)[^[:space:],&]+#\1<redacted>#gI; s#(authorization:[[:space:]]*).*#\1<redacted>#I'; }
++   redact() { sed -E 's#(://[^/@[:space:]]*:)[^@[:space:]]+@#\1<redacted>@#g; s#bot[0-9]+:[A-Za-z0-9_-]+#bot<redacted>#g; s#((token|password|passwd|secret|api_?key)[^:=[:space:]]*[[:space:]]*[:=][[:space:]]*).*#\1<redacted>#I; s#(authorization[^:=[:space:]]{0,2}[[:space:]]*[:=][[:space:]]*).*#\1<redacted>#I'; }
 +   ```
 +
 +   Never ask for `env` or `printenv`, `docker inspect` without `--format` (it prints each container's environment), `docker compose config` without `--no-interpolate`, the contents of an env file, or the model server's request logs (they carry prompts). Ask the Author to read the output before pasting it back: the filter is a second layer, not a guarantee.
@@ -124,7 +124,7 @@ index 9e4295a..6eada3d 100644
  .env
  .env.*
 diff --git a/CLAUDE.md b/CLAUDE.md
-index 4745f76..903c21c 100644
+index 4745f76..ff821e6 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
 @@ -16,6 +16,7 @@ Local until the Author publishes (ADR 0013): commit on a feature branch and end
@@ -135,12 +135,13 @@ index 4745f76..903c21c 100644
  
  ## Conventions
  - TypeScript (web, services), Python (ML, evals). Everything ships as a container; images are built in CI and promoted unchanged.
-@@ -50,3 +51,5 @@ If a test fails, fix the code, not the test. Do not edit test files during a fix
+@@ -50,3 +51,6 @@ If a test fails, fix the code, not the test. Do not edit test files during a fix
  - Editing `corpus/`, or stating a number about the Author that isn't in the corpus or a filled `facts/` slot.
  - Widening `permissions.allow` or sandbox domains to make a task easier. Ask instead.
  - Writing a bash-gate rule that matches only the canonical spelling. Also test `git -C`/`-c`, `bash -c`, subshells, quoting, and config or API equivalents, and add a gap row to `redteam/forbidden-actions.sh` for any that get through.
 +- Paraphrasing a source: recorded answers, quotes, and anything about the Author's role, the agents' share of the work, or a privacy promise stay in the source's words; put your reading beside them, never in their place.
 +- Deferring or dropping a control the constitution requires without naming the clause as a deviation in the spec's Assumptions, and an ADR when that reverses an accepted one.
++- Letting anything the Author runs execute what agents can write and git doesn't show (a cache, `.venv`, `uv.toml`, an ignored or excluded file): pin the interpreter and skip project config.
 diff --git a/docs/how-we-build/lifecycle.md b/docs/how-we-build/lifecycle.md
 index 55eeed3..165c054 100644
 --- a/docs/how-we-build/lifecycle.md
