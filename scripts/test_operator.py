@@ -804,9 +804,10 @@ def test_check_url_on_this_host_takes_the_stacks_own_port_only(
     # The real ports. Above all, prod's or dev's token never goes to 18303, where dev-cpu's agent-built gateway
     # listens (T056's review). A pure function: nothing here can connect anywhere.
     own = op.ADMIN_PORTS[stack]
+    # localhost is connected as 127.0.0.1, never looked up (T056's review, round 2).
     assert (
         op.check_url(f"http://{host}:{own}/", stack, token_stdin=token_stdin)
-        == f"http://{host}:{own}"
+        == f"http://127.0.0.1:{own}"
     )
     for url in (
         f"http://{host}:{op.ADMIN_PORTS[other]}",

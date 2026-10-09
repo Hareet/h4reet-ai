@@ -350,7 +350,7 @@ $ curl -sS http://127.0.0.1:18000/health
     ```
 
   - prod and dev are the Author's. Inside the sandbox, `make hello` and the script both refuse them with exit 2, as the operator targets do (FR-008, FR-039).
-  - `--url`, which make never passes, names the stack's own api port on `127.0.0.1` or `localhost`, or, for dev and dev-cpu, a single-label in-network host at 8080: the copy inside the probe. A hello for one stack goes to no other stack's port, where prod's gateway might answer from the metered fallback.
+  - `--url`, which make never passes, names the stack's own api port on `127.0.0.1` or `localhost` (connected as `127.0.0.1`, never looked up), or, for dev and dev-cpu, a single-label in-network host at 8080: the copy inside the probe. A hello for one stack goes to no other stack's port, where prod's gateway might answer from the metered fallback.
 - **What it prints.** `HTTP <status>`, then the body: JSON indented, anything else as text, cut at 1 MiB. Control characters from the listener never reach the terminal: inside JSON they stay escaped, and in text they show as `?`.
 - **Exit codes:**
   - 0: an answer with a 2xx status;

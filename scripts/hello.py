@@ -19,9 +19,9 @@ Where it goes:
     so only on the agents' engine, and that copy calls http://gateway:8080: the operator CLI's hop
     (contracts/operator-admin.md §6). prod and dev are the Author's, so inside the sandbox they are refused, as make
     hello refuses them;
-  - --url names the stack's own api port on 127.0.0.1 or localhost, where no other stack's gateway answers, or, for
-    dev and dev-cpu, a single-label in-network host at 8080, which only a copy inside a container on the stack's
-    network calls. The hop passes it; make never does.
+  - --url names the stack's own api port on 127.0.0.1 or localhost (connected as 127.0.0.1, never looked up), where
+    no other stack's gateway answers, or, for dev and dev-cpu, a single-label in-network host at 8080, which only a
+    copy inside a container on the stack's network calls. The hop passes it; make never does.
 
 Exit codes: 0 the stack answered 2xx; 1 it answered with any other status, printed with its body (a degraded 503, a
 refusal, a redirect, which is never followed); 2 usage, or prod or dev inside the sandbox; 4 no answer (nothing
@@ -132,6 +132,9 @@ def check_url(url: str, stack: str) -> str:
                 f"--url on this host names {stack}'s own api port, {API_PORTS[stack]}: a hello for {stack} goes to "
                 "no other port, where another stack's gateway may answer"
             )
+        # localhost is connected as 127.0.0.1, where edge publishes, and never looked up: a lookup may give ::1
+        # first, where none of the stack's listeners is.
+        return f"http://127.0.0.1:{port}"
     elif not LABEL_RE.fullmatch(host):
         raise Usage(
             "--url names 127.0.0.1 or localhost, or, for dev or dev-cpu, a single-label in-network host"

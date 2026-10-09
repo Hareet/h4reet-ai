@@ -24,8 +24,9 @@ first 8 hex characters of its SHA-256.
 The transport: http://127.0.0.1:18003 (prod), 18103 (dev), or 18303 (dev-cpu), through urllib with an empty
 ProxyHandler, so no proxy setting can carry the token, and with redirects refused, so it goes nowhere else.
   - --url may name 127.0.0.1 or localhost at the stack's own port and no other, since another port may be another
-    stack's listener (18303 is dev-cpu's, whose gateway agents build); or, for dev or dev-cpu with --token-stdin
-    only, a single-label in-network host, inside a container on the stack's network.
+    stack's listener (18303 is dev-cpu's, whose gateway agents build); localhost is connected as 127.0.0.1, never
+    looked up. Or, for dev or dev-cpu with --token-stdin only, a single-label in-network host, inside a container on
+    the stack's network.
   - An answer whose stack field names another stack, or a status that names none, came from another listener, and
     is no usable answer.
   - Inside the sandbox, which can't reach 18303, dev-cpu without --url makes one hop: the CLI runs again in a
@@ -356,6 +357,9 @@ def check_url(url: str, stack: str, *, token_stdin: bool) -> str:
                 f"--url on this host names {stack}'s own admin port, {ADMIN_PORTS[stack]}: a token goes to no "
                 "other port, where another stack's listener may answer"
             )
+        # localhost is connected as 127.0.0.1, where edge publishes, and never looked up: a lookup may give ::1
+        # first, where none of the stack's listeners is (T056's review, round 2).
+        return f"http://127.0.0.1:{port}"
     elif not LABEL_RE.fullmatch(host):
         raise Usage(
             "--url names 127.0.0.1 or localhost, or, for dev or dev-cpu with --token-stdin, a single-label "

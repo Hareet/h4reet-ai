@@ -391,12 +391,15 @@ def test_proxy_settings_are_ignored(
 @pytest.mark.parametrize("stack", ["prod", "dev", "dev-cpu"])
 def test_a_url_on_this_host_is_the_stacks_own_port(stack: str) -> None:
     port = hello.API_PORTS[stack]
+    # localhost is connected as 127.0.0.1, never looked up.
     for host in ("127.0.0.1", "localhost"):
         assert (
-            hello.check_url(f"http://{host}:{port}", stack) == f"http://{host}:{port}"
+            hello.check_url(f"http://{host}:{port}", stack)
+            == f"http://127.0.0.1:{port}"
         )
         assert (
-            hello.check_url(f"http://{host}:{port}/", stack) == f"http://{host}:{port}"
+            hello.check_url(f"http://{host}:{port}/", stack)
+            == f"http://127.0.0.1:{port}"
         )
     for other in sorted(set(hello.API_PORTS.values()) - {port}) + [8080, 18303]:
         with pytest.raises(hello.Usage, match="own api port"):

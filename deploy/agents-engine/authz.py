@@ -366,6 +366,22 @@ def _refuse(rule: str, field: str, value: object) -> Decision:
 
 
 LOOPBACK_PUBLISH = ("127.0.0.1", "::1")
+# The host ports the engine may publish on: dev-cpu's x000-x004 (deploy/env.agents/dev-cpu.vars) and the one
+# prove-limits.sh's row E15 runs on. Any other loopback port may be another stack's while it is down: prod's and
+# dev's 18000-18004 and 18100-18104 hold their admin listeners and the Author's Langfuse and Grafana logins, so a
+# container squatting there would be handed the Author's token or password (A21; T056's review, round 2).
+PUBLISH_PORTS = frozenset((*range(18300, 18305), 18999))
+
+
+def _publish_port_ok(value: object) -> bool:
+    """A HostPort of PUBLISH_PORTS, as one plain decimal string: never empty (Docker would choose a port), a range,
+    or any other spelling."""
+    return (
+        isinstance(value, str)
+        and value.isascii()
+        and value.isdigit()
+        and int(value) in PUBLISH_PORTS
+    )
 
 
 def _check_create(body: dict) -> Decision | None:
@@ -449,9 +465,11 @@ def _check_host(host: dict) -> Decision | None:
         if not ok:
             return _refuse("A14", "HostConfig.Binds", detail)
 
-    # A21: a published port names the host's loopback. Docker reads a missing or empty HostIp as every
-    # interface, and RootlessKit's port driver would then listen on the WSL VM's own interfaces as h4agents,
-    # a way in that no allowlist governs (H3). PublishAllPorts publishes every exposed port that way.
+    # A21: a published port names the host's loopback, and one of PUBLISH_PORTS. Docker reads a missing or
+    # empty HostIp as every interface, and RootlessKit's port driver would then listen on the WSL VM's own
+    # interfaces as h4agents, a way in that no allowlist governs (H3). PublishAllPorts publishes every exposed
+    # port that way. A loopback port outside PUBLISH_PORTS may be a stopped stack's, where the Author's clients
+    # would hand their credentials to the container.
     if host.get("PublishAllPorts"):
         return _refuse("A21", "HostConfig.PublishAllPorts", True)
     bindings = host.get("PortBindings")
@@ -468,6 +486,14 @@ def _check_host(host: dict) -> Decision | None:
                         "A21",
                         "HostConfig.PortBindings",
                         f"{port} on {address or 'every interface'}",
+                    )
+                host_port = entry.get("HostPort") if isinstance(entry, dict) else None
+                if not _publish_port_ok(host_port):
+                    chosen = host_port or "chosen by the daemon"
+                    return _refuse(
+                        "A21",
+                        "HostConfig.PortBindings",
+                        f"{port} on host port {chosen}",
                     )
 
     mount_decision = _check_mounts(host.get("Mounts") or [])

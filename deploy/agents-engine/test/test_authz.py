@@ -367,6 +367,61 @@ def test_a21_ports_off_the_loopback_refused(entry: object) -> None:
     assert not decision.allow and decision.rule == "A21"
 
 
+@pytest.mark.parametrize("address", ["127.0.0.1", "::1"])
+@pytest.mark.parametrize("port", [*range(18300, 18305), 18999])
+def test_a21_dev_cpus_ports_and_the_proofs_allowed(address: str, port: int) -> None:
+    host = {"PortBindings": {"80/tcp": [{"HostIp": address, "HostPort": str(port)}]}}
+    assert create(host).allow
+
+
+@pytest.mark.parametrize("address", ["127.0.0.1", "::1"])
+@pytest.mark.parametrize(
+    "port",
+    [
+        *(
+            str(p) for p in range(18000, 18005)
+        ),  # prod's: api, Langfuse, Grafana, admin, OTLP
+        *(str(p) for p in range(18100, 18105)),  # dev's
+        "8080",
+        "18299",
+        "18305",
+        "18998",
+        "",  # the daemon would choose one
+        "18300-18304",  # a range: the daemon would choose within it
+        "018003",
+        " 18300",
+        "18300 ",
+        "+18300",
+        "\uff11\uff18\uff13\uff10\uff10",  # fullwidth digits: isdigit, not ASCII
+    ],
+)
+def test_a21_any_other_host_port_refused(address: str, port: str) -> None:
+    # A stopped stack's port is free on the host's loopback, and the operator CLI or the Author's browser would
+    # hand a container squatting there the token or the password meant for that stack (T056's review, round 2).
+    host = {"PortBindings": {"80/tcp": [{"HostIp": address, "HostPort": port}]}}
+    decision = create(host)
+    assert not decision.allow and decision.rule == "A21"
+
+
+@pytest.mark.parametrize(
+    "entry", [{"HostIp": "127.0.0.1"}, {"HostIp": "127.0.0.1", "HostPort": 18300}]
+)
+def test_a21_a_missing_or_numeric_host_port_refused(entry: dict) -> None:
+    decision = create({"PortBindings": {"80/tcp": [entry]}})
+    assert not decision.allow and decision.rule == "A21"
+
+
+def test_a21_every_binding_is_checked() -> None:
+    entries = [
+        {"HostIp": "127.0.0.1", "HostPort": "18300"},
+        {"HostIp": "127.0.0.1", "HostPort": "18003"},
+    ]
+    decision = create({"PortBindings": {"80/tcp": entries}})
+    assert not decision.allow and decision.rule == "A21"
+    other = {"80/tcp": entries[:1], "81/tcp": [{"HostIp": "::1", "HostPort": "18103"}]}
+    assert create({"PortBindings": other}).rule == "A21"
+
+
 def test_a21_publish_all_refused() -> None:
     decision = create({"PublishAllPorts": True})
     assert not decision.allow and decision.rule == "A21"
