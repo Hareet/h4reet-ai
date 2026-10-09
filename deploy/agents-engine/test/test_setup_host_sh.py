@@ -17,6 +17,8 @@ import stat
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[3]
 SETUP = REPO / "deploy" / "agents-engine" / "setup-host.sh"
 BASH = shutil.which("bash") or "/bin/bash"
@@ -151,3 +153,143 @@ def test_docker_config_replaces_a_link_even_to_a_file_that_looks_right(
     assert "SECOND-DONE" in done.stdout, done.stderr
     assert not config.is_symlink()
     assert stat.S_IMODE(config.lstat().st_mode) == 0o444
+
+
+# --------------------------------------------------------------------------------------------------
+# H2: h4agents' subordinate range overlaps no one else's (§5 H2, tasks.md T138)
+# --------------------------------------------------------------------------------------------------
+FIRST, LAST = 1065536, 1131071  # the range setup-host.sh assigns: 65,536 IDs
+H4_UID = "999"  # the stand-in uid of h4agents
+
+
+def _clash(tmp_path: Path, lines: list[str] | None) -> tuple[int, str]:
+    """subid_clash on a file of these lines (None: no file) for h4agents' range."""
+    path = tmp_path / "subuid"
+    if lines is not None:
+        path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+    script = f"""
+if out="$(subid_clash {q(path)} h4agents {H4_UID} {FIRST} {LAST - FIRST + 1})"; then
+	echo "rc=0 [$out]"
+else
+	echo "rc=$? [$out]"
+fi
+"""
+    done = setup_host(script, tmp_path)
+    assert done.returncode == 0, done.stderr
+    rc, _, out = done.stdout.strip().partition(" ")
+    return int(rc.removeprefix("rc=")), out[1:-1]
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        ["h4reet:100000:65536"],  # the Author's own range, far below
+        [
+            "h4reet:100000:65536",
+            f"other:1000000:{FIRST - 1000000}",
+        ],  # ends one below the first
+        [f"other:{LAST + 1}:65536"],  # starts one above the last
+        [f"h4agents:{FIRST}:65536"],  # h4agents' own entry, the same range: idempotent
+        [f"{H4_UID}:{FIRST}:65536"],  # the same, by uid
+        ["other:1100000:0"],  # an empty range holds no IDs, even one that starts inside
+        ["", "# a comment", "h4reet:100000:65536"],
+        None,  # no file yet
+    ],
+)
+def test_subid_ranges_that_do_not_clash(
+    tmp_path: Path, lines: list[str] | None
+) -> None:
+    assert _clash(tmp_path, lines) == (0, "")
+
+
+@pytest.mark.parametrize(
+    ("lines", "named"),
+    [
+        (["other:1100000:65536"], "subuid:1: other:1100000:65536"),
+        ([f"other:{LAST}:1"], f"subuid:1: other:{LAST}:1"),  # its last ID
+        (
+            [f"other:{FIRST - 65535}:65536"],
+            f"subuid:1: other:{FIRST - 65535}:65536",
+        ),  # its first
+        (["other:1000000:200000"], "subuid:1: other:1000000:200000"),  # around it
+        ([f"other:{FIRST + 1}:10"], f"subuid:1: other:{FIRST + 1}:10"),  # inside it
+        (
+            [f"1000:{FIRST}:65536"],
+            f"subuid:1: 1000:{FIRST}:65536",
+        ),  # someone else, by uid
+        (["h4reet:100000:65536", "x:1100000:5"], "subuid:2: x:1100000:5"),
+    ],
+)
+def test_subid_ranges_that_clash_are_named(
+    tmp_path: Path, lines: list[str], named: str
+) -> None:
+    rc, out = _clash(tmp_path, lines)
+    assert rc == 1
+    assert out.endswith(named)
+
+
+@pytest.mark.parametrize("line", ["garbage", "other:abc:65536", "other:1:2:3"])
+def test_a_subid_line_it_cannot_read_is_refused(tmp_path: Path, line: str) -> None:
+    # Refusing beats assigning a range that might overlap what the line meant.
+    rc, out = _clash(tmp_path, ["h4reet:100000:65536", line])
+    assert rc == 1
+    assert "subuid:2:" in out and "unreadable" in out
+
+
+def _ensure_subids(
+    tmp_path: Path, subuid: list[str], subgid: list[str]
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    uid_file, gid_file, calls = (tmp_path / n for n in ("subuid", "subgid", "calls"))
+    uid_file.write_text("".join(f"{line}\n" for line in subuid), encoding="utf-8")
+    gid_file.write_text("".join(f"{line}\n" for line in subgid), encoding="utf-8")
+    calls.write_text("", encoding="utf-8")
+    script = f"""
+subuid_file={q(uid_file)}
+subgid_file={q(gid_file)}
+id() {{ if [ "$*" = "-u h4agents" ]; then echo {H4_UID}; else command id "$@"; fi; }}
+usermod() {{ printf 'usermod %s\\n' "$*" >>{q(calls)}; }}
+log() {{ :; }}
+ensure_subids
+echo SUBIDS-OK
+"""
+    done = setup_host(script, tmp_path)
+    return done, calls.read_text(encoding="utf-8").splitlines()
+
+
+AUTHOR = ["h4reet:100000:65536"]
+
+
+def test_ensure_subids_assigns_the_range_where_it_is_free(tmp_path: Path) -> None:
+    done, calls = _ensure_subids(tmp_path, AUTHOR, AUTHOR)
+    assert "SUBIDS-OK" in done.stdout, done.stderr
+    assert calls == [
+        f"usermod --add-subuids {FIRST}-{LAST} h4agents",
+        f"usermod --add-subgids {FIRST}-{LAST} h4agents",
+    ]
+
+
+def test_ensure_subids_leaves_h4agents_own_range_as_it_is(tmp_path: Path) -> None:
+    held = [*AUTHOR, f"h4agents:{FIRST}:65536"]
+    done, calls = _ensure_subids(tmp_path, held, [*AUTHOR, f"{H4_UID}:{FIRST}:65536"])
+    assert "SUBIDS-OK" in done.stdout, done.stderr
+    assert calls == []
+
+
+def test_ensure_subids_refuses_a_clash_and_changes_neither_file(tmp_path: Path) -> None:
+    # The clash is in subgid only; subuid is checked too, but nothing is assigned until both pass.
+    done, calls = _ensure_subids(tmp_path, AUTHOR, [*AUTHOR, "other:1100000:65536"])
+    assert done.returncode != 0
+    assert "SUBIDS-OK" not in done.stdout
+    assert "other:1100000:65536" in done.stderr
+    assert str(tmp_path / "subgid") in done.stderr
+    assert calls == []
+
+
+def test_ensure_subids_refuses_a_range_of_h4agents_that_overlaps_another(
+    tmp_path: Path,
+) -> None:
+    # An earlier, different range of h4agents' that reaches into the Author's is refused too (H2).
+    done, calls = _ensure_subids(tmp_path, [*AUTHOR, "h4agents:150000:65536"], AUTHOR)
+    assert done.returncode != 0
+    assert "h4reet:100000:65536" in done.stderr
+    assert calls == []

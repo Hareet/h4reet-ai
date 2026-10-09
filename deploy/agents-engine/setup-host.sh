@@ -24,6 +24,8 @@ env_file="$etc/engine.env"
 models_src="/var/lib/h4agents/models"
 state="/var/lib/h4agents/state"
 log_dir="/var/log/h4agents"
+subuid_file="/etc/subuid"
+subgid_file="/etc/subgid"
 cert_days=397
 
 # The Author, their home, and their two certificate directories: resolve_author sets them, first thing.
@@ -33,6 +35,11 @@ agent_cert_dir=""
 author_cert_dir=""
 
 log() { printf '== %s\n' "$*"; }
+
+die() {
+	echo "setup-host.sh: $*" >&2
+	exit 1
+}
 
 # --- root, through sudo, as the Author ---------------------------------------------------------
 resolve_author() {
@@ -72,15 +79,70 @@ ensure_user() {
 }
 
 # --- H2: its own subordinate id range -----------------------------------------------------------
+# subid_clash <file> <user> <uid> <start> <count>: the first entry of a subordinate-ID file (/etc/subuid's
+# or /etc/subgid's name:start:count lines) that belongs to anyone but <user>, by name or by uid, and holds
+# an ID from <start> to <start>+<count>-1. Prints it as file:line: entry and returns 1; returns 0 when
+# there is none, or no file. A line it can't read is printed too: refusing beats assigning a range that
+# might overlap what the line meant. Blank lines and # comments are skipped.
+subid_clash() {
+	local file="$1" owner="$2" owner_uid="$3" start="$4" count="$5"
+	[ -e "$file" ] || return 0
+	awk -F: -v owner="$owner" -v owner_uid="$owner_uid" -v start="$start" -v count="$count" '
+		BEGIN { last = start + count - 1; clash = 0 }
+		/^[[:space:]]*(#|$)/ { next }
+		NF != 3 || $1 == "" || $2 !~ /^[0-9]+$/ || $3 !~ /^[0-9]+$/ {
+			printf "%s:%d: %s (unreadable)\n", FILENAME, FNR, $0
+			clash = 1
+			exit
+		}
+		$1 == owner || (owner_uid != "" && $1 == owner_uid) { next }
+		$3 > 0 && $2 + 0 <= last && $2 + $3 - 1 >= start + 0 {
+			printf "%s:%d: %s\n", FILENAME, FNR, $0
+			clash = 1
+			exit
+		}
+		END { exit clash }' "$file"
+}
+
+# subid_ranges <file> <user> <uid>: the ranges <user> already holds there, by name or uid, as "start count".
+subid_ranges() {
+	local file="$1" owner="$2" owner_uid="$3"
+	[ -e "$file" ] || return 0
+	awk -F: -v owner="$owner" -v owner_uid="$owner_uid" '
+		NF == 3 && ($1 == owner || (owner_uid != "" && $1 == owner_uid)) { print $2, $3 }' "$file"
+}
+
+# h4agents gets 1065536-1131071 in /etc/subuid and in /etc/subgid, where it holds no range yet. Whatever it
+# holds there, before or after, must overlap no one else's range (H2): so container IDs never map into the
+# Author's, or anyone's. Both files are checked before either changes, so a clash in one leaves both as
+# they were. An entry of h4agents' own with this range is the idempotent case.
 ensure_subids() {
-	if ! grep -q "^${user}:" /etc/subuid; then
-		log "assigning $user a subordinate uid range"
-		usermod --add-subuids 1065536-1131071 "$user"
-	fi
-	if ! grep -q "^${user}:" /etc/subgid; then
-		log "assigning $user a subordinate gid range"
-		usermod --add-subgids 1065536-1131071 "$user"
-	fi
+	local start=1065536 count=65536 uid file held clash first size
+	local range="$start-$((start + count - 1))"
+	local -a assign=()
+	uid="$(id -u "$user")"
+	for file in "$subuid_file" "$subgid_file"; do
+		held="$(subid_ranges "$file" "$user" "$uid")"
+		if [ -z "$held" ]; then
+			clash="$(subid_clash "$file" "$user" "$uid" "$start" "$count")" ||
+				die "the subordinate range $range for $user overlaps an entry in $file that isn't $user's: $clash. Free that range, or choose another for $user here (contracts/agents-engine.md §5 H2)"
+			assign+=("$file")
+			continue
+		fi
+		while read -r first size; do
+			clash="$(subid_clash "$file" "$user" "$uid" "$first" "$size")" ||
+				die "$user's subordinate range $first-$((first + size - 1)) in $file overlaps an entry that isn't $user's: $clash (contracts/agents-engine.md §5 H2)"
+		done <<<"$held"
+	done
+	for file in "${assign[@]}"; do
+		if [ "$file" = "$subuid_file" ]; then
+			log "assigning $user the subordinate uid range $range"
+			usermod --add-subuids "$range" "$user"
+		else
+			log "assigning $user the subordinate gid range $range"
+			usermod --add-subgids "$range" "$user"
+		fi
+	done
 }
 
 # --- H1: lingering, for h4agents and the Author -------------------------------------------------
