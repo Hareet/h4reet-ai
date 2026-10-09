@@ -1286,8 +1286,14 @@ class Probe:
         at = epoch_s(received)
         return (self.clock.wall() if at is None else at) <= cutoff
 
+    def due(self, op: Mapping[str, Any], window: Window) -> float:
+        """A receiver check's deadline; with "absent", now: the alert must not be there at all, and one look is enough,
+        since the delivery records already say it went out (--delivery real)."""
+        return self.clock.wall() if op.get("absent") is True else window.due_s
+
     def op_telegram(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         key = str(op["key"])
+        absent = op.get("absent") is True
         window = self.window(op, started, 300)
 
         def attempt(cutoff: float) -> tuple[bool, Any]:
@@ -1295,13 +1301,13 @@ class Probe:
             if response.status != 200:
                 raise SourceError(f"the Telegram stand-in answered {response.status}")
             found = telegram_find(response.json(), key)
-            if found is None:
-                return False, None
+            if absent or found is None:
+                return absent and found is None, found
             return self.arrived_by(found.get("received_at"), cutoff), found
 
         outcome = poll(
             attempt,
-            due_s=window.due_s,
+            due_s=self.due(op, window),
             every_s=EVERY_S["telegram"],
             clock=self.clock,
         )
@@ -1309,6 +1315,7 @@ class Probe:
         result = {
             "ok": outcome.ok,
             "key": key,
+            **({"absent": True} if absent else {}),
             **found,
             **self.timing(window, outcome),
         }
@@ -1318,6 +1325,7 @@ class Probe:
 
     def op_mailpit(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         key = str(op["key"])
+        absent = op.get("absent") is True
         headers_of: dict[str, Any] = {}
         texts_of: dict[str, Any] = {}
 
@@ -1356,19 +1364,20 @@ class Probe:
                         "received_at": message.get("Created"),
                     }
                     break
-            if found is None:
-                return False, None
+            if absent or found is None:
+                return absent and found is None, found
             return self.arrived_by(found["received_at"], cutoff), found
 
         outcome = poll(
             attempt,
-            due_s=window.due_s,
+            due_s=self.due(op, window),
             every_s=EVERY_S["mailpit"],
             clock=self.clock,
         )
         result = {
             "ok": outcome.ok,
             "key": key,
+            **({"absent": True} if absent else {}),
             **(outcome.value or {}),
             **self.timing(window, outcome),
         }
@@ -1581,13 +1590,12 @@ def main(
             admin_error=operator.AdminError if operator else _NeverRaised,
         )
     except startup_errors(operator) as problem:
-        # The CLI's token problems name the file or line, never the token (operator-admin.md §6).
-        print(f"breach_probe.py: {shorten(str(problem))}", file=sys.stderr)
-        print(
-            json.dumps({MARK: 1, "step": step, "done": True, "exit": 2}),
-            file=out,
-            flush=True,
-        )
+        # The CLI's token problems name the file or line, never the token (operator-admin.md §6). The reason goes on the
+        # done line too, the only output the orchestrator reads, with control characters replaced.
+        reason = shorten(str(problem))
+        print(f"breach_probe.py: {reason}", file=sys.stderr)
+        done = {MARK: 1, "step": step, "done": True, "exit": 2, "error": reason}
+        print(json.dumps(done), file=out, flush=True)
         return 2
     return probe.run(ops, step)
 

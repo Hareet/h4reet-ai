@@ -149,7 +149,7 @@ class Assertion:
     )
 
 
-RECEIVED = "Telegram's message_id and SMTP's 250 reply are in its delivery records"
+RECEIVED = "Telegram's message_id and SMTP's 250 reply are in its delivery records, and neither stand-in holds it"
 CATALOG = (
     Assertion(
         "1a",
@@ -676,8 +676,16 @@ class Context:
                 f"step {step}: the probe gave no result (docker exited {code}){': ' + tail if tail else ''}"
             )
         if done.get("exit") == 2:
+            # The probe's own reason: on its done line, or else its last line on standard error, which docker's build
+            # output surrounds. Cleaned, since either could carry what a control character would make of a terminal.
+            own = [
+                line.removeprefix("breach_probe.py:").strip()
+                for line in err.splitlines()
+                if line.startswith("breach_probe.py:")
+            ]
+            reason = done.get("error") or (own[-1] if own else "no reason given")
             raise Stop(
-                f"step {step}: the probe refused its operations (see its last line above)"
+                f"step {step}: the probe refused its operations: {self.probe.shorten(str(reason))}"
             )
         failed = next(
             (
@@ -805,6 +813,13 @@ def evidence(result: Mapping[str, Any]) -> str:
         via = result.get("via")
         if isinstance(via, dict) and via:
             parts.append("via " + ", ".join(str(v) for v in via.values()))
+    elif op in ("telegram", "mailpit") and result.get("absent"):
+        held = result.get("message_id") or result.get("matched_by")
+        parts.append(
+            f"the {op} stand-in holds it ({held})"
+            if held
+            else f"the {op} stand-in holds none"
+        )
     elif op == "telegram":
         parts.append(f"telegram message {result.get('message_id')}")
     elif op == "mailpit":
@@ -939,7 +954,8 @@ class Steps:
                 dedupe_key=key,
             )
         ]
-        if self.ctx.delivery == "real":
+        real = self.ctx.delivery == "real"
+        if real:
             refs = {
                 "provider_ref": {"telegram": r"^[0-9]+$", "email": r"(^|\D)250(\D|$)"}
             }
@@ -954,17 +970,20 @@ class Steps:
                     dedupe_key=key,
                 )
             )
-        else:
-            ops += [
-                {
-                    "op": channel,
-                    "assert": receivers,
-                    "key": key,
-                    "within_s": 300,
-                    **timed_from(when),
-                }
-                for channel in ("telegram", "mailpit")
-            ]
+        # With real delivery, the stand-ins must hold nothing: the stand-in's numeric message_id and Mailpit's 250 have
+        # the providers' shapes, so a gateway still on the stand-ins would pass on the references alone (round 1's
+        # review). Each gateway sends a channel to one place, so once the records exist, one look settles it.
+        ops += [
+            {
+                "op": channel,
+                "assert": receivers,
+                "key": key,
+                "within_s": 300,
+                **({"absent": True} if real else {}),
+                **timed_from(when),
+            }
+            for channel in ("telegram", "mailpit")
+        ]
         return ops
 
     def span(self, op_id: str) -> tuple[float, float]:

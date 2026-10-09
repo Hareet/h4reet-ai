@@ -1002,6 +1002,41 @@ def test_a_mailpit_check_reads_each_message_once() -> None:
     )
 
 
+@pytest.mark.parametrize(("held", "ok"), [(KEY, False), (KEY + "x", True)])
+def test_a_real_run_holds_that_neither_stand_in_received_the_alert(
+    held: str, ok: bool
+) -> None:
+    # With --delivery real, Telegram's message_id and SMTP's 250 have the stand-ins' shapes too, so the run also checks
+    # that neither stand-in holds the alert. One look: by then the delivery records say it went out (round 1's review).
+    rig = make()
+    message = {"message_id": 3, "text": alert_text(held), "received_at": "t"}
+    rig.http.on(
+        "GET", f"{probe.TELEGRAM}/messages", fixed(200, {"messages": [message]})
+    )
+    listing = {"messages": [{"ID": "m1", "Created": "t"}], "total": 1}
+    rig.http.on("GET", f"{probe.MAILPIT}/api/v1/messages", fixed(200, listing))
+    rig.http.on(
+        "GET",
+        f"{probe.MAILPIT}/api/v1/message/m1/headers",
+        fixed(200, {"X-H4-Alert-Id": [held]}),
+    )
+    rig.http.on(
+        "GET",
+        f"{probe.MAILPIT}/api/v1/message/m1",
+        fixed(200, {"Text": alert_text(held)}),
+    )
+    absent = {"key": KEY, "absent": True, "within_s": 300, **AT_START}
+    rig.run(
+        [
+            {"op": "telegram", "assert": "3b", **absent},
+            {"op": "mailpit", "assert": "3b", **absent},
+        ],
+        "3",
+    )
+    assert [r["ok"] for r in rig.results()] == [ok, ok]
+    assert rig.clock.sleeps == []
+
+
 # --- the store's own records: the audit row, the incident draft ---------------------------------------------------
 
 
@@ -1593,6 +1628,30 @@ def test_main_refuses_what_it_can_t_run(argv: list[str], document: Any) -> None:
         environ={},
     )
     assert code == 2
+
+
+def test_a_refusal_says_why_on_its_done_line_cleaned() -> None:
+    # The orchestrator reads only standard output's marked lines, so the reason goes there, with control characters
+    # replaced, and not only to standard error (round 1's review).
+    out = io.StringIO()
+    document = {"ops": [{"op": "shell\x1b[31m"}]}
+    code = probe.main(
+        ["1", "--stack", "dev"],
+        stdin=io.StringIO("\n" + json.dumps(document)),
+        stdout=out,
+        http=Http(),
+        clock=Clock(),
+        environ={},
+    )
+    assert code == 2
+    done = json.loads(out.getvalue().splitlines()[-1])
+    assert done == {
+        probe.MARK: 1,
+        "step": "1",
+        "done": True,
+        "exit": 2,
+        "error": "no such operation: shell?[31m",
+    }
 
 
 def test_an_admin_operation_needs_the_token() -> None:

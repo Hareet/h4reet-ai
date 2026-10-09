@@ -770,6 +770,37 @@ def test_a_failed_action_stops_the_run_and_every_later_assertion_is_a_miss() -> 
     assert not [op for op in stack.ops_seen if op.get("id", "").startswith("s6")]
 
 
+@pytest.mark.parametrize("on_done_line", [True, False])
+def test_a_refused_probe_call_says_why_cleaned(on_done_line: bool) -> None:
+    # The probe's reason, from its done line, or else its own last line on standard error, cleaned: never "see its
+    # last line above" for a line nothing printed (round 1's review).
+    stack = FakeStack()
+    reason = "no such operation: shell\x1b[31m"
+
+    def refusing(
+        argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
+    ) -> tuple[int, str, str]:
+        if (
+            "breach-probe" in argv
+            and argv[argv.index("/app/breach_probe.py") + 1] == "2"
+        ):
+            stack.commands.append(argv)
+            done: dict[str, Any] = {probe.MARK: 1, "step": "2", "done": True, "exit": 2}
+            if on_done_line:
+                done["error"] = reason
+            err = f"[+] Building 0.4s (8/8) FINISHED\nbreach_probe.py: {reason}\nexited 2\n"
+            return 2, json.dumps(done) + "\n", err
+        return stack(argv, stdin, env, timeout)
+
+    code, text = run(["--stack", "dev-cpu"], stack, runner=refusing)
+    assert code == 1
+    assert (
+        "step 2: the probe refused its operations: no such operation: shell?[31m"
+        in text
+    )
+    assert "see its last line above" not in text and "\x1b" not in text
+
+
 def test_a_volume_already_gone_is_wiped_enough() -> None:
     # A run stopped between removing the store's volume and bringing the store back leaves no volume: the next run's
     # wipe goes on rather than failing on it. Any other failure to remove it still stops the run.
@@ -960,10 +991,22 @@ def test_real_delivery_recreates_dev_s_gateway_with_the_overlay_and_puts_it_back
     # The overlay is gone at the end, success or not.
     overlay = Path(first[[i for i, a in enumerate(first) if a == "--env-file"][2] + 1])
     assert not overlay.exists() and not overlay.parent.exists()
-    # Real delivery asserts the providers' references, and reads no stand-in.
-    assert not [op for op in stack.ops_seen if op.get("op") in ("telegram", "mailpit")]
-    refs = [op for op in stack.ops_seen if op.get("assert") == "3b"]
-    assert refs and refs[0]["expect"]["each_regex"]["provider_ref"]["email"]
+    # Real delivery asserts the providers' references, and that neither stand-in holds the alert: the stand-in's
+    # numeric message_id and Mailpit's 250 have the same shapes, so a gateway still on the stand-ins would pass on
+    # the references alone (round 1's review).
+    for aid in ("3b", "4c", "5d", "7d", "10b"):
+        ops = [op for op in stack.ops_seen if op.get("assert") == aid]
+        refs = [op for op in ops if op["op"] == "log"]
+        assert refs and refs[0]["expect"]["each_regex"]["provider_ref"]["email"]
+        receivers = sorted(op["op"] for op in ops if op["op"] != "log")
+        assert receivers == ["mailpit", "telegram"], aid
+        assert all(op.get("absent") is True for op in ops if op["op"] != "log"), aid
+    standing = [
+        op
+        for op in stack.ops_seen
+        if op["op"] in ("telegram", "mailpit") and not op.get("absent")
+    ]
+    assert standing == []
 
 
 def test_real_delivery_puts_the_gateway_back_when_the_run_fails(

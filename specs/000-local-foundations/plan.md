@@ -743,7 +743,7 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
 
 **Delivery:**
 - **On dev-cpu (agents) and on dev by default:** alerts go to the stand-ins: `telegram-standin`, a stdlib server mimicking `/bot<token>/sendMessage` with `GET /messages`, and Mailpit.
-- **`--delivery real`** (the Author's terminal, dev on the 5090): the run adds a second env file, setting `ALERT_DELIVERY=real`, to dev's gateway. It asserts Telegram's `message_id` and SMTP's 250 reply in the L records within 300 s, and the Author records the terminal with asciinema, the phone visible on camera, into `docs/recordings/` (SC-002). (Departure, tasks.md T080: the overlay is the third env file, after dev's and the run file, which every compose call on a host stack passes (§4; contracts/env-files.md §7.2).)
+- **`--delivery real`** (the Author's terminal, dev on the 5090): the run adds a second env file, setting `ALERT_DELIVERY=real`, to dev's gateway. It asserts Telegram's `message_id` and SMTP's 250 reply in the L records within 300 s, and the Author records the terminal with asciinema, the phone visible on camera, into `docs/recordings/` (SC-002). (Departure, tasks.md T080: the overlay is the third env file, after dev's and the run file, which every compose call on a host stack passes (§4; contracts/env-files.md §7.2).) (Tasks.md T080's reading, from its review: the stand-in's numeric `message_id` and Mailpit's 250 have the providers' shapes, so the run also asserts that neither stand-in holds the alert, once its delivery records exist; a gateway still on the stand-ins fails the row.)
 
 ## 9. Development environment
 
