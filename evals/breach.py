@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """The breach test (spec 000 FR-036; User Story 2, US5-6, US5-7; plan §8; contracts/env-files.md §7.2; tasks.md T080).
 
-    python3 -I -B -X pycache_prefix=/dev/null evals/breach.py --stack dev|dev-cpu [--env-file F] [--run-file F]
+    make breach-test ENV=dev|dev-cpu [DELIVERY=real]        FR-036's only entry point, which runs:
+    python3 -I -B -X pycache_prefix=/dev/null <tree>/evals/breach.py --stack dev|dev-cpu [--env-file F] [--run-file F]
         [--delivery standin|real]
-    make breach-test ENV=dev|dev-cpu [DELIVERY=real]        FR-036's only entry point
+        <tree>: for dev, the export h4reet-dev runs (its run file's H4_TREE), and nothing else; for dev-cpu, the main
+        working tree
 
 It trips the kill switch on purpose, on a dev-class stack only, and asserts every step of User Story 2 from a trace
 (T, Langfuse), a metric (M, Prometheus, with the dashboard's own queries), or a log (L, Loki, with the receivers'
@@ -21,7 +23,9 @@ How it runs:
     dev-cpu's committed dummy, or dev's from ~/.config/h4reet-ai/operator/dev.token, read by scripts/operator.py,
     which this file loads by path so the token is handled in that one reviewed file. It is never printed.
   - dev: the host's engine, with the stack's env file and the run file make up wrote, and the compose file of the
-    commit the stack runs: make runs this file from that export, so the probe's image is built from it too.
+    commit the stack runs: make runs this file from that export, so the probe's image is built from it too. This file
+    refuses dev from any other tree, since its own tree is the compose file and the probe's build context: it must be
+    the run file's H4_TREE (contracts/env-files.md §12; FR-039).
   - dev-cpu: the agents' engine only (FR-039). Inside the sandbox every docker call goes through
     deploy/agents-engine/docker-relay; from the Author's terminal, only with DOCKER_HOST=tcp://198.18.0.1:2376. It
     runs from the main working tree, which the engine serves, never a linked worktree (contracts/env-files.md §7.3).
@@ -1903,6 +1907,31 @@ def check_real_delivery(env_file: Path, operator: Any) -> None:
         )
 
 
+def check_run_tree(run_file: Path, operator: Any) -> None:
+    """dev runs from the export h4reet-dev runs, which make up names in its run file as H4_TREE (contracts/env-files.md
+    §12), and from nowhere else. The compose file and the probe's build context are this file's own tree, built and run
+    on the host's engine with dev's token, so a run from the working tree would put the working tree's code there
+    (FR-039). make's path to the export isn't enough: this file checks that its own tree is the run file's."""
+    try:
+        values, errors = operator.parse_env(run_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        raise Refusal(
+            f"{run_file} can't be read: {getattr(error, 'strerror', None) or type(error).__name__}"
+        ) from None
+    tree = values.get("H4_TREE", "")
+    if errors or not tree:
+        problems = "; ".join(errors) or "no H4_TREE"
+        raise Refusal(
+            f"{run_file} names no export ({problems}): start h4reet-dev with make up ENV=dev, then run "
+            "make breach-test ENV=dev"
+        )
+    if Path(tree).resolve() != ROOT.resolve():
+        raise Refusal(
+            f"h4reet-dev runs the export {tree}, and this breach.py is in {ROOT}: dev's run uses the running "
+            "commit's compose file and probe only. Run make breach-test ENV=dev, which runs the export's breach.py"
+        )
+
+
 def context(
     args: argparse.Namespace,
     *,
@@ -1942,6 +1971,7 @@ def context(
             raise Refusal(
                 f"{run_file} is missing: h4reet-dev wasn't started by make up ENV=dev"
             )
+        check_run_tree(run_file, operator)
         env_file = Path(args.env_file)
         if args.delivery == "real":
             check_real_delivery(env_file, operator)

@@ -636,11 +636,10 @@ def dev_files(tmp_path: Path) -> tuple[Path, Path, Path]:
     token = token_dir / "dev.token"
     token.write_text("h4op_dev_" + "B" * 43 + "\n")
     token.chmod(0o600)
+    # make up's run file names the export make runs breach.py from: here, the tree these tests load it from.
     run_file = tmp_path / "state" / "run.env"
     run_file.parent.mkdir()
-    run_file.write_text(
-        "H4_TREE=/home/me/.local/state/h4reet/dev/tree/abc\nH4_REF=" + "a" * 40 + "\n"
-    )
+    run_file.write_text(f"H4_TREE={breach.ROOT}\nH4_REF=" + "a" * 40 + "\n")
     return home, env_file, run_file
 
 
@@ -817,6 +816,56 @@ def test_dev_runs_on_the_host_s_engine_from_its_own_files(
     files = [first[i + 1] for i, a in enumerate(first) if a == "--env-file"]
     assert files == [str(env_file), str(run_file)]
     assert stack.stdins[0].split("\n", 1)[0] == "h4op_dev_" + "B" * 43
+
+
+@pytest.mark.parametrize("named", ["another", "", None])
+def test_dev_runs_only_from_the_export_its_run_file_names(
+    dev_files: tuple[Path, Path, Path], tmp_path: Path, named: str | None
+) -> None:
+    # dev's compose file and the probe's build context are this file's tree. From any tree but the export the stack
+    # runs, the run would build that tree's probe on the host's engine and hand it dev's token (FR-039); with real
+    # delivery it would recreate dev's gateway from that tree's compose file. make's path isn't enough: the script
+    # checks that its own tree is the run file's H4_TREE.
+    home, env_file, run_file = dev_files
+    other = tmp_path / "state" / "tree" / ("b" * 40)
+    other.mkdir(parents=True)
+    tree = {"another": f"H4_TREE={other}\n", "": "H4_TREE=\n", None: ""}[named]
+    run_file.write_text(tree + "H4_REF=" + "a" * 40 + "\n")
+    for delivery in ([], ["--delivery", "real"]):
+        stack = FakeStack()
+        code, text = run(
+            [
+                "--stack",
+                "dev",
+                "--env-file",
+                str(env_file),
+                "--run-file",
+                str(run_file),
+                *delivery,
+            ],
+            stack,
+            environ=author(),
+            home=home,
+        )
+        assert code == 2 and "make breach-test ENV=dev" in text, text
+        assert stack.commands == []
+
+
+def test_a_link_to_the_export_is_the_export(
+    dev_files: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    home, env_file, run_file = dev_files
+    link = tmp_path / "export-link"
+    link.symlink_to(breach.ROOT, target_is_directory=True)
+    run_file.write_text(f"H4_TREE={link}\nH4_REF=" + "a" * 40 + "\n")
+    stack = FakeStack()
+    code, text = run(
+        ["--stack", "dev", "--env-file", str(env_file), "--run-file", str(run_file)],
+        stack,
+        environ=author(),
+        home=home,
+    )
+    assert code == 0, text
 
 
 @pytest.mark.parametrize("host", ["tcp://198.18.0.1:2376", "tcp://127.0.0.1:2376"])
