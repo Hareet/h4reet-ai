@@ -340,7 +340,7 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Tests for User Story 2
 
-- [ ] T067 [P] [US2] Create `services/gateway/test/unit/meter.test.ts`. It covers:
+- [X] T067 [P] [US2] Create `services/gateway/test/unit/meter.test.ts`. It covers:
   - `max_micro`, including `fixedUsage`;
   - cost rounded up once, on the sum (data-model.md §7.2);
   - crossings fired only when old < threshold ≤ new;
@@ -348,31 +348,31 @@ description: "Task list for spec 000, Local Foundations"
   - reset semantics;
   - every worked case of the renewal allowance in data-model.md §6.2;
   - the sweep settling an expired reservation at its maximum, with `cost_basis` `expired` and `outcome` `unknown`.
-- [ ] T068 [P] [US2] Create `services/gateway/test/integration/meter.test.ts` (PGlite). It follows the admission and commit transactions step by step (data-model.md §7.2–§7.3): the locking order, the refusal precedence, outbox rows in the same transaction as each crossing, an idempotent commit retry, the sweep, and the reserved-micro invariant (§2.3).
-- [ ] T069 [P] [US2] Create `services/gateway/test/unit/alerts.test.ts`. It covers:
+- [X] T068 [P] [US2] Create `services/gateway/test/integration/meter.test.ts` (PGlite). It follows the admission and commit transactions step by step (data-model.md §7.2–§7.3): the locking order, the refusal precedence, outbox rows in the same transaction as each crossing, an idempotent commit retry, the sweep, and the reserved-micro invariant (§2.3).
+- [X] T069 [P] [US2] Create `services/gateway/test/unit/alerts.test.ts`. It covers:
   - every message in contracts/alerts.md §3, rendered with no payloads, client labels, or secrets (§5);
   - dedupe keys, including `:g<n>`;
   - retries at 5, 15, 30, 60, and 120 s, all within 300 s;
   - the 09:00 UTC reminder;
   - the `[dev]` and `[dev-cpu]` prefixes.
-- [ ] T070 [P] [US2] Create `services/gateway/test/integration/operator.test.ts`. It covers reset (409 `not_degraded`), renew (409 `not_awaiting_renewal`, and the allowance rule), the reason rule (10–500 characters), the audit rows, the confirmation alerts, and the dev-only test endpoints refused outside dev (403, with `h4.test_machinery.refused`).
+- [X] T070 [P] [US2] Create `services/gateway/test/integration/operator.test.ts`. It covers reset (409 `not_degraded`), renew (409 `not_awaiting_renewal`, and the allowance rule), the reason rule (10–500 characters), the audit rows, the confirmation alerts, and the dev-only test endpoints refused outside dev (403, with `h4.test_machinery.refused`).
 - [X] T071 [P] [US2] Create `evals/test_breach_helpers.py` for the probe's assertion helpers: the T, M, and L sources, and the timing windows.
 
 ### Implementation for User Story 2
 
-- [ ] T072 [US2] Implement metered admission and its upkeep in `services/gateway/src/meter/`:
+- [X] T072 [US2] Implement metered admission and its upkeep in `services/gateway/src/meter/`:
   - `services/gateway/src/meter/admission.ts`, per data-model.md §7.2: the in-memory slots with 429 `metered_capacity_exceeded` (4 in flight, 60 a minute), the transaction, and the `reserve` journal append, compensated with `journal_unwritable`;
   - `src/meter/commit.ts`, per §7.3 and its crossings table. The slots are released in a `finally` on every way out of a call, and `h4.cost.usd` grows only when this transaction inserted the ledger row;
   - `src/meter/rollover.ts`, per §7.6;
   - the sweep (§2.4) and the 10 s background tasks (§7.7).
   - init's lost acknowledgement (US1's review, deferred here): if COMMIT succeeds on the server but the connection drops before its acknowledgement, `meter/init.ts` answers 503 `store_unreachable` and never appends the journal's `init` record, so a later rebuild loses this init's floor. On a failed COMMIT, re-read `stack_state`; if this actor wrote it, append the record and return the result. `isStoreFailure` also counts a CHECK violation inside the transaction as an outage: count only connection failures. It must land with the first reservation.
-- [ ] T073 [US2] Implement `services/gateway/src/adapters/synthetic.ts` (dev only, `fixedUsage` of 1,000 output tokens, requires `GATEWAY_TEST_SYNTHETIC_SPEND=1`) and `test/contract/synthetic.contract.test.ts`, which runs the same contract suite (provider-adapter.md §3.3). Add the `synthetic` adapter and dev's `fallback: synthetic` to `config/routing.yaml` (contracts/config-files.md §1.2, step 2). Dev's `fallback: synthetic` arrives with this task, and T074 removes `createServices`' `fallback_not_supported` refusal (plan §5.8, T148), so T073 and T074 land together: until T074, a route with a fallback stops the gateway with exit 78.
-- [ ] T074 [US2] Complete FR-022 in `services/gateway/src/core/gateway.ts`: the fallback branch with every admission cause (`meter_at_ceiling`, `fallback_awaiting_renewal`, `fallback_spent_today`, `fallback_unavailable`, `journal_unwritable`), in data-model.md §7.2's precedence, and the degraded counter and log (contracts/gateway-http.md §3). It removes `createServices`' temporary `fallback_not_supported` refusal, with its plan §5.8 bullet and its contracts/config-files.md §1.4 row, and lands with T073 (T148).
-- [ ] T075 [US2] Implement the operator writes and reads in `services/gateway/src/routes/admin.ts`, per contracts/operator-admin.md §2.1, §2.2, §4.2, and §4.3, and data-model.md §7.5: `POST /admin/reset`, `POST /admin/renew`, `GET /admin/audit`, and `GET /admin/incidents`. A journal append that fails after the commit writes a `journal_failed` audit row carrying the action's `audit_id` (data-model.md §7.5). Extend `scripts/operator.py` with `reset`, `renew`, `audit`, and `incidents`, and add the Makefile targets `operator-reset`, `operator-renew`, `operator-audit`, and `operator-incidents`.
-- [ ] T076 [US2] Implement `services/gateway/src/routes/test.ts` per contracts/operator-admin.md §3 (dev only):
+- [X] T073 [US2] Implement `services/gateway/src/adapters/synthetic.ts` (dev only, `fixedUsage` of 1,000 output tokens, requires `GATEWAY_TEST_SYNTHETIC_SPEND=1`) and `test/contract/synthetic.contract.test.ts`, which runs the same contract suite (provider-adapter.md §3.3). Add the `synthetic` adapter and dev's `fallback: synthetic` to `config/routing.yaml` (contracts/config-files.md §1.2, step 2). Dev's `fallback: synthetic` arrives with this task, and T074 removes `createServices`' `fallback_not_supported` refusal (plan §5.8, T148), so T073 and T074 land together: until T074, a route with a fallback stops the gateway with exit 78.
+- [X] T074 [US2] Complete FR-022 in `services/gateway/src/core/gateway.ts`: the fallback branch with every admission cause (`meter_at_ceiling`, `fallback_awaiting_renewal`, `fallback_spent_today`, `fallback_unavailable`, `journal_unwritable`), in data-model.md §7.2's precedence, and the degraded counter and log (contracts/gateway-http.md §3). It removes `createServices`' temporary `fallback_not_supported` refusal, with its plan §5.8 bullet and its contracts/config-files.md §1.4 row, and lands with T073 (T148).
+- [X] T075 [US2] Implement the operator writes and reads in `services/gateway/src/routes/admin.ts`, per contracts/operator-admin.md §2.1, §2.2, §4.2, and §4.3, and data-model.md §7.5: `POST /admin/reset`, `POST /admin/renew`, `GET /admin/audit`, and `GET /admin/incidents`. A journal append that fails after the commit writes a `journal_failed` audit row carrying the action's `audit_id` (data-model.md §7.5). Extend `scripts/operator.py` with `reset`, `renew`, `audit`, and `incidents`, and add the Makefile targets `operator-reset`, `operator-renew`, `operator-audit`, and `operator-incidents`.
+- [X] T076 [US2] Implement `services/gateway/src/routes/test.ts` per contracts/operator-admin.md §3 (dev only):
   - `POST /admin/test/clock`: forward only, 409 `clock_backwards`, and a `clock` journal record;
   - `POST /admin/test/synthetic`: attribution `fallback` or `metered`, a count, $0.10 per call, through the real pipeline.
-- [ ] T077 [US2] Implement `services/gateway/src/alerts/outbox.ts`, `dispatcher.ts`, `telegram.ts`, `smtp.ts`, and `format.ts`, per contracts/alerts.md §2–§4:
+- [X] T077 [US2] Implement `services/gateway/src/alerts/outbox.ts`, `dispatcher.ts`, `telegram.ts`, `smtp.ts`, and `format.ts`, per contracts/alerts.md §2–§4:
   - the dispatcher wakes on `LISTEN alert_outbox` or every 2 s, and treats each channel independently;
   - Telegram: the Bot API `sendMessage` in plain text, with a 5 s timeout;
   - email: nodemailer, implicit TLS on 465 or STARTTLS on 587, with a 10 s timeout;
@@ -380,7 +380,7 @@ description: "Task list for spec 000, Local Foundations"
   - the in-memory `store_unreachable` alert after 60 s;
   - the daily reminder;
   - `ALERT_DELIVERY` selects real or stand-in endpoints.
-- [ ] T078 [US2] Implement the incident drafts in `services/gateway/src/incidents/draft.ts` per contracts/alerts.md §7: a deterministic template, no model call, the evidence fields, no client identifiers, written under `${GATEWAY_STATE_DIR}/incidents/`, with the `incidents` row updated.
+- [X] T078 [US2] Implement the incident drafts in `services/gateway/src/incidents/draft.ts` per contracts/alerts.md §7: a deterministic template, no model call, the evidence fields, no client identifiers, written under `${GATEWAY_STATE_DIR}/incidents/`, with the `incidents` row updated.
 - [X] T079 [US2] Create the stand-ins in `evals/standins/` and `deploy/compose.yaml`:
   - `evals/standins/telegram_standin.py` (stdlib; `/bot<token>/sendMessage`, `GET /messages`, `/healthz`) and `evals/standins/Dockerfile`, on the pinned Python base;
   - the `telegram-standin` and `mailpit` services in `deploy/compose.yaml`, under the `dev-receivers` profile.
