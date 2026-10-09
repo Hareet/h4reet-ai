@@ -373,7 +373,8 @@ def test_the_steps_run_their_lifecycle_in_plan_8s_order() -> None:
     ]
     volume = [c for c in stack.commands if "volume" in c]
     assert lifecycle == [
-        # step 1: a clean start on a wiped store, and a gateway that applies its migrations to it
+        # step 1: a clean start on a wiped store, which the running gateway sees as uninitialized: no restart
+        # (data-model.md §6.1, "the store's volume is lost")
         ["stop", "gateway-state"],
         ["rm", "--force", "--stop", "gateway-state"],
         [
@@ -385,7 +386,6 @@ def test_the_steps_run_their_lifecycle_in_plan_8s_order() -> None:
             "120",
             "gateway-state",
         ],
-        ["restart", "gateway"],
         # step 4: the local model down, for the fallback steps
         ["stop", "model-server-cpu"],
         # step 5 and step 6: restarts keep today's fallback spend and the renewal flag
@@ -592,22 +592,37 @@ def test_a_stack_without_the_test_machinery_is_refused_before_anything_changes()
     assert len(stack.commands) == 1
 
 
-def test_step_11_restarts_a_gateway_that_never_sees_the_wiped_store_and_goes_on() -> (
+def test_a_gateway_that_never_sees_the_wiped_store_fails_step_11_and_nothing_restarts_it() -> (
     None
 ):
-    # A gateway that stays store_unreachable after its store's volume comes back empty misses 11c; the run restarts
-    # it, so the rebuild's assertions still run.
-    stack = FakeStack(miss={"11c"})
+    # data-model.md §6.1: a store whose volume is lost is store_uninitialized, to the gateway that is running. One
+    # that stays store_unreachable misses 11c, never reports the empty store, and so never gets its init: the run
+    # fails there, as the contract is written, and no restart papers over it.
+    stack = FakeStack(miss={"11c"}, fail={"s11.empty"})
     code, text = run(["--stack", "dev-cpu"], stack)
     assert code == 1
     table = rows(text)
-    assert (
-        table["11c"][1] == "MISS"
-        and table["11d"][1] == "PASS"
-        and table["11e"][1] == "PASS"
-    )
+    assert table["11c"][1] == "MISS"
+    assert table["11d"][1] == "MISS" and table["11e"][1] == "MISS"
+    assert "step 11 stopped: s11.empty" in text
     restarts = [c for c in stack.commands if c[-2:] == ["restart", "gateway"]]
-    assert len(restarts) == 4
+    assert len(restarts) == 2  # steps 5 and 6's, and no others
+
+
+def test_step_11_asserts_the_wiped_store_in_the_call_that_rebuilds_it() -> None:
+    # The wiped store's check, its uninitialized /health, and the init that rebuilds it go in one probe call, after
+    # the store is back, with nothing between them but the probe.
+    stack = FakeStack()
+    run(["--stack", "dev-cpu"], stack)
+    last = json.loads(stack.stdins[-1].split("\n", 1)[1])["ops"]
+    assert [op.get("id") or op.get("assert") for op in last][:3] == [
+        "11c",
+        "s11.empty",
+        "s11.init",
+    ]
+    # Step 1's wipe sends the same command, so find step 11's by its place: the last one.
+    back = max(i for i, c in enumerate(stack.commands) if c[-1] == "gateway-state")
+    assert stack.commands[back + 1 :] == [stack.commands[-1]]
 
 
 # --- the delivery overlay (contracts/env-files.md §7.2) -----------------------------------------------------------

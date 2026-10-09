@@ -1041,7 +1041,6 @@ class Steps:
             "step 1 · a clean start: the store wiped, initialized, and the clock on the 20th"
         )
         self.ctx.wipe_store()
-        self.ctx.restart_gateway()
         init = {
             "reason": "breach test step 1: a clean start on the wiped store",
             "confirm_zero": True,
@@ -1645,27 +1644,6 @@ class Steps:
             ],
         )
         wiped = self.ctx.wipe_store()
-        found = self.call(
-            "11",
-            [
-                metric(
-                    "11c",
-                    CAUSE,
-                    labels=["store_uninitialized"],
-                    fresh=("h4_degraded_cause", wiped),
-                    within_s=90,
-                )
-            ],
-        )
-        if not all(r.get("ok") for r in found.values()) or not self.report.outcomes.get(
-            "11c", [{}]
-        )[-1].get("ok"):
-            # A gateway that never sees its store come back empty keeps answering store_unreachable: 11c has missed,
-            # and a restart, which applies the migrations to the empty store, lets the rebuild still be asserted.
-            self.ctx.say(
-                "  the gateway didn't see the empty store: restarting it so the rebuild can be asserted"
-            )
-            self.ctx.restart_gateway()
         offset = "{{s10.clock4.body.offset_ms}}"
         rebuilt = {
             "body.fallback_awaiting_renewal": True,
@@ -1682,9 +1660,18 @@ class Steps:
             "detail.renewed": False,
             "detail.clock_offset_ms": offset,
         }
+        # The running gateway sees its store come back empty as store_uninitialized (data-model.md §6.1, "the store's
+        # volume is lost"), with no restart: the dashboard shows it, /health reports it, and init rebuilds the store.
+        # A gateway that never does misses 11c and fails s11.empty, and the step stops there.
         self.call(
             "11",
             [
+                metric(
+                    "11c",
+                    CAUSE,
+                    labels=["store_uninitialized"],
+                    fresh=("h4_degraded_cause", wiped),
+                ),
                 {
                     "op": "wait_health",
                     "id": "s11.empty",
