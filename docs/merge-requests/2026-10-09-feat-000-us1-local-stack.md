@@ -368,6 +368,10 @@ make check: 5 PASS, 2 SKIP, 4 PLANNED, 0 PENDING, 0 FAIL
 - **T092, the gate:** `compose-images` accepts `DOCKER_HOST=tcp://198.18.0.1:2376` without checking `DOCKER_TLS_VERIFY`. Only a host daemon you had configured to listen there in plaintext could answer, and agents can't bind that address. The gate sets TLS anyway; the guard could require it too (the stack reviewer's round-4 note).
 - **The local adapter's health, in production:** the race behind C3 needs an event-loop stall of about 800 ms, and with `unhealthy_after: 1` one such stall marks local unhealthy for about 3 s. The gateway reviewer judged it rare enough to leave; it is worth a look when T072's background tasks land.
 - **Before the engine exists,** the probe hops fail with the docker client's own error, where `up` and `status` say "ask the Author". That is cosmetic, and only until T046.
+- **T117, the closing patch (the Author decided on 2026-10-09 to leave these until then):**
+  - **Durable agent worktrees.** Agent worktrees live in `$TMPDIR`, which every WSL boot wipes, so their work must be committed before a restart. `.claude/worktrees` can't hold them: the sandbox's `denyWrite` has `./.claude`, the whole directory, and that beats the `Edit(.claude/worktrees/**)` allow on main (195e5f6). The options: a writable sibling directory through `permissions.additionalDirectories`, with `.claude` kept locked; or an explicit list of `.claude`'s config paths in place of `./.claude`.
+  - **`protected-paths.sh` checks paths only relative to the main tree.** A file inside a `/tmp` worktree's own `.claude/`, `corpus/`, or cost config isn't checked. That doesn't touch the running session, whose hooks run from the main tree, but it lets a branch carry such changes into review. The hook could apply its rules relative to the root of any worktree of this repository.
+  - **`Edit(.claude/skills)` in main's settings has no `/**`,** so it denies only a file of that name. The hook covers the directory today, but the rule should read `Edit(.claude/skills/**)`, like the others.
 
 ### CLAUDE.md, by your hand
 
