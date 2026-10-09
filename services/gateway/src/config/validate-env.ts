@@ -41,6 +41,8 @@ export const REAL_DELIVERY_KEYS = [
 ] as const;
 
 const isTemplateValue = (v: string | undefined): boolean => v === "__GENERATE__" || v === "__ASK__";
+/** What a SCRAM verifier takes unchanged (SASLprep): printable ASCII, no space. */
+const PRINTABLE_ASCII = /^[\x21-\x7e]+$/;
 
 export function validateGatewayEnv(env: GatewayEnv, opts: ValidateEnvOptions = {}): EnvRefusal[] {
   const out: EnvRefusal[] = [];
@@ -142,6 +144,18 @@ export function validateGatewayEnv(env: GatewayEnv, opts: ValidateEnvOptions = {
       "operator_hash_is_dummy",
       "OPERATOR_TOKEN_SHA256",
       "OPERATOR_TOKEN_SHA256 is the published dev-cpu dummy's hash; prod refuses it",
+    );
+  }
+
+  // grafana_ro's password becomes a SCRAM-SHA-256 verifier at every start (data-model.md §2.9), which takes printable
+  // ASCII only. The store would refuse any other value at every retry, unreachable for good, so the gateway refuses
+  // it here. Unset or empty, the role's login stays off.
+  const grafanaRo = env.GATEWAY_GRAFANA_RO_PASSWORD;
+  if (grafanaRo !== undefined && grafanaRo !== "" && !PRINTABLE_ASCII.test(grafanaRo)) {
+    refuse(
+      "grafana_ro_password_invalid",
+      "GATEWAY_GRAFANA_RO_PASSWORD",
+      "GATEWAY_GRAFANA_RO_PASSWORD must be printable ASCII without spaces, as init_env.py's 64 hex is",
     );
   }
 

@@ -789,6 +789,33 @@ describe("the store", () => {
     await db.pg.query("ALTER TABLE gateway.stack_state_gone RENAME TO stack_state");
   });
 
+  it("rejects start() with exit 78 for a grafana_ro password no verifier can take, the store up or down", async () => {
+    // validate-env refuses it first (grafana_ro_password_invalid); this is the store's own line, so a value that
+    // got past it never leaves the store retrying, unreachable, for good.
+    for (const database of [db, flaky(db, 100)]) {
+      const { logged, logger } = capture();
+      const store = new Store({
+        db: database,
+        migrations,
+        envClass: "dev",
+        logger,
+        onFatal: () => {},
+        retryMs: 10,
+        grafanaRoPassword: "two words",
+      });
+      const err = await fatal(store.start());
+      expect([err.exitCode, err.reason]).toEqual([78, "grafana_ro_password_invalid"]);
+      expect(err.message).not.toContain("two words");
+      expect(store.status).toBe("unreachable");
+      await new Promise((r) => setTimeout(r, 50));
+      expect(logged).toEqual([]); // no outage logged, and no retry made
+      // Not closed: close() would close the shared test database, and a fatal start leaves no timer behind.
+    }
+    // Refused before any migration ran.
+    const { rows } = await db.pg.query<{ t: string | null }>("SELECT to_regclass('gateway.schema_migrations') AS t");
+    expect(rows).toEqual([{ t: null }]);
+  });
+
   it("sets grafana_ro's password at every start, when the gateway has one", async () => {
     const store = new Store({
       db,

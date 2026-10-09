@@ -1,7 +1,7 @@
 // What the gateway checks of its own environment at startup (contracts/env-files.md §4, §11; plan §5.8;
 // config-files.md §4.4): each refusal exits 78 with a named reason, and no message carries a value.
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -214,19 +214,45 @@ describe("the operator credential's hash (data-model.md §5)", () => {
     expect(DEVCPU_DUMMY_OPERATOR_SHA256).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it.skipIf(!existsSync(DEVCPU_VARS))(
-    "matches the dummy token in deploy/env.agents/dev-cpu.vars (skipped until tasks.md T031 creates it)",
-    () => {
-      const { vars, issues } = parseEnvFile(readFileSync(DEVCPU_VARS, "utf8"), "deploy/env.agents/dev-cpu.vars");
-      expect(issues).toEqual([]);
-      const token = vars.H4_DEVCPU_OPERATOR_TOKEN ?? "";
-      expect(token).toMatch(/^h4op_devcpu_[A-Za-z0-9_-]{43}$/);
-      expect(vars.OPERATOR_TOKEN_SHA256, "dev-cpu.vars' hash is its own token's").toBe(sha256(token));
-      expect(DEVCPU_DUMMY_OPERATOR_SHA256, "set the constant in src/config/validate-env.ts to this hash").toBe(
-        sha256(token),
-      );
-    },
-  );
+  it("matches the dummy token in deploy/env.agents/dev-cpu.vars", () => {
+    const { vars, issues } = parseEnvFile(readFileSync(DEVCPU_VARS, "utf8"), "deploy/env.agents/dev-cpu.vars");
+    expect(issues).toEqual([]);
+    const token = vars.H4_DEVCPU_OPERATOR_TOKEN ?? "";
+    expect(token).toMatch(/^h4op_devcpu_[A-Za-z0-9_-]{43}$/);
+    expect(vars.OPERATOR_TOKEN_SHA256, "dev-cpu.vars' hash is its own token's").toBe(sha256(token));
+    expect(DEVCPU_DUMMY_OPERATOR_SHA256, "set the constant in src/config/validate-env.ts to this hash").toBe(
+      sha256(token),
+    );
+  });
+});
+
+describe("grafana_ro's password (data-model.md §2.9)", () => {
+  // The gateway sets it as a SCRAM-SHA-256 verifier at every start, which takes printable ASCII only. A value it
+  // can't take would leave the store retrying forever, unreachable, so the gateway refuses it at startup instead.
+  it("grafana_ro_password_invalid: a password that is set must be printable ASCII, without spaces", () => {
+    for (const value of ["two words", " leading", "tab\there", "line\nbreak", "caf\u00e9-latte", "\u00a0"]) {
+      expect(
+        reasons(validateGatewayEnv({ ...DEV, GATEWAY_GRAFANA_RO_PASSWORD: value })),
+        JSON.stringify(value),
+      ).toEqual([["grafana_ro_password_invalid", "GATEWAY_GRAFANA_RO_PASSWORD"]]);
+    }
+    expect(reasons(validateGatewayEnv({ ...PROD, GATEWAY_GRAFANA_RO_PASSWORD: "two words" }))).toEqual([
+      ["grafana_ro_password_invalid", "GATEWAY_GRAFANA_RO_PASSWORD"],
+    ]);
+  });
+
+  it("accepts generated hex and any printable ASCII; unset or empty, the role's login stays off", () => {
+    for (const value of [undefined, "", "c0".repeat(32), "printable~and!punctuation", "x"]) {
+      expect(validateGatewayEnv({ ...DEV, GATEWAY_GRAFANA_RO_PASSWORD: value }), String(value)).toEqual([]);
+    }
+    expect(validateGatewayEnv({ ...DEV, GATEWAY_GRAFANA_RO_PASSWORD: "__GENERATE__" }, { template: true })).toEqual([]);
+  });
+
+  it("passes dev-cpu.vars' own value", () => {
+    const { vars } = parseEnvFile(readFileSync(DEVCPU_VARS, "utf8"), "deploy/env.agents/dev-cpu.vars");
+    expect(vars.GATEWAY_GRAFANA_RO_PASSWORD).toMatch(/^[0-9a-f]{64}$/);
+    expect(validateGatewayEnv(gatewayEnvFromFile(vars))).toEqual([]);
+  });
 });
 
 describe("prod's AWS profile", () => {
@@ -252,10 +278,11 @@ describe("messages", () => {
         OPERATOR_TOKEN_SHA256: secretish,
         GATEWAY_TEST_CLOCK: secretish,
         TELEMETRY_PAYLOAD_SAMPLING: secretish,
+        GATEWAY_GRAFANA_RO_PASSWORD: `${secretish} `,
       }),
       ...validateGatewayEnv({ ...PROD, TELEGRAM_API_BASE: secretish, SMTP_TLS: secretish, AWS_PROFILE: "" }),
     ];
-    expect(new Set(refusals.map((r) => r.reason)).size).toBe(9);
+    expect(new Set(refusals.map((r) => r.reason)).size).toBe(10);
     expect(JSON.stringify(refusals)).not.toContain(secretish);
   });
 });

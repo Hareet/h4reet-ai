@@ -177,7 +177,19 @@ export async function readMigrations(dir: URL = MIGRATIONS_DIR): Promise<Migrati
   return out;
 }
 
-export type FatalReason = "schema_newer_than_code" | "migration_changed" | "migration_gap" | "test_clock_in_prod";
+export type FatalReason =
+  | "schema_newer_than_code"
+  | "migration_changed"
+  | "migration_gap"
+  | "test_clock_in_prod"
+  | "grafana_ro_password_invalid";
+
+/** The fatal reasons that are configuration refusals: exit 78 (plan §5.8; env-files.md §11). */
+const REFUSALS: ReadonlySet<FatalReason> = new Set([
+  "schema_newer_than_code",
+  "test_clock_in_prod",
+  "grafana_ro_password_invalid",
+]);
 
 /** A store problem retrying can't fix. The gateway exits with `exitCode`: 78 for a refusal, 1 otherwise. */
 export class FatalStoreError extends Error {
@@ -189,7 +201,7 @@ export class FatalStoreError extends Error {
   ) {
     super(message);
     this.name = "FatalStoreError";
-    this.exitCode = reason === "schema_newer_than_code" || reason === "test_clock_in_prod" ? 78 : 1;
+    this.exitCode = REFUSALS.has(reason) ? 78 : 1;
   }
 }
 
@@ -359,6 +371,15 @@ export class Store {
   private async attempt(first: boolean): Promise<void> {
     if (this.closed) return;
     try {
+      // validate-env refuses such a password first; without this, every retry would fail on it, and the store would
+      // stay unreachable for good.
+      const password = this.opts.grafanaRoPassword;
+      if (password && !PRINTABLE_ASCII.test(password)) {
+        throw new FatalStoreError(
+          "grafana_ro_password_invalid",
+          "GATEWAY_GRAFANA_RO_PASSWORD isn't printable ASCII, so grafana_ro's verifier can't be made (env-files.md §11)",
+        );
+      }
       const versions = await runMigrations(this.opts.db, this.opts.migrations);
       if (this.opts.grafanaRoPassword) await setGrafanaRoPassword(this.opts.db, this.opts.grafanaRoPassword);
       await this.refuseTestClockInProd();
