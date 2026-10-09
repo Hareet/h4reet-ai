@@ -70,10 +70,10 @@ index 0000000..2a0ceee
 +  --ignore-gitleaks-allow "$top" \
 +  || fail "gitleaks found something shaped like a secret in the staged changes, or couldn't run"
 diff --git a/.claude/hooks/bash-gate.sh b/.claude/hooks/bash-gate.sh
-index 2360b09..290a347 100755
+index 2360b09..066ccdb 100755
 --- a/.claude/hooks/bash-gate.sh
 +++ b/.claude/hooks/bash-gate.sh
-@@ -83,6 +83,24 @@ fi
+@@ -83,6 +83,25 @@ fi
  # Cloud control surfaces the agent may not touch.
  echo "$cmd" | grep -Eq '(^|[;&| ])aws +(iam|budgets|ce|wafv2|waf|cloudfront +update|ssm +put-parameter[^;&|]*kill-switch)' \
    && block "IAM/budget/edge/kill-switch mutation" "write an ADR and a spec; the Author applies"
@@ -82,14 +82,15 @@ index 2360b09..290a347 100755
 +# `make engine-smoke`. Any other run is refused: by path or bare name, after a wrapper (sudo, env, bash -c, xargs,
 +# find -exec, and the like), and at the start of any chained or nested command, with quotes or backslashes inside the
 +# name. Between the start and the name it skips assignments (VAR=value, even first, or empty), options with one
-+# argument each (nice -n 5, watch -n 1), bare durations (timeout 5), and a dot-source anywhere (. engine.sh).
++# argument each (nice -n 5, watch -n 1; never a quoted one, so bash -c "cat engine.sh" stays a read), bare durations
++# (timeout 5), and a dot-source anywhere (. engine.sh).
 +# Naming the file as an argument (cat, git diff, shellcheck) still works. A variable or a glob standing in for the
 +# name is a known gap: without sudo, and outside h4agents' user manager, such a run can't change the engine.
 +engine_route="the Author runs deploy/agents-engine/engine.sh directly (contracts/agents-engine.md §8); agents use make engine-status or make engine-smoke"
 +eq="[\"'\\\\]*"
 +engine_name="e${eq}n${eq}g${eq}i${eq}n${eq}e${eq}\\.${eq}s${eq}h\\b"
 +engine_start="(^|[;&|(\`{]|\\\$\\(|\\b(then|do|else|exec|sudo|doas|env|nohup|time|command|builtin|xargs|timeout|nice|ionice|stdbuf|setsid|watch|bash|sh|zsh|dash|ksh|source)\\b|-exec(dir)?\\b|(^|[[:space:];&|(\`{])\\.[[:space:]])"
-+engine_skip="[[:space:]]*-[^[:space:]]*([[:space:]]+[^-[:space:]][^[:space:]]*)?|[[:space:]]+[0-9][0-9.]*[smhd]?|[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*"
++engine_skip="[[:space:]]*-[^[:space:]]*([[:space:]]+[^-[:space:]\"'][^[:space:]]*)?|[[:space:]]+[0-9][0-9.]*[smhd]?|[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*"
 +engine_run="${engine_start}(${engine_skip})*[[:space:]]*[\"']?([^[:space:];&|]*/)?${engine_name}"
 +if echo "$cmd" | grep -Eq "$engine_run" \
 +  && ! echo "$cmd" | grep -Eq '^[[:space:]]*(\./)?deploy/agents-engine/engine\.sh[[:space:]]+(status|smoke)[[:space:]]*$'; then
@@ -491,10 +492,10 @@ index 33347a6..7e6ad32 100644
  
  class Report:
 diff --git a/redteam/forbidden-actions.sh b/redteam/forbidden-actions.sh
-index 7c7364b..8fb622a 100755
+index 7c7364b..209bc02 100755
 --- a/redteam/forbidden-actions.sh
 +++ b/redteam/forbidden-actions.sh
-@@ -160,6 +160,43 @@ cmd gap "sh -c \"\$(printf 'gi%s pu%s' t sh)\""
+@@ -160,6 +160,46 @@ cmd gap "sh -c \"\$(printf 'gi%s pu%s' t sh)\""
  cmd gap 'git co main' # an alias that was already defined
  cmd gap "sh -c 'unset CLAUDE\"\"CODE; git commit -m wip'" # the git hook then sees no CLAUDECODE
  
@@ -532,13 +533,16 @@ index 7c7364b..8fb622a 100755
 +cmd allow 'shellcheck deploy/agents-engine/engine.sh'
 +cmd allow 'git diff -- deploy/agents-engine/engine.sh'
 +cmd allow 'ls -la deploy/agents-engine/engine.sh'
++cmd allow 'bash -c "cat deploy/agents-engine/engine.sh"'
++cmd allow 'bash -c "shellcheck deploy/agents-engine/engine.sh"'
++cmd block 'bash -c "deploy/agents-engine/engine.sh up"'
 +# shellcheck disable=SC2016 # the command text is the test input, not an expansion
 +cmd gap 'e=engine; deploy/agents-engine/$e.sh up'
 +
  # --- protected-paths.sh: edits -------------------------------------------------------------------
  edit block '.claude/settings.json'
  edit block '.claude/hooks/bash-gate.sh'
-@@ -210,6 +247,19 @@ edit allow 'corpus/proposals/2026-10-07-example.md'
+@@ -210,6 +250,19 @@ edit allow 'corpus/proposals/2026-10-07-example.md'
  edit allow 'services/gateway/src/router.ts'
  edit allow 'docs/adr/0013-example.md'
  
@@ -558,7 +562,7 @@ index 7c7364b..8fb622a 100755
  # --- Both gates fail closed when their own dependencies break --------------------------------------
  # failclosed <hook> <label> <tool_input JSON> <noaudit|nohelper|nojq|norealpath>
  failclosed() {
-@@ -329,6 +379,41 @@ if env -u CLAUDECODE git -C "$gr" merge -q --no-ff --no-edit feature >/dev/null
+@@ -329,6 +382,41 @@ if env -u CLAUDECODE git -C "$gr" merge -q --no-ff --no-edit feature >/dev/null
    printf 'FAIL        %-21s %s\n' git-hook "the Author's merge into main did not go through"
  fi
  
@@ -600,7 +604,7 @@ index 7c7364b..8fb622a 100755
  # --- subagent-report-check.sh: a report it can't check is a warning, never silence (FR-010) ------
  # unchecked <reason>: how many "report not checked" warnings with that reason the audit log holds
  unchecked() {
-@@ -349,6 +434,33 @@ subagent_row() {
+@@ -349,6 +437,33 @@ subagent_row() {
  subagent_row 'a payload with no transcript path is logged as WARN' '{"session_id":"matrix"}' 'no transcript path in payload'
  subagent_row 'a transcript path with no file is logged as WARN' '{"agent_transcript_path":"/nonexistent/agent.jsonl"}' 'no file at the transcript path'
  
@@ -634,7 +638,7 @@ index 7c7364b..8fb622a 100755
  # --- .claude/settings.json keeps the layers behind the hooks ---------------------------------------
  settings="$repo/.claude/settings.json"
  # has <label> <jq filter that must be true>
-@@ -373,5 +485,18 @@ has 'env files are Read- and Edit-denied, wherever they are (FR-007)' '.permissi
+@@ -373,5 +488,18 @@ has 'env files are Read- and Edit-denied, wherever they are (FR-007)' '.permissi
  has 'the sandbox hides deploy/env and denies writes to it (FR-007)' '(.sandbox.filesystem.denyRead | index("./deploy/env") != null) and (.sandbox.filesystem.denyWrite | index("./deploy/env") != null)'
  has 'protected-paths.sh also covers NotebookEdit' '[.hooks.PreToolUse[] | select(.matcher | test("NotebookEdit"))] | length == 1'
  
