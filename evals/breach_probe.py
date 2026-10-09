@@ -19,9 +19,15 @@ Operations are actions or checks:
     step: the operations after it are reported skipped, and the probe exits 1;
   - checks, each the source of an assertion: metric (M: a Prometheus instant query), log (L: Loki's records), trace
     (T: Langfuse's trace), and the L family's other records: telegram and mailpit (what the stand-ins received), audit
-    (the store's audit row), and incident (the draft the gateway wrote). A check polls until its condition holds or its
-    window ("within_s") passes, never counts a record or a sample from before the action it follows ("after",
-    "after_s", or "fresh"), and reports how long it waited. A missed check doesn't stop the step.
+    (the store's audit row), and incident (the draft the gateway wrote). A check's window is timed from the action it
+    measures, never from when the check gets its turn: it opens when that action starts, so nothing from before it
+    counts, and closes "within_s" after the action ends. The action is an earlier operation of the call ("after"), a
+    moment the orchestrator gives ("after_s" and "after_end_s", for an earlier call's operation or a lifecycle
+    command), or else the call's last action. The check polls until its condition holds or the window closes; its
+    last try waits a few seconds for late arrivals and asks the sources what they held at the deadline itself
+    (Prometheus's evaluation time, Loki's end, the receivers' own receipt times), so a check that starts late still
+    gets a fair verdict, and a value that came too late never passes. "fresh" also requires a metric's sample to be
+    from after a named operation's start. A missed check doesn't stop the step.
 A string field may name an earlier operation's result as {{<id>.<path>}}.
 
 What never leaves it: the operator token; payloads (a hello's answer, a trace's input and output, an alert's or a
@@ -72,6 +78,9 @@ MAX_BODY = 8 * 1024 * 1024
 MAX_INPUT = 1024 * 1024
 TOLERANCE = 1e-6  # USD and flags are compared to a millionth: a micro-USD
 SLACK_S = 5.0  # a window starts this long before its action, for the clocks of two containers on one host
+# A window's last try waits this long past its end, so a sample or record stamped by then has arrived: the collector's
+# 2 s batch and Prometheus's under-1 s ingestion (contracts/telemetry.md §6.5). It still asks for the deadline itself.
+SETTLE_S = 5.0
 SYNTHETIC_BATCH = (
     50  # POST /admin/test/synthetic's largest count (contracts/operator-admin.md §3.2)
 )
@@ -207,39 +216,81 @@ class Outcome:
     waited_s: float = 0.0
     attempts: int = 0
     error: str | None = None
+    cutoff_s: float | None = None  # the moment the last try asked the sources about
+
+
+@dataclass(frozen=True)
+class Window:
+    """A check's window, timed from the action it measures: it opens when the action starts, so nothing from before
+    it counts, and closes within_s after the action ends."""
+
+    opens_s: float
+    anchor_s: float  # the action's end, which the deadline is timed from
+    due_s: float
 
 
 def poll(
-    attempt: Callable[[], tuple[bool, Any]],
+    attempt: Callable[[float], tuple[bool, Any]],
     *,
-    within_s: float,
+    due_s: float,
     every_s: float,
     clock: Any,
+    settle_s: float = 0.0,
 ) -> Outcome:
-    """attempt() → (ok, evidence), tried now and every every_s until it holds or the window passes. Its last try is at
-    the window's end, never after it. A source that doesn't answer, or answers wrongly, is a miss for that try."""
+    """attempt(cutoff_s) → (ok, evidence), tried now and every every_s until it holds or the window closes at due_s, a
+    wall-clock time the caller timed from the action, never from this check's start. A try may count only what the
+    sources held by cutoff_s: now, while the window is open; then its end. When the window closes, one last try waits
+    settle_s past the end, for what was stamped in time but arrives late, and asks for the deadline itself. A check
+    that starts after its window has closed gets that one try. A source that doesn't answer, or answers wrongly, is a
+    miss for that try."""
     start = clock.monotonic()
-    deadline = start + max(within_s, 0.0)
     attempts, value, error = 0, None, None
     while True:
+        closing = clock.wall() >= due_s
+        if closing and clock.wall() < due_s + settle_s:
+            clock.sleep(due_s + settle_s - clock.wall())
+        cutoff = min(clock.wall(), due_s)
         attempts += 1
         try:
-            ok, value = attempt()
+            ok, value = attempt(cutoff)
             error = None
         except (SourceError, Unreachable) as failure:
             ok, error = False, f"{type(failure).__name__}: {failure}"
-        now = clock.monotonic()
+        waited = round(clock.monotonic() - start, 3)
         if ok:
-            return Outcome(True, value, round(now - start, 3), attempts)
-        remaining = deadline - now
-        if remaining <= 0:
-            return Outcome(False, value, round(now - start, 3), attempts, error)
-        clock.sleep(min(every_s, remaining))
+            return Outcome(True, value, waited, attempts, cutoff_s=cutoff)
+        if closing:
+            return Outcome(False, value, waited, attempts, error, cutoff_s=cutoff)
+        clock.sleep(min(every_s, max(due_s - clock.wall(), 0.0)))
+
+
+def ns(wall_s: float) -> int:
+    """A wall-clock time in Loki's nanoseconds, to the millisecond."""
+    return round(wall_s * 1000) * 1_000_000
 
 
 def since_ns(wall_s: float, slack_s: float = SLACK_S) -> int:
     """A window's start, in Loki's nanoseconds: a little before the action it follows."""
-    return round(wall_s * 1000) * 1_000_000 - round(slack_s * 1000) * 1_000_000
+    return ns(wall_s) - round(slack_s * 1000) * 1_000_000
+
+
+TIME_RE = re.compile(
+    r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})"
+)
+
+
+def epoch_s(text: object) -> float | None:
+    """An RFC 3339 time, as the stand-in and Mailpit write their receipt times, in epoch seconds; None if it isn't one.
+    Fractions are kept to the microsecond: Mailpit writes nanoseconds."""
+    match = TIME_RE.fullmatch(text.strip()) if isinstance(text, str) else None
+    if match is None:
+        return None
+    base, fraction, zone = match.groups()
+    try:
+        moment = dt.datetime.fromisoformat(base + ("+00:00" if zone == "Z" else zone))
+    except ValueError:
+        return None
+    return moment.timestamp() + (float(fraction[:7]) if fraction else 0.0)
 
 
 def iso(ns: int) -> str:
@@ -682,6 +733,9 @@ class Probe:
     out: TextIO
     admin_error: type[Exception]
     results: dict[str, dict[str, Any]] = field(default_factory=dict)
+    last_action: dict[str, Any] | None = (
+        None  # what a check that names no action is timed from
+    )
 
     def run(self, ops: list[dict[str, Any]], step: str) -> int:
         failed: str | None = None
@@ -695,6 +749,8 @@ class Probe:
                 }
             else:
                 result = self.one(op)
+                if op.get("op") in ACTIONS:
+                    self.last_action = result
                 if not result["ok"] and op.get("op") in ACTIONS:
                     result["failed"] = True
                     failed = str(op.get("id") or index)
@@ -723,18 +779,57 @@ class Probe:
                 ok=False, error=f"{type(problem).__name__}: {shorten(str(problem))}"
             )
         result.setdefault("ok", False)
+        result["ended_s"] = round(self.clock.wall(), 3)
         if op.get("id"):
             self.results[str(op["id"])] = result
         return result
 
-    def after_s(self, op: Mapping[str, Any], started: float) -> float:
-        """When the window opens: an earlier operation's start, a time given, or this operation's start."""
+    def earlier(self, ident: Any) -> tuple[float, float]:
+        """An earlier operation of this call: when it started and when it ended."""
+        found = self.results.get(str(ident))
+        if not found or "started_s" not in found:
+            raise Usage(f"after names no earlier operation: {ident}")
+        start = float(found["started_s"])
+        return start, float(found.get("ended_s", start))
+
+    def opens_s(self, spec: Mapping[str, Any], started: float) -> float:
+        """When a "fresh" requirement starts: an earlier operation's start, a time given, or this operation's start."""
+        if "after" in spec:
+            return self.earlier(spec["after"])[0]
+        return float(spec.get("after_s", started))
+
+    def window(self, op: Mapping[str, Any], started: float, within_s: float) -> Window:
+        """The check's window, timed from the action it measures: the operation it names ("after"), the moments the
+        orchestrator gives ("after_s", "after_end_s"), or this call's last action. A check with none of them is
+        refused, never timed from its own start: that is the window round 1's review found too long."""
+        within = max(float(op.get("within_s", within_s)), 0.0)
         if "after" in op:
-            earlier = self.results.get(str(op["after"]))
-            if not earlier or "started_s" not in earlier:
-                raise Usage(f"after names no earlier operation: {op['after']}")
-            return float(earlier["started_s"])
-        return float(op.get("after_s", started))
+            opens, anchor = self.earlier(op["after"])
+        elif "after_s" in op:
+            opens = float(op["after_s"])
+            anchor = float(op.get("after_end_s", opens))
+        elif self.last_action is not None:
+            opens = float(self.last_action["started_s"])
+            anchor = float(self.last_action.get("ended_s", opens))
+        else:
+            raise Usage(
+                "a check is timed from the action it measures: name it with after, or after_s and after_end_s"
+            )
+        if anchor < opens:
+            raise Usage("a window's action can't end before it starts")
+        return Window(opens, anchor, anchor + within)
+
+    def timing(self, window: Window, outcome: Outcome) -> dict[str, Any]:
+        """How long the check waited, and, when it held, how long after its action the try that saw it looked."""
+        timed: dict[str, Any] = {
+            "waited_s": outcome.waited_s,
+            "within_s": round(window.due_s - window.anchor_s, 3),
+        }
+        if outcome.ok and outcome.cutoff_s is not None:
+            timed["seen_after_s"] = round(
+                max(outcome.cutoff_s - window.anchor_s, 0.0), 3
+            )
+        return timed
 
     # --- actions ------------------------------------------------------------------------------------------------
 
@@ -773,13 +868,14 @@ class Probe:
     def op_wait_health(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         expect = op.get("expect", {})
 
-        def attempt() -> tuple[bool, Any]:
+        def attempt(cutoff: float) -> tuple[bool, Any]:
             health = self.health_now()
             return not misses(health, expect), health
 
+        # An action's own wait, from its own start.
         outcome = poll(
             attempt,
-            within_s=float(op.get("within_s", 60)),
+            due_s=started + max(float(op.get("within_s", 60)), 0.0),
             every_s=1.0,
             clock=self.clock,
         )
@@ -939,8 +1035,10 @@ class Probe:
 
     # --- checks -------------------------------------------------------------------------------------------------
 
-    def prom(self, query: str) -> list[Sample]:
-        url = f"{PROMETHEUS}/api/v1/query?" + urllib.parse.urlencode({"query": query})
+    def prom(self, query: str, at_s: float) -> list[Sample]:
+        """An instant query, evaluated at at_s: the dashboard's value at that moment."""
+        params = {"query": query, "time": f"{at_s:.3f}"}
+        url = f"{PROMETHEUS}/api/v1/query?" + urllib.parse.urlencode(params)
         response = self.http.request("GET", url)
         if response.status != 200:
             raise SourceError(f"Prometheus answered {response.status}")
@@ -948,12 +1046,13 @@ class Probe:
 
     def op_metric(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         query, expect = str(op["query"]), op.get("expect", {})
+        window = self.window(op, started, 60)
         fresh = op.get("fresh")
-        fresh_after = self.after_s(fresh, started) if isinstance(fresh, dict) else None
+        fresh_after = self.opens_s(fresh, started) if isinstance(fresh, dict) else None
         seen: dict[str, Any] = {}
 
-        def attempt() -> tuple[bool, Any]:
-            samples = self.prom(query)
+        def attempt(cutoff: float) -> tuple[bool, Any]:
+            samples = self.prom(query, cutoff)
             if "labels" in expect:
                 ((label, values),) = expect["labels"].items()
                 found = label_set(samples, label)
@@ -962,7 +1061,7 @@ class Probe:
             elif "at_least" in expect:
                 value, floor = (
                     single(samples),
-                    single(self.prom(str(expect["at_least"]))),
+                    single(self.prom(str(expect["at_least"]), cutoff)),
                 )
                 observed = [value, floor]
                 ok = (
@@ -974,30 +1073,33 @@ class Probe:
                 observed = single(samples)
                 ok = close(observed, float(expect["value"]))
             if fresh_after is not None:
-                stamp = single(self.prom(f"max(timestamp({fresh['selector']}))"))
+                stamp = single(
+                    self.prom(f"max(timestamp({fresh['selector']}))", cutoff)
+                )
                 seen["fresh_s"] = stamp
                 ok = ok and stamp is not None and stamp >= fresh_after
             return ok, observed
 
         outcome = poll(
             attempt,
-            within_s=float(op.get("within_s", 60)),
+            due_s=window.due_s,
             every_s=EVERY_S["metric"],
             clock=self.clock,
+            settle_s=SETTLE_S,
         )
         result = {
             "ok": outcome.ok,
             "query": query,
             "observed": outcome.value,
-            "waited_s": outcome.waited_s,
+            **self.timing(window, outcome),
             **seen,
         }
         if outcome.error:
             result["error"] = outcome.error
         return result
 
-    def loki(self, query: str, start_ns: int) -> list[LogRecord]:
-        end_ns = since_ns(self.clock.wall(), slack_s=-SLACK_S)
+    def loki(self, query: str, start_ns: int, end_ns: int) -> list[LogRecord]:
+        """The records from start_ns to end_ns, and none outside them, whatever Loki returns."""
         params = {
             "query": query,
             "start": str(start_ns),
@@ -1010,11 +1112,14 @@ class Probe:
         )
         if response.status != 200:
             raise SourceError(f"Loki answered {response.status}")
-        return [r for r in loki_records(response.json()) if r.ts_ns >= start_ns]
+        return [
+            r for r in loki_records(response.json()) if start_ns <= r.ts_ns <= end_ns
+        ]
 
     def op_log(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         query, expect = str(op["query"]), op.get("expect", {})
-        start_ns = since_ns(self.after_s(op, started))
+        window = self.window(op, started, 60)
+        start_ns = since_ns(window.opens_s)
         fields = list(op.get("fields", []))
         gap = expect.get("gap")
         anchor_ns = None
@@ -1067,14 +1172,15 @@ class Probe:
                 )
             return ok, picked
 
-        def attempt() -> tuple[bool, Any]:
-            return chosen(self.loki(query, start_ns))
+        def attempt(cutoff: float) -> tuple[bool, Any]:
+            return chosen(self.loki(query, start_ns, ns(cutoff)))
 
         outcome = poll(
             attempt,
-            within_s=float(op.get("within_s", 60)),
+            due_s=window.due_s,
             every_s=EVERY_S["log"],
             clock=self.clock,
+            settle_s=SETTLE_S,
         )
         records = [
             {
@@ -1084,7 +1190,11 @@ class Probe:
             }
             for r in outcome.value or []
         ]
-        result = {"ok": outcome.ok, "records": records, "waited_s": outcome.waited_s}
+        result = {
+            "ok": outcome.ok,
+            "records": records,
+            **self.timing(window, outcome),
+        }
         if gap and records and anchor_ns is not None:
             result["gap_s"] = round(abs(records[0]["ts_ns"] - anchor_ns) / 1e9, 3)
         if outcome.error:
@@ -1122,7 +1232,11 @@ class Probe:
             listed = self.http.request("GET", url, headers=headers)
             return langfuse_observations(listed.json()) if listed.status == 200 else []
 
-        def attempt() -> tuple[bool, Any]:
+        # A trace's window is the time Langfuse may take to ingest it, from the call: it has no evaluation time to ask
+        # for, so a try counts what is there.
+        window = self.window(op, started, 60)
+
+        def attempt(cutoff: float) -> tuple[bool, Any]:
             first: dict[str, Any] | None = None
             for observation in observations():
                 ok, observed, derived = generation_match(observation, expect)
@@ -1139,7 +1253,7 @@ class Probe:
 
         outcome = poll(
             attempt,
-            within_s=float(op.get("within_s", 60)),
+            due_s=window.due_s,
             every_s=EVERY_S["trace"],
             clock=self.clock,
         )
@@ -1148,30 +1262,44 @@ class Probe:
             "trace_id": trace_id,
             "observed": outcome.value,
             "via": dict(via),
-            "waited_s": outcome.waited_s,
+            **self.timing(window, outcome),
         }
         if outcome.error:
             result["error"] = outcome.error
         return result
 
+    def arrived_by(self, received: object, cutoff: float) -> bool:
+        """A receiver's own receipt time is by the cutoff. One it doesn't give counts as now, so it holds only while the
+        window is open."""
+        at = epoch_s(received)
+        return (self.clock.wall() if at is None else at) <= cutoff
+
     def op_telegram(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         key = str(op["key"])
+        window = self.window(op, started, 300)
 
-        def attempt() -> tuple[bool, Any]:
+        def attempt(cutoff: float) -> tuple[bool, Any]:
             response = self.http.request("GET", f"{TELEGRAM}/messages")
             if response.status != 200:
                 raise SourceError(f"the Telegram stand-in answered {response.status}")
             found = telegram_find(response.json(), key)
-            return found is not None, found
+            if found is None:
+                return False, None
+            return self.arrived_by(found.get("received_at"), cutoff), found
 
         outcome = poll(
             attempt,
-            within_s=float(op.get("within_s", 300)),
+            due_s=window.due_s,
             every_s=EVERY_S["telegram"],
             clock=self.clock,
         )
         found = outcome.value or {}
-        result = {"ok": outcome.ok, "key": key, **found, "waited_s": outcome.waited_s}
+        result = {
+            "ok": outcome.ok,
+            "key": key,
+            **found,
+            **self.timing(window, outcome),
+        }
         if outcome.error:
             result["error"] = outcome.error
         return result
@@ -1187,8 +1315,11 @@ class Probe:
                 raise SourceError(f"Mailpit answered {response.status}")
             return response.json()
 
-        def attempt() -> tuple[bool, Any]:
+        window = self.window(op, started, 300)
+
+        def attempt(cutoff: float) -> tuple[bool, Any]:
             messages = mailpit_messages(get("/api/v1/messages?limit=200"))
+            found: dict[str, Any] | None = None
             for message in messages:
                 ident = message["ID"]
                 if ident not in headers_of:
@@ -1196,26 +1327,30 @@ class Probe:
                         f"/api/v1/message/{urllib.parse.quote(ident)}/headers"
                     )
                 if header_matches(headers_of[ident], key):
-                    return True, {
+                    found = {
                         "matched_by": "header",
                         "received_at": message.get("Created"),
                     }
-            for message in messages:
+                    break
+            for message in messages if found is None else []:
                 ident = message["ID"]
                 if ident not in texts_of:
                     texts_of[ident] = get(
                         f"/api/v1/message/{urllib.parse.quote(ident)}"
                     )
                 if text_matches(texts_of[ident], key):
-                    return True, {
+                    found = {
                         "matched_by": "text",
                         "received_at": message.get("Created"),
                     }
-            return False, None
+                    break
+            if found is None:
+                return False, None
+            return self.arrived_by(found["received_at"], cutoff), found
 
         outcome = poll(
             attempt,
-            within_s=float(op.get("within_s", 300)),
+            due_s=window.due_s,
             every_s=EVERY_S["mailpit"],
             clock=self.clock,
         )
@@ -1223,7 +1358,7 @@ class Probe:
             "ok": outcome.ok,
             "key": key,
             **(outcome.value or {}),
-            "waited_s": outcome.waited_s,
+            **self.timing(window, outcome),
         }
         if outcome.error:
             result["error"] = outcome.error
@@ -1236,8 +1371,9 @@ class Probe:
             raise Usage("not an audit action")
         actor = re.compile(ACTOR_RE.format(stack=re.escape(self.stack)))
         expect = op.get("expect", {})
+        window = self.window(op, started, 10)
 
-        def attempt() -> tuple[bool, Any]:
+        def attempt(cutoff: float) -> tuple[bool, Any]:
             answer = self.admin_call("GET", f"/admin/audit?action={action}&limit=20")
             if answer["status"] != 200:
                 raise SourceError(
@@ -1269,14 +1405,14 @@ class Probe:
 
         outcome = poll(
             attempt,
-            within_s=float(op.get("within_s", 10)),
+            due_s=window.due_s,
             every_s=EVERY_S["audit"],
             clock=self.clock,
         )
         result = {
             "ok": outcome.ok,
             **(outcome.value or {}),
-            "waited_s": outcome.waited_s,
+            **self.timing(window, outcome),
         }
         if outcome.error:
             result["error"] = outcome.error
@@ -1291,8 +1427,9 @@ class Probe:
             "trace_id": str(op["trace_id"]),
             "trip_key": str(op["trip_key"]),
         }
+        window = self.window(op, started, 330)
 
-        def attempt() -> tuple[bool, Any]:
+        def attempt(cutoff: float) -> tuple[bool, Any]:
             # The drafts' content is read raw and checked here, and never printed: only the checks' booleans are.
             answer = self.admin_raw("GET", "/admin/incidents?limit=5")
             if answer["status"] != 200:
@@ -1318,14 +1455,14 @@ class Probe:
 
         outcome = poll(
             attempt,
-            within_s=float(op.get("within_s", 330)),
+            due_s=window.due_s,
             every_s=EVERY_S["incident"],
             clock=self.clock,
         )
         result = {
             "ok": outcome.ok,
             **(outcome.value or {}),
-            "waited_s": outcome.waited_s,
+            **self.timing(window, outcome),
         }
         if outcome.error:
             result["error"] = outcome.error

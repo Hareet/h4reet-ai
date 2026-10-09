@@ -567,19 +567,25 @@ class Context:
 
     def lifecycle(
         self, what: str, command: list[str], *, done_if: str | None = None
-    ) -> None:
-        """One docker command, which must succeed, or end with done_if in its error: already done."""
+    ) -> tuple[float, float]:
+        """One docker command, which must succeed, or end with done_if in its error: already done. Returns when it
+        started and ended, for the checks timed from it."""
         self.say(f"  {what}")
+        start = time.time()
         code, _, err = self.runner(command, None, self.env(), LIFECYCLE_TIMEOUT_S)
         if code != 0 and not (done_if and done_if in err):
             tail = " | ".join(line.strip() for line in err.strip().splitlines()[-3:])
             raise Stop(
                 f"{what} failed (docker exited {code}){': ' + tail if tail else ''}"
             )
+        return start, time.time()
 
-    def stop_service(self, service: str) -> None:
-        self.lifecycle(f"docker compose stop {service}", self.compose("stop", service))
+    def stop_service(self, service: str) -> tuple[float, float]:
+        span = self.lifecycle(
+            f"docker compose stop {service}", self.compose("stop", service)
+        )
         self.stopped.add(service)
+        return span
 
     def start_model_server(self) -> None:
         service = MODEL_SERVER[self.stack]
@@ -588,14 +594,15 @@ class Context:
         )
         self.stopped.discard(service)
 
-    def restart_gateway(self) -> float:
-        at = time.time()
+    def restart_gateway(self) -> None:
+        """The checks after a restart are timed, and their samples counted, from the probe's first /health answer
+        that names the new process ready, not from here: the old process's shutdown flush is stamped after this
+        command starts, on the same series (round 1's review)."""
         self.lifecycle(
             "docker compose restart gateway", self.compose("restart", "gateway")
         )
-        return at
 
-    def wipe_store(self) -> float:
+    def wipe_store(self) -> tuple[float, float]:
         """Stop the store, remove its container and its volume, and bring it back empty (plan §8 steps 1 and 11)."""
         if "gateway-state" not in self.stopped:
             self.stop_service("gateway-state")
@@ -610,13 +617,13 @@ class Context:
             [*self.docker(), "volume", "rm", volume],
             done_if="no such volume",
         )
-        at = time.time()
-        self.lifecycle(
+        # When the store came back, empty: what the wiped store's checks are timed from.
+        back = self.lifecycle(
             "docker compose up gateway-state",
             self.compose("up", "--detach", "--no-deps", *UP_WAIT, "gateway-state"),
         )
         self.stopped.discard("gateway-state")
-        return at
+        return back
 
     def probe_call(
         self, step: str, ops: list[dict[str, Any]], report: Report
@@ -814,25 +821,42 @@ def evidence(result: Mapping[str, Any]) -> str:
         parts.append(f"incident #{result.get('id')} {result.get('status')}")
         if failing:
             parts.append("missing " + ", ".join(failing))
-    if result.get("waited_s"):
+    if result.get("seen_after_s") is not None:
+        parts.append(f"seen {result['seen_after_s']} s after its action")
+    elif result.get("waited_s"):
         parts.append(f"in {result['waited_s']} s")
     return ", ".join(p for p in parts if p)
 
 
 # --- the operations -------------------------------------------------------------------------------------------------
 
+# What a check is timed from: an earlier operation of its probe call, by id, or the start and end of an action outside
+# it (an earlier call's operation, or a lifecycle command).
+Anchor = str | tuple[float, float]
+
+
+def timed_from(when: Anchor) -> dict[str, Any]:
+    """A check's window, from its action (round 1's review): the probe opens it at the action's start and closes it
+    within_s after the action's end, never from when the check gets its turn."""
+    if isinstance(when, str):
+        return {"after": when}
+    start, end = when
+    return {"after_s": round(start, 3), "after_end_s": round(end, 3)}
+
 
 def metric(
     aid: str,
     query: str,
     *,
+    after: Anchor,
     value: float | None = None,
     labels: list[str] | None = None,
     at_least: str | None = None,
     fresh: tuple[str, str | float] | None = None,
     within_s: int = 60,
 ) -> dict[str, Any]:
-    """An M assertion: the dashboard's query, until it shows the value, within 60 s (contracts/telemetry.md §6.5)."""
+    """An M assertion: the dashboard's query, until it shows the value, within 60 s of the action it measures
+    (contracts/telemetry.md §6.5)."""
     if labels is not None:
         expect: dict[str, Any] = {
             "labels": {("h4_state" if query == KILL else "h4_cause"): labels}
@@ -847,18 +871,19 @@ def metric(
         "query": query,
         "expect": expect,
         "within_s": within_s,
+        **timed_from(after),
     }
     if fresh is not None:
-        selector, after = fresh
+        selector, since = fresh
         op["fresh"] = {
             "selector": selector,
-            **({"after_s": after} if isinstance(after, float) else {"after": after}),
+            **(
+                {"after_s": round(since, 3)}
+                if isinstance(since, float)
+                else {"after": since}
+            ),
         }
     return op
-
-
-def after(when: str | float) -> dict[str, Any]:
-    return {"after_s": when} if isinstance(when, float) else {"after": when}
 
 
 class Steps:
@@ -875,7 +900,7 @@ class Steps:
         self,
         aid: str | None,
         event: str,
-        when: str | float,
+        when: Anchor,
         *,
         within_s: int = 60,
         op_id: str | None = None,
@@ -887,7 +912,7 @@ class Steps:
             "op": "log",
             "query": self.probe.logql(self.stack, event, **filters),
             "within_s": within_s,
-            **after(when),
+            **timed_from(when),
         }
         op.update({"fields": list(fields), "expect": expect or {}})
         if aid:
@@ -897,7 +922,7 @@ class Steps:
         return op
 
     def delivered(
-        self, aid: str, receivers: str, key: str, when: str | float
+        self, aid: str, receivers: str, key: str, when: Anchor
     ) -> list[dict[str, Any]]:
         """L: both channels' alert.delivered records within 300 s (FR-032); then the receivers: the stand-ins' own
         records, or with real delivery Telegram's message_id and SMTP's 250 in the same records (plan §8)."""
@@ -931,10 +956,22 @@ class Steps:
             )
         else:
             ops += [
-                {"op": "telegram", "assert": receivers, "key": key, "within_s": 300},
-                {"op": "mailpit", "assert": receivers, "key": key, "within_s": 300},
+                {
+                    "op": channel,
+                    "assert": receivers,
+                    "key": key,
+                    "within_s": 300,
+                    **timed_from(when),
+                }
+                for channel in ("telegram", "mailpit")
             ]
         return ops
+
+    def span(self, op_id: str) -> tuple[float, float]:
+        """An earlier probe call's operation, as an action outside this call: when it started and ended."""
+        result = self.ctx.results[op_id]
+        start = float(result["started_s"])
+        return start, float(result.get("ended_s", start))
 
     def spend(
         self, op_id: str, attribution: str, count: int, reason: str, **expect: Any
@@ -1066,7 +1103,6 @@ class Steps:
             ],
         )
         self.dates = dates_after(str(self.ctx.results["s1.health"]["health"]["time"]))
-        init_at = float(self.ctx.results["s1.init"]["started_s"])
         self.call(
             "1",
             [
@@ -1078,23 +1114,29 @@ class Steps:
                 metric(
                     "1a",
                     KILL,
+                    after="s1.clock",
                     labels=["normal"],
                     fresh=("h4_kill_switch_state", "s1.clock"),
                 ),
                 metric(
                     "1b",
                     spend("day"),
+                    after="s1.clock",
                     value=0.0,
                     fresh=(meter_selector("day"), "s1.clock"),
                 ),
                 metric(
                     "1b",
                     spend("month"),
+                    after="s1.clock",
                     value=0.0,
                     fresh=(meter_selector("month"), "s1.clock"),
                 ),
                 self.log(
-                    "1c", "operator.init", init_at, audit_id="{{s1.init.body.audit_id}}"
+                    "1c",
+                    "operator.init",
+                    self.span("s1.init"),
+                    audit_id="{{s1.init.body.audit_id}}",
                 ),
                 self.log(
                     "1c",
@@ -1120,9 +1162,11 @@ class Steps:
                     "trace_id": "{{s2.spend.calls.0.trace_id}}",
                     "expect": {"h4.cost.usd": 0.1},
                     "within_s": 60,
+                    "after": "s2.spend",
                 },
-                metric("2b", spend("day"), value=0.1),
-                metric("2b", spend("month"), value=0.1),
+                # US2-1's 60 s are the call's, not what is left of them when 2a ends.
+                metric("2b", spend("day"), after="s2.spend", value=0.1),
+                metric("2b", spend("month"), after="s2.spend", value=0.1),
             ],
         )
 
@@ -1139,7 +1183,7 @@ class Steps:
                     "breach test step 3: metered calls to 3.50 USD today",
                 ),
                 *self.delivered("3a", "3b", keys["warn_day"], "s3.spend"),
-                metric("3c", spend("day"), at_least=warn("day")),
+                metric("3c", spend("day"), after="s3.spend", at_least=warn("day")),
             ],
         )
 
@@ -1157,12 +1201,14 @@ class Steps:
                 metric(
                     "4a",
                     spend("day"),
+                    after="s4.clock",
                     value=0.0,
                     fresh=(meter_selector("day"), "s4.clock"),
                 ),
                 metric(
                     "4a",
                     spend("month"),
+                    after="s4.clock",
                     value=3.5,
                     fresh=(meter_selector("month"), "s4.clock"),
                 ),
@@ -1182,15 +1228,15 @@ class Steps:
                     "breach test step 4: fallback calls to grant 1's warning",
                 ),
                 *self.delivered("4b", "4c", keys["warn_g1"], "s4.spend"),
-                metric("4d", spend("fallback_day"), value=1.4),
-                metric("4d", warn("fallback_day"), value=1.4),
+                metric("4d", spend("fallback_day"), after="s4.spend", value=1.4),
+                metric("4d", warn("fallback_day"), after="s4.spend", value=1.4),
                 self.spend(
                     "s4.more",
                     "fallback",
                     1,
                     "breach test step 4: one more fallback call, to 1.50 USD",
                 ),
-                metric("4e", spend("fallback_day"), value=1.5),
+                metric("4e", spend("fallback_day"), after="s4.more", value=1.5),
             ],
         )
 
@@ -1199,7 +1245,7 @@ class Steps:
         self.ctx.say(
             "step 5 · US5-7: a restart keeps fallback's 1.50; five more calls spend it, the sixth is refused"
         )
-        restarted = self.ctx.restart_gateway()
+        self.ctx.restart_gateway()
         ready = {
             "store": "ok",
             "adapter.local.healthy": False,
@@ -1219,11 +1265,14 @@ class Steps:
                     "expect": ready,
                     "within_s": 120,
                 },
+                # Only the new process's samples: the old one's shutdown flush is stamped after the restart began,
+                # on the same series (round 1's review).
                 metric(
                     "5a",
                     spend("fallback_day"),
+                    after="s5.ready",
                     value=1.5,
-                    fresh=(meter_selector("fallback_day"), restarted),
+                    fresh=(meter_selector("fallback_day"), "s5.ready"),
                 ),
                 self.spend(
                     "s5.spend",
@@ -1241,8 +1290,10 @@ class Steps:
                     allowance_micro=2000000,
                 ),
                 *self.delivered("5c", "5d", keys["exhausted_g1"], "s5.spend"),
-                metric("5e", AWAITING, value=1.0),
-                metric("5e", CAUSE, labels=["fallback_awaiting_renewal"]),
+                metric("5e", AWAITING, after="s5.spend", value=1.0),
+                metric(
+                    "5e", CAUSE, after="s5.spend", labels=["fallback_awaiting_renewal"]
+                ),
             ],
         )
 
@@ -1285,6 +1336,7 @@ class Steps:
                     "reason": renew_reason,
                     "expect": audit,
                     "within_s": 10,
+                    "after": "s6.renew",
                 },
                 self.spend(
                     "s6.again",
@@ -1295,12 +1347,14 @@ class Steps:
                 metric(
                     "6b",
                     ALLOWANCE,
+                    after="s6.renew",
                     value=4.0,
                     fresh=("h4_fallback_allowance_usd", "s6.renew"),
                 ),
                 metric(
                     "6b",
                     AWAITING,
+                    after="s6.renew",
                     value=0.0,
                     fresh=("h4_fallback_awaiting_renewal", "s6.renew"),
                 ),
@@ -1319,15 +1373,15 @@ class Steps:
                     grant_no=2,
                     allowance_micro=4000000,
                 ),
-                metric("6e", spend("day"), value=4.0),
-                metric("6e", AWAITING, value=1.0),
+                metric("6e", spend("day"), after="s6.spend", value=4.0),
+                metric("6e", AWAITING, after="s6.spend", value=1.0),
                 self.clock(
                     "s6.clock", "breach test step 6: the next UTC day, the 22nd"
                 ),
             ],
         )
         self.check_day("s6.clock", 2)
-        restarted = self.ctx.restart_gateway()
+        self.ctx.restart_gateway()
         second = {"body.fallback.allowance_micro_usd": 2000000}
         self.call(
             "6",
@@ -1346,8 +1400,9 @@ class Steps:
                 metric(
                     "6f",
                     CAUSE,
+                    after="s6.ready",
                     labels=["fallback_awaiting_renewal"],
-                    fresh=("h4_degraded_cause", restarted),
+                    fresh=("h4_degraded_cause", "s6.ready"),
                 ),
                 self.log(
                     "6g",
@@ -1366,12 +1421,14 @@ class Steps:
                 metric(
                     "6h",
                     ALLOWANCE,
+                    after="s6.renew2",
                     value=2.0,
                     fresh=("h4_fallback_allowance_usd", "s6.renew2"),
                 ),
                 metric(
                     "6h",
                     AWAITING,
+                    after="s6.renew2",
                     value=0.0,
                     fresh=("h4_fallback_awaiting_renewal", "s6.renew2"),
                 ),
@@ -1400,7 +1457,8 @@ class Steps:
                     50,
                     "breach test step 7: metered calls to 5.00 USD today",
                 ),
-                metric("7a", KILL, labels=["degraded"]),
+                # Within 60 s of the crossing, the spend's last call (SC-002).
+                metric("7a", KILL, after="s7.spend", labels=["degraded"]),
                 self.log(
                     "7b",
                     "call.completed",
@@ -1420,8 +1478,8 @@ class Steps:
                     "id": "s7.hello",
                     "expect": {"status": 503, "cause": "kill_switch_tripped"},
                 },
-                metric("7e", CAUSE, labels=["kill_switch_tripped"]),
-                metric("7e", LOCAL_UP, value=1.0),
+                metric("7e", CAUSE, after="s7.spend", labels=["kill_switch_tripped"]),
+                metric("7e", LOCAL_UP, after="s7.spend", value=1.0),
                 self.log(
                     "7f",
                     "call.degraded",
@@ -1436,6 +1494,9 @@ class Steps:
         assert self.dates is not None
         keys = self.keys()
         self.ctx.say("step 8 · US2-6: the incident draft, with its evidence")
+        # The draft is written once both channels of the trip alert are final, or 300 s after the trip
+        # (contracts/alerts.md §7), retried every 10 s: both rows are timed from step 7's spend, the trip.
+        trip = self.span("s7.spend")
         self.call(
             "8",
             [
@@ -1448,11 +1509,13 @@ class Steps:
                     "trace_id": "{{s7.spend.calls.-1.trace_id}}",
                     "trip_key": keys["trip_day"],
                     "within_s": 330,
+                    **timed_from(trip),
                 },
                 self.log(
                     "8a",
                     "incident.drafted",
-                    float(self.ctx.results["s7.spend"]["started_s"]),
+                    trip,
+                    within_s=330,
                     fields=("incident_id", "path", "sha256"),
                     incident_id="{{s8.incident.id}}",
                     sha256="{{s8.incident.sha256}}",
@@ -1490,10 +1553,12 @@ class Steps:
                     "audit_id": "{{s9.reset.body.audit_id}}",
                     "reason": reason,
                     "within_s": 10,
+                    "after": "s9.reset",
                 },
                 metric(
                     "9b",
                     KILL,
+                    after="s9.reset",
                     labels=["normal"],
                     fresh=("h4_kill_switch_state", "s9.reset"),
                 ),
@@ -1508,6 +1573,7 @@ class Steps:
                     "trace_id": "{{s9.hello.trace_id}}",
                     "expect": {"gen_ai.provider.name": "local", "h4.cost.usd": 0},
                     "within_s": 60,
+                    "after": "s9.hello",
                 },
                 self.spend(
                     "s9.refused",
@@ -1517,7 +1583,7 @@ class Steps:
                     **refused,
                 ),
                 self.log("9d", "call.degraded", "s9.refused", cause="meter_at_ceiling"),
-                metric("9e", spend("day"), at_least=ceiling("day")),
+                metric("9e", spend("day"), after="s9.refused", at_least=ceiling("day")),
             ],
         )
 
@@ -1541,7 +1607,9 @@ class Steps:
                     "breach test step 10: the month to 14.00 USD",
                 ),
                 *self.delivered("10a", "10b", keys["warn_month"], "s10.spend1"),
-                metric("10c", spend("month"), at_least=warn("month")),
+                metric(
+                    "10c", spend("month"), after="s10.spend1", at_least=warn("month")
+                ),
                 self.spend(
                     "s10.spend2",
                     "metered",
@@ -1557,7 +1625,7 @@ class Steps:
                     26,
                     "breach test step 10: the month to 20.00 USD",
                 ),
-                metric("10d", KILL, labels=["degraded"]),
+                metric("10d", KILL, after="s10.spend3", labels=["degraded"]),
                 self.log("10e", "killswitch.tripped", "s10.spend3"),
                 *self.delivered("10e", "10e", keys["trip_month"], "s10.spend3")[:1],
                 self.clock(
@@ -1566,12 +1634,14 @@ class Steps:
                 metric(
                     "10f",
                     spend("day"),
+                    after="s10.clock3",
                     value=0.0,
                     fresh=(meter_selector("day"), "s10.clock3"),
                 ),
                 metric(
                     "10f",
                     KILL,
+                    after="s10.clock3",
                     labels=["degraded"],
                     fresh=("h4_kill_switch_state", "s10.clock3"),
                 ),
@@ -1583,12 +1653,14 @@ class Steps:
                 metric(
                     "10g",
                     spend("month"),
+                    after="s10.clock4",
                     value=0.0,
                     fresh=(meter_selector("month"), "s10.clock4"),
                 ),
                 metric(
                     "10g",
                     KILL,
+                    after="s10.clock4",
                     labels=["degraded"],
                     fresh=("h4_kill_switch_state", "s10.clock4"),
                 ),
@@ -1608,11 +1680,12 @@ class Steps:
                 metric(
                     "10h",
                     KILL,
+                    after="s10.reset",
                     labels=["normal"],
                     fresh=("h4_kill_switch_state", "s10.reset"),
                 ),
-                metric("10h", spend("day"), value=0.1),
-                metric("10h", spend("month"), value=0.1),
+                metric("10h", spend("day"), after="s10.spend4", value=0.1),
+                metric("10h", spend("month"), after="s10.spend4", value=0.1),
             ],
         )
         self.check_day("s10.clock1", 3)
@@ -1622,8 +1695,7 @@ class Steps:
         self.ctx.say(
             "step 11 · US2-7: the store stopped, then wiped: fail closed, then rebuilt from the journal"
         )
-        stopped = time.time()
-        self.ctx.stop_service("gateway-state")
+        stopped = self.ctx.stop_service("gateway-state")
         self.call(
             "11",
             [
@@ -1635,8 +1707,9 @@ class Steps:
                 metric(
                     "11a",
                     CAUSE,
+                    after=stopped,
                     labels=["store_unreachable"],
-                    fresh=("h4_degraded_cause", stopped),
+                    fresh=("h4_degraded_cause", stopped[0]),
                 ),
                 self.log(
                     "11b", "state.unknown", stopped, condition="store_unreachable"
@@ -1666,11 +1739,13 @@ class Steps:
         self.call(
             "11",
             [
+                # Timed, and its samples counted, from the store coming back empty.
                 metric(
                     "11c",
                     CAUSE,
+                    after=wiped,
                     labels=["store_uninitialized"],
-                    fresh=("h4_degraded_cause", wiped),
+                    fresh=("h4_degraded_cause", wiped[1]),
                 ),
                 {
                     "op": "wait_health",
@@ -1695,22 +1770,26 @@ class Steps:
                     "reason": reason,
                     "expect": audit,
                     "within_s": 10,
+                    "after": "s11.init",
                 },
                 metric(
                     "11e",
                     spend("day"),
+                    after="s11.init",
                     value=0.1,
                     fresh=(meter_selector("day"), "s11.init"),
                 ),
                 metric(
                     "11e",
                     spend("month"),
+                    after="s11.init",
                     value=0.1,
                     fresh=(meter_selector("month"), "s11.init"),
                 ),
                 metric(
                     "11e",
                     AWAITING,
+                    after="s11.init",
                     value=1.0,
                     fresh=("h4_fallback_awaiting_renewal", "s11.init"),
                 ),

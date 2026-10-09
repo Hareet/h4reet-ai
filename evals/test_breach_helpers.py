@@ -45,6 +45,10 @@ TOKEN = "h4op_devcpu_" + "A" * 43
 QUERY = 'max(h4_meter_spend_usd{h4_meter="day"})'
 REASON = "breach test step 6: a same-day renewal"
 T0 = 1_800_000_001_000_000_000  # a record's time, in ns, just after the actions below
+AT_START = {
+    "after_s": 1_800_000_000.0,
+    "after_end_s": 1_800_000_000.0,
+}  # an action at the fake clock's start
 
 
 class Clock:
@@ -196,11 +200,14 @@ def test_poll_tries_until_the_condition_holds() -> None:
     clock = Clock()
     seen: list[float] = []
 
-    def attempt() -> tuple[bool, Any]:
+    def attempt(cutoff: float) -> tuple[bool, Any]:
         seen.append(clock.now)
+        assert (
+            cutoff == clock.wall()
+        )  # inside the window, a try sees the sources as they are now
         return clock.now >= 9, clock.now
 
-    outcome = probe.poll(attempt, within_s=60, every_s=3, clock=clock)
+    outcome = probe.poll(attempt, due_s=clock.wall() + 60, every_s=3, clock=clock)
     assert outcome.ok and outcome.value == 9 and outcome.waited_s == 9
     assert seen == [0, 3, 6, 9]
     assert outcome.attempts == 4
@@ -208,43 +215,266 @@ def test_poll_tries_until_the_condition_holds() -> None:
 
 def test_poll_tries_last_at_the_deadline_and_reports_the_miss() -> None:
     clock = Clock()
-    seen: list[float] = []
+    seen: list[tuple[float, float]] = []
 
-    def attempt() -> tuple[bool, Any]:
-        seen.append(clock.now)
+    def attempt(cutoff: float) -> tuple[bool, Any]:
+        seen.append((clock.now, cutoff - clock.start_wall))
         return False, "observed"
 
-    outcome = probe.poll(attempt, within_s=10, every_s=3, clock=clock)
+    outcome = probe.poll(attempt, due_s=clock.wall() + 10, every_s=3, clock=clock)
     assert not outcome.ok
-    assert seen == [0, 3, 6, 9, 10]  # never past the window, and once at its end
+    # Never past the window, and once at its end.
+    assert seen == [(0, 0), (3, 3), (6, 6), (9, 9), (10, 10)]
     assert outcome.waited_s == 10 and outcome.value == "observed"
+
+
+def test_the_last_try_waits_for_late_arrivals_and_asks_for_the_deadline() -> None:
+    # A sample or record stamped before the deadline can arrive seconds after it (contracts/telemetry.md §6.5: the
+    # collector's 2 s batch, then ingestion). The last try waits settle_s past the end, and still asks the sources what
+    # they held at the deadline itself.
+    clock = Clock()
+    seen: list[tuple[float, float]] = []
+
+    def attempt(cutoff: float) -> tuple[bool, Any]:
+        seen.append((clock.now, cutoff - clock.start_wall))
+        return False, None
+
+    probe.poll(attempt, due_s=clock.wall() + 4, every_s=3, clock=clock, settle_s=5)
+    assert seen == [(0, 0), (3, 3), (9, 4)]
+
+
+def test_a_check_that_starts_after_its_deadline_tries_once_as_of_the_deadline() -> None:
+    clock = Clock()
+    cutoffs: list[float] = []
+
+    def attempt(cutoff: float) -> tuple[bool, Any]:
+        cutoffs.append(cutoff)
+        return True, "it held then"
+
+    deadline = clock.wall() - 40  # the window closed 40 s before the check began
+    outcome = probe.poll(attempt, due_s=deadline, every_s=2, clock=clock, settle_s=5)
+    assert outcome.ok and cutoffs == [deadline] and clock.sleeps == []
 
 
 def test_poll_with_no_window_tries_once() -> None:
     clock = Clock()
-    outcome = probe.poll(lambda: (False, None), within_s=0, every_s=2, clock=clock)
+    outcome = probe.poll(
+        lambda cutoff: (False, None), due_s=clock.wall(), every_s=2, clock=clock
+    )
     assert outcome.attempts == 1 and clock.sleeps == []
 
 
 def test_poll_counts_an_unreachable_source_as_a_miss_and_tries_again() -> None:
     clock = Clock()
 
-    def attempt() -> tuple[bool, Any]:
+    def attempt(cutoff: float) -> tuple[bool, Any]:
         if clock.now < 4:
             raise probe.Unreachable("connection refused")
         return True, "up"
 
-    assert probe.poll(attempt, within_s=30, every_s=2, clock=clock).ok
+    assert probe.poll(attempt, due_s=clock.wall() + 30, every_s=2, clock=clock).ok
 
-    def broken() -> tuple[bool, Any]:
+    def broken(cutoff: float) -> tuple[bool, Any]:
         raise probe.SourceError("not JSON")
 
-    failed = probe.poll(broken, within_s=2, every_s=1, clock=clock)
+    failed = probe.poll(broken, due_s=clock.wall() + 2, every_s=1, clock=clock)
     assert not failed.ok and failed.error == "SourceError: not JSON"
 
 
 def test_a_window_starts_a_little_before_its_action() -> None:
     assert probe.since_ns(1_800_000_000.0, slack_s=2) == 1_799_999_998_000_000_000
+
+
+# --- windows timed from the action, not from the check (round 1's review) -----------------------------------------
+
+
+def test_a_check_is_timed_from_the_action_it_follows_not_from_its_own_start() -> None:
+    # US2-1: the daily meter shows 0.10 "within 60 s" of the call. A trace that takes 55 s to reach Langfuse mustn't
+    # give the meter's check a window of its own from then: 2b closes 60 s after the call, whether the operation names
+    # the call or just follows it. A meter that shows 0.10 only at 110 s misses.
+    for anchor in ({}, {"after": "s2.spend"}):
+        admin, _ = synthetic([batch(1)])
+        rig = make(admin=admin)
+        start = rig.clock.wall()
+
+        def trace(*_: Any, rig: Rig = rig, start: float = start) -> tuple[int, Any]:
+            if rig.clock.wall() < start + 55:
+                return 404, {"message": "Trace not found"}
+            return 200, {
+                "id": TRACE,
+                "observations": [generation(**{"h4.cost.usd": 0.1})],
+            }
+
+        def meter(
+            method: str,
+            url: str,
+            query: dict[str, list[str]],
+            body: Any,
+            headers: dict[str, str],
+            rig: Rig = rig,
+            start: float = start,
+        ) -> tuple[int, Any]:
+            at = float(query["time"][0]) if "time" in query else rig.clock.wall()
+            return 200, vector(({}, "0.1" if at >= start + 110 else "0"))
+
+        rig.http.on("GET", TRACE_URL, trace)
+        rig.http.on(
+            "GET", f"{probe.LANGFUSE}/api/public/observations", fixed(200, {"data": []})
+        )
+        rig.http.on("GET", f"{probe.PROMETHEUS}/api/v1/query", meter)
+        ops = [
+            {**spend_op(1, answered=1, stopped=None), "id": "s2.spend"},
+            {
+                "op": "trace",
+                "assert": "2a",
+                "trace_id": TRACE,
+                "expect": {"h4.cost.usd": 0.1},
+                "within_s": 60,
+            },
+            {
+                "op": "metric",
+                "assert": "2b",
+                "query": QUERY,
+                "expect": {"value": 0.1},
+                "within_s": 60,
+                **anchor,
+            },
+        ]
+        rig.run(ops, "2")
+        spent, traced, metered = rig.results()
+        assert spent["ok"] and traced["ok"] and traced["waited_s"] == 57
+        assert not metered["ok"], (anchor, metered)
+        # Its last try asked for the meter as it stood 60 s after the call.
+        assert float(rig.http.calls[-1]["query"]["time"][0]) == pytest.approx(
+            start + 60
+        )
+
+
+def test_a_check_with_no_action_to_be_timed_from_is_refused() -> None:
+    # Never its own start: a check that names no action, in a call that ran none, is a usage error and a miss.
+    rig = make()
+    rig.http.on(
+        "GET", f"{probe.PROMETHEUS}/api/v1/query", fixed(200, vector(({}, "0.1")))
+    )
+    rig.run(
+        [{"op": "metric", "assert": "2b", "query": QUERY, "expect": {"value": 0.1}}],
+        "2",
+    )
+    result = rig.result()
+    assert not result["ok"] and result["error"].startswith(
+        "usage: a check is timed from the action it measures"
+    )
+    assert rig.http.calls == []
+
+
+@pytest.mark.parametrize(("appears_s", "ok"), [(30, True), (80, False)])
+def test_a_late_check_asks_prometheus_what_it_showed_at_the_deadline(
+    appears_s: int, ok: bool
+) -> None:
+    # A check that starts after its window has closed, behind slower ones, still asks what held by the deadline:
+    # Prometheus evaluates the query at that moment, so a value that came too late misses though it shows now.
+    rig = make()
+    action = rig.clock.wall() - 100  # the action ended 100 s before the check began
+
+    def meter(
+        method: str,
+        url: str,
+        query: dict[str, list[str]],
+        body: Any,
+        headers: dict[str, str],
+    ) -> tuple[int, Any]:
+        at = float(query["time"][0]) if "time" in query else rig.clock.wall()
+        return 200, vector(({}, "0.1" if at >= action + appears_s else "0"))
+
+    rig.http.on("GET", f"{probe.PROMETHEUS}/api/v1/query", meter)
+    op = {
+        "op": "metric",
+        "assert": "2b",
+        "query": QUERY,
+        "expect": {"value": 0.1},
+        "after_s": action,
+        "after_end_s": action,
+        "within_s": 60,
+    }
+    rig.run([op], "2")
+    assert rig.result()["ok"] is ok
+    asked = [float(c["query"].get("time", ["0"])[0]) for c in rig.http.calls]
+    assert asked == [pytest.approx(action + 60)]
+
+
+def test_a_late_log_check_counts_no_record_from_after_its_deadline() -> None:
+    # An alert delivered 400 s after its action is late (FR-032: within 5 minutes), however short its own lag: the
+    # window ends at the deadline, in Loki's query and in what the probe keeps.
+    rig = make()
+    action = rig.clock.wall() - 450
+    records = [
+        delivered(int((action + 10) * 1e9), "telegram", lag="1.0"),
+        delivered(int((action + 400) * 1e9), "email", lag="1.0"),
+    ]
+
+    def loki(
+        method: str,
+        url: str,
+        query: dict[str, list[str]],
+        body: Any,
+        headers: dict[str, str],
+    ) -> tuple[int, Any]:
+        start, end = int(query["start"][0]), int(query["end"][0])
+        return 200, streams(*[r for r in records if start <= r[0] <= end])
+
+    rig.http.on("GET", LOKI_URL, loki)
+    rig.run([{**delivery_op(), "after_s": action, "after_end_s": action}], "3")
+    result = rig.result()
+    assert not result["ok"]
+    assert [r["channel"] for r in result["records"]] == ["telegram"]
+    end = int(rig.http.calls[-1]["query"]["end"][0])
+    assert end == round((action + 300) * 1000) * 1_000_000
+
+
+@pytest.mark.parametrize(("arrived_s", "ok"), [(200, True), (320, False)])
+def test_a_receiver_holds_an_alert_only_if_it_arrived_by_the_deadline(
+    arrived_s: int, ok: bool
+) -> None:
+    # plan §8 step 3: both stand-ins show the warning within 300 s of the action, by their own receipt times.
+    rig = make()
+    action = rig.clock.wall() - 400
+    received = probe.iso(round((action + arrived_s) * 1000) * 1_000_000)
+    message = {"message_id": 9, "text": alert_text(KEY), "received_at": received}
+    rig.http.on(
+        "GET", f"{probe.TELEGRAM}/messages", fixed(200, {"messages": [message]})
+    )
+    created = (
+        received[:19] + ".123456789+00:00"
+    )  # Mailpit's RFC 3339, to the nanosecond
+    rig.http.on(
+        "GET",
+        f"{probe.MAILPIT}/api/v1/messages",
+        fixed(200, {"messages": [{"ID": "m1", "Created": created}], "total": 1}),
+    )
+    rig.http.on(
+        "GET",
+        f"{probe.MAILPIT}/api/v1/message/m1/headers",
+        fixed(200, {"X-H4-Alert-Id": [KEY]}),
+    )
+    window = {"after_s": action, "after_end_s": action, "within_s": 300}
+    rig.run(
+        [
+            {"op": "telegram", "assert": "3b", "key": KEY, **window},
+            {"op": "mailpit", "assert": "3b", "key": KEY, **window},
+        ],
+        "3",
+    )
+    assert [r["ok"] for r in rig.results()] == [ok, ok]
+
+
+def test_an_rfc3339_time_reads_to_the_second_in_any_zone() -> None:
+    assert probe.epoch_s("2027-01-15T08:00:00Z") == 1_800_000_000.0
+    assert probe.epoch_s("2027-01-15T09:00:00.5+01:00") == 1_800_000_000.5
+    assert probe.epoch_s("2027-01-15T08:00:00.123456789+00:00") == pytest.approx(
+        1_800_000_000.123456
+    )
+    for bad in ("t1", "", None, 5, "2027-01-15 08:00:00"):
+        assert probe.epoch_s(bad) is None
 
 
 # --- M: Prometheus ------------------------------------------------------------------------------------------------
@@ -280,6 +510,7 @@ def test_a_metric_check_waits_for_its_value() -> None:
     rig.http.on("GET", f"{probe.PROMETHEUS}/api/v1/query", sequence(zero, zero, tenth))
     op = {
         "op": "metric",
+        **AT_START,
         "id": "m",
         "assert": "2b",
         "query": QUERY,
@@ -300,6 +531,7 @@ def test_a_metric_check_that_never_holds_misses_at_its_window() -> None:
     )
     op = {
         "op": "metric",
+        **AT_START,
         "assert": "2b",
         "query": QUERY,
         "expect": {"value": 0.1},
@@ -307,7 +539,9 @@ def test_a_metric_check_that_never_holds_misses_at_its_window() -> None:
     }
     code = rig.run([op], "2")
     result = rig.result()
-    assert not result["ok"] and result["observed"] == 0.2 and result["waited_s"] == 60
+    # Its last try, 5 s past the window for samples still arriving, asks for the window's end.
+    assert not result["ok"] and result["observed"] == 0.2 and result["waited_s"] == 65
+    assert float(rig.http.calls[-1]["query"]["time"][0]) == rig.clock.start_wall + 60
     assert code == 0  # a missed check doesn't stop the step; only a failed action does
 
 
@@ -328,18 +562,21 @@ def test_metric_expectations() -> None:
         [
             {
                 "op": "metric",
+                **AT_START,
                 "query": QUERY,
                 "expect": {"at_least": warn},
                 "within_s": 0,
             },
             {
                 "op": "metric",
+                **AT_START,
                 "query": "one-hot",
                 "expect": {"labels": {"h4_state": ["normal"]}},
                 "within_s": 0,
             },
             {
                 "op": "metric",
+                **AT_START,
                 "query": "one-hot",
                 "expect": {"labels": {"h4_state": ["degraded"]}},
                 "within_s": 0,
@@ -371,6 +608,7 @@ def test_a_metric_check_ignores_samples_from_before_its_action() -> None:
     selector = 'h4_meter_spend_usd{h4_meter="fallback_day"}'
     op = {
         "op": "metric",
+        **AT_START,
         "assert": "5a",
         "query": f"max({selector})",
         "expect": {"value": 1.5},
@@ -456,7 +694,7 @@ def test_a_log_check_misses_one_channel_and_a_late_one() -> None:
     rig.http.on("GET", LOKI_URL, fixed(200, streams(delivered(T0, "telegram"))))
     rig.run([delivery_op()], "3")
     result = rig.result()
-    assert not result["ok"] and result["waited_s"] == 300
+    assert not result["ok"] and result["waited_s"] == 305  # the last try settles 5 s
     # A delivery that took longer than 300 s misses too (FR-032), however it ended.
     rig = make()
     late = streams(delivered(T0, "telegram"), delivered(T0, "email", lag="301.5"))
@@ -490,7 +728,8 @@ def test_real_delivery_needs_telegrams_message_id_and_smtps_250() -> None:
             delivered(T0, "telegram", ref="4321"), delivered(T0, "email", ref=email_ref)
         )
         rig.http.on("GET", LOKI_URL, fixed(200, records))
-        rig.run([{**delivery_op(**refs), "within_s": 0}], "3")
+        # The records are stamped a second after the window opens, inside its 5 s.
+        rig.run([{**delivery_op(**refs), "within_s": 5}], "3")
         assert rig.result()["ok"] is ok
 
 
@@ -523,14 +762,14 @@ def test_the_gap_between_two_records() -> None:
                     "id": "crossing",
                     "query": probe.logql("dev-cpu", "call.completed", trace_id=TRACE),
                     "after_s": 1_800_000_000.0,
-                    "within_s": 0,
+                    "within_s": 120,  # the crossing at 10 s, the trip at 10.4 s or 71 s
                 },
                 {
                     "op": "log",
                     "query": probe.logql("dev-cpu", "killswitch.tripped"),
                     "after_s": 1_800_000_000.0,
                     "expect": {"gap": {"from": "crossing", "max_s": 60}},
-                    "within_s": 0,
+                    "within_s": 120,
                 },
             ],
             "7",
@@ -602,6 +841,7 @@ def test_observations_come_from_a_trace_or_a_list() -> None:
 def trace_op(**expect: Any) -> dict[str, Any]:
     return {
         "op": "trace",
+        **AT_START,
         "assert": "2a",
         "trace_id": TRACE,
         "expect": expect or {"h4.cost.usd": 0.1},
@@ -717,7 +957,10 @@ def test_a_telegram_check_polls_the_stand_in() -> None:
         f"{probe.TELEGRAM}/messages",
         sequence((200, {"messages": []}), (200, arrived)),
     )
-    rig.run([{"op": "telegram", "assert": "3b", "key": KEY, "within_s": 300}], "3")
+    rig.run(
+        [{"op": "telegram", "assert": "3b", "key": KEY, "within_s": 300, **AT_START}],
+        "3",
+    )
     result = rig.result()
     assert result["ok"] and result["message_id"] == 9 and "text" not in result
 
@@ -747,7 +990,10 @@ def test_a_mailpit_check_reads_each_message_once() -> None:
         f"{probe.MAILPIT}/api/v1/message/m2/headers",
         fixed(200, {"X-H4-Alert-Id": [KEY]}),
     )
-    rig.run([{"op": "mailpit", "assert": "3b", "key": KEY, "within_s": 300}], "3")
+    rig.run(
+        [{"op": "mailpit", "assert": "3b", "key": KEY, "within_s": 300, **AT_START}],
+        "3",
+    )
     result = rig.result()
     assert (
         result["ok"]
@@ -796,6 +1042,7 @@ def renew_row(**after: Any) -> dict[str, Any]:
 def audit_op(within_s: int = 10) -> dict[str, Any]:
     return {
         "op": "audit",
+        **AT_START,
         "assert": "6a",
         "action": "renew",
         "audit_id": 42,
@@ -936,6 +1183,7 @@ def test_an_incident_check_waits_for_the_draft_and_never_prints_it() -> None:
     rig = make(admin=admin)
     op = {
         "op": "incident",
+        **AT_START,
         "assert": "8b",
         "ceiling": "day",
         "period_key": "2026-11-22",

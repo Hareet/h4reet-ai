@@ -91,6 +91,7 @@ class FakeStack:
             "id": op.get("id"),
             "assert": op.get("assert"),
             "started_s": 1_900_000_000.0,
+            "ended_s": 1_900_000_001.5,
         }
         if kind in ("health", "wait_health"):
             if self.guard == "unreachable":
@@ -505,6 +506,82 @@ def test_the_docker_client_keeps_none_of_the_shells_stack_variables() -> None:
     )
     for env in stack.envs:
         assert not {"H4_STACK", "COMPOSE_PROFILES", "LANGFUSE_SECRET_KEY"} & set(env)
+
+
+# --- what each check is timed from (round 1's review) --------------------------------------------------------------
+
+
+def test_every_check_names_the_action_its_window_is_timed_from() -> None:
+    # A check's deadline runs from its action, never from when the check gets its turn behind slower ones: each names
+    # an earlier operation of its call, or, for an action in an earlier call or a lifecycle command, its start and end.
+    stack = FakeStack()
+    run(["--stack", "dev-cpu"], stack)
+    checks = [op for op in stack.ops_seen if op["op"] in probe.CHECKS]
+    assert checks
+    unnamed = [
+        op.get("assert") or op.get("id")
+        for op in checks
+        if not ("after" in op or ("after_s" in op and "after_end_s" in op))
+    ]
+    assert unnamed == []
+
+
+@pytest.mark.parametrize(
+    ("aid", "action"),
+    [
+        ("2a", "s2.spend"),
+        ("2b", "s2.spend"),  # US2-1's 60 s, from the call: not from when 2a ends
+        ("3c", "s3.spend"),
+        ("4d", "s4.spend"),
+        ("5a", "s5.ready"),
+        ("5e", "s5.spend"),
+        ("6b", "s6.renew"),
+        ("6f", "s6.ready"),
+        ("7a", "s7.spend"),  # within 60 s of the crossing call
+        ("7e", "s7.spend"),
+        ("9b", "s9.reset"),
+        ("9e", "s9.refused"),
+        ("10c", "s10.spend1"),
+        ("10d", "s10.spend3"),
+        ("11e", "s11.init"),
+    ],
+)
+def test_each_metric_row_is_timed_from_the_action_it_measures(
+    aid: str, action: str
+) -> None:
+    stack = FakeStack()
+    run(["--stack", "dev-cpu"], stack)
+    ops = [
+        op
+        for op in stack.ops_seen
+        if op.get("assert") == aid and op["op"] in probe.CHECKS
+    ]
+    assert ops and {op["after"] for op in ops} == {action}
+
+
+def test_the_restart_rows_count_only_samples_from_the_new_process() -> None:
+    # The old gateway's shutdown flush is stamped after `compose restart` begins, on the same series: 5a and 6f count
+    # only samples from after the new process answers /health (round 1's review).
+    stack = FakeStack()
+    run(["--stack", "dev-cpu"], stack)
+    fresh = {
+        op["assert"]: op["fresh"]
+        for op in stack.ops_seen
+        if op.get("assert") in ("5a", "6f")
+    }
+    assert fresh["5a"] == {
+        "selector": breach.meter_selector("fallback_day"),
+        "after": "s5.ready",
+    }
+    assert fresh["6f"] == {"selector": "h4_degraded_cause", "after": "s6.ready"}
+
+
+def test_the_wiped_stores_rows_are_timed_from_the_store_coming_back() -> None:
+    stack = FakeStack()
+    run(["--stack", "dev-cpu"], stack)
+    (row,) = [op for op in stack.ops_seen if op.get("assert") == "11c"]
+    assert row["after_s"] <= row["after_end_s"] <= row["fresh"]["after_s"] + 1e-6
+    assert "after" not in row
 
 
 # --- misses, aborts, and the cleanup --------------------------------------------------------------------------------
