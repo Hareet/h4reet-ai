@@ -17,10 +17,7 @@ export type ConfigFileName = (typeof CONFIG_FILES)[number];
  * deletes these entries, and a mark whose file exists fails validate-config until then (tasks.md, Notes).
  * The gateway itself never starts without these files: the runtime has no PLANNED state.
  */
-export const PLANNED_CONFIG_FILES: Readonly<Partial<Record<ConfigFileName, string>>> = {
-  "budgets.yaml": "T022",
-  "alerts.yaml": "T022",
-};
+export const PLANNED_CONFIG_FILES: Readonly<Partial<Record<ConfigFileName, string>>> = {};
 
 export interface ConfigIssue {
   severity: "error" | "note";

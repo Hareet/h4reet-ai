@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# pre-commit: gitleaks over the staged changes (spec 000 FR-008 and FR-012; plan §11; research.md R-36).
+# Human-only; `make git-hooks` installs it, once per clone. It reads only the main working tree's .gitleaks.toml,
+# passes an empty ignore path and --ignore-gitleaks-allow, and refuses while a .gitleaksignore exists at its source
+# or in the main tree, so nothing an agent writes can switch a rule off. Without gitleaks or the config it refuses
+# the commit: the hook fails closed.
+set -euo pipefail
+fail() {
+  echo "pre-commit: $1; the commit is refused" >&2
+  exit 1
+}
+command -v gitleaks >/dev/null 2>&1 || fail "gitleaks isn't installed (the Author runs make tools)"
+top="$(git rev-parse --show-toplevel)" || fail "not inside a work tree"
+common="$(git rev-parse --path-format=absolute --git-common-dir)" || fail "no git directory"
+main_tree="$(dirname -- "$common")"
+config="$main_tree/.gitleaks.toml"
+[ -f "$config" ] || fail "no .gitleaks.toml in the main working tree, $main_tree"
+for dir in "$top" "$main_tree"; do
+  if [ -e "$dir/.gitleaksignore" ]; then
+    fail "a .gitleaksignore in $dir would switch findings off (research.md R-36)"
+  fi
+done
+empty="$(mktemp -d)" || fail "mktemp failed"
+{ [ -n "$empty" ] && [ -d "$empty" ]; } || fail "mktemp gave no directory"
+trap 'rmdir -- "$empty" 2>/dev/null || true' EXIT
+gitleaks git --pre-commit --staged --no-banner --redact --config "$config" --gitleaks-ignore-path "$empty" \
+  --ignore-gitleaks-allow "$top" \
+  || fail "gitleaks found something shaped like a secret in the staged changes, or couldn't run"

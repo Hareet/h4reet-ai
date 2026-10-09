@@ -1,0 +1,36 @@
+# gitleaks' rules for h4reet.ai (spec 000 FR-008 and FR-012; plan §11; research.md R-36). Human-only from the
+# early patch on. Every call passes this file with --config, an empty ignore path, and --ignore-gitleaks-allow,
+# and refuses to scan while a .gitleaksignore exists at its source.
+title = "h4reet.ai"
+
+[extend]
+useDefault = true
+
+# The operator credential: h4op_<stack>_ and 43 base64url characters (contracts/operator-admin.md §6). Only prod's
+# and dev's are secrets; dev-cpu's is a committed public dummy, so h4op_devcpu_ isn't matched.
+[[rules]]
+id = "h4reet-operator-token"
+description = "An h4reet.ai operator token for prod or dev"
+regex = '''h4op_(?:prod|dev)_[A-Za-z0-9_-]{43}'''
+keywords = ["h4op_"]
+
+# Langfuse's API secret keys.
+[[rules]]
+id = "langfuse-secret-key"
+description = "A Langfuse secret key"
+regex = '''sk-lf-[0-9a-fA-F-]{8,}'''
+keywords = ["sk-lf-"]
+
+# dev-cpu's committed public dummies, the one path the plan allowlists (contracts/env-files.md §8).
+[[allowlists]]
+description = "deploy/env.agents/dev-cpu.vars: public dummies under the real variable names"
+paths = ['''^deploy/env\.agents/dev-cpu\.vars$''']
+
+# A false positive already in main's history: a sentence in an accepted ADR that lists Langfuse's stores, which the
+# generic rule reads as a key. Allowlisted for that one commit, that one file, and that one rule only.
+[[allowlists]]
+description = "docs/adr/0004 at 8c15b95: a list of Langfuse's stores, read as a generic API key"
+condition = "AND"
+commits = ["8c15b958cf28a1cec53aa64624aee68b175abaa8"]
+paths = ['''^docs/adr/0004-langfuse-and-grafana-over-opentelemetry\.md$''']
+targetRules = ["generic-api-key"]

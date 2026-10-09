@@ -83,6 +83,25 @@ fi
 # Cloud control surfaces the agent may not touch.
 echo "$cmd" | grep -Eq '(^|[;&| ])aws +(iam|budgets|ce|wafv2|waf|cloudfront +update|ssm +put-parameter[^;&|]*kill-switch)' \
   && block "IAM/budget/edge/kill-switch mutation" "write an ADR and a spec; the Author applies"
+# The agents' engine (FR-039; contracts/agents-engine.md §8). The Author runs deploy/agents-engine/engine.sh
+# directly, with sudo for setup; agents run only its read-only status and the smoke run, as `make engine-status` and
+# `make engine-smoke`. Any other run is refused: by path or bare name, after a wrapper (sudo, env, bash -c, xargs,
+# find -exec, and the like), and at the start of any chained or nested command, with quotes or backslashes inside the
+# name. Between the start and the name it skips assignments (VAR=value, even first, or empty), options with one
+# argument each (nice -n 5, watch -n 1; never a quoted one, so bash -c "cat engine.sh" stays a read), bare durations
+# (timeout 5), and a dot-source anywhere (. engine.sh).
+# Naming the file as an argument (cat, git diff, shellcheck) still works. A variable or a glob standing in for the
+# name is a known gap: without sudo, and outside h4agents' user manager, such a run can't change the engine.
+engine_route="the Author runs deploy/agents-engine/engine.sh directly (contracts/agents-engine.md §8); agents use make engine-status or make engine-smoke"
+eq="[\"'\\\\]*"
+engine_name="e${eq}n${eq}g${eq}i${eq}n${eq}e${eq}\\.${eq}s${eq}h\\b"
+engine_start="(^|[;&|(\`{]|\\\$\\(|\\b(then|do|else|exec|sudo|doas|env|nohup|time|command|builtin|xargs|timeout|nice|ionice|stdbuf|setsid|watch|bash|sh|zsh|dash|ksh|source)\\b|-exec(dir)?\\b|(^|[[:space:];&|(\`{])\\.[[:space:]])"
+engine_skip="[[:space:]]*-[^[:space:]]*([[:space:]]+[^-[:space:]\"'][^[:space:]]*)?|[[:space:]]+[0-9][0-9.]*[smhd]?|[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*"
+engine_run="${engine_start}(${engine_skip})*[[:space:]]*[\"']?([^[:space:];&|]*/)?${engine_name}"
+if echo "$cmd" | grep -Eq "$engine_run" \
+  && ! echo "$cmd" | grep -Eq '^[[:space:]]*(\./)?deploy/agents-engine/engine\.sh[[:space:]]+(status|smoke)[[:space:]]*$'; then
+  block "running the agents' engine's Author commands" "$engine_route"
+fi
 # Destructive filesystem operations outside the workspace.
 # The pattern matches a literal "$HOME" in the command text, so the single quotes are intended.
 # shellcheck disable=SC2016
