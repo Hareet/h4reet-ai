@@ -306,7 +306,7 @@ It returns everything `GET /health` reports ([gateway-http.md §5](gateway-http.
 
 Query: `limit` (1 to 200, default 50), `before_id` (for paging), and `action` (one audit action).
 
-Response: `{"entries": [{"id", "ts", "recorded_at", "actor", "action", "reason", "before", "after", "detail"}], "next_before_id": 12}`, newest first. Grafana's audit panel reads the same table directly, through `grafana_ro`.
+Response: `{"entries": [{"id", "ts", "recorded_at", "actor", "action", "reason", "before", "after", "detail"}], "next_before_id": 12}`, newest first. Grafana's audit panel reads the same table directly, through `grafana_ro`. (Added by tasks.md T075.) `next_before_id` is null on the last page. A parameter out of its range, an action that isn't one, or a parameter other than these three answers 400 `invalid_request`, naming it in `field` (`query` for an unknown one); `ts` and `recorded_at` are RFC 3339 with milliseconds.
 
 ### 4.3 `GET /admin/incidents`
 
@@ -324,7 +324,7 @@ Response:
 }
 ```
 
-`content` is the draft's Markdown, read from the file. `sha256_matches` says whether the file is still what the gateway wrote. A `queued` draft has no content yet. Breach step 8 asserts the evidence fields in `content` ([alerts.md §7](alerts.md#7-incident-drafts-fr-035)).
+`content` is the draft's Markdown, read from the file. `sha256_matches` says whether the file is still what the gateway wrote. A `queued` draft has no content yet. Breach step 8 asserts the evidence fields in `content` ([alerts.md §7](alerts.md#7-incident-drafts-fr-035)). (Added by tasks.md T075.) A `queued` draft's `content` and `sha256_matches` are null; a written draft whose file is gone or unreadable has null `content` and `sha256_matches: false`. Both `limit` and `id`, a value out of range, or another parameter answers 400 `invalid_request`.
 
 ## 5. Live adapter calls: `POST /admin/adapters/{id}/complete`
 
@@ -446,7 +446,7 @@ Request:
 | `renew` | `--reason TEXT` | `POST /admin/renew` |
 | `init` | `--reason TEXT [--renew] [--confirm-zero] [--day-usd X] [--month-usd X] [--fallback-today-usd X]` | `POST /admin/init` |
 | `audit` | `[--limit N] [--action A]` | `GET /admin/audit` |
-| `incidents` | `[--limit N] [--id N] [--show]` | `GET /admin/incidents`; `--show` prints the newest draft's Markdown, ready to redirect into a file |
+| `incidents` | `[--limit N] [--id N] [--show]` | `GET /admin/incidents`; `--show` prints the newest draft's Markdown, ready to redirect into a file. (Added by tasks.md T075: with `--id`, that draft's; with no written draft, it prints nothing on standard output, says why, and exits 1, as for a 404.) |
 | `contract-record` | `--adapter ID --cases FILE --out FILE --reason TEXT` | `GET /admin/status`, then `POST /admin/adapters/{ID}/complete` for each case, then `GET /admin/status` again; writes the recording for the live contract run ([provider-adapter.md §5.3](provider-adapter.md#53-three-run-modes)) |
 
 **`mint`**, which `make operator-token ENV=<stack>` runs:

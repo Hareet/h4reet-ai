@@ -155,6 +155,8 @@ export interface GatewayServices {
   realNow: () => number;
   /** Whether a peer is edge (core/edge.ts). */
   forwardedBy: ForwardedBy;
+  /** GATEWAY_STATE_DIR: the journal and the incident drafts. */
+  stateDir: string;
 }
 
 /** GATEWAY_STATE_DIR, which compose sets (env-files.md §4): the journal and the incident drafts live under it. */
@@ -199,7 +201,8 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
   });
   const clock = new GatewayClock(realNow);
   const metrics = opts.metrics ?? new GatewayMetrics(otelMetrics.getMeter("h4-gateway"));
-  const journal = new Journal({ stateDir: env.GATEWAY_STATE_DIR || DEFAULT_STATE_DIR, stack, realNow });
+  const stateDir = env.GATEWAY_STATE_DIR || DEFAULT_STATE_DIR;
+  const journal = new Journal({ stateDir, stack, realNow });
   const meter = new Meter({
     stack,
     envClass,
@@ -256,6 +259,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     clientCap: new ClientCap(budgets.limits.perClient),
     realNow,
     forwardedBy: opts.forwardedBy ?? edgePeer(),
+    stateDir,
   };
 }
 
@@ -304,6 +308,10 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       metrics: s.metrics,
       logger: s.logger,
       realNow: s.realNow,
+      meter: s.meter,
+      stateDir: s.stateDir,
+      testMachinery: { clock: s.env.GATEWAY_TEST_CLOCK === "1", synthetic: s.env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
+      onChange: () => void s.gateway.refreshGauges().catch(() => {}),
     });
   } else {
     // Bare listeners have no operator credential, so no request is authenticated. onRequest runs before the body is

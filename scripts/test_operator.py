@@ -1963,6 +1963,8 @@ MAKE_VARIABLES = (
     "DAY_USD",
     "MONTH_USD",
     "FALLBACK_TODAY_USD",
+    "LIMIT",
+    "ID",
 )
 
 
@@ -2175,3 +2177,360 @@ def test_a_body_json_cant_read_is_no_usable_answer(
     assert code == 4, err
     assert "Traceback" not in err
     assert last_line(err) == f"operator.py: exit 4: {op.EXIT_MEANINGS[4]}"
+
+
+# --- reset, renew, audit, and incidents (§2.1, §2.2, §4.2, §4.3; tasks.md T075) ------------------------------------
+
+# operator-admin.md §2.1's 200 example.
+RESET_BODY: dict[str, Any] = {
+    "action": "reset",
+    "audit_id": 41,
+    "state": "normal",
+    "since": "2026-10-29T17:05:12Z",
+    "meters_at_ceiling": ["day"],
+    "note": "Local answers resume now. Metered calls stay refused while these meters are at or above their ceiling: day.",
+    "journal": "ok",
+}
+# operator-admin.md §2.2's 200 example.
+RENEW_BODY: dict[str, Any] = {
+    "action": "renew",
+    "audit_id": 42,
+    "fallback": {
+        "day": "2026-10-28",
+        "grant": 2,
+        "allowance_micro_usd": 4000000,
+        "spent_micro_usd": 2000000,
+        "reserved_micro_usd": 0,
+        "available_micro_usd": 2000000,
+    },
+    "day_ceiling_room_micro_usd": 1000000,
+    "note": "Fallback passes again now: $2.00 more is available today, within the daily ceiling ($1.00 of room left).",
+    "journal": "ok",
+}
+RESET_REASON = "Breach rehearsal done; restoring local answers."
+
+
+def test_reset_posts_the_reason_and_prints_a_summary(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    stub.answer("POST", "/admin/reset", 200, RESET_BODY)
+    code, out, _ = run(
+        ["--stack", "prod", "reset", f"--reason=  {RESET_REASON}  "], capsys
+    )
+    assert code == 0
+    (request,) = stub.requests
+    assert request["body"] == {"reason": RESET_REASON}  # trimmed, as §1.2 counts it
+    assert request["headers"]["content-type"] == "application/json"
+    assert out.splitlines() == [
+        "prod  reset · audit #41 · state normal since 2026-10-29T17:05:12Z",
+        "at ceiling     day: metered calls stay refused until the meter rolls over",
+        "note           " + RESET_BODY["note"],
+    ]
+
+
+def test_renew_posts_the_reason_and_prints_the_grant(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plant(home, "dev", token("dev") + "\n")
+    stub.answer("POST", "/admin/renew", 200, {**RENEW_BODY, "journal": "unwritable"})
+    code, out, _ = run(
+        [
+            "--stack",
+            "dev",
+            "renew",
+            "--reason",
+            "Model server down for a driver update.",
+        ],
+        capsys,
+    )
+    assert code == 0
+    assert stub.requests[0]["body"] == {
+        "reason": "Model server down for a driver update."
+    }
+    assert out.splitlines() == [
+        "dev  fallback renewed · audit #42 · 2026-10-28, grant 2",
+        "fallback today 2.00 / 4.00 USD   (reserved 0.00, available 2.00)",
+        "day ceiling    1.00 USD of room left",
+        "note           " + RENEW_BODY["note"],
+        "journal        unwritable: the action stands; a journal_failed audit row records the failed append",
+    ]
+
+
+@pytest.mark.parametrize("command", ["reset", "renew"])
+def test_a_write_refused_with_409_is_exit_1_and_names_the_error(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str], command: str
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    error = "not_degraded" if command == "reset" else "not_awaiting_renewal"
+    stub.answer(
+        "POST", f"/admin/{command}", 409, {"error": error, "detail": "Nothing to do."}
+    )
+    code, _, err = run(["--stack", "prod", command, "--reason", RESET_REASON], capsys)
+    assert code == 1
+    assert f"HTTP 409 {error}: Nothing to do." in err
+    assert last_line(err) == "operator.py: exit 1: the gateway refused the request"
+
+
+@pytest.mark.parametrize("command", ["reset", "renew"])
+@pytest.mark.parametrize(
+    "reason", [None, "too short", "x" * 501, "has a\nnewline in it"]
+)
+def test_a_write_holds_its_reason_to_the_rule_before_any_call(
+    home: Path,
+    stub: Stub,
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+    reason: str | None,
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    argv = ["--stack", "prod", command] + (
+        [] if reason is None else [f"--reason={reason}"]
+    )
+    code, _, err = run(argv, capsys)
+    assert code == 2
+    assert last_line(err) == "operator.py: exit 2: usage"
+    assert stub.requests == []
+
+
+def test_audit_reads_a_page_filtered_by_action(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    stub.answer(
+        "GET",
+        "/admin/audit?limit=2&action=reset",
+        200,
+        {
+            "entries": [
+                {
+                    "id": 41,
+                    "ts": "2026-10-29T17:05:12.004Z",
+                    "recorded_at": "2026-10-29T17:05:12.010Z",
+                    "actor": "operator:prod#0a1b2c3d",
+                    "action": "reset",
+                    "reason": RESET_REASON,
+                    "before": {"state": "degraded"},
+                    "after": {"state": "normal"},
+                    "detail": {},
+                },
+                {
+                    "id": 7,
+                    "ts": "2026-10-20T09:00:00.000Z",
+                    "recorded_at": "2026-10-20T09:00:00.000Z",
+                    "actor": "operator:prod#0a1b2c3d",
+                    "action": "reset",
+                    "reason": "An earlier reset\u001b[2J, with a control character in it.",
+                    "before": None,
+                    "after": None,
+                    "detail": {},
+                },
+            ],
+            "next_before_id": 7,
+        },
+    )
+    code, out, _ = run(
+        ["--stack", "prod", "audit", "--limit", "2", "--action", "reset"], capsys
+    )
+    assert code == 0
+    assert out.splitlines() == [
+        "prod  audit log · 2 entries, newest first",
+        f"#41     2026-10-29T17:05:12Z  reset              operator:prod#0a1b2c3d  {RESET_REASON}",
+        "#7      2026-10-20T09:00:00Z  reset              operator:prod#0a1b2c3d  An earlier reset?[2J, with a control character in it.",
+        "older          more entries before #7",
+    ]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["audit", "--limit", "0"],
+        ["audit", "--limit", "201"],
+        ["audit", "--limit", "ten"],
+        ["audit", "--action", "delete"],
+        ["incidents", "--limit", "21"],
+        ["incidents", "--id", "0"],
+        ["incidents", "--limit", "1", "--id", "1"],
+    ],
+)
+def test_the_reads_check_their_arguments_before_any_call(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str], argv: list[str]
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    code, _, err = run(["--stack", "prod", *argv], capsys)
+    assert code == 2
+    assert last_line(err) == "operator.py: exit 2: usage"
+    assert stub.requests == []
+
+
+INCIDENTS_BODY: dict[str, Any] = {
+    "incidents": [
+        {
+            "id": 2,
+            "created_at": "2026-10-29T16:40:03Z",
+            "ceiling": "day",
+            "period_key": "2026-10-29",
+            "status": "written",
+            "path": "incidents/2026-10-29-dev-day.intent.md",
+            "sha256": "0" * 64,
+            "sha256_matches": True,
+            "written_at": "2026-10-29T16:40:09Z",
+            "content": "# Intent: Respond to the daily ceiling breach on dev, 2026-10-29\n\n| a | b |\n",
+        },
+        {
+            "id": 1,
+            "created_at": "2026-10-20T10:00:00Z",
+            "ceiling": "month",
+            "period_key": "2026-10",
+            "status": "written",
+            "path": "incidents/2026-10-20-dev-month.intent.md",
+            "sha256": "1" * 64,
+            "sha256_matches": False,
+            "written_at": "2026-10-20T10:00:05Z",
+            "content": "# Intent\n",
+        },
+    ]
+}
+
+
+def test_incidents_lists_the_drafts(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plant(home, "dev", token("dev") + "\n")
+    stub.answer("GET", "/admin/incidents", 200, INCIDENTS_BODY)
+    code, out, _ = run(["--stack", "dev", "incidents"], capsys)
+    assert code == 0
+    assert out.splitlines() == [
+        "dev  incident drafts · 2",
+        "#2     2026-10-29T16:40:03Z  day 2026-10-29  written  incidents/2026-10-29-dev-day.intent.md",
+        "#1     2026-10-20T10:00:00Z  month 2026-10  written  incidents/2026-10-20-dev-month.intent.md · the file changed since the gateway wrote it",
+    ]
+
+
+def test_incidents_show_prints_the_newest_drafts_markdown_ready_for_a_file(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plant(home, "dev", token("dev") + "\n")
+    stub.answer(
+        "GET",
+        "/admin/incidents?id=2",
+        200,
+        {"incidents": INCIDENTS_BODY["incidents"][:1]},
+    )
+    code, out, _ = run(["--stack", "dev", "incidents", "--id", "2", "--show"], capsys)
+    assert code == 0
+    assert out == INCIDENTS_BODY["incidents"][0]["content"]
+
+
+def test_incidents_show_with_no_written_draft_is_exit_1(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plant(home, "dev", token("dev") + "\n")
+    queued = {
+        **INCIDENTS_BODY["incidents"][0],
+        "status": "queued",
+        "content": None,
+        "path": None,
+    }
+    stub.answer("GET", "/admin/incidents", 200, {"incidents": [queued]})
+    code, out, err = run(["--stack", "dev", "incidents", "--show"], capsys)
+    assert code == 1
+    assert out == ""
+    assert "draft #2 is queued" in err
+    stub.answer("GET", "/admin/incidents", 200, {"incidents": []})
+    code, out, err = run(["--stack", "dev", "incidents", "--show"], capsys)
+    assert code == 1
+    assert "no incident draft" in err
+
+
+def test_dev_cpu_hop_forwards_the_new_commands_arguments(
+    home: Path, probe: Path
+) -> None:
+    for argv, inner in [
+        (
+            ["reset", "--reason", f"  {RESET_REASON} "],
+            ["reset", f"--reason={RESET_REASON}"],
+        ),
+        (["renew", f"--reason={RESET_REASON}"], ["renew", f"--reason={RESET_REASON}"]),
+        (
+            ["audit", "--limit", "5", "--action", "renew"],
+            ["audit", "--limit=5", "--action=renew"],
+        ),
+        (["audit"], ["audit"]),
+        (["incidents", "--id", "3", "--show"], ["incidents", "--id=3", "--show"]),
+        (["incidents", "--limit", "2"], ["incidents", "--limit=2"]),
+    ]:
+        runner = Runner()
+        assert op.main(["--stack", "dev-cpu", *argv], runner=runner) == 0
+        assert runner.calls[0]["command"] == hop_command(inner)
+
+
+def test_make_reset_and_renew_need_a_reason_and_pass_it_through_the_shell(
+    home: Path,
+) -> None:
+    for target, command in (("operator-reset", "reset"), ("operator-renew", "renew")):
+        done = make(home, "-n", target, "ENV=prod", f"REASON={RESET_REASON}")
+        assert done.returncode == 0, done.stderr
+        assert (
+            cli_line(done)
+            == f'{PY_HOST} scripts/operator.py --stack prod {command} --reason="$REASON"'
+        )
+        missing = make(home, target, "ENV=dev-cpu", sandbox=True)
+        assert missing.returncode == 2
+        assert f"make {target} needs REASON=" in missing.stderr
+        assert "operator.py" not in missing.stderr
+
+
+def test_make_audit_and_incidents_take_their_values_from_the_command_line(
+    home: Path,
+) -> None:
+    audit = make(home, "-n", "operator-audit", "ENV=prod", "LIMIT=20")
+    assert audit.returncode == 0, audit.stderr
+    assert (
+        cli_line(audit)
+        == f'{PY_HOST} scripts/operator.py --stack prod audit --limit="$LIMIT"'
+    )
+    bare = make(home, "-n", "operator-audit", "ENV=prod")
+    assert cli_line(bare) == f"{PY_HOST} scripts/operator.py --stack prod audit"
+    shown = make(home, "-n", "operator-incidents", "ENV=dev", "ID=3")
+    assert (
+        cli_line(shown)
+        == f'{PY_HOST} scripts/operator.py --stack dev incidents --show --id="$ID"'
+    )
+    newest = make(home, "-n", "operator-incidents", "ENV=dev")
+    assert (
+        cli_line(newest)
+        == f"{PY_HOST} scripts/operator.py --stack dev incidents --show"
+    )
+    # From the environment, a value never reaches the CLI.
+    environ = make(home, "-n", "operator-audit", "ENV=prod", LIMIT="5")
+    assert cli_line(environ) == f"{PY_HOST} scripts/operator.py --stack prod audit"
+
+
+def test_make_keeps_agent_sessions_off_prod_and_dev_for_the_new_targets(
+    home: Path,
+) -> None:
+    for target in (
+        "operator-reset",
+        "operator-renew",
+        "operator-audit",
+        "operator-incidents",
+    ):
+        for stack in ("prod", "dev"):
+            done = make(
+                home, target, f"ENV={stack}", f"REASON={RESET_REASON}", sandbox=True
+            )
+            assert done.returncode == 2
+            assert "dev-cpu" in done.stderr
+            assert "operator.py" not in done.stderr
+
+
+def test_make_help_lists_the_new_operator_targets(home: Path) -> None:
+    out = make(home, "help").stdout
+    for target in (
+        "operator-reset",
+        "operator-renew",
+        "operator-audit",
+        "operator-incidents",
+    ):
+        assert re.search(rf"^\s+{target}\s", out, re.MULTILINE), target

@@ -8,9 +8,11 @@
 // each class in a window writes one auth_failed audit row, with the route template and never the raw path, and the
 // third queues one auth_failed alert. While the store is down a failure is only counted and logged.
 //
-// Routes: POST /admin/init (meter/init.ts) and GET /admin/status. Reset, renew, audit, and incidents arrive with
-// tasks.md T075, and the dev-only test machinery with T076.
+// Routes: POST /admin/init (meter/init.ts), POST /admin/reset and /admin/renew (meter/operator.ts), and the reads,
+// GET /admin/status, /admin/audit, and /admin/incidents. The dev-only test machinery is routes/test.ts (T076).
 import { createHash, timingSafeEqual } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
@@ -20,8 +22,10 @@ import { thresholds, type AlertsConfig, type Budgets, type EnvClass, type StackN
 import { dayKey, monthKey, toRfc3339, type GatewayClock } from "../core/clock.js";
 import type { Gateway } from "../core/gateway.js";
 import { rfc3339Seconds } from "../core/router.js";
+import type { TxDeps, TxEffects } from "../meter/crossings.js";
 import { initializeStore, type InitRequest, type Meter, type Operator } from "../meter/init.js";
 import type { Journal } from "../meter/journal.js";
+import { renewFallback, resetKillSwitch, type OperatorDeps, type OperatorResult } from "../meter/operator.js";
 import { toBigInt, type MeterRow, type Store } from "../meter/store.js";
 import type { AuthFailureClass, GatewayMetrics } from "../telemetry/metrics.js";
 import { noteErrorType } from "../telemetry/otel.js";
@@ -37,11 +41,19 @@ export interface AdminDeps {
   clock: GatewayClock;
   budgets: Budgets;
   alerts: AlertsConfig;
-  /** The route's fallback adapter, or null. */
+  /** The route's fallback adapter as built, or null. */
   fallbackId: string | null;
   metrics: GatewayMetrics;
   logger: { info(record: object, msg: string): void; warn(record: object, msg: string): void };
   realNow: () => number;
+  /** The meter's transaction context and effects, for the operator's writes (meter/operator.ts). */
+  meter: { txDeps(): TxDeps; emit(effects: TxEffects): void };
+  /** GATEWAY_STATE_DIR: the incident drafts are read from under it. */
+  stateDir: string;
+  /** GATEWAY_TEST_CLOCK and GATEWAY_TEST_SYNTHETIC_SPEND: the dev-only routes' own switches (routes/test.ts). */
+  testMachinery: { clock: boolean; synthetic: boolean };
+  /** After a committed write: the gauges follow at once (telemetry.md §4.1). */
+  onChange?: () => void;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -260,9 +272,52 @@ function initRequestOf(body: unknown): { ok: true; request: InitRequest } | Inva
   };
 }
 
-function isJson(contentType: string | undefined): boolean {
+/** A reset's or a renewal's body: the reason, and nothing else (§2.1, §2.2). */
+function reasonRequestOf(body: unknown): { ok: true; reason: string } | Invalid {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return invalid("body", "must be a JSON object");
+  const b = body as Record<string, unknown>;
+  if (Object.keys(b).some((k) => k !== "reason")) return invalid("body", "the only field is reason");
+  return reasonOf(b.reason);
+}
+
+export function isJson(contentType: string | undefined): boolean {
   return (contentType ?? "").split(";")[0]?.trim().toLowerCase() === "application/json";
 }
+
+/** A query parameter that is a whole number from min to max, or undefined when absent. */
+function intParam(
+  query: Record<string, unknown>,
+  name: string,
+  min: number,
+  max: number,
+): { ok: true; value: number | undefined } | Invalid {
+  const raw = query[name];
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (typeof raw !== "string" || !/^[0-9]{1,10}$/.test(raw))
+    return invalid(name, `a whole number from ${min} to ${max}`);
+  const value = Number(raw);
+  if (value < min || value > max) return invalid(name, `a whole number from ${min} to ${max}`);
+  return { ok: true, value };
+}
+
+const AUDIT_ACTIONS = new Set([
+  "init",
+  "reset",
+  "renew",
+  "trip",
+  "fallback_exhausted",
+  "auth_failed",
+  "test_clock",
+  "test_synthetic",
+  "adapter_call",
+  "journal_failed",
+]);
+
+/** An incident draft's path, relative to the state directory, as the drafter writes it (alerts.md §7). */
+const DRAFT_PATH = /^incidents\/[A-Za-z0-9._-]{1,200}\.intent\.md$/;
+
+const iso = (v: Date | string | null): string | null => (v === null ? null : new Date(v).toISOString());
+const seconds = (v: Date | string | null): string | null => (v === null ? null : rfc3339Seconds(new Date(v).getTime()));
 
 // ---------------------------------------------------------------------------------------------------------------
 // The routes
@@ -323,6 +378,166 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
     );
     if (result.status === 503) return unreachable(req, reply);
     return reply.code(result.status).send(result.body);
+  });
+
+  const operatorDeps = (): OperatorDeps => ({
+    stack: deps.stack,
+    envClass: deps.envClass,
+    store: deps.store,
+    journal: deps.journal,
+    clock: deps.clock,
+    budgets: deps.budgets,
+    metrics: deps.metrics,
+    logger: deps.logger,
+    realNow: deps.realNow,
+    meter: deps.meter,
+    ...(deps.onChange === undefined ? {} : { onChange: deps.onChange }),
+  });
+  const answerWrite = (req: FastifyRequest, reply: FastifyReply, result: OperatorResult) =>
+    result.status === 503 ? unreachable(req, reply) : reply.code(result.status).send(result.body);
+
+  /** A reset or a renewal: JSON, a reason and nothing else, then its transaction (§1.2, §2.1, §2.2). */
+  const reasonWrite =
+    (run: (d: OperatorDeps, reason: string, operator: Operator) => Promise<OperatorResult>) =>
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const operator = operatorOf(req);
+      if (!isJson(req.headers["content-type"])) {
+        return reply.code(415).send({ error: "unsupported_media_type", request_id: req.id });
+      }
+      const parsed = reasonRequestOf(req.body);
+      if (!parsed.ok) {
+        return reply.code(400).send({ error: "invalid_request", field: parsed.field, detail: parsed.detail });
+      }
+      return answerWrite(req, reply, await run(operatorDeps(), parsed.reason, operator));
+    };
+
+  admin.post("/admin/reset", reasonWrite(resetKillSwitch));
+  admin.post("/admin/renew", reasonWrite(renewFallback));
+
+  // §4.2: the audit log, newest first, a page at a time. Grafana's audit panel reads the same table, through grafana_ro.
+  admin.get("/admin/audit", async (req, reply) => {
+    operatorOf(req);
+    const query = (req.query ?? {}) as Record<string, unknown>;
+    if (Object.keys(query).some((k) => !["limit", "before_id", "action"].includes(k))) {
+      return reply
+        .code(400)
+        .send({ error: "invalid_request", field: "query", detail: "the parameters are limit, before_id, and action" });
+    }
+    const limit = intParam(query, "limit", 1, 200);
+    if (!limit.ok) return reply.code(400).send({ error: "invalid_request", field: limit.field, detail: limit.detail });
+    const before = intParam(query, "before_id", 1, 9_999_999_999);
+    if (!before.ok)
+      return reply.code(400).send({ error: "invalid_request", field: before.field, detail: before.detail });
+    const action = query.action;
+    if (action !== undefined && (typeof action !== "string" || !AUDIT_ACTIONS.has(action))) {
+      return reply.code(400).send({ error: "invalid_request", field: "action", detail: "one audit action" });
+    }
+    const n = limit.value ?? 50;
+    let rows: {
+      id: unknown;
+      ts: Date | string;
+      recorded_at: Date | string;
+      actor: string;
+      action: string;
+      reason: string | null;
+      before: unknown;
+      after: unknown;
+      detail: unknown;
+    }[];
+    try {
+      rows = (
+        await deps.store.query<(typeof rows)[number]>(
+          `SELECT id, ts, recorded_at, actor, action, reason, before, after, detail FROM gateway.audit_log
+           WHERE ($1::bigint IS NULL OR id < $1) AND ($2::text IS NULL OR action = $2)
+           ORDER BY id DESC LIMIT $3`,
+          [before.value ?? null, action ?? null, n + 1],
+        )
+      ).rows;
+    } catch {
+      return unreachable(req, reply);
+    }
+    const page = rows.slice(0, n);
+    const entries = page.map((r) => ({
+      id: Number(toBigInt(r.id)),
+      ts: iso(r.ts),
+      recorded_at: iso(r.recorded_at),
+      actor: r.actor,
+      action: r.action,
+      reason: r.reason,
+      before: r.before ?? null,
+      after: r.after ?? null,
+      detail: r.detail ?? {},
+    }));
+    return reply.code(200).send({
+      entries,
+      next_before_id: rows.length > n ? (entries.at(-1)?.id ?? null) : null,
+    });
+  });
+
+  // §4.3: the incident drafts, newest first, each with its Markdown read back from the file the gateway wrote.
+  admin.get("/admin/incidents", async (req, reply) => {
+    operatorOf(req);
+    const query = (req.query ?? {}) as Record<string, unknown>;
+    if (Object.keys(query).some((k) => !["limit", "id"].includes(k))) {
+      return reply
+        .code(400)
+        .send({ error: "invalid_request", field: "query", detail: "the parameters are limit or id" });
+    }
+    if (query.limit !== undefined && query.id !== undefined) {
+      return reply.code(400).send({ error: "invalid_request", field: "query", detail: "limit or id, not both" });
+    }
+    const limit = intParam(query, "limit", 1, 20);
+    if (!limit.ok) return reply.code(400).send({ error: "invalid_request", field: limit.field, detail: limit.detail });
+    const id = intParam(query, "id", 1, 9_999_999_999);
+    if (!id.ok) return reply.code(400).send({ error: "invalid_request", field: id.field, detail: id.detail });
+    let rows: {
+      id: unknown;
+      created_at: Date | string;
+      ceiling: string;
+      period_key: string;
+      status: string;
+      path: string | null;
+      sha256: string | null;
+      written_at: Date | string | null;
+    }[];
+    try {
+      rows = (
+        await deps.store.query<(typeof rows)[number]>(
+          `SELECT id, created_at, ceiling, period_key, status, path, sha256, written_at FROM gateway.incidents
+           WHERE ($1::bigint IS NULL OR id = $1) ORDER BY id DESC LIMIT $2`,
+          [id.value ?? null, limit.value ?? 5],
+        )
+      ).rows;
+    } catch {
+      return unreachable(req, reply);
+    }
+    const incidents = [];
+    for (const r of rows) {
+      let content: string | null = null;
+      let matches: boolean | null = null;
+      if (r.status === "written" && r.path !== null && DRAFT_PATH.test(r.path)) {
+        try {
+          const bytes = await readFile(join(deps.stateDir, r.path));
+          content = bytes.toString("utf8");
+          matches = createHash("sha256").update(bytes).digest("hex") === r.sha256;
+        } catch {
+          matches = false; // the file the row names is gone or unreadable
+        }
+      }
+      incidents.push({
+        id: Number(toBigInt(r.id)),
+        created_at: seconds(r.created_at),
+        ceiling: r.ceiling,
+        period_key: r.period_key,
+        status: r.status,
+        path: r.path,
+        sha256: r.sha256,
+        sha256_matches: matches,
+        written_at: seconds(r.written_at),
+        content,
+      });
+    }
+    return reply.code(200).send({ incidents });
   });
 
   // §4.1: everything GET /health reports, plus the meters, the limits, the journal, and the alert backlog. Like

@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -375,6 +375,29 @@ operator-init: ## Initialize ENV's empty store: REASON="..." [CONFIRM_ZERO=1] [R
 	$(OPERATOR_AGENTS)
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-init needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
 	$(OPERATOR) init --reason="$$REASON"$(call OPERATOR_FLAG,RENEW,--renew)$(call OPERATOR_FLAG,CONFIRM_ZERO,--confirm-zero)$(call OPERATOR_VALUE,DAY_USD,--day-usd)$(call OPERATOR_VALUE,MONTH_USD,--month-usd)$(call OPERATOR_VALUE,FALLBACK_TODAY_USD,--fallback-today-usd)
+
+# The operator's other writes and reads (contracts/operator-admin.md §2.1, §2.2, §4.2, §4.3; tasks.md T075).
+operator-reset: ## Restore ENV's kill switch to normal after a trip: REASON="..." (metered calls stay refused at a ceiling)
+	$(OPERATOR_AGENTS)
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-reset needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) reset --reason="$$REASON"
+.PHONY: operator-reset
+
+operator-renew: ## Renew ENV's fallback sub-budget, two dollars more at once: REASON="..."
+	$(OPERATOR_AGENTS)
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-renew needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) renew --reason="$$REASON"
+.PHONY: operator-renew
+
+operator-audit: ## ENV's audit log, newest first: [LIMIT=50]
+	$(OPERATOR_AGENTS)
+	$(OPERATOR) audit$(call OPERATOR_VALUE,LIMIT,--limit)
+.PHONY: operator-audit
+
+operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by ID=: [ID=]
+	$(OPERATOR_AGENTS)
+	$(OPERATOR) incidents --show$(call OPERATOR_VALUE,ID,--id)
+.PHONY: operator-incidents
 
 # hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
 # gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes

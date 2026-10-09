@@ -3,10 +3,14 @@
 
     python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod|dev|dev-cpu [--json] COMMAND ...
 
-    mint     write ~/.config/h4reet-ai/operator/<stack>.token (prod, dev) and print its SHA-256   make operator-token
-    status   GET /admin/status, as a summary                                                     make operator-status
-    init     POST /admin/init: --reason TEXT [--renew] [--confirm-zero]                          make operator-init
-             [--day-usd X] [--month-usd X] [--fallback-today-usd X]
+    mint       write ~/.config/h4reet-ai/operator/<stack>.token (prod, dev), print its SHA-256 make operator-token
+    status     GET /admin/status, as a summary                                                 make operator-status
+    init       POST /admin/init: --reason TEXT [--renew] [--confirm-zero]                      make operator-init
+               [--day-usd X] [--month-usd X] [--fallback-today-usd X]
+    reset      POST /admin/reset: --reason TEXT                                                make operator-reset
+    renew      POST /admin/renew: --reason TEXT                                                make operator-renew
+    audit      GET /admin/audit: [--limit N] [--action A]                                      make operator-audit
+    incidents  GET /admin/incidents: [--limit N] [--id N] [--show]                             make operator-incidents
 
 It runs in the Author's terminal with the operator token, so it is standard library only, and it runs by path
 through PY_HOST, never with -m: -I keeps out PYTHON* variables, the user's site directory, and the script's own
@@ -90,6 +94,21 @@ STATED = (
     ("fallback_today_usd", "--fallback-today-usd"),
 )
 USD_RE = re.compile(r"[0-9]+(\.[0-9]{1,6})?")
+# The audit log's actions (data-model.md §2.6), for audit --action, and the reads' page sizes (operator-admin.md §4).
+AUDIT_ACTIONS = (
+    "init",
+    "reset",
+    "renew",
+    "trip",
+    "fallback_exhausted",
+    "auth_failed",
+    "test_clock",
+    "test_synthetic",
+    "adapter_call",
+    "journal_failed",
+)
+AUDIT_LIMITS = (1, 200)
+INCIDENT_LIMITS = (1, 20)
 # A compose service name. It starts with a letter, so the resolver can never read it as an address (2130706433).
 LABEL_RE = re.compile(r"[a-z]([a-z0-9-]{0,61}[a-z0-9])?")
 ADAPTER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}")
@@ -327,6 +346,17 @@ def check_usd(label: str, value: str) -> str:
     return value
 
 
+def check_count(label: str, value: int, low: int, high: int) -> int:
+    """A whole number from low to high, as the reads' limits and IDs are (operator-admin.md §4.2, §4.3)."""
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not low <= value <= high
+    ):
+        raise Usage(f"{label} is a whole number from {low} to {high}")
+    return value
+
+
 def check_url(url: str, stack: str, *, token_stdin: bool) -> str:
     """stack's admin listener: on this host, at the stack's own port, or, for the CLI inside a container on a dev-class
     stack's network, a service name.
@@ -547,6 +577,50 @@ class AdminClient:
         body["renew"] = renew
         return self.request("POST", "/admin/init", body)
 
+    def reset(self, reason: str) -> dict[str, Any]:
+        """POST /admin/reset (operator-admin.md §2.1): normal again; metered calls stay refused at a ceiling."""
+        return self.request("POST", "/admin/reset", {"reason": check_reason(reason)})
+
+    def renew(self, reason: str) -> dict[str, Any]:
+        """POST /admin/renew (operator-admin.md §2.2): $2 more fallback at once, inside the daily ceiling."""
+        return self.request("POST", "/admin/renew", {"reason": check_reason(reason)})
+
+    def audit(
+        self,
+        *,
+        limit: int | None = None,
+        action: str | None = None,
+        before_id: int | None = None,
+    ) -> dict[str, Any]:
+        """GET /admin/audit (operator-admin.md §4.2): newest first."""
+        query: dict[str, str] = {}
+        if limit is not None:
+            query["limit"] = str(check_count("--limit", limit, *AUDIT_LIMITS))
+        if action is not None:
+            if action not in AUDIT_ACTIONS:
+                raise Usage(f"--action is one of {', '.join(AUDIT_ACTIONS)}")
+            query["action"] = action
+        if before_id is not None:
+            query["before_id"] = str(
+                check_count("before_id", before_id, 1, 9_999_999_999)
+            )
+        suffix = f"?{urllib.parse.urlencode(query)}" if query else ""
+        return self.request("GET", f"/admin/audit{suffix}")
+
+    def incidents(
+        self, *, limit: int | None = None, incident_id: int | None = None
+    ) -> dict[str, Any]:
+        """GET /admin/incidents (operator-admin.md §4.3): the drafts, newest first, each with its Markdown."""
+        if limit is not None and incident_id is not None:
+            raise Usage("incidents takes --limit or --id, not both")
+        query: dict[str, str] = {}
+        if limit is not None:
+            query["limit"] = str(check_count("--limit", limit, *INCIDENT_LIMITS))
+        if incident_id is not None:
+            query["id"] = str(check_count("--id", incident_id, 1, 9_999_999_999))
+        suffix = f"?{urllib.parse.urlencode(query)}" if query else ""
+        return self.request("GET", f"/admin/incidents{suffix}")
+
     def adapter_complete(
         self,
         adapter_id: str,
@@ -662,10 +736,10 @@ def obj(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def text(value: object) -> str:
+def text(value: object, limit: int = 300) -> str:
     if value is None or value == "":
         return "-"
-    return clean(str(value))
+    return clean(str(value), limit)
 
 
 def usd(micro: object) -> str:
@@ -839,6 +913,98 @@ def init_lines(stack: str, body: dict[str, Any]) -> list[str]:
     return lines
 
 
+def journal_line(body: dict[str, Any]) -> list[str]:
+    """A write's journal append, when it failed: the action stands, and a journal_failed audit row records it."""
+    if body.get("journal") in (None, "ok"):
+        return []
+    return [
+        f"{'journal':<15}{text(body.get('journal'))}: the action stands; a journal_failed audit row records the failed append"
+    ]
+
+
+def reset_lines(stack: str, body: dict[str, Any]) -> list[str]:
+    """A summary of POST /admin/reset's answer (operator-admin.md §2.1), naming the CLI's own stack."""
+    head = f"{stack}  reset · audit #{text(body.get('audit_id'))} · state {text(body.get('state'))}"
+    if body.get("since"):
+        head += f" since {seconds(body['since'])}"
+    lines = [head]
+    held = body.get("meters_at_ceiling")
+    if isinstance(held, list) and held:
+        lines.append(
+            f"{'at ceiling':<15}{', '.join(text(m) for m in held)}: metered calls stay refused until the meter rolls over"
+        )
+    if body.get("note"):
+        lines.append(f"{'note':<15}{text(body['note'], 500)}")
+    return lines + journal_line(body)
+
+
+def renew_lines(stack: str, body: dict[str, Any]) -> list[str]:
+    """A summary of POST /admin/renew's answer (operator-admin.md §2.2), naming the CLI's own stack."""
+    fallback = obj(body.get("fallback"))
+    head = (
+        f"{stack}  fallback renewed · audit #{text(body.get('audit_id'))} · {text(fallback.get('day'))}, grant "
+        f"{text(fallback.get('grant'))}"
+    )
+    lines = [
+        head,
+        row(
+            "fallback today",
+            f"{usd(fallback.get('spent_micro_usd'))} / {usd(fallback.get('allowance_micro_usd'))} USD",
+            [
+                f"reserved {usd(fallback.get('reserved_micro_usd'))}",
+                f"available {usd(fallback.get('available_micro_usd'))}",
+            ],
+        ),
+        f"{'day ceiling':<15}{usd(body.get('day_ceiling_room_micro_usd'))} USD of room left",
+    ]
+    if body.get("note"):
+        lines.append(f"{'note':<15}{text(body['note'], 500)}")
+    return lines + journal_line(body)
+
+
+def audit_lines(stack: str, body: dict[str, Any]) -> list[str]:
+    """GET /admin/audit's entries, one a line, newest first: the reason is the operator's own words, shown as given."""
+    entries = [e for e in body.get("entries") or [] if isinstance(e, dict)]
+    lines = [
+        f"{stack}  audit log · {len(entries)} entr{'y' if len(entries) == 1 else 'ies'}, newest first"
+    ]
+    for e in entries:
+        reason = text(e.get("reason"), 500)
+        lines.append(
+            f"#{text(e.get('id')):<6} {seconds(e.get('ts'))}  {text(e.get('action')):<18} {text(e.get('actor'))}  {reason}"
+        )
+    if body.get("next_before_id") is not None:
+        lines.append(
+            f"{'older':<15}more entries before #{text(body['next_before_id'])}"
+        )
+    return lines
+
+
+def incidents_lines(stack: str, body: dict[str, Any]) -> list[str]:
+    """GET /admin/incidents' drafts, one a line, newest first."""
+    incidents = [i for i in body.get("incidents") or [] if isinstance(i, dict)]
+    lines = [f"{stack}  incident drafts · {len(incidents)}"]
+    for i in incidents:
+        line = (
+            f"#{text(i.get('id')):<5} {seconds(i.get('created_at'))}  {text(i.get('ceiling'))} "
+            f"{text(i.get('period_key'))}  {text(i.get('status'))}  {text(i.get('path'))}"
+        )
+        if i.get("sha256_matches") is False:
+            line += " · the file changed since the gateway wrote it"
+        lines.append(line)
+    if not incidents:
+        lines.append(f"{'none':<15}no ceiling has been crossed in this store's life")
+    return lines
+
+
+def draft_text(markdown: str) -> str:
+    """A draft's Markdown for the terminal or a file: its lines and tabs kept, any other control character as ?."""
+    return "".join(
+        ch if ch in "\n\t" or unicodedata.category(ch) != "Cc" else "?"
+        for ch in markdown
+    )
+
+
 # --- the CLI --------------------------------------------------------------------------------------------------------
 
 
@@ -907,6 +1073,35 @@ def build_parser() -> Parser:
     )
     for _, flag in STATED:
         init.add_argument(flag, help="a stated starting value, in USD")
+    for name, what in (
+        ("reset", "POST /admin/reset: restore normal after a trip"),
+        ("renew", "POST /admin/renew: $2.00 more fallback, at once"),
+    ):
+        write = commands.add_parser(
+            name, parents=[common], allow_abbrev=False, help=what
+        )
+        write.add_argument("--reason", required=True, help="why: 10 to 500 characters")
+    audit = commands.add_parser(
+        "audit",
+        parents=[common],
+        allow_abbrev=False,
+        help="GET /admin/audit: newest first",
+    )
+    audit.add_argument("--limit", type=int, help="1 to 200 entries (50 by default)")
+    audit.add_argument("--action", choices=AUDIT_ACTIONS, help="one audit action")
+    incidents = commands.add_parser(
+        "incidents",
+        parents=[common],
+        allow_abbrev=False,
+        help="GET /admin/incidents: the incident drafts",
+    )
+    incidents.add_argument("--limit", type=int, help="1 to 20 drafts (5 by default)")
+    incidents.add_argument("--id", type=int, help="one draft, by its ID")
+    incidents.add_argument(
+        "--show",
+        action="store_true",
+        help="print the newest draft's Markdown (or --id's), ready to redirect into a file",
+    )
     return parser
 
 
@@ -972,6 +1167,34 @@ def run_hop(
     return code, last
 
 
+def forwarded(args: argparse.Namespace, reason: str | None) -> list[str]:
+    """The arguments of reset, renew, audit, and incidents, checked already, for the CLI inside the dev-cpu hop."""
+    if args.command in ("reset", "renew"):
+        return [f"--reason={reason}"]
+    out: list[str] = []
+    if args.command in ("audit", "incidents") and args.limit is not None:
+        out.append(f"--limit={args.limit}")
+    if args.command == "audit" and args.action is not None:
+        out.append(f"--action={args.action}")
+    if args.command == "incidents":
+        out += [f"--id={args.id}"] if args.id is not None else []
+        out += ["--show"] if args.show else []
+    return out
+
+
+def read_arguments(args: argparse.Namespace) -> None:
+    """The reads' limits and IDs, checked before any call or hop."""
+    if args.command == "audit" and args.limit is not None:
+        check_count("--limit", args.limit, *AUDIT_LIMITS)
+    if args.command == "incidents":
+        if args.limit is not None and args.id is not None:
+            raise Usage("incidents takes --limit or --id, not both")
+        if args.limit is not None:
+            check_count("--limit", args.limit, *INCIDENT_LIMITS)
+        if args.id is not None:
+            check_count("--id", args.id, 1, 9_999_999_999)
+
+
 def hop(
     args: argparse.Namespace,
     reason: str | None,
@@ -1001,6 +1224,7 @@ def hop(
         inner += ["--renew"] if args.renew else []
         inner += ["--confirm-zero"] if args.confirm_zero else []
         inner += [f"{flag}={stated[key]}" for key, flag in STATED if key in stated]
+    inner += forwarded(args, reason)
     command = [
         str(RELAY),
         "docker",
@@ -1042,6 +1266,30 @@ def hop(
     )
 
 
+def show_draft(body: dict[str, Any]) -> int:
+    """incidents --show: the newest draft's Markdown on standard output, ready to redirect into a file (§6)."""
+    incidents = [i for i in body.get("incidents") or [] if isinstance(i, dict)]
+    if not incidents:
+        return failed(
+            1, "no incident draft: no ceiling has been crossed in this store's life"
+        )
+    newest = incidents[0]
+    content = newest.get("content")
+    if not isinstance(content, str):
+        return failed(
+            1,
+            f"draft #{text(newest.get('id'))} is {text(newest.get('status'))}: its file isn't written yet, so "
+            "there is no Markdown to show",
+        )
+    if newest.get("sha256_matches") is False:
+        print(
+            f"operator.py: draft #{text(newest.get('id'))}'s file changed since the gateway wrote it",
+            file=sys.stderr,
+        )
+    sys.stdout.write(draft_text(content))
+    return 0
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -1066,6 +1314,9 @@ def main(
                 )
             return mint(stack, Path.home(), as_json=as_json)
         reason, stated = init_arguments(args) if args.command == "init" else (None, {})
+        if args.command in ("reset", "renew"):
+            reason = check_reason(args.reason)
+        read_arguments(args)
         sandboxed = os.environ.get("SANDBOX_RUNTIME") == "1"
         if stack == "dev-cpu" and url is None and not token_stdin and sandboxed:
             return hop(args, reason, stated, as_json, runner or run_hop)
@@ -1074,7 +1325,7 @@ def main(
             if args.command == "status":
                 body = client.status()
                 lines = status_lines(stack, body)
-            else:
+            elif args.command == "init":
                 body = client.init(
                     reason or "",
                     stated=stated,
@@ -1082,6 +1333,20 @@ def main(
                     renew=args.renew,
                 )
                 lines = init_lines(stack, body)
+            elif args.command == "reset":
+                body = client.reset(reason or "")
+                lines = reset_lines(stack, body)
+            elif args.command == "renew":
+                body = client.renew(reason or "")
+                lines = renew_lines(stack, body)
+            elif args.command == "audit":
+                body = client.audit(limit=args.limit, action=args.action)
+                lines = audit_lines(stack, body)
+            else:
+                body = client.incidents(limit=args.limit, incident_id=args.id)
+                if args.show and not as_json:
+                    return show_draft(body)
+                lines = incidents_lines(stack, body)
         except AdminError as problem:
             return refused(problem, client, as_json)
     except Usage as problem:
