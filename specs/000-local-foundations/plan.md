@@ -460,7 +460,7 @@ A request in flight when the state flips completes: the state is read at request
 One interface, `ProviderAdapter { id, provider, kind, model, complete(req), health(signal) }`. `kind` is `local`, `paid`, or `synthetic`. The full types and the error taxonomy are in [contracts/provider-adapter.md](contracts/provider-adapter.md). Adapters are built from `config/routing.yaml` by `src/adapters/registry.ts`, keyed by `type`; nothing else in the gateway names a provider (SC-006).
 
 - **`local-openai`** (`type: openai-compatible`):
-  - `fetch` to `POST {base}/chat/completions`.
+  - `POST {base}/chat/completions` over `node:http`, one connection per call. (A departure from `fetch` with an undici `Agent`, recorded in [contracts/provider-adapter.md §3.1](contracts/provider-adapter.md#31-local-openai-type-openai-compatible): built-in `fetch` has no connect timeout, and `undici` isn't a pinned dependency.)
   - Connect timeout 1 s, request timeout 10 s, and no retries: failing over is the retry.
   - Health: `GET {base}/models` every 1 s with an 800 ms timeout. One failure marks it unhealthy; three passes in a row mark it healthy again.
   - So a stopped model server fails over at once on the call itself, and within 1.8 s at worst by health check (SC-005).
