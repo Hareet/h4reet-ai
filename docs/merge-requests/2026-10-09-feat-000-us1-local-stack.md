@@ -10,7 +10,7 @@ Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phas
 - **T149 (an agent session, after T065):** apply the first stack run's findings.
 - **This note:** T064's and T065's output goes into it, and then this block goes.
 
-**Merge order:** this branch is stacked on `feat/000-foundations` (8a854f8). Merge that branch first and run its T046; then bring this one up to date with main (T063's first step); then merge it once this block is gone.
+**Merge order:** this branch is stacked on `feat/000-foundations`: branched at 8a854f8, whose tip is now bf7cefb, after one fix from this branch's review (b15a33b). Merge that branch first and run its T046; then bring this one up to date with main (T063's first step); then merge it once this block is gone.
 
 ## Runs in the Author's terminal
 
@@ -20,7 +20,7 @@ ADR 0017 puts this section first. Nothing here has run outside the sandbox: ther
 |---|---|---|
 | **`scripts/operator.py`** (T056) and **`make operator-token`, `operator-status`, `operator-init`** | through `PY_HOST`, by path, with your real token | `localhost` is connected as `127.0.0.1`, never looked up. It reads the token only from `~/.config/h4reet-ai/operator/<stack>.token` (0600, yours, in a 0700 directory, never through a link), or from `--token-stdin`. It sends the token only to its own stack's port on `127.0.0.1` or `localhost` (18003, 18103, or 18303), with no proxy and no redirects, and never prints it. An in-network host is allowed only with `--token-stdin`, never for prod, and only at port 8081. It refuses an answer that names another stack, and its summaries name the stack you asked for, never the answer's. For dev-cpu it calls 18303 directly and runs no Docker in your terminal. It runs the working tree's copy, so check `git status` before you use it. |
 | **`scripts/hello.py`** and **`make hello ENV=… [MESSAGE=…]`** (T147) | through `PY_HOST`, by path | It sends `POST /hello` with no token and no client label, only to the stack's own api port on `127.0.0.1` (18000, 18100, or 18300), with no proxy and no redirects, and prints the status and the body with the listener's control characters escaped. Inside the sandbox it refuses prod and dev, and makes the probe hop for dev-cpu through the relay. It runs the working tree's copy, so check `git status` first. |
-| **`deploy/agents-engine/authz.py`'s rule A21** (296940b) | the installed copy, which only `sudo engine.sh setup` refreshes | The agents' engine may now publish only dev-cpu's ports, 18300–18304, and row E15's 18999. Before, it could publish any loopback port, so while prod or dev was down an agents' container could sit on 18003 or 18103 and take the token the operator CLI sent, or sit on 18001 or 18002 and take your Langfuse or Grafana login. The same commit is on `feat/000-foundations`, so T046's first setup installs it. |
+| **`deploy/agents-engine/authz.py`'s rule A21** (296940b) | the installed copy, which only `sudo engine.sh setup` refreshes | The agents' engine may now publish only dev-cpu's ports, 18300–18304, and row E15's 18999. Before, it could publish any loopback port, so while prod or dev was down an agents' container could sit on 18003 or 18103 and take the token the operator CLI sent, or sit on 18001 or 18002 and take your Langfuse or Grafana login. The same change is on `feat/000-foundations` (b15a33b), so T046's first setup installs it. A dry run of T063's merge of main, with `git merge-tree`, is clean. |
 | **The Makefile's command-line variables** (a9e7878, 3b38470) | every `make` you run | `ENV`, `REF`, `REASON`, the stated values, `RENEW`, `CONFIRM_ZERO`, `TAG`, `SERVICE`, `TAIL`, `MODELS`, `MESSAGE`, `ADAPTER`, and the rest of `LITERAL_VARS` reach the recipes exactly as you typed them: make no longer expands a `$` in them, so `REASON='Spent $4.80'` arrives whole and `$(shell …)` in a value never runs. A value left in your shell's environment still counts for nothing. `scripts/test_makefile.py` fails if a recipe reads, or a help line offers, a variable outside the list. |
 | **`deploy/scripts/pull-models.sh`** (T057), and `make pull MODELS=…` | your terminal, Heavy | It runs the disk preflight first, downloads over https with no token, and checks size and sha256 before it makes the file read-only and renames it. |
 | **`deploy/scripts/isolation-check.sh`** and **`make isolation-check`** (T061) | your terminal, with prod and dev both up | It runs a throwaway probe container on each stack's networks, from the pinned Python image, with no mounts, no capabilities, and a read-only root. |
@@ -148,7 +148,17 @@ It agreed that init's commit-then-503 can wait for T072, but asked for it in T07
 
 ### Round 3 (at 8c5d796)
 
-Pending: the three reviewers are verifying round 2's fixes and reviewing the convergence work that landed since: T144, T147, T148, T150, and T151.
+The three reviewers verified round 2's fixes and reviewed the convergence work that landed since: T144, T147, T148, T150, and T151.
+
+| ID | Slice | Finding | Fix |
+|---|---|---|---|
+| R3-I1 | Stack | **Important.** `make image`, or `make compose-images`, run in your terminal built the live working tree's images, the probe's now among them, on the host's rootful engine, with no policy check first. operator-admin.md §6 says nothing of the working tree's may be built or run there (FR-039). It was the only path left: `make build` already refuses outside the sandbox | 7f49655: `compose-images` builds only with the relay's `DOCKER_HOST` inside the sandbox, or `tcp://198.18.0.1:2376`; §6's sentence narrowed to what it meant, since `make up` builds the host stacks' gateway image from a commit's export by design |
+| R3-n1 | Stack | Nit: neither probe hop passed `--build`, so after an edit to operator.py or hello.py the hop ran the old copy in the image | 7f49655: `run --build`, as `make up --build` keeps a stale image from certifying code |
+| R3-n2 | Engine | Nit: A21 took `"018300"`, a zero-padded allowed port, contrary to its docstring. Docker reads it as 18300 too, so nothing got past | a54106e: one spelling only |
+
+The engine reviewer found that A21 now sees every way to publish: the top-level fields, folded keys, `PublishAllPorts`, swarm services, and a legacy start body. It also confirmed that dev-cpu's five edge ports, 18300–18304, still pass. The stack reviewer found T144's image and service, and T147's make target and plan row, sound.
+
+Pending: the operator and gateway reviewer's report on round 2's fixes, hello.py, and the gateway's gaps.
 
 ## Verification
 
