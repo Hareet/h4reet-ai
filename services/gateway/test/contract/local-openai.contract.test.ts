@@ -24,7 +24,7 @@ describeAdapterContract(
     const config = await loadConfig(FIXTURES, { allowPlanned: false });
     const local = config.routing?.adapters.get("local");
     if (!local || !config.prices) throw new Error("the fixture configuration has no local adapter");
-    // The request timeout is below routing.yaml's minimum on purpose, so create() takes it as given (§5.3). The
+    // The request timeout is the suite's 3 s (T157), inside the local type's 1-60 s range, so create() takes it as given. The
     // connect timeout stays routing.yaml's 1 s: at 100 ms, a loaded host's stalled event loop fired the watchdog before
     // the stub's accept arrived and failed C3 (round 3's review). No case here makes a connect hang, and
     // local-openai.errors.test.ts tests the watchdog at its real 1 s.
