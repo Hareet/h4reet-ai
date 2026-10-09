@@ -408,9 +408,10 @@ Request:
 
 - **Never from the environment or the command line.** The variable name `H4_OPERATOR_TOKEN` is denied to agents by name all the same (FR-007).
 - **Never printed.** The CLI shows only the fingerprint.
+- **Not for an agent session.** Inside the sandbox (`SANDBOX_RUNTIME=1`) the CLI and `AdminClient` refuse prod and dev with exit 2, as the make targets do, so a direct call is kept off them too (FR-008).
 
 **Transport.**
-- **prod and dev:** `http://127.0.0.1:18003` and `http://127.0.0.1:18103`, through urllib with an empty `ProxyHandler`, so `HTTP_PROXY` settings can't send the token to a proxy. A `--url` override must name `127.0.0.1`, `localhost`, or a single-label in-network host, or the CLI refuses with exit 2.
+- **prod and dev:** `http://127.0.0.1:18003` and `http://127.0.0.1:18103`, through urllib with an empty `ProxyHandler`, so `HTTP_PROXY` settings can't send the token to a proxy. Redirects are refused, and `Authorization` is an unredirected header, so no `Location` takes the token anywhere else. A `--url` override must name `127.0.0.1` or `localhost`, or, with `--token-stdin` only, a single-label in-network host, or the CLI refuses with exit 2. On the host a single label would resolve through the search domains, so a token read from its file never goes to one; inside a container on the stack's network, where the token comes on standard input, it names a service. The label must start with a letter, so the resolver can't read it as an address (`2130706433`). (T056 narrowed this rule, which first allowed a single label with any token.)
 - **dev-cpu:** a session can't reach its ports (they are on the host's loopback, which the sandbox's proxy refuses), so the CLI makes one hop through a one-off probe container on the stack's `internal` network:
 
   ```text
@@ -420,6 +421,9 @@ Request:
   ```
 
   The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`. Inside the sandbox (`SANDBOX_RUNTIME=1`), the command runs through `deploy/agents-engine/docker-relay`.
+  - The hop's docker client keeps only the variables docker and the relay need, so no `COMPOSE_*`, `H4_*`, or template key in the shell can override `dev-cpu.vars` ([env-files.md §10](env-files.md#10-make-up-preflight), P5).
+  - The CLI in the probe names its exit code on its last line, and the CLI outside passes that code on. A hop that fails before the CLI in the probe answers is exit 4.
+  - Until `evals/Dockerfile.probe` exists (tasks.md T080), the hop exits 4 and says so. From the Author's terminal, `--url http://127.0.0.1:18303` reaches dev-cpu's listener directly, with the dummy read from `dev-cpu.vars`.
 
 **Commands.** Every command takes `--stack prod|dev|dev-cpu`, and `--json` to print the response body instead of a summary.
 
@@ -435,7 +439,7 @@ Request:
 | `contract-record` | `--adapter ID --cases FILE --out FILE --reason TEXT` | `GET /admin/status`, then `POST /admin/adapters/{ID}/complete` for each case, then `GET /admin/status` again; writes the recording for the live contract run ([provider-adapter.md §5.3](provider-adapter.md#53-three-run-modes)) |
 
 **`mint`**, which `make operator-token ENV=<stack>` runs:
-1. It refuses `dev-cpu` with exit 2: that token is the committed dummy.
+1. It refuses `dev-cpu` with exit 2: that token is the committed dummy. It refuses inside the sandbox (`SANDBOX_RUNTIME=1`) with exit 2 too, as `make init-env` does.
 2. It creates `~/.config/h4reet-ai/operator/` with mode 0700 if missing. It refuses a looser existing mode with exit 5.
 3. It refuses with exit 5 if `<stack>.token` exists: delete the file first to rotate.
 4. It generates 32 bytes from `secrets.token_bytes`, encodes them as unpadded base64url (43 characters), and adds the `h4op_<scope>_` prefix.
@@ -452,8 +456,10 @@ fallback today 0.40 / 2.00 USD   (grant 1, warning 1.40, available 1.48) · awai
 adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:00Z
 ```
 
+Below these lines it adds one for each thing that needs a look: the journal when it isn't `ok`, alerts pending or failed in the last 24 hours, dev's test machinery when it is on, and, for an uninitialized store, the `make operator-init` command.
+
 **For other tools.** `operator.py` also exposes an `AdminClient` class:
-- `AdminClient(stack)` reads the stack's token as above, and talks to its admin listener as above.
+- `AdminClient(stack, *, url=None, token_stdin=False)` reads the stack's token as above, and talks to its admin listener as above. `url` and `token_stdin` are the CLI's `--url` and `--token-stdin`, for a caller inside a container on the stack's network.
 - `.adapter_complete(adapter_id, messages, *, max_output_tokens, purpose, reason, temperature=None)` calls §5 and returns its 200 body as a dict: the answer is `result["text"]`, the cost `cost_micro_usd`.
 - Every other answer raises `AdminError`, with `.status` (the HTTP status) and `.error` (the body's `error` field). It never holds the token or a payload.
 
@@ -471,8 +477,9 @@ adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:
 | `operator-audit` | `ENV`, `LIMIT=` | `audit` | the same |
 | `operator-incidents` | `ENV`, `ID=` | `incidents --show` | the same |
 
-- **The reason.** Recipes pass it as `--reason "$$REASON"`, so make never splices the text into a shell line. A write target without `REASON` fails before any call, with exit 2.
-- **The flags.** `RENEW=1` and `CONFIRM_ZERO=1` become `--renew` and `--confirm-zero`. `DAY_USD`, `MONTH_USD`, and `FALLBACK_TODAY_USD` become the stated values.
+- **The reason.** Recipes pass it as `--reason="$$REASON"`, so make never splices the text into a shell line, and the `=` keeps a reason that starts with `-` a value. A write target without `REASON` on the command line fails before any call, with exit 2.
+- **The flags.** `RENEW=1` and `CONFIRM_ZERO=1` become `--renew` and `--confirm-zero`. `DAY_USD`, `MONTH_USD`, and `FALLBACK_TODAY_USD` become the stated values, as `--day-usd="$$DAY_USD"` and so on.
+- **The command line only.** Like `ENV` and `REF`, each of these is taken only from make's command line, so a value left in the shell's environment never renews or states anything. `RENEW` or `CONFIRM_ZERO` with any value but `1` stops make before the recipe runs.
 - **dev-cpu** recipes use the probe hop.
 - **Agents** are kept off every stack but dev-cpu: bash-gate blocks the `operator-*` targets and admin URLs for any other stack (FR-008, in the closing patch, [plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
 
@@ -490,10 +497,10 @@ $ make operator-renew ENV=prod REASON="Model server down for a driver update; re
 | Code | Meaning |
 |---|---|
 | 0 | done |
-| 1 | the gateway refused: a 400, 403, 404, or 409. The CLI prints its `error` and `detail`. |
-| 2 | usage: bad arguments, a missing reason, `mint` for dev-cpu, or a `--url` outside the allowed hosts |
-| 3 | 401: authentication failed. Check the token file against the env file's `OPERATOR_TOKEN_SHA256`. |
-| 4 | no usable answer: connection refused, a timeout (30 s), or a 5xx, including 503 `store_unreachable` and edge's `admin_unavailable` |
+| 1 | the gateway refused: a 400, 403, 404, or 409, or any other 4xx but 401 (edge's 413, a 415). The CLI prints its `error` and `detail`. |
+| 2 | usage: bad arguments, a missing reason or one outside §1.2's rule, a stated value out of shape, `mint` for dev-cpu, prod or dev inside the sandbox, or a `--url` outside the allowed hosts |
+| 3 | 401: authentication failed. Check the token file against the env file's `OPERATOR_TOKEN_SHA256`, which must start with the fingerprint the CLI prints. |
+| 4 | no usable answer: connection refused, a timeout (30 s), a redirect (never followed), a body that isn't a JSON object, or a 5xx, including 503 `store_unreachable` and edge's `admin_unavailable`; for dev-cpu, a hop that fails before the CLI in the probe answers |
 | 5 | a token problem: the file is missing, has the wrong owner or mode, or is malformed; or `mint` found an existing file |
 
 Make reports any non-zero exit as its own error 2, so the CLI's last line names the code and its meaning.

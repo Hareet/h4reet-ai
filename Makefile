@@ -325,6 +325,34 @@ isolation-check: ## (the Author) prod and dev can't reach each other, which arri
 init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its template; SYNC=1 adds new keys
 	$(PY_HOST) deploy/scripts/init_env.py --stack $(ENV) $(if $(filter 1,$(SYNC)),--sync)
 
+# The operator CLI (contracts/operator-admin.md §6, §6.1): scripts/operator.py, by path through PY_HOST, because it
+# holds the operator token. prod and dev are the Author's, with ~/.config/h4reet-ai/operator/<stack>.token. dev-cpu's
+# token is the committed public dummy, and the CLI reaches its admin listener with one hop, through a breach-probe
+# container (through the relay inside the sandbox), so the recipes are the same for every stack. Agent sessions run
+# them for dev-cpu only (FR-008); bash-gate's rule for the other stacks arrives with the closing patch (plan §13, §15).
+# Every value comes from the command line only and reaches the CLI as "$$NAME", read by the shell, so make never
+# splices it into a command line; the --name= form keeps a value that starts with - a value.
+OPERATOR = $(PY_HOST) scripts/operator.py --stack $(ENV)
+OPERATOR_AGENTS = @[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make $@ ENV=$(ENV): agent sessions reach dev-cpu's admin listener only; prod and dev are the Author's (FR-008)" >&2; exit 2; }
+# $(call OPERATOR_FLAG,RENEW,--renew): 1 adds the flag, unset or empty adds nothing, and anything else stops make
+# before the recipe runs.
+OPERATOR_FLAG = $(if $(filter command line,$(origin $(1))),$(if $(filter-out 1,$($(1))),$(error $(1) is 1 or unset, not "$($(1))"),$(if $($(1)), $(2))))
+# $(call OPERATOR_VALUE,DAY_USD,--day-usd): the value as the shell reads it; the CLI checks its shape.
+OPERATOR_VALUE = $(if $(filter command line,$(origin $(1))), $(2)="$$$(1)")
+
+operator-token: ## (the Author) Mint ENV's operator token (prod or dev); prints the SHA-256 for its env file
+	$(OPERATOR_AGENTS)
+	$(OPERATOR) mint
+
+operator-status: ## ENV's state, meters, and adapters, from its admin listener (agent sessions: dev-cpu only)
+	$(OPERATOR_AGENTS)
+	$(OPERATOR) status
+
+operator-init: ## Initialize ENV's empty store: REASON="..." [CONFIRM_ZERO=1] [RENEW=1] [DAY_USD= MONTH_USD= FALLBACK_TODAY_USD=]
+	$(OPERATOR_AGENTS)
+	@[ "$(origin REASON)" = "command line" ] && [ -n "$$REASON" ] || { echo 'make operator-init needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) init --reason="$$REASON"$(call OPERATOR_FLAG,RENEW,--renew)$(call OPERATOR_FLAG,CONFIRM_ZERO,--confirm-zero)$(call OPERATOR_VALUE,DAY_USD,--day-usd)$(call OPERATOR_VALUE,MONTH_USD,--month-usd)$(call OPERATOR_VALUE,FALLBACK_TODAY_USD,--fallback-today-usd)
+
 # The Author's terminal: it reaches the registries. ONLY=svc,... limits it; TAG="svc=tag ..." pins a tag (an open
 # one, such as seaweedfs's, otherwise gets the newest release); DRY_RUN=1 prints the table and writes nothing.
 # The values reach the script through the environment, quoted by the shell, never spliced into the command line.
@@ -340,4 +368,4 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
 	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
-	init-env isolation-check breach-test plan
+	init-env operator-token operator-status operator-init isolation-check breach-test plan
