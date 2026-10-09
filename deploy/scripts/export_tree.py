@@ -175,6 +175,14 @@ def export(repo: Path, sha: str, trees: Path) -> Path:
                 f"{target} no longer matches commit {sha}; move it aside and run make up again"
             )
         return target
+    listing = git(repo, "ls-tree", "-r", "-z", sha, binary=True)
+    if listing.returncode:
+        raise ExportError(f"git ls-tree {sha} failed")
+    if any(line.startswith(b"160000 ") for line in listing.stdout.split(b"\0")):
+        # git archive writes a submodule as an empty directory, which the tree check below could never match.
+        raise ExportError(
+            f"commit {sha} holds a submodule, which a stack's export doesn't support"
+        )
     attributes = git(repo, "rev-parse", "--git-path", "info/attributes").stdout.strip()
     if attributes and (repo / attributes).exists():
         # git archive applies its export-ignore and export-subst rules, and git status doesn't show the file.

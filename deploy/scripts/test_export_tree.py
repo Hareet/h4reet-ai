@@ -303,3 +303,17 @@ def test_an_export_changed_since_is_refused(repo: Path, tmp_path: Path) -> None:
     (target / "deploy/run.sh").write_text("#!/bin/sh\necho changed\n", encoding="utf-8")
     with pytest.raises(et.ExportError, match="no longer matches"):
         et.export(repo, sha, trees)
+
+
+def test_a_commit_with_a_submodule_is_refused_by_name(
+    repo: Path, tmp_path: Path
+) -> None:
+    first = commit(repo, "one")
+    git(repo, "update-index", "--add", "--cacheinfo", f"160000,{first},deploy/sub")
+    git(repo, "commit", "-q", "-m", "a gitlink")
+    sha = git(repo, "rev-parse", "HEAD")
+    trees = tmp_path / "trees"
+    trees.mkdir()
+    with pytest.raises(et.ExportError, match="holds a submodule"):
+        et.export(repo, sha, trees)
+    assert not list(trees.iterdir())
