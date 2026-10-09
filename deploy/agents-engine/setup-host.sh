@@ -10,24 +10,10 @@
 # never the working tree's files (H13).
 set -euo pipefail
 
-if [ "$(id -u)" -ne 0 ]; then
-	echo "setup-host.sh must run as root (through sudo)" >&2
-	exit 1
-fi
-author="${SUDO_USER:-}"
-if [ -z "$author" ] || [ "$author" = "root" ]; then
-	echo "run through sudo as the Author, not as root directly (SUDO_USER is unset)" >&2
-	exit 1
-fi
-
-# The repository path is fixed here, at setup time, from this script's own location.
-here="$(cd -- "$(dirname -- "$0")" && pwd)"
+# The repository path is fixed here, at setup time, from this script's own location. BASH_SOURCE, not $0:
+# the same path when run, and still this file's when the tests source it.
+here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd -- "$here/../.." && pwd)"
-author_home="$(getent passwd "$author" | cut -d: -f6)"
-if [ -z "$author_home" ] || [ ! -d "$author_home" ]; then
-	echo "cannot resolve the Author's home for '$author'" >&2
-	exit 1
-fi
 
 user="h4agents"
 gpu_group="h4gpu"
@@ -38,11 +24,35 @@ env_file="$etc/engine.env"
 models_src="/var/lib/h4agents/models"
 state="/var/lib/h4agents/state"
 log_dir="/var/log/h4agents"
-agent_cert_dir="$author_home/.config/h4reet/agents-engine/docker"
-author_cert_dir="$author_home/.config/h4reet-ai/agents-engine/docker"
 cert_days=397
 
+# The Author, their home, and their two certificate directories: resolve_author sets them, first thing.
+author=""
+author_home=""
+agent_cert_dir=""
+author_cert_dir=""
+
 log() { printf '== %s\n' "$*"; }
+
+# --- root, through sudo, as the Author ---------------------------------------------------------
+resolve_author() {
+	if [ "$(id -u)" -ne 0 ]; then
+		echo "setup-host.sh must run as root (through sudo)" >&2
+		exit 1
+	fi
+	author="${SUDO_USER:-}"
+	if [ -z "$author" ] || [ "$author" = "root" ]; then
+		echo "run through sudo as the Author, not as root directly (SUDO_USER is unset)" >&2
+		exit 1
+	fi
+	author_home="$(getent passwd "$author" | cut -d: -f6)"
+	if [ -z "$author_home" ] || [ ! -d "$author_home" ]; then
+		echo "cannot resolve the Author's home for '$author'" >&2
+		exit 1
+	fi
+	agent_cert_dir="$author_home/.config/h4reet/agents-engine/docker"
+	author_cert_dir="$author_home/.config/h4reet-ai/agents-engine/docker"
+}
 
 # --- H1: the user h4agents ----------------------------------------------------------------------
 ensure_user() {
@@ -296,11 +306,31 @@ ensure_pki() {
 		install -d -o "$author" -g "$author" -m 0700 "$(dirname -- "$author_cert_dir")"
 	# The agents' certificate: readable, not writable, outside the sandbox's write roots.
 	issue_client "h4agents-sandbox" "$agent_cert_dir" "$author" 0555 0444
+	ensure_agent_docker_config
 	# The Author's certificate: private to the Author.
 	issue_client "h4agents-author" "$author_cert_dir" "$author" 0700 0600
 }
 
+# --- the agents' DOCKER_CONFIG: config.json is {} (contracts/agents-engine.md §2.3) -----------------
+# No credentials, and no `proxies` entry, which the CLI would put into every container's environment.
+# Owned by the Author, 0444, in the 0555 directory issue_client made, whose modes it leaves as they are;
+# a session can read it and not write it. install replaces a link at the name rather than writing
+# through it. Unchanged when it is already exactly that.
+ensure_agent_docker_config() {
+	local config="$agent_cert_dir/config.json" tmp
+	if [ -f "$config" ] && [ ! -L "$config" ] && [ "$(cat -- "$config")" = "{}" ] &&
+		[ "$(stat -c '%a %U %G' -- "$config")" = "444 $author $author" ]; then
+		return 0
+	fi
+	log "writing $config: {}, mode 0444"
+	tmp="$(mktemp)"
+	printf '{}\n' >"$tmp"
+	install -T -o "$author" -g "$author" -m 0444 "$tmp" "$config" # -T: a directory there fails, not fills
+	rm -f -- "$tmp"
+}
+
 main() {
+	resolve_author
 	ensure_user
 	ensure_subids
 	ensure_linger
@@ -324,4 +354,8 @@ session, agents' included.
 EOF
 }
 
-main "$@"
+# Run as a command; sourced, it only defines the functions above, which the tests call
+# (test/test_setup_host_sh.py). Run, its first step is resolve_author's root check.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	main "$@"
+fi

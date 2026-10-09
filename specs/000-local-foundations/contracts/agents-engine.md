@@ -65,7 +65,7 @@ Why a relay at all: Docker's exec, attach, and BuildKit streams don't go through
 | The client certificate | `$DOCKER_CONFIG/ca.pem`, `cert.pem`, `key.pem`. The Docker CLI looks for its certificates in its config directory when `DOCKER_CERT_PATH` is unset. | `deploy/agents-engine/engine.sh setup` writes them |
 | `DOCKER_HOST`, `DOCKER_TLS_VERIFY` | `tcp://127.0.0.1:2376`, `1` | the relay only. Outside the relay a session has no engine at all: the default Unix socket is blocked by the sandbox. |
 | `BUILDX_CONFIG` | `$TMPDIR/buildx` | the relay |
-| `$DOCKER_CONFIG/config.json` | `{}`: no credentials and no `proxies` entry | `deploy/agents-engine/engine.sh setup` |
+| `$DOCKER_CONFIG/config.json` | `{}`: no credentials and no `proxies` entry. Owned by the Author, mode 0444, like the certificates beside it. | `deploy/agents-engine/engine.sh setup`, which rewrites it when it is anything else |
 | `ENV` | `dev-cpu`, on every stack target | the agent. Any other stack is refused on this engine by preflight's engine check ([env-files.md §10](env-files.md#10-make-up-preflight), P11). |
 
 There is no `proxies` entry because the CLI would inject the proxy variables into every container, and Python's urllib in the breach probe and the Telegram stand-in honours them, which would send in-network calls to the proxy. Builds get the proxy as build arguments instead (`H4_BUILD_PROXY`, [env-files.md §2](env-files.md#2-stack-keys)).
