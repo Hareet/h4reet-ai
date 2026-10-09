@@ -271,3 +271,29 @@ def test_a_loose_base_directory_is_refused(
     assert ie.main(["--stack", "dev"]) == 5
     assert f"{base} is mode 0755; it must be 0700" in capsys.readouterr().err
     assert list(base.iterdir()) == []
+
+
+def test_sync_names_every_ask_key_still_unfilled(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # An __ASK__ left from the first run, and a key the template gained since, both reported.
+    env_dir = private_base(home) / "env"
+    env_dir.mkdir(mode=0o700)
+    path = env_dir / "dev.env"
+    kept = [
+        ln for ln in template("dev") if not ln.startswith("GF_SECURITY_ADMIN_PASSWORD")
+    ]
+    original = (
+        "\n".join(kept)
+        .replace("__GENERATE__", "keep-me")
+        .replace("__HOME__", "/h")
+        .replace("__REPO__", "/r")
+    )
+    assert "OPERATOR_TOKEN_SHA256=__ASK__" in original
+    path.write_text(original + "\n", encoding="utf-8")
+    path.chmod(0o600)
+    assert ie.main(["--stack", "dev", "--sync"]) == 0
+    out = capsys.readouterr().out
+    asked = [ln for ln in out.splitlines() if ln.startswith("fill these yourself")]
+    assert len(asked) == 1 and "OPERATOR_TOKEN_SHA256" in asked[0]
+    assert "keep-me" not in out

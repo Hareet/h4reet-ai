@@ -155,6 +155,19 @@ def existing_keys(path: Path) -> list[str]:
     return keys
 
 
+def existing_values(path: Path) -> dict[str, str]:
+    """Each key's value as the file holds it, outer single quotes removed. Only the report reads it, for names."""
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        if len(value) >= 2 and value[0] == value[-1] == "'":
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
 def report(
     stack: str, path: Path, generated: list[str], values: dict[str, str]
 ) -> None:
@@ -245,7 +258,8 @@ def init(stack: str, sync: bool, home: Path) -> int:
         print(
             f"the template no longer has: {', '.join(extra)}; remove these by hand, because preflight refuses them"
         )
-    report(stack, path, generated, values)
+    # Every __ASK__ the file still holds, not only the appended ones (contracts/env-files.md §9.1, step 5).
+    report(stack, path, generated, {**existing_values(path), **values})
     return 0
 
 

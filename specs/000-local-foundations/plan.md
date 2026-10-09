@@ -181,7 +181,7 @@ package.json, package-lock.json  [A] new: npm workspaces ["services/*"]; engines
 tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] new
 .dockerignore                    [A] new: excludes .git, deploy/env, *.env, node_modules, __pycache__, corpus/intake/private
 .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
-                                     allowlists deploy/env.agents/dev-cpu.vars only
+                                     allowlists deploy/env.agents/dev-cpu.vars, and ADR 0004 at 8c15b95
 GNUmakefile, makefile            never exist: denied at the OS level from the early patch on, so nothing shadows the Makefile
 .devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
                                      hashed requirements-tools.txt
@@ -874,7 +874,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
 
 Its summary line goes into the merge commit message. Project code never runs outside a container in the Author's terminal. That closes the whole class of holes session 1 found one at a time: caches, `.venv`, `uv.toml`, ignored `conftest.py`, and `node_modules/.bin`. So the Author never runs `make check`, `make test`, or `make lint` in their own terminal: those run the working tree's `node_modules`, which agents installed and git doesn't show. Agents run them in the sandbox; the Author runs the gate. The targets enforce it: `lint`, `test`, `test-fast`, `fmt`, `fmt-file`, `lint-file`, and `build` run only where `SANDBOX_RUNTIME=1` (the agent sandbox) or `H4_DEVCONTAINER=1` (the devcontainer, and the gate's container phase) is set, and elsewhere say why and exit 2.
 
-**gitleaks** (`.gitleaks.toml`, human-only, in the early patch: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and Langfuse `sk-lf-` keys, with an allowlist of `deploy/env.agents/dev-cpu.vars` only) runs in four places:
+**gitleaks** (`.gitleaks.toml`, human-only, in the early patch: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and Langfuse `sk-lf-` keys, with an allowlist of `deploy/env.agents/dev-cpu.vars`; and, a departure, one more for the false positive already in `main`'s history, ADR 0004's list of Langfuse's stores, scoped to commit 8c15b95, that file, and the generic rule) runs in four places:
 - the plain `pre-commit` git hook, `.claude/git-hooks/pre-commit`, installed by `make git-hooks` (in the early patch);
 - the PreToolUse content check on Write and Edit (FR-008's secret-pattern content, in the early patch);
 - `make secrets`;
@@ -1084,6 +1084,7 @@ The closing patch holds:
 | Telegram alerts | `api.telegram.org` | the alert text (facts only), the bot token, the chat ID | prod; dev's `--delivery real` | `config/alerts.yaml`; FR-032's content rule |
 | Email alerts | the alerts mailbox's SMTP host | the alert text (facts only), the mailbox's credentials | same | the same |
 | Image pulls | ghcr.io (blobs from `pkg-containers.githubusercontent.com`), quay.io, `public.ecr.aws`, Docker Hub (`registry-1.docker.io`, `auth.docker.io`, its CDN) | image names; the IP address; Docker's user agent | `make pull`, a cold `make up`, `make pin-images` (digests, and a repository's tag list when a pin is open, with an anonymous token), `deploy/agents-engine/engine.sh seed` | digest pins |
+| Image builds | `registry.npmjs.org` | the names and versions in `package-lock.json`; the IP address; npm's user agent | `make up` on a host stack (its `up --build`); `make build` and `make image` on the agents' engine, through the proxy | the lockfile and `--ignore-scripts`; npm's audit, funding, and update checks off; the build cache (disclosure row P2) |
 | Model downloads | `huggingface.co` and its download hosts | the repo, file, and revision; the IP address; curl's user agent; no token | `make pull`, a cold `make up` | revision and sha256 |
 | Third-party phone-homes | Langfuse, Grafana, Loki, ClickHouse, SeaweedFS endpoints | usage data, versions | never | switched off ([§6](#6-observability)), and the internal network |
 | Development time: Claude Code | Anthropic | repository content an agent reads, prompts, completions | agent sessions, on the Team plan (FR-037) | the sandbox, the deny lists |
