@@ -148,7 +148,7 @@ Langfuse's own `docker-compose.yml` at 4.54.0 is the authority for its variable 
 |---|---|---|
 | `LANGFUSE_IN_APP_AGENT_ENABLED` | `false`, with its sandbox and AWS keys unset | the in-app agent calls models |
 | every `LANGFUSE_AI_*` | unset | AI features call models |
-| `LANGFUSE_LLM_CONNECTION_WHITELISTED_*` (the names in Langfuse's compose) | set to the empty string. For now unset, which is the same empty list: the names are in Langfuse 4.54.0's compose file, which the agent sandbox can't read, and the first stack task (tasks.md T065) adds them, after confirming that unset means empty, not unrestricted (a departure recorded in plan §6) | no LLM connection to any host |
+| `LANGFUSE_LLM_CONNECTION_WHITELISTED_*` (the names in Langfuse's compose) | set to the empty string. For now unset, which should be the same empty list: the names are in Langfuse 4.54.0's compose file, which the agent sandbox can't read, so the first stack task (tasks.md T065) reads them and confirms that unset means empty, not unrestricted, and T149 then sets them empty in compose.yaml (a departure recorded in plan §6) | no LLM connection to any host |
 | `SMTP_CONNECTION_URL`, `EMAIL_FROM_ADDRESS` | unset | Langfuse's own email |
 | `LANGFUSE_S3_BATCH_EXPORT_ENABLED` | `false` | batch exports |
 | `LANGFUSE_USE_AZURE_BLOB`, `LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE` | unset | other blob backends |
