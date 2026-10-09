@@ -396,8 +396,25 @@ pin-images: ## (the Author) Resolve deploy/images.lock's tags to digests, and re
 	@set -f; set --; for tag in $${TAG:-}; do set -- "$$@" --tag "$$tag"; done; \
 	$(PY_HOST) deploy/scripts/pin_images.py $${ONLY:+--only "$$ONLY"} $${DRY_RUN:+--dry-run} "$$@"
 
-breach-test: ## The kill-switch rehearsal on dev or dev-cpu, which arrives with feat/000-us2-kill-switch
-	@echo "make breach-test arrives with feat/000-us2-kill-switch (tasks.md T080)" >&2; exit 2
+# The breach test (plan §8; contracts/env-files.md §7.2; FR-036's only entry point): evals/breach.py, by path through
+# PY_HOST, trips the kill switch on purpose and prints a table of every assertion. dev and dev-cpu only. dev is the
+# Author's, on the host's engine, from the export of the commit its make up started, so the probe it builds is that
+# commit's too; DELIVERY=real, dev only, is SC-002's recorded run with the real channels. dev-cpu is an agent
+# session's: inside the sandbox make runs itself again through the relay, so the run is on the agents' engine only,
+# and the script refuses any other engine (FR-039). DELIVERY comes from the command line only, read by the shell.
+breach-test: ## The kill-switch rehearsal on dev or dev-cpu (plan §8); DELIVERY=real is dev's recorded run, the Author's
+	@case "$(ENV)" in dev|dev-cpu) ;; *) echo "make breach-test runs on dev or dev-cpu, never $(ENV) (FR-036)" >&2; exit 2 ;; esac
+	@[ -z "$(call from_cli,DELIVERY)" ] || [ "$(ENV)" = dev ] || { echo "make breach-test DELIVERY=real is dev's recorded run, in the Author's terminal (contracts/env-files.md §7.2)" >&2; exit 2; }
+ifeq ($(VIA_RELAY),1)
+	@[ "$(ENV)" = dev-cpu ] || { echo "make breach-test ENV=$(ENV): agent sessions run dev-cpu only, on their own engine (FR-039); the Author runs dev" >&2; exit 2; }
+	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make breach-test: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
+	$(RELAY) make --no-print-directory breach-test ENV=dev-cpu
+else
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make breach-test ENV=$(ENV): agent sessions run dev-cpu only, on their own engine (FR-039); the Author runs dev" >&2; exit 2; }
+	@[ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "make breach-test ENV=$(ENV): h4reet-$(ENV) wasn't started by make up (no $(RUNFILE))" >&2; exit 2; }
+	@[ -f "$(TREE)/evals/breach.py" ] || { echo "make breach-test ENV=$(ENV): the commit being run has no evals/breach.py" >&2; exit 2; }
+	$(PY_HOST) $(TREE)/evals/breach.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE))$(if $(call from_cli,DELIVERY), --delivery="$$DELIVERY")
+endif
 
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan

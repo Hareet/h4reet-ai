@@ -103,7 +103,9 @@ PAYLOAD_KEYS = frozenset(
 SAFE_VALUE = re.compile(r"[A-Za-z0-9:._-]{1,128}")
 EVENT_RE = re.compile(r"[a-z][a-z0-9_.]{0,63}")
 LABEL_RE = re.compile(r"[a-z_][a-z0-9_]{0,63}")
-REF_RE = re.compile(r"\{\{([A-Za-z0-9_-]+)\.([A-Za-z0-9_.-]+)\}\}")
+REF_RE = re.compile(
+    r"\{\{([A-Za-z0-9_][A-Za-z0-9_.-]{0,200})\}\}"
+)  # {{<id>.<path>}}; split_ref() splits them
 ACTOR_RE = r"operator:{stack}#[0-9a-f]{{8}}"
 
 
@@ -359,13 +361,16 @@ def loki_records(body: object) -> list[LogRecord]:
 
 
 def logql(stack: str, event: str, **filters: object) -> str:
-    """The gateway's records of one event on one stack, with exact field filters (contracts/telemetry.md §5.1)."""
+    """The gateway's records of one event on one stack, with exact field filters (contracts/telemetry.md §5.1). A
+    filter's value is a plain identifier or number, or exactly one {{<id>.<path>}} reference, which resolve() checks
+    is one when the probe runs the query."""
     if not EVENT_RE.fullmatch(event) or stack not in STACKS + ("prod",):
         raise Usage(f"not an event name: {event!r}")
     query = f'{{service_name="gateway", deployment_environment_name="{stack}"}} | event="{event}"'
     for key, value in filters.items():
         text = str(value)
-        if not LABEL_RE.fullmatch(key) or not SAFE_VALUE.fullmatch(text):
+        plain = SAFE_VALUE.fullmatch(text) or REF_RE.fullmatch(text)
+        if not LABEL_RE.fullmatch(key) or not plain:
             raise Usage(f"not a field filter: {key}")
         query += f' | {key}="{text}"'
     return query
@@ -595,6 +600,17 @@ def dig(node: Any, path: str) -> Any:
     return node
 
 
+def split_ref(name: str, results: Mapping[str, Any]) -> tuple[str, str] | None:
+    """A reference's operation and path: the longest leading part that names an operation, since an id may hold dots
+    (s6.renew), and the rest, which can't be empty."""
+    parts = name.split(".")
+    for end in range(len(parts) - 1, 0, -1):
+        head = ".".join(parts[:end])
+        if head in results:
+            return head, ".".join(parts[end:])
+    return None
+
+
 def resolve(value: Any, results: Mapping[str, Any]) -> Any:
     """{{<id>.<path>}} in a string, as the earlier result's value: the value itself when it is the whole string."""
     if isinstance(value, dict):
@@ -605,7 +621,8 @@ def resolve(value: Any, results: Mapping[str, Any]) -> Any:
         return value
 
     def lookup(match: re.Match[str]) -> Any:
-        found = dig(results.get(match.group(1), MISSING), match.group(2))
+        split = split_ref(match.group(1), results)
+        found = MISSING if split is None else dig(results[split[0]], split[1])
         if found is MISSING or isinstance(found, (dict, list)) or found is None:
             raise Usage(f"{match.group(0)} names nothing an earlier operation answered")
         if isinstance(found, bool) or not SAFE_VALUE.fullmatch(str(found)):

@@ -545,6 +545,17 @@ def test_logql_quotes_its_values() -> None:
     )
     with pytest.raises(probe.Usage):
         probe.logql("dev", 'alert.delivered" or 1', dedupe_key=KEY)
+    with pytest.raises(probe.Usage):
+        probe.logql("dev", "alert.delivered", dedupe_key='k" or "1')
+    # A value may be an earlier operation's result, which the probe resolves, and checks, when the query runs.
+    query = probe.logql("dev", "operator.renew", audit_id="{{renew.body.audit_id}}")
+    assert probe.resolve(query, {"renew": {"body": {"audit_id": 42}}}).endswith(
+        '| audit_id="42"'
+    )
+    with pytest.raises(probe.Usage):
+        probe.resolve(query, {"renew": {"body": {"audit_id": '42" or "1'}}})
+    with pytest.raises(probe.Usage):
+        probe.logql("dev", "operator.renew", audit_id="{{renew}} x")
 
 
 # --- T: Langfuse --------------------------------------------------------------------------------------------------

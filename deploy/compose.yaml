@@ -739,14 +739,16 @@ services:
           cpus: "0.1"
           memory: 64M
 
-  # The breach probe (plan §2 and §8; tasks.md T144): a one-off container on the internal network, from which a
+  # The breach probe (plan §2 and §8; tasks.md T144, T080): a one-off container on the internal network, from which a
   # client that can't reach the stack's published ports, such as an agent session on the agents' engine, calls the
-  # gateway in-network. The dev-cpu hops of the operator CLI and of hello's client run in it
-  # (contracts/operator-admin.md §6, gateway-http.md §9), and so will the breach test's assertions (T080). Only the
+  # stack in-network. The dev-cpu hops of the operator CLI and of hello's client run in it
+  # (contracts/operator-admin.md §6, gateway-http.md §9), and so do the breach test's calls and assertions
+  # (evals/breach_probe.py): the gateway, Prometheus, Loki, Langfuse's public API, and the two stand-ins. Only the
   # breach profile names it, which no env file selects, so make up never starts it: `docker compose --profile breach
-  # run --rm breach-probe <command>` starts one per call, without the restart policy, and removes it. It publishes
-  # nothing, mounts nothing, and takes nothing from the env file; the dev-cpu dummy token reaches the operator CLI in
-  # it on standard input. Built from this file's own tree, as the gateway is.
+  # run --build --rm -T breach-probe <command>` starts one per call, without the restart policy, and removes it. It
+  # publishes nothing and mounts nothing. From the env file it takes only Langfuse's two API keys, for the breach
+  # test's trace assertions (contracts/env-files.md §5); the operator token reaches it on standard input. Built from
+  # this file's own tree, as the gateway is.
   breach-probe:
     <<: *service
     profiles: [breach]
@@ -758,6 +760,9 @@ services:
         HTTP_PROXY: "${H4_BUILD_PROXY}"
         HTTPS_PROXY: "${H4_BUILD_PROXY}"
     networks: [internal]
+    environment:
+      LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY}"
+      LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY}"
     read_only: true
     tmpfs: [/tmp]
     deploy:

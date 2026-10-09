@@ -233,8 +233,8 @@ def test_the_gateway_builds_from_this_files_own_tree() -> None:
     }
 
 
-# The breach probe (plan §2 and §8; tasks.md T144): a one-off client on the stack's internal network, where the
-# operator CLI's dev-cpu hop runs (contracts/operator-admin.md §6), and later the breach test's assertions (T080).
+# The breach probe (plan §2 and §8; tasks.md T144, T080): a one-off client on the stack's internal network, where the
+# operator CLI's dev-cpu hop runs (contracts/operator-admin.md §6), and the breach test's every call and assertion.
 
 
 def test_the_breach_probe_builds_from_this_files_own_tree() -> None:
@@ -255,14 +255,18 @@ def test_the_breach_probe_is_a_one_off_on_internal_alone() -> None:
     assert probe["networks"] == ["internal"]
     assert probe["read_only"] is True
     assert probe["tmpfs"] == ["/tmp"]
-    # It publishes nothing, mounts nothing, and takes nothing from the env file: the dev-cpu dummy token reaches the
-    # CLI in it on standard input (operator-admin.md §6). Each caller names its command, and nothing waits on a
+    # It publishes nothing and mounts nothing. From the env file it takes only Langfuse's two API keys, which the
+    # breach test's trace assertions read Langfuse's public API with (contracts/env-files.md §5); the operator token
+    # reaches it on standard input (operator-admin.md §6). Each caller names its command, and nothing waits on a
     # one-off's health.
+    assert probe["environment"] == {
+        "LANGFUSE_PUBLIC_KEY": "${LANGFUSE_PUBLIC_KEY}",
+        "LANGFUSE_SECRET_KEY": "${LANGFUSE_SECRET_KEY}",
+    }
     for absent in (
         "ports",
         "expose",
         "volumes",
-        "environment",
         "healthcheck",
         "depends_on",
         "command",
@@ -357,8 +361,10 @@ def test_the_probe_image() -> None:
     assert [args for word, args in steps if word == "FROM"] == [lock()["base:python"]]
     text = path.read_text(encoding="utf-8")
     assert not re.search(r"^\s*#\s*syntax\s*=", text, re.IGNORECASE | re.MULTILINE)
-    # The CLI at the path the dev-cpu hop runs: python3 -I /app/operator.py (operator-admin.md §6).
+    # The CLI at the path the dev-cpu hop runs: python3 -I /app/operator.py (operator-admin.md §6); and the breach
+    # test's probe beside it, which loads that copy of the CLI from its own folder (plan §8).
     assert ("COPY", "scripts/operator.py /app/operator.py") in steps
+    assert ("COPY", "evals/breach_probe.py /app/breach_probe.py") in steps
     # Nothing runs at build time but creating the user: no package manager, no ADD (which can fetch a URL), and no
     # other RUN. No ENTRYPOINT either, so the command each caller names is the one that runs.
     runs = [args for word, args in steps if word == "RUN"]
@@ -899,8 +905,8 @@ def test_each_secret_reaches_only_the_services_that_use_it() -> None:
     expected = {
         "GATEWAY_DB_PASSWORD": {"gateway", "gateway-state"},
         "GATEWAY_GRAFANA_RO_PASSWORD": {"gateway", "grafana"},
-        "LANGFUSE_PUBLIC_KEY": {"otel-collector", "langfuse-web"},
-        "LANGFUSE_SECRET_KEY": {"otel-collector", "langfuse-web"},
+        "LANGFUSE_PUBLIC_KEY": {"otel-collector", "langfuse-web", "breach-probe"},
+        "LANGFUSE_SECRET_KEY": {"otel-collector", "langfuse-web", "breach-probe"},
         "LANGFUSE_SALT": {"langfuse-web", "langfuse-worker"},
         "LANGFUSE_ENCRYPTION_KEY": {"langfuse-web", "langfuse-worker"},
         "LANGFUSE_NEXTAUTH_SECRET": {"langfuse-web"},
