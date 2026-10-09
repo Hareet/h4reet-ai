@@ -895,8 +895,10 @@ CLIENT_VARS = (
 )
 
 
-def _client(tmp_path: Path, **env: str) -> dict[str, str]:
-    """engine_docker with a stand-in docker on PATH that names only the client's variables."""
+def _client(
+    tmp_path: Path, *, script: str = "engine_docker version", **env: str
+) -> dict[str, str]:
+    """A client function with a stand-in docker on PATH that names only the client's variables."""
     bindir = tmp_path / "bin"
     bindir.mkdir()
     fake = bindir / "docker"
@@ -908,7 +910,7 @@ def _client(tmp_path: Path, **env: str) -> dict[str, str]:
     )
     fake.chmod(0o755)
     done = engine(
-        "engine_docker version",
+        script,
         tmp_path,
         PATH=f"{bindir}:/usr/local/bin:/usr/bin:/bin",
         **env,
@@ -936,6 +938,23 @@ def test_the_authors_client_is_the_engine_whatever_the_shell_names(
         seen["DOCKER_CERT_PATH"] == f"{tmp_path}/.config/h4reet-ai/agents-engine/docker"
     )
     for name in CLIENT_VARS[3:]:
+        assert seen[name] == "<unset>", name
+    assert seen["args"] == "version"
+
+
+def test_the_hosts_client_is_the_hosts_daemon_whatever_the_shell_names(
+    tmp_path: Path,
+) -> None:
+    seen = _client(
+        tmp_path,
+        script="host_docker version",
+        DOCKER_HOST="tcp://198.18.0.1:2376",
+        DOCKER_CONTEXT="engine",
+        DOCKER_TLS_VERIFY="1",
+        DOCKER_CERT_PATH=str(tmp_path / "elsewhere"),
+    )
+    assert seen["DOCKER_HOST"] == "unix:///var/run/docker.sock"
+    for name in ("DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_CONTEXT"):
         assert seen[name] == "<unset>", name
     assert seen["args"] == "version"
 

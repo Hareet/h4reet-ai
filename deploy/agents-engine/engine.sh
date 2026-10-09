@@ -62,6 +62,16 @@ engine_docker() {
 	fi
 }
 
+# The host's own rootful daemon, for seed's checks, pulls, and saves, whatever the shell's DOCKER_HOST or
+# DOCKER_CONTEXT names, as prove-limits.sh's host_docker is (T145's review, round 2).
+host_docker() {
+	(
+		unset DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+		export DOCKER_HOST=unix:///var/run/docker.sock
+		docker "$@"
+	)
+}
+
 # Run a systemctl --user command as h4agents (its services run under lingering).
 as_h4agents_systemctl() {
 	local uid
@@ -376,7 +386,7 @@ seed_unpinned() {
 # index digest, which the engine resolves its image@sha256 pins by, offline.
 host_uses_containerd_store() {
 	local status
-	status="$(docker info --format '{{json .DriverStatus}}' 2>/dev/null)" || return 1
+	status="$(host_docker info --format '{{json .DriverStatus}}' 2>/dev/null)" || return 1
 	case "$status" in *io.containerd.snapshotter.v1*) return 0 ;; esac
 	return 1
 }
@@ -384,7 +394,7 @@ host_uses_containerd_store() {
 # The host-side size of an image the host holds, in bytes; refuses rather than guess.
 host_image_size() {
 	local size
-	size="$(docker image inspect --format '{{.Size}}' "$1" 2>/dev/null)" || size=""
+	size="$(host_docker image inspect --format '{{.Size}}' "$1" 2>/dev/null)" || size=""
 	[[ $size =~ ^[0-9]+$ ]] || die "cannot read the host-side size of $1 (fail closed)"
 	printf '%s\n' "$size"
 }
@@ -408,7 +418,7 @@ cmd_seed() {
 	for ref in "${refs[@]}"; do
 		engine_docker image inspect "$ref" >/dev/null 2>&1 && continue
 		todo+=("$ref")
-		if docker image inspect "$ref" >/dev/null 2>&1; then
+		if host_docker image inspect "$ref" >/dev/null 2>&1; then
 			size="$(host_image_size "$ref")" || exit 1
 			known=$((known + size))
 		else
@@ -424,7 +434,7 @@ cmd_seed() {
 	if [ "${#pull[@]}" -gt 0 ]; then
 		for ref in "${pull[@]}"; do
 			echo "== pulling $ref on the host"
-			docker pull "$ref" >/dev/null || die "could not pull $ref on the host"
+			host_docker pull "$ref" >/dev/null || die "could not pull $ref on the host"
 		done
 		# Again before any load, with the pulled images' real sizes, against the space the pulls left.
 		known=0
@@ -443,7 +453,7 @@ cmd_seed() {
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "present"
 			continue
 		fi
-		if docker save --platform linux/amd64 "$ref" | engine_docker load >/dev/null 2>&1 &&
+		if host_docker save --platform linux/amd64 "$ref" | engine_docker load >/dev/null 2>&1 &&
 			engine_docker image inspect "$ref" >/dev/null 2>&1; then
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "seeded"
 		else

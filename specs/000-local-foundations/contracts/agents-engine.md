@@ -309,7 +309,7 @@ The Author runs `deploy/agents-engine/engine.sh <subcommand>` directly, never th
 
 `engine.sh status` is read-only, so both the Author and agents may run it.
 
-In the Author's terminal, every subcommand's client is `tcp://198.18.0.1:2376` with TLS verified and the Author's certificate, whatever the shell's `DOCKER_HOST`, `DOCKER_CONTEXT`, or proxy variables name, so an ambient `DOCKER_HOST` can't send a step meant for the engine to the host's rootful daemon. Inside a session, `status` and `smoke` use the relay's values as they stand ([§2.3](#23-what-a-sessions-client-uses)).
+In the Author's terminal, engine.sh's client for the engine is always `tcp://198.18.0.1:2376` with TLS verified and the Author's certificate, and its client for the host's own daemon (seed's checks, pulls, and saves) is always `unix:///var/run/docker.sock`, whatever the shell's `DOCKER_HOST`, `DOCKER_CONTEXT`, or proxy variables name. So an ambient `DOCKER_HOST` can't send a step meant for the engine to the host's rootful daemon, or the other way round. Inside a session, `status` and `smoke` use the relay's values as they stand ([§2.3](#23-what-a-sessions-client-uses)).
 
 ## 9. Degraded modes and residual risk
 
