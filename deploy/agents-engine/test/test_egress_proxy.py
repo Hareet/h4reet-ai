@@ -654,6 +654,40 @@ def test_tunnel_pumps_both_ways() -> None:
             pass
 
 
+def test_tunnel_carries_everything_to_a_slow_reader() -> None:
+    # A client that reads slower than the upstream sends, as a container behind slirp4netns can, gets
+    # every byte: the pump waits for room to send instead of giving up on the tunnel.
+    client, client_peer = _loopback_pair()
+    upstream, upstream_peer = _loopback_pair()
+    # A small send buffer on the proxy's side fills while the reader waits; the reader's own stays its
+    # default size, which keeps the transfer quick once it reads.
+    client.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 16384)
+    total = 4 * 1024 * 1024
+    result: dict[str, tuple[int, int]] = {}
+
+    def pump() -> None:
+        result["counts"] = ep.tunnel(client, upstream, idle=5.0)
+        client.shutdown(
+            socket.SHUT_WR
+        )  # the reader sees the end as soon as the pump stops
+
+    def send() -> None:
+        upstream_peer.sendall(b"x" * total)
+        upstream_peer.close()
+
+    threads = [threading.Thread(target=f, daemon=True) for f in (pump, send)]
+    for thread in threads:
+        thread.start()
+    time.sleep(0.3)  # slow to start reading, so the client's buffers fill first
+    got = len(_read_all(client_peer, timeout=10.0))
+    for thread in threads:
+        thread.join(timeout=3)
+    assert got == total
+    assert result["counts"] == (0, total)
+    for sock in (client, client_peer, upstream):
+        sock.close()
+
+
 # --------------------------------------------------------------------------------------------------
 # One connection through `handle`, with the upstream injected: still no egress (§4)
 # --------------------------------------------------------------------------------------------------

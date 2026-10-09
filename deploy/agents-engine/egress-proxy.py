@@ -406,11 +406,17 @@ class EgressLog:
 def tunnel(
     client: socket.socket, upstream: socket.socket, idle: float = IDLE_TIMEOUT
 ) -> tuple[int, int]:
-    """Pump bytes both ways until either side closes or the idle timeout passes."""
+    """Pump bytes both ways until either side closes or the idle timeout passes.
+
+    The sockets stay blocking, with the idle timeout: select says which has bytes, and a send waits for
+    room rather than fail when the reader is slower than the sender. Non-blocking, a full send buffer
+    raised BlockingIOError mid-send and ended the tunnel, so a slow client lost the rest of a download.
+    A side that takes no bytes for the idle timeout ends it.
+    """
     up = down = 0
     sockets = [client, upstream]
-    client.setblocking(False)
-    upstream.setblocking(False)
+    client.settimeout(idle)
+    upstream.settimeout(idle)
     while True:
         readable, _, errored = select.select(sockets, [], sockets, idle)
         if errored or not readable:
