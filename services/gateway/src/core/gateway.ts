@@ -570,7 +570,9 @@ export class Gateway {
   async report(): Promise<HealthReport> {
     const read = await this.readState();
     const ok = read.kind === "ok" ? read : undefined;
-    const gatewayNow = this.opts.clock.now();
+    // One reading of the real clock, so `time` and `real_time` differ by exactly the test clock's offset.
+    const realNow = this.realNow();
+    const gatewayNow = gatewayTime(realNow, this.opts.clock.offsetMs());
     const cause = this.dryRun(read);
     return {
       status: cause === null ? "ok" : "degraded",
@@ -578,7 +580,7 @@ export class Gateway {
       env: this.opts.envClass,
       version: this.opts.version,
       time: new Date(gatewayNow).toISOString(),
-      real_time: new Date(this.realNow()).toISOString(),
+      real_time: new Date(realNow).toISOString(),
       store: read.kind,
       state: ok?.state ?? null,
       since: ok === undefined ? null : rfc3339Seconds(ok.since.getTime()),

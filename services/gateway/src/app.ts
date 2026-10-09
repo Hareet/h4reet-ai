@@ -31,6 +31,7 @@ import { validateGatewayEnv } from "./config/validate-env.js";
 import { GatewayClock } from "./core/clock.js";
 import { Gateway } from "./core/gateway.js";
 import { ClientCap } from "./core/limits.js";
+import { Journal } from "./meter/journal.js";
 import {
   FatalStoreError,
   Store,
@@ -40,6 +41,7 @@ import {
   type Database,
   type Migration,
 } from "./meter/store.js";
+import { registerAdmin } from "./routes/admin.js";
 import { registerHealth, registerHealthLive } from "./routes/health.js";
 import { registerHello } from "./routes/hello.js";
 import { GatewayMetrics } from "./telemetry/metrics.js";
@@ -137,10 +139,14 @@ export interface GatewayServices {
   metrics: GatewayMetrics;
   clock: GatewayClock;
   store: Store;
+  journal: Journal;
   gateway: Gateway;
   clientCap: ClientCap;
   realNow: () => number;
 }
+
+/** GATEWAY_STATE_DIR, which compose sets (env-files.md §4): the journal and the incident drafts live under it. */
+export const DEFAULT_STATE_DIR = "/var/lib/h4-gateway";
 
 export interface ServiceOptions {
   env: Readonly<Record<string, string | undefined>>;
@@ -186,6 +192,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
   }
   const clock = new GatewayClock(realNow);
   const metrics = opts.metrics ?? new GatewayMetrics(otelMetrics.getMeter("h4-gateway"));
+  const journal = new Journal({ stateDir: env.GATEWAY_STATE_DIR || DEFAULT_STATE_DIR, stack });
   const gateway = new Gateway({
     stack,
     envClass,
@@ -201,6 +208,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     logger,
     payloadSampling: env.TELEMETRY_PAYLOAD_SAMPLING === "on",
     testMachinery: { clock: env.GATEWAY_TEST_CLOCK === "1", synthetic: env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
+    journalStatus: () => journal.status(),
     realNow,
   });
   return {
@@ -216,6 +224,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     metrics,
     clock,
     store: opts.store,
+    journal,
     gateway,
     clientCap: new ClientCap(budgets.limits.perClient),
     realNow,
@@ -251,12 +260,30 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
   api.setNotFoundHandler(async (req, reply) => reply.code(404).send({ error: "not_found", request_id: req.id }));
 
   const admin = listener(ADMIN_BODY_LIMIT, deps.logger, deps.stack);
-  // Until the operator's bearer authentication exists (tasks.md T055), no request here is authenticated. onRequest
-  // runs before the body is read, so nothing is parsed, validated, or looked up for an unauthenticated caller, and
-  // the body is the same for every request: no oracle.
-  admin.addHook("onRequest", async (_req, reply) =>
-    reply.code(401).header("www-authenticate", 'Bearer realm="h4reet-admin"').send({ error: "unauthorized" }),
-  );
+  if (s !== undefined) {
+    registerAdmin(admin, {
+      stack: s.stack,
+      envClass: s.envClass,
+      operatorTokenSha256: s.env.OPERATOR_TOKEN_SHA256 ?? "",
+      gateway: s.gateway,
+      store: s.store,
+      journal: s.journal,
+      clock: s.clock,
+      budgets: s.budgets,
+      alerts: s.alerts,
+      fallbackId: s.routing.envs[s.envClass].fallback ?? null,
+      metrics: s.metrics,
+      logger: s.logger,
+      realNow: s.realNow,
+    });
+  } else {
+    // Bare listeners have no operator credential, so no request is authenticated. onRequest runs before the body is
+    // read, so nothing is parsed or looked up, and the body is the same for every request: no oracle.
+    admin.addHook("onRequest", async (_req, reply) =>
+      reply.code(401).header("www-authenticate", 'Bearer realm="h4reet-admin"').send({ error: "unauthorized" }),
+    );
+  }
+  admin.setNotFoundHandler(async (req, reply) => reply.code(404).send({ error: "not_found", request_id: req.id }));
   return { api, admin };
 }
 

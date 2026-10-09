@@ -350,6 +350,11 @@ export interface MeterRow {
   grantNo: number | null; // fallback_day only
 }
 
+/** Thrown inside Store.transaction to roll it back and resolve with `value`: a refusal, not a failure. */
+export class Rollback<T> {
+  constructor(readonly value: T) {}
+}
+
 /** A query the store couldn't take: it isn't ready (starting, or retrying after an outage). */
 export class StoreUnavailableError extends Error {
   readonly code = "STORE_NOT_READY";
@@ -488,6 +493,31 @@ export class Store {
     if (this.status !== "ready") throw new StoreUnavailableError();
     try {
       return await this.opts.db.query<R>(text, params);
+    } catch (err) {
+      this.noteOutage(err);
+      throw err;
+    }
+  }
+
+  /**
+   * One transaction on one connection: BEGIN, `fn`, then COMMIT, or ROLLBACK on any error. `fn` throws a Rollback to
+   * roll back and resolve with its value: a refusal, such as a 409, and no outage. Any other failure is noted as one.
+   */
+  async transaction<T>(fn: (q: Queryable) => Promise<T>): Promise<T> {
+    if (this.status !== "ready") throw new StoreUnavailableError();
+    try {
+      return await this.opts.db.withSession(async (session) => {
+        await session.query("BEGIN");
+        try {
+          const value = await fn(session);
+          await session.query("COMMIT");
+          return value;
+        } catch (err) {
+          await session.query("ROLLBACK").catch(() => {});
+          if (err instanceof Rollback) return err.value as T;
+          throw err;
+        }
+      });
     } catch (err) {
       this.noteOutage(err);
       throw err;

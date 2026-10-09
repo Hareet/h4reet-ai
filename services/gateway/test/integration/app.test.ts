@@ -184,7 +184,8 @@ describe("the api listener", () => {
 });
 
 describe("the admin listener", () => {
-  it("answers 401 to every request until the operator's authentication exists (tasks.md T055)", async () => {
+  // The listener with its routes and the operator's authentication: test/integration/admin.test.ts.
+  it("answers 401 to every request when it is bare, with no operator credential to check against", async () => {
     const { admin } = buildApp({ stack: "dev", logger: capture().logger });
     for (const [method, url] of [
       ["GET", "/admin/status"],
@@ -277,7 +278,15 @@ describe("startup", () => {
     expect(admin.status).toBe(401);
     db.state.down = false;
     await vi.waitFor(() => expect(result.store.status).toBe("ready"), { timeout: 10_000, interval: 20 });
-    expect(events()).toEqual(["state.unknown", "gateway.started", "migrations.applied", "state.recovered"]);
+    // The unauthenticated status read is a failed operator authentication: counted and logged, not audited, while the
+    // store is down (operator-admin.md §1.1).
+    expect(events()).toEqual([
+      "state.unknown",
+      "gateway.started",
+      "operator.auth_failed",
+      "migrations.applied",
+      "state.recovered",
+    ]);
   });
 
   it("logs gateway.started with the routing SHA, the price version, the adapters, and H4_ENV", async () => {

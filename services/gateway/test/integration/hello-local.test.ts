@@ -23,6 +23,7 @@ import { dayKey, monthKey } from "../../src/core/clock.js";
 import { readMigrations, Store } from "../../src/meter/store.js";
 import { isHealthProbe } from "../../src/telemetry/otel.js";
 import { testDatabase, type TestDatabase } from "../helpers/pglite.js";
+import { makeToken, sha256 } from "../helpers/stack.js";
 import { stubOpenAI, type StubOpenAI } from "../helpers/stub-openai.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -50,8 +51,11 @@ let db: TestDatabase;
 let store: Store;
 let services: GatewayServices;
 let api: FastifyInstance;
+let admin: FastifyInstance;
 let config: LoadedConfig;
 let stateDir: string;
+/** The stack's operator token, made at run time. */
+const token = makeToken("dev");
 
 /** The fixture configuration, with the local adapter probed every 250 ms, the schema's floor, so tests wait less. */
 async function fastConfig(): Promise<LoadedConfig> {
@@ -82,7 +86,7 @@ beforeAll(async () => {
     env: {
       H4_STACK: "dev",
       H4_ENV: "dev",
-      OPERATOR_TOKEN_SHA256: "ab".repeat(32),
+      OPERATOR_TOKEN_SHA256: sha256(token),
       ALERT_DELIVERY: "standin",
       GATEWAY_TEST_CLOCK: "1",
       GATEWAY_TEST_SYNTHETIC_SPEND: "1",
@@ -97,14 +101,15 @@ beforeAll(async () => {
     logger,
     version: "0.1.0",
   });
-  ({ api } = buildApp({ stack: "dev", logger, services }));
+  ({ api, admin } = buildApp({ stack: "dev", logger, services }));
   services.gateway.start();
-  await api.ready();
+  await Promise.all([api.ready(), admin.ready()]);
 });
 
 afterAll(async () => {
   await services?.gateway.close();
   await api?.close();
+  await admin?.close();
   await store?.close();
   await stub?.close();
   fastifyOtel?.disable();
@@ -120,13 +125,15 @@ beforeEach(() => {
   stub.reset();
 });
 
-/** The store's one-time initialization: a state row, as the operator's init writes it. */
+/** The store's one-time initialization, as `make operator-init` asks for it (operator-admin.md §2.3). */
 async function initialize(): Promise<void> {
-  await db.pg.query(
-    `INSERT INTO gateway.stack_state (stack, env, state, since, crossed, fallback_awaiting_renewal,
-       fallback_awaiting_since, initialized_at, initialized_by, test_clock_offset_ms, updated_at)
-     VALUES ('dev', 'dev', 'normal', now(), '{}', true, now(), now(), 'operator:dev#abababab', NULL, now())`,
-  );
+  const res = await admin.inject({
+    method: "POST",
+    url: "/admin/init",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    payload: JSON.stringify({ reason: "First start on this host; no earlier records.", confirm_zero: true }),
+  });
+  expect(res.statusCode).toBe(200);
 }
 
 async function healthy(): Promise<void> {
@@ -417,7 +424,7 @@ describe("after initialization", () => {
           checked_at: expect.stringMatching(SECONDS),
         },
       ],
-      journal: "unknown",
+      journal: "ok", // the init's operator record was the last append
       config: { routing_sha: config.routing?.sha256, price_version: "2026-10-08.1" },
       test_machinery: { clock: true, synthetic: true, clock_offset_ms: null },
     });

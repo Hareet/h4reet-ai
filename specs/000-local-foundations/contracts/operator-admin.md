@@ -163,7 +163,8 @@ Request:
     "fallback_day": { "spent_micro_usd": 300000, "allowance_micro_usd": 2000000, "grant": 1,
                       "sources": { "ledger": 0, "journal": 300000, "stated": 300000 } }
   },
-  "journal": { "files_read": ["journal/2026-10.jsonl", "journal/2026-09.jsonl"], "records": 214, "lines_skipped": 0 },
+  "journal": { "files_read": ["journal/2026-10.jsonl", "journal/2026-09.jsonl"], "records": 214, "lines_skipped": 0,
+               "append": "ok" },
   "confirm_zero": false,
   "renewed": false,
   "clock_offset_ms": null
@@ -171,13 +172,15 @@ Request:
 ```
 
 - **Each meter takes the largest source.** A stated value can raise a meter, never lower it.
+- **The journal's source** is what data-model.md §3 rebuilds: the paired call records, or the newest `init` record's floor when that is larger. The audit row's `detail` keeps the two apart (`journal_calls`, `journal_floor`), and the ledger's source includes any reservations left in the table, at their maximum.
 - **The allowance** is today's last renewal's value, or 2,000,000 when there was none. With `renew`, it is the rebuilt fallback spend plus 2,000,000, and the grant number goes up by 1.
 - **The dev clock.** In dev, `clock_offset_ms` is the offset restored from the journal's newest `clock` record.
+- **`journal.append`** is the result of appending the `operator` record after the commit, `ok` or `unwritable`: §1.3's `"journal": "unwritable"`, which this response's `journal` object carries since the key is already the read's summary (tasks.md T055). A failed append also writes a `journal_failed` audit row and doesn't undo the initialization.
 
 | Status | `error` | When |
 |---|---|---|
 | 409 | `already_initialized` | a `stack_state` row exists |
-| 409 | `confirm_zero_required` | no ledger rows this month, no journal records in the files read, nothing stated, and `confirm_zero` false. Nothing is zeroed silently. |
+| 409 | `confirm_zero_required` | no ledger rows this month, no `reserve` or `commit` record in the files read, nothing stated, and `confirm_zero` false. Nothing is zeroed silently. (This row first said "no journal records"; data-model.md §8 step 7, the procedure, counts only call records, and an `init` record's floor still applies when the operator confirms.) |
 | 409 | `journal_unreadable` | the journal directory exists but can't be read |
 | 400, 401, 503 | as in §1 | |
 
@@ -296,6 +299,8 @@ It returns everything `GET /health` reports ([gateway-http.md §5](gateway-http.
 
 - **`available_micro_usd`** is the smallest of three rooms: the allowance minus fallback spend and reservations, the day ceiling minus day spend and reservations, and the month ceiling minus month spend and reservations. It is never below 0, and it is 0 while degraded or awaiting renewal. The example's 1,480,000 is the day ceiling's room.
 - **A period with no row yet** shows 0 spend and the configured allowance.
+- **The keys** are the example's, with `GET /health`'s `status` and `version` first among them (`status`, `stack`, `env`, `version`, `time`, …), and `journal` as the object above in place of `/health`'s string.
+- **It reports, as `/health` does** (tasks.md T055): with the store unreachable or empty it answers 200, with `store` saying which, and `initialized_at`, `initialized_by`, `state`, `since`, `crossed`, and `meters` null; `periods` comes from the gateway clock. The CLI's summary line shows the store's state for that reason (§6). Only a read that fails after the state read answers 503 `store_unreachable` (§1).
 
 ### 4.2 `GET /admin/audit`
 
