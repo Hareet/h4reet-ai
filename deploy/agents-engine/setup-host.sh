@@ -142,11 +142,22 @@ EOF
 	chmod 0644 "$env_file"
 }
 
+# install -d makes missing parents as root, mode 0755, which the owner can't later write. So each missing
+# directory is made as its owner, mode 0700, parents first; one that exists is left as it is.
+owned_dirs() {
+	local owner="$1" d
+	shift
+	for d in "$@"; do
+		[ -d "$d" ] || install -d -o "$owner" -g "$owner" -m 0700 "$d"
+	done
+}
+
 # --- H14, H5: rootless docker for h4agents -------------------------------------------------------
 setup_rootless_docker() {
 	local uid runtime
 	uid="$(id -u "$user")"
 	runtime="/run/user/$uid"
+	owned_dirs "$user" "/var/lib/h4agents/home/.config" "/var/lib/h4agents/home/.config/systemd"
 	install -d -o "$user" -g "$user" -m 0700 \
 		"/var/lib/h4agents/home/.config/docker" \
 		"/var/lib/h4agents/home/.config/systemd/user" \
@@ -170,6 +181,7 @@ setup_rootless_docker() {
 # --- the Author's egress proxy as their own user service ----------------------------------------
 install_author_units() {
 	local author_unit="$author_home/.config/systemd/user"
+	owned_dirs "$author" "$author_home/.config" "$author_home/.config/systemd"
 	install -d -o "$author" -g "$author" -m 0700 "$author_unit"
 	install -o "$author" -g "$author" -m 0644 "$here/systemd/h4-egress-proxy.service" \
 		"$author_unit/h4-egress-proxy.service"
@@ -275,13 +287,9 @@ ensure_pki() {
 	issue_ca
 	issue_server
 	set_pki_modes
-	# install -d would create missing parents as root, mode 0755, where the Author couldn't later write. So
-	# create the missing ones as the Author first, never loosening one that exists. ~/.config/h4reet-ai holds the
-	# env files and the tokens too, so it is held to 0700 whether or not it existed (contracts/env-files.md §8).
-	local d
-	for d in "$author_home/.config" "$author_home/.config/h4reet" "$(dirname -- "$agent_cert_dir")"; do
-		[ -d "$d" ] || install -d -o "$author" -g "$author" -m 0700 "$d"
-	done
+	# The parents as the Author (owned_dirs). ~/.config/h4reet-ai holds the env files and the tokens too, so it
+	# is held to 0700 whether or not it existed (contracts/env-files.md §8).
+	owned_dirs "$author" "$author_home/.config" "$author_home/.config/h4reet" "$(dirname -- "$agent_cert_dir")"
 	install -d -o "$author" -g "$author" -m 0700 "$author_home/.config/h4reet-ai"
 	[ -d "$(dirname -- "$author_cert_dir")" ] ||
 		install -d -o "$author" -g "$author" -m 0700 "$(dirname -- "$author_cert_dir")"

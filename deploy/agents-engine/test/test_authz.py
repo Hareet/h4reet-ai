@@ -337,18 +337,40 @@ def test_a17_volume_bind_in_disguise_refused() -> None:
 
 
 # --------------------------------------------------------------------------------------------------
-# A18, A21, A22: fields that are allowed
+# A18, A22: fields that are allowed; A21: ports, on the host's loopback only
 # --------------------------------------------------------------------------------------------------
 def test_a18_volumes_from_allowed() -> None:
     assert create({"VolumesFrom": ["other-container:ro"]}).allow
 
 
-def test_a21_port_bindings_allowed() -> None:
-    host = {
-        "PortBindings": {"8080/tcp": [{"HostPort": "18300"}]},
-        "PublishAllPorts": True,
-    }
+@pytest.mark.parametrize("address", ["127.0.0.1", "::1"])
+def test_a21_ports_on_the_loopback_allowed(address: str) -> None:
+    host = {"PortBindings": {"8080/tcp": [{"HostIp": address, "HostPort": "18300"}]}}
     assert create(host).allow
+    assert create({"PortBindings": {"8080/tcp": None}}).allow  # exposed, not published
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"HostPort": "18300"},  # docker run -p 18300:8080: every interface
+        {"HostIp": "", "HostPort": "18300"},
+        {"HostIp": "0.0.0.0", "HostPort": "18300"},
+        {"HostIp": "::", "HostPort": "18300"},
+        {"HostIp": "172.17.0.1", "HostPort": "18300"},
+        {"HostIp": "127.0.0.2", "HostPort": "18300"},
+        "18300",
+    ],
+)
+def test_a21_ports_off_the_loopback_refused(entry: object) -> None:
+    decision = create({"PortBindings": {"8080/tcp": [entry]}})
+    assert not decision.allow and decision.rule == "A21"
+
+
+def test_a21_publish_all_refused() -> None:
+    decision = create({"PublishAllPorts": True})
+    assert not decision.allow and decision.rule == "A21"
+    assert create({"PortBindings": ["8080:8080"]}).rule == "A21"  # not an object
 
 
 def test_a22_extra_hosts_allowed() -> None:
@@ -616,9 +638,8 @@ def test_the_server_path_judges_each_request_and_audits_it(tmp_path: Path) -> No
     ]
     assert [r["decision"] for r in records] == ["allow", "refuse"]
     assert records[0]["user"] == "h4agents"
-    assert (
-        records[1]["user"] == "h4agents-sandbox"
-    )  # no User in the request: the default
+    # No User: no client certificate, so a client on the daemon's own unix socket, never the sandbox.
+    assert records[1]["user"] == "unknown"
 
 
 def test_the_server_path_refuses_an_unreadable_request(tmp_path: Path) -> None:
@@ -626,3 +647,128 @@ def test_the_server_path_refuses_an_unreadable_request(tmp_path: Path) -> None:
     handler = _Recorder(log)
     handler._handle_req(b"{not json")
     assert handler.sent == [{"Allow": False, "Msg": "unreadable authz request"}]
+
+
+# --------------------------------------------------------------------------------------------------
+# §3.1: the body as Docker reads it
+# --------------------------------------------------------------------------------------------------
+IMAGE = "img@sha256:" + "0" * 64
+
+
+def raw_create(text: str) -> authz.Decision:
+    return authz.judge("POST", f"{API}/containers/create", text.encode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    ("body", "rule"),
+    [
+        ({"Image": IMAGE, "hostconfig": {"privileged": True}}, "A1"),
+        ({"Image": IMAGE, "HOSTCONFIG": {"Privileged": True}}, "A1"),
+        ({"Image": IMAGE, "HostConfig": {"binds": ["/etc:/x"]}}, "A14"),
+        # Go's simple folding also matches U+017F to s and U+212A to k.
+        ({"Image": IMAGE, "HostConfig": {"Bind\u017f": ["/etc:/x"]}}, "A14"),
+        ({"Image": IMAGE, "HostConfig": {"Mas\u212aedPaths": []}}, "A7"),
+        (
+            {
+                "Image": IMAGE,
+                "HostConfig": {"portbindings": {"80/tcp": [{"hostport": "9"}]}},
+            },
+            "A21",
+        ),
+        (
+            {
+                "Image": IMAGE,
+                "HostConfig": {
+                    "Mounts": [{"type": "bind", "source": "/etc", "target": "/x"}]
+                },
+            },
+            "A15",
+        ),
+    ],
+)
+def test_keys_match_as_docker_matches_them(body: dict, rule: str) -> None:
+    decision = authz.judge(
+        "POST", f"{API}/containers/create", json.dumps(body).encode()
+    )
+    assert not decision.allow and decision.rule == rule
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # Go merges a repeated object into the first, so this is privileged to the daemon.
+        f'{{"Image":"{IMAGE}","HostConfig":{{"Privileged":true}},"HostConfig":{{"CapAdd":[]}}}}',
+        f'{{"Image":"{IMAGE}","HostConfig":{{}},"hostConfig":{{"Privileged":true}}}}',
+        # A repeated map keeps the first one's entries too.
+        f'{{"Image":"{IMAGE}","HostConfig":{{"PortBindings":{{"80/tcp":[{{"HostPort":"9"}}]}},"PortBindings":{{}}}}}}',
+    ],
+)
+def test_a_repeated_key_is_malformed(text: str) -> None:
+    decision = raw_create(text)
+    assert not decision.allow and decision.rule == "malformed"
+
+
+@pytest.mark.parametrize(
+    ("body", "rule"),
+    [
+        ({"Image": IMAGE, "Privileged": True}, "A1"),
+        ({"Image": IMAGE, "Binds": ["/:/host"]}, "A14"),
+        ({"Image": IMAGE, "NetworkMode": "host"}, "A13"),
+        ({"Image": IMAGE, "PortBindings": {"80/tcp": [{"HostPort": "9"}]}}, "A21"),
+    ],
+)
+def test_host_fields_at_the_top_level_are_held_to_the_same_rules(
+    body: dict, rule: str
+) -> None:
+    decision = authz.judge(
+        "POST", f"{API}/containers/create", json.dumps(body).encode()
+    )
+    assert not decision.allow and decision.rule == rule
+
+
+def test_case_folding_reaches_the_other_endpoints() -> None:
+    assert (
+        post("/containers/abc/exec", {"privileged": True, "Cmd": ["sh"]}).rule == "A25"
+    )
+    assert (
+        post("/containers/abc/update", {"devices": [{"PathOnHost": "/dev/dxg"}]}).rule
+        == "A26"
+    )
+    assert post("/networks/create", {"Name": "n", "driver": "macvlan"}).rule == "A35"
+    assert (
+        post(
+            "/volumes/create",
+            {
+                "Name": "v",
+                "driverOpts": {"type": "none", "o": "bind", "device": "/etc"},
+            },
+        ).rule
+        == "A17"
+    )
+
+
+def test_an_ordinary_compose_body_is_still_allowed() -> None:
+    body = {
+        "Image": IMAGE,
+        "Env": ["A=1"],
+        "Labels": {"com.docker.compose.project": "h4reet-dev-cpu"},
+        "HostConfig": {
+            "CapDrop": ["ALL"],
+            "SecurityOpt": ["no-new-privileges:true"],
+            "PortBindings": {
+                "8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "18300"}]
+            },
+            "Mounts": [
+                {
+                    "Type": "bind",
+                    "Source": TREE + "/deploy",
+                    "Target": "/d",
+                    "ReadOnly": True,
+                }
+            ],
+            "LogConfig": {"Type": "local"},
+        },
+    }
+    assert authz.judge(
+        "POST", f"{API}/containers/create", json.dumps(body).encode()
+    ).allow

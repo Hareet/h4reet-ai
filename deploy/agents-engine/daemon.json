@@ -10,5 +10,6 @@
   "builder": { "entitlements": { "network-host": false, "security-insecure": false } },
   "log-driver": "local",
   "log-opts": { "max-size": "10m", "max-file": "3" },
-  "live-restore": false
+  "live-restore": false,
+  "ip": "127.0.0.1"
 }

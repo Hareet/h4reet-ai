@@ -2,7 +2,7 @@
 # The FR-039 limits and their proofs (spec 000; contracts/agents-engine.md §7, matrix stage E).
 #
 # Run from the host by `deploy/agents-engine/engine.sh prove` (the Author; Heavy: row E10 resets and
-# reseeds the engine, and E14 needs dev-cpu up). One probe per row, E1-E14, each PASS or FAIL, with the
+# reseeds the engine, and E14 needs dev-cpu up). One probe per row, E1-E16, each PASS or FAIL, with the
 # plugin-log and egress-log excerpts and the firewall's drop counter. Its report goes into the
 # merge-request note. Non-zero on any FAIL.
 #
@@ -231,6 +231,35 @@ e14_ports() {
 	record E14 "$(verdict $ok)" "dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18304)${silent:+; no answer on$silent}; the sandbox cannot reach them (stage S)"
 }
 
+e15_published_ports() {
+	local ok=true
+	# Without an address, Docker publishes on every interface, and RootlessKit would listen on the WSL VM's own
+	# interfaces (A21, H3). The loopback is how dev-cpu publishes for the Author's browser (E14).
+	admission_refused run --rm -p 18999:80 "$probe_image" true || ok=false
+	admission_refused run --rm -P --expose 80 "$probe_image" true || ok=false
+	admission_refused run --rm -p 0.0.0.0:18999:80 "$probe_image" true || ok=false
+	engine_docker run --rm -p 127.0.0.1:18999:80 "$probe_image" true >/dev/null 2>&1 || ok=false
+	record E15 "$(verdict $ok)" "-p with no address, -P, and 0.0.0.0 are refused (A21); 127.0.0.1 runs"
+}
+
+e16_raw_bodies() {
+	local ok=true body code name=h4-prove-e16
+	# The docker CLI spells every key exactly; a raw client need not. The daemon matches keys case-insensitively
+	# and merges repeated ones, so each of these is a privileged container to it unless the plugin refuses (§3.2).
+	for body in \
+		"{\"Image\":\"$probe_image\",\"hostconfig\":{\"privileged\":true}}" \
+		"{\"Image\":\"$probe_image\",\"HostConfig\":{},\"hostConfig\":{\"Privileged\":true}}" \
+		"{\"Image\":\"$probe_image\",\"Privileged\":true}"; do
+		code="$(curl -s --noproxy "*" -o /dev/null -w '%{http_code}' --max-time 10 \
+			--cacert "$author_cert_dir/ca.pem" --cert "$author_cert_dir/cert.pem" --key "$author_cert_dir/key.pem" \
+			-H 'Content-Type: application/json' --data-binary "$body" \
+			"https://198.18.0.1:2376/containers/create?name=$name" 2>/dev/null)"
+		[ "$code" = 403 ] || ok=false
+		engine_docker rm -f "$name" >/dev/null 2>&1 || true # only if one was created, which fails the row
+	done
+	record E16 "$(verdict $ok)" "raw create bodies with folded, repeated, or top-level host keys are refused (403)"
+}
+
 nft_drop_count() {
 	sudo nft list counter inet h4agents h4agents_dropped 2>/dev/null | grep -oE 'packets [0-9]+' | grep -oE '[0-9]+' | head -n1
 }
@@ -261,6 +290,8 @@ main() {
 	e12_fail_closed
 	e13_slice
 	e14_ports
+	e15_published_ports
+	e16_raw_bodies
 	e10_disposable # last: it resets and reseeds the engine (Heavy)
 	excerpts
 	echo

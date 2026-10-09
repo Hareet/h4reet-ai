@@ -79,7 +79,37 @@ _IMG = r".+"  # an image reference can hold slashes: registry/repo/name
 
 
 class Malformed(Exception):
-    """A path that still holds `..`, or that decodes differently a second time (§3.2)."""
+    """A path that still holds `..`, or that decodes differently a second time (§3.2); or a body whose
+    objects repeat a key, as Docker would read it (§3.1)."""
+
+
+class Folded(dict):
+    """A JSON object read the way Docker reads it (§3.1).
+
+    The daemon decodes request bodies with Go's encoding/json, which matches an object key to a struct field
+    "preferring an exact match but also accepting a case-insensitive match", under Unicode simple folding: so
+    `"hostconfig": {"privileged": true}` is a privileged container, and so is a key spelled with U+017F for
+    an s or U+212A for a k. Keys are stored casefolded, the wider folding, so every lookup sees what the daemon
+    sees. Two keys that fold together are refused: Go decodes both into one field, and merges a repeated
+    object or map instead of replacing it, so the plugin and the daemon would read different requests.
+    """
+
+    def __init__(self, pairs: list[tuple[str, object]]):
+        super().__init__()
+        for key, value in pairs:
+            folded = key.casefold()
+            if super().__contains__(folded):
+                raise Malformed(f"repeated key {key!r}")
+            super().__setitem__(folded, value)
+
+    def get(self, key: str, default: object = None) -> object:  # type: ignore[override]
+        return super().get(key.casefold(), default)
+
+    def __getitem__(self, key: str) -> object:
+        return super().__getitem__(key.casefold())
+
+    def __contains__(self, key: object) -> bool:
+        return isinstance(key, str) and super().__contains__(key.casefold())
 
 
 @dataclass
@@ -335,11 +365,24 @@ def _refuse(rule: str, field: str, value: object) -> Decision:
     return Decision(False, rule, field=field, value=str(value))
 
 
+LOOPBACK_PUBLISH = ("127.0.0.1", "::1")
+
+
 def _check_create(body: dict) -> Decision | None:
     host = body.get("HostConfig") or {}
     if not isinstance(host, dict):
         return _refuse("A0", "HostConfig", "not an object")
+    # Older daemons' create wrapper also embedded a HostConfig at the top level, to read fields "not in the
+    # inner host config", so the same rules hold the body itself. No top-level Config field shares a name
+    # with a field below, so a body from the docker CLI or compose is judged exactly as before.
+    for scope in (host, body):
+        decision = _check_host(scope)
+        if decision is not None:
+            return decision
+    return None
 
+
+def _check_host(host: dict) -> Decision | None:
     if host.get("Privileged") is True:
         return _refuse("A1", "HostConfig.Privileged", True)
     if not _is_empty(host.get("Devices")):
@@ -405,6 +448,27 @@ def _check_create(body: dict) -> Decision | None:
         ok, detail = _parse_bind(str(spec))
         if not ok:
             return _refuse("A14", "HostConfig.Binds", detail)
+
+    # A21: a published port names the host's loopback. Docker reads a missing or empty HostIp as every
+    # interface, and RootlessKit's port driver would then listen on the WSL VM's own interfaces as h4agents,
+    # a way in that no allowlist governs (H3). PublishAllPorts publishes every exposed port that way.
+    if host.get("PublishAllPorts"):
+        return _refuse("A21", "HostConfig.PublishAllPorts", True)
+    bindings = host.get("PortBindings")
+    if not _is_empty(bindings):
+        if not isinstance(bindings, dict):
+            return _refuse("A21", "HostConfig.PortBindings", "not an object")
+        for port, entries in bindings.items():
+            if entries is None:
+                continue  # exposed, not published
+            for entry in entries if isinstance(entries, list) else [entries]:
+                address = entry.get("HostIp") if isinstance(entry, dict) else None
+                if address not in LOOPBACK_PUBLISH:
+                    return _refuse(
+                        "A21",
+                        "HostConfig.PortBindings",
+                        f"{port} on {address or 'every interface'}",
+                    )
 
     mount_decision = _check_mounts(host.get("Mounts") or [])
     if mount_decision is not None:
@@ -508,7 +572,7 @@ def _judge(method: str, uri: str, body: bytes) -> Decision:
     if not body or not body.strip():
         return finish(Decision(False, "A0", field="body", value="empty"))
     try:
-        parsed = json.loads(body)
+        parsed = json.loads(body, object_pairs_hook=Folded)
     except (ValueError, UnicodeDecodeError):
         return finish(Decision(False, "A0", field="body", value="non-JSON"))
     if not isinstance(parsed, dict):
@@ -664,7 +728,8 @@ class _Handler(BaseHTTPRequestHandler):
             request = json.loads(raw) if raw else {}
             method = request.get("RequestMethod", "")
             uri = request.get("RequestUri", "")
-            user = request.get("User") or "h4agents-sandbox"
+            # No certificate: a client on the daemon's own unix socket, which is h4agents itself (§2.1).
+            user = request.get("User") or "unknown"
             body_field = request.get("RequestBody")
             body = base64.b64decode(body_field) if body_field else b""
         except (ValueError, TypeError):  # binascii.Error subclasses ValueError

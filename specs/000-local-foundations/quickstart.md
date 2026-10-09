@@ -366,7 +366,7 @@ make matrix
 deploy/agents-engine/engine.sh prove
 ```
 
-**Expected:** rows E1 to E14 pass ([agents-engine.md §7](contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs)), with excerpts from the admission plugin's log, the egress proxy's log, and the firewall's drop counter. Row E14 carries an open question about its mechanism; record what it finds.
+**Expected:** rows E1 to E16 pass ([agents-engine.md §7](contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs)), with excerpts from the admission plugin's log, the egress proxy's log, and the firewall's drop counter. Row E14 carries an open question about its mechanism; record what it finds.
 
 ### 3.4 The engine's positive half (US3-9)
 

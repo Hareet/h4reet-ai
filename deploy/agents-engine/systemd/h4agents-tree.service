@@ -14,6 +14,9 @@ Type=oneshot
 RemainAfterExit=yes
 EnvironmentFile=/etc/h4agents/engine.env
 ExecStart=/usr/local/lib/h4agents/bind-tree.sh up
+# A reload mounts the masks still missing and unmounts nothing: a restart would unmount every mask, and the
+# unmount would reach a running engine's namespace before the masks came back.
+ExecReload=/usr/local/lib/h4agents/bind-tree.sh up
 ExecStop=/usr/local/lib/h4agents/bind-tree.sh down
 
 [Install]

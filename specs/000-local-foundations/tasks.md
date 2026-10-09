@@ -299,7 +299,7 @@ description: "Task list for spec 000, Local Foundations"
   - `src/meter/init.ts`, following data-model.md §8;
   - `src/meter/journal.ts`, following §3: `O_APPEND`, `fsync`, monthly files at 0600 in a 0700 directory, and the `operator` and `clock` record kinds.
 - [ ] T056 [US1] Create `scripts/operator.py` (stdlib, run through `PY_HOST`) with `mint`, `status`, and `init`, per contracts/operator-admin.md §6. It reads the token only from `~/.config/h4reet-ai/operator/<stack>.token` and follows §6.2's exit codes. Add `scripts/test_operator.py`, and the Makefile targets `operator-token`, `operator-init`, and `operator-status` (§6.1).
-- [ ] T057 [US1] Add `model-server-gpu` and `model-server-cpu` to `deploy/compose.yaml` per §3: the profiles `gpu` and `cpu`, the commands and flags, the GPU reservation in `gpu` only, and the health checks. Create `deploy/models.lock` with both models' pins from research.md R-03. Create `deploy/scripts/pull-models.sh`:
+- [ ] T057 [US1] Add `model-server-gpu` and `model-server-cpu` to `deploy/compose.yaml` per §3: the profiles `gpu` and `cpu`, the commands and flags, the GPU reservation in `gpu` only, and the health checks. Create `deploy/models.lock` with both models' pins from research.md R-03, one model per line with its file name and sha256 on that line: `engine.sh seed_model` reads it that way, and refuses a model it can't find a sha256 for (review round 2). Create `deploy/scripts/pull-models.sh`:
   - it runs the disk preflight first;
   - it downloads with `curl -fL -C -` and no token;
   - it verifies the sha256, renames atomically, and sets mode 0444;
@@ -427,7 +427,7 @@ description: "Task list for spec 000, Local Foundations"
   T045's patch already added the rows for its own changes; T087 adds the rest, plus the indirect variants of those. Rows whose enforcement waits for a patch are `planned`: reported, but not failing.
 - [ ] T088 [US3] Create `tools/gates/matrix-required.txt`, listing every row ID, and make the matrix fail when a listed row is missing.
 - [ ] T089 [US3] Add stage S rows to `redteam/forbidden-actions.sh` per §13, after T087 (the same file). They run when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable, and are skipped with a notice otherwise. Every row only probes (`test -w`, `test -r`, or a connection attempt). The `main` row is `test -w` on the ref's path, never `update-ref`, and a planned row whose test would write is skipped, not run. The unwritable rows cover the three config files, `GNUmakefile`, `makefile`, `.gitleaks.toml`, `.gitleaksignore`, and `deploy/agents-engine`.
-- [ ] T090 [US3] Make `redteam/forbidden-actions.sh` report stage E, after T089 (the same file). On the host, after `deploy/agents-engine/engine.sh prove`, it reads `prove-limits.sh`'s report and folds rows E1–E14 into its summary.
+- [ ] T090 [US3] Make `redteam/forbidden-actions.sh` report stage E, after T089 (the same file). On the host, after `deploy/agents-engine/engine.sh prove`, it reads `prove-limits.sh`'s report and folds rows E1–E16 into its summary.
 
 ### Implementation for User Story 3
 
@@ -454,7 +454,7 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T097 [US3] Agent session, after Phase 4 has merged: `make engine-smoke` (`deploy/agents-engine/engine.sh smoke`), meaning `make up ENV=dev-cpu` comes up healthy and `make breach-test ENV=dev-cpu` passes (US3-9's positive half, quickstart.md §3.4).
 - [ ] T098 **Patch**: write the governance patch, `docs/merge-requests/<date>-feat-000-us3-governance-enforcement.patch`, per §15: `sandbox.filesystem.denyWrite` on `./tools/gates` and `./evals/agent-config`, the matching `Edit(...)` denies, the `protected-paths.sh` rules, and their matrix rows.
 - [ ] T099 [US3] **Author** (Heavy, after T097, with no agent session using the engine):
-  - `deploy/agents-engine/engine.sh prove` (stage E, rows E1–E14);
+  - `deploy/agents-engine/engine.sh prove` (stage E, rows E1–E16);
   - `tools/gates/gate` on the branch;
   - `make evals-agent-config`, committing its history entry (SC-008);
   - the SC-007 timing of quickstart.md §6.2 (Heavy): a fresh clone, then the devcontainer with an empty build cache, `make setup`, and `make test`, in under 30 minutes.

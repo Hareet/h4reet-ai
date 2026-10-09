@@ -12,6 +12,7 @@ set -euo pipefail
 here="$(cd -- "$(dirname -- "$0")" && pwd)"
 repo="$(cd -- "$here/../.." && pwd)"
 env_file="/etc/h4agents/engine.env"
+lib="/usr/local/lib/h4agents" # the installed, root-owned copies that run
 
 # Non-secret paths, from the file setup-host.sh wrote, with defaults for a fresh host.
 H4_REPO="$repo"
@@ -74,6 +75,10 @@ cmd_setup() {
 check_tree_masks() {
 	local masks_file="$here/tree-masks.txt" settings="$H4_EGRESS_SETTINGS"
 	[ -f "$masks_file" ] || die "missing $masks_file"
+	# bind-tree.sh mounts the installed list. While it differs from this one, a mask added here would pass the
+	# checks below and never be mounted.
+	cmp -s "$masks_file" "$lib/tree-masks.txt" ||
+		die "the installed $lib/tree-masks.txt differs from $masks_file; run: $0 setup"
 	local -a masks=()
 	mapfile -t masks < <(grep -vE '^[[:space:]]*(#|$)' "$masks_file")
 
@@ -132,8 +137,14 @@ cmd_up() {
 	echo "== starting the engine's system units"
 	# shellcheck disable=SC2086
 	sudo systemctl start $system_units
+	# A reload mounts the mask of any directory check_tree_masks just created, and unmounts nothing.
+	sudo systemctl reload h4agents-tree.service
+	"$lib/bind-tree.sh" check || die "the tree's masks are not all mounted; see: sudo systemctl status h4agents-tree.service"
 	echo "== starting h4agents' admission plugin and daemon"
 	as_h4agents_systemctl start h4-authz.service
+	# At boot, lingering starts the daemon on its own; its start check refuses until the tree is masked, and
+	# three refusals in a minute hit the start limit, which a plain start would not clear.
+	as_h4agents_systemctl reset-failed docker.service 2>/dev/null || true
 	as_h4agents_systemctl start docker.service
 	echo "== starting the Author's egress proxy"
 	systemctl --user start h4-egress-proxy.service
@@ -159,8 +170,9 @@ chown_state() {
 	# (uid 1000) can write it. Best effort: it needs a seeded base image.
 	local base="${H4_STATE_CHOWN_IMAGE:-public.ecr.aws/docker/library/node:24.21.0-trixie-slim}"
 	if [ -d "$H4_STATE/dev-cpu" ] || install -d "$H4_STATE/dev-cpu" 2>/dev/null; then
-		engine_docker run --rm -v "$H4_STATE/dev-cpu:/s" "$base" chown 1000:1000 /s 2>/dev/null ||
-			echo "note: could not chown the state dir yet (seed first); dev-cpu's first run will retry"
+		# The compose file binds ${H4_STATE_DIR}/gateway with the long syntax, which never creates a missing source.
+		engine_docker run --rm -v "$H4_STATE/dev-cpu:/s" "$base" sh -c 'mkdir -p /s/gateway && chown -R 1000:1000 /s' 2>/dev/null ||
+			echo "note: could not prepare the state dir yet (seed first); dev-cpu's first run will retry"
 	fi
 }
 
@@ -230,10 +242,18 @@ disk_check_bytes() {
 }
 
 seed_image_refs() {
-	# Tolerant parse of images.lock: every repository:tag@sha256:<digest> reference, minus the GPU-only
-	# images the engine never seeds. The exact format is fixed by tasks.md T035; confirm on integration.
-	grep -oE '[A-Za-z0-9][A-Za-z0-9._/-]*(:[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}' "$images_lock" |
-		grep -vE 'model-server-gpu|server-cuda|nvidia/cuda' | sort -u
+	# images.lock's columns (T035): name, repository, tag, digest, registry, pinned date. Every pinned image but
+	# the GPU-only ones, which the engine never runs, as repository:tag@digest.
+	awk '!/^#/ && NF >= 4 && $4 ~ /^sha256:[0-9a-f]+$/ && length($4) == 71 && $1 != "model-server-gpu" && $1 != "probe:cuda" {
+		print $2 ":" $3 "@" $4
+	}' "$images_lock" | sort -u
+}
+
+seed_unpinned() {
+	# The entries the engine would run that have no digest yet ("-" until make pin-images resolves them).
+	awk '!/^#/ && NF >= 4 && !($4 ~ /^sha256:[0-9a-f]+$/ && length($4) == 71) && $1 != "model-server-gpu" && $1 != "probe:cuda" {
+		print $1
+	}' "$images_lock"
 }
 
 cmd_seed() {
@@ -241,6 +261,9 @@ cmd_seed() {
 	local -a refs=()
 	mapfile -t refs < <(seed_image_refs)
 	[ "${#refs[@]}" -gt 0 ] || die "no seedable image references found in $images_lock (fail closed)"
+	local unpinned
+	unpinned="$(seed_unpinned | paste -sd ' ' -)"
+	[ -z "$unpinned" ] || echo "note: not seeded, no digest yet: $unpinned (run make pin-images on the host, then seed again)"
 
 	# Pull any missing image on the host, then size the set for the disk check.
 	local ref total=0 size
@@ -372,7 +395,7 @@ usage: deploy/agents-engine/engine.sh <subcommand>
   destroy  remove everything but the user and H6/H7      [Author]
   seed     move images and the stand-in model in         [Author; Heavy]
   status   reachability, id, images, df                  [anyone]
-  prove    the FR-039 matrix, rows E1-E14                [Author; Heavy]
+  prove    the FR-039 matrix, rows E1-E16                [Author; Heavy]
   smoke    make up/breach-test/down ENV=dev-cpu          [agent, through the relay]
 EOF
 }
