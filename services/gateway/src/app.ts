@@ -175,7 +175,9 @@ export interface ServiceOptions {
 
 /**
  * Everything the routes use, for a validated configuration. It builds the route's adapters, and throws a
- * RegistryError when the registry refuses them: exit 78 for a configuration error, exit 1 for a broken build.
+ * RegistryError when the registry refuses them: exit 78 for a configuration error, exit 1 for a broken build. Until
+ * tasks.md T074 builds the metered fallback path, a route with a fallback is refused too: exit 78
+ * fallback_not_supported, a temporary refusal (plan §5.8, contracts/config-files.md §1.4).
  */
 export async function createServices(opts: ServiceOptions): Promise<GatewayServices> {
   const { env, config, logger } = opts;

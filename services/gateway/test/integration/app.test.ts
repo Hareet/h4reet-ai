@@ -2,10 +2,16 @@
 // (contracts/gateway-http.md §1, §4), and the startup order: validate the environment and the configuration (exit 78
 // on failure), connect the store (retrying), then start the listeners.
 import { createHash } from "node:crypto";
+import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { ADAPTER_TYPE_SPECS } from "../../src/adapters/_settings.js";
+import { factory as localFactory } from "../../src/adapters/local-openai.js";
+import type { AdapterFactory } from "../../src/adapters/registry.js";
 import { buildApp, startGateway, type RunningGateway } from "../../src/app.js";
 import { loadConfig, type LoadedConfig } from "../../src/config/validate.js";
 import { readMigrations, runMigrations, type Database, type Migration } from "../../src/meter/store.js";
@@ -51,9 +57,11 @@ beforeAll(async () => {
 
 const running: RunningGateway[] = [];
 const databases: TestDatabase[] = [];
+const dirs: string[] = [];
 afterEach(async () => {
   for (const g of running.splice(0)) await g.close();
   for (const d of databases.splice(0)) await d.close();
+  for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
 
 async function freshDatabase(): Promise<TestDatabase> {
@@ -260,6 +268,104 @@ describe("startup", () => {
       "config/alerts.yaml: missing",
     ]);
     expect(db.state.touched).toBe(0);
+  });
+
+  it("refuses a route with a fallback with exit 78 fallback_not_supported until T074, closing what it built", async () => {
+    // config-files.md §1.2's second step, which T073 commits: the synthetic adapter, and dev's fallback. This build
+    // has no metered fallback path (T072–T074), so it refuses to route one (plan §5.8; config-files.md §1.4).
+    const dir = await mkdtemp(join(tmpdir(), "h4-fallback-"));
+    dirs.push(dir);
+    for (const file of ["prices.yaml", "budgets.yaml", "alerts.yaml"])
+      await copyFile(join(FIXTURES, file), join(dir, file));
+    await writeFile(
+      join(dir, "routing.yaml"),
+      [
+        "schema: 1",
+        "deadline_ms: 20000",
+        "adapters:",
+        "  local:",
+        "    type: openai-compatible",
+        "    kind: local",
+        "    provider: local",
+        "    base_url_env: LOCAL_MODEL_BASE_URL",
+        "    model_env: LOCAL_MODEL_NAME",
+        "    timeouts: { connect_ms: 1000, request_ms: 10000 }",
+        "    health: { path: /models, interval_ms: 1000, timeout_ms: 800, unhealthy_after: 1, healthy_after: 3 }",
+        "  synthetic:",
+        "    type: synthetic",
+        "    kind: synthetic",
+        "    model: metered-test",
+        "    output_tokens: 1000",
+        "envs:",
+        "  prod: { primary: local }",
+        "  dev: { primary: local, fallback: synthetic }",
+        "",
+      ].join("\n"),
+    );
+    // A build that registers synthetic, as T073's does, so the file passes validation and the registry builds both.
+    const withFallback = await loadConfig(dir, {
+      allowPlanned: false,
+      registeredTypes: new Set(["openai-compatible", "synthetic"]),
+    });
+    expect(withFallback.issues).toEqual([]);
+    expect(withFallback.routing?.envs.dev).toEqual({ primary: "local", fallback: "synthetic" });
+    const closed: string[] = [];
+    const local: AdapterFactory = {
+      ...localFactory,
+      create(id, settings, ctx) {
+        const adapter = localFactory.create(id, settings as never, ctx);
+        const close = adapter.close?.bind(adapter);
+        adapter.close = async () => {
+          closed.push(id);
+          await close?.();
+        };
+        return adapter;
+      },
+    };
+    const synthetic: AdapterFactory = {
+      type: "synthetic",
+      kinds: ["synthetic"],
+      settings: ADAPTER_TYPE_SPECS.get("synthetic")?.settings as AdapterFactory["settings"],
+      create: (id) => ({
+        id,
+        type: "synthetic",
+        provider: "synthetic",
+        kind: "synthetic",
+        model: "metered-test",
+        server: { address: "synthetic" },
+        retry: { on: [], max: 0, backoffMs: 0 },
+        complete: () => Promise.reject(new Error("the refusal comes before any call")),
+        health: async () => ({ healthy: true, checkedAt: new Date().toISOString() }),
+        close: async () => void closed.push(id),
+      }),
+    };
+    const db = watched(await freshDatabase());
+    const { logged, logger } = capture();
+    const result = await startGateway({
+      env: DEV_ENV,
+      config: withFallback,
+      logger,
+      version: "0.1.0",
+      database: db,
+      migrations,
+      listen: LOCAL,
+      factories: new Map([
+        ["openai-compatible", local],
+        ["synthetic", synthetic],
+      ]),
+      onFatal: () => {},
+    });
+    expect(result.kind === "refused" && [result.exitCode, result.lines]).toEqual([
+      78,
+      [
+        "config/routing.yaml: envs.dev.fallback: this build has no metered fallback path (tasks.md T072–T074) (fallback_not_supported)",
+      ],
+    ]);
+    expect(logged.filter((l) => l.level === "fatal").map((l) => l.record)).toEqual([
+      { event: "gateway.config_refused", reason: "fallback_not_supported" },
+    ]);
+    expect(closed.sort()).toEqual(["local", "synthetic"]);
+    expect(db.state.touched).toBe(0); // before the store's first attempt, and so before any listener
   });
 
   it("starts with the store down: listeners up, /health/live answers, and the store retries", async () => {

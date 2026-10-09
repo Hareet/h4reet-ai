@@ -602,7 +602,8 @@ The gateway exits with code 78 (configuration error) and a named reason when:
 - `OPERATOR_TOKEN_SHA256` is malformed, or equals the published dev-cpu dummy's hash on prod;
 - a paid model has no price, or a price of 0;
 - the store's schema is newer than the gateway's migrations (`schema_newer_than_code`), so a rollback across a migration fails closed;
-- a config file fails validation.
+- a config file fails validation;
+- until T074, the route `H4_ENV` selects names a fallback (`fallback_not_supported`). (Departure, tasks.md T148: a temporary refusal that the approved plan doesn't list. This build has no metered fallback path, because admission, commit, and the fallback branch arrive with T072–T074. So `createServices` in `services/gateway/src/app.ts` refuses a route with a fallback once the registry has built it, closes the adapters it built, and stops before the store's first attempt, and no fallback is ever called outside the meter. No committed route has a fallback yet ([config-files.md §1.2](contracts/config-files.md#12-example-the-committed-file), step 1), so no stack starts differently. Dev's `fallback: synthetic` arrives with T073, and T074 removes the refusal, so the two land together.)
 
 Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live)), and matrix rows cover the first three ([§13](#13-the-forbidden-action-matrix)).
 
