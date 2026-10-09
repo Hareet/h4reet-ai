@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { dayKey, monthKey } from "../../src/core/clock.js";
 import { connectionLost, statementRefused } from "../helpers/pglite.js";
@@ -785,35 +785,42 @@ describe("POST /admin/init when COMMIT's answer is lost, or the store refuses a 
   });
 });
 
-describe("a store wiped while the gateway runs (plan §8 step 11; data-model.md §2.1)", () => {
+describe("a store wiped while the gateway runs (plan §8 step 11; data-model.md §2.1, §6.1)", () => {
   const hello = (s: TestStack) =>
     s.api.inject({ method: "POST", url: "/hello", headers: { "content-type": "application/json" }, payload: "{}" });
+  const health = async (s: TestStack) => (await s.api.inject({ method: "GET", url: "/health" })).json() as Rec;
 
-  it("gets its migrations again: store_unreachable at once, then store_uninitialized, then an init from the journal", async () => {
+  it("answers store_unreachable while the store is down, store_uninitialized once it is back empty, and inits again", async () => {
     const s = await stack();
     await writeJournal(s, MONTH, [commit("c", "fallback", 100_000)]);
     expect((await init(s, { reason: REASON })).statusCode).toBe(200);
-    expect((await hello(s)).headers["x-h4-degraded-cause"]).not.toBe("store_uninitialized");
-    // The store's container and volume are removed, and it comes back empty.
+    // The store stops: nothing answers.
+    s.db.hook = () => {
+      throw connectionLost();
+    };
+    const down = await hello(s);
+    expect([down.statusCode, down.headers["x-h4-degraded-cause"]]).toEqual([503, "store_unreachable"]);
+    expect(await health(s)).toMatchObject({ store: "unreachable", degraded_cause: "store_unreachable" });
+    // Its container and volume are removed, and it comes back empty: it answers, with no schema. The first request
+    // finds that, the migrations run again under the running gateway, and the empty store reads as uninitialized.
     await s.db.pg.exec("DROP SCHEMA gateway CASCADE");
-    const first = await hello(s);
-    expect(first.statusCode).toBe(503);
-    expect(first.headers["x-h4-degraded-cause"]).toBe("store_unreachable");
-    // /health is polled, not hello, whose per-client cap allows five in a burst.
-    await vi.waitFor(
-      async () =>
-        expect((await s.api.inject({ method: "GET", url: "/health" })).json()).toMatchObject({
-          store: "uninitialized",
-          degraded_cause: "store_uninitialized",
-        }),
-      { timeout: 5_000, interval: 20 },
-    );
-    const second = await hello(s);
-    expect(second.statusCode).toBe(503);
-    expect(second.headers["x-h4-degraded-cause"]).toBe("store_uninitialized");
-    // The journal survived on its bind mount: the init rebuilds the meters from it.
+    s.db.hook = undefined;
+    const empty = await hello(s);
+    expect([empty.statusCode, empty.headers["x-h4-degraded-cause"]]).toEqual([503, "store_uninitialized"]);
+    expect(await health(s)).toMatchObject({
+      store: "uninitialized",
+      degraded_cause: "store_uninitialized",
+      state: null,
+    });
+    // No restart: the journal survived on its bind mount, and init rebuilds the meters from it.
     const again = await init(s, { reason: REASON });
     expect(again.statusCode).toBe(200);
-    expect(again.json()).toMatchObject({ meters: { day: { spent_micro_usd: 100_000 } } });
+    expect(again.json()).toMatchObject({
+      meters: { day: { spent_micro_usd: 100_000, sources: { journal: 100_000 } } },
+      fallback_awaiting_renewal: true,
+    });
+    const served = await hello(s);
+    expect(served.headers["x-h4-degraded-cause"]).not.toMatch(/^store_/);
+    expect(s.logged.some((l) => l.record.event === "migrations.applied")).toBe(true);
   });
 });

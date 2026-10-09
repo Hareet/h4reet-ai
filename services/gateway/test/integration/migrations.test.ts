@@ -766,7 +766,8 @@ describe("the store", () => {
   });
 
   it("reads the state row with no cache, and says store_unreachable when a read fails", async () => {
-    const store = new Store({ db, migrations, envClass: "dev", logger: capture().logger, onFatal: () => {} });
+    const { logged, logger } = capture();
+    const store = new Store({ db, migrations, envClass: "dev", logger, onFatal: () => {} });
     await store.start();
     expect(await store.readStackState()).toEqual({ kind: "uninitialized" });
     await db.pg.query(
@@ -784,9 +785,17 @@ describe("the store", () => {
       fallbackAwaitingSince: new Date("2026-10-08T11:00:00Z"),
       testClockOffsetMs: 1_528_824_493,
     });
+    // A table gone by hand, the migrations still recorded: running them again can't bring it back, so the read fails
+    // closed, and within the retry interval they aren't run again for every read.
     await db.pg.query("ALTER TABLE gateway.stack_state RENAME TO stack_state_gone");
     expect(await store.readStackState()).toEqual({ kind: "unreachable" });
-    await vi.waitFor(() => expect(store.status).toBe("ready"), { timeout: 5_000, interval: 10 });
+    expect(await store.readStackState()).toEqual({ kind: "unreachable" });
+    expect(store.status).toBe("ready");
+    expect(logged.filter((l) => l.record.event === "migrations.applied").map((l) => l.record.versions)).toEqual([
+      [1, 2],
+      [],
+    ]);
+    expect(logged.at(-1)?.record).toMatchObject({ event: "state.unknown", error_class: "42P01" });
     await db.pg.query("ALTER TABLE gateway.stack_state_gone RENAME TO stack_state");
     await store.close();
   });
@@ -802,22 +811,48 @@ describe("the store", () => {
     );
     expect((await store.readStackState()).kind).toBe("ok");
     logged.length = 0;
-    // The volume is removed and the store comes back empty: no schema, no tables, no migrations recorded.
+    // The volume is removed and the store comes back empty: no schema, no tables, no migrations recorded. The store
+    // answers, so it isn't unreachable: the read runs the migrations again, and finds no row.
     await db.pg.exec("DROP SCHEMA gateway CASCADE");
-    expect(await store.readStackState()).toEqual({ kind: "unreachable" });
-    await vi.waitFor(() => expect(store.status).toBe("ready"), { timeout: 5_000, interval: 10 });
-    expect(await store.readStackState()).toEqual({ kind: "uninitialized" });
+    const [first, second] = await Promise.all([store.readStackState(), store.readStackState()]);
+    expect([first, second]).toEqual([{ kind: "uninitialized" }, { kind: "uninitialized" }]);
+    expect(store.status).toBe("ready");
     expect((await db.pg.query("SELECT version FROM gateway.schema_migrations ORDER BY version")).rows).toEqual([
       { version: 1 },
       { version: 2 },
     ]);
-    expect(logged.map((l) => [l.level, l.record.event])).toEqual([
-      ["error", "state.unknown"],
-      ["info", "migrations.applied"],
-      ["info", "state.recovered"],
+    // One run, for both reads, and no outage: the store answered throughout.
+    expect(logged.map((l) => [l.level, l.record.event, l.record.versions])).toEqual([
+      ["info", "migrations.applied", [1, 2]],
     ]);
-    expect(logged[0]?.record).toMatchObject({ condition: "store_unreachable", error_class: "42P01" });
-    expect(logged[1]?.record).toMatchObject({ versions: [1, 2] });
+    expect(store.outageStartedAt()).toBeUndefined();
+    await store.close();
+  });
+
+  it("keeps answering store_unreachable while the migrations can't run again, and retries them every 5 s", async () => {
+    const { logged, logger } = capture();
+    let down = false;
+    const database: Database = {
+      query: (text, params) => db.query(text, params),
+      withSession: async (fn, opts) => {
+        if (down) throw Object.assign(new Error("connect ECONNREFUSED 10.0.0.1:5432"), { code: "ECONNREFUSED" });
+        return db.withSession(fn, opts);
+      },
+      listen: (c, f) => db.listen(c, f),
+      close: () => db.close(),
+    };
+    const store = new Store({ db: database, migrations, envClass: "dev", logger, onFatal: () => {}, retryMs: 20 });
+    await store.start();
+    await db.pg.exec("DROP SCHEMA gateway CASCADE");
+    down = true; // the store answers a query, but the migrations' session can't be had
+    expect(await store.readStackState()).toEqual({ kind: "unreachable" });
+    expect(store.status).toBe("unreachable");
+    expect(logged.some((l) => l.record.event === "state.unknown" && l.record.error_class === "ECONNREFUSED")).toBe(
+      true,
+    );
+    down = false;
+    await vi.waitFor(() => expect(store.status).toBe("ready"), { timeout: 5_000, interval: 10 });
+    expect(await store.readStackState()).toEqual({ kind: "uninitialized" });
     await store.close();
   });
 
