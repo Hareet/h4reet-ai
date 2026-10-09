@@ -1281,6 +1281,82 @@ def test_spend_waits_out_the_global_limit_and_goes_on() -> None:
     assert result["waits"] == [8] and rig.clock.sleeps == [8]
 
 
+def limited(n: int, retry_after_s: int) -> dict[str, Any]:
+    return {
+        "n": n,
+        "status": 429,
+        "error": "metered_capacity_exceeded",
+        "retry_after_s": retry_after_s,
+    }
+
+
+def test_step_10s_pace_waits_out_each_429_and_lands_on_plan_8s_figures() -> None:
+    # Step 10 spends 49 metered calls, then 26 more, against the gateway's 60 a minute (data-model.md §7.2): the third
+    # spend is refused with 429 and its retry_after_s, more than once. Each is a wait, not a miss, and the call it
+    # refused is made again, so the month still lands on $20.00 (plan §8).
+    month = {
+        "month": {"spent_micro_usd": 20_000_000},
+        "day": {"spent_micro_usd": 2_600_000},
+    }
+    admin, bodies = synthetic(
+        [
+            batch(11, stopped=limited(12, 40)),
+            batch(10, stopped=limited(11, 5), audit_id=2),
+            batch(5, audit_id=3, meters=month),
+        ]
+    )
+    rig = make(admin=admin)
+    figures = {
+        "meters.month.spent_micro_usd": 20_000_000,
+        "meters.day.spent_micro_usd": 2_600_000,
+    }
+    rig.run([spend_op(26, answered=26, stopped=None, **figures)], "10")
+    result = rig.result()
+    assert result["ok"], result
+    assert [b["count"] for b in bodies] == [26, 15, 5]  # never more than what is left
+    assert result["waits"] == [41, 6] and rig.clock.sleeps == [41, 6]
+    assert [c["n"] for c in result["calls"]] == list(range(1, 27))
+    assert result["audit_ids"] == [1, 2, 3]
+
+
+def test_spend_holds_the_stores_figures_to_plan_8() -> None:
+    # The same calls, answered, with the store's month a call short: an action that misses its figures stops the step.
+    short = {"month": {"spent_micro_usd": 19_900_000}}
+    admin, _ = synthetic([batch(26, meters=short)])
+    rig = make(admin=admin)
+    figures = {"meters.month.spent_micro_usd": 20_000_000}
+    assert rig.run([spend_op(26, answered=26, stopped=None, **figures)], "10") == 1
+    result = rig.result()
+    assert not result["ok"] and result["misses"] == ["meters.month.spent_micro_usd"]
+
+
+def test_spend_gives_up_on_a_limit_that_never_frees() -> None:
+    admin, bodies = synthetic([batch(0, stopped=limited(1, 60))] * 5)
+    rig = make(admin=admin)
+    rig.run([spend_op(26, answered=26, stopped=None)], "10")
+    result = rig.result()
+    assert not result["ok"] and result["stopped"]["status"] == 429
+    assert sum(result["waits"]) <= probe.SPEND_WAIT_CAP_S and len(bodies) == 3
+
+
+def test_spend_stops_at_once_on_a_batch_cut_short_for_no_reason() -> None:
+    # contracts/operator-admin.md §3.2: stopped is null only when every call was answered. An answer with fewer calls
+    # and no reason is a broken gateway: the probe says so and stops, rather than asking again with no pause
+    # (round 1's review: 5,000 audited POSTs).
+    admin, bodies = synthetic(
+        [{"calls": [], "stopped": None, "meters": {}, "audit_id": 1}] * 3
+    )
+    rig = make(admin=admin)
+    assert rig.run([spend_op(34, answered=34, stopped=None)], "3") == 1
+    result = rig.result()
+    assert len(bodies) == 1 and rig.clock.sleeps == []
+    assert not result["ok"]
+    assert result["error"] == (
+        "the gateway answered 0 of 34 calls and named no reason "
+        "(contracts/operator-admin.md §3.2)"
+    )
+
+
 def test_spend_stops_at_a_degraded_answer_and_holds_it_to_the_expectation() -> None:
     stop = {"n": 6, "status": 503, "cause": "fallback_awaiting_renewal"}
     answer = {**batch(5, stopped=stop, audit_id=3), "calls": calls(1, 5, "fallback")}

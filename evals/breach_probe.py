@@ -920,8 +920,11 @@ class Probe:
         return {"ok": not wrong, **result, **({"misses": wrong} if wrong else {})}
 
     def op_spend(self, op: dict[str, Any], started: float) -> dict[str, Any]:
-        """POST /admin/test/synthetic, in batches of at most 50, waiting out the global limit's 429 (operator-admin.md
-        §3.2: "pace at most 60 metered calls a minute"), until the count is spent or a call is refused otherwise."""
+        """POST /admin/test/synthetic, in batches of at most 50, until the count is spent or a call is refused otherwise.
+        The global limit's 429 (operator-admin.md §3.2: "pace at most 60 metered calls a minute"; 60 a minute and 4 in
+        flight, data-model.md §7.2) is a wait of its retry_after_s and a second, not a miss: the next POST asks only for
+        what is left, so the meters still land where plan §8 says. The waits stop at SPEND_WAIT_CAP_S, and a batch cut
+        short with no reason, which §3.2 rules out, stops the spend at once rather than asking again."""
         count, attribution = int(op["count"]), str(op["attribution"])
         if not 1 <= count <= 1000 or attribution not in ("metered", "fallback"):
             raise Usage(
@@ -946,7 +949,8 @@ class Probe:
                     "audit_ids": audit_ids,
                 }
             reply = answer["body"]
-            for item in reply.get("calls") or []:
+            answered = [c for c in reply.get("calls") or [] if isinstance(c, dict)]
+            for item in answered:
                 calls.append(
                     {
                         **{
@@ -960,18 +964,26 @@ class Probe:
             meters = reply.get("meters")
             stopped = reply.get("stopped")
             if stopped is None:
+                if len(answered) < batch:
+                    return {
+                        "ok": False,
+                        "answered": len(calls),
+                        "calls": calls,
+                        "meters": meters,
+                        "audit_ids": audit_ids,
+                        "waits": waits,
+                        "error": f"the gateway answered {len(answered)} of {batch} calls and named no reason "
+                        "(contracts/operator-admin.md §3.2)",
+                    }
                 continue
-            if (
-                isinstance(stopped, dict)
-                and stopped.get("status") == 429
-                and waited < SPEND_WAIT_CAP_S
-            ):
+            if isinstance(stopped, dict) and stopped.get("status") == 429:
                 pause = float(stopped.get("retry_after_s") or 4) + 1
-                waits.append(pause)
-                waited += pause
-                self.clock.sleep(pause)
-                stopped = None
-                continue
+                if waited + pause <= SPEND_WAIT_CAP_S:
+                    waits.append(pause)
+                    waited += pause
+                    self.clock.sleep(pause)
+                    stopped = None
+                    continue
             break
         result = {
             "requested": count,

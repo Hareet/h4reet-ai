@@ -466,6 +466,163 @@ def test_the_spend_reaches_each_threshold_as_plan_8_figures_it() -> None:
     ]
 
 
+def figures(op: dict[str, Any]) -> str | None:
+    """An operation's figures, in one line: what each row and action asserts, for the table below."""
+    name, kind = op.get("assert") or op.get("id"), op["op"]
+    if kind == "metric":
+        expect = op["expect"]
+        if "value" in expect:
+            wanted = f"= {expect['value']}"
+        elif "labels" in expect:
+            wanted = f"labels {next(iter(expect['labels'].values()))}"
+        else:
+            wanted = f">= {expect['at_least']}"
+        return f"{name} {op['query']} {wanted}"
+    if kind in ("spend", "admin", "audit"):
+        what = {
+            "spend": f"{op.get('attribution')} x{op.get('count')}",
+            "admin": f"{op.get('method')} {op.get('path')}",
+            "audit": f"audit {op.get('action')}",
+        }[kind]
+        expect = op.get("expect") or {}
+        return f"{name} {what} {dict(sorted(expect.items()))}"
+    if kind == "trace":
+        return f"{name} trace {dict(sorted(op['expect'].items()))}"
+    if kind == "log" and ("grant_no" in op["query"] or "allowance" in op["query"]):
+        return f"{name} log {op['query'].split(' | ', 1)[1]}"
+    return None
+
+
+def test_every_figure_is_plan_8s() -> None:
+    # The fake meets whatever an operation expects, so the figures themselves are held here, from plan §8's text and
+    # arithmetic: $0.10 a call, fallback spend counted in the day and the month (round 1's review).
+    stack = FakeStack()
+    run(["--stack", "dev-cpu"], stack)
+    seen = [line for line in map(figures, stack.ops_seen) if line]
+    assert seen == PLAN_8_FIGURES
+
+
+KILL_Q = "max by (deployment_environment_name, h4_state) (h4_kill_switch_state) == 1"
+CAUSE_Q = "max by (h4_cause) (h4_degraded_cause) == 1"
+DAY_Q, MONTH_Q = (
+    f'max(h4_meter_spend_usd{{h4_meter="{m}"}})' for m in ("day", "month")
+)
+FALLBACK_Q = 'max(h4_meter_spend_usd{h4_meter="fallback_day"})'
+SPENT = "meters.{}.spent_micro_usd"
+
+
+def spent(**usd: float) -> str:
+    """The store's figures a spend's reply must show, in micro-USD, in the order figures() prints them."""
+    return ", ".join(
+        f"'{SPENT.format(m)}': {round(v * 1_000_000)}" for m, v in sorted(usd.items())
+    )
+
+
+PLAN_8_FIGURES = [
+    # 1: a clean start, on the 20th
+    "s1.init POST /admin/init {'body.state': 'normal', 'status': 200}",
+    "s1.clock POST /admin/test/clock {'status': 200}",
+    f"1a {KILL_Q} labels ['normal']",
+    f"1b {DAY_Q} = 0.0",
+    f"1b {MONTH_Q} = 0.0",
+    # 2 (US2-1): one metered call, $0.10
+    f"s2.spend metered x1 {{'answered': 1, {spent(day=0.1, month=0.1)}, 'stopped': None}}",
+    "2a trace {'h4.cost.usd': 0.1}",
+    f"2b {DAY_Q} = 0.1",
+    f"2b {MONTH_Q} = 0.1",
+    # 3 (US2-2): metered calls to $3.50 today, its warning
+    f"s3.spend metered x34 {{'answered': 34, {spent(day=3.5, month=3.5)}, 'stopped': None}}",
+    f"3c {DAY_Q} = 3.5",
+    f'3c {DAY_Q} >= max(h4_meter_warn_usd{{h4_meter="day"}})',
+    # 4: the 21st; the day starts at zero and the month carries $3.50; fallback to $1.40, grant 1's warning, then $1.50
+    "s4.clock POST /admin/test/clock {'status': 200}",
+    f"4a {DAY_Q} = 0.0",
+    f"4a {MONTH_Q} = 3.5",
+    f"s4.spend fallback x14 {{'answered': 14, {spent(day=1.4, fallback_day=1.4, month=4.9)}, 'stopped': None}}",
+    f"4d {FALLBACK_Q} = 1.4",
+    '4d max(h4_meter_warn_usd{h4_meter="fallback_day"}) = 1.4',
+    f"s4.more fallback x1 {{'answered': 1, {spent(day=1.5, fallback_day=1.5, month=5.0)}, 'stopped': None}}",
+    f"4e {FALLBACK_Q} = 1.5",
+    # 5 (US5-7): still $1.50 after a restart; five more calls reach $2.00 and the flag, the sixth is refused
+    f"5a {FALLBACK_Q} = 1.5",
+    (
+        f"s5.spend fallback x6 {{'answered': 5, {spent(day=2.0, fallback_day=2.0, month=5.5)}, "
+        "'stopped.cause': 'fallback_awaiting_renewal', 'stopped.status': 503}"
+    ),
+    '5b log event="fallback.exhausted" | grant_no="1" | allowance_micro="2000000"',
+    "5e max(h4_fallback_awaiting_renewal) = 1.0",
+    f"5e {CAUSE_Q} labels ['fallback_awaiting_renewal']",
+    # 6 (US5-6): a same-day renewal to $4.00, spent to $4.00; the 22nd's renewal grants $2.00, not $4.00
+    (
+        "s6.renew POST /admin/renew {'body.fallback.allowance_micro_usd': 4000000, 'body.fallback.grant': 2, "
+        "'status': 200}"
+    ),
+    "6a audit renew {'after.fallback_day.allowance_micro': 4000000, 'after.fallback_day.grant_no': 2}",
+    f"s6.again fallback x1 {{'answered': 1, {spent(day=2.1, fallback_day=2.1, month=5.6)}, 'stopped': None}}",
+    "6b max(h4_fallback_allowance_usd) = 4.0",
+    "6b max(h4_fallback_awaiting_renewal) = 0.0",
+    f"s6.spend fallback x19 {{'answered': 19, {spent(day=4.0, fallback_day=4.0, month=7.5)}, 'stopped': None}}",
+    '6d log event="fallback.exhausted" | grant_no="2" | allowance_micro="4000000"',
+    f"6e {DAY_Q} = 4.0",
+    "6e max(h4_fallback_awaiting_renewal) = 1.0",
+    "s6.clock POST /admin/test/clock {'status': 200}",
+    f"6f {CAUSE_Q} labels ['fallback_awaiting_renewal']",
+    "s6.renew2 POST /admin/renew {'body.fallback.allowance_micro_usd': 2000000, 'status': 200}",
+    "6h max(h4_fallback_allowance_usd) = 2.0",
+    "6h max(h4_fallback_awaiting_renewal) = 0.0",
+    # 7 (US2-3): metered calls to $5.00 on the 22nd: the trip, with the month at $12.50
+    f"s7.spend metered x50 {{'answered': 50, {spent(day=5.0, month=12.5)}, 'stopped': None}}",
+    f"7a {KILL_Q} labels ['degraded']",
+    f"7e {CAUSE_Q} labels ['kill_switch_tripped']",
+    '7e max(h4_adapter_healthy{h4_adapter="local"}) = 1.0',
+    # 9 (US2-4): the reset; local answers, metered calls are still refused at the ceiling
+    "s9.reset POST /admin/reset {'body.state': 'normal', 'status': 200}",
+    "9a audit reset {}",
+    f"9b {KILL_Q} labels ['normal']",
+    "9c trace {'gen_ai.provider.name': 'local', 'h4.cost.usd': 0}",
+    f"s9.refused metered x1 {{'answered': 0, {spent(day=5.0, month=12.5)}, 'stopped.cause': 'meter_at_ceiling'}}",
+    f"9e {DAY_Q} = 5.0",
+    f'9e {DAY_Q} >= max(h4_meter_ceiling_usd{{h4_meter="day"}})',
+    # 10 (US2-5): the 23rd, $1.50 to $14.00 and its warning, $3.40 more; the 24th, $2.60 to $20.00 and the trip
+    "s10.clock1 POST /admin/test/clock {'status': 200}",
+    f"s10.spend1 metered x15 {{'answered': 15, {spent(day=1.5, month=14.0)}, 'stopped': None}}",
+    f"10c {MONTH_Q} = 14.0",
+    f'10c {MONTH_Q} >= max(h4_meter_warn_usd{{h4_meter="month"}})',
+    f"s10.spend2 metered x34 {{'answered': 34, {spent(day=4.9, month=17.4)}, 'stopped': None}}",
+    "s10.clock2 POST /admin/test/clock {'status': 200}",
+    f"s10.spend3 metered x26 {{'answered': 26, {spent(day=2.6, month=20.0)}, 'stopped': None}}",
+    f"10d {MONTH_Q} = 20.0",
+    f"10d {KILL_Q} labels ['degraded']",
+    "s10.clock3 POST /admin/test/clock {'status': 200}",
+    f"10f {DAY_Q} = 0.0",
+    f"10f {KILL_Q} labels ['degraded']",
+    "s10.clock4 POST /admin/test/clock {'status': 200}",
+    f"10g {MONTH_Q} = 0.0",
+    f"10g {KILL_Q} labels ['degraded']",
+    "s10.reset POST /admin/reset {'body.meters_at_ceiling': [], 'body.state': 'normal', 'status': 200}",
+    f"s10.spend4 metered x1 {{'answered': 1, {spent(day=0.1, month=0.1)}, 'stopped': None}}",
+    f"10h {KILL_Q} labels ['normal']",
+    f"10h {DAY_Q} = 0.1",
+    f"10h {MONTH_Q} = 0.1",
+    # 11 (US2-7): the store stopped, then wiped and rebuilt from the journal: $0.10, the clock, renewal pending.
+    # 7000 is the clock offset s10.clock4 answered (the fake adds 1000 a move); init must restore the same.
+    f"11a {CAUSE_Q} labels ['store_unreachable']",
+    f"11c {CAUSE_Q} labels ['store_uninitialized']",
+    (
+        "s11.init POST /admin/init {'body.clock_offset_ms': 7000, 'body.fallback_awaiting_renewal': True, "
+        "'body.meters.day.sources.journal': 100000, 'body.meters.day.spent_micro_usd': 100000, "
+        "'body.meters.month.sources.journal': 100000, 'body.meters.month.spent_micro_usd': 100000, 'status': 200}"
+    ),
+    (
+        "11d audit init {'detail.chosen.day': 100000, 'detail.chosen.month': 100000, 'detail.clock_offset_ms': 7000, "
+        "'detail.renewed': False}"
+    ),
+    f"11e {DAY_Q} = 0.1",
+    f"11e {MONTH_Q} = 0.1",
+    "11e max(h4_fallback_awaiting_renewal) = 1.0",
+]
+
+
 def test_every_probe_call_rebuilds_the_probe_and_runs_it_isolated_in_the_stacks_network() -> (
     None
 ):

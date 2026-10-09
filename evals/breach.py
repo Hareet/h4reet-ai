@@ -974,9 +974,23 @@ class Steps:
         return start, float(result.get("ended_s", start))
 
     def spend(
-        self, op_id: str, attribution: str, count: int, reason: str, **expect: Any
+        self,
+        op_id: str,
+        attribution: str,
+        count: int,
+        reason: str,
+        *,
+        meters: Mapping[str, float],
+        **expect: Any,
     ) -> dict[str, Any]:
+        """POST /admin/test/synthetic's calls. The probe waits out the gateway's 429s (60 metered calls a minute,
+        data-model.md §7.2), so step 10's paced calls aren't misses; the reply's meters must then show the store's
+        figures plan §8 gives, in USD here, so a refused call that was never made again, or one counted twice, stops
+        the step."""
         route = "metered" if attribution == "metered" else "fallback"
+        expectation = dict(expect) or {"answered": count, "stopped": None}
+        for meter, usd in meters.items():
+            expectation[f"meters.{meter}.spent_micro_usd"] = round(usd * 1_000_000)
         return {
             "op": "spend",
             "id": op_id,
@@ -984,7 +998,7 @@ class Steps:
             "route": route,
             "count": count,
             "reason": reason,
-            "expect": expect or {"answered": count, "stopped": None},
+            "expect": expectation,
         }
 
     @staticmethod
@@ -1154,7 +1168,11 @@ class Steps:
             "2",
             [
                 self.spend(
-                    "s2.spend", "metered", 1, "breach test step 2: one metered call"
+                    "s2.spend",
+                    "metered",
+                    1,
+                    "breach test step 2: one metered call",
+                    meters={"day": 0.1, "month": 0.1},
                 ),
                 {
                     "op": "trace",
@@ -1181,8 +1199,10 @@ class Steps:
                     "metered",
                     34,
                     "breach test step 3: metered calls to 3.50 USD today",
+                    meters={"day": 3.5, "month": 3.5},
                 ),
                 *self.delivered("3a", "3b", keys["warn_day"], "s3.spend"),
+                metric("3c", spend("day"), after="s3.spend", value=3.5),
                 metric("3c", spend("day"), after="s3.spend", at_least=warn("day")),
             ],
         )
@@ -1226,6 +1246,7 @@ class Steps:
                     "fallback",
                     14,
                     "breach test step 4: fallback calls to grant 1's warning",
+                    meters={"fallback_day": 1.4, "day": 1.4, "month": 4.9},
                 ),
                 *self.delivered("4b", "4c", keys["warn_g1"], "s4.spend"),
                 metric("4d", spend("fallback_day"), after="s4.spend", value=1.4),
@@ -1235,6 +1256,7 @@ class Steps:
                     "fallback",
                     1,
                     "breach test step 4: one more fallback call, to 1.50 USD",
+                    meters={"fallback_day": 1.5, "day": 1.5, "month": 5.0},
                 ),
                 metric("4e", spend("fallback_day"), after="s4.more", value=1.5),
             ],
@@ -1279,6 +1301,7 @@ class Steps:
                     "fallback",
                     6,
                     "breach test step 5: fallback calls to the allowance",
+                    meters={"fallback_day": 2.0, "day": 2.0, "month": 5.5},
                     **sixth,
                 ),
                 self.log(
@@ -1343,6 +1366,7 @@ class Steps:
                     "fallback",
                     1,
                     "breach test step 6: fallback passes again after the renewal",
+                    meters={"fallback_day": 2.1, "day": 2.1, "month": 5.6},
                 ),
                 metric(
                     "6b",
@@ -1363,6 +1387,7 @@ class Steps:
                     "fallback",
                     19,
                     "breach test step 6: grant 2 spent to 4.00 USD",
+                    meters={"fallback_day": 4.0, "day": 4.0, "month": 7.5},
                 ),
                 *self.delivered("6c", "6c", keys["warn_g2"], "s6.spend")[:1],
                 self.log(
@@ -1456,6 +1481,7 @@ class Steps:
                     "metered",
                     50,
                     "breach test step 7: metered calls to 5.00 USD today",
+                    meters={"day": 5.0, "month": 12.5},
                 ),
                 # Within 60 s of the crossing, the spend's last call (SC-002).
                 metric("7a", KILL, after="s7.spend", labels=["degraded"]),
@@ -1580,9 +1606,11 @@ class Steps:
                     "metered",
                     1,
                     "breach test step 9: a metered call at the ceiling",
+                    meters={"day": 5.0, "month": 12.5},
                     **refused,
                 ),
                 self.log("9d", "call.degraded", "s9.refused", cause="meter_at_ceiling"),
+                metric("9e", spend("day"), after="s9.refused", value=5.0),
                 metric("9e", spend("day"), after="s9.refused", at_least=ceiling("day")),
             ],
         )
@@ -1605,8 +1633,10 @@ class Steps:
                     "metered",
                     15,
                     "breach test step 10: the month to 14.00 USD",
+                    meters={"day": 1.5, "month": 14.0},
                 ),
                 *self.delivered("10a", "10b", keys["warn_month"], "s10.spend1"),
+                metric("10c", spend("month"), after="s10.spend1", value=14.0),
                 metric(
                     "10c", spend("month"), after="s10.spend1", at_least=warn("month")
                 ),
@@ -1615,6 +1645,7 @@ class Steps:
                     "metered",
                     34,
                     "breach test step 10: 4.90 USD today, 17.40 USD this month",
+                    meters={"day": 4.9, "month": 17.4},
                 ),
                 self.clock(
                     "s10.clock2", "breach test step 10: the next UTC day, the 24th"
@@ -1624,7 +1655,9 @@ class Steps:
                     "metered",
                     26,
                     "breach test step 10: the month to 20.00 USD",
+                    meters={"day": 2.6, "month": 20.0},
                 ),
+                metric("10d", spend("month"), after="s10.spend3", value=20.0),
                 metric("10d", KILL, after="s10.spend3", labels=["degraded"]),
                 self.log("10e", "killswitch.tripped", "s10.spend3"),
                 *self.delivered("10e", "10e", keys["trip_month"], "s10.spend3")[:1],
@@ -1676,6 +1709,7 @@ class Steps:
                     "metered",
                     1,
                     "breach test step 10: one metered call in the new month",
+                    meters={"day": 0.1, "month": 0.1},
                 ),
                 metric(
                     "10h",
