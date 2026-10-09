@@ -1687,6 +1687,48 @@ def test_make_operator_init_passes_each_value_through_the_shell(home: Path) -> N
     )
 
 
+def output_lines(done: subprocess.CompletedProcess[str]) -> list[str]:
+    return [line.strip() for line in (done.stdout + done.stderr).splitlines()]
+
+
+def test_make_operator_init_hands_the_cli_each_value_as_typed(
+    home: Path, tmp_path: Path
+) -> None:
+    # Run, not -n: make expands a command-line value wherever it's used, and again when it exports it to a recipe, so
+    # "$5" would vanish and "$(shell ...)" would run (T056's review). OPERATOR is a stub that prints its arguments.
+    stub = tmp_path / "argv.py"
+    stub.write_text(
+        "import json, sys\nprint('ARGV', json.dumps(sys.argv[1:]))\n", encoding="utf-8"
+    )
+    reason = "Spent $4.80 of the $5 day ceiling; $(shell echo RAN >&2)"
+    done = make(
+        home,
+        "operator-init",
+        "ENV=dev-cpu",
+        f"REASON={reason}",
+        "DAY_USD=$1.00",
+        f"OPERATOR={sys.executable} -I {stub}",
+        sandbox=True,
+    )
+    assert done.returncode == 0, done.stderr
+    (line,) = [ln for ln in done.stdout.splitlines() if ln.startswith("ARGV ")]
+    assert json.loads(line.removeprefix("ARGV ")) == [
+        "init",
+        f"--reason={reason}",
+        "--day-usd=$1.00",
+    ]
+    assert "RAN" not in output_lines(done)
+
+
+def test_make_refuses_make_code_in_env_without_running_it(home: Path) -> None:
+    done = make(home, "help", "ENV=$(shell echo RAN >&2)")
+    assert done.returncode == 2
+    assert (
+        'ENV must be prod, dev, or dev-cpu, not "$(shell echo RAN >&2)"' in done.stderr
+    )
+    assert "RAN" not in output_lines(done)
+
+
 def test_make_operator_init_takes_flags_from_the_command_line_only(home: Path) -> None:
     done = make(
         home,
