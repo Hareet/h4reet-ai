@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<!-- ClickHouse's crash reports to its vendor, off (spec 000 FR-040; plan §6). Mounted read-only into config.d. The
+     internal network, which has no route out, would block them anyway. -->
+<clickhouse>
+    <send_crash_reports>
+        <enabled>false</enabled>
+    </send_crash_reports>
+</clickhouse>

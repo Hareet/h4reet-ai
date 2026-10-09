@@ -35,13 +35,16 @@ def keys(path: Path) -> set[str]:
 
 
 def lock() -> dict[str, str]:
+    """Each service's image as make pin-images writes it: repository:tag@digest, or the bare repository while the
+    lock's line is still open (tag and digest "-", SeaweedFS's until T063)."""
     out = {}
     for line in (
         (REPO / "deploy" / "images.lock").read_text(encoding="utf-8").splitlines()
     ):
         if line.strip() and not line.startswith("#"):
             service, repository, tag, digest, *_ = line.split()
-            out[service] = f"{repository}:{tag}@{digest}"
+            open_pin = (tag, digest) == ("-", "-")
+            out[service] = repository if open_pin else f"{repository}:{tag}@{digest}"
     return out
 
 
@@ -67,6 +70,12 @@ def test_the_topology_of_this_branch() -> None:
         "prometheus",
         "loki",
         "grafana",
+        "langfuse-web",
+        "langfuse-worker",
+        "langfuse-db",
+        "clickhouse",
+        "valkey",
+        "seaweedfs",
     }
     assert COMPOSE["networks"] == {
         "internal": {"internal": True},
@@ -78,8 +87,30 @@ def test_the_topology_of_this_branch() -> None:
         "prometheus-data": {},
         "loki-data": {},
         "grafana-data": {},
+        "langfuse-db-data": {},
+        "clickhouse-data": {},
+        "valkey-data": {},
+        "seaweedfs-data": {},
     }
     assert "name" not in COMPOSE  # make passes -p h4reet-<stack>
+
+
+# Langfuse waits for its four stores (as Langfuse's own compose does), and nothing else waits on anything: least of
+# all on the model server or the collector, so neither can block hello's degraded path (plan §1).
+LANGFUSE_STORES = {
+    "langfuse-db": {"condition": "service_healthy"},
+    "clickhouse": {"condition": "service_healthy"},
+    "valkey": {"condition": "service_healthy"},
+    "seaweedfs": {"condition": "service_healthy"},
+}
+
+
+def test_only_langfuse_waits_and_only_on_its_stores() -> None:
+    waiting = {n: s["depends_on"] for n, s in SERVICES.items() if "depends_on" in s}
+    assert waiting == {
+        "langfuse-web": LANGFUSE_STORES,
+        "langfuse-worker": LANGFUSE_STORES,
+    }
 
 
 @pytest.mark.parametrize("name", sorted(SERVICES))
@@ -97,11 +128,12 @@ def test_every_service_follows_plan_1(name: str) -> None:
         "env_file",
         "container_name",
         "network_mode",
-        "depends_on",
         "privileged",
         "devices",
     ):
         assert absent not in service, absent
+    if name not in ("langfuse-web", "langfuse-worker"):
+        assert "depends_on" not in service
 
 
 def test_only_edge_publishes_and_only_on_loopback() -> None:
@@ -248,19 +280,35 @@ def test_binds_and_volumes() -> None:
         ),
         (f"{tree}/grafana/dashboards", "/etc/grafana/dashboards", True),
     ]
+    # Langfuse's stores: ClickHouse's three settings files into config.d, and SeaweedFS's entrypoint.
+    config_d = "/etc/clickhouse-server/config.d"
+    assert binds("clickhouse") == [
+        (f"{tree}/clickhouse/{f}.xml", f"{config_d}/{f}.xml", True)
+        for f in ("low-memory", "no-crash-reports", "prometheus")
+    ]
+    assert binds("seaweedfs") == [
+        (f"{tree}/seaweedfs/entrypoint.sh", "/h4/entrypoint.sh", True)
+    ]
+    for name in ("langfuse-web", "langfuse-worker", "langfuse-db", "valkey"):
+        assert binds(name) == [], name
     for name, volume, target in (
         ("prometheus", "prometheus-data", "/prometheus"),
         ("loki", "loki-data", "/loki"),
         ("grafana", "grafana-data", "/var/lib/grafana"),
+        ("langfuse-db", "langfuse-db-data", "/var/lib/postgresql/data"),
+        ("clickhouse", "clickhouse-data", "/var/lib/clickhouse"),
+        ("valkey", "valkey-data", "/data"),
+        ("seaweedfs", "seaweedfs-data", "/data"),
     ):
         assert [
             (v["source"], v["target"])
             for v in SERVICES[name]["volumes"]
             if v["type"] == "volume"
         ] == [(volume, target)], name
-    assert "volumes" not in SERVICES["otel-collector"] or not [
-        v for v in SERVICES["otel-collector"]["volumes"] if v["type"] == "volume"
-    ]
+    for name in ("otel-collector", "langfuse-web", "langfuse-worker"):
+        assert not [
+            v for v in SERVICES[name].get("volumes", []) if v["type"] == "volume"
+        ], name
     # Every bind source names a file or folder this tree holds, so the long syntax, which never creates a missing
     # source, finds it on the engine and in every export.
     for name in SERVICES:
@@ -289,19 +337,33 @@ def test_read_only_roots_where_the_image_allows() -> None:
     for name in ("edge", "gateway", "otel-collector"):
         assert SERVICES[name]["read_only"] is True
         assert SERVICES[name]["tmpfs"] == ["/tmp"]
-    for name in ("gateway-state", "prometheus", "loki", "grafana"):
-        assert "read_only" not in SERVICES[name], name
-
-
-def test_only_the_database_adds_capabilities_back() -> None:
-    assert SERVICES["gateway-state"]["cap_add"] == [
-        "CHOWN",
-        "SETUID",
-        "SETGID",
-        "FOWNER",
-        "DAC_OVERRIDE",
+    assert [n for n, s in SERVICES.items() if s.get("read_only")] == [
+        "edge",
+        "gateway",
+        "otel-collector",
     ]
-    assert "cap_add" not in SERVICES["edge"] and "cap_add" not in SERVICES["gateway"]
+    # SeaweedFS's root stays writable, but its S3 keys file goes to a tmpfs, never the image's layer.
+    assert SERVICES["seaweedfs"]["tmpfs"] == ["/tmp"]
+
+
+def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> None:
+    # The two Postgres and Valkey: their entrypoints chown their data, then drop to their own user (plan §1).
+    for name in ("gateway-state", "langfuse-db", "valkey"):
+        assert SERVICES[name]["cap_add"] == [
+            "CHOWN",
+            "SETUID",
+            "SETGID",
+            "FOWNER",
+            "DAC_OVERRIDE",
+        ], name
+    assert [n for n, s in SERVICES.items() if "cap_add" in s] == [
+        "gateway-state",
+        "langfuse-db",
+        "valkey",
+    ]
+    # ClickHouse runs as its own user, as Langfuse's compose runs it, so its entrypoint changes no ownership.
+    assert SERVICES["clickhouse"]["user"] == "101:101"
+    assert [n for n, s in SERVICES.items() if "user" in s] == ["clickhouse"]
 
 
 @pytest.mark.parametrize(
@@ -316,6 +378,12 @@ def test_only_the_database_adds_capabilities_back() -> None:
         ("prometheus", "0.5", "1G"),
         ("loki", "0.5", "512M"),
         ("grafana", "0.5", "512M"),
+        ("langfuse-web", "1", "1536M"),
+        ("langfuse-worker", "1", "1G"),
+        ("langfuse-db", "0.5", "512M"),
+        ("clickhouse", "2", "4G"),
+        ("valkey", "0.5", "384M"),
+        ("seaweedfs", "0.5", "512M"),
     ],
 )
 def test_limits_are_plan_2s(name: str, cpus: str, memory: str) -> None:
@@ -359,6 +427,54 @@ def test_health_checks() -> None:
         assert SERVICES[name]["healthcheck"]["test"] == ["CMD", "wget", "-qO-", url]
     # The collector's image has no shell: Prometheus scrapes it instead (plan §2).
     assert "healthcheck" not in SERVICES["otel-collector"]
+    # Langfuse and its stores (plan §2).
+    web = SERVICES["langfuse-web"]["healthcheck"]
+    assert web["test"] == [
+        "CMD",
+        "wget",
+        "-qO-",
+        "http://127.0.0.1:3000/api/public/health",
+    ]
+    assert web["start_period"] == "180s"
+    for name, url in (
+        ("langfuse-worker", "http://127.0.0.1:3030/api/health"),
+        ("clickhouse", "http://127.0.0.1:8123/ping"),
+    ):
+        assert SERVICES[name]["healthcheck"]["test"] == ["CMD", "wget", "-qO-", url]
+    assert SERVICES["langfuse-db"]["healthcheck"]["test"] == [
+        "CMD",
+        "pg_isready",
+        "-U",
+        "langfuse",
+        "-d",
+        "langfuse",
+    ]
+    # Valkey answers PONG to its own password, which the container's shell reads ($$ is compose's escape).
+    assert SERVICES["valkey"]["healthcheck"]["test"] == [
+        "CMD-SHELL",
+        'valkey-cli --no-auth-warning -a "$$VALKEY_PASSWORD" ping | grep -qx PONG',
+    ]
+    # SeaweedFS is healthy once the master answers and the entrypoint has made the bucket (research.md R-09).
+    assert SERVICES["seaweedfs"]["healthcheck"]["test"] == [
+        "CMD-SHELL",
+        "test -f /tmp/h4-bucket-ready && wget -qO- http://127.0.0.1:9333/cluster/status >/dev/null",
+    ]
+
+
+def test_valkey_and_seaweedfs_run_as_plan_6_says() -> None:
+    assert SERVICES["valkey"]["command"] == [
+        "valkey-server",
+        "--requirepass",
+        "${VALKEY_PASSWORD}",
+        "--maxmemory",
+        "256mb",
+        "--maxmemory-policy",
+        "noeviction",
+        "--appendonly",
+        "yes",
+    ]
+    assert SERVICES["seaweedfs"]["entrypoint"] == ["/bin/sh", "/h4/entrypoint.sh"]
+    assert "command" not in SERVICES["seaweedfs"]
 
 
 def test_edge_runs_nginx_without_the_entrypoint_scripts() -> None:
@@ -474,6 +590,134 @@ def test_grafana_receives_exactly_its_variables() -> None:
     assert SERVICES["grafana"]["environment"] == GRAFANA_ENVIRONMENT
     # Nothing that would install a plugin from the internet.
     assert "GF_INSTALL_PLUGINS" not in SERVICES["grafana"]["environment"]
+
+
+# Langfuse 4.54.0: contracts/env-files.md §5 ("Fixed in compose, on web and worker" and "on web only"), exactly.
+LANGFUSE_S3 = {
+    "BUCKET": "langfuse",
+    "REGION": "auto",
+    "ENDPOINT": "http://seaweedfs:8333",
+    "ACCESS_KEY_ID": "${SEAWEEDFS_S3_ACCESS_KEY}",
+    "SECRET_ACCESS_KEY": "${SEAWEEDFS_S3_SECRET_KEY}",
+    "FORCE_PATH_STYLE": "true",
+}
+LANGFUSE_SHARED = {
+    "DATABASE_URL": "postgresql://langfuse:${LANGFUSE_DB_PASSWORD}@langfuse-db:5432/langfuse",
+    "SALT": "${LANGFUSE_SALT}",
+    "ENCRYPTION_KEY": "${LANGFUSE_ENCRYPTION_KEY}",
+    "TELEMETRY_ENABLED": "false",
+    "CLICKHOUSE_URL": "http://clickhouse:8123",
+    "CLICKHOUSE_MIGRATION_URL": "clickhouse://clickhouse:9000",
+    "CLICKHOUSE_USER": "clickhouse",
+    "CLICKHOUSE_PASSWORD": "${CLICKHOUSE_PASSWORD}",
+    "CLICKHOUSE_CLUSTER_ENABLED": "false",
+    "REDIS_HOST": "valkey",
+    "REDIS_PORT": "6379",
+    "REDIS_AUTH": "${VALKEY_PASSWORD}",
+    **{f"LANGFUSE_S3_EVENT_UPLOAD_{k}": v for k, v in LANGFUSE_S3.items()},
+    "LANGFUSE_S3_EVENT_UPLOAD_PREFIX": "events/",
+    **{f"LANGFUSE_S3_MEDIA_UPLOAD_{k}": v for k, v in LANGFUSE_S3.items()},
+    "LANGFUSE_S3_MEDIA_UPLOAD_PREFIX": "media/",
+    "LANGFUSE_S3_BATCH_EXPORT_ENABLED": "false",
+    "LANGFUSE_IN_APP_AGENT_ENABLED": "false",
+}
+LANGFUSE_WEB_ONLY = {
+    "NODE_OPTIONS": "--max-old-space-size=1024",
+    "NEXTAUTH_URL": "http://localhost:${H4_LANGFUSE_PORT}",
+    "NEXTAUTH_SECRET": "${LANGFUSE_NEXTAUTH_SECRET}",
+    "AUTH_DISABLE_SIGNUP": "true",
+    "HOSTNAME": "0.0.0.0",
+    "LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT": "http://seaweedfs:8333",
+    "LANGFUSE_INIT_ORG_ID": "h4reet",
+    "LANGFUSE_INIT_ORG_NAME": "h4reet.ai",
+    "LANGFUSE_INIT_PROJECT_ID": "h4reet-${H4_STACK}",
+    "LANGFUSE_INIT_PROJECT_NAME": "h4reet-${H4_STACK}",
+    "LANGFUSE_INIT_PROJECT_PUBLIC_KEY": "${LANGFUSE_PUBLIC_KEY}",
+    "LANGFUSE_INIT_PROJECT_SECRET_KEY": "${LANGFUSE_SECRET_KEY}",
+    "LANGFUSE_INIT_USER_EMAIL": "${LANGFUSE_INIT_USER_EMAIL}",
+    "LANGFUSE_INIT_USER_NAME": "operator",
+    "LANGFUSE_INIT_USER_PASSWORD": "${LANGFUSE_INIT_USER_PASSWORD}",
+}
+
+
+def test_langfuse_receives_exactly_its_variables() -> None:
+    assert SERVICES["langfuse-web"]["environment"] == {
+        **LANGFUSE_SHARED,
+        **LANGFUSE_WEB_ONLY,
+    }
+    assert SERVICES["langfuse-worker"]["environment"] == {
+        **LANGFUSE_SHARED,
+        "NODE_OPTIONS": "--max-old-space-size=768",
+    }
+
+
+@pytest.mark.parametrize("name", ["langfuse-web", "langfuse-worker"])
+def test_langfuse_keeps_off_everything_that_reaches_out(name: str) -> None:
+    """contracts/env-files.md §5's "Kept off: set nowhere": none of these keys is set to switch anything on."""
+    environment = SERVICES[name]["environment"]
+    for key, value in environment.items():
+        assert not key.startswith(("LANGFUSE_AI_", "AWS_")), key
+        assert key not in (
+            "SMTP_CONNECTION_URL",
+            "EMAIL_FROM_ADDRESS",
+            "LANGFUSE_USE_AZURE_BLOB",
+            "LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE",
+        ), key
+        assert "MCP" not in key, key
+        if key.startswith("LANGFUSE_LLM_CONNECTION_WHITELISTED_"):
+            assert value == "", key
+    assert environment["LANGFUSE_IN_APP_AGENT_ENABLED"] == "false"
+    assert environment["LANGFUSE_S3_BATCH_EXPORT_ENABLED"] == "false"
+    assert environment["TELEMETRY_ENABLED"] == "false"
+
+
+def test_langfuses_stores_receive_only_their_own() -> None:
+    assert SERVICES["langfuse-db"]["environment"] == {
+        "POSTGRES_DB": "langfuse",
+        "POSTGRES_USER": "langfuse",
+        "POSTGRES_PASSWORD": "${LANGFUSE_DB_PASSWORD}",
+    }
+    assert SERVICES["clickhouse"]["environment"] == {
+        "CLICKHOUSE_DB": "default",
+        "CLICKHOUSE_USER": "clickhouse",
+        "CLICKHOUSE_PASSWORD": "${CLICKHOUSE_PASSWORD}",
+    }
+    assert SERVICES["valkey"]["environment"] == {
+        "VALKEY_PASSWORD": "${VALKEY_PASSWORD}"
+    }
+    assert SERVICES["seaweedfs"]["environment"] == {
+        "SEAWEEDFS_S3_ACCESS_KEY": "${SEAWEEDFS_S3_ACCESS_KEY}",
+        "SEAWEEDFS_S3_SECRET_KEY": "${SEAWEEDFS_S3_SECRET_KEY}",
+    }
+
+
+def test_each_secret_reaches_only_the_services_that_use_it() -> None:
+    """contracts/env-files.md §1: a container never sees a key it doesn't consume."""
+    expected = {
+        "GATEWAY_DB_PASSWORD": {"gateway", "gateway-state"},
+        "GATEWAY_GRAFANA_RO_PASSWORD": {"gateway", "grafana"},
+        "LANGFUSE_PUBLIC_KEY": {"otel-collector", "langfuse-web"},
+        "LANGFUSE_SECRET_KEY": {"otel-collector", "langfuse-web"},
+        "LANGFUSE_SALT": {"langfuse-web", "langfuse-worker"},
+        "LANGFUSE_ENCRYPTION_KEY": {"langfuse-web", "langfuse-worker"},
+        "LANGFUSE_NEXTAUTH_SECRET": {"langfuse-web"},
+        "LANGFUSE_DB_PASSWORD": {"langfuse-web", "langfuse-worker", "langfuse-db"},
+        "LANGFUSE_INIT_USER_PASSWORD": {"langfuse-web"},
+        "CLICKHOUSE_PASSWORD": {"langfuse-web", "langfuse-worker", "clickhouse"},
+        "VALKEY_PASSWORD": {"langfuse-web", "langfuse-worker", "valkey"},
+        "SEAWEEDFS_S3_ACCESS_KEY": {"langfuse-web", "langfuse-worker", "seaweedfs"},
+        "SEAWEEDFS_S3_SECRET_KEY": {"langfuse-web", "langfuse-worker", "seaweedfs"},
+        "GF_SECURITY_ADMIN_PASSWORD": {"grafana"},
+        "TELEGRAM_BOT_TOKEN": {"gateway"},
+        "SMTP_PASSWORD": {"gateway"},
+    }
+    for key, services in expected.items():
+        readers = {
+            name
+            for name, service in SERVICES.items()
+            if f"${{{key}}}" in " ".join(strings(service))
+        }
+        assert readers == services, key
 
 
 def test_no_aws_key_outside_the_gateway() -> None:

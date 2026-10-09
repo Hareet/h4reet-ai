@@ -230,6 +230,8 @@ class Status:
         pin = pins.get(name)
         if not pin:
             return "no pin"
+        if pin[1] == "-":
+            return "unpinned"  # an open lock line, which make pin-images resolves (research.md R-09)
         image = self.docker.run(
             "inspect", "--format", "{{.Image}}", container.get("ID", "")
         )

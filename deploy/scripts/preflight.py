@@ -1228,7 +1228,12 @@ def p17(ctx: Context) -> Result:
         if service.get("build") is not None or not image:
             continue
         repository, tag, digest = split_reference(str(image))
-        if not digest or not DIGEST_RE.fullmatch(digest):
+        if lock.get(name, ("", "", ""))[1:] == ("-", "-"):
+            # An open pin (research.md R-09): the compose policy reports it PLANNED, but nothing starts unpinned.
+            problems.append(
+                f"{name}: its pin in deploy/images.lock is still open: make pin-images resolves it"
+            )
+        elif not digest or not DIGEST_RE.fullmatch(digest):
             problems.append(f"{name}: not pinned by digest")
         elif lock.get(name) != (repository, tag, digest):
             problems.append(f"{name}: differs from deploy/images.lock")

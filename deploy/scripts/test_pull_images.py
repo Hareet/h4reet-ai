@@ -90,17 +90,18 @@ def test_it_pulls_the_compose_images_and_bases_by_digest_once(
     fake = FakeDocker(services, {ref("edge")}, {})
     assert run(fake, []) == 0
     pulled = [c[-1] for c in fake.calls if c[0] == "pull"]
-    images = sorted(
-        (name, s["image"])
-        for name, s in services.items()
-        if "image" in s and name != "edge"
+    # By service name, each image once: langfuse-db and gateway-state share theirs.
+    images = list(
+        dict.fromkeys(
+            s["image"]
+            for _, s in sorted(services.items())
+            if "image" in s and s["image"] != ref("edge")
+        )
     )
     # edge is present; gateway is built; both model servers come, whatever the stack's own profile.
-    assert pulled == [image for _, image in images] + [
-        ref("base:node"),
-        ref("base:python"),
-    ]
+    assert pulled == [*images, ref("base:node"), ref("base:python")]
     assert ref("model-server-gpu") in pulled and ref("model-server-cpu") in pulled
+    assert len(pulled) == len(set(pulled))
     assert all("@sha256:" in r for r in pulled)
     out = capsys.readouterr().out
     total = len(images) + 3

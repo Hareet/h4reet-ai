@@ -54,6 +54,7 @@ LOCK = {
     for line in (REPO / "deploy/images.lock").read_text().splitlines()
     if line and not line.startswith("#")
 }
+OPEN_PIN_DIGEST = "sha256:" + "5" * 64
 
 
 def ref(service: str) -> str:
@@ -256,6 +257,7 @@ class Stage:
             "schema: 1\nadapters:\n  local: {type: openai-compatible, kind: local}\nenvs:\n  prod: {primary: local}\n  dev: {primary: local}\n",
         )
         self.host = FakeHost(self.home)
+        self.pin_open_images()
         self.run_file: Path | None = None
         if stack == "dev-cpu":
             self.env_file = self.root / "deploy/env.agents/dev-cpu.vars"
@@ -306,6 +308,23 @@ class Stage:
     def write(path: Path, text: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
+
+    def pin_open_images(self) -> None:
+        """The tree as make pin-images leaves it (tasks.md T063): every open deploy/images.lock line gets a tag and a
+        digest, in the fixture's lock and in the compose model, and its image is present. With the committed lock
+        already pinned, this changes nothing."""
+        lock = self.root / "deploy/images.lock"
+        lines = []
+        for line in lock.read_text(encoding="utf-8").splitlines():
+            fields = line.split()
+            if fields and not line.startswith("#") and fields[3] == "-":
+                fields[2], fields[3], fields[5] = "3.97", OPEN_PIN_DIGEST, "2026-10-09"
+                image = f"{fields[1]}:{fields[2]}@{fields[3]}"
+                self.host.raw["services"][fields[0]]["image"] = image
+                self.host.images.add(image)
+                line = "  ".join(fields)
+            lines.append(line)
+        lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def set(self, **values: str | None) -> None:
         lines = self.env_file.read_text(encoding="utf-8").splitlines()
@@ -938,6 +957,26 @@ def test_p17_images_against_the_lock(dev: Stage) -> None:
         "ghcr.io/nginx/nginx-unprivileged:latest"
     )
     assert "edge: not pinned by digest" in dev.results()["P17"].reason
+
+
+def test_p17_an_open_pin_starts_nothing(dev: Stage) -> None:
+    """SeaweedFS's lock line, as it stands until make pin-images (T063): the policy says PLANNED, preflight refuses."""
+    lock = dev.root / "deploy/images.lock"
+    lines = []
+    for line in lock.read_text(encoding="utf-8").splitlines():
+        fields = line.split()
+        if fields and fields[0] == "seaweedfs":
+            fields[2] = fields[3] = fields[5] = "-"
+            line = "  ".join(fields)
+        lines.append(line)
+    lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    dev.host.raw["services"]["seaweedfs"]["image"] = "docker.io/chrislusf/seaweedfs"
+    result = dev.results()["P17"]
+    assert result.status == "FAIL"
+    assert (
+        "seaweedfs: its pin in deploy/images.lock is still open: make pin-images"
+        in (result.reason)
+    )
 
 
 def test_p18_the_model_file(dev: Stage, devcpu: Stage) -> None:

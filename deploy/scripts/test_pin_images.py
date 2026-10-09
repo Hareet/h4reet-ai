@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -207,7 +208,48 @@ def test_the_committed_lock_is_in_its_canonical_form() -> None:
     assert pi.render_lock(header, entries) == (REPO / pi.LOCK).read_text(
         encoding="utf-8"
     )
-    assert [e.service for e in entries if e.digest == "-"] == ["seaweedfs"]
+    # Only SeaweedFS's pin may be open (research.md R-09), and only until make pin-images resolves it (T063).
+    assert {e.service for e in entries if e.digest == "-"} <= {"seaweedfs"}
+
+
+def reopen_seaweedfs(root: Path) -> None:
+    """SeaweedFS's lock line and compose line as they stand while its pin is open, whatever the committed files say."""
+    lock = root / pi.LOCK
+    header, entries = pi.read_lock(lock)
+    entries = [
+        Entry(e.service, e.repository, "-", "-", e.registry, "-")
+        if e.service == "seaweedfs"
+        else e
+        for e in entries
+    ]
+    lock.write_text(pi.render_lock(header, entries), encoding="utf-8")
+    compose = root / pi.COMPOSE
+    compose.write_text(
+        reopen_compose(compose.read_text(encoding="utf-8")), encoding="utf-8"
+    )
+
+
+def reopen_compose(text: str) -> str:
+    return re.sub(
+        r"(?m)^    image: docker\.io/chrislusf/seaweedfs\S*$",
+        "    image: docker.io/chrislusf/seaweedfs",
+        text,
+    )
+
+
+Entry = pi.Entry
+
+
+def test_rewrite_compose_pins_an_open_image_line_in_place() -> None:
+    text = reopen_compose((REPO / pi.COMPOSE).read_text(encoding="utf-8"))
+    pinned = f"docker.io/chrislusf/seaweedfs:3.97@{digest('5')}"
+    rewritten, changes = pi.rewrite_compose(text, {"seaweedfs": pinned})
+    assert changes == {"seaweedfs": ("docker.io/chrislusf/seaweedfs", pinned)}
+    assert [
+        (a, b)
+        for a, b in zip(text.splitlines(), rewritten.splitlines(), strict=True)
+        if a != b
+    ] == [("    image: docker.io/chrislusf/seaweedfs", f"    image: {pinned}")]
 
 
 def test_rewrite_compose_changes_only_the_pinned_image_lines() -> None:
@@ -217,7 +259,7 @@ def test_rewrite_compose_changes_only_the_pinned_image_lines() -> None:
     pins = {
         "edge": new_ref,
         "gateway-state": lock["gateway-state"].ref,
-        "seaweedfs": "x",
+        "no-such-service": "x",  # a pin for a service the file doesn't have changes nothing
     }
     rewritten, changes = pi.rewrite_compose(text, pins)
     assert changes == {"edge": (lock["edge"].ref, new_ref)}
@@ -230,6 +272,7 @@ def test_rewrite_compose_changes_only_the_pinned_image_lines() -> None:
 def test_pinning_updates_the_lock_and_compose_together(
     root: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    reopen_seaweedfs(root)  # the open pin, in either state of the committed files
     digests = same_digests(root)
     digests["ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine"] = digest("e")
     digests["public.ecr.aws/docker/library/node:24.21.0-trixie-slim"] = digest("f")
@@ -249,6 +292,9 @@ def test_pinning_updates_the_lock_and_compose_together(
     compose = (root / pi.COMPOSE).read_text(encoding="utf-8")
     assert f"image: {lock['edge'].ref}" in compose
     assert f"image: {lock['gateway-state'].ref}" in compose
+    # The open line is pinned in both files together, so the compose policy's PLANNED mark expires with it.
+    assert f"    image: {lock['seaweedfs'].ref}\n" in compose
+    assert "    image: docker.io/chrislusf/seaweedfs\n" not in compose
     assert "edge" in out and "updated" in out and "pinned" in out and "same" in out
     assert "update FROM by hand (base:node" in out and ".devcontainer/Dockerfile" in out
     # A second run with nothing new changes nothing.

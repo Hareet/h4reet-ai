@@ -212,6 +212,10 @@ def test_a_healthy_stack(
         if not service.get("profiles") or "gpu" in service["profiles"]
     }
     assert "model-server-cpu" not in rows
+    # SeaweedFS's lock line stays open until make pin-images (T063): its row says so instead of "pinned".
+    assert rows["seaweedfs"][2] == (
+        "unpinned" if LOCK["seaweedfs"][3] == "-" else "pinned"
+    )
     assert (
         "gateway /health: ok · store ok · state normal · cause None · adapters: local healthy"
         in out

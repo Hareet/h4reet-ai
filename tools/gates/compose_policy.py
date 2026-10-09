@@ -19,7 +19,10 @@ and refuses, in what compose rendered:
   - ports on any service but edge, or on anything but the literal 127.0.0.1;
   - the egress network on any service but gateway, the edge network on any service but edge, a service off the
     internal network, and any network but internal (internal-only), edge, and egress;
-  - an image without a digest, or one that differs from deploy/images.lock;
+  - an image without a digest, or one that differs from deploy/images.lock. One exception, reported PLANNED rather
+    than refused: a service of OPEN_PINS whose lock line is still open (tag and digest "-") and whose image is that
+    line's bare repository, until make pin-images pins it. Once the lock holds a digest the ordinary check applies,
+    so the mark expires with the pin (plan §11);
   - a build context that is absolute, interpolated, or outside the compose file's tree; a built service that
     names an image; inline Dockerfiles, extra contexts, host networking, and entitlements in a build;
   - plan §1's rules for every service: no container_name, no env_file, no external resource, no extra_hosts or
@@ -39,7 +42,8 @@ Then the files:
   - an .npmrc key outside the allowlist (node-options and script-shell run code).
 
 It needs the docker CLI with compose, and no daemon. Without them it prints SKIP and exits 0. Exit codes: 0
-clean, 1 a refusal, 2 it couldn't run (a file unreadable, compose refusing the file).
+clean, with a PLANNED line for each open pin, which make check shows as PLANNED; 1 a refusal; 2 it couldn't run (a
+file unreadable, compose refusing the file).
 """
 
 from __future__ import annotations
@@ -161,6 +165,13 @@ SKIP_DIRS = {".git", "node_modules"}
 KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*")
 VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)([^}]*)\}")
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+# The services whose deploy/images.lock line may still be open, each with the task that pins it (research.md R-09):
+# check 2 found no SeaweedFS release tag, so make pin-images resolves it in the first stack task. While the line's
+# tag and digest are "-" and the compose file names the line's bare repository, the policy reports the service
+# PLANNED instead of refusing it. Once the lock holds a digest the ordinary check applies, so nothing here needs
+# undoing when the pin lands. Any other open pin, or any other spelling of the image, is refused.
+OPEN_PINS = {"seaweedfs": "T063"}
+PLANNED_RULE = "planned"
 
 
 @dataclass(frozen=True)
@@ -169,7 +180,14 @@ class Finding:
     rule: str
     detail: str
 
+    @property
+    def planned(self) -> bool:
+        """Enforcement a later task completes (an open pin): printed as PLANNED, and not a refusal."""
+        return self.rule == PLANNED_RULE
+
     def line(self) -> str:
+        if self.planned:
+            return self.detail
         return f"FAIL {self.where}: {self.rule}: {self.detail}"
 
 
@@ -507,9 +525,22 @@ def check_service(
     return found
 
 
+def open_pin(name: str, image: str, lock: dict[str, LockEntry]) -> str | None:
+    """The PLANNED line for an image whose pin is still open (OPEN_PINS), or None: the ordinary check applies."""
+    task, entry = OPEN_PINS.get(name), lock.get(name)
+    if task is None or entry is None or (entry.tag, entry.digest) != ("-", "-"):
+        return None
+    if image != entry.repository:
+        return None  # a tag or a digest the lock doesn't hold, or another repository: refused as usual
+    return f"PLANNED ({task}): {name}'s pin is open; make pin-images resolves it"
+
+
 def check_image(
     where: str, name: str, image: str, lock: dict[str, LockEntry]
 ) -> list[Finding]:
+    planned = open_pin(name, image, lock)
+    if planned is not None:
+        return [Finding(where, PLANNED_RULE, planned)]
     repository, tag, digest = split_reference(image)
     if not digest or not DIGEST_RE.fullmatch(digest):
         return [
@@ -1046,15 +1077,18 @@ def run(root: Path) -> int:
     ) as exc:
         print(f"compose policy: can't run: {exc}", file=sys.stderr)
         return 2
+    planned = [f for f in findings if f.planned]
+    refusals = [f for f in findings if not f.planned]
     for note in notes:
         print(note)
-    for finding in findings:
+    for finding in planned + refusals:
         print(finding.line())
     scope = f"{COMPOSE_FILE} with {len(ENV_FILES)} env files, the Dockerfiles, the env-file placement, .devcontainer, .npmrc"
-    if findings:
-        print(f"compose policy: {len(findings)} refusal(s) ({scope})")
+    if refusals:
+        print(f"compose policy: {len(refusals)} refusal(s) ({scope})")
         return 1
-    print(f"compose policy: PASS ({scope})")
+    tail = f", {len(planned)} planned" if planned else ""
+    print(f"compose policy: PASS{tail} ({scope})")
     return 0
 
 

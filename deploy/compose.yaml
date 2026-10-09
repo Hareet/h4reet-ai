@@ -7,12 +7,15 @@
 # Rules the compose policy holds every service to (tools/gates/compose_policy.py, plan §11):
 #   - every service joins `internal`, which has no route out; only `edge` joins `edge` and publishes ports, on the
 #     literal 127.0.0.1; only `gateway` joins `egress`, the one route to the internet (FR-040);
-#   - every image is pinned by digest and matches deploy/images.lock; built images come from this file's own tree;
+#   - every image is pinned by digest and matches deploy/images.lock (SeaweedFS's alone may be open, until make
+#     pin-images pins it: the policy reports it PLANNED, and preflight starts nothing unpinned); built images come
+#     from this file's own tree;
 #   - binds come only from ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR};
 #   - no container_name, no external resource, no host network, no privileged mode, no Docker socket;
 #   - every service has a row in docs/data-flow-disclosure.md.
 # Named volumes belong to the compose project (h4reet-<stack>) and survive make down, which never passes -v.
-# Nothing waits on the model server or the collector, so neither can block hello's degraded path.
+# Nothing waits on the model server or the collector, so neither can block hello's degraded path. Langfuse alone
+# waits, for its own four stores to be healthy.
 
 # Every service: restart unless stopped, no privilege escalation, no capabilities, and Docker's local log driver,
 # rotated at 10 MB x 3 (plan §1). The database images add back only the capabilities their entrypoints need.
@@ -25,6 +28,41 @@ x-service: &service
     options:
       max-size: 10m
       max-file: "3"
+
+# What Langfuse's web app and worker share (contracts/env-files.md §5, after Langfuse 4.54.0's own compose): its four
+# stores, its keys, and the switches that keep it from reaching out. Every other switch that would reach out or call a
+# model stays unset, which is off: the AI features, the in-app agent's sandbox and AWS keys, Langfuse's own email,
+# the other blob stores, and MCP. No AWS_* key, either: its S3 is SeaweedFS, inside the stack.
+x-langfuse-env: &langfuse-env
+  DATABASE_URL: "postgresql://langfuse:${LANGFUSE_DB_PASSWORD}@langfuse-db:5432/langfuse"
+  SALT: "${LANGFUSE_SALT}"
+  ENCRYPTION_KEY: "${LANGFUSE_ENCRYPTION_KEY}"
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD}"
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_HOST: valkey
+  REDIS_PORT: "6379"
+  REDIS_AUTH: "${VALKEY_PASSWORD}"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://seaweedfs:8333
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: "${SEAWEEDFS_S3_ACCESS_KEY}"
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: "${SEAWEEDFS_S3_SECRET_KEY}"
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  # The same bucket under media/. Spec 000 uploads no media, so no browser ever needs SeaweedFS (ADR 0022).
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://seaweedfs:8333
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: "${SEAWEEDFS_S3_ACCESS_KEY}"
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: "${SEAWEEDFS_S3_SECRET_KEY}"
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+  LANGFUSE_IN_APP_AGENT_ENABLED: "false"
 
 services:
   # The only publisher: nginx, unprivileged, on the stack's five 127.0.0.1 ports (deploy/edge/nginx.conf).
@@ -426,6 +464,213 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  # Langfuse v4's web app and API (ADR 0004, research.md R-08): the collector sends it traces, and edge publishes it on
+  # x001. Headless initialization creates the organization, the project h4reet-<stack> with the collector's own pair
+  # of keys, and the operator's login, so no UI step stands between make up and the first trace (SC-001). It waits
+  # for its four stores to be healthy; nothing in hello's path waits on it.
+  langfuse-web:
+    <<: *service
+    image: ghcr.io/langfuse/langfuse:4.54.0@sha256:ea9f763af1181b444c081353cd2f8174323c84b2447ed7295857d04ae1153f2c
+    networks: [internal]
+    depends_on: &langfuse-stores
+      langfuse-db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    environment:
+      <<: *langfuse-env
+      NODE_OPTIONS: --max-old-space-size=1024
+      NEXTAUTH_URL: "http://localhost:${H4_LANGFUSE_PORT}"
+      NEXTAUTH_SECRET: "${LANGFUSE_NEXTAUTH_SECRET}"
+      AUTH_DISABLE_SIGNUP: "true"
+      HOSTNAME: 0.0.0.0
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://seaweedfs:8333
+      LANGFUSE_INIT_ORG_ID: h4reet
+      LANGFUSE_INIT_ORG_NAME: h4reet.ai
+      LANGFUSE_INIT_PROJECT_ID: "h4reet-${H4_STACK}"
+      LANGFUSE_INIT_PROJECT_NAME: "h4reet-${H4_STACK}"
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY}"
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: "${LANGFUSE_SECRET_KEY}"
+      LANGFUSE_INIT_USER_EMAIL: "${LANGFUSE_INIT_USER_EMAIL}"
+      LANGFUSE_INIT_USER_NAME: operator
+      LANGFUSE_INIT_USER_PASSWORD: "${LANGFUSE_INIT_USER_PASSWORD}"
+    # Its first start runs the Postgres and ClickHouse migrations.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/public/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1536M
+
+  # Langfuse's worker: it moves each trace's events from Valkey and SeaweedFS into ClickHouse, so a slow or stopped
+  # worker makes traces late, never lost.
+  langfuse-worker:
+    <<: *service
+    image: ghcr.io/langfuse/langfuse-worker:4.54.0@sha256:fe7ea9e288c6586783989920ced1704172624f45da495a68d8ae07ba466641f2
+    networks: [internal]
+    depends_on: *langfuse-stores
+    environment:
+      <<: *langfuse-env
+      NODE_OPTIONS: --max-old-space-size=768
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3030/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  # Langfuse's own Postgres, the same image as gateway-state's, with its own volume.
+  langfuse-db:
+    <<: *service
+    image: public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    # The entrypoint takes ownership of the data directory, then drops to the postgres user.
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    networks: [internal]
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: "${LANGFUSE_DB_PASSWORD}"
+    volumes:
+      - type: volume
+        source: langfuse-db-data
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "langfuse", "-d", "langfuse"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # ClickHouse 26.8 LTS, Langfuse's trace store (research.md R-08), with three settings files from this tree in
+  # config.d: a low-memory profile for its 4 GiB, crash reports to its vendor off, and its Prometheus endpoint on 9363.
+  clickhouse:
+    <<: *service
+    image: docker.io/clickhouse/clickhouse-server:26.8.20.9@sha256:9b61e3c635c04ad5bb521eb4f6e61ce7585b5580814e51c25bb9e8292ce43364
+    # The image's own clickhouse user, as Langfuse's compose runs it: the entrypoint then changes no ownership, so
+    # the container gets no capability back.
+    user: "101:101"
+    networks: [internal]
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD}"
+    volumes:
+      - type: volume
+        source: clickhouse-data
+        target: /var/lib/clickhouse
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/clickhouse/low-memory.xml"
+        target: /etc/clickhouse-server/config.d/low-memory.xml
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/clickhouse/no-crash-reports.xml"
+        target: /etc/clickhouse-server/config.d/no-crash-reports.xml
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/clickhouse/prometheus.xml"
+        target: /etc/clickhouse-server/config.d/prometheus.xml
+        read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+
+  # Valkey 8.1, Langfuse's queue and cache, in place of redis:7 (research.md R-08): 256 MB with no eviction, so a
+  # full queue refuses rather than drops, and an append-only file on its volume.
+  valkey:
+    <<: *service
+    image: docker.io/valkey/valkey:8.1.10-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
+    # The entrypoint takes ownership of /data, then drops to the valkey user.
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    command:
+      - valkey-server
+      - --requirepass
+      - ${VALKEY_PASSWORD}
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "yes"
+    networks: [internal]
+    # For the health check alone, which the shell expands inside the container ($$).
+    environment:
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD}"
+    volumes:
+      - type: volume
+        source: valkey-data
+        target: /data
+    healthcheck:
+      test: ["CMD-SHELL", 'valkey-cli --no-auth-warning -a "$$VALKEY_PASSWORD" ping | grep -qx PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+
+  # SeaweedFS, Langfuse's S3 store (ADR 0022, research.md R-09), unpublished. deploy/seaweedfs/entrypoint.sh renders
+  # its S3 identity from the env file into a tmpfs, starts it, and creates the langfuse bucket if it isn't there.
+  # Healthy means the master answers and the bucket exists. Its tag and digest are the newest release make pin-images
+  # found: until that runs, the line below names the repository alone, and the compose policy reports it PLANNED.
+  seaweedfs:
+    <<: *service
+    image: docker.io/chrislusf/seaweedfs
+    entrypoint: ["/bin/sh", "/h4/entrypoint.sh"]
+    networks: [internal]
+    environment:
+      SEAWEEDFS_S3_ACCESS_KEY: "${SEAWEEDFS_S3_ACCESS_KEY}"
+      SEAWEEDFS_S3_SECRET_KEY: "${SEAWEEDFS_S3_SECRET_KEY}"
+    volumes:
+      - type: volume
+        source: seaweedfs-data
+        target: /data
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/seaweedfs/entrypoint.sh"
+        target: /h4/entrypoint.sh
+        read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/h4-bucket-ready && wget -qO- http://127.0.0.1:9333/cluster/status >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
 networks:
   # No route out: every service joins it (FR-040).
   internal:
@@ -442,3 +687,7 @@ volumes:
   prometheus-data: {}
   loki-data: {}
   grafana-data: {}
+  langfuse-db-data: {}
+  clickhouse-data: {}
+  valkey-data: {}
+  seaweedfs-data: {}
