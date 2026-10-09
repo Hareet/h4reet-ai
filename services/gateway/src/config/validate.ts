@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   ADAPTER_TYPE_SPECS,
   PLACEHOLDER,
+  PLACEHOLDER_REFUSED,
   REGISTERED_ADAPTER_TYPES,
   isServiceHost,
   type AdapterTypeSpec,
@@ -481,6 +482,10 @@ export function parseUtcTimestamp(text: string): number | undefined {
   return same ? ms : undefined;
 }
 
+/** A string field whose rule allows no placeholder (§0). */
+const filled = (schema: z.ZodString = z.string()) =>
+  schema.refine((s) => !PLACEHOLDER.test(s), { error: PLACEHOLDER_REFUSED });
+
 const PRICE = z.union([z.number(), z.string()]);
 const PRICES_TOP = z.strictObject({
   schema: z.literal(1),
@@ -493,11 +498,11 @@ const PRICES_TOP = z.strictObject({
         effective_from: z.string().refine((s) => parseUtcTimestamp(s) !== undefined, {
           error: "must be an RFC 3339 time in UTC, such as 2026-10-08T00:00:00Z",
         }),
-        source: z.string().min(1),
+        source: filled(z.string().min(1)),
         entries: z
           .array(
             z.strictObject({
-              provider: z.string().min(1),
+              provider: filled(z.string().min(1)),
               model: z.string().min(1),
               input: PRICE,
               output: PRICE,
@@ -833,7 +838,7 @@ const ALERTS_TOP = z.strictObject({
   reminder: z.strictObject({ at_utc: z.string() }),
   store_unreachable_after_s: int(10, 600),
   auth_failed: z.strictObject({ threshold: int(1, 100), window_s: int(60, 3_600) }),
-  prefixes: z.record(z.string(), z.string()),
+  prefixes: z.record(z.string(), filled()),
   standin: z.strictObject({ telegram_base: z.string(), smtp_host: z.string(), smtp_port: int(1, 65_535) }),
 });
 

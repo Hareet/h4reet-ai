@@ -14,6 +14,7 @@ import { ADAPTER_TYPE_SPECS, type Env } from "../../src/adapters/_settings.js";
 import {
   PLANNED_CONFIG_FILES,
   formatIssue,
+  formatPath,
   parseYaml,
   readConfigDir,
   type ConfigIssue,
@@ -46,6 +47,8 @@ const errorLines = (issues: ConfigIssue[]): string[] => errors(issues).map(forma
 const rulesOf = (issues: ConfigIssue[]): string[] => errors(issues).map((i) => i.rule);
 
 const at = (iso: string): number => Date.parse(iso);
+const NOT_HERE =
+  "is a placeholder; only routing.yaml's Bedrock model and a prices.yaml entry's model and prices may hold one";
 const NOW = at("2026-10-08T16:00:00Z");
 
 // contracts/config-files.md §1.2's final form: every type, once tasks T073, T102, and T105 are done.
@@ -135,6 +138,84 @@ describe("every file (§0)", () => {
   it("requires schema: 1", () => {
     expect(errorLines(routing((d) => delete d.schema).issues)).toEqual(["config/routing.yaml: schema: is required"]);
     expect(errorLines(routing((d) => (d.schema = 2)).issues)).toEqual(["config/routing.yaml: schema: must be 1"]);
+  });
+
+  it("accepts a placeholder only in routing.yaml's Bedrock model and a price entry's model and prices", () => {
+    // Every scalar, and every mapping key, of each file in turn becomes a placeholder, short and long. Where §0's
+    // list allows one, the file still passes with a NOTE for it; anywhere else it fails that field's rule, with no
+    // NOTE. A wildcard price entry is the exception the rules make: its prices must be 0 (P3).
+    type Path = (string | number)[];
+    const scalars = (v: unknown, path: Path = []): Path[] =>
+      Array.isArray(v)
+        ? v.flatMap((x, i) => scalars(x, [...path, i]))
+        : v !== null && typeof v === "object"
+          ? Object.entries(v).flatMap(([k, x]) => scalars(x, [...path, k]))
+          : [path];
+    const keys = (v: unknown, path: Path = []): Path[] =>
+      Array.isArray(v)
+        ? v.flatMap((x, i) => keys(x, [...path, i]))
+        : v !== null && typeof v === "object"
+          ? Object.entries(v).flatMap(([k, x]) => [[...path, k], ...keys(x, [...path, k])])
+          : [];
+    const parent = (doc: Doc, path: Path): Doc => path.slice(0, -1).reduce<Doc>((at, k) => at[k], doc);
+    const withValue = (doc: Doc, path: Path, ph: string): Doc => {
+      const copy = structuredClone(doc);
+      parent(copy, path)[path.at(-1) as string] = ph;
+      return copy;
+    };
+    const withKey = (doc: Doc, path: Path, ph: string): Doc => {
+      const copy = structuredClone(doc);
+      const at = parent(copy, path);
+      const entries = Object.entries(at).map(([k, v]) => (k === path.at(-1) ? [ph, v] : [k, v]));
+      for (const k of Object.keys(at)) delete at[k];
+      Object.assign(at, Object.fromEntries(entries));
+      return copy;
+    };
+    const routingDoc = parseYamlText(FULL_ROUTING) as Doc;
+    routingDoc.adapters.bedrock.additional_request_fields = { thinking: { type: "disabled" }, tags: ["h4"] };
+    const files = [
+      {
+        doc: routingDoc,
+        run: (d: Doc) =>
+          validateRouting(parseYaml("config/routing.yaml", stringify(d)), { registeredTypes: ALL_TYPES }),
+        allowed: /^adapters\.bedrock\.model$/,
+      },
+      {
+        doc: parseYamlText(fixture("prices.yaml")) as Doc,
+        run: (d: Doc) => prices(stringify(d)),
+        allowed: /^versions\[\d+\]\.entries\[\d+\]\.(model|input|output|cache_read_input)$/,
+      },
+      { doc: parseYamlText(fixture("budgets.yaml")) as Doc, run: (d: Doc) => budgets(stringify(d)), allowed: /^$/ },
+      { doc: parseYamlText(fixture("alerts.yaml")) as Doc, run: (d: Doc) => alerts(stringify(d)), allowed: /^$/ },
+    ];
+    const wildcardPrice = /^versions\[0\]\.entries\[0\]\.(input|output)$/; // the fixture's local "*" entry
+    const wrong: string[] = [];
+    let allowedSeen = 0;
+    for (const ph of ["<x>", "<a value only the Author can supply>"]) {
+      for (const { doc, run, allowed } of files) {
+        expect(errorLines(run(doc).issues)).toEqual([]);
+        for (const path of scalars(doc)) {
+          const where = formatPath(path);
+          const { issues } = run(withValue(doc, path, ph));
+          const noted = notes(issues).some((i) => i.path === where);
+          if (wildcardPrice.test(where)) {
+            if (rulesOf(issues).join() !== "P3") wrong.push(`${ph} at ${where}: not refused by P3 alone`);
+          } else if (allowed.test(where)) {
+            allowedSeen += 1;
+            if (errors(issues).length > 0 || !noted) wrong.push(`${ph} at ${where}: refused, or passed without a NOTE`);
+          } else {
+            if (errors(issues).length === 0) wrong.push(`${ph} at ${where}: passed`);
+            if (noted) wrong.push(`${ph} at ${where}: a NOTE`);
+          }
+        }
+        for (const path of keys(doc)) {
+          const where = formatPath(path);
+          if (errors(run(withKey(doc, path, ph)).issues).length === 0) wrong.push(`${ph} as the key ${where}: passed`);
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+    expect(allowedSeen).toBe(2 * 5); // bedrock's model; the wildcard's model; the synthetic entry's model and prices
   });
 
   it("keeps every number's source text", () => {
@@ -309,6 +390,16 @@ describe("routing.yaml (§1.3)", () => {
     expect(
       errorLines(routing((d) => (d.adapters.bedrock.additional_request_fields = { note: "x".repeat(1_100) })).issues),
     ).toEqual(["config/routing.yaml: adapters.bedrock.additional_request_fields: must be at most 1 KB as JSON"]);
+    const extra = (fields: Doc) => routing((d) => (d.adapters.bedrock.additional_request_fields = fields));
+    expect(errorLines(extra({ thinking: { type: "<on or off>" } }).issues)).toEqual([
+      `config/routing.yaml: adapters.bedrock.additional_request_fields.thinking.type: ${NOT_HERE}`,
+    ]);
+    expect(errorLines(extra({ "<the field that turns thinking off>": false, stop: ["<x>"] }).issues)).toEqual([
+      `config/routing.yaml: adapters.bedrock.additional_request_fields.<the field that turns thinking off>: ${NOT_HERE}`,
+      `config/routing.yaml: adapters.bedrock.additional_request_fields.stop[0]: ${NOT_HERE}`,
+    ]);
+    expect(notes(extra({ thinking: { type: "<on or off>" } }).issues)).toEqual([]); // an error, never a NOTE
+    expect(errorLines(extra({ thinking: { type: "disabled" }, note: "<a>b" }).issues)).toEqual([]);
     expect(errorLines(routing((d) => (d.envs.prod.fallback = "local")).issues)).toEqual([
       'config/routing.yaml: envs.prod.fallback: names "local", a local adapter; prod\'s fallback must be a paid adapter',
     ]);
@@ -540,6 +631,18 @@ describe("prices.yaml (§2.4)", () => {
     expect(errorLines(prices("schema: 1\ncurrency: USD\nunit: per_million_tokens\nversions: []\n").issues)).toEqual([
       "config/prices.yaml: versions: must have at least 1 item",
     ]);
+  });
+
+  it("P6: a placeholder outside an entry's model and prices (§0)", () => {
+    const p6 = (from: string, to: string) => prices(fixture("prices.yaml").replace(from, to)).issues;
+    expect(errorLines(p6('"spec 000: local and synthetic only"', '"<the page the price came from>"'))).toEqual([
+      `config/prices.yaml: versions[0].source: ${NOT_HERE}`,
+    ]);
+    expect(errorLines(p6("provider: synthetic", 'provider: "<provider>"'))).toEqual([
+      `config/prices.yaml: versions[0].entries[1].provider: ${NOT_HERE}`,
+    ]);
+    expect(rulesOf(p6("provider: synthetic", 'provider: "<provider>"'))).toEqual(["P6"]);
+    expect(notes(p6("provider: synthetic", 'provider: "<provider>"'))).toEqual([]);
   });
 
   it("P7: a paid model is never free (checked across files)", () => {
@@ -903,6 +1006,8 @@ describe("alerts.yaml (§4.3)", () => {
     expect(a('dev: "[dev]"', 'dev: ""')).toEqual([line]);
     expect(a('dev: "[dev]"', `dev: "${"x".repeat(33)}"`)).toEqual([line]);
     expect(a('dev-cpu: "[dev-cpu]"', 'dev-cpu: "[dev-cpu]"\n  staging: "[staging]"')).toEqual([line]);
+    // A placeholder fits 1 to 32 characters, but alerts.yaml allows none (§0).
+    expect(a('dev: "[dev]"', 'dev: "<dev prefix>"')).toEqual([`config/alerts.yaml: prefixes.dev: ${NOT_HERE}`]);
   });
 
   it("A6: the stand-ins are in-network hosts, so stand-in mode can't reach a real service", () => {

@@ -50,6 +50,21 @@ export interface AdapterTypeSpec {
 export const PLACEHOLDER = /^<[^<>]+>$/;
 const placeholder = z.string().regex(PLACEHOLDER);
 
+/** §0: a placeholder anywhere else fails that field's rule. */
+export const PLACEHOLDER_REFUSED =
+  "is a placeholder; only routing.yaml's Bedrock model and a prices.yaml entry's model and prices may hold one";
+
+/** The paths, below `path`, of every placeholder in a value: its strings, and its mappings' keys. */
+export function placeholdersIn(value: unknown, path: string): string[] {
+  if (typeof value === "string") return PLACEHOLDER.test(value) ? [path] : [];
+  if (Array.isArray(value)) return value.flatMap((v, i) => placeholdersIn(v, `${path}[${i}]`));
+  if (value === null || typeof value !== "object") return [];
+  return Object.entries(value).flatMap(([k, v]) => [
+    ...(PLACEHOLDER.test(k) ? [`${path}.${k}`] : []),
+    ...placeholdersIn(v, `${path}.${k}`),
+  ]);
+}
+
 const PROVIDER_ERROR_KIND_SET: Record<ProviderErrorKind, true> = {
   unavailable: true,
   timeout: true,
@@ -195,6 +210,9 @@ const bedrockConverse: AdapterTypeSpec = {
     }
     if (Buffer.byteLength(JSON.stringify(get(s, "additional_request_fields"))) > 1_024) {
       findings.push({ path: "additional_request_fields", rule: "R11", message: "must be at most 1 KB as JSON" });
+    }
+    for (const path of placeholdersIn(get(s, "additional_request_fields"), "additional_request_fields")) {
+      findings.push({ path, rule: "R11", message: PLACEHOLDER_REFUSED });
     }
     return findings;
   },
