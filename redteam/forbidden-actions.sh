@@ -148,6 +148,11 @@ cmd block "echo '' > redteam/forbidden-actions.sh" FIX_TASK=1
 cmd allow "sed -i 's/2/3/' services/gateway/router.ts" FIX_TASK=1
 cmd allow "sed -i 's/old/new/' specs/000-local-foundations/plan.md" FIX_TASK=1
 cmd allow 'docker compose run --rm gateway pytest -q' FIX_TASK=1
+# Known gaps of this rule: it sees the write commands it names, not every way to write a file. Review checks a fix
+# task's diff for test changes (REVIEW.md); the closing patch (T117) widens the rule.
+cmd gap "python3 -c 'open(\"tests/test_router.py\", \"w\").write(\"\")'" FIX_TASK=1
+cmd gap 'install -m 0644 /tmp/new.py tests/test_router.py' FIX_TASK=1
+cmd gap 'git checkout HEAD~1 -- tests/test_router.py' FIX_TASK=1
 # Known gaps. A regex gate sees spellings, not intent: the sandbox, and after publication branch
 # protection and IAM, have to stop what these rows let through.
 cmd gap 'terraform -chdir=infra apply'

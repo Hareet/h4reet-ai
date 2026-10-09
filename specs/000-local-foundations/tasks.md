@@ -103,27 +103,27 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Gateway skeleton and store
 
-- [ ] T015 Create the gateway package in `services/gateway/`:
+- [X] T015 Create the gateway package in `services/gateway/`:
   - `services/gateway/package.json`, with the exact runtime and dev versions in plan.md's Technical Context, including @types/node 24.19.1;
   - `tsconfig.json`, `tsconfig.build.json`, and `vitest.config.ts`;
   - scripts `build`, `test`, `test:unit`, `lint`, `fmt`, `validate-config`, and `contract:replay`.
-- [ ] T016 [P] Create `services/gateway/src/core/types.ts` exactly as contracts/provider-adapter.md §2: `ProviderAdapter`, `CompletionRequest`, `AdapterResult`, `HealthStatus`, the `ProviderError` kinds, `DegradedCause`, and `RouteDecision`, with attribution `none|fallback|metered|test` and the `fixedUsage`, `type`, `server`, and `retry` members.
-- [ ] T017 [P] Create `services/gateway/src/core/clock.ts` and its test `test/unit/clock.test.ts`.
+- [X] T016 [P] Create `services/gateway/src/core/types.ts` exactly as contracts/provider-adapter.md §2: `ProviderAdapter`, `CompletionRequest`, `AdapterResult`, `HealthStatus`, the `ProviderError` kinds, `DegradedCause`, and `RouteDecision`, with attribution `none|fallback|metered|test` and the `fixedUsage`, `type`, `server`, and `retry` members.
+- [X] T017 [P] Create `services/gateway/src/core/clock.ts` and its test `test/unit/clock.test.ts`.
   - The gateway clock is real UTC time plus `stack_state.test_clock_offset_ms`.
   - Day keys are `YYYY-MM-DD` and month keys `YYYY-MM`, in UTC.
   - Timeouts, retries, rate limits, and health intervals use the real clock (data-model.md, Conventions).
-- [ ] T018 Write `services/gateway/test/unit/config.test.ts` first. It covers every validation error and exit-78 refusal in contracts/config-files.md §1.3–§1.4, §2.4–§2.5, §3.3, and §4.3–§4.4 (P7's paid price above 0 and B8's dev thresholds equal to prod's among them), and a pin test for prod's thresholds: 3,500,000, 14,000,000, and a first-grant warning at 1,400,000 micro-USD.
-- [ ] T019 Implement `services/gateway/src/config/load.ts` and `validate.ts` (zod) for the four config files, making T018 pass. Then implement `npm run validate-config` (contracts/config-files.md §5) and `make validate-config`. A protected file that a patch hasn't applied yet (`budgets.yaml` and `alerts.yaml`, before T022's patch) is reported PLANNED (T022), not FAIL (§11).
-- [ ] T020 [P] Create `config/routing.yaml` at the first of contracts/config-files.md §1.2's steps: the `local` adapter alone, and no fallback in either route (`prod: {primary: local}`, `dev: {primary: local}`). Every adapter the file defines must be registered when it lands (rule R6), so T073 adds `synthetic` and dev's fallback, T102 adds `bedrock` with its placeholder model, and the Author adds prod's fallback (T105).
-- [ ] T021 [P] Create `config/prices.yaml` per contracts/config-files.md §2.2: version `2026-10-08.1`, local at 0, dev's synthetic at an output price of 100 per million tokens, and no Bedrock entry. The Author appends a new version for Bedrock (T105), because a published version never changes (P5).
-- [ ] T022 **Patch**: write `config/budgets.yaml` and `config/alerts.yaml` exactly as contracts/config-files.md §3.2 and §4.2, as the patch file `docs/merge-requests/<date>-feat-000-foundations-config.patch`. Both paths are protected (FR-008), so the Author applies it. The unit tests use fixtures in `services/gateway/test/fixtures/`.
-- [ ] T023 Write `services/gateway/test/unit/validate-env.test.ts` first, then implement `services/gateway/src/config/validate-env.ts` per contracts/env-files.md §4 and §11 and §5.8. Exit 78 with a named reason when:
+- [X] T018 Write `services/gateway/test/unit/config.test.ts` first. It covers every validation error and exit-78 refusal in contracts/config-files.md §1.3–§1.4, §2.4–§2.5, §3.3, and §4.3–§4.4 (P7's paid price above 0 and B8's dev thresholds equal to prod's among them), and a pin test for prod's thresholds: 3,500,000, 14,000,000, and a first-grant warning at 1,400,000 micro-USD.
+- [X] T019 Implement `services/gateway/src/config/load.ts` and `validate.ts` (zod) for the four config files, making T018 pass. Then implement `npm run validate-config` (contracts/config-files.md §5) and `make validate-config`. A protected file that a patch hasn't applied yet (`budgets.yaml` and `alerts.yaml`, before T022's patch) is reported PLANNED (T022), not FAIL (§11).
+- [X] T020 [P] Create `config/routing.yaml` at the first of contracts/config-files.md §1.2's steps: the `local` adapter alone, and no fallback in either route (`prod: {primary: local}`, `dev: {primary: local}`). Every adapter the file defines must be registered when it lands (rule R6), so T073 adds `synthetic` and dev's fallback, T102 adds `bedrock` with its placeholder model, and the Author adds prod's fallback (T105).
+- [X] T021 [P] Create `config/prices.yaml` per contracts/config-files.md §2.2: version `2026-10-08.1`, local at 0, dev's synthetic at an output price of 100 per million tokens, and no Bedrock entry. The Author appends a new version for Bedrock (T105), because a published version never changes (P5).
+- [X] T022 **Patch**: write `config/budgets.yaml` and `config/alerts.yaml` exactly as contracts/config-files.md §3.2 and §4.2, as the patch file `docs/merge-requests/<date>-feat-000-foundations-config.patch`. Both paths are protected (FR-008), so the Author applies it. The unit tests use fixtures in `services/gateway/test/fixtures/`.
+- [X] T023 Write `services/gateway/test/unit/validate-env.test.ts` first, then implement `services/gateway/src/config/validate-env.ts` per contracts/env-files.md §4 and §11 and §5.8. Exit 78 with a named reason when:
   - `H4_STACK` and `H4_ENV` disagree;
   - a dev-only switch is set outside `H4_ENV=dev`;
   - prod's `ALERT_DELIVERY` isn't `real`, its `TELEGRAM_API_BASE` isn't `https://api.telegram.org`, or `SMTP_TLS` isn't `implicit` or `starttls`;
   - `OPERATOR_TOKEN_SHA256` doesn't match `^[0-9a-f]{64}$`, or equals the dev-cpu dummy's hash on prod (a constant in the source, checked against `deploy/env.agents/dev-cpu.vars` by a test);
   - prod's `GATEWAY_AWS_PROFILE` is unset.
-- [ ] T024 Write `services/gateway/migrations/0001_state.sql` and `0002_grafana_ro.sql` with every table, column, CHECK, key, index, trigger, and the view exactly as data-model.md §2.1–§2.9. Among others:
+- [X] T024 Write `services/gateway/migrations/0001_state.sql` and `0002_grafana_ro.sql` with every table, column, CHECK, key, index, trigger, and the view exactly as data-model.md §2.1–§2.9. Among others:
   - `stack_state.id` `CHECK (id = 1)`;
   - `CHECK ((state = 'degraded') = (cardinality(crossed) > 0))`;
   - `meters` primary key (`meter`, `period_key`), with `allowance_micro` and `grant_no` set only on `fallback_day`;
@@ -133,13 +133,13 @@ description: "Task list for spec 000, Local Foundations"
   - `alert_outbox.dedupe_key` `UNIQUE`;
   - `incidents` `UNIQUE (ceiling, period_key)`;
   - `v_state`, and `grafana_ro` with SELECT on `audit_log` and `v_state` only.
-- [ ] T025 Write `services/gateway/test/integration/migrations.test.ts` on PGlite first. It covers applying both migrations, the `schema_migrations` SHA-256 check (exit 1 on a changed file), the audit trigger refusing UPDATE and DELETE, and `grafana_ro` refused on every other table. Then implement `services/gateway/src/meter/store.ts`:
+- [X] T025 Write `services/gateway/test/integration/migrations.test.ts` on PGlite first. It covers applying both migrations, the `schema_migrations` SHA-256 check (exit 1 on a changed file), the audit trigger refusing UPDATE and DELETE, and `grafana_ro` refused on every other table. Then implement `services/gateway/src/meter/store.ts`:
   - the `pg` pool with `statement_timeout=250ms`, `lock_timeout=250ms`, `idle_in_transaction_session_timeout=2s`, and `connectionTimeoutMillis=500`, at most 10 connections plus one LISTEN connection;
   - migrations under a fixed advisory lock;
   - a store that is down at startup retried every 5 s, with every request answered `store_unreachable` meanwhile (data-model.md §2.1);
   - exit 78 `schema_newer_than_code` when the store records a migration this build doesn't have, the way a rollback across a migration fails closed (§2.1);
   - the `grafana_ro` password set from `GATEWAY_GRAFANA_RO_PASSWORD` as a SCRAM verifier (§2.9).
-- [ ] T026 [P] Create the gateway's telemetry, `services/gateway/src/telemetry/otel.ts`, `metrics.ts`, `log.ts`, and `redact.ts`, per contracts/telemetry.md §2, §3.1, §4.1, and §5:
+- [X] T026 [P] Create the gateway's telemetry, `services/gateway/src/telemetry/otel.ts`, `metrics.ts`, `log.ts`, and `redact.ts`, per contracts/telemetry.md §2, §3.1, §4.1, and §5:
   - the OTLP/HTTP exporters, with metrics every 10 s, cumulative temporality, and explicit buckets up to 120 s;
   - every canonical instrument, with units `{USD}` and `{flag}` as §4.1 gives them;
   - pino `redact` paths for `authorization`, `*token*`, `*password*`, and `messages`;
@@ -147,22 +147,22 @@ description: "Task list for spec 000, Local Foundations"
   - `instrumentation-undici`'s `ignoreRequestHook` skipping the Telegram API host, whose URL carries the bot token (contracts/telemetry.md §3.1).
 
   Test it in `test/unit/telemetry.test.ts` with in-memory exporters.
-- [ ] T027 Create `services/gateway/src/app.ts` and `src/server.ts`:
+- [X] T027 Create `services/gateway/src/app.ts` and `src/server.ts`:
   - two listeners, the api on 8080 and admin on 8081, and graceful shutdown;
   - startup order: validate env and config (exit 78 on failure), connect the store (retrying), then start the listeners and background tasks;
   - `GET /health/live` in `src/routes/health.ts` (contracts/gateway-http.md §4).
-- [ ] T028 Create `services/gateway/Dockerfile`, built from the repository root as its context: in `deploy/compose.yaml` the gateway's `build.context` is `..`, relative to the compose file, so on a host stack it resolves inside the export, and on dev-cpu inside the working tree (the compose policy, T037, refuses any other context):
+- [X] T028 Create `services/gateway/Dockerfile`, built from the repository root as its context: in `deploy/compose.yaml` the gateway's `build.context` is `..`, relative to the compose file, so on a host stack it resolves inside the export, and on dev-cpu inside the working tree (the compose policy, T037, refuses any other context):
   - build stage on `public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66`: `npm ci --ignore-scripts`, with the `H4_BUILD_PROXY` build arguments passed through as `HTTP(S)_PROXY`, then `npm run build -w services/gateway`, then the dev dependencies pruned;
   - runtime stage on the same base, as `USER node`, running `node dist/server.js`.
 
 ### Compose skeleton, env files, preflight
 
-- [ ] T029 Create `deploy/compose.yaml` with the networks `internal` (`internal: true`), `edge`, and `egress`, and the services `edge`, `gateway`, and `gateway-state`, with the images, binds, health checks, limits, and every-service rules of §1 and §2.
+- [X] T029 Create `deploy/compose.yaml` with the networks `internal` (`internal: true`), `edge`, and `egress`, and the services `edge`, `gateway`, and `gateway-state`, with the images, binds, health checks, limits, and every-service rules of §1 and §2.
   - Only `edge` publishes ports, on literal `127.0.0.1`, mapping `${H4_API_PORT}` through `${H4_OTLP_PORT}` to 8080–8084.
   - Only `gateway` joins `egress`.
   - Bind sources come from `${H4_TREE}`, `${H4_STATE_DIR}`, and `${H4_AWS_DIR}`.
   - There is no `container_name`, no `env_file:`, and no `external:`.
-- [ ] T030 [P] Create `deploy/edge/nginx.conf` per §2's edge paragraph and contracts/gateway-http.md §6:
+- [X] T030 [P] Create `deploy/edge/nginx.conf` per §2's edge paragraph and contracts/gateway-http.md §6:
   - five server blocks: 8080 to `gateway:8080`, 8081 to `langfuse-web:3000`, 8082 to `grafana:3000`, 8083 to `gateway:8081`, and 8084 forwarding only `POST /v1/metrics` to `otel-collector:4319`;
   - `resolver 127.0.0.11 valid=10s`;
   - `X-Forwarded-For $remote_addr`, replacing any the client sent;
@@ -171,45 +171,45 @@ description: "Task list for spec 000, Local Foundations"
   - body limits of 16 KB on 8080 and 4 KB on 8083;
   - access logs without payloads;
   - `/ping` on 8090.
-- [ ] T031 [P] Create the env files with every key in contracts/env-files.md §2–§6, using the values, placeholders (`__GENERATE__`, `__ASK__`, `__REPO__`, `__HOME__`), and dummies the contract gives:
+- [X] T031 [P] Create the env files with every key in contracts/env-files.md §2–§6, using the values, placeholders (`__GENERATE__`, `__ASK__`, `__REPO__`, `__HOME__`), and dummies the contract gives:
   - `deploy/env.example/prod.env.example`;
   - `deploy/env.example/dev.env.example`;
   - `deploy/env.agents/dev-cpu.vars`, with dummies only (§6.1). Only it has `H4_TREE`; host stacks get theirs from the run file (§12);
   - `deploy/aws-none/README.md`.
-- [ ] T032 [P] Create `deploy/scripts/init_env.py` (stdlib, `python3 -I`) and `deploy/scripts/test_init_env.py` per contracts/env-files.md §9. Run through `PY_HOST`. It writes `~/.config/h4reet-ai/env/<stack>.env` at 0600 in a 0700 directory, and for prod creates `~/.config/h4reet-ai/aws-home/.aws` (0700, empty), generates each `__GENERATE__` value in the shape §9.2 gives, refuses to overwrite, prints the names of the `__ASK__` keys left, and supports `SYNC=1`. Wire `make init-env` (Author).
-- [ ] T033 Create `deploy/scripts/preflight.py` (stdlib, `python3 -I`; env files parsed as data, never sourced) and `deploy/scripts/test_preflight.py`, with fixture env files and a stubbed `df` and `docker`. Run through `PY_HOST`. It implements checks P1–P21 of contracts/env-files.md §10, including:
+- [X] T032 [P] Create `deploy/scripts/init_env.py` (stdlib, `python3 -I`) and `deploy/scripts/test_init_env.py` per contracts/env-files.md §9. Run through `PY_HOST`. It writes `~/.config/h4reet-ai/env/<stack>.env` at 0600 in a 0700 directory, and for prod creates `~/.config/h4reet-ai/aws-home/.aws` (0700, empty), generates each `__GENERATE__` value in the shape §9.2 gives, refuses to overwrite, prints the names of the `__ASK__` keys left, and supports `SYNC=1`. Wire `make init-env` (Author).
+- [X] T033 Create `deploy/scripts/preflight.py` (stdlib, `python3 -I`; env files parsed as data, never sourced) and `deploy/scripts/test_preflight.py`, with fixture env files and a stubbed `df` and `docker`. Run through `PY_HOST`. It implements checks P1–P21 of contracts/env-files.md §10, including:
   - the free space on the Windows drive holding the vhdx (`df` on `H4_VHDX_MOUNT`, default `/mnt/c`) and on ext4, for the bytes the run will write plus 20 GB;
   - a dev-cpu run from a linked worktree (P20).
-- [ ] T034 [P] Create `deploy/scripts/redact.sh` (ops.md's filter, verbatim), `deploy/scripts/status.py`, and its test. `status.py` shows the running commit, its branch, and the previous commit, from the run file, and reports a host stack with no run file as not started by `make up` (contracts/env-files.md §12). Wire `make logs` (through `redact.sh`) and `make status` (§4).
-- [ ] T035 [P] Create `deploy/scripts/pin_images.py` and its test, which uses recorded `docker buildx imagetools inspect` output. It resolves tags to index digests, rewrites `deploy/compose.yaml` and `deploy/images.lock`, and prints the table. Create `deploy/images.lock` with research.md R-02's pins. Wire `make pin-images` (Author).
-- [ ] T036 Implement `make up`, `make down`, `make build`, `make pull`, and `make image` in `Makefile` per §4, and create `deploy/scripts/export_tree.py` and its test:
+- [X] T034 [P] Create `deploy/scripts/redact.sh` (ops.md's filter, verbatim), `deploy/scripts/status.py`, and its test. `status.py` shows the running commit, its branch, and the previous commit, from the run file, and reports a host stack with no run file as not started by `make up` (contracts/env-files.md §12). Wire `make logs` (through `redact.sh`) and `make status` (§4).
+- [X] T035 [P] Create `deploy/scripts/pin_images.py` and its test, which uses recorded `docker buildx imagetools inspect` output. It resolves tags to index digests, rewrites `deploy/compose.yaml` and `deploy/images.lock`, and prints the table. Create `deploy/images.lock` with research.md R-02's pins. Wire `make pin-images` (Author).
+- [X] T036 Implement `make up`, `make down`, `make build`, `make pull`, and `make image` in `Makefile` per §4, and create `deploy/scripts/export_tree.py` and its test:
   - `up`, on a host stack: `export_tree.py` resolves `REF` (default `HEAD`), exports the commit with `git archive` into `${H4_STATE_DIR}/tree/<sha>`, read-only, and writes `${H4_STATE_DIR}/run.env` (contracts/env-files.md §12). It keeps the running and the previous commit's exports, and at most three in all. Then preflight; then `pull-models.sh` for the stack; then `up -d --build --wait --wait-timeout 600`, with the export's compose file and both env files; then `status.py`, with §4's exit codes. `make up REF=<previous sha>` is the rollback. The export runs as its own target, which `up` depends on: make expands a recipe just before running it, and the Makefile reads `TREE` from the run file then, so the compose call uses the commit just exported;
   - `up`, on dev-cpu: the same from the working tree and `dev-cpu.vars`, with no export;
   - `down`: `down --timeout 30`, never `-v`, with the running export's compose file. With no run file, `down` and `logs` say the stack wasn't started by `make up`, and do nothing (§12);
   - `build`: ends with `BUILD OK`. It refuses outside the sandbox and the devcontainer (§11), so the gate's host phase builds images with `make image`, never `make build`. The devcontainer has no Docker, so there `build` builds the workspaces and says the images are the gate's;
   - `pull`: Docker Hub images one at a time, with 5, 15, and 45 s backoff, naming an HTTP 429 (research.md R-29);
   - `image`, §11's gate: the compose images built on the current engine. It reports SKIP ("no engine yet: tasks.md T046") before the engine exists, and FAIL ("ask the Author: deploy/agents-engine/engine.sh up") once it exists and is down.
-- [ ] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list, build contexts included. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
+- [X] T037 [P] Create `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py` (fixture configs), implementing every refusal in §11's policy list, build contexts included. Wire `make policy`, which runs it over `docker compose config --no-interpolate` for each env file and template; it needs no daemon.
 
-- [ ] T038 [P] Start `docs/data-flow-disclosure.md` with the columns of §16, and rows for every service this branch's compose file defines (edge, gateway, gateway-state), for image pulls, and for the phone-homes switched off (§17). The compose policy requires a row per service, so every later task that adds a service adds its row.
+- [X] T038 [P] Start `docs/data-flow-disclosure.md` with the columns of §16, and rows for every service this branch's compose file defines (edge, gateway, gateway-state), for image pulls, and for the phone-homes switched off (§17). The compose policy requires a row per service, so every later task that adds a service adds its row.
 
 ### The agents' engine (FR-039)
 
-- [ ] T039 [P] Write `deploy/agents-engine/test/test_authz.py` first, on recorded Docker API request bodies, with a case for every rule A0–A35 of contracts/agents-engine.md §3. Then implement `deploy/agents-engine/authz.py`, a stdlib Docker authorization plugin on a Unix socket in `h4agents`' plugin directory:
+- [X] T039 [P] Write `deploy/agents-engine/test/test_authz.py` first, on recorded Docker API request bodies, with a case for every rule A0–A35 of contracts/agents-engine.md §3. Then implement `deploy/agents-engine/authz.py`, a stdlib Docker authorization plugin on a Unix socket in `h4agents`' plugin directory:
   - the allowed bind roots are `/run/h4agents/tree` (read-only), `/run/h4agents/models` (read-only), and `/var/lib/h4agents/state`;
   - `CapAdd` is allowed only within Docker's default capability set;
   - the audit record follows §3.5.
-- [ ] T040 [P] Write `deploy/agents-engine/test/test_egress_proxy.py` first, then implement `deploy/agents-engine/egress-proxy.py` (stdlib) per contracts/agents-engine.md §4:
+- [X] T040 [P] Write `deploy/agents-engine/test/test_egress_proxy.py` first, then implement `deploy/agents-engine/egress-proxy.py` (stdlib) per contracts/agents-engine.md §4:
   - CONNECT to 443, and absolute-form GET to 80, only for the hosts in `.claude/settings.json` `sandbox.network.allowedDomains`, read at start;
   - IP literals refused, and names that resolve to non-global addresses refused;
   - a missing, unreadable, or invalid settings file, or an empty list, refuses every request (`no_list`): fail closed;
   - every decision logged.
-- [ ] T041 [P] Create `deploy/agents-engine/daemon.json`, `deploy/agents-engine/systemd/*`, and `deploy/agents-engine/docker-relay` per contracts/agents-engine.md §2 and §5:
+- [X] T041 [P] Create `deploy/agents-engine/daemon.json`, `deploy/agents-engine/systemd/*`, and `deploy/agents-engine/docker-relay` per contracts/agents-engine.md §2 and §5:
   - `daemon.json`: the containerd image store, `authorization-plugins: ["h4-authz"]`, and no BuildKit entitlements;
   - the systemd units: the dummy interface `h4agents0` holding `198.18.0.1/32`, the tree and models binds mounted `nosymfollow`, the `/dev/dxg` group, the `h4agents` slice limits, and the user services for `dockerd-rootless`, `h4-authz`, and the egress proxy;
   - `docker-relay`: socat through the sandbox proxy, `DOCKER_HOST=tcp://127.0.0.1:2376`, `DOCKER_TLS_VERIFY=1`; it runs only `docker` or `make` as its command, and refuses anything else with exit 2 (§2.2);
   - `tree-masks.txt`: `deploy/env`, `corpus/intake/private`, `secrets`, and `.git` (H8).
-- [ ] T042 Create `deploy/agents-engine/setup-host.sh` (sudo, idempotent) per contracts/agents-engine.md §5 (H1–H14). It sets up:
+- [X] T042 Create `deploy/agents-engine/setup-host.sh` (sudo, idempotent) per contracts/agents-engine.md §5 (H1–H14). It sets up:
   - the `h4agents` user, its own subuid and subgid range, and lingering, and lingering for the Author's user too (the egress proxy is the Author's user service);
   - the slice limits: `CPUQuota=400%`, `MemoryMax=16G`, `TasksMax=4096` (H12);
   - the `h4gpu` group and `/dev/dxg` mode 0660;
@@ -218,12 +218,12 @@ description: "Task list for spec 000, Local Foundations"
   - `/var/lib/h4agents/models` (root-owned) and `/var/lib/h4agents/state` (owned by `h4agents`);
   - root-owned installed copies of `authz.py` and `egress-proxy.py`;
   - the PKI: a CA, a server certificate with SANs `198.18.0.1` and `127.0.0.1`, and a client certificate in `~/.config/h4reet/agents-engine/docker/`.
-- [ ] T043 Create `deploy/agents-engine/engine.sh` with the subcommands `setup`, `up`, `down`, `reset`, `destroy`, `seed`, `status`, `prove`, and `smoke` (contracts/agents-engine.md §8). The Author runs it directly; the Makefile gets only `make engine-smoke` and `make engine-status`, for agents.
+- [X] T043 Create `deploy/agents-engine/engine.sh` with the subcommands `setup`, `up`, `down`, `reset`, `destroy`, `seed`, `status`, `prove`, and `smoke` (contracts/agents-engine.md §8). The Author runs it directly; the Makefile gets only `make engine-smoke` and `make engine-status`, for agents.
   - `up` checks `tree-masks.txt` against the sandbox's read denies inside the tree, creates any masked directory that doesn't exist, and refuses while a file matching a denied glob sits outside a mask, naming it (H8).
   - `seed` checks the host's image store and the disk preflight, then moves each digest in `images.lock` with `docker save | docker load`, and copies the stand-in into `/var/lib/h4agents/models`.
   - `up` chowns the state directory through the rootless namespace.
-- [ ] T044 Create `deploy/agents-engine/prove-limits.sh`, implementing rows E1–E14 of contracts/agents-engine.md §7. Its report goes into the merge-request note. `engine.sh prove` runs it (Author; Heavy).
-- [ ] T045 **Patch**: write the early patch, `docs/merge-requests/<date>-feat-000-foundations-enforcement.patch`, per §10 and §15. It must be applied before any real secret exists (T065), so it carries the engine opening, the credential denies, and secret scanning:
+- [X] T044 Create `deploy/agents-engine/prove-limits.sh`, implementing rows E1–E14 of contracts/agents-engine.md §7. Its report goes into the merge-request note. `engine.sh prove` runs it (Author; Heavy).
+- [X] T045 **Patch**: write the early patch, `docs/merge-requests/<date>-feat-000-foundations-enforcement.patch`, per §10 and §15. It must be applied before any real secret exists (T065), so it carries the engine opening, the credential denies, and secret scanning:
   - `.claude/settings.json`:
     - `sandbox.network.allowedDomains` gains `"198.18.0.1:2376"`;
     - `env` gains `DOCKER_CONFIG=~/.config/h4reet/agents-engine/docker` and `DISABLE_AUTOUPDATER=1`;
@@ -231,12 +231,12 @@ description: "Task list for spec 000, Local Foundations"
     - every FR-007 variable name of contracts/env-files.md §8, in `credentials.envVars`;
     - `Read(~/.config/h4reet-ai/**)` in `permissions.deny`, and `~/.config/h4reet-ai` in `credentials.files`;
     - `denyWrite` on `./config/prices.yaml`, `./config/budgets.yaml`, `./config/alerts.yaml`, `./GNUmakefile`, `./makefile`, `./deploy/agents-engine`, `./.gitleaks.toml`, and `./.gitleaksignore`, with the matching `Edit(...)` denies.
-  - `.claude/agents/ops.md`: grants `Bash(deploy/agents-engine/docker-relay docker *)`, corrects its diagnostic command to `-p h4reet-$ENV --env-file ~/.config/h4reet-ai/env/$ENV.env`, and drops the paragraph saying no engine exists. `tools/gates/roles.expected` is updated to match, in the same patch.
-  - `.claude/hooks/bash-gate.sh`: blocks `deploy/agents-engine/engine.sh` for agents, by any spelling, except its `smoke` and `status` subcommands.
+  - `.claude/agents/ops.md`: grants `Bash(deploy/agents-engine/docker-relay docker *)`, points its diagnostic commands at `make status ENV=$ENV` and `make logs ENV=$ENV`, which pass the export's compose file and the run file (plan §4), and at `docker ps` filtered by the project label for ports; and drops the paragraph saying no engine exists. `tools/gates/roles.expected` is updated to match, in the same patch.
+  - `.claude/hooks/bash-gate.sh`: blocks `deploy/agents-engine/engine.sh` for agents, by any spelling, except its `smoke` and `status` subcommands: after a wrapper or a leading assignment, past options with an argument and bare durations, and dot-sourced.
   - `.claude/hooks/protected-paths.sh`: `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, and `.gitleaks*`.
   - The secret scanners (FR-008, FR-012):
-    - `.gitleaks.toml`: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and `sk-lf-` keys, allowlisting only `deploy/env.agents/dev-cpu.vars`;
-    - the new `.claude/hooks/content-scan.sh`, a PreToolUse check on Edit, Write, and MultiEdit that runs `gitleaks stdin --no-banner --redact`;
+    - `.gitleaks.toml`: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and `sk-lf-` keys, allowlisting `deploy/env.agents/dev-cpu.vars`, and ADR 0004's false positive scoped to commit 8c15b95, that file, and that rule (a departure, plan §11);
+    - the new `.claude/hooks/content-scan.sh`, a PreToolUse check on Edit, Write, and MultiEdit. It writes the edit's text into a fresh directory under its own path relative to the project and runs `gitleaks dir` there, rather than `gitleaks stdin`, so the config's one path allowlist (dev-cpu.vars) applies. It refuses any `.gitleaksignore` outright;
     - `.claude/git-hooks/pre-commit`, which runs gitleaks on the staged changes, with `make git-hooks` installing it.
 
     Each passes `--config` with the main tree's `.gitleaks.toml`, `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow`, refuses to run while a `.gitleaksignore` exists at its scan source (research.md R-36), and fails closed when gitleaks is missing (§11).
@@ -248,7 +248,7 @@ description: "Task list for spec 000, Local Foundations"
   - `deploy/agents-engine/engine.sh up`, then `make engine-status`.
 
   The seed and the engine's proofs come later (T063 and T099), once the models' lock and the last image pin exist. Record the results in the next branch's note.
-- [ ] T047 Update `docs/how-we-build/lifecycle.md`'s enforcement table with the early patch's layers (T111 completes it), then write the merge-request note `docs/merge-requests/<date>-feat-000-foundations.md`. It lists every change to anything that runs in the Author's terminal under its own heading, first: the Makefile, `deploy/scripts/**`, `deploy/agents-engine/**`, and `tools/gates/**` (ADR 0017).
+- [X] T047 Update `docs/how-we-build/lifecycle.md`'s enforcement table with the early patch's layers (T111 completes it), then write the merge-request note `docs/merge-requests/<date>-feat-000-foundations.md`. It lists every change to anything that runs in the Author's terminal under its own heading, first: the Makefile, `deploy/scripts/**`, `deploy/agents-engine/**`, and `tools/gates/**` (ADR 0017).
 
 **Checkpoint**: the gateway starts and refuses bad configuration with exit 78. Once T046 is done, agents reach the engine through the relay (`make engine-status`). dev-cpu's first run waits for the seed (T063).
 
@@ -299,7 +299,7 @@ description: "Task list for spec 000, Local Foundations"
   - `src/meter/init.ts`, following data-model.md §8;
   - `src/meter/journal.ts`, following §3: `O_APPEND`, `fsync`, monthly files at 0600 in a 0700 directory, and the `operator` and `clock` record kinds.
 - [ ] T056 [US1] Create `scripts/operator.py` (stdlib, run through `PY_HOST`) with `mint`, `status`, and `init`, per contracts/operator-admin.md §6. It reads the token only from `~/.config/h4reet-ai/operator/<stack>.token` and follows §6.2's exit codes. Add `scripts/test_operator.py`, and the Makefile targets `operator-token`, `operator-init`, and `operator-status` (§6.1).
-- [ ] T057 [US1] Add `model-server-gpu` and `model-server-cpu` to `deploy/compose.yaml` per §3: the profiles `gpu` and `cpu`, the commands and flags, the GPU reservation in `gpu` only, and the health checks. Create `deploy/models.lock` with both models' pins from research.md R-03. Create `deploy/scripts/pull-models.sh`:
+- [ ] T057 [US1] Add `model-server-gpu` and `model-server-cpu` to `deploy/compose.yaml` per §3: the profiles `gpu` and `cpu`, the commands and flags, the GPU reservation in `gpu` only, and the health checks. Create `deploy/models.lock` with both models' pins from research.md R-03, one model per line with its file name and sha256 on that line: `engine.sh seed_model` reads it that way, and refuses a model it can't find a sha256 for (review round 2). Create `deploy/scripts/pull-models.sh`:
   - it runs the disk preflight first;
   - it downloads with `curl -fL -C -` and no token;
   - it verifies the sha256, renames atomically, and sets mode 0444;
@@ -427,7 +427,7 @@ description: "Task list for spec 000, Local Foundations"
   T045's patch already added the rows for its own changes; T087 adds the rest, plus the indirect variants of those. Rows whose enforcement waits for a patch are `planned`: reported, but not failing.
 - [ ] T088 [US3] Create `tools/gates/matrix-required.txt`, listing every row ID, and make the matrix fail when a listed row is missing.
 - [ ] T089 [US3] Add stage S rows to `redteam/forbidden-actions.sh` per §13, after T087 (the same file). They run when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable, and are skipped with a notice otherwise. Every row only probes (`test -w`, `test -r`, or a connection attempt). The `main` row is `test -w` on the ref's path, never `update-ref`, and a planned row whose test would write is skipped, not run. The unwritable rows cover the three config files, `GNUmakefile`, `makefile`, `.gitleaks.toml`, `.gitleaksignore`, and `deploy/agents-engine`.
-- [ ] T090 [US3] Make `redteam/forbidden-actions.sh` report stage E, after T089 (the same file). On the host, after `deploy/agents-engine/engine.sh prove`, it reads `prove-limits.sh`'s report and folds rows E1–E14 into its summary.
+- [ ] T090 [US3] Make `redteam/forbidden-actions.sh` report stage E, after T089 (the same file). On the host, after `deploy/agents-engine/engine.sh prove`, it reads `prove-limits.sh`'s report and folds rows E1–E16 into its summary.
 
 ### Implementation for User Story 3
 
@@ -454,7 +454,7 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T097 [US3] Agent session, after Phase 4 has merged: `make engine-smoke` (`deploy/agents-engine/engine.sh smoke`), meaning `make up ENV=dev-cpu` comes up healthy and `make breach-test ENV=dev-cpu` passes (US3-9's positive half, quickstart.md §3.4).
 - [ ] T098 **Patch**: write the governance patch, `docs/merge-requests/<date>-feat-000-us3-governance-enforcement.patch`, per §15: `sandbox.filesystem.denyWrite` on `./tools/gates` and `./evals/agent-config`, the matching `Edit(...)` denies, the `protected-paths.sh` rules, and their matrix rows.
 - [ ] T099 [US3] **Author** (Heavy, after T097, with no agent session using the engine):
-  - `deploy/agents-engine/engine.sh prove` (stage E, rows E1–E14);
+  - `deploy/agents-engine/engine.sh prove` (stage E, rows E1–E16);
   - `tools/gates/gate` on the branch;
   - `make evals-agent-config`, committing its history entry (SC-008);
   - the SC-007 timing of quickstart.md §6.2 (Heavy): a fresh clone, then the devcontainer with an empty build cache, `make setup`, and `make test`, in under 30 minutes.
@@ -623,3 +623,36 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
 - [X] T122 Record `--import-mode=importlib` (Makefile `PYTEST_ARGS`) in plan.md §11's test row, with its reason: pytest then never puts a test's folder or the repository root at the front of `sys.path`, as §14 requires of the `run.py` scaffolds, per plan §11 (partial)
 - [X] T123 Add `tools/gates/run_checks.py`, `tools/gates/install-tools.sh`, and `.devcontainer/requirements-tools.in` to plan.md's Source Code tree per plan: Project Structure (partial)
 - [X] T124 Name files.pythonhosted.org in plan.md §17's `make tools` row, where uv downloads pytest's and PyYAML's wheels (`tools/gates/install-tools.sh`), as the devcontainer row already does, per FR-040 (partial)
+
+## Phase 10: Convergence
+
+- [X] T125 Make row E9 of `deploy/agents-engine/prove-limits.sh` prove the opening on feat/000-foundations: verify the server with the engine's `ca.pem`; show that the handshake fails with no client certificate and with one from another CA; and show that only RootlessKit, as `h4agents`, and the proxy listen on `198.18.0.1`, per T044 and contracts/agents-engine.md §7 E9 (partial)
+- [X] T126 Add the probes rows E4, E5, and E8 still lack to `deploy/agents-engine/prove-limits.sh`, per T044 and §7 E4, E5, E8 (partial):
+  - E4: from the WSL address, the rootful bridges' gateways, and prod's container addresses;
+  - E5c: binds through a symbolic link (`ELOOP`), and a `mount` inside a probe container;
+  - E8: the CONNECTs to `198.18.0.1:2376`, `10.0.0.1:443`, and `169.254.169.254:80`; a BuildKit `RUN --network=host` build, refused by the daemon's entitlements; E8d's list comparison; and the refusals in the proxy's log.
+- [X] T127 Run `prove-limits.sh`'s API probes with the agents' certificate (`~/.config/h4reet/agents-engine/docker`), so they test what a session can do, per T044 and §7's preamble (contradicts)
+- [X] T128 Bring rows E1, E3, E7, E10, and E11 of `prove-limits.sh` up to §7, per T044 and §7 (partial):
+  - E1: who owns the containers' processes;
+  - E3: `/dev/nvidia*`;
+  - E7: `.env.*` files, every in-tree read deny masked, and a refusal that names the file;
+  - E10: no file of the Author's under the data root, and the seeded images back;
+  - E11: a file inside `~/.config/h4reet-ai`, not the directory itself.
+- [X] T129 Normalize each sandbox read deny in `deploy/agents-engine/engine.sh`'s mask check before comparing it with `tree-masks.txt`: drop a leading `./`, a project-relative leading `/`, and a trailing `/**`, and skip only `~/` and `//` paths, per T043 and §5 H8 (partial)
+- [X] T130 Make `engine.sh seed` refuse unless the host's `docker info` names the containerd snapshotter, and run its disk check before any pull on the host, counting only the images still to seed, per T043 and §6.1–§6.2 (partial)
+- [X] T131 Have `deploy/agents-engine/egress-proxy.py` record its list's digest when it starts, and make `engine.sh status` print that digest beside the settings' digest, both computed by the proxy's own code, per T040, T043, §4, and §8 (missing)
+- [X] T132 Widen the early patch's `engine.sh` rule in `docs/merge-requests/2026-10-08-feat-000-foundations-enforcement.patch` to a leading `VAR=value`, wrapper options that take an argument (`nice -n`, `watch -n`), and a leading `. `, with a matrix row for each, per T045 and plan §13 (partial)
+- [X] T133 Point the early patch's `ops.md` compose commands at `make status ENV=…` and `make logs ENV=…`, which pass the run file and the export's compose file, and amend plan §15 and T045 to match plan §4, per T045 (contradicts)
+- [X] T134 Record the `.gitleaks.toml` allowlist for ADR 0004 at 8c15b95 as a departure in plan §11 and T045, per plan §11 and FR-012 (contradicts)
+- [X] T135 Have `deploy/agents-engine/setup-host.sh` write `~/.config/h4reet/agents-engine/docker/config.json` as `{}`, mode 0444, per contracts/agents-engine.md §2.3 (missing)
+- [X] T136 Match only subdomains for a `*.` entry in `egress-proxy.py`, per T040 and §4 (contradicts)
+- [X] T137 In `egress-proxy.py`, per T040 and §4 (partial):
+  - log `no_list` once a minute;
+  - forward a GET's query and headers;
+  - give a failed upstream connect and the tunnel cap their own logged reasons;
+  - treat a settings file that isn't a JSON object as `no_list`.
+- [X] T138 Refuse, in `setup-host.sh`, a subordinate-ID range that overlaps one already in `/etc/subuid` or `/etc/subgid`, per T042 and §5 H2 (partial)
+- [X] T139 Resolve the main working tree in the early patch's `content-scan.sh` as `pre-commit` does, for both the config and the allowlisted path, per T045 (partial)
+- [X] T140 In `deploy/scripts/init_env.py`'s SYNC mode, list every `__ASK__` key the updated file still holds, per T032 and contracts/env-files.md §9.1 (partial)
+- [X] T141 Point `deploy/scripts/redact.sh`'s comment at `deploy/scripts/test_status.py`, which keeps its filter equal to ops.md's, per T034 (partial)
+- [X] T142 Add the host image build's npm flow to plan §17's table, per T038 and FR-040 (partial)

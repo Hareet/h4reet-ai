@@ -54,8 +54,10 @@ The gateway configures `@opentelemetry/sdk-node` in `src/telemetry/otel.ts`. Com
 - Spans go through a batch span processor (queue 2,048, export every 1 s). A full queue drops spans; it never blocks a request.
 - Telemetry failures never touch enforcement: the meter and the kill switch live in the store, and nothing in the request path waits on an export.
 - Health probes produce no spans: the HTTP instrumentation ignores `/health/live` and `/health` (`ignoreIncomingRequestHook`), and the collector's filter drops any that get through ([§6.3](#63-processors)).
-- The gateway removes `client.address`, `client.port`, `network.peer.address`, `network.peer.port`, and `user_agent.original` from its server spans in a span processor before export. The collector deletes them again.
-- **Outbound HTTP.** `instrumentation-undici` is configured with an `ignoreRequestHook` that skips the Telegram API host, because that URL's path carries the bot token ([alerts.md §4.1](alerts.md#41-the-dispatcher)), so no client span records it. The collector's redaction (§6.3) stays the second layer.
+- The gateway removes `client.address`, `client.port`, `network.peer.address`, `network.peer.port`, `user_agent.original`, `url.query`, and `url.full` from its spans, and any query string from `url.path`, in a span processor before export. The collector deletes them again, and strips the query string from any `url.full` that reaches it ([§6.3](#63-processors)).
+- **Outbound HTTP.** `instrumentation-undici`'s `ignoreRequestHook` skips the Telegram API host and the stand-in, because that URL's path carries the bot token ([alerts.md §4.1](alerts.md#41-the-dispatcher)), so no client span records it. The collector's redaction (§6.3) stays the second layer.
+- **No trace context leaves the stack.** Both client instrumentations' ignore hooks (`ignoreOutgoingRequestHook` for `node:http` and `node:https`, `ignoreRequestHook` for `fetch`) instrument a request only when its host is an in-stack service (one letter-first DNS label, [provider-adapter.md §3.1](provider-adapter.md)) and not a Telegram host. An ignored request gets neither a client span nor a `traceparent` header, and both hooks return before the instrumentation injects any header. So the Bedrock adapter's calls through the AWS SDK, and its SSO credential refresh, carry no trace ID to AWS, and the gateway's own `chat {model}` span is their client span (§3.2). The SDK test checks the wire for `traceparent`, `tracestate`, and `baggage`.
+- **Outgoing spans need a parent.** The HTTP, undici, and pg instrumentations make spans only inside a request's trace (`requireParentforOutgoingSpans`, `requireParentforSpans`, `requireParentSpan`), so the model server's 1 s health probe, the store's background queries, and startup make no traces of their own. pg spans carry statements with placeholders, never values, and the statement that sets `grafana_ro`'s password is scrubbed from its span, because the verifier is as sensitive as a password hash.
 
 ### 3.2 The spans of one request
 
@@ -186,7 +188,7 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 |---|---|---|---|---|
 | `gen_ai.client.token.usage` | histogram, `{token}` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.token.type` (`input`, `output`) | `gen_ai_client_token_usage` (`_bucket`, `_sum`, `_count`) | the gateway, once per token type per successful attempt. Buckets: 1, 4, 16, 64, 256, 1,024, 4,096, 16,384, 65,536 (the conventions' advice, cut at the stack's context size). |
 | `gen_ai.client.operation.duration` | histogram, `s` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model` (on success), `server.address`, `error.type` (on failure) | `gen_ai_client_operation_duration_seconds` | the gateway, once per attempt |
-| `http.server.request.duration` | histogram, `s` | `http.request.method`, `http.route`, `http.response.status_code`, `url.scheme`, `network.protocol.version`, `error.type` | `http_server_request_duration_seconds` | `@opentelemetry/instrumentation-http`, for every route on both listeners, health checks included (they produce no spans, but they are counted) |
+| `http.server.request.duration` | histogram, `s` | `http.request.method`, `http.route`, `http.response.status_code`, `url.scheme`, `network.protocol.version`, `error.type` | `http_server_request_duration_seconds` | `@opentelemetry/instrumentation-http`, for every route on both listeners except the health checks: the ignore hook that keeps them out of traces (§3.1) skips their measurement too |
 
 ### 4.3 Metrics scraped by Prometheus
 
@@ -222,7 +224,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 - **Fields on every record:** `time`; `level`; `msg`, a fixed sentence per event that never interpolates request content; `event`; `h4.stack`; and `trace_id`, `span_id`, and `trace_flags` when a span is active (the instrumentation injects them). The OTel severity follows pino's level: info 9, warn 13, error 17, fatal 21.
 - **Audit records** also carry `event.name=h4.audit` ([data-model.md §2.6](../data-model.md#26-audit_log-who-when-why-fr-034)).
 - **In Loki,** the resource's `service.name`, `service.namespace`, and `deployment.environment.name` are index labels (`service_name`, …). Everything else is structured metadata with dots turned into underscores (`event`, `event_name`, `trace_id`, the fields), so a query reads `{service_name="gateway"} | event="alert.delivered"`.
-- **The level** is `info`, fixed in compose. Fastify's own request logging is off (`disableRequestLogging: true`), so no URL, header, or body reaches a log; the gateway logs only the events below.
+- **The level** is `info`, fixed in compose. Fastify's own logger is off (`logger: false`, so it writes no request lines; Fastify 5.12 deprecates `disableRequestLogging`), so no URL, header, or body reaches a log; the gateway logs only the events below.
 
 ### 5.2 Events
 
@@ -230,7 +232,10 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 |---|---|---|---|
 | `gateway.started` | info | startup finished | `routing_sha`, `price_version`, `adapters` (IDs), `h4_env` |
 | `gateway.config_refused` | fatal | a startup refusal, just before exit 78 | `reason` (the code in [config-files.md](config-files.md) or plan §5.8), `key` or `path` (never a value) |
-| `migrations.applied` | info | after migrations | `versions` |
+| `gateway.fatal` | fatal | a store problem retrying can't fix, just before exit 1: a migration whose file changed, or one older than the store's latest | `reason` (`migration_changed`, `migration_gap`) |
+| `gateway.stopping` | info | SIGTERM or SIGINT: the listeners stop accepting, and requests in flight finish | `signal` |
+| `request.failed` | error | an unexpected error answered with 500 `internal_error` | `error_class` (the error's code or class name, never its message), `route` (the route template, or `other`) |
+| `migrations.applied` | info | after migrations | `versions` (the ones applied now), `grafana_ro_login` (`enabled` once the gateway has set its password, else `disabled`) |
 | `call.completed` | info | each provider attempt, as its ledger row commits | `route_decision`, `route_reason`, `attribution`, `adapter`, `provider`, `request_model`, `response_model`, `input_tokens`, `output_tokens`, `latency_ms`, `cost_micro`, `cost_basis`, `price_version`, `outcome`, `error_kind` |
 | `call.degraded` | warn | each degraded response | `cause`, `route_decision` |
 | `call.refused` | info | each 429 | `error` (`client_cap_exceeded`, `metered_capacity_exceeded`), `limit` |
@@ -245,7 +250,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s` |
 | `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class` |
 | `incident.drafted` | info | a draft is written | `incident_id`, `path` (relative to the state directory), `sha256` |
-| `state.unknown` | error | the store is unreachable or empty: once when it starts, then once a minute | `condition` (`store_unreachable`, `store_uninitialized`), `since` |
+| `state.unknown` | error | the store is unreachable or empty: once when it starts, then once a minute | `condition` (`store_unreachable`, `store_uninitialized`), `since`, `error_class` (a SQLSTATE or Node error code, never a message) |
 | `state.recovered` | info | the store answers again | `outage_s` |
 | `journal.unwritable` | error | a `reserve` append fails | `error_class` |
 | `adapter.health_changed` | info | an adapter's effective health flips | `adapter`, `healthy`, `reason` |
@@ -257,7 +262,7 @@ The breach test's L assertions read `alert.delivered`, `fallback.exhausted`, `ki
 ### 5.3 Redaction in the gateway
 
 - **pino's `redact`** censors the fixed paths `req.headers.authorization`, `req.headers.cookie`, `*.authorization`, `*.password`, `*.token`, `messages`, and `*.messages`, with `[redacted]`.
-- **A `formatters.log` hook** censors any key, at any depth, whose name contains `token`, `password`, `secret`, `authorization`, `cookie`, or `api_key` (any case), or that equals `messages`, `prompt`, `completion`, `answer`, `system`, or `body`. The hook exists because `redact` matches whole path segments, not parts of a key, so it can't express plan §5.7's `*token*` and `*password*` on its own.
+- **A `formatters.log` hook** censors any key, at any depth, whose name contains `token`, `password`, `secret`, `authorization`, `cookie`, or `api_key` (any case), unless its value is a number or a boolean, as `call.completed`'s `input_tokens` and `output_tokens` are; or that equals `messages`, `prompt`, `completion`, `answer`, `system`, or `body`, whatever its value. The hook exists because `redact` matches whole path segments, not parts of a key, so it can't express plan §5.7's `*token*` and `*password*` on its own.
 - **Never in a record:** a payload; a client address or label; a token, password, or key; a request URL (Telegram's carries the bot token, [alerts.md §4.1](alerts.md#41-the-dispatcher)); a provider's error body.
 
 ## 6. The collector

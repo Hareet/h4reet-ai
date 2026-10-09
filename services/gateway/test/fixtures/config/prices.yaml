@@ -1,0 +1,17 @@
+# contracts/config-files.md §2.2's first version. A fixed copy, so the tests don't move when the Author appends one.
+schema: 1
+currency: USD
+unit: per_million_tokens
+versions:
+  - id: "2026-10-08.1"
+    effective_from: "2026-10-08T00:00:00Z"
+    source: "spec 000: local and synthetic only"
+    entries:
+      - provider: local
+        model: "*"
+        input: 0
+        output: 0
+      - provider: synthetic
+        model: metered-test
+        input: 0
+        output: 100

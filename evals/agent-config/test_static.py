@@ -20,6 +20,18 @@ SPEC.loader.exec_module(static)
 
 SUPERSEDES_LINE = "`.specify/memory/constitution.md` supersedes this file.\n"
 
+# The tests' own PLANNED map, shaped like the one the early patch emptied: the content-scan hook and every FR-007
+# name the settings didn't deny before spec 000, all waiting for one task. Injected, so the tests hold whatever the
+# real map holds.
+TEST_PLANNED = {
+    "hook .claude/hooks/content-scan.sh": "T999",
+    **{
+        f"variable {name}": "T999"
+        for name in static.FR007_VARIABLES
+        if name not in static.DENIED_BEFORE_SPEC_000
+    },
+}
+
 
 def settings(names: list[str], hooks: list[tuple[str, str, str]]) -> dict:
     groups: dict[str, list] = {}
@@ -41,8 +53,9 @@ def settings(names: list[str], hooks: list[tuple[str, str, str]]) -> dict:
 
 
 @pytest.fixture
-def tree(tmp_path: Path) -> Path:
-    """A minimal repository whose governance files pass every check, with today's planned items."""
+def tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A minimal repository whose governance files pass every check, with TEST_PLANNED's items planned."""
+    monkeypatch.setattr(static, "PLANNED", dict(TEST_PLANNED))
     (tmp_path / "CLAUDE.md").write_text("# rules\n" + SUPERSEDES_LINE, encoding="utf-8")
     (tmp_path / "REVIEW.md").write_text(
         "# review\n" + SUPERSEDES_LINE, encoding="utf-8"
@@ -144,7 +157,7 @@ def test_an_unregistered_current_hook_fails_but_a_planned_one_does_not(
     path.write_text(json.dumps(settings(names, planned_only)), encoding="utf-8")
     assert (
         static.main(tree) == 0
-    )  # content-scan.sh is PLANNED (T045), so its absence doesn't fail
+    )  # content-scan.sh is planned in TEST_PLANNED, so its absence doesn't fail
 
 
 def test_an_fr007_name_that_is_neither_denied_nor_planned_fails(

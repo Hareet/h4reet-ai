@@ -1,0 +1,76 @@
+diff --git a/config/alerts.yaml b/config/alerts.yaml
+new file mode 100644
+index 0000000..bb277df
+--- /dev/null
++++ b/config/alerts.yaml
+@@ -0,0 +1,26 @@
++schema: 1
++
++channels:
++  order: [telegram, email]
++  telegram: { timeout_ms: 5000 }
++  email:    { timeout_ms: 10000 }
++
++retry:
++  schedule_s: [5, 15, 30, 60, 120]   # attempts at 0, 5, 20, 50, 110, and 230 s
++  give_up_after_s: 300               # 230 s + the 10 s email timeout = 240 s, inside 300
++
++reminder:
++  at_utc: "09:00"                    # daily, while degraded or awaiting renewal
++
++store_unreachable_after_s: 60
++auth_failed: { threshold: 3, window_s: 600 }
++
++prefixes:
++  prod: "[h4reet.ai prod]"
++  dev: "[dev]"
++  dev-cpu: "[dev-cpu]"
++
++standin:                             # ALERT_DELIVERY=standin: dev's default, never prod
++  telegram_base: "http://telegram-standin:8080"
++  smtp_host: mailpit
++  smtp_port: 1025
+diff --git a/config/budgets.yaml b/config/budgets.yaml
+new file mode 100644
+index 0000000..0c2ab98
+--- /dev/null
++++ b/config/budgets.yaml
+@@ -0,0 +1,22 @@
++schema: 1
++
++timing:
++  timezone: UTC
++  reservation_ttl_s: 120
++
++envs:
++  prod:                       # the only class that spends real money (FR-031)
++    daily_usd: 5.00
++    monthly_usd: 20.00
++    fallback_daily_usd: 2.00  # per grant; a renewal grants a fresh $2 inside the daily ceiling (FR-030)
++    warn_ratio: 0.70
++  dev:                        # dev and dev-cpu: the same thresholds, applied to synthetic spend (FR-036)
++    daily_usd: 5.00
++    monthly_usd: 20.00
++    fallback_daily_usd: 2.00
++    warn_ratio: 0.70
++
++limits:
++  per_client:  { requests_per_minute: 20, burst: 5, requests_per_day: 500, metered_in_flight: 1 }
++  global:      { metered_in_flight: 4, metered_per_minute: 60 }
++  per_call:    { max_input_chars: 2000, hello_max_output_tokens: 128, max_output_tokens: 512 }
+diff --git a/services/gateway/src/config/load.ts b/services/gateway/src/config/load.ts
+index 6f52288..a793461 100644
+--- a/services/gateway/src/config/load.ts
++++ b/services/gateway/src/config/load.ts
+@@ -17,10 +17,7 @@ export type ConfigFileName = (typeof CONFIG_FILES)[number];
+  * deletes these entries, and a mark whose file exists fails validate-config until then (tasks.md, Notes).
+  * The gateway itself never starts without these files: the runtime has no PLANNED state.
+  */
+-export const PLANNED_CONFIG_FILES: Readonly<Partial<Record<ConfigFileName, string>>> = {
+-  "budgets.yaml": "T022",
+-  "alerts.yaml": "T022",
+-};
++export const PLANNED_CONFIG_FILES: Readonly<Partial<Record<ConfigFileName, string>>> = {};
+ 
+ export interface ConfigIssue {
+   severity: "error" | "note";

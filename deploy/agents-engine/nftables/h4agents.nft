@@ -1,0 +1,37 @@
+#!/usr/sbin/nft -f
+# The agents' engine firewall (spec 000, FR-039; contracts/agents-engine.md §5, H4).
+#
+# Every connection a container makes leaves RootlessKit's namespace through slirp4netns as the user
+# h4agents, so this one table holds them all: no internet, no LAN, no DNS, none of the host's stacks
+# on the WSL address or the bridge networks, not the engine's own API — only the egress proxy on
+# 198.18.0.1:3128.
+#
+# It replaces only its own table and never flushes the ruleset, so rootful Docker's rules stay
+# untouched. The first two lines make the reload idempotent: create the table if absent (so delete
+# cannot fail), delete it, then define it fresh.
+
+table inet h4agents
+delete table inet h4agents
+
+table inet h4agents {
+	counter h4agents_dropped {
+	}
+
+	chain output {
+		type filter hook output priority 0; policy accept;
+
+		# Only h4agents' own traffic is constrained; everything else passes untouched.
+		meta skuid != "h4agents" accept
+
+		# Replies on connections that were allowed out.
+		ct state established,related accept
+
+		# The one way out: the egress proxy.
+		ip daddr 198.18.0.1 tcp dport 3128 accept
+
+		# Everything else from h4agents is counted, logged (rate-limited), and dropped.
+		counter name "h4agents_dropped"
+		limit rate 10/second log prefix "h4agents-drop "
+		drop
+	}
+}

@@ -12,6 +12,7 @@ This contract covers the api listener of `services/gateway`: the hello endpoint 
 - **Trace context.** Edge clears `traceparent`, `tracestate`, and `baggage` on the api port, x000, so a client can neither switch off sampling for its own call (the sampler is parent-based, [telemetry.md §3.1](telemetry.md#31-sdk-setup)) nor choose the trace ID the ledger and the body record. The gateway starts every hello trace itself.
 - **Body size.** Edge caps request bodies at 16 KB and answers 413 `{"error":"body_too_large","limit_bytes":16384}`. The gateway's own body limit is also 16 KB.
 - **Unknown routes and methods** get 404 `{"error":"not_found","request_id":"…"}`.
+- **Unexpected failures** get 500 `{"error":"internal_error","request_id":"…"}`, and the log names the error's class (`request.failed`), never its message. A body that isn't JSON gets 415, malformed JSON 400 `invalid_request`, and one over the gateway's own limit 413 `body_too_large`; each body carries the `request_id`.
 - **Health probes** (`/health/live`, `/health`) produce no spans ([plan.md §5.7](../plan.md#57-telemetry)).
 
 ## 2. `POST /hello`

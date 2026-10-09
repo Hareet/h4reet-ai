@@ -1,0 +1,15 @@
+{
+  "features": { "containerd-snapshotter": true },
+  "authorization-plugins": ["h4-authz"],
+  "tls": true,
+  "tlsverify": true,
+  "tlscacert": "/etc/h4agents/pki/ca.pem",
+  "tlscert": "/etc/h4agents/pki/server-cert.pem",
+  "tlskey": "/etc/h4agents/pki/server-key.pem",
+  "hosts": ["unix://", "tcp://0.0.0.0:2376"],
+  "builder": { "entitlements": { "network-host": false, "security-insecure": false } },
+  "log-driver": "local",
+  "log-opts": { "max-size": "10m", "max-file": "3" },
+  "live-restore": false,
+  "ip": "127.0.0.1"
+}

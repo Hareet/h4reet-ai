@@ -1,0 +1,20 @@
+# The agents' engine admission plugin (spec 000, FR-039; contracts/agents-engine.md §3).
+# A systemd *user* service of h4agents. It must be up before dockerd, which names it in daemon.json
+# ("authorization-plugins": ["h4-authz"]) and refuses every request when it is down (fail closed).
+# The socket lives in dockerd's plugin directory, $XDG_RUNTIME_DIR/docker/plugins/h4-authz.sock, which
+# the service sets for itself. Installed to ~h4agents/.config/systemd/user/ by engine.sh setup.
+[Unit]
+Description=h4agents engine admission plugin (h4-authz)
+Before=docker.service
+PartOf=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/h4agents/engine.env
+# Python by path through PY_HOST's isolation, never -m, so planted bytecode cannot run (research R-35).
+ExecStart=/usr/bin/python3 -I -B -X pycache_prefix=/dev/null /usr/local/lib/h4agents/authz.py
+Restart=on-failure
+RestartSec=1
+
+[Install]
+WantedBy=default.target

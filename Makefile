@@ -34,6 +34,25 @@ RUNFILE := $(HOME)/.local/state/h4reet/$(ENV)/run.env
 TREE = $(shell sed -n 's/^H4_TREE=//p' "$(RUNFILE)" 2>/dev/null)
 endif
 COMPOSE = docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)$(if $(RUNFILE), --env-file $(RUNFILE))
+# REF picks the commit a host stack runs (make up REF=<sha> is the rollback), from the command line only, like ENV.
+# The shell reads it as "$REF", so make never splices it into a command line, and --ref= keeps it a value.
+REF_ARG = $(if $(filter command line,$(origin REF)), --ref="$$REF")
+
+# The agents' engine (plan §10). Inside the agent sandbox, a target that touches containers runs itself again
+# through deploy/agents-engine/docker-relay, which points DOCKER_HOST at the engine, and only for ENV=dev-cpu: the
+# host's engine and stacks are out of an agent's reach (FR-039). ENGINE_CERT is the agents' client certificate,
+# which deploy/agents-engine/engine.sh setup writes (tasks.md T042, T046); before it exists there is no engine.
+RELAY := deploy/agents-engine/docker-relay
+RELAY_HOST := tcp://127.0.0.1:2376
+ENGINE_CERT := $(HOME)/.config/h4reet/agents-engine/docker/cert.pem
+ifeq ($(SANDBOX_RUNTIME),1)
+ifneq ($(DOCKER_HOST),$(RELAY_HOST))
+VIA_RELAY := 1
+endif
+endif
+# Where compose images can be built: relay (the sandbox, with an engine), none-yet (the sandbox, before T046),
+# direct (a docker CLI: already relayed, or outside the sandbox), or no-cli (the devcontainer).
+ENGINE_MODE := $(if $(VIA_RELAY),$(if $(and $(wildcard $(RELAY)),$(wildcard $(ENGINE_CERT))),relay,none-yet),$(if $(shell command -v docker 2>/dev/null),direct,no-cli))
 
 # Every Python a recipe runs: isolated, and blind to bytecode an agent could plant, by script path and never with -m
 # (research.md R-35). -I alone still loads a planted __pycache__/*.pyc. Under /dev/null, which can never hold a
@@ -43,7 +62,8 @@ PY_HOST := python3 -I -B -X pycache_prefix=/dev/null
 
 # Node for make's own recipes: the pinned version from nvm, first on PATH, without changing the shell's default
 # Node or the Claude Code installed under it (plan §9).
-NODE_PIN := $(shell sed -n 's/^NODE_VERSION=//p' .devcontainer/toolchain.vars)
+# Only a plain x.y.z, so nothing else in toolchain.vars can reach PATH.
+NODE_PIN := $(shell sed -n 's/^NODE_VERSION=\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$$/\1/p' .devcontainer/toolchain.vars)
 NVM_NODE_BIN := $(wildcard $(or $(NVM_DIR),$(HOME)/.nvm)/versions/node/v$(NODE_PIN)/bin)
 ifneq ($(NVM_NODE_BIN),)
 export PATH := $(NVM_NODE_BIN):$(PATH)
@@ -81,9 +101,10 @@ WORKSPACE_DIRS := $(patsubst %/package.json,%,$(WORKSPACES))
 NPM_WS = $(if $(WORKSPACES),npm $(1) --workspaces --if-present,@echo "npm $(1): no workspaces yet")
 # Every shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), NUL-separated, so no name is
 # split or read by the shell. The gate lints a git archive export, which has no .git, so outside a repository the
-# list comes from the files themselves. The git hooks are added by name: .claude/git-hooks is human-only.
+# list comes from the files themselves. Scripts without .sh are added by name: the git hooks (human-only), and
+# the engine's relay, which runs by name.
 LIST_SH = { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/'
-GIT_HOOKS := $(wildcard .claude/git-hooks/*)
+NAMED_SCRIPTS := $(wildcard .claude/git-hooks/*) $(wildcard deploy/agents-engine/docker-relay)
 
 # Cleared once the early patch adds the pre-commit hook (tasks.md T045, T046); githooks-check fails while both exist.
 PRE_COMMIT_PLANNED := T045
@@ -91,7 +112,7 @@ PRE_COMMIT_PLANNED := T045
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := githooks-check toolchain-check policy@T037 validate-config@T019 lint test secrets@T091 evals redteam=redteam-suite matrix image@T036
+CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets@T091 evals redteam=redteam-suite matrix image
 
 help: ## List the targets
 	@grep -E '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -108,6 +129,21 @@ toolchain-check: ## Compare the installed tools with .devcontainer/toolchain.var
 
 check: ## Every local gate (FR-041): PASS, FAIL, SKIP, PENDING, or PLANNED for each, then a summary
 	@$(PY_HOST) tools/gates/run_checks.py $(CHECK_GATES)
+
+validate-config: ## The gateway's config files and env templates, through the gateway's own validators (contracts/config-files.md §5)
+	$(CONTAINED)
+	npm run --silent -w services/gateway validate-config -- --root "$(CURDIR)"
+
+engine-status: ## The agents' engine: reachable, rootless, its plugin, its images (contracts/agents-engine.md §8)
+	@# In the sandbox the engine is reached only through the relay, which sets DOCKER_HOST, so the nested run is direct.
+	@if [ "$${SANDBOX_RUNTIME:-}" = 1 ] && [ -z "$${DOCKER_HOST:-}" ]; then deploy/agents-engine/docker-relay make engine-status; \
+	else deploy/agents-engine/engine.sh status; fi
+
+engine-smoke: ## dev-cpu up, its breach test, and down, on the agents' engine (contracts/agents-engine.md §8)
+	deploy/agents-engine/engine.sh smoke
+
+policy: ## The compose and file policy, over each committed env file; needs the docker CLI, not a daemon (plan §11)
+	$(PY_HOST) tools/gates/compose_policy.py
 
 githooks-check: ## The git hooks are installed and match .claude/git-hooks/, and main is a loose ref (plan §11)
 	@hooks="$$(git rev-parse --git-path hooks)"; ok=1; \
@@ -136,10 +172,16 @@ git-hooks: ## Install the git hooks that keep main the Author's, once per clone 
 	git config gc.packRefs false; \
 	echo "git hooks: installed in $$hooks"
 
-build: ## Build the workspaces, and the compose images once deploy/compose.yaml exists; prints BUILD OK
+build: ## Build the workspaces, then the compose images on the agents' engine, where there is one; prints BUILD OK
 	$(CONTAINED)
 	$(call NPM_WS,run build)
-	@if [ -f deploy/compose.yaml ]; then docker compose -f deploy/compose.yaml build; else echo "compose images: none yet (tasks.md T029, T036)"; fi
+ifeq ($(ENGINE_MODE),relay)
+	@$(RELAY) make --no-print-directory compose-images ENV=dev-cpu || { echo "build: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
+else ifeq ($(ENGINE_MODE),direct)
+	@$(MAKE) --no-print-directory compose-images
+else
+	@echo "compose images: $(if $(filter none-yet,$(ENGINE_MODE)),no agents' engine yet (tasks.md T046),no docker CLI here; the Author's gate builds them on the agents' engine)"
+endif
 	@echo BUILD OK
 
 lint: ## Zero warnings: ESLint, tsc, Prettier, ruff, shellcheck (plan §9)
@@ -153,7 +195,7 @@ lint: ## Zero warnings: ESLint, tsc, Prettier, ruff, shellcheck (plan §9)
 	@# corpus/ is human-authored and agents can't edit it, so ruff lints it but doesn't hold it to ruff's format.
 	ruff format --check --no-cache --extend-exclude corpus .
 	@[ "$$($(LIST_SH) | tr -cd '\0' | wc -c)" -gt 0 ] || { echo "lint: found no shell scripts to check" >&2; exit 1; }
-	$(LIST_SH) | xargs -0 -t shellcheck -- $(GIT_HOOKS)
+	$(LIST_SH) | xargs -0 -t shellcheck -- $(NAMED_SCRIPTS)
 
 fmt: ## Format what Prettier and ruff own (not the human-authored documents or the corpus)
 	$(CONTAINED)
@@ -198,8 +240,97 @@ redteam-suite: ## The adversarial scaffold alone (plan §14)
 matrix: ## The forbidden-action matrix alone (plan §13)
 	bash redteam/forbidden-actions.sh
 
-up down logs status pull pin-images init-env isolation-check: ## The stack targets arrive with feat/000-foundations
-	@echo "make $@ arrives with feat/000-foundations (tasks.md T032 to T036, plan §4)" >&2; exit 2
+# ---------------------------------------------------------------------------------------------------------------
+# The stacks (plan §4; contracts/env-files.md §10 and §12). prod and dev run on the host's engine, from the
+# read-only export of the commit make up started, so make runs that export's own preflight, status, and redact
+# scripts; dev-cpu runs on the agents' engine, from the working tree.
+#
+# A host stack with no run file wasn't started by make up: down, logs, and status say so and succeed (§12).
+NOT_STARTED = [ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "h4reet-$(ENV) wasn't started by make up (no $(RUNFILE)): nothing to $(1)"; exit 0; }
+# deploy/scripts/pull-models.sh (tasks.md T057) takes --stack S --env-file F [--all]; on the agents' engine it only
+# verifies the seeded model. $(1) is the tree it runs from: the export on a host stack.
+PULL_MODELS = if [ -f $(1)/deploy/scripts/pull-models.sh ]; then bash $(1)/deploy/scripts/pull-models.sh --stack $(ENV) --env-file $(ENVFILE) $(2); \
+  else echo "models: deploy/scripts/pull-models.sh arrives with tasks.md T057"; fi
+
+ifeq ($(VIA_RELAY),1)
+# Inside the sandbox: the same target again, through the relay, on the agents' engine. MAKEFLAGS carries the rest of
+# the command line (SERVICE=, TAIL=) into the relayed make.
+up down logs status:
+	@[ "$(ENV)" = dev-cpu ] || { echo "make $@ ENV=$(ENV): agent sessions run dev-cpu only, on their own engine (FR-039); the Author runs prod and dev" >&2; exit 2; }
+	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make $@: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
+	$(RELAY) make --no-print-directory $@ ENV=dev-cpu
+else
+up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, then every service, healthy
+	@$(if $(RUNFILE),:,[ "$(origin REF)" != "command line" ] || { echo "make up: dev-cpu runs the working tree; REF= is for prod and dev" >&2; exit 2; })
+	$(PY_HOST) $(TREE)/deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR)$(REF_ARG)
+	@$(call PULL_MODELS,$(TREE),)
+	@# Every service healthy, or status names the one that isn't, with its health output and error lines, redacted;
+	@# the rest keep running, and hello answers degraded (plan §4). --remove-orphans retires a service the commit dropped.
+	@$(COMPOSE) up -d --build --remove-orphans --wait --wait-timeout 600; up=$$?; \
+	$(PY_HOST) $(TREE)/deploy/scripts/status.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --root $(TREE) --after-up; status=$$?; \
+	[ "$$up" -eq 0 ] && [ "$$status" -eq 0 ]
+
+down: ## Stop the stack: its volumes, meters, and journal stay, because it never passes -v (FR-031)
+	@$(call NOT_STARTED,stop) && $(COMPOSE) down --timeout 30 --remove-orphans
+
+# SERVICE= and TAIL= come from the command line, read by the shell, and checked before compose sees them.
+logs: ## The stack's logs, redacted: SERVICE=name TAIL=200; the model server shows warnings and errors only
+	@set -eo pipefail; $(call NOT_STARTED,show); \
+	tail="$(if $(filter command line,$(origin TAIL)),$$TAIL,200)"; service="$(if $(filter command line,$(origin SERVICE)),$$SERVICE)"; \
+	case "$$tail" in ''|*[!0-9]*) echo "TAIL is a number of lines" >&2; exit 2 ;; esac; \
+	case "$$service" in *[!a-z0-9-]*) echo "SERVICE is one service's name" >&2; exit 2 ;; esac; \
+	redact=$(TREE)/deploy/scripts/redact.sh; \
+	[ -f "$$redact" ] || { echo "the running commit has no deploy/scripts/redact.sh, so its logs aren't shown" >&2; exit 1; }; \
+	$(COMPOSE) logs --timestamps --tail "$$tail" $${service:+"$$service"} 2>&1 \
+	  | awk '{ split($$0, f, "|") } f[1] ~ /model-server-/ && tolower($$0) !~ /warn|error|fail/ { next } { print }' \
+	  | bash "$$redact"
+
+status: ## The running commit and the one before, each service's health and pin, the gateway's /health, disk use
+	@$(call NOT_STARTED,report) && $(PY_HOST) $(TREE)/deploy/scripts/status.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --root $(TREE)
+endif
+
+# make up's first step on a host stack: its own target, so up's recipe, which make expands only once this has run,
+# reads TREE from the run file it has just written (tasks.md T036). It runs from the working tree: it makes the export.
+up-export:
+	$(PY_HOST) deploy/scripts/export_tree.py --stack $(ENV) --repo $(CURDIR)$(REF_ARG)
+
+pull: ## (the Author) Pull every image by digest, Docker Hub's one at a time with backoff; then the models (MODELS=all)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make pull is the Author's: the agents' engine is seeded instead (deploy/agents-engine/engine.sh seed)" >&2; exit 2; }
+	@[ "$(ENV)" != dev-cpu ] || { echo "make pull ENV=dev-cpu: the agents' engine is seeded instead (deploy/agents-engine/engine.sh seed)" >&2; exit 2; }
+	$(PY_HOST) deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE) --for pull --repo $(CURDIR)$(if $(filter all,$(MODELS)), --models all)
+	$(PY_HOST) deploy/scripts/pull_images.py --stack $(ENV) --env-file $(ENVFILE)
+	@$(call PULL_MODELS,.,$(if $(filter all,$(MODELS)),--all))
+
+# The image gate (plan §11): SKIP before the agents' engine exists (tasks.md T046), and FAIL once it exists and
+# doesn't build them. The devcontainer has no docker CLI; the Author's gate builds the images on the engine.
+image: ## The image gate: the compose images built on the agents' engine (plan §11)
+ifeq ($(ENGINE_MODE),relay)
+	@$(RELAY) make --no-print-directory compose-images ENV=dev-cpu || { echo "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
+else ifeq ($(ENGINE_MODE),none-yet)
+	@echo "SKIP: no agents' engine yet: tasks.md T046"
+else ifeq ($(ENGINE_MODE),no-cli)
+	@echo "SKIP: no docker CLI here (the devcontainer); the Author's gate builds the images on the agents' engine"
+else
+	@$(MAKE) --no-print-directory compose-images
+endif
+
+# Every image this tree builds (the gateway; the stand-ins and the probe once they exist), in every profile, on the
+# current engine, with dev-cpu's env file: the agents' engine builds through its proxy (H4_BUILD_PROXY).
+compose-images:
+	docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars --profile '*' build
+
+isolation-check: ## (the Author) prod and dev can't reach each other, which arrives with feat/000-us1-local-stack
+	@echo "make isolation-check arrives with feat/000-us1-local-stack (tasks.md T061, plan §4)" >&2; exit 2
+
+init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its template; SYNC=1 adds new keys
+	$(PY_HOST) deploy/scripts/init_env.py --stack $(ENV) $(if $(filter 1,$(SYNC)),--sync)
+
+# The Author's terminal: it reaches the registries. ONLY=svc,... limits it; TAG="svc=tag ..." pins a tag (an open
+# one, such as seaweedfs's, otherwise gets the newest release); DRY_RUN=1 prints the table and writes nothing.
+# The values reach the script through the environment, quoted by the shell, never spliced into the command line.
+pin-images: ## (the Author) Resolve deploy/images.lock's tags to digests, and rewrite it and compose.yaml (plan §2)
+	@set -f; set --; for tag in $${TAG:-}; do set -- "$$@" --tag "$$tag"; done; \
+	$(PY_HOST) deploy/scripts/pin_images.py $${ONLY:+--only "$$ONLY"} $${DRY_RUN:+--dry-run} "$$@"
 
 breach-test: ## The kill-switch rehearsal on dev or dev-cpu, which arrives with feat/000-us2-kill-switch
 	@echo "make breach-test arrives with feat/000-us2-kill-switch (tasks.md T080)" >&2; exit 2
@@ -207,6 +338,6 @@ breach-test: ## The kill-switch rehearsal on dev or dev-cpu, which arrives with 
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
-.PHONY: help setup tools toolchain-check check githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check evals redteam redteam-suite matrix up down logs status pull pin-images init-env isolation-check \
-	breach-test plan
+.PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
+	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
+	init-env isolation-check breach-test plan

@@ -67,7 +67,7 @@ Spec 000's code creates no cloud resource. The Author creates one by hand, the B
 - **AWS:** @aws-sdk/client-bedrock-runtime 3.1147.0, @aws-sdk/credential-providers 3.1147.0, @smithy/node-http-handler 4.12.1.
 - **OpenTelemetry:**
   - @opentelemetry/api 1.9.1, sdk-node 0.223.0, sdk-metrics 2.12.0, sdk-logs and api-logs 0.223.0, resources 2.12.0, semantic-conventions 1.43.0;
-  - the OTLP/HTTP exporters 0.223.0;
+  - the OTLP/HTTP exporters 0.223.0 (`exporter-trace-otlp-proto`, `exporter-metrics-otlp-proto`, and `exporter-logs-otlp-proto`, for `http/protobuf`);
   - instrumentation-http 0.223.0, instrumentation-pg 0.75.0, instrumentation-undici 0.33.0, instrumentation-pino 0.69.0, and @fastify/otel 0.21.1.
 - **Gateway dev:** typescript 6.0.3 (typescript-eslint 8.71.1 requires `<6.1`), @types/node 24.19.1, @types/pg 8.23.1, @types/nodemailer 8.0.2, vitest 5.0.3, vite 8.3.3, @vitest/coverage-v8 5.0.3, @electric-sql/pglite 0.5.8, aws-sdk-client-mock 4.1.0, aws-sdk-client-mock-vitest 8.0.0, eslint 10.12.0, @eslint/js 10.0.1, eslint-config-prettier 10.1.8, globals 17.13.0, prettier 3.9.9, tsx 4.23.15.
 - **Containers:** see [§2](#2-compose-services-and-pinned-images).
@@ -181,7 +181,7 @@ package.json, package-lock.json  [A] new: npm workspaces ["services/*"]; engines
 tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] new
 .dockerignore                    [A] new: excludes .git, deploy/env, *.env, node_modules, __pycache__, corpus/intake/private
 .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
-                                     allowlists deploy/env.agents/dev-cpu.vars only
+                                     allowlists deploy/env.agents/dev-cpu.vars, and ADR 0004 at 8c15b95
 GNUmakefile, makefile            never exist: denied at the OS level from the early patch on, so nothing shadows the Makefile
 .devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
                                      hashed requirements-tools.txt
@@ -196,13 +196,13 @@ services/gateway/                [A] new: the gateway (§5)
   src/{server,app}.ts
   src/routes/{hello,health,admin,test}.ts
   src/core/{types,gateway,router,limits,clock}.ts
-  src/adapters/{registry,local-openai,bedrock-converse,synthetic}.ts
+  src/adapters/{registry,local-openai,bedrock-converse,synthetic,_settings}.ts   (_settings: each type's routing.yaml settings and the registered types)
   src/meter/{store,admission,commit,rollover,init,journal}.ts
   src/alerts/{outbox,dispatcher,telegram,smtp,format}.ts
   src/incidents/draft.ts
-  src/config/{load,validate,validate-env}.ts
+  src/config/{load,validate,validate-env,validate-config}.ts   (validate-config: the npm script's entry)
   src/telemetry/{otel,metrics,log,redact}.ts
-  test/{unit,contract,integration}/**
+  test/{unit,contract,integration,helpers,fixtures}/**
 deploy/
   compose.yaml                   [A] new: the one topology (§2)
   images.lock                    [A] new: every image as tag@sha256, written by make pin-images
@@ -218,8 +218,8 @@ deploy/
   clickhouse/{low-memory,no-crash-reports,prometheus}.xml   [A] new
   seaweedfs/entrypoint.sh        [A] new: renders s3.json from env, creates the bucket, runs weed
   grafana/provisioning/{datasources,dashboards}/*.yaml, grafana/dashboards/h4-runtime.json   [A] new
-  scripts/                       [A] new: preflight.py, init_env.py, export_tree.py, pull-models.sh, pin_images.py,
-                                     status.py, isolation-check.sh, redact.sh, aws-login.sh
+  scripts/                       [A] new: preflight.py, init_env.py, export_tree.py, pull_images.py, pull-models.sh,
+                                     pin_images.py, status.py, isolation-check.sh, redact.sh, aws-login.sh
   agents-engine/                 [H] new: the FR-039 boundary (§10)
     setup-host.sh, engine.sh, authz.py, egress-proxy.py, docker-relay, prove-limits.sh, daemon.json,
     tree-masks.txt, nftables/h4agents.nft, systemd/*, test/*.py
@@ -393,11 +393,12 @@ Keys that select the stack:
 - `ENV`, from the command line only (`make up ENV=dev`), defaulting to `prod`. It must be exactly one word: `prod`, `dev`, or `dev-cpu`. POSIX shells export `ENV` to name a startup file, so make ignores the environment's value, and refuses one that names a stack (`ENV=dev make down` would otherwise act on prod).
 - `ENVFILE` is `deploy/env.agents/dev-cpu.vars` for dev-cpu, and `$(HOME)/.config/h4reet-ai/env/$(ENV).env` otherwise.
 - Every compose call is `docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)`, plus `--env-file $(H4_STATE_DIR)/run.env` on host stacks. `TREE` is the running export on host stacks and the working tree on dev-cpu. Make finds a host stack's run file at `~/.local/state/h4reet/<stack>/run.env`, the only `H4_STATE_DIR` preflight allows there, so it never reads the env file. It reads `TREE` when a recipe runs, not when it starts. So `make up`, whose export runs as its own prerequisite target, sees the run file the export has just written; make expands a whole recipe before running it, so a line inside the same recipe would not.
+- `REF`, from the command line only, like `ENV`: the commit a host stack runs (`HEAD` by default). Recipes pass it as `--ref="$REF"`, read by the shell, so make never splices it into a command line, and the script refuses one that starts with `-` before git sees it.
 - `PY_HOST := python3 -I -B -X pycache_prefix=/dev/null`. Every Python the Makefile runs in the Author's terminal goes through it, by script path and never with `-m`. `-I` keeps out `PYTHON*` variables, the user's site directory, and the working directory, but it still loads bytecode from `__pycache__`, which an agent could plant and git doesn't show. With the cache under `/dev/null`, which can never hold a directory, Python reads no bytecode and compiles the source, and `-B` keeps it from trying to write any (research.md R-35).
 
 **`make up`:**
-0. **The commit** (host stacks). `REF` defaults to `HEAD`. `deploy/scripts/export_tree.py` resolves it to a SHA, exports it once with `git archive` into `${H4_STATE_DIR}/tree/<sha>` (read-only), and writes `${H4_STATE_DIR}/run.env`: `H4_TREE`, `H4_REF`, `H4_REF_BRANCH`, and `H4_REF_PREVIOUS` ([contracts/env-files.md §12](contracts/env-files.md#12-the-run-file-host-stacks)). The stack then runs that commit's compose file, configuration, and images, whatever the shared working tree holds later. A gateway restart rereads the export, so an agent switching branches can't change a running stack. Uncommitted changes under the stack's paths are named as a WARN (P21). The Author chose no prod guard, so prod may run any branch, and `make status` says which commit it is.
-1. **Preflight**, `deploy/scripts/preflight.py`, run through `PY_HOST`. It parses env files as data and never `source`s them, and it refuses with a named reason:
+0. **The commit** (host stacks). `REF` defaults to `HEAD`. `deploy/scripts/export_tree.py` resolves it to a SHA, exports it once with `git archive` into `${H4_STATE_DIR}/tree/<sha>` (read-only), checks that the export hashes to the commit's own tree (the commit object checked against its ID too), and writes `${H4_STATE_DIR}/run.env`: `H4_TREE`, `H4_REF`, `H4_REF_BRANCH`, and `H4_REF_PREVIOUS` ([contracts/env-files.md §12](contracts/env-files.md#12-the-run-file-host-stacks)). The stack then runs that commit's compose file, configuration, and images, whatever the shared working tree holds later. A gateway restart rereads the export, so an agent switching branches can't change a running stack. Uncommitted changes under the stack's paths are named as a WARN (P21). The Author chose no prod guard, so prod may run any branch, and `make status` says which commit it is.
+1. **Preflight**, `deploy/scripts/preflight.py`, run through `PY_HOST`. On a host stack make runs the export's own copy, with `--repo` naming the working tree, so the templates, locks, and compose file it checks are the started commit's; `status.py`, `redact.sh`, and `pull-models.sh` run from the export the same way. It parses env files as data and never `source`s them, and it refuses with a named reason:
    - the env file is missing, isn't mode 0600 (host stacks), still has a placeholder, or its keys differ from its template's;
    - `COMPOSE_PROJECT_NAME`, `H4_STACK`, `H4_ENV`, and `ENV` disagree, or not exactly one of `gpu` and `cpu` is selected;
    - a dev-only switch (`GATEWAY_TEST_CLOCK`, `GATEWAY_TEST_SYNTHETIC_SPEND`, `TELEMETRY_PAYLOAD_SAMPLING=on`) is set outside `H4_ENV=dev`, or a paid adapter is routed outside `H4_ENV=prod` (FR-031, FR-036);
@@ -410,7 +411,7 @@ Keys that select the stack:
    - a port is held by another process or project;
    - an image is unpinned or differs from `images.lock`.
 2. `pull-models.sh` for the stack's model.
-3. `up -d --build --wait --wait-timeout 600`. The images are built from the export (host stacks) or the working tree (dev-cpu) on every run. Unchanged layers come from the cache, so this costs seconds, and a stale image can't certify code the commit doesn't contain.
+3. `up -d --build --remove-orphans --wait --wait-timeout 600`. `--remove-orphans` retires a service the commit no longer defines, so a rollback brings back the older topology exactly. The images are built from the export (host stacks) or the working tree (dev-cpu) on every run. Unchanged layers come from the cache, so this costs seconds, and a stale image can't certify code the commit doesn't contain.
 4. `deploy/scripts/status.py`. It prints each service's state and health and the gateway's `/health`. If the store is `uninitialized`, it prints the one-time `make operator-init ENV=<stack> REASON=...` command. It never initializes anything itself (FR-031).
 
 Exit codes:
@@ -424,10 +425,10 @@ Exit codes:
 
 | Target | Who runs it | What it does |
 |---|---|---|
-| `down` | anyone | `down --timeout 30`, never `-v`, with the running export's compose file on host stacks |
-| `pull` | the Author | pulls images for every profile, one Docker Hub image at a time, with backoff (5, 15, 45 s) that names an HTTP 429; then `pull-models.sh` (`MODELS=all` fetches every lock entry) |
+| `down` | anyone | `down --timeout 30 --remove-orphans`, never `-v`, with the running export's compose file on host stacks |
+| `pull` | the Author | `pull_images.py`: pulls images for every profile by digest, skipping those already present, one Docker Hub image at a time, with backoff (5, 15, 45 s) that names an HTTP 429; then `pull-models.sh` (`MODELS=all` fetches every lock entry) |
 | `pin-images` | the Author | `pin_images.py`: resolves digests, rewrites `compose.yaml` and `images.lock`, prints the table |
-| `build` | agents and the devcontainer (it refuses elsewhere, since `npm run build` runs `node_modules`, §11) | `npm run build --workspaces`, then `docker compose build` (gateway, telegram-standin, breach-probe) on the current engine; prints `BUILD OK` |
+| `build` | agents and the devcontainer (it refuses elsewhere, since `npm run build` runs `node_modules`, §11) | `npm run build --workspaces`, then `docker compose build` (gateway, telegram-standin, breach-probe) on the current engine, with dev-cpu's env file and every profile, through the relay in the sandbox; prints `BUILD OK`. Before the agents' engine exists, or without a docker CLI (the devcontainer), it says so and builds the workspaces alone |
 | `logs` | anyone | `logs --timestamps --tail ${TAIL:-200} ${SERVICE}`, piped through `deploy/scripts/redact.sh` (ops.md's filter); the model server shows warnings and errors only |
 | `status` | anyone | `status.py`: the running commit, its branch, and the previous commit (from the run file); state, health, the running digest against the pin, the gateway's `/health`, Prometheus target health, GPU memory, `docker system df` |
 | `init-env` | the Author | `init_env.py`: copies the template to `~/.config/h4reet-ai/env/<stack>.env` (0600, directory 0700), generates each `__GENERATE__` value in its own shape, refuses to overwrite, prints the names of the `__ASK__` keys left; `SYNC=1` appends new template keys without touching existing values |
@@ -784,7 +785,7 @@ FR-039, ADR 0016. The rule tables and proofs are in [contracts/agents-engine.md]
   - **The firewall:** nftables table `inet h4agents`, output hook, `meta skuid h4agents`. It accepts established traffic and `198.18.0.1:3128`, and logs and drops everything else, including DNS. Containers, which reach out through slirp4netns as `h4agents`, have no route to the internet, the LAN, the host's stacks, or the bridge networks.
   - **The GPU:** a systemd unit sets `/dev/dxg` to mode 0660, group `h4gpu`, and the Author joins the group. Rootful Docker runs as root and keeps the GPU.
   - **Windows files:** `/etc/wsl.conf` automount `options = "metadata,umask=077,fmask=077"`, so `/mnt/c` is the Author's alone.
-  - **The tree:** a systemd unit, run as root, read-only binds the working tree at `/run/h4agents/tree`, with an empty tmpfs over every path in the human-only `deploy/agents-engine/tree-masks.txt`: `deploy/env`, `corpus/intake/private`, `secrets`, and `.git`. `engine.sh up` refuses to start the tree while the sandbox read-denies a path inside it that the list lacks, or while a file matching a denied glob (`.env*`, `*.env`) sits outside a mask ([contracts/agents-engine.md](contracts/agents-engine.md) H8). It also binds `/var/lib/h4agents/models` read-only at `/run/h4agents/models`. That directory is root-owned and holds only the stand-in, which `deploy/agents-engine/engine.sh seed` copies in. It creates `/var/lib/h4agents/state`, owned by `h4agents`. All three bind roots are mounted `nosymfollow`, so a planted symlink can't lead outside them. The engine's code runs from root-owned installed copies, not from the tree. `h4agents` never traverses the Author's home, which stays mode 750.
+  - **The tree:** a systemd unit, run as root, read-only binds the working tree at `/run/h4agents/tree`, with an empty tmpfs over every path in the human-only `deploy/agents-engine/tree-masks.txt`: `deploy/env`, `corpus/intake/private`, `secrets`, and `.git`. `engine.sh up` refuses to start the tree while the sandbox read-denies a path inside it that the list lacks, or while a file matching a denied glob (`.env*`, `*.env`) sits outside a mask ([contracts/agents-engine.md](contracts/agents-engine.md) H8). It also binds `/var/lib/h4agents/models` read-only at `/run/h4agents/models`. That directory is root-owned and holds only the stand-in, which `deploy/agents-engine/engine.sh seed` copies in. It creates `/var/lib/h4agents/state`, owned by `h4agents`. All three bind roots are mounted `nosymfollow`, so a planted symlink can't lead outside them. The tree's bind leaves the repository mount's peer group before any mask, so no mask propagates back onto the Author's own tree, and h4agents' daemon starts only once the tree and every mask are mounted (H8). The engine's code runs from root-owned installed copies, not from the tree. `h4agents` never traverses the Author's home, which stays mode 750.
   - **Limits:** a slice drop-in caps `h4agents` at 4 CPUs and 16 GB. That holds the dev-cpu stack's summed memory limits, about 13.2 GiB with the breach probe; its real use is 5–6 GB.
 - **The daemon:**
   - `dockerd-rootless.sh`, as an `h4agents` systemd user service;
@@ -844,20 +845,22 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 
 The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `label[=target][@Tnnn]`, so a gate whose target a later task adds is SKIP, naming that task. Every gate is `.PHONY`: a file or directory with a gate's name makes make print "Nothing to be done" and exit 0, so the runner tells a missing target from a path that only shadows one, and a gate make would do nothing for fails. Marks expire. The task that adds a target removes its `@Tnnn`, and a patch's task deletes its PLANNED entries in the static tier and clears `PRE_COMMIT_PLANNED`. A mark whose enforcement exists fails, so a later rename or regression can't hide as SKIP or PLANNED. Spec 000's acceptance requires no PLANNED line and no SKIP that names a task (tasks.md T118). The red-team gate runs `make redteam-suite`; `make redteam` runs the suite and the matrix together, which is what the red-teamer role's `make redteam*` grant reaches. `make git-hooks` says so and does nothing where `.git/hooks` can't be written, as in the agent sandbox.
 
-**The compose and file policy** (`compose_policy.py`) runs on `docker compose config --no-interpolate`, once per env file. It refuses:
-- privileged mode; host pid, ipc, or network; `docker.sock`;
+**The compose and file policy** (`compose_policy.py`) runs on `docker compose config --no-interpolate --no-path-resolution --format json`, once per committed env file (the two templates and `dev-cpu.vars`), in an environment holding only `PATH` and `HOME`. `--no-path-resolution` keeps bind sources and build contexts as written, so `${H4_TREE}/…` and `..` aren't resolved against the working directory. It needs the docker CLI with compose, not a daemon; without them (the devcontainer) it prints SKIP with that reason. It refuses:
+- privileged mode; a pid, ipc, uts, userns, or cgroup namespace shared with the host or another container; any `network_mode`; `docker.sock`, and `use_api_socket`, which mounts the same socket under another name; lifecycle hooks (`post_start`, `pre_stop`), which run with their own user and privileges; and a `develop` section, whose watch syncs host paths in;
 - devices, except the model server's GPU reservation in the `gpu` profile;
-- binds outside `${H4_TREE}/deploy`, `${H4_TREE}/config`, `${H4_MODEL_DIR}`, `${H4_STATE_DIR}`, and `${H4_AWS_DIR}`;
+- binds outside `${H4_TREE}/deploy`, `${H4_TREE}/config`, `${H4_MODEL_DIR}`, `${H4_STATE_DIR}/gateway`, and `${H4_AWS_DIR}`, or writable outside `${H4_STATE_DIR}/gateway`. The rest of the state directory holds the run file and the exports, whose scripts the Author's terminal runs; a volume that isn't a declared, local named volume (a short-syntax bind renders as one, so binds use the long syntax);
 - ports not on `127.0.0.1`, or on any service but `edge`;
-- the `egress` network on any service but `gateway`;
+- the `egress` network on any service but `gateway`, the `edge` network on any service but `edge`, a service off `internal`, and any network but the three; a network or volume `name` other than compose's own `<project>_<key>`, which would join another stack's (FR-020);
+- [§1](#1-topology)'s rules for every service: no `container_name`, `env_file`, `external`, `extra_hosts`, `volumes_from`, `provider`, or `models` (a provider service runs outside compose's containers, and models pull through Docker's model runner); `cap_drop: [ALL]`, with `cap_add` only within the five capabilities; `no-new-privileges`, and nothing that relaxes it; `restart: unless-stopped`; and the `local` log driver, so no log leaves the host;
+- the top-level `secrets` and `configs`, which bring in host files outside the bind roots; `include`, which brings in a compose file the policy never sees; and `models`;
 - an image without a digest, or one that differs from `images.lock`;
-- a Dockerfile `FROM` without a digest;
-- a dev-only switch, or payload sampling, enabled in the prod template (FR-036);
+- a Dockerfile `FROM` without a digest, or with one `images.lock` doesn't pin (the agents' engine is seeded from the lock alone);
+- a dev-only switch, or payload sampling, enabled in the prod template (FR-036), or set by compose itself rather than taken from the env file; and, in any committed env file, a `COMPOSE_*` key other than `COMPOSE_PROJECT_NAME` and `COMPOSE_PROFILES`, or a `DOCKER_*` key;
 - a `*.env` file anywhere in the working tree (the real ones live in `~/.config/h4reet-ai/env/`);
-- a service with no row in `docs/data-flow-disclosure.md`;
-- in `.devcontainer/`: features, `initializeCommand`, host mounts, or privileged `runArgs`;
+- a service with no row in `docs/data-flow-disclosure.md`: a row whose From → To cell names it in backticks before the arrow;
+- in `.devcontainer/`: features, `initializeCommand`, host mounts, privileged `runArgs`, or a `${localEnv:…}` reference, which would carry the host's environment in;
 - `.npmrc` keys outside an allowlist (`node-options` and `script-shell` run code);
-- a `build.context` that is absolute, or that resolves outside the compose file's tree. Each image builds from the tree the compose file came from: on a host stack, the export, so `--build` can't pick up the live working tree ([§4](#4-environment-files-preflight-and-the-stack-targets)).
+- in a build: `ssh`, `secrets`, `cache_from`, `cache_to`, and `extra_hosts`, each of which reaches the host; and a `build.context` that is absolute, or that resolves outside the compose file's tree. Each image builds from the tree the compose file came from: on a host stack, the export, so `--build` can't pick up the live working tree ([§4](#4-environment-files-preflight-and-the-stack-targets)).
 
 **The Author's gate** (`tools/gates/gate <ref>`, human-only, run directly rather than through make, because a planted `GNUmakefile` would shadow the Makefile):
 1. **Export:** `git archive <ref>` into a temporary directory.
@@ -871,7 +874,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
 
 Its summary line goes into the merge commit message. Project code never runs outside a container in the Author's terminal. That closes the whole class of holes session 1 found one at a time: caches, `.venv`, `uv.toml`, ignored `conftest.py`, and `node_modules/.bin`. So the Author never runs `make check`, `make test`, or `make lint` in their own terminal: those run the working tree's `node_modules`, which agents installed and git doesn't show. Agents run them in the sandbox; the Author runs the gate. The targets enforce it: `lint`, `test`, `test-fast`, `fmt`, `fmt-file`, `lint-file`, and `build` run only where `SANDBOX_RUNTIME=1` (the agent sandbox) or `H4_DEVCONTAINER=1` (the devcontainer, and the gate's container phase) is set, and elsewhere say why and exit 2.
 
-**gitleaks** (`.gitleaks.toml`, human-only, in the early patch: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and Langfuse `sk-lf-` keys, with an allowlist of `deploy/env.agents/dev-cpu.vars` only) runs in four places:
+**gitleaks** (`.gitleaks.toml`, human-only, in the early patch: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and Langfuse `sk-lf-` keys, with an allowlist of `deploy/env.agents/dev-cpu.vars`; and, a departure, one more for the false positive already in `main`'s history, ADR 0004's list of Langfuse's stores, scoped to commit 8c15b95, that file, and the generic rule) runs in four places:
 - the plain `pre-commit` git hook, `.claude/git-hooks/pre-commit`, installed by `make git-hooks` (in the early patch);
 - the PreToolUse content check on Write and Edit (FR-008's secret-pattern content, in the early patch);
 - `make secrets`;
@@ -996,7 +999,7 @@ Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert
 2. **The early patch** (the foundations branch, tasks.md T045). T046 applies it, before the first engine run, the first real secret (T065), and the first paid route (T105). It holds:
    - **The engine opening:**
      - the `allowedDomains` entry `198.18.0.1:2376`, and `DOCKER_CONFIG` and `DISABLE_AUTOUPDATER` in `env`;
-     - for `.claude/agents/ops.md`: the grant `Bash(deploy/agents-engine/docker-relay docker *)`, its diagnostic command corrected to `-p h4reet-$ENV --env-file ~/.config/h4reet-ai/env/$ENV.env`, and the paragraph saying no engine exists dropped;
+     - for `.claude/agents/ops.md`: the grant `Bash(deploy/agents-engine/docker-relay docker *)`, its diagnostic commands pointed at `make status ENV=$ENV` and `make logs ENV=$ENV`, which pass the running export's compose file and the stack's run file as [§4](#4-environment-files-preflight-and-the-stack-targets) requires, and at `docker ps --filter label=com.docker.compose.project=h4reet-$ENV` for ports; and the paragraph saying no engine exists dropped;
      - `tools/gates/roles.expected` updated to match;
      - the bash-gate rule that keeps agents off `engine.sh`'s subcommands other than `smoke` and `status`.
    - **Every credential deny,** in `.claude/settings.json`:
@@ -1080,7 +1083,8 @@ The closing patch holds:
 | AWS SSO credential exchange | `portal.sso.us-east-1.amazonaws.com` (and `oidc.us-east-1.amazonaws.com` at login) | the runtime user's SSO token | prod's gateway, refreshing role credentials; `make aws-login` | the dedicated runtime identity |
 | Telegram alerts | `api.telegram.org` | the alert text (facts only), the bot token, the chat ID | prod; dev's `--delivery real` | `config/alerts.yaml`; FR-032's content rule |
 | Email alerts | the alerts mailbox's SMTP host | the alert text (facts only), the mailbox's credentials | same | the same |
-| Image pulls | ghcr.io (blobs from `pkg-containers.githubusercontent.com`), quay.io, `public.ecr.aws`, Docker Hub (`registry-1.docker.io`, `auth.docker.io`, its CDN) | image names; the IP address; Docker's user agent | `make pull`, a cold `make up`, `deploy/agents-engine/engine.sh seed` | digest pins |
+| Image pulls | ghcr.io (blobs from `pkg-containers.githubusercontent.com`), quay.io, `public.ecr.aws`, Docker Hub (`registry-1.docker.io`, `auth.docker.io`, its CDN) | image names; the IP address; Docker's user agent | `make pull`, a cold `make up`, `make pin-images` (digests, and a repository's tag list when a pin is open, with an anonymous token), `deploy/agents-engine/engine.sh seed` | digest pins |
+| Image builds | `registry.npmjs.org` | the names and versions in `package-lock.json`; the IP address; npm's user agent | `make up` on a host stack (its `up --build`); `make build` and `make image` on the agents' engine, through the proxy | the lockfile and `--ignore-scripts`; npm's audit, funding, and update checks off; the build cache (disclosure row P2) |
 | Model downloads | `huggingface.co` and its download hosts | the repo, file, and revision; the IP address; curl's user agent; no token | `make pull`, a cold `make up` | revision and sha256 |
 | Third-party phone-homes | Langfuse, Grafana, Loki, ClickHouse, SeaweedFS endpoints | usage data, versions | never | switched off ([§6](#6-observability)), and the internal network |
 | Development time: Claude Code | Anthropic | repository content an agent reads, prompts, completions | agent sessions, on the Team plan (FR-037) | the sandbox, the deny lists |

@@ -1,0 +1,199 @@
+# The one production topology (spec 000, plan §1 and §2; ADRs 0002 and 0021). Every stack runs this file: prod and
+# dev on the 5090 host, dev-cpu on the agents' engine. Only the env file differs (FR-017), and it reaches each
+# container through interpolation alone: no service has an env_file, so a container sees only the keys it names.
+#
+#   make up ENV=prod|dev|dev-cpu   (never docker compose directly: make passes -p, the env file, and the run file)
+#
+# Rules the compose policy holds every service to (tools/gates/compose_policy.py, plan §11):
+#   - every service joins `internal`, which has no route out; only `edge` joins `edge` and publishes ports, on the
+#     literal 127.0.0.1; only `gateway` joins `egress`, the one route to the internet (FR-040);
+#   - every image is pinned by digest and matches deploy/images.lock; built images come from this file's own tree;
+#   - binds come only from ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR};
+#   - no container_name, no external resource, no host network, no privileged mode, no Docker socket;
+#   - every service has a row in docs/data-flow-disclosure.md.
+# Named volumes belong to the compose project (h4reet-<stack>) and survive make down, which never passes -v.
+# Nothing waits on the model server or the collector, so neither can block hello's degraded path.
+
+# Every service: restart unless stopped, no privilege escalation, no capabilities, and Docker's local log driver,
+# rotated at 10 MB x 3 (plan §1). The database images add back only the capabilities their entrypoints need.
+x-service: &service
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  logging:
+    driver: local
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  # The only publisher: nginx, unprivileged, on the stack's five 127.0.0.1 ports (deploy/edge/nginx.conf).
+  # It resolves each upstream per request, so it starts with no dependencies.
+  edge:
+    <<: *service
+    image: ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
+    # nginx itself, without the image's entrypoint scripts, which try to rewrite files on a read-only root.
+    entrypoint: ["nginx"]
+    command: ["-g", "daemon off;"]
+    networks: [edge, internal]
+    ports:
+      - "127.0.0.1:${H4_API_PORT}:8080"
+      - "127.0.0.1:${H4_LANGFUSE_PORT}:8081"
+      - "127.0.0.1:${H4_GRAFANA_PORT}:8082"
+      - "127.0.0.1:${H4_ADMIN_PORT}:8083"
+      - "127.0.0.1:${H4_OTLP_PORT}:8084"
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/edge/nginx.conf"
+        target: /etc/nginx/nginx.conf
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+
+  # The model gateway (services/gateway): routing, the meter, the kill switch, and alerts. The only service with a
+  # route out (egress): Bedrock from prod only, Telegram, and SMTP. Built from this file's own tree: on a host stack
+  # the export of the commit make up started, on dev-cpu the working tree (plan §4).
+  gateway:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: services/gateway/Dockerfile
+      # Only the agents' engine builds through a proxy; on host stacks this is empty. Never a container variable.
+      args:
+        HTTP_PROXY: "${H4_BUILD_PROXY}"
+        HTTPS_PROXY: "${H4_BUILD_PROXY}"
+    networks: [internal, egress]
+    environment:
+      H4_STACK: "${H4_STACK}"
+      H4_ENV: "${H4_ENV}"
+      H4_LANGFUSE_PORT: "${H4_LANGFUSE_PORT}"
+      H4_GRAFANA_PORT: "${H4_GRAFANA_PORT}"
+      GATEWAY_STATE_DIR: /var/lib/h4-gateway
+      GATEWAY_DB_HOST: gateway-state
+      GATEWAY_DB_PORT: "5432"
+      GATEWAY_DB_NAME: gateway
+      GATEWAY_DB_USER: gateway
+      GATEWAY_DB_PASSWORD: "${GATEWAY_DB_PASSWORD}"
+      GATEWAY_GRAFANA_RO_PASSWORD: "${GATEWAY_GRAFANA_RO_PASSWORD}"
+      LOCAL_MODEL_BASE_URL: "${LOCAL_MODEL_BASE_URL}"
+      LOCAL_MODEL_NAME: "${MODEL_ALIAS}"
+      OPERATOR_TOKEN_SHA256: "${OPERATOR_TOKEN_SHA256}"
+      ALERT_DELIVERY: "${ALERT_DELIVERY}"
+      TELEGRAM_API_BASE: "${TELEGRAM_API_BASE}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}"
+      SMTP_HOST: "${SMTP_HOST}"
+      SMTP_PORT: "${SMTP_PORT}"
+      SMTP_TLS: "${SMTP_TLS}"
+      SMTP_USER: "${SMTP_USER}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD}"
+      ALERT_EMAIL_FROM: "${ALERT_EMAIL_FROM}"
+      ALERT_EMAIL_TO: "${ALERT_EMAIL_TO}"
+      # The dev-only switches exist only in dev's env files, so prod's gateway sees 0 (contracts/env-files.md §7).
+      GATEWAY_TEST_CLOCK: "${GATEWAY_TEST_CLOCK:-0}"
+      GATEWAY_TEST_SYNTHETIC_SPEND: "${GATEWAY_TEST_SYNTHETIC_SPEND:-0}"
+      TELEMETRY_PAYLOAD_SAMPLING: "${TELEMETRY_PAYLOAD_SAMPLING}"
+      # Bedrock's credential chain: the dedicated runtime identity's profile on prod, and a profile that exists
+      # nowhere on the other stacks, whose /home/node/.aws is the empty deploy/aws-none.
+      AWS_PROFILE: "${GATEWAY_AWS_PROFILE:-none}"
+      AWS_EC2_METADATA_DISABLED: "true"
+      HOME: /home/node
+      TZ: UTC
+      NODE_ENV: production
+      # OpenTelemetry (contracts/telemetry.md §3.1). No resource detector runs, so no metadata endpoint is called.
+      OTEL_SERVICE_NAME: gateway
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=h4reet,deployment.environment.name=${H4_STACK},service.instance.id=${H4_STACK}-gateway"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_TIMEOUT: "5000"
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_METRIC_EXPORT_INTERVAL: "10000"
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+      OTEL_NODE_RESOURCE_DETECTORS: env
+      OTEL_TRACES_SAMPLER: parentbased_always_on
+    volumes:
+      # The journal and the incident drafts: a host bind, so they survive even the loss of the store's volume.
+      - type: bind
+        source: "${H4_STATE_DIR:?set by the env file}/gateway"
+        target: /var/lib/h4-gateway
+      - type: bind
+        source: "${H4_AWS_DIR:?set by the env file}"
+        target: /home/node/.aws
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/config"
+        target: /app/config
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    # The store is retried every 5 s, so the gateway waits on nothing (data-model.md §2.1).
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/health/live',{signal:AbortSignal.timeout(2000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # The gateway's own Postgres: the meter, the kill switch, the ledger, the audit log, the outbox, and incidents
+  # (data-model.md). Its volume survives make down (FR-031).
+  gateway-state:
+    <<: *service
+    image: public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    # The entrypoint takes ownership of the data directory, then drops to the postgres user.
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    networks: [internal]
+    environment:
+      POSTGRES_DB: gateway
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: "${GATEWAY_DB_PASSWORD}"
+    volumes:
+      - type: volume
+        source: gateway-state-data
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "gateway", "-d", "gateway"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+networks:
+  # No route out: every service joins it (FR-040).
+  internal:
+    internal: true
+  # An ordinary bridge, for edge alone, so its ports can be published.
+  edge:
+    driver: bridge
+  # An ordinary bridge, for the gateway alone: the stack's one way to the internet.
+  egress:
+    driver: bridge
+
+volumes:
+  gateway-state-data: {}

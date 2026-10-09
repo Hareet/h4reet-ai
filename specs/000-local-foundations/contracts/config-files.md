@@ -18,7 +18,7 @@ For each file it gives every field, the rules, an example, the validation errors
 - **Money:** a USD amount is a number or a decimal string, at least 0, with at most 6 decimal places. It is converted exactly to integer micro-USD, never through a float, and more decimals are an error. Prices are per million tokens and become integer micro-USD per million tokens.
 - **Placeholders:**
   - A string of the form `<…>` marks a value only the Author can supply, such as `"<inference-profile ID the Author confirms>"`.
-  - `validate-config` reports each one as a NOTE and still passes.
+  - `validate-config` reports each one as a NOTE and still passes. A placeholder is accepted only in a field whose rule allows one: routing.yaml's Bedrock `model`, and a prices.yaml entry's `model` and prices. Anywhere else it fails that field's rule.
   - A gateway whose own route uses a placeholder value refuses to start (exit 78, `placeholder_value`). In spec 000 that is prod's Bedrock model and price until the Author fills them, so dev and dev-cpu run on the committed files.
 - **Who edits what:**
 
@@ -146,7 +146,7 @@ These are checked with the stack's environment:
 | `paid_route_outside_prod` | the route selected by `H4_ENV` names a `paid` adapter and `H4_ENV` isn't `prod`. R2 already makes this impossible in a valid file; the gateway checks it again against its own environment ([plan.md §5.8](../plan.md#58-startup-refusals)). |
 | `synthetic_in_prod` | a `prod` route names a `synthetic` adapter |
 | `placeholder_value` | the route uses an adapter with a placeholder value |
-| `local_url_not_in_stack` | the URL in `base_url_env` isn't `http://<single-label host>[:port][/path]`, so it isn't an in-stack service |
+| `local_url_not_in_stack` | the URL in `base_url_env` isn't `http://<single-label host>[:port][/path]`, so it isn't an in-stack service. The label starts with a letter, as a compose service name does, and must come back unchanged and not an address from URL parsing: a label like `2852039166` or `0x7f000001` is an IPv4 address in decimal or hex. |
 | `missing_env` | a key named by `base_url_env` or `model_env` is unset |
 | `invalid_config` | any §1.3 error |
 
@@ -346,7 +346,7 @@ It sets the channel order, the retry schedule, the daily reminder, the subject p
 | `standin.smtp_host` | string | a single-label host, the in-network Mailpit |
 | `standin.smtp_port` | integer | 1 to 65,535 |
 
-The stand-in endpoints must be single-label, in-network hosts, so stand-in mode can't be pointed at a real service.
+The stand-in endpoints must be single-label, in-network hosts, so stand-in mode can't be pointed at a real service: a label that starts with a letter, under the same rule as `local_url_not_in_stack` (§1.4), so no IPv4 address in any notation passes.
 
 ### 4.2 Example (the plan's values)
 
@@ -417,7 +417,7 @@ With `ALERT_DELIVERY=standin`, the gateway uses `standin.*` and ignores the real
    - enable no dev-only switch and no payload sampling (FR-036);
    - set `ALERT_DELIVERY=real`, `TELEGRAM_API_BASE=https://api.telegram.org`, and `SMTP_TLS` to `implicit` or `starttls`.
 
-   The key list is in [env-files.md](env-files.md).
+   The key list is in [env-files.md](env-files.md). Each file's `H4_STACK` must be the stack it's for. `dev-cpu.vars` must also have exactly the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE`, hold no placeholder, and carry a dummy token whose SHA-256 is both its `OPERATOR_TOKEN_SHA256` and the hash prod refuses, a constant in `src/config/validate-env.ts` ([env-files.md §6.1](env-files.md#61-dev-cpus-dummies)). A template that is missing is an error, naming tasks.md T031, which writes them.
 3. **The append-only check** of `config/prices.yaml` against `main` (P5), when run in a git checkout.
 
 It prints one line per error or note, then a summary:

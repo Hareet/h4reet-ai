@@ -1,0 +1,23 @@
+# The agents' engine read-only tree, models, and state binds (contracts/agents-engine.md §5, H8-H10).
+# Binds the working tree read-only at /run/h4agents/tree with nosymfollow, masks the paths the sandbox
+# denies, binds the stand-in models read-only, and binds the state root onto itself. engine.sh up has
+# validated the masks and created any missing masked directory before starting this unit.
+# Installed to /etc/systemd/system/ by engine.sh setup.
+[Unit]
+Description=h4agents engine tree, models, and state binds
+After=local-fs.target
+Before=docker.service
+RequiresMountsFor=/run/h4agents
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=/etc/h4agents/engine.env
+ExecStart=/usr/local/lib/h4agents/bind-tree.sh up
+# A reload mounts the masks still missing and unmounts nothing: a restart would unmount every mask, and the
+# unmount would reach a running engine's namespace before the masks came back.
+ExecReload=/usr/local/lib/h4agents/bind-tree.sh up
+ExecStop=/usr/local/lib/h4agents/bind-tree.sh down
+
+[Install]
+WantedBy=multi-user.target

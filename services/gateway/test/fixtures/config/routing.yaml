@@ -1,0 +1,18 @@
+# contracts/config-files.md §1.2's first step: the local adapter alone, and no fallback in either route. A fixed copy,
+# so the tests don't move when config/routing.yaml grows (tasks.md T073, T102, T105).
+schema: 1
+deadline_ms: 20000
+
+adapters:
+  local:
+    type: openai-compatible
+    kind: local
+    provider: local
+    base_url_env: LOCAL_MODEL_BASE_URL
+    model_env: LOCAL_MODEL_NAME
+    timeouts: { connect_ms: 1000, request_ms: 10000 }
+    health: { path: /models, interval_ms: 1000, timeout_ms: 800, unhealthy_after: 1, healthy_after: 3 }
+
+envs:
+  prod: { primary: local }
+  dev: { primary: local }

@@ -1,0 +1,22 @@
+# The versioned price table every cost is computed from (FR-023; contracts/config-files.md §2). Append-only: a new
+# price is a new version, and a published version never changes (P5). The active version is the latest whose
+# effective_from is at or before the gateway clock. Prices are USD per million tokens.
+#
+# The Author appends the Bedrock version once the model and its price are confirmed (tasks.md T105), repeating the
+# local and synthetic entries. This file becomes human-only with the early enforcement patch (tasks.md T045).
+schema: 1
+currency: USD
+unit: per_million_tokens
+versions:
+  - id: "2026-10-08.1"
+    effective_from: "2026-10-08T00:00:00Z"
+    source: "spec 000: local and synthetic only"
+    entries:
+      - provider: local
+        model: "*" # zero marginal cost
+        input: 0
+        output: 0
+      - provider: synthetic
+        model: metered-test # dev's synthetic spend: $0.10 a call
+        input: 0
+        output: 100

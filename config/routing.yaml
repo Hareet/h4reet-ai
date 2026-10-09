@@ -1,0 +1,23 @@
+# The gateway's adapters and each environment class's route (contracts/config-files.md §1). Agents edit this file,
+# reviewed in the merge-request note; its schema keeps every primary local, a paid adapter in prod's route only, and
+# synthetic spend in dev's only. The gateway selects the route by H4_ENV: prod for prod, dev for dev and dev-cpu.
+#
+# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the first
+# step: the local adapter alone, and no fallback in either route. tasks.md T073 adds synthetic and dev's fallback,
+# T102 adds bedrock with its placeholder model, and the Author adds prod's fallback (T105).
+schema: 1
+deadline_ms: 20000
+
+adapters:
+  local:
+    type: openai-compatible
+    kind: local
+    provider: local
+    base_url_env: LOCAL_MODEL_BASE_URL # http://model-server:8080/v1 in every env file
+    model_env: LOCAL_MODEL_NAME # the stack's MODEL_ALIAS
+    timeouts: { connect_ms: 1000, request_ms: 10000 }
+    health: { path: /models, interval_ms: 1000, timeout_ms: 800, unhealthy_after: 1, healthy_after: 3 }
+
+envs:
+  prod: { primary: local }
+  dev: { primary: local }

@@ -90,7 +90,7 @@ Compose passes `MODEL_ALIAS` to the gateway as `LOCAL_MODEL_NAME`, the key `conf
 | Key | prod | dev | dev-cpu | Secret | Source | Consumed by | Validated by |
 |---|---|---|---|---|---|---|---|
 | `GATEWAY_DB_PASSWORD` | `__GENERATE__` | `__GENERATE__` | dummy | yes | generated | `gateway-state` (`POSTGRES_PASSWORD`), the gateway | preflight: present. A wrong value shows as `store_unreachable`, never as a refusal to start. |
-| `GATEWAY_GRAFANA_RO_PASSWORD` | `__GENERATE__` | `__GENERATE__` | dummy | yes | generated | the gateway (it sets `grafana_ro`'s password at every start, [data-model.md §2.9](../data-model.md#29-the-view-v_state-and-the-role-grafana_ro)); Grafana's `gateway` datasource | preflight: present |
+| `GATEWAY_GRAFANA_RO_PASSWORD` | `__GENERATE__` | `__GENERATE__` | dummy | yes | generated | the gateway (it sets `grafana_ro`'s password at every start, [data-model.md §2.9](../data-model.md#29-the-view-v_state-and-the-role-grafana_ro)); Grafana's `gateway` datasource | preflight: present, and printable ASCII without spaces. The gateway: printable ASCII ([§11](#11-what-the-gateway-checks-for-itself)) |
 | `OPERATOR_TOKEN_SHA256` | `__ASK__` | `__ASK__` | the dummy token's hash | no: a hash | asked: printed by `make operator-token ENV=<stack>` | the gateway | gateway: 64 lowercase hex, and on prod not the published dummy's hash (exit 78, [data-model.md §5](../data-model.md#5-the-operator-credential)). Preflight: the same shape, and for prod and dev the token file `~/.config/h4reet-ai/operator/<stack>.token` exists with mode 0600; preflight never reads it. |
 | `H4_DEVCPU_OPERATOR_TOKEN` | – | – | `h4op_devcpu_<43 base64url characters, committed>` | no: a public dummy | dummy | `scripts/operator.py` and `evals/breach.py`, which read it from the file as data; never a container | preflight: matches `^h4op_devcpu_[A-Za-z0-9_-]{43}$`, and its SHA-256 equals `OPERATOR_TOKEN_SHA256` |
 | `ALERT_DELIVERY` | `real` | `standin` | `standin` | no | fixed | the gateway | gateway: prod must be `real` (`alert_delivery_not_real`, [config-files.md §4.4](config-files.md#44-startup-refusals-exit-78-that-combine-this-file-with-the-environment)). Preflight: dev's file says `standin` (only the recorded run's overlay changes it, [§7.2](#72-the-delivery-overlay)); dev-cpu must be `standin`, because the engine has no route to Telegram or SMTP. |
@@ -175,7 +175,7 @@ None of these can be switched on from an env file: they aren't template keys, so
 
 - Every secret-shaped key in `dev-cpu.vars` holds a fixed, public dummy. The engine holds nothing the Author needs (FR-039), so they protect nothing, and they are committed so agents can run the stack.
 - Each dummy has its key's shape (64 hex, `pk-lf-…`, …), so the same validators pass. Each dummy text starts with `devcpu` or, where the shape forbids letters beyond hex, is a repeated pattern, so no one mistakes it for a real value. gitleaks allowlists this one path (plan §11).
-- `dev-cpu.vars` has exactly the dev template's keys, plus `H4_DEVCPU_OPERATOR_TOKEN`. `validate-config` and preflight both check that, so the two dev-class stacks can't drift apart.
+- `dev-cpu.vars` has exactly the dev template's keys, plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE` ([§2](#2-stack-keys), P4). `validate-config` and preflight both check that, so the two dev-class stacks can't drift apart.
 
 ## 7. Dev-only switches and overlays
 
@@ -293,13 +293,13 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 
 ## 10. `make up` preflight
 
-`deploy/scripts/preflight.py`, run as `python3 -I -B -X pycache_prefix=/dev/null deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE) [--ref <sha>]`, like every Python the Author's terminal runs ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). It parses env files as data and never sources them (§1.1). It runs every check, prints one line per check (`PASS`, `WARN`, or `FAIL`, the check's ID, and a reason that names keys, paths, and figures, never a value), and exits 1 if any check failed. `make up` stops there, before anything starts.
+`deploy/scripts/preflight.py`, run as `python3 -I -B -X pycache_prefix=/dev/null $(TREE)/deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE) [--run-file <the run file>] --repo <the working tree> [--ref=<REF>]`: on a host stack the export's own copy, so it checks the started commit's templates, locks, and compose file, like every Python the Author's terminal runs ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). It parses env files as data and never sources them (§1.1). It runs every check, prints one line per check (`PASS`, `WARN`, or `FAIL`, the check's ID, and a reason that names keys, paths, and figures, never a value), and exits 1 if any check failed. `make up` stops there, before anything starts.
 
 | ID | Refuses when | Stacks |
 |---|---|---|
 | P1 | The env file is missing or unreadable. On host stacks: its mode isn't 0600, its owner isn't the user, or its directory isn't 0700. | all; the modes on prod and dev |
 | P2 | A line breaks the grammar (§1.1), or a key appears twice. | all |
-| P3 | A placeholder is left: `__GENERATE__`, `__ASK__`, `__REPO__`, or `__HOME__`. dev's optional channel keys may be empty. | all |
+| P3 | A placeholder is left: `__GENERATE__`, `__ASK__`, `__REPO__`, or `__HOME__`; or a value is empty. Only dev's optional channel keys, and `H4_BUILD_PROXY` on host stacks, may be empty. | all |
 | P4 | The keys differ from the template's (each missing and extra key is named). dev-cpu is compared with the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE`. | all |
 | P5 | The calling shell sets any `COMPOSE_*` or `H4_*` variable, or any key of the template. Compose would let the shell's value silently override the file's. | all |
 | P6 | `ENV`, `H4_STACK`, `H4_ENV`, and `COMPOSE_PROJECT_NAME` disagree, or `COMPOSE_PROFILES` isn't the stack's exact value, with exactly one of `gpu` and `cpu`. | all |
@@ -319,6 +319,8 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 | P20 | dev-cpu only: the run starts from a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`). The engine serves the main working tree only ([§7.3](#73-the-worktree-question)): "run dev-cpu from the main working tree". | dev-cpu |
 | P21 | Host stacks: a WARN, not a refusal, when the working tree has uncommitted changes under `config/`, `deploy/`, `services/`, `evals/`, or `scripts/`: they aren't in the export of the commit being started, and the message names them. A `REF` that doesn't resolve to a commit is a FAIL. | prod, dev |
 
+Until the compose file defines a model server (tasks.md T057), P7's model keys, P12, and P18 are WARN, naming T057, so the foundations' skeleton (edge, gateway, gateway-state) can start.
+
 **The other commands that share these checks:**
 - `make pull` runs P1 to P7, P10, P13 (for every image and model it will fetch), and P14.
 - `pull-models.sh` runs P13 and P14 for its own bytes, through `python3 -I -B -X pycache_prefix=/dev/null deploy/scripts/preflight.py --disk-only --bytes <n> --path "$H4_MODEL_DIR"`, before each download.
@@ -332,12 +334,14 @@ The gateway validates the variables it receives at startup (`src/config/validate
 
 | Check | Reason |
 |---|---|
-| `H4_STACK` is `prod`, `dev`, or `dev-cpu`, and `H4_ENV` is its class | named by the gateway (plan §5.8) |
-| A dev-only switch outside `H4_ENV=dev` (D1 to D3) | named by the gateway (plan §5.8; [data-model.md §4](../data-model.md#4-configuration-the-gateway-loads)) |
+| `H4_STACK` is `prod`, `dev`, or `dev-cpu`, and `H4_ENV` is its class | `invalid_stack`, `stack_env_mismatch` (plan §5.8) |
+| A dev-only switch outside `H4_ENV=dev` (D1, D2), or a switch value that isn't listed (D3) | `dev_switch_outside_dev`, `invalid_switch_value` (plan §5.8; [data-model.md §4](../data-model.md#4-configuration-the-gateway-loads)) |
 | A paid route outside prod; `synthetic` in prod; the local base URL not an in-stack service, or its keys unset | `paid_route_outside_prod`, `synthetic_in_prod`, `local_url_not_in_stack`, `missing_env` ([config-files.md §1.4](config-files.md#14-startup-refusals-exit-78)) |
-| prod's `ALERT_DELIVERY` isn't `real`; in real mode, the Telegram base, SMTP's TLS, and every channel key | `alert_delivery_not_real`, `telegram_base_not_bot_api`, `smtp_without_tls`, `missing_alert_env` ([config-files.md §4.4](config-files.md#44-startup-refusals-exit-78-that-combine-this-file-with-the-environment)) |
-| `OPERATOR_TOKEN_SHA256` malformed, or on prod equal to the dev-cpu dummy's hash | [data-model.md §5](../data-model.md#5-the-operator-credential) |
-| prod's `stack_state.test_clock_offset_ms` isn't null (checked once the store answers) | plan §5.8 |
+| prod's `ALERT_DELIVERY` isn't `real`, or any stack's is neither `real` nor `standin`; in real mode, the Telegram base, SMTP's TLS, and every channel key | `alert_delivery_not_real`, `invalid_alert_delivery`, `telegram_base_not_bot_api`, `smtp_without_tls`, `missing_alert_env` ([config-files.md §4.4](config-files.md#44-startup-refusals-exit-78-that-combine-this-file-with-the-environment)) |
+| `OPERATOR_TOKEN_SHA256` malformed, or on prod equal to the dev-cpu dummy's hash | `operator_hash_malformed`, `operator_hash_is_dummy` ([data-model.md §5](../data-model.md#5-the-operator-credential)) |
+| prod's `AWS_PROFILE`, which compose sets from `GATEWAY_AWS_PROFILE`, is unset or `none` | `aws_profile_unset` (tasks.md T023) |
+| `GATEWAY_GRAFANA_RO_PASSWORD` is set but isn't printable ASCII without spaces, which its SCRAM-SHA-256 verifier needs; the store refuses it too, rather than retry it forever | `grafana_ro_password_invalid` ([data-model.md §2.9](../data-model.md#29-the-view-v_state-and-the-role-grafana_ro)) |
+| prod's `stack_state.test_clock_offset_ms` isn't null (checked once the store answers) | `test_clock_in_prod` (plan §5.8) |
 
 `validate-config` (`make check`) runs the same validators over the three committed files: both templates, with `__GENERATE__` and `__ASK__` counting as present values of the right shape, and `dev-cpu.vars` ([config-files.md §5](config-files.md#5-validate-config)). It reads only the keys the gateway reads, so the path placeholders don't concern it.
 
@@ -355,6 +359,9 @@ A host stack runs the commit it was started from, not whatever the shared workin
 - The compose file itself comes from the export too (`-f ${H4_TREE}/deploy/compose.yaml`), so the services, binds, and images are the started commit's.
 - `make up` builds the stack's images from the export, every time (`--build`; unchanged layers come from the cache), so a stale image can't certify code the commit doesn't contain.
 - It keeps the exports of the running and the previous commit, and at most three in all; it deletes older ones.
+- It also creates `${H4_STATE_DIR}/gateway`, mode 0700, for the gateway's journal and incident drafts: compose's long-syntax bind never creates a missing source. It refuses `tree/` or `gateway/` when either is a symbolic link.
+- What it exports is the commit's own content. Git runs with `GIT_NO_REPLACE_OBJECTS=1`, so a replace ref under `.git/refs/replace` can't swap an object. The export refuses to run while `.git/info/attributes` exists, which `git archive` would apply (`export-ignore`, `export-subst`). Agents can write both, and `git status` shows neither.
+- Then it proves it, without trusting any one file in `.git`. The commit object must hash to its own ID, and the extracted files must hash to the tree that object names, computed as git computes tree IDs. Otherwise the export is refused and removed. It checks an export again when a later `make up` reuses it. So the repository's `.gitattributes` may ask for no conversion but `eol=lf`, and no `export-ignore` or `export-subst`: either would change what `git archive` writes. A commit holding a submodule is refused by name: `git archive` writes one as an empty directory.
 - The file is the stack's, not a template's: P4 doesn't compare it, P5 doesn't apply to it, and P7 checks it.
 - Before a host stack's first `make up` there is no run file, and nothing of the stack runs. `make down` and `make logs` say so and do nothing; `make status` reports the stack as not started by `make up`. None of them fails on the missing file.
 - dev-cpu has no run file: the engine serves the masked live tree, so agents test what they are writing ([§7.3](#73-the-worktree-question)).

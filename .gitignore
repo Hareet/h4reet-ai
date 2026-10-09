@@ -52,3 +52,5 @@ secrets/
 Thumbs.db
 *.swp
 .idea/
+# Agent worktrees Claude Code creates inside the repository; each is a full checkout, never committed here.
+.claude/worktrees/

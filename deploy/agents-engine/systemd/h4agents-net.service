@@ -1,0 +1,19 @@
+# The agents' engine address (spec 000, FR-039; contracts/agents-engine.md §5, H3).
+# A dummy interface holding 198.18.0.1/32 — a benchmarking range no network routes, so the LAN
+# cannot reach the engine. Installed to /etc/systemd/system/ by engine.sh setup.
+[Unit]
+Description=h4agents engine address (dummy interface h4agents0, 198.18.0.1/32)
+After=network-pre.target
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# The add steps tolerate an interface that already exists (idempotent reload); bringing it up does not.
+ExecStart=-/usr/sbin/ip link add h4agents0 type dummy
+ExecStart=-/usr/sbin/ip addr add 198.18.0.1/32 dev h4agents0
+ExecStart=/usr/sbin/ip link set h4agents0 up
+ExecStop=-/usr/sbin/ip link del h4agents0
+
+[Install]
+WantedBy=multi-user.target

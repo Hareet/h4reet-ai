@@ -1,0 +1,28 @@
+# contracts/config-files.md §4.2, the plan's values. The unit tests read this copy: the real config/alerts.yaml is
+# protected, and arrives with the config patch (tasks.md T022).
+schema: 1
+
+channels:
+  order: [telegram, email]
+  telegram: { timeout_ms: 5000 }
+  email: { timeout_ms: 10000 }
+
+retry:
+  schedule_s: [5, 15, 30, 60, 120] # attempts at 0, 5, 20, 50, 110, and 230 s
+  give_up_after_s: 300 # 230 s + the 10 s email timeout = 240 s, inside 300
+
+reminder:
+  at_utc: "09:00" # daily, while degraded or awaiting renewal
+
+store_unreachable_after_s: 60
+auth_failed: { threshold: 3, window_s: 600 }
+
+prefixes:
+  prod: "[h4reet.ai prod]"
+  dev: "[dev]"
+  dev-cpu: "[dev-cpu]"
+
+standin: # ALERT_DELIVERY=standin: dev's default, never prod
+  telegram_base: "http://telegram-standin:8080"
+  smtp_host: mailpit
+  smtp_port: 1025
