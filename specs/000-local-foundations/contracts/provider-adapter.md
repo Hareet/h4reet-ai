@@ -295,7 +295,7 @@ export function describeAdapterContract(
   mode: ContractMode,
 ): void;
 
-export const CONTRACT_TIMEOUTS = { connectMs: 100, requestMs: 300 };   // §5.3's scaled-down timeouts
+export const CONTRACT_TIMEOUTS = { connectMs: 100, requestMs: 3_000 };   // §5.3's timeouts (T157)
 
 export type StubBehavior =
   | { ok: { text: string; inputTokens: number; outputTokens: number; finish: 'stop' | 'length' | 'content_filter' } }

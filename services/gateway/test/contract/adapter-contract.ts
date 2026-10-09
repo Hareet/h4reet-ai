@@ -640,7 +640,7 @@ export function describeAdapterContract(
       if (subject.adapter.kind === "local") expect(Object.keys(sent?.headers ?? {})).not.toContain("authorization");
     });
 
-    it("C10: ends with timeout within 100 ms when the request's signal aborts, or its deadline passes", async () => {
+    it("C10: ends with timeout when the request's signal aborts, or its deadline passes (within 100 ms; 2,100 ms against the stub, T157)", async () => {
       if (direct()) {
         // It answers at once, so the only abort it can meet is one before the call, or a deadline already past.
         for (const f of directFailures()) {

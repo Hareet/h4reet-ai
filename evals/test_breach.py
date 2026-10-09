@@ -1535,3 +1535,34 @@ def test_a_command_line_delivery_reaches_the_recipe_as_typed(tmp_path: Path) -> 
     )
     assert not marker.exists(), "make ran the value as make code"
     assert done.returncode == 2
+
+
+# --- the docker commands' own session (round 3's review) -----------------------------------------------------------
+
+
+def test_real_run_starts_each_command_in_its_own_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # docker and compose are Go programs, which turn SIGINT and SIGTERM back on after exec, so an ignored signal
+    # can't keep a terminal's second Ctrl-C from ending the cleanup's commands. Their own session can.
+    seen: list[dict[str, object]] = []
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.append(kwargs)
+        return subprocess.CompletedProcess(argv, 0, "out", "err")
+
+    monkeypatch.setattr(breach.subprocess, "run", fake_run)
+    assert breach.real_run(["docker", "version"], None, {}, 5) == (0, "out", "err")
+    assert breach.real_run(["docker", "compose", "run"], "ops\n", {}, 5) == (
+        0,
+        "out",
+        "err",
+    )
+    without_input, with_input = seen
+    assert without_input["start_new_session"] is True
+    assert with_input["start_new_session"] is True
+    # Nothing reads the terminal: no input means /dev/null, never the terminal's stdin.
+    assert (
+        without_input["stdin"] is subprocess.DEVNULL and without_input["input"] is None
+    )
+    assert with_input["stdin"] is None and with_input["input"] == "ops\n"

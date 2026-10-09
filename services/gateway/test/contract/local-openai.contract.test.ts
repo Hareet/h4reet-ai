@@ -1,6 +1,6 @@
 // The local adapter, type openai-compatible, against the contract suite (FR-024, SC-006; contracts/provider-adapter.md
 // §5.3, mode 1): an in-process stub OpenAI server on the sandbox's own loopback stands in for llama.cpp, and the
-// timeouts are scaled down through the settings, connect 100 ms and request 300 ms.
+// timeouts are set through the settings: connect routing.yaml's 1 s, and request the suite's 3 s (T157).
 import { fileURLToPath } from "node:url";
 
 import { afterAll } from "vitest";

@@ -489,9 +489,11 @@ def interruptible() -> Iterator[None]:
 
 @contextlib.contextmanager
 def ignoring_signals() -> Iterator[None]:
-    """While the run puts the stack back and prints its table, Ctrl-C, SIGTERM, and SIGHUP are ignored, by this process
-    and by the docker commands it starts, which keep an ignored signal across exec: the cleanup always finishes
-    (round 2's review). Only a SIGKILL, or the host stopping, can cut it short. The run's handlers come back after."""
+    """While the run puts the stack back and prints its table, Ctrl-C, SIGTERM, and SIGHUP are ignored by this
+    process. The docker commands it starts can't rely on that: docker and compose are Go programs, which turn SIGINT
+    and SIGTERM back on, so each runs in its own session (real_run), where the terminal's signals never reach it. The
+    cleanup always finishes (round 2's and round 3's reviews). Only a SIGKILL, or the host stopping, can cut it short.
+    The run's handlers come back after."""
     previous = {
         s: signal.signal(s, signal.SIG_IGN)
         for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
@@ -2023,14 +2025,20 @@ def real_run(
     argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
 ) -> tuple[int, str, str]:
     try:
+        # Its own session: a terminal's Ctrl-C or hang-up reaches only this process, whose handler stops the command
+        # and starts the cleanup, never the command itself. docker and compose turn SIGINT and SIGTERM back on after
+        # exec, so an ignored signal wouldn't hold them (round 3's review). Nothing reads the terminal: stdin is the
+        # given input, or nothing.
         done = subprocess.run(
             argv,
             input=stdin,
+            stdin=subprocess.DEVNULL if stdin is None else None,
             capture_output=True,
             text=True,
             env=env,
             timeout=timeout,
             check=False,
+            start_new_session=True,
         )
     except subprocess.TimeoutExpired:
         return 124, "", f"timed out after {round(timeout)} s"

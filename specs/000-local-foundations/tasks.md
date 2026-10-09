@@ -477,7 +477,7 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 5
 
-- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2:
+- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review).
   - `ConverseCommand` in us-east-1, `maxAttempts: 1`, `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000})`;
   - one retry, only on `ThrottlingException`;
   - a timeout counts as `possiblyBilled`;
