@@ -22,6 +22,8 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -532,6 +534,34 @@ def test_a_linked_token_file_is_refused(
     assert stub.requests == []
 
 
+def test_a_token_file_swapped_after_its_check_is_refused(
+    home: Path,
+    stub: Stub,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Between the lstat and the open, another file takes the token file's place: the check of the file opened
+    # (fstat) catches it.
+    path = plant(home, "prod", token("prod") + "\n")
+    swapped = path.with_name("swapped")
+    swapped.write_text(token("prod") + "\n", encoding="ascii")
+    swapped.chmod(0o644)
+    real_open = os.open
+
+    def swap_then_open(file: Any, flags: int, *args: Any, **kwargs: Any) -> int:
+        if os.fspath(file) == os.fspath(path) and swapped.exists():
+            os.replace(swapped, path)
+        return real_open(file, flags, *args, **kwargs)
+
+    monkeypatch.setattr(op.os, "open", swap_then_open)
+    stub.answer("GET", "/admin/status", 200, STATUS_BODY)
+    code, _, err = run(["--stack", "prod", "--url", stub.url, "status"], capsys)
+    assert not swapped.exists()  # the swap happened
+    assert code == 5
+    assert "mode 0644" in err
+    assert stub.requests == []
+
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -928,6 +958,29 @@ def test_a_redirect_is_not_followed(
     finally:
         first.close()
         second.close()
+
+
+def test_the_token_is_an_unredirected_header(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # urllib copies a request's ordinary headers onto a redirect's request, and leaves its unredirected ones behind.
+    # The opener is replaced, so nothing is sent anywhere.
+    secret = token("prod", 13)
+    plant(home, "prod", secret + "\n")
+    client = op.AdminClient("prod")
+    built: list[urllib.request.Request] = []
+
+    def capture(request: urllib.request.Request, *args: Any, **kwargs: Any) -> Any:
+        built.append(request)
+        raise urllib.error.URLError("captured")
+
+    monkeypatch.setattr(client._opener, "open", capture)
+    with pytest.raises(op.AdminError):
+        client.status()
+    (request,) = built
+    assert request.unredirected_hdrs.get("Authorization") == f"Bearer {secret}"
+    assert "Authorization" not in request.headers
+    assert request.headers.get("Accept") == "application/json"
 
 
 def free_port() -> int:
