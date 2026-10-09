@@ -135,7 +135,8 @@ class Stub:
             daemon=True,
         )
         self.thread.start()
-        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        self.port = self.server.server_address[1]
+        self.url = f"http://127.0.0.1:{self.port}"
 
     def answer(
         self,
@@ -1335,7 +1336,11 @@ def test_init_sends_a_stated_value_as_its_decimal_string(
 
 
 class Runner:
-    """Stands in for the docker compose hop: records what it was given, and answers as the probe would."""
+    """Stands in for the docker compose hop: records what it was given, and answers as the probe would.
+
+    It keeps the environment's keys, but no value except SANDBOX_RUNTIME's: HTTPS_PROXY holds the sandbox proxy's
+    credentials, and a failing assertion prints whatever it compares.
+    """
 
     def __init__(self, code: int = 0, last: str = "") -> None:
         self.code, self.last = code, last
@@ -1344,12 +1349,13 @@ class Runner:
     def __call__(
         self, command: list[str], stdin_text: str, env: dict[str, str]
     ) -> tuple[int, str]:
-        self.calls.append({"command": command, "stdin": stdin_text, "env": env})
+        kept = {k: v if k == "SANDBOX_RUNTIME" else "..." for k, v in env.items()}
+        self.calls.append({"command": command, "stdin": stdin_text, "env": kept})
         return self.code, self.last
 
 
 @pytest.fixture
-def probe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def probe_image(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A tree whose evals/Dockerfile.probe exists (tasks.md T080 adds the real one)."""
     dockerfile = tmp_path / "tree" / "evals" / "Dockerfile.probe"
     dockerfile.parent.mkdir(parents=True)
@@ -1358,8 +1364,16 @@ def probe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return dockerfile
 
 
+@pytest.fixture
+def probe(home: Path, probe_image: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An agent session (SANDBOX_RUNTIME=1), the only place the hop runs, with the probe image."""
+    monkeypatch.setenv("SANDBOX_RUNTIME", "1")
+    return probe_image
+
+
 def hop_command(inner: list[str]) -> list[str]:
     return [
+        str(op.ROOT / "deploy" / "agents-engine" / "docker-relay"),
         "docker",
         "compose",
         "-p",
@@ -1437,15 +1451,43 @@ def test_dev_cpu_status_and_json_go_through_the_hop(home: Path, probe: Path) -> 
 
 
 def test_dev_cpu_hop_runs_through_the_relay_inside_the_sandbox(
-    home: Path, probe: Path, monkeypatch: pytest.MonkeyPatch
+    home: Path, probe: Path
 ) -> None:
-    monkeypatch.setenv("SANDBOX_RUNTIME", "1")
+    # The relay reaches the agents' engine and nothing else, and needs SANDBOX_RUNTIME=1 (FR-039).
     runner = Runner()
     assert op.main(["--stack", "dev-cpu", "status"], runner=runner) == 0
     command = runner.calls[0]["command"]
     assert command[0] == str(op.ROOT / "deploy" / "agents-engine" / "docker-relay")
-    assert command[1:] == hop_command(["status"])
+    assert command[1:3] == ["docker", "compose"]
     assert runner.calls[0]["env"]["SANDBOX_RUNTIME"] == "1"
+
+
+def test_dev_cpu_from_the_authors_terminal_goes_straight_to_its_port(
+    home: Path,
+    stub: Stub,
+    probe_image: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Outside the sandbox there is no hop, even with the probe image: docker there is the host's rootful engine, where
+    # agent-written images must never be built or run (FR-039), and the hop would skip preflight's P11 (T056's review).
+    monkeypatch.setitem(op.ADMIN_PORTS, "dev-cpu", stub.port)
+    stub.answer("GET", "/admin/status", 200, STATUS_BODY | {"stack": "dev-cpu"})
+    stub.answer("POST", "/admin/init", 200, INIT_BODY)
+    runner = Runner()
+    code = op.main(["--stack", "dev-cpu", "status"], runner=runner)
+    assert code == 0, capsys.readouterr().err
+    reason = ["--reason", REASON, "--confirm-zero"]
+    assert op.main(["--stack", "dev-cpu", "init", *reason], runner=runner) == 0
+    hops = [call["command"] for call in runner.calls]
+    assert hops == []
+    dummy = op.read_devcpu_token(op.DEVCPU_VARS)
+    assert [request["path"] for request in stub.requests] == [
+        "/admin/status",
+        "/admin/init",
+    ]
+    for request in stub.requests:
+        assert request["headers"]["authorization"] == f"Bearer {dummy}"
 
 
 def test_dev_cpu_hop_passes_the_probes_exit_code(
@@ -1482,13 +1524,18 @@ def test_dev_cpu_hop_needs_the_probe_image(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     monkeypatch.setattr(
         op, "PROBE_DOCKERFILE", tmp_path / "missing" / "Dockerfile.probe"
     )
     runner = Runner()
     assert op.main(["--stack", "dev-cpu", "status"], runner=runner) == 4
     assert runner.calls == []
-    assert "T080" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "T080" in err
+    # The Author's terminal needs no --url for dev-cpu: it goes straight to 127.0.0.1:18303.
+    assert "the Author's terminal" in err
+    assert "--url" not in err
 
 
 def test_dev_cpu_hop_checks_the_arguments_first(

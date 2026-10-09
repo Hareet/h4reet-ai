@@ -341,9 +341,10 @@ init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its templat
 
 # The operator CLI (contracts/operator-admin.md §6, §6.1): scripts/operator.py, by path through PY_HOST, because it
 # holds the operator token. prod and dev are the Author's, with ~/.config/h4reet-ai/operator/<stack>.token. dev-cpu's
-# token is the committed public dummy, and the CLI reaches its admin listener with one hop, through a breach-probe
-# container (through the relay inside the sandbox), so the recipes are the same for every stack. Agent sessions run
-# them for dev-cpu only (FR-008); bash-gate's rule for the other stacks arrives with the closing patch (plan §13, §15).
+# token is the committed public dummy. The CLI reaches dev-cpu's admin listener at 127.0.0.1:18303 from your terminal,
+# and inside the sandbox with one hop, through the relay, in a breach-probe container on the agents' engine, so the
+# recipes are the same for every stack. Agent sessions run them for dev-cpu only (FR-008); bash-gate's rule for the
+# other stacks arrives with the closing patch (plan §13, §15).
 # Every value comes from the command line only and reaches the CLI as "$$NAME", read by the shell, so make never
 # splices it into a command line; the --name= form keeps a value that starts with - a value.
 OPERATOR = $(PY_HOST) scripts/operator.py --stack $(ENV)

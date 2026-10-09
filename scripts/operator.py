@@ -24,10 +24,11 @@ first 8 hex characters of its SHA-256.
 The transport: http://127.0.0.1:18003 (prod), 18103 (dev), or 18303 (dev-cpu), through urllib with an empty
 ProxyHandler, so no proxy setting can carry the token, and with redirects refused, so it goes nowhere else. --url may
 name 127.0.0.1 or localhost; a single-label in-network host only with --token-stdin, inside a container on the
-stack's network. dev-cpu without --url makes one hop: the CLI runs again in a one-off breach-probe container on the
-stack's internal network, with the dummy on standard input, through deploy/agents-engine/docker-relay inside the
-sandbox. Outside the sandbox the hop uses the docker CLI as it stands, so point it at the agents' engine first, or
-name --url http://127.0.0.1:18303.
+stack's network. Inside the sandbox, which can't reach 18303, dev-cpu without --url makes one hop: the CLI runs again
+in a one-off breach-probe container on the stack's internal network, with the dummy on standard input, through
+deploy/agents-engine/docker-relay, so on the agents' engine only. Outside the sandbox there is no hop and no Docker:
+docker there is the host's rootful engine, where agent-written images must never run (FR-039), so dev-cpu goes
+straight to 127.0.0.1:18303.
 
 Exit codes (§6.2): 0 done; 1 the gateway refused (a 4xx other than 401); 2 usage; 3 authentication failed (401);
 4 no usable answer (nothing listening, a timeout, a redirect, a 5xx, or a body that isn't a JSON object); 5 a token
@@ -923,13 +924,18 @@ def hop(
     as_json: bool,
     runner: Runner,
 ) -> int:
-    """dev-cpu from an agent session: the CLI again, in a one-off breach-probe container on the stack's network."""
+    """dev-cpu from an agent session: the CLI again, in a one-off breach-probe container on the stack's network.
+
+    It runs only inside the sandbox, and only through the relay, so only on the agents' engine. From the Author's
+    terminal, docker is the host's rootful engine, where agent-written images must never be built or run (FR-039),
+    and a hop there would skip preflight's P11; main goes straight to 127.0.0.1:18303 instead (T056's review).
+    """
     if not PROBE_DOCKERFILE.is_file():
         return failed(
             4,
-            "dev-cpu's admin listener is reached through the breach-probe container, built from "
-            "evals/Dockerfile.probe, which tasks.md T080 adds; until then, from the Author's terminal, "
-            "name --url http://127.0.0.1:18303",
+            "inside the sandbox, dev-cpu's admin listener is reached through the breach-probe container, built "
+            "from evals/Dockerfile.probe, which tasks.md T080 adds; until then, run this from the Author's "
+            "terminal, which reaches http://127.0.0.1:18303 directly",
         )
     token = read_devcpu_token(DEVCPU_VARS)
     inner = ["--stack", "dev-cpu", "--url", HOP_URL, "--token-stdin"]
@@ -941,6 +947,7 @@ def hop(
         inner += ["--confirm-zero"] if args.confirm_zero else []
         inner += [f"{flag}={stated[key]}" for key, flag in STATED if key in stated]
     command = [
+        str(RELAY),
         "docker",
         "compose",
         "-p",
@@ -960,8 +967,6 @@ def hop(
         "/app/operator.py",
         *inner,
     ]
-    if os.environ.get("SANDBOX_RUNTIME") == "1":
-        command = [str(RELAY), *command]
     env = {key: os.environ[key] for key in HOP_ENV if key in os.environ}
     env["LC_ALL"] = "C"
     try:
@@ -1004,7 +1009,8 @@ def main(
                 )
             return mint(stack, Path.home(), as_json=as_json)
         reason, stated = init_arguments(args) if args.command == "init" else (None, {})
-        if stack == "dev-cpu" and url is None and not token_stdin:
+        sandboxed = os.environ.get("SANDBOX_RUNTIME") == "1"
+        if stack == "dev-cpu" and url is None and not token_stdin and sandboxed:
             return hop(args, reason, stated, as_json, runner or run_hop)
         client = AdminClient(stack, url=url, token_stdin=token_stdin, stdin=stdin)
         try:

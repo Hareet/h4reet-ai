@@ -417,18 +417,19 @@ Request:
 
 **Transport.**
 - **prod and dev:** `http://127.0.0.1:18003` and `http://127.0.0.1:18103`, through urllib with an empty `ProxyHandler`, so `HTTP_PROXY` settings can't send the token to a proxy. Redirects are refused, and `Authorization` is an unredirected header, so no `Location` takes the token anywhere else. A `--url` override must name `127.0.0.1` or `localhost`, or, with `--token-stdin` only, a single-label in-network host, or the CLI refuses with exit 2. On the host a single label would resolve through the search domains, so a token read from its file never goes to one; inside a container on the stack's network, where the token comes on standard input, it names a service. The label must start with a letter, so the resolver can't read it as an address (`2130706433`). (T056 narrowed this rule, which first allowed a single label with any token.)
-- **dev-cpu:** a session can't reach its ports (they are on the host's loopback, which the sandbox's proxy refuses), so the CLI makes one hop through a one-off probe container on the stack's `internal` network:
+- **dev-cpu, from the Author's terminal:** `http://127.0.0.1:18303`, where the agents' engine publishes the listener, with the dummy read from `dev-cpu.vars`, and the transport as for prod and dev. There is no hop and no Docker: the docker CLI there drives the host's rootful engine, where agent-written images must never be built or run (FR-039), and a hop would skip preflight's P11. (T056's review made this change. Before it, the hop ran wherever the docker CLI pointed.)
+- **dev-cpu, inside the sandbox (`SANDBOX_RUNTIME=1`):** a session can't reach that port (it is on the host's loopback, which the sandbox's proxy refuses). So the CLI makes one hop through a one-off probe container on the stack's `internal` network, always through `deploy/agents-engine/docker-relay`, so only on the agents' engine:
 
   ```text
-  docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars \
-    --profile breach run --rm -T breach-probe \
+  deploy/agents-engine/docker-relay docker compose -p h4reet-dev-cpu -f deploy/compose.yaml \
+    --env-file deploy/env.agents/dev-cpu.vars --profile breach run --rm -T breach-probe \
     python3 -I /app/operator.py --stack dev-cpu --url http://gateway:8081 --token-stdin <command> <arguments>
   ```
 
-  The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`. Inside the sandbox (`SANDBOX_RUNTIME=1`), the command runs through `deploy/agents-engine/docker-relay`.
+  The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`.
   - The hop's docker client keeps only the variables docker and the relay need, so no `COMPOSE_*`, `H4_*`, or template key in the shell can override `dev-cpu.vars` ([env-files.md §10](env-files.md#10-make-up-preflight), P5).
   - The CLI in the probe names its exit code on its last line, and the CLI outside passes that code on. A hop that fails before the CLI in the probe answers is exit 4.
-  - Until `evals/Dockerfile.probe` exists (tasks.md T080), the hop exits 4 and says so. From the Author's terminal, `--url http://127.0.0.1:18303` reaches dev-cpu's listener directly, with the dummy read from `dev-cpu.vars`.
+  - Until `evals/Dockerfile.probe` exists (tasks.md T080), the hop exits 4 and says so. Meanwhile the Author's terminal reaches dev-cpu's listener directly.
 
 **Commands.** Every command takes `--stack prod|dev|dev-cpu`, and `--json` to print the response body instead of a summary.
 
@@ -485,7 +486,7 @@ Below these lines it adds one for each thing that needs a look: the journal when
 - **The reason.** Recipes pass it as `--reason="$$REASON"`, so make never splices the text into a shell line, and the `=` keeps a reason that starts with `-` a value. A write target without `REASON` on the command line fails before any call, with exit 2.
 - **The flags.** `RENEW=1` and `CONFIRM_ZERO=1` become `--renew` and `--confirm-zero`. `DAY_USD`, `MONTH_USD`, and `FALLBACK_TODAY_USD` become the stated values, as `--day-usd="$$DAY_USD"` and so on.
 - **The command line only.** Like `ENV` and `REF`, each of these is taken only from make's command line, so a value left in the shell's environment never renews or states anything. `RENEW` or `CONFIRM_ZERO` with any value but `1` stops make before the recipe runs.
-- **dev-cpu** recipes use the probe hop.
+- **dev-cpu** recipes run the same CLI command. It goes straight to `127.0.0.1:18303` from the Author's terminal, and makes the probe hop inside the sandbox (§6, Transport).
 - **Agents** are kept off every stack but dev-cpu: bash-gate blocks the `operator-*` targets and admin URLs for any other stack (FR-008, in the closing patch, [plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
 
 Examples, from the Author's terminal:
