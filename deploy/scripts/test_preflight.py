@@ -533,13 +533,28 @@ def test_p6_the_stack_agrees(dev: Stage) -> None:
         ({"LOCAL_MODEL_BASE_URL": "http://134744072:8080/v1"}, "LOCAL_MODEL_BASE_URL"),
         ({"LOCAL_MODEL_BASE_URL": "http://0x7f000001:8080/v1"}, "LOCAL_MODEL_BASE_URL"),
         ({"LOCAL_MODEL_BASE_URL": "http://017700000001/v1"}, "LOCAL_MODEL_BASE_URL"),
+        # The gateway's label rule: at most 63 characters, never ending in a hyphen; and a real port.
+        (
+            {"LOCAL_MODEL_BASE_URL": f"http://m{'o' * 63}:8080/v1"},
+            "LOCAL_MODEL_BASE_URL",
+        ),
+        ({"LOCAL_MODEL_BASE_URL": "http://model-:8080/v1"}, "LOCAL_MODEL_BASE_URL"),
+        (
+            {"LOCAL_MODEL_BASE_URL": "http://model-server:65536/v1"},
+            "LOCAL_MODEL_BASE_URL",
+        ),
+        ({"LOCAL_MODEL_BASE_URL": "http://model-server:0/v1"}, "LOCAL_MODEL_BASE_URL"),
         (
             {"LANGFUSE_SECRET_KEY": "pk-lf-x"},
             "LANGFUSE_SECRET_KEY doesn't start sk-lf-",
         ),
         ({"LANGFUSE_ENCRYPTION_KEY": "short"}, "LANGFUSE_ENCRYPTION_KEY isn't 64"),
         ({"LANGFUSE_DB_PASSWORD": "a/b@c"}, "URL escaping"),
-        # A space can't reach P7 (the line doesn't parse), but a non-ASCII character can.
+        # A bare space doesn't parse (P3), but single quotes carry one to P7; so can a non-ASCII character.
+        (
+            {"GATEWAY_GRAFANA_RO_PASSWORD": "'correct horse battery'"},
+            "isn't printable ASCII",
+        ),
         ({"GATEWAY_GRAFANA_RO_PASSWORD": "p\u00e4ssword"}, "isn't printable ASCII"),
         ({"H4_VHDX_MOUNT": "/mnt/z"}, "isn't a mounted Windows drive"),
     ],

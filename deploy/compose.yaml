@@ -8,7 +8,7 @@
 #   - every service joins `internal`, which has no route out; only `edge` joins `edge` and publishes ports, on the
 #     literal 127.0.0.1; only `gateway` joins `egress`, the one route to the internet (FR-040);
 #   - every image is pinned by digest and matches deploy/images.lock; built images come from this file's own tree;
-#   - binds come only from ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}, and ${H4_AWS_DIR};
+#   - binds come only from ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR};
 #   - no container_name, no external resource, no host network, no privileged mode, no Docker socket;
 #   - every service has a row in docs/data-flow-disclosure.md.
 # Named volumes belong to the compose project (h4reet-<stack>) and survive make down, which never passes -v.

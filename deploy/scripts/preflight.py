@@ -682,9 +682,12 @@ def value_shape_problems(ctx: Context) -> list[str]:
     base = v.get("LOCAL_MODEL_BASE_URL", "")
     # The host must start with a letter, as compose service names do: an all-digit or 0x label is an IPv4
     # address to every URL parser and to getaddrinfo, so http://134744072:8080 would reach 8.8.8.8 unmetered.
-    if not re.fullmatch(
-        r"http://[a-z][a-z0-9-]*(:\d{1,5})?(/[A-Za-z0-9._~/-]*)?", base
-    ):
+    # The label is the gateway's SERVICE_LABEL (provider-adapter.md §3.1); the port is one a server can listen on.
+    url = re.fullmatch(
+        r"http://[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?(?::(\d{1,5}))?(?:/[A-Za-z0-9._~/-]*)?",
+        base,
+    )
+    if not url or not 0 < int(url.group(1) or 80) <= 65535:
         problems.append(
             "LOCAL_MODEL_BASE_URL isn't http://<an in-stack service, its name starting with a letter>[:port][/path]"
         )

@@ -14,8 +14,8 @@ and refuses, in what compose rendered:
     network_mode; the Docker socket;
   - devices, device cgroup rules, gpus, and runtimes, except model-server-gpu's one NVIDIA reservation in the gpu
     profile;
-  - binds outside ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}, and ${H4_AWS_DIR}, or
-    writable outside ${H4_STATE_DIR}; a volume that isn't a declared, local named volume;
+  - binds outside ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR}, or
+    writable outside ${H4_STATE_DIR}/gateway; a volume that isn't a declared, local named volume;
   - ports on any service but edge, or on anything but the literal 127.0.0.1;
   - the egress network on any service but gateway, the edge network on any service but edge, a service off the
     internal network, and any network but internal (internal-only), edge, and egress;
@@ -69,10 +69,12 @@ BIND_ROOTS = (
     "${H4_TREE}/deploy",
     "${H4_TREE}/config",
     "${H4_MODEL_DIR}",
-    "${H4_STATE_DIR}",
+    # Only the gateway's own corner of the state directory: the rest holds the run file and the exports whose
+    # scripts the Author's terminal runs.
+    "${H4_STATE_DIR}/gateway",
     "${H4_AWS_DIR}",
 )
-WRITABLE_ROOT = "${H4_STATE_DIR}"
+WRITABLE_ROOT = "${H4_STATE_DIR}/gateway"
 NETWORKS = ("internal", "edge", "egress")
 PUBLISHER = "edge"
 EGRESS_SERVICE = "gateway"
@@ -98,6 +100,8 @@ FORBIDDEN_SERVICE_KEYS = {
     "post_start": "no lifecycle hooks: they run with their own user and privileges (no service needs one)",
     "pre_stop": "no lifecycle hooks: they run with their own user and privileges (no service needs one)",
     "develop": "no develop section: compose watch syncs host paths into containers (make up never watches)",
+    "provider": "no provider services: they run outside compose's containers and this policy",
+    "models": "no models: model-runner pulls are flows the disclosure doesn't list",
 }
 SOCKETS = (
     "docker.sock",
@@ -634,6 +638,15 @@ def check_model(
             found.append(
                 Finding(COMPOSE_FILE, "external", f"network {net!r} is external")
             )
+        # compose names each network <project>_<key>; any other name joins another stack's network (FR-020).
+        if spec.get("name") not in (None, f"{model.get('name')}_{net}"):
+            found.append(
+                Finding(
+                    COMPOSE_FILE,
+                    "name",
+                    f"network {net!r} is named {spec.get('name')!r}, not this stack's own",
+                )
+            )
         if spec.get("driver") not in (None, "bridge"):
             found.append(
                 Finding(
@@ -656,6 +669,14 @@ def check_model(
             found.append(
                 Finding(COMPOSE_FILE, "external", f"volume {vol!r} is external")
             )
+        if spec.get("name") not in (None, f"{model.get('name')}_{vol}"):
+            found.append(
+                Finding(
+                    COMPOSE_FILE,
+                    "name",
+                    f"volume {vol!r} is named {spec.get('name')!r}, not this stack's own",
+                )
+            )
         if spec.get("driver") not in (None, "local") or spec.get("driver_opts"):
             found.append(
                 Finding(
@@ -664,15 +685,15 @@ def check_model(
                     f"volume {vol!r}: a driver or driver_opts (a bind in disguise)",
                 )
             )
-    for key in ("secrets", "configs", "include"):
+    top_level = {
+        "secrets": "bring in host files outside the bind roots",
+        "configs": "bring in host files outside the bind roots",
+        "include": "brings in a compose file this policy never sees",
+        "models": "pull through Docker's model runner, a flow the disclosure doesn't list",
+    }
+    for key, why in top_level.items():
         if model.get(key):
-            found.append(
-                Finding(
-                    COMPOSE_FILE,
-                    key,
-                    f"top-level {key} bring in host files outside the bind roots",
-                )
-            )
+            found.append(Finding(COMPOSE_FILE, key, f"top-level {key} {why}"))
     return found
 
 

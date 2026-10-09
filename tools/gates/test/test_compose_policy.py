@@ -327,7 +327,7 @@ def test_bind_and_volume_refusals(tmp_path: Path, volume: object, rule: str) -> 
 def test_binds_under_the_roots_pass_and_only_state_is_writable(tmp_path: Path) -> None:
     model = good_model()
     model["services"]["gateway"]["volumes"] += [
-        {"type": "bind", "source": "${H4_STATE_DIR}/journal", "target": "/j"},
+        {"type": "bind", "source": "${H4_STATE_DIR}/gateway/journal", "target": "/j"},
         {
             "type": "bind",
             "source": "${H4_TREE}/deploy/otel/collector.yaml",
@@ -839,3 +839,46 @@ def test_without_compose_it_skips(
     monkeypatch.setattr(cp, "compose_available", lambda: False)
     assert cp.run(REPO) == 0
     assert capsys.readouterr().out.startswith("SKIP: ")
+
+
+def test_the_state_root_is_the_gateways_corner_only(tmp_path: Path) -> None:
+    # The run file and the exports sit beside it, and the Author's terminal runs the exports' scripts.
+    for source in (
+        "${H4_STATE_DIR}/tree",
+        "${H4_STATE_DIR}/run.env",
+        "${H4_STATE_DIR}",
+    ):
+        model = good_model()
+        model["services"]["gateway"]["volumes"].append(
+            {"type": "bind", "source": source, "target": "/s", "read_only": True}
+        )
+        assert ("gateway", "binds") in rules(model, tmp_path), source
+
+
+def test_a_network_or_volume_named_for_another_stack_is_refused(tmp_path: Path) -> None:
+    model = good_model()
+    model["networks"]["internal"]["name"] = (
+        "h4reet-prod_internal"  # good_model is the dev stack
+    )
+    model["volumes"]["gateway-state-data"] = {"name": "h4reet-prod_gateway-state-data"}
+    details = {f.detail for f in findings(model, tmp_path) if f.rule == "name"}
+    assert any("network 'internal'" in d for d in details)
+    assert any("volume 'gateway-state-data'" in d for d in details)
+    own = good_model()
+    own["networks"]["internal"]["name"] = (
+        "h4reet-dev_internal"  # its own name, as compose renders it
+    )
+    assert not [f for f in findings(own, tmp_path) if f.rule == "name"]
+
+
+def test_provider_services_and_models_are_refused(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway"]["provider"] = {"type": "model"}
+    model["services"]["gateway"]["models"] = ["m"]
+    model["models"] = {"m": {"model": "ai/x"}}
+    got = rules(model, tmp_path)
+    assert ("gateway", "provider") in got and ("gateway", "models") in got
+    assert any(
+        f.rule == "models" and "top-level" in f.detail
+        for f in findings(model, tmp_path)
+    )

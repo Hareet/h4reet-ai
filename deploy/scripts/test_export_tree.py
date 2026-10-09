@@ -179,3 +179,55 @@ def test_dev_cpu_has_no_export(repo: Path, tmp_path: Path) -> None:
         )
         == 2
     )
+
+
+def test_the_export_ignores_replace_refs(repo: Path, tmp_path: Path) -> None:
+    # A replace ref sits under .git/refs/replace, which git status never shows, and git honours it everywhere.
+    sha = commit(repo, "real")
+    real = git(repo, "rev-parse", f"{sha}:deploy/run.sh")
+    planted = tmp_path / "planted.sh"
+    planted.write_text("#!/bin/sh\necho planted\n", encoding="utf-8")
+    git(repo, "replace", real, git(repo, "hash-object", "-w", str(planted)))
+    assert git(repo, "show", f"{sha}:deploy/run.sh") == "#!/bin/sh\necho planted"
+    trees = tmp_path / "trees"
+    trees.mkdir()
+    target = et.export(repo, sha, trees)
+    assert (target / "deploy/run.sh").read_text(
+        encoding="utf-8"
+    ) == "#!/bin/sh\necho hi\n"
+
+
+def test_info_attributes_stop_the_export(repo: Path, tmp_path: Path) -> None:
+    sha = commit(repo, "one")
+    info = repo / ".git/info"
+    info.mkdir(exist_ok=True)
+    (info / "attributes").write_text(
+        "deploy/compose.yaml export-ignore\n", encoding="utf-8"
+    )
+    trees = tmp_path / "trees"
+    trees.mkdir()
+    with pytest.raises(et.ExportError, match="info/attributes exists"):
+        et.export(repo, sha, trees)
+    assert not list(trees.iterdir())
+
+
+def test_run_creates_the_gateways_state_directory(repo: Path, tmp_path: Path) -> None:
+    commit(repo, "one")
+    state = tmp_path / "state"
+    assert et.run("dev", "HEAD", repo, state) == 0
+    gateway = state / "gateway"
+    assert gateway.is_dir() and stat.S_IMODE(gateway.stat().st_mode) == 0o700
+
+
+@pytest.mark.parametrize("name", ["tree", "gateway"])
+def test_a_linked_state_directory_is_refused(
+    repo: Path, tmp_path: Path, name: str
+) -> None:
+    commit(repo, "one")
+    state = tmp_path / "state"
+    state.mkdir(mode=0o700)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (state / name).symlink_to(elsewhere)
+    assert export(repo, state) == 1
+    assert not list(elsewhere.iterdir())

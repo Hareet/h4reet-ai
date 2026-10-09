@@ -40,8 +40,11 @@ class ExportError(Exception):
 
 
 def git(repo: Path, *args: str, binary: bool = False) -> subprocess.CompletedProcess:
+    # Replace refs live under .git/refs/replace, which agents can write and git status doesn't show; without
+    # this, git archive would export the replacement objects instead of the commit's own.
     return subprocess.run(
         ["git", "-C", str(repo), *args],
+        env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"},
         capture_output=True,
         text=not binary,
         check=False,
@@ -64,6 +67,15 @@ def resolve(repo: Path, ref: str) -> tuple[str, str]:
         branch = git(repo, "symbolic-ref", "--short", "--quiet", "HEAD").stdout.strip()
         return sha, branch or "detached"
     return sha, "detached"
+
+
+def private_dir(path: Path) -> None:
+    """A 0700 directory, made if missing, and never reached through a link."""
+    if path.is_symlink():
+        raise ExportError(
+            f"{path} is a symbolic link; move it aside and run make up again"
+        )
+    path.mkdir(mode=0o700, exist_ok=True)
 
 
 def read_run(path: Path) -> dict[str, str]:
@@ -99,6 +111,12 @@ def export(repo: Path, sha: str, trees: Path) -> Path:
                 f"{target} exists but holds no deploy/compose.yaml; move it aside and run make up again"
             )
         return target
+    attributes = git(repo, "rev-parse", "--git-path", "info/attributes").stdout.strip()
+    if attributes and (repo / attributes).exists():
+        # git archive applies its export-ignore and export-subst rules, and git status doesn't show the file.
+        raise ExportError(
+            f"{repo / attributes} exists, and git archive would apply it to the export; move it aside first"
+        )
     archive = git(repo, "archive", "--format=tar", sha, binary=True)
     if archive.returncode:
         raise ExportError(
@@ -159,7 +177,9 @@ def run(stack: str, ref: str, repo: Path, state: Path) -> int:
     sha, branch = resolve(repo, ref)
     state.mkdir(mode=0o700, parents=True, exist_ok=True)
     trees = state / "tree"
-    trees.mkdir(mode=0o700, exist_ok=True)
+    private_dir(trees)
+    # The gateway's journal and incident drafts. Compose's long-syntax bind never creates a missing source.
+    private_dir(state / "gateway")
     run_file = state / "run.env"
     before = read_run(run_file)
     previous = before.get("H4_REF", "")

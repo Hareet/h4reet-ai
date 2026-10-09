@@ -62,7 +62,8 @@ PY_HOST := python3 -I -B -X pycache_prefix=/dev/null
 
 # Node for make's own recipes: the pinned version from nvm, first on PATH, without changing the shell's default
 # Node or the Claude Code installed under it (plan §9).
-NODE_PIN := $(shell sed -n 's/^NODE_VERSION=//p' .devcontainer/toolchain.vars)
+# Only a plain x.y.z, so nothing else in toolchain.vars can reach PATH.
+NODE_PIN := $(shell sed -n 's/^NODE_VERSION=\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$$/\1/p' .devcontainer/toolchain.vars)
 NVM_NODE_BIN := $(wildcard $(or $(NVM_DIR),$(HOME)/.nvm)/versions/node/v$(NODE_PIN)/bin)
 ifneq ($(NVM_NODE_BIN),)
 export PATH := $(NVM_NODE_BIN):$(PATH)
