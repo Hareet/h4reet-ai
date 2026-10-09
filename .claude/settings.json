@@ -17,7 +17,14 @@
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(gh pr merge*)",
-      "Edit(.claude/**)",
+      "Edit(.claude/settings.json)",
+      "Edit(.claude/agents/**)",
+      "Edit(.claude/hooks/**)",
+      "Edit(.claude/git-hooks/**)",
+      "Edit(.claude/audit/**)",
+      "Edit(.claude/.gitignore)",
+      "Edit(.claude/skills)",
+      "Edit(.claude/.cc-writes)",
       "Edit(.specify/memory/constitution.md)",
       "Edit(REVIEW.md)",
       "Edit(CLAUDE.md)",
@@ -47,7 +54,8 @@
       "Bash(make fmt)",
       "Bash(make evals)",
       "Bash(make redteam)",
-      "Bash(make plan)"
+      "Bash(make plan)",
+      "Edit(.claude/worktrees/**)"
     ]
   },
   "sandbox": {
