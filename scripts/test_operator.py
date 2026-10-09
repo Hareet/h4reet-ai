@@ -2121,3 +2121,15 @@ def test_make_help_lists_the_operator_targets(home: Path) -> None:
     out = make(home, "help").stdout
     for target in ("operator-token", "operator-status", "operator-init"):
         assert re.search(rf"^\s+{target}\s", out, re.MULTILINE), target
+
+
+@pytest.mark.parametrize(
+    "url", ["http://gateway:9999", "http://gateway", "http://gateway:18103"]
+)
+def test_an_in_network_host_is_the_admin_listeners_port_only(url: str) -> None:
+    with pytest.raises(op.Usage, match="at port 8081"):
+        op.check_url(url, "dev", token_stdin=True)
+    assert (
+        op.check_url("http://gateway:8081", "dev", token_stdin=True)
+        == "http://gateway:8081"
+    )

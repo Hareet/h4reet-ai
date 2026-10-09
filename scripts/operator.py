@@ -77,7 +77,8 @@ SCOPES = {"prod": "prod", "dev": "dev", "dev-cpu": "devcpu"}
 # Each stack's x003, on the host's 127.0.0.1 (operator-admin.md §1).
 ADMIN_PORTS = {"prod": 18003, "dev": 18103, "dev-cpu": 18303}
 # The admin listener, from inside the stack's network.
-HOP_URL = "http://gateway:8081"
+IN_NETWORK_PORT = 8081  # the admin listener inside the stack (operator-admin.md §1)
+HOP_URL = f"http://gateway:{IN_NETWORK_PORT}"
 TIMEOUT_S = 30
 MAX_BODY = 4 * 1024 * 1024
 # The stated starting values of init (operator-admin.md §2.3): the body's key, and the CLI's flag.
@@ -368,6 +369,10 @@ def check_url(url: str, stack: str, *, token_stdin: bool) -> str:
         raise Usage(
             "--url names an in-network host, which only the CLI inside a container on the stack's network "
             "calls, with the token on --token-stdin; from this host the admin listener is 127.0.0.1"
+        )
+    elif port != IN_NETWORK_PORT:
+        raise Usage(
+            f"--url's in-network host is the admin listener, at port {IN_NETWORK_PORT}: a token goes to no other"
         )
     return f"http://{host}" + (f":{port}" if port is not None else "")
 
