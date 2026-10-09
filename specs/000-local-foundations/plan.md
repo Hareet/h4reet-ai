@@ -666,6 +666,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
   - **Loki:** `reporting_enabled: false`.
   - **ClickHouse:** `send_crash_reports.enabled=false`.
   - **SeaweedFS:** its reporting switch, if the pinned version has one.
+  - **Mailpit** (dev and dev-cpu only): `MP_DISABLE_VERSION_CHECK=true`, so it never asks GitHub for its newest release. (Added by tasks.md T079, with the service.)
 
   The internal network blocks all of these anyway. The Author's browser on the Grafana and Langfuse pages is checked once in devtools, and anything left is listed in the disclosure.
 - **FR-037, dev-time usage:**
@@ -1089,7 +1090,7 @@ The closing patch holds:
 | Image pulls | ghcr.io (blobs from `pkg-containers.githubusercontent.com`), quay.io, `public.ecr.aws`, Docker Hub (`registry-1.docker.io`, `auth.docker.io`, its CDN) | image names; the IP address; Docker's user agent | `make pull`, a cold `make up`, `make pin-images` (digests, and a repository's tag list when a pin is open, with an anonymous token), `deploy/agents-engine/engine.sh seed` | digest pins |
 | Image builds | `registry.npmjs.org` | the names and versions in `package-lock.json`; the IP address; npm's user agent | `make up` on a host stack (its `up --build`); `make build` and `make image` on the agents' engine, through the proxy | the lockfile and `--ignore-scripts`; npm's audit, funding, and update checks off; the build cache (disclosure row P2) |
 | Model downloads | `huggingface.co` and its download hosts | the repo, file, and revision; the IP address; curl's user agent; no token | `make pull`, a cold `make up` | revision and sha256 |
-| Third-party phone-homes | Langfuse, Grafana, Loki, ClickHouse, SeaweedFS endpoints | usage data, versions | never | switched off ([§6](#6-observability)), and the internal network |
+| Third-party phone-homes | Langfuse, Grafana, Loki, ClickHouse, SeaweedFS, and Mailpit (dev-class stacks) endpoints | usage data, versions | never | switched off ([§6](#6-observability)), and the internal network |
 | Development time: Claude Code | Anthropic | repository content an agent reads, prompts, completions | agent sessions, on the Team plan (FR-037) | the sandbox, the deny lists |
 | Development time: the engine's proxied pulls | npm, PyPI, ghcr.io | package and image names; the IP address | agent sessions on the engine | `egress-proxy.py` and the allowlist |
 | The Author's browser | whatever the Grafana and Langfuse pages fetch | the IP address, the user agent | while viewing | checked once in devtools, and listed |

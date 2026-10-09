@@ -76,6 +76,8 @@ def test_the_topology_of_this_branch() -> None:
         "clickhouse",
         "valkey",
         "seaweedfs",
+        "telegram-standin",
+        "mailpit",
         "breach-probe",
     }
     assert COMPOSE["networks"] == {
@@ -151,13 +153,18 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
     assert SERVICES["gateway-state"]["networks"] == ["internal"]
 
 
+# Built from this file's own tree, each from its Dockerfile on a pinned base; every other service runs a pinned image.
+BUILT = ("gateway", "telegram-standin", "breach-probe")
+
+
 def test_images_are_the_locked_pins() -> None:
     pins = lock()
     for name, service in SERVICES.items():
-        if name in ("gateway", "breach-probe"):
+        if name in BUILT:
             assert "image" not in service  # built from this file's own tree
         else:
             assert service["image"] == pins[name], name
+    assert [n for n, s in SERVICES.items() if "build" in s] == list(BUILT)
 
 
 # plan §3: the one llama.cpp build, b11459, in two variants; the flags each runs with, and those it never does.
@@ -266,6 +273,65 @@ def test_the_breach_probe_is_a_one_off_on_internal_alone() -> None:
         assert absent not in probe, absent
 
 
+# The stand-ins (plan §2 and §8; contracts/alerts.md §4.3; tasks.md T079): dev's and dev-cpu's alert receivers in
+# stand-in mode, which the breach test reads from inside the stack.
+STANDINS = ("telegram-standin", "mailpit")
+# Mailpit's settings, and nothing else: its version check off; any SMTP login taken, over the plain connection the
+# gateway's stand-in mode uses; and no reverse lookups of the gateway's address. No relay, forwarding, webhook, or
+# UI login is configured, so it sends nothing anywhere.
+MAILPIT_ENVIRONMENT = {
+    "MP_DISABLE_VERSION_CHECK": "true",
+    "MP_SMTP_AUTH_ACCEPT_ANY": "true",
+    "MP_SMTP_AUTH_ALLOW_INSECURE": "true",
+    "MP_SMTP_DISABLE_RDNS": "true",
+}
+
+
+@pytest.mark.parametrize("name", STANDINS)
+def test_the_stand_ins_are_dev_receivers_on_internal_alone(name: str) -> None:
+    service = SERVICES[name]
+    # COMPOSE_PROFILES names dev-receivers on dev and dev-cpu only (contracts/env-files.md §2), so prod never runs them.
+    assert service["profiles"] == ["dev-receivers"]
+    assert service["networks"] == ["internal"]
+    # They publish nothing, mount nothing, and wait on nothing; each runs its image's own command.
+    for absent in (
+        "ports",
+        "expose",
+        "volumes",
+        "depends_on",
+        "command",
+        "entrypoint",
+        "user",
+        "cap_add",
+    ):
+        assert absent not in service, absent
+
+
+def test_the_stand_ins_take_nothing_from_the_env_file() -> None:
+    assert "environment" not in SERVICES["telegram-standin"]
+    assert SERVICES["mailpit"]["environment"] == MAILPIT_ENVIRONMENT
+    # Nothing but the build's proxy arguments, which never reach the container (contracts/env-files.md §2).
+    for name in STANDINS:
+        running = {k: v for k, v in SERVICES[name].items() if k != "build"}
+        assert not [text for text in strings(running) if VAR.search(text)], name
+
+
+def test_mailpit_relays_nothing() -> None:
+    # Its release, auto-relay, forwarding, and webhook features each need a setting: none is set.
+    for key in SERVICES["mailpit"]["environment"]:
+        assert not key.startswith(
+            ("MP_SMTP_RELAY", "MP_SMTP_FORWARD", "MP_WEBHOOK", "MP_POP3", "MP_UI_AUTH")
+        ), key
+
+
+def test_the_telegram_standin_builds_from_this_files_own_tree() -> None:
+    assert SERVICES["telegram-standin"]["build"] == {
+        "context": "..",
+        "dockerfile": "evals/standins/Dockerfile",
+        "args": {"HTTP_PROXY": "${H4_BUILD_PROXY}", "HTTPS_PROXY": "${H4_BUILD_PROXY}"},
+    }
+
+
 def dockerfile(path: Path) -> list[tuple[str, str]]:
     """(INSTRUCTION, arguments) for each instruction, with continuations joined and comments dropped."""
     out, pending = [], ""
@@ -305,6 +371,33 @@ def test_the_probe_image() -> None:
     assert len(users) == 1 and users[0] not in ("root", "0", "0:0"), users
     assert words.index("USER") > words.index("RUN")
     assert users[0] in runs[0].split()
+
+
+def test_the_standin_image() -> None:
+    path = REPO / "evals" / "standins" / "Dockerfile"
+    steps = dockerfile(path)
+    words = [word for word, _ in steps]
+    # The pinned base:python, by digest, and no `# syntax=` line, as for the probe (plan §11).
+    assert [args for word, args in steps if word == "FROM"] == [lock()["base:python"]]
+    text = path.read_text(encoding="utf-8")
+    assert not re.search(r"^\s*#\s*syntax\s*=", text, re.IGNORECASE | re.MULTILINE)
+    assert (
+        "COPY",
+        "evals/standins/telegram_standin.py /app/telegram_standin.py",
+    ) in steps
+    runs = [args for word, args in steps if word == "RUN"]
+    assert len(runs) == 1 and runs[0].startswith("useradd "), runs
+    for fetcher in ("apt", "pip", "uv ", "curl", "wget", "npm", "&&", ";", "|"):
+        assert fetcher not in runs[0], fetcher
+    assert not {"ADD", "ENTRYPOINT", "ONBUILD", "EXPOSE"} & set(words)
+    users = [args for word, args in steps if word == "USER"]
+    assert len(users) == 1 and users[0] not in ("root", "0", "0:0"), users
+    assert words.index("USER") > words.index("RUN")
+    assert users[0] in runs[0].split()
+    # It runs isolated, writes no bytecode on its read-only root, and listens on the port standin.telegram_base names.
+    assert [args for word, args in steps if word == "CMD"] == [
+        '["python3", "-I", "-B", "/app/telegram_standin.py", "--host", "0.0.0.0", "--port", "8080"]'
+    ]
 
 
 def binds(name: str) -> list[tuple[str, str, bool]]:
@@ -371,7 +464,14 @@ def test_binds_and_volumes() -> None:
     assert binds("seaweedfs") == [
         (f"{tree}/seaweedfs/entrypoint.sh", "/h4/entrypoint.sh", True)
     ]
-    for name in ("langfuse-web", "langfuse-worker", "langfuse-db", "valkey"):
+    for name in (
+        "langfuse-web",
+        "langfuse-worker",
+        "langfuse-db",
+        "valkey",
+        "telegram-standin",
+        "mailpit",
+    ):
         assert binds(name) == [], name
     for name, volume, target in (
         ("prometheus", "prometheus-data", "/prometheus"),
@@ -416,15 +516,19 @@ def test_the_observability_services_commands() -> None:
 
 
 def test_read_only_roots_where_the_image_allows() -> None:
-    for name in ("edge", "gateway", "otel-collector", "breach-probe"):
-        assert SERVICES[name]["read_only"] is True
-        assert SERVICES[name]["tmpfs"] == ["/tmp"]
-    assert [n for n, s in SERVICES.items() if s.get("read_only")] == [
+    # plan §1: edge, the gateway, the collector, the stand-ins, and the probe.
+    read_only = [
         "edge",
         "gateway",
         "otel-collector",
+        "telegram-standin",
+        "mailpit",
         "breach-probe",
     ]
+    for name in read_only:
+        assert SERVICES[name]["read_only"] is True
+        assert SERVICES[name]["tmpfs"] == ["/tmp"]
+    assert [n for n, s in SERVICES.items() if s.get("read_only")] == read_only
     # SeaweedFS's root stays writable, but its S3 keys file goes to a tmpfs, never the image's layer.
     assert SERVICES["seaweedfs"]["tmpfs"] == ["/tmp"]
 
@@ -467,6 +571,8 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
         ("clickhouse", "2", "4G"),
         ("valkey", "0.5", "384M"),
         ("seaweedfs", "0.5", "512M"),
+        ("telegram-standin", "0.1", "64M"),
+        ("mailpit", "0.1", "64M"),
         ("breach-probe", "0.25", "128M"),
     ],
 )
@@ -543,6 +649,19 @@ def test_health_checks() -> None:
         "CMD-SHELL",
         "test -f /tmp/h4-bucket-ready && wget -qO- http://127.0.0.1:9333/cluster/status >/dev/null",
     ]
+    # plan §2's stand-ins: Mailpit with its image's busybox wget, and the Telegram stand-in with its own python3,
+    # which evals/standins/test_telegram_standin.py runs as written, against the stand-in.
+    assert SERVICES["mailpit"]["healthcheck"]["test"] == [
+        "CMD",
+        "wget",
+        "-qO-",
+        "http://127.0.0.1:8025/livez",
+    ]
+    check = SERVICES["telegram-standin"]["healthcheck"]["test"]
+    assert check[:4] == ["CMD", "python3", "-I", "-c"] and len(check) == 5
+    assert "http://127.0.0.1:8080/healthz" in check[4]
+    # No proxy setting can take the check of its own loopback anywhere else.
+    assert "ProxyHandler({})" in check[4]
 
 
 def test_valkey_and_seaweedfs_run_as_plan_6_says() -> None:

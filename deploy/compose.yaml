@@ -671,6 +671,74 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  # The alert receivers in stand-in mode (plan §2 and §8; contracts/alerts.md §4.3; tasks.md T079): dev's and dev-cpu's
+  # gateways send their alerts to these two, inside the stack, unless the Author's recorded run switches dev to the
+  # real channels (contracts/env-files.md §7.2). Only the dev-receivers profile names them, which COMPOSE_PROFILES
+  # selects on dev and dev-cpu and never on prod. Neither publishes a port or joins any network but internal, which
+  # has no route out, and neither forwards anything: the breach test reads what arrived from inside the stack.
+  #
+  # The Telegram stand-in: a standard-library server mimicking the Bot API's sendMessage, with GET /messages for the
+  # breach test (evals/standins/telegram_standin.py). It takes stand-in mode's dummy token and chat 0 and nothing else,
+  # and keeps and logs no token. Built from this file's own tree, as the gateway is.
+  telegram-standin:
+    <<: *service
+    profiles: [dev-receivers]
+    build:
+      context: ..
+      dockerfile: evals/standins/Dockerfile
+      # Only the agents' engine builds through a proxy; on host stacks this is empty. Never a container variable.
+      args:
+        HTTP_PROXY: "${H4_BUILD_PROXY}"
+        HTTPS_PROXY: "${H4_BUILD_PROXY}"
+    networks: [internal]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -I
+        - -c
+        - "import sys, urllib.request; o = urllib.request.build_opener(urllib.request.ProxyHandler({})); sys.exit(0 if o.open('http://127.0.0.1:8080/healthz', timeout=2).status == 200 else 1)"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+
+  # Mailpit, the SMTP stand-in: it takes the gateway's alert emails on 1025 and serves them to the breach test on
+  # 8025. Its messages live in a temporary database under the tmpfs /tmp, gone when it stops. Its settings keep it from
+  # sending anything: no relay, forwarding, webhook, or POP3 is configured, and its version check, which would ask
+  # GitHub for the newest release, is off. It takes any login over the plain connection stand-in mode uses, so the
+  # gateway's session works whether or not it authenticates, and does no reverse lookup of the gateway's address.
+  mailpit:
+    <<: *service
+    image: ghcr.io/axllent/mailpit:v1.31.4@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48
+    profiles: [dev-receivers]
+    networks: [internal]
+    environment:
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_SMTP_DISABLE_RDNS: "true"
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8025/livez"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+
   # The breach probe (plan §2 and §8; tasks.md T144): a one-off container on the internal network, from which a
   # client that can't reach the stack's published ports, such as an agent session on the agents' engine, calls the
   # gateway in-network. The dev-cpu hops of the operator CLI and of hello's client run in it
