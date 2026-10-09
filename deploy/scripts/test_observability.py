@@ -1,8 +1,9 @@
 """The observability configuration against contracts/telemetry.md §6 (spec 000 FR-026 to FR-029, FR-037).
 
-deploy/otel/collector.yaml, deploy/prometheus/prometheus.yml, deploy/loki/loki.yaml, and Grafana's provisioning, read
-as data. The collector's copy of the secret patterns is held to the contract's table and to the same recipes the
-gateway's redactor is tested with (services/gateway/test/fixtures/secret-shapes.json, telemetry.md §6.3 and §8).
+deploy/otel/collector.yaml, deploy/prometheus/prometheus.yml, deploy/loki/loki.yaml, Grafana's provisioning, and
+ClickHouse's settings files, read as data. The collector's copy of the secret patterns is held to the contract's table
+and to the same recipes the gateway's redactor is tested with (services/gateway/test/fixtures/secret-shapes.json,
+telemetry.md §6.3 and §8).
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 import itertools
 import json
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -649,3 +651,41 @@ def test_every_file_here_parses() -> None:
         GRAFANA_DIR.glob("*/*.yaml"),
     ):
         assert yaml.safe_load(path.read_text(encoding="utf-8")), path
+
+
+CLICKHOUSE = REPO / "deploy/clickhouse"
+
+
+def clickhouse(name: str) -> ET.Element:
+    root = ET.parse(CLICKHOUSE / f"{name}.xml").getroot()
+    assert root.tag == "clickhouse", name
+    return root
+
+
+def test_clickhouses_three_settings_files() -> None:
+    """plan §6 and research.md R-08: crash reports off, the Prometheus endpoint on 9363, and a small footprint."""
+    assert sorted(p.stem for p in CLICKHOUSE.glob("*.xml")) == [
+        "low-memory",
+        "no-crash-reports",
+        "prometheus",
+    ]
+    assert (
+        clickhouse("no-crash-reports").findtext("send_crash_reports/enabled") == "false"
+    )
+    prometheus = clickhouse("prometheus")
+    assert prometheus.findtext("prometheus/port") == "9363"
+    assert prometheus.findtext("prometheus/endpoint") == "/metrics"
+    low = clickhouse("low-memory")
+    assert float(low.findtext("max_server_memory_usage_to_ram_ratio")) <= 0.8
+    assert int(low.findtext("mark_cache_size")) <= 512 * 2**20
+    # Logs go to the console, which Docker's local driver keeps, never to files inside the container.
+    logger = low.find("logger")
+    assert logger.findtext("console") == "1"
+    assert {e.tag for e in logger if e.get("remove") == "remove"} == {"log", "errorlog"}
+    # The system log tables it drops are dropped, not reconfigured.
+    for element in low:
+        if element.tag.endswith("_log"):
+            assert element.get("remove") == "remove" and not len(element), element.tag
+    # The scrape job and the endpoint agree.
+    jobs = {job["job_name"]: job for job in PROMETHEUS["scrape_configs"]}
+    assert jobs["clickhouse"]["static_configs"] == [{"targets": ["clickhouse:9363"]}]
