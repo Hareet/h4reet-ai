@@ -247,13 +247,22 @@ wait_for_tls() {
 }
 
 chown_state() {
-	# Set the state directory's ownership through the rootless namespace, so the gateway's node user
-	# (uid 1000) can write it. Best effort: it needs a seeded base image.
-	local base="${H4_STATE_CHOWN_IMAGE:-public.ecr.aws/docker/library/node:24.21.0-trixie-slim}"
-	if [ -d "$H4_STATE/dev-cpu" ] || install -d "$H4_STATE/dev-cpu" 2>/dev/null; then
-		# The compose file binds ${H4_STATE_DIR}/gateway with the long syntax, which never creates a missing source.
-		engine_docker run --rm -v "$H4_STATE/dev-cpu:/s" "$base" sh -c 'mkdir -p /s/gateway && chown -R 1000:1000 /s' 2>/dev/null ||
-			echo "note: could not prepare the state dir yet (seed first); dev-cpu's first run will retry"
+	# dev-cpu's state directory, made and owned through the engine alone: the state root is h4agents' and 0700, so
+	# the Author can't see into it. In the container, root is h4agents and uid 1000 is the gateway's node user, so the
+	# chown gives the journal its writer (plan §10). compose binds ${H4_STATE_DIR}/gateway with the long syntax, which
+	# never creates a missing source. It needs the pinned base:node image, so seed runs it again.
+	local base="${H4_STATE_CHOWN_IMAGE:-}"
+	if [ -z "$base" ]; then
+		base="$(awk '$1 == "base:node" && $4 ~ /^sha256:[0-9a-f]+$/ && length($4) == 71 { print $2 ":" $3 "@" $4 }' "$images_lock" 2>/dev/null)"
+	fi
+	if [ -z "$base" ]; then
+		echo "note: no pinned base:node in $images_lock, so dev-cpu's state directory waits"
+		return 0
+	fi
+	if engine_docker run --rm -v "$H4_STATE:/s" "$base" sh -c 'mkdir -p /s/dev-cpu/gateway && chown -R 1000:1000 /s/dev-cpu' >/dev/null 2>&1; then
+		echo "== dev-cpu's state directory: /var/lib/h4agents/state/dev-cpu/gateway, owned by the gateway's user"
+	else
+		echo "note: could not prepare dev-cpu's state directory yet (seed first); engine.sh seed does it again"
 	fi
 }
 
@@ -421,6 +430,7 @@ cmd_seed() {
 
 	seed_model
 	[ "$fails" -eq 0 ] || die "$fails image(s) failed to seed"
+	chown_state
 	echo "== seed complete"
 }
 
