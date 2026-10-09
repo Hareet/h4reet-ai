@@ -28,6 +28,14 @@ export interface SettingsRefusal {
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
+/** A probe every intervalMs, each within timeoutMs; unhealthy after that many failures, healthy after that many passes. */
+export interface HealthCadence {
+  intervalMs: number;
+  timeoutMs: number;
+  unhealthyAfter: number;
+  healthyAfter: number;
+}
+
 export interface AdapterTypeSpec {
   readonly type: string;
   /** The kinds an adapter of this type may be declared as (rule R5). */
@@ -38,8 +46,10 @@ export interface AdapterTypeSpec {
   provider(settings: Record<string, unknown>): string;
   /** The model the adapter sends: from its settings, or from the env key they name. */
   model(settings: Record<string, unknown>, env: Env): string | undefined;
-  /** For routing.yaml's deadline rule (R9). */
+  /** For routing.yaml's deadline rule (R9), and for the attempt wrapper's retry rule (provider-adapter.md §6). */
   timing(settings: Record<string, unknown>): { requestMs: number; retryMax: number; backoffMs: number };
+  /** How the gateway probes an adapter of this type, on the real clock (provider-adapter.md §3, §6 item 4). */
+  healthCadence(settings: Record<string, unknown>): HealthCadence;
   /** The rules a schema can't say: R7, R8, and the like. Runs only on settings that passed the schema. */
   check(settings: Record<string, unknown>, kind: AdapterKind): SettingsFinding[];
   /** Startup refusals that need the environment. */
@@ -137,6 +147,13 @@ const openAICompatible: AdapterTypeSpec = {
   provider: (s) => str(s, "provider"),
   model: (s, env) => env[str(s, "model_env")],
   timing: (s) => ({ requestMs: num(s, "timeouts", "request_ms"), retryMax: 0, backoffMs: 0 }),
+  // §3.1: every interval_ms within timeout_ms; unhealthy after unhealthy_after failures, healthy after healthy_after.
+  healthCadence: (s) => ({
+    intervalMs: num(s, "health", "interval_ms"),
+    timeoutMs: num(s, "health", "timeout_ms"),
+    unhealthyAfter: num(s, "health", "unhealthy_after"),
+    healthyAfter: num(s, "health", "healthy_after"),
+  }),
   check(s, kind) {
     const findings: SettingsFinding[] = [];
     if (kind === "local" && str(s, "provider") !== "local") {
@@ -190,6 +207,14 @@ const bedrockConverse: AdapterTypeSpec = {
     retryMax: num(s, "retry", "max"),
     backoffMs: num(s, "retry", "backoff_ms"),
   }),
+  // §3.2: every interval_ms; one failure makes it unhealthy and one pass healthy. The probe resolves credentials and
+  // never calls Bedrock; tasks.md T102 may tighten its timeout.
+  healthCadence: (s) => ({
+    intervalMs: num(s, "health", "interval_ms"),
+    timeoutMs: Math.min(5_000, num(s, "health", "interval_ms") - 1),
+    unhealthyAfter: 1,
+    healthyAfter: 1,
+  }),
   check(s) {
     const findings: SettingsFinding[] = [];
     if (str(s, "region") !== "us-east-1") {
@@ -229,6 +254,8 @@ const synthetic: AdapterTypeSpec = {
   provider: () => "synthetic",
   model: (s) => str(s, "model"),
   timing: () => ({ requestMs: 0, retryMax: 0, backoffMs: 0 }),
+  // §3.3: always healthy, as it never touches the network; checked like any adapter so its gauge reports.
+  healthCadence: () => ({ intervalMs: 10_000, timeoutMs: 1_000, unhealthyAfter: 1, healthyAfter: 1 }),
   check: () => [],
   checkEnv: () => [],
 };

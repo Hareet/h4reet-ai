@@ -1,17 +1,36 @@
 // The gateway's two listeners and its startup order (plan §5.1; contracts/gateway-http.md §1; operator-admin.md §1).
 //
-// - The api listens on 8080: /health/live now, /hello and /health with tasks.md T053 and T054.
+// - The api listens on 8080: POST /hello, GET /health, and GET /health/live.
 // - The admin listener listens on 8081. Authentication comes first, before anything else (operator-admin.md §1.1),
 //   and until it exists (tasks.md T055) every request there is unauthenticated, so every answer is 401.
-// - Startup: validate the environment and the configuration (exit 78 on failure), connect the store (retrying in
-//   the background while it is down), then start the listeners.
+// - Startup: validate the environment and the configuration (exit 78 on failure), build the route's adapters
+//   (registry.ts: exit 78 for a configuration it refuses, 1 for a broken build), connect the store (retrying in the
+//   background while it is down), then start the listeners and the background work: the adapters' health probes and
+//   the gauges' refresh.
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
+import { metrics as otelMetrics, trace, type Tracer } from "@opentelemetry/api";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
-import { ENV_CLASSES, routeFor, startupRefusals, type LoadedConfig, type StartupRefusal } from "./config/validate.js";
+import { buildRoute, loadFactories, RegistryError, type AdapterFactory } from "./adapters/registry.js";
+import {
+  ENV_CLASSES,
+  routeFor,
+  startupRefusals,
+  type AlertsConfig,
+  type Budgets,
+  type EnvClass,
+  type LoadedConfig,
+  type PriceTable,
+  type RoutingConfig,
+  type StackName,
+  type StartupRefusal,
+} from "./config/validate.js";
 import { validateGatewayEnv } from "./config/validate-env.js";
+import { GatewayClock } from "./core/clock.js";
+import { Gateway } from "./core/gateway.js";
+import { ClientCap } from "./core/limits.js";
 import {
   FatalStoreError,
   Store,
@@ -21,7 +40,10 @@ import {
   type Database,
   type Migration,
 } from "./meter/store.js";
-import { registerHealthLive } from "./routes/health.js";
+import { registerHealth, registerHealthLive } from "./routes/health.js";
+import { registerHello } from "./routes/hello.js";
+import { GatewayMetrics } from "./telemetry/metrics.js";
+import { annotateServerSpan, noteErrorType } from "./telemetry/otel.js";
 
 export const API_BODY_LIMIT = 16_384;
 export const ADMIN_BODY_LIMIT = 4_096;
@@ -48,7 +70,7 @@ function errorClass(err: FastifyError | Error): string {
   return typeof code === "string" && /^[A-Z0-9_]{1,64}$/.test(code) ? code : err.name;
 }
 
-function listener(bodyLimit: number, logger: AppLogger): FastifyInstance {
+function listener(bodyLimit: number, logger: AppLogger, stack: string): FastifyInstance {
   const app = Fastify({
     // No Fastify logger, so no request lines: the gateway logs only its own events (telemetry.md §5.1, §5.2).
     logger: false,
@@ -71,6 +93,12 @@ function listener(bodyLimit: number, logger: AppLogger): FastifyInstance {
     reply.header("x-content-type-options", "nosniff");
     reply.header("x-request-id", req.id);
     if (closing) reply.header("connection", "close");
+    const cause = reply.getHeader("x-h4-degraded-cause");
+    annotateServerSpan(req, {
+      stack,
+      status: reply.statusCode,
+      degradedCause: typeof cause === "string" ? cause : undefined,
+    });
     return payload;
   });
   app.setErrorHandler((err: FastifyError, req, reply) => {
@@ -81,8 +109,10 @@ function listener(bodyLimit: number, logger: AppLogger): FastifyInstance {
     if (status >= 400 && status < 500) {
       return reply.code(400).send({ error: "invalid_request", detail: "the request is malformed", request_id: req.id });
     }
+    const cls = errorClass(err);
+    noteErrorType(req, cls);
     logger.error(
-      { event: "request.failed", error_class: errorClass(err), route: req.routeOptions.url ?? "other" },
+      { event: "request.failed", error_class: cls, route: req.routeOptions.url ?? "other" },
       "A request failed unexpectedly.",
     );
     return reply.code(500).send({ error: "internal_error", request_id: req.id });
@@ -90,19 +120,137 @@ function listener(bodyLimit: number, logger: AppLogger): FastifyInstance {
   return app;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// The services behind the routes
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface GatewayServices {
+  stack: StackName;
+  envClass: EnvClass;
+  version: string;
+  env: Readonly<Record<string, string | undefined>>;
+  routing: RoutingConfig;
+  prices: PriceTable;
+  budgets: Budgets;
+  alerts: AlertsConfig;
+  logger: AppLogger;
+  metrics: GatewayMetrics;
+  clock: GatewayClock;
+  store: Store;
+  gateway: Gateway;
+  clientCap: ClientCap;
+  realNow: () => number;
+}
+
+export interface ServiceOptions {
+  env: Readonly<Record<string, string | undefined>>;
+  /** Validated: startupRefusals found nothing. */
+  config: LoadedConfig;
+  /** Started, or about to be: until it is ready, every request answers store_unreachable. */
+  store: Store;
+  logger: AppLogger;
+  version: string;
+  tracer?: Tracer;
+  metrics?: GatewayMetrics;
+  /** The adapter factories; every module in adapters/ by default (registry.ts). */
+  factories?: ReadonlyMap<string, AdapterFactory>;
+  realNow?: () => number;
+}
+
+/**
+ * Everything the routes use, for a validated configuration. It builds the route's adapters, and throws a
+ * RegistryError when the registry refuses them: exit 78 for a configuration error, exit 1 for a broken build.
+ */
+export async function createServices(opts: ServiceOptions): Promise<GatewayServices> {
+  const { env, config, logger } = opts;
+  const { routing, prices, budgets, alerts } = config;
+  const envClass = ENV_CLASSES.find((c) => c === env.H4_ENV);
+  const stack = env.H4_STACK as StackName;
+  if (!routing || !prices || !budgets || !alerts || !envClass) throw new Error("validated configuration is incomplete");
+  const realNow = opts.realNow ?? Date.now;
+  const adapters = buildRoute({
+    factories: opts.factories ?? (await loadFactories()),
+    routing,
+    envClass,
+    env,
+    logger,
+    realNow,
+  });
+  if (adapters.some((a) => a.role === "fallback")) {
+    await Promise.allSettled(adapters.map((a) => a.adapter.close?.()));
+    throw new RegistryError(
+      78,
+      "fallback_not_supported",
+      `config/routing.yaml: envs.${envClass}.fallback: this build has no metered fallback path (tasks.md T072–T074)`,
+    );
+  }
+  const clock = new GatewayClock(realNow);
+  const metrics = opts.metrics ?? new GatewayMetrics(otelMetrics.getMeter("h4-gateway"));
+  const gateway = new Gateway({
+    stack,
+    envClass,
+    version: opts.version,
+    routing,
+    prices,
+    budgets,
+    adapters,
+    store: opts.store,
+    clock,
+    tracer: opts.tracer ?? trace.getTracer("h4-gateway"),
+    metrics,
+    logger,
+    payloadSampling: env.TELEMETRY_PAYLOAD_SAMPLING === "on",
+    testMachinery: { clock: env.GATEWAY_TEST_CLOCK === "1", synthetic: env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
+    realNow,
+  });
+  return {
+    stack,
+    envClass,
+    version: opts.version,
+    env,
+    routing,
+    prices,
+    budgets,
+    alerts,
+    logger,
+    metrics,
+    clock,
+    store: opts.store,
+    gateway,
+    clientCap: new ClientCap(budgets.limits.perClient),
+    realNow,
+  };
+}
+
 export interface AppDeps {
   /** H4_STACK. */
   stack: string;
   logger: AppLogger;
+  /** The routes' services. Without them the listeners are bare: /health/live, and an admin listener that refuses. */
+  services?: GatewayServices;
 }
 
 /** Both listeners, routes registered, not yet listening. Tests drive them with inject(). */
 export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyInstance } {
-  const api = listener(API_BODY_LIMIT, deps.logger);
+  const api = listener(API_BODY_LIMIT, deps.logger, deps.stack);
   registerHealthLive(api);
+  const s = deps.services;
+  if (s !== undefined) {
+    registerHealth(api, s.gateway);
+    registerHello(api, {
+      stack: s.stack,
+      gateway: s.gateway,
+      clientCap: s.clientCap,
+      clock: s.clock,
+      metrics: s.metrics,
+      logger: s.logger,
+      maxOutputTokens: s.budgets.limits.perCall.helloMaxOutputTokens,
+      realNow: s.realNow,
+    });
+  }
   api.setNotFoundHandler(async (req, reply) => reply.code(404).send({ error: "not_found", request_id: req.id }));
 
-  const admin = listener(ADMIN_BODY_LIMIT, deps.logger);
+  const admin = listener(ADMIN_BODY_LIMIT, deps.logger, deps.stack);
   // Until the operator's bearer authentication exists (tasks.md T055), no request here is authenticated. onRequest
   // runs before the body is read, so nothing is parsed, validated, or looked up for an unauthenticated caller, and
   // the body is the same for every request: no oracle.
@@ -111,6 +259,10 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
   );
   return { api, admin };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Startup
+// ---------------------------------------------------------------------------------------------------------------
 
 export interface StartOptions {
   env: Readonly<Record<string, string | undefined>>;
@@ -126,8 +278,10 @@ export interface StartOptions {
   storeRetryMs?: number;
   /** A fatal store error found on a retry, once the listeners are up: the process exits with this code. */
   onFatal: (exitCode: number) => void;
-  /** More routes on the api before it listens: the later tasks' and the tests'. */
+  /** More routes on the api before it listens: the tests'. */
   routes?: (api: FastifyInstance) => void;
+  /** The adapter factories; every module in adapters/ by default. */
+  factories?: ReadonlyMap<string, AdapterFactory>;
   now?: () => number;
 }
 
@@ -136,8 +290,9 @@ export interface RunningGateway {
   api: FastifyInstance;
   admin: FastifyInstance;
   store: Store;
+  services: GatewayServices;
   ports: { api: number; admin: number };
-  /** Graceful shutdown: stop accepting, let requests in flight finish, then close the store. */
+  /** Graceful shutdown: stop accepting, let requests in flight finish, stop the background work, close the store. */
   close(): Promise<void>;
 }
 
@@ -151,14 +306,11 @@ export interface RefusedGateway {
 const refusalLine = (r: StartupRefusal): string =>
   r.reason === "invalid_config" ? r.message : `${r.key ?? r.path ?? "config"}: ${r.message} (${r.reason})`;
 
-function logFatalStore(logger: AppLogger, err: FatalStoreError): void {
-  if (err.exitCode === 78) {
-    logger.fatal({ event: "gateway.config_refused", reason: err.reason }, "The gateway refuses to start.");
+function logFatal(logger: AppLogger, exitCode: 1 | 78, reason: string): void {
+  if (exitCode === 78) {
+    logger.fatal({ event: "gateway.config_refused", reason }, "The gateway refuses to start.");
   } else {
-    logger.fatal(
-      { event: "gateway.fatal", reason: err.reason },
-      "The gateway stops on an error it can't recover from.",
-    );
+    logger.fatal({ event: "gateway.fatal", reason }, "The gateway stops on an error it can't recover from.");
   }
 }
 
@@ -183,7 +335,8 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
   const envClass = ENV_CLASSES.find((c) => c === env.H4_ENV);
   if (!routing || !prices || !envClass) throw new Error("validated configuration is incomplete");
 
-  // 2. The store: the first attempt now, retries in the background while it is down.
+  // 2. The route's adapters, and the services around them; then the store: the first attempt now, retries in the
+  //    background while it is down.
   const store = new Store({
     db: opts.database ?? pgDatabase(pgSettingsFromEnv(env)),
     migrations: opts.migrations ?? (await readMigrations()),
@@ -192,21 +345,38 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     ...(env.GATEWAY_GRAFANA_RO_PASSWORD ? { grafanaRoPassword: env.GATEWAY_GRAFANA_RO_PASSWORD } : {}),
     ...(opts.storeRetryMs !== undefined ? { retryMs: opts.storeRetryMs } : {}),
     onFatal: (err) => {
-      logFatalStore(logger, err);
+      logFatal(logger, err.exitCode, err.reason);
       opts.onFatal(err.exitCode);
     },
   });
+  let services: GatewayServices;
+  try {
+    services = await createServices({
+      env,
+      config,
+      store,
+      logger,
+      version: opts.version,
+      ...(opts.factories === undefined ? {} : { factories: opts.factories }),
+    });
+  } catch (err) {
+    await store.close();
+    if (!(err instanceof RegistryError)) throw err;
+    logFatal(logger, err.exitCode, err.reason);
+    return { kind: "refused", exitCode: err.exitCode, lines: [`${err.message} (${err.reason})`] };
+  }
   try {
     await store.start();
   } catch (err) {
+    await services.gateway.close();
     await store.close();
     if (!(err instanceof FatalStoreError)) throw err;
-    logFatalStore(logger, err);
+    logFatal(logger, err.exitCode, err.reason);
     return { kind: "refused", exitCode: err.exitCode, lines: [`${err.message} (${err.reason})`] };
   }
 
-  // 3. The listeners.
-  const { api, admin } = buildApp({ stack: env.H4_STACK ?? "unknown", logger });
+  // 3. The listeners, then the background work.
+  const { api, admin } = buildApp({ stack: services.stack, logger, services });
   opts.routes?.(api);
   const where = opts.listen ?? { host: "0.0.0.0", apiPort: 8080, adminPort: 8081 };
   try {
@@ -214,9 +384,11 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     await admin.listen({ host: where.host, port: where.adminPort });
   } catch (err) {
     await Promise.allSettled([api.close(), admin.close()]);
+    await services.gateway.close();
     await store.close();
     throw err;
   }
+  services.gateway.start();
   const port = (app: FastifyInstance): number => {
     const address = app.server.address();
     return typeof address === "object" && address !== null ? address.port : 0;
@@ -238,10 +410,12 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     api,
     admin,
     store,
+    services,
     ports: { api: port(api), admin: port(admin) },
     close: () =>
       (closing ??= (async () => {
         await Promise.allSettled([api.close(), admin.close()]);
+        await services.gateway.close();
         await store.close();
       })()),
   };

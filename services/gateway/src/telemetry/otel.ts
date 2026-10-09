@@ -133,6 +133,69 @@ export function scrubPgQuery(span: ApiSpan, info: PgRequestHookInformation): voi
   }
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// The server span (telemetry.md §3.3): h4.stack, h4.outcome, h4.degraded.cause, and error.type
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Where instrumentation-http's requestHook leaves an incoming request's SERVER span, for the routes to annotate. */
+export const SERVER_SPAN = Symbol.for("h4.gateway.server-span");
+
+/**
+ * instrumentation-http's requestHook, for incoming requests only. An outgoing ClientRequest has setHeader; an
+ * IncomingMessage doesn't. (Duck-typed, so this module needn't load node:http before the SDK has started.)
+ */
+export function rememberServerSpan(span: ApiSpan, request: unknown): void {
+  const r = request as { setHeader?: unknown; headers?: unknown } | null;
+  if (r === null || typeof r !== "object" || typeof r.setHeader === "function" || typeof r.headers !== "object") return;
+  (r as Record<symbol, ApiSpan>)[SERVER_SPAN] = span;
+}
+
+/**
+ * A request's SERVER span: instrumentation-http's, in the running gateway; or @fastify/otel's request span, which is
+ * the SERVER span when nothing instruments node:http (Fastify's inject, in tests). Undefined without telemetry.
+ */
+export function serverSpanOf(request: { raw: object }): ApiSpan | undefined {
+  const fromHttp = (request.raw as Record<symbol, ApiSpan | undefined>)[SERVER_SPAN];
+  if (fromHttp !== undefined) return fromHttp;
+  const otel = (request as { opentelemetry?: () => { span?: ApiSpan | null } }).opentelemetry;
+  return typeof otel === "function" ? (otel.call(request).span ?? undefined) : undefined;
+}
+
+export type ServerOutcome = "ok" | "degraded" | "refused" | "invalid" | "error" | "unauthorized";
+
+/**
+ * h4.outcome for a response status (telemetry.md §3.3): ok, degraded (a 503 with a degraded cause), refused (429; and
+ * an admin refusal, 403 or 409), invalid (another 4xx), error (another 5xx), or unauthorized (401).
+ */
+export function outcomeOf(status: number, degraded: boolean): ServerOutcome {
+  if (status < 400) return "ok";
+  if (status === 401) return "unauthorized";
+  if (status === 429 || status === 403 || status === 409) return "refused";
+  if (status === 503 && degraded) return "degraded";
+  if (status >= 500) return "error";
+  return "invalid";
+}
+
+const errorTypes = new WeakMap<object, string>();
+
+/** error.type for a request whose outcome is error: local_error, or the class of an unexpected error. */
+export function noteErrorType(request: object, errorType: string): void {
+  errorTypes.set(request, errorType);
+}
+
+/** Sets the server span's h4 attributes as the response goes out. */
+export function annotateServerSpan(
+  request: { raw: object },
+  o: { stack: string; status: number; degradedCause: string | undefined },
+): void {
+  const span = serverSpanOf(request);
+  if (span === undefined) return;
+  const outcome = outcomeOf(o.status, o.degradedCause !== undefined);
+  span.setAttributes({ "h4.stack": o.stack, "h4.outcome": outcome });
+  if (outcome === "degraded" && o.degradedCause !== undefined) span.setAttribute("h4.degraded.cause", o.degradedCause);
+  if (outcome === "error") span.setAttribute("error.type", errorTypes.get(request) ?? `http_${o.status}`);
+}
+
 /** Removes the client attributes and a query string from every span, then hands it to the next processor. */
 export class ClientAttributeStripper implements tracing.SpanProcessor {
   constructor(private readonly next: tracing.SpanProcessor) {}
@@ -224,6 +287,7 @@ export function buildSdkConfiguration(opts: TelemetryOptions): Partial<NodeSDKCo
         ignoreIncomingRequestHook: (req) => isHealthProbe(req.url),
         ignoreOutgoingRequestHook: httpIgnoreOutgoingHook(opts.telegramHosts),
         requireParentforOutgoingSpans: true,
+        requestHook: rememberServerSpan,
       }),
       new UndiciInstrumentation({
         enabled: false,

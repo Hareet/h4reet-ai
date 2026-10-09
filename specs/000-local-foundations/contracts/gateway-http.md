@@ -189,7 +189,7 @@ The response also carries the header `Retry-After: <retry_after_s>`. These are r
 { "error": "invalid_request", "field": "message", "detail": "at most 500 characters", "request_id": "…" }
 ```
 
-`field` names the body field or the header (`X-H4-Client`). The `detail` never echoes the submitted value.
+`field` names the body field or the header (`X-H4-Client`), or is `body` when the body as a whole is wrong: not a JSON object, or a field other than `message` (tasks.md T053; an unknown field's name is the client's text, so it isn't echoed either). The `detail` never echoes the submitted value.
 
 #### 2.5.5 502: the local model returned an error
 
