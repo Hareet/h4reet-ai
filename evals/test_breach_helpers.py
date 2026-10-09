@@ -586,6 +586,38 @@ def test_metric_expectations() -> None:
     assert [r["ok"] for r in rig.results()] == [True, True, False]
 
 
+def one_check(answer: dict[str, Any], expect: dict[str, Any], *queries: str) -> bool:
+    """One metric check against fixed answers by query: whether it held."""
+    rig = make()
+    rig.http.on(
+        "GET",
+        f"{probe.PROMETHEUS}/api/v1/query",
+        lambda m, u, q, b, h: (200, answer[q["query"][0]]),
+    )
+    op = {"op": "metric", "query": queries[0], "expect": expect, "within_s": 0}
+    rig.run([{**op, **AT_START}])
+    return bool(rig.result()["ok"])
+
+
+def test_a_one_hot_row_needs_exactly_its_labels() -> None:
+    # The kill switch both normal and degraded at once isn't normal: the labels must be the expected set, not hold it.
+    both = vector(({"h4_state": "normal"}, "1"), ({"h4_state": "degraded"}, "1"))
+    labels = {"labels": {"h4_state": ["normal"]}}
+    assert not one_check({"one-hot": both}, labels, "one-hot")
+    assert not one_check({"one-hot": vector()}, labels, "one-hot")
+
+
+@pytest.mark.parametrize(
+    ("spent", "ok"),
+    [("3.5", True), ("3.4999995", True), ("3.499998", False), ("2.6", False)],
+)
+def test_at_least_holds_to_the_micro_usd(spent: str, ok: bool) -> None:
+    # 3c: today's spend at or over its warning line, to a millionth of a dollar, the meters' own unit.
+    warn = 'max(h4_meter_warn_usd{h4_meter="day"})'
+    answers = {QUERY: vector(({}, spent)), warn: vector(({}, "3.5"))}
+    assert one_check(answers, {"at_least": warn}, QUERY) is ok
+
+
 def test_a_metric_check_ignores_samples_from_before_its_action() -> None:
     # After a restart the old process's last sample still holds the right value; only a sample taken after the action
     # proves the new one reports it (plan §8 step 5).

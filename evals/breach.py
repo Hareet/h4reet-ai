@@ -1852,17 +1852,15 @@ class Steps:
 
 def apply_overlay(ctx: Context) -> None:
     """contracts/env-files.md §7.2: exactly ALERT_DELIVERY=real, in a fresh 0700 directory outside the tree, as the
-    gateway's last env file, and the gateway recreated with it."""
-    directory = Path(
-        tempfile.mkdtemp(
-            prefix="h4reet-delivery-", dir=ctx.environ.get("TMPDIR") or None
-        )
-    )
-    if directory.resolve().is_relative_to(ROOT.resolve()):
-        shutil.rmtree(directory, ignore_errors=True)
+    gateway's last env file, and the gateway recreated with it. Where the directory would go is checked, resolved,
+    before anything is made: a TMPDIR inside the tree, or a link into it, is refused and leaves nothing there. mkdtemp
+    then makes a new directory directly under that parent, which can't lead anywhere else."""
+    parent = Path(ctx.environ.get("TMPDIR") or tempfile.gettempdir())
+    if parent.resolve().is_relative_to(ROOT.resolve()):
         raise Stop(
             "the overlay's temporary directory would be inside the tree: set TMPDIR outside it"
         )
+    directory = Path(tempfile.mkdtemp(prefix="h4reet-delivery-", dir=str(parent)))
     path = directory / "delivery-real.vars"
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "w", encoding="ascii") as file:

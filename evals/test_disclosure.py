@@ -49,19 +49,21 @@ def named(cell: str) -> set[str]:
     return set(re.findall(r"`([a-z0-9][a-z0-9-]*)`", cell))
 
 
+def called_hosts() -> set[str]:
+    """Every host a URL in breach_probe.py's source names, constant or not, and those its module constants hold."""
+    source = (REPO / "evals" / "breach_probe.py").read_text(encoding="utf-8")
+    urls = set(re.findall(r"""https?://[^\s"'/{}]+""", source))
+    urls |= {v for v in vars(probe).values() if isinstance(v, str) and "://" in v}
+    return {urllib.parse.urlsplit(url).hostname or "" for url in urls}
+
+
 def test_the_probe_row_names_exactly_the_services_the_probe_calls() -> None:
-    called = {
+    called = called_hosts()
+    # The hosts of its service constants are among them: the scan misses none of the ones it calls.
+    assert {
         urllib.parse.urlsplit(url).hostname
-        for url in (
-            probe.GATEWAY,
-            probe.ADMIN,
-            probe.PROMETHEUS,
-            probe.LOKI,
-            probe.LANGFUSE,
-            probe.TELEGRAM,
-            probe.MAILPIT,
-        )
-    }
+        for url in (probe.GATEWAY, probe.PROMETHEUS, probe.LANGFUSE, probe.MAILPIT)
+    } <= called
     assert (
         called <= SERVICES
     )  # every host the probe calls is one of the stack's own services

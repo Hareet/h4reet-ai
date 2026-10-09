@@ -1009,6 +1009,47 @@ def test_real_delivery_recreates_dev_s_gateway_with_the_overlay_and_puts_it_back
     assert standing == []
 
 
+def test_real_delivery_refuses_an_overlay_inside_the_tree_and_makes_nothing_there(
+    dev_files: tuple[Path, Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # contracts/env-files.md §7.2: the overlay's directory is outside the working tree. A TMPDIR inside it, or a link
+    # into it, is refused before anything is made: no directory there, and the gateway never sees a third env file.
+    home, env_file, run_file = dev_files
+    tree, made = tmp_path / "tree", []
+    inside = tree / "tmp"
+    inside.mkdir(parents=True)
+    monkeypatch.setattr(breach, "ROOT", tree)
+    run_file.write_text(f"H4_TREE={tree}\nH4_REF=" + "a" * 40 + "\n")
+    link = tmp_path / "tmp-link"
+    link.symlink_to(inside, target_is_directory=True)
+    mkdtemp = breach.tempfile.mkdtemp
+    monkeypatch.setattr(
+        breach.tempfile, "mkdtemp", lambda **kw: made.append(kw) or mkdtemp(**kw)
+    )
+    for tmpdir in (inside, link):
+        stack = FakeStack()
+        code, text = run(
+            [
+                "--stack",
+                "dev",
+                "--env-file",
+                str(env_file),
+                "--run-file",
+                str(run_file),
+                "--delivery",
+                "real",
+            ],
+            stack,
+            environ=author(TMPDIR=str(tmpdir)),
+            home=home,
+        )
+        assert code == 1 and "inside the tree" in text, text
+        assert made == [] and list(inside.iterdir()) == []
+        assert not [c for c in stack.commands if c.count("--env-file") == 3]
+
+
 def test_real_delivery_puts_the_gateway_back_when_the_run_fails(
     dev_files: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:
@@ -1283,6 +1324,21 @@ def test_make_keeps_agent_sessions_off_dev_and_off_real_delivery(
 def test_make_says_so_before_the_agents_engine_exists(tmp_path: Path) -> None:
     done = make("ENV=dev-cpu", home=tmp_path, SANDBOX_RUNTIME="1")
     assert done.returncode == 2 and "isn't set up yet" in done.stderr
+
+
+@needs_make
+def test_make_keeps_an_agent_off_dev_inside_the_relay_too(tmp_path: Path) -> None:
+    # The relay's re-run of make sees DOCKER_HOST at the relay's end and takes the recipe's other branch: an agent
+    # there is still refused dev, by name, before the run file's own check.
+    done = make(
+        "ENV=dev",
+        home=tmp_path,
+        SANDBOX_RUNTIME="1",
+        DOCKER_HOST="tcp://127.0.0.1:2376",
+    )
+    assert done.returncode == 2 and "agent sessions run dev-cpu only" in done.stderr, (
+        done.stderr
+    )
 
 
 @needs_make
