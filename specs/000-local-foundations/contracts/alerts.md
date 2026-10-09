@@ -370,6 +370,14 @@ None. This draft was generated inside the stack. It holds no payloads, client id
 
 The gateway reads `H4_GRAFANA_PORT` and `H4_LANGFUSE_PORT` from its environment for the links ([env-files.md](env-files.md)).
 
+(Departures and readings, tasks.md T078.)
+- **Determinism.** `Created` is the crossing's UTC date on the gateway clock, as in the file name, so the same evidence gives the same bytes and the row's SHA-256 identifies the draft.
+- **Departures from the template's text.** The daily totals' heading is `### Daily totals this month`, on a monthly draft only; a daily draft has no such section. A ceiling crossed on a stack that was degraded already says "`degraded` was set already, at {since}, by an earlier crossing." in place of "was set at {degraded_at}, in the same transaction", which would be false there; the Problem's `{degraded_at}` is that `since`.
+- **What each table holds.** The last 10 metered calls (attribution other than `none`) at or before the crossing, newest first. The hourly totals cover every route, local included, in the 24 hours up to and including the crossing; the daily totals count every call of the month up to the crossing. The audit trail is the period's rows up to the crossing. The Model columns are the request model, which a failed call has too. The Alerts rows are the trip's, then the period's warnings: the crossed meter's, and on a daily draft that day's fallback grant warnings.
+- **Clocks.** Every time is the gateway clock's, except the alert outcomes' delivery times, which are the outbox's real time, and the Grafana window, 2 h before to 30 min after the trip audit row's `recorded_at`, since Grafana's series are on the real clock. A draft is due 300 s after the trip alert's `enqueued_at` (real time).
+- **The file.** The temporary name is `incidents/.draft-<uuid>.tmp`. The first free name of `…-N.intent.md` is taken at the rename. If the row can't be updated afterwards, the file is removed, so the retry writes the same name again. A write failure logs `incident.draft_failed` when it starts or its class changes. A trip whose own audit row or ledger row is missing, which its transaction rules out, leaves the row `failed` with `no_trip_audit` or `no_crossing_call`.
+- **The links' ports.** When the environment doesn't carry them, the stack's fixed values in env-files.md stand in.
+
 **What never goes into a draft:**
 - payloads;
 - client identifiers: the totals are grouped by provider, model, and route only, never by client;

@@ -127,6 +127,7 @@ export async function testStack(
     logged,
     auth: (t = token) => ({ authorization: `Bearer ${t}` }),
     close: async () => {
+      await services.drafts.stop();
       await services.dispatcher.stop();
       await services.gateway.close();
       await Promise.allSettled([api.close(), admin.close()]);

@@ -6,7 +6,7 @@
 // - Startup: validate the environment and the configuration (exit 78 on failure), build the route's adapters
 //   (registry.ts: exit 78 for a configuration it refuses, 1 for a broken build), connect the store (retrying in the
 //   background while it is down), then start the listeners and the background work: the adapters' health probes, the
-//   meter's sweep, the gauges' refresh, and the alert dispatcher with its daily reminder.
+//   meter's sweep, the gauges' refresh, the alert dispatcher with its daily reminder, and the incident drafts.
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
@@ -15,6 +15,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { buildRoute, loadFactories, RegistryError, type AdapterFactory } from "./adapters/registry.js";
 import { channelsFrom, Dispatcher } from "./alerts/dispatcher.js";
+import { IncidentDrafts } from "./incidents/draft.js";
 import {
   ENV_CLASSES,
   routeFor,
@@ -152,6 +153,8 @@ export interface GatewayServices {
   gateway: Gateway;
   /** The alert outbox's delivery, the in-memory store_unreachable alert, and the daily reminder. */
   dispatcher: Dispatcher;
+  /** The incident drafts a trip queues (FR-035), written every 10 s. */
+  drafts: IncidentDrafts;
   /** The route's fallback adapter as built, or null: none configured, or its switch off (the synthetic one). */
   fallbackId: string | null;
   clientCap: ClientCap;
@@ -255,6 +258,19 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     logger,
     realNow,
   });
+  const drafts = new IncidentDrafts({
+    stack,
+    envClass,
+    store: opts.store,
+    stateDir,
+    budgets,
+    prices,
+    fallbackId: gateway.fallbackId(),
+    env,
+    clock,
+    logger,
+    realNow,
+  });
   return {
     stack,
     envClass,
@@ -272,6 +288,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     meter,
     gateway,
     dispatcher,
+    drafts,
     fallbackId: gateway.fallbackId(),
     clientCap: new ClientCap(budgets.limits.perClient),
     realNow,
@@ -471,6 +488,7 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
   }
   services.gateway.start();
   services.dispatcher.start();
+  services.drafts.start();
   const port = (app: FastifyInstance): number => {
     const address = app.server.address();
     return typeof address === "object" && address !== null ? address.port : 0;
@@ -497,6 +515,7 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     close: () =>
       (closing ??= (async () => {
         await Promise.allSettled([api.close(), admin.close()]);
+        await services.drafts.stop();
         await services.dispatcher.stop();
         await services.gateway.close();
         await store.close();
