@@ -18,7 +18,7 @@
 // Degradation never waits on any of this: the rows were committed with their cause.
 import type { AlertsConfig, Budgets, EnvClass, StackName } from "../config/validate.js";
 import { thresholds } from "../config/validate.js";
-import { dayKey, gatewayTime, type GatewayClock } from "../core/clock.js";
+import { dayKey, gatewayTime, periodKeys, type GatewayClock } from "../core/clock.js";
 import { meterFactsOf } from "../meter/crossings.js";
 import { readPeriodRows } from "../meter/rollover.js";
 import type { Store } from "../meter/store.js";
@@ -533,6 +533,60 @@ export class Dispatcher {
       if (CHANNELS.every((ch) => alert.channels[ch].status !== "pending"))
         this.memory.splice(this.memory.indexOf(alert), 1);
     }
+  }
+
+  // -------------------------------------------------------------------------------------------------------------
+  // fallback_unavailable (alerts.md §2, §3; data-model.md §7.7)
+  // -------------------------------------------------------------------------------------------------------------
+
+  /**
+   * A paid fallback adapter turned unhealthy: one row, keyed by the adapter and the hour on the gateway clock, so at
+   * most one an hour per adapter. While the store is empty or down, its own state answers for the stack and nothing is
+   * queued. Resolves true when this call queued it.
+   */
+  async fallbackUnavailable(adapter: string, reason: "credentials" | "circuit_open"): Promise<boolean> {
+    const { deps } = this;
+    if (deps.store.status !== "ready") return false;
+    const read = await deps.store.readStackState();
+    if (read.kind !== "ok") return false;
+    const now = gatewayTime(deps.realNow(), read.testClockOffsetMs);
+    const key = dedupeKey.fallbackUnavailable(deps.stack, adapter, now);
+    const t = thresholds(deps.budgets.envs[deps.envClass]);
+    const periods = periodKeys(now);
+    let queued: boolean;
+    try {
+      queued = await deps.store.transaction(async (q) =>
+        queueAlert(
+          q,
+          {
+            stack: deps.stack,
+            envClass: deps.envClass,
+            prefix: deps.alerts.prefixes[deps.stack],
+            dedupeKey: key,
+            at: now,
+            testClock: read.testClockOffsetMs !== null,
+            runtime:
+              read.state === "degraded" ? { state: "degraded", since: read.since.getTime() } : { state: "normal" },
+            fallback:
+              read.fallbackAwaitingRenewal && read.fallbackAwaitingSince !== null
+                ? { state: "awaiting", since: read.fallbackAwaitingSince.getTime() }
+                : { state: "available" },
+            meters: meterFactsOf(await readPeriodRows(q, periods), t),
+          },
+          { kind: "fallback_unavailable", adapter, reason },
+          deps.realNow(),
+        ),
+      );
+    } catch {
+      return false; // the store failed under it: its outage is noted, and the store_unreachable alert covers it
+    }
+    if (queued) {
+      deps.logger.info(
+        { event: "alert.queued", dedupe_key: key, kind: "fallback_unavailable" },
+        "An alert was queued.",
+      );
+    }
+    return queued;
   }
 
   // -------------------------------------------------------------------------------------------------------------

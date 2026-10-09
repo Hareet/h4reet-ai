@@ -265,7 +265,13 @@ export class AdapterHealth {
   constructor(
     readonly adapter: ProviderAdapter,
     private readonly cadence: HealthCadence,
-    private readonly opts: { realNow: () => number; onChange: (health: AdapterHealth) => void },
+    private readonly opts: {
+      realNow: () => number;
+      /** The effective health flipped. */
+      onChange: (health: AdapterHealth) => void;
+      /** It entered an unhealthy reason: a flip, the first probe's own reason after not_ready, or a new reason. */
+      onUnhealthy?: (health: AdapterHealth) => void;
+    },
   ) {
     this.changedAt = opts.realNow();
     this.checkedAt = new Date(this.changedAt).toISOString();
@@ -338,12 +344,14 @@ export class AdapterHealth {
 
   private set(healthy: boolean, reason?: HealthReason): void {
     const flipped = healthy !== this.healthy;
+    const was = this.reason;
     this.healthy = healthy;
     this.reason = healthy ? undefined : reason;
     if (flipped) {
       this.changedAt = this.opts.realNow();
       this.opts.onChange(this);
     }
+    if (!healthy && (flipped || this.reason !== was)) this.opts.onUnhealthy?.(this);
   }
 }
 
@@ -487,6 +495,8 @@ const LOCAL_LEDGER_ROW = `INSERT INTO gateway.ledger (id, reservation_id, ts, st
     $18, 0, 'none', $19, $20, $21, $22, $23)`;
 
 export class Gateway {
+  /** Queues the fallback_unavailable alert (app.ts sets it to the dispatcher's): a paid fallback turned unhealthy. */
+  onFallbackUnavailable: ((adapter: string, reason: "credentials" | "circuit_open") => void) | undefined;
   private readonly primary: Routed;
   private readonly fallback: Routed | undefined;
   private readonly realNow: () => number;
@@ -504,6 +514,7 @@ export class Gateway {
       health: new AdapterHealth(built.adapter, built.config.spec.healthCadence(built.config.settings), {
         realNow: this.realNow,
         onChange: (h) => this.healthChanged(built, h),
+        onUnhealthy: (h) => this.turnedUnhealthy(built, h),
       }),
       requestTimeoutMs: built.config.spec.timing(built.config.settings).requestMs,
     });
@@ -935,6 +946,19 @@ export class Gateway {
       },
       "A provider attempt completed.",
     );
+  }
+
+  /**
+   * A paid fallback adapter's effective health turned unhealthy for one of alerts.md §2's reasons, credentials or the
+   * circuit: the fallback_unavailable alert, which the outbox's hourly dedupe key holds to one an hour per adapter
+   * (data-model.md §7.7). A transient failure, a timeout or a refused connection, alerts through the circuit once it
+   * opens. Only prod routes a paid adapter.
+   */
+  private turnedUnhealthy(built: BuiltAdapter, health: AdapterHealth): void {
+    if (built.role !== "fallback" || built.config.kind !== "paid") return;
+    const reason = health.status().reason;
+    if (reason !== "credentials" && reason !== "circuit_open") return;
+    this.onFallbackUnavailable?.(built.config.id, reason);
   }
 
   private healthChanged(built: BuiltAdapter, health: AdapterHealth): void {

@@ -258,6 +258,8 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     logger,
     realNow,
   });
+  // A paid fallback that turns unhealthy: the dispatcher queues its fallback_unavailable alert (data-model.md §7.7).
+  gateway.onFallbackUnavailable = (adapter, reason) => void dispatcher.fallbackUnavailable(adapter, reason);
   const drafts = new IncidentDrafts({
     stack,
     envClass,

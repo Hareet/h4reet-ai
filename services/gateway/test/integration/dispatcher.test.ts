@@ -368,6 +368,68 @@ describe("the daily reminder (alerts.md §2, §3)", () => {
   });
 });
 
+describe("fallback_unavailable (alerts.md §2, §3; data-model.md §7.7; tasks.md T152)", () => {
+  const init = (r: Rig) =>
+    r.s.admin.inject({
+      method: "POST",
+      url: "/admin/init",
+      headers: { ...r.s.auth(), "content-type": "application/json" },
+      payload: JSON.stringify({ reason: "Fresh dev stack for the fallback test.", confirm_zero: true, renew: true }),
+    });
+  const rows = async (r: Rig) =>
+    (
+      await r.s.db.pg.query<Rec>(
+        "SELECT dedupe_key, body, facts FROM gateway.alert_outbox WHERE kind = 'fallback_unavailable' ORDER BY id",
+      )
+    ).rows;
+
+  it("queues one row an hour per adapter, naming the reason, with the meters and the state as they are", async () => {
+    const r = await rig();
+    expect((await init(r)).statusCode).toBe(200);
+    expect(await r.d.fallbackUnavailable("bedrock", "credentials")).toBe(true);
+    r.clock.now += 10 * 60_000; // 16:50, the same hour: the dedupe key holds it to one
+    expect(await r.d.fallbackUnavailable("bedrock", "circuit_open")).toBe(false);
+    r.clock.now += 30 * 60_000; // 17:20, the next hour
+    expect(await r.d.fallbackUnavailable("bedrock", "circuit_open")).toBe(true);
+    const queued = await rows(r);
+    expect(queued.map((x) => x.dedupe_key)).toEqual([
+      "dev:fallback_unavailable:bedrock:2026-10-29T16Z",
+      "dev:fallback_unavailable:bedrock:2026-10-29T17Z",
+    ]);
+    expect(String(queued[0]?.body).split("\n")).toEqual([
+      "[dev] FALLBACK UNAVAILABLE: bedrock is unhealthy (credentials)",
+      "Daily: 0.00 / 5.00 USD (warning 3.50) · Month: 0.00 / 20.00 (warning 14.00) · Fallback today: 0.00 / 2.00 (grant 2) (synthetic spend)",
+      "Runtime: normal · Fallback: available · 2026-10-29T16:40:03Z · id dev:fallback_unavailable:bedrock:2026-10-29T16Z",
+      "If the local model goes down, hello answers degraded with fallback_unavailable.",
+      "Runbook: docs/runbooks/bedrock-unavailable.md",
+    ]);
+    expect(queued[1]?.facts).toMatchObject({ adapter: "bedrock", reason: "circuit_open" });
+    expect(
+      r.s.logged.filter((l) => l.record.event === "alert.queued" && l.record.kind === "fallback_unavailable"),
+    ).toHaveLength(2);
+  });
+
+  it("queues nothing while the store is empty or down: the store's own state answers for the stack then", async () => {
+    const r = await rig();
+    expect(await r.d.fallbackUnavailable("bedrock", "credentials")).toBe(false); // uninitialized
+    expect((await init(r)).statusCode).toBe(200);
+    r.s.db.hook = () => {
+      throw connectionLost();
+    };
+    expect(await r.d.fallbackUnavailable("bedrock", "credentials")).toBe(false);
+    r.s.db.hook = undefined;
+    expect(await rows(r)).toEqual([]);
+  });
+
+  it("is what the gateway calls when its paid fallback turns unhealthy", async () => {
+    const r = await rig();
+    expect((await init(r)).statusCode).toBe(200);
+    expect(r.s.services.gateway.onFallbackUnavailable).toBeTypeOf("function");
+    r.s.services.gateway.onFallbackUnavailable?.("bedrock", "credentials");
+    await vi.waitFor(async () => expect(await rows(r)).toHaveLength(1));
+  });
+});
+
 describe("the channels' error classes (alerts.md §4.1): a class, never a URL or a body", () => {
   it("classes Telegram's failures: an HTTP status, a refused answer, a timeout, and no listener", async () => {
     const stub = await telegramStub();

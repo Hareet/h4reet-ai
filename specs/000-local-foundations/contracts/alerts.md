@@ -32,6 +32,7 @@ Notes:
 - **Periods** are the ones the call was charged to: its reservation's.
 - **No alert of their own:** the test endpoints, the live adapter endpoint, and alert-delivery failures. Delivery failures are a metric and a dashboard panel (§4.4).
 - **Outside prod.** `credentials_expiring` and `fallback_unavailable` can only fire in prod, because only prod routes a paid adapter.
+- **When `fallback_unavailable` fires** (tasks.md T152). The paid fallback's effective health enters one of the two reasons: `credentials`, or `circuit_open`. That happens on a flip to unhealthy, at the first probe that finds it so after startup's `not_ready`, or on a change to one of them while unhealthy. A timeout or a refused connection alerts through the circuit, once it opens. The row isn't queued while the store is empty or down, since the store's own state answers for the stack then. The hourly dedupe key, on the gateway clock, holds it to one an hour per adapter.
 
 ## 3. Message format
 

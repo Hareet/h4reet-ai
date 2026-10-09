@@ -125,6 +125,25 @@ describe("AdapterHealth (§3.1's cadence: unhealthy after 1 failure, healthy aft
     }
   });
 
+  it("reports each unhealthy reason it enters: the first probe's, a flip, and a change while unhealthy", async () => {
+    const s = scripted();
+    const entered: (string | undefined)[] = [];
+    const h = new AdapterHealth(s.adapter, CADENCE, {
+      realNow: () => T0,
+      onChange: () => {},
+      onUnhealthy: (x) => entered.push(x.status().reason),
+    });
+    s.probes.push(false, false); // not_ready, then the first probe's own reason; the same reason again is no news
+    await h.probe();
+    await h.probe();
+    expect(entered).toEqual(["unreachable"]);
+    s.probes.push(true, true, true);
+    for (let i = 0; i < 3; i++) await h.probe();
+    h.callFailed(new ProviderError("timeout", true, false)); // a flip
+    h.callFailed(new ProviderError("unavailable", true, false)); // a new reason while unhealthy
+    expect(entered).toEqual(["unreachable", "timeout", "unreachable"]);
+  });
+
   it("probes on the cadence once started, and not after stop()", async () => {
     const s = scripted();
     const h = new AdapterHealth(s.adapter, { ...CADENCE, intervalMs: 20 }, { realNow: Date.now, onChange: () => {} });
@@ -607,5 +626,130 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
       expect(r.parentSpanContext).toBeUndefined();
       expect(r.links.map((l) => l.context.spanId)).toEqual([parent.spanContext().spanId]);
     }
+  });
+
+  describe("a paid fallback that turns unhealthy (alerts.md §2; data-model.md §7.7; tasks.md T152)", () => {
+    /** A Bedrock-like fallback, kind paid, whose probes the test scripts. It never spends: no call is made here. */
+    function paidAdapter() {
+      const probes: HealthStatus[] = [];
+      const adapter: ProviderAdapter = {
+        id: "bedrock",
+        type: "bedrock-converse",
+        provider: "aws.bedrock",
+        kind: "paid",
+        model: "inference-profile",
+        server: { address: "bedrock-runtime.us-east-1.amazonaws.com" },
+        retry: { on: ["rate_limited"], max: 1, backoffMs: 250 },
+        complete: async () => {
+          throw new ProviderError("timeout", true, true);
+        },
+        health: async () => probes.shift() ?? { healthy: true, checkedAt: new Date(T0).toISOString() },
+      };
+      const paidConfig: AdapterConfig = {
+        id: "bedrock",
+        type: "bedrock-converse",
+        kind: "paid",
+        provider: "aws.bedrock",
+        settings: {
+          region: "us-east-1",
+          model: "inference-profile",
+          additional_request_fields: {},
+          timeouts: { connect_ms: 1_000, request_ms: 4_000 },
+          retry: { on: ["rate_limited"], max: 1, backoff_ms: 250 },
+          circuit: { failures: 3, open_s: 30 },
+          health: { interval_ms: 10_000 },
+          credentials_warn_before_s: 7_200,
+        },
+        spec: ADAPTER_TYPE_SPECS.get("bedrock-converse") as AdapterConfig["spec"],
+        placeholders: [],
+      };
+      return { adapter, paidConfig, probes };
+    }
+    const unhealthy = (reason: HealthStatus["reason"]): HealthStatus => ({
+      healthy: false,
+      checkedAt: new Date(T0).toISOString(),
+      ...(reason === undefined ? {} : { reason }),
+    });
+
+    function paidRig(fallbackKind: "paid" | "synthetic" = "paid") {
+      const local = scripted();
+      const paid = paidAdapter();
+      const synthetic = fallbackAdapter();
+      const fixture = config.routing?.adapters.get("local");
+      if (!config.routing || !config.prices || !config.budgets || !fixture) throw new Error("fixtures");
+      const syntheticConfig: AdapterConfig = {
+        id: "synthetic",
+        type: "synthetic",
+        kind: "synthetic",
+        provider: "synthetic",
+        settings: { model: "metered-test", output_tokens: 1_000 },
+        spec: ADAPTER_TYPE_SPECS.get("synthetic") as AdapterConfig["spec"],
+        placeholders: [],
+      };
+      const g = new Gateway({
+        stack: "prod",
+        envClass: "prod",
+        version: "0.1.0",
+        routing: config.routing,
+        prices: config.prices,
+        budgets: config.budgets,
+        adapters: [
+          { role: "primary", config: fixture, adapter: local.adapter },
+          fallbackKind === "paid"
+            ? { role: "fallback", config: paid.paidConfig, adapter: paid.adapter }
+            : { role: "fallback", config: syntheticConfig, adapter: synthetic.adapter },
+        ],
+        store: { readStackState: async () => normalState, outageStartedAt: () => undefined } as unknown as Store,
+        clock: new GatewayClock(),
+        tracer,
+        metrics: new GatewayMetrics(metrics.getMeter("test")),
+        logger: { info() {}, warn() {}, error() {} },
+        payloadSampling: false,
+        testMachinery: { clock: false, synthetic: false },
+        meter: fakeMeter().meter,
+      });
+      const queued: { adapter: string; reason: string }[] = [];
+      g.onFallbackUnavailable = (adapter, reason) => void queued.push({ adapter, reason });
+      return { g, local, paid, synthetic, queued };
+    }
+
+    it("asks for the alert when its credentials fail, at the first probe that finds it, and not again for the same reason", async () => {
+      const { g, paid, queued } = paidRig();
+      paid.probes.push(unhealthy("credentials"), unhealthy("credentials"));
+      await g.probeAll();
+      await g.probeAll();
+      expect(queued).toEqual([{ adapter: "bedrock", reason: "credentials" }]);
+    });
+
+    it("asks again each time it turns unhealthy after a recovery: the outbox's hourly key keeps it to one an hour", async () => {
+      const { g, paid, queued } = paidRig();
+      await g.probeAll(); // healthy: one pass is enough for Bedrock's cadence
+      expect(g.routedAdapters()[1]?.health.healthy).toBe(true);
+      paid.probes.push(unhealthy("credentials"));
+      await g.probeAll();
+      await g.probeAll(); // healthy again
+      paid.probes.push(unhealthy("credentials"));
+      await g.probeAll();
+      expect(queued).toEqual([
+        { adapter: "bedrock", reason: "credentials" },
+        { adapter: "bedrock", reason: "credentials" },
+      ]);
+    });
+
+    it("asks for nothing on other reasons, for the primary, or for a fallback that isn't paid", async () => {
+      const paid = paidRig();
+      await paid.g.probeAll();
+      paid.local.probes.push(false); // the primary turning unhealthy
+      paid.paid.probes.push(unhealthy("unreachable"), unhealthy("timeout"), unhealthy("not_ready"));
+      await paid.g.probeAll();
+      await paid.g.probeAll();
+      await paid.g.probeAll();
+      expect(paid.queued).toEqual([]);
+      const notPaid = paidRig("synthetic");
+      notPaid.synthetic.adapter.health = async () => unhealthy("credentials");
+      await notPaid.g.probeAll();
+      expect(notPaid.g.routedAdapters()[1]?.health).toMatchObject({ healthy: false, reason: "credentials" });
+      expect(notPaid.queued).toEqual([]);
+    });
   });
 });
