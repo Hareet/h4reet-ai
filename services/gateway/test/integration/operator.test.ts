@@ -580,6 +580,35 @@ describe("the dev-only test machinery (§3; tasks.md T070, T076)", () => {
     ]);
   });
 
+  it("is refused on prod by each request's own check, even with both switches on", async () => {
+    // Startup refuses these switches outside dev (validate-env.ts); this stack skips that check, so the request's
+    // H4_ENV=dev check is the only layer left between a prod caller and the machinery (§3).
+    const prod = await testStack({
+      stack: "prod",
+      env: { GATEWAY_TEST_CLOCK: "1", GATEWAY_TEST_SYNTHETIC_SPEND: "1" },
+    });
+    stacks.push(prod);
+    expect([
+      prod.services.envClass,
+      prod.services.env.GATEWAY_TEST_CLOCK,
+      prod.services.env.GATEWAY_TEST_SYNTHETIC_SPEND,
+    ]).toEqual(["prod", "1", "1"]);
+    const spy = vi.spyOn(prod.services.metrics, "testMachineryRefused");
+    for (const [url, body] of [
+      ["/admin/test/clock", { advance_s: 60, reason: CLOCK_REASON }],
+      ["/admin/test/synthetic", { attribution: "metered", count: 1, reason: CLOCK_REASON }],
+    ] as const) {
+      const res = await post(prod, url, body);
+      expect(res.statusCode, url).toBe(403);
+      expect(res.json()).toEqual({ error: "test_machinery_refused" });
+    }
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(prod.logged.filter((l) => l.record.event === "test.machinery_refused")).toHaveLength(2);
+    // Nothing ran: no ledger row, no audit row.
+    expect((await prod.db.pg.query("SELECT count(*)::int AS n FROM gateway.ledger")).rows).toEqual([{ n: 0 }]);
+    expect((await prod.db.pg.query("SELECT count(*)::int AS n FROM gateway.audit_log")).rows).toEqual([{ n: 0 }]);
+  });
+
   it("is refused on dev too, route by route, without its own switch", async () => {
     const s = await testStack({ env: { GATEWAY_TEST_CLOCK: "0", GATEWAY_TEST_SYNTHETIC_SPEND: "0" } });
     stacks.push(s);
