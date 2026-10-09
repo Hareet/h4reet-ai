@@ -18,8 +18,10 @@ ADR 0017 puts this section first. Nothing here has run outside the sandbox: ther
 
 | What | How it runs | Check before you run it |
 |---|---|---|
-| **`scripts/operator.py`** (T056) and **`make operator-token`, `operator-status`, `operator-init`** | through `PY_HOST`, by path, with your real token | It reads the token only from `~/.config/h4reet-ai/operator/<stack>.token` (0600, yours, in a 0700 directory, never through a link), or from `--token-stdin`. It sends the token only to its own stack's port on `127.0.0.1` or `localhost` (18003, 18103, or 18303), with no proxy and no redirects, and never prints it. An in-network host is allowed only with `--token-stdin`, never for prod, and only at port 8081. It refuses an answer that names another stack, and its summaries name the stack you asked for, never the answer's. For dev-cpu it calls 18303 directly and runs no Docker in your terminal. It runs the working tree's copy, so check `git status` before you use it. |
-| **The Makefile's command-line variables** (a9e7878) | every `make` you run | `ENV`, `REF`, `REASON`, the stated values, `RENEW`, `CONFIRM_ZERO`, `TAG`, `SERVICE`, `TAIL`, `MODELS`, and the rest of `LITERAL_VARS` reach the recipes exactly as you typed them: make no longer expands a `$` in them, so `REASON='Spent $4.80'` arrives whole and `$(shell …)` in a value never runs. A value left in your shell's environment still counts for nothing. |
+| **`scripts/operator.py`** (T056) and **`make operator-token`, `operator-status`, `operator-init`** | through `PY_HOST`, by path, with your real token | `localhost` is connected as `127.0.0.1`, never looked up. It reads the token only from `~/.config/h4reet-ai/operator/<stack>.token` (0600, yours, in a 0700 directory, never through a link), or from `--token-stdin`. It sends the token only to its own stack's port on `127.0.0.1` or `localhost` (18003, 18103, or 18303), with no proxy and no redirects, and never prints it. An in-network host is allowed only with `--token-stdin`, never for prod, and only at port 8081. It refuses an answer that names another stack, and its summaries name the stack you asked for, never the answer's. For dev-cpu it calls 18303 directly and runs no Docker in your terminal. It runs the working tree's copy, so check `git status` before you use it. |
+| **`scripts/hello.py`** and **`make hello ENV=… [MESSAGE=…]`** (T147) | through `PY_HOST`, by path | It sends `POST /hello` with no token and no client label, only to the stack's own api port on `127.0.0.1` (18000, 18100, or 18300), with no proxy and no redirects, and prints the status and the body with the listener's control characters escaped. Inside the sandbox it refuses prod and dev, and makes the probe hop for dev-cpu through the relay. It runs the working tree's copy, so check `git status` first. |
+| **`deploy/agents-engine/authz.py`'s rule A21** (296940b) | the installed copy, which only `sudo engine.sh setup` refreshes | The agents' engine may now publish only dev-cpu's ports, 18300–18304, and row E15's 18999. Before, it could publish any loopback port, so while prod or dev was down an agents' container could sit on 18003 or 18103 and take the token the operator CLI sent, or sit on 18001 or 18002 and take your Langfuse or Grafana login. The same commit is on `feat/000-foundations`, so T046's first setup installs it. |
+| **The Makefile's command-line variables** (a9e7878, 3b38470) | every `make` you run | `ENV`, `REF`, `REASON`, the stated values, `RENEW`, `CONFIRM_ZERO`, `TAG`, `SERVICE`, `TAIL`, `MODELS`, `MESSAGE`, `ADAPTER`, and the rest of `LITERAL_VARS` reach the recipes exactly as you typed them: make no longer expands a `$` in them, so `REASON='Spent $4.80'` arrives whole and `$(shell …)` in a value never runs. A value left in your shell's environment still counts for nothing. `scripts/test_makefile.py` fails if a recipe reads, or a help line offers, a variable outside the list. |
 | **`deploy/scripts/pull-models.sh`** (T057), and `make pull MODELS=…` | your terminal, Heavy | It runs the disk preflight first, downloads over https with no token, and checks size and sha256 before it makes the file read-only and renames it. |
 | **`deploy/scripts/isolation-check.sh`** and **`make isolation-check`** (T061) | your terminal, with prod and dev both up | It runs a throwaway probe container on each stack's networks, from the pinned Python image, with no mounts, no capabilities, and a read-only root. |
 | **`deploy/agents-engine/engine.sh`'s `chown_state`** (T145) | `engine.sh up` and `engine.sh seed` | It runs one container on the agents' engine, from `images.lock`'s `base:node` digest, with the state root mounted, to make `dev-cpu/gateway` and give it to the container's uid 1000. With no pinned `base:node` it prints a note and does nothing. |
@@ -44,7 +46,10 @@ ADR 0017 puts this section first. Nothing here has run outside the sandbox: ther
 | 4ca603a | **The stack's review fixes** (round 1). |
 | b91ab9b | **The convergence pass:** T143–T151 appended to tasks.md. |
 | a8e9cb7 | **T143, T145, T146:** `chown_state` through the engine; T063 now starts with the merge of main and §0.7–§0.8. |
-| a376635, 2157dc5 | **Round 2's fixes:** env-files.md's Langfuse allowlist wording; `chown_state`'s image from one checked `base:node` line, a seed that fails loudly, and the Author's engine client pinned to the engine. |
+| f81b294, e523c23 | **T144, T147:** the breach probe's image (`evals/Dockerfile.probe`) and `breach-probe` service, brought forward from T080, with disclosure row S11; `make hello` and `scripts/hello.py`. |
+| eac6549, e3d431c, 739e311 | **T150, T148, T151:** the listeners' 400 names `field: "body"`; the `fallback_not_supported` refusal recorded as temporary until T074, and tested; the local adapter's 404, 413, 422, 502, 504, DNS, and connect-watchdog mappings tested. |
+| 296940b, 3b38470 | **The operator reviewer's round-2 findings:** A21 holds published ports to dev-cpu's; `localhost` is connected as 127.0.0.1; `ADAPTER` joins `LITERAL_VARS`, with a test over the whole list; T072 carries init's deferred fix. |
+| a376635, 2157dc5, 3dd66f7 | **Round 2's fixes:** env-files.md's Langfuse allowlist wording; `chown_state`'s image from one checked `base:node` line, a seed that fails loudly, and engine.sh's two clients pinned, the engine's and the host's. |
 
 ### Departures from the plan
 
@@ -112,7 +117,7 @@ Run over Phase 3's 19 tasks, 19 FRs, SC-001, the five scenarios, 17 plan section
 - **Medium:** `make pull` needs the env files that T065 made (T146); no hello an agent session can send (T147); the unrecorded `fallback_not_supported` refusal (T148); the first stack run's follow-ups had no owner (T149).
 - **Low:** the 400's `field: "body"` (T150); the local adapter's untested error mappings (T151).
 
-Done: T143, T145, T146 (a8e9cb7). The rest are under "Pending in this session" below. T149 waits for T065.
+All done but T149, which waits for T065: T143, T145, T146 (a8e9cb7); T144, T147 (f81b294, e523c23); T150, T148, T151 (eac6549, e3d431c, 739e311).
 
 ### Round 2 (at a8e9cb7)
 
@@ -126,15 +131,24 @@ The same reviewers verified round 1's fixes, and the engine reviewer read the co
 | E2-n2 | Engine | Nit: the `base:node` parse checked only two fields, so a repository field like `--entrypoint=x` reached `docker run` as an option | 2157dc5: exactly one line, every field in its shape |
 | E2-n3 | Engine | Nit: at seed, a missing pin or a failed run was a note, its reason discarded, and seed still said "complete" | 2157dc5: fatal at seed, with the engine's last line; still a note at up, with the reason |
 | E2-n4 | Engine | Nit: the Author's engine client deferred to an ambient `DOCKER_HOST`, which could name the host's rootful daemon | 2157dc5: always `198.18.0.1:2376` with your certificate outside the sandbox |
+| E3-n1 | Engine | Nit, on 2157dc5: seed's host-side calls (the store check, sizes, pulls, saves) still followed the shell's `DOCKER_HOST`, and the new contract sentence said they didn't | 3dd66f7: `host_docker` pins `unix:///var/run/docker.sock`; verified |
 
 The engine reviewer found the uid mapping sound: in the rootless engine, container uid 1000 lands on `h4agents`' subordinate uid 1066535 in both containers, so the chown gives the directory to exactly the user the gateway writes as. It also confirmed that the admission plugin allows the bind under A14.
 
-Pending: the operator and gateway reviewer's verification of round 1's fixes, and the engine reviewer's of 2157dc5.
+The engine reviewer verified 2157dc5 and 3dd66f7: each nit fixed with a regression test, no assertion loosened, and nothing new.
 
-### Pending in this session
+The operator and gateway reviewer verified all nine of round 1's fixes, each by a run and a mutant. For example, `make operator-init ENV=dev-cpu` handed its listener a reason with `$4.80`, quotes, backticks, and `$(shell …)` byte for byte, and ran none of it. A real 1 KiB file-size limit left the journal whole after five short writes. It found two new problems:
 
-- T144 and T147: the probe image and `breach-probe`, and `make hello`, by an implementer agent.
-- T148, T150, and T151: the gateway's gaps, by an implementer agent.
+| ID | Slice | Finding | Fix |
+|---|---|---|---|
+| O2-1 | Operator CLI and engine | **Important.** Pinning each token to its own port (8ca2474) still let the agents' engine receive prod's or dev's token whenever that stack is down. Rule A21 checked a published port's address but never its number, so an agents' container could publish `127.0.0.1:18003` through the relay, and `make operator-status ENV=prod` (or `make evals ADAPTER=bedrock`) would send it the token. On 18001 or 18002 it would take your Langfuse or Grafana login. Verified with the plugin's own `judge` and a listener; Docker isn't reachable here | 296940b: A21 allows only dev-cpu's 18300–18304 and E15's 18999, as one plain decimal string; row E15 proves four refusals; both clients connect `localhost` as 127.0.0.1 |
+| O2-n1 | Makefile | Nit: `ADAPTER` was outside `LITERAL_VARS`, so `make evals ADAPTER='fake$(shell …)'` ran the shell command | 3b38470, with a test over every variable the recipes read |
+
+It agreed that init's commit-then-503 can wait for T072, but asked for it in T072's text, not only here: 3b38470.
+
+### Round 3 (at 8c5d796)
+
+Pending: the three reviewers are verifying round 2's fixes and reviewing the convergence work that landed since: T144, T147, T148, T150, and T151.
 
 ## Verification
 
