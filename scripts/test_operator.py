@@ -1647,6 +1647,7 @@ def hop_command(inner: list[str]) -> list[str]:
         "--profile",
         "breach",
         "run",
+        "--build",
         "--rm",
         "-T",
         "breach-probe",
@@ -1807,7 +1808,9 @@ def test_the_hop_finds_the_real_probe_image(home: Path) -> None:
     assert op.PROBE_DOCKERFILE.is_file()
     lines = op.PROBE_DOCKERFILE.read_text(encoding="utf-8").splitlines()
     assert "COPY scripts/operator.py /app/operator.py" in lines
-    assert hop_command([])[15:18] == ["python3", "-I", "/app/operator.py"]
+    command = hop_command([])
+    at = command.index("breach-probe")
+    assert command[at + 1 : at + 4] == ["python3", "-I", "/app/operator.py"]
 
 
 def test_dev_cpu_hops_with_the_real_probe_image(

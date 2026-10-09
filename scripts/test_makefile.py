@@ -94,3 +94,80 @@ def test_a_command_line_adapter_reaches_the_recipe_as_typed(tmp_path: Path) -> N
     assert not marker.exists(), "make ran the value as make code"
     assert done.returncode == 2
     assert "ADAPTER must be fake, local, or bedrock" in done.stderr
+
+
+# --------------------------------------------------------------------------------------------------
+# make image builds the working tree's images on the agents' engine only (round 3's review)
+# --------------------------------------------------------------------------------------------------
+FAKE_DOCKER = '#!/bin/sh\nprintf \'%s\\n\' "$*" >>"$DOCKER_CALLS"\n'
+
+
+def _make(
+    target: str, tmp_path: Path, **env: str
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """make <target> from the repository, with a stand-in docker on PATH that records its arguments only."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    fake = bindir / "docker"
+    fake.write_text(FAKE_DOCKER, encoding="utf-8")
+    fake.chmod(0o755)
+    calls = tmp_path / "calls.log"
+    calls.write_text("", encoding="utf-8")
+    done = subprocess.run(
+        ["make", "--no-print-directory", "-C", str(ROOT), target],
+        env={
+            "PATH": f"{bindir}:/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+            "LC_ALL": "C",
+            "DOCKER_CALLS": str(calls),
+            **env,
+        },
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    return done, calls.read_text(encoding="utf-8").splitlines()
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize(
+    "env",
+    [
+        {},  # the Author's terminal, the host's engine
+        {"DOCKER_HOST": "unix:///var/run/docker.sock"},
+        {
+            "DOCKER_HOST": "tcp://127.0.0.1:2376"
+        },  # the relay's address, outside the sandbox
+        {"DOCKER_HOST": "tcp://198.18.0.1:2377"},
+    ],
+)
+@pytest.mark.parametrize("target", ["image", "compose-images"])
+def test_the_working_trees_images_never_build_on_another_engine(
+    tmp_path: Path, target: str, env: dict[str, str]
+) -> None:
+    done, calls = _make(target, tmp_path, **env)
+    assert done.returncode == 2, done.stderr
+    assert "agents' engine" in done.stderr
+    assert not [c for c in calls if " build" in c]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"DOCKER_HOST": "tcp://198.18.0.1:2376"},  # the Author's gate (T092)
+        {
+            "DOCKER_HOST": "tcp://127.0.0.1:2376",
+            "SANDBOX_RUNTIME": "1",
+        },  # inside the relay
+    ],
+)
+def test_the_agents_engine_builds_them(tmp_path: Path, env: dict[str, str]) -> None:
+    done, calls = _make("compose-images", tmp_path, **env)
+    assert done.returncode == 0, done.stderr
+    expected = (
+        "compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars "
+        "--profile * build"
+    )
+    assert calls == [expected]

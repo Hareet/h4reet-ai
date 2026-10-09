@@ -345,7 +345,7 @@ $ curl -sS http://127.0.0.1:18000/health
 
     ```text
     deploy/agents-engine/docker-relay docker compose -p h4reet-dev-cpu -f deploy/compose.yaml \
-      --env-file deploy/env.agents/dev-cpu.vars --profile breach run --rm -T breach-probe \
+      --env-file deploy/env.agents/dev-cpu.vars --profile breach run --build --rm -T breach-probe \
       python3 -I /app/hello.py --stack dev-cpu --url http://gateway:8080 [--message=<text>]
     ```
 

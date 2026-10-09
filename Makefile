@@ -326,9 +326,17 @@ else
 	@$(MAKE) --no-print-directory compose-images
 endif
 
-# Every image this tree builds (the gateway and the breach probe; the stand-ins once they exist), in every profile, on
-# the current engine, with dev-cpu's env file: the agents' engine builds through its proxy (H4_BUILD_PROXY).
+# Every image this tree builds (the gateway and the breach probe; the stand-ins once they exist), in every profile, with
+# dev-cpu's env file, on the agents' engine only: through the relay in a session (DOCKER_HOST is the relay's), or the
+# Author's gate on 198.18.0.1 (T092). It builds the live working tree, which agents write, so the host's rootful engine,
+# where nothing of the working tree's may be built or run (FR-039), never builds it (round 3's review). The agents'
+# engine builds through its proxy (H4_BUILD_PROXY).
 compose-images:
+	@case "$${DOCKER_HOST:-}" in \
+	  $(RELAY_HOST)) [ "$${SANDBOX_RUNTIME:-}" = 1 ] || { echo "make $@: $(RELAY_HOST) is the relay's only inside the sandbox; from here, set DOCKER_HOST=tcp://198.18.0.1:2376 (the agents' engine)" >&2; exit 2; } ;; \
+	  tcp://198.18.0.1:2376) ;; \
+	  *) echo "make $@ builds the working tree's images on the agents' engine only, never on this shell's engine (FR-039): through the relay in an agent session, or with DOCKER_HOST=tcp://198.18.0.1:2376" >&2; exit 2 ;; \
+	esac
 	docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars --profile '*' build
 
 # Both host stacks up on the host's engine; it runs from the working tree, like pull and pin-images (plan §4, FR-020).

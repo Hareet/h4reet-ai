@@ -259,7 +259,7 @@ def hop(message: str | None, runner: Runner) -> int:
     """dev-cpu from an agent session: this script again, in a one-off breach-probe container on the stack's network.
 
     It runs only inside the sandbox, and only through the relay, so only on the agents' engine. From the Author's
-    terminal, docker is the host's rootful engine, where agent-written images must never be built or run (FR-039);
+    terminal, docker is the host's rootful engine, where nothing built from the live working tree may be built or run (FR-039);
     main goes straight to 127.0.0.1:18300 instead.
     """
     inner = ["--stack", "dev-cpu", "--url", HOP_URL]
@@ -279,6 +279,8 @@ def hop(message: str | None, runner: Runner) -> int:
         "--profile",
         "breach",
         "run",
+        # The image is rebuilt from this tree first, so the copy in the probe is the code being run (round 3).
+        "--build",
         "--rm",
         "-T",
         "breach-probe",

@@ -516,6 +516,7 @@ def hop_command(inner: list[str]) -> list[str]:
         "--profile",
         "breach",
         "run",
+        "--build",
         "--rm",
         "-T",
         "breach-probe",
@@ -671,7 +672,9 @@ def test_the_probe_image_holds_hello_where_the_hop_runs_it() -> None:
         (REPO / "evals" / "Dockerfile.probe").read_text(encoding="utf-8").splitlines()
     )
     assert "COPY scripts/hello.py /app/hello.py" in lines
-    assert hop_command([])[15:18] == ["python3", "-I", "/app/hello.py"]
+    command = hop_command([])
+    at = command.index("breach-probe")
+    assert command[at + 1 : at + 4] == ["python3", "-I", "/app/hello.py"]
 
 
 def test_the_script_runs_by_path_through_py_host(tmp_path: Path) -> None:

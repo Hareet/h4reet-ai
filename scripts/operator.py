@@ -32,7 +32,7 @@ ProxyHandler, so no proxy setting can carry the token, and with redirects refuse
   - Inside the sandbox, which can't reach 18303, dev-cpu without --url makes one hop: the CLI runs again in a
     one-off breach-probe container on the stack's internal network, with the dummy on standard input, through
     deploy/agents-engine/docker-relay, so on the agents' engine only. Outside the sandbox there is no hop and no
-    Docker: docker there is the host's rootful engine, where agent-written images must never run (FR-039), so
+    Docker: docker there is the host's rootful engine, where nothing built from the working tree may run (FR-039), so
     dev-cpu goes straight to 127.0.0.1:18303.
 
 Exit codes (§6.2): 0 done; 1 the gateway refused (a 4xx other than 401); 2 usage; 3 authentication failed (401);
@@ -980,7 +980,7 @@ def hop(
     """dev-cpu from an agent session: the CLI again, in a one-off breach-probe container on the stack's network.
 
     It runs only inside the sandbox, and only through the relay, so only on the agents' engine. From the Author's
-    terminal, docker is the host's rootful engine, where agent-written images must never be built or run (FR-039),
+    terminal, docker is the host's rootful engine, where nothing built from the live working tree may be built or run (FR-039),
     and a hop there would skip preflight's P11; main goes straight to 127.0.0.1:18303 instead (T056's review).
     """
     if not PROBE_DOCKERFILE.is_file():
@@ -1012,6 +1012,8 @@ def hop(
         "--profile",
         "breach",
         "run",
+        # The image is rebuilt from this tree first, so the copy in the probe is the code being run (round 3).
+        "--build",
         "--rm",
         "-T",
         "breach-probe",
