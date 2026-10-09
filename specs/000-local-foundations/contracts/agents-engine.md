@@ -258,6 +258,8 @@ The Author's terminal. `deploy/agents-engine/engine.sh seed`:
 4. **Verify:** on the engine, `docker image inspect <repository>@<digest>` succeeds for every entry. It prints a table: image, digest prefix, and `seeded`, `present`, or `FAILED`, and exits non-zero on any `FAILED`.
 5. **The stand-in model:** it verifies the host cache's copy (`H4_MODEL_DIR` of the dev stack, `~/.local/share/h4reet/models` by default) against `models.lock`'s sha256, then copies it into `/var/lib/h4agents/models/` with sudo: a temporary name, fsync, rename, mode 0444, owned by root. The prod model is never copied.
 
+6. **dev-cpu's state directory:** the state root is `h4agents`' and 0700, so only the engine can make `dev-cpu/gateway` and give it to the gateway's `node` user, uid 1000 in the container: `docker run --rm --pull never -v /var/lib/h4agents/state:/s <base:node> sh -c 'mkdir -p /s/dev-cpu/gateway && chown -R 1000:1000 /s/dev-cpu'`. The image is `images.lock`'s one `base:node` line, by digest, with each field in its shape, so no field reaches `docker run` as an option. A missing, repeated, or malformed line, or a run that fails, fails the seed with the engine's own last line. `engine.sh up` takes the same step, but there the image may not be seeded yet, so a failure is a note (tasks.md T145 and its review).
+
 The engine never downloads a model, and pulls nothing from a registry outside the list. Only what `images.lock` pins is seeded. `deploy/agents-engine/engine.sh reset` seeds again as its last step.
 
 ## 7. The FR-039 limits and their proofs
@@ -296,7 +298,7 @@ The Author runs `deploy/agents-engine/engine.sh <subcommand>` directly, never th
 | Command | Who runs it | What it does |
 |---|---|---|
 | `engine.sh setup` | the Author, with sudo | `sudo deploy/agents-engine/setup-host.sh`, idempotent: H1 to H14 in [§5](#5-host-side-controls); the PKI and both client certificates (reissued with fewer than 30 days left); the installed copies. It ends by asking for `wsl --shutdown` from PowerShell, which ends every WSL session, agents' included, and then `deploy/agents-engine/engine.sh up`. |
-| `engine.sh up` | the Author | checks the masks (H8), starts the system units (the address, the firewall, `/dev/dxg`, the tree and models binds, the state bind), reloads the tree unit and runs `bind-tree.sh check`, `h4agents`' `h4-authz` and `docker` user services; restarts the Author's proxy, so it serves the settings' list as it is now; waits for TLS on `198.18.0.1:2376`; prints the engine's ID and `docker info`'s summary. It may ask for sudo. |
+| `engine.sh up` | the Author | checks the masks (H8), starts the system units (the address, the firewall, `/dev/dxg`, the tree and models binds, the state bind), reloads the tree unit and runs `bind-tree.sh check`, `h4agents`' `h4-authz` and `docker` user services; restarts the Author's proxy, so it serves the settings' list as it is now; waits for TLS on `198.18.0.1:2376`; makes dev-cpu's state directory ([§6.2](#62-enginesh-seed), step 6), or notes that it waits for the seed; prints the engine's ID and `docker info`'s summary. It may ask for sudo. |
 | `engine.sh down` | the Author | stops the daemon, the plugin, and the proxy. Data stays. |
 | `engine.sh reset` | the Author | `engine.sh down`; deletes the daemon's data root (its images, containers, and every volume) and the contents of `/var/lib/h4agents/state`; `engine.sh up`; `engine.sh seed`. The reset takes about a minute; the seed adds its load time. The PKI, the models share, and the plugin's log survive. |
 | `engine.sh destroy` | the Author | `engine.sh down`; removes the units, the firewall table, the dummy interface, the binds, the data root, the state, the models share, the PKI, and both client certificates. It keeps the user and its ID range, and the two host settings that protect the Author's files whether or not an engine exists (H6, H7). |
@@ -306,6 +308,8 @@ The Author runs `deploy/agents-engine/engine.sh <subcommand>` directly, never th
 | `make engine-smoke` | an agent session, through the relay | `make up ENV=dev-cpu`, `make breach-test ENV=dev-cpu`, `make down ENV=dev-cpu`. It needs the early patch's opening ([§2.3](#23-what-a-sessions-client-uses)). |
 
 `engine.sh status` is read-only, so both the Author and agents may run it.
+
+In the Author's terminal, every subcommand's client is `tcp://198.18.0.1:2376` with TLS verified and the Author's certificate, whatever the shell's `DOCKER_HOST`, `DOCKER_CONTEXT`, or proxy variables name, so an ambient `DOCKER_HOST` can't send a step meant for the engine to the host's rootful daemon. Inside a session, `status` and `smoke` use the relay's values as they stand ([§2.3](#23-what-a-sessions-client-uses)).
 
 ## 9. Degraded modes and residual risk
 

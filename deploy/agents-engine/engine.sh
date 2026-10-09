@@ -48,14 +48,17 @@ in_sandbox() { [ "${SANDBOX_RUNTIME:-}" = 1 ]; }
 
 h4_uid() { id -u h4agents 2>/dev/null || true; }
 
-# A docker client against the engine. The Author reaches 198.18.0.1 with their own certificate; inside
-# a session the relay has already set DOCKER_HOST, so the ambient values (the agents' certificate) are
-# used as they stand.
+# A docker client against the engine. Inside a session the relay has already set DOCKER_HOST and the agents'
+# certificate, so the ambient values are used as they stand. In the Author's terminal it is always 198.18.0.1
+# with the Author's certificate, whatever the shell's DOCKER_HOST, DOCKER_CONTEXT, or proxy settings name: an
+# ambient DOCKER_HOST could name the host's rootful daemon (T145's review).
 engine_docker() {
-	if [ -n "${DOCKER_HOST:-}" ]; then
+	if in_sandbox; then
 		docker "$@"
 	else
-		DOCKER_HOST="$engine_addr" DOCKER_TLS_VERIFY=1 DOCKER_CERT_PATH="$author_cert_dir" docker "$@"
+		env -u DOCKER_CONTEXT -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy \
+			-u ALL_PROXY -u all_proxy -u NO_PROXY -u no_proxy \
+			DOCKER_HOST="$engine_addr" DOCKER_TLS_VERIFY=1 DOCKER_CERT_PATH="$author_cert_dir" docker "$@"
 	fi
 }
 
@@ -230,7 +233,7 @@ cmd_up() {
 	# are now, and the proxy records that list for status.
 	systemctl --user restart h4-egress-proxy.service
 	wait_for_tls
-	chown_state
+	chown_state up
 	echo "== engine up"
 	engine_docker info --format 'id={{.ID}} rootless={{.SecurityOptions}} plugins={{.Plugins.Authorization}}' || true
 }
@@ -246,24 +249,45 @@ wait_for_tls() {
 	die "the engine did not answer TLS on 198.18.0.1:2376; check: sudo systemctl status $system_units"
 }
 
+# The base:node image by digest, from images.lock, as repository:tag@sha256:…: exactly one base:node line, each
+# field in its shape, or nothing and a non-zero exit. Agents can write images.lock on a branch, and this runs
+# the working tree's copy, so a field that docker run would read as an option never reaches it (T145's review).
+pinned_base_node() {
+	awk '
+		$1 == "base:node" { n++; repo = $2; tag = $3; digest = $4 }
+		END {
+			if (n != 1) exit 1
+			if (repo !~ "^[a-z0-9][a-z0-9._/-]*$") exit 1
+			if (tag !~ "^[A-Za-z0-9_][A-Za-z0-9._-]*$" || length(tag) > 128) exit 1
+			if (digest !~ "^sha256:[0-9a-f]+$" || length(digest) != 71) exit 1
+			print repo ":" tag "@" digest
+		}
+	' "$images_lock" 2>/dev/null
+}
+
+# chown_state <up|seed>: dev-cpu's state directory, made and owned through the engine alone. The state root is
+# h4agents' and 0700, so the Author can't see into it. In the container, root is h4agents and uid 1000 is the
+# gateway's node user, so the chown gives the journal its writer (plan §10). compose binds ${H4_STATE_DIR}/gateway
+# with the long syntax, which never creates a missing source. It needs the pinned base:node image, which only
+# seed brings in (--pull never), so at up a failure is a note, and at seed it is fatal.
 chown_state() {
-	# dev-cpu's state directory, made and owned through the engine alone: the state root is h4agents' and 0700, so
-	# the Author can't see into it. In the container, root is h4agents and uid 1000 is the gateway's node user, so the
-	# chown gives the journal its writer (plan §10). compose binds ${H4_STATE_DIR}/gateway with the long syntax, which
-	# never creates a missing source. It needs the pinned base:node image, so seed runs it again.
-	local base="${H4_STATE_CHOWN_IMAGE:-}"
+	local when="$1" base out why
+	base="$(pinned_base_node)" || base=""
 	if [ -z "$base" ]; then
-		base="$(awk '$1 == "base:node" && $4 ~ /^sha256:[0-9a-f]+$/ && length($4) == 71 { print $2 ":" $3 "@" $4 }' "$images_lock" 2>/dev/null)"
-	fi
-	if [ -z "$base" ]; then
-		echo "note: no pinned base:node in $images_lock, so dev-cpu's state directory waits"
+		[ "$when" = up ] ||
+			die "$images_lock has no single base:node line pinned by digest, so dev-cpu's state directory can't be made (fail closed)"
+		echo "note: no pinned base:node in $images_lock, so dev-cpu's state directory waits for: $0 seed"
 		return 0
 	fi
-	if engine_docker run --rm -v "$H4_STATE:/s" "$base" sh -c 'mkdir -p /s/dev-cpu/gateway && chown -R 1000:1000 /s/dev-cpu' >/dev/null 2>&1; then
-		echo "== dev-cpu's state directory: /var/lib/h4agents/state/dev-cpu/gateway, owned by the gateway's user"
-	else
-		echo "note: could not prepare dev-cpu's state directory yet (seed first); engine.sh seed does it again"
+	if out="$(engine_docker run --rm --pull never -v "$H4_STATE:/s" "$base" \
+		sh -c 'mkdir -p /s/dev-cpu/gateway && chown -R 1000:1000 /s/dev-cpu' 2>&1)"; then
+		echo "== dev-cpu's state directory: $H4_STATE/dev-cpu/gateway, owned by the gateway's user"
+		return 0
 	fi
+	# The error's last line, printable characters only.
+	why="$(printf '%s\n' "$out" | tail -n 1 | LC_ALL=C tr -cd '\040-\176' | cut -c1-300)"
+	[ "$when" = up ] || die "could not make dev-cpu's state directory: $why"
+	echo "note: dev-cpu's state directory waits for: $0 seed ($why)"
 }
 
 # ------------------------------------------------------------------------------------------------
@@ -430,7 +454,7 @@ cmd_seed() {
 
 	seed_model
 	[ "$fails" -eq 0 ] || die "$fails image(s) failed to seed"
-	chown_state
+	chown_state seed
 	echo "== seed complete"
 }
 
