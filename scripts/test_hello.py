@@ -836,3 +836,20 @@ def test_make_hello_keeps_agent_sessions_off_prod_and_dev(
 def test_make_help_lists_hello(tmp_path: Path) -> None:
     out = make(tmp_path, "help").stdout
     assert re.search(r"^\s+hello\s", out, re.MULTILINE)
+
+
+# A hostile listener's body: nesting too deep for json, and a number too long for it (round 3's review).
+@pytest.mark.parametrize(
+    "body",
+    [b"[" * 100_000 + b"]" * 100_000, b'{"n": ' + b"9" * 5_000 + b"}"],
+    ids=["nested", "long-number"],
+)
+def test_a_body_json_cant_read_prints_as_text(
+    stub: Stub, capsys: pytest.CaptureFixture[str], body: bytes
+) -> None:
+    stub.answer(200, body)
+    code, out, err = run(["--stack", "dev"], capsys)
+    assert code == 0, err
+    assert "Traceback" not in err
+    assert out.startswith("HTTP 200\n")
+    assert out.splitlines()[1][:10] == body.decode()[:10]

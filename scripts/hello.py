@@ -219,7 +219,8 @@ def render(status: int, raw: bytes) -> str:
         return head
     try:
         parsed = json.loads(raw.decode("utf-8"))
-    except ValueError:  # not UTF-8, or not JSON
+    # Not UTF-8 or not JSON (both ValueErrors), a number too long to convert, or nesting too deep to parse.
+    except (ValueError, RecursionError):
         text = raw.decode("utf-8", errors="replace").replace("\r\n", "\n")
         text = "".join(
             "?" if is_control(ch) and ch not in "\n\t" else ch for ch in text

@@ -38,11 +38,17 @@ def literal_vars() -> set[str]:
 
 
 def recipe_reads() -> set[str]:
-    """$$NAME and $${NAME...} in recipe lines (tab-indented), the shell's reads of its environment."""
+    """What recipes read from their shell's environment: $$NAME and $${NAME...} on every line that isn't a comment, so
+    the macros recipes expand count too (REF_ARG, CONTAINED, OPERATOR_AGENTS), and the name each OPERATOR_VALUE or
+    OPERATOR_FLAG call passes, which those macros read as $$$(1) (round 3's review)."""
     names: set[str] = set()
     for line in TEXT.splitlines():
-        if line.startswith("\t"):
-            names.update(re.findall(r"\$\$\{?([A-Z][A-Z0-9_]*)", line))
+        if line.lstrip().startswith("#"):
+            continue
+        names.update(re.findall(r"\$\$\{?([A-Z][A-Z0-9_]*)", line))
+        names.update(
+            re.findall(r"\$\(call OPERATOR_(?:VALUE|FLAG),([A-Z][A-Z0-9_]*)", line)
+        )
     return names
 
 
@@ -70,6 +76,8 @@ def test_every_variable_the_help_offers_is_literal() -> None:
 def test_the_lists_find_what_they_should() -> None:
     # Not vacuous: the scans see the variables the targets are known to read.
     assert {"REASON", "MESSAGE", "ADAPTER", "SANDBOX_RUNTIME"} <= recipe_reads()
+    # A macro's own line, and the names the operator macros take as arguments.
+    assert {"REF", "H4_DEVCONTAINER", "DAY_USD", "RENEW"} <= recipe_reads()
     assert {"REASON", "MESSAGE", "ADAPTER", "TAIL"} <= help_offers()
     assert not ENVIRONMENT_ONLY & literal_vars()
 

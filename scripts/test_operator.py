@@ -2156,3 +2156,22 @@ def test_an_in_network_host_is_the_admin_listeners_port_only(url: str) -> None:
         op.check_url("http://gateway:8081", "dev", token_stdin=True)
         == "http://gateway:8081"
     )
+
+
+# A hostile listener's body: nesting too deep for json, and a number too long for it (round 3's review).
+HOSTILE_BODIES = {
+    "nested": "[" * 100_000 + "]" * 100_000,
+    "long-number": '{"stack": "prod", "n": ' + "9" * 5_000 + "}",
+}
+
+
+@pytest.mark.parametrize("body", HOSTILE_BODIES.values(), ids=list(HOSTILE_BODIES))
+def test_a_body_json_cant_read_is_no_usable_answer(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str], body: str
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    stub.answer("GET", "/admin/status", 200, body)
+    code, _, err = run(["--stack", "prod", "status"], capsys)
+    assert code == 4, err
+    assert "Traceback" not in err
+    assert last_line(err) == f"operator.py: exit 4: {op.EXIT_MEANINGS[4]}"

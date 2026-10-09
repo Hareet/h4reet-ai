@@ -397,7 +397,9 @@ def parse_body(raw: bytes) -> Any:
         return None
     try:
         return json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except (ValueError, RecursionError):
+        # Not UTF-8 or not JSON (both ValueErrors), a number too long to convert, or nesting too deep to parse: a
+        # hostile listener's body is no usable answer, never a traceback (round 3's review).
         return None
 
 

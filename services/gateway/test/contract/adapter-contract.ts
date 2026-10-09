@@ -398,7 +398,8 @@ export function describeAdapterContract(
         control.nextHealth({ delayMs: 3_000 });
         const slowStarted = Date.now();
         const slow = await subject.adapter.health(AbortSignal.timeout(150));
-        expect(Date.now() - slowStarted).toBeLessThan(150 + 250);
+        // Well under the stub's 3 s, so the signal ended it, with room for a loaded host (round 3's review).
+        expect(Date.now() - slowStarted).toBeLessThan(150 + 1_000);
         expectHealthShape(slow);
         expect([slow.healthy, slow.reason]).toEqual([false, "timeout"]);
       }

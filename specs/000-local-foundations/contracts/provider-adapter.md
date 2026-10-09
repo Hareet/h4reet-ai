@@ -352,7 +352,7 @@ Three additions to the first sketch of this signature (tasks.md T048, 2026-10-08
    - The local adapter runs against an in-process stub OpenAI server (`node:http` on `127.0.0.1`, a random port).
    - The Bedrock adapter runs against `aws-sdk-client-mock` 4.1.0 with `aws-sdk-client-mock-vitest` 8.0.0, which raises SDK exceptions by `name`.
    - The synthetic adapter runs directly.
-   - Timeouts are scaled down through the settings: connect 100 ms, request 300 ms.
+   - Timeouts are scaled down through the settings: request 300 ms, and connect 100 ms, except that the local adapter's subject keeps routing.yaml's 1 s connect. (Departure, round 3's review of tasks.md T151: at 100 ms a loaded host's stalled event loop fired the connect watchdog before the stub's accept arrived, and C3 failed about once in 17 runs. No case makes a connect hang, and `local-openai.errors.test.ts` tests the watchdog at its real 1 s.)
    - Every assertion runs, with C2's synthetic variant.
 2. **Live, local** (`make contract-live ENV=<stack> ADAPTER=local REASON="…"`): against the stack's real model server, through `POST /admin/adapters/local/complete`. These calls are free and attributed `none`.
 3. **Live, Bedrock** (`make contract-live ENV=prod ADAPTER=bedrock REASON="…"`, the Author's terminal): through prod's `POST /admin/adapters/bedrock/complete` ([operator-admin.md §5](operator-admin.md#5-live-adapter-calls-post-adminadaptersidcomplete)). Every call passes prod's admission and is charged to prod's day and month meters as `test`, not to the sub-budget (FR-031, FR-037). About 10 calls, under $0.05.
