@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -368,6 +368,19 @@ operator-init: ## Initialize ENV's empty store: REASON="..." [CONFIRM_ZERO=1] [R
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-init needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
 	$(OPERATOR) init --reason="$$REASON"$(call OPERATOR_FLAG,RENEW,--renew)$(call OPERATOR_FLAG,CONFIRM_ZERO,--confirm-zero)$(call OPERATOR_VALUE,DAY_USD,--day-usd)$(call OPERATOR_VALUE,MONTH_USD,--month-usd)$(call OPERATOR_VALUE,FALLBACK_TODAY_USD,--fallback-today-usd)
 
+# hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
+# gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes
+# straight to the stack's api port on 127.0.0.1 (18000, 18100, or 18300); inside the sandbox, for dev-cpu only, the
+# script makes the operator CLI's hop, through the relay, in a breach-probe container that calls the gateway
+# in-network. Agent sessions are kept off prod and dev here and in the script, as the operator targets are. MESSAGE
+# comes from the command line only and reaches the script as "$$MESSAGE", read by the shell; without it the gateway
+# answers "Hello.".
+HELLO = $(PY_HOST) scripts/hello.py --stack $(ENV)
+
+hello: ## POST /hello to ENV's gateway, and print the status and body: [MESSAGE="..."] (agent sessions: dev-cpu only)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make $@ ENV=$(ENV): agent sessions send hello to dev-cpu only; prod and dev are the Author's (FR-008, FR-039)" >&2; exit 2; }
+	$(HELLO)$(if $(call from_cli,MESSAGE), --message="$$MESSAGE")
+
 # The Author's terminal: it reaches the registries. ONLY=svc,... limits it; TAG="svc=tag ..." pins a tag (an open
 # one, such as seaweedfs's, otherwise gets the newest release); DRY_RUN=1 prints the table and writes nothing.
 # The values reach the script through the environment, quoted by the shell, never spliced into the command line.
@@ -383,4 +396,4 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
 	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
-	init-env operator-token operator-status operator-init isolation-check breach-test plan
+	init-env operator-token operator-status operator-init hello isolation-check breach-test plan

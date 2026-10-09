@@ -673,11 +673,12 @@ services:
 
   # The breach probe (plan §2 and §8; tasks.md T144): a one-off container on the internal network, from which a
   # client that can't reach the stack's published ports, such as an agent session on the agents' engine, calls the
-  # gateway in-network. The operator CLI's dev-cpu hop runs in it (contracts/operator-admin.md §6), and so will the
-  # breach test's assertions (T080). Only the breach profile names it, which no env file selects, so make up never
-  # starts it: `docker compose --profile breach run --rm breach-probe <command>` starts one per call, without the
-  # restart policy, and removes it. It publishes nothing, mounts nothing, and takes nothing from the env file; the
-  # dev-cpu dummy token reaches the CLI in it on standard input. Built from this file's own tree, as the gateway is.
+  # gateway in-network. The dev-cpu hops of the operator CLI and of hello's client run in it
+  # (contracts/operator-admin.md §6, gateway-http.md §9), and so will the breach test's assertions (T080). Only the
+  # breach profile names it, which no env file selects, so make up never starts it: `docker compose --profile breach
+  # run --rm breach-probe <command>` starts one per call, without the restart policy, and removes it. It publishes
+  # nothing, mounts nothing, and takes nothing from the env file; the dev-cpu dummy token reaches the operator CLI in
+  # it on standard input. Built from this file's own tree, as the gateway is.
   breach-probe:
     <<: *service
     profiles: [breach]
