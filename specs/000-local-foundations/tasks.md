@@ -626,13 +626,13 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
 
 ## Phase 10: Convergence
 
-- [ ] T125 Make row E9 of `deploy/agents-engine/prove-limits.sh` prove the opening on feat/000-foundations: verify the server with the engine's `ca.pem`; show that the handshake fails with no client certificate and with one from another CA; and show that only RootlessKit, as `h4agents`, and the proxy listen on `198.18.0.1`, per T044 and contracts/agents-engine.md §7 E9 (partial)
-- [ ] T126 Add the probes rows E4, E5, and E8 still lack to `deploy/agents-engine/prove-limits.sh`, per T044 and §7 E4, E5, E8 (partial):
+- [X] T125 Make row E9 of `deploy/agents-engine/prove-limits.sh` prove the opening on feat/000-foundations: verify the server with the engine's `ca.pem`; show that the handshake fails with no client certificate and with one from another CA; and show that only RootlessKit, as `h4agents`, and the proxy listen on `198.18.0.1`, per T044 and contracts/agents-engine.md §7 E9 (partial)
+- [X] T126 Add the probes rows E4, E5, and E8 still lack to `deploy/agents-engine/prove-limits.sh`, per T044 and §7 E4, E5, E8 (partial):
   - E4: from the WSL address, the rootful bridges' gateways, and prod's container addresses;
   - E5c: binds through a symbolic link (`ELOOP`), and a `mount` inside a probe container;
   - E8: the CONNECTs to `198.18.0.1:2376`, `10.0.0.1:443`, and `169.254.169.254:80`; a BuildKit `RUN --network=host` build, refused by the daemon's entitlements; E8d's list comparison; and the refusals in the proxy's log.
-- [ ] T127 Run `prove-limits.sh`'s API probes with the agents' certificate (`~/.config/h4reet/agents-engine/docker`), so they test what a session can do, per T044 and §7's preamble (contradicts)
-- [ ] T128 Bring rows E1, E3, E7, E10, and E11 of `prove-limits.sh` up to §7, per T044 and §7 (partial):
+- [X] T127 Run `prove-limits.sh`'s API probes with the agents' certificate (`~/.config/h4reet/agents-engine/docker`), so they test what a session can do, per T044 and §7's preamble (contradicts)
+- [X] T128 Bring rows E1, E3, E7, E10, and E11 of `prove-limits.sh` up to §7, per T044 and §7 (partial):
   - E1: who owns the containers' processes;
   - E3: `/dev/nvidia*`;
   - E7: `.env.*` files, every in-tree read deny masked, and a refusal that names the file;
