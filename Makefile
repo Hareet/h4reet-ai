@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
