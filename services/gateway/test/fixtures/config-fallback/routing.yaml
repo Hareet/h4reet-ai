@@ -1,0 +1,25 @@
+# contracts/config-files.md §1.2's second step (tasks.md T073): the local adapter, the synthetic adapter, and dev's
+# fallback to it. A fixed copy, so the tests don't move when config/routing.yaml grows (T102, T105). The other three
+# files are test/fixtures/config/'s; test/helpers/stack.ts puts them beside this one.
+schema: 1
+deadline_ms: 20000
+
+adapters:
+  local:
+    type: openai-compatible
+    kind: local
+    provider: local
+    base_url_env: LOCAL_MODEL_BASE_URL
+    model_env: LOCAL_MODEL_NAME
+    timeouts: { connect_ms: 1000, request_ms: 10000 }
+    health: { path: /models, interval_ms: 1000, timeout_ms: 800, unhealthy_after: 1, healthy_after: 3 }
+
+  synthetic:
+    type: synthetic
+    kind: synthetic
+    model: metered-test
+    output_tokens: 1000
+
+envs:
+  prod: { primary: local }
+  dev: { primary: local, fallback: synthetic }

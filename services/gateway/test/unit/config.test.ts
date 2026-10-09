@@ -503,9 +503,10 @@ describe("routing.yaml's startup refusals (§1.4)", () => {
       "budgets.yaml": parseYaml("config/budgets.yaml", fixture("budgets.yaml")),
       "alerts.yaml": parseYaml("config/alerts.yaml", fixture("alerts.yaml")),
     };
-    const set = validateConfigFiles(parsed); // only openai-compatible is registered on this branch
+    // openai-compatible and synthetic are registered (tasks.md T073); bedrock-converse arrives with T102.
+    const set = validateConfigFiles(parsed);
     const refusals = startupRefusals(set, DEV_ENV, NOW);
-    expect(refusals.map((r) => r.reason)).toEqual(["invalid_config", "invalid_config"]);
+    expect(refusals.map((r) => r.reason)).toEqual(["invalid_config"]);
     expect(refusals[0]?.message).toBe(
       'config/routing.yaml: adapters.bedrock.type: "bedrock-converse" isn\'t a registered adapter type (FR-021)',
     );

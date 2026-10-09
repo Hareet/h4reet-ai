@@ -115,3 +115,70 @@ describe("the dry run behind GET /health's degraded_cause (gateway-http.md §5)"
     expect(wouldDegrade({ read: tripped, local: local(false), hasFallback: false })).toBe("kill_switch_tripped");
   });
 });
+
+describe("the dry run of the fallback branch (gateway-http.md §2.4 steps 5.3–5.7; tasks.md T074)", () => {
+  const ceilings = { day: 5_000_000n, month: 20_000_000n };
+  const meters = (o: Partial<{ day: bigint; month: bigint; fallback: bigint; allowance: bigint }> = {}) => ({
+    dayLevel: o.day ?? 0n,
+    monthLevel: o.month ?? 0n,
+    fallbackLevel: o.fallback ?? 0n,
+    allowance: o.allowance ?? 2_000_000n,
+  });
+  const view = (o: {
+    read?: StateRead;
+    healthy?: boolean;
+    meters?: ReturnType<typeof meters>;
+    journalUnwritable?: boolean;
+  }) => ({
+    read: o.read ?? normal,
+    local: { healthy: false },
+    hasFallback: true,
+    fallback: {
+      healthy: o.healthy ?? true,
+      ceilings,
+      journalUnwritable: o.journalUnwritable ?? false,
+      ...(o.meters === undefined ? {} : { meters: o.meters }),
+    },
+  });
+  const awaiting: StateRead = { ...normal, fallbackAwaitingRenewal: true, fallbackAwaitingSince: new Date() };
+
+  it("would answer from the fallback while every check passes", () => {
+    expect(wouldDegrade(view({ meters: meters() }))).toBeNull();
+  });
+
+  it("names the admission causes in their precedence: ceilings, renewal, today's allowance, health, the journal", () => {
+    const all = { read: awaiting, healthy: false, journalUnwritable: true };
+    expect(wouldDegrade(view({ ...all, meters: meters({ day: 5_000_000n, fallback: 2_000_000n }) }))).toBe(
+      "meter_at_ceiling",
+    );
+    expect(wouldDegrade(view({ ...all, meters: meters({ month: 20_000_000n }) }))).toBe("meter_at_ceiling");
+    expect(wouldDegrade(view({ ...all, meters: meters({ fallback: 2_000_000n }) }))).toBe("fallback_awaiting_renewal");
+    expect(
+      wouldDegrade(view({ healthy: false, journalUnwritable: true, meters: meters({ fallback: 2_000_000n }) })),
+    ).toBe("fallback_spent_today");
+    expect(wouldDegrade(view({ healthy: false, journalUnwritable: true, meters: meters() }))).toBe(
+      "fallback_unavailable",
+    );
+    expect(wouldDegrade(view({ journalUnwritable: true, meters: meters() }))).toBe("journal_unwritable");
+  });
+
+  it("counts reservations, as admission does: a level is spend plus reservations", () => {
+    // The view's levels are spend plus reservations already; a renewal's allowance moves the line.
+    expect(wouldDegrade(view({ meters: meters({ fallback: 3_999_999n, allowance: 4_000_000n }) }))).toBeNull();
+    expect(wouldDegrade(view({ meters: meters({ fallback: 4_000_000n, allowance: 4_000_000n }) }))).toBe(
+      "fallback_spent_today",
+    );
+  });
+
+  it("leaves the meters' two checks out when they couldn't be read", () => {
+    expect(wouldDegrade(view({}))).toBeNull();
+    expect(wouldDegrade(view({ read: awaiting }))).toBe("fallback_awaiting_renewal");
+  });
+
+  it("still puts the state read and a healthy local first", () => {
+    expect(wouldDegrade({ ...view({ meters: meters({ day: 9_000_000n }) }), read: tripped })).toBe(
+      "kill_switch_tripped",
+    );
+    expect(wouldDegrade({ ...view({ meters: meters({ day: 9_000_000n }) }), local: { healthy: true } })).toBeNull();
+  });
+});

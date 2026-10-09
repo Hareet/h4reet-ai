@@ -11,6 +11,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { ADAPTER_TYPE_SPECS, REGISTERED_ADAPTER_TYPES } from "../../src/adapters/_settings.js";
 import { factory as localFactory } from "../../src/adapters/local-openai.js";
+import { factory as syntheticFactory } from "../../src/adapters/synthetic.js";
 import { RegistryError, buildRoute, loadFactories, type AdapterFactory } from "../../src/adapters/registry.js";
 import { loadConfig, type AdapterConfig, type RoutingConfig } from "../../src/config/validate.js";
 
@@ -62,14 +63,19 @@ describe("loadFactories", () => {
   it("finds exactly the types this build registers, the ones validate-config checks rule R6 against", async () => {
     const factories = await loadFactories();
     expect([...factories.keys()].sort()).toEqual([...REGISTERED_ADAPTER_TYPES].sort());
+    expect([...REGISTERED_ADAPTER_TYPES].sort()).toEqual(["openai-compatible", "synthetic"]); // T073 adds synthetic
     expect(factories.get("openai-compatible")).toBe(localFactory);
+    expect(factories.get("synthetic")).toBe(syntheticFactory);
   });
 
   it("takes each factory's kinds and settings schema from _settings.ts, so the gate and the runtime agree", () => {
-    const spec = ADAPTER_TYPE_SPECS.get("openai-compatible");
-    expect(localFactory.type).toBe(spec?.type);
-    expect(localFactory.kinds).toEqual(spec?.kinds);
-    expect(localFactory.settings).toBe(spec?.settings);
+    for (const f of [localFactory, syntheticFactory] as AdapterFactory[]) {
+      const spec = ADAPTER_TYPE_SPECS.get(f.type);
+      expect(f.type).toBe(spec?.type);
+      expect(f.kinds).toEqual(spec?.kinds);
+      expect(f.settings).toBe(spec?.settings);
+    }
+    expect(syntheticFactory.provider).toBe("synthetic");
   });
 
   it("skips itself, the _ helpers, declaration files, and source maps", async () => {
@@ -176,5 +182,70 @@ describe("buildRoute", () => {
     }
     const missing = refusal(() => build(routing, { ...ENV, LOCAL_MODEL_NAME: undefined }));
     expect([missing.exitCode, missing.reason]).toEqual([78, "missing_env"]);
+  });
+});
+
+describe("buildRoute and the synthetic adapter (provider-adapter.md §3.3)", () => {
+  /** config-files.md §1.2's second step: dev's route falls back to the synthetic adapter. */
+  const withSynthetic = (): RoutingConfig => {
+    const synthetic: AdapterConfig = {
+      id: "synthetic",
+      type: "synthetic",
+      kind: "synthetic",
+      provider: "synthetic",
+      settings: { model: "metered-test", output_tokens: 1_000 },
+      spec: ADAPTER_TYPE_SPECS.get("synthetic") as AdapterConfig["spec"],
+      placeholders: [],
+    };
+    return {
+      ...routing,
+      adapters: new Map([...routing.adapters, ["synthetic", synthetic]]),
+      envs: { ...routing.envs, dev: { primary: "local", fallback: "synthetic" } },
+    };
+  };
+  const factories = new Map<string, AdapterFactory>([
+    ["openai-compatible", localFactory],
+    ["synthetic", syntheticFactory as AdapterFactory],
+  ]);
+  const build = (env: Record<string, string | undefined>) =>
+    buildRoute({ factories, routing: withSynthetic(), envClass: "dev", env, logger: quiet, realNow: Date.now });
+
+  it("builds dev's synthetic fallback only when GATEWAY_TEST_SYNTHETIC_SPEND=1", async () => {
+    const on = build({ ...ENV, GATEWAY_TEST_SYNTHETIC_SPEND: "1" });
+    expect(on.map((b) => [b.role, b.adapter.id, b.adapter.kind, b.adapter.provider])).toEqual([
+      ["primary", "local", "local", "local"],
+      ["fallback", "synthetic", "synthetic", "synthetic"],
+    ]);
+    expect(on[1]?.adapter.fixedUsage).toEqual({ inputTokens: 0, outputTokens: 1_000 });
+    // Without the switch, dev's route has no fallback: hello with local down answers no_fallback_in_stack.
+    for (const value of [undefined, "0", "", "yes"]) {
+      const off = build({ ...ENV, GATEWAY_TEST_SYNTHETIC_SPEND: value });
+      expect(
+        off.map((b) => b.role),
+        String(value),
+      ).toEqual(["primary"]);
+      await Promise.all(off.map((b) => b.adapter.close?.()));
+    }
+    await Promise.all(on.map((b) => b.adapter.close?.()));
+  });
+
+  it("gives the synthetic adapter no env key: it reads nothing from the environment", () => {
+    let seen: Readonly<Record<string, string | undefined>> | undefined;
+    const spy: AdapterFactory = {
+      ...(syntheticFactory as AdapterFactory),
+      create(id, settings, ctx) {
+        seen = ctx.env;
+        return syntheticFactory.create(id, settings as never, ctx);
+      },
+    };
+    buildRoute({
+      factories: new Map([...factories, ["synthetic", spy]]),
+      routing: withSynthetic(),
+      envClass: "dev",
+      env: { ...ENV, GATEWAY_TEST_SYNTHETIC_SPEND: "1" },
+      logger: quiet,
+      realNow: Date.now,
+    });
+    expect(seen).toEqual({});
   });
 });

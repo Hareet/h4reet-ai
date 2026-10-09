@@ -71,6 +71,8 @@ POST /hello                      SERVER    one per request (also POST /admin/tes
 
 A request refused before routing (the per-client cap, a validation error) has a server span and no `gateway.route` span. A degraded request decided from the state alone (`store_unreachable`, `store_uninitialized`, `kill_switch_tripped`) has a `gateway.route` span and no client span.
 
+(Departure, tasks.md T074.) `POST /admin/test/synthetic` makes its calls one after another in one request, and gives each its own trace, as operator-admin.md §3.2's answer shows a trace ID per call: each call's `gateway.route` span is a root span, linked to the request's server span. So the breach test's T assertions, and an incident draft's list of the last metered calls, can name each call by its trace.
+
 Langfuse shows the tree as one trace: the server span is the trace's root, and the client spans are generations ([§3.5](#35-what-langfuse-reads)). The other `@fastify/otel` hook spans, if the instrumentation emits them, carry no attributes beyond Fastify's own and no payloads.
 
 ### 3.3 Span attributes
@@ -99,6 +101,7 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 | `h4.route.reason` | always | `local_healthy` (local); `local_unhealthy` or `local_failed` (fallback); the attribution, `metered` or `test` (metered); the degraded cause (degraded). The ledger keeps only the fallback reasons ([data-model.md §2.5](../data-model.md#25-ledger-the-model-call-record-fr-023)). |
 | `h4.degraded.cause` | when the decision is `degraded` | the causes in [§4.1](#41-the-gateways-instruments) |
 | `h4.meter.attribution` | when a metered call is admitted | `fallback`, `metered`, `test` |
+| `h4.meter.commit` | when a metered call's commit didn't land at once and is retried in the background ([data-model.md §7.3](../data-model.md#73-commit-of-a-metered-call): "the span and the log record the pending commit"; added by tasks.md T074) | `pending` |
 
 **Client span** (`chat {gen_ai.request.model}`; kind CLIENT; one per provider attempt):
 

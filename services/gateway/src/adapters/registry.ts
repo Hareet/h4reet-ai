@@ -5,6 +5,9 @@
 //   module without a factory, or two modules with one type, stop startup with exit 1: the build itself is wrong.
 // - It builds only the adapters this H4_ENV's route names. An unknown type, a kind the type doesn't allow, or settings
 //   the factory's schema refuses, stop startup with exit 78, as a configuration error.
+// - A synthetic adapter, dev's metered test spend, is built only when GATEWAY_TEST_SYNTHETIC_SPEND=1. Without the
+//   switch, dev's route has no fallback, and hello with local down answers no_fallback_in_stack
+//   (provider-adapter.md §3.3). Factories see only their own *_env keys, so the registry decides this.
 // - Each adapter sees only the env keys its own settings name (the `*_env` settings), never the rest of the
 //   gateway's environment: no store password, operator hash, or alert credential reaches an adapter.
 //
@@ -148,6 +151,7 @@ function buildInto(built: BuiltAdapter[], opts: BuildRouteOptions): void {
     const at = `config/routing.yaml: adapters.${id}`;
     const config = opts.routing.adapters.get(id);
     if (config === undefined) throw new RegistryError(78, "invalid_config", `${at}: isn't defined`);
+    if (config.kind === "synthetic" && opts.env.GATEWAY_TEST_SYNTHETIC_SPEND !== "1") continue;
     const factory = opts.factories.get(config.type);
     if (factory === undefined) {
       throw new RegistryError(

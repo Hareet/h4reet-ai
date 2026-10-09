@@ -2,9 +2,9 @@
 # reviewed in the merge-request note; its schema keeps every primary local, a paid adapter in prod's route only, and
 # synthetic spend in dev's only. The gateway selects the route by H4_ENV: prod for prod, dev for dev and dev-cpu.
 #
-# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the first
-# step: the local adapter alone, and no fallback in either route. tasks.md T073 adds synthetic and dev's fallback,
-# T102 adds bedrock with its placeholder model, and the Author adds prod's fallback (T105).
+# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the second
+# step: tasks.md T073 adds the synthetic adapter and dev's fallback. T102 adds bedrock with its placeholder model,
+# and the Author adds prod's fallback (T105).
 schema: 1
 deadline_ms: 20000
 
@@ -18,6 +18,12 @@ adapters:
     timeouts: { connect_ms: 1000, request_ms: 10000 }
     health: { path: /models, interval_ms: 1000, timeout_ms: 800, unhealthy_after: 1, healthy_after: 3 }
 
+  synthetic:
+    type: synthetic
+    kind: synthetic
+    model: metered-test
+    output_tokens: 1000 # 1,000 tokens at dev's $100 per million = $0.10 a call
+
 envs:
   prod: { primary: local }
-  dev: { primary: local }
+  dev: { primary: local, fallback: synthetic } # synthetic only with GATEWAY_TEST_SYNTHETIC_SPEND=1

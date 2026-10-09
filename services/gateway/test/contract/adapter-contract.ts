@@ -7,6 +7,9 @@
 //   down to CONTRACT_TIMEOUTS (§5.3).
 // - Live mode replays what `operator.py contract-record` recorded against a stack (§5.3), and runs the assertions a
 //   real provider can be held to: C1, C2, C3, C6, C7, and C8.
+// - An adapter with no API to stub, the synthetic one, runs directly: its subject has no stub, and the assertions
+//   that need a stubbed answer run their direct variants, on the one failure such an adapter has, a request whose
+//   signal aborted or whose deadline passed (provider-adapter.md §5.3; tasks.md T073).
 //
 // The canonical span keys below are telemetry.md §3.3's, written out here rather than imported, so the suite checks
 // the gateway against the contract and not against itself.
@@ -75,8 +78,10 @@ export interface LiveRecording {
 export interface ContractSubject {
   adapter: ProviderAdapter;
   prices: PriceTable; // the price version the cost assertions use
-  stub?: StubControl; // stub mode only
+  stub?: StubControl; // stub mode, for an adapter with an API to stub
   recording?: LiveRecording; // live mode only
+  /** Stub mode without a stub: the adapter runs directly, and this counts its complete() calls (C3, C5). */
+  calls?: () => number;
 }
 
 /** What the suite hands makeAdapter: the logger the subject gives its adapter, which the suite captures (C6). */
@@ -326,10 +331,18 @@ export function describeAdapterContract(
       if (subject.stub === undefined) throw new Error("stub mode needs the subject's stub");
       return subject.stub;
     };
+    /** No API to stub: the adapter runs directly (the synthetic adapter). */
+    const direct = (): boolean => subject.stub === undefined;
     const completions = () =>
       stub()
         .requests()
         .filter((r) => r.method === "POST");
+    const completionCount = (): number => (direct() ? (subject.calls?.() ?? 0) : completions().length);
+    /** The one failure a direct adapter has: a request already aborted, or already past its deadline. */
+    const directFailures = (): { name: string; req: CompletionRequest }[] => [
+      { name: "an aborted signal", req: request({ signal: AbortSignal.abort() }) },
+      { name: "a deadline that has passed", req: request({ deadline: Date.now() - 1 }) },
+    ];
     /** A failing behavior, queued once per attempt the adapter's retry policy allows. */
     const failNext = (behavior: StubBehavior): void => {
       const attempts = "status" in behavior ? 1 + subject.adapter.retry.max : 1;
@@ -337,7 +350,7 @@ export function describeAdapterContract(
     };
 
     it("C1: answers with a normalized result", async () => {
-      stub().next({ ok: { text: "Blue.", inputTokens: 31, outputTokens: 2, finish: "stop" } });
+      if (!direct()) stub().next({ ok: { text: "Blue.", inputTokens: 31, outputTokens: 2, finish: "stop" } });
       const out = await call();
       if (!out.ok) throw out.error;
       const r = out.result;
@@ -372,15 +385,15 @@ export function describeAdapterContract(
     });
 
     it("C3: health() resolves within its signal, with the HealthStatus shape, and never spends", async () => {
-      const before = completions().length;
+      const before = completionCount();
       const started = Date.now();
       const status = await subject.adapter.health(AbortSignal.timeout(2_000));
       expect(Date.now() - started).toBeLessThan(2_500);
       expectHealthShape(status);
       expect(status.healthy).toBe(true);
 
-      const control = stub();
-      if (control.nextHealth !== undefined) {
+      const control = subject.stub;
+      if (control?.nextHealth !== undefined) {
         control.nextHealth({ status: 503 });
         const loading = await subject.adapter.health(AbortSignal.timeout(2_000));
         expectHealthShape(loading);
@@ -408,13 +421,14 @@ export function describeAdapterContract(
       const aborted = await subject.adapter.health(AbortSignal.abort());
       expectHealthShape(aborted);
       expect(aborted.healthy).toBe(false);
-      expect(completions().length).toBe(before);
+      expect(completionCount()).toBe(before);
     });
 
     describe("C4: maps every failure to one ProviderError kind, with §2.5's flags", () => {
       // The cases need the subject, so they are listed with a placeholder adapter's kind and read lazily.
       for (const c of errorCases({ kind: "local" } as ProviderAdapter)) {
-        it(`${c.name} is ${c.kind}`, async () => {
+        it(`${c.name} is ${c.kind}`, async (ctx) => {
+          if (direct()) return ctx.skip(); // no API to fail: the direct variant below
           const want = errorCases(subject.adapter).find((x) => x.name === c.name) ?? c;
           failNext(want.behavior);
           const out = await call();
@@ -428,10 +442,35 @@ export function describeAdapterContract(
           ]);
         });
       }
+      it("(direct) a request whose signal aborted, or whose deadline passed, is timeout, billed as §2.5 says", async (ctx) => {
+        if (!direct()) return ctx.skip();
+        for (const f of directFailures()) {
+          const out = await call(f.req);
+          expect(out.ok, f.name).toBe(false);
+          if (out.ok) continue;
+          expect(out.error, f.name).toBeInstanceOf(ProviderError);
+          expect([out.error.kind, out.error.retryable, out.error.possiblyBilled], f.name).toEqual([
+            "timeout",
+            true,
+            subject.adapter.kind === "paid",
+          ]);
+        }
+      });
     });
 
     it("C5: follows its retry policy, one client span per attempt", async () => {
       const policy = subject.adapter.retry;
+      if (direct()) {
+        // Nothing to throttle it: with max 0, a call is exactly one attempt and one span.
+        expect(policy.max).toBe(0);
+        const before = completionCount();
+        const out = await call();
+        expect(out.ok).toBe(true);
+        expect(out.attempts).toHaveLength(1);
+        expect(completionCount() - before).toBe(1);
+        expect(clientSpans()).toHaveLength(1);
+        return;
+      }
       if (policy.max === 0) {
         stub().next({ throttleOnce: true });
         const out = await call();
@@ -458,12 +497,21 @@ export function describeAdapterContract(
     });
 
     it("C6: carries no payload in an error, its message, its code, a log record, or a span", async () => {
-      for (const c of errorCases(subject.adapter)) {
-        stub().reset();
+      const cases = direct()
+        ? directFailures().map((f) => ({ name: f.name, run: () => call(f.req) }))
+        : errorCases(subject.adapter).map((c) => ({
+            name: c.name,
+            run: () => {
+              stub().reset();
+              failNext(c.behavior);
+              return call();
+            },
+          }));
+      const canary = (): string => subject.stub?.canary ?? "canary-no-stub-9d41";
+      for (const c of cases) {
         lines.length = 0;
         exporter.reset();
-        failNext(c.behavior);
-        const out = await call();
+        const out = await c.run();
         expect(out.ok, c.name).toBe(false);
         if (out.ok) continue;
         const err = out.error;
@@ -472,8 +520,7 @@ export function describeAdapterContract(
         const spans = exporter.getFinishedSpans().map((s) => [s.name, s.attributes, s.status, s.events]);
         const texts = [String(err), JSON.stringify(err), String(err.code ?? ""), ...lines, JSON.stringify(spans)];
         for (const text of texts) {
-          for (const marker of [PROMPT, SYSTEM, stub().canary])
-            expect(text, `${c.name}: ${marker}`).not.toContain(marker);
+          for (const marker of [PROMPT, SYSTEM, canary()]) expect(text, `${c.name}: ${marker}`).not.toContain(marker);
         }
       }
     });
@@ -503,7 +550,7 @@ export function describeAdapterContract(
         vi.useRealTimers();
       }
 
-      stub().next({ ok: { text: "Green.", inputTokens: 71, outputTokens: 14, finish: "stop" } });
+      if (!direct()) stub().next({ ok: { text: "Green.", inputTokens: 71, outputTokens: 14, finish: "stop" } });
       const out = await call();
       if (!out.ok) throw out.error;
       const span = clientSpans()[0];
@@ -515,7 +562,7 @@ export function describeAdapterContract(
     });
 
     it("C8: makes one CLIENT span per attempt, named chat {model}, with the canonical keys", async () => {
-      stub().next({ ok: { text: "Red.", inputTokens: 20, outputTokens: 2, finish: "stop" } });
+      if (!direct()) stub().next({ ok: { text: "Red.", inputTokens: 20, outputTokens: 2, finish: "stop" } });
       const out = await call();
       if (!out.ok) throw out.error;
       const [span, ...more] = clientSpans();
@@ -538,17 +585,19 @@ export function describeAdapterContract(
       expect(span?.status.code).not.toBe(SpanStatusCode.ERROR);
 
       exporter.reset();
-      stub().next({ status: 500 });
-      const failed = await call();
+      if (!direct()) stub().next({ status: 500 });
+      const failed = await call(direct() ? request({ signal: AbortSignal.abort() }) : request());
       expect(failed.ok).toBe(false);
       const [errorSpan] = clientSpans();
       expect(Object.keys(errorSpan?.attributes ?? {}).sort()).toEqual(failureKeys(subject.adapter));
-      expect(errorSpan?.status).toEqual({ code: SpanStatusCode.ERROR, message: "provider_error" });
+      expect(errorSpan?.status).toEqual({
+        code: SpanStatusCode.ERROR,
+        message: direct() ? "timeout" : "provider_error",
+      });
       if (!failed.ok) expect(errorSpan?.attributes["error.type"]).toBe(failed.error.code ?? failed.error.kind);
     });
 
     it("C9: sends the system message as the provider's system field, the turns in order, and the cap as given", async () => {
-      stub().next({ ok: { text: "Yes.", inputTokens: 50, outputTokens: 2, finish: "stop" } });
       const messages: ChatMessage[] = [
         { role: "system", content: SYSTEM },
         { role: "user", content: "first turn" },
@@ -556,6 +605,17 @@ export function describeAdapterContract(
         { role: "user", content: PROMPT },
       ];
       const req = request({ messages, maxOutputTokens: 32, temperature: 0 });
+      if (direct()) {
+        // Nothing is sent anywhere: one call, and an answer that echoes no part of the request.
+        const before = completionCount();
+        const out = await call(req);
+        if (!out.ok) throw out.error;
+        expect(completionCount() - before).toBe(1);
+        const echoed = JSON.stringify(out.result);
+        for (const marker of [SYSTEM, PROMPT, REQUEST_ID, "first turn"]) expect(echoed).not.toContain(marker);
+        return;
+      }
+      stub().next({ ok: { text: "Yes.", inputTokens: 50, outputTokens: 2, finish: "stop" } });
       const out = await call(req);
       if (!out.ok) throw out.error;
       const [sent, ...more] = completions();
@@ -569,6 +629,17 @@ export function describeAdapterContract(
     });
 
     it("C10: ends with timeout within 100 ms when the request's signal aborts, or its deadline passes", async () => {
+      if (direct()) {
+        // It answers at once, so the only abort it can meet is one before the call, or a deadline already past.
+        for (const f of directFailures()) {
+          const started = Date.now();
+          const out = await call(f.req);
+          expect(out.ok, f.name).toBe(false);
+          if (!out.ok) expect(out.error.kind, f.name).toBe("timeout");
+          expect(Date.now() - started, f.name).toBeLessThan(100);
+        }
+        return;
+      }
       stub().next({ delayMs: 3_000 });
       const controller = new AbortController();
       let abortedAt = 0;
@@ -589,7 +660,8 @@ export function describeAdapterContract(
       expect(Date.now() - deadline).toBeLessThan(100);
     });
 
-    it("C12: returns a filtered answer as a result, not an error", async () => {
+    it("C12: returns a filtered answer as a result, not an error", async (ctx) => {
+      if (direct()) return ctx.skip(); // an adapter with nothing to filter never answers content_filter
       stub().next({ ok: { text: "", inputTokens: 12, outputTokens: 0, finish: "content_filter" } });
       const out = await call();
       if (!out.ok) throw out.error;
@@ -602,17 +674,23 @@ export function describeAdapterContract(
       const onUnhandled = (reason: unknown): void => void unhandled.push(reason);
       process.on("unhandledRejection", onUnhandled);
       try {
-        for (const behavior of [
-          { ok: { text: "Hi.", inputTokens: 5, outputTokens: 2, finish: "stop" } },
-          { status: 500 },
-          { delayMs: 1_000 },
-          { refuse: true },
-          { malformed: true },
-        ] as StubBehavior[]) {
-          stub().reset();
-          stub().next(behavior);
+        const behaviors = direct()
+          ? [undefined, undefined]
+          : ([
+              { ok: { text: "Hi.", inputTokens: 5, outputTokens: 2, finish: "stop" } },
+              { status: 500 },
+              { delayMs: 1_000 },
+              { refuse: true },
+              { malformed: true },
+            ] as StubBehavior[]);
+        const requests = direct() ? [request(), request({ signal: AbortSignal.abort() })] : [];
+        for (const [i, behavior] of behaviors.entries()) {
+          if (behavior !== undefined) {
+            stub().reset();
+            stub().next(behavior);
+          }
           let settled = 0;
-          const p = subject.adapter.complete(request());
+          const p = subject.adapter.complete(requests[i] ?? request());
           p.then(
             () => void (settled += 1),
             () => void (settled += 1),
@@ -626,7 +704,7 @@ export function describeAdapterContract(
       } finally {
         process.off("unhandledRejection", onUnhandled);
       }
-      stub().reset();
+      subject.stub?.reset();
       const kept = () =>
         process.getActiveResourcesInfo().filter((t) => t === "Timeout" || t === "TCPSocketWrap").length;
       const before = kept();

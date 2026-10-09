@@ -251,8 +251,18 @@ export class Meter implements MeterPort {
       return { committed: true };
     } catch (err) {
       if (!isStoreFailure(err) || this.stopped) {
+        // A statement the store refused is a bug, and a stopping gateway retries nothing: the commit never lands, and
+        // the sweep settles the reservation at its maximum once it expires. The answer the call got still stands.
         this.release(admitted.reservationId);
-        throw err;
+        this.deps.logger.error(
+          {
+            event: "meter.commit_gave_up",
+            reservation_id: admitted.reservationId,
+            attribution: admitted.attribution,
+          },
+          "A metered call's commit never landed; the sweep settles its reservation at its maximum.",
+        );
+        return { committed: false };
       }
       const pending: Pending = { timer: undefined };
       if (err instanceof CommitUnknownError) pending.lost = err.value as CommitOut;

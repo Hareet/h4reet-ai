@@ -267,7 +267,7 @@ export const ADAPTER_TYPE_SPECS: ReadonlyMap<string, AdapterTypeSpec> = new Map(
 
 /**
  * The types this build registers: a routing.yaml adapter of any other type fails rule R6. The file grows in steps,
- * so every adapter it defines is registered when it lands (config-files.md §1.2): the foundations branch registers
- * openai-compatible, T073 adds synthetic and T102 bedrock-converse, each with its module.
+ * so every adapter it defines is registered when it lands (config-files.md §1.2): the foundations branch registered
+ * openai-compatible, T073 adds synthetic, and T102 adds bedrock-converse, each with its module.
  */
-export const REGISTERED_ADAPTER_TYPES: ReadonlySet<string> = new Set(["openai-compatible"]);
+export const REGISTERED_ADAPTER_TYPES: ReadonlySet<string> = new Set(["openai-compatible", "synthetic"]);

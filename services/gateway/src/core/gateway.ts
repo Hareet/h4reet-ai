@@ -12,8 +12,11 @@
 //
 // Gateway.complete decides in FR-022's order (gateway-http.md §2.4): the state read with no cache, then the kill
 // switch, then a healthy local adapter, whose calls are free and write their ledger rows without a reservation
-// (data-model.md §7.4). A stack without a fallback answers no_fallback_in_stack; the metered fallback branch and its
-// admission arrive with tasks.md T072–T074. Gateway.report is GET /health's report, from the same dry run.
+// (data-model.md §7.4). Then the fallback: a stack without one answers no_fallback_in_stack; otherwise the metered
+// limits in memory, admission in the store, the journal's reserve record, the call, and the commit (the meter,
+// meter/meter.ts), each refusal answered with its cause. Gateway.meteredCall is the same metered path without the
+// local step, for dev's synthetic spend and prod's live tests. Gateway.report is GET /health's report, from the same
+// dry run.
 import { randomBytes, randomUUID } from "node:crypto";
 
 import {
@@ -33,6 +36,7 @@ import {
   costMicro,
   PriceTable,
   thresholds,
+  type BudgetEnv,
   type Budgets,
   type EnvClass,
   type PriceVersion,
@@ -40,10 +44,11 @@ import {
   type StackName,
 } from "../config/validate.js";
 import type { MeterRow, StateRead, Store } from "../meter/store.js";
+import type { Admitted, MeteredAttribution, MeterPort, RouteReason, SettledCall } from "../meter/types.js";
 import type { GatewayMetrics, GaugeSnapshot } from "../telemetry/metrics.js";
 import { redactSecrets } from "../telemetry/redact.js";
 import { gatewayTime, periodKeys, toRfc3339, type GatewayClock } from "./clock.js";
-import { degraded, rfc3339Seconds, stateDecision, wouldDegrade, type Degraded } from "./router.js";
+import { degraded, rfc3339Seconds, stateDecision, wouldDegrade, type Degraded, type MeterView } from "./router.js";
 import {
   ProviderError,
   type AdapterResult,
@@ -365,13 +370,22 @@ export interface GatewayCall {
   signal: AbortSignal;
   /** X-H4-Client: the ledger keeps it, and nothing else does (§2.3). */
   clientLabel?: string;
+  /** hello only: the client, which may have one metered call in flight (gateway-http.md §2.4 step 5.5). */
+  clientKey?: string;
+  /**
+   * Its own trace: a root gateway.route span, linked to the caller's span. POST /admin/test/synthetic makes one call
+   * after another in one request, and each call's trace ID is its own (operator-admin.md §3.2).
+   */
+  newTrace?: boolean;
 }
 
 export type GatewayAnswer =
   | {
       kind: "answered";
-      route: "local";
-      routeReason: null;
+      /** The FR-022 decision that answered: local, the fallback, or a metered call with no local step. */
+      route: "local" | "fallback" | "metered";
+      /** Why a fallback answered; null otherwise. */
+      routeReason: RouteReason | null;
       provider: string;
       result: AdapterResult;
       costMicro: bigint;
@@ -379,6 +393,14 @@ export type GatewayAnswer =
       traceId: string;
     }
   | { kind: "degraded"; decision: Degraded; traceId: string }
+  /** A 429 from the metered limits in memory (gateway-http.md §2.5.3): a refusal, not a degraded state. */
+  | {
+      kind: "refused";
+      error: "client_cap_exceeded" | "metered_capacity_exceeded";
+      limit: "metered_in_flight" | "global_in_flight" | "global_per_minute";
+      retryAfterS: number;
+      traceId: string;
+    }
   | { kind: "local_error"; errorKind: ProviderErrorKind; traceId: string };
 
 export type JournalStatus = "ok" | "unwritable" | "unknown";
@@ -404,6 +426,8 @@ export interface GatewayOptions {
   testMachinery: { clock: boolean; synthetic: boolean };
   /** The result of the journal's last append (data-model.md §3); unknown before the first. */
   journalStatus?: () => JournalStatus;
+  /** The metered path: admission, the commit, and their upkeep. A stack with a fallback needs it. */
+  meter?: MeterPort;
   realNow?: () => number;
   /** How often the gauges are refreshed from the store: 10 s (data-model.md §7.7). */
   gaugeIntervalMs?: number;
@@ -462,6 +486,65 @@ const LOCAL_LEDGER_ROW = `INSERT INTO gateway.ledger (id, reservation_id, ts, st
   VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'local', NULL, 'none', $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
     $18, 0, 'none', $19, $20, $21, $22, $23)`;
 
+/** A metered call's settlement, from its attempts (data-model.md §7.3): the cost of every attempt, at its price. */
+export function settledOf(outcome: AttemptOutcome): SettledCall {
+  const attempts = outcome.attempts;
+  const first = attempts[0];
+  const last = attempts.at(-1);
+  if (first === undefined || last === undefined) throw new Error("a call with no attempt");
+  const costMicro = attempts.reduce((sum, a) => sum + a.costMicro, 0n);
+  if (outcome.ok) {
+    const r = outcome.result;
+    return {
+      outcome: "ok",
+      costBasis: "usage",
+      costMicro,
+      inputTokens: r.usage.inputTokens,
+      outputTokens: r.usage.outputTokens,
+      cacheReadTokens: r.usage.cacheReadInputTokens ?? 0,
+      responseModel: r.responseModel,
+      finishReason: r.finishReason,
+      errorKind: null,
+      latencyMs: r.latencyMs,
+      startedAt: first.startedAt,
+      endedAt: last.endedAt,
+    };
+  }
+  return {
+    outcome: "error",
+    // Charged its reserved maximum only when an attempt failed possibly billed (any timeout of a paid adapter).
+    costBasis: costMicro > 0n ? "reservation" : "none",
+    costMicro,
+    inputTokens: null,
+    outputTokens: null,
+    cacheReadTokens: null,
+    responseModel: null,
+    finishReason: null,
+    errorKind: outcome.error.kind,
+    latencyMs: Math.max(0, Math.round(last.endedAt - last.startedAt)),
+    startedAt: first.startedAt,
+    endedAt: last.endedAt,
+  };
+}
+
+/** A call whose outcome is unknown, because the code around it failed: it is charged its maximum, failing safe. */
+function unknownSettlement(a: Admitted, now: number): SettledCall {
+  return {
+    outcome: "error",
+    costBasis: "reservation",
+    costMicro: a.maxMicro,
+    inputTokens: null,
+    outputTokens: null,
+    cacheReadTokens: null,
+    responseModel: null,
+    finishReason: null,
+    errorKind: "provider_error",
+    latencyMs: 0,
+    startedAt: now,
+    endedAt: now,
+  };
+}
+
 export class Gateway {
   private readonly primary: Routed;
   private readonly fallback: Routed | undefined;
@@ -470,6 +553,8 @@ export class Gateway {
   private gaugeTimer: NodeJS.Timeout | undefined;
   private uninitializedSince: number | undefined;
   private uninitializedLoggedAt: number | undefined;
+  /** The current periods' meters as last read: the dry run's view of the fallback branch (telemetry.md §4.1). */
+  private meterView: MeterView | undefined;
 
   constructor(private readonly opts: GatewayOptions) {
     this.realNow = opts.realNow ?? Date.now;
@@ -486,13 +571,15 @@ export class Gateway {
     this.primary = routed(primary);
     const fallback = opts.adapters.find((a) => a.role === "fallback");
     this.fallback = fallback === undefined ? undefined : routed(fallback);
+    if (this.fallback !== undefined && opts.meter === undefined) throw new Error("a fallback needs the meter");
     this.gauges = { ...this.gauges, adapters: this.routed().map((r) => ({ id: r.built.config.id, healthy: false })) };
     opts.metrics.setSnapshot(this.gauges);
   }
 
-  /** The background work: each adapter's probe loop, and the gauges' refresh (data-model.md §7.7). */
+  /** The background work: each adapter's probe loop, the meter's sweep, and the gauges' refresh (data-model.md §7.7). */
   start(): void {
     for (const r of this.routed()) r.health.start();
+    this.opts.meter?.start();
     if (this.gaugeTimer !== undefined) return;
     this.gaugeTimer = setInterval(() => void this.refreshGauges().catch(() => {}), this.opts.gaugeIntervalMs ?? 10_000);
     this.gaugeTimer.unref();
@@ -502,6 +589,7 @@ export class Gateway {
     if (this.gaugeTimer !== undefined) clearInterval(this.gaugeTimer);
     this.gaugeTimer = undefined;
     for (const r of this.routed()) r.health.stop();
+    await this.opts.meter?.stop();
     await Promise.allSettled(this.routed().map((r) => r.built.adapter.close?.()));
   }
 
@@ -510,9 +598,19 @@ export class Gateway {
     return this.routed().map((r) => ({ id: r.built.config.id, role: r.built.role, health: r.health.status() }));
   }
 
-  /** In-memory metered counters for GET /admin/status; a stack without a fallback makes no metered call. */
+  /** The route's fallback adapter as built: none without one, or without its switch (the synthetic adapter's). */
+  fallbackId(): string | null {
+    return this.fallback?.built.config.id ?? null;
+  }
+
+  /** The in-memory metered counters, for GET /admin/status. */
   meteredCounters(): { inFlight: number; lastMinute: number } {
-    return { inFlight: 0, lastMinute: 0 };
+    return this.opts.meter?.counters() ?? { inFlight: 0, lastMinute: 0 };
+  }
+
+  /** One probe of every routed adapter now, counted as their loops count it. */
+  async probeAll(): Promise<void> {
+    await Promise.all(this.routed().map((r) => r.health.probe()));
   }
 
   /**
@@ -534,35 +632,54 @@ export class Gateway {
     return read;
   }
 
-  /** One hello-shaped call, in FR-022's order. */
+  /** One hello-shaped call, in FR-022's order (gateway-http.md §2.4). */
   async complete(call: GatewayCall): Promise<GatewayAnswer> {
-    const attributes = { "h4.stack": this.opts.stack, "h4.routing.sha": this.opts.routing.sha256 };
-    return this.opts.tracer.startActiveSpan("gateway.route", { kind: SpanKind.INTERNAL, attributes }, async (span) => {
-      try {
-        const traceId = traceIdOf(span);
-        const read = await this.readState();
-        span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
-        const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
-        if (early !== undefined) return this.degrade(span, early, traceId);
+    return this.routeSpan(call, async (span, traceId) => {
+      const read = await this.readState();
+      span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
+      const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
+      if (early !== undefined) return this.degrade(span, early, traceId);
 
-        if (this.primary.health.status().healthy) {
-          const local = await this.callLocal(call, traceId);
-          if (local !== "failed_over") {
-            span.setAttributes({ "h4.route.decision": "local", "h4.route.reason": "local_healthy" });
-            return local;
-          }
+      // 5.1: a healthy local adapter answers, free; one that fails as unavailable or timeout fails over (5.3).
+      const localWasHealthy = this.primary.health.status().healthy;
+      if (localWasHealthy) {
+        const local = await this.callLocal(call, traceId);
+        if (local !== "failed_over") {
+          span.setAttributes({ "h4.route.decision": "local", "h4.route.reason": "local_healthy" });
+          return local;
         }
-        // Local is unhealthy, or its call just failed as unavailable or timeout (local_failed). This stack has no
-        // fallback: the metered fallback branch arrives with tasks.md T072–T074.
+      }
+      // 5.2–5.3: local was unhealthy, or its call just failed. A stack without a fallback has nowhere to go.
+      const reason: RouteReason = localWasHealthy ? "local_failed" : "local_unhealthy";
+      if (this.fallback === undefined) {
         const since = this.primary.health.unhealthySince();
         return this.degrade(
           span,
           degraded("no_fallback_in_stack", since === undefined ? {} : { since: rfc3339Seconds(since) }),
           traceId,
         );
-      } finally {
-        span.end();
       }
+      // 5.4–5.8: the metered fallback.
+      return this.callMetered(span, call, traceId, this.fallback, "fallback", reason);
+    });
+  }
+
+  /**
+   * The metered path with no local step (operator-admin.md §3.2, §5): the state read, then the named metered adapter
+   * through the limits, admission (the ceilings only), the journal, the call, and the commit. It never fails over.
+   */
+  async meteredCall(
+    call: GatewayCall,
+    o: { attribution: Exclude<MeteredAttribution, "fallback">; adapterId: string },
+  ): Promise<GatewayAnswer> {
+    const routed = this.routed().find((r) => r.built.config.id === o.adapterId && r.built.adapter.kind !== "local");
+    if (routed === undefined) throw new Error("no metered adapter of that ID is routed");
+    return this.routeSpan(call, async (span, traceId) => {
+      const read = await this.readState();
+      span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
+      const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
+      if (early !== undefined) return this.degrade(span, early, traceId);
+      return this.callMetered(span, call, traceId, routed, o.attribution, null);
     });
   }
 
@@ -573,7 +690,12 @@ export class Gateway {
     // One reading of the real clock, so `time` and `real_time` differ by exactly the test clock's offset.
     const realNow = this.realNow();
     const gatewayNow = gatewayTime(realNow, this.opts.clock.offsetMs());
-    const cause = this.dryRun(read);
+    // The fallback branch's dry run reads the current meters live, as admission would.
+    let meters = this.meterView;
+    if (ok?.state === "normal" && this.fallback !== undefined && !this.primary.health.status().healthy) {
+      meters = await this.readMeterView().catch(() => this.meterView);
+    }
+    const cause = this.dryRun(read, meters);
     return {
       status: cause === null ? "ok" : "degraded",
       stack: this.opts.stack,
@@ -602,16 +724,52 @@ export class Gateway {
   }
 
   /** The cause a hello arriving now would get, with no reservation and no provider call. */
-  private dryRun(read: StateRead): DegradedCause | null {
+  private dryRun(read: StateRead, meters: MeterView | undefined = this.meterView): DegradedCause | null {
+    const t = thresholds(this.opts.budgets.envs[this.opts.envClass]);
     return wouldDegrade({
       read,
       local: { healthy: this.primary.health.status().healthy },
       hasFallback: this.fallback !== undefined,
+      ...(this.fallback === undefined
+        ? {}
+        : {
+            fallback: {
+              healthy: this.fallback.health.status().healthy,
+              ceilings: { day: t.dayCeiling, month: t.monthCeiling },
+              journalUnwritable: this.opts.journalStatus?.() === "unwritable",
+              ...(meters === undefined ? {} : { meters }),
+            },
+          }),
     });
   }
 
   private routed(): Routed[] {
     return this.fallback === undefined ? [this.primary] : [this.primary, this.fallback];
+  }
+
+  /** The gateway.route span of one routing decision; a call of its own trace starts a root span, linked to its caller. */
+  private routeSpan(
+    call: GatewayCall,
+    fn: (span: Span, traceId: string) => Promise<GatewayAnswer>,
+  ): Promise<GatewayAnswer> {
+    const attributes = { "h4.stack": this.opts.stack, "h4.routing.sha": this.opts.routing.sha256 };
+    const caller = trace.getSpan(context.active())?.spanContext();
+    const options =
+      call.newTrace === true
+        ? {
+            kind: SpanKind.INTERNAL,
+            attributes,
+            root: true,
+            ...(caller !== undefined && isSpanContextValid(caller) ? { links: [{ context: caller }] } : {}),
+          }
+        : { kind: SpanKind.INTERNAL, attributes };
+    return this.opts.tracer.startActiveSpan("gateway.route", options, async (span) => {
+      try {
+        return await fn(span, traceIdOf(span));
+      } finally {
+        span.end();
+      }
+    });
   }
 
   private degrade(span: Span, decision: Degraded, traceId: string): GatewayAnswer {
@@ -621,6 +779,101 @@ export class Gateway {
       "h4.degraded.cause": decision.cause,
     });
     return { kind: "degraded", decision, traceId };
+  }
+
+  /**
+   * A metered call (gateway-http.md §2.4 steps 5.4–5.8): the limits in memory and admission (the meter), then the call
+   * within the request's remaining deadline, at the reservation's price version, then the commit. A failed call is
+   * committed at its cost basis and answers fallback_unavailable.
+   */
+  private async callMetered(
+    span: Span,
+    call: GatewayCall,
+    traceId: string,
+    routed: Routed,
+    attribution: MeteredAttribution,
+    routeReason: RouteReason | null,
+  ): Promise<GatewayAnswer> {
+    const meter = this.opts.meter;
+    if (meter === undefined) throw new Error("a metered call needs the meter");
+    const adapter = routed.built.adapter;
+    const decision =
+      attribution === "fallback"
+        ? { kind: "fallback" as const, reason: routeReason ?? "local_unhealthy" }
+        : { kind: "metered" as const, reason: attribution };
+    span.setAttributes({ "h4.route.decision": decision.kind, "h4.route.reason": decision.reason });
+    const unhealthySince = routed.health.unhealthySince();
+    const admit = await meter.admit({
+      attribution,
+      adapter: {
+        id: routed.built.config.id,
+        provider: adapter.provider,
+        model: adapter.model,
+        ...(adapter.fixedUsage === undefined ? {} : { fixedUsage: adapter.fixedUsage }),
+      },
+      adapterHealthy: routed.health.status().healthy,
+      ...(unhealthySince === undefined ? {} : { adapterUnhealthySince: unhealthySince }),
+      maxOutputTokens: call.maxOutputTokens,
+      ...(attribution === "fallback" && call.clientKey !== undefined ? { clientKey: call.clientKey } : {}),
+      requestId: call.requestId,
+      traceId,
+      purpose: call.purpose,
+      routeReason: attribution === "fallback" ? routeReason : null,
+    });
+    if (!admit.ok) {
+      if (admit.refusal === "degraded") return this.degrade(span, admit.decision, traceId);
+      return { kind: "refused", error: admit.error, limit: admit.limit, retryAfterS: admit.retryAfterS, traceId };
+    }
+    const a = admit.admitted;
+    span.setAttribute("h4.meter.attribution", attribution);
+    const req: CompletionRequest = {
+      requestId: call.requestId,
+      purpose: call.purpose,
+      messages: call.messages,
+      maxOutputTokens: call.maxOutputTokens,
+      deadline: call.arrivedAt + this.opts.routing.deadlineMs,
+      signal: call.signal,
+    };
+    const label = call.clientLabel === undefined ? {} : { clientLabel: call.clientLabel };
+    let outcome: AttemptOutcome;
+    try {
+      outcome = await attemptCall(adapter, req, {
+        tracer: this.opts.tracer,
+        stack: this.opts.stack,
+        routingSha: this.opts.routing.sha256,
+        priceVersion: a.price,
+        decision,
+        attribution,
+        maxMicro: a.maxMicro,
+        payloadSampling: this.opts.payloadSampling,
+        requestTimeoutMs: routed.requestTimeoutMs,
+        realNow: this.realNow,
+        metrics: this.opts.metrics,
+        // A caller that went away ends the call with timeout too, and that says nothing about the adapter.
+        onFailure: (err) => {
+          if (!call.signal.aborted) routed.health.callFailed(err);
+        },
+      });
+    } catch (err) {
+      // The code around the call failed: whether the provider billed it is unknown, so it is charged its maximum.
+      await meter.settle(a, unknownSettlement(a, this.realNow()), label);
+      throw err;
+    }
+    const settled = settledOf(outcome);
+    const { committed } = await meter.settle(a, settled, label);
+    // The commit is retried in the background; the answer doesn't wait (gateway-http.md §2.4, notes).
+    if (!committed) span.setAttribute("h4.meter.commit", "pending");
+    if (!outcome.ok) return this.degrade(span, degraded("fallback_unavailable"), traceId);
+    return {
+      kind: "answered",
+      route: decision.kind,
+      routeReason: decision.kind === "fallback" ? decision.reason : null,
+      provider: adapter.provider,
+      result: outcome.result,
+      costMicro: settled.costMicro,
+      priceVersion: a.price.id,
+      traceId,
+    };
   }
 
   /** The local call (§2.4 step 5.1): free, unmetered, within its own timeouts and the request's deadline. */
@@ -759,8 +1012,17 @@ export class Gateway {
     this.opts.metrics.setSnapshot(this.gauges);
   }
 
-  /** The 10 s refresh: the state read, and the current periods' meters in USD (telemetry.md §4.1). */
-  private async refreshGauges(): Promise<void> {
+  /** The current periods' meters, read now: spend plus reservations, as admission counts them. */
+  private async readMeterView(): Promise<MeterView> {
+    const { day, month } = this.opts.clock.periodKeys();
+    return meterViewOf(await this.opts.store.readMeters(day, month), this.opts.budgets.envs[this.opts.envClass]);
+  }
+
+  /**
+   * The gauges' refresh, every 10 s and as soon as a commit, an operator write, or a sweep commits (telemetry.md §4.1):
+   * the state read, and the current periods' meters in USD. The dry run's view of the meters follows them.
+   */
+  async refreshGauges(): Promise<void> {
     const read = await this.readState();
     if (read.kind !== "ok") return;
     const { day, month } = this.opts.clock.periodKeys();
@@ -769,9 +1031,12 @@ export class Gateway {
       rows = await this.opts.store.readMeters(day, month);
     } catch {
       delete this.gauges.meters;
+      this.meterView = undefined;
       this.opts.metrics.setSnapshot(this.gauges);
       return;
     }
+    this.meterView = meterViewOf(rows, this.opts.budgets.envs[this.opts.envClass]);
+    this.gauges = { ...this.gauges, cause: this.dryRun(read) ?? "none" };
     const t = thresholds(this.opts.budgets.envs[this.opts.envClass]);
     const row = (meter: MeterRow["meter"]) => rows.find((r) => r.meter === meter);
     const allowance = row("fallback_day")?.allowanceMicro ?? t.fallbackGrant;
@@ -809,6 +1074,18 @@ export class Gateway {
       "The kill-switch store is empty, so the stack fails closed until the operator initializes it.",
     );
   }
+}
+
+/** The current periods' levels, spend plus reservations, for the dry run; a period with no row yet is 0 and a full grant. */
+function meterViewOf(rows: readonly MeterRow[], env: BudgetEnv): MeterView {
+  const row = (meter: MeterRow["meter"]) => rows.find((r) => r.meter === meter);
+  const level = (r: MeterRow | undefined): bigint => (r === undefined ? 0n : r.spentMicro + r.reservedMicro);
+  return {
+    dayLevel: level(row("day")),
+    monthLevel: level(row("month")),
+    fallbackLevel: level(row("fallback_day")),
+    allowance: row("fallback_day")?.allowanceMicro ?? thresholds(env).fallbackGrant,
+  };
 }
 
 function adapterReport(r: Routed): AdapterReport {

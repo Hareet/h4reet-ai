@@ -6,7 +6,8 @@
 // 1. client identity: an invalid X-H4-Client gets 400;
 // 2. the per-client cap: over it gets 429 client_cap_exceeded;
 // 3. validation: the wrong content type gets 415, an invalid body 400;
-// 4–5. Gateway.complete: the state read, the kill switch, the local adapter, and FR-022's fallback order.
+// 4–5. Gateway.complete: the state read, the kill switch, the local adapter, and FR-022's fallback order: the metered
+//      limits (429), admission (503 with its cause), the journal, the fallback call, and its commit.
 // Steps 1 and 2 run in onRequest, before the body is read, so every request counts, one that ends in a 400 or a 503
 // included (§2.3).
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -43,6 +44,8 @@ export interface HelloDeps {
 interface HelloState {
   arrivedAt: number;
   label?: string;
+  /** The client, for its one metered call in flight; never logged, never an attribute (§2.3). */
+  client?: string;
   decision: RouteDecisionAttribute;
 }
 
@@ -104,7 +107,7 @@ export function registerHello(api: FastifyInstance, deps: HelloDeps): void {
 
   const answer = (req: FastifyRequest, reply: FastifyReply, state: HelloState, a: GatewayAnswer) => {
     if (a.kind === "answered") {
-      state.decision = "local";
+      state.decision = a.route;
       return reply.code(200).send({
         answer: a.result.text,
         route: a.route,
@@ -126,6 +129,15 @@ export function registerHello(api: FastifyInstance, deps: HelloDeps): void {
       state.decision = "local";
       noteErrorType(req, "local_error");
       return reply.code(502).send({ error: "local_error", kind: a.errorKind, request_id: req.id, trace_id: a.traceId });
+    }
+    if (a.kind === "refused") {
+      // The metered limits, in memory, on the fallback's path (§2.4 step 5.5): a refusal, not a degraded state.
+      state.decision = "fallback";
+      deps.logger.info({ event: "call.refused", error: a.error, limit: a.limit }, "A request was refused by a limit.");
+      return reply
+        .code(429)
+        .header("retry-after", String(a.retryAfterS))
+        .send({ error: a.error, limit: a.limit, retry_after_s: a.retryAfterS, request_id: req.id });
     }
     // Every degraded response records its cause three ways (§2.5.2): the spans (gateway.route here, and the server
     // span from the X-H4-Degraded-Cause header, app.ts), the counter, and the log.
@@ -160,11 +172,8 @@ export function registerHello(api: FastifyInstance, deps: HelloDeps): void {
       if (label !== undefined && (typeof label !== "string" || !CLIENT_LABEL.test(label))) {
         return reply.code(400).send(invalid("X-H4-Client", "must match ^[a-z0-9-]{1,32}$", req.id));
       }
-      const cap = deps.clientCap.take(
-        clientKey(await clientAddress(req, deps.forwardedBy), label),
-        deps.realNow(),
-        deps.clock.now(),
-      );
+      const client = clientKey(await clientAddress(req, deps.forwardedBy), label);
+      const cap = deps.clientCap.take(client, deps.realNow(), deps.clock.now());
       if (!cap.ok) {
         // A refusal, not a degraded state: no X-H4-Degraded-Cause, and no count in h4.degraded.responses (§2.5.3).
         deps.logger.info(
@@ -177,6 +186,7 @@ export function registerHello(api: FastifyInstance, deps: HelloDeps): void {
           .send({ error: "client_cap_exceeded", limit: cap.limit, retry_after_s: cap.retryAfterS, request_id: req.id });
       }
       if (label !== undefined) state.label = label;
+      state.client = client;
       return undefined;
     },
     handler: async function hello(req, reply) {
@@ -205,6 +215,7 @@ export function registerHello(api: FastifyInstance, deps: HelloDeps): void {
           arrivedAt: state.arrivedAt,
           signal: gone.signal,
           ...(state.label === undefined ? {} : { clientLabel: state.label }),
+          ...(state.client === undefined ? {} : { clientKey: state.client }),
         });
         return answer(req, reply, state, a);
       } finally {
