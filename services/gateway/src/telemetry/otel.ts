@@ -42,6 +42,7 @@ import {
 import { NodeSDK, tracing, type NodeSDKConfiguration } from "@opentelemetry/sdk-node";
 import { ATTR_DB_QUERY_TEXT } from "@opentelemetry/semantic-conventions";
 
+import { isServiceHost } from "../adapters/_settings.js";
 import { SECONDS_BUCKETS } from "./metrics.js";
 
 export const METRIC_EXPORT_INTERVAL_MS = 10_000;
@@ -76,8 +77,10 @@ export function isHealthProbe(url: string | undefined): boolean {
 }
 
 /**
- * instrumentation-undici's ignoreRequestHook: no client span for the Telegram API, or for the configured stand-in,
- * because the URL's path carries the bot token (alerts.md §4.1). An origin that doesn't parse is skipped too.
+ * instrumentation-undici's ignoreRequestHook. As with node:http (httpIgnoreOutgoingHook), only a fetch to an in-stack
+ * service gets a client span and a traceparent header, so no trace context leaves the stack. The Telegram API and the
+ * configured stand-in are skipped too, because the URL's path carries the bot token (alerts.md §4.1). An origin that
+ * doesn't parse is skipped.
  */
 export function undiciIgnoreHook(
   extraHosts: readonly string[] = [],
@@ -85,10 +88,27 @@ export function undiciIgnoreHook(
   const hosts = new Set([TELEGRAM_API_HOST, ...extraHosts.map((h) => h.toLowerCase())]);
   return (req) => {
     try {
-      return hosts.has(new URL(req.origin).hostname.toLowerCase());
+      const host = new URL(req.origin).hostname.toLowerCase();
+      return !isServiceHost(host) || hosts.has(host);
     } catch {
       return true;
     }
+  };
+}
+
+/**
+ * instrumentation-http's ignoreOutgoingRequestHook. Only a request to an in-stack service gets a client span, and with
+ * it a traceparent header. A request anywhere else, such as AWS once the Bedrock adapter and its credential refresh
+ * land, carries no trace context out of the stack, and the gateway's own `chat` span stays the contract's client span
+ * (§3.1). The Telegram hosts are skipped as in undiciIgnoreHook. Options with no host are skipped too.
+ */
+export function httpIgnoreOutgoingHook(
+  extraHosts: readonly string[] = [],
+): (req: { hostname?: string | null | undefined; host?: string | null | undefined }) => boolean {
+  const telegram = new Set([TELEGRAM_API_HOST, ...extraHosts.map((h) => h.toLowerCase())]);
+  return (req) => {
+    const host = String(req.hostname ?? req.host ?? "").toLowerCase();
+    return !isServiceHost(host) || telegram.has(host);
   };
 }
 
@@ -202,6 +222,7 @@ export function buildSdkConfiguration(opts: TelemetryOptions): Partial<NodeSDKCo
       new HttpInstrumentation({
         enabled: false,
         ignoreIncomingRequestHook: (req) => isHealthProbe(req.url),
+        ignoreOutgoingRequestHook: httpIgnoreOutgoingHook(opts.telegramHosts),
         requireParentforOutgoingSpans: true,
       }),
       new UndiciInstrumentation({

@@ -6,7 +6,8 @@ import { SpanKind, trace, type ProxyTracerProvider } from "@opentelemetry/api";
 import type { LogRecordExporter, ReadableLogRecord } from "@opentelemetry/sdk-logs";
 import { metrics as sdkMetrics, type tracing } from "@opentelemetry/sdk-node";
 import type { FastifyInstance } from "fastify";
-import { createServer, type AddressInfo } from "node:net";
+import type { LookupAddress } from "node:dns";
+import { createServer, type AddressInfo, type LookupFunction } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { startTelemetry, type Telemetry } from "../../src/telemetry/otel.js";
@@ -63,7 +64,7 @@ beforeAll(async () => {
       metrics: new sdkMetrics.InMemoryMetricExporter(sdkMetrics.AggregationTemporality.CUMULATIVE),
     },
     // Stands in for api.telegram.org, which this test must not call: requests to it carry the bot token.
-    telegramHosts: ["localhost"],
+    telegramHosts: ["telegram-standin"],
   });
   const { buildApp } = await import("../../src/app.js");
   ({ api, admin } = buildApp({ stack: "dev", logger: quiet }));
@@ -112,6 +113,12 @@ async function exported(ready: (s: tracing.ReadableSpan[]) => boolean): Promise<
 }
 
 const scope = (s: tracing.ReadableSpan): string => s.instrumentationScope.name;
+
+/** A DNS lookup that answers 127.0.0.1 for every name, in both of the shapes node:net asks for. */
+const toLoopback: LookupFunction = (_hostname, options, callback) => {
+  if (options.all) (callback as (e: null, a: LookupAddress[]) => void)(null, [{ address: "127.0.0.1", family: 4 }]);
+  else callback(null, "127.0.0.1", 4);
+};
 const path = (s: tracing.ReadableSpan): string => String(s.attributes["url.path"] ?? "");
 const serverSpanFor = (route: string) => (s: tracing.ReadableSpan[]) =>
   s.some((x) => x.kind === SpanKind.SERVER && path(x) === route);
@@ -182,24 +189,34 @@ describe("the started SDK", () => {
   it("makes an outgoing fetch's span only inside a request's trace, and none for the Telegram host", async () => {
     // The Telegram stand-in answers over a bare socket: an http server here would make server spans of its own.
     let telegramCalls = 0;
+    let telegramRequest = "";
     const telegram = createServer((socket) => {
       telegramCalls += 1;
-      socket.once("data", () => socket.end("HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}"));
+      socket.once("data", (data) => {
+        telegramRequest += data.toString("latin1");
+        socket.end("HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}");
+      });
     });
     await new Promise<void>((resolve) => telegram.listen(0, "127.0.0.1", resolve));
     const telegramPort = (telegram.address() as AddressInfo).port;
     try {
-      await fetch(`${apiUrl}/fetch-without-parent`);
+      // Only an in-stack service is instrumented, so the fetches name one; an address never is (undiciIgnoreHook).
+      const inStack = apiUrl.replace("127.0.0.1", "localhost");
+      await fetch(`${inStack}/fetch-without-parent`);
       const tracer = trace.getTracer("test");
       const [parentId, sentToTelegram] = await tracer.startActiveSpan("parent-fetch", async (parent) => {
-        await fetch(`${apiUrl}/fetch-with-parent?q=fetch-query`);
-        const answer = await fetch(`http://localhost:${telegramPort}/botTEST-not-a-token/sendMessage`, {
+        await fetch(`${inStack}/fetch-with-parent?q=fetch-query`);
+        // By address, as the stand-in's own name doesn't resolve here; the unit test covers the Telegram names.
+        const answer = await fetch(`http://127.0.0.1:${telegramPort}/botTEST-not-a-token/sendMessage`, {
           method: "POST",
         });
         parent.end();
         return [parent.spanContext().spanId, await answer.text()] as const;
       });
       expect([sentToTelegram, telegramCalls]).toEqual(["{}", 1]);
+      // The ignore hook returns before the injection too: no trace context reaches the Telegram host.
+      expect(telegramRequest).toMatch(/^POST \/botTEST-not-a-token\/sendMessage /);
+      expect(telegramRequest.toLowerCase()).not.toMatch(/traceparent|tracestate|baggage/);
       const got = await exported(
         (s) => s.some((x) => x.name === "parent-fetch") && serverSpanFor("/fetch-with-parent")(s),
       );
@@ -220,10 +237,13 @@ describe("the started SDK", () => {
   it("makes an outgoing node:http span only inside a request's trace", async () => {
     // Looked up at call time, after the instrumentation has wrapped the module.
     const http = (await import("node:http")).default;
+    const apiPort = (api.server.address() as AddressInfo).port;
+    // Only an in-stack service is instrumented (httpIgnoreOutgoingHook), so the request names one, and the lookup
+    // sends it to the test's listener.
     const get = (p: string) =>
       new Promise<void>((resolve, reject) => {
         http
-          .get(`${apiUrl}${p}`, (res) => {
+          .get({ hostname: "gateway-under-test", port: apiPort, path: p, lookup: toLoopback }, (res) => {
             res.resume();
             res.on("end", resolve);
           })
@@ -244,6 +264,47 @@ describe("the started SDK", () => {
       for (const key of NEVER_EXPORTED) expect(Object.keys(s.attributes), `${s.name}: ${key}`).not.toContain(key);
     }
     expect(JSON.stringify(got.map((s) => [s.name, s.attributes]))).not.toContain("http-query");
+  });
+
+  it("sends no trace context out of the stack over node:http, and none to the Telegram host", async () => {
+    const http = (await import("node:http")).default;
+    const received: string[] = [];
+    const outside = createServer((socket) => {
+      socket.once("data", (data) => {
+        received.push(data.toString("latin1"));
+        socket.end("HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}");
+      });
+    });
+    await new Promise<void>((resolve) => outside.listen(0, "127.0.0.1", resolve));
+    const port = (outside.address() as AddressInfo).port;
+    const get = (hostname: string, p: string) =>
+      new Promise<void>((resolve, reject) => {
+        http
+          .get({ hostname, port, path: p, lookup: toLoopback }, (res) => {
+            res.resume();
+            res.on("end", resolve);
+          })
+          .on("error", reject);
+      });
+    try {
+      const tracer = trace.getTracer("test");
+      await tracer.startActiveSpan("parent-outside", async (parent) => {
+        await get("bedrock-runtime.us-east-1.amazonaws.com", "/model/m/converse"); // as T102's adapter will
+        await get("127.0.0.1", "/an-address");
+        await get("telegram-standin", "/botTEST-not-a-token/sendMessage"); // this test's Telegram host
+        parent.end();
+      });
+      expect(received).toHaveLength(3);
+      for (const request of received) expect(request.toLowerCase()).not.toMatch(/traceparent|tracestate|baggage/);
+      const got = await exported((s) => s.some((x) => x.name === "parent-outside"));
+      const clients = got.filter(
+        (s) => s.kind === SpanKind.CLIENT && scope(s) === "@opentelemetry/instrumentation-http",
+      );
+      expect(clients).toEqual([]);
+      expect(JSON.stringify(got.map((s) => [s.name, s.attributes]))).not.toMatch(/converse|an-address|botTEST/);
+    } finally {
+      await new Promise((resolve) => outside.close(resolve));
+    }
   });
 
   it("makes pg spans only inside a request's trace, with no values, and scrubs the role-password statement", async () => {

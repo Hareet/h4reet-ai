@@ -19,6 +19,7 @@ import {
   SPAN_BATCH,
   buildResource,
   buildSdkConfiguration,
+  httpIgnoreOutgoingHook,
   isHealthProbe,
   metricExporter,
   scrubPgQuery,
@@ -349,14 +350,37 @@ describe("what never reaches a trace", () => {
     }
   });
 
-  it("skips the Telegram API host in the undici instrumentation, because its path carries the bot token", () => {
+  it("instruments a fetch only to an in-stack service, and never to the Telegram hosts, whose path carries the token", () => {
     const ignore = undiciIgnoreHook(["telegram-standin"]);
+    expect(ignore({ origin: "http://model-server:8080", path: "/v1/chat/completions" })).toBe(false);
     expect(ignore({ origin: "https://api.telegram.org", path: "/botX/sendMessage" })).toBe(true);
     expect(ignore({ origin: "https://API.TELEGRAM.ORG:443", path: "/botX/sendMessage" })).toBe(true);
     expect(ignore({ origin: "http://telegram-standin:8080", path: "/botX/sendMessage" })).toBe(true);
-    expect(ignore({ origin: "http://model-server:8080", path: "/v1/chat/completions" })).toBe(false);
-    expect(ignore({ origin: "https://api.telegram.org.example.com", path: "/" })).toBe(false);
+    // Outside the stack: no span, and no trace context in the request.
+    expect(ignore({ origin: "https://api.telegram.org.example.com", path: "/" })).toBe(true);
+    expect(ignore({ origin: "https://bedrock-runtime.us-east-1.amazonaws.com", path: "/" })).toBe(true);
+    expect(ignore({ origin: "http://127.0.0.1:8080", path: "/" })).toBe(true);
     expect(ignore({ origin: "not a url", path: "/" })).toBe(true); // fail closed: unparseable means unknown
+  });
+
+  it("instruments node:http only for in-stack services, so no trace context leaves the stack", () => {
+    const ignore = httpIgnoreOutgoingHook(["telegram-standin"]);
+    expect(ignore({ hostname: "model-server" })).toBe(false);
+    expect(ignore({ host: "otel-collector" })).toBe(false);
+    for (const hostname of [
+      "bedrock-runtime.us-east-1.amazonaws.com", // not one DNS label: outside the stack
+      "portal.sso.us-east-1.amazonaws.com",
+      "api.telegram.org",
+      "telegram-standin", // in-stack, but its path carries the bot token
+      "TELEGRAM-STANDIN",
+      "127.0.0.1",
+      "134744072", // an IPv4 address to getaddrinfo
+      "::1",
+      "",
+    ]) {
+      expect(ignore({ hostname }), hostname).toBe(true);
+    }
+    expect(ignore({})).toBe(true);
   });
 
   it("scrubs the role-password statement from a pg span, and leaves other queries alone", () => {
