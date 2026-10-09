@@ -262,15 +262,15 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Tests for User Story 1
 
-- [ ] T048 [P] [US1] Create `services/gateway/test/contract/adapter-contract.ts`, exporting `describeAdapterContract(name, makeAdapter, mode)` with assertions C1–C12 of contracts/provider-adapter.md §5.2. Create `test/contract/local-openai.contract.test.ts`, running it against an in-process stub OpenAI server on the sandbox's own loopback.
-- [ ] T049 [P] [US1] Create `services/gateway/test/integration/hello-local.test.ts` (Fastify `inject`, PGlite). It covers:
+- [X] T048 [P] [US1] Create `services/gateway/test/contract/adapter-contract.ts`, exporting `describeAdapterContract(name, makeAdapter, mode)` with assertions C1–C12 of contracts/provider-adapter.md §5.2. Create `test/contract/local-openai.contract.test.ts`, running it against an in-process stub OpenAI server on the sandbox's own loopback.
+- [X] T049 [P] [US1] Create `services/gateway/test/integration/hello-local.test.ts` (Fastify `inject`, PGlite). It covers:
   - `store_uninitialized` before init;
   - after init, a 200 body exactly as contracts/gateway-http.md §2.5.1;
   - a ledger row with attribution `none`, cost 0, and cost basis `none`;
   - the server, `gateway.route`, and `chat {model}` spans;
   - the `/health` JSON exactly as §5;
   - 400 and 415 per §2.5.4.
-- [ ] T050 [P] [US1] Create `services/gateway/test/integration/init.test.ts`, covering data-model.md §8:
+- [X] T050 [P] [US1] Create `services/gateway/test/integration/init.test.ts`, covering data-model.md §8:
   - candidates from the ledger, the journal, and stated values, with the max rule;
   - the newest `init` record in the journal as a floor (data-model.md §3, step 6): a second wipe after a stated start rebuilds the stated value plus later spend;
   - 409 `confirm_zero_required`, then success with `confirm_zero`;
@@ -281,19 +281,19 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 1
 
-- [ ] T051 [US1] Implement `services/gateway/src/adapters/local-openai.ts` and `src/adapters/registry.ts` per contracts/provider-adapter.md §3.1 and §4:
+- [X] T051 [US1] Implement `services/gateway/src/adapters/local-openai.ts` and `src/adapters/registry.ts` per contracts/provider-adapter.md §3.1 and §4:
   - `fetch` to `POST {base}/chat/completions`, with a connect timeout of 1 s, a request timeout of 10 s, and no retries;
   - health from `GET {base}/models` every 1 s with an 800 ms timeout, unhealthy after 1 failure and healthy again after 3 passes;
   - the error mapping of §2.5.
-- [ ] T052 [US1] Implement `services/gateway/src/core/router.ts` and `src/core/gateway.ts` per contracts/gateway-http.md §2.4. A request starts with the state read of data-model.md §7.1, then the kill switch, then local. A stack without a fallback answers `no_fallback_in_stack`. Ledger rows for local calls follow data-model.md §7.4.
-- [ ] T053 [US1] Implement `services/gateway/src/routes/hello.ts` and `src/core/limits.ts` per contracts/gateway-http.md §2:
+- [X] T052 [US1] Implement `services/gateway/src/core/router.ts` and `src/core/gateway.ts` per contracts/gateway-http.md §2.4. A request starts with the state read of data-model.md §7.1, then the kill switch, then local. A stack without a fallback answers `no_fallback_in_stack`. Ledger rows for local calls follow data-model.md §7.4.
+- [X] T053 [US1] Implement `services/gateway/src/routes/hello.ts` and `src/core/limits.ts` per contracts/gateway-http.md §2:
   - at most 500 characters of `message`;
   - the fixed system prompt of §2.2, with 128 output tokens;
   - client identity from edge's `X-Forwarded-For` plus an optional `X-H4-Client` label matching `^[a-z0-9-]{1,32}$`;
   - the per-client cap: 20 a minute, burst 5, 500 a day, then 429 `client_cap_exceeded`;
   - responses 200, 503 (with `X-H4-Degraded-Cause`), 429, 400, 415, and 502 `local_error`.
-- [ ] T054 [US1] Implement `GET /health` in `services/gateway/src/routes/health.ts`, exactly as contracts/gateway-http.md §5.
-- [ ] T055 [US1] Implement the admin listener's authentication and initialization per contracts/operator-admin.md §1, §2.3, and §4.1:
+- [X] T054 [US1] Implement `GET /health` in `services/gateway/src/routes/health.ts`, exactly as contracts/gateway-http.md §5.
+- [X] T055 [US1] Implement the admin listener's authentication and initialization per contracts/operator-admin.md §1, §2.3, and §4.1:
   - in `services/gateway/src/routes/admin.ts`, bearer authentication with the prefix check before hashing and `timingSafeEqual`. Failures are counted in memory, in 10-minute windows, with at most one `auth_failed` audit row per class per window, carrying the route template, never the raw path (contracts/operator-admin.md §1.1), and an `auth_failed` alert at 3 failures in a window. In US1, alerts are queued as `alert_outbox` rows; US2 adds their delivery (T077);
   - `POST /admin/init` and `GET /admin/status`;
   - `src/meter/init.ts`, following data-model.md §8;
