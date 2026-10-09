@@ -12,7 +12,13 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { ADAPTER_TYPE_SPECS, REGISTERED_ADAPTER_TYPES } from "../../src/adapters/_settings.js";
 import { factory as localFactory } from "../../src/adapters/local-openai.js";
 import { factory as syntheticFactory } from "../../src/adapters/synthetic.js";
-import { RegistryError, buildRoute, loadFactories, type AdapterFactory } from "../../src/adapters/registry.js";
+import {
+  RegistryError,
+  buildRoute,
+  loadFactories,
+  switchedOff,
+  type AdapterFactory,
+} from "../../src/adapters/registry.js";
 import { loadConfig, type AdapterConfig, type RoutingConfig } from "../../src/config/validate.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -227,6 +233,22 @@ describe("buildRoute and the synthetic adapter (provider-adapter.md §3.3)", () 
       await Promise.all(off.map((b) => b.adapter.close?.()));
     }
     await Promise.all(on.map((b) => b.adapter.close?.()));
+  });
+
+  it("names the adapters it leaves switched off, for GET /health and the gauge to report as disabled (tasks.md T154)", () => {
+    const routingOf = withSynthetic();
+    for (const value of [undefined, "0", "", "yes"]) {
+      expect(
+        switchedOff({ routing: routingOf, envClass: "dev", env: { ...ENV, GATEWAY_TEST_SYNTHETIC_SPEND: value } }).map(
+          (d) => [d.role, d.config.id],
+        ),
+        String(value),
+      ).toEqual([["fallback", "synthetic"]]);
+    }
+    expect(
+      switchedOff({ routing: routingOf, envClass: "dev", env: { ...ENV, GATEWAY_TEST_SYNTHETIC_SPEND: "1" } }),
+    ).toEqual([]);
+    expect(switchedOff({ routing: routingOf, envClass: "prod", env: ENV })).toEqual([]);
   });
 
   it("gives the synthetic adapter no env key: it reads nothing from the environment", () => {

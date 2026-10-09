@@ -128,6 +128,30 @@ function envFor(
   return out;
 }
 
+/** An adapter this route configures but its switch leaves off: dev's synthetic one without its switch (§3.3). */
+function isSwitchedOff(config: AdapterConfig, env: Readonly<Record<string, string | undefined>>): boolean {
+  return config.kind === "synthetic" && env.GATEWAY_TEST_SYNTHETIC_SPEND !== "1";
+}
+
+/**
+ * The adapters this H4_ENV's route configures and leaves unbuilt because their switch is off. They are never routed,
+ * probed, or called, and GET /health and h4.adapter.healthy report them as `disabled` (provider-adapter.md §2.4).
+ */
+export function switchedOff(
+  opts: Pick<BuildRouteOptions, "routing" | "envClass" | "env">,
+): { role: "primary" | "fallback"; config: AdapterConfig }[] {
+  const route = opts.routing.envs[opts.envClass];
+  const out: { role: "primary" | "fallback"; config: AdapterConfig }[] = [];
+  for (const [role, id] of [
+    ["primary", route.primary],
+    ["fallback", route.fallback],
+  ] as const) {
+    const config = id === undefined ? undefined : opts.routing.adapters.get(id);
+    if (config !== undefined && isSwitchedOff(config, opts.env)) out.push({ role, config });
+  }
+  return out;
+}
+
 /** The adapters of this H4_ENV's route, primary first. A refusal closes whatever it had built already. */
 export function buildRoute(opts: BuildRouteOptions): BuiltAdapter[] {
   const built: BuiltAdapter[] = [];
@@ -151,7 +175,7 @@ function buildInto(built: BuiltAdapter[], opts: BuildRouteOptions): void {
     const at = `config/routing.yaml: adapters.${id}`;
     const config = opts.routing.adapters.get(id);
     if (config === undefined) throw new RegistryError(78, "invalid_config", `${at}: isn't defined`);
-    if (config.kind === "synthetic" && opts.env.GATEWAY_TEST_SYNTHETIC_SPEND !== "1") continue;
+    if (isSwitchedOff(config, opts.env)) continue;
     const factory = opts.factories.get(config.type);
     if (factory === undefined) {
       throw new RegistryError(

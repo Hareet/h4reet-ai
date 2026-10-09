@@ -8,7 +8,7 @@
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { dayKey, monthKey } from "../../src/core/clock.js";
 import { clientKey } from "../../src/core/limits.js";
@@ -307,5 +307,36 @@ describe("dev's route without its switch (provider-adapter.md §3.3)", () => {
       fallback: { adapter: null },
       test_machinery: { synthetic: false },
     });
+  });
+
+  it("reports the switched-off synthetic adapter as disabled in GET /health and h4.adapter.healthy (tasks.md T154)", async () => {
+    const { s } = await stack({ synthetic: false });
+    const report = await health(s);
+    const adapters = report.adapters as Rec[];
+    expect(adapters.map((a) => [a.id, a.role])).toEqual([
+      ["local", "primary"],
+      ["synthetic", "fallback"],
+    ]);
+    expect(adapters[1]).toEqual({
+      id: "synthetic",
+      role: "fallback",
+      provider: "synthetic",
+      kind: "synthetic",
+      model: "metered-test",
+      healthy: false,
+      reason: "disabled",
+      checked_at: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/),
+    });
+    // Listed, never routed: the route still has no fallback, and nothing probes or calls it.
+    expect(report.fallback).toMatchObject({ adapter: null });
+    expect(s.services.gateway.routedAdapters().map((a) => a.id)).toEqual(["local"]);
+    const spy = vi.spyOn(s.services.metrics, "setSnapshot");
+    await s.services.gateway.probeAll();
+    await s.services.gateway.refreshGauges();
+    const last = spy.mock.calls.at(-1)?.[0];
+    expect(last?.adapters).toEqual([
+      { id: "local", healthy: expect.any(Boolean) },
+      { id: "synthetic", healthy: false },
+    ]);
   });
 });

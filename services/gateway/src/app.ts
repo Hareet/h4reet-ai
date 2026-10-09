@@ -13,7 +13,7 @@ import type { IncomingMessage } from "node:http";
 import { metrics as otelMetrics, trace, type Tracer } from "@opentelemetry/api";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
-import { buildRoute, loadFactories, RegistryError, type AdapterFactory } from "./adapters/registry.js";
+import { buildRoute, loadFactories, RegistryError, switchedOff, type AdapterFactory } from "./adapters/registry.js";
 import { channelsFrom, Dispatcher } from "./alerts/dispatcher.js";
 import { IncidentDrafts } from "./incidents/draft.js";
 import {
@@ -232,6 +232,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     prices,
     budgets,
     adapters,
+    disabled: switchedOff({ routing, envClass, env }),
     store: opts.store,
     clock,
     tracer: opts.tracer ?? trace.getTracer("h4-gateway"),

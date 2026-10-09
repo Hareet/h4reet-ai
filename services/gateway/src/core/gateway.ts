@@ -36,6 +36,7 @@ import {
   costMicro,
   PriceTable,
   thresholds,
+  type AdapterConfig,
   type BudgetEnv,
   type Budgets,
   type EnvClass,
@@ -423,6 +424,8 @@ export interface GatewayOptions {
   budgets: Budgets;
   /** The route's adapters, primary first (registry.ts). */
   adapters: readonly BuiltAdapter[];
+  /** The route's adapters left switched off (registry.ts switchedOff): reported as disabled, never routed. */
+  disabled?: readonly { role: "primary" | "fallback"; config: AdapterConfig }[];
   store: Store;
   clock: GatewayClock;
   tracer: Tracer;
@@ -498,6 +501,8 @@ export class Gateway {
   /** Queues the fallback_unavailable alert (app.ts sets it to the dispatcher's): a paid fallback turned unhealthy. */
   onFallbackUnavailable: ((adapter: string, reason: "credentials" | "circuit_open") => void) | undefined;
   private readonly primary: Routed;
+  /** When the route was built: a switched-off adapter's checked_at. */
+  private readonly disabledAt: number;
   private readonly fallback: Routed | undefined;
   private readonly realNow: () => number;
   private gauges: GaugeSnapshot = { killSwitch: "degraded", cause: "store_unreachable", adapters: [] };
@@ -524,8 +529,17 @@ export class Gateway {
     const fallback = opts.adapters.find((a) => a.role === "fallback");
     this.fallback = fallback === undefined ? undefined : routed(fallback);
     if (this.fallback !== undefined && opts.meter === undefined) throw new Error("a fallback needs the meter");
-    this.gauges = { ...this.gauges, adapters: this.routed().map((r) => ({ id: r.built.config.id, healthy: false })) };
+    this.disabledAt = this.realNow();
+    this.gauges = { ...this.gauges, adapters: this.adapterGauges() };
     opts.metrics.setSnapshot(this.gauges);
+  }
+
+  /** h4.adapter.healthy's points: each routed adapter's effective health, and 0 for each one switched off. */
+  private adapterGauges(): { id: string; healthy: boolean }[] {
+    return [
+      ...this.routed().map((r) => ({ id: r.built.config.id, healthy: r.health.status().healthy })),
+      ...(this.opts.disabled ?? []).map((d) => ({ id: d.config.id, healthy: false })),
+    ];
   }
 
   /** The background work: each adapter's probe loop, the meter's sweep, and the gauges' refresh (data-model.md §7.7). */
@@ -668,7 +682,10 @@ export class Gateway {
             ? null
             : rfc3339Seconds(ok.fallbackAwaitingSince.getTime()),
       },
-      adapters: this.routed().map((r) => adapterReport(r)),
+      adapters: [
+        ...this.routed().map((r) => adapterReport(r)),
+        ...(this.opts.disabled ?? []).map((d) => disabledReport(d, this.disabledAt)),
+      ],
       journal: this.opts.journalStatus?.() ?? "unknown",
       config: { routing_sha: this.opts.routing.sha256, price_version: this.opts.prices.active(gatewayNow)?.id ?? null },
       test_machinery: { ...this.opts.testMachinery, clock_offset_ms: this.opts.clock.offsetMs() },
@@ -972,10 +989,7 @@ export class Gateway {
       },
       "An adapter's effective health changed.",
     );
-    this.gauges = {
-      ...this.gauges,
-      adapters: this.routed().map((r) => ({ id: r.built.config.id, healthy: r.health.status().healthy })),
-    };
+    this.gauges = { ...this.gauges, adapters: this.adapterGauges() };
     this.opts.metrics.setSnapshot(this.gauges);
   }
 
@@ -1052,6 +1066,21 @@ function meterViewOf(rows: readonly MeterRow[], env: BudgetEnv): MeterView {
     monthLevel: level(row("month")),
     fallbackLevel: level(row("fallback_day")),
     allowance: row("fallback_day")?.allowanceMicro ?? thresholds(env).fallbackGrant,
+  };
+}
+
+/** A switched-off adapter in GET /health: configured, never built, so `disabled` since the route was built. */
+function disabledReport(d: { role: "primary" | "fallback"; config: AdapterConfig }, since: number): AdapterReport {
+  return {
+    id: d.config.id,
+    role: d.role,
+    provider: d.config.provider,
+    kind: d.config.kind,
+    // The switched-off adapter is the synthetic one, whose model is in its settings and reads no environment.
+    model: d.config.spec.model(d.config.settings, {}) ?? "unknown",
+    healthy: false,
+    reason: "disabled",
+    checked_at: rfc3339Seconds(since),
   };
 }
 
