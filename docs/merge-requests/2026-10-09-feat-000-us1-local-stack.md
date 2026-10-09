@@ -44,6 +44,7 @@ ADR 0017 puts this section first. Nothing here has run outside the sandbox: ther
 | 4ca603a | **The stack's review fixes** (round 1). |
 | b91ab9b | **The convergence pass:** T143–T151 appended to tasks.md. |
 | a8e9cb7 | **T143, T145, T146:** `chown_state` through the engine; T063 now starts with the merge of main and §0.7–§0.8. |
+| a376635, 2157dc5 | **Round 2's fixes:** env-files.md's Langfuse allowlist wording; `chown_state`'s image from one checked `base:node` line, a seed that fails loudly, and the Author's engine client pinned to the engine. |
 
 ### Departures from the plan
 
@@ -113,9 +114,22 @@ Run over Phase 3's 19 tasks, 19 FRs, SC-001, the five scenarios, 17 plan section
 
 Done: T143, T145, T146 (a8e9cb7). The rest are under "Pending in this session" below. T149 waits for T065.
 
-### Round 2
+### Round 2 (at a8e9cb7)
 
-Pending: the three reviewers are verifying round 1's fixes and the convergence work at a8e9cb7.
+The same reviewers verified round 1's fixes, and the engine reviewer read the convergence pass's `chown_state` (T145), which no reviewer had seen.
+
+| ID | Slice | Finding | Fix |
+|---|---|---|---|
+| S-n1–5 | Stack | All five fixed. The open-pin mark reads tasks.md from the tree the policy checks, and a stray line can only expire it early, which fails closed | — |
+| S2-n1 | Stack | Nit: env-files.md §5 still said an unset Langfuse allowlist "is the same empty list", which T065 is now asked to confirm | a376635 |
+| E2-n1 | Engine | Nit: `H4_STATE_CHOWN_IMAGE` let the shell choose, by tag, the image that runs with the state root bound | 2157dc5: removed |
+| E2-n2 | Engine | Nit: the `base:node` parse checked only two fields, so a repository field like `--entrypoint=x` reached `docker run` as an option | 2157dc5: exactly one line, every field in its shape |
+| E2-n3 | Engine | Nit: at seed, a missing pin or a failed run was a note, its reason discarded, and seed still said "complete" | 2157dc5: fatal at seed, with the engine's last line; still a note at up, with the reason |
+| E2-n4 | Engine | Nit: the Author's engine client deferred to an ambient `DOCKER_HOST`, which could name the host's rootful daemon | 2157dc5: always `198.18.0.1:2376` with your certificate outside the sandbox |
+
+The engine reviewer found the uid mapping sound: in the rootless engine, container uid 1000 lands on `h4agents`' subordinate uid 1066535 in both containers, so the chown gives the directory to exactly the user the gateway writes as. It also confirmed that the admission plugin allows the bind under A14.
+
+Pending: the operator and gateway reviewer's verification of round 1's fixes, and the engine reviewer's of 2157dc5.
 
 ### Pending in this session
 
@@ -137,9 +151,9 @@ Pending: the final `make check` at the tip.
 **Your steps on this branch**, after foundations is merged and its T046 is done:
 1. **T063 (Heavy, with no agent session working):**
    1. Bring the branch up to date with main, so it has the two patches: `git switch feat/000-us1-local-stack && git merge main`.
-   2. quickstart.md §0.7–§0.8 for prod and dev: `make init-env ENV=prod`, `make operator-token ENV=prod`, the Telegram bot and the mailbox, and every `__ASK__` filled; then the same for dev. `make pull`'s preflight needs complete env files.
+   2. quickstart.md §0.8, then §0.7: `make init-env` and `make operator-token`, for prod and dev. Then, in an editor, fill every `__ASK__`, set each `OPERATOR_TOKEN_SHA256` to its printed hash, and put the Telegram bot and the mailbox into prod's file (dev's channel keys can wait). `make pull`'s preflight needs complete env files and the token files.
    3. `make pin-images`, which also pins SeaweedFS; `make pull MODELS=all`; then `deploy/agents-engine/engine.sh seed`.
-   4. Commit the pins on this branch, and mark T063 done in tasks.md: the policy's open-pin mark expires with it.
+   4. Commit the pins on this branch. T064's session marks T063 done, which ends the policy's allowance for an open pin.
 2. **T064:** ask me for an agent session on the engine once T063 is done.
 3. **T065 (Heavy):** quickstart.md §1, as tasks.md lists it: the first measurements, a cold `make up ENV=prod`, timed for SC-001, init, the hello, the trace, the panels, `make isolation-check` with dev up, the port scan from another machine, and the rollback rehearsal on dev. Paste the results here, with no secrets.
 4. **T149:** then ask me to apply what T065 found.
