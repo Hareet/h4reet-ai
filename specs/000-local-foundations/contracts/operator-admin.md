@@ -179,7 +179,7 @@ Request:
 
 | Status | `error` | When |
 |---|---|---|
-| 409 | `already_initialized` | a `stack_state` row exists |
+| 409 | `already_initialized` | a `stack_state` row exists. If it is the row of an init whose acknowledgement was lost, so the init answered 503 and never wrote its journal record, this answer appends that record first ([data-model.md §8](../data-model.md#8-initialization-fr-031) step 9; tasks.md T072) |
 | 409 | `confirm_zero_required` | no ledger rows this month, no `reserve` or `commit` record in the files read, nothing stated, and `confirm_zero` false. Nothing is zeroed silently. (This row first said "no journal records"; data-model.md §8 step 7, the procedure, counts only call records, and an `init` record's floor still applies when the operator confirms.) |
 | 409 | `journal_unreadable` | the journal directory exists but can't be read |
 | 400, 401, 503 | as in §1 | |

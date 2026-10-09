@@ -12,14 +12,16 @@
 //    8. the journal's `commit` record (a failed append doesn't undo the commit)
 //    9. h4.cost.usd, only when this transaction inserted the ledger row
 //
-// The cost was found from how the call settled: its usage at the reservation's price version (`usage`), its reserved
-// maximum when it failed possibly billed (`reservation`), or 0 when nothing could be billed (`none`).
+// The meter finds the cost itself, from how the call ended (settlementOf), never from its caller: its usage at the
+// reservation's price version (`usage`), its reserved maximum when it failed possibly billed (`reservation`), or 0
+// when nothing could be billed (`none`).
+import { costMicro, PriceTable } from "../config/validate.js";
 import { gatewayTime, toRfc3339 } from "../core/clock.js";
-import type { Attribution, FinishReason, ProviderErrorKind } from "../core/types.js";
+import type { AdapterResult, Attribution, FinishReason, ProviderErrorKind } from "../core/types.js";
 import { lockState, MeterTx, noEffects, type LockedState, type TxDeps, type TxEffects } from "./crossings.js";
 import { rowsOf, type RowKey } from "./rollover.js";
 import type { Queryable } from "./store.js";
-import type { Admitted, MeteredAttribution, RouteReason, SettledCall } from "./types.js";
+import type { Admitted, CallEnd, MeteredAttribution, RouteReason, SettledCall } from "./types.js";
 
 /** One ledger row (data-model.md §2.5), as the metered path writes it. */
 export interface LedgerRow {
@@ -143,6 +145,94 @@ export async function shiftReserved(
       [key.meter, key.periodKey, String(delta), nowIso],
     );
   }
+}
+
+/** A result's usage at the reservation's price version, or undefined when no price can take it. */
+function usageCost(a: Admitted, result: AdapterResult): bigint | undefined {
+  const entry = PriceTable.lookup(a.price, a.provider, a.model);
+  if (entry === undefined) return undefined;
+  try {
+    return costMicro(entry, result.usage);
+  } catch {
+    return undefined; // a placeholder price, or a token count that isn't a non-negative integer
+  }
+}
+
+/** A call charged its reserved maximum as a failure: it ended unknown, or the meter couldn't price it. */
+function atMaximum(a: Admitted, startedAt: number, endedAt: number): SettledCall {
+  return {
+    outcome: "error",
+    costBasis: "reservation",
+    costMicro: a.maxMicro,
+    inputTokens: null,
+    outputTokens: null,
+    cacheReadTokens: null,
+    responseModel: null,
+    finishReason: null,
+    errorKind: "provider_error",
+    latencyMs: Math.max(0, Math.round(endedAt - startedAt)),
+    startedAt,
+    endedAt,
+  };
+}
+
+/**
+ * How a metered call settled, priced by the meter from how it ended (data-model.md §7.3's table), at the reservation's
+ * price version and maximum, never at a cost its caller states:
+ * - an attempt that returned a result costs its usage;
+ * - one that failed possibly billed (any timeout of a paid adapter) costs the reservation's maximum;
+ * - any other failure costs 0.
+ * The call costs the sum of its attempts. With the shipped retry policies only an unbilled `rate_limited` is retried
+ * (provider-adapter.md §3.2), so the sum is the last attempt's cost. A call that ended `unknown`, because the code
+ * around it failed, or one whose usage no price can take, is charged its maximum as a failure: fail safe.
+ */
+export function settlementOf(a: Admitted, end: CallEnd, now: number): SettledCall {
+  if ("unknown" in end) return atMaximum(a, end.at, end.at);
+  const first = end.attempts[0];
+  const last = end.attempts.at(-1);
+  if (first === undefined || last === undefined) return atMaximum(a, now, now);
+  let cost = 0n;
+  for (const attempt of end.attempts) {
+    if (attempt.outcome === "error") {
+      if (attempt.error.possiblyBilled) cost += a.maxMicro;
+      continue;
+    }
+    const usage = usageCost(a, attempt.result);
+    if (usage === undefined) return atMaximum(a, first.startedAt, last.endedAt);
+    cost += usage;
+  }
+  if (last.outcome === "ok") {
+    const r = last.result;
+    return {
+      outcome: "ok",
+      costBasis: "usage",
+      costMicro: cost,
+      inputTokens: r.usage.inputTokens,
+      outputTokens: r.usage.outputTokens,
+      cacheReadTokens: r.usage.cacheReadInputTokens ?? 0,
+      responseModel: r.responseModel,
+      finishReason: r.finishReason,
+      errorKind: null,
+      latencyMs: r.latencyMs,
+      startedAt: first.startedAt,
+      endedAt: last.endedAt,
+    };
+  }
+  return {
+    outcome: "error",
+    // A failed call that costs anything was charged its maximum for a possibly billed attempt; otherwise nothing.
+    costBasis: cost > 0n ? "reservation" : "none",
+    costMicro: cost,
+    inputTokens: null,
+    outputTokens: null,
+    cacheReadTokens: null,
+    responseModel: null,
+    finishReason: null,
+    errorKind: last.error.kind,
+    latencyMs: Math.max(0, Math.round(last.endedAt - last.startedAt)),
+    startedAt: first.startedAt,
+    endedAt: last.endedAt,
+  };
 }
 
 /** What one commit attempt did. */

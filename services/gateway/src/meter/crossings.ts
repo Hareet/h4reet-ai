@@ -191,6 +191,9 @@ interface PendingAlert {
 export class MeterTx {
   readonly effects: TxEffects = noEffects();
   private readonly pending: PendingAlert[] = [];
+  /** killswitch.tripped, once this transaction has set degraded: later ceilings in it join its list. */
+  private tripRecord:
+    { event: "killswitch.tripped"; ceilings: string[]; day_micro?: number; month_micro?: number } | undefined;
 
   constructor(
     readonly q: Queryable,
@@ -252,7 +255,30 @@ export class MeterTx {
     // draft's "Meters at the crossing" (alerts.md §7).
     const snapshot = crossings.some((c) => c.kind !== "warn") ? await this.snapshot(periods) : undefined;
     for (const crossing of crossings) await this.apply(crossing, call, changes, snapshot, periods);
+    if (this.tripRecord !== undefined) this.spendOnTrip(changes);
     return changes;
+  }
+
+  /**
+   * killswitch.tripped is the transaction that sets degraded (telemetry.md §5.2): one record, naming every ceiling
+   * crossed in it, with the day's and the month's spend as it leaves them. A ceiling crossed on a stack that was
+   * degraded already sets nothing, and has its trip alert, incident, and audit row without one.
+   */
+  private tripped(ceiling: "day" | "month", setsDegraded: boolean): void {
+    if (this.tripRecord === undefined) {
+      if (!setsDegraded) return;
+      this.tripRecord = { event: "killswitch.tripped", ceilings: [] };
+      this.log("error", this.tripRecord, "The kill switch tripped: a spending ceiling was reached.");
+    }
+    this.tripRecord.ceilings.push(ceiling);
+  }
+
+  private spendOnTrip(changes: readonly SpendChange[]): void {
+    if (this.tripRecord === undefined) return;
+    const day = changes.find((x) => x.meter === "day")?.after;
+    const month = changes.find((x) => x.meter === "month")?.after;
+    if (day !== undefined) this.tripRecord.day_micro = Number(day);
+    if (month !== undefined) this.tripRecord.month_micro = Number(month);
   }
 
   private async snapshot(periods: Periods): Promise<Record<string, unknown>> {
@@ -366,18 +392,7 @@ export class MeterTx {
         },
       );
       this.crossedLog(c.ceiling, c.periodKey, "ceiling", after, c.threshold);
-      const day = changes.find((x) => x.meter === "day")?.after;
-      const month = changes.find((x) => x.meter === "month")?.after;
-      this.log(
-        "error",
-        {
-          event: "killswitch.tripped",
-          ceilings: [c.ceiling],
-          ...(day === undefined ? {} : { day_micro: Number(day) }),
-          ...(month === undefined ? {} : { month_micro: Number(month) }),
-        },
-        "The kill switch tripped: a spending ceiling was reached.",
-      );
+      this.tripped(c.ceiling, beforeState.state === "normal");
       this.pending.push({ key, spec: { kind: "trip", ceiling: c.ceiling }, periods });
       return;
     }

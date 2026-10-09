@@ -454,12 +454,20 @@ function commitOutcomeUnknown(err: unknown): boolean {
 
 const OUTAGE_LOG_EVERY_MS = 60_000;
 
+/**
+ * The SQLSTATEs of a state read whose schema is gone: undefined_table and invalid_schema_name. The store answers but
+ * holds nothing, so it was wiped and brought back empty while the gateway ran (plan §8 step 11).
+ */
+const SCHEMA_GONE: ReadonlySet<string> = new Set(["42P01", "3F000"]);
+
 export class Store {
   status: StoreStatus = "starting";
   private timer: NodeJS.Timeout | undefined;
   private closed = false;
   private outageSince: number | undefined;
   private outageLoggedAt: number | undefined;
+  /** When the migrations last ran again for a schema found gone, real ms: at most once per retry interval. */
+  private remigratedAt: number | undefined;
 
   constructor(private readonly opts: StoreOptions) {}
 
@@ -662,8 +670,27 @@ export class Store {
       };
     } catch (err) {
       this.noteOutage(err);
+      const sqlstate = sqlStateOf(err);
+      if (sqlstate !== undefined && SCHEMA_GONE.has(sqlstate)) this.migrateAgain();
       return { kind: "unreachable" };
     }
+  }
+
+  /**
+   * The schema is gone under a running gateway: the store was wiped and brought back empty. The migrations run again,
+   * at once and then every 5 s until they land, as at startup (data-model.md §2.1), so the empty store reads as
+   * store_uninitialized rather than store_unreachable for good. Until they land the store isn't ready, and every
+   * request answers store_unreachable. At most once per retry interval: a schema that the migrations can't bring back,
+   * such as one with a table dropped by hand, stays unreachable without a run on every request.
+   */
+  private migrateAgain(): void {
+    const now = this.now();
+    const interval = this.opts.retryMs ?? STORE_RETRY_MS;
+    if (this.closed || this.status !== "ready") return;
+    if (this.remigratedAt !== undefined && now - this.remigratedAt < interval) return;
+    this.remigratedAt = now;
+    this.status = "unreachable";
+    void this.attempt(false);
   }
 
   /** The dedicated LISTEN connection: the alert dispatcher's wake-up (data-model.md §2.7). Resolves to its close. */

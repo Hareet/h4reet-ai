@@ -17,13 +17,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { loadConfig } from "../../src/config/validate.js";
 import { dayKey, GatewayClock, monthKey } from "../../src/core/clock.js";
+import { ProviderError, type AdapterResult } from "../../src/core/types.js";
 import { LOCK_STATE } from "../../src/meter/crossings.js";
 import { Journal } from "../../src/meter/journal.js";
 import { Meter } from "../../src/meter/meter.js";
 import { readMigrations, Store } from "../../src/meter/store.js";
-import type { AdmitRequest, AdmitResult, Admitted, SettledCall } from "../../src/meter/types.js";
+import type { AdmitRequest, AdmitResult, Admitted, CallEnd } from "../../src/meter/types.js";
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
-import { connectionLost, testDatabase, type TestDatabase } from "../helpers/pglite.js";
+import { connectionLost, statementRefused, testDatabase, type TestDatabase } from "../helpers/pglite.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
 const HEX64 = "ab".repeat(32);
@@ -136,23 +137,26 @@ function request(o: Partial<AdmitRequest> = {}): AdmitRequest {
   };
 }
 
-function settled(r: Rig, o: Partial<SettledCall> = {}): SettledCall {
-  return {
-    outcome: "ok",
-    costBasis: "usage",
-    costMicro: 100_000n,
-    inputTokens: 0,
-    outputTokens: 1_000,
-    cacheReadTokens: 0,
-    responseModel: "metered-test",
+/** A call that answered: the synthetic adapter's 1,000 output tokens, $0.10 at the fixtures' price. */
+function answered(r: Rig, o: Partial<AdapterResult> = {}): CallEnd {
+  const result: AdapterResult = {
+    text: "synthetic response",
+    usage: { inputTokens: 0, outputTokens: 1_000 },
     finishReason: "stop",
-    errorKind: null,
+    responseModel: "metered-test",
     latencyMs: 3,
-    startedAt: r.clock.now,
-    endedAt: r.clock.now + 3,
     ...o,
   };
+  return { attempts: [{ outcome: "ok", result, startedAt: r.clock.now, endedAt: r.clock.now + 3 }] };
 }
+
+/** A call that failed, with the error its adapter raised. */
+function failed(r: Rig, error: ProviderError): CallEnd {
+  return { attempts: [{ outcome: "error", error, startedAt: r.clock.now, endedAt: r.clock.now + 3 }] };
+}
+
+const COMMITTED = { committed: true, costMicro: 100_000n };
+const UNCOMMITTED = { committed: false, costMicro: 100_000n };
 
 function admitted(result: AdmitResult): Admitted {
   if (!result.ok) throw new Error(`refused: ${JSON.stringify(result)}`);
@@ -163,7 +167,7 @@ function admitted(result: AdmitResult): Admitted {
 async function spend(r: Rig, n: number, o: Partial<AdmitRequest> = {}): Promise<void> {
   for (let i = 0; i < n; i++) {
     const a = admitted(await r.meter.admit(request(o)));
-    expect(await r.meter.settle(a, settled(r))).toEqual({ committed: true });
+    expect(await r.meter.settle(a, answered(r))).toEqual(COMMITTED);
   }
 }
 
@@ -224,6 +228,11 @@ function transactions(statements: readonly string[]): string[][] {
 
 const writes = (s: string): boolean =>
   /^(INSERT INTO|UPDATE|DELETE FROM) gateway\.(meters|stack_state)\b/.test(s.trim());
+
+const causeOf = (result: AdmitResult) => (!result.ok && result.refusal === "degraded" ? result.decision : undefined);
+const killLogs = (r: Rig) => r.logged.filter((l) => l.record.event === "killswitch.tripped").map((l) => l.record);
+const reservationIds = async (r: Rig) =>
+  (await r.db.pg.query<{ id: string }>("SELECT id FROM gateway.reservations ORDER BY id")).rows.map((x) => x.id);
 
 describe("admission, step by step (data-model.md §7.2)", () => {
   it("locks the state, sweeps, upserts and locks the periods' rows, reserves, then appends the reserve record", async () => {
@@ -422,7 +431,7 @@ describe("the refusal precedence (§7.2 step 5)", () => {
     await condition(r, { awaiting: true, fallback: 2_000_000 });
     for (const attribution of ["metered", "test"] as const) {
       const a = admitted(await r.meter.admit(request({ attribution, adapterHealthy: false })));
-      await r.meter.settle(a, settled(r));
+      await r.meter.settle(a, answered(r));
     }
     await invariant(r);
   });
@@ -446,7 +455,7 @@ describe("the refusal precedence (§7.2 step 5)", () => {
       error: "client_cap_exceeded",
       limit: "metered_in_flight",
     });
-    for (const a of held) await r.meter.settle(a, settled(r));
+    for (const a of held) await r.meter.settle(a, answered(r));
     expect(r.meter.counters().inFlight).toBe(0);
   });
 
@@ -462,13 +471,72 @@ describe("the refusal precedence (§7.2 step 5)", () => {
   });
 });
 
+describe("a lost acknowledgement of the admission's COMMIT (§7.2; tasks.md T072)", () => {
+  /** Drops the connection at the admission's COMMIT: before it reaches the server, or after it landed. */
+  function dropCommit(r: Rig, phase: "before" | "after", o: { staysDown?: boolean } = {}): () => boolean {
+    let armed = false;
+    let dropped = false;
+    r.db.hook = (text, at) => {
+      if (dropped && o.staysDown) throw connectionLost();
+      if (text.startsWith("INSERT INTO gateway.reservations")) armed = true;
+      if (armed && !dropped && text === "COMMIT" && at === phase) {
+        dropped = true;
+        throw connectionLost();
+      }
+    };
+    return () => dropped;
+  }
+
+  it("withdraws a reservation whose COMMIT landed, refuses with store_unreachable, and gives the slot back", async () => {
+    const r = await rig();
+    const dropped = dropCommit(r, "after");
+    const result = await r.meter.admit(request());
+    r.db.hook = undefined;
+    expect(dropped()).toBe(true);
+    expect(causeOf(result)).toMatchObject({ cause: "store_unreachable" });
+    expect(await reservationIds(r)).toEqual([]);
+    expect((await meters(r)).map((m) => m.reserved_micro)).toEqual([0, 0, 0]);
+    expect(r.meter.counters()).toEqual({ inFlight: 0, lastMinute: 0 });
+    await invariant(r);
+  });
+
+  it("subtracts nothing when the COMMIT never landed, beside another call's live reservation", async () => {
+    const r = await rig();
+    const live = admitted(await r.meter.admit(request({ attribution: "metered" })));
+    const dropped = dropCommit(r, "before");
+    const result = await r.meter.admit(request({ attribution: "metered" }));
+    r.db.hook = undefined;
+    expect(dropped()).toBe(true);
+    expect(causeOf(result)).toMatchObject({ cause: "store_unreachable" });
+    // The withdrawal found no reservation to delete, so it took nothing off the live call's rows (§2.3).
+    expect(await reservationIds(r)).toEqual([live.reservationId]);
+    expect((await meters(r)).find((m) => m.meter === "day")).toMatchObject({ reserved_micro: 100_000 });
+    expect(r.meter.counters().inFlight).toBe(1); // the live call's slot, and only it
+    await invariant(r);
+  });
+
+  it("leaves a reservation it can't withdraw to the sweep, which settles the never-run call at its maximum", async () => {
+    const r = await rig();
+    dropCommit(r, "after", { staysDown: true });
+    const result = await r.meter.admit(request({ attribution: "metered" }));
+    r.db.hook = undefined;
+    expect(causeOf(result)).toMatchObject({ cause: "store_unreachable" });
+    expect(await reservationIds(r)).toHaveLength(1);
+    expect(r.meter.counters().inFlight).toBe(0);
+    r.clock.now += 121_000;
+    expect(await r.meter.sweepNow()).toBe(1);
+    expect((await meters(r)).find((m) => m.meter === "day")).toMatchObject({ spent_micro: 100_000, reserved_micro: 0 });
+    await invariant(r);
+  });
+});
+
 describe("the commit (§7.3)", () => {
   it("releases the reservation, writes the ledger row, adds the spend, appends the commit record, and counts the cost", async () => {
     const r = await rig();
     const a = admitted(await r.meter.admit(request({ clientKey: "client" })));
     r.clock.now += 40;
     r.db.statements.length = 0;
-    expect(await r.meter.settle(a, settled(r), { clientLabel: "author-laptop" })).toEqual({ committed: true });
+    expect(await r.meter.settle(a, answered(r), { clientLabel: "author-laptop" })).toEqual(COMMITTED);
     const [tx] = transactions(r.db.statements);
     expect(tx?.[0]).toBe(LOCK_STATE);
     expect(tx?.map((s) => s.trim().split(/\s+/).slice(0, 3).join(" "))).toEqual([
@@ -568,35 +636,12 @@ describe("the commit (§7.3)", () => {
   it("charges a possibly billed failure its reserved maximum, and an unbilled one nothing", async () => {
     const r = await rig();
     const billed = admitted(await r.meter.admit(request()));
-    await r.meter.settle(
-      billed,
-      settled(r, {
-        outcome: "error",
-        costBasis: "reservation",
-        costMicro: billed.maxMicro,
-        inputTokens: null,
-        outputTokens: null,
-        cacheReadTokens: null,
-        responseModel: null,
-        finishReason: null,
-        errorKind: "timeout",
-      }),
-    );
+    expect(await r.meter.settle(billed, failed(r, new ProviderError("timeout", true, true)))).toEqual(COMMITTED);
     const unbilled = admitted(await r.meter.admit(request()));
-    await r.meter.settle(
-      unbilled,
-      settled(r, {
-        outcome: "error",
-        costBasis: "none",
-        costMicro: 0n,
-        inputTokens: null,
-        outputTokens: null,
-        cacheReadTokens: null,
-        responseModel: null,
-        finishReason: null,
-        errorKind: "unavailable",
-      }),
-    );
+    expect(await r.meter.settle(unbilled, failed(r, new ProviderError("unavailable", true, false)))).toEqual({
+      committed: true,
+      costMicro: 0n,
+    });
     const ledger = (
       await r.db.pg.query<Rec>("SELECT cost_micro, cost_basis, outcome, error_kind FROM gateway.ledger ORDER BY ts, id")
     ).rows;
@@ -658,7 +703,7 @@ describe("the commit (§7.3)", () => {
     await spend(r, 49, { attribution: "metered" }); // $4.90
     r.clock.now += 5_000;
     const crossing = admitted(await r.meter.admit(request({ attribution: "metered" })));
-    await r.meter.settle(crossing, settled(r)); // $5.00: the daily ceiling
+    await r.meter.settle(crossing, answered(r)); // $5.00: the daily ceiling
     const state = await stateRow(r);
     expect(state).toMatchObject({ state: "degraded", crossed: [`day:${DAY}`], fallback_awaiting_renewal: false });
     expect((state.since as Date).getTime()).toBe(T0 + 5_000);
@@ -775,12 +820,49 @@ describe("the commit (§7.3)", () => {
       routeReason: null,
       routingSha: HEX64,
     };
-    await r.meter.settle(a, settled(r));
+    await r.meter.settle(a, answered(r));
     const state = await stateRow(r);
     expect(state).toMatchObject({ state: "degraded", crossed: ["day:2026-11-19", `month:${MONTH}`] });
     expect((state.since as Date).toISOString()).toBe(earlier);
     // Only the ceiling: the month's warning at $14.00 was crossed long before.
     expect((await outbox(r)).map((x) => x.dedupe_key)).toEqual([`dev:trip:month:${MONTH}`]);
+  });
+
+  it("logs killswitch.tripped once, for the commit that sets degraded, naming every ceiling it crossed", async () => {
+    const r = await rig();
+    const earlier = new Date(T0 - 1_000).toISOString();
+    const seed = (s: Rig, day: number, month: number) =>
+      s.db.pg.query(
+        `INSERT INTO gateway.meters (meter, period_key, spent_micro, reserved_micro, allowance_micro, grant_no,
+           created_at, updated_at)
+         VALUES ('day', $1, $3, 0, NULL, NULL, $5, $5), ('month', $2, $4, 0, NULL, NULL, $5, $5)`,
+        [DAY, MONTH, day, month, earlier],
+      );
+    // One call crosses both ceilings: one record that names both, and each ceiling still has its own trip.
+    await seed(r, 4_950_000, 19_950_000);
+    await spend(r, 1, { attribution: "metered" });
+    expect(killLogs(r)).toEqual([
+      { event: "killswitch.tripped", ceilings: ["day", "month"], day_micro: 5_050_000, month_micro: 20_050_000 },
+    ]);
+    expect((await stateRow(r)).crossed).toEqual([`day:${DAY}`, `month:${MONTH}`]);
+    expect((await outbox(r)).filter((x) => x.kind === "trip").map((x) => x.dedupe_key)).toEqual([
+      `dev:trip:day:${DAY}`,
+      `dev:trip:month:${MONTH}`,
+    ]);
+    // A ceiling crossed on a stack that is degraded already sets nothing: no second record.
+    const s = await rig();
+    await seed(s, 4_800_000, 0);
+    const b = admitted(await s.meter.admit(request({ attribution: "metered" })));
+    const c = admitted(await s.meter.admit(request({ attribution: "metered" })));
+    await s.db.pg.query("UPDATE gateway.meters SET spent_micro = 4950000 WHERE meter = 'day'");
+    await s.meter.settle(b, answered(s)); // the day's ceiling: degraded
+    await s.db.pg.query("UPDATE gateway.meters SET spent_micro = 19950000 WHERE meter = 'month'");
+    await s.meter.settle(c, answered(s)); // in flight before the trip: the month's ceiling, on a degraded stack
+    expect(killLogs(s)).toEqual([
+      { event: "killswitch.tripped", ceilings: ["day"], day_micro: 5_050_000, month_micro: 100_000 },
+    ]);
+    expect((await stateRow(s)).crossed).toEqual([`day:${DAY}`, `month:${MONTH}`]);
+    expect((await outbox(s)).filter((x) => x.kind === "trip")).toHaveLength(2);
   });
 
   it("exhausts the sub-budget in the commit that reaches the allowance, and refuses fallback until a renewal", async () => {
@@ -834,7 +916,7 @@ describe("the commit (§7.3)", () => {
     const refused = await r.meter.admit(request());
     expect(!refused.ok && refused.refusal === "degraded" && refused.decision.cause).toBe("fallback_spent_today");
     await invariant(r);
-    for (const a of held) await r.meter.settle(a, settled(r));
+    for (const a of held) await r.meter.settle(a, answered(r));
     expect((await stateRow(r)).fallback_awaiting_renewal).toBe(true); // the commit that reached it set the flag
   });
 });
@@ -850,7 +932,7 @@ describe("commit retries (§7.3)", () => {
         throw connectionLost();
       }
     };
-    expect(await r.meter.settle(a, settled(r))).toEqual({ committed: false });
+    expect(await r.meter.settle(a, answered(r))).toEqual(UNCOMMITTED);
     expect(r.meter.pendingCommits()).toBe(1);
     await vi.waitFor(() => expect(r.meter.pendingCommits()).toBe(0), { timeout: 2_000, interval: 10 });
     expect((await r.db.pg.query("SELECT count(*)::int AS n FROM gateway.ledger")).rows).toEqual([{ n: 1 }]);
@@ -869,7 +951,7 @@ describe("commit retries (§7.3)", () => {
     r.db.hook = (text) => {
       if (down && text === LOCK_STATE) throw connectionLost();
     };
-    expect(await r.meter.settle(a, settled(r))).toEqual({ committed: false });
+    expect(await r.meter.settle(a, answered(r))).toEqual(UNCOMMITTED);
     expect(r.meter.counters().inFlight).toBe(1); // the slot outlives no call, but this call isn't over
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(r.meter.pendingCommits()).toBe(1);
@@ -886,7 +968,7 @@ describe("commit retries (§7.3)", () => {
     r.db.hook = (text) => {
       if (text === LOCK_STATE) throw connectionLost();
     };
-    await r.meter.settle(a, settled(r, { costMicro: 40_000n }));
+    await r.meter.settle(a, answered(r, { usage: { inputTokens: 0, outputTokens: 400 } })); // $0.04
     r.clock.now = a.retryUntil; // the reservation has expired
     await vi.waitFor(() => expect(r.meter.pendingCommits()).toBe(0), { timeout: 2_000, interval: 10 });
     expect(r.meter.counters().inFlight).toBe(0);
@@ -897,6 +979,32 @@ describe("commit retries (§7.3)", () => {
     expect((await r.db.pg.query<Rec>("SELECT cost_micro, cost_basis, outcome FROM gateway.ledger")).rows).toEqual([
       { cost_micro: 100_000, cost_basis: "expired", outcome: "unknown" }, // the maximum, not the 40,000 it cost
     ]);
+    await invariant(r);
+  });
+});
+
+describe("a commit the store refuses (tasks.md T072)", () => {
+  it("gives the call's slot back at once, retries nothing, and leaves the reservation to the sweep", async () => {
+    const r = await rig();
+    const a = admitted(await r.meter.admit(request({ attribution: "metered" })));
+    r.db.hook = (text, phase) => {
+      if (phase === "before" && text.startsWith("INSERT INTO gateway.ledger")) throw statementRefused("23514");
+    };
+    expect(await r.meter.settle(a, answered(r))).toEqual(UNCOMMITTED); // a bug: it never throws to the caller
+    r.db.hook = undefined;
+    expect(r.meter.counters().inFlight).toBe(0);
+    expect(r.meter.pendingCommits()).toBe(0);
+    expect(r.logged.find((l) => l.record.event === "meter.commit_gave_up")?.record).toEqual({
+      event: "meter.commit_gave_up",
+      reservation_id: a.reservationId,
+      attribution: "metered",
+    });
+    expect(r.store.outageStartedAt()).toBeUndefined(); // a refused statement isn't an outage
+    // The reservation still holds the call's maximum; once it expires, the sweep charges it.
+    expect(await reservationIds(r)).toEqual([a.reservationId]);
+    r.clock.now = a.expiresAt;
+    expect(await r.meter.sweepNow()).toBe(1);
+    expect((await meters(r)).find((m) => m.meter === "day")).toMatchObject({ spent_micro: 100_000, reserved_micro: 0 });
     await invariant(r);
   });
 });
@@ -948,7 +1056,7 @@ describe("the sweep (§2.4)", () => {
     });
     // The commit arrives after all: the ledger row is there, so it does nothing, and the slot goes back.
     const costs = r.costs.length;
-    expect(await r.meter.settle(late, settled(r))).toEqual({ committed: true });
+    expect(await r.meter.settle(late, answered(r))).toEqual(COMMITTED);
     expect((await r.db.pg.query("SELECT count(*)::int AS n FROM gateway.ledger")).rows).toEqual([{ n: 35 }]);
     expect(r.costs).toHaveLength(costs);
     expect((await meters(r)).find((m) => m.meter === "day")).toMatchObject({ spent_micro: 3_500_000 });
@@ -1000,6 +1108,60 @@ describe("the sweep (§2.4)", () => {
   });
 });
 
+describe("the 10 s upkeep (§7.7)", () => {
+  it("gives back the slot of a call that never settles once its reservation expires, and the sweep settles it", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const r = await rig();
+      const a = admitted(await r.meter.admit(request({ clientKey: "client" })));
+      r.meter.start();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(r.meter.counters().inFlight).toBe(1); // not expired: the call may still settle
+      r.clock.now = a.retryUntil;
+      await vi.advanceTimersByTimeAsync(10_000);
+      vi.useRealTimers();
+      await vi.waitFor(async () => expect(await reservationIds(r)).toEqual([]));
+      expect(r.meter.counters().inFlight).toBe(0);
+      expect(r.logged.find((l) => l.record.event === "meter.commit_gave_up")?.record).toEqual({
+        event: "meter.commit_gave_up",
+        reservation_id: a.reservationId,
+        attribution: "fallback",
+      });
+      // The client's one metered slot is free again, and a settlement that comes after all gives nothing back twice.
+      const next = admitted(await r.meter.admit(request({ clientKey: "client" })));
+      expect(await r.meter.settle(a, answered(r))).toEqual(COMMITTED);
+      expect(r.meter.counters().inFlight).toBe(1);
+      await r.meter.settle(next, answered(r));
+      expect(r.meter.counters().inFlight).toBe(0);
+      await invariant(r);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("logs meter.sweep_failed with the error class when the sweep fails", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const r = await rig();
+      admitted(await r.meter.admit(request()));
+      r.clock.now += 121_000;
+      r.db.hook = (text) => {
+        if (text.startsWith("SELECT 1 FROM gateway.reservations")) throw connectionLost();
+      };
+      r.meter.start();
+      await vi.advanceTimersByTimeAsync(10_000);
+      vi.useRealTimers();
+      await vi.waitFor(() => expect(r.logged.some((l) => l.record.event === "meter.sweep_failed")).toBe(true));
+      expect(r.logged.find((l) => l.record.event === "meter.sweep_failed")).toEqual({
+        level: "error",
+        record: { event: "meter.sweep_failed", error_class: "ECONNRESET" },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("the journal (§7.2 step 8)", () => {
   it("withdraws the reservation when the reserve record can't be written, and refuses with journal_unwritable", async () => {
     const r = await rig();
@@ -1037,7 +1199,7 @@ describe("the journal (§7.2 step 8)", () => {
     // The run of failures keeps its start; once an append works again, admission does too.
     await chmod(dir, 0o700);
     const a = admitted(await r.meter.admit(request()));
-    await r.meter.settle(a, settled(r));
+    await r.meter.settle(a, answered(r));
     expect(r.journal.unwritableSince()).toBeUndefined();
   });
 });
@@ -1087,7 +1249,7 @@ describe("rollover (§7.6)", () => {
     r.clock.now = Date.parse("2026-11-20T23:59:59.000Z");
     const a = admitted(await r.meter.admit(request({ attribution: "metered" })));
     r.clock.now = Date.parse("2026-11-21T00:00:01.000Z");
-    await r.meter.settle(a, settled(r));
+    await r.meter.settle(a, answered(r));
     expect((await r.db.pg.query<Rec>("SELECT period_day FROM gateway.ledger")).rows).toEqual([
       { period_day: "2026-11-20" },
     ]);

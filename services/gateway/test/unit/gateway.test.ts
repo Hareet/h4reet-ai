@@ -20,7 +20,7 @@ import {
   type ProviderAdapter,
 } from "../../src/core/types.js";
 import type { StateRead, Store } from "../../src/meter/store.js";
-import type { AdmitRequest, AdmitResult, Admitted, MeterPort, SettledCall } from "../../src/meter/types.js";
+import type { AdmitRequest, AdmitResult, Admitted, CallEnd, MeterPort } from "../../src/meter/types.js";
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -275,7 +275,7 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
   /** A MeterPort whose answers the test scripts, recording every admission and settlement. */
   function fakeMeter() {
     const admits: AdmitRequest[] = [];
-    const settles: { a: Admitted; s: SettledCall; label?: string }[] = [];
+    const settles: { a: Admitted; end: CallEnd; label?: string }[] = [];
     let next: (r: AdmitRequest) => AdmitResult = (r) => ({
       ok: true,
       admitted: {
@@ -304,9 +304,9 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
         admits.push(r);
         return next(r);
       },
-      settle: async (a, s, o) => {
-        settles.push({ a, s, ...(o?.clientLabel === undefined ? {} : { label: o.clientLabel }) });
-        return { committed };
+      settle: async (a, end, o) => {
+        settles.push({ a, end, ...(o?.clientLabel === undefined ? {} : { label: o.clientLabel }) });
+        return { committed, costMicro: 100_000n }; // what the meter found: the answer reports it
       },
       counters: () => ({ inFlight: 0, lastMinute: 0 }),
       start: () => {},
@@ -433,17 +433,21 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
         routeReason: "local_unhealthy",
       },
     ]);
+    // The meter is told how the call ended, and finds its cost itself (data-model.md §7.3): the gateway states none.
     expect(m.settles).toHaveLength(1);
-    expect(m.settles[0]?.s).toMatchObject({
-      outcome: "ok",
-      costBasis: "usage",
-      costMicro: 100_000n,
-      inputTokens: 0,
-      outputTokens: 1_000,
-      cacheReadTokens: 0,
-      responseModel: "metered-test",
-      finishReason: "stop",
-      errorKind: null,
+    expect(m.settles[0]?.end).toEqual({
+      attempts: [
+        expect.objectContaining({
+          outcome: "ok",
+          result: expect.objectContaining({
+            usage: { inputTokens: 0, outputTokens: 1_000 },
+            responseModel: "metered-test",
+            finishReason: "stop",
+          }),
+          startedAt: expect.any(Number),
+          endedAt: expect.any(Number),
+        }),
+      ],
     });
     expect(m.settles[0]?.label).toBe("author-laptop");
     expect(routeSpan()?.attributes).toMatchObject({
@@ -517,15 +521,30 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
     const a = await g.complete(call());
     expect(a).toMatchObject({ kind: "degraded", decision: { cause: "fallback_unavailable" } });
     if (a.kind === "degraded") expect(a.decision.since).toBeUndefined();
-    expect(m.settles[0]?.s).toMatchObject({
-      outcome: "error",
-      costBasis: "reservation",
-      costMicro: 100_000n, // the reserved maximum
-      errorKind: "timeout",
-      inputTokens: null,
-    });
+    const end = m.settles[0]?.end;
+    const attempts = end !== undefined && "attempts" in end ? end.attempts : [];
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]).toMatchObject({ outcome: "error", error: { kind: "timeout", possiblyBilled: true } });
     // A timeout counts as a failed probe: the fallback is unhealthy now.
     expect(g.routedAdapters()[1]?.health.healthy).toBe(false);
+  });
+
+  it("settles a call whose surrounding code failed as unknown, so the meter charges its maximum, and rethrows", async () => {
+    const { g, fb, m } = rig();
+    await g.probeAll();
+    const startSpan = tracer.startSpan.bind(tracer);
+    const spy = vi.spyOn(tracer, "startSpan").mockImplementation((name, options, ctx) => {
+      if (name.startsWith("chat ")) throw new TypeError("instrumentation failed");
+      return startSpan(name, options, ctx);
+    });
+    try {
+      await expect(g.complete(call())).rejects.toThrow(TypeError);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(fb.calls()).toBe(0);
+    expect(m.settles).toHaveLength(1);
+    expect(m.settles[0]?.end).toEqual({ unknown: true, at: expect.any(Number) });
   });
 
   it("marks the routing span when the commit is pending, and still answers", async () => {

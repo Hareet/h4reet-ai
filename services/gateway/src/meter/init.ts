@@ -12,11 +12,12 @@
 //    with 409 confirm_zero_required unless confirm_zero.
 // 8. One transaction: the state row, the meter rows, the audit row, and the operator_action alert.
 // 9. Then the journal's operator record. A failed append is reported, and audited as journal_failed, and doesn't undo
-//    the initialization.
+//    the initialization. An init whose COMMIT landed while its answer, and the re-read after it, were lost answered
+//    503 without the record: the retry's 409 already_initialized appends it from the init's audit row.
 import { renderAlert, type InitSource, type MeterFacts } from "../alerts/format.js";
 import { dedupeKey as dedupeKeys, enqueueAlert } from "../alerts/outbox.js";
 import { thresholds, type AlertsConfig, type Budgets, type EnvClass, type StackName } from "../config/validate.js";
-import { gatewayTime, periodKeys, toRfc3339, type GatewayClock } from "../core/clock.js";
+import { gatewayTime, monthKey, periodKeys, toRfc3339, type GatewayClock } from "../core/clock.js";
 import type { GatewayMetrics } from "../telemetry/metrics.js";
 import {
   JournalUnreadableError,
@@ -27,6 +28,7 @@ import {
   type JournalScan,
   type OperatorRecord,
   type ReserveRecord,
+  previousMonth,
 } from "./journal.js";
 import { CommitUnknownError, isStoreFailure, Rollback, toBigInt, type Queryable, type Store } from "./store.js";
 
@@ -217,7 +219,10 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
   // 1. Preconditions. The state read first, with no cache (data-model.md §7.1).
   const read = await deps.store.readStackState();
   if (read.kind === "unreachable") return UNREACHABLE;
-  if (read.kind === "ok") return refuse("already_initialized");
+  if (read.kind === "ok") {
+    await finishLostInit(deps);
+    return refuse("already_initialized");
+  }
   let scan: JournalScan;
   try {
     scan = await deps.journal.scan({ envClass: deps.envClass, realNow: deps.realNow() });
@@ -441,20 +446,16 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
         result,
         auditId,
         ...(queued ? { alertKey: dedupeKey } : {}),
-        journalRecord: {
-          kind: "operator",
-          action: "init",
-          audit_id: auditId,
+        journalRecord: initRecordOf({
+          auditId,
           actor: operator.actor,
-          period_day: now.day,
-          period_month: now.month,
-          day_micro: big(chosen.day),
-          month_micro: big(chosen.month),
-          fallback_day_micro: big(chosen.fallback_day),
-          confirm_zero: req.confirmZero,
+          periods: now,
+          chosen: { day: Number(chosen.day), month: Number(chosen.month), fallback_day: Number(chosen.fallback_day) },
+          confirmZero: req.confirmZero,
           renewed: req.renew,
-          ...(req.renew ? { allowance_micro: big(allowance), grant_no: grantNo } : {}),
-        },
+          allowance: Number(allowance),
+          grantNo,
+        }),
       };
     });
   } catch (err) {
@@ -521,6 +522,130 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
     "The operator initialized the store.",
   );
   return done.result;
+}
+
+/** The journal's init record (data-model.md §3): the chosen values, a rebuild's floor, and the grant when renewed. */
+function initRecordOf(o: {
+  auditId: number;
+  actor: string;
+  periods: { day: string; month: string };
+  chosen: Record<Meter, number>;
+  confirmZero: boolean;
+  renewed: boolean;
+  allowance: number;
+  grantNo: number;
+}): Record<string, unknown> & { kind: "operator" } {
+  return {
+    kind: "operator",
+    action: "init",
+    audit_id: o.auditId,
+    actor: o.actor,
+    period_day: o.periods.day,
+    period_month: o.periods.month,
+    day_micro: o.chosen.day,
+    month_micro: o.chosen.month,
+    fallback_day_micro: o.chosen.fallback_day,
+    confirm_zero: o.confirmZero,
+    renewed: o.renewed,
+    ...(o.renewed ? { allowance_micro: o.allowance, grant_no: o.grantNo } : {}),
+  };
+}
+
+/** Repairs in flight, one per journal: two 409s at once append one record. */
+const repairs = new WeakMap<Journal, Promise<void>>();
+
+/**
+ * Finishes an init whose COMMIT landed while its acknowledgement, and the re-read after it, were lost, as when
+ * Postgres restarts: it answered 503 and wrote no journal record (step 9). If the journal's newest init record is older
+ * than the state row's initialized_at, the record is appended now from the init's audit row, at the init's own time, so
+ * a later rebuild keeps its floor (data-model.md §3 step 6), and operator.init follows. Only an init in a month a
+ * rebuild reads is repaired. Best effort: a failure leaves it for the next 409 (tasks.md T072).
+ */
+async function finishLostInit(deps: InitDeps): Promise<void> {
+  const inFlight = repairs.get(deps.journal);
+  if (inFlight !== undefined) return inFlight;
+  const repair = repairInit(deps).catch(() => {});
+  repairs.set(deps.journal, repair);
+  try {
+    await repair;
+  } finally {
+    repairs.delete(deps.journal);
+  }
+}
+
+async function repairInit(deps: InitDeps): Promise<void> {
+  const { rows } = await deps.store.query<{
+    id: unknown;
+    ts: Date | string;
+    actor: string;
+    reason: string | null;
+    after: Record<string, unknown> | null;
+    detail: Record<string, unknown> | null;
+  }>(
+    `SELECT a.id, a.ts, a.actor, a.reason, a.after, a.detail
+     FROM gateway.stack_state s
+     JOIN gateway.audit_log a ON a.action = 'init' AND a.ts = s.initialized_at AND a.actor = s.initialized_by
+     WHERE s.id = 1
+     ORDER BY a.id DESC LIMIT 1`,
+  );
+  const row = rows[0];
+  if (row === undefined || row.after === null) return;
+  const at = new Date(row.ts).getTime();
+  const scan = await deps.journal.scan({ envClass: deps.envClass, realNow: deps.realNow() });
+  const month = monthKey(gatewayTime(deps.realNow(), scan.clockOffsetMs));
+  if (monthKey(at) !== month && monthKey(at) !== previousMonth(month)) return;
+  const newest = scan.records
+    .filter((r): r is OperatorRecord => r.kind === "operator" && r.action === "init")
+    .reduce<number | undefined>((t, r) => Math.max(t ?? -Infinity, Date.parse(r.ts)), undefined);
+  if (newest !== undefined && newest >= at) return;
+
+  const after = row.after as {
+    meters?: Record<
+      Meter,
+      { period_key?: unknown; spent_micro?: unknown; allowance_micro?: unknown; grant_no?: unknown }
+    >;
+    renewed?: unknown;
+  };
+  const m = after.meters;
+  const num = (v: unknown): number => (typeof v === "number" && Number.isSafeInteger(v) ? v : 0);
+  if (m === undefined || typeof m.day?.period_key !== "string" || typeof m.month?.period_key !== "string") return;
+  const renewed = after.renewed === true;
+  const auditId = Number(toBigInt(row.id));
+  const record = initRecordOf({
+    auditId,
+    actor: row.actor,
+    periods: { day: m.day.period_key, month: m.month.period_key },
+    chosen: {
+      day: num(m.day.spent_micro),
+      month: num(m.month.spent_micro),
+      fallback_day: num(m.fallback_day?.spent_micro),
+    },
+    confirmZero: row.detail?.confirm_zero === true,
+    renewed,
+    allowance: num(m.fallback_day?.allowance_micro),
+    grantNo: num(m.fallback_day?.grant_no),
+  });
+  await deps.journal.append(record as Parameters<Journal["append"]>[0], at);
+  deps.metrics.operatorAction("init");
+  deps.logger.info(
+    {
+      event: "operator.init",
+      "event.name": "h4.audit",
+      audit_id: auditId,
+      actor: row.actor,
+      action: "init",
+      reason: row.reason,
+      before: null,
+      after: {
+        day_micro: record.day_micro,
+        month_micro: record.month_micro,
+        fallback_day_micro: record.fallback_day_micro,
+        confirm_zero: record.confirm_zero,
+        renewed,
+      },
+    },
+    "The operator initialized the store; its acknowledgement was lost, and the journal record follows now.",
+  );
 }
 
 /** Whether the state row is this init's: written by this actor, at this init's own time. */

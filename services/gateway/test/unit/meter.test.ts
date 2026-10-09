@@ -5,17 +5,20 @@
 // - rollover never touching state, crossed, or fallback_awaiting_renewal;
 // - what a reset does and doesn't;
 // - every worked case of the renewal allowance (data-model.md §6.2);
-// - the sweep's settlement of an expired reservation: at its maximum, cost_basis expired, outcome unknown.
+// - the sweep's settlement of an expired reservation: at its maximum, cost_basis expired, outcome unknown;
+// - a call's cost, found by the meter from how the call ended, never stated by its caller (data-model.md §7.3).
 import { describe, expect, it } from "vitest";
 
-import { costMicro, thresholds, type PriceEntry } from "../../src/config/validate.js";
+import { costMicro, thresholds, type PriceEntry, type PriceVersion } from "../../src/config/validate.js";
+import { ProviderError, type AdapterResult } from "../../src/core/types.js";
 import { maxMicroOf, MeteredSlots } from "../../src/meter/admission.js";
-import { routeDecisionOf } from "../../src/meter/commit.js";
+import { routeDecisionOf, settlementOf } from "../../src/meter/commit.js";
 import { crosses, crossingsOf, type SpendChange } from "../../src/meter/crossings.js";
 import { metersAtCeiling, renewedAllowance, resetPlan } from "../../src/meter/operator.js";
 import { rowsOf, upsertPeriodRows, type LockedRow } from "../../src/meter/rollover.js";
 import type { Queryable } from "../../src/meter/store.js";
 import { expiredLedgerRow, type Reservation } from "../../src/meter/sweep.js";
+import type { Admitted, AttemptEnd } from "../../src/meter/types.js";
 
 const t = thresholds({
   dailyMicro: 5_000_000n,
@@ -402,5 +405,142 @@ describe("the in-memory metered limits (data-model.md §7.2; gateway-http.md §2
     slots.release(second.slot);
     slots.refund(first.slot);
     expect(slots.counters()).toEqual({ inFlight: 0, lastMinute: 1 });
+  });
+});
+
+describe("the meter prices a call from how it ended, never from its caller (data-model.md §7.3)", () => {
+  // A paid model at $1 and $5 per million: its caps cost 2,640, the reservation's maximum.
+  const PAID = price("provider", "model", 1_000_000n, 5_000_000n);
+  const version: PriceVersion = { id: "2026-10-08.1", effectiveFrom: 0, source: "test", entries: [PAID, SYNTHETIC] };
+  const a: Admitted = {
+    reservationId: "7d3f0c52-4a1e-4b8e-9f61-2c5a8e0d9b17",
+    attribution: "fallback",
+    adapterId: "paid",
+    provider: "provider",
+    model: "model",
+    price: version,
+    maxMicro: 2_640n,
+    periodDay: "2026-10-28",
+    periodMonth: "2026-10",
+    createdAt: 1_000,
+    expiresAt: 121_000,
+    retryUntil: 121_000,
+    requestId: "9c1e5b0a3f2d4e6b8a7c1d2e3f4a5b6c",
+    traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+    purpose: "hello",
+    routeReason: "local_failed",
+    routingSha: "ab".repeat(32),
+  };
+  const result = (o: Partial<AdapterResult> = {}): AdapterResult => ({
+    text: "never priced, never kept",
+    usage: { inputTokens: 1_200, outputTokens: 100 },
+    finishReason: "stop",
+    responseModel: "model-2026",
+    latencyMs: 412,
+    ...o,
+  });
+  const ok = (r: AdapterResult, startedAt = 10_000, endedAt = 10_412): AttemptEnd => ({
+    outcome: "ok",
+    result: r,
+    startedAt,
+    endedAt,
+  });
+  const failed = (error: ProviderError, startedAt = 10_000, endedAt = 14_000): AttemptEnd => ({
+    outcome: "error",
+    error,
+    startedAt,
+    endedAt,
+  });
+
+  it("charges a result its usage at the reservation's price version: 1,200 + 500 = 1,700, basis usage", () => {
+    expect(settlementOf(a, { attempts: [ok(result())] }, 99_999)).toEqual({
+      outcome: "ok",
+      costBasis: "usage",
+      costMicro: 1_700n,
+      inputTokens: 1_200,
+      outputTokens: 100,
+      cacheReadTokens: 0,
+      responseModel: "model-2026",
+      finishReason: "stop",
+      errorKind: null,
+      latencyMs: 412,
+      startedAt: 10_000,
+      endedAt: 10_412,
+    });
+    // At the reservation's version, whatever the call's own attempt span said: here the synthetic entry's $0.10.
+    const synthetic: Admitted = { ...a, adapterId: "synthetic", provider: "synthetic", model: "metered-test" };
+    const r = result({ usage: { inputTokens: 0, outputTokens: 1_000 } });
+    expect(settlementOf(synthetic, { attempts: [ok(r)] }, 0).costMicro).toBe(100_000n);
+  });
+
+  it("charges a possibly billed failure the reservation's maximum, and any other failure nothing", () => {
+    expect(settlementOf(a, { attempts: [failed(new ProviderError("timeout", true, true))] }, 0)).toEqual({
+      outcome: "error",
+      costBasis: "reservation",
+      costMicro: 2_640n,
+      inputTokens: null,
+      outputTokens: null,
+      cacheReadTokens: null,
+      responseModel: null,
+      finishReason: null,
+      errorKind: "timeout",
+      latencyMs: 4_000,
+      startedAt: 10_000,
+      endedAt: 14_000,
+    });
+    for (const kind of ["unavailable", "rate_limited", "auth", "bad_request", "provider_error"] as const) {
+      expect(settlementOf(a, { attempts: [failed(new ProviderError(kind, false, false))] }, 0)).toMatchObject({
+        outcome: "error",
+        costBasis: "none",
+        costMicro: 0n,
+        errorKind: kind,
+      });
+    }
+    // A timeout that can't have been billed, as when the caller went away first, costs nothing.
+    expect(settlementOf(a, { attempts: [failed(new ProviderError("timeout", true, false))] }, 0)).toMatchObject({
+      costBasis: "none",
+      costMicro: 0n,
+    });
+  });
+
+  it("prices every attempt: an unbilled rate_limited retry, then a result, costs the result's usage", () => {
+    const attempts = [failed(new ProviderError("rate_limited", true, false), 10_000, 10_050), ok(result(), 10_300)];
+    expect(settlementOf(a, { attempts }, 0)).toMatchObject({
+      outcome: "ok",
+      costBasis: "usage",
+      costMicro: 1_700n,
+      startedAt: 10_000,
+      endedAt: 10_412,
+    });
+  });
+
+  it("charges the maximum, as a failure, for a call that ended unknown or that the meter can't price", () => {
+    const maximum = {
+      outcome: "error",
+      costBasis: "reservation",
+      costMicro: 2_640n,
+      inputTokens: null,
+      outputTokens: null,
+      cacheReadTokens: null,
+      responseModel: null,
+      finishReason: null,
+      errorKind: "provider_error",
+    };
+    expect(settlementOf(a, { unknown: true, at: 50_000 }, 99_999)).toEqual({
+      ...maximum,
+      latencyMs: 0,
+      startedAt: 50_000,
+      endedAt: 50_000,
+    });
+    expect(settlementOf(a, { attempts: [] }, 99_999)).toEqual({
+      ...maximum,
+      latencyMs: 0,
+      startedAt: 99_999,
+      endedAt: 99_999,
+    });
+    // Usage no price can take: a token count that isn't a non-negative integer, or a model with no entry.
+    const bad = result({ usage: { inputTokens: -1, outputTokens: 100 } });
+    expect(settlementOf(a, { attempts: [ok(bad)] }, 0)).toMatchObject(maximum);
+    expect(settlementOf({ ...a, model: "unpriced" }, { attempts: [ok(result())] }, 0)).toMatchObject(maximum);
   });
 });

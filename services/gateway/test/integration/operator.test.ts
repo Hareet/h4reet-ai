@@ -97,19 +97,15 @@ async function spendFallback(s: TestStack, n: number): Promise<void> {
   for (let i = 0; i < n; i++) {
     const a = await s.services.meter.admit(fallbackRequest());
     if (!a.ok) throw new Error(`refused: ${JSON.stringify(a)}`);
-    await s.services.meter.settle(a.admitted, {
-      outcome: "ok",
-      costBasis: "usage",
-      costMicro: 100_000n,
-      inputTokens: 0,
-      outputTokens: 1_000,
-      cacheReadTokens: 0,
+    const result = {
+      text: "synthetic response",
+      usage: { inputTokens: 0, outputTokens: 1_000 },
+      finishReason: "stop" as const,
       responseModel: "metered-test",
-      finishReason: "stop",
-      errorKind: null,
       latencyMs: 1,
-      startedAt: Date.now(),
-      endedAt: Date.now(),
+    };
+    await s.services.meter.settle(a.admitted, {
+      attempts: [{ outcome: "ok", result, startedAt: Date.now(), endedAt: Date.now() }],
     });
   }
 }

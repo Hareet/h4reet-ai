@@ -47,10 +47,11 @@ Related contracts: [gateway-http.md](contracts/gateway-http.md) (what a request 
 - **Constraints the tables below imply:** a column whose `CHECK` lists its values is also NOT NULL, except where its row says when it is NULL (`route_reason`, `finish_reason`, `error_kind`); `audit_log.actor` and `ledger.error_kind` are held to the values their rows list; and the ledger's row rules (§2.5) are `CHECK`s.
 - **Applying them:** at startup, in file order, one transaction each, under a fixed `pg_advisory_lock` key. Each is recorded in `gateway.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, sha256 text NOT NULL, applied_at timestamptz NOT NULL)`. If a recorded migration's file no longer matches its SHA-256, the gateway stops (exit 1). If the store records a migration the gateway's build doesn't have, which is what a rollback to an older commit across a migration looks like, the gateway exits 78 with `schema_newer_than_code`, naming the version: it never runs against a schema it doesn't know ([plan.md §4](plan.md#4-environment-files-preflight-and-the-stack-targets)).
 - **A store that is down at startup** doesn't stop the gateway. It starts, answers every request with `store_unreachable`, and retries the migrations every 5 s.
+- **A store wiped while the gateway runs**, its container and volume removed and brought back empty, has no schema. The state read finds that (SQLSTATE `42P01` or `3F000`) and the migrations run again at once, then every 5 s until they land, as at startup. Meanwhile every request answers `store_unreachable`; after them the empty store answers `store_uninitialized` until `make operator-init` (plan §8 step 11). At most one such run per 5 s, so a schema the migrations can't repair, such as a table dropped by hand, stays `store_unreachable` (tasks.md T072, found by T080's step 11).
 - **Roles:**
   - `gateway`, the database owner, used by the gateway with `GATEWAY_DB_PASSWORD`.
   - `grafana_ro`, read-only (§2.9).
-- **Pool** (`pg` 8.23.1): `statement_timeout=250ms`, `lock_timeout=250ms`, `idle_in_transaction_session_timeout=2s`, `connectionTimeoutMillis=500`, at most 10 connections, plus one dedicated connection for `LISTEN alert_outbox`. Any error or timeout on a request's path means `store_unreachable` (fail closed, FR-031). (Departure, tasks.md T072: "any error" is the store's own failures: no connection, a dropped one, a statement or lock timeout, the server going away. A statement the store refused, such as a CHECK violation, is a bug in the gateway, not an outage: the request answers 500 `internal_error`, nothing is committed, and no outage is noted, so it neither logs `state.unknown` nor starts the 60 s `store_unreachable` alert. The state read at request start still fails closed on any error. And when COMMIT's acknowledgement is lost, a write can have landed: initialization re-reads `stack_state`, and if this actor wrote it at this init's time, appends the journal's `init` record and answers as if the acknowledgement had come, §8 step 9.)
+- **Pool** (`pg` 8.23.1): `statement_timeout=250ms`, `lock_timeout=250ms`, `idle_in_transaction_session_timeout=2s`, `connectionTimeoutMillis=500`, at most 10 connections, plus one dedicated connection for `LISTEN alert_outbox`. Any error or timeout on a request's path means `store_unreachable` (fail closed, FR-031). (Departure, tasks.md T072: "any error" is the store's own failures: no connection, a dropped one, a statement or lock timeout, the server going away. A statement the store refused, such as a CHECK violation, is a bug in the gateway, not an outage: the request answers 500 `internal_error`, nothing is committed, and no outage is noted, so it neither logs `state.unknown` nor starts the 60 s `store_unreachable` alert. The state read at request start still fails closed on any error. And when COMMIT's acknowledgement is lost, a write can have landed: initialization re-reads `stack_state`, and if this actor wrote it at this init's time, appends the journal's `init` record and answers as if the acknowledgement had come, §8 step 9. If the re-read fails too, it answers 503, and the retry's 409 appends the record.)
 - **Locking order:** every transaction that changes `stack_state` or `meters` first takes `SELECT … FROM gateway.stack_state WHERE id = 1 FOR UPDATE`. That serializes metered admissions, commits, and operator actions (they are rare), and rules out deadlocks.
 
 ### 2.2 `stack_state`: the kill switch (one row)
@@ -493,6 +494,8 @@ The cost depends on how the call settled:
 | failed with `possiblyBilled` (any timeout) | `max_micro` | `reservation` |
 | failed otherwise | 0 | `none` |
 
+The meter applies the table itself: the gateway tells it how the call ended (each attempt's result or `ProviderError`, or `unknown` when the code around the call failed, which is charged `max_micro` as a failure), never a cost. A call with more than one attempt costs the sum of its attempts, each by the table; with the shipped retry policies only an unbilled `rate_limited` is retried (tasks.md T068).
+
 ```text
 BEGIN
  1. SELECT * FROM gateway.stack_state WHERE id = 1 FOR UPDATE
@@ -513,7 +516,7 @@ COMMIT
  9. Add cost_micro to h4.cost.usd, only when this transaction inserted the ledger row (step 4 ran).
 ```
 
-**The in-memory slots** (§7.2) are released in a `finally` on every way out of the call: a commit, the step-2 no-op after a lost acknowledgement, a retry that gives up at `expires_at`, and any error. A slot never outlives its call; afterwards the reservation row, not the slot, keeps the ceiling honest.
+**The in-memory slots** (§7.2) are released in a `finally` on every way out of the call: a commit, the step-2 no-op after a lost acknowledgement, a retry that gives up at `expires_at`, and any error. A slot never outlives its call; afterwards the reservation row, not the slot, keeps the ceiling honest. A call that never settles, such as one whose adapter ignores its deadline, gives its slots back at the first 10 s upkeep after its reservation's `expires_at`, when the sweep charges its maximum (§7.7; tasks.md T068).
 
 Crossings in step 6. Each fires only when the old value is below the threshold and the new one is at or above it:
 
@@ -566,14 +569,14 @@ Rollover is lazy. Period keys come from the gateway clock in UTC at each admissi
 | Task | Every | Reads | Writes |
 |---|---|---|---|
 | Gauges | 10 s | `stack_state`, the current meter rows, adapter health | the `h4.*` gauges in §2.2 and §2.3 |
-| Reservation sweep | 10 s | `reservations` past `expires_at` | the settlement in §2.4, under the state lock, only when an expired row exists |
+| Reservation sweep | 10 s | `reservations` past `expires_at`, and the in-memory slots of calls that never settled | the settlement in §2.4, under the state lock, only when an expired row exists; first, the slots of calls whose reservation has expired (§7.3). A failed run logs `meter.sweep_failed` |
 | Local health check | 1 s ([provider-adapter.md §3](contracts/provider-adapter.md#3-the-shipped-adapters)) | the model server | in-memory health, `h4.adapter.healthy` |
 | Paid adapter health | 10 s | credentials, the circuit breaker | in-memory health. On a transition to unhealthy, a `fallback_unavailable` outbox row; at 2 h before the SSO session ends, a `credentials_expiring` row. |
 | Reminder | 10 s | `stack_state`, the gateway clock | at or after 09:00 UTC, while degraded or awaiting renewal, one `reminder` row a day |
 | Dispatcher | `LISTEN alert_outbox`, or 2 s | due outbox rows | delivery columns ([alerts.md §4](contracts/alerts.md#4-channels-delivery-and-retries)) |
 | Incident drafts | 10 s | `incidents` rows still `queued` | the draft file, then `status`, `path`, `sha256` ([alerts.md §7](contracts/alerts.md#7-incident-drafts-fr-035)) |
 | Store outage | each failed store access | – | after 60 s of continuous failure, one in-memory `store_unreachable` alert |
-| Migrations | 5 s, only until they have run | – | §2.1 |
+| Migrations | 5 s, only until they have run; again when the state read finds the schema gone | – | §2.1 |
 
 ## 8. Initialization (FR-031)
 
@@ -604,7 +607,7 @@ A store found empty (no `stack_state` row) leaves the runtime degraded with `sto
    - with `renew`: today's `allowance_micro` = the rebuilt fallback spend + 2,000,000, and `grant_no` + 1;
    - the `init` audit row, with every candidate by source, the chosen values, `confirm_zero`, `renewed`, and the journal lines skipped;
    - the `operator_action` alert.
-9. **The journal.** After the commit, an `operator` record with action `init`.
+9. **The journal.** After the commit, an `operator` record with action `init`. If COMMIT's acknowledgement was lost and the store couldn't be read back either, as after a Postgres restart, the init answered 503 without the record although its write landed. The retry's 409 `already_initialized` then finishes it: when the journal's newest `init` record is older than `stack_state.initialized_at`, it appends the record from the init's audit row, at the init's own time, and logs `operator.init` (tasks.md T072).
 
 **Results:**
 - Renewal stays pending unless `renew` was given, whatever the fallback spend. A wipe never grants fallback by itself (FR-031).

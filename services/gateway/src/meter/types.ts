@@ -2,7 +2,14 @@
 // and the port the gateway calls. Types only.
 import type { PriceVersion } from "../config/validate.js";
 import type { Degraded } from "../core/router.js";
-import type { CallPurpose, FinishReason, ProviderErrorKind, Usage } from "../core/types.js";
+import type {
+  AdapterResult,
+  CallPurpose,
+  FinishReason,
+  ProviderError,
+  ProviderErrorKind,
+  Usage,
+} from "../core/types.js";
 
 /** The attributions that reserve: fallback, dev's synthetic metered spend, and prod's live tests (data-model.md). */
 export type MeteredAttribution = "fallback" | "metered" | "test";
@@ -65,7 +72,25 @@ export interface LimitRefusal {
 export type AdmitResult =
   { ok: true; admitted: Admitted } | LimitRefusal | { ok: false; refusal: "degraded"; decision: Degraded };
 
-/** How a metered call settled: what its commit writes to the ledger and charges to the meters (§7.3). */
+/** One provider attempt as the adapter ended it (provider-adapter.md §6): its answer or its error, on the real clock. */
+export type AttemptEnd =
+  | { outcome: "ok"; result: AdapterResult; startedAt: number; endedAt: number }
+  | { outcome: "error"; error: ProviderError; startedAt: number; endedAt: number };
+
+/**
+ * How a metered call ended, as the meter is told it: its attempts in order, the last of which ended the call; or
+ * `unknown`, when the code around the call failed and nobody knows what the provider did. The meter prices it itself
+ * (§7.3), from the reservation's price version and maximum: the caller never states a cost.
+ */
+export type CallEnd = { attempts: readonly AttemptEnd[] } | { unknown: true; at: number };
+
+/** What the meter answers a settlement: whether the commit landed now, and what it charged the call. */
+export interface Settlement {
+  committed: boolean;
+  costMicro: bigint;
+}
+
+/** How a metered call settled, priced by the meter: what its commit writes to the ledger and the meters (§7.3). */
 export interface SettledCall {
   outcome: "ok" | "error";
   /** usage: priced from the reported tokens; reservation: possibly billed, at the maximum; none: nothing billed. */
@@ -88,11 +113,12 @@ export interface MeterPort {
   /** The in-memory limits, then the admission transaction, then the `reserve` journal record. */
   admit(request: AdmitRequest): Promise<AdmitResult>;
   /**
-   * The commit. It releases the call's slots on every way out: a commit, the no-op of a retry after a lost
-   * acknowledgement, a retry that gives up at expires_at, and any error. A commit that fails is retried every 2 s
-   * until expires_at, in the background, so the answer doesn't wait: `committed` says whether it landed now.
+   * The commit, at the cost the meter finds from how the call ended (§7.3's table). It releases the call's slots on
+   * every way out: a commit, the no-op of a retry after a lost acknowledgement, a retry that gives up at expires_at,
+   * and any error. A commit that fails is retried every 2 s until expires_at, in the background, so the answer doesn't
+   * wait: `committed` says whether it landed now. It never throws.
    */
-  settle(admitted: Admitted, call: SettledCall, o?: { clientLabel?: string }): Promise<{ committed: boolean }>;
+  settle(admitted: Admitted, end: CallEnd, o?: { clientLabel?: string }): Promise<Settlement>;
   /** The in-memory metered counters, for GET /admin/status. */
   counters(): { inFlight: number; lastMinute: number };
   /** The 10 s reservation sweep. */

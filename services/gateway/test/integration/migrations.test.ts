@@ -786,7 +786,39 @@ describe("the store", () => {
     });
     await db.pg.query("ALTER TABLE gateway.stack_state RENAME TO stack_state_gone");
     expect(await store.readStackState()).toEqual({ kind: "unreachable" });
+    await vi.waitFor(() => expect(store.status).toBe("ready"), { timeout: 5_000, interval: 10 });
     await db.pg.query("ALTER TABLE gateway.stack_state_gone RENAME TO stack_state");
+    await store.close();
+  });
+
+  it("applies the migrations again when the schema is gone under a running gateway: a store wiped and brought back", async () => {
+    const { logged, logger } = capture();
+    const store = new Store({ db, migrations, envClass: "dev", logger, onFatal: () => {}, retryMs: 20 });
+    await store.start();
+    await db.pg.query(
+      `INSERT INTO gateway.stack_state (stack, env, state, since, fallback_awaiting_renewal, initialized_at,
+         initialized_by, updated_at)
+       VALUES ('dev', 'dev', 'normal', now(), false, now(), 'operator:dev#0123abcd', now())`,
+    );
+    expect((await store.readStackState()).kind).toBe("ok");
+    logged.length = 0;
+    // The volume is removed and the store comes back empty: no schema, no tables, no migrations recorded.
+    await db.pg.exec("DROP SCHEMA gateway CASCADE");
+    expect(await store.readStackState()).toEqual({ kind: "unreachable" });
+    await vi.waitFor(() => expect(store.status).toBe("ready"), { timeout: 5_000, interval: 10 });
+    expect(await store.readStackState()).toEqual({ kind: "uninitialized" });
+    expect((await db.pg.query("SELECT version FROM gateway.schema_migrations ORDER BY version")).rows).toEqual([
+      { version: 1 },
+      { version: 2 },
+    ]);
+    expect(logged.map((l) => [l.level, l.record.event])).toEqual([
+      ["error", "state.unknown"],
+      ["info", "migrations.applied"],
+      ["info", "state.recovered"],
+    ]);
+    expect(logged[0]?.record).toMatchObject({ condition: "store_unreachable", error_class: "42P01" });
+    expect(logged[1]?.record).toMatchObject({ versions: [1, 2] });
+    await store.close();
   });
 
   it("rejects start() with exit 78 for a grafana_ro password no verifier can take, the store up or down", async () => {

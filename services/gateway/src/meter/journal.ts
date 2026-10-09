@@ -160,7 +160,7 @@ function parseLine(line: string): JournalRecord | undefined {
 }
 
 /** The month before YYYY-MM. */
-function previousMonth(month: string): string {
+export function previousMonth(month: string): string {
   const year = Number(month.slice(0, 4));
   const m = Number(month.slice(5, 7));
   return monthKey(Date.UTC(year, m - 2, 1));

@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { dayKey, monthKey } from "../../src/core/clock.js";
 import { connectionLost, statementRefused } from "../helpers/pglite.js";
@@ -707,7 +707,7 @@ describe("POST /admin/init when COMMIT's answer is lost, or the store refuses a 
     expect((await journalLines(s, MONTH)).filter((r) => r.kind === "operator")).toEqual([]);
   });
 
-  it("answers 503 when the store can't be read again either, rather than guessing", async () => {
+  it("answers 503 when the store can't be read again either, and the retry's 409 appends the lost init record", async () => {
     const s = await stack();
     await writeJournal(s, MONTH, [commit("c", "fallback", 100_000)]);
     let down = false;
@@ -722,6 +722,39 @@ describe("POST /admin/init when COMMIT's answer is lost, or the store refuses a 
     expect(res.statusCode).toBe(503);
     expect(res.json()).toEqual({ error: "store_unreachable" });
     expect((await journalLines(s, MONTH)).filter((r) => r.kind === "operator")).toEqual([]);
+    // The store comes back, as after a Postgres restart: the init had landed, so the retry is 409 already_initialized,
+    // and it finishes the init's step 9 from its audit row, at the init's own time.
+    s.db.hook = undefined;
+    const retry = await init(s, { reason: REASON });
+    expect(retry.statusCode).toBe(409);
+    expect(retry.json()).toMatchObject({ error: "already_initialized" });
+    const audit = (
+      await s.db.pg.query<{ id: number; ts: Date }>("SELECT id, ts FROM gateway.audit_log WHERE action = 'init'")
+    ).rows;
+    expect(audit).toHaveLength(1);
+    const records = (await journalLines(s, MONTH)).filter((r) => r.kind === "operator");
+    expect(records).toEqual([
+      {
+        v: 1,
+        kind: "operator",
+        ts: audit[0]?.ts.toISOString(),
+        stack: "dev",
+        action: "init",
+        audit_id: audit[0]?.id,
+        actor: `operator:dev#${s.tokenSha256.slice(0, 8)}`,
+        period_day: TODAY,
+        period_month: MONTH,
+        day_micro: 100_000,
+        month_micro: 100_000,
+        fallback_day_micro: 100_000,
+        confirm_zero: false,
+        renewed: false,
+      },
+    ]);
+    expect(s.logged.filter((l) => l.record.event === "operator.init")).toHaveLength(1);
+    // Once the record is there, another 409 appends nothing more.
+    expect((await init(s, { reason: REASON })).statusCode).toBe(409);
+    expect((await journalLines(s, MONTH)).filter((r) => r.kind === "operator")).toHaveLength(1);
   });
 
   it("treats a CHECK violation inside the transaction as a bug: 500, no outage, nothing written", async () => {
@@ -749,5 +782,38 @@ describe("POST /admin/init when COMMIT's answer is lost, or the store refuses a 
     expect(res.statusCode).toBe(503);
     expect(res.json()).toEqual({ error: "store_unreachable" });
     expect(s.logged.some((l) => l.record.event === "state.unknown")).toBe(true);
+  });
+});
+
+describe("a store wiped while the gateway runs (plan §8 step 11; data-model.md §2.1)", () => {
+  const hello = (s: TestStack) =>
+    s.api.inject({ method: "POST", url: "/hello", headers: { "content-type": "application/json" }, payload: "{}" });
+
+  it("gets its migrations again: store_unreachable at once, then store_uninitialized, then an init from the journal", async () => {
+    const s = await stack();
+    await writeJournal(s, MONTH, [commit("c", "fallback", 100_000)]);
+    expect((await init(s, { reason: REASON })).statusCode).toBe(200);
+    expect((await hello(s)).headers["x-h4-degraded-cause"]).not.toBe("store_uninitialized");
+    // The store's container and volume are removed, and it comes back empty.
+    await s.db.pg.exec("DROP SCHEMA gateway CASCADE");
+    const first = await hello(s);
+    expect(first.statusCode).toBe(503);
+    expect(first.headers["x-h4-degraded-cause"]).toBe("store_unreachable");
+    // /health is polled, not hello, whose per-client cap allows five in a burst.
+    await vi.waitFor(
+      async () =>
+        expect((await s.api.inject({ method: "GET", url: "/health" })).json()).toMatchObject({
+          store: "uninitialized",
+          degraded_cause: "store_uninitialized",
+        }),
+      { timeout: 5_000, interval: 20 },
+    );
+    const second = await hello(s);
+    expect(second.statusCode).toBe(503);
+    expect(second.headers["x-h4-degraded-cause"]).toBe("store_uninitialized");
+    // The journal survived on its bind mount: the init rebuilds the meters from it.
+    const again = await init(s, { reason: REASON });
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toMatchObject({ meters: { day: { spent_micro_usd: 100_000 } } });
   });
 });

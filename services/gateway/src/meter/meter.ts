@@ -4,10 +4,12 @@
 //
 // - admit: the slots, the admission transaction (admission.ts), then the journal's `reserve` record. A failed append
 //   is compensated and refused as journal_unwritable.
-// - settle: the commit transaction (commit.ts), then the journal's `commit` record and h4.cost.usd. A commit the store
-//   couldn't take is kept in memory and retried every 2 s until the reservation's expires_at. If it never lands, the
-//   sweep settles the reservation at its maximum. The slots are released on every way out.
-// - the sweep, every 10 s, under the state lock, only when an expired reservation exists.
+// - settle: the call's cost, which the meter finds itself from how the call ended (commit.ts, settlementOf), then the
+//   commit transaction, then the journal's `commit` record and h4.cost.usd. A commit the store couldn't take is kept
+//   in memory and retried every 2 s until the reservation's expires_at. If it never lands, the sweep settles the
+//   reservation at its maximum. The slots are released on every way out.
+// - every 10 s: the slots of calls that never settled, once their reservation has expired, then the sweep, under the
+//   state lock, only when an expired reservation exists.
 // Each transaction's effects, the cost counter and the logs, are emitted only once it has committed.
 import { randomUUID } from "node:crypto";
 
@@ -23,7 +25,7 @@ import { gatewayTime, toRfc3339, type GatewayClock } from "../core/clock.js";
 import { degraded, rfc3339Seconds, type Degraded } from "../core/router.js";
 import type { GatewayMetrics } from "../telemetry/metrics.js";
 import { admissionTx, compensateTx, maxMicroOf, MeteredSlots, type AdmissionOut, type Slot } from "./admission.js";
-import { commitTx, completedRecord, type CommitOut } from "./commit.js";
+import { commitTx, completedRecord, settlementOf, type CommitOut } from "./commit.js";
 import {
   emitEffects,
   lockState,
@@ -36,7 +38,16 @@ import {
 import { JournalWriteError, type Journal } from "./journal.js";
 import { CommitUnknownError, errorClass, isStoreFailure, type Store } from "./store.js";
 import { sweepExpired } from "./sweep.js";
-import type { AdmitRequest, AdmitResult, Admitted, MeterPort, SettledCall } from "./types.js";
+import type {
+  AdmitRequest,
+  AdmitResult,
+  Admitted,
+  CallEnd,
+  MeteredAttribution,
+  MeterPort,
+  SettledCall,
+  Settlement,
+} from "./types.js";
 
 export const SWEEP_INTERVAL_MS = 10_000;
 export const COMMIT_RETRY_MS = 2_000;
@@ -67,11 +78,19 @@ interface Pending {
   lost?: CommitOut;
 }
 
+/** An admitted call's slots, held until it settles, or until its reservation expires if it never does. */
+interface Held {
+  slot: Slot;
+  attribution: MeteredAttribution;
+  /** Real time, epoch ms: the reservation's expires_at. */
+  retryUntil: number;
+}
+
 export class Meter implements MeterPort {
   /** Called after a committed change to a meter or the state: the gauges' snapshot follows it (telemetry.md §4.1). */
   onChange: (() => void) | undefined;
   private readonly slots: MeteredSlots;
-  private readonly held = new Map<string, Slot>();
+  private readonly held = new Map<string, Held>();
   private readonly pending = new Map<string, Pending>();
   private sweepTimer: NodeJS.Timeout | undefined;
   private stopped = false;
@@ -114,11 +133,38 @@ export class Meter implements MeterPort {
   start(): void {
     this.stopped = false;
     if (this.sweepTimer !== undefined) return;
-    this.sweepTimer = setInterval(
-      () => void this.sweepNow().catch(() => {}),
-      this.deps.sweepIntervalMs ?? SWEEP_INTERVAL_MS,
-    );
+    this.sweepTimer = setInterval(() => void this.tick(), this.deps.sweepIntervalMs ?? SWEEP_INTERVAL_MS);
     this.sweepTimer.unref();
+  }
+
+  /** The 10 s upkeep: the slots of calls that never settled, then the sweep. */
+  private async tick(): Promise<void> {
+    this.reclaimSlots();
+    try {
+      await this.sweepNow();
+    } catch (err) {
+      this.deps.logger.error(
+        { event: "meter.sweep_failed", error_class: errorClass(err) },
+        "The reservation sweep failed; it runs again in 10 s.",
+      );
+    }
+  }
+
+  /**
+   * The backstop for a call that never settles, such as one whose adapter ignored its deadline: once its reservation
+   * has expired, the sweep settles it at its maximum, and its slots go back. A commit still being retried gives its
+   * own back when its retries end. Resolves to how many it gave back.
+   */
+  reclaimSlots(): number {
+    const now = this.deps.realNow();
+    let reclaimed = 0;
+    for (const [rid, h] of this.held) {
+      if (h.retryUntil > now || this.pending.has(rid)) continue;
+      this.release(rid);
+      this.gaveUp(rid, h.attribution);
+      reclaimed += 1;
+    }
+    return reclaimed;
   }
 
   async stop(): Promise<void> {
@@ -148,7 +194,10 @@ export class Meter implements MeterPort {
     } finally {
       // A refusal, a compensation, or an error gives the slot back; an admitted call holds it until it settles.
       if (admitted === undefined) this.slots.refund(slot);
-      else this.held.set(admitted.reservationId, slot);
+      else {
+        const { reservationId, attribution, retryUntil } = admitted;
+        this.held.set(reservationId, { slot, attribution, retryUntil });
+      }
     }
   }
 
@@ -240,33 +289,25 @@ export class Meter implements MeterPort {
   // The commit (§7.3)
   // -------------------------------------------------------------------------------------------------------------
 
-  async settle(
-    admitted: Admitted,
-    call: SettledCall,
-    o: { clientLabel?: string } = {},
-  ): Promise<{ committed: boolean }> {
+  async settle(admitted: Admitted, end: CallEnd, o: { clientLabel?: string } = {}): Promise<Settlement> {
+    const call = settlementOf(admitted, end, this.deps.realNow());
+    const clientLabel = o.clientLabel ?? null;
     const ledgerId = randomUUID();
+    let retrying = false;
     try {
-      await this.commitOnce(admitted, call, o.clientLabel ?? null, ledgerId);
-      return { committed: true };
+      await this.commitOnce(admitted, call, clientLabel, ledgerId);
+      return { committed: true, costMicro: call.costMicro };
     } catch (err) {
       if (!isStoreFailure(err) || this.stopped) {
         // A statement the store refused is a bug, and a stopping gateway retries nothing: the commit never lands, and
         // the sweep settles the reservation at its maximum once it expires. The answer the call got still stands.
-        this.release(admitted.reservationId);
-        this.deps.logger.error(
-          {
-            event: "meter.commit_gave_up",
-            reservation_id: admitted.reservationId,
-            attribution: admitted.attribution,
-          },
-          "A metered call's commit never landed; the sweep settles its reservation at its maximum.",
-        );
-        return { committed: false };
+        this.gaveUp(admitted.reservationId, admitted.attribution);
+        return { committed: false, costMicro: call.costMicro };
       }
       const pending: Pending = { timer: undefined };
       if (err instanceof CommitUnknownError) pending.lost = err.value as CommitOut;
       this.pending.set(admitted.reservationId, pending);
+      retrying = true;
       this.deps.logger.warn(
         {
           event: "meter.commit_pending",
@@ -276,9 +317,19 @@ export class Meter implements MeterPort {
         },
         "A metered call's commit failed; it is retried every 2 s until its reservation expires.",
       );
-      this.scheduleRetry(admitted, call, o.clientLabel ?? null, ledgerId);
-      return { committed: false };
+      this.scheduleRetry(admitted, call, clientLabel, ledgerId);
+      return { committed: false, costMicro: call.costMicro };
+    } finally {
+      // The slots go back on every way out but a pending retry, which gives them back when it ends.
+      if (!retrying) this.release(admitted.reservationId);
     }
+  }
+
+  private gaveUp(reservationId: string, attribution: MeteredAttribution): void {
+    this.deps.logger.error(
+      { event: "meter.commit_gave_up", reservation_id: reservationId, attribution },
+      "A metered call's commit never landed; the sweep settles its reservation at its maximum.",
+    );
   }
 
   /** One attempt; it throws what the store throws. On success, the effects, the journal, and the slots follow. */
@@ -355,10 +406,7 @@ export class Meter implements MeterPort {
       // The reservation has expired: the sweep settles it at its maximum, and the slots go back.
       this.pending.delete(a.reservationId);
       this.release(a.reservationId);
-      this.deps.logger.error(
-        { event: "meter.commit_gave_up", reservation_id: a.reservationId, attribution: a.attribution },
-        "A metered call's commit never landed; the sweep settles its reservation at its maximum.",
-      );
+      this.gaveUp(a.reservationId, a.attribution);
       return;
     }
     try {
@@ -371,18 +419,15 @@ export class Meter implements MeterPort {
       }
       this.pending.delete(a.reservationId);
       this.release(a.reservationId);
-      this.deps.logger.error(
-        { event: "meter.commit_gave_up", reservation_id: a.reservationId, attribution: a.attribution },
-        "A metered call's commit never landed; the sweep settles its reservation at its maximum.",
-      );
+      this.gaveUp(a.reservationId, a.attribution);
     }
   }
 
   private release(reservationId: string): void {
-    const slot = this.held.get(reservationId);
-    if (slot === undefined) return;
+    const held = this.held.get(reservationId);
+    if (held === undefined) return;
     this.held.delete(reservationId);
-    this.slots.release(slot);
+    this.slots.release(held.slot);
   }
 
   // -------------------------------------------------------------------------------------------------------------

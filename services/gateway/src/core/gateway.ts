@@ -44,7 +44,7 @@ import {
   type StackName,
 } from "../config/validate.js";
 import type { MeterRow, StateRead, Store } from "../meter/store.js";
-import type { Admitted, MeteredAttribution, MeterPort, RouteReason, SettledCall } from "../meter/types.js";
+import type { CallEnd, MeteredAttribution, MeterPort, RouteReason, Settlement } from "../meter/types.js";
 import type { GatewayMetrics, GaugeSnapshot } from "../telemetry/metrics.js";
 import { redactSecrets } from "../telemetry/redact.js";
 import { gatewayTime, periodKeys, toRfc3339, type GatewayClock } from "./clock.js";
@@ -486,65 +486,6 @@ const LOCAL_LEDGER_ROW = `INSERT INTO gateway.ledger (id, reservation_id, ts, st
   VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'local', NULL, 'none', $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
     $18, 0, 'none', $19, $20, $21, $22, $23)`;
 
-/** A metered call's settlement, from its attempts (data-model.md §7.3): the cost of every attempt, at its price. */
-export function settledOf(outcome: AttemptOutcome): SettledCall {
-  const attempts = outcome.attempts;
-  const first = attempts[0];
-  const last = attempts.at(-1);
-  if (first === undefined || last === undefined) throw new Error("a call with no attempt");
-  const costMicro = attempts.reduce((sum, a) => sum + a.costMicro, 0n);
-  if (outcome.ok) {
-    const r = outcome.result;
-    return {
-      outcome: "ok",
-      costBasis: "usage",
-      costMicro,
-      inputTokens: r.usage.inputTokens,
-      outputTokens: r.usage.outputTokens,
-      cacheReadTokens: r.usage.cacheReadInputTokens ?? 0,
-      responseModel: r.responseModel,
-      finishReason: r.finishReason,
-      errorKind: null,
-      latencyMs: r.latencyMs,
-      startedAt: first.startedAt,
-      endedAt: last.endedAt,
-    };
-  }
-  return {
-    outcome: "error",
-    // Charged its reserved maximum only when an attempt failed possibly billed (any timeout of a paid adapter).
-    costBasis: costMicro > 0n ? "reservation" : "none",
-    costMicro,
-    inputTokens: null,
-    outputTokens: null,
-    cacheReadTokens: null,
-    responseModel: null,
-    finishReason: null,
-    errorKind: outcome.error.kind,
-    latencyMs: Math.max(0, Math.round(last.endedAt - last.startedAt)),
-    startedAt: first.startedAt,
-    endedAt: last.endedAt,
-  };
-}
-
-/** A call whose outcome is unknown, because the code around it failed: it is charged its maximum, failing safe. */
-function unknownSettlement(a: Admitted, now: number): SettledCall {
-  return {
-    outcome: "error",
-    costBasis: "reservation",
-    costMicro: a.maxMicro,
-    inputTokens: null,
-    outputTokens: null,
-    cacheReadTokens: null,
-    responseModel: null,
-    finishReason: null,
-    errorKind: "provider_error",
-    latencyMs: 0,
-    startedAt: now,
-    endedAt: now,
-  };
-}
-
 export class Gateway {
   private readonly primary: Routed;
   private readonly fallback: Routed | undefined;
@@ -835,7 +776,11 @@ export class Gateway {
       signal: call.signal,
     };
     const label = call.clientLabel === undefined ? {} : { clientLabel: call.clientLabel };
-    let outcome: AttemptOutcome;
+    // The call, then its settlement, on every way out: the meter prices it from how it ended (data-model.md §7.3), and
+    // gives its slots back. If the code around the call fails, nobody knows what the provider did, and the meter
+    // charges the call its maximum.
+    let outcome: AttemptOutcome | undefined;
+    let settlement: Settlement;
     try {
       outcome = await attemptCall(adapter, req, {
         tracer: this.opts.tracer,
@@ -854,15 +799,13 @@ export class Gateway {
           if (!call.signal.aborted) routed.health.callFailed(err);
         },
       });
-    } catch (err) {
-      // The code around the call failed: whether the provider billed it is unknown, so it is charged its maximum.
-      await meter.settle(a, unknownSettlement(a, this.realNow()), label);
-      throw err;
+    } finally {
+      const end: CallEnd =
+        outcome === undefined ? { unknown: true, at: this.realNow() } : { attempts: outcome.attempts };
+      settlement = await meter.settle(a, end, label);
     }
-    const settled = settledOf(outcome);
-    const { committed } = await meter.settle(a, settled, label);
     // The commit is retried in the background; the answer doesn't wait (gateway-http.md §2.4, notes).
-    if (!committed) span.setAttribute("h4.meter.commit", "pending");
+    if (!settlement.committed) span.setAttribute("h4.meter.commit", "pending");
     if (!outcome.ok) return this.degrade(span, degraded("fallback_unavailable"), traceId);
     return {
       kind: "answered",
@@ -870,7 +813,7 @@ export class Gateway {
       routeReason: decision.kind === "fallback" ? decision.reason : null,
       provider: adapter.provider,
       result: outcome.result,
-      costMicro: settled.costMicro,
+      costMicro: settlement.costMicro,
       priceVersion: a.price.id,
       traceId,
     };
