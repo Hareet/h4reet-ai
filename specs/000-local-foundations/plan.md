@@ -792,8 +792,8 @@ FR-039, ADR 0016. The rule tables and proofs are in [contracts/agents-engine.md]
   - RootlessKit with slirp4netns and `--disable-host-loopback`;
   - `daemon.json` with the containerd image store, `authorization-plugins: ["h4-authz"]`, and no BuildKit entitlements;
   - `HTTPS_PROXY=http://198.18.0.1:3128` for its own pulls;
-  - `-H tcp://0.0.0.0:2376 --tlsverify` inside the namespace, forwarded by RootlessKit to `198.18.0.1:2376`.
-- **The admission check:** `authz.py`, a stdlib Docker authorization plugin on a Unix socket in `h4agents`' plugin directory. The daemon consults it on every API call.
+  - `-H tcp://0.0.0.0:2376 --tlsverify` inside the namespace, forwarded by RootlessKit from `198.18.0.1:2376` to the namespace's `127.0.0.1:2376`. The publish names that child address: without it, the forward dials `198.18.0.1` inside the namespace, and the firewall drops it (contracts/agents-engine.md §2.1, T046's bring-up).
+- **The admission check:** `authz.py`, a stdlib Docker authorization plugin on a Unix socket in `h4agents`' runtime directory, which the daemon finds through a spec file that setup writes (contracts/agents-engine.md §3.1). The daemon consults it on every API call.
   - It refuses:
     - privileged containers;
     - devices, device requests (`--gpus`), and device cgroup rules;
