@@ -136,16 +136,27 @@ All six are done:
 - **T156** (a98a63e).
 - **T157** (b65bb64, ee94778): C10's margin is widened to 2,100 ms, and the suite's request timeout raised to 3 s, so an adapter that ignores its deadline still fails. The contract suite now takes about 10 s instead of 2.6 s.
 
+### Round 3: the last fixes, and convergence re-checked (at ee94778)
+
+A fresh reviewer verified round 2's three fixes under mutants (3f7f1b4, 7a57207, f3d3102). It found every Phase 12 task satisfied: T152–T157, each held by a mutant that fails a test. Its verdict: Phase 12 is converged in code, and Phase 4's scope holds apart from T084, T085, and this note. It found three nits, fixed in f491fd1:
+- **A second Ctrl-C could still stop the cleanup's docker commands.** Docker and Compose are Go programs, which turn SIGINT and SIGTERM back on after exec. The reviewer showed it with Docker 28.3.3 and Compose 2.39.1 against a fake engine: exit 130 within 0.05 s. In a `DELIVERY=real` run, that could have left dev on real delivery.
+  - **The fix:** each command now runs in its own session, with stdin from its input or `/dev/null`. A terminal's signals reach only `breach.py`, whose handler stops the running command and starts the cleanup. A new test holds `real_run` to this and fails without it.
+  - **Not re-reviewed:** the session fix has its test and mutant, but no reviewer has seen it. Only a real Ctrl-C in your terminal during T085 proves it.
+- **The timeout text was stale after T157,** in the local subject's header and in provider-adapter.md §5.1's sketch.
+- **C10's title still said "within 100 ms."**
+
+T102's text now says its circuit breaker must set `circuit_open` through `AdapterHealth.set`, or T152's alert never fires.
+
 ## Verification
 
-`make check` at ee94778, exit 0: 4 PASS, 2 SKIP, 5 PLANNED, 0 PENDING, 0 FAIL. The gateway has 565 tests passing and 12 skipped, and pytest has 1559 passing and 2 skipped.
+`make check` at f491fd1, exit 0: 4 PASS, 2 SKIP, 5 PLANNED, 0 PENDING, 0 FAIL. The gateway has 565 tests passing and 12 skipped, and pytest has 1560 passing and 2 skipped.
 - **The skips are by design.** The gateway's 12: 11 are the contract suite's per-subject variants, since the synthetic adapter has no API to fail, and the 12th is the real-budgets pin, waiting for T022. pytest's 2 are the Bedrock runbooks, which arrive with T106.
 - **The five PLANNED:** the matrix, for the thirteen breach-test rows that T117 enforces, and the base's four, which wait for T045, T022, and T063.
 - **The two SKIPs:** the secret scan's gate (T091), and the image gate, which waits for the engine (T046).
-- **gitleaks** over `786ebbe..HEAD`: no leaks found.
+- **gitleaks** over `786ebbe..ee94778`: no leaks found. f491fd1 adds only code and text, with no secrets.
 - **T046's two patches** still apply cleanly to this tree (`git apply --check`), and T022's config patch makes `validate-config` pass here (the convergence pass checked it).
 
-<details><summary>make check at ee94778</summary>
+<details><summary>make check at f491fd1</summary>
 
 ```
 == githooks-check
@@ -210,14 +221,14 @@ npm test --workspaces --if-present
 
  Test Files  34 passed (34)
       Tests  565 passed | 12 skipped (577)
-   Start at  12:09:10
-   Duration  53.15s (tests 95%, import 3%, transform 2%)
+   Start at  12:40:22
+   Duration  57.95s (tests 95%, transform 2%, import 2%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  4%]
 ........................................................................ [  9%]
 ........................................................................ [ 13%]
-...................................................s..s................. [ 18%]
+....................................................s..s................ [ 18%]
 ........................................................................ [ 23%]
 ........................................................................ [ 27%]
 ........................................................................ [ 32%]
@@ -231,12 +242,12 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 69%]
 ........................................................................ [ 73%]
 ........................................................................ [ 78%]
-........................................................................ [ 83%]
+........................................................................ [ 82%]
 ........................................................................ [ 87%]
 ........................................................................ [ 92%]
 ........................................................................ [ 96%]
-.................................................                        [100%]
-1559 passed, 2 skipped in 32.63s
+..................................................                       [100%]
+1560 passed, 2 skipped in 35.44s
 -> PASS test
 == secrets
 -> SKIP secrets (added by T091)
@@ -337,6 +348,10 @@ make check: 4 PASS, 2 SKIP, 5 PLANNED, 0 PENDING, 0 FAIL
 The breach-test reviewer suggested a line for "Things Claude gets wrong", from its Important 1, which repeats US1 round 3's working-tree images on your engine:
 
 > - A script that builds or runs a host stack's containers checks that its own tree is the run file's `H4_TREE`; make's path isn't enough.
+
+The last reviewer suggested another, from the cleanup's process group:
+
+> - Ignoring a signal doesn't protect Go children (docker, compose): give a cleanup's commands their own process group.
 
 ### Observations
 
