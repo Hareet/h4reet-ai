@@ -61,6 +61,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -507,11 +508,18 @@ def restore(previous: Mapping[int, Any]) -> None:
         signal.signal(signum, signal.SIG_DFL if handler is None else handler)
 
 
+def clean(text: str) -> str:
+    """Every control character, by Unicode category (Cc: C0, DEL, and C1, whose U+009B is CSI on its own), as ?, as
+    scripts/operator.py's clean() has it: whatever a line carries from docker, the engine, or the stack's answers, it
+    can't drive the terminal."""
+    return "".join("?" if unicodedata.category(ch) == "Cc" else ch for ch in text)
+
+
 def tell(out: TextIO, text: str) -> None:
-    """One line of output. A terminal closed under the run (SIGHUP) fails every write from then on, with EIO or on a
-    closed file: it takes the output with it, never the run, its cleanup, or its exit code."""
+    """One line of output, cleaned. A terminal closed under the run (SIGHUP) fails every write from then on, with EIO or
+    on a closed file: it takes the output with it, never the run, its cleanup, or its exit code."""
     with contextlib.suppress(OSError, ValueError):
-        print(text, file=out, flush=True)
+        print(clean(text), file=out, flush=True)
 
 
 # --- the dates -----------------------------------------------------------------------------------------------------

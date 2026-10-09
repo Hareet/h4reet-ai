@@ -1682,7 +1682,7 @@ def test_a_refusal_says_why_on_its_done_line_cleaned() -> None:
     # The orchestrator reads only standard output's marked lines, so the reason goes there, with control characters
     # replaced, and not only to standard error (round 1's review).
     out = io.StringIO()
-    document = {"ops": [{"op": "shell\x1b[31m"}]}
+    document = {"ops": [{"op": "shell\x1b[31m\x7f\x9b"}]}  # ESC, DEL, and CSI
     code = probe.main(
         ["1", "--stack", "dev"],
         stdin=io.StringIO("\n" + json.dumps(document)),
@@ -1698,8 +1698,17 @@ def test_a_refusal_says_why_on_its_done_line_cleaned() -> None:
         "step": "1",
         "done": True,
         "exit": 2,
-        "error": "no such operation: shell?[31m",
+        "error": "no such operation: shell?[31m??",
     }
+
+
+def test_shorten_replaces_every_control_character_by_unicode_category() -> None:
+    # Category Cc, as scripts/operator.py's clean() has it: C0, DEL, and C1, whose U+009B is a terminal's CSI on its
+    # own. Printable text, ASCII or not, stays (round 2's review).
+    controls = "\x00\x07\t\n\x1b\x7f\x80\x85\x9b\x9f"
+    assert probe.shorten(f"a{controls}b") == "a" + "?" * len(controls) + "b"
+    assert probe.shorten("Daily: 3.50 · café … ok") == "Daily: 3.50 · café … ok"
+    assert probe.shorten("x" * 300) == "x" * 199 + "…"
 
 
 def test_an_admin_operation_needs_the_token() -> None:

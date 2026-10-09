@@ -54,6 +54,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -711,7 +712,9 @@ def sanitize(node: Any) -> Any:
 
 
 def shorten(text: str, limit: int = 200) -> str:
-    text = "".join("?" if ord(ch) < 32 else ch for ch in text)
+    """Text safe for a terminal, cut at limit: every control character, by Unicode category (Cc: C0, DEL, and C1, whose
+    U+009B is CSI on its own), becomes ?, as scripts/operator.py's clean() has it."""
+    text = "".join("?" if unicodedata.category(ch) == "Cc" else ch for ch in text)
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 

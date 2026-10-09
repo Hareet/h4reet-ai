@@ -776,7 +776,7 @@ def test_a_refused_probe_call_says_why_cleaned(on_done_line: bool) -> None:
     # The probe's reason, from its done line, or else its own last line on standard error, cleaned: never "see its
     # last line above" for a line nothing printed (round 1's review).
     stack = FakeStack()
-    reason = "no such operation: shell\x1b[31m"
+    reason = "no such operation: shell\x1b[31m\x7f\x9b"  # ESC, DEL, and CSI
 
     def refusing(
         argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
@@ -796,10 +796,29 @@ def test_a_refused_probe_call_says_why_cleaned(on_done_line: bool) -> None:
     code, text = run(["--stack", "dev-cpu"], stack, runner=refusing)
     assert code == 1
     assert (
-        "step 2: the probe refused its operations: no such operation: shell?[31m"
+        "step 2: the probe refused its operations: no such operation: shell?[31m??"
         in text
     )
-    assert "see its last line above" not in text and "\x1b" not in text
+    assert "see its last line above" not in text
+    assert not {"\x1b", "\x7f", "\x9b"} & set(text)
+
+
+def test_what_docker_says_reaches_the_terminal_cleaned() -> None:
+    # A lifecycle command's error lines come from docker, and through it from the engine: every line the run prints
+    # has its control characters replaced, C0, DEL, and C1 alike (round 2's review).
+    stack = FakeStack()
+
+    def failing(
+        argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
+    ) -> tuple[int, str, str]:
+        if argv[-2:] == ["stop", "gateway-state"]:
+            stack.commands.append(argv)
+            return 1, "", "Error: \x1b[2J\x9b2Jgone\x7f\n"
+        return stack(argv, stdin, env, timeout)
+
+    code, text = run(["--stack", "dev-cpu"], stack, runner=failing)
+    assert code == 1 and "Error: ?[2J?2Jgone?" in text
+    assert not {"\x1b", "\x7f", "\x9b"} & set(text)
 
 
 class Gone(io.StringIO):
