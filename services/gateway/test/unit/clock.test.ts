@@ -1,6 +1,6 @@
 // The gateway clock (data-model.md, Conventions): real UTC time plus stack_state.test_clock_offset_ms. Period
 // keys come from it, in UTC; timeouts, retries, rate limits, and health intervals use the real clock.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   GatewayClock,
@@ -36,15 +36,24 @@ describe("period keys", () => {
   });
 
   it("is UTC whatever the process's time zone says", () => {
-    // A local-time formatter would put this instant on the 9th in UTC+14 or the 7th in UTC-12.
-    const instant = at("2026-10-08T12:00:00Z");
-    const before = process.env.TZ;
-    for (const tz of ["Pacific/Kiritimati", "Etc/GMT+12", "Asia/Kolkata", "UTC"]) {
-      process.env.TZ = tz;
-      expect(dayKey(instant)).toBe("2026-10-08");
-      expect(monthKey(instant)).toBe("2026-10");
+    // A local-time formatter would put noon UTC on the 9th in UTC+14, and 06:00 UTC on the 7th in UTC-12.
+    // vi.stubEnv sets TZ, which Node applies at once; vitest restores it after the test (unstubEnvs).
+    const noon = at("2026-10-08T12:00:00Z");
+    const morning = at("2026-10-08T06:00:00Z");
+    const zones = [
+      ["Pacific/Kiritimati", 2],
+      ["Etc/GMT+12", 0],
+      ["Asia/Kolkata", 17],
+      ["UTC", 12],
+    ] as const;
+    for (const [tz, localHourAtNoon] of zones) {
+      vi.stubEnv("TZ", tz);
+      expect(new Date(noon).getHours(), `${tz} is in effect`).toBe(localHourAtNoon);
+      for (const instant of [noon, morning]) {
+        expect(dayKey(instant), tz).toBe("2026-10-08");
+        expect(monthKey(instant), tz).toBe("2026-10");
+      }
     }
-    process.env.TZ = before;
   });
 
   it("pads single digits and four-digit years", () => {
