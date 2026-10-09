@@ -12,6 +12,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { GatewayClock } from "../core/clock.js";
+import type { ForwardedBy } from "../core/edge.js";
 import type { Gateway, GatewayAnswer } from "../core/gateway.js";
 import { clientKey, type ClientCap } from "../core/limits.js";
 import type { GatewayMetrics, RouteDecisionAttribute } from "../telemetry/metrics.js";
@@ -35,6 +36,8 @@ export interface HelloDeps {
   /** limits.per_call.hello_max_output_tokens (128). */
   maxOutputTokens: number;
   realNow: () => number;
+  /** Whether a peer is edge, whose X-Forwarded-For alone names the client. */
+  forwardedBy: ForwardedBy;
 }
 
 interface HelloState {
@@ -52,11 +55,17 @@ const invalid = (field: string, detail: string, requestId: string) => ({
   request_id: requestId,
 });
 
-/** Edge's X-Forwarded-For, which it sets to exactly its own view of the client; else the TCP peer (§2.3). */
-function clientAddress(req: FastifyRequest): string {
+/**
+ * Edge's X-Forwarded-For, which it sets to exactly its own view of the client, when edge is the TCP peer; else the
+ * TCP peer itself, whatever header it sent (§2.3).
+ */
+async function clientAddress(req: FastifyRequest, forwardedBy: ForwardedBy): Promise<string> {
+  const peer = req.socket.remoteAddress ?? "unknown";
   const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.trim() !== "") return forwarded.trim().slice(0, 128);
-  return req.socket.remoteAddress ?? "unknown";
+  if (typeof forwarded === "string" && forwarded.trim() !== "" && (await forwardedBy(peer))) {
+    return forwarded.trim().slice(0, 128);
+  }
+  return peer;
 }
 
 function isJson(contentType: string | undefined): boolean {
@@ -151,7 +160,11 @@ export function registerHello(api: FastifyInstance, deps: HelloDeps): void {
       if (label !== undefined && (typeof label !== "string" || !CLIENT_LABEL.test(label))) {
         return reply.code(400).send(invalid("X-H4-Client", "must match ^[a-z0-9-]{1,32}$", req.id));
       }
-      const cap = deps.clientCap.take(clientKey(clientAddress(req), label), deps.realNow(), deps.clock.now());
+      const cap = deps.clientCap.take(
+        clientKey(await clientAddress(req, deps.forwardedBy), label),
+        deps.realNow(),
+        deps.clock.now(),
+      );
       if (!cap.ok) {
         // A refusal, not a degraded state: no X-H4-Degraded-Cause, and no count in h4.degraded.responses (§2.5.3).
         deps.logger.info(

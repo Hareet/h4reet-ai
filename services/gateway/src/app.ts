@@ -44,6 +44,7 @@ import {
 import { registerAdmin } from "./routes/admin.js";
 import { registerHealth, registerHealthLive } from "./routes/health.js";
 import { registerHello } from "./routes/hello.js";
+import { edgePeer, type ForwardedBy } from "./core/edge.js";
 import { GatewayMetrics } from "./telemetry/metrics.js";
 import { annotateServerSpan, noteErrorType } from "./telemetry/otel.js";
 
@@ -143,6 +144,8 @@ export interface GatewayServices {
   gateway: Gateway;
   clientCap: ClientCap;
   realNow: () => number;
+  /** Whether a peer is edge (core/edge.ts). */
+  forwardedBy: ForwardedBy;
 }
 
 /** GATEWAY_STATE_DIR, which compose sets (env-files.md §4): the journal and the incident drafts live under it. */
@@ -161,6 +164,8 @@ export interface ServiceOptions {
   /** The adapter factories; every module in adapters/ by default (registry.ts). */
   factories?: ReadonlyMap<string, AdapterFactory>;
   realNow?: () => number;
+  /** Which peer is edge; by default the `edge` service's addresses, looked up on the stack's network. */
+  forwardedBy?: ForwardedBy;
 }
 
 /**
@@ -228,6 +233,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     gateway,
     clientCap: new ClientCap(budgets.limits.perClient),
     realNow,
+    forwardedBy: opts.forwardedBy ?? edgePeer(),
   };
 }
 
@@ -255,6 +261,7 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       logger: s.logger,
       maxOutputTokens: s.budgets.limits.perCall.helloMaxOutputTokens,
       realNow: s.realNow,
+      forwardedBy: s.forwardedBy,
     });
   }
   api.setNotFoundHandler(async (req, reply) => reply.code(404).send({ error: "not_found", request_id: req.id }));

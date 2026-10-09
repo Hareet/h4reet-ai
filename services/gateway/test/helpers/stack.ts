@@ -77,6 +77,7 @@ export async function testStack(
   });
   if (!o.storeDown) await store.start();
   const services = await createServices({
+    forwardedBy: async (peer) => peer === "127.0.0.1" || peer === "::ffff:127.0.0.1", // edge, in tests
     env: {
       H4_STACK: stack,
       H4_ENV: envClass,

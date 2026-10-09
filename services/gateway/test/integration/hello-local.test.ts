@@ -83,6 +83,7 @@ beforeAll(async () => {
   await store.start();
   config = await fastConfig();
   services = await createServices({
+    forwardedBy: async (peer) => peer === "127.0.0.1" || peer === "::ffff:127.0.0.1", // edge, in tests
     env: {
       H4_STACK: "dev",
       H4_ENV: "dev",
@@ -517,6 +518,19 @@ describe("after initialization", () => {
       for (let i = 0; i < 5; i++) expect((await as("10.0.0.1")).statusCode).toBe(415);
       expect((await as("10.0.0.1")).statusCode).toBe(429);
       expect((await as("10.0.0.2")).statusCode).toBe(415);
+    });
+
+    it("believes X-Forwarded-For only from edge: any other peer is its own client, whatever it sends", async () => {
+      const from = (peer: string, xff: string) =>
+        api.inject({
+          method: "POST",
+          url: "/hello",
+          remoteAddress: peer,
+          headers: { "content-type": "text/plain", "x-forwarded-for": xff, "x-h4-client": "spoofer" },
+          payload: "x",
+        });
+      for (let i = 0; i < 5; i++) expect((await from("10.9.9.9", `10.1.0.${i}`)).statusCode).toBe(415);
+      expect((await from("10.9.9.9", "10.1.0.99")).statusCode).toBe(429);
     });
   });
 

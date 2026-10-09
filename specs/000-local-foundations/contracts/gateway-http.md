@@ -49,7 +49,7 @@ You are the hello endpoint of the h4reet.ai stack, a test of its model gateway. 
 ### 2.3 Client identity and the per-client cap (FR-025)
 
 - **The client** is the pair (source address, label):
-  - **The source address** is the value edge puts in `X-Forwarded-For`. Edge drops whatever the client sent and sets exactly its own `$remote_addr`, so the header always has one value. An in-network caller without the header is identified by its TCP peer address.
+  - **The source address** is the value edge puts in `X-Forwarded-For`. Edge drops whatever the client sent and sets exactly its own `$remote_addr`, so the header always has one value. The gateway believes the header only when its TCP peer is edge, one of the `edge` service's addresses on the stack's network, looked up and cached for 30 s (`src/core/edge.ts`). Any other in-network caller is identified by its TCP peer address, with or without the header, so it can't choose its own identity to slip the cap. A failed lookup believes no one.
   - **The label** is the `X-H4-Client` value, or none.
 - **The cap**, from `config/budgets.yaml` `limits.per_client`, is counted in memory per client:
   - a token bucket of capacity `burst` (5), refilled at `requests_per_minute` (20 a minute, one token every 3 s);
