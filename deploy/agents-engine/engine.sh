@@ -77,6 +77,80 @@ cmd_setup() {
 # ------------------------------------------------------------------------------------------------
 # up: the masks check (H8), the units, the services, the state chown, then wait for TLS
 # ------------------------------------------------------------------------------------------------
+
+# read_deny_path <rule|sandbox> <entry> <tree> <home>: the path inside the tree that one sandbox read deny
+# names, relative to the tree, or nothing when it names none. Claude Code's syntax, for a Read(...) rule
+# and for a sandbox.filesystem.denyRead entry:
+#   ./x and x   the project's, in both;
+#   /x          the project's in a rule, but absolute in denyRead;
+#   //x         absolute in both; ~/x the home directory's in both.
+# An absolute or home path counts only inside the tree. A trailing /** or /* goes, so a deny on a
+# directory's contents names the directory; any other glob character stays, for the caller to judge. The
+# tree itself, and paths above or beside it, are not paths inside it.
+read_deny_path() {
+	local kind="$1" entry="$2" tree="$3" home="$4" path
+	case "$entry" in
+	//*) path="/${entry#//}" ;;
+	\~) path="$home" ;; # a literal tilde: the deny's own, never the shell's
+	\~/*) path="$home/${entry#\~/}" ;;
+	/*) if [ "$kind" = rule ]; then path="${entry#/}"; else path="$entry"; fi ;;
+	*) path="$entry" ;;
+	esac
+	while [[ $path == *//* ]]; do path="${path//\/\//\/}"; done
+	if [[ $path == /* ]]; then
+		case "$path" in
+		"$tree"/*) path="${path#"$tree"/}" ;;
+		*) return 0 ;; # outside the tree, or the tree itself
+		esac
+	fi
+	while :; do
+		case "$path" in
+		./*) path="${path#./}" ;;
+		*/\*\*) path="${path%/\*\*}" ;;
+		*/\*) path="${path%/\*}" ;;
+		*/) path="${path%/}" ;;
+		*) break ;;
+		esac
+	done
+	case "$path" in
+	"" | . | \* | \*\* | .. | ../*) return 0 ;; # the tree itself, or outside it
+	esac
+	printf '%s\n' "$path"
+}
+
+# Is a deny pattern one of the env-file globs step 3 of check_tree_masks holds: a name of .env*, .env.*, or
+# *.env, in any directory?
+env_file_glob() {
+	case "${1##*/}" in
+	'.env*' | '.env.*' | '*.env') return 0 ;;
+	esac
+	return 1
+}
+
+# The leading part of a pattern that holds no glob character. Every path the pattern matches is under it.
+glob_base() {
+	local -a parts=()
+	local part base=""
+	IFS=/ read -r -a parts <<<"$1"
+	for part in "${parts[@]}"; do
+		case "$part" in *[*?[]*) break ;; esac
+		base="${base:+$base/}$part"
+	done
+	printf '%s\n' "$base"
+}
+
+# mask_holds <path> <mask>...: is the tree-relative path a masked path, or inside one? A path that holds a
+# mask isn't held by it: the rest of what the path names stays visible.
+mask_holds() {
+	local path="$1" mask
+	shift
+	for mask in "$@"; do
+		[ "$path" = "$mask" ] && return 0
+		case "$path" in "$mask"/*) return 0 ;; esac
+	done
+	return 1
+}
+
 check_tree_masks() {
 	local masks_file="$here/tree-masks.txt" settings="$H4_EGRESS_SETTINGS"
 	[ -f "$masks_file" ] || die "missing $masks_file"
@@ -87,34 +161,34 @@ check_tree_masks() {
 	local -a masks=()
 	mapfile -t masks < <(grep -vE '^[[:space:]]*(#|$)' "$masks_file")
 
-	covered() { # is a repo-relative path inside, or equal to, a masked path?
-		local path="$1" mask
-		for mask in "${masks[@]}"; do
-			[ "$path" = "$mask" ] && return 0
-			case "$path" in "$mask"/*) return 0 ;; esac
-			case "$mask" in "$path"/*) return 0 ;; esac
-		done
-		return 1
-	}
-
-	# 1. Every sandbox read-deny that points inside the tree must be covered by a mask.
-	if [ -r "$settings" ] && command -v jq >/dev/null 2>&1; then
-		local denies rel
-		denies="$(jq -r '
-			((.sandbox.filesystem.denyRead // [])[])
-			, ((.permissions.deny // [])[] | select(startswith("Read(")) | ltrimstr("Read(") | rtrimstr(")"))
-			| select(type=="string")' "$settings")"
-		while IFS= read -r deny; do
-			[ -n "$deny" ] || continue
-			case "$deny" in
-			*'*'* | '~'* | /*) continue ;; # globs, home, and absolute paths are not tree-relative
-			esac
-			rel="${deny#./}"
-			if ! covered "$rel"; then
-				die "the sandbox read-denies '$rel' inside the tree, but tree-masks.txt does not mask it; add it"
+	# 1. Every sandbox read deny that names a path inside the tree must be masked: the denyRead entries and the
+	#    Read(...) rules, each read in its own syntax. Settings it can't read fail closed: an unread deny is an
+	#    unchecked one.
+	command -v jq >/dev/null 2>&1 || die "jq is missing, so the sandbox's read denies can't be checked (fail closed)"
+	local denies kind deny rel base
+	denies="$(jq -r '
+		((.sandbox.filesystem.denyRead // [])[] | select(type == "string") | "sandbox\t" + .),
+		((.permissions.deny // [])[] | select(type == "string" and startswith("Read(") and endswith(")"))
+			| "rule\t" + (ltrimstr("Read(") | .[:-1]))' "$settings" 2>/dev/null)" ||
+		die "cannot read the sandbox's read denies in $settings (fail closed)"
+	while IFS=$'\t' read -r kind deny; do
+		[ -n "$deny" ] || continue
+		rel="$(read_deny_path "$kind" "$deny" "$repo" "$HOME")"
+		[ -n "$rel" ] || continue # outside the tree
+		case "$rel" in
+		*[*?[]*)
+			# A pattern. The env-file globs are step 3's; any other must lie wholly under a mask.
+			env_file_glob "$rel" && continue
+			base="$(glob_base "$rel")"
+			if [ -n "$base" ] && mask_holds "$base" "${masks[@]}"; then
+				continue
 			fi
-		done <<<"$denies"
-	fi
+			die "the sandbox read-denies the pattern '$deny' inside the tree, and no path in tree-masks.txt holds all it matches; mask its directory"
+			;;
+		esac
+		mask_holds "$rel" "${masks[@]}" ||
+			die "the sandbox read-denies '$rel' inside the tree, but tree-masks.txt does not mask it; add it"
+	done <<<"$denies"
 
 	# 2. Create any masked directory that does not exist yet, as empty 0700.
 	local mask
@@ -124,14 +198,14 @@ check_tree_masks() {
 		fi
 	done
 
-	# 3. Refuse while a file matching a denied glob sits outside a mask.
+	# 3. Refuse while a file matching a denied glob (.env*, *.env; not a *.env.example template) sits outside a
+	#    mask.
 	local found
-	found="$(find "$repo" \( -name '*.env' -o -name '.env' -o -name '.env.*' \) \
-		-not -name '*.env.example' -type f 2>/dev/null || true)"
+	found="$(find "$repo" \( -name '*.env' -o -name '.env*' \) -not -name '*.env.example' -type f 2>/dev/null || true)"
 	while IFS= read -r path; do
 		[ -n "$path" ] || continue
 		rel="${path#"$repo"/}"
-		if ! covered "$rel"; then
+		if ! mask_holds "$rel" "${masks[@]}"; then
 			die "an env file sits outside a masked path: $rel (move it to ~/.config/h4reet-ai/env/)"
 		fi
 	done <<<"$found"
