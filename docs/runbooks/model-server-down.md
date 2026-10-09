@@ -4,14 +4,14 @@ The local model server (`model-server-gpu` on prod and dev, `model-server-cpu` o
 
 ## Symptoms
 
-- **hello**, on dev and dev-cpu, answers 503 with `X-H4-Degraded-Cause: no_fallback_in_stack`. On prod it answers from Bedrock instead (`route: fallback`), until the fallback sub-budget is spent (`fallback_awaiting_renewal`) or Bedrock can't serve either (`fallback_unavailable`).
-- **The dashboard** (`http://localhost:<x002>/d/h4-runtime`): "Model-server health" shows the model server down, and the local adapter down beside it. "Why responses are degraded" shows the cause once the US2 panels exist.
+- **hello**, on dev and dev-cpu, answers from the synthetic fallback (`route: fallback`, `provider: synthetic`), $0.10 of synthetic spend a call, until dev's own sub-budget is spent; with `GATEWAY_TEST_SYNTHETIC_SPEND` off, it answers 503 with `X-H4-Degraded-Cause: no_fallback_in_stack`. On prod it answers from Bedrock instead (`route: fallback`), until the fallback sub-budget is spent (`fallback_awaiting_renewal`) or Bedrock can't serve either (`fallback_unavailable`).
+- **The dashboard** (`http://localhost:<x002>/d/h4-runtime`): "Model-server health" shows the model server down, and the local adapter down beside it. "Why responses are degraded" shows the cause.
 - **`make status ENV=<stack>`** shows the model server `unhealthy`, `starting`, `exited`, or `missing`, with its last health-check output and its error lines, redacted.
 - **`make up ENV=<stack>`** exits 1 and names the model server. The rest of the stack keeps running.
 
 ## Impact
 
-- **dev and dev-cpu:** hello answers nothing but the degraded body. Nothing is spent: these stacks have no paid fallback (FR-031).
+- **dev and dev-cpu:** no money is spent: these stacks have no paid fallback (FR-031). Their synthetic fallback's spend counts toward dev's own meters, with prod's thresholds (FR-036), so a long outage there warns, exhausts the sub-budget, and can trip dev's kill switch, as the breach test does on purpose.
 - **prod:** hello keeps answering, from Bedrock, and every answer costs money, inside the $2 a day fallback sub-budget and the $5 a day and $20 a month ceilings (ADR 0001). When the sub-budget is spent, hello answers degraded until you renew it (the runbook `fallback-renewal.md`).
 - The meter, the kill switch, and the store are unaffected. The gateway checks the model server every second: one failed check marks it unhealthy, and three passing ones mark it healthy again ([contracts/provider-adapter.md](../../specs/000-local-foundations/contracts/provider-adapter.md)), so answers come back from local within seconds of it recovering.
 
