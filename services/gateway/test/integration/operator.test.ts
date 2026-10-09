@@ -555,3 +555,217 @@ describe("GET /admin/incidents (§4.3)", () => {
     }
   });
 });
+
+describe("the dev-only test machinery (§3; tasks.md T070, T076)", () => {
+  const CLOCK_REASON = "breach test step 1: clock to the 20th";
+
+  it("is refused outside dev, after authentication, with 403, counted in h4.test_machinery.refused", async () => {
+    const prod = await testStack({ stack: "prod" });
+    stacks.push(prod);
+    const spy = vi.spyOn(prod.services.metrics, "testMachineryRefused");
+    // Unauthenticated first: 401, which tells nothing about the machinery.
+    const anonymous = await prod.admin.inject({
+      method: "POST",
+      url: "/admin/test/clock",
+      headers: { "content-type": "application/json" },
+      payload: "{}",
+    });
+    expect(anonymous.statusCode).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+    for (const url of ["/admin/test/clock", "/admin/test/synthetic"]) {
+      const res = await post(prod, url, { advance_s: 60, reason: CLOCK_REASON });
+      expect(res.statusCode, url).toBe(403);
+      expect(res.json()).toEqual({ error: "test_machinery_refused" });
+    }
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(prod.logged.filter((l) => l.record.event === "test.machinery_refused").map((l) => l.record.path)).toEqual([
+      "/admin/test/clock",
+      "/admin/test/synthetic",
+    ]);
+  });
+
+  it("is refused on dev too, route by route, without its own switch", async () => {
+    const s = await testStack({ env: { GATEWAY_TEST_CLOCK: "0", GATEWAY_TEST_SYNTHETIC_SPEND: "0" } });
+    stacks.push(s);
+    expect((await post(s, "/admin/test/clock", { advance_s: 60, reason: CLOCK_REASON })).statusCode).toBe(403);
+    expect(
+      (await post(s, "/admin/test/synthetic", { attribution: "metered", count: 1, reason: CLOCK_REASON })).statusCode,
+    ).toBe(403);
+  });
+
+  it("moves the clock forward, persists the offset, audits it, and journals a clock record", async () => {
+    const s = await stack();
+    const target = Date.UTC(new Date().getUTCFullYear() + 1, 10, 20, 8, 0, 0);
+    const res = await post(s, "/admin/test/clock", { set: new Date(target).toISOString(), reason: CLOCK_REASON });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as Rec;
+    expect(Object.keys(body)).toEqual(["gateway_time", "real_time", "offset_ms", "audit_id", "journal"]);
+    expect(body).toMatchObject({ gateway_time: new Date(target).toISOString(), journal: "ok" });
+    const offset = body.offset_ms as number;
+    expect(offset).toBe(target - Date.parse(String(body.real_time)));
+    expect(Number((await state(s)).test_clock_offset_ms)).toBe(offset);
+    const [row] = await audit(s, "test_clock");
+    expect(row).toMatchObject({
+      reason: CLOCK_REASON,
+      before: { offset_ms: null },
+      after: { offset_ms: offset },
+      detail: { gateway_time: new Date(target).toISOString() },
+    });
+    const month = monthKey(target);
+    const records = (await readFile(join(s.stateDir, "journal", `${month}.jsonl`), "utf8"))
+      .split("\n")
+      .filter((l) => l !== "")
+      .map((l) => JSON.parse(l) as Rec);
+    expect(records.at(-1)).toMatchObject({
+      kind: "clock",
+      offset_ms: offset,
+      gateway_time: new Date(target).toISOString(),
+      audit_id: body.audit_id,
+    });
+    // The gateway's own clock follows at once: GET /health's time, and no alert of its own.
+    const health = (await s.api.inject({ method: "GET", url: "/health" })).json() as Rec;
+    expect(Date.parse(String(health.time)) - Date.parse(String(health.real_time))).toBeGreaterThanOrEqual(offset);
+    expect(
+      (await s.db.pg.query("SELECT count(*)::int AS n FROM gateway.alert_outbox WHERE dedupe_key LIKE '%test_clock%'"))
+        .rows,
+    ).toEqual([{ n: 0 }]);
+    // advance_s goes on from there; going back is refused, and the offset never decreases.
+    const next = await post(s, "/admin/test/clock", { advance_s: 86_400, reason: "breach test step 4: next UTC day" });
+    expect((next.json() as Rec).offset_ms as number).toBeGreaterThanOrEqual(offset + 86_400_000);
+    const back = await post(s, "/admin/test/clock", { set: new Date(target).toISOString(), reason: CLOCK_REASON });
+    expect(back.statusCode).toBe(409);
+    expect(back.json()).toMatchObject({ error: "clock_backwards", gateway_time: expect.any(String) });
+    // The state and the renewal flag are never touched.
+    expect(await state(s)).toMatchObject({ state: "normal", fallback_awaiting_renewal: false });
+  });
+
+  it("checks the clock's body: exactly one of set and advance_s, each in its shape, and the reason", async () => {
+    const s = await stack();
+    for (const [body, field] of [
+      [{ reason: CLOCK_REASON }, "body"],
+      [{ set: "2030-01-01T00:00:00Z", advance_s: 1, reason: CLOCK_REASON }, "body"],
+      [{ set: "2030-01-01 00:00", reason: CLOCK_REASON }, "set"],
+      [{ set: "2030-01-01T00:00:00+02:00", reason: CLOCK_REASON }, "set"],
+      [{ advance_s: 0, reason: CLOCK_REASON }, "advance_s"],
+      [{ advance_s: 31_622_401, reason: CLOCK_REASON }, "advance_s"],
+      [{ advance_s: 1.5, reason: CLOCK_REASON }, "advance_s"],
+      [{ advance_s: 60, reason: "short" }, "reason"],
+      [{ advance_s: 60, reason: CLOCK_REASON, extra: 1 }, "body"],
+    ] as const) {
+      const res = await post(s, "/admin/test/clock", body);
+      expect(res.statusCode, JSON.stringify(body)).toBe(400);
+      expect(res.json()).toMatchObject({ error: "invalid_request", field });
+    }
+    const empty = await stack({ init: false });
+    expect((await post(empty, "/admin/test/clock", { advance_s: 60, reason: CLOCK_REASON })).json()).toMatchObject({
+      error: "store_uninitialized",
+    });
+  });
+
+  it("spends $0.10 a call through the real pipeline, each call a trace of its own, and audits the run", async () => {
+    const s = await stack();
+    const spy = vi.spyOn(s.services.metrics, "operatorAction");
+    const res = await post(s, "/admin/test/synthetic", {
+      attribution: "metered",
+      count: 3,
+      reason: "breach test step 2: one metered call",
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { calls: Rec[] } & Rec;
+    expect(Object.keys(body)).toEqual(["requested", "answered", "calls", "stopped", "meters", "audit_id"]);
+    expect(body).toMatchObject({ requested: 3, answered: 3, stopped: null });
+    expect(body.calls.map((c) => [c.n, c.status, c.route, c.cost_micro_usd])).toEqual([
+      [1, 200, "metered", 100_000],
+      [2, 200, "metered", 100_000],
+      [3, 200, "metered", 100_000],
+    ]);
+    expect(new Set(body.calls.map((c) => c.trace_id)).size).toBe(3);
+    expect(body.meters).toMatchObject({
+      day: { spent_micro_usd: 300_000, ceiling_micro_usd: 5_000_000 },
+      month: { spent_micro_usd: 300_000 },
+      fallback_day: { spent_micro_usd: 0, allowance_micro_usd: 2_000_000 },
+    });
+    const ledger = (
+      await s.db.pg.query<Rec>("SELECT purpose, attribution, route_decision, cost_micro, trace_id FROM gateway.ledger")
+    ).rows;
+    expect(ledger.map((r) => [r.purpose, r.attribution, r.route_decision, r.cost_micro])).toEqual([
+      ["synthetic", "metered", "metered", 100_000],
+      ["synthetic", "metered", "metered", 100_000],
+      ["synthetic", "metered", "metered", 100_000],
+    ]);
+    expect(new Set(ledger.map((r) => r.trace_id))).toEqual(new Set(body.calls.map((c) => c.trace_id)));
+    const [row] = await audit(s, "test_synthetic");
+    expect(row).toMatchObject({
+      id: body.audit_id,
+      reason: "breach test step 2: one metered call",
+      detail: { attribution: "metered", count: 3, answered: 3 },
+    });
+    expect(spy).toHaveBeenCalledWith("test_synthetic");
+  });
+
+  it("runs fallback calls as a hello would, and stops at the first that isn't answered", async () => {
+    const s = await stack(); // local is unhealthy: the calls go to the synthetic fallback
+    const res = await post(s, "/admin/test/synthetic", {
+      attribution: "fallback",
+      count: 25,
+      reason: "breach test step 5: fallback to the allowance",
+    });
+    const body = res.json() as { calls: Rec[] } & Rec;
+    expect(body).toMatchObject({
+      requested: 25,
+      answered: 20,
+      stopped: { n: 21, status: 503, cause: "fallback_awaiting_renewal" },
+      meters: { fallback_day: { spent_micro_usd: 2_000_000, allowance_micro_usd: 2_000_000, grant: 2 } },
+    });
+    expect(body.calls.every((c) => c.route === "fallback")).toBe(true);
+    expect(
+      s.logged.some((l) => l.record.event === "call.degraded" && l.record.cause === "fallback_awaiting_renewal"),
+    ).toBe(true);
+  });
+
+  it("is held to the global metered limit of 60 a minute: the 61st call stops with 429", async () => {
+    const s = await stack();
+    const first = (
+      await post(s, "/admin/test/synthetic", {
+        attribution: "metered",
+        count: 30,
+        reason: "breach test: the first thirty calls",
+      })
+    ).json() as Rec;
+    expect(first.answered).toBe(30);
+    // 50 calls are the daily ceiling, so the next 30 go on the next day; the minute is real time, and still the same.
+    expect(
+      (await post(s, "/admin/test/clock", { advance_s: 86_400, reason: "breach test: the next UTC day" })).statusCode,
+    ).toBe(200);
+    const second = (
+      await post(s, "/admin/test/synthetic", {
+        attribution: "metered",
+        count: 31,
+        reason: "breach test: thirty-one calls more",
+      })
+    ).json() as Rec;
+    expect(second).toMatchObject({
+      answered: 30,
+      stopped: { n: 31, status: 429, error: "metered_capacity_exceeded", retry_after_s: expect.any(Number) },
+    });
+  });
+
+  it("answers 409 store_uninitialized on an empty store, and checks its body", async () => {
+    const s = await stack();
+    for (const [body, field] of [
+      [{ attribution: "local", count: 1, reason: CLOCK_REASON }, "attribution"],
+      [{ attribution: "metered", count: 0, reason: CLOCK_REASON }, "count"],
+      [{ attribution: "metered", count: 51, reason: CLOCK_REASON }, "count"],
+      [{ attribution: "metered", count: 1 }, "reason"],
+      [{ attribution: "metered", count: 1, reason: CLOCK_REASON, message: "hi" }, "body"],
+    ] as const) {
+      const res = await post(s, "/admin/test/synthetic", body);
+      expect(res.statusCode, JSON.stringify(body)).toBe(400);
+      expect(res.json()).toMatchObject({ error: "invalid_request", field });
+    }
+    const empty = await stack({ init: false });
+    const res = await post(empty, "/admin/test/synthetic", { attribution: "metered", count: 1, reason: CLOCK_REASON });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ error: "store_uninitialized" });
+  });
+});

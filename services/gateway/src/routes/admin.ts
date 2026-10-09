@@ -8,8 +8,8 @@
 // each class in a window writes one auth_failed audit row, with the route template and never the raw path, and the
 // third queues one auth_failed alert. While the store is down a failure is only counted and logged.
 //
-// Routes: POST /admin/init (meter/init.ts), POST /admin/reset and /admin/renew (meter/operator.ts), and the reads,
-// GET /admin/status, /admin/audit, and /admin/incidents. The dev-only test machinery is routes/test.ts (T076).
+// Routes: POST /admin/init (meter/init.ts), POST /admin/reset and /admin/renew (meter/operator.ts), the reads,
+// GET /admin/status, /admin/audit, and /admin/incidents, and the dev-only test machinery (routes/test.ts).
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -29,6 +29,7 @@ import { renewFallback, resetKillSwitch, type OperatorDeps, type OperatorResult 
 import { toBigInt, type MeterRow, type Store } from "../meter/store.js";
 import type { AuthFailureClass, GatewayMetrics } from "../telemetry/metrics.js";
 import { noteErrorType } from "../telemetry/otel.js";
+import { registerTestMachinery } from "./test.js";
 
 export interface AdminDeps {
   stack: StackName;
@@ -414,6 +415,24 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
   admin.post("/admin/reset", reasonWrite(resetKillSwitch));
   admin.post("/admin/renew", reasonWrite(renewFallback));
 
+  // §3: the dev-only test machinery, behind the same authentication.
+  registerTestMachinery(admin, {
+    stack: deps.stack,
+    envClass: deps.envClass,
+    gateway: deps.gateway,
+    store: deps.store,
+    clock: deps.clock,
+    budgets: deps.budgets,
+    metrics: deps.metrics,
+    logger: deps.logger,
+    realNow: deps.realNow,
+    switches: deps.testMachinery,
+    fallbackId: deps.fallbackId,
+    operatorDeps,
+    operatorOf,
+    unreachable,
+  });
+
   // §4.2: the audit log, newest first, a page at a time. Grafana's audit panel reads the same table, through grafana_ro.
   admin.get("/admin/audit", async (req, reply) => {
     operatorOf(req);
@@ -613,7 +632,7 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
  * The meters of §4.1. A period with no row yet shows 0 spend and the configured allowance. What fallback can still
  * spend is the smallest of three rooms, never below 0, and 0 while degraded or awaiting renewal.
  */
-function meterReport(rows: readonly MeterRow[], t: ReturnType<typeof thresholds>, blocked: boolean) {
+export function meterReport(rows: readonly MeterRow[], t: ReturnType<typeof thresholds>, blocked: boolean) {
   const row = (meter: MeterRow["meter"]) => rows.find((r) => r.meter === meter);
   const day = row("day");
   const month = row("month");

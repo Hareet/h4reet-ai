@@ -210,7 +210,7 @@ Request, with exactly one of `set` and `advance_s`:
 | `set` | an RFC 3339 time in UTC (`Z`), at or after the current gateway time |
 | `advance_s` | an integer from 1 to 31,622,400 (366 days) |
 
-200: `{"gateway_time": "2026-10-27T08:00:00.000Z", "real_time": "2026-10-08T16:20:31.204Z", "offset_ms": 1611568796, "audit_id": 3}`
+200: `{"gateway_time": "2026-10-27T08:00:00.000Z", "real_time": "2026-10-08T16:20:31.204Z", "offset_ms": 1611568796, "audit_id": 3}`, and `"journal": "ok"` or `"unwritable"`, as §1.3 reports every write's append (added by tasks.md T076). The audit row and the `clock` record are both stamped at the new gateway time, so the record goes into that month's journal file.
 
 | Status | `error` | When |
 |---|---|---|
@@ -260,7 +260,7 @@ The route stops at the first call that isn't answered. 200:
 ```
 
 - **`calls`** lists every answered call; the example shortens it to the first and the fifth. `stopped` is null when all were answered.
-- **When the route stops,** `stopped` names the 503 `cause` or the 429 `error`, with `retry_after_s` for a 429. `meters` has the same shape as in `GET /admin/status` (§4.1), shortened here.
+- **When the route stops,** `stopped` names the 503 `cause` or the 429 `error`, with `retry_after_s` for a 429. `meters` has the same shape as in `GET /admin/status` (§4.1), shortened here. (Added by tasks.md T076: a `fallback` call that local answered with a rejection stops with `{"n", "status": 502, "error": "local_error", "kind"}`, as hello's 502 does; `audit_id` is null if the audit row couldn't be written after the calls; and a call refused by the global limits stops the run, which doesn't wait for the minute to pass, so a caller paces itself.)
 
 | Status | `error` | When |
 |---|---|---|
