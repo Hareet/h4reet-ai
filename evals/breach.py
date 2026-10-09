@@ -31,8 +31,10 @@ How it runs:
     runs from the main working tree, which the engine serves, never a linked worktree (contracts/env-files.md §7.3).
   - --delivery real (dev only, the Author's terminal: SC-002's recorded run) adds contracts/env-files.md §7.2's
     overlay, a one-line ALERT_DELIVERY=real in a fresh 0700 directory, to the gateway for the run, and recreates the
-    gateway with dev's files alone at the end, success or not. The run then asserts Telegram's message_id and SMTP's
-    250 reply in the delivery records instead of the stand-ins.
+    gateway with dev's files alone at the end: when the run passes, fails, or is stopped by Ctrl-C, SIGTERM, or SIGHUP.
+    A SIGKILL, or the host stopping, can't run that; dev stays on real delivery until the next make up ENV=dev. The
+    run then asserts Telegram's message_id and SMTP's 250 reply in the delivery records, and that neither stand-in
+    holds the alert.
 
 Standard library only, by path through PY_HOST, never with -m (plan §4). The docker client gets only the variables
 docker and the relay need, so no COMPOSE_*, H4_*, or template key in the shell can override the stack's env file
@@ -47,17 +49,19 @@ engine or from a linked worktree, real delivery off dev or with a channel key em
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import importlib.util
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NoReturn, TextIO
@@ -461,6 +465,28 @@ class Stop(Exception):
     """The run can't go on: a step's action failed, or a command didn't run. The table says where."""
 
 
+class Interrupted(BaseException):
+    """SIGTERM or SIGHUP, which a closed terminal sends: the run stops, and its cleanup runs, as on Ctrl-C. A
+    BaseException, like KeyboardInterrupt, so nothing on the way out takes it for an error and goes on."""
+
+
+def on_signal(signum: int, frame: object) -> NoReturn:
+    raise Interrupted(signal.Signals(signum).name)
+
+
+@contextlib.contextmanager
+def interruptible() -> Iterator[None]:
+    """SIGTERM and SIGHUP stop the run the way Ctrl-C does, so its cleanup puts the stack back: the gateway on dev's own
+    files, the overlay deleted, the stopped services started (contracts/env-files.md §7.2). Only a SIGKILL, or the host
+    stopping, can't be caught. The previous handlers come back when the run ends."""
+    previous = {s: signal.signal(s, on_signal) for s in (signal.SIGTERM, signal.SIGHUP)}
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
 # --- the dates -----------------------------------------------------------------------------------------------------
 
 
@@ -539,7 +565,9 @@ class Context:
         return self.environ.get("SANDBOX_RUNTIME") == "1"
 
     def say(self, text: str) -> None:
-        print(text, file=self.out, flush=True)
+        # A terminal closed under the run (SIGHUP) takes its output with it, never its cleanup.
+        with contextlib.suppress(OSError, ValueError):
+            print(text, file=self.out, flush=True)
 
     def docker(self) -> list[str]:
         # Inside the sandbox, the relay; it runs the command directly when a relay already answers (make's own).
@@ -1873,7 +1901,7 @@ def apply_overlay(ctx: Context) -> None:
 
 
 def remove_overlay(ctx: Context) -> None:
-    """The gateway back on dev's own files, and the overlay deleted, success or not."""
+    """The gateway back on dev's own files, and the overlay deleted, however the run ended but by SIGKILL."""
     try:
         ctx.lifecycle(
             "docker compose up gateway, back on the stand-ins",
@@ -1928,6 +1956,11 @@ def run(ctx: Context) -> int:
     except Stop as stop:
         report.stopped = str(stop)
         ctx.say(f"breach test: {stop}")
+    except (KeyboardInterrupt, Interrupted) as stop:
+        # The same cleanup as any end. A second interrupt stops the cleanup itself.
+        why = "Ctrl-C" if isinstance(stop, KeyboardInterrupt) else str(stop)
+        report.stopped = f"interrupted ({why})"
+        ctx.say(f"breach test: interrupted ({why}): putting the stack back")
     finally:
         try:
             if overlaid or ctx.overlay is not None:
@@ -2156,7 +2189,8 @@ def main(
             "breach.py: exit 2: refused before anything changed", file=out, flush=True
         )
         return 2
-    code = run(ctx)
+    with interruptible():
+        code = run(ctx)
     if code:
         print(
             "breach.py: exit 1: an assertion missed, or the run stopped (the table says which)",

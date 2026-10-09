@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -1048,6 +1049,75 @@ def test_real_delivery_refuses_an_overlay_inside_the_tree_and_makes_nothing_ther
         assert code == 1 and "inside the tree" in text, text
         assert made == [] and list(inside.iterdir()) == []
         assert not [c for c in stack.commands if c.count("--env-file") == 3]
+
+
+@pytest.mark.parametrize(
+    ("stop", "says"),
+    [("SIGINT", "Ctrl-C"), ("SIGTERM", "SIGTERM"), ("SIGHUP", "SIGHUP")],
+)
+def test_an_interrupted_real_run_still_puts_dev_back_on_the_stand_ins(
+    dev_files: tuple[Path, Path, Path], tmp_path: Path, stop: str, says: str
+) -> None:
+    # Ctrl-C, SIGTERM, and SIGHUP (a closed terminal) run the same cleanup as a run's end: the gateway back on dev's
+    # files, the overlay deleted, and the table, saying why the run stopped (contracts/env-files.md §7.2; round 1's
+    # review). Only a SIGKILL can't, and the disclosure row says what puts dev back then.
+    home, env_file, run_file = dev_files
+    stack = FakeStack()
+    scratch = tmp_path / "tmp"
+    scratch.mkdir()
+
+    def interrupted(
+        argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
+    ) -> tuple[int, str, str]:
+        if (
+            "breach-probe" in argv
+            and argv[argv.index("/app/breach_probe.py") + 1] == "3"
+        ):
+            if stop == "SIGINT":
+                raise KeyboardInterrupt
+            breach.on_signal(getattr(signal, stop), None)
+        return stack(argv, stdin, env, timeout)
+
+    argv = ["--stack", "dev", "--env-file", str(env_file), "--run-file", str(run_file)]
+    try:
+        code, text = run(
+            [*argv, "--delivery", "real"],
+            stack,
+            environ=author(TMPDIR=str(scratch)),
+            runner=interrupted,
+            home=home,
+        )
+    except KeyboardInterrupt:
+        pytest.fail("the interrupt escaped the run, and its cleanup with it")
+    assert code == 1
+    assert f"interrupted ({says})" in text
+    ups = [c for c in stack.commands if "up" in c and c[-1] == "gateway"]
+    assert ups[0].count("--env-file") == 3 and ups[-1].count("--env-file") == 2
+    assert list(scratch.iterdir()) == []  # the overlay's directory is gone
+    table = rows(text)
+    assert table["3a"][1] == "MISS" and "interrupted" in table["3a"][2]
+
+
+def test_the_run_takes_sigterm_and_sighup_and_puts_their_handlers_back() -> None:
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        with pytest.raises(breach.Interrupted):
+            breach.on_signal(signum, None)
+    before = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGHUP))
+    during: list[Any] = []
+    stack = FakeStack()
+
+    def watching(
+        argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
+    ) -> tuple[int, str, str]:
+        during.append(
+            (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGHUP))
+        )
+        return stack(argv, stdin, env, timeout)
+
+    code, _ = run(["--stack", "dev-cpu"], stack, runner=watching)
+    assert code == 0
+    assert set(during) == {(breach.on_signal, breach.on_signal)}
+    assert (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGHUP)) == before
 
 
 def test_real_delivery_puts_the_gateway_back_when_the_run_fails(

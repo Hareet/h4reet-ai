@@ -94,3 +94,22 @@ def test_the_alert_channels_have_their_rows() -> None:
 def test_the_stand_ins_rows_point_at_the_probes() -> None:
     for row_id in ("S12", "S13"):
         assert "(S11)" in rows()[row_id][1]
+
+
+def test_the_telegram_row_carries_what_an_operator_actions_alert_does() -> None:
+    # contracts/alerts.md §3: "The headline names the action and the actor's fingerprint, never the reason". The row
+    # that lists what leaves names it too (round 1's review).
+    alerts = (
+        REPO / "specs" / "000-local-foundations" / "contracts" / "alerts.md"
+    ).read_text(encoding="utf-8")
+    assert "operator #<8 hex>" in alerts
+    carries = rows()["A1"][2]
+    assert "`operator #<8 hex>`" in carries and "fingerprint" in carries
+
+
+def test_the_telegram_row_says_what_puts_dev_back_on_the_stand_ins() -> None:
+    # "success or not" doesn't hold for a run killed outright: the row says which ends put dev back, and what does
+    # when the run can't (round 1's review).
+    off = rows()["A1"][6]  # how to switch it off
+    assert "success or not" not in off
+    assert "SIGKILL" in off and "`make up ENV=dev`" in off
