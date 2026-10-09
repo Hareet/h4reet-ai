@@ -41,8 +41,10 @@ On prod, while you work, watch the fallback spend: `make operator-status ENV=pro
 - hello answers 200 with `route: "local"`:
 
   ```bash
-  curl -sS -X POST http://127.0.0.1:<x000>/hello -H 'Content-Type: application/json' -d '{"message":"Say hello."}'
+  make hello ENV=<stack> MESSAGE="Say hello."
   ```
+
+  It sends no token, goes to the stack's own api port, and escapes the listener's control characters ([contracts/gateway-http.md §9](../../specs/000-local-foundations/contracts/gateway-http.md#9-the-hello-client-make-hello)).
 
 - The dashboard's "Model-server health" shows up again within about 15 s (Prometheus scrapes the model server every 5 s).
 
