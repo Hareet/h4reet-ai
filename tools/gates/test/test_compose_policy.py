@@ -787,10 +787,15 @@ def test_the_real_files_pass(tree: Path, capsys: pytest.CaptureFixture[str]) -> 
 @needs_compose
 def test_end_to_end_refusals(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     compose = tree / cp.COMPOSE_FILE
-    text = compose.read_text(encoding="utf-8")
-    assert text.count("networks: [internal]\n") == 1
+    # gateway-state's own networks line, the first after its name: it alone joins egress below.
+    head, name, tail = compose.read_text(encoding="utf-8").partition(
+        "  gateway-state:\n"
+    )
+    assert name and "networks: [internal]\n" in tail
     compose.write_text(
-        text.replace("networks: [internal]\n", "networks: [internal, egress]\n"),
+        head
+        + name
+        + tail.replace("networks: [internal]\n", "networks: [internal, egress]\n", 1),
         encoding="utf-8",
     )
     write(tree / "deploy/stray.env", "A=1\n")

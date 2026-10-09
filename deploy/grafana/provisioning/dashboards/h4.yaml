@@ -1,0 +1,15 @@
+# Grafana's one dashboard provider (spec 000 FR-028; plan §6; contracts/telemetry.md §6.6 and §7). Mounted read-only:
+# every .json file in deploy/grafana/dashboards, which compose mounts at /etc/grafana/dashboards, read-only too. The
+# files are the source; the UI can't save over them or delete them.
+apiVersion: 1
+
+providers:
+  - name: h4reet
+    orgId: 1
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

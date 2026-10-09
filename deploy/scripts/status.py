@@ -12,8 +12,7 @@ It prints:
   - the gateway's GET /health, asked from inside the stack through edge, so it works on either engine: the store,
     the state, the degraded cause, and the adapters. With an uninitialized store it prints the one-time
     make operator-init command; it never initializes, resets, or changes anything itself (FR-031);
-  - Prometheus's target health, once the stack has Prometheus (tasks.md T058); GPU memory on a gpu stack; and
-    docker system df.
+  - Prometheus's target health, asked from inside its own container; GPU memory on a gpu stack; and docker system df.
 
 Exit codes: 0 every service is healthy, with WARN lines when the stack waits on the operator (an uninitialized
 store, a tripped switch); 1 a service is down or unhealthy, which it names with its last health-check output and
@@ -388,7 +387,12 @@ class Status:
 
     def prometheus(self, tree: Path, expected: dict[str, dict] | None) -> None:
         if not expected or "prometheus" not in expected:
-            self.say("prometheus: not in this stack yet (tasks.md T058)")
+            self.say(
+                "prometheus: not in this commit's compose file, so no target is checked"
+            )
+            self.warnings.append(
+                "the stack has no Prometheus, so its targets weren't checked"
+            )
             return
         done = self.compose(
             tree,

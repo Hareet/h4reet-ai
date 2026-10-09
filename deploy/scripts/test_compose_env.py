@@ -63,13 +63,22 @@ def test_the_topology_of_this_branch() -> None:
         "gateway-state",
         "model-server-gpu",
         "model-server-cpu",
+        "otel-collector",
+        "prometheus",
+        "loki",
+        "grafana",
     }
     assert COMPOSE["networks"] == {
         "internal": {"internal": True},
         "edge": {"driver": "bridge"},
         "egress": {"driver": "bridge"},
     }
-    assert COMPOSE["volumes"] == {"gateway-state-data": {}}
+    assert COMPOSE["volumes"] == {
+        "gateway-state-data": {},
+        "prometheus-data": {},
+        "loki-data": {},
+        "grafana-data": {},
+    }
     assert "name" not in COMPOSE  # make passes -p h4reet-<stack>
 
 
@@ -111,9 +120,11 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
 
 def test_images_are_the_locked_pins() -> None:
     pins = lock()
-    for name in ("edge", "gateway-state", "model-server-gpu", "model-server-cpu"):
-        assert SERVICES[name]["image"] == pins[name], name
-    assert "image" not in SERVICES["gateway"]
+    for name, service in SERVICES.items():
+        if name == "gateway":
+            assert "image" not in service  # built from this file's own tree
+        else:
+            assert service["image"] == pins[name], name
 
 
 # plan §3: the one llama.cpp build, b11459, in two variants; the flags each runs with, and those it never does.
@@ -215,13 +226,71 @@ def test_binds_and_volumes() -> None:
         assert binds(name) == [
             ("${H4_MODEL_DIR:?set by the env file}", "/models", True)
         ]
+    # The observability services: their configuration, read-only from this file's tree, and their own volumes.
+    tree = "${H4_TREE:?set by make up}/deploy"
+    assert binds("otel-collector") == [
+        (f"{tree}/otel/collector.yaml", "/etc/otelcol-contrib/config.yaml", True)
+    ]
+    assert binds("prometheus") == [
+        (f"{tree}/prometheus/prometheus.yml", "/etc/prometheus/prometheus.yml", True)
+    ]
+    assert binds("loki") == [(f"{tree}/loki/loki.yaml", "/etc/loki/loki.yaml", True)]
+    assert binds("grafana") == [
+        (
+            f"{tree}/grafana/provisioning/datasources",
+            "/etc/grafana/provisioning/datasources",
+            True,
+        ),
+        (
+            f"{tree}/grafana/provisioning/dashboards",
+            "/etc/grafana/provisioning/dashboards",
+            True,
+        ),
+        (f"{tree}/grafana/dashboards", "/etc/grafana/dashboards", True),
+    ]
+    for name, volume, target in (
+        ("prometheus", "prometheus-data", "/prometheus"),
+        ("loki", "loki-data", "/loki"),
+        ("grafana", "grafana-data", "/var/lib/grafana"),
+    ):
+        assert [
+            (v["source"], v["target"])
+            for v in SERVICES[name]["volumes"]
+            if v["type"] == "volume"
+        ] == [(volume, target)], name
+    assert "volumes" not in SERVICES["otel-collector"] or not [
+        v for v in SERVICES["otel-collector"]["volumes"] if v["type"] == "volume"
+    ]
+    # Every bind source names a file or folder this tree holds, so the long syntax, which never creates a missing
+    # source, finds it on the engine and in every export.
+    for name in SERVICES:
+        for source, _, _ in binds(name):
+            if source.startswith("${H4_TREE"):
+                assert (REPO / source.split("}/", 1)[1]).exists(), (name, source)
+
+
+def test_the_observability_services_commands() -> None:
+    assert SERVICES["otel-collector"]["command"] == [
+        "--config=/etc/otelcol-contrib/config.yaml"
+    ]
+    # Plan §6: the OTLP receiver on, 30 days or 2 GB, and neither the admin nor the lifecycle API.
+    assert SERVICES["prometheus"]["command"] == [
+        "--config.file=/etc/prometheus/prometheus.yml",
+        "--storage.tsdb.path=/prometheus",
+        "--storage.tsdb.retention.time=30d",
+        "--storage.tsdb.retention.size=2GB",
+        "--web.enable-otlp-receiver",
+    ]
+    assert SERVICES["loki"]["command"] == ["-config.file=/etc/loki/loki.yaml"]
+    assert "command" not in SERVICES["grafana"]
 
 
 def test_read_only_roots_where_the_image_allows() -> None:
-    for name in ("edge", "gateway"):
+    for name in ("edge", "gateway", "otel-collector"):
         assert SERVICES[name]["read_only"] is True
         assert SERVICES[name]["tmpfs"] == ["/tmp"]
-    assert "read_only" not in SERVICES["gateway-state"]
+    for name in ("gateway-state", "prometheus", "loki", "grafana"):
+        assert "read_only" not in SERVICES[name], name
 
 
 def test_only_the_database_adds_capabilities_back() -> None:
@@ -243,6 +312,10 @@ def test_only_the_database_adds_capabilities_back() -> None:
         ("gateway-state", "0.5", "256M"),
         ("model-server-gpu", "4", "8G"),
         ("model-server-cpu", "4", "2G"),
+        ("otel-collector", "0.5", "256M"),
+        ("prometheus", "0.5", "1G"),
+        ("loki", "0.5", "512M"),
+        ("grafana", "0.5", "512M"),
     ],
 )
 def test_limits_are_plan_2s(name: str, cpus: str, memory: str) -> None:
@@ -277,6 +350,15 @@ def test_health_checks() -> None:
         check = SERVICES[name]["healthcheck"]
         assert check["test"] == ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
         assert check["start_period"] == start, name
+    # Plan §2: the images' own busybox wget.
+    for name, url in (
+        ("prometheus", "http://127.0.0.1:9090/-/ready"),
+        ("loki", "http://127.0.0.1:3100/ready"),
+        ("grafana", "http://127.0.0.1:3000/api/health"),
+    ):
+        assert SERVICES[name]["healthcheck"]["test"] == ["CMD", "wget", "-qO-", url]
+    # The collector's image has no shell: Prometheus scrapes it instead (plan §2).
+    assert "healthcheck" not in SERVICES["otel-collector"]
 
 
 def test_edge_runs_nginx_without_the_entrypoint_scripts() -> None:
@@ -350,7 +432,48 @@ def test_the_database_receives_only_its_own() -> None:
         "POSTGRES_USER": "gateway",
         "POSTGRES_PASSWORD": "${GATEWAY_DB_PASSWORD}",
     }
-    assert "environment" not in SERVICES["edge"]
+    for name in ("edge", "prometheus", "loki"):
+        assert "environment" not in SERVICES[name], name
+
+
+def test_the_collector_receives_its_four_variables_and_nothing_else() -> None:
+    # contracts/env-files.md §6 and telemetry.md §6: its own configuration expands them.
+    assert SERVICES["otel-collector"]["environment"] == {
+        "LANGFUSE_PUBLIC_KEY": "${LANGFUSE_PUBLIC_KEY}",
+        "LANGFUSE_SECRET_KEY": "${LANGFUSE_SECRET_KEY}",
+        "TELEMETRY_PAYLOAD_SAMPLING": "${TELEMETRY_PAYLOAD_SAMPLING}",
+        "H4_STACK": "${H4_STACK}",
+    }
+
+
+# Grafana: contracts/env-files.md §6 ("Fixed in compose on Grafana"), the provisioning files' three variables
+# (telemetry.md §6.6), and the admin password, exactly.
+GRAFANA_ENVIRONMENT = {
+    "H4_STACK": "${H4_STACK}",
+    "H4_LANGFUSE_PORT": "${H4_LANGFUSE_PORT}",
+    "GATEWAY_GRAFANA_RO_PASSWORD": "${GATEWAY_GRAFANA_RO_PASSWORD}",
+    "GF_SECURITY_ADMIN_USER": "admin",
+    "GF_SECURITY_ADMIN_PASSWORD": "${GF_SECURITY_ADMIN_PASSWORD}",
+    "GF_SERVER_ROOT_URL": "http://localhost:${H4_GRAFANA_PORT}/",
+    "GF_USERS_ALLOW_SIGN_UP": "false",
+    "GF_AUTH_ANONYMOUS_ENABLED": "false",
+    "GF_UNIFIED_ALERTING_ENABLED": "false",
+    # The phone-homes of plan §6, every one off (FR-040).
+    "GF_ANALYTICS_REPORTING_ENABLED": "false",
+    "GF_ANALYTICS_CHECK_FOR_UPDATES": "false",
+    "GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES": "false",
+    "GF_NEWS_NEWS_FEED_ENABLED": "false",
+    "GF_SECURITY_DISABLE_GRAVATAR": "true",
+    "GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED": "true",
+    "GF_PLUGINS_PREINSTALL_DISABLED": "true",
+    "GF_SNAPSHOTS_EXTERNAL_ENABLED": "false",
+}
+
+
+def test_grafana_receives_exactly_its_variables() -> None:
+    assert SERVICES["grafana"]["environment"] == GRAFANA_ENVIRONMENT
+    # Nothing that would install a plugin from the internet.
+    assert "GF_INSTALL_PLUGINS" not in SERVICES["grafana"]["environment"]
 
 
 def test_no_aws_key_outside_the_gateway() -> None:

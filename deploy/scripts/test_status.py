@@ -24,6 +24,12 @@ SPEC.loader.exec_module(st)
 
 SHA, PREVIOUS = "b" * 40, "c" * 40
 RAW = yaml.safe_load((REPO / "deploy/compose.yaml").read_text(encoding="utf-8"))
+PROM_JOBS = [
+    job["job_name"]
+    for job in yaml.safe_load(
+        (REPO / "deploy/prometheus/prometheus.yml").read_text(encoding="utf-8")
+    )["scrape_configs"]
+]
 LOCK = {
     ln.split()[0]: ln.split()
     for ln in (REPO / "deploy/images.lock").read_text().splitlines()
@@ -61,7 +67,14 @@ class FakeDocker(st.Docker):
             "degraded_cause": None,
             "adapters": [{"id": "local", "healthy": True, "reason": None}],
         }
-        self.prom: dict | None = None
+        # Prometheus's answer: every job of the committed prometheus.yml, up.
+        self.prom: dict | None = {
+            "data": {
+                "activeTargets": [
+                    {"health": "up", "labels": {"job": job}} for job in PROM_JOBS
+                ]
+            }
+        }
         self.down = False
         self.calls: list[tuple[str, ...]] = []
 
@@ -203,9 +216,33 @@ def test_a_healthy_stack(
         "gateway /health: ok · store ok · state normal · cause None · adapters: local healthy"
         in out
     )
-    assert "prometheus: not in this stack yet (tasks.md T058)" in out
+    # Prometheus is in every stack: its targets, asked from inside its container.
+    assert f"prometheus targets: {len(PROM_JOBS)} up, 0 down" in out
     assert "gpu memory (used, total): 1536 MiB, 24463 MiB" in out
     assert "docker system df:" in out and out.rstrip().endswith("status: healthy")
+
+
+def test_a_compose_file_without_prometheus_is_named(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    del docker.raw["services"]["prometheus"]
+    del docker.state["prometheus"]
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    assert "prometheus: not in this commit's compose file" in out
+    assert out.rstrip().endswith("status: healthy, waiting on the operator")
+
+
+def test_prometheus_unreachable_is_a_warning(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    docker.prom = None
+    assert status(env, run, docker) == 0
+    assert "WARN Prometheus's targets couldn't be read" in capsys.readouterr().out
 
 
 def test_an_uninitialized_store_prints_the_one_time_command(
@@ -324,8 +361,6 @@ def test_dev_cpu_runs_the_working_tree(
             ]
         }
     }
-    docker.raw["services"]["prometheus"] = {"image": "x"}
-    docker.state["prometheus"] = ("running", "healthy")
     assert (
         status(REPO / "deploy/env.agents/dev-cpu.vars", None, docker, stack="dev-cpu")
         == 0
