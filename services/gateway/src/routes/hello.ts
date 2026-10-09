@@ -132,7 +132,7 @@ export function registerHello(api: FastifyInstance, deps: HelloDeps): void {
     }
     if (a.kind === "refused") {
       // The metered limits, in memory, on the fallback's path (§2.4 step 5.5): a refusal, not a degraded state.
-      state.decision = "fallback";
+      state.decision = a.route;
       deps.logger.info({ event: "call.refused", error: a.error, limit: a.limit }, "A request was refused by a limit.");
       return reply
         .code(429)

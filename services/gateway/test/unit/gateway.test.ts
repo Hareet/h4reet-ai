@@ -501,12 +501,19 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
     const a = await g.complete(call());
     expect(a).toMatchObject({
       kind: "refused",
+      route: "fallback",
       error: "metered_capacity_exceeded",
       limit: "global_per_minute",
       retryAfterS: 12,
     });
     expect(fb.calls()).toBe(0);
     expect(m.settles).toEqual([]);
+    // A metered call the same limit stops is refused under its own decision (tasks.md T155).
+    const metered = await g.meteredCall(call({ purpose: "synthetic" }), {
+      attribution: "metered",
+      adapterId: "synthetic",
+    });
+    expect(metered).toMatchObject({ kind: "refused", route: "metered", error: "metered_capacity_exceeded" });
   });
 
   it("answers the admission's degraded cause, calling nothing", async () => {

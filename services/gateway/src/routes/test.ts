@@ -208,7 +208,7 @@ export function registerTestMachinery(admin: FastifyInstance, deps: TestMachiner
           );
           stopped = { n, status: 503, cause: answer.decision.cause };
         } else if (answer.kind === "refused") {
-          decision = "fallback";
+          decision = answer.route; // metered for metered spend, as its routing span says
           deps.logger.info(
             { event: "call.refused", error: answer.error, limit: answer.limit },
             "A request was refused by a limit.",

@@ -405,6 +405,8 @@ export type GatewayAnswer =
   /** A 429 from the metered limits in memory (gateway-http.md §2.5.3): a refusal, not a degraded state. */
   | {
       kind: "refused";
+      /** The decision the refused call was on: the fallback branch, or a metered call with no local step. */
+      route: "fallback" | "metered";
       error: "client_cap_exceeded" | "metered_capacity_exceeded";
       limit: "metered_in_flight" | "global_in_flight" | "global_per_minute";
       retryAfterS: number;
@@ -791,7 +793,14 @@ export class Gateway {
     });
     if (!admit.ok) {
       if (admit.refusal === "degraded") return this.degrade(span, admit.decision, traceId);
-      return { kind: "refused", error: admit.error, limit: admit.limit, retryAfterS: admit.retryAfterS, traceId };
+      return {
+        kind: "refused",
+        route: decision.kind,
+        error: admit.error,
+        limit: admit.limit,
+        retryAfterS: admit.retryAfterS,
+        traceId,
+      };
     }
     const a = admit.admitted;
     span.setAttribute("h4.meter.attribution", attribution);

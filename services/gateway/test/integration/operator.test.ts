@@ -762,6 +762,7 @@ describe("the dev-only test machinery (§3; tasks.md T070, T076)", () => {
     expect(
       (await post(s, "/admin/test/clock", { advance_s: 86_400, reason: "breach test: the next UTC day" })).statusCode,
     ).toBe(200);
+    const counted = vi.spyOn(s.services.metrics, "request");
     const second = (
       await post(s, "/admin/test/synthetic", {
         attribution: "metered",
@@ -773,6 +774,8 @@ describe("the dev-only test machinery (§3; tasks.md T070, T076)", () => {
       answered: 30,
       stopped: { n: 31, status: 429, error: "metered_capacity_exceeded", retry_after_s: expect.any(Number) },
     });
+    // h4.gateway.requests counts the run under its own decision, metered, as its routing spans say (tasks.md T155).
+    expect(counted.mock.calls.map(([decision, outcome]) => [decision, outcome])).toEqual([["metered", "refused"]]);
   });
 
   it("answers 409 store_uninitialized on an empty store, and checks its body", async () => {
