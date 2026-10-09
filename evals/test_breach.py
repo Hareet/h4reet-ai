@@ -802,6 +802,35 @@ def test_a_refused_probe_call_says_why_cleaned(on_done_line: bool) -> None:
     assert "see its last line above" not in text and "\x1b" not in text
 
 
+class Gone(io.StringIO):
+    """A terminal closed under the run (SIGHUP): every write fails, as on a hung-up tty."""
+
+    def write(self, text: str) -> int:
+        raise OSError(5, "Input/output error")
+
+
+@pytest.mark.parametrize("terminal", ["hung up", "closed"])
+def test_a_terminal_gone_mid_run_takes_the_output_never_the_cleanup(
+    terminal: str,
+) -> None:
+    # Output fails with EIO, or on a closed file, from the first line on. The run still goes to its end, its cleanup
+    # starts what it stopped, and its exit code is the run's (round 2's review).
+    out: io.StringIO = Gone()
+    if terminal == "closed":
+        out = io.StringIO()
+        out.close()
+    stack = FakeStack(fail={"s5.spend"})
+    code = breach.main(
+        ["--stack", "dev-cpu"],
+        runner=stack,
+        environ=sandbox_env(),
+        out=out,
+        git=no_worktree,
+    )
+    assert code == 1
+    assert stack.commands[-1][-2:] == ["start", "model-server-cpu"]
+
+
 def test_a_volume_already_gone_is_wiped_enough() -> None:
     # A run stopped between removing the store's volume and bringing the store back leaves no volume: the next run's
     # wipe goes on rather than failing on it. Any other failure to remove it still stops the run.

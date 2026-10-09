@@ -431,6 +431,22 @@ def test_a_late_log_check_counts_no_record_from_after_its_deadline() -> None:
     assert end == round((action + 300) * 1000) * 1_000_000
 
 
+def test_a_log_check_drops_late_records_whatever_its_source_returns() -> None:
+    # Loki's end bounds what it returns; the probe holds the window's end itself as well, against a source, a proxy,
+    # or a Loki version that returns later entries anyway (round 2's review).
+    rig = make()
+    action = rig.clock.wall() - 450
+    late = streams(
+        delivered(int((action + 10) * 1e9), "telegram", lag="1.0"),
+        delivered(int((action + 400) * 1e9), "email", lag="1.0"),
+    )
+    rig.http.on("GET", LOKI_URL, fixed(200, late))  # whatever start and end say
+    rig.run([{**delivery_op(), "after_s": action, "after_end_s": action}], "3")
+    result = rig.result()
+    assert not result["ok"]
+    assert [r["channel"] for r in result["records"]] == ["telegram"]
+
+
 @pytest.mark.parametrize(("arrived_s", "ok"), [(200, True), (320, False)])
 def test_a_receiver_holds_an_alert_only_if_it_arrived_by_the_deadline(
     arrived_s: int, ok: bool

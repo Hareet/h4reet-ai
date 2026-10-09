@@ -507,6 +507,13 @@ def restore(previous: Mapping[int, Any]) -> None:
         signal.signal(signum, signal.SIG_DFL if handler is None else handler)
 
 
+def tell(out: TextIO, text: str) -> None:
+    """One line of output. A terminal closed under the run (SIGHUP) fails every write from then on, with EIO or on a
+    closed file: it takes the output with it, never the run, its cleanup, or its exit code."""
+    with contextlib.suppress(OSError, ValueError):
+        print(text, file=out, flush=True)
+
+
 # --- the dates -----------------------------------------------------------------------------------------------------
 
 
@@ -585,9 +592,7 @@ class Context:
         return self.environ.get("SANDBOX_RUNTIME") == "1"
 
     def say(self, text: str) -> None:
-        # A terminal closed under the run (SIGHUP) takes its output with it, never its cleanup.
-        with contextlib.suppress(OSError, ValueError):
-            print(text, file=self.out, flush=True)
+        tell(self.out, text)
 
     def docker(self) -> list[str]:
         # Inside the sandbox, the relay; it runs the command directly when a relay already answers (make's own).
@@ -2205,10 +2210,8 @@ def main(
             home=home or Path.home(),
         )
     except Refusal as refusal:
-        print(f"breach.py: {refusal}", file=out, flush=True)
-        print(
-            "breach.py: exit 2: refused before anything changed", file=out, flush=True
-        )
+        tell(out, f"breach.py: {refusal}")
+        tell(out, "breach.py: exit 2: refused before anything changed")
         return 2
     try:
         with interruptible():
@@ -2218,10 +2221,9 @@ def main(
         # ignoring_signals(), so only the exit is left.
         code = 1
     if code:
-        print(
+        tell(
+            out,
             "breach.py: exit 1: an assertion missed, or the run stopped (the table says which)",
-            file=out,
-            flush=True,
         )
     return code
 
