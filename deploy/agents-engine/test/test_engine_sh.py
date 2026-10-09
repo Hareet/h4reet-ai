@@ -435,3 +435,248 @@ def test_env_templates_and_masked_env_files_pass(tmp_path: Path) -> None:
     files = ["x.env.example", ".env.example", "deploy/env/prod.env", "secrets/.env"]
     done = _check_masks(tmp_path, MASKS, read_rules=[".env*", "*.env"], files=files)
     assert "MASKS-OK" in done.stdout, done.stderr
+
+
+# --------------------------------------------------------------------------------------------------
+# seed: the host's image store, then the disk, before any pull (§6.1, §6.2, tasks.md T130)
+# --------------------------------------------------------------------------------------------------
+GIB = 1024**3
+CONTAINERD = '[["driver-type","io.containerd.snapshotter.v1"]]'
+OVERLAY2 = (
+    '[["Backing Filesystem","extfs"],["Supports d_type","true"],["userxattr","false"]]'
+)
+
+# Stand-ins for the host's docker, the engine's, the disk check, and the model copy. Each call goes to
+# $CALLS; the image stores are directories of files named for the reference, holding its size.
+SEED_FAKES = r"""
+key() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
+docker() {
+	printf 'host %s\n' "$*" >>"$CALLS"
+	case "$1" in
+	info) [ "$DRIVER_STATUS" != fail ] || return 1; printf '%s\n' "$DRIVER_STATUS" ;;
+	image)
+		local ref="${!#}"
+		[ -f "$STATE/host/$(key "$ref")" ] || return 1
+		[ "$3" != --format ] || cat "$STATE/host/$(key "$ref")"
+		;;
+	pull) cp "$STATE/registry/$(key "$2")" "$STATE/host/$(key "$2")" 2>/dev/null ;;
+	save) printf 'tar-of %s\n' "${!#}" ;;
+	*) return 1 ;;
+	esac
+}
+engine_docker() {
+	printf 'engine %s\n' "$*" >>"$CALLS"
+	case "$1" in
+	version) [ "$ENGINE_UP" = 1 ] ;;
+	image) [ -f "$STATE/engine/$(key "${!#}")" ] ;;
+	load) local line; read -r line; : >"$STATE/engine/$(key "${line#tar-of }")" ;;
+	*) return 1 ;;
+	esac
+}
+disk_check_bytes() {
+	printf 'disk %s\n' "$1" >>"$CALLS"
+	[ "$DISK_OK" = 1 ] || die "not enough free space to seed: need $1 bytes"
+}
+seed_model() { printf 'model\n' >>"$CALLS"; }
+"""
+
+
+def _ref(name: str) -> str:
+    return f"registry.example/{name}:1.0@sha256:{name[0] * 64}"
+
+
+def _seed(
+    tmp_path: Path,
+    *,
+    host: dict[str, int | str],
+    engine_has: tuple[str, ...] = (),
+    registry: dict[str, int] | None = None,
+    unpinned: tuple[str, ...] = (),
+    driver_status: str = CONTAINERD,
+    disk_ok: bool = True,
+    engine_up: bool = True,
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """Run cmd_seed with the stand-ins. `host` and `registry` map image names to their host-side size."""
+    names = sorted(set(host) | set(engine_has) | set(registry or {}))
+    lock = tmp_path / "images.lock"
+    lines = ["# service repository tag digest registry checked"]
+    lines += [
+        f"{n} registry.example/{n} 1.0 sha256:{n[0] * 64} example 2026-10-08"
+        for n in names
+    ]
+    lines += [f"{n} registry.example/{n} 1.0 - example -" for n in unpinned]
+    lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    state = tmp_path / "state"
+    for store in ("host", "engine", "registry"):
+        (state / store).mkdir(parents=True)
+    key = "".join
+
+    def path(store: str, name: str) -> Path:
+        ref = _ref(name)
+        safe = key(c if c.isalnum() or c in "._-" else "_" for c in ref)
+        return state / store / safe
+
+    for name, size in host.items():
+        path("host", name).write_text(f"{size}\n", encoding="utf-8")
+    for name in engine_has:
+        path("engine", name).write_text("", encoding="utf-8")
+    for name, size in (registry or {}).items():
+        path("registry", name).write_text(f"{size}\n", encoding="utf-8")
+    calls = tmp_path / "calls.log"
+    calls.write_text("", encoding="utf-8")
+    script = SEED_FAKES + f"\nimages_lock={q(lock)}\ncmd_seed\n"
+    done = engine(
+        script,
+        tmp_path,
+        CALLS=str(calls),
+        STATE=str(state),
+        DRIVER_STATUS=driver_status,
+        DISK_OK="1" if disk_ok else "0",
+        ENGINE_UP="1" if engine_up else "0",
+    )
+    return done, calls.read_text(encoding="utf-8").splitlines()
+
+
+def _first(calls: list[str], prefix: str) -> int:
+    return next((i for i, c in enumerate(calls) if c.startswith(prefix)), len(calls))
+
+
+def test_seed_refuses_without_the_containerd_image_store(tmp_path: Path) -> None:
+    done, calls = _seed(tmp_path, host={"alpha": GIB}, driver_status=OVERLAY2)
+    assert done.returncode != 0
+    assert "containerd image store" in done.stderr
+    assert "§6.1" in done.stderr
+    # Refused before it looks at anything else: no disk check, no pull, nothing moved.
+    assert not [
+        c
+        for c in calls
+        if c.startswith(("disk", "host pull", "host save", "engine load"))
+    ]
+
+
+def test_seed_refuses_when_docker_info_fails(tmp_path: Path) -> None:
+    done, calls = _seed(tmp_path, host={"alpha": GIB}, driver_status="fail")
+    assert done.returncode != 0
+    assert "containerd image store" in done.stderr
+    assert not [c for c in calls if c.startswith(("disk", "host pull"))]
+
+
+def test_seed_checks_the_disk_before_any_pull_and_counts_only_what_the_engine_lacks(
+    tmp_path: Path,
+) -> None:
+    # alpha is on both; bravo is on the host only; charlie is on neither, so the host pulls it.
+    done, calls = _seed(
+        tmp_path,
+        host={"alpha": 1 * GIB, "bravo": 2 * GIB},
+        engine_has=("alpha",),
+        registry={"charlie": 3 * GIB},
+    )
+    assert done.returncode == 0, done.stderr
+    disks = [int(c.split()[1]) for c in calls if c.startswith("disk ")]
+    # Before the pull: bravo's size, 12 GB for what must be pulled first, the 20 GB margin. Not alpha.
+    assert disks[0] == 2 * GIB + 12 * GIB + 20 * GIB
+    assert _first(calls, "disk ") < _first(calls, "host pull")
+    # After it, before any load: the real sizes of bravo and charlie, and the margin.
+    assert disks[1:] == [2 * GIB + 3 * GIB + 20 * GIB]
+    assert (
+        _first(calls, "host pull")
+        < calls.index(f"disk {disks[1]}")
+        < _first(calls, "engine load")
+    )
+    assert [c for c in calls if c.startswith("host pull")] == [
+        f"host pull {_ref('charlie')}"
+    ]
+    table = done.stdout
+    assert "registry.example/alpha:1.0" in table and "present" in table
+    assert table.count("seeded") == 2
+    assert "FAILED" not in table
+
+
+def test_seed_with_nothing_to_pull_checks_the_disk_once(tmp_path: Path) -> None:
+    done, calls = _seed(
+        tmp_path, host={"alpha": 1 * GIB, "bravo": 2 * GIB}, engine_has=("alpha",)
+    )
+    assert done.returncode == 0, done.stderr
+    assert [c for c in calls if c.startswith("disk ")] == [f"disk {2 * GIB + 20 * GIB}"]
+    assert not [c for c in calls if c.startswith("host pull")]
+
+
+def test_seed_with_the_engine_complete_needs_only_the_margin(tmp_path: Path) -> None:
+    done, calls = _seed(tmp_path, host={"alpha": GIB}, engine_has=("alpha",))
+    assert done.returncode == 0, done.stderr
+    assert [c for c in calls if c.startswith("disk ")] == [f"disk {20 * GIB}"]
+
+
+def test_seed_short_of_disk_pulls_nothing(tmp_path: Path) -> None:
+    done, calls = _seed(
+        tmp_path, host={"bravo": GIB}, registry={"charlie": GIB}, disk_ok=False
+    )
+    assert done.returncode != 0
+    assert "not enough free space" in done.stderr
+    assert not [
+        c for c in calls if c.startswith(("host pull", "host save", "engine load"))
+    ]
+
+
+def test_seed_refuses_while_the_engine_is_unreachable(tmp_path: Path) -> None:
+    # What the engine lacks can't be known without it, so nothing is counted or pulled.
+    done, calls = _seed(
+        tmp_path, host={"bravo": GIB}, registry={"charlie": GIB}, engine_up=False
+    )
+    assert done.returncode != 0
+    assert "engine.sh" in done.stderr and "up" in done.stderr
+    assert not [c for c in calls if c.startswith(("disk", "host pull"))]
+
+
+def test_seed_fails_closed_on_a_size_it_cannot_read(tmp_path: Path) -> None:
+    done, calls = _seed(tmp_path, host={"bravo": "unknown"})
+    assert done.returncode != 0
+    assert "size" in done.stderr
+    assert not [c for c in calls if c.startswith(("disk", "host pull"))]
+
+
+def _disk(
+    tmp_path: Path, need: int, win: str, ext4: str
+) -> subprocess.CompletedProcess[str]:
+    """disk_check_bytes with a stand-in df: `win` for the Windows drive, `ext4` for /, in bytes."""
+    script = f"""
+devcpu_vars={q(tmp_path / "absent.vars")}
+df() {{
+	case "${{!#}}" in
+	/mnt/c) printf 'Avail\\n%s\\n' "$WIN" ;;
+	/) printf 'Avail\\n%s\\n' "$EXT4" ;;
+	*) return 1 ;;
+	esac
+}}
+disk_check_bytes {need}
+echo DISK-OK
+"""
+    return engine(script, tmp_path, WIN=win, EXT4=ext4)
+
+
+def test_disk_check_passes_with_room_on_both(tmp_path: Path) -> None:
+    done = _disk(tmp_path, 30 * GIB, str(100 * GIB), str(100 * GIB))
+    assert "DISK-OK" in done.stdout, done.stderr
+    assert "need 30 GiB; Windows /mnt/c has 100 GiB; ext4 / has 100 GiB" in done.stdout
+
+
+def test_disk_check_refuses_short_on_either_and_names_both_figures(
+    tmp_path: Path,
+) -> None:
+    done = _disk(tmp_path, 30 * GIB, str(10 * GIB), str(100 * GIB))
+    assert done.returncode != 0
+    assert "Windows /mnt/c has 10 GiB; ext4 / has 100 GiB" in done.stdout
+    assert "not enough free space to seed" in done.stderr
+
+
+def test_disk_check_fails_closed_without_ext4s_figure(tmp_path: Path) -> None:
+    done = _disk(tmp_path, 30 * GIB, str(100 * GIB), "")
+    assert done.returncode != 0
+    assert "DISK-OK" not in done.stdout
+    assert "cannot read free space on ext4" in done.stderr
+
+
+def test_seed_keeps_its_note_for_unpinned_entries(tmp_path: Path) -> None:
+    done, _ = _seed(tmp_path, host={"alpha": GIB}, unpinned=("seaweedfs",))
+    assert done.returncode == 0, done.stderr
+    assert "note: not seeded, no digest yet: seaweedfs" in done.stdout

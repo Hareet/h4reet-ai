@@ -315,6 +315,8 @@ disk_check_bytes() {
 	if [ -z "$avail_win" ]; then
 		die "cannot read free space on the Windows drive $vhdx (fail closed)"
 	fi
+	# An empty figure would make the comparison below an error, which `if` reads as enough space.
+	[ -n "$avail_ext4" ] || die "cannot read free space on ext4 / (fail closed)"
 	local gib=$((1024 * 1024 * 1024))
 	echo "== disk: need $((required / gib)) GiB; Windows $vhdx has $((avail_win / gib)) GiB; ext4 / has $((avail_ext4 / gib)) GiB"
 	if [ "$avail_win" -lt "$required" ] || [ "$avail_ext4" -lt "$required" ]; then
@@ -337,8 +339,29 @@ seed_unpinned() {
 	}' "$images_lock"
 }
 
+# Does the host's Docker use the containerd image store (§6.1)? Only then does docker save keep an image's
+# index digest, which the engine resolves its image@sha256 pins by, offline.
+host_uses_containerd_store() {
+	local status
+	status="$(docker info --format '{{json .DriverStatus}}' 2>/dev/null)" || return 1
+	case "$status" in *io.containerd.snapshotter.v1*) return 0 ;; esac
+	return 1
+}
+
+# The host-side size of an image the host holds, in bytes; refuses rather than guess.
+host_image_size() {
+	local size
+	size="$(docker image inspect --format '{{.Size}}' "$1" 2>/dev/null)" || size=""
+	[[ $size =~ ^[0-9]+$ ]] || die "cannot read the host-side size of $1 (fail closed)"
+	printf '%s\n' "$size"
+}
+
 cmd_seed() {
 	[ -f "$images_lock" ] || die "missing $images_lock (tasks.md T035); run it on the foundations branch first"
+	host_uses_containerd_store ||
+		die "the host's Docker isn't on the containerd image store: docker info --format '{{json .DriverStatus}}' names no io.containerd.snapshotter.v1, so docker save would drop the digests the engine's pins resolve by. Move it first (contracts/agents-engine.md §6.1), then seed again"
+	engine_docker version >/dev/null 2>&1 ||
+		die "the engine doesn't answer on 198.18.0.1:2376, so what it lacks can't be known; run: $0 up"
 	local -a refs=()
 	mapfile -t refs < <(seed_image_refs)
 	[ "${#refs[@]}" -gt 0 ] || die "no seedable image references found in $images_lock (fail closed)"
@@ -346,17 +369,38 @@ cmd_seed() {
 	unpinned="$(seed_unpinned | paste -sd ' ' -)"
 	[ -z "$unpinned" ] || echo "note: not seeded, no digest yet: $unpinned (run make pin-images on the host, then seed again)"
 
-	# Pull any missing image on the host, then size the set for the disk check.
-	local ref total=0 size
+	# The images still to seed are the ones the engine lacks; of those, the host may need to pull some first.
+	local -a todo=() pull=()
+	local ref size known=0 gib=$((1024 * 1024 * 1024))
 	for ref in "${refs[@]}"; do
-		if ! docker image inspect "$ref" >/dev/null 2>&1; then
-			echo "== pulling $ref on the host"
-			docker pull "$ref" >/dev/null
+		engine_docker image inspect "$ref" >/dev/null 2>&1 && continue
+		todo+=("$ref")
+		if docker image inspect "$ref" >/dev/null 2>&1; then
+			size="$(host_image_size "$ref")" || exit 1
+			known=$((known + size))
+		else
+			pull+=("$ref")
 		fi
-		size="$(docker image inspect --format '{{.Size}}' "$ref" 2>/dev/null || echo 0)"
-		total=$((total + size))
 	done
-	disk_check_bytes $((total + 20 * 1024 * 1024 * 1024))
+
+	# The disk check comes before any pull (§6.2, P13's rule): the host-side size of every image still to seed,
+	# 12 GB for those the host must pull first, whose size it can't know yet, and the 20 GB margin.
+	local first_pull=0
+	[ "${#pull[@]}" -eq 0 ] || first_pull=$((12 * gib))
+	disk_check_bytes $((known + first_pull + 20 * gib))
+	if [ "${#pull[@]}" -gt 0 ]; then
+		for ref in "${pull[@]}"; do
+			echo "== pulling $ref on the host"
+			docker pull "$ref" >/dev/null || die "could not pull $ref on the host"
+		done
+		# Again before any load, with the pulled images' real sizes, against the space the pulls left.
+		known=0
+		for ref in "${todo[@]}"; do
+			size="$(host_image_size "$ref")" || exit 1
+			known=$((known + size))
+		done
+		disk_check_bytes $((known + 20 * gib))
+	fi
 
 	# Move each image to the engine by digest: save on the host, load over the TLS endpoint.
 	local fails=0
