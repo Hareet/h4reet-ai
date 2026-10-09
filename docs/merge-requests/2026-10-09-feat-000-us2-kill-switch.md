@@ -153,7 +153,7 @@ T102's text now says its circuit breaker must set `circuit_open` through `Adapte
 - **The skips are by design.** The gateway's 12: 11 are the contract suite's per-subject variants, since the synthetic adapter has no API to fail, and the 12th is the real-budgets pin, waiting for T022. pytest's 2 are the Bedrock runbooks, which arrive with T106.
 - **The five PLANNED:** the matrix, for the thirteen breach-test rows that T117 enforces, and the base's four, which wait for T045, T022, and T063.
 - **The two SKIPs:** the secret scan's gate (T091), and the image gate, which waits for the engine (T046).
-- **gitleaks** over `786ebbe..ee94778`: no leaks found. f491fd1 adds only code and text, with no secrets.
+- **gitleaks** over `786ebbe..0fc472c`, the whole branch: no leaks found.
 - **T046's two patches** still apply cleanly to this tree (`git apply --check`), and T022's config patch makes `validate-config` pass here (the convergence pass checked it).
 
 <details><summary>make check at f491fd1</summary>
