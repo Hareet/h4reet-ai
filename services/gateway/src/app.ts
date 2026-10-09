@@ -109,8 +109,13 @@ function listener(bodyLimit: number, logger: AppLogger, stack: string): FastifyI
     if (status === 413)
       return reply.code(413).send({ error: "body_too_large", limit_bytes: bodyLimit, request_id: req.id });
     if (status === 415) return reply.code(415).send({ error: "unsupported_media_type", request_id: req.id });
+    // With no route schemas, every other 4xx here is the body parser's: JSON that doesn't parse, an empty JSON body,
+    // a forbidden prototype key, or a size that isn't the Content-Length. The body as a whole is wrong, so the field
+    // is body (gateway-http.md §2.5.4), on both listeners.
     if (status >= 400 && status < 500) {
-      return reply.code(400).send({ error: "invalid_request", detail: "the request is malformed", request_id: req.id });
+      return reply
+        .code(400)
+        .send({ error: "invalid_request", field: "body", detail: "the request is malformed", request_id: req.id });
     }
     const cls = errorClass(err);
     noteErrorType(req, cls);

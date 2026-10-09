@@ -465,9 +465,10 @@ describe("after initialization", () => {
       invalid(await hello({ body: ["hi"], label: "v3" }), "body");
       invalid(await hello({ raw: "null", label: "v3" }), "body");
       const malformed = await hello({ raw: '{"message": "unterminated', label: "v4" });
-      expect(malformed.statusCode).toBe(400);
-      expect(malformed.json()).toMatchObject({
+      expect(invalid(malformed, "body")).toEqual({
         error: "invalid_request",
+        field: "body",
+        detail: "the request is malformed",
         request_id: malformed.headers["x-request-id"],
       });
       expect(malformed.body).not.toContain("unterminated");

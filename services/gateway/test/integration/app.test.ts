@@ -159,15 +159,24 @@ describe("the api listener", () => {
     });
     expect(text.statusCode).toBe(415);
     expect(text.json()).toEqual({ error: "unsupported_media_type", request_id: text.headers["x-request-id"] });
-    const bad = await api.inject({
-      method: "POST",
-      url: "/echo",
-      headers: { "content-type": "application/json" },
-      payload: '{"message": "unterminated',
-    });
-    expect(bad.statusCode).toBe(400);
-    expect(bad.json()).toMatchObject({ error: "invalid_request", request_id: bad.headers["x-request-id"] });
-    expect(bad.body).not.toContain("unterminated");
+    // A body the parser refuses is wrong as a whole, so its field is body (gateway-http.md §2.5.4): JSON cut short,
+    // an empty body sent as JSON, or a forbidden prototype key (onProtoPoisoning: "error").
+    for (const payload of ['{"message": "unterminated', "", '{"__proto__": {"unterminated": true}}']) {
+      const bad = await api.inject({
+        method: "POST",
+        url: "/echo",
+        headers: { "content-type": "application/json" },
+        payload,
+      });
+      expect(bad.statusCode, payload).toBe(400);
+      expect(bad.json(), payload).toEqual({
+        error: "invalid_request",
+        field: "body",
+        detail: "the request is malformed",
+        request_id: bad.headers["x-request-id"],
+      });
+      expect(bad.body).not.toContain("unterminated");
+    }
     const big = await api.inject({
       method: "POST",
       url: "/echo",

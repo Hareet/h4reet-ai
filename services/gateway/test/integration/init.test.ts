@@ -509,6 +509,25 @@ describe("POST /admin/init: refusals", () => {
     expect((await s.db.pg.query("SELECT count(*)::int AS n FROM gateway.stack_state")).rows).toEqual([{ n: 0 }]);
   });
 
+  it("answers 400 with field body for JSON that doesn't parse, as the api listener does (gateway-http.md §2.5.4)", async () => {
+    const s = await stack();
+    const res = await s.admin.inject({
+      method: "POST",
+      url: "/admin/init",
+      headers: { ...s.auth(), "content-type": "application/json" },
+      payload: '{"reason": "unterminated',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: "invalid_request",
+      field: "body",
+      detail: "the request is malformed",
+      request_id: res.headers["x-request-id"],
+    });
+    expect(res.body).not.toContain("unterminated");
+    expect((await s.db.pg.query("SELECT count(*)::int AS n FROM gateway.stack_state")).rows).toEqual([{ n: 0 }]);
+  });
+
   it("validates the reason (§1.2) and the stated values, naming the field and never echoing a value", async () => {
     const s = await stack();
     const cases: [Rec, string][] = [
