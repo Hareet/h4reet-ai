@@ -231,8 +231,8 @@ description: "Task list for spec 000, Local Foundations"
     - every FR-007 variable name of contracts/env-files.md §8, in `credentials.envVars`;
     - `Read(~/.config/h4reet-ai/**)` in `permissions.deny`, and `~/.config/h4reet-ai` in `credentials.files`;
     - `denyWrite` on `./config/prices.yaml`, `./config/budgets.yaml`, `./config/alerts.yaml`, `./GNUmakefile`, `./makefile`, `./deploy/agents-engine`, `./.gitleaks.toml`, and `./.gitleaksignore`, with the matching `Edit(...)` denies.
-  - `.claude/agents/ops.md`: grants `Bash(deploy/agents-engine/docker-relay docker *)`, corrects its diagnostic command to `-p h4reet-$ENV --env-file ~/.config/h4reet-ai/env/$ENV.env`, and drops the paragraph saying no engine exists. `tools/gates/roles.expected` is updated to match, in the same patch.
-  - `.claude/hooks/bash-gate.sh`: blocks `deploy/agents-engine/engine.sh` for agents, by any spelling, except its `smoke` and `status` subcommands.
+  - `.claude/agents/ops.md`: grants `Bash(deploy/agents-engine/docker-relay docker *)`, points its diagnostic commands at `make status ENV=$ENV` and `make logs ENV=$ENV`, which pass the export's compose file and the run file (plan §4), and at `docker ps` filtered by the project label for ports; and drops the paragraph saying no engine exists. `tools/gates/roles.expected` is updated to match, in the same patch.
+  - `.claude/hooks/bash-gate.sh`: blocks `deploy/agents-engine/engine.sh` for agents, by any spelling, except its `smoke` and `status` subcommands: after a wrapper or a leading assignment, past options with an argument and bare durations, and dot-sourced.
   - `.claude/hooks/protected-paths.sh`: `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, and `.gitleaks*`.
   - The secret scanners (FR-008, FR-012):
     - `.gitleaks.toml`: the default rules, plus `h4op_prod_` and `h4op_dev_` tokens and `sk-lf-` keys, allowlisting `deploy/env.agents/dev-cpu.vars`, and ADR 0004's false positive scoped to commit 8c15b95, that file, and that rule (a departure, plan §11);
@@ -641,8 +641,8 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
 - [ ] T129 Normalize each sandbox read deny in `deploy/agents-engine/engine.sh`'s mask check before comparing it with `tree-masks.txt`: drop a leading `./`, a project-relative leading `/`, and a trailing `/**`, and skip only `~/` and `//` paths, per T043 and §5 H8 (partial)
 - [ ] T130 Make `engine.sh seed` refuse unless the host's `docker info` names the containerd snapshotter, and run its disk check before any pull on the host, counting only the images still to seed, per T043 and §6.1–§6.2 (partial)
 - [ ] T131 Have `deploy/agents-engine/egress-proxy.py` record its list's digest when it starts, and make `engine.sh status` print that digest beside the settings' digest, both computed by the proxy's own code, per T040, T043, §4, and §8 (missing)
-- [ ] T132 Widen the early patch's `engine.sh` rule in `docs/merge-requests/2026-10-08-feat-000-foundations-enforcement.patch` to a leading `VAR=value`, wrapper options that take an argument (`nice -n`, `watch -n`), and a leading `. `, with a matrix row for each, per T045 and plan §13 (partial)
-- [ ] T133 Point the early patch's `ops.md` compose commands at `make status ENV=…` and `make logs ENV=…`, which pass the run file and the export's compose file, and amend plan §15 and T045 to match plan §4, per T045 (contradicts)
+- [X] T132 Widen the early patch's `engine.sh` rule in `docs/merge-requests/2026-10-08-feat-000-foundations-enforcement.patch` to a leading `VAR=value`, wrapper options that take an argument (`nice -n`, `watch -n`), and a leading `. `, with a matrix row for each, per T045 and plan §13 (partial)
+- [X] T133 Point the early patch's `ops.md` compose commands at `make status ENV=…` and `make logs ENV=…`, which pass the run file and the export's compose file, and amend plan §15 and T045 to match plan §4, per T045 (contradicts)
 - [X] T134 Record the `.gitleaks.toml` allowlist for ADR 0004 at 8c15b95 as a departure in plan §11 and T045, per plan §11 and FR-012 (contradicts)
 - [ ] T135 Have `deploy/agents-engine/setup-host.sh` write `~/.config/h4reet/agents-engine/docker/config.json` as `{}`, mode 0444, per contracts/agents-engine.md §2.3 (missing)
 - [ ] T136 Match only subdomains for a `*.` entry in `egress-proxy.py`, per T040 and §4 (contradicts)
@@ -652,7 +652,7 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
   - give a failed upstream connect and the tunnel cap their own logged reasons;
   - treat a settings file that isn't a JSON object as `no_list`.
 - [ ] T138 Refuse, in `setup-host.sh`, a subordinate-ID range that overlaps one already in `/etc/subuid` or `/etc/subgid`, per T042 and §5 H2 (partial)
-- [ ] T139 Resolve the main working tree in the early patch's `content-scan.sh` as `pre-commit` does, for both the config and the allowlisted path, per T045 (partial)
+- [X] T139 Resolve the main working tree in the early patch's `content-scan.sh` as `pre-commit` does, for both the config and the allowlisted path, per T045 (partial)
 - [X] T140 In `deploy/scripts/init_env.py`'s SYNC mode, list every `__ASK__` key the updated file still holds, per T032 and contracts/env-files.md §9.1 (partial)
 - [X] T141 Point `deploy/scripts/redact.sh`'s comment at `deploy/scripts/test_status.py`, which keeps its filter equal to ops.md's, per T034 (partial)
 - [X] T142 Add the host image build's npm flow to plan §17's table, per T038 and FR-040 (partial)

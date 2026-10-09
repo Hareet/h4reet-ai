@@ -999,7 +999,7 @@ Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert
 2. **The early patch** (the foundations branch, tasks.md T045). T046 applies it, before the first engine run, the first real secret (T065), and the first paid route (T105). It holds:
    - **The engine opening:**
      - the `allowedDomains` entry `198.18.0.1:2376`, and `DOCKER_CONFIG` and `DISABLE_AUTOUPDATER` in `env`;
-     - for `.claude/agents/ops.md`: the grant `Bash(deploy/agents-engine/docker-relay docker *)`, its diagnostic command corrected to `-p h4reet-$ENV --env-file ~/.config/h4reet-ai/env/$ENV.env`, and the paragraph saying no engine exists dropped;
+     - for `.claude/agents/ops.md`: the grant `Bash(deploy/agents-engine/docker-relay docker *)`, its diagnostic commands pointed at `make status ENV=$ENV` and `make logs ENV=$ENV`, which pass the running export's compose file and the stack's run file as [§4](#4-environment-files-preflight-and-the-stack-targets) requires, and at `docker ps --filter label=com.docker.compose.project=h4reet-$ENV` for ports; and the paragraph saying no engine exists dropped;
      - `tools/gates/roles.expected` updated to match;
      - the bash-gate rule that keeps agents off `engine.sh`'s subcommands other than `smoke` and `status`.
    - **Every credential deny,** in `.claude/settings.json`:
