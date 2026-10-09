@@ -110,6 +110,54 @@ def test_settings_load_empty_list_fails_closed(tmp_path: Path) -> None:
     assert not ep.Settings.load(_write_settings(tmp_path, [])).ok
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "[]",
+        '["registry.npmjs.org"]',
+        '"registry.npmjs.org"',
+        "42",
+        "null",
+        "true",
+        '{"sandbox": ["registry.npmjs.org"]}',
+        '{"sandbox": {"network": "registry.npmjs.org"}}',
+        '{"sandbox": {"network": ["registry.npmjs.org"]}}',
+    ],
+)
+def test_settings_load_valid_json_of_the_wrong_shape_fails_closed(
+    tmp_path: Path, text: str
+) -> None:
+    # Valid JSON that isn't a settings object, at any level, is no_list, never an exception (§4).
+    path = tmp_path / "settings.json"
+    path.write_text(text, encoding="utf-8")
+    settings = ep.Settings.load(path)
+    assert not settings.ok
+    assert (
+        ep.classify("CONNECT", "pypi.org:443", settings, GLOBAL).reason == ep.R_NO_LIST
+    )
+
+
+def test_settings_load_a_denied_list_that_is_not_a_list_fails_closed(
+    tmp_path: Path,
+) -> None:
+    # The proxy can't honour a deniedDomains it can't read, so it serves nothing rather than ignore it.
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps(
+            {
+                "sandbox": {
+                    "network": {
+                        "allowedDomains": ["pypi.org"],
+                        "deniedDomains": "github.com",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert not ep.Settings.load(path).ok
+
+
 def test_settings_digest_is_stable(tmp_path: Path) -> None:
     one = ep.Settings.load(_write_settings(tmp_path, ["a.com", "b.com"]))
     two = ep.Settings.load(_write_settings(tmp_path, ["b.com", "a.com"]))
@@ -255,12 +303,34 @@ def test_classify_connect_metadata_address_refused(settings: ep.Settings) -> Non
     )
 
 
+def test_classify_unresolvable_name_is_unreachable_not_non_global(
+    settings: ep.Settings,
+) -> None:
+    # A listed name that doesn't resolve has no address at all: that's an upstream failure, and the log
+    # says so, rather than blaming an address it never saw.
+    def no_such_name(_host: str):
+        raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+    verdict = ep.classify("CONNECT", "registry.npmjs.org:443", settings, no_such_name)
+    assert not verdict.ok
+    assert verdict.reason == ep.R_UPSTREAM_UNREACHABLE
+
+
 def test_classify_get_absolute_form_allowed(settings: ep.Settings) -> None:
     verdict = ep.classify(
         "GET", "http://a.example.com/path?token=secret", settings, GLOBAL
     )
     assert verdict.ok
     assert verdict.path == "/path"  # the query is dropped from the log
+    assert verdict.request_path == "/path?token=secret"  # and kept for the upstream
+
+
+def test_classify_get_with_a_control_character_refused(settings: ep.Settings) -> None:
+    # The request-target goes upstream as it came, so it may hold no space or control character.
+    assert (
+        ep.classify("GET", "http://a.example.com/x\ry", settings, GLOBAL).reason
+        == ep.R_METHOD
+    )
 
 
 def test_classify_get_origin_form_refused(settings: ep.Settings) -> None:
@@ -399,3 +469,232 @@ def test_tunnel_pumps_both_ways() -> None:
             sock.close()
         except OSError:
             pass
+
+
+# --------------------------------------------------------------------------------------------------
+# One connection through `handle`, with the upstream injected: still no egress (§4)
+# --------------------------------------------------------------------------------------------------
+def _read_until(sock: socket.socket, marker: bytes, timeout: float = 2.0) -> bytes:
+    """Read until `marker` arrives, the peer closes, or `timeout` passes; return what came."""
+    sock.settimeout(timeout)
+    data = b""
+    try:
+        while marker not in data:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+    except TimeoutError:
+        pass
+    return data
+
+
+def _read_all(sock: socket.socket, timeout: float = 3.0) -> bytes:
+    return _read_until(sock, b"\x00never\x00", timeout)
+
+
+def _log_lines(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def _never_resolve(_host: str):
+    raise AssertionError("this request must not resolve")
+
+
+def _never_connect(*_args, **_kwargs):
+    raise AssertionError("this request must not connect")
+
+
+def _serve_one(proxy: ep.EgressProxy, request: bytes) -> bytes:
+    """Hand the proxy one client connection carrying `request`, and return all it answered."""
+    client, accepted = _loopback_pair()
+    worker = threading.Thread(target=proxy.handle, args=(accepted,), daemon=True)
+    worker.start()
+    client.sendall(request)
+    response = _read_all(client)
+    worker.join(timeout=3)
+    client.close()
+    return response
+
+
+CONNECT_NPM = (
+    b"CONNECT registry.npmjs.org:443 HTTP/1.1\r\nHost: registry.npmjs.org:443\r\n\r\n"
+)
+
+
+def test_no_list_is_logged_at_most_once_a_minute(tmp_path: Path) -> None:
+    log_path = tmp_path / "egress.jsonl"
+    now = [1000.0]
+    proxy = ep.EgressProxy(
+        ep.Settings(ok=False),
+        ep.EgressLog(str(log_path)),
+        resolver=_never_resolve,
+        connect=_never_connect,
+        clock=lambda: now[0],
+    )
+    for at in (1000.0, 1010.0, 1059.9):
+        now[0] = at
+        # Every request is still refused...
+        assert _serve_one(proxy, CONNECT_NPM).startswith(b"HTTP/1.1 503")
+    # ...but the minute holds one line.
+    lines = _log_lines(log_path)
+    assert [line["reason"] for line in lines] == ["no_list"]
+    now[0] = 1060.0
+    assert _serve_one(proxy, CONNECT_NPM).startswith(b"HTTP/1.1 503")
+    assert [line["reason"] for line in _log_lines(log_path)] == ["no_list", "no_list"]
+
+
+def test_tunnel_cap_is_logged_as_its_own_reason(
+    tmp_path: Path, settings: ep.Settings
+) -> None:
+    log_path = tmp_path / "egress.jsonl"
+    proxy = ep.EgressProxy(
+        settings,
+        ep.EgressLog(str(log_path)),
+        resolver=GLOBAL,
+        connect=_never_connect,
+        max_tunnels=1,
+    )
+    assert proxy._active.acquire(blocking=False)  # the one tunnel there is, in use
+    assert _serve_one(proxy, CONNECT_NPM).startswith(b"HTTP/1.1 503")
+    (line,) = _log_lines(log_path)
+    assert line["decision"] == "refused"
+    assert line["reason"] == "tunnel_cap"
+    assert (line["host"], line["port"]) == ("registry.npmjs.org", 443)
+
+
+def test_failed_upstream_connect_is_logged_as_unreachable(
+    tmp_path: Path, settings: ep.Settings
+) -> None:
+    log_path = tmp_path / "egress.jsonl"
+
+    def refused(*_args, **_kwargs):
+        raise ConnectionRefusedError("connection refused")
+
+    proxy = ep.EgressProxy(
+        settings,
+        ep.EgressLog(str(log_path)),
+        resolver=GLOBAL,
+        connect=refused,
+        max_tunnels=1,
+    )
+    assert _serve_one(proxy, CONNECT_NPM).startswith(b"HTTP/1.1 502")
+    (line,) = _log_lines(log_path)
+    assert line["reason"] == "upstream_unreachable"
+    assert (line["host"], line["port"]) == ("registry.npmjs.org", 443)
+    assert proxy._active.acquire(blocking=False)  # the failure gave its slot back
+
+
+def test_get_forwards_its_query_and_the_end_to_end_headers(
+    tmp_path: Path, settings: ep.Settings
+) -> None:
+    log_path = tmp_path / "egress.jsonl"
+    upstream, upstream_peer = _loopback_pair()
+    dialled: list[tuple[str, int]] = []
+
+    def connect(address, timeout=None):
+        dialled.append(address)
+        return upstream
+
+    proxy = ep.EgressProxy(
+        settings, ep.EgressLog(str(log_path)), resolver=GLOBAL, connect=connect
+    )
+    client, accepted = _loopback_pair()
+    worker = threading.Thread(target=proxy.handle, args=(accepted,), daemon=True)
+    worker.start()
+    client.sendall(
+        b"GET http://a.example.com/simple/pkg/?token=secret&x=1 HTTP/1.1\r\n"
+        b"Host: other.example.org\r\n"
+        b"User-Agent: pip/24.2\r\n"
+        b"Accept: text/html\r\n"
+        b"Connection: keep-alive, X-Hop\r\n"
+        b"X-Hop: dropped\r\n"
+        b"Keep-Alive: timeout=5\r\n"
+        b"Proxy-Authorization: Basic\r\n"
+        b" dXNlcjpwYXNz\r\n"
+        b"Proxy-Connection: keep-alive\r\n"
+        b"TE: trailers\r\n"
+        b"Upgrade: h2c\r\n"
+        b"X-Custom: kept\r\n"
+        b"X-Folded: one\r\n"
+        b"\ttwo\r\n"
+        b"\r\n"
+    )
+    forwarded = _read_until(upstream_peer, b"\r\n\r\n").decode("latin-1")
+    upstream_peer.sendall(
+        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+    )
+    upstream_peer.close()
+    response = _read_all(client)
+    worker.join(timeout=3)
+    client.close()
+
+    assert dialled == [("93.184.216.34", 80)]
+    request_line, *fields = forwarded.split("\r\n\r\n")[0].split("\r\n")
+    assert request_line == "GET /simple/pkg/?token=secret&x=1 HTTP/1.1"
+    names = [f.split(":", 1)[0].strip().lower() for f in fields]
+    assert fields.count("Host: a.example.com") == 1
+    assert names.count("host") == 1
+    assert fields.count("Connection: close") == 1
+    assert names.count("connection") == 1
+    for kept in ("User-Agent: pip/24.2", "Accept: text/html", "X-Custom: kept"):
+        assert kept in fields
+    assert "X-Folded: one two" in fields  # a folded value travels joined, on one line
+    for dropped in ("x-hop", "keep-alive", "proxy-authorization", "proxy-connection"):
+        assert dropped not in names
+    assert "te" not in names
+    assert "upgrade" not in names
+    assert (
+        "dXNlcjpwYXNz" not in forwarded
+    )  # a folded line goes with the field it continues
+    assert response.endswith(b"\r\n\r\nok")
+    (line,) = _log_lines(log_path)
+    assert line["reason"] == "allowed"
+    assert line["path"] == "/simple/pkg/"
+    assert "secret" not in json.dumps(line)
+
+
+def test_connect_forwards_bytes_that_came_with_the_request(
+    tmp_path: Path, settings: ep.Settings
+) -> None:
+    upstream, upstream_peer = _loopback_pair()
+    proxy = ep.EgressProxy(
+        settings,
+        ep.EgressLog(str(tmp_path / "egress.jsonl")),
+        resolver=GLOBAL,
+        connect=lambda *_args, **_kwargs: upstream,
+    )
+    client, accepted = _loopback_pair()
+    worker = threading.Thread(target=proxy.handle, args=(accepted,), daemon=True)
+    worker.start()
+    client.sendall(
+        CONNECT_NPM + b"early-hello"
+    )  # a client that doesn't wait for the 200
+    assert _read_until(upstream_peer, b"early-hello").endswith(b"early-hello")
+    assert _read_until(client, b"\r\n\r\n").startswith(b"HTTP/1.1 200")
+    client.close()
+    worker.join(timeout=3)
+    upstream_peer.close()
+
+
+def test_a_head_without_its_end_is_refused(
+    tmp_path: Path, settings: ep.Settings
+) -> None:
+    # A head longer than the limit never ends where the proxy can see it, so nothing of it goes upstream.
+    # The client never reads: the proxy closes with bytes unread, which may reset the connection.
+    log_path = tmp_path / "egress.jsonl"
+    proxy = ep.EgressProxy(
+        settings,
+        ep.EgressLog(str(log_path)),
+        resolver=GLOBAL,
+        connect=_never_connect,
+    )
+    client, accepted = _loopback_pair()
+    client.sendall(b"GET http://a.example.com/ HTTP/1.1\r\nX-Pad: " + b"a" * 20000)
+    proxy.handle(accepted)
+    client.close()
+    (line,) = _log_lines(log_path)
+    assert line["decision"] == "refused"
+    assert line["reason"] == "method"

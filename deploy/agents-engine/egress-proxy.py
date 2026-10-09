@@ -7,12 +7,14 @@ else (§5, H4). It allows CONNECT to 443, and absolute-form GET on 80, only for 
 `sandbox.network.allowedDomains`, read from `.claude/settings.json` at start, so the engine's list and
 the sandbox's are the same by construction (FR-039).
 
-Fail closed on the list: a missing, unreadable, or invalid settings file, or an empty list, refuses
-every request (`no_list`). It never falls back to allowing. It drops IP literals and `host:port`
-entries, so the opening `198.18.0.1:2376` never becomes a destination. It refuses IP-literal
-destinations, unlisted hosts, and any listed name that resolves to a non-global address (loopback,
-RFC 1918, link-local including `169.254.169.254`, `100.64.0.0/10`, `198.18.0.0/15`, multicast, and the
-IPv6 equivalents). It resolves each name once and connects to the address it checked.
+Fail closed on the list: a missing, unreadable, or invalid settings file, valid JSON that isn't a
+settings object, or an empty list, refuses every request (`no_list`), logged at most once a minute. It
+never falls back to allowing. It drops IP literals and `host:port` entries, so the opening
+`198.18.0.1:2376` never becomes a destination. It refuses IP-literal destinations, unlisted hosts, and
+any listed name that resolves to a non-global address (loopback, RFC 1918, link-local including
+`169.254.169.254`, `100.64.0.0/10`, `198.18.0.0/15`, multicast, and the IPv6 equivalents). It resolves
+each name once and connects to the address it checked. A GET goes upstream with its query and the
+client's end-to-end headers; the hop-by-hop ones and every `Proxy-*` header stay behind.
 
 The decision logic (`parse_domains`, `host_listed`, `is_global_unicast`, `classify`) is pure, so the
 tests exercise it without egress. This file is human-only: the copy `engine.sh setup` installs is what
@@ -24,12 +26,13 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 import select
 import socket
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 LISTEN_DEFAULT = ("198.18.0.1", 3128)
@@ -37,6 +40,10 @@ MAX_TUNNELS = 64
 CONNECT_TIMEOUT = 10.0
 IDLE_TIMEOUT = 120.0
 BUFFER = 65536
+HEAD_LIMIT = 16384  # bytes; a request head that doesn't end within it is refused
+NO_LIST_LOG_INTERVAL = (
+    60.0  # seconds: with no list, one `no_list` line a minute at most (§4)
+)
 
 # Reasons, exactly as the log records them (§4).
 R_ALLOWED = "allowed"
@@ -47,6 +54,10 @@ R_IP_LITERAL = "ip_literal"
 R_NON_GLOBAL = "non_global_address"
 R_METHOD = "method"
 R_PORT = "port"
+R_UPSTREAM_UNREACHABLE = (
+    "upstream_unreachable"  # the listed name didn't resolve, or didn't answer
+)
+R_TUNNEL_CAP = "tunnel_cap"  # MAX_TUNNELS were already open
 
 # Extra ranges to reject even where a Python version's `is_private` might not (defensive, §4).
 _EXTRA_V4 = (
@@ -88,6 +99,14 @@ def _is_ip_literal(host: str) -> bool:
     return True
 
 
+def _object_member(value: object, key: str) -> dict | None:
+    """`value[key]` when value is a JSON object and that member is one too; otherwise None."""
+    if not isinstance(value, dict):
+        return None
+    member = value.get(key)
+    return member if isinstance(member, dict) else None
+
+
 @dataclass
 class Settings:
     """The proxy's fixed list, read once at start. `ok` is false when it must fail closed."""
@@ -102,7 +121,11 @@ class Settings:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return cls(ok=False)  # missing, unreadable, or not valid JSON: fail closed
-        network = (data.get("sandbox") or {}).get("network") or {}
+        # Valid JSON of the wrong shape fails closed too: the file, its `sandbox`, and its `network` are
+        # objects, and a `deniedDomains` the proxy can't read is never taken for an empty one.
+        network = _object_member(_object_member(data, "sandbox"), "network")
+        if network is None or not isinstance(network.get("deniedDomains", []), list):
+            return cls(ok=False)
         allowed = parse_domains(network.get("allowedDomains"))
         denied = parse_domains(network.get("deniedDomains"))
         if not allowed:  # an empty list fails closed
@@ -164,21 +187,33 @@ class Verdict:
     method: str = ""
     host: str = ""
     port: int = 0
-    path: str = ""
+    path: str = ""  # what the log records: a GET's path, without its query
     address: str = ""  # the validated address to connect to
+    request_path: str = (
+        ""  # what goes upstream: a GET's path with its query; never logged
+    )
 
 
-def _resolve_global(host: str, resolver) -> str | None:
-    """Resolve once and return the first global-unicast address, or None."""
+# A request-target goes upstream as it came, so it may hold printable ASCII only: no space, no control
+# character that could end the line early.
+_UNSAFE_TARGET = re.compile(r"[^\x21-\x7e]")
+
+
+def _resolve_global(host: str, resolver) -> tuple[str | None, str]:
+    """Resolve once. Return (the first global-unicast address, "") or (None, the refusal's reason).
+
+    A name that resolves only to addresses that aren't global is `non_global_address`. One that doesn't
+    resolve at all has nothing to reach, so it is `upstream_unreachable`.
+    """
     try:
         infos = resolver(host)
     except (OSError, ValueError):
-        return None
+        return None, R_UPSTREAM_UNREACHABLE
     for info in infos:
         address = info[4][0]
         if is_global_unicast(address):
-            return address
-    return None
+            return address, ""
+    return None, (R_NON_GLOBAL if infos else R_UPSTREAM_UNREACHABLE)
 
 
 def _default_resolver(host: str) -> list:
@@ -203,22 +238,25 @@ def classify(
     if method == "GET":
         if not target.lower().startswith("http://"):
             return Verdict(False, R_METHOD, method=method)  # origin-form is refused
+        if _UNSAFE_TARGET.search(target):
+            return Verdict(False, R_METHOD, method=method)
         rest = target[len("http://") :]
         authority, _, path = rest.partition("/")
-        path = "/" + path
+        request_path = "/" + path
         host, _, port_text = authority.partition(":")
         if port_text and not port_text.isdigit():
             return Verdict(False, R_PORT, method=method, host=host)
         port = int(port_text) if port_text else 80
-        return _judge_host(
+        verdict = _judge_host(
             method,
             host,
             port,
-            path.split("?", 1)[0],
+            request_path.split("?", 1)[0],
             settings,
             resolver,
             allowed_port=80,
         )
+        return replace(verdict, request_path=request_path) if verdict.ok else verdict
 
     return Verdict(False, R_METHOD, method=method)
 
@@ -237,11 +275,9 @@ def _judge_host(method, host, port, path, settings, resolver, allowed_port) -> V
         return Verdict(
             False, R_NOT_ON_LIST, method=method, host=host, port=port, path=path
         )
-    address = _resolve_global(host, resolver)
+    address, reason = _resolve_global(host, resolver)
     if address is None:
-        return Verdict(
-            False, R_NON_GLOBAL, method=method, host=host, port=port, path=path
-        )
+        return Verdict(False, reason, method=method, host=host, port=port, path=path)
     return Verdict(
         True, R_ALLOWED, method=method, host=host, port=port, path=path, address=address
     )
@@ -333,26 +369,122 @@ def tunnel(
 
 
 # --------------------------------------------------------------------------------------------------
+# Forwarding a GET (§4)
+# --------------------------------------------------------------------------------------------------
+# A field name is an RFC 9110 token; a value holds no control character but the tab.
+_FIELD_NAME = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
+_UNSAFE_VALUE = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
+# The fields that belong to one connection rather than to the request (RFC 9110 §7.6.1), and `Host`,
+# which the proxy sets from the request-target (RFC 9112 §3.2.2). Every `Proxy-*` field stays too.
+_NOT_FORWARDED = frozenset(
+    {
+        "connection",
+        "keep-alive",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+        "host",
+    }
+)
+
+
+def parse_fields(raw: bytes) -> list[tuple[str, str]]:
+    """The header fields of a request head (the lines after the request line), in order.
+
+    A line that starts with a space or a tab continues the field before it (obs-fold, RFC 9112 §5.2)
+    and is joined to it, so a field that is dropped leaves no stray piece behind. A line that isn't
+    `name: value`, and a field whose value holds a control character, are dropped whole.
+    """
+    fields: list[tuple[str, str]] = []
+    for line in raw.decode("latin-1").split("\n"):
+        line = line.removesuffix("\r")
+        if not line:
+            continue
+        if line[0] in " \t":
+            if fields:
+                name, value = fields[-1]
+                folded = line.strip(" \t")
+                fields[-1] = (name, f"{value} {folded}")
+            continue
+        name, colon, value = line.partition(":")
+        if not colon or not _FIELD_NAME.fullmatch(name):
+            fields.append(
+                ("", "")
+            )  # holds the place, so a folded line can't join the field before it
+            continue
+        fields.append((name, value.strip(" \t")))
+    return [(n, v) for n, v in fields if n and not _UNSAFE_VALUE.search(v)]
+
+
+def forward_request(verdict: Verdict, fields: list[tuple[str, str]]) -> bytes:
+    """The head an absolute-form GET goes upstream with (§4).
+
+    The path keeps its query. The client's fields go with it, but not the hop-by-hop ones (RFC 9110
+    §7.6.1: `Connection`, each field it names, `Keep-Alive`, `TE`, `Trailer`, `Transfer-Encoding`,
+    `Upgrade`), and not any `Proxy-*` field, so the client's proxy credentials never leave the proxy.
+    `Host` is the request-target's, and `Connection: close` ends the exchange after one response.
+    """
+    named = {
+        token.strip(" \t").lower()
+        for name, value in fields
+        if name.lower() == "connection"
+        for token in value.split(",")
+    }
+    lines = [f"GET {verdict.request_path or '/'} HTTP/1.1", f"Host: {verdict.host}"]
+    for name, value in fields:
+        lower = name.lower()
+        if lower in _NOT_FORWARDED or lower in named or lower.startswith("proxy-"):
+            continue
+        lines.append(f"{name}: {value}")
+    lines.append("Connection: close")
+    return ("\r\n".join(lines) + "\r\n\r\n").encode("latin-1")
+
+
+# --------------------------------------------------------------------------------------------------
 # The server
 # --------------------------------------------------------------------------------------------------
-class EgressProxy:
-    """A threaded CONNECT/GET proxy. `resolver` and `log` are injectable for the tests."""
+# The status a refusal answers with: 403 unless the proxy itself, not the request, is why.
+_REFUSAL_STATUS = {
+    R_NO_LIST: "503 No Egress List",
+    R_TUNNEL_CAP: "503 Service Unavailable",
+    R_UPSTREAM_UNREACHABLE: "502 Bad Gateway",
+}
 
-    def __init__(self, settings: Settings, log: EgressLog, resolver=_default_resolver):
+
+class EgressProxy:
+    """A threaded CONNECT/GET proxy. `resolver`, `connect`, `clock`, and `log` are injectable for the
+    tests, which never reach past the loopback."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        log: EgressLog,
+        resolver=_default_resolver,
+        *,
+        connect=socket.create_connection,
+        clock=time.monotonic,
+        max_tunnels: int = MAX_TUNNELS,
+    ):
         self.settings = settings
         self.log = log
         self.resolver = resolver
-        self._active = threading.BoundedSemaphore(MAX_TUNNELS)
+        self._connect = connect
+        self._clock = clock
+        self._active = threading.BoundedSemaphore(max_tunnels)
+        self._no_list_lock = threading.Lock()
+        self._no_list_logged_at: float | None = None
         self._server_socket: socket.socket | None = None
         self._stop = threading.Event()
 
     def handle(self, client: socket.socket) -> None:
-        """Read the request line, judge it, and tunnel or refuse. Closes the client."""
-        started = time.monotonic()
+        """Read the request head, judge it, and tunnel or refuse. Closes the client."""
+        started = self._clock()
         try:
-            request_line, _ = _read_request_head(client)
-            if not request_line:
-                return
+            head = _read_request_head(client)
+            if head is None:
+                return  # the client sent nothing
+            request_line, raw_fields, leftover = head
             parts = request_line.split(" ")
             if len(parts) < 2:
                 self._refuse(client, Verdict(False, R_METHOD))
@@ -362,51 +494,70 @@ class EgressProxy:
             if not verdict.ok:
                 self._refuse(client, verdict)
                 return
-            self._fulfil(client, verdict, started)
+            self._fulfil(client, verdict, raw_fields, leftover, started)
         except OSError:
             pass
         finally:
             _close(client)
 
     def _refuse(self, client: socket.socket, verdict: Verdict) -> None:
-        status = (
-            "503 No Egress List" if verdict.reason == R_NO_LIST else "403 Forbidden"
-        )
+        status = _REFUSAL_STATUS.get(verdict.reason, "403 Forbidden")
         try:
             client.sendall(
                 f"HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode()
             )
         except OSError:
             pass
+        if verdict.reason == R_NO_LIST and not self._no_list_due():
+            return  # refused all the same; this minute's line is already written
         self.log.record(verdict)
 
-    def _fulfil(self, client: socket.socket, verdict: Verdict, started: float) -> None:
-        if not self._active.acquire(blocking=False):  # the 64-tunnel limit
-            self._refuse(
-                client,
-                Verdict(False, R_METHOD, method=verdict.method, host=verdict.host),
-            )
+    def _no_list_due(self) -> bool:
+        """True at most once a minute (§4): with no list every request is refused, and one line says so."""
+        with self._no_list_lock:
+            now = self._clock()
+            last = self._no_list_logged_at
+            if last is not None and now - last < NO_LIST_LOG_INTERVAL:
+                return False
+            self._no_list_logged_at = now
+            return True
+
+    def _fulfil(
+        self,
+        client: socket.socket,
+        verdict: Verdict,
+        raw_fields: bytes,
+        leftover: bytes,
+        started: float,
+    ) -> None:
+        if not self._active.acquire(blocking=False):  # the tunnel cap
+            self._refuse(client, replace(verdict, ok=False, reason=R_TUNNEL_CAP))
             return
         upstream = None
         try:
-            upstream = socket.create_connection(
-                (verdict.address, verdict.port), timeout=CONNECT_TIMEOUT
-            )
-            if verdict.method == "CONNECT":
-                client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-            else:  # absolute-form GET on 80
-                request = (
-                    f"GET {verdict.path or '/'} HTTP/1.1\r\n"
-                    f"Host: {verdict.host}\r\nConnection: close\r\n\r\n"
-                ).encode()
-                upstream.sendall(request)
-            up, down = tunnel(client, upstream)
-            self.log.record(verdict, up, down, int((time.monotonic() - started) * 1000))
-        except OSError:
-            self._refuse(
-                client,
-                Verdict(False, R_NON_GLOBAL, method=verdict.method, host=verdict.host),
-            )
+            try:
+                upstream = self._connect(
+                    (verdict.address, verdict.port), timeout=CONNECT_TIMEOUT
+                )
+            except OSError:
+                self._refuse(
+                    client, replace(verdict, ok=False, reason=R_UPSTREAM_UNREACHABLE)
+                )
+                return
+            up = down = 0
+            try:
+                if verdict.method == "CONNECT":
+                    client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                else:  # absolute-form GET on 80
+                    upstream.sendall(forward_request(verdict, parse_fields(raw_fields)))
+                if leftover:  # what the client sent after its head, before any answer
+                    upstream.sendall(leftover)
+                    up = len(leftover)
+                more_up, down = tunnel(client, upstream)
+                up += more_up
+            except OSError:
+                pass  # a side went away mid-exchange: the decision stands, logged with what moved
+            self.log.record(verdict, up, down, int((self._clock() - started) * 1000))
         finally:
             self._active.release()
             if upstream is not None:
@@ -440,8 +591,15 @@ class EgressProxy:
                 pass
 
 
-def _read_request_head(sock: socket.socket, limit: int = 16384) -> tuple[str, bytes]:
-    """Read up to the blank line. Return (request line, the rest of the head)."""
+def _read_request_head(
+    sock: socket.socket, limit: int = HEAD_LIMIT
+) -> tuple[str, bytes, bytes] | None:
+    """Read up to the blank line that ends the head.
+
+    Return (the request line, the header lines, the bytes that came after the head), or None when the
+    client sent nothing at all. A head that doesn't end within `limit` bytes, or before the client
+    stops sending, has no request line the proxy will act on, so it comes back empty and is refused.
+    """
     buffer = b""
     sock.settimeout(CONNECT_TIMEOUT)
     while b"\r\n\r\n" not in buffer and len(buffer) < limit:
@@ -449,9 +607,13 @@ def _read_request_head(sock: socket.socket, limit: int = 16384) -> tuple[str, by
         if not chunk:
             break
         buffer += chunk
-    head, _, _ = buffer.partition(b"\r\n\r\n")
+    if not buffer:
+        return None
+    head, end, leftover = buffer.partition(b"\r\n\r\n")
+    if not end or len(head) > limit:
+        return "", b"", b""
     first, _, rest = head.partition(b"\r\n")
-    return first.decode("latin-1").strip(), rest
+    return first.decode("latin-1").strip(), rest, leftover
 
 
 def _close(sock: socket.socket) -> None:
@@ -474,6 +636,11 @@ def main() -> int:
     host = os.environ.get("H4_EGRESS_HOST", LISTEN_DEFAULT[0])
     port = int(os.environ.get("H4_EGRESS_PORT", str(LISTEN_DEFAULT[1])))
     settings = Settings.load(settings_path)
+    if not settings.ok:
+        print(
+            f"egress-proxy: no usable list in {settings_path}: every request is refused (no_list)",
+            file=sys.stderr,
+        )
     proxy = EgressProxy(settings, EgressLog(log_path))
     proxy.serve((host, port))
     return 0

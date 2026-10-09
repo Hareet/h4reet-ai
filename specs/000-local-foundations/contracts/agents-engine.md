@@ -181,20 +181,22 @@ The plugin's log, the egress proxy's log ([§4](#4-egress-the-proxy)), and the f
 
 **The list.**
 - At start it reads `sandbox.network.allowedDomains` from the repository's `.claude/settings.json`, which only the Author changes, so the engine's list and the sandbox's are the same by construction (FR-039).
-- **It fails closed on the list.** If the file is missing, unreadable, or not valid JSON, or the list it yields is empty, the proxy refuses every request with `no_list`, logs that once a minute, and keeps refusing until it restarts with a readable list. It never falls back to allowing.
+- **It fails closed on the list.** If the file is missing, unreadable, or not valid JSON, or is valid JSON of another shape (the file, its `sandbox`, or its `network` not an object, or a `deniedDomains` that isn't a list), or the list it yields is empty, the proxy refuses every request with `no_list`, logs that at most once a minute rather than once a request, and keeps refusing until it restarts with a readable list. It never falls back to allowing.
 - It keeps hostname entries only. It drops IP literals and `host:port` entries, so the opening `198.18.0.1:2376` never becomes a destination.
 - An entry starting with `*.` matches any subdomain; any other entry matches exactly. A host in `deniedDomains` is refused even if listed.
 - The list is fixed until the proxy restarts. `deploy/agents-engine/engine.sh up` restarts it, and `make engine-status` shows the hash of the list in use next to the hash of the settings' current list.
 
 **What it allows,** and only for a listed host:
-- `CONNECT <host>:443`, as a plain tunnel. It never intercepts TLS.
-- An absolute-form `GET http://<host>/…` on port 80, forwarded.
+- `CONNECT <host>:443`, as a plain tunnel. It never intercepts TLS. Bytes the client sends after its request, before the proxy answers, go to the host once the tunnel opens.
+- An absolute-form `GET http://<host>/…` on port 80, forwarded with its query and the client's headers, minus the hop-by-hop ones (`Connection` and each header it names, `Keep-Alive`, `TE`, `Trailer`, `Transfer-Encoding`, `Upgrade`) and every `Proxy-*` header, so the client's proxy credentials never leave. `Host` is set from the request-target, and `Connection: close` ends the exchange after one response. A request-target with a space or a control character, or a head longer than 16 KiB, is refused (`method`).
 
 **What it refuses:** every other method and port, origin-form requests, IP-literal destinations, unlisted hosts, and any listed name that resolves to an address that isn't global unicast: loopback, RFC 1918, link-local (including `169.254.169.254`, the instance-metadata address), `100.64.0.0/10`, `198.18.0.0/15`, multicast, and the IPv6 equivalents (`::1`, `fc00::/7`, `fe80::/10`). It resolves each name once, as the Author's user, and connects to the address it checked, so a rebinding name can't swap it afterwards.
 
 **Limits:** 64 tunnels at once; 10 s to connect; 120 s idle.
 
-**The log:** one JSON line per decision in `~/.local/state/h4reet/agents-engine/egress.jsonl`, owned by the Author; the early patch's `denyWrite` on `~/.local/state/h4reet` keeps agents from editing it. Fields: `ts`; `decision`; `reason` (`allowed`, `not_on_list`, `no_list`, `denied_domain`, `ip_literal`, `non_global_address`, `method`, `port`); `method`; `host`; `port`; `path` for a GET, without its query; `bytes_up`; `bytes_down`; `duration_ms`.
+**What the client is told:** `403` for a refused request; `503` with no list (`no_list`) or at the tunnel cap (`tunnel_cap`); `502` when a listed name doesn't resolve or its address doesn't answer (`upstream_unreachable`).
+
+**The log:** one JSON line per decision in `~/.local/state/h4reet/agents-engine/egress.jsonl`, owned by the Author, except that `no_list` is written at most once a minute; the early patch's `denyWrite` on `~/.local/state/h4reet` keeps agents from editing it. Fields: `ts`; `decision`; `reason` (`allowed`, `not_on_list`, `no_list`, `denied_domain`, `ip_literal`, `non_global_address`, `upstream_unreachable`, `tunnel_cap`, `method`, `port`); `method`; `host`; `port`; `path` for a GET, without its query; `bytes_up`; `bytes_down`; `duration_ms`.
 
 **Who uses it:**
 - the rootless daemon's own pulls: the unit sets `HTTPS_PROXY=http://198.18.0.1:3128` and `NO_PROXY=127.0.0.1,localhost`;
