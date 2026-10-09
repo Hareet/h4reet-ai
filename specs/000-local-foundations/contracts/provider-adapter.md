@@ -344,6 +344,8 @@ Three additions to the first sketch of this signature (tasks.md T048, 2026-10-08
 | C11 | **Settles once.** `complete()` resolves or rejects exactly once. There is no unhandled rejection, and no timer keeps the process alive after `close()`. | yes | no |
 | C12 | **A filtered answer is a result.** OpenAI's `content_filter`, and Converse's `content_filtered` and `guardrail_intervened`, return `finishReason: 'content_filter'`, not an error. | yes | no |
 
+**Past C4.** What an adapter's own column of §2.5 lists beyond C4's shared cases is tested beside the suite, in stub mode. For the local adapter, that is 404, 413, 422, 502, and 504, a DNS failure (`ENOTFOUND`, `EAI_AGAIN`), and §3.1's connect watchdog, in `test/contract/local-openai.errors.test.ts` (tasks.md T151).
+
 ### 5.3 Three run modes
 
 1. **In the sandbox** (`make test`, `vitest run`): no network beyond the sandbox's own loopback, and no credentials.
