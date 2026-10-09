@@ -248,7 +248,7 @@ description: "Task list for spec 000, Local Foundations"
   - `deploy/agents-engine/engine.sh up`, then `make engine-status`.
 
   The seed and the engine's proofs come later (T063 and T099), once the models' lock and the last image pin exist. Record the results in the next branch's note.
-- [ ] T047 Update `docs/how-we-build/lifecycle.md`'s enforcement table with the early patch's layers (T111 completes it), then write the merge-request note `docs/merge-requests/<date>-feat-000-foundations.md`. It lists every change to anything that runs in the Author's terminal under its own heading, first: the Makefile, `deploy/scripts/**`, `deploy/agents-engine/**`, and `tools/gates/**` (ADR 0017).
+- [X] T047 Update `docs/how-we-build/lifecycle.md`'s enforcement table with the early patch's layers (T111 completes it), then write the merge-request note `docs/merge-requests/<date>-feat-000-foundations.md`. It lists every change to anything that runs in the Author's terminal under its own heading, first: the Makefile, `deploy/scripts/**`, `deploy/agents-engine/**`, and `tools/gates/**` (ADR 0017).
 
 **Checkpoint**: the gateway starts and refuses bad configuration with exit 78. Once T046 is done, agents reach the engine through the relay (`make engine-status`). dev-cpu's first run waits for the seed (T063).
 
