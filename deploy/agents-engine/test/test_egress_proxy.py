@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import socket
+import stat
+import subprocess
 import sys
 import threading
 import time
@@ -19,9 +22,8 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[3]
-SPEC = importlib.util.spec_from_file_location(
-    "egress_proxy", REPO / "deploy" / "agents-engine" / "egress-proxy.py"
-)
+PROXY = REPO / "deploy" / "agents-engine" / "egress-proxy.py"
+SPEC = importlib.util.spec_from_file_location("egress_proxy", PROXY)
 assert SPEC and SPEC.loader
 ep = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = ep
@@ -162,6 +164,166 @@ def test_settings_digest_is_stable(tmp_path: Path) -> None:
     one = ep.Settings.load(_write_settings(tmp_path, ["a.com", "b.com"]))
     two = ep.Settings.load(_write_settings(tmp_path, ["b.com", "a.com"]))
     assert one.digest() == two.digest()
+
+
+# --------------------------------------------------------------------------------------------------
+# The list in use, recorded and listed (§4, §8): what engine.sh status compares
+# --------------------------------------------------------------------------------------------------
+def test_digest_is_a_full_sha256_of_both_lists() -> None:
+    base = ep.Settings(allowed=["b.com", "a.com", "a.com"], denied=["x.com"], ok=True)
+    digest = base.digest()
+    assert len(digest) == 64
+    assert set(digest) <= set("0123456789abcdef")
+    # Order and repeats don't change what the proxy serves, so they don't change the digest...
+    same = ep.Settings(allowed=["a.com", "b.com"], denied=["x.com", "x.com"], ok=True)
+    assert same.digest() == digest
+    # ...but either list does.
+    assert ep.Settings(allowed=["a.com"], denied=["x.com"], ok=True).digest() != digest
+    assert ep.Settings(allowed=["a.com", "b.com"], ok=True).digest() != digest
+
+
+def test_no_list_has_one_digest_whatever_the_file_held() -> None:
+    # A proxy with no list serves nothing, so every way of having none looks the same.
+    empty = ep.Settings(allowed=[], denied=["x.com"], ok=False).digest()
+    assert empty == ep.Settings(ok=False).digest()
+    assert empty == ep.Settings(allowed=["a.com"], ok=False).digest()
+    assert empty != ep.Settings(allowed=["a.com"], ok=True).digest()
+
+
+def test_list_prints_the_list_in_use(tmp_path: Path, capsys) -> None:
+    path = _write_settings(
+        tmp_path,
+        ["registry.npmjs.org", "Pypi.org", "198.18.0.1:2376", "1.2.3.4", "ghcr.io"],
+        ["github.com"],
+    )
+    assert ep.main(["--list", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert out.count("\n") == 1  # one JSON object, on one line
+    record = json.loads(out)
+    assert set(record) == {"digest", "hosts"}
+    # The hosts as the proxy serves them: hostnames only, lowercased, sorted.
+    assert record["hosts"] == ["ghcr.io", "pypi.org", "registry.npmjs.org"]
+    assert record["digest"] == ep.Settings.load(path).digest()
+
+
+@pytest.mark.parametrize(
+    "text", ["", "{not json", "[]", '{"sandbox": {"network": {}}}']
+)
+def test_list_exits_3_for_no_list(tmp_path: Path, capsys, text: str) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text(text, encoding="utf-8")
+    assert ep.main(["--list", str(path)]) == 3
+    record = json.loads(capsys.readouterr().out)
+    assert record == {"digest": ep.Settings(ok=False).digest(), "hosts": []}
+
+
+def test_list_of_a_missing_file_exits_3(tmp_path: Path, capsys) -> None:
+    assert ep.main(["--list", str(tmp_path / "nope.json")]) == 3
+    assert json.loads(capsys.readouterr().out)["hosts"] == []
+
+
+def test_list_refuses_other_arguments(capsys) -> None:
+    assert ep.main(["--lst", "x"]) == 2
+    assert ep.main(["--list"]) == 2
+    assert "usage" in capsys.readouterr().err
+
+
+def test_list_runs_by_path_and_starts_no_listener(tmp_path: Path) -> None:
+    # As engine.sh runs it: by path, isolated. Pointed at a port it could bind, a proxy that served
+    # would never return, so a prompt exit 0 shows --list starts no listener.
+    path = _write_settings(tmp_path, ["pypi.org"])
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(tmp_path),
+        "H4_EGRESS_HOST": "127.0.0.1",
+        "H4_EGRESS_PORT": "0",
+        "H4_EGRESS_LIST_FILE": str(tmp_path / "record.json"),
+    }
+    done = subprocess.run(
+        [sys.executable, "-I", "-B", "-X", "pycache_prefix=/dev/null"]
+        + [str(PROXY), "--list", str(path)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr[-300:]
+    assert json.loads(done.stdout)["hosts"] == ["pypi.org"]
+    assert not (tmp_path / "record.json").exists()  # listing records nothing
+
+
+def test_serving_records_the_list_in_use(tmp_path: Path) -> None:
+    record = tmp_path / "state" / "agents-engine" / "egress-list.json"
+    settings = ep.Settings(
+        allowed=["pypi.org", "ghcr.io"], denied=["github.com"], ok=True
+    )
+    proxy = ep.EgressProxy(
+        settings,
+        ep.EgressLog(str(tmp_path / "egress.jsonl")),
+        resolver=_never_resolve,
+        connect=_never_connect,
+        list_file=str(record),
+    )
+    thread = threading.Thread(target=proxy.serve, args=(("127.0.0.1", 0),), daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 3.0
+    while not record.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    proxy.shutdown()
+    thread.join(timeout=3)
+    assert record.read_text(encoding="utf-8") == ep.list_json(settings) + "\n"
+    assert json.loads(record.read_text(encoding="utf-8")) == {
+        "digest": settings.digest(),
+        "hosts": ["ghcr.io", "pypi.org"],
+    }
+    assert stat.S_IMODE(record.stat().st_mode) == 0o600
+    assert stat.S_IMODE(record.parent.stat().st_mode) == 0o700
+
+
+def test_list_file_is_0600_whatever_the_umask(tmp_path: Path) -> None:
+    record = tmp_path / "egress-list.json"
+    old = os.umask(0)
+    try:
+        ep.write_list_file(record, ep.Settings(allowed=["pypi.org"], ok=True))
+    finally:
+        os.umask(old)
+    assert stat.S_IMODE(record.stat().st_mode) == 0o600
+    assert [p.name for p in tmp_path.iterdir()] == [
+        "egress-list.json"
+    ]  # no temporary left
+
+
+def test_list_file_replaces_a_link_rather_than_writing_through_it(
+    tmp_path: Path,
+) -> None:
+    victim = tmp_path / "victim"
+    victim.write_text("the Author's file\n", encoding="utf-8")
+    record = tmp_path / "egress-list.json"
+    record.symlink_to(victim)
+    settings = ep.Settings(allowed=["pypi.org"], ok=True)
+    ep.write_list_file(record, settings)
+    assert victim.read_text(encoding="utf-8") == "the Author's file\n"
+    assert not record.is_symlink()
+    assert record.read_text(encoding="utf-8") == ep.list_json(settings) + "\n"
+
+
+def test_list_file_refuses_a_linked_directory(tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (tmp_path / "state").symlink_to(elsewhere)
+    with pytest.raises(OSError):
+        ep.write_list_file(
+            tmp_path / "state" / "egress-list.json", ep.Settings(ok=False)
+        )
+    assert list(elsewhere.iterdir()) == []
+
+
+def test_list_file_overwrites_the_last_record(tmp_path: Path) -> None:
+    record = tmp_path / "egress-list.json"
+    ep.write_list_file(record, ep.Settings(allowed=["pypi.org"], ok=True))
+    ep.write_list_file(record, ep.Settings(ok=False))
+    assert json.loads(record.read_text(encoding="utf-8"))["hosts"] == []
 
 
 # --------------------------------------------------------------------------------------------------

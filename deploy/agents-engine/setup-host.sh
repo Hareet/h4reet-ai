@@ -138,6 +138,7 @@ H4_EGRESS_SETTINGS=$repo/.claude/settings.json
 H4_EGRESS_HOST=198.18.0.1
 H4_EGRESS_PORT=3128
 H4_EGRESS_LOG=$author_home/.local/state/h4reet/agents-engine/egress.jsonl
+H4_EGRESS_LIST_FILE=$author_home/.local/state/h4reet/agents-engine/egress-list.json
 EOF
 	chmod 0644 "$env_file"
 }

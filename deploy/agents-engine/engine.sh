@@ -9,7 +9,8 @@
 # systemd, or a user that does not exist yet. Human-only (the FR-039 boundary).
 set -euo pipefail
 
-here="$(cd -- "$(dirname -- "$0")" && pwd)"
+# BASH_SOURCE, not $0: the same path when run, and still this file's when the tests source it.
+here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd -- "$here/../.." && pwd)"
 env_file="/etc/h4agents/engine.env"
 lib="/usr/local/lib/h4agents" # the installed, root-owned copies that run
@@ -28,6 +29,10 @@ repo="$H4_REPO" # the path setup-host.sh fixed, if the env file set it
 
 author_cert_dir="$HOME/.config/h4reet-ai/agents-engine/docker"
 agent_cert_dir="$HOME/.config/h4reet/agents-engine/docker"
+# Where the running proxy records the list it serves (egress-proxy.py, §8).
+egress_list_file="${H4_EGRESS_LIST_FILE:-$HOME/.local/state/h4reet/agents-engine/egress-list.json}"
+# The installed proxy runs as its unit runs it: the system interpreter, isolated, no bytecode written.
+py_host=(/usr/bin/python3 -I -B -X pycache_prefix=/dev/null)
 engine_addr="tcp://198.18.0.1:2376"
 images_lock="$repo/deploy/images.lock"
 models_lock="$repo/deploy/models.lock"
@@ -146,8 +151,10 @@ cmd_up() {
 	# three refusals in a minute hit the start limit, which a plain start would not clear.
 	as_h4agents_systemctl reset-failed docker.service 2>/dev/null || true
 	as_h4agents_systemctl start docker.service
-	echo "== starting the Author's egress proxy"
-	systemctl --user start h4-egress-proxy.service
+	echo "== restarting the Author's egress proxy"
+	# Restart, not start: the proxy's list is fixed until it restarts (§4), so up serves the settings as they
+	# are now, and the proxy records that list for status.
+	systemctl --user restart h4-egress-proxy.service
 	wait_for_tls
 	chown_state
 	echo "== engine up"
@@ -360,14 +367,55 @@ cmd_status() {
 	fi
 }
 
+# The digest in a list record, {"digest": "<sha256 hex>", "hosts": [...]}, the line egress-proxy.py prints
+# for --list and records when it starts serving (§8); nothing when the input holds none.
+list_record_digest() {
+	sed -n 's/^{"digest": *"\([0-9a-f]\{64\}\)".*/\1/p' | head -n1
+}
+
 status_list_hashes() {
-	# The proxy's list hash should equal the settings' current list hash (§4).
-	local settings_hash
-	if command -v jq >/dev/null 2>&1 && [ -r "$H4_EGRESS_SETTINGS" ]; then
-		settings_hash="$(jq -r '(.sandbox.network.allowedDomains // [])
-			| map(select(test(":")|not)) | map(ascii_downcase) | sort | join("\n")' "$H4_EGRESS_SETTINGS" |
-			sha256sum | cut -c1-12)"
-		echo "-- allowedDomains hash (settings): $settings_hash"
+	# The list the proxy serves against the settings' list as it is now (§4, §8). Both digests come from the
+	# installed proxy's own code: the running proxy recorded its own when it started, and --list gives the
+	# settings'. Nothing here computes one.
+	echo "-- the egress proxy's list: the digest in use, and the settings' now"
+	local record="" running="" listing="" current="" rc=0 active=yes
+	if [ -f "$egress_list_file" ] && [ ! -L "$egress_list_file" ]; then
+		record="$(head -c 65536 -- "$egress_list_file" 2>/dev/null || true)"
+		running="$(printf '%s\n' "$record" | list_record_digest)"
+	fi
+	systemctl --user is-active --quiet h4-egress-proxy.service 2>/dev/null || active=no
+
+	if [ "$active" = no ]; then
+		echo "  running:  none: h4-egress-proxy.service is not active (start it: $0 up)"
+	elif [ -z "$running" ]; then
+		echo "  running:  unknown: no record at $egress_list_file (restart the proxy: systemctl --user restart h4-egress-proxy.service)"
+	elif printf '%s\n' "$record" | grep -q '"hosts": *\[\]'; then
+		echo "  running:  $running (no list: it refuses every request)"
+	else
+		echo "  running:  $running"
+	fi
+
+	if [ ! -f "$lib/egress-proxy.py" ]; then
+		echo "  settings: unknown: $lib/egress-proxy.py is not installed (run: $0 setup)"
+	else
+		listing="$("${py_host[@]}" "$lib/egress-proxy.py" --list "$H4_EGRESS_SETTINGS" 2>/dev/null)" || rc=$?
+		current="$(printf '%s\n' "$listing" | list_record_digest)"
+		if [ -z "$current" ] || { [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; }; then
+			echo "  settings: unknown: egress-proxy.py --list failed on $H4_EGRESS_SETTINGS (exit $rc)"
+			current=""
+		elif [ "$rc" -eq 3 ]; then
+			echo "  settings: $current (no list in $H4_EGRESS_SETTINGS: a proxy started now would refuse every request)"
+		else
+			echo "  settings: $current"
+		fi
+	fi
+
+	if [ "$active" = yes ] && [ -n "$running" ] && [ -n "$current" ]; then
+		if [ "$running" = "$current" ]; then
+			echo "  the same: the proxy serves the settings' list"
+		else
+			echo "  they differ: the settings changed after the proxy started. Restart the proxy: systemctl --user restart h4-egress-proxy.service, or $0 up"
+		fi
 	fi
 }
 
@@ -423,4 +471,8 @@ main() {
 	"cmd_$sub" "$@"
 }
 
-main "$@"
+# Run as a command; sourced, it only defines the functions above, which the tests call
+# (test/test_engine_sh.py).
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	main "$@"
+fi

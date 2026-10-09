@@ -23,6 +23,7 @@ runs (§5, H13). Run by path through `PY_HOST`, never with `-m`.
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import json
 import os
@@ -41,9 +42,11 @@ CONNECT_TIMEOUT = 10.0
 IDLE_TIMEOUT = 120.0
 BUFFER = 65536
 HEAD_LIMIT = 16384  # bytes; a request head that doesn't end within it is refused
-NO_LIST_LOG_INTERVAL = (
-    60.0  # seconds: with no list, one `no_list` line a minute at most (§4)
-)
+# Seconds: with no list, one `no_list` line a minute at most (§4).
+NO_LIST_LOG_INTERVAL = 60.0
+EXIT_NO_LIST = 3  # `--list`'s status when the settings yield no list
+# Where the running proxy records the list it serves, for `engine.sh status` (§8).
+LIST_FILE_DEFAULT = "~/.local/state/h4reet/agents-engine/egress-list.json"
 
 # Reasons, exactly as the log records them (§4).
 R_ALLOWED = "allowed"
@@ -54,9 +57,8 @@ R_IP_LITERAL = "ip_literal"
 R_NON_GLOBAL = "non_global_address"
 R_METHOD = "method"
 R_PORT = "port"
-R_UPSTREAM_UNREACHABLE = (
-    "upstream_unreachable"  # the listed name didn't resolve, or didn't answer
-)
+# The listed name didn't resolve, or its address didn't answer.
+R_UPSTREAM_UNREACHABLE = "upstream_unreachable"
 R_TUNNEL_CAP = "tunnel_cap"  # MAX_TUNNELS were already open
 
 # Extra ranges to reject even where a Python version's `is_private` might not (defensive, §4).
@@ -132,12 +134,78 @@ class Settings:
             return cls(allowed=[], denied=denied, ok=False)
         return cls(allowed=allowed, denied=denied, ok=True)
 
-    def digest(self) -> str:
-        """A stable hash of the list in use, for `make engine-status` (§4)."""
-        import hashlib
+    def served(self) -> tuple[list[str], list[str]]:
+        """The allowed and denied entries the proxy serves, sorted, each once; none without a list."""
+        if not self.ok:
+            return [], []
+        return sorted(set(self.allowed)), sorted(set(self.denied))
 
-        joined = "\n".join(sorted(self.allowed)).encode("utf-8")
-        return hashlib.sha256(joined).hexdigest()[:12]
+    def digest(self) -> str:
+        """The sha256, in hex, of the list in use: its allowed and its denied entries (§4, §8).
+
+        `engine.sh status` prints the running proxy's digest beside the one `--list` gives for the
+        settings as they are now. A change to either list changes it; order and repeats don't, since
+        they don't change what the proxy serves.
+        """
+        allowed, denied = self.served()
+        canonical = json.dumps(
+            {"allowed": allowed, "denied": denied},
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def list_json(settings: Settings) -> str:
+    """The list in use as one line of JSON, `{"digest": "<sha256 hex>", "hosts": [...]}` (§4, §8).
+
+    What `--list` prints and what the running proxy records. `hosts` is the allowed entries as the
+    proxy serves them: hostnames only, lowercased, sorted, each once; empty without a list.
+    """
+    hosts, _ = settings.served()
+    return json.dumps({"digest": settings.digest(), "hosts": hosts}, sort_keys=True)
+
+
+def write_list_file(path: str | os.PathLike[str], settings: Settings) -> None:
+    """Record the list in use for `engine.sh status`: mode 0600, atomically, never through a link.
+
+    Each missing directory is made 0700, and the record's directory is opened without following a
+    link. The record goes to a new temporary name in it (`O_EXCL`, `O_NOFOLLOW`), is synced, and is
+    renamed over the last one, so a reader sees the old record or the new one, never a part, and a link
+    at the name is replaced rather than written through.
+    """
+    target = Path(path)
+    missing = []
+    directory = target.parent
+    while not directory.exists():
+        missing.append(directory)
+        directory = directory.parent
+    for directory in reversed(missing):
+        directory.mkdir(mode=0o700, exist_ok=True)
+    data = memoryview((list_json(settings) + "\n").encode("utf-8"))
+    dir_fd = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        tmp = f".{target.name}.{os.getpid()}.{os.urandom(4).hex()}.tmp"
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+        fd = os.open(tmp, flags, 0o600, dir_fd=dir_fd)
+        try:
+            os.fchmod(fd, 0o600)  # whatever the umask was
+            while data:
+                data = data[os.write(fd, data) :]
+            os.fsync(fd)
+        except BaseException:
+            os.close(fd)
+            os.unlink(tmp, dir_fd=dir_fd)
+            raise
+        os.close(fd)
+        try:
+            os.replace(tmp, target.name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        except BaseException:
+            os.unlink(tmp, dir_fd=dir_fd)
+            raise
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
 
 
 def host_listed(host: str, patterns: list[str]) -> bool:
@@ -465,10 +533,12 @@ class EgressProxy:
         connect=socket.create_connection,
         clock=time.monotonic,
         max_tunnels: int = MAX_TUNNELS,
+        list_file: str | os.PathLike[str] | None = None,
     ):
         self.settings = settings
         self.log = log
         self.resolver = resolver
+        self.list_file = list_file
         self._connect = connect
         self._clock = clock
         self._active = threading.BoundedSemaphore(max_tunnels)
@@ -569,6 +639,9 @@ class EgressProxy:
         server.bind(listen)
         server.listen(128)
         self._server_socket = server
+        # Only once it listens: a proxy that can't bind, because another still serves, leaves that one's
+        # record as it is.
+        self._record_list()
         try:
             while not self._stop.is_set():
                 try:
@@ -582,13 +655,28 @@ class EgressProxy:
         finally:
             server.close()
 
+    def _record_list(self) -> None:
+        """Write the list in use where `engine.sh status` reads it (§8). If that fails, remove the last
+        record, so status reports none rather than another run's list."""
+        if self.list_file is None:
+            return
+        try:
+            write_list_file(self.list_file, self.settings)
+        except OSError as error:
+            print(
+                f"egress-proxy: could not record the list in {self.list_file}: {error}",
+                file=sys.stderr,
+            )
+            try:
+                os.unlink(self.list_file)
+            except OSError:
+                pass
+
     def shutdown(self) -> None:
         self._stop.set()
         if self._server_socket is not None:
-            try:
-                self._server_socket.close()
-            except OSError:
-                pass
+            # On Linux a close alone doesn't wake an accept() blocked in another thread; this does.
+            _close(self._server_socket)
 
 
 def _read_request_head(
@@ -627,11 +715,32 @@ def _close(sock: socket.socket) -> None:
         pass
 
 
-def main() -> int:
+USAGE = "usage: egress-proxy.py [--list <settings.json>]"
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Serve, or with `--list <settings.json>`, print the list those settings give and exit.
+
+    `--list` prints `list_json`'s one line and exits 0, or EXIT_NO_LIST (3) when the settings yield no
+    list. It starts no listener and records nothing: `engine.sh status` runs it to set the settings'
+    current digest beside the running proxy's (§8).
+    """
+    args = sys.argv[1:] if argv is None else argv
+    if args:
+        if len(args) != 2 or args[0] != "--list":
+            print(USAGE, file=sys.stderr)
+            return 2
+        settings = Settings.load(args[1])
+        print(list_json(settings))
+        return 0 if settings.ok else EXIT_NO_LIST
+
     settings_path = os.environ.get("H4_EGRESS_SETTINGS", ".claude/settings.json")
     log_path = os.environ.get(
         "H4_EGRESS_LOG",
         str(Path.home() / ".local/state/h4reet/agents-engine/egress.jsonl"),
+    )
+    list_file = os.environ.get(
+        "H4_EGRESS_LIST_FILE", os.path.expanduser(LIST_FILE_DEFAULT)
     )
     host = os.environ.get("H4_EGRESS_HOST", LISTEN_DEFAULT[0])
     port = int(os.environ.get("H4_EGRESS_PORT", str(LISTEN_DEFAULT[1])))
@@ -641,7 +750,7 @@ def main() -> int:
             f"egress-proxy: no usable list in {settings_path}: every request is refused (no_list)",
             file=sys.stderr,
         )
-    proxy = EgressProxy(settings, EgressLog(log_path))
+    proxy = EgressProxy(settings, EgressLog(log_path), list_file=list_file)
     proxy.serve((host, port))
     return 0
 
