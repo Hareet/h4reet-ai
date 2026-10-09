@@ -159,6 +159,12 @@ cmd planned "bash -c 'make breach-test ENV=dev'"
 cmd planned 'python3 -I -B -X pycache_prefix=/dev/null evals/breach.py --stack dev --env-file dev.env --run-file run.env'
 cmd planned 'SANDBOX_RUNTIME=0 python3 evals/breach.py --stack dev'
 cmd planned 'env -u SANDBOX_RUNTIME python3 evals/breach.py --stack=dev'
+# The variable before the target, a subshell, quoting, and the module form, which Python runs from the tree's root
+# though plan §4 never does: there only breach.py's own SANDBOX_RUNTIME check stops it (tasks.md T153).
+cmd planned 'make ENV=dev breach-test'
+cmd planned '(make breach-test ENV=dev)'
+cmd planned 'make breach-test ENV="dev"'
+cmd planned 'env -u SANDBOX_RUNTIME python3 -m evals.breach --stack dev'
 cmd allow 'make breach-test ENV=dev-cpu'
 cmd allow 'python3 -I -B -X pycache_prefix=/dev/null evals/breach.py --stack dev-cpu'
 if [ "$planned" -gt "$breach_planned" ]; then
