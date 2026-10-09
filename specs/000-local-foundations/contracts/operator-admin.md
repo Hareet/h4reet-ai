@@ -469,6 +469,8 @@ adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:
 
 Below these lines it adds one for each thing that needs a look: the journal when it isn't `ok`, alerts pending or failed in the last 24 hours, dev's test machinery when it is on, and, for an uninitialized store, the `make operator-init` command.
 
+The `status` and `init` summaries name the CLI's own `--stack`, in the first line and in any command they suggest. They never use the answer's `stack` field (T056's review).
+
 **For other tools.** `operator.py` also exposes an `AdminClient` class:
 - `AdminClient(stack, *, url=None, token_stdin=False)` reads the stack's token as above, and talks to its admin listener as above. `url` and `token_stdin` are the CLI's `--url` and `--token-stdin`, for a caller inside a container on the stack's network.
 - `.adapter_complete(adapter_id, messages, *, max_output_tokens, purpose, reason, temperature=None)` calls §5 and returns its 200 body as a dict: the answer is `result["text"]`, the cost `cost_micro_usd`.

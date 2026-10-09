@@ -1341,6 +1341,22 @@ def test_status_of_an_uninitialized_store(
     assert 'make operator-init ENV=prod REASON="' in out
 
 
+@pytest.mark.parametrize("named", ["qa-elsewhere", "prod", None])
+def test_status_summary_names_the_clis_own_stack(named: str | None) -> None:
+    # Not the answer's stack field: the first line and the suggested command are the CLI's (T056's review). status()
+    # refuses another stack's answer before this; the summary doesn't rely on that.
+    body = {
+        "stack": named,
+        "time": "2026-10-28T14:02:11.004Z",
+        "store": "uninitialized",
+        "state": None,
+    }
+    lines = op.status_lines("dev", body)
+    assert lines[0].startswith("dev  state -")
+    assert 'make operator-init ENV=dev REASON="' in lines[-1]
+    assert named is None or not any(named in line for line in lines)
+
+
 @pytest.mark.parametrize(
     ("micro", "text"),
     [
@@ -1479,6 +1495,15 @@ def test_init_summary_of_a_dev_rebuild(
     assert "fallback       renewed: grant 1 passes today" in lines
     assert "confirm zero   yes: no earlier records and nothing stated" in lines
     assert "test clock     offset 1611568796 ms, restored from the journal" in lines
+
+
+@pytest.mark.parametrize("named", ["qa-elsewhere", "prod"])
+def test_init_summary_names_the_clis_own_stack(named: str) -> None:
+    # As for status: the first line and the suggested renewal are the CLI's stack, whatever the answer says.
+    lines = op.init_lines("dev", INIT_BODY | {"stack": named})
+    assert lines[0].startswith("dev  initialized · audit #1")
+    assert 'make operator-renew ENV=dev REASON="..."' in lines[-1]
+    assert not any(named in line for line in lines)
 
 
 @pytest.mark.parametrize(

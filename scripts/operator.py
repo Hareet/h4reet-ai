@@ -682,9 +682,11 @@ def row(label: str, amount: str, details: list[str]) -> str:
 
 
 def status_lines(stack: str, body: dict[str, Any]) -> list[str]:
-    """§6's summary of GET /admin/status: the state, the three meters, and the adapters, then what needs a look."""
-    name = text(body.get("stack") or stack)
-    head = f"{name}  state {text(body.get('state'))}"
+    """§6's summary of GET /admin/status: the state, the three meters, and the adapters, then what needs a look.
+
+    It names the CLI's own stack, never the answer's stack field, in its first line and in the command it suggests.
+    """
+    head = f"{stack}  state {text(body.get('state'))}"
     if body.get("since"):
         head += f" since {seconds(body['since'])}"
     crossed = body.get("crossed")
@@ -762,7 +764,7 @@ def status_lines(stack: str, body: dict[str, Any]) -> list[str]:
         lines.append(f"{'test machinery':<15}clock {clock} · synthetic {synthetic}")
     if body.get("store") == "uninitialized":
         lines.append(
-            f'{"next":<15}make operator-init ENV={name} REASON="<why, at least 10 characters>", adding '
+            f'{"next":<15}make operator-init ENV={stack} REASON="<why, at least 10 characters>", adding '
             "CONFIRM_ZERO=1 only if no earlier record survives, and RENEW=1 to grant today's fallback"
         )
     return lines
@@ -778,10 +780,12 @@ def sources(meter: dict[str, Any]) -> str:
 
 
 def init_lines(stack: str, body: dict[str, Any]) -> list[str]:
-    """A summary of POST /admin/init's answer: each meter with its candidates by source (data-model.md §8)."""
-    name = text(body.get("stack") or stack)
+    """A summary of POST /admin/init's answer: each meter with its candidates by source (data-model.md §8).
+
+    Like status_lines, it names the CLI's own stack, never the answer's.
+    """
     periods = obj(body.get("periods"))
-    head = f"{name}  initialized · audit #{text(body.get('audit_id'))} · state {text(body.get('state'))}"
+    head = f"{stack}  initialized · audit #{text(body.get('audit_id'))} · state {text(body.get('state'))}"
     lines = [
         f"{head} · periods {text(periods.get('day'))} and {text(periods.get('month'))}"
     ]
@@ -812,7 +816,7 @@ def init_lines(stack: str, body: dict[str, Any]) -> list[str]:
         lines.append(f"{'fallback':<15}{renewed}")
     else:
         lines.append(
-            f'{"fallback":<15}awaiting renewal: refused until make operator-renew ENV={name} REASON="..."'
+            f'{"fallback":<15}awaiting renewal: refused until make operator-renew ENV={stack} REASON="..."'
         )
     if body.get("confirm_zero") is True:
         lines.append(f"{'confirm zero':<15}yes: no earlier records and nothing stated")
