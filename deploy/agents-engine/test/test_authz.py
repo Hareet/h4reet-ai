@@ -389,6 +389,8 @@ def test_a21_dev_cpus_ports_and_the_proofs_allowed(address: str, port: int) -> N
         "",  # the daemon would choose one
         "18300-18304",  # a range: the daemon would choose within it
         "018003",
+        "018300",  # an allowed port, padded: refused, so the rule never rests on two parsers agreeing
+        "0018304",
         " 18300",
         "18300 ",
         "+18300",

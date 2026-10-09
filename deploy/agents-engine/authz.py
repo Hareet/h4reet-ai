@@ -375,11 +375,13 @@ PUBLISH_PORTS = frozenset((*range(18300, 18305), 18999))
 
 def _publish_port_ok(value: object) -> bool:
     """A HostPort of PUBLISH_PORTS, as one plain decimal string: never empty (Docker would choose a port), a range,
-    or any other spelling."""
+    or any other spelling. No leading zeros either, so the rule never rests on another parser reading a padded
+    number as this one does."""
     return (
         isinstance(value, str)
         and value.isascii()
         and value.isdigit()
+        and value == str(int(value))
         and int(value) in PUBLISH_PORTS
     )
 
