@@ -4,10 +4,20 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
+# A command-line variable is make code: make expands its value wherever it's used, and again when it exports it to a
+# recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
+# the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
+# the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY
+CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
+$(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
+$(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
+from_cli = $(filter $(1),$(CLI_VARS))
+
 # The stack (plan §4): prod and dev on the 5090, dev-cpu on the agents' engine. Only the command line picks it
 # (make up ENV=dev): POSIX shells export ENV to name a startup file, and that must never choose a stack. A stack's
 # name in the environment is refused rather than ignored, so `ENV=dev make down` can't act on prod.
-ifneq ($(origin ENV),command line)
+ifeq ($(call from_cli,ENV),)
 ifneq ($(filter prod dev dev-cpu,$(ENV)),)
 $(error ENV=$(ENV) comes from the environment, which never picks a stack: run make $(MAKECMDGOALS) ENV=$(ENV))
 endif
@@ -36,7 +46,7 @@ endif
 COMPOSE = docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)$(if $(RUNFILE), --env-file $(RUNFILE))
 # REF picks the commit a host stack runs (make up REF=<sha> is the rollback), from the command line only, like ENV.
 # The shell reads it as "$REF", so make never splices it into a command line, and --ref= keeps it a value.
-REF_ARG = $(if $(filter command line,$(origin REF)), --ref="$$REF")
+REF_ARG = $(if $(call from_cli,REF), --ref="$$REF")
 
 # The agents' engine (plan §10). Inside the agent sandbox, a target that touches containers runs itself again
 # through deploy/agents-engine/docker-relay, which points DOCKER_HOST at the engine, and only for ENV=dev-cpu: the
@@ -263,7 +273,7 @@ up down logs status:
 	$(RELAY) make --no-print-directory $@ ENV=dev-cpu
 else
 up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, then every service, healthy
-	@$(if $(RUNFILE),:,[ "$(origin REF)" != "command line" ] || { echo "make up: dev-cpu runs the working tree; REF= is for prod and dev" >&2; exit 2; })
+	@$(if $(RUNFILE),:,[ -z "$(call from_cli,REF)" ] || { echo "make up: dev-cpu runs the working tree; REF= is for prod and dev" >&2; exit 2; })
 	$(PY_HOST) $(TREE)/deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR)$(REF_ARG)
 	@$(call PULL_MODELS,$(TREE),)
 	@# Every service healthy, or status names the one that isn't, with its health output and error lines, redacted;
@@ -278,7 +288,7 @@ down: ## Stop the stack: its volumes, meters, and journal stay, because it never
 # SERVICE= and TAIL= come from the command line, read by the shell, and checked before compose sees them.
 logs: ## The stack's logs, redacted: SERVICE=name TAIL=200; the model server shows warnings and errors only
 	@set -eo pipefail; $(call NOT_STARTED,show); \
-	tail="$(if $(filter command line,$(origin TAIL)),$$TAIL,200)"; service="$(if $(filter command line,$(origin SERVICE)),$$SERVICE)"; \
+	tail="$(if $(call from_cli,TAIL),$$TAIL,200)"; service="$(if $(call from_cli,SERVICE),$$SERVICE)"; \
 	case "$$tail" in ''|*[!0-9]*) echo "TAIL is a number of lines" >&2; exit 2 ;; esac; \
 	case "$$service" in *[!a-z0-9-]*) echo "SERVICE is one service's name" >&2; exit 2 ;; esac; \
 	redact=$(TREE)/deploy/scripts/redact.sh; \
@@ -340,9 +350,9 @@ OPERATOR = $(PY_HOST) scripts/operator.py --stack $(ENV)
 OPERATOR_AGENTS = @[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make $@ ENV=$(ENV): agent sessions reach dev-cpu's admin listener only; prod and dev are the Author's (FR-008)" >&2; exit 2; }
 # $(call OPERATOR_FLAG,RENEW,--renew): 1 adds the flag, unset or empty adds nothing, and anything else stops make
 # before the recipe runs.
-OPERATOR_FLAG = $(if $(filter command line,$(origin $(1))),$(if $(filter-out 1,$($(1))),$(error $(1) is 1 or unset, not "$($(1))"),$(if $($(1)), $(2))))
+OPERATOR_FLAG = $(if $(call from_cli,$(1)),$(if $(filter-out 1,$($(1))),$(error $(1) is 1 or unset, not "$($(1))"),$(if $($(1)), $(2))))
 # $(call OPERATOR_VALUE,DAY_USD,--day-usd): the value as the shell reads it; the CLI checks its shape.
-OPERATOR_VALUE = $(if $(filter command line,$(origin $(1))), $(2)="$$$(1)")
+OPERATOR_VALUE = $(if $(call from_cli,$(1)), $(2)="$$$(1)")
 
 operator-token: ## (the Author) Mint ENV's operator token (prod or dev); prints the SHA-256 for its env file
 	$(OPERATOR_AGENTS)
@@ -354,7 +364,7 @@ operator-status: ## ENV's state, meters, and adapters, from its admin listener (
 
 operator-init: ## Initialize ENV's empty store: REASON="..." [CONFIRM_ZERO=1] [RENEW=1] [DAY_USD= MONTH_USD= FALLBACK_TODAY_USD=]
 	$(OPERATOR_AGENTS)
-	@[ "$(origin REASON)" = "command line" ] && [ -n "$$REASON" ] || { echo 'make operator-init needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-init needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
 	$(OPERATOR) init --reason="$$REASON"$(call OPERATOR_FLAG,RENEW,--renew)$(call OPERATOR_FLAG,CONFIRM_ZERO,--confirm-zero)$(call OPERATOR_VALUE,DAY_USD,--day-usd)$(call OPERATOR_VALUE,MONTH_USD,--month-usd)$(call OPERATOR_VALUE,FALLBACK_TODAY_USD,--fallback-today-usd)
 
 # The Author's terminal: it reaches the registries. ONLY=svc,... limits it; TAG="svc=tag ..." pins a tag (an open
