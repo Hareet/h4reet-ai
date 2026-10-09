@@ -483,8 +483,28 @@ def interruptible() -> Iterator[None]:
     try:
         yield
     finally:
-        for signum, handler in previous.items():
-            signal.signal(signum, handler)
+        restore(previous)
+
+
+@contextlib.contextmanager
+def ignoring_signals() -> Iterator[None]:
+    """While the run puts the stack back and prints its table, Ctrl-C, SIGTERM, and SIGHUP are ignored, by this process
+    and by the docker commands it starts, which keep an ignored signal across exec: the cleanup always finishes
+    (round 2's review). Only a SIGKILL, or the host stopping, can cut it short. The run's handlers come back after."""
+    previous = {
+        s: signal.signal(s, signal.SIG_IGN)
+        for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    }
+    try:
+        yield
+    finally:
+        restore(previous)
+
+
+def restore(previous: Mapping[int, Any]) -> None:
+    # A handler that wasn't set from Python comes back as None, which signal.signal won't take: the default, then.
+    for signum, handler in previous.items():
+        signal.signal(signum, signal.SIG_DFL if handler is None else handler)
 
 
 # --- the dates -----------------------------------------------------------------------------------------------------
@@ -1957,23 +1977,24 @@ def run(ctx: Context) -> int:
         report.stopped = str(stop)
         ctx.say(f"breach test: {stop}")
     except (KeyboardInterrupt, Interrupted) as stop:
-        # The same cleanup as any end. A second interrupt stops the cleanup itself.
+        # The same cleanup as any end, which ignores any further interrupt (ignoring_signals).
         why = "Ctrl-C" if isinstance(stop, KeyboardInterrupt) else str(stop)
         report.stopped = f"interrupted ({why})"
         ctx.say(f"breach test: interrupted ({why}): putting the stack back")
     finally:
-        try:
-            if overlaid or ctx.overlay is not None:
-                remove_overlay(ctx)
-        except Stop as problem:
-            ctx.say(f"  cleanup: {problem}")
-        cleanup(ctx)
-    ctx.say("")
-    for line in report.table():
-        ctx.say(line)
-    ctx.say(
-        f"breach test: h4reet-{ctx.stack}, {ctx.delivery} delivery, {round(time.monotonic() - began)} s"
-    )
+        with ignoring_signals():
+            try:
+                if overlaid or ctx.overlay is not None:
+                    remove_overlay(ctx)
+            except Stop as problem:
+                ctx.say(f"  cleanup: {problem}")
+            cleanup(ctx)
+            ctx.say("")
+            for line in report.table():
+                ctx.say(line)
+            ctx.say(
+                f"breach test: h4reet-{ctx.stack}, {ctx.delivery} delivery, {round(time.monotonic() - began)} s"
+            )
     return 0 if report.passed() else 1
 
 
@@ -2189,8 +2210,13 @@ def main(
             "breach.py: exit 2: refused before anything changed", file=out, flush=True
         )
         return 2
-    with interruptible():
-        code = run(ctx)
+    try:
+        with interruptible():
+            code = run(ctx)
+    except (KeyboardInterrupt, Interrupted):
+        # A second interrupt that came before the cleanup began: run()'s cleanup has finished anyway, under
+        # ignoring_signals(), so only the exit is left.
+        code = 1
     if code:
         print(
             "breach.py: exit 1: an assertion missed, or the run stopped (the table says which)",

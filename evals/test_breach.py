@@ -1120,6 +1120,65 @@ def test_the_run_takes_sigterm_and_sighup_and_puts_their_handlers_back() -> None
     assert (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGHUP)) == before
 
 
+class Escaped(Exception):
+    """A signal the run should have ignored, caught by the test's own handler rather than ending pytest."""
+
+
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM, signal.SIGHUP])
+def test_a_signal_during_the_cleanup_is_ignored_and_the_cleanup_finishes(
+    dev_files: tuple[Path, Path, Path], tmp_path: Path, signum: int
+) -> None:
+    # The verifier's run: real delivery fails at s4.spend with the model server stopped, and a signal arrives while the
+    # cleanup puts the gateway back. The cleanup ignores it, as do the docker commands it starts, and finishes: the
+    # gateway on dev's files, the model server started, the overlay gone, and the table (round 2's review).
+    home, env_file, run_file = dev_files
+    stack = FakeStack(fail={"s4.spend"})
+    scratch = tmp_path / "tmp"
+    scratch.mkdir()
+    sent: list[int] = []
+
+    def signalling(
+        argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
+    ) -> tuple[int, str, str]:
+        cleanup = (
+            "up" in argv and argv[-1] == "gateway" and argv.count("--env-file") == 2
+        )
+        if cleanup and not sent:
+            sent.append(signum)
+            os.kill(os.getpid(), signum)
+        return stack(argv, stdin, env, timeout)
+
+    def escaped(number: int, frame: object) -> None:
+        raise Escaped(signal.Signals(number).name)
+
+    argv = ["--stack", "dev", "--env-file", str(env_file), "--run-file", str(run_file)]
+    previous = {
+        s: signal.signal(s, escaped)
+        for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    }
+    try:
+        code, text = run(
+            [*argv, "--delivery", "real"],
+            stack,
+            environ=author(TMPDIR=str(scratch)),
+            runner=signalling,
+            home=home,
+        )
+    except BaseException as escape:  # noqa: BLE001 — whatever left the run, the cleanup didn't finish
+        pytest.fail(
+            f"{type(escape).__name__} ({escape}) left the run before its cleanup finished"
+        )
+    finally:
+        for s, handler in previous.items():
+            signal.signal(s, handler)
+    assert sent == [signum] and code == 1
+    assert stack.commands[-1][-2:] == ["start", "model-server-gpu"]
+    ups = [c for c in stack.commands if "up" in c and c[-1] == "gateway"]
+    assert ups[-1].count("--env-file") == 2
+    assert list(scratch.iterdir()) == []
+    assert rows(text)["4b"][1] == "MISS"  # the table printed
+
+
 def test_real_delivery_puts_the_gateway_back_when_the_run_fails(
     dev_files: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:
