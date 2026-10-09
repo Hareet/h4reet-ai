@@ -638,20 +638,20 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
   - E7: `.env.*` files, every in-tree read deny masked, and a refusal that names the file;
   - E10: no file of the Author's under the data root, and the seeded images back;
   - E11: a file inside `~/.config/h4reet-ai`, not the directory itself.
-- [ ] T129 Normalize each sandbox read deny in `deploy/agents-engine/engine.sh`'s mask check before comparing it with `tree-masks.txt`: drop a leading `./`, a project-relative leading `/`, and a trailing `/**`, and skip only `~/` and `//` paths, per T043 and §5 H8 (partial)
-- [ ] T130 Make `engine.sh seed` refuse unless the host's `docker info` names the containerd snapshotter, and run its disk check before any pull on the host, counting only the images still to seed, per T043 and §6.1–§6.2 (partial)
-- [ ] T131 Have `deploy/agents-engine/egress-proxy.py` record its list's digest when it starts, and make `engine.sh status` print that digest beside the settings' digest, both computed by the proxy's own code, per T040, T043, §4, and §8 (missing)
+- [X] T129 Normalize each sandbox read deny in `deploy/agents-engine/engine.sh`'s mask check before comparing it with `tree-masks.txt`: drop a leading `./`, a project-relative leading `/`, and a trailing `/**`, and skip only `~/` and `//` paths, per T043 and §5 H8 (partial)
+- [X] T130 Make `engine.sh seed` refuse unless the host's `docker info` names the containerd snapshotter, and run its disk check before any pull on the host, counting only the images still to seed, per T043 and §6.1–§6.2 (partial)
+- [X] T131 Have `deploy/agents-engine/egress-proxy.py` record its list's digest when it starts, and make `engine.sh status` print that digest beside the settings' digest, both computed by the proxy's own code, per T040, T043, §4, and §8 (missing)
 - [X] T132 Widen the early patch's `engine.sh` rule in `docs/merge-requests/2026-10-08-feat-000-foundations-enforcement.patch` to a leading `VAR=value`, wrapper options that take an argument (`nice -n`, `watch -n`), and a leading `. `, with a matrix row for each, per T045 and plan §13 (partial)
 - [X] T133 Point the early patch's `ops.md` compose commands at `make status ENV=…` and `make logs ENV=…`, which pass the run file and the export's compose file, and amend plan §15 and T045 to match plan §4, per T045 (contradicts)
 - [X] T134 Record the `.gitleaks.toml` allowlist for ADR 0004 at 8c15b95 as a departure in plan §11 and T045, per plan §11 and FR-012 (contradicts)
-- [ ] T135 Have `deploy/agents-engine/setup-host.sh` write `~/.config/h4reet/agents-engine/docker/config.json` as `{}`, mode 0444, per contracts/agents-engine.md §2.3 (missing)
-- [ ] T136 Match only subdomains for a `*.` entry in `egress-proxy.py`, per T040 and §4 (contradicts)
-- [ ] T137 In `egress-proxy.py`, per T040 and §4 (partial):
+- [X] T135 Have `deploy/agents-engine/setup-host.sh` write `~/.config/h4reet/agents-engine/docker/config.json` as `{}`, mode 0444, per contracts/agents-engine.md §2.3 (missing)
+- [X] T136 Match only subdomains for a `*.` entry in `egress-proxy.py`, per T040 and §4 (contradicts)
+- [X] T137 In `egress-proxy.py`, per T040 and §4 (partial):
   - log `no_list` once a minute;
   - forward a GET's query and headers;
   - give a failed upstream connect and the tunnel cap their own logged reasons;
   - treat a settings file that isn't a JSON object as `no_list`.
-- [ ] T138 Refuse, in `setup-host.sh`, a subordinate-ID range that overlaps one already in `/etc/subuid` or `/etc/subgid`, per T042 and §5 H2 (partial)
+- [X] T138 Refuse, in `setup-host.sh`, a subordinate-ID range that overlaps one already in `/etc/subuid` or `/etc/subgid`, per T042 and §5 H2 (partial)
 - [X] T139 Resolve the main working tree in the early patch's `content-scan.sh` as `pre-commit` does, for both the config and the allowlisted path, per T045 (partial)
 - [X] T140 In `deploy/scripts/init_env.py`'s SYNC mode, list every `__ASK__` key the updated file still holds, per T032 and contracts/env-files.md §9.1 (partial)
 - [X] T141 Point `deploy/scripts/redact.sh`'s comment at `deploy/scripts/test_status.py`, which keeps its filter equal to ops.md's, per T034 (partial)
