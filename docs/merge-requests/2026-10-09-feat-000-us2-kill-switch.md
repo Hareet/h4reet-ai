@@ -2,7 +2,12 @@
 Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5) as the integrator, with two implementer agents (the gateway; the evals, stand-ins, dashboard, and docs) · Date: 2026-10-09
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
-**Status: DRAFT SAVE POINT. Nothing is integrated on this branch yet.** I wrote it before a WSL restart, which wipes `/tmp`, so that Phase 4's state lives in git and not in the agents' scratch worktrees.
+**Status: DRAFT SAVE POINT.** I wrote it before a WSL restart, which wipes `/tmp`, so that Phase 4's state lives in git and not in the agents' scratch worktrees.
+- **The evals half is integrated** (a0d3701 … e7d70c5, then 490170e and 46da52a). That is T071 and T079–T083, with `make check` at 46da52a's tree passing: 5 PASS, 2 SKIP, 4 PLANNED, 0 FAIL. The four PLANNED are the base's own (T045, T022, T063).
+  - Its first three commits were reviewed: sound. Two nits are fixed in 484455c (e7d70c5 here) and in T083.
+  - The breach test itself (T071, T080, T083) is under review now.
+- **The gateway half is still being built** on `us2-gateway`. Its first three commits were reviewed: ready, with five nits relayed to the implementer.
+- **On integration,** the evals agent's save of unfinished work (b8a8010) was squashed into T071's commit (1962034). Its integrated files differ from the agent's tree only by the base's round-3 changes. operator-admin.md §6 now names the probe's two Langfuse keys (490170e).
 
 **Merge order:** this branch is stacked on `feat/000-us1-local-stack` (4d7f3a3). It merges after that branch, which itself waits for T063–T065 and T149.
 
