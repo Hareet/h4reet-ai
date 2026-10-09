@@ -171,6 +171,8 @@ Runbook: docs/runbooks/kill-switch-trip.md
 
 While renewal is pending, the sentence adds "Only a renewal restores fallback." One reminder covers both conditions.
 
+(Added by tasks.md T069, which needed the cases the example leaves out.) Several crossed ceilings are listed in `crossed`'s order, separated by `; `: `(daily ceiling, 2026-10-29; monthly ceiling, 2026-10)`. While the stack is normal and only renewal is pending, the headline is `REMINDER: fallback still awaiting renewal since <time>`, the sentence is "Only a renewal restores fallback.", and the runbook is `fallback-renewal.md` (§6). A reset's sentence names both meters as `day and month` when both are at their ceiling.
+
 **A dev example** (the breach test, on the test clock):
 
 ```text

@@ -15,7 +15,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { renderAlert, type FallbackFacts, type RuntimeFacts } from "../alerts/format.js";
-import { enqueueAlert } from "../alerts/outbox.js";
+import { dedupeKey as dedupeKeys, enqueueAlert } from "../alerts/outbox.js";
 import { thresholds, type AlertsConfig, type Budgets, type EnvClass, type StackName } from "../config/validate.js";
 import { dayKey, monthKey, toRfc3339, type GatewayClock } from "../core/clock.js";
 import type { Gateway } from "../core/gateway.js";
@@ -122,7 +122,7 @@ class AuthFailures {
   /** alerts.md §2: <stack>:auth_failed:admin:<the window's start, YYYY-MM-DDTHH:M0Z>. */
   private async alert(start: number, last: AuthFailureClass): Promise<void> {
     const { deps } = this;
-    const dedupeKey = `${deps.stack}:auth_failed:admin:${new Date(start).toISOString().slice(0, 16)}Z`;
+    const dedupeKey = dedupeKeys.authFailed(deps.stack, start);
     const queued = await deps.store.transaction(async (q) => {
       const { rows } = await q.query<{
         state: string;
@@ -171,6 +171,7 @@ class AuthFailures {
         kind: "auth_failed",
         stack: deps.stack,
         createdAt: toRfc3339(at),
+        enqueuedAt: deps.realNow(),
         subject: rendered.subject,
         body: rendered.body,
         facts: rendered.facts,

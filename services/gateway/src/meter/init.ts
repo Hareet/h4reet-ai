@@ -14,7 +14,7 @@
 // 9. Then the journal's operator record. A failed append is reported, and audited as journal_failed, and doesn't undo
 //    the initialization.
 import { renderAlert, type InitSource, type MeterFacts } from "../alerts/format.js";
-import { enqueueAlert } from "../alerts/outbox.js";
+import { dedupeKey as dedupeKeys, enqueueAlert } from "../alerts/outbox.js";
 import { thresholds, type AlertsConfig, type Budgets, type EnvClass, type StackName } from "../config/validate.js";
 import { gatewayTime, periodKeys, toRfc3339, type GatewayClock } from "../core/clock.js";
 import type { GatewayMetrics } from "../telemetry/metrics.js";
@@ -364,7 +364,7 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
         fallbackAllowanceMicro: allowance,
         grantNo,
       };
-      const dedupeKey = `${deps.stack}:operator_action:init:${auditId}`;
+      const dedupeKey = dedupeKeys.operatorAction(deps.stack, "init", auditId);
       const alert = renderAlert(
         {
           stack: deps.stack,
@@ -396,6 +396,7 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
         kind: "operator_action",
         stack: deps.stack,
         createdAt: atIso,
+        enqueuedAt: deps.realNow(),
         subject: alert.subject,
         body: alert.body,
         facts: alert.facts,
