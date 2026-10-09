@@ -15,6 +15,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -86,6 +87,167 @@ def test_run_it_still_runs_main_and_refuses_the_authors_subcommands_in_a_session
     )
     assert refused.returncode == 1
     assert "'up' is the Author's" in refused.stderr
+
+
+# --------------------------------------------------------------------------------------------------
+# T046's bring-up on 2026-10-09: setup under sudo, up's reload of h4agents' units, a bounded TLS wait
+# --------------------------------------------------------------------------------------------------
+def test_setup_refuses_to_run_under_sudo(tmp_path: Path) -> None:
+    # setup-host.sh takes the Author from SUDO_USER, which a second sudo sets to root. A sudo of the test's own
+    # comes first on PATH, so a guard that regressed runs it, not the real one.
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "sudo"
+    fake.write_text("#!/bin/sh\necho FAKE-SUDO-RAN\n", encoding="utf-8")
+    fake.chmod(0o755)
+    script = (
+        'id() { if [ "$*" = "-u" ]; then echo 0; else command id "$@"; fi; }\ncmd_setup'
+    )
+    done = engine(script, tmp_path, PATH=f"{bin_dir}:/usr/local/bin:/usr/bin:/bin")
+    assert done.returncode == 1
+    assert "FAKE-SUDO-RAN" not in done.stdout
+    assert "run setup as yourself, without sudo" in done.stderr
+
+
+def test_up_reloads_both_user_managers_before_it_starts_their_units(
+    tmp_path: Path,
+) -> None:
+    # A re-run of setup installs new unit files, h4agents' and the Author's proxy's; a start without a reload
+    # runs the old ones.
+    calls = tmp_path / "calls"
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    (lib / "bind-tree.sh").symlink_to(shutil.which("true") or "/bin/true")
+    script = f"""
+lib={q(lib)}
+check_tree_masks() {{ :; }}
+sudo() {{ :; }}
+systemctl() {{ printf 'author %s\\n' "$*" >>{q(calls)}; }}
+as_h4agents_systemctl() {{ printf 'h4agents %s\\n' "$*" >>{q(calls)}; }}
+wait_for_tls() {{ :; }}
+chown_state() {{ :; }}
+engine_docker() {{ :; }}
+cmd_up
+"""
+    done = engine(script, tmp_path)
+    assert done.returncode == 0, done.stderr
+    lines = calls.read_text(encoding="utf-8").splitlines()
+    h4agents = [line for line in lines if line.startswith("h4agents ")]
+    assert h4agents[0] == "h4agents daemon-reload"
+    assert "h4agents start h4-authz.service" in h4agents
+    assert "h4agents start docker.service" in h4agents
+    assert lines.index("author --user daemon-reload") < lines.index(
+        "author --user restart h4-egress-proxy.service"
+    )
+
+
+def test_wait_for_tls_takes_only_whole_seconds(tmp_path: Path) -> None:
+    # bash evaluates a name inside $(( )), so a value like a[$(cmd)] would run cmd.
+    ran = tmp_path / "ran"
+    script = f"""
+tls_wait='a[$(touch {q(ran)})]'
+engine_docker() {{ return 0; }}
+wait_for_tls
+echo ANSWERED
+"""
+    done = engine(script, tmp_path)
+    assert done.returncode == 1
+    assert "tls_wait and tls_try take whole seconds" in done.stderr
+    assert not ran.exists()
+
+
+def _refusals(
+    tmp_path: Path, log: str | None, *, password: bool = False
+) -> subprocess.CompletedProcess[str]:
+    """status_refusals with `log` as the decision log (None: no log), read through a stand-in sudo that runs
+    the command as this user, or refuses as sudo -n does when it would ask for a password."""
+    path = tmp_path / "authz.jsonl"
+    if log is not None:
+        path.write_text(log, encoding="utf-8")
+    sudo = (
+        "sudo() { return 1; }"
+        if password
+        else 'sudo() { [ "$1" = -n ] && shift; [ "$1" = -u ] && shift 2; "$@"; }'
+    )
+    return engine(f"H4_AUTHZ_LOG={q(path)}\n{sudo}\nstatus_refusals", tmp_path)
+
+
+def test_status_lists_the_refusals_it_reads_as_h4agents(tmp_path: Path) -> None:
+    log = '{"decision":"allow","rule":"allow"}\n{"decision":"refuse","rule":"A14"}\n'
+    done = _refusals(tmp_path, log)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == '{"decision":"refuse","rule":"A14"}'
+
+
+@pytest.mark.parametrize(
+    ("log", "password", "said"),
+    [
+        ('{"decision":"allow","rule":"allow"}\n', False, "(none)"),
+        (None, False, "(no log yet at "),
+        ('{"decision":"refuse","rule":"A14"}\n', True, "sudo would ask for a password"),
+    ],
+)
+def test_status_says_why_it_lists_no_refusals(
+    tmp_path: Path, log: str | None, password: bool, said: str
+) -> None:
+    # It once printed nothing at all when the Author couldn't read h4agents' log (§3.5).
+    done = _refusals(tmp_path, log, password=password)
+    assert done.returncode == 0, done.stderr
+    assert said in done.stdout
+    assert '"refuse"' not in done.stdout
+
+
+def _running(pid: str) -> bool:
+    """Is the process there and not a zombie waiting to be reaped?"""
+    try:
+        stat_line = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return stat_line.rpartition(")")[2].split()[0] != "Z"
+
+
+def _wait_for_tls(
+    tmp_path: Path, probe: str
+) -> tuple[subprocess.CompletedProcess[str], float]:
+    """wait_for_tls with `probe` standing in for docker version: a 3 s wait, each try stopped at 1 s."""
+    script = f"""
+tls_wait=3
+tls_try=1
+engine_docker() {{ {probe}; }}
+h4_uid() {{ echo 999; }}
+wait_for_tls
+echo ANSWERED
+"""
+    start = time.monotonic()
+    done = engine(script, tmp_path)
+    return done, time.monotonic() - start
+
+
+def test_wait_for_tls_returns_once_the_engine_answers(tmp_path: Path) -> None:
+    done, _ = _wait_for_tls(tmp_path, "return 0")
+    assert "ANSWERED" in done.stdout, done.stderr
+
+
+def test_wait_for_tls_gives_up_on_an_engine_that_refuses(tmp_path: Path) -> None:
+    done, took = _wait_for_tls(tmp_path, "return 1")
+    assert done.returncode == 1
+    assert "did not answer TLS on 198.18.0.1:2376 within 3 s" in done.stderr
+    assert took < 20
+
+
+def test_wait_for_tls_stops_a_try_that_never_returns(tmp_path: Path) -> None:
+    # The forward that took the connection and never reached the daemon: docker version hung for minutes.
+    pids = tmp_path / "pids"
+    probe = f"sh -c 'echo $$ >>{q(pids)}; exec sleep 300'"
+    done, took = _wait_for_tls(tmp_path, probe)
+    assert done.returncode == 1
+    assert "ANSWERED" not in done.stdout
+    assert "did not answer TLS on 198.18.0.1:2376 within 3 s" in done.stderr
+    assert "sudo journalctl _UID=999" in done.stderr
+    assert took < 20
+    started = pids.read_text(encoding="utf-8").split()
+    assert started  # at least one try ran
+    assert not [pid for pid in started if _running(pid)]  # and none outlives the wait
 
 
 # --------------------------------------------------------------------------------------------------

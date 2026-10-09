@@ -293,3 +293,251 @@ def test_ensure_subids_refuses_a_range_of_h4agents_that_overlaps_another(
     assert done.returncode != 0
     assert "h4reet:100000:65536" in done.stderr
     assert calls == []
+
+
+# --------------------------------------------------------------------------------------------------
+# T046's bring-up on 2026-10-09: who runs it, the plugin's spec file, the decision log's directory, and
+# the run's last words
+# --------------------------------------------------------------------------------------------------
+def _resolve_author(
+    tmp_path: Path, sudo_user: str | None
+) -> subprocess.CompletedProcess[str]:
+    """resolve_author past its root check, with SUDO_USER as given (None: unset)."""
+    sudo = (
+        "unset SUDO_USER" if sudo_user is None else f"export SUDO_USER={q(sudo_user)}"
+    )
+    script = f"""
+id() {{ if [ "$*" = "-u" ]; then echo 0; else command id "$@"; fi; }}
+{sudo}
+resolve_author
+echo "RESOLVED $author_cert_dir"
+"""
+    return setup_host(script, tmp_path)
+
+
+@pytest.mark.parametrize(("sudo_user", "named"), [(None, "unset"), ("root", "root")])
+def test_without_the_author_in_sudo_user_it_says_to_run_setup_without_sudo(
+    tmp_path: Path, sudo_user: str | None, named: str
+) -> None:
+    # root is what `sudo engine.sh setup` gives it, engine.sh's own sudo being the second.
+    done = _resolve_author(tmp_path, sudo_user)
+    assert done.returncode == 1
+    assert "RESOLVED" not in done.stdout
+    assert f"SUDO_USER is {named}" in done.stderr
+    assert "engine.sh setup as yourself, without sudo" in done.stderr
+
+
+def test_the_author_comes_from_sudo_user(tmp_path: Path) -> None:
+    done = _resolve_author(tmp_path, ME)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip().endswith("/.config/h4reet-ai/agents-engine/docker")
+
+
+SOCKET = "unix:///run/user/999/docker/plugins/h4-authz.sock"
+
+
+# runuser, standing in: the command runs as this user, who stands in for h4agents. `command` skips the shell
+# functions that stand in for root's own commands, so a test can tell the two apart.
+AS_H4AGENTS = 'runuser() { shift 2; [ "$1" = -- ] && shift; command "$@"; }'
+
+
+def _plugin_spec(tmp_path: Path, *, before: str | None = None, link: bool = False):
+    """ensure_plugin_spec into a temporary h4agents home, twice, this user standing in for h4agents. The
+    plugins directory is there, as setup_rootless_docker makes it. `before` is a spec already there, mode
+    0644; `link` puts a link there instead, to a file of its own."""
+    home = tmp_path / "home"
+    spec = home / ".config" / "docker" / "plugins" / "h4-authz.spec"
+    victim = tmp_path / "victim"
+    spec.parent.mkdir(parents=True)
+    if link:
+        victim.write_text("unix:///elsewhere.sock\n", encoding="utf-8")
+        spec.symlink_to(victim)
+    elif before is not None:
+        spec.write_text(before, encoding="utf-8")
+        spec.chmod(0o644)
+    script = f"""
+user={q(ME)}
+{AS_H4AGENTS}
+log() {{ printf 'log: %s\\n' "$*"; }}
+ensure_plugin_spec {q(home)} /run/user/999
+echo FIRST-DONE
+ensure_plugin_spec {q(home)} /run/user/999
+echo SECOND-DONE
+"""
+    done = setup_host(script, tmp_path)
+    return done, spec, victim
+
+
+def test_plugin_spec_names_the_socket_by_path(tmp_path: Path) -> None:
+    done, spec, _ = _plugin_spec(tmp_path)
+    assert "SECOND-DONE" in done.stdout, done.stderr
+    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
+    info = spec.stat()
+    assert stat.S_IMODE(info.st_mode) == 0o644
+    assert info.st_uid == os.getuid()
+
+
+def test_plugin_spec_write_is_idempotent(tmp_path: Path) -> None:
+    done, _, _ = _plugin_spec(tmp_path)
+    first, second = done.stdout.split("FIRST-DONE")
+    assert "h4-authz.spec" in first  # the first run writes it and says so
+    assert "log:" not in second  # the second finds it right and changes nothing
+
+
+def test_plugin_spec_replaces_an_empty_one(tmp_path: Path) -> None:
+    # An empty spec, as a wrapped command left on 2026-10-09, reads as "legacy plugin: Unknown protocol".
+    done, spec, _ = _plugin_spec(tmp_path, before="")
+    assert "SECOND-DONE" in done.stdout, done.stderr
+    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
+
+
+def test_plugin_spec_replaces_a_link_rather_than_writing_through_it(
+    tmp_path: Path,
+) -> None:
+    done, spec, victim = _plugin_spec(tmp_path, link=True)
+    assert "SECOND-DONE" in done.stdout, done.stderr
+    assert victim.read_text(encoding="utf-8") == "unix:///elsewhere.sock\n"
+    assert not spec.is_symlink()
+    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
+
+
+def test_h4agents_owns_the_decision_logs_directory(tmp_path: Path) -> None:
+    # The plugin writes and rotates its log there as h4agents; under root its writes failed (§3.5).
+    calls = tmp_path / "calls"
+    script = f"""
+install() {{ printf 'install %s\\n' "$*" >>{q(calls)}; }}
+ensure_dirs
+echo DIRS-OK
+"""
+    done = setup_host(script, tmp_path)
+    assert "DIRS-OK" in done.stdout, done.stderr
+    lines = calls.read_text(encoding="utf-8").splitlines()
+    assert "install -d -o h4agents -g h4agents -m 0750 /var/log/h4agents" in lines
+    assert [line for line in lines if "/var/log/h4agents" in line] == [
+        "install -d -o h4agents -g h4agents -m 0750 /var/log/h4agents"
+    ]
+
+
+def test_setup_writes_into_h4agents_home_only_as_h4agents(tmp_path: Path) -> None:
+    # h4agents can make any directory in its home a link; root following one could chown or write anywhere,
+    # /usr/local/lib/h4agents included (H13; the review of T046's bring-up, 2026-10-09).
+    home = tmp_path / "home"
+    unit_dir = home / ".config" / "systemd" / "user"
+    unit_dir.mkdir(parents=True)
+    (unit_dir / "docker.service").write_text(
+        "", encoding="utf-8"
+    )  # the rootless install is done
+    calls = tmp_path / "calls"
+    script = f"""
+user={q(ME)}
+h4_home={q(home)}
+id() {{ if [ "$*" = "-u {ME}" ]; then echo 999; else command id "$@"; fi; }}
+runuser() {{ shift 2; [ "$1" = -- ] && shift; printf 'as-h4agents %s\\n' "$*" >>{q(calls)}; command "$@"; }}
+install() {{ printf 'as-root install %s\\n' "$*" >>{q(calls)}; command install "$@"; }}
+log() {{ :; }}
+setup_rootless_docker
+echo DONE
+"""
+    done = setup_host(script, tmp_path)
+    assert "DONE" in done.stdout, done.stderr
+    lines = calls.read_text(encoding="utf-8").splitlines()
+    assert [line for line in lines if line.startswith("as-root")] == []
+    here = SETUP.parent
+    docker = home / ".config" / "docker"
+    assert (docker / "daemon.json").read_bytes() == (here / "daemon.json").read_bytes()
+    assert (docker / "plugins" / "h4-authz.spec").read_text(
+        encoding="utf-8"
+    ) == SOCKET + "\n"
+    assert (unit_dir / "h4-authz.service").read_bytes() == (
+        here / "systemd" / "h4-authz.service"
+    ).read_bytes()
+    override = unit_dir / "docker.service.d" / "override.conf"
+    assert (
+        override.read_bytes()
+        == (here / "systemd" / "docker.service.d" / "override.conf").read_bytes()
+    )
+    assert stat.S_IMODE((docker / "plugins").stat().st_mode) == 0o700
+
+
+def test_the_api_publish_names_its_child_address() -> None:
+    # Without one, RootlessKit dialed 198.18.0.1 inside its namespace, and the firewall dropped it (T046).
+    conf = SETUP.parent / "systemd" / "docker.service.d" / "override.conf"
+    flags = [
+        line
+        for line in conf.read_text(encoding="utf-8").splitlines()
+        if line.startswith('Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS=')
+    ]
+    publish = "--publish 198.18.0.1:2376:127.0.0.1:2376/tcp"
+    assert flags == [f'Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS={publish}"']
+
+
+def _restart(
+    tmp_path: Path, steps: str, *, boot: str = "boot-a"
+) -> subprocess.CompletedProcess[str]:
+    """Run `steps` with the restart marker and the boot's ID in a temporary directory."""
+    (tmp_path / "boot_id").write_text(boot + "\n", encoding="utf-8")
+    script = f"""
+restart_marker={q(tmp_path / "etc" / "wsl-restart-pending")}
+boot_id_file={q(tmp_path / "boot_id")}
+install() {{ command install -d -m 0755 "${{@: -1}}"; }}
+{steps}
+"""
+    return setup_host(script, tmp_path)
+
+
+def test_a_change_that_needs_a_shutdown_is_asked_for_until_one_comes(
+    tmp_path: Path,
+) -> None:
+    # The first run notes it; a re-run before the shutdown asks for it too, though it changed nothing itself.
+    noted = _restart(tmp_path, 'note_restart "the Author\'s membership of h4gpu"')
+    assert noted.returncode == 0, noted.stderr
+    again = _restart(tmp_path, "next_steps")
+    assert "    wsl --shutdown\n" in again.stdout
+    assert "needed for the Author's membership of h4gpu to take effect" in again.stdout
+    after = _restart(
+        tmp_path, "next_steps", boot="boot-b"
+    )  # a new boot: the shutdown came
+    assert "    wsl --shutdown\n" not in after.stdout
+    assert "No wsl --shutdown is needed" in after.stdout
+    assert "    deploy/agents-engine/engine.sh down\n" in after.stdout
+    assert not (tmp_path / "etc" / "wsl-restart-pending").exists()
+
+
+def test_the_reasons_are_each_named_once(tmp_path: Path) -> None:
+    steps = """
+note_restart "the Author's membership of h4gpu"
+note_restart "/etc/wsl.conf's automount change"
+note_restart "the Author's membership of h4gpu"
+pending_restart
+"""
+    done = _restart(tmp_path, steps)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == (
+        "the Author's membership of h4gpu, and /etc/wsl.conf's automount change"
+    )
+
+
+def test_nothing_noted_means_no_shutdown(tmp_path: Path) -> None:
+    done = _restart(tmp_path, "next_steps")
+    assert done.returncode == 0, done.stderr
+    assert "No wsl --shutdown is needed" in done.stdout
+
+
+@pytest.mark.parametrize("held", [True, False])
+def test_a_new_gpu_group_membership_notes_a_wsl_shutdown(
+    tmp_path: Path, held: bool
+) -> None:
+    groups = f"{ME} h4gpu" if held else ME
+    steps = f"""
+author={q(ME)}
+getent() {{ return 0; }}
+id() {{ if [ "$1" = -nG ]; then echo {q(groups)}; else command id "$@"; fi; }}
+usermod() {{ :; }}
+log() {{ :; }}
+ensure_gpu_group
+echo "WHY [$(pending_restart)]"
+"""
+    done = _restart(tmp_path, steps)
+    assert done.returncode == 0, done.stderr
+    want = "" if held else f"{ME}'s membership of h4gpu"
+    assert f"WHY [{want}]" in done.stdout

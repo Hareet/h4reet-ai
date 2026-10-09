@@ -415,6 +415,50 @@ pcommit refused 'a staged key marked gitleaks:allow' leak2.txt "k = $fake_lf # g
 printf '%s\n' 'anything' >"$pc/.gitleaksignore"
 pcommit refused 'a .gitleaksignore at the root (research.md R-36)' notes2.md 'still clean'
 rm -f "$pc/.gitleaksignore"
+# In the main tree, a .gitleaksignore passes only when it holds nothing a session could fill: an empty file, what a
+# killed session leaves at the denied path (2026-10-09). A link or a FIFO could carry entries whatever their size
+# says. In a worktree of its own, anything there refuses. plant <empty|link|fifo>: one at the root, or a FAIL row.
+plant() {
+  case "$1" in
+    empty) : >"$pc/.gitleaksignore" ;;
+    link) ln -s /dev/null "$pc/.gitleaksignore" ;;
+    fifo) mkfifo "$pc/.gitleaksignore" ;;
+  esac 2>/dev/null && return 0
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' pre-commit "couldn't plant a .gitleaksignore that is $1"
+  return 1
+}
+if plant empty; then pcommit ok 'an empty .gitleaksignore, as a killed session leaves at the denied path' notes4.md 'clean'; fi
+rm -f "$pc/.gitleaksignore"
+if plant link; then pcommit refused 'a .gitleaksignore that is a link, even to /dev/null' notes5.md 'clean'; fi
+rm -f "$pc/.gitleaksignore"
+if plant fifo; then pcommit refused 'a .gitleaksignore that is a FIFO, whose size is 0' notes6.md 'clean'; fi
+rm -f "$pc/.gitleaksignore"
+pcw="$scratch/pre-commit-worktree"
+if git -C "$pc" worktree add -q -b pc-worktree "$pcw" >/dev/null 2>&1; then
+  : >"$pcw/.gitleaksignore"
+  printf '%s\n' clean >"$pcw/notes7.md"
+  git -C "$pcw" add -- notes7.md
+  if git -C "$pcw" commit -q -m 'an empty .gitleaksignore in a worktree' >/dev/null 2>&1; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' pre-commit "an empty .gitleaksignore in a worktree of its own: expected refused, got ok"
+  else
+    pass=$((pass + 1))
+  fi
+else
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' pre-commit "couldn't add a worktree to plant a .gitleaksignore in"
+fi
+# The sandbox's own mask, /dev/null bound over the denied path, takes a mount to make, so only a run inside a session
+# meets it, in this repository's main tree. There the hook's holds_nothing must let it through.
+if [ -c "$repo/.gitleaksignore" ]; then
+  if (eval "$(sed -n '/^holds_nothing()/,/^}/p' "$repo/.claude/git-hooks/pre-commit")" && holds_nothing "$repo/.gitleaksignore"); then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' pre-commit "the sandbox's /dev/null mask over .gitleaksignore is refused"
+  fi
+fi
 pcommit refused 'gitleaks missing from PATH (fails closed)' notes3.md 'clean' PATH=/usr/bin:/bin
 
 # --- subagent-report-check.sh: a report it can't check is a warning, never silence (FR-010) ------

@@ -1299,9 +1299,18 @@ nft_drop_count() {
 }
 
 excerpts() {
+	local refusals
 	echo
 	echo "== the plugin's last refusals (${H4_AUTHZ_LOG})"
-	[ -r "$H4_AUTHZ_LOG" ] && grep '"decision":"refuse"' "$H4_AUTHZ_LOG" | tail -n 10 || echo "  (none)"
+	# Read as h4agents, never as root: h4agents owns the log's directory, so a link there could lead anywhere. As
+	# the Author it was never readable, and "(none)" hid that (§3.5; the review of T046's bring-up).
+	if refusals="$(sudo -u h4agents grep -- '"decision":"refuse"' "$H4_AUTHZ_LOG" 2>/dev/null)"; then
+		tail -n 10 <<<"$refusals"
+	elif sudo -u h4agents test -f "$H4_AUTHZ_LOG"; then
+		echo "  (none)"
+	else
+		echo "  (no log, or h4agents can't read it: $H4_AUTHZ_LOG)"
+	fi
 	echo "== the egress proxy's last decisions (${H4_EGRESS_LOG})"
 	[ -r "$H4_EGRESS_LOG" ] && tail -n 10 "$H4_EGRESS_LOG" || echo "  (none)"
 	echo "== the firewall's drop counter"

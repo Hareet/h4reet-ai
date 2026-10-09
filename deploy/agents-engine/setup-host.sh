@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The agents' engine host setup (spec 000, FR-039; contracts/agents-engine.md §5, H1-H14).
 #
-# Run once by the Author with sudo, through `deploy/agents-engine/engine.sh setup`, followed by one
-# `wsl --shutdown`. Idempotent: every step checks before it changes, and reissues a client certificate
+# Run by the Author as themselves through `deploy/agents-engine/engine.sh setup`, which calls sudo: under a
+# second sudo, SUDO_USER would be root. The first run is followed by one `wsl --shutdown`; a re-run says
+# whether it needs one. Idempotent: every step checks before it changes, and reissues a client certificate
 # only when it is missing or within 30 days of expiry. It fails closed on any error.
 #
 # NEVER run from an agent session: it needs sudo, and a user that does not exist yet. Human-only (the
@@ -33,6 +34,11 @@ author=""
 author_home=""
 agent_cert_dir=""
 author_cert_dir=""
+h4_home="/var/lib/h4agents/home"
+# What only a wsl --shutdown applies, still waiting for one: ensure_gpu_group and ensure_wsl_conf note it, with the
+# boot's ID, so a re-run before the shutdown still asks for it, and the first run after one doesn't.
+restart_marker="$etc/wsl-restart-pending"
+boot_id_file="/proc/sys/kernel/random/boot_id"
 
 log() { printf '== %s\n' "$*"; }
 
@@ -49,7 +55,8 @@ resolve_author() {
 	fi
 	author="${SUDO_USER:-}"
 	if [ -z "$author" ] || [ "$author" = "root" ]; then
-		echo "run through sudo as the Author, not as root directly (SUDO_USER is unset)" >&2
+		# Unset when root runs this directly; root under `sudo engine.sh setup`, whose own sudo is the second.
+		echo "SUDO_USER is ${author:-unset}, so the Author is unknown: run deploy/agents-engine/engine.sh setup as yourself, without sudo (it calls sudo itself)" >&2
 		exit 1
 	fi
 	author_home="$(getent passwd "$author" | cut -d: -f6)"
@@ -161,13 +168,17 @@ ensure_gpu_group() {
 	if ! id -nG "$author" | tr ' ' '\n' | grep -qx "$gpu_group"; then
 		log "adding $author to $gpu_group"
 		usermod --append --groups "$gpu_group" "$author"
+		note_restart "$author's membership of $gpu_group"
 	fi
 }
 
 # --- directories ---------------------------------------------------------------------------------
 ensure_dirs() {
 	install -d -o root -g root -m 0755 "$lib" "$etc" "$models_src"
-	install -d -o root -g "$user" -m 0750 "$pki" "$log_dir"
+	install -d -o root -g "$user" -m 0750 "$pki"
+	# The plugin runs as h4agents and writes and rotates its decision log here (§3.5), so h4agents owns it. Under
+	# root, the plugin's writes failed, and it drops a record it can't write rather than block (T046, 2026-10-09).
+	install -d -o "$user" -g "$user" -m 0750 "$log_dir"
 	install -d -o "$user" -g "$user" -m 0700 "$state"
 }
 
@@ -226,23 +237,53 @@ owned_dirs() {
 }
 
 # --- H14, H5: rootless docker for h4agents -------------------------------------------------------
+# h4agents owns every directory in its home, so a process running as h4agents can make any of them a link. Root
+# following one would chown or write wherever it led, /usr/local/lib/h4agents included, and the copies root runs
+# would be h4agents' to change (H13; the review of T046's bring-up, 2026-10-09). So setup writes there only as
+# h4agents: a link then reaches only what h4agents could write already. Each file goes through a copy h4agents
+# can read, since the repository sits under the Author's home.
+as_h4agents() { runuser -u "$user" -- "$@"; }
+
+# h4agents_copy <mode> <source> <destination>: the file, installed there by h4agents.
+h4agents_copy() {
+	local tmp
+	tmp="$(mktemp)"
+	cp -- "$2" "$tmp"
+	chmod 0644 "$tmp"
+	as_h4agents install -T -m "$1" "$tmp" "$3" # -T: a directory there fails, not fills
+	rm -f -- "$tmp"
+}
+
+# ensure_plugin_spec <home> <runtime dir>: the spec file through which dockerd finds the admission plugin
+# (§3.1). A rootless daemon doesn't find the socket in the runtime directory where authz.py makes it, and refuses
+# to start: "plugin h4-authz not found" (T046, 2026-10-09). It reads spec files from ~/.config/docker/plugins
+# first, and this one names the socket by path. Left alone when it already holds exactly that, as h4agents'
+# regular file, mode 0644. h4agents compares them, so a FIFO there holds setup up for 5 s at most.
+ensure_plugin_spec() {
+	local spec="$1/.config/docker/plugins/h4-authz.spec" tmp
+	tmp="$(mktemp)"
+	printf 'unix://%s/docker/plugins/h4-authz.sock\n' "$2" >"$tmp"
+	chmod 0644 "$tmp"
+	if [ -L "$spec" ] || [ "$(stat -c '%a %U %F' -- "$spec" 2>/dev/null)" != "644 $user regular file" ] ||
+		! as_h4agents timeout 5 cmp -s -- "$tmp" "$spec"; then
+		log "writing $spec: $(cat -- "$tmp")"
+		as_h4agents install -T -m 0644 "$tmp" "$spec"
+	fi
+	rm -f -- "$tmp"
+}
+
 setup_rootless_docker() {
 	local uid runtime
 	uid="$(id -u "$user")"
 	runtime="/run/user/$uid"
-	owned_dirs "$user" "/var/lib/h4agents/home/.config" "/var/lib/h4agents/home/.config/systemd"
-	install -d -o "$user" -g "$user" -m 0700 \
-		"/var/lib/h4agents/home/.config/docker" \
-		"/var/lib/h4agents/home/.config/systemd/user" \
-		"/var/lib/h4agents/home/.config/systemd/user/docker.service.d"
-	install -o "$user" -g "$user" -m 0644 "$here/daemon.json" \
-		"/var/lib/h4agents/home/.config/docker/daemon.json"
-	install -o "$user" -g "$user" -m 0644 "$here/systemd/h4-authz.service" \
-		"/var/lib/h4agents/home/.config/systemd/user/h4-authz.service"
-	install -o "$user" -g "$user" -m 0644 "$here/systemd/docker.service.d/override.conf" \
-		"/var/lib/h4agents/home/.config/systemd/user/docker.service.d/override.conf"
+	as_h4agents install -d -m 0700 "$h4_home/.config/docker/plugins" "$h4_home/.config/systemd/user/docker.service.d"
+	h4agents_copy 0644 "$here/daemon.json" "$h4_home/.config/docker/daemon.json"
+	ensure_plugin_spec "$h4_home" "$runtime"
+	h4agents_copy 0644 "$here/systemd/h4-authz.service" "$h4_home/.config/systemd/user/h4-authz.service"
+	h4agents_copy 0644 "$here/systemd/docker.service.d/override.conf" \
+		"$h4_home/.config/systemd/user/docker.service.d/override.conf"
 	# Install the rootless daemon as h4agents' user service (idempotent).
-	if [ ! -e "/var/lib/h4agents/home/.config/systemd/user/docker.service" ]; then
+	if [ ! -e "$h4_home/.config/systemd/user/docker.service" ]; then
 		log "installing rootless docker for $user"
 		runuser -u "$user" -- env XDG_RUNTIME_DIR="$runtime" PATH="/usr/bin:/usr/sbin:/bin:/sbin" \
 			dockerd-rootless-setuptool.sh install --skip-iptables || {
@@ -273,6 +314,7 @@ ensure_wsl_conf() {
 		return 0
 	fi
 	log "setting /etc/wsl.conf automount umask=077,fmask=077 (needs one wsl --shutdown)"
+	note_restart "/etc/wsl.conf's automount change"
 	if [ ! -f "$conf" ]; then
 		cat >"$conf" <<'EOF'
 [automount]
@@ -405,15 +447,58 @@ main() {
 	install_author_units
 	enable_system_units
 	ensure_wsl_conf
-	cat <<EOF
+	next_steps
+}
+
+# note_restart <reason>: a change only a wsl --shutdown applies, recorded at once in the marker, under this boot's
+# ID, so a run that fails later still leaves it. A marker from an earlier boot is spent, and starts over.
+note_restart() {
+	local boot
+	boot="$(cat -- "$boot_id_file")"
+	install -d -o root -g root -m 0755 "${restart_marker%/*}"
+	if [ ! -f "$restart_marker" ] || [ "$(head -n 1 -- "$restart_marker")" != "$boot" ]; then
+		printf '%s\n' "$boot" >"$restart_marker"
+	fi
+	awk -v reason="$1" 'NR > 1 && $0 == reason { held = 1 } END { exit !held }' "$restart_marker" ||
+		printf '%s\n' "$1" >>"$restart_marker"
+}
+
+# pending_restart: what still waits for a wsl --shutdown this boot, joined, or nothing. A marker from an earlier
+# boot is spent: the shutdown came, and the marker goes.
+pending_restart() {
+	[ -f "$restart_marker" ] || return 0
+	if [ "$(head -n 1 -- "$restart_marker")" != "$(cat -- "$boot_id_file")" ]; then
+		rm -f -- "$restart_marker"
+		return 0
+	fi
+	awk 'NR > 1 { printf "%s%s", (NR > 2 ? ", and " : ""), $0; n++ } END { if (n) print "" }' "$restart_marker"
+}
+
+# The run's last words: the wsl --shutdown while a change that needs one still waits for it, whichever run made
+# the change, and otherwise the restart of h4agents' plugin and daemon, which up alone wouldn't give a daemon
+# already running.
+next_steps() {
+	local why
+	why="$(pending_restart)"
+	if [ -n "$why" ]; then
+		cat <<EOF
 
 Host setup complete. Next, in PowerShell:
     wsl --shutdown
 Then open a new WSL shell and run:
     deploy/agents-engine/engine.sh up
-The shutdown is needed for /etc/wsl.conf's automount change to take effect, and it ends every WSL
+The shutdown is needed for $why to take effect, and it ends every WSL
 session, agents' included.
 EOF
+	else
+		cat <<EOF
+
+Host setup complete. No wsl --shutdown is needed: nothing waits for one. To run h4agents' plugin and daemon
+from what it installed:
+    deploy/agents-engine/engine.sh down
+    deploy/agents-engine/engine.sh up
+EOF
+	fi
 }
 
 # Run as a command; sourced, it only defines the functions above, which the tests call
