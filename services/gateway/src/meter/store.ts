@@ -37,8 +37,12 @@ export interface Session extends Queryable {
 export interface Database extends Queryable {
   /** One connection for the length of `fn`: for an advisory lock or a transaction. */
   withSession<T>(fn: (session: Session) => Promise<T>, opts?: { purpose?: "migrate" }): Promise<T>;
-  /** The one LISTEN connection (the alert dispatcher's, tasks.md T077). Resolves to its close function. */
-  listen(channel: string, onNotify: () => void): Promise<() => Promise<void>>;
+  /**
+   * The one LISTEN connection (the alert dispatcher's, tasks.md T077). Resolves to its close function. `onEnd` is
+   * called once if the connection ends or fails on its own, as when Postgres restarts, so the caller can listen again;
+   * never after the close function ran.
+   */
+  listen(channel: string, onNotify: () => void, onEnd: () => void): Promise<() => Promise<void>>;
   close(): Promise<void>;
 }
 
@@ -129,16 +133,30 @@ export function pgDatabase(s: PgSettings): Database {
         client.release(failure);
       }
     },
-    async listen(channel, onNotify) {
+    async listen(channel, onNotify, onEnd) {
       if (!/^[a-z_]+$/.test(channel)) throw new Error("a channel name is lower-case letters and underscores");
       const client = new Client(config);
-      client.on("error", () => {}); // the caller reconnects; an error here must not crash the process
+      let closed = false;
+      let ended = false;
+      // A dropped connection emits 'error', then 'end'. Either one ends this LISTEN: the client goes, and the caller
+      // listens again on a fresh one. An error here must not crash the process, and none is thrown from here.
+      const end = (): void => {
+        if (ended) return;
+        ended = true;
+        void client.end().catch(() => {});
+        if (!closed) onEnd();
+      };
+      client.on("error", end);
+      client.on("end", end);
       await client.connect();
       client.on("notification", (msg) => {
         if (msg.channel === channel) onNotify();
       });
       await client.query(`LISTEN ${channel}`);
-      return async () => void (await client.end().catch(() => {}));
+      return async () => {
+        closed = true;
+        await client.end().catch(() => {});
+      };
     },
     close: () => pool.end(),
   };
@@ -717,8 +735,8 @@ export class Store {
   }
 
   /** The dedicated LISTEN connection: the alert dispatcher's wake-up (data-model.md §2.7). Resolves to its close. */
-  listen(channel: string, onNotify: () => void): Promise<() => Promise<void>> {
-    return this.opts.db.listen(channel, onNotify);
+  listen(channel: string, onNotify: () => void, onEnd: () => void): Promise<() => Promise<void>> {
+    return this.opts.db.listen(channel, onNotify, onEnd);
   }
 
   async close(): Promise<void> {

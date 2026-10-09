@@ -187,7 +187,7 @@ Runbook: docs/runbooks/cost-warning.md
 ### 4.1 The dispatcher
 
 - **Where it runs:** in the gateway process, so no second service needs egress ([plan.md §1](../plan.md#1-topology)).
-- **When it wakes:** on `LISTEN alert_outbox`, or every 2 s. It claims due rows with `SELECT … FOR UPDATE SKIP LOCKED`.
+- **When it wakes:** on `LISTEN alert_outbox`, or every 2 s. It claims due rows with `SELECT … FOR UPDATE SKIP LOCKED`. When the LISTEN connection ends on its own, as when Postgres restarts under the running gateway, the next pass listens again on a fresh connection, and the 2 s poll covers the gap (tasks.md T077, review).
 - **Independent channels.** One channel's failure never delays or stops the other.
 
 | Channel | Request | Timeout | Success | Recorded reference |

@@ -651,7 +651,7 @@ function flaky(db: Database, failures: number): Database & { attempts: () => num
       }
       return db.withSession(fn, opts);
     },
-    listen: (c, f) => db.listen(c, f),
+    listen: (c, f, e) => db.listen(c, f, e),
     close: () => db.close(),
   };
 }
@@ -838,7 +838,7 @@ describe("the store", () => {
         if (down) throw Object.assign(new Error("connect ECONNREFUSED 10.0.0.1:5432"), { code: "ECONNREFUSED" });
         return db.withSession(fn, opts);
       },
-      listen: (c, f) => db.listen(c, f),
+      listen: (c, f, e) => db.listen(c, f, e),
       close: () => db.close(),
     };
     const store = new Store({ db: database, migrations, envClass: "dev", logger, onFatal: () => {}, retryMs: 20 });

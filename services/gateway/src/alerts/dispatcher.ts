@@ -234,6 +234,8 @@ export class Dispatcher {
   private timer: NodeJS.Timeout | undefined;
   private reminderTimer: NodeJS.Timeout | undefined;
   private unlisten: (() => Promise<void>) | undefined;
+  /** The LISTEN connection being made or held, while it lasts: its end clears it, and the next pass listens again. */
+  private listening: object | undefined;
   private ticking: Promise<void> | undefined;
   private again = false;
   private stopped = true;
@@ -265,8 +267,10 @@ export class Dispatcher {
     this.timer = undefined;
     this.reminderTimer = undefined;
     await this.ticking?.catch(() => {});
-    await this.unlisten?.().catch(() => {});
+    const unlisten = this.unlisten;
+    this.listening = undefined;
     this.unlisten = undefined;
+    await unlisten?.().catch(() => {});
   }
 
   /** One pass: LISTEN if it isn't yet, the outcomes kept back, the in-memory alerts, then each channel's due rows. */
@@ -290,13 +294,32 @@ export class Dispatcher {
 
   private async pass(): Promise<void> {
     const now = this.deps.realNow();
-    if (!this.stopped && this.unlisten === undefined && this.deps.store.status === "ready") {
-      this.unlisten = await this.deps.store.listen("alert_outbox", () => void this.tick()).catch(() => undefined);
-    }
+    if (!this.stopped && this.listening === undefined && this.deps.store.status === "ready") await this.listen();
     await this.flushUnwritten();
     this.noteOutage(now);
     await this.deliverMemory();
     await Promise.all(CHANNELS.map((channel) => this.deliverRows(channel).catch(() => {})));
+  }
+
+  /**
+   * LISTEN alert_outbox on its own connection. When that connection ends, as when Postgres restarts under the running
+   * gateway, the next pass listens again on a fresh one; the 2 s poll covers the gap.
+   */
+  private async listen(): Promise<void> {
+    const token = {};
+    this.listening = token;
+    const ended = (): void => {
+      if (this.listening !== token) return;
+      this.listening = undefined;
+      this.unlisten = undefined;
+    };
+    try {
+      const close = await this.deps.store.listen("alert_outbox", () => void this.tick(), ended);
+      if (this.listening === token) this.unlisten = close;
+      else await close(); // it ended, or the dispatcher stopped, before it was in place
+    } catch {
+      ended(); // no connection: the next pass tries again
+    }
   }
 
   // -------------------------------------------------------------------------------------------------------------

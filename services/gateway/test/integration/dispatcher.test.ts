@@ -8,7 +8,7 @@
 // - the daily reminder.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Dispatcher, type Channels } from "../../src/alerts/dispatcher.js";
 import { enqueueAlert } from "../../src/alerts/outbox.js";
@@ -288,6 +288,26 @@ describe("waking (alerts.md §4.1)", () => {
     }
     expect(r.telegram.requests).toHaveLength(1);
     expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe("listening again (alerts.md §4.1; data-model.md §2.1)", () => {
+  it("listens again after its LISTEN connection drops, as when Postgres restarts under the running gateway", async () => {
+    const r = await rig({ intervalMs: 600_000 });
+    r.d.start();
+    await vi.waitFor(() => expect(r.s.db.listeners()).toBe(1)); // the first pass starts LISTEN
+    await r.s.db.dropListeners(); // the connection ends
+    expect(r.s.db.listeners()).toBe(0);
+    await r.d.tick(); // the next pass, which the 2 s poll brings
+    expect(r.s.db.listeners()).toBe(1);
+    // A NOTIFY wakes it again, long before its 600 s interval.
+    await enqueue(r);
+    await vi.waitFor(() => expect(r.telegram.requests).toHaveLength(1), { timeout: 5_000, interval: 20 });
+    // A later pass doesn't open a second connection, and stopping closes the one it has.
+    await r.d.tick();
+    expect(r.s.db.listeners()).toBe(1);
+    await r.d.stop();
+    expect(r.s.db.listeners()).toBe(0);
   });
 });
 

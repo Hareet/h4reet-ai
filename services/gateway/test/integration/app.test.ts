@@ -85,7 +85,7 @@ function watched(db: Database, state = { down: false, touched: 0 }): Database & 
       if (state.down) throw refuse();
       return db.withSession(fn, opts);
     },
-    listen: (c, f) => db.listen(c, f),
+    listen: (c, f, e) => db.listen(c, f, e),
     close: () => db.close(),
   };
 }

@@ -20,12 +20,17 @@ export interface TestDatabase extends Database {
   readonly statements: string[];
   /** A fault to inject: a statement that fails before it runs, or after it ran, as a lost acknowledgement does. */
   hook: StatementHook | undefined;
+  /** The LISTEN subscriptions open now. */
+  listeners(): number;
+  /** Ends every LISTEN subscription as a dropped connection would: each one's onEnd runs, once. */
+  dropListeners(): Promise<void>;
 }
 
 export async function testDatabase(): Promise<TestDatabase> {
   const pg = await PGlite.create();
   const statements: string[] = [];
   const inSession = new AsyncLocalStorage<true>();
+  const subscriptions = new Set<{ unsubscribe: () => Promise<void>; onEnd: (() => void) | undefined }>();
   let tail: Promise<unknown> = Promise.resolve();
   const exclusive = <T>(fn: () => Promise<T>): Promise<T> => {
     if (inSession.getStore() === true) {
@@ -56,7 +61,22 @@ export async function testDatabase(): Promise<TestDatabase> {
     withSession: (fn) => exclusive(() => fn(session)),
     // PGlite delivers a NOTIFY during the COMMIT that sends it, inside that session's context; a real LISTEN
     // connection delivers it on its own socket. So the callback runs outside the session, once the COMMIT returns.
-    listen: async (channel, onNotify) => pg.listen(channel, () => inSession.exit(() => setImmediate(onNotify))),
+    listen: async (channel, onNotify, onEnd) => {
+      const unsubscribe = await pg.listen(channel, () => inSession.exit(() => setImmediate(onNotify)));
+      const subscription = { unsubscribe, onEnd };
+      subscriptions.add(subscription);
+      return async () => {
+        if (subscriptions.delete(subscription)) await unsubscribe();
+      };
+    },
+    listeners: () => subscriptions.size,
+    dropListeners: async () => {
+      for (const subscription of [...subscriptions]) {
+        subscriptions.delete(subscription);
+        await subscription.unsubscribe();
+        inSession.exit(() => subscription.onEnd?.());
+      }
+    },
     // The store owns its database and closes it; a test's own cleanup may close it again.
     close: async () => {
       if (!pg.closed) await pg.close();

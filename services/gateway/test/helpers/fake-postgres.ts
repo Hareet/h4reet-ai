@@ -12,6 +12,8 @@ export interface FakePostgres {
   readonly queries: string[];
   /** Connections accepted so far. */
   connections(): number;
+  /** Destroys every open connection, as a Postgres restart does, and keeps accepting new ones. */
+  drop(): void;
   close(): Promise<void>;
 }
 
@@ -112,6 +114,9 @@ export async function fakePostgres(mode: FakePostgresMode): Promise<FakePostgres
     port: address.port,
     queries,
     connections: () => accepted,
+    drop: () => {
+      for (const s of sockets) s.destroy();
+    },
     close: () =>
       new Promise<void>((resolve) => {
         for (const s of sockets) s.destroy();
