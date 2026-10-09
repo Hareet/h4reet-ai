@@ -416,7 +416,12 @@ Request:
 - **Not for an agent session.** Inside the sandbox (`SANDBOX_RUNTIME=1`) the CLI and `AdminClient` refuse prod and dev with exit 2, as the make targets do, so a direct call is kept off them too (FR-008).
 
 **Transport.**
-- **prod and dev:** `http://127.0.0.1:18003` and `http://127.0.0.1:18103`, through urllib with an empty `ProxyHandler`, so `HTTP_PROXY` settings can't send the token to a proxy. Redirects are refused, and `Authorization` is an unredirected header, so no `Location` takes the token anywhere else. A `--url` override must name `127.0.0.1` or `localhost`, or, with `--token-stdin` only, a single-label in-network host, or the CLI refuses with exit 2. On the host a single label would resolve through the search domains, so a token read from its file never goes to one; inside a container on the stack's network, where the token comes on standard input, it names a service. The label must start with a letter, so the resolver can't read it as an address (`2130706433`). (T056 narrowed this rule, which first allowed a single label with any token.)
+- **prod and dev:** `http://127.0.0.1:18003` and `http://127.0.0.1:18103`, through urllib with an empty `ProxyHandler`, so `HTTP_PROXY` settings can't send the token to a proxy. Redirects are refused, and `Authorization` is an unredirected header, so no `Location` takes the token anywhere else.
+- **A `--url` override** names one of two things, or the CLI refuses it with exit 2:
+  - `127.0.0.1` or `localhost`, at the stack's own port (18003, 18103, or 18303) and no other. Another port may be another stack's listener: 18303 is dev-cpu's, whose gateway agents build, so a prod or dev token must never reach it.
+  - With `--token-stdin` only, and for dev and dev-cpu only, a single-label in-network host. On the host a single label would resolve through the search domains, so a token read from its file never goes to one; inside a container on the stack's network, where the token comes on standard input, it names a service. The label must start with a letter, so the resolver can't read it as an address (`2130706433`). No prod caller runs in a container, while dev's breach probe and dev-cpu's hop do, so prod never takes one.
+  - T056 narrowed this rule, which first allowed a single label with any token. T056's review narrowed it again: before it, any loopback port was allowed, and a single label for prod.
+- **The answer's stack.** An answer whose `stack` field names another stack came from another stack's listener, and so did a `GET /admin/status` answer with no `stack` field (§4.1 always names it). Either is no usable answer, exit 4. The CLI never shows the name the answer gave, and with `--json` it prints no body. (Added by T056's review.)
 - **dev-cpu, from the Author's terminal:** `http://127.0.0.1:18303`, where the agents' engine publishes the listener, with the dummy read from `dev-cpu.vars`, and the transport as for prod and dev. There is no hop and no Docker: the docker CLI there drives the host's rootful engine, where agent-written images must never be built or run (FR-039), and a hop would skip preflight's P11. (T056's review made this change. Before it, the hop ran wherever the docker CLI pointed.)
 - **dev-cpu, inside the sandbox (`SANDBOX_RUNTIME=1`):** a session can't reach that port (it is on the host's loopback, which the sandbox's proxy refuses). So the CLI makes one hop through a one-off probe container on the stack's `internal` network, always through `deploy/agents-engine/docker-relay`, so only on the agents' engine:
 
@@ -467,7 +472,7 @@ Below these lines it adds one for each thing that needs a look: the journal when
 **For other tools.** `operator.py` also exposes an `AdminClient` class:
 - `AdminClient(stack, *, url=None, token_stdin=False)` reads the stack's token as above, and talks to its admin listener as above. `url` and `token_stdin` are the CLI's `--url` and `--token-stdin`, for a caller inside a container on the stack's network.
 - `.adapter_complete(adapter_id, messages, *, max_output_tokens, purpose, reason, temperature=None)` calls §5 and returns its 200 body as a dict: the answer is `result["text"]`, the cost `cost_micro_usd`.
-- Every other answer raises `AdminError`, with `.status` (the HTTP status) and `.error` (the body's `error` field). It never holds the token or a payload.
+- Every other answer raises `AdminError`, with `.status` (the HTTP status) and `.error` (the body's `error` field). It never holds the token or a payload. So does an answer from another stack's listener (Transport, above), with `.error` `wrong_stack`.
 
  `evals/run.py` (its `bedrock` adapter) and `evals/breach.py` import it by path, so the token is handled in one reviewed file. Both are launched the same way in the Author's terminal: by path, with the same flags, never with `-m` ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)).
 
@@ -504,9 +509,9 @@ $ make operator-renew ENV=prod REASON="Model server down for a driver update; re
 |---|---|
 | 0 | done |
 | 1 | the gateway refused: a 400, 403, 404, or 409, or any other 4xx but 401 (edge's 413, a 415). The CLI prints its `error` and `detail`. |
-| 2 | usage: bad arguments, a missing reason or one outside §1.2's rule, a stated value out of shape, `mint` for dev-cpu, prod or dev inside the sandbox, or a `--url` outside the allowed hosts |
+| 2 | usage: bad arguments, a missing reason or one outside §1.2's rule, a stated value out of shape, `mint` for dev-cpu, prod or dev inside the sandbox, or a `--url` outside the allowed hosts and ports |
 | 3 | 401: authentication failed. Check the token file against the env file's `OPERATOR_TOKEN_SHA256`, which must start with the fingerprint the CLI prints. |
-| 4 | no usable answer: connection refused, a timeout (30 s), a redirect (never followed), a body that isn't a JSON object, or a 5xx, including 503 `store_unreachable` and edge's `admin_unavailable`; for dev-cpu, a hop that fails before the CLI in the probe answers |
+| 4 | no usable answer: connection refused, a timeout (30 s), a redirect (never followed), a body that isn't a JSON object, an answer from another stack's listener, or a 5xx, including 503 `store_unreachable` and edge's `admin_unavailable`; for dev-cpu, a hop that fails before the CLI in the probe answers |
 | 5 | a token problem: the file is missing, has the wrong owner or mode, or is malformed; or `mint` found an existing file |
 
 Make reports any non-zero exit as its own error 2, so the CLI's last line names the code and its meaning.

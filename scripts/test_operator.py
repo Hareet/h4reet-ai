@@ -1,7 +1,9 @@
 """Tests for scripts/operator.py (contracts/operator-admin.md §6, §6.1, §6.2; data-model.md §5, §8).
 
-Each runs against a temporary HOME and a stand-in admin listener on 127.0.0.1, port 0, never a real stack. Tokens
-are built at run time, so this file holds none.
+Each runs against a temporary HOME and a stand-in admin listener on 127.0.0.1, never a real stack: at port 0, with
+ADMIN_PORTS pointed at it, or, for the one test that runs the script by path, at dev-cpu's own port in the test's
+network namespace, skipped where something else holds that port. Tokens are built at run time, so this file holds
+none.
 """
 
 from __future__ import annotations
@@ -84,7 +86,7 @@ def plant(
 class Stub:
     """A stand-in admin listener: canned answers by (method, path), and a record of every request it got."""
 
-    def __init__(self) -> None:
+    def __init__(self, port: int = 0) -> None:
         self.answers: dict[tuple[str, str], tuple[int, Any, dict[str, str]]] = {}
         self.requests: list[dict[str, Any]] = []
         self.delay = 0.0
@@ -126,7 +128,7 @@ class Stub:
             def log_message(self, format: str, *args: Any) -> None:
                 return
 
-        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
         # A client that gave up (the timeout test) leaves a handler writing to a closed socket: not worth a traceback.
         self.server.handle_error = lambda request, client_address: None
         self.thread = threading.Thread(
@@ -154,8 +156,11 @@ class Stub:
 
 
 @pytest.fixture
-def stub() -> Any:
+def stub(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """A stand-in listener at port 0, with every stack's admin port pointed at it: a token goes only to its own
+    stack's port (check_url)."""
     listener = Stub()
+    monkeypatch.setattr(op, "ADMIN_PORTS", dict.fromkeys(op.STACKS, listener.port))
     yield listener
     listener.close()
 
@@ -573,7 +578,7 @@ def test_agent_sessions_reach_dev_cpu_only(
 ) -> None:
     # The make targets refuse first; the CLI and AdminClient refuse too, for a direct call (FR-008).
     plant(home, stack, token(stack) + "\n")
-    stub.answer("GET", "/admin/status", 200, STATUS_BODY)
+    stub.answer("GET", "/admin/status", 200, STATUS_BODY | {"stack": "dev-cpu"})
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     for extra, piped in (([], None), (["--token-stdin"], token(stack) + "\n")):
         code, _, err = run(
@@ -673,33 +678,37 @@ def test_token_stdin_refuses_a_malformed_line(
     assert stub.requests == []
 
 
-def test_the_script_runs_by_path_through_py_host(home: Path, stub: Stub) -> None:
-    # As make runs it: isolated, blind to bytecode, by path; nothing it needs comes from its own directory.
-    plant(home, "prod", token("prod") + "\n")
-    stub.answer("GET", "/admin/status", 200, STATUS_BODY)
-    env = {k: v for k, v in os.environ.items() if k != "SANDBOX_RUNTIME"}
-    env["HOME"] = str(home)
-    script = str(REPO / "scripts" / "operator.py")
-    flags = ["-I", "-B", "-X", "pycache_prefix=/dev/null"]
-    done = subprocess.run(
-        [
-            sys.executable,
-            *flags,
-            script,
-            "--stack",
-            "prod",
-            "--url",
-            stub.url,
-            "status",
-        ],
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=60,
-        check=False,
-    )
+def test_the_script_runs_by_path_through_py_host(home: Path) -> None:
+    # As make runs it: isolated, blind to bytecode, by path; nothing it needs comes from its own directory. A child
+    # process can't see a patched ADMIN_PORTS, so the stand-in listens on dev-cpu's own port, in this test's network
+    # namespace (the sandbox's or the devcontainer's). Outside the sandbox, dev-cpu goes there with the dummy (§6).
+    port = op.ADMIN_PORTS["dev-cpu"]
+    try:
+        listener = Stub(port)
+    except OSError as error:
+        pytest.skip(f"127.0.0.1:{port} is taken here: {error.strerror}")
+    try:
+        listener.answer("GET", "/admin/status", 200, STATUS_BODY | {"stack": "dev-cpu"})
+        env = {k: v for k, v in os.environ.items() if k != "SANDBOX_RUNTIME"}
+        env["HOME"] = str(home)
+        script = str(REPO / "scripts" / "operator.py")
+        flags = ["-I", "-B", "-X", "pycache_prefix=/dev/null"]
+        done = subprocess.run(
+            [sys.executable, *flags, script, "--stack", "dev-cpu", "status"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+            check=False,
+        )
+    finally:
+        listener.close()
     assert done.returncode == 0, done.stderr
-    assert done.stdout.splitlines() == STATUS_SUMMARY
+    first = "dev-cpu" + STATUS_SUMMARY[0].removeprefix("prod")
+    assert done.stdout.splitlines() == [first, *STATUS_SUMMARY[1:]]
+    (request,) = listener.requests
+    dummy = op.read_devcpu_token(op.DEVCPU_VARS)
+    assert request["headers"]["authorization"] == f"Bearer {dummy}"
 
 
 # --- transport (§6) -----------------------------------------------------------------------------------------------
@@ -718,6 +727,7 @@ def test_each_stack_has_its_admin_port(home: Path, stack: str, url: str) -> None
     assert op.AdminClient(stack, token_stdin=True, stdin=piped).url == url
 
 
+@pytest.mark.parametrize("stack", ["prod", "dev", "dev-cpu"])
 @pytest.mark.parametrize(
     ("url", "stdin"),
     [
@@ -727,34 +737,118 @@ def test_each_stack_has_its_admin_port(home: Path, stack: str, url: str) -> None
         ("http://localhost:{port}", True),
     ],
 )
-def test_a_url_override_on_this_host(
+def test_a_url_override_on_this_host_is_the_stacks_own_port(
     home: Path,
     stub: Stub,
     capsys: pytest.CaptureFixture[str],
+    stack: str,
     url: str,
     stdin: bool,
 ) -> None:
-    stub.answer("GET", "/admin/status", 200, STATUS_BODY)
-    plant(home, "prod", token("prod") + "\n")
-    port = stub.url.rsplit(":", 1)[1]
-    argv = ["--stack", "prod", "--url", url.format(port=port)]
+    # The stub fixture points every stack's port at the stand-in, so each stack's own port is the stand-in's.
+    scope = op.SCOPES[stack]
+    if stack != "dev-cpu":
+        plant(home, stack, token(scope) + "\n")
+    stub.answer("GET", "/admin/status", 200, STATUS_BODY | {"stack": stack})
+    argv = ["--stack", stack, "--url", url.format(port=stub.port)]
     code, _, err = run(
         [*argv, *(["--token-stdin"] if stdin else []), "status"],
         capsys,
-        stdin=token("prod") + "\n" if stdin else None,
+        stdin=token(scope) + "\n" if stdin else None,
     )
     assert code == 0, err
+    assert len(stub.requests) == 1
 
 
-def test_an_in_network_host_takes_the_token_on_stdin_only() -> None:
-    # Inside the dev-cpu hop's container: a single-label service name, with the token on standard input.
+ANOTHER_STACKS_PORT = [
+    (stack, other) for stack in op.STACKS for other in op.STACKS if other != stack
+]
+
+
+@pytest.mark.parametrize(("stack", "other"), ANOTHER_STACKS_PORT)
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost"])
+@pytest.mark.parametrize("token_stdin", [False, True])
+def test_check_url_on_this_host_takes_the_stacks_own_port_only(
+    stack: str, other: str, host: str, token_stdin: bool
+) -> None:
+    # The real ports. Above all, prod's or dev's token never goes to 18303, where dev-cpu's agent-built gateway
+    # listens (T056's review). A pure function: nothing here can connect anywhere.
+    own = op.ADMIN_PORTS[stack]
+    assert (
+        op.check_url(f"http://{host}:{own}/", stack, token_stdin=token_stdin)
+        == f"http://{host}:{own}"
+    )
+    for url in (
+        f"http://{host}:{op.ADMIN_PORTS[other]}",
+        f"http://{host}",
+        f"http://{host}:80",
+        f"http://{host}:8081",
+        f"http://{host}:{own + 1}",
+    ):
+        with pytest.raises(op.Usage, match=f"{stack}'s own admin port, {own}"):
+            op.check_url(url, stack, token_stdin=token_stdin)
+
+
+@pytest.mark.parametrize("stack", ["prod", "dev"])
+def test_a_token_never_reaches_another_stacks_listener(
+    home: Path,
+    stub: Stub,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    stack: str,
+) -> None:
+    # The stand-in holds dev-cpu's port, as dev-cpu's gateway would; prod's and dev's ports are elsewhere.
+    ports = {"prod": free_port(), "dev": free_port(), "dev-cpu": stub.port}
+    monkeypatch.setattr(op, "ADMIN_PORTS", ports)
+    plant(home, stack, token(stack) + "\n")
+    stub.answer("GET", "/admin/status", 200, STATUS_BODY | {"stack": "dev-cpu"})
+    for host in ("127.0.0.1", "localhost"):
+        for extra, piped in (([], None), (["--token-stdin"], token(stack) + "\n")):
+            url = f"http://{host}:{stub.port}"
+            argv = ["--stack", stack, "--url", url, *extra, "status"]
+            code, _, err = run(argv, capsys, stdin=piped)
+            assert code == 2
+            assert f"{stack}'s own admin port, {ports[stack]}" in err
+            assert last_line(err) == "operator.py: exit 2: usage"
+    assert stub.requests == []
+    # dev-cpu's own token does go there.
+    code, _, err = run(["--stack", "dev-cpu", "--url", stub.url, "status"], capsys)
+    assert code == 0, err
+    assert len(stub.requests) == 1
+
+
+@pytest.mark.parametrize(("stack", "scope"), [("dev", "dev"), ("dev-cpu", "devcpu")])
+def test_an_in_network_host_takes_the_token_on_stdin_only(
+    home: Path, stack: str, scope: str
+) -> None:
+    # Inside a container on a dev-class stack's network (dev's breach probe, dev-cpu's hop): a single-label service
+    # name, with the token on standard input.
     client = op.AdminClient(
-        "dev-cpu",
+        stack,
         url="http://gateway:8081",
         token_stdin=True,
-        stdin=io.StringIO(token("devcpu") + "\n"),
+        stdin=io.StringIO(token(scope) + "\n"),
     )
     assert client.url == "http://gateway:8081"
+    with pytest.raises(op.Usage, match="--token-stdin"):
+        op.check_url("http://gateway:8081", stack, token_stdin=False)
+
+
+def test_prod_never_takes_an_in_network_host(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # No prod caller runs in a container on prod's network (T056's review): prod's token stays on this host's 18003.
+    with pytest.raises(op.Usage, match="no prod caller runs in a container"):
+        op.AdminClient(
+            "prod",
+            url="http://gateway:8081",
+            token_stdin=True,
+            stdin=io.StringIO(token("prod") + "\n"),
+        )
+    argv = ["--stack", "prod", "--url", "http://gateway:8081", "--token-stdin"]
+    code, _, err = run([*argv, "status"], capsys, stdin=token("prod") + "\n")
+    assert code == 2
+    assert last_line(err) == "operator.py: exit 2: usage"
 
 
 @pytest.mark.parametrize(
@@ -814,10 +908,11 @@ def test_proxy_settings_never_see_the_token(
 
 
 def test_a_redirect_is_not_followed(
-    home: Path, capsys: pytest.CaptureFixture[str]
+    home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     first, second = Stub(), Stub()
     try:
+        monkeypatch.setitem(op.ADMIN_PORTS, "prod", first.port)
         plant(home, "prod", token("prod") + "\n")
         first.answer(
             "GET",
@@ -842,10 +937,11 @@ def free_port() -> int:
 
 
 def test_nothing_listening_is_exit_4(
-    home: Path, capsys: pytest.CaptureFixture[str]
+    home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     plant(home, "prod", token("prod") + "\n")
-    url = f"http://127.0.0.1:{free_port()}"
+    monkeypatch.setitem(op.ADMIN_PORTS, "prod", free_port())
+    url = f"http://127.0.0.1:{op.ADMIN_PORTS['prod']}"
     code, _, err = run(["--stack", "prod", "--url", url, "status"], capsys)
     assert code == 4
     assert "can't reach" in err
@@ -971,6 +1067,93 @@ def test_control_characters_from_the_listener_are_not_printed(
     _, out, err = run(["--stack", "prod", "--url", stub.url, "status"], capsys)
     assert "\x1b" not in out + err
     assert "\x07" not in out + err
+
+
+# The stack another listener's answer might name: a real one, and one that would stand out if it were printed.
+OTHER_STACKS = ["dev-cpu", "qa-elsewhere"]
+
+
+@pytest.mark.parametrize("named", [*OTHER_STACKS, None, "missing"])
+def test_status_refuses_an_answer_that_isnt_its_stacks(
+    home: Path,
+    stub: Stub,
+    capsys: pytest.CaptureFixture[str],
+    named: str | None,
+) -> None:
+    # GET /admin/status always names its stack (§4.1): one that names another, or none, is another listener's.
+    plant(home, "prod", token("prod") + "\n")
+    body = {k: v for k, v in STATUS_BODY.items() if k != "stack"}
+    if named != "missing":
+        body["stack"] = named
+    stub.answer("GET", "/admin/status", 200, body)
+    for extra in ([], ["--json"]):
+        argv = ["--stack", "prod", *extra, "--url", stub.url, "status"]
+        code, out, err = run(argv, capsys)
+        assert code == 4
+        assert out == ""  # neither the summary nor, with --json, the body
+        assert "HTTP 200 wrong_stack" in err
+        assert last_line(err) == f"operator.py: exit 4: {op.EXIT_MEANINGS[4]}"
+        if named in OTHER_STACKS:
+            assert named not in err
+
+
+@pytest.mark.parametrize("named", [*OTHER_STACKS, None])
+def test_init_refuses_an_answer_that_names_another_stack(
+    home: Path,
+    stub: Stub,
+    capsys: pytest.CaptureFixture[str],
+    named: str | None,
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    stub.answer("POST", "/admin/init", 200, INIT_BODY | {"stack": named})
+    for extra in ([], ["--json"]):
+        argv = ["--stack", "prod", *extra, "--url", stub.url, "init"]
+        code, out, err = run([*argv, "--reason", REASON], capsys)
+        assert code == 4
+        assert out == ""
+        assert "HTTP 200 wrong_stack" in err
+        if named in OTHER_STACKS:
+            assert named not in err
+
+
+def test_init_takes_an_answer_that_names_its_own_stack_or_none(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # §2.3's answer has no stack field.
+    plant(home, "prod", token("prod") + "\n")
+    for body in (INIT_BODY, INIT_BODY | {"stack": "prod"}):
+        stub.answer("POST", "/admin/init", 200, body)
+        argv = ["--stack", "prod", "--url", stub.url, "init", "--reason", REASON]
+        code, _, err = run(argv, capsys)
+        assert code == 0, err
+
+
+def test_admin_client_refuses_another_stacks_answer(home: Path, stub: Stub) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    client = op.AdminClient("prod")
+    stub.answer("GET", "/admin/status", 200, STATUS_BODY | {"stack": "qa-elsewhere"})
+    stub.answer(
+        "POST",
+        "/admin/adapters/bedrock/complete",
+        200,
+        {"stack": "qa-elsewhere", "result": {"text": "x"}},
+    )
+    calls = [
+        client.status,
+        lambda: client.adapter_complete(
+            "bedrock",
+            [{"role": "user", "content": "x"}],
+            max_output_tokens=8,
+            purpose="eval",
+            reason="evals product hello-case",
+        ),
+    ]
+    for call in calls:
+        with pytest.raises(op.AdminError) as caught:
+            call()
+        assert (caught.value.status, caught.value.error) == (200, "wrong_stack")
+        assert caught.value.body is None
+        assert "qa-elsewhere" not in str(caught.value)
 
 
 @pytest.mark.parametrize(

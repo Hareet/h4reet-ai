@@ -22,18 +22,22 @@ It never comes from the environment or the command line, and it is never printed
 first 8 hex characters of its SHA-256.
 
 The transport: http://127.0.0.1:18003 (prod), 18103 (dev), or 18303 (dev-cpu), through urllib with an empty
-ProxyHandler, so no proxy setting can carry the token, and with redirects refused, so it goes nowhere else. --url may
-name 127.0.0.1 or localhost; a single-label in-network host only with --token-stdin, inside a container on the
-stack's network. Inside the sandbox, which can't reach 18303, dev-cpu without --url makes one hop: the CLI runs again
-in a one-off breach-probe container on the stack's internal network, with the dummy on standard input, through
-deploy/agents-engine/docker-relay, so on the agents' engine only. Outside the sandbox there is no hop and no Docker:
-docker there is the host's rootful engine, where agent-written images must never run (FR-039), so dev-cpu goes
-straight to 127.0.0.1:18303.
+ProxyHandler, so no proxy setting can carry the token, and with redirects refused, so it goes nowhere else.
+  - --url may name 127.0.0.1 or localhost at the stack's own port and no other, since another port may be another
+    stack's listener (18303 is dev-cpu's, whose gateway agents build); or, for dev or dev-cpu with --token-stdin
+    only, a single-label in-network host, inside a container on the stack's network.
+  - An answer whose stack field names another stack, or a status that names none, came from another listener, and
+    is no usable answer.
+  - Inside the sandbox, which can't reach 18303, dev-cpu without --url makes one hop: the CLI runs again in a
+    one-off breach-probe container on the stack's internal network, with the dummy on standard input, through
+    deploy/agents-engine/docker-relay, so on the agents' engine only. Outside the sandbox there is no hop and no
+    Docker: docker there is the host's rootful engine, where agent-written images must never run (FR-039), so
+    dev-cpu goes straight to 127.0.0.1:18303.
 
 Exit codes (§6.2): 0 done; 1 the gateway refused (a 4xx other than 401); 2 usage; 3 authentication failed (401);
-4 no usable answer (nothing listening, a timeout, a redirect, a 5xx, or a body that isn't a JSON object); 5 a token
-problem. On any failure the last line names the code and its meaning, because make reports every failure as its own
-error 2.
+4 no usable answer (nothing listening, a timeout, a redirect, a 5xx, a body that isn't a JSON object, or another
+stack's answer); 5 a token problem. On any failure the last line names the code and its meaning, because make
+reports every failure as its own error 2.
 
 Other tools (evals/run.py, evals/breach.py) load this file by path for AdminClient and AdminError, so the token is
 handled in this one reviewed file.
@@ -320,8 +324,14 @@ def check_usd(label: str, value: str) -> str:
     return value
 
 
-def check_url(url: str, *, token_stdin: bool) -> str:
-    """An admin listener on this host, or, for the CLI inside a container on the stack's network, a service name."""
+def check_url(url: str, stack: str, *, token_stdin: bool) -> str:
+    """stack's admin listener: on this host, at the stack's own port, or, for the CLI inside a container on a dev-class
+    stack's network, a service name.
+
+    Any other port on this host may be another stack's listener: 18303 is dev-cpu's, whose gateway agents build, so a
+    prod or dev token must never go there. No prod caller runs in a container, so prod never takes a service name
+    (T056's review).
+    """
     try:
         parts = urllib.parse.urlsplit(url)
         port = parts.port
@@ -338,16 +348,27 @@ def check_url(url: str, *, token_stdin: bool) -> str:
         or parts.fragment
     ):
         raise Usage("--url is http://HOST:PORT, with no path, query, or credentials")
-    if host not in ("127.0.0.1", "localhost"):
-        if not LABEL_RE.fullmatch(host):
+    if host in ("127.0.0.1", "localhost"):
+        if port != ADMIN_PORTS[stack]:
             raise Usage(
-                "--url names 127.0.0.1 or localhost, or, with --token-stdin, a single-label in-network host"
+                f"--url on this host names {stack}'s own admin port, {ADMIN_PORTS[stack]}: a token goes to no "
+                "other port, where another stack's listener may answer"
             )
-        if not token_stdin:
-            raise Usage(
-                "--url names an in-network host, which only the CLI inside a container on the stack's network "
-                "calls, with the token on --token-stdin; from this host the admin listener is 127.0.0.1"
-            )
+    elif not LABEL_RE.fullmatch(host):
+        raise Usage(
+            "--url names 127.0.0.1 or localhost, or, for dev or dev-cpu with --token-stdin, a single-label "
+            "in-network host"
+        )
+    elif stack == "prod":
+        raise Usage(
+            f"--url for prod names 127.0.0.1 or localhost, at port {ADMIN_PORTS['prod']}: no prod caller runs in "
+            "a container on prod's network"
+        )
+    elif not token_stdin:
+        raise Usage(
+            "--url names an in-network host, which only the CLI inside a container on the stack's network "
+            "calls, with the token on --token-stdin; from this host the admin listener is 127.0.0.1"
+        )
     return f"http://{host}" + (f":{port}" if port is not None else "")
 
 
@@ -379,7 +400,7 @@ class AdminClient:
     """One stack's admin listener (operator-admin.md §1-§5), with that stack's token, read as §6 says.
 
     adapter_complete is for other tools (evals/run.py's bedrock adapter, evals/breach.py): every answer but a 2xx
-    JSON object raises AdminError, with .status and .error.
+    JSON object raises AdminError, with .status and .error, and so does one that names another stack.
     """
 
     def __init__(
@@ -401,7 +422,7 @@ class AdminClient:
         self.url = (
             f"http://127.0.0.1:{ADMIN_PORTS[stack]}"
             if url is None
-            else check_url(url, token_stdin=token_stdin)
+            else check_url(url, stack, token_stdin=token_stdin)
         )
         if token_stdin:
             token = read_token_line(stack, stdin if stdin is not None else sys.stdin)
@@ -419,8 +440,18 @@ class AdminClient:
         return f"AdminClient(stack={self.stack!r}, url={self.url!r}, fingerprint={self.fingerprint!r})"
 
     def request(
-        self, method: str, path: str, body: dict[str, Any] | None = None
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        names_stack: bool = False,
     ) -> dict[str, Any]:
+        """One call, and its answer: a 2xx JSON object, or AdminError.
+
+        An answer whose stack field names another stack came from another stack's listener, so it is no usable
+        answer; with names_stack, so is one with no stack field. The name the answer gave is never shown.
+        """
         data = None if body is None else json.dumps(body).encode("utf-8")
         request = urllib.request.Request(self.url + path, data=data, method=method)
         request.add_header("Accept", "application/json")
@@ -444,9 +475,16 @@ class AdminClient:
                 f"can't reach {self.url}: {failure_reason(failure)}",
             ) from None
         parsed = parse_body(raw)
-        if isinstance(parsed, dict) and 200 <= status < 300:
-            return parsed
-        raise AdminError(status, "not_json", "the answer isn't a JSON object")
+        if not isinstance(parsed, dict) or not 200 <= status < 300:
+            raise AdminError(status, "not_json", "the answer isn't a JSON object")
+        if (names_stack or "stack" in parsed) and parsed.get("stack") != self.stack:
+            raise AdminError(
+                status,
+                "wrong_stack",
+                f"the answer at {self.url} doesn't say it comes from {self.stack}'s admin listener, so the CLI "
+                "doesn't use it",
+            )
+        return parsed
 
     @staticmethod
     def refusal(status: int, raw: bytes) -> AdminError:
@@ -470,8 +508,8 @@ class AdminClient:
         )
 
     def status(self) -> dict[str, Any]:
-        """GET /admin/status (operator-admin.md §4.1)."""
-        return self.request("GET", "/admin/status")
+        """GET /admin/status (operator-admin.md §4.1), whose answer always names its stack."""
+        return self.request("GET", "/admin/status", names_stack=True)
 
     def init(
         self,
@@ -809,7 +847,8 @@ def build_parser() -> Parser:
     common.add_argument(
         "--url",
         default=argparse.SUPPRESS,
-        help="the admin listener: 127.0.0.1 or localhost (with --token-stdin, an in-network host too)",
+        help="the admin listener: 127.0.0.1 or localhost, at the stack's own port (for dev and dev-cpu with "
+        "--token-stdin, an in-network host too)",
     )
     common.add_argument(
         "--token-stdin",
