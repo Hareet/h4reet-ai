@@ -5,7 +5,9 @@
 //   record goes into the file of the month of its own `ts`.
 // - One JSON object per line, under 4 KB. One writer: appends are queued in process.
 // - Each append is one write() on a descriptor opened with O_APPEND, then fsync(). The first append to a new file also
-//   fsyncs the directory. Only a record whose fsync returned has been written.
+//   fsyncs the directory. Only a record whose fsync returned has been written. A write cut short (a filling disk
+//   returns a short count, not an error) is undone and reported as not written, and a file whose last line was torn
+//   (a crash, or a short write that couldn't be undone) gets a newline first, so the torn line never swallows the next.
 // - The record kinds are `reserve` and `commit` (the metered path, tasks.md T072), `operator` (init, reset, renew),
 //   and `clock` (dev's test clock).
 import { constants } from "node:fs";
@@ -169,6 +171,8 @@ export interface JournalOptions {
   stateDir: string;
   /** H4_STACK: every record carries it, and a rebuild skips another stack's. */
   stack: string;
+  /** Tests only: the open() the journal uses, so a test can cut a write short. */
+  openFile?: typeof open;
 }
 
 export class Journal {
@@ -203,6 +207,7 @@ export class Journal {
   }
 
   private async write(line: string, month: string): Promise<void> {
+    const openFile = this.opts.openFile ?? open;
     try {
       if (Buffer.byteLength(line) > MAX_LINE_BYTES) throw Object.assign(new Error("too long"), { code: "E2BIG" });
       const created = await mkdir(this.dir, { recursive: true, mode: 0o700 });
@@ -211,14 +216,26 @@ export class Journal {
       let fresh = true;
       let file;
       try {
-        file = await open(path, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_EXCL, 0o600);
+        file = await openFile(
+          path,
+          constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_EXCL,
+          0o600,
+        );
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
         fresh = false;
-        file = await open(path, constants.O_WRONLY | constants.O_APPEND);
+        file = await openFile(path, constants.O_WRONLY | constants.O_APPEND);
       }
       try {
-        await file.write(line);
+        const before = (await file.stat()).size;
+        const lead = before > 0 && !(await endsWithNewline(openFile, path, before)) ? "\n" : "";
+        const data = Buffer.from(lead + line, "utf8");
+        const { bytesWritten } = await file.write(data, 0, data.length);
+        if (bytesWritten !== data.length) {
+          await file.truncate(before).catch(() => {});
+          await file.sync().catch(() => {});
+          throw Object.assign(new Error("short write"), { code: "ENOSPC" });
+        }
         await file.sync();
       } finally {
         await file.close();
@@ -293,6 +310,18 @@ export class Journal {
       }
     }
     return { filesRead, records, linesSkipped, clockOffsetMs: offset };
+  }
+}
+
+/** Whether a file of this size ends with a newline: false means its last line is torn. */
+async function endsWithNewline(openFile: typeof open, path: string, size: number): Promise<boolean> {
+  const tail = await openFile(path, constants.O_RDONLY);
+  try {
+    const last = Buffer.alloc(1);
+    await tail.read(last, 0, 1, size - 1);
+    return last[0] === 0x0a;
+  } finally {
+    await tail.close();
   }
 }
 

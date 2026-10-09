@@ -281,6 +281,7 @@ LEFT JOIN gateway.meters f ON f.meter = 'fallback_day' AND f.period_key = to_cha
 - One file per gateway-clock month: `${GATEWAY_STATE_DIR}/journal/YYYY-MM.jsonl`, mode 0600, in a 0700 directory. A record goes into the file of the month of its own `ts`.
 - One JSON object per line, UTF-8, under 4 KB. There is one writer per stack: an in-process queue serializes appends.
 - Each append is one `write()` on a descriptor opened with `O_APPEND`, then `fsync()`. The first append to a new file also fsyncs the directory. Only a record whose `fsync` returned has been written.
+- A `write()` that comes back short, as one does on a filling disk, has not written the record: the gateway truncates the file back to its size before the write, and the append fails as `unwritable`. Before each append, a file whose last byte isn't a newline (a crash tore its last line) gets one first, so a torn line never swallows the next record. A rebuild skips the torn line and counts it.
 
 **Common fields:** `v` (1), `kind`, `ts` (the gateway clock, RFC 3339 with milliseconds, `Z`), and `stack`.
 
