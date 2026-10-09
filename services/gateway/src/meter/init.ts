@@ -28,7 +28,7 @@ import {
   type OperatorRecord,
   type ReserveRecord,
 } from "./journal.js";
-import { Rollback, StoreUnavailableError, toBigInt, type Queryable, type Store } from "./store.js";
+import { CommitUnknownError, isStoreFailure, Rollback, toBigInt, type Queryable, type Store } from "./store.js";
 
 export type Meter = "day" | "month" | "fallback_day";
 const METERS: readonly Meter[] = ["day", "month", "fallback_day"];
@@ -457,8 +457,17 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
       };
     });
   } catch (err) {
-    if (err instanceof StoreUnavailableError || isStoreFailure(err)) return UNREACHABLE;
-    throw err;
+    if (err instanceof CommitUnknownError) {
+      // COMMIT was sent and its answer lost. If it landed, this init owns the state row now, and its journal record
+      // must follow, or a later rebuild loses this init's floor (data-model.md §3 step 6). Only a row this actor wrote
+      // at this init's own time counts; anything else, or a store that still can't be read, is store_unreachable.
+      if (!(await initLanded(deps.store, operator.actor, at))) return UNREACHABLE;
+      done = err.value as Done;
+    } else if (isStoreFailure(err)) {
+      return UNREACHABLE;
+    } else {
+      throw err;
+    }
   }
   if (!("kind" in done)) return done;
 
@@ -513,11 +522,15 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
   return done.result;
 }
 
-/**
- * A store failure inside the transaction: any error on a request's path means store_unreachable (data-model.md §2.1).
- * The classes a bug in this code would raise are left to the listener's 500.
- */
-function isStoreFailure(err: unknown): boolean {
-  const bugs = [TypeError, RangeError, ReferenceError, SyntaxError];
-  return err instanceof Error && !bugs.some((cls) => err instanceof cls);
+/** Whether the state row is this init's: written by this actor, at this init's own time. */
+async function initLanded(store: Store, actor: string, at: number): Promise<boolean> {
+  try {
+    const { rows } = await store.query<{ initialized_by: string; initialized_at: Date | string }>(
+      "SELECT initialized_by, initialized_at FROM gateway.stack_state WHERE id = 1",
+    );
+    const row = rows[0];
+    return row !== undefined && row.initialized_by === actor && new Date(row.initialized_at).getTime() === at;
+  } catch {
+    return false;
+  }
 }

@@ -378,6 +378,80 @@ export function errorClass(err: unknown): string {
   return typeof code === "string" && /^[A-Z0-9_]{1,32}$/.test(code) ? code : "unknown";
 }
 
+/**
+ * The SQLSTATE the server answered with, when it answered: five digits or capitals with a digit among them, such as
+ * 23514 or 42P01. A Node error code of five letters, such as EPIPE, has none.
+ */
+export function sqlStateOf(err: unknown): string | undefined {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === "string" && /^[0-9A-Z]{5}$/.test(code) && /[0-9]/.test(code) ? code : undefined;
+}
+
+/**
+ * The SQLSTATE classes of a statement the store refused while working: a bad value, a constraint, a syntax error, a
+ * missing object, a privilege, a trigger's RAISE. The store answered, so it isn't down: the statement was wrong.
+ */
+const STATEMENT_CLASSES: ReadonlySet<string> = new Set([
+  "0A", // feature not supported
+  "21", // cardinality violation
+  "22", // data exception
+  "23", // integrity constraint violation: CHECK, UNIQUE, NOT NULL
+  "26", // invalid SQL statement name
+  "27", // triggered data change violation
+  "2B", // dependent privilege descriptors still exist
+  "2D", // invalid transaction termination
+  "2F", // SQL routine exception
+  "34", // invalid cursor name
+  "3D", // invalid catalog name
+  "3F", // invalid schema name
+  "42", // syntax error or access rule violation
+  "44", // WITH CHECK OPTION violation
+  "P0", // PL/pgSQL: the audit log's append-only trigger raises here
+]);
+
+/** The JavaScript classes a bug in the gateway's own code raises. */
+const BUGS = [TypeError, RangeError, ReferenceError, SyntaxError] as const;
+
+/**
+ * A failure of the store itself, which is store_unreachable (data-model.md §2.1): no connection, a dropped one, a
+ * statement or lock timeout, the server going away, or a store that isn't ready. A statement the store refused, such as
+ * a CHECK violation, is a bug in the gateway, not an outage, and a request answers 500 for it (tasks.md T072).
+ */
+export function isStoreFailure(err: unknown): boolean {
+  if (err instanceof StoreUnavailableError || err instanceof CommitUnknownError) return true;
+  if (!(err instanceof Error) || BUGS.some((cls) => err instanceof cls)) return false;
+  const sqlstate = sqlStateOf(err);
+  return sqlstate === undefined || !STATEMENT_CLASSES.has(sqlstate.slice(0, 2));
+}
+
+/**
+ * COMMIT was sent, and its answer was lost: the connection dropped, or the server went away, before the
+ * acknowledgement came back. The transaction may have committed or not. It carries what the transaction computed, so
+ * a caller that re-reads the store and finds its own write can finish as if the acknowledgement had arrived
+ * (tasks.md T072).
+ */
+export class CommitUnknownError<T = unknown> extends Error {
+  readonly code = "COMMIT_UNKNOWN";
+  /** The failure's class, never its message. */
+  readonly failure: string;
+
+  constructor(
+    readonly value: T,
+    failure: unknown,
+  ) {
+    super("COMMIT's acknowledgement was lost");
+    this.name = "CommitUnknownError";
+    this.failure = errorClass(failure);
+  }
+}
+
+/** A COMMIT that failed with no answer, or with the server going away, may have landed; one the server refused didn't. */
+function commitOutcomeUnknown(err: unknown): boolean {
+  if (!isStoreFailure(err)) return false;
+  const sqlstate = sqlStateOf(err);
+  return sqlstate === undefined || ["08", "57", "58", "XX"].includes(sqlstate.slice(0, 2));
+}
+
 const OUTAGE_LOG_EVERY_MS = 60_000;
 
 export class Store {
@@ -465,7 +539,7 @@ export class Store {
           event: "state.unknown",
           condition: "store_unreachable",
           since: new Date(this.outageSince).toISOString(),
-          error_class: errorClass(err),
+          error_class: err instanceof CommitUnknownError ? err.failure : errorClass(err),
         },
         "The kill-switch store can't be read, so the stack fails closed.",
       );
@@ -486,40 +560,50 @@ export class Store {
   }
 
   /**
-   * A query on a request's path. It is refused while the store isn't ready, and any failure is noted as an outage,
-   * since any error or timeout on a request's path means store_unreachable (data-model.md §2.1).
+   * A query on a request's path. It is refused while the store isn't ready. A failure of the store itself is noted as
+   * an outage, since any error or timeout on a request's path means store_unreachable (data-model.md §2.1); a
+   * statement the store refused isn't one (isStoreFailure).
    */
   async query<R = Record<string, unknown>>(text: string, params?: unknown[]): Promise<{ rows: R[] }> {
     if (this.status !== "ready") throw new StoreUnavailableError();
     try {
       return await this.opts.db.query<R>(text, params);
     } catch (err) {
-      this.noteOutage(err);
+      if (isStoreFailure(err)) this.noteOutage(err);
       throw err;
     }
   }
 
   /**
    * One transaction on one connection: BEGIN, `fn`, then COMMIT, or ROLLBACK on any error. `fn` throws a Rollback to
-   * roll back and resolve with its value: a refusal, such as a 409, and no outage. Any other failure is noted as one.
+   * roll back and resolve with its value: a refusal, such as a 409, and no outage. A failure of the store is noted as
+   * an outage. A COMMIT whose answer was lost rejects with a CommitUnknownError carrying `fn`'s value, so the caller
+   * can re-read the store and find out whether it landed.
    */
   async transaction<T>(fn: (q: Queryable) => Promise<T>): Promise<T> {
     if (this.status !== "ready") throw new StoreUnavailableError();
     try {
       return await this.opts.db.withSession(async (session) => {
         await session.query("BEGIN");
+        let value: T;
         try {
-          const value = await fn(session);
-          await session.query("COMMIT");
-          return value;
+          value = await fn(session);
         } catch (err) {
           await session.query("ROLLBACK").catch(() => {});
           if (err instanceof Rollback) return err.value as T;
           throw err;
         }
+        try {
+          await session.query("COMMIT");
+        } catch (err) {
+          await session.query("ROLLBACK").catch(() => {});
+          if (commitOutcomeUnknown(err)) throw new CommitUnknownError(value, err);
+          throw err;
+        }
+        return value;
       });
     } catch (err) {
-      this.noteOutage(err);
+      if (isStoreFailure(err)) this.noteOutage(err);
       throw err;
     }
   }

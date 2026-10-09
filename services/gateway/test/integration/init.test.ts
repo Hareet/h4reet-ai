@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { dayKey, monthKey } from "../../src/core/clock.js";
+import { connectionLost, statementRefused } from "../helpers/pglite.js";
 import { testStack, type TestStack } from "../helpers/stack.js";
 
 const HEX32 = "0123456789abcdef0123456789abcdef";
@@ -655,5 +656,98 @@ describe("the journal as a rebuild reads it (data-model.md §3)", () => {
     expect((await s.db.pg.query("SELECT state FROM gateway.stack_state")).rows).toEqual([{ state: "normal" }]);
     const health = (await s.api.inject({ method: "GET", url: "/health" })).json() as Rec;
     expect(health.journal).toBe("unwritable");
+  });
+});
+
+describe("POST /admin/init when COMMIT's answer is lost, or the store refuses a statement (tasks.md T072)", () => {
+  const stateRow = async (s: TestStack) =>
+    (await s.db.pg.query<Rec>("SELECT initialized_by FROM gateway.stack_state")).rows;
+
+  it("finds its own write after a lost acknowledgement: it appends the init record and answers 200", async () => {
+    const s = await stack();
+    await writeJournal(s, MONTH, [commit("c", "fallback", 100_000)]);
+    // COMMIT reaches the server and lands; the connection drops before its acknowledgement comes back.
+    let dropped = false;
+    s.db.hook = (text, phase) => {
+      if (text === "COMMIT" && phase === "after" && !dropped) {
+        dropped = true;
+        throw connectionLost();
+      }
+    };
+    const res = await init(s, { reason: REASON });
+    expect(dropped).toBe(true);
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { audit_id: number; journal: Rec };
+    expect(body.journal).toMatchObject({ append: "ok" });
+    expect(await stateRow(s)).toEqual([{ initialized_by: `operator:dev#${s.tokenSha256.slice(0, 8)}` }]);
+    // The floor a later rebuild needs is in the journal (data-model.md §3 step 6).
+    expect((await journalLines(s, MONTH)).at(-1)).toMatchObject({
+      kind: "operator",
+      action: "init",
+      audit_id: body.audit_id,
+      day_micro: 100_000,
+    });
+    expect(s.logged.some((l) => l.record.event === "operator.init")).toBe(true);
+  });
+
+  it("answers 503 store_unreachable when the lost COMMIT never landed, and appends nothing", async () => {
+    const s = await stack();
+    await writeJournal(s, MONTH, [commit("c", "fallback", 100_000)]);
+    let dropped = false;
+    s.db.hook = (text, phase) => {
+      if (text === "COMMIT" && phase === "before" && !dropped) {
+        dropped = true;
+        throw connectionLost();
+      }
+    };
+    const res = await init(s, { reason: REASON });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ error: "store_unreachable" });
+    expect(await stateRow(s)).toEqual([]);
+    expect((await journalLines(s, MONTH)).filter((r) => r.kind === "operator")).toEqual([]);
+  });
+
+  it("answers 503 when the store can't be read again either, rather than guessing", async () => {
+    const s = await stack();
+    await writeJournal(s, MONTH, [commit("c", "fallback", 100_000)]);
+    let down = false;
+    s.db.hook = (text, phase) => {
+      if (down) throw connectionLost();
+      if (text === "COMMIT" && phase === "after") {
+        down = true;
+        throw connectionLost();
+      }
+    };
+    const res = await init(s, { reason: REASON });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ error: "store_unreachable" });
+    expect((await journalLines(s, MONTH)).filter((r) => r.kind === "operator")).toEqual([]);
+  });
+
+  it("treats a CHECK violation inside the transaction as a bug: 500, no outage, nothing written", async () => {
+    const s = await stack();
+    await writeJournal(s, MONTH, [commit("c", "fallback", 100_000)]);
+    s.db.hook = (text, phase) => {
+      if (phase === "before" && text.startsWith("INSERT INTO gateway.meters")) throw statementRefused("23514");
+    };
+    const res = await init(s, { reason: REASON });
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toMatchObject({ error: "internal_error" });
+    expect(await stateRow(s)).toEqual([]);
+    // A refused statement isn't the store going away: no state.unknown record, and no outage under way.
+    expect(s.logged.filter((l) => l.record.event === "state.unknown")).toEqual([]);
+    expect(s.store.outageStartedAt()).toBeUndefined();
+  });
+
+  it("still answers 503 for a store that fails under the transaction: a lock or statement timeout", async () => {
+    const s = await stack();
+    await writeJournal(s, MONTH, [commit("c", "fallback", 100_000)]);
+    s.db.hook = (text, phase) => {
+      if (phase === "before" && text.startsWith("INSERT INTO gateway.meters")) throw statementRefused("57014");
+    };
+    const res = await init(s, { reason: REASON });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ error: "store_unreachable" });
+    expect(s.logged.some((l) => l.record.event === "state.unknown")).toBe(true);
   });
 });
