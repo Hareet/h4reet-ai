@@ -118,12 +118,15 @@ class Settings:
 
 
 def host_listed(host: str, patterns: list[str]) -> bool:
-    """`*.base` matches the apex and any subdomain; any other entry matches exactly."""
+    """`*.base` matches any subdomain of base, not base itself; any other entry matches exactly.
+
+    That is §4's rule, and the sandbox's own: its allowedDomains matcher takes `*.example.com` to mean
+    the names ending in `.example.com`. An entry for the apex is a separate, exact entry.
+    """
     host = host.lower().rstrip(".")
     for pattern in patterns:
         if pattern.startswith("*."):
-            base = pattern[2:]
-            if host == base or host.endswith("." + base):
+            if host.endswith("." + pattern[2:]):
                 return True
         elif host == pattern:
             return True

@@ -124,12 +124,38 @@ def test_host_listed_exact() -> None:
     assert not ep.host_listed("evil.org", ["registry.npmjs.org"])
 
 
-def test_host_listed_wildcard_matches_subdomain_and_apex() -> None:
+def test_host_listed_wildcard_matches_subdomains_only() -> None:
+    # §4: an entry starting with `*.` matches any subdomain of its base, and not the base itself, as the
+    # sandbox's own allowedDomains matcher does.
     patterns = ["*.example.com"]
     assert ep.host_listed("a.example.com", patterns)
     assert ep.host_listed("deep.a.example.com", patterns)
-    assert ep.host_listed("example.com", patterns)
+    assert not ep.host_listed("example.com", patterns)
+    assert not ep.host_listed("example.com.", patterns)
+    assert not ep.host_listed("notexample.com", patterns)
     assert not ep.host_listed("example.com.evil.net", patterns)
+
+
+def test_wildcard_entry_refuses_its_apex_and_allows_a_subdomain() -> None:
+    settings = ep.Settings(allowed=["*.example.com"], ok=True)
+    apex = ep.classify("CONNECT", "example.com:443", settings, GLOBAL)
+    assert not apex.ok
+    assert apex.reason == ep.R_NOT_ON_LIST
+    sub = ep.classify("CONNECT", "a.example.com:443", settings, GLOBAL)
+    assert sub.ok
+    assert sub.reason == ep.R_ALLOWED
+
+
+def test_wildcard_denied_entry_spares_its_apex() -> None:
+    # The same rule holds in deniedDomains: `*.example.com` there refuses the subdomains only.
+    settings = ep.Settings(
+        allowed=["example.com", "a.example.com"], denied=["*.example.com"], ok=True
+    )
+    assert ep.classify("CONNECT", "example.com:443", settings, GLOBAL).ok
+    assert (
+        ep.classify("CONNECT", "a.example.com:443", settings, GLOBAL).reason
+        == ep.R_DENIED
+    )
 
 
 # --------------------------------------------------------------------------------------------------
