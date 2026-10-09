@@ -1,0 +1,1131 @@
+{
+  "uid": "h4-runtime",
+  "title": "h4reet.ai runtime",
+  "description": "The stack's runtime: requests, the model server, and telemetry health (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
+  "tags": ["h4reet", "spec-000"],
+  "timezone": "utc",
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Requests",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 2,
+      "title": "Request count",
+      "description": "Requests a second, by the route each took (FR-028).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 10,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_route_decision) (rate(h4_gateway_requests_total[$__rate_interval]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_route_decision}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Request count over the range",
+      "description": "Every request in the dashboard's time range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 1,
+        "w": 4,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(increase(h4_gateway_requests_total[$__range]))",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 4,
+      "title": "Error rate",
+      "description": "The share of requests answered 502 local_error or an unexpected 5xx; degraded answers are by design and not counted. With no traffic it has no value (telemetry.md \u00a77.3).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 1,
+        "w": 10,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(rate(h4_gateway_requests_total{h4_outcome=\"error\"}[$__rate_interval])) / sum(rate(h4_gateway_requests_total[$__rate_interval]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "error rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 5,
+      "title": "Latency p50 and p95",
+      "description": "From a request's arrival to its answer (FR-028).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(h4_gateway_request_duration_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(h4_gateway_request_duration_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 6,
+      "title": "Provider latency p95",
+      "description": "Each provider attempt, by provider.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 9,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_provider_name) (rate(gen_ai_client_operation_duration_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{gen_ai_provider_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 7,
+      "title": "Outcomes",
+      "description": "Requests by outcome: ok, degraded, refused, invalid, error.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 9,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_outcome) (increase(h4_gateway_requests_total[$__rate_interval]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 8,
+      "title": "Model server",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 9,
+      "title": "Model-server health",
+      "description": "The model server answers its metrics once its model is loaded; and each adapter's health as the gateway sees it (FR-028).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(up{job=\"model-server\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "model server"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (h4_adapter) (h4_adapter_healthy)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "adapter {{h4_adapter}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "down",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "up",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 10,
+      "title": "Generation",
+      "description": "Tokens a second the model server generated, and read from prompts.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 18,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "rate(llamacpp:tokens_predicted_total[$__rate_interval])",
+          "range": true,
+          "instant": false,
+          "legendFormat": "generated"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "rate(llamacpp:prompt_tokens_total[$__rate_interval])",
+          "range": true,
+          "instant": false,
+          "legendFormat": "prompt"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 11,
+      "title": "Queue",
+      "description": "Requests the model server is working on, and those waiting for a slot.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 18,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(llamacpp:requests_processing)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "processing"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(llamacpp:requests_deferred)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "deferred"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 12,
+      "title": "Tokens by provider",
+      "description": "Input and output tokens in the dashboard's time range, by provider.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (gen_ai_provider_name, gen_ai_token_type) (increase(gen_ai_client_token_usage_sum[$__range]))",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 13,
+      "title": "Telemetry health",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 14,
+      "title": "Backends up",
+      "description": "Each scraped backend, one per job: how a degraded telemetry pipeline shows itself (plan \u00a719).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (job) (up{job=~\"model-server|otel-collector|loki|grafana|clickhouse|prometheus\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "down",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "up",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 15,
+      "title": "Spend freshness",
+      "description": "Seconds since the day's spend gauge was last seen: green under 30, amber under 60, red at 60 or more or with no data (telemetry.md \u00a76.5 and \u00a77.6).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 4,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "time() - max(timestamp(h4_meter_spend_usd{h4_meter=\"day\"}))",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no data",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            }
+          ],
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 60
+              }
+            ]
+          },
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 16,
+      "title": "Export failures",
+      "description": "Spans, metric points, and log records an exporter failed to send, a second.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 32,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "spans {{exporter}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "metric points {{exporter}}"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "log records {{exporter}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 17,
+      "title": "Dropped at the queue",
+      "description": "Telemetry an exporter's full queue dropped, a second.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "spans {{exporter}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_metric_points_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "metric points {{exporter}}"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_log_records_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "log records {{exporter}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 18,
+      "title": "Queue fill",
+      "description": "How full each exporter's sending queue is.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 38,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (exporter) (otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{exporter}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 19,
+      "title": "Spans to Langfuse",
+      "description": "Spans the collector sent to Langfuse, a second.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 38,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(rate(otelcol_exporter_sent_spans_total{exporter=\"otlphttp/langfuse\"}[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "spans"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 20,
+      "title": "Refused at the receiver",
+      "description": "Telemetry the collector's receivers refused, a second: its memory limit, or a malformed request.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_spans_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "spans {{receiver}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_metric_points_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "metric points {{receiver}}"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_log_records_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "log records {{receiver}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}
