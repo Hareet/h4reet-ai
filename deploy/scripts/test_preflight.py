@@ -539,6 +539,8 @@ def test_p6_the_stack_agrees(dev: Stage) -> None:
         ),
         ({"LANGFUSE_ENCRYPTION_KEY": "short"}, "LANGFUSE_ENCRYPTION_KEY isn't 64"),
         ({"LANGFUSE_DB_PASSWORD": "a/b@c"}, "URL escaping"),
+        # A space can't reach P7 (the line doesn't parse), but a non-ASCII character can.
+        ({"GATEWAY_GRAFANA_RO_PASSWORD": "p\u00e4ssword"}, "isn't printable ASCII"),
         ({"H4_VHDX_MOUNT": "/mnt/z"}, "isn't a mounted Windows drive"),
     ],
 )

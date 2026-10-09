@@ -743,6 +743,12 @@ def value_shape_problems(ctx: Context) -> list[str]:
         problems.append(
             "LANGFUSE_ENCRYPTION_KEY isn't 64 lowercase hex (256 bits, as Langfuse requires)"
         )
+    ro = v.get("GATEWAY_GRAFANA_RO_PASSWORD", "")
+    if ro and not re.fullmatch(r"[!-~]+", ro):
+        # The gateway sets grafana_ro's password from it and refuses anything else (grafana_ro_password_invalid).
+        problems.append(
+            "GATEWAY_GRAFANA_RO_PASSWORD isn't printable ASCII without spaces, so the gateway would refuse to start"
+        )
     if not re.fullmatch(r"[A-Za-z0-9._~-]+", v.get("LANGFUSE_DB_PASSWORD", "")):
         problems.append(
             "LANGFUSE_DB_PASSWORD would need URL escaping inside DATABASE_URL"
