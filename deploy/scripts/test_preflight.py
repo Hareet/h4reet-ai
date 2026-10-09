@@ -550,7 +550,7 @@ def test_p6_the_stack_agrees(dev: Stage) -> None:
         ),
         ({"LANGFUSE_ENCRYPTION_KEY": "short"}, "LANGFUSE_ENCRYPTION_KEY isn't 64"),
         ({"LANGFUSE_DB_PASSWORD": "a/b@c"}, "URL escaping"),
-        # A bare space doesn't parse (P3), but single quotes carry one to P7; so can a non-ASCII character.
+        # A bare space doesn't parse (P2), but single quotes carry one to P7; so can a non-ASCII character.
         (
             {"GATEWAY_GRAFANA_RO_PASSWORD": "'correct horse battery'"},
             "isn't printable ASCII",

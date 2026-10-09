@@ -19,6 +19,7 @@ Exit codes: 0 done; 1 REF isn't a commit, or git or the export failed; 2 usage.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import os
 import re
@@ -50,6 +51,63 @@ def git(repo: Path, *args: str, binary: bool = False) -> subprocess.CompletedPro
         check=False,
         timeout=300,
     )
+
+
+def object_id(kind: bytes, data: bytes) -> str:
+    """The ID git gives an object of this kind and content (SHA-1 object format)."""
+    return hashlib.sha1(b"%s %d\0" % (kind, len(data)) + data).hexdigest()
+
+
+def commit_tree(repo: Path, sha: str) -> str:
+    """The tree a commit names, read from the commit object itself, after checking the object is that commit.
+
+    git cat-file doesn't rehash what it reads, so this does. With it, export()'s tree check proves an export is the
+    commit's own content, whatever .git holds, without trusting git's handling of any one file in it."""
+    done = git(repo, "cat-file", "commit", sha, binary=True)
+    if done.returncode or object_id(b"commit", done.stdout) != sha:
+        raise ExportError(
+            f"the object store's copy of {sha} isn't that commit; run git fsck"
+        )
+    tree = re.fullmatch(rb"tree ([0-9a-f]{40})", done.stdout.split(b"\n", 1)[0])
+    if not tree:
+        raise ExportError(f"commit {sha} names no tree")
+    return tree.group(1).decode()
+
+
+def tree_id(directory: Path) -> str | None:
+    """The tree ID git would give a directory's contents, or None for an empty one, which a tree can't hold."""
+    entries = []
+    with os.scandir(directory) as found:
+        for entry in found:
+            name = os.fsencode(entry.name)
+            if entry.is_symlink():
+                target = os.fsencode(os.readlink(entry.path))
+                entries.append((name, b"120000", object_id(b"blob", target)))
+            elif entry.is_dir(follow_symlinks=False):
+                sub = tree_id(Path(entry.path))
+                if sub is not None:
+                    # git orders a directory as if its name ended in "/"
+                    entries.append((name + b"/", b"40000", sub))
+            elif entry.is_file(follow_symlinks=False):
+                executable = entry.stat(follow_symlinks=False).st_mode & 0o100
+                data = Path(entry.path).read_bytes()
+                entries.append(
+                    (
+                        name,
+                        b"100755" if executable else b"100644",
+                        object_id(b"blob", data),
+                    )
+                )
+            else:
+                raise ExportError(f"{entry.path} is not a file, a link, or a directory")
+    if not entries:
+        return None
+    entries.sort()
+    body = b"".join(
+        mode + b" " + key.removesuffix(b"/") + b"\0" + bytes.fromhex(oid)
+        for key, mode, oid in entries
+    )
+    return object_id(b"tree", body)
 
 
 def resolve(repo: Path, ref: str) -> tuple[str, str]:
@@ -104,11 +162,17 @@ def make_writable(top: Path) -> None:
 
 
 def export(repo: Path, sha: str, trees: Path) -> Path:
+    """Export a commit once, and prove the export is that commit's own tree, whatever .git holds (R3-1)."""
+    expected = commit_tree(repo, sha)
     target = trees / sha
     if target.is_dir():
         if not (target / "deploy/compose.yaml").is_file():
             raise ExportError(
                 f"{target} exists but holds no deploy/compose.yaml; move it aside and run make up again"
+            )
+        if tree_id(target) != expected:
+            raise ExportError(
+                f"{target} no longer matches commit {sha}; move it aside and run make up again"
             )
         return target
     attributes = git(repo, "rev-parse", "--git-path", "info/attributes").stdout.strip()
@@ -136,6 +200,16 @@ def export(repo: Path, sha: str, trees: Path) -> Path:
         shutil.rmtree(staging)
         raise ExportError(
             f"commit {sha} has no deploy/compose.yaml, so it can't run as a stack"
+        )
+    # The checks above name the files known to steer git archive. This one doesn't depend on that list: the
+    # export must hash to the commit's own tree, or something in .git changed what was exported.
+    if tree_id(staging) != expected:
+        make_writable(staging)
+        shutil.rmtree(staging)
+        raise ExportError(
+            f"the export of {sha} doesn't match the commit's own tree, so something in .git changed what git "
+            "archive wrote (look in .git/info and .git/objects/info, and run git fsck). The repository's "
+            ".gitattributes may ask for no conversion but eol=lf"
         )
     make_read_only(staging)
     staging.chmod(0o555)

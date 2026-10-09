@@ -7,6 +7,7 @@ import os
 import stat
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 import pytest
@@ -231,3 +232,74 @@ def test_a_linked_state_directory_is_refused(
     (state / name).symlink_to(elsewhere)
     assert export(repo, state) == 1
     assert not list(elsewhere.iterdir())
+
+
+def test_the_export_is_the_commits_own_tree(repo: Path, tmp_path: Path) -> None:
+    sha = commit(repo, "one")
+    (repo / "deploy/nested").mkdir()
+    (repo / "deploy/nested/a.txt").write_text("a\n", encoding="utf-8")
+    sha = commit(repo, "two")
+    trees = tmp_path / "trees"
+    trees.mkdir()
+    target = et.export(repo, sha, trees)
+    assert et.tree_id(target) == git(repo, "rev-parse", f"{sha}^{{tree}}")
+    assert et.commit_tree(repo, sha) == git(repo, "rev-parse", f"{sha}^{{tree}}")
+
+
+def test_a_forged_commit_object_stops_the_export(repo: Path, tmp_path: Path) -> None:
+    # A forged loose object: commit one's file, rewritten to name commit two's tree.
+    one = commit(repo, "one")
+    (repo / "deploy/extra.txt").write_text("planted\n", encoding="utf-8")
+    two = commit(repo, "two")
+    raw = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "commit", one],
+        capture_output=True,
+        check=True,
+    ).stdout
+    forged = raw.replace(
+        raw.split(b"\n", 1)[0],
+        b"tree " + git(repo, "rev-parse", f"{two}^{{tree}}").encode(),
+    )
+    loose = repo / ".git/objects" / one[:2] / one[2:]
+    loose.chmod(0o644)
+    loose.write_bytes(zlib.compress(b"commit %d\0" % len(forged) + forged))
+    # cat-file reads the forged object as it stands, with no rehash; git's own parsing would refuse it.
+    shown = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "commit", one],
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert shown == forged
+    trees = tmp_path / "trees"
+    trees.mkdir()
+    with pytest.raises(et.ExportError, match="isn't that commit"):
+        et.export(repo, one, trees)
+    assert not list(trees.iterdir())
+
+
+def test_an_archive_that_differs_from_the_tree_is_refused(
+    repo: Path, tmp_path: Path
+) -> None:
+    # Any attribute that changes what git archive writes, here a committed export-ignore.
+    commit(repo, "one")
+    (repo / ".gitattributes").write_text(
+        "deploy/run.sh export-ignore\n", encoding="utf-8"
+    )
+    sha = commit(repo, "two")
+    trees = tmp_path / "trees"
+    trees.mkdir()
+    with pytest.raises(et.ExportError, match="doesn't match the commit's own tree"):
+        et.export(repo, sha, trees)
+    assert not list(trees.iterdir())
+
+
+def test_an_export_changed_since_is_refused(repo: Path, tmp_path: Path) -> None:
+    sha = commit(repo, "one")
+    trees = tmp_path / "trees"
+    trees.mkdir()
+    target = et.export(repo, sha, trees)
+    et.make_writable(target)
+    (target / "deploy/run.sh").chmod(0o755)
+    (target / "deploy/run.sh").write_text("#!/bin/sh\necho changed\n", encoding="utf-8")
+    with pytest.raises(et.ExportError, match="no longer matches"):
+        et.export(repo, sha, trees)
