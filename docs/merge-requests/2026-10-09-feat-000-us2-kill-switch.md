@@ -1,65 +1,165 @@
 # feat/000-us2-kill-switch
-Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5) as the integrator, with two implementer agents (the gateway; the evals, stand-ins, dashboard, and docs) · Date: 2026-10-09
-Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
+Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5) as the integrator, with two implementer agents in worktrees (the gateway half; the evals, stand-ins, dashboard, and docs half); reviewed by read-only reviewer agents (the gateway; the stack; the breach test; a verifier of every fix), with the convergence pass after the reviews · Date: 2026-10-09
+Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes
+Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
-**Status: DRAFT SAVE POINT.** I wrote it before a WSL restart, which wipes `/tmp`, so that Phase 4's state lives in git and not in the agents' scratch worktrees. I keep it current as work lands.
+**Status: DRAFT. Not ready to merge.** Every task an agent session can do before the engine exists is done, reviewed, and passes `make check`. What's left needs the engine or your hands:
+- **T084 (an agent session, on the engine):** `make breach-test ENV=dev-cpu` passes all 12 steps.
+- **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
+- **This note:** both runs' output goes into it, and then this block goes.
 
-**Integrated:** both halves, every implementation task, T067–T083. Left are T084 (an agent session on the engine), T085 (yours), and this note (T086).
-- **The evals half,** T071 and T079–T083: a0d3701 … e7d70c5, with 490170e. Its integrated files differ from the agent's tree only by the base's round-3 changes.
-- **The gateway half,** T067–T070 and T072–T078: 10 commits on top. One conflict, in `scripts/test_operator.py`, where both sides appended tests; both kept. Its files also differ from the agent's tree only by the base's round-3 changes, which I checked file by file.
-- **Two fixes from the breach-test review:** 4e059ab, dev runs only from its run file's export; 021454f, the wiped store asserted as the contract has it.
+**Merge order:** this branch is stacked on `feat/000-us1-local-stack` (786ebbe), which waits for T063–T065 and T149. Merge that branch first; then bring this one up to date with main, as T063 does for us1; then merge it once this block is gone.
 
-**`make check` on the full tree (223252d):** 5 PASS, 2 SKIP, 4 PLANNED, 0 PENDING, 0 FAIL.
-- The gateway has 552 tests passing and 12 skipped. 11 skips are the contract suite's per-subject variants, by design: the synthetic adapter has no API to fail (C4's cases, C12), and the local adapter skips the direct-only variant. The 12th is the real-budgets pin, which waits for T022.
-- pytest has 1486 passing and 2 skipped, the Bedrock runbooks, which arrive with T106.
+## Runs in the Author's terminal
 
-**Reviews:**
-- **The first three commits of each half:** ready. The nits are fixed in later commits.
-- **The breach test:** request changes, with 4 Important findings. 1 and 3 are fixed; 2 and 4, step 10's pacing, and the nits are with the implementer.
-- **The gateway half's later commits:** under review.
+ADR 0017 puts this section first. Nothing here has run outside the sandbox: there is no Docker, GPU, or registry in it.
 
-**Merge order:** this branch is stacked on `feat/000-us1-local-stack` (4d7f3a3). It merges after that branch, which itself waits for T063–T065 and T149.
+| What | How it runs | Check before you run it |
+|---|---|---|
+| **`scripts/operator.py`'s `reset`, `renew`, `audit`, and `incidents`**, and **`make operator-reset`, `operator-renew`, `operator-audit`, `operator-incidents`** (T075) | through `PY_HOST`, by path, with your real token | They reuse `AdminClient` unchanged: the same token readers, the port pin, no proxy, no redirects, the unredirected `Authorization`. `reset` and `renew` need a `REASON` of 10–500 characters, checked by the CLI and by `AdminClient` itself. `incidents --show` prints what the stack's gateway sends, with control characters shown as `?`. `LIMIT` and `ID` are in `LITERAL_VARS`, so make passes them as typed. |
+| **`evals/breach.py`** and **`make breach-test ENV=dev [DELIVERY=real]`** (T080) | through `PY_HOST`, by path, in your terminal for dev | For dev it runs only from the export the running commit's run file names (`H4_TREE`). From any other tree it refuses before any docker command or token read, so it never builds the working tree on your engine. It builds the probe from that export, gives the probe dev's token on standard input, and passes only the two Langfuse keys. With `DELIVERY=real` it writes a one-line overlay, 0600 in a 0700 temporary directory, as the third env file. It removes it in a `finally`, and on Ctrl-C, SIGTERM, and SIGHUP. A SIGKILL leaves dev on real delivery until the next `make up ENV=dev`. |
+| **The stand-ins** (T079): `evals/standins/telegram_standin.py` and Mailpit | containers on dev's `internal` network, `dev-receivers` profile | The stand-in takes only the token `standin` and chat 0, and never forwards anything. Mailpit is pinned in images.lock, with no relay, forward, or webhook configured. Neither publishes a port. |
 
-## Where the work is
+## What changed and why
 
-Two implementer agents started from 7dbe6a7 on `feat/000-us1-local-stack`, each on its own branch. The session's usage limit stopped both mid-task. Their finished commits are as they left them. I committed each one's unfinished work, unchanged, as a final `wip` commit, so it survives the restart. Neither `wip` commit has been linted or tested.
-
-**`us2-gateway`** (the gateway half: T067–T070, T072–T078):
-
-| Commit | What |
+| Commits | Change |
 |---|---|
-| 81f4bed | T072, from US1's review: init survives a lost COMMIT acknowledgement, and a refused statement isn't counted as an outage |
-| 09f9084 | T069, part 1: every alert kind's text, and its dedupe key |
-| 019c4a8 | T067, T068, T072: the meter. Metered admission, the commit, crossings, the sweep, and rollover |
-| f1369e4 | **wip:** T073 and T074 in progress. The synthetic adapter and its contract test, dev's `fallback: synthetic`, the fallback branch in the gateway, and an end-to-end fallback test being written |
+| a0d3701 | **T079:** the Telegram stand-in and Mailpit, with disclosure rows S12 and S13. |
+| 4b5a92e | **T081:** the US2 dashboard panels, with telemetry.md §7.1, §7.2, and §7.5's exact queries. |
+| 944cb47, e7d70c5 | **T082:** the nine US2 runbooks; two use `make hello`. |
+| 1962034, 9f7d263 | **T071, T080:** the breach test. `evals/breach.py` runs the 12 steps; `evals/breach_probe.py` holds the probe and its assertion helpers; plus `make breach-test` and the delivery overlay. |
+| ce1b89f | **T083:** the Telegram and SMTP rows (A1, A2), and row S11 widened to what the probe calls. |
+| 4ff72c2 | **T072, from US1's review:** init survives a lost COMMIT acknowledgement, and a refused statement isn't counted as an outage. |
+| 5b4c53c, e7dbed5 | **T069, T077:** every alert kind's text and dedupe key, and delivery: Telegram, SMTP, the retry schedule, `store_unreachable`, and the reminder. |
+| 701c7de | **T067, T068, T072:** the meter. Metered admission, the commit, crossings, the sweep, and rollover. |
+| 28c52a0 | **T073, T074:** dev's synthetic fallback and FR-022's metered fallback branch, together; `fallback_not_supported` removed. |
+| b13ae90, 57d3710 | **T070, T075, T076:** reset, renew, the audit log, and incident reads, with their CLI and make targets; the dev-only clock and synthetic spend. |
+| 824bcfa | **T078:** the incident drafts, from a deterministic template. |
+| 1012e70, f3a614a | **The gateway review's five nits, and the wiped store:** the meter prices each call itself; one trip record per transaction; a store wiped under a running gateway reads as `store_uninitialized`. |
+| 4e059ab … 120d9b2 | **The breach-test review's fixes** (round 1, below). |
+| deece03, 43984a2, a481f47 | **The gateway review's last three nits** (round 1, below). |
+| 490170e, 65af354 | **Integration:** operator-admin.md §6 names the probe's two Langfuse keys; T117's text names the breach test's dev route. |
 
-Still to do there: finish T073 and T074, which land together, then T070, T075, T076, T077, T078, and the rest of T069.
+### Departures from the plan
 
-**`us2-evals`** (T071, T079–T083):
+Each is recorded where the plan or contract says otherwise, in the commit that made it:
+- **The meter and the store** (data-model.md):
+  - §2.1: what counts as a store failure, the lost acknowledgement, and re-migrating a wiped store;
+  - §6.1: the row for a lost volume;
+  - §7.3: the meter prices calls itself, and a slot backstop;
+  - §7.7, and §8 step 9.
+- **Telemetry** (telemetry.md): per-call root traces with links (§3.2); `h4.meter.commit` (§3.3); and in §5.2, `killswitch.tripped` once per transaction that sets degraded, plus `meter.sweep_failed` and `incident.draft_failed`.
+- **Alerts** (alerts.md):
+  - §4.1: `X-H4-Alert-ID`, as nodemailer spells it; the Telegram error classes; the delivery lease; LISTEN reconnecting;
+  - §7's readings of T078: the daily-totals heading only on monthly drafts, and a ceiling crossed on an already degraded stack.
+- **The admin API** (operator-admin.md): the §2.3 409 row; §3.1–§3.2; §4.2–§4.3; and in §6, the new commands and the probe's two Langfuse keys.
+- **The breach test** (plan §8):
+  - each stack on its own engine, and dev only from its export;
+  - the probe's call: `run --build --rm -T`, `python3 -I`, the token and operations on standard input;
+  - checks timed from the action they measure, and restart rows counting only the new process;
+  - step 10's pacing under the metered cap;
+  - real mode telling the providers from the stand-ins.
+- **The delivery overlay** (env-files.md §7.2): it is the third env file, and an interrupted run still restores dev.
+- **The matrix** (plan §13 and §15): the breach test's dev route is nine planned rows for the closing patch, so the matrix gate reports PLANNED (T117).
+- **Config** (plan §5.8, config-files.md §1.4): the temporary `fallback_not_supported` refusal is gone.
 
-| Commit | What |
-|---|---|
-| 3f25a7c | T079: the Telegram stand-in and Mailpit, dev's alert receivers in stand-in mode |
-| 86f6fe4 | T081: the dashboard's state, spend, and audit-and-alerts panels, with telemetry.md's exact queries |
-| 2cfbf8d | T082: the nine US2 runbooks |
-| b8a8010 | **wip:** T071's `evals/test_breach_helpers.py`, seen failing, and T080's `evals/breach_probe.py`, partial |
+## Acceptance criteria
 
-Still to do there: finish T071 and T080 (`breach.py`, the probe, `make breach-test`, the delivery overlay), then T083.
+User Story 2's scenarios are proven by the breach test's 12 steps (plan §8). T084 runs them on dev-cpu, and T085 on dev with real delivery. Built here:
+- **FR-022's fallback branch,** in its precedence order.
+- **FR-030, FR-031:** the ceilings and the meter, in the store and checked at request start.
+- **FR-032:** warnings, delivered over Telegram and SMTP within the retry schedule.
+- **FR-033:** a trip to degraded, with no human action.
+- **FR-034:** reset and renew, with the operator credential, a reason, and an audit row.
+- **FR-035:** the incident drafts.
+- **FR-036:** `make breach-test`, dev and dev-cpu only.
+- **FR-040:** the alert rows (A1, A2).
+- **SC-002:** 60 s to degraded and 5 minutes to the alert. The breach test asserts both, timed from the action; only T084 and T085 can prove them.
 
-## Decisions made since the agents started
+## Constitution check
 
-These come from US1's round-3 review on the base branch (7f49655, 110b42e), after the agents' starting point:
-- Every probe hop passes `run --build`, breach-test's included.
-- `make compose-images` builds only on the agents' engine.
-- `scripts/operator.py`'s `hop()` and `check_url()` stay as they are on the base; T075 adds commands beside them.
+| Principle | Touched? | How it complies, or the justified deviation |
+|---|---|---|
+| I. Data-local | Yes | The new flows that leave the local tier are the alerts: Telegram's Bot API and the alerts mailbox's SMTP (A1, A2), carrying no payloads, client labels, or secrets (alerts.md §5). The stand-ins sit on `internal` alone. |
+| II. Production-grade | Yes | Tests for every module (the counts are under Verification), nine runbooks, the US2 dashboard panels, and the breach test itself. |
+| III. Intent → spec → code | Yes | Built task by task, departures recorded with their commits, reviews and the convergence pass before merge. |
+| IV. Least privilege | Yes | Reset and renew require the operator token and a reason; the test machinery is dev-only, by the env class and its switch, after authentication. **Deviation, tracked:** bash-gate doesn't yet refuse an agent's `make breach-test ENV=dev` (FR-008). Stage S keeps the sandbox off dev's ports and token. The closing patch (T117) adds the rule, and nine planned matrix rows hold it until then. |
+| V. Cost | Yes | The meter is the enforcement point: ceilings, the fallback sub-budget and its renewal, and every metered call priced by the meter itself, at the reservation's price version. Synthetic spend is dev-only. |
+| VI. Build in public | Yes | No secrets; gitleaks finds none. |
+| VII. Own the whole product | No | No claims about the Author. |
+| VIII. Honest AI | No | No twin yet. |
 
-## Next steps
+## Review
 
-1. **After the restart:** `git worktree prune`. Recreate each agent's worktree from its branch, and resume the two agents with their worktrees' new paths. Their transcripts are kept outside `/tmp`.
-2. **The gateway agent** finishes T073 and T074 first, then folds its `wip` commit into real ones. The evals agent does the same with T071 and T080.
-3. **Integration:** cherry-pick both branches onto this one, run `make check`, and record departures.
-4. **Review:** the three reviewers who reviewed US1, each on its own slice.
-5. **Then** the convergence pass, this note, and T084 (an agent session on the engine). T085 is the Author's recorded run.
+### Round 1
+
+| Slice | Reviewer's verdict | Findings and fixes |
+|---|---|---|
+| The gateway's first three commits (T069 part 1, T072, the meter) | ready | Every focus point held under mutants: the locking order, crossings, precedence, the reserved-micro invariant, the sweep's rows, rounding, and rollover. Five nits, fixed in 1012e70: init's re-read when the store is still down; `settle()` trusting the caller's cost (it now prices the call itself, with a slot backstop); two untested guards; `killswitch.tripped` once per crossing; the sweep swallowing failures. |
+| The stack's first three commits (T079, T081, T082) | sound | Two nits: row S11 disagreeing with S12 and S13 (fixed in ce1b89f), and two runbooks building hello by hand (e7d70c5). |
+| The breach test (T071, T080, T083) | request changes | Four Important findings, all fixed: |
+| | | 1. dev ran from breach.py's own tree, unchecked against the run file's `H4_TREE` (4e059ab). |
+| | | 2. Windows were timed from the check, not the action, and the restart rows could pass on the old process (f19e088). |
+| | | 3. Step 11c could never pass; the gateway now re-migrates (f3a614a, 021454f). |
+| | | 4. FR-008 for the breach test's dev route: planned rows and T117's text (dcd8353, 65af354). |
+| | | Five nits: db8649e, daea1d3, 561d2df, 120d9b2. Step 10's pace, raised by the gateway implementer, is fixed in db8649e. |
+| The gateway's later commits (T070, T073–T078) | ready | It ran the new CLI end to end against the real admin app: `$`, quotes, and `$(shell …)` in a reason reached the audit row byte for byte. Three nits: two untested guards (deece03, 43984a2), and the dispatcher never listening again after a dropped connection (a481f47). |
+
+### Round 2: every fix verified (at 65af354, matrix rerun at a4911df)
+
+A fresh reviewer checked all eleven fix commits against their findings: each is fixed, and for each, a mutant that reverts it fails a test.
+- **Gateway:** the terminal cleaning and `AdminClient`'s own reason check (deece03); the per-request dev check (43984a2); the dispatcher listening again (a481f47).
+- **Breach test:** dev only from its export (4e059ab); step 11 as the contract has it (021454f); windows timed from the action, with 5a and 6f counting only the new process (f19e088); step 10's pace and every figure re-derived from plan §8 (db8649e); the stand-ins told apart in a real run (daea1d3); the surviving mutants (561d2df); and the interrupt handling (120d9b2).
+- **The planned rows (dcd8353):** sound as a recorded deferral to T117. An allowed planned row reports PLANNED, a blocked one needs its audit record, and a hook crash is FAIL. A FAIL row anywhere still exits 1, and `run_checks` reads the exit code before any PLANNED line, so the gate fails.
+
+It found three new nits, all with the implementer:
+- an interrupt that arrives during cleanup stops the cleanup;
+- two surviving mutants;
+- the probe's `shorten()` lets DEL and C1 control characters through.
+
+### `/speckit-converge` (after round 1)
+
+Run over Phase 4's scope at 65af354: 24 requirements and criteria (FR-008, FR-022, FR-030 to FR-037, FR-040, SC-002, US2-1 to US2-8 and the independent test, and three edge cases), the 20 tasks, 16 plan sections, 59 contract sections, and principles I–VI. No MUST is violated. A read-only agent did the assessment. It found 5 gaps, 0 critical, 0 high, 2 medium, and 3 low, and one flaky check. I appended them as T152–T157 (cb36083):
+- **Medium:** nothing queued the `fallback_unavailable` alert when a paid fallback turns unhealthy (T152); the planned matrix rows missed four spellings of the breach test's dev route, including the module form `python3 -m evals.breach` (T153).
+- **Low:** the `disabled` health reason was never produced (T154); a synthetic run stopped by a limit was counted as `fallback` even when metered (T155); SMTP recorded an assumed `250` (T156).
+- **Flaky:** C10's stub-case timing check failed once under load (T157), the same kind of race round 3 found in US1's C3.
+
+It also checked T084's and T085's paths on paper. T022's config patch applies cleanly here, and with it `validate-config` reports 0 errors, so neither run is blocked by configuration.
+
+Pending: T152–T157, with the implementers.
+
+## Verification
+
+Pending: the final `make check` and gitleaks at the tip.
+
+## Cost and data-flow impact
+
+**Cost:** the breach test's synthetic spend is dev-only and never reaches a provider. In production, the fallback runs inside its sub-budget, and the meter refuses a call once a ceiling is reached (FR-030, FR-031).
+
+**Data flows:** Telegram's Bot API and the alerts mailbox's SMTP (rows A1, A2), carrying only alert text: no payloads, no client labels, no secrets. The stand-ins replace both on dev unless `DELIVERY=real`.
+
+## For the Author
+
+1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
+2. **T084:** ask me for an agent session on the engine: `make breach-test ENV=dev-cpu`, all 12 steps.
+3. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
+
+### For later tasks
+
+- **T117:** the breach test's dev route in bash-gate, which turns the nine planned rows to block.
+- **The gateway implementer's notes:** a lost init record is repaired only when the operator's retry gets the 409. A call with several attempts is charged their sum, which can't exceed `max_micro` with today's retry policies.
+- **Only real runs prove:** Prometheus's and Loki's answers about a past moment, and whether the 5 s grace is enough; Mailpit's time format; signal handling in your terminal; step 10's waits against the real limiter; real TLS, SMTP AUTH, and Telegram delivery; re-migration against a recreated Postgres container.
+
+### CLAUDE.md, by your hand
+
+The breach-test reviewer suggested a line for "Things Claude gets wrong", from its Important 1, which repeats US1 round 3's working-tree images on your engine:
+
+> - A script that builds or runs a host stack's containers checks that its own tree is the run file's `H4_TREE`; make's path isn't enough.
+
+### Observations
+
+- **The usage limits stopped both implementers twice.** Before your WSL restart, I committed their unfinished work as `wip` commits on their branches. Both agents later folded those into finished commits, and the integration squashed the evals half's `wip` into T071's commit (1962034).
+- **The matrix gate now reports PLANNED (T117)** for the thirteen breach-test rows (nine, plus T153's four). A FAIL elsewhere in the matrix still fails the gate: the verifier checked it with a mutant.
 
 ## Appendix: the planning agent's split of Phase 4
 
