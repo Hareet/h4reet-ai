@@ -927,6 +927,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
     - `claude mcp add`;
     - `deploy/agents-engine/engine.sh` with any subcommand but `smoke` and `status`, by any spelling;
     - `make operator-*` and admin URLs for any stack but dev-cpu;
+    - `make breach-test` and `evals/breach.py` for any stack but dev-cpu, by any spelling, `SANDBOX_RUNTIME=0` or `env -u SANDBOX_RUNTIME` in front included: the run inits, resets, and renews the stack it runs on, which FR-008 gives a pre-execution hook with a reason and an audit record, and make's and the script's own `SANDBOX_RUNTIME` checks are one unset away. (Added by tasks.md T080's review: planned rows until the closing patch, T117, switches them to block rows; `ENV=dev-cpu` stays an allow row.)
     - `make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`, `make aws-login`, and `make contract-live`.
   - **Secret content:** fake keys assembled at run time, so the matrix file itself contains none. Three rows prove gitleaks can't be talked out of a finding: a planted `.gitleaksignore` naming the fake finding's fingerprint, at the scan source's root, a `gitleaks:allow` comment on its line, and a `.gitleaks.toml` in the scanned directory.
   - **Settings rows:**
@@ -1035,7 +1036,7 @@ The closing patch holds:
   - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)).
   - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, and `./.git/refs/heads/main`, and `permissions.deny` gets the matching `Edit(...)`.
 - **`.claude/hooks/bash-gate.sh`:**
-  - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the Author-only targets, `--no-verify`, and `claude mcp add`;
+  - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the breach test on any stack but dev-cpu, the Author-only targets, `--no-verify`, and `claude mcp add`;
   - the read-only roles' rules, keyed on the hook input's `agent_type`. For `reviewer` and `red-teamer`, it refuses:
     - `git diff --output`;
     - `git diff` or `git log` with a redirection;
