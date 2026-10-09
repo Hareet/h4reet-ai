@@ -298,25 +298,25 @@ description: "Task list for spec 000, Local Foundations"
   - `POST /admin/init` and `GET /admin/status`;
   - `src/meter/init.ts`, following data-model.md §8;
   - `src/meter/journal.ts`, following §3: `O_APPEND`, `fsync`, monthly files at 0600 in a 0700 directory, and the `operator` and `clock` record kinds.
-- [ ] T056 [US1] Create `scripts/operator.py` (stdlib, run through `PY_HOST`) with `mint`, `status`, and `init`, per contracts/operator-admin.md §6. It reads the token only from `~/.config/h4reet-ai/operator/<stack>.token` and follows §6.2's exit codes. Add `scripts/test_operator.py`, and the Makefile targets `operator-token`, `operator-init`, and `operator-status` (§6.1).
-- [ ] T057 [US1] Add `model-server-gpu` and `model-server-cpu` to `deploy/compose.yaml` per §3: the profiles `gpu` and `cpu`, the commands and flags, the GPU reservation in `gpu` only, and the health checks. Create `deploy/models.lock` with both models' pins from research.md R-03, one model per line with its file name and sha256 on that line: `engine.sh seed_model` reads it that way, and refuses a model it can't find a sha256 for (review round 2). Create `deploy/scripts/pull-models.sh`:
+- [X] T056 [US1] Create `scripts/operator.py` (stdlib, run through `PY_HOST`) with `mint`, `status`, and `init`, per contracts/operator-admin.md §6. It reads the token only from `~/.config/h4reet-ai/operator/<stack>.token` and follows §6.2's exit codes. Add `scripts/test_operator.py`, and the Makefile targets `operator-token`, `operator-init`, and `operator-status` (§6.1).
+- [X] T057 [US1] Add `model-server-gpu` and `model-server-cpu` to `deploy/compose.yaml` per §3: the profiles `gpu` and `cpu`, the commands and flags, the GPU reservation in `gpu` only, and the health checks. Create `deploy/models.lock` with both models' pins from research.md R-03, one model per line with its file name and sha256 on that line: `engine.sh seed_model` reads it that way, and refuses a model it can't find a sha256 for (review round 2). Create `deploy/scripts/pull-models.sh`:
   - it runs the disk preflight first;
   - it downloads with `curl -fL -C -` and no token;
   - it verifies the sha256, renames atomically, and sets mode 0444;
   - on the engine it only verifies.
 
   Add the model servers' and the model downloads' rows to `docs/data-flow-disclosure.md`: the compose policy requires a row for every service.
-- [ ] T058 [US1] Add the observability services to `deploy/compose.yaml`, with the switches of §6:
+- [X] T058 [US1] Add the observability services to `deploy/compose.yaml`, with the switches of §6:
   - `otel-collector`, with `deploy/otel/collector.yaml` per contracts/telemetry.md §6 (the receivers `otlp` on 4317 and 4318 and `otlp/devtime` on 4319; the traces, metrics, logs, and `metrics/devtime` pipelines; every processor in §6.3; the exporters in §6.4);
   - `prometheus`, with `deploy/prometheus/prometheus.yml` per §6.6;
   - `loki`, with `deploy/loki/loki.yaml`;
   - `grafana`, with `deploy/grafana/provisioning/datasources/*.yaml` (prom, loki, and `gateway` through `grafana_ro`) and `deploy/grafana/provisioning/dashboards/*.yaml`.
 
   Add their rows to `docs/data-flow-disclosure.md`.
-- [ ] T059 [US1] Add Langfuse 4.54.0 to `deploy/compose.yaml`: `langfuse-web`, `langfuse-worker`, `langfuse-db`, `clickhouse` (with `deploy/clickhouse/{low-memory,no-crash-reports,prometheus}.xml`), `valkey`, and `seaweedfs` (with `deploy/seaweedfs/entrypoint.sh`, which renders `s3.json` from env and creates the `langfuse` bucket idempotently). Give each the keys of contracts/env-files.md §5 and §6, the off-switches of research.md R-08, and heap caps. Add their rows to `docs/data-flow-disclosure.md`.
-- [ ] T060 [US1] Create `deploy/grafana/dashboards/h4-runtime.json` (uid `h4-runtime`, a 10 s refresh, UTC, `allowUiUpdates: false`). Give it the US1 panels with the exact queries of contracts/telemetry.md §7.3, §7.4, and §7.6: request count, latency p50 and p95, error rate, model-server health, and telemetry health.
-- [ ] T061 [US1] Create `deploy/scripts/isolation-check.sh` and `make isolation-check` (Author) per §4.
-- [ ] T062 [P] [US1] Create the runbooks `docs/runbooks/model-server-down.md`, `docs/runbooks/store-initialization.md`, and `docs/runbooks/rollback.md`, each with Symptoms · Impact · Act · Verify · Undo · Record.
+- [X] T059 [US1] Add Langfuse 4.54.0 to `deploy/compose.yaml`: `langfuse-web`, `langfuse-worker`, `langfuse-db`, `clickhouse` (with `deploy/clickhouse/{low-memory,no-crash-reports,prometheus}.xml`), `valkey`, and `seaweedfs` (with `deploy/seaweedfs/entrypoint.sh`, which renders `s3.json` from env and creates the `langfuse` bucket idempotently). Give each the keys of contracts/env-files.md §5 and §6, the off-switches of research.md R-08, and heap caps. Add their rows to `docs/data-flow-disclosure.md`.
+- [X] T060 [US1] Create `deploy/grafana/dashboards/h4-runtime.json` (uid `h4-runtime`, a 10 s refresh, UTC, `allowUiUpdates: false`). Give it the US1 panels with the exact queries of contracts/telemetry.md §7.3, §7.4, and §7.6: request count, latency p50 and p95, error rate, model-server health, and telemetry health.
+- [X] T061 [US1] Create `deploy/scripts/isolation-check.sh` and `make isolation-check` (Author) per §4.
+- [X] T062 [P] [US1] Create the runbooks `docs/runbooks/model-server-down.md`, `docs/runbooks/store-initialization.md`, and `docs/runbooks/rollback.md`, each with Symptoms · Impact · Act · Verify · Undo · Record.
 - [ ] T063 [US1] **Author** (Heavy, with no agents working): `make pin-images`, which also pins SeaweedFS (quickstart.md §1.6, item 4); `make pull MODELS=all`; then `deploy/agents-engine/engine.sh seed` (quickstart.md §0.9). Commit the pins on this branch. The agents' engine can then run dev-cpu.
 - [ ] T064 [US1] Agent session, on the engine: `make up ENV=dev-cpu` comes up healthy, `make operator-init ENV=dev-cpu` with the dummy token, hello answers from the stand-in, then `make down ENV=dev-cpu`. Paste the output into `docs/merge-requests/<date>-feat-000-us1-local-stack.md`.
 - [ ] T065 [US1] **Author** (Heavy): run `quickstart.md` §0.7–§0.8 and §1:
