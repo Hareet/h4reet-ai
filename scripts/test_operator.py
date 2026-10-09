@@ -2422,6 +2422,36 @@ def test_incidents_show_prints_the_newest_drafts_markdown_ready_for_a_file(
     assert out == INCIDENTS_BODY["incidents"][0]["content"]
 
 
+def test_incidents_show_cleans_a_drafts_control_characters_for_the_terminal(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # dev-cpu's gateway is agent-built: what it sends reaches the Author's terminal. ESC, BEL, and the C1 CSI
+    # (U+009B) each print as ?, so no escape sequence runs; the lines and tabs of the Markdown stay as they are.
+    plant(home, "dev", token("dev") + "\n")
+    hostile = "# Intent\n\x1b[2J\x07| a\t| b |\n\u009b31mred\x1b]0;title\x07\n"
+    draft = {**INCIDENTS_BODY["incidents"][0], "content": hostile}
+    stub.answer("GET", "/admin/incidents", 200, {"incidents": [draft]})
+    code, out, _ = run(["--stack", "dev", "incidents", "--show"], capsys)
+    assert code == 0
+    assert out == "# Intent\n?[2J?| a\t| b |\n?31mred?]0;title?\n"
+    assert not any(ch in out for ch in "\x1b\x07\u009b")
+
+
+@pytest.mark.parametrize("command", ["reset", "renew"])
+@pytest.mark.parametrize(
+    "reason", ["too short", "x" * 501, "has a\nnewline in it", "an \x1b[2J escape"]
+)
+def test_admin_client_holds_a_writes_reason_to_the_rule_itself(
+    home: Path, stub: Stub, command: str, reason: str
+) -> None:
+    # Other tools load AdminClient by path, past main's check: the client refuses the reason before any call.
+    plant(home, "prod", token("prod") + "\n")
+    client = op.AdminClient("prod", url=stub.url)
+    with pytest.raises(op.Usage, match="reason"):
+        getattr(client, command)(reason)
+    assert stub.requests == []
+
+
 def test_incidents_show_with_no_written_draft_is_exit_1(
     home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
 ) -> None:
