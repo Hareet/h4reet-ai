@@ -311,7 +311,11 @@ def classify(
         rest = target[len("http://") :]
         authority, _, path = rest.partition("/")
         request_path = "/" + path
-        host, _, port_text = authority.partition(":")
+        if authority.startswith("["):  # an IPv6 literal: [address] or [address]:port
+            literal, bracket, after = authority.partition("]")
+            host, port_text = literal + bracket, after.removeprefix(":")
+        else:
+            host, _, port_text = authority.partition(":")
         if port_text and not port_text.isdigit():
             return Verdict(False, R_PORT, method=method, host=host)
         port = int(port_text) if port_text else 80
@@ -331,12 +335,14 @@ def classify(
 
 def _judge_host(method, host, port, path, settings, resolver, allowed_port) -> Verdict:
     host = host.lower().rstrip(".")
-    if port != allowed_port:
-        return Verdict(False, R_PORT, method=method, host=host, port=port, path=path)
-    if _is_ip_literal(host):
+    # An IP literal first, bracketed or not: it is refused on any port, and that reason says more than
+    # the port's (§7 E8 expects ip_literal for 198.18.0.1:2376 and 169.254.169.254:80).
+    if _is_ip_literal(host.removeprefix("[").removesuffix("]")):
         return Verdict(
             False, R_IP_LITERAL, method=method, host=host, port=port, path=path
         )
+    if port != allowed_port:
+        return Verdict(False, R_PORT, method=method, host=host, port=port, path=path)
     if host_listed(host, settings.denied):
         return Verdict(False, R_DENIED, method=method, host=host, port=port, path=path)
     if not host_listed(host, settings.allowed):

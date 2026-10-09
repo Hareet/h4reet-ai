@@ -433,6 +433,27 @@ def test_classify_connect_ip_literal(settings: ep.Settings) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("method", "target"),
+    [
+        ("CONNECT", "198.18.0.1:2376"),  # the opening itself
+        ("CONNECT", "10.0.0.1:443"),
+        ("CONNECT", "169.254.169.254:80"),  # the instance-metadata address
+        ("CONNECT", "[::1]:443"),
+        ("GET", "http://10.0.0.1:8080/x"),
+        ("GET", "http://[::1]:8080/x"),
+    ],
+)
+def test_an_ip_literal_is_named_whatever_its_port(
+    settings: ep.Settings, method: str, target: str
+) -> None:
+    # §7 E8 expects these refused and logged as ip_literal: an IP literal is refused on any port,
+    # and that reason says more than the port's. Nothing is resolved.
+    verdict = ep.classify(method, target, settings, _never_resolve)
+    assert not verdict.ok
+    assert verdict.reason == ep.R_IP_LITERAL
+
+
 def test_classify_connect_denied(settings: ep.Settings) -> None:
     assert (
         ep.classify("CONNECT", "bad.example.com:443", settings, GLOBAL).reason
