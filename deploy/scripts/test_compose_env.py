@@ -76,6 +76,7 @@ def test_the_topology_of_this_branch() -> None:
         "clickhouse",
         "valkey",
         "seaweedfs",
+        "breach-probe",
     }
     assert COMPOSE["networks"] == {
         "internal": {"internal": True},
@@ -153,7 +154,7 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
 def test_images_are_the_locked_pins() -> None:
     pins = lock()
     for name, service in SERVICES.items():
-        if name == "gateway":
+        if name in ("gateway", "breach-probe"):
             assert "image" not in service  # built from this file's own tree
         else:
             assert service["image"] == pins[name], name
@@ -223,6 +224,87 @@ def test_the_gateway_builds_from_this_files_own_tree() -> None:
         "dockerfile": "services/gateway/Dockerfile",
         "args": {"HTTP_PROXY": "${H4_BUILD_PROXY}", "HTTPS_PROXY": "${H4_BUILD_PROXY}"},
     }
+
+
+# The breach probe (plan §2 and §8; tasks.md T144): a one-off client on the stack's internal network, where the
+# operator CLI's dev-cpu hop runs (contracts/operator-admin.md §6), and later the breach test's assertions (T080).
+
+
+def test_the_breach_probe_builds_from_this_files_own_tree() -> None:
+    # The same context and build arguments as the gateway's: the agents' engine builds through its proxy, and host
+    # stacks pass an empty H4_BUILD_PROXY (contracts/env-files.md §2).
+    assert SERVICES["breach-probe"]["build"] == {
+        "context": "..",
+        "dockerfile": "evals/Dockerfile.probe",
+        "args": {"HTTP_PROXY": "${H4_BUILD_PROXY}", "HTTPS_PROXY": "${H4_BUILD_PROXY}"},
+    }
+
+
+def test_the_breach_probe_is_a_one_off_on_internal_alone() -> None:
+    probe = SERVICES["breach-probe"]
+    # Only the breach profile, which no env file selects (preflight refuses it), so make up never starts it:
+    # docker compose run --rm starts one per call and removes it.
+    assert probe["profiles"] == ["breach"]
+    assert probe["networks"] == ["internal"]
+    assert probe["read_only"] is True
+    assert probe["tmpfs"] == ["/tmp"]
+    # It publishes nothing, mounts nothing, and takes nothing from the env file: the dev-cpu dummy token reaches the
+    # CLI in it on standard input (operator-admin.md §6). Each caller names its command, and nothing waits on a
+    # one-off's health.
+    for absent in (
+        "ports",
+        "expose",
+        "volumes",
+        "environment",
+        "healthcheck",
+        "depends_on",
+        "command",
+        "entrypoint",
+        "user",
+        "cap_add",
+    ):
+        assert absent not in probe, absent
+
+
+def dockerfile(path: Path) -> list[tuple[str, str]]:
+    """(INSTRUCTION, arguments) for each instruction, with continuations joined and comments dropped."""
+    out, pending = [], ""
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not pending and (not line or line.startswith("#")):
+            continue
+        if line.endswith("\\"):
+            pending += line[:-1] + " "
+            continue
+        word, _, rest = (pending + line).strip().partition(" ")
+        pending = ""
+        out.append((word.upper(), rest.strip()))
+    return out
+
+
+def test_the_probe_image() -> None:
+    path = REPO / "evals" / "Dockerfile.probe"
+    steps = dockerfile(path)
+    words = [word for word, _ in steps]
+    # The pinned base:python of deploy/images.lock, by digest, as the compose policy requires (plan §11), and no
+    # `# syntax=` line, which would pull an unpinned frontend image.
+    assert [args for word, args in steps if word == "FROM"] == [lock()["base:python"]]
+    text = path.read_text(encoding="utf-8")
+    assert not re.search(r"^\s*#\s*syntax\s*=", text, re.IGNORECASE | re.MULTILINE)
+    # The CLI at the path the dev-cpu hop runs: python3 -I /app/operator.py (operator-admin.md §6).
+    assert ("COPY", "scripts/operator.py /app/operator.py") in steps
+    # Nothing runs at build time but creating the user: no package manager, no ADD (which can fetch a URL), and no
+    # other RUN. No ENTRYPOINT either, so the command each caller names is the one that runs.
+    runs = [args for word, args in steps if word == "RUN"]
+    assert len(runs) == 1 and runs[0].startswith("useradd "), runs
+    for fetcher in ("apt", "pip", "uv ", "curl", "wget", "npm", "&&", ";", "|"):
+        assert fetcher not in runs[0], fetcher
+    assert not {"ADD", "ENTRYPOINT", "ONBUILD"} & set(words)
+    # The scripts run as that user, never as root: one USER, after the user exists.
+    users = [args for word, args in steps if word == "USER"]
+    assert len(users) == 1 and users[0] not in ("root", "0", "0:0"), users
+    assert words.index("USER") > words.index("RUN")
+    assert users[0] in runs[0].split()
 
 
 def binds(name: str) -> list[tuple[str, str, bool]]:
@@ -334,13 +416,14 @@ def test_the_observability_services_commands() -> None:
 
 
 def test_read_only_roots_where_the_image_allows() -> None:
-    for name in ("edge", "gateway", "otel-collector"):
+    for name in ("edge", "gateway", "otel-collector", "breach-probe"):
         assert SERVICES[name]["read_only"] is True
         assert SERVICES[name]["tmpfs"] == ["/tmp"]
     assert [n for n, s in SERVICES.items() if s.get("read_only")] == [
         "edge",
         "gateway",
         "otel-collector",
+        "breach-probe",
     ]
     # SeaweedFS's root stays writable, but its S3 keys file goes to a tmpfs, never the image's layer.
     assert SERVICES["seaweedfs"]["tmpfs"] == ["/tmp"]
@@ -384,6 +467,7 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
         ("clickhouse", "2", "4G"),
         ("valkey", "0.5", "384M"),
         ("seaweedfs", "0.5", "512M"),
+        ("breach-probe", "0.25", "128M"),
     ],
 )
 def test_limits_are_plan_2s(name: str, cpus: str, memory: str) -> None:

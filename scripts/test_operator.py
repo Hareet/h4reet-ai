@@ -1617,7 +1617,7 @@ class Runner:
 
 @pytest.fixture
 def probe_image(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A tree whose evals/Dockerfile.probe exists (tasks.md T080 adds the real one)."""
+    """A stand-in for evals/Dockerfile.probe, in a temporary tree (tasks.md T144 adds the real one)."""
     dockerfile = tmp_path / "tree" / "evals" / "Dockerfile.probe"
     dockerfile.parent.mkdir(parents=True)
     dockerfile.write_text("FROM scratch\n", encoding="utf-8")
@@ -1793,10 +1793,29 @@ def test_dev_cpu_hop_needs_the_probe_image(
     assert op.main(["--stack", "dev-cpu", "status"], runner=runner) == 4
     assert runner.calls == []
     err = capsys.readouterr().err
-    assert "T080" in err
+    assert "evals/Dockerfile.probe" in err and "T144" in err
     # The Author's terminal needs no --url for dev-cpu: it goes straight to 127.0.0.1:18303.
     assert "the Author's terminal" in err
     assert "--url" not in err
+
+
+def test_the_hop_finds_the_real_probe_image(home: Path) -> None:
+    # tasks.md T144 brought the probe's image forward from T080: this tree's own, which holds this CLI where the hop
+    # runs it, python3 -I /app/operator.py.
+    assert op.PROBE_DOCKERFILE == op.ROOT / "evals" / "Dockerfile.probe"
+    assert op.PROBE_DOCKERFILE.is_file()
+    lines = op.PROBE_DOCKERFILE.read_text(encoding="utf-8").splitlines()
+    assert "COPY scripts/operator.py /app/operator.py" in lines
+    assert hop_command([])[15:18] == ["python3", "-I", "/app/operator.py"]
+
+
+def test_dev_cpu_hops_with_the_real_probe_image(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SANDBOX_RUNTIME", "1")
+    runner = Runner()
+    assert op.main(["--stack", "dev-cpu", "status"], runner=runner) == 0
+    assert [call["command"] for call in runner.calls] == [hop_command(["status"])]
 
 
 def test_dev_cpu_hop_checks_the_arguments_first(

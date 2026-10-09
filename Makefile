@@ -326,8 +326,8 @@ else
 	@$(MAKE) --no-print-directory compose-images
 endif
 
-# Every image this tree builds (the gateway; the stand-ins and the probe once they exist), in every profile, on the
-# current engine, with dev-cpu's env file: the agents' engine builds through its proxy (H4_BUILD_PROXY).
+# Every image this tree builds (the gateway and the breach probe; the stand-ins once they exist), in every profile, on
+# the current engine, with dev-cpu's env file: the agents' engine builds through its proxy (H4_BUILD_PROXY).
 compose-images:
 	docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars --profile '*' build
 

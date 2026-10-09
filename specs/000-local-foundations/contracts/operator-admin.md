@@ -431,10 +431,10 @@ Request:
     python3 -I /app/operator.py --stack dev-cpu --url http://gateway:8081 --token-stdin <command> <arguments>
   ```
 
-  The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`.
+  The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`. It is the pinned `base:python` with a non-root user and nothing installed, and the `breach-probe` service runs it on `internal` alone, read-only, with no ports, binds, or variables ([plan.md §2](../plan.md#2-compose-services-and-pinned-images)).
   - The hop's docker client keeps only the variables docker and the relay need, so no `COMPOSE_*`, `H4_*`, or template key in the shell can override `dev-cpu.vars` ([env-files.md §10](env-files.md#10-make-up-preflight), P5).
   - The CLI in the probe names its exit code on its last line, and the CLI outside passes that code on. A hop that fails before the CLI in the probe answers is exit 4.
-  - Until `evals/Dockerfile.probe` exists (tasks.md T080), the hop exits 4 and says so. Meanwhile the Author's terminal reaches dev-cpu's listener directly.
+  - tasks.md T144 brought the probe's image and its service forward from T080, for T064. T080 adds the breach test's own parts: `evals/breach.py`, `evals/breach_probe.py` (in the same image), the steps of [plan.md §8](../plan.md#8-the-breach-test), `make breach-test`, and the delivery overlay. A tree without `evals/Dockerfile.probe` makes the hop exit 4 and say so; the Author's terminal reaches dev-cpu's listener directly.
 
 **Commands.** Every command takes `--stack prod|dev|dev-cpu`, and `--json` to print the response body instead of a summary.
 

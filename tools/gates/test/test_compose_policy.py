@@ -862,17 +862,78 @@ def test_references_and_names() -> None:
 # ---------------------------------------------------------------------------------------------------------------
 # The real files: through PyYAML, and end to end through docker compose config where the CLI is installed.
 
+PROBE = "breach-probe"
+PROBE_DOCKERFILE = "evals/Dockerfile.probe"
 REAL_FILES = (
     cp.COMPOSE_FILE,
     cp.LOCK_FILE,
     cp.DISCLOSURE_FILE,
     cp.DEVCONTAINER_FILE,
     ".devcontainer/Dockerfile",
+    PROBE_DOCKERFILE,
     *(env for _, env in cp.ENV_FILES),
 )
 needs_compose = pytest.mark.skipif(
     not cp.compose_available(), reason="the docker CLI with compose isn't installed"
 )
+
+
+def real_model() -> dict:
+    return yaml.safe_load((REPO / cp.COMPOSE_FILE).read_text(encoding="utf-8"))
+
+
+def test_the_breach_probe_meets_the_policy() -> None:
+    """The probe (tasks.md T144): built from this tree on the pinned base:python, on internal alone, and disclosed."""
+    model = real_model()
+    lock = cp.parse_lock(REPO / cp.LOCK_FILE)
+    assert cp.check_service(PROBE, model["services"][PROBE], model, lock, REPO) == []
+    disclosed = cp.disclosed_services(REPO / cp.DISCLOSURE_FILE)
+    assert PROBE in disclosed
+    # The policy requires its row, as every service's (FR-040).
+    found = cp.check_model(model, lock, REPO, disclosed - {PROBE})
+    assert [(f.where, f.rule) for f in found if not f.planned] == [
+        (f"{cp.COMPOSE_FILE} service {PROBE}", "disclosure")
+    ]
+    # Its image's one FROM is base:python's pin, by digest.
+    path = REPO / PROBE_DOCKERFILE
+    assert cp.check_dockerfile(path, PROBE_DOCKERFILE, lock) == []
+    base = lock["base:python"]
+    steps = cp.dockerfile_instructions(path.read_text(encoding="utf-8"))
+    assert [rest for _, word, rest in steps if word == "FROM"] == [
+        f"{base.repository}:{base.tag}@{base.digest}"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "rule"),
+    [
+        ("networks", ["internal", "egress"], "networks"),
+        ("networks", ["internal", "edge"], "networks"),
+        ("network_mode", "host", "network_mode"),
+        ("ports", ["127.0.0.1:18399:8080"], "ports"),
+        (
+            "volumes",
+            [{"type": "bind", "source": "${H4_TREE:?x}/deploy", "target": "/d"}],
+            "binds",
+        ),
+        (
+            "volumes",
+            [{"type": "bind", "source": "/var/run/docker.sock", "target": "/s"}],
+            "docker.sock",
+        ),
+        ("environment", {"AWS_PROFILE": "x"}, "environment"),
+        ("container_name", PROBE, "container_name"),
+        ("cap_add", ["NET_RAW"], "cap_add"),
+        ("image", "h4reet/breach-probe:local", "build"),
+    ],
+)
+def test_the_breach_probe_may_not_stray(field: str, value: object, rule: str) -> None:
+    """The probe as compose.yaml writes it, with one thing changed: the policy refuses each."""
+    model = real_model()
+    lock = cp.parse_lock(REPO / cp.LOCK_FILE)
+    probe = copy.deepcopy(model["services"][PROBE])
+    probe[field] = value
+    assert rule in {f.rule for f in cp.check_service(PROBE, probe, model, lock, REPO)}
 
 
 def real_open_pins() -> list[str]:

@@ -68,7 +68,8 @@ from typing import Any, NoReturn, TextIO
 
 ROOT = Path(__file__).resolve().parents[1]
 DEVCPU_VARS = ROOT / "deploy" / "env.agents" / "dev-cpu.vars"
-PROBE_DOCKERFILE = ROOT / "evals" / "Dockerfile.probe"  # tasks.md T080
+# The dev-cpu hop's image (tasks.md T144).
+PROBE_DOCKERFILE = ROOT / "evals" / "Dockerfile.probe"
 RELAY = ROOT / "deploy" / "agents-engine" / "docker-relay"
 
 STACKS = ("prod", "dev", "dev-cpu")
@@ -982,8 +983,8 @@ def hop(
         return failed(
             4,
             "inside the sandbox, dev-cpu's admin listener is reached through the breach-probe container, built "
-            "from evals/Dockerfile.probe, which tasks.md T080 adds; until then, run this from the Author's "
-            "terminal, which reaches http://127.0.0.1:18303 directly",
+            "from evals/Dockerfile.probe, which this tree lacks (tasks.md T144 adds it); run this from the "
+            "Author's terminal, which reaches http://127.0.0.1:18303 directly",
         )
     token = read_devcpu_token(DEVCPU_VARS)
     inner = ["--stack", "dev-cpu", "--url", HOP_URL, "--token-stdin"]

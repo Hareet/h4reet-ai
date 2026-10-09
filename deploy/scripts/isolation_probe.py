@@ -54,6 +54,8 @@ PORTS = {
     "seaweedfs": (8080, 8333, 8888, 9333, 18080, 18888, 19333),
     "telegram-standin": (8080,),
     "mailpit": (1025, 8025),
+    # A one-off client in the breach profile (tasks.md T144): it listens on nothing.
+    "breach-probe": (),
 }
 
 Resolve = Callable[[str], list[str]]

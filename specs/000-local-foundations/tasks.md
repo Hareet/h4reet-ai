@@ -383,10 +383,9 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T079 [US2] Create the stand-ins in `evals/standins/` and `deploy/compose.yaml`:
   - `evals/standins/telegram_standin.py` (stdlib; `/bot<token>/sendMessage`, `GET /messages`, `/healthz`) and `evals/standins/Dockerfile`, on the pinned Python base;
   - the `telegram-standin` and `mailpit` services in `deploy/compose.yaml`, under the `dev-receivers` profile.
-- [ ] T080 [US2] Create the breach test in `evals/breach.py`, `evals/breach_probe.py`, and `evals/Dockerfile.probe`, steps 1–12 of §8, each assertion tagged T, M, or L, with a summary table and a non-zero exit on any miss:
+- [ ] T080 [US2] Create the breach test in `evals/breach.py` and `evals/breach_probe.py`, steps 1–12 of §8, each assertion tagged T, M, or L, with a summary table and a non-zero exit on any miss. T144 brought the probe's image (`evals/Dockerfile.probe`, with `scripts/operator.py` in it) and the `breach-probe` service under the `breach` profile forward for T064; what is left is the breach test's own:
   - `evals/breach.py`, the client-side orchestrator, run through `PY_HOST` in the Author's terminal;
-  - `evals/breach_probe.py` and `evals/Dockerfile.probe`, with `scripts/operator.py` in the image;
-  - the `breach-probe` service under the `breach` profile;
+  - `evals/breach_probe.py`, copied into the probe image beside `scripts/operator.py`;
   - `make breach-test ENV=dev|dev-cpu [DELIVERY=real]`, refusing any other stack, and applying the delivery overlay of contracts/env-files.md §7.2 for `DELIVERY=real`.
 - [ ] T081 [US2] Add the US2 panels to `deploy/grafana/dashboards/h4-runtime.json`, with the exact queries of contracts/telemetry.md §7.1, §7.2, and §7.5: spend today and month-to-date with thresholds, fallback remaining, the kill-switch state timeline, the degraded cause, the audit log (through `grafana_ro`), and alerts.
 - [ ] T082 [P] [US2] Create the runbooks in `docs/runbooks/`, each with Symptoms · Impact · Act · Verify · Undo · Record: `cost-warning.md`, `kill-switch-trip.md`, `kill-switch-reset.md`, `fallback-renewal.md`, `alert-channel-down.md`, `store-unreachable.md`, `journal-unwritable.md`, `operator-auth-failures.md`, and `gateway-down.md`.
