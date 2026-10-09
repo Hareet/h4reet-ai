@@ -219,7 +219,8 @@ deploy/
   seaweedfs/entrypoint.sh        [A] new: renders s3.json from env, creates the bucket, runs weed
   grafana/provisioning/{datasources,dashboards}/*.yaml, grafana/dashboards/h4-runtime.json   [A] new
   scripts/                       [A] new: preflight.py, init_env.py, export_tree.py, pull_images.py, pull-models.sh,
-                                     pin_images.py, status.py, isolation-check.sh, redact.sh, aws-login.sh
+                                     pin_images.py, status.py, isolation-check.sh (with its probe,
+                                     isolation_probe.py), redact.sh, aws-login.sh
   agents-engine/                 [H] new: the FR-039 boundary (§10)
     setup-host.sh, engine.sh, authz.py, egress-proxy.py, docker-relay, prove-limits.sh, daemon.json,
     tree-masks.txt, nftables/h4agents.nft, systemd/*, test/*.py
@@ -432,7 +433,7 @@ Exit codes:
 | `logs` | anyone | `logs --timestamps --tail ${TAIL:-200} ${SERVICE}`, piped through `deploy/scripts/redact.sh` (ops.md's filter); the model server shows warnings and errors only |
 | `status` | anyone | `status.py`: the running commit, its branch, and the previous commit (from the run file); state, health, the running digest against the pin, the gateway's `/health`, Prometheus target health, GPU memory, `docker system df` |
 | `init-env` | the Author | `init_env.py`: copies the template to `~/.config/h4reet-ai/env/<stack>.env` (0600, directory 0700), generates each `__GENERATE__` value in its own shape, refuses to overwrite, prints the names of the `__ASK__` keys left; `SYNC=1` appends new template keys without touching existing values |
-| `isolation-check` | the Author | with prod and dev up: a throwaway container on dev's networks asserts that prod's service names don't resolve, prod's container IPs refuse connections, and prod's ports refuse through the host gateway |
+| `isolation-check` | the Author | with prod and dev up: a throwaway container on dev's networks asserts that prod's service names don't resolve, prod's container IPs refuse connections, and prod's ports refuse through the host gateway. (Departure, tasks.md T061: `isolation-check.sh` checks both directions, dev to prod and prod to dev, on each of the source stack's three networks. Since the stacks share service names, a name fails only when it resolves to one of the other stack's addresses, and names are checked on the internal network alone, where Docker's DNS doesn't forward to the host's resolvers. A control on each network confirms the probe reaches its own stack, so a refusal can't come from a probe that reaches nothing. Last, on the host, no named volume and no writable bind may belong to both stacks; only the read-only model cache is shared. The probe, `deploy/scripts/isolation_probe.py`, runs in the pinned `base:python` image with no mounts, no capabilities, and facts on stdin that carry no container's environment.) |
 | `aws-login` | the Author | `aws-login.sh`: `HOME=~/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock`, so prod's gateway sees only the dedicated runtime identity ([§5.2](#52-adapters)) |
 
 ## 5. The gateway

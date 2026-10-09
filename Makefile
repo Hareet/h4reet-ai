@@ -321,8 +321,10 @@ endif
 compose-images:
 	docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars --profile '*' build
 
-isolation-check: ## (the Author) prod and dev can't reach each other, which arrives with feat/000-us1-local-stack
-	@echo "make isolation-check arrives with feat/000-us1-local-stack (tasks.md T061, plan §4)" >&2; exit 2
+# Both host stacks up on the host's engine; it runs from the working tree, like pull and pin-images (plan §4, FR-020).
+isolation-check: ## (the Author) With prod and dev up: neither reaches the other's names, addresses, ports, or volumes
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make isolation-check is the Author's: it inspects prod and dev on the host's engine, which agent sessions can't reach" >&2; exit 2; }
+	bash deploy/scripts/isolation-check.sh
 
 init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its template; SYNC=1 adds new keys
 	$(PY_HOST) deploy/scripts/init_env.py --stack $(ENV) $(if $(filter 1,$(SYNC)),--sync)
