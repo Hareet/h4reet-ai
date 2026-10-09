@@ -319,7 +319,7 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 | P20 | dev-cpu only: the run starts from a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`). The engine serves the main working tree only ([§7.3](#73-the-worktree-question)): "run dev-cpu from the main working tree". | dev-cpu |
 | P21 | Host stacks: a WARN, not a refusal, when the working tree has uncommitted changes under `config/`, `deploy/`, `services/`, `evals/`, or `scripts/`: they aren't in the export of the commit being started, and the message names them. A `REF` that doesn't resolve to a commit is a FAIL. | prod, dev |
 
-Until the compose file defines a model server (tasks.md T057), P7's model keys, P12, and P18 are WARN, naming T057, so the foundations' skeleton (edge, gateway, gateway-state) can start.
+P7's model keys, P12, and P18 read `deploy/models.lock` (one model per line, plan §3): a lock that is missing or doesn't parse fails P7 and P18, and a `gpu` stack whose compose file has no `model-server-gpu` fails P12. Each of P7 and P18 names the reason.
 
 **The other commands that share these checks:**
 - `make pull` runs P1 to P7, P10, P13 (for every image and model it will fetch), and P14.

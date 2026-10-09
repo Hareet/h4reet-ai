@@ -184,6 +184,108 @@ services:
           cpus: "0.5"
           memory: 256M
 
+  # The local model server (plan §3, ADR 0019): llama.cpp's llama-server, one build (b11459) for both variants, so the
+  # gateway sees the same API, flags, and metrics at http://model-server:8080/v1 whichever the env file's profile
+  # picks: gpu on prod and dev, cpu on dev-cpu. It reads the model from the read-only cache and never downloads one
+  # (no -hf): deploy/scripts/pull-models.sh fetches and verifies it first. Left out on purpose: --slots, whose
+  # endpoint shows prompts in flight; -v, whose logs carry prompts; and --api-key, since only this stack's
+  # containers reach it. Nothing waits on it, so a model that won't load leaves hello degraded, never blocked.
+  model-server-gpu:
+    <<: *service
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b11459@sha256:fff6185edd2fbc4093aa5970bf6db53ed11c283e3a1c52a3e244cf27047264f4
+    profiles: [gpu]
+    command:
+      - -m
+      - /models/${MODEL_FILE}
+      - --alias
+      - ${MODEL_ALIAS}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - -c
+      - ${MODEL_CTX_SIZE}
+      - -np
+      - ${MODEL_PARALLEL}
+      - -ngl
+      - "999"
+      - --jinja
+      - --metrics
+      - --no-webui
+      - --no-slots
+    networks:
+      internal:
+        aliases: [model-server]
+    volumes:
+      - type: bind
+        source: "${H4_MODEL_DIR:?set by the env file}"
+        target: /models
+        read_only: true
+    # 503 while the model loads, 200 once it is ready.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 300s
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+        # The one GPU, reserved in the gpu profile only (the compose policy refuses a device anywhere else).
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # The same server on the CPU, for the agents' engine: every layer on the CPU (-ngl 0), with the engine's 4 threads.
+  model-server-cpu:
+    <<: *service
+    image: ghcr.io/ggml-org/llama.cpp:server-b11459@sha256:33868c035b21dc63f7c60b7438774283fd99215bc319114eb03de5df4ce7cd6b
+    profiles: [cpu]
+    command:
+      - -m
+      - /models/${MODEL_FILE}
+      - --alias
+      - ${MODEL_ALIAS}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - -c
+      - ${MODEL_CTX_SIZE}
+      - -np
+      - ${MODEL_PARALLEL}
+      - -ngl
+      - "0"
+      - -t
+      - ${MODEL_THREADS}
+      - --jinja
+      - --metrics
+      - --no-webui
+      - --no-slots
+    networks:
+      internal:
+        aliases: [model-server]
+    volumes:
+      - type: bind
+        source: "${H4_MODEL_DIR:?set by the env file}"
+        target: /models
+        read_only: true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 2G
+
 networks:
   # No route out: every service joins it (FR-040).
   internal:

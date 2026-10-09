@@ -247,10 +247,12 @@ matrix: ## The forbidden-action matrix alone (plan §13)
 #
 # A host stack with no run file wasn't started by make up: down, logs, and status say so and succeed (§12).
 NOT_STARTED = [ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "h4reet-$(ENV) wasn't started by make up (no $(RUNFILE)): nothing to $(1)"; exit 0; }
-# deploy/scripts/pull-models.sh (tasks.md T057) takes --stack S --env-file F [--all]; on the agents' engine it only
-# verifies the seeded model. $(1) is the tree it runs from: the export on a host stack.
+# deploy/scripts/pull-models.sh takes --stack S --env-file F [--all]: on a host stack it fetches and verifies the
+# stack's model (every model in deploy/models.lock with --all), and on the agents' engine it only verifies the seeded
+# one. $(1) is the tree it runs from: the export on a host stack. A commit older than the model server, which a
+# rollback can run, has neither the script nor a model to fetch.
 PULL_MODELS = if [ -f $(1)/deploy/scripts/pull-models.sh ]; then bash $(1)/deploy/scripts/pull-models.sh --stack $(ENV) --env-file $(ENVFILE) $(2); \
-  else echo "models: deploy/scripts/pull-models.sh arrives with tasks.md T057"; fi
+  else echo "models: the commit being run has no deploy/scripts/pull-models.sh, and no model server to fetch for"; fi
 
 ifeq ($(VIA_RELAY),1)
 # Inside the sandbox: the same target again, through the relay, on the agents' engine. MAKEFLAGS carries the rest of

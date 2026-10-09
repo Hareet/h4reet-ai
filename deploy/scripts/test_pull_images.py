@@ -81,17 +81,33 @@ def run(fake: FakeDocker, sleeps: list[float]) -> int:
 def test_it_pulls_the_compose_images_and_bases_by_digest_once(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    fake = FakeDocker(RAW["services"], {ref("edge")}, {})
+    # The real compose file's services, every profile's, but an image whose pin is still open (refused below).
+    services = {
+        name: service
+        for name, service in RAW["services"].items()
+        if "build" in service or "@sha256:" in service.get("image", "")
+    }
+    fake = FakeDocker(services, {ref("edge")}, {})
     assert run(fake, []) == 0
     pulled = [c[-1] for c in fake.calls if c[0] == "pull"]
-    assert pulled == [
-        ref("gateway-state"),
+    images = sorted(
+        (name, s["image"])
+        for name, s in services.items()
+        if "image" in s and name != "edge"
+    )
+    # edge is present; gateway is built; both model servers come, whatever the stack's own profile.
+    assert pulled == [image for _, image in images] + [
         ref("base:node"),
         ref("base:python"),
-    ]  # edge is present; gateway is built
+    ]
+    assert ref("model-server-gpu") in pulled and ref("model-server-cpu") in pulled
     assert all("@sha256:" in r for r in pulled)
     out = capsys.readouterr().out
-    assert f"present  {ref('edge')}" in out and "pull: 4 of 4 images present" in out
+    total = len(images) + 3
+    assert (
+        f"present  {ref('edge')}" in out
+        and f"pull: {total} of {total} images present" in out
+    )
 
 
 def test_docker_hub_429_backs_off_5_15_45_and_then_names_it(

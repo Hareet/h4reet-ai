@@ -57,7 +57,13 @@ def strings(node: object):
 
 
 def test_the_topology_of_this_branch() -> None:
-    assert set(SERVICES) == {"edge", "gateway", "gateway-state"}
+    assert set(SERVICES) == {
+        "edge",
+        "gateway",
+        "gateway-state",
+        "model-server-gpu",
+        "model-server-cpu",
+    }
     assert COMPOSE["networks"] == {
         "internal": {"internal": True},
         "edge": {"driver": "bridge"},
@@ -105,9 +111,67 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
 
 def test_images_are_the_locked_pins() -> None:
     pins = lock()
-    assert SERVICES["edge"]["image"] == pins["edge"]
-    assert SERVICES["gateway-state"]["image"] == pins["gateway-state"]
+    for name in ("edge", "gateway-state", "model-server-gpu", "model-server-cpu"):
+        assert SERVICES[name]["image"] == pins[name], name
     assert "image" not in SERVICES["gateway"]
+
+
+# plan §3: the one llama.cpp build, b11459, in two variants; the flags each runs with, and those it never does.
+MODEL_SERVER_FLAGS = [
+    "-m",
+    "/models/${MODEL_FILE}",
+    "--alias",
+    "${MODEL_ALIAS}",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8080",
+    "-c",
+    "${MODEL_CTX_SIZE}",
+    "-np",
+    "${MODEL_PARALLEL}",
+]
+MODEL_SERVER_SWITCHES = ["--jinja", "--metrics", "--no-webui", "--no-slots"]
+
+
+def test_the_model_servers() -> None:
+    gpu, cpu = SERVICES["model-server-gpu"], SERVICES["model-server-cpu"]
+    assert gpu["profiles"] == ["gpu"] and cpu["profiles"] == ["cpu"]
+    assert gpu["command"] == [
+        *MODEL_SERVER_FLAGS,
+        "-ngl",
+        "999",
+        *MODEL_SERVER_SWITCHES,
+    ]
+    assert cpu["command"] == [
+        *MODEL_SERVER_FLAGS,
+        "-ngl",
+        "0",
+        "-t",
+        "${MODEL_THREADS}",
+        *MODEL_SERVER_SWITCHES,
+    ]
+    for server in (gpu, cpu):
+        # The gateway's LOCAL_MODEL_BASE_URL names model-server, whichever variant runs.
+        assert server["networks"] == {"internal": {"aliases": ["model-server"]}}
+        # It never downloads, never logs prompts, shows no slots, and has no key: only this stack reaches it.
+        for absent in ("-hf", "--hf-repo", "-v", "--verbose", "--slots", "--api-key"):
+            assert absent not in server["command"], absent
+        # It reads nothing from the env file but its command line.
+        assert "environment" not in server
+    # The GPU is reserved in the gpu profile only.
+    assert gpu["deploy"]["resources"]["reservations"] == {
+        "devices": [{"driver": "nvidia", "count": 1, "capabilities": ["gpu"]}]
+    }
+    assert "reservations" not in cpu["deploy"]["resources"]
+    assert [
+        n
+        for n, s in SERVICES.items()
+        if "reservations" in s.get("deploy", {}).get("resources", {})
+    ] == ["model-server-gpu"]
+    # Same server, same image build: only the backend differs (ADR 0019).
+    assert gpu["image"].startswith("ghcr.io/ggml-org/llama.cpp:server-cuda-b11459@")
+    assert cpu["image"].startswith("ghcr.io/ggml-org/llama.cpp:server-b11459@")
 
 
 def test_the_gateway_builds_from_this_files_own_tree() -> None:
@@ -146,6 +210,11 @@ def test_binds_and_volumes() -> None:
             "target": "/var/lib/postgresql/data",
         }
     ]
+    for name in ("model-server-gpu", "model-server-cpu"):
+        # The read-only model cache, shared by prod and dev (plan §1).
+        assert binds(name) == [
+            ("${H4_MODEL_DIR:?set by the env file}", "/models", True)
+        ]
 
 
 def test_read_only_roots_where_the_image_allows() -> None:
@@ -172,6 +241,8 @@ def test_only_the_database_adds_capabilities_back() -> None:
         ("edge", "0.25", "64M"),
         ("gateway", "1", "512M"),
         ("gateway-state", "0.5", "256M"),
+        ("model-server-gpu", "4", "8G"),
+        ("model-server-cpu", "4", "2G"),
     ],
 )
 def test_limits_are_plan_2s(name: str, cpus: str, memory: str) -> None:
@@ -201,6 +272,11 @@ def test_health_checks() -> None:
         "-d",
         "gateway",
     ]
+    # The model server's /health is 503 while the model loads, 200 once it's ready (plan §3).
+    for name, start in (("model-server-gpu", "300s"), ("model-server-cpu", "60s")):
+        check = SERVICES[name]["healthcheck"]
+        assert check["test"] == ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+        assert check["start_period"] == start, name
 
 
 def test_edge_runs_nginx_without_the_entrypoint_scripts() -> None:

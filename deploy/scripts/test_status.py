@@ -189,11 +189,16 @@ def test_a_healthy_stack(
         for line in out.splitlines()
         if len(line.split()) == 4 and line.split()[0] in RAW["services"]
     }
-    assert rows == {
-        "edge": ["running", "healthy", "pinned"],
-        "gateway": ["running", "healthy", "built"],
-        "gateway-state": ["running", "healthy", "pinned"],
+    # Every service of prod's profile, gpu, and no other: the GPU model server, not the CPU one.
+    assert rows["edge"] == ["running", "healthy", "pinned"]
+    assert rows["gateway"] == ["running", "healthy", "built"]
+    assert rows["model-server-gpu"] == ["running", "healthy", "pinned"]
+    assert set(rows) == {
+        name
+        for name, service in RAW["services"].items()
+        if not service.get("profiles") or "gpu" in service["profiles"]
     }
+    assert "model-server-cpu" not in rows
     assert (
         "gateway /health: ok · store ok · state normal · cause None · adapters: local healthy"
         in out

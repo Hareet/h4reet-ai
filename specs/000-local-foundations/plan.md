@@ -362,8 +362,8 @@ The bases the gates and the devcontainer use aren't compose services but are pin
   - **stand-in, for dev and dev-cpu:** `Qwen/Qwen2.5-0.5B-Instruct-GGUF` at revision `9217f5db79a29953eb74d5343926648285ec7e67`, file `qwen2.5-0.5b-instruct-q4_k_m.gguf`, 491,400,032 bytes, sha256 `74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db`, Apache-2.0.
   - Phase 1's evals pick the twin's final model; changing it is a configuration change.
 - **Fetching.** `deploy/scripts/pull-models.sh` runs on the host only, into `H4_MODEL_DIR` (ext4, never `/mnt/*`):
-  - it downloads `https://huggingface.co/<repo>/resolve/<revision>/<file>` with `curl -fL -C -`, using no token;
-  - it verifies the sha256, renames atomically, and sets mode 0444.
+  - it downloads `https://huggingface.co/<repo>/resolve/<revision>/<file>` with `curl -fL -C -`, using no token, into `.<file>.part` beside the file;
+  - it verifies the sha256, sets mode 0444, and renames atomically. (Departure, tasks.md T057: the mode is set before the rename rather than after it, so the file's own name never holds a writable model; a download that doesn't match is removed.)
 
   The first pin is trust-on-first-use: the Author checks the sha256 against the file's page and commits the lock.
   - **Host stacks:** `make up` fetches a missing model, since SC-001 counts the download.
