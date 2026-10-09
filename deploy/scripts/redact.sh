@@ -6,7 +6,7 @@
 #
 #   docker compose ... logs 2>&1 | deploy/scripts/redact.sh
 #
-# deploy/scripts/test_redact.py keeps the function below equal to ops.md's, character for character.
+# deploy/scripts/test_status.py keeps the function below equal to ops.md's, character for character.
 set -euo pipefail
 
 redact() { sed -E 's#(://[^/@[:space:]]*:)[^@[:space:]]+@#\1<redacted>@#g; s#bot[0-9]+:[A-Za-z0-9_-]+#bot<redacted>#g; s#((token|password|passwd|secret|api_?key)[^:=[:space:]]*[[:space:]]*[:=][[:space:]]*).*#\1<redacted>#I; s#(authorization[^:=[:space:]]{0,2}[[:space:]]*[:=][[:space:]]*).*#\1<redacted>#I'; }
