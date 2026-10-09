@@ -25,7 +25,7 @@ A dedupe key has the form `<stack>:<kind>:<meter or subject>:<period>`, with `:g
 | `fallback_unavailable` | the paid fallback adapter's effective health turns unhealthy: credentials missing or expired, or the circuit opened | the 10 s ticker | `<stack>:fallback_unavailable:<adapter>:<YYYY-MM-DDTHHZ>` (at most one an hour) | `prod:fallback_unavailable:bedrock:2026-10-29T16Z` |
 | `auth_failed` | the third failed authentication in a 10-minute window, counted in memory ([operator-admin.md §1.1](operator-admin.md#11-authentication)) | the admin listener | `<stack>:auth_failed:admin:<start of the 10-minute window, YYYY-MM-DDTHH:M0Z>` | `prod:auth_failed:admin:2026-10-29T16:00Z` |
 | `store_unreachable` | the store has been unreachable for 60 s straight | in memory: the outbox is in the unreachable store | `<stack>:store_unreachable:store:<outage start, to the second>`, deduplicated in memory | `prod:store_unreachable:store:2026-10-29T16:01:00Z` |
-| `reminder` | 09:00 UTC by the gateway clock, while the stack is degraded or awaiting renewal | the 10 s ticker | `<stack>:reminder:daily:<YYYY-MM-DD>` | `prod:reminder:daily:2026-10-30` |
+| `reminder` | 09:00 UTC by the gateway clock, while the stack is degraded or awaiting renewal (from a condition that began before that day's 09:00: a trip later in the day is reminded of the next morning, as §3's example shows; tasks.md T077) | the 10 s ticker | `<stack>:reminder:daily:<YYYY-MM-DD>` | `prod:reminder:daily:2026-10-30` |
 
 Notes:
 - **Grants.** The grant number `<n>` is the `fallback_day` row's `grant_no`: 1 for the day's own $2, plus one for each renewal that day. Warnings and exhaustion therefore alert once per grant (ADR 0001).
@@ -197,6 +197,8 @@ Runbook: docs/runbooks/cost-warning.md
 
 **The Telegram URL contains the bot token.** The dispatcher never logs a request URL, never stores one, and records only an error class: `timeout`, `connect`, `tls`, `http_<status>`, `telegram_<error_code>`, `smtp_<reply code>`, `smtp_<nodemailer code>`.
 
+(Departures and readings, tasks.md T077.) nodemailer writes the header's name as `X-H4-Alert-ID`, normalizing the case of every header it sends; header names are case-insensitive, so it is the same header. `telegram_<error_code>` is for an HTTP 200 whose body says `"ok": false`; any other status is `http_<status>`. A claimed row's due time moves past its attempt's timeout before the attempt (a lease), so a stalled process can't send it twice; an outcome the store can't take while it is down is kept in memory and written once it answers, without sending again.
+
 ### 4.2 The retry schedule
 
 - **When attempts are due.** Attempt k of a channel is due at `enqueued_at` plus the k-th offset: 0, 5, 20, 50, 110, and 230 s. Those are the running sums of `retry.schedule_s` (5, 15, 30, 60, 120). An attempt that would start before the previous one ended starts right after it.
@@ -213,7 +215,7 @@ Runbook: docs/runbooks/cost-warning.md
 | dev, `--delivery real` | `[dev]` | `real`, set by the second env file the Author's recorded run adds ([plan.md §8](../plan.md#8-the-breach-test)) | the same bot and chat as prod, with the `[dev]` prefix. The run asserts Telegram's `message_id` and SMTP's 250 in the `alert.delivered` log records within 300 s (SC-002). |
 | dev-cpu | `[dev-cpu]` | `standin` | the stand-ins inside the agents' engine. The engine has no route to Telegram or SMTP. |
 
-In stand-in mode, the gateway sends the stand-in a fixed dummy token (`standin`) and chat ID `0`, never the real bot token.
+In stand-in mode, the gateway sends the stand-in a fixed dummy token (`standin`) and chat ID `0`, never the real bot token. (Added by tasks.md T077, since this table gives no stand-in addresses.) Email in stand-in mode goes from `alerts@h4reet.local` to `operator@h4reet.local`, dev-cpu.vars' own dummies, with no SMTP AUTH and no TLS, to Mailpit inside the stack.
 
 ### 4.4 Outcomes and when something is down
 

@@ -12,6 +12,7 @@ import {
   type MeterFacts,
   type RuntimeFacts,
 } from "../../src/alerts/format.js";
+import { attemptOffsets, channelsFrom, nextAttemptAt, reminderDue } from "../../src/alerts/dispatcher.js";
 import { dedupeKey } from "../../src/alerts/outbox.js";
 
 const T = (iso: string): number => Date.parse(iso);
@@ -499,5 +500,159 @@ describe("§2: dedupe keys", () => {
   it("starts with the stack, so dev's and dev-cpu's keys never collide with prod's", () => {
     expect(dedupeKey.trip("dev", "day", "2026-10-22")).toBe("dev:trip:day:2026-10-22");
     expect(dedupeKey.trip("dev-cpu", "day", "2026-10-22")).toBe("dev-cpu:trip:day:2026-10-22");
+  });
+});
+
+describe("§4.2: the retry schedule (tasks.md T069)", () => {
+  const retry = { scheduleS: [5, 15, 30, 60, 120], giveUpAfterS: 300 };
+  const T0 = Date.parse("2026-10-29T16:40:03Z");
+
+  it("puts attempt k at enqueued_at plus the running sums of the waits: 0, 5, 20, 50, 110, and 230 s", () => {
+    expect(attemptOffsets(retry.scheduleS)).toEqual([0, 5, 20, 50, 110, 230]);
+    const due: number[] = [];
+    for (let made = 1; made <= 5; made++) {
+      const at = nextAttemptAt(T0, made, T0 + (due.at(-1) ?? 0), retry);
+      expect(at, `after ${made}`).toBeDefined();
+      due.push(((at as number) - T0) / 1_000);
+    }
+    expect(due).toEqual([5, 20, 50, 110, 230]);
+  });
+
+  it("starts every attempt within 300 s, and gives up after the sixth", () => {
+    expect(nextAttemptAt(T0, 6, T0 + 240_000, retry)).toBeUndefined();
+    // The last starts at 230 s and runs at most 10 s: inside FR-032's 5 minutes.
+    expect(attemptOffsets(retry.scheduleS).every((s) => s + 10 <= retry.giveUpAfterS)).toBe(true);
+  });
+
+  it("starts an attempt right after the one before it, when that ran past its due time", () => {
+    expect(nextAttemptAt(T0, 1, T0 + 7_000, retry)).toBe(T0 + 7_000);
+    expect(nextAttemptAt(T0, 2, T0 + 8_000, retry)).toBe(T0 + 20_000);
+  });
+
+  it("gives up when the next attempt would pass give_up_after_s", () => {
+    expect(nextAttemptAt(T0, 5, T0 + 301_000, retry)).toBeUndefined();
+    expect(nextAttemptAt(T0, 1, T0, { scheduleS: [400], giveUpAfterS: 300 })).toBeUndefined();
+  });
+});
+
+describe("§2: the 09:00 UTC reminder (tasks.md T069)", () => {
+  const at = { hour: 9, minute: 0 };
+  const tripped = Date.parse("2026-10-29T16:40:03Z");
+  const base = {
+    state: "degraded" as const,
+    since: tripped,
+    crossed: ["day:2026-10-29"],
+    awaiting: false,
+    awaitingSince: null,
+  };
+
+  it("is due at or after 09:00 on the gateway clock, the morning after the trip, as §3's example shows", () => {
+    expect(reminderDue({ ...base, nowMs: Date.parse("2026-10-30T08:59:59Z"), at })).toBeUndefined();
+    expect(reminderDue({ ...base, nowMs: Date.parse("2026-10-30T09:00:00Z"), at })).toEqual({
+      day: "2026-10-30",
+      spec: { kind: "reminder", crossed: ["day:2026-10-29"], degradedSince: tripped },
+    });
+    expect(reminderDue({ ...base, nowMs: Date.parse("2026-10-30T15:00:00Z"), at })?.day).toBe("2026-10-30");
+  });
+
+  it("isn't due on the day of a trip after 09:00, but is for one before", () => {
+    expect(reminderDue({ ...base, nowMs: Date.parse("2026-10-29T16:40:13Z"), at })).toBeUndefined();
+    const early = Date.parse("2026-10-29T08:10:00Z");
+    expect(reminderDue({ ...base, since: early, nowMs: Date.parse("2026-10-29T09:00:05Z"), at })?.day).toBe(
+      "2026-10-29",
+    );
+  });
+
+  it("covers renewal too, and nothing while the stack is normal and nothing is pending", () => {
+    const awaiting = Date.parse("2026-10-29T12:05:37Z");
+    expect(
+      reminderDue({
+        ...base,
+        state: "normal",
+        crossed: [],
+        awaiting: true,
+        awaitingSince: awaiting,
+        nowMs: Date.parse("2026-10-30T09:00:00Z"),
+        at,
+      }),
+    ).toEqual({ day: "2026-10-30", spec: { kind: "reminder", crossed: [], awaitingSince: awaiting } });
+    expect(
+      reminderDue({ ...base, state: "normal", crossed: [], nowMs: Date.parse("2026-10-30T09:00:00Z"), at }),
+    ).toBeUndefined();
+  });
+
+  it("follows the configured time", () => {
+    expect(
+      reminderDue({ ...base, nowMs: Date.parse("2026-10-30T09:00:00Z"), at: { hour: 9, minute: 30 } }),
+    ).toBeUndefined();
+    expect(reminderDue({ ...base, nowMs: Date.parse("2026-10-30T09:30:00Z"), at: { hour: 9, minute: 30 } })?.day).toBe(
+      "2026-10-30",
+    );
+  });
+});
+
+describe("§4.3: the receivers, by ALERT_DELIVERY (tasks.md T077)", () => {
+  const alerts = {
+    channels: { order: ["telegram", "email"] as const, telegram: { timeoutMs: 5_000 }, email: { timeoutMs: 10_000 } },
+    standin: { telegramBase: "http://telegram-standin:8080", smtpHost: "mailpit", smtpPort: 1025 },
+  } as unknown as Parameters<typeof channelsFrom>[1];
+
+  it("sends the stand-ins a fixed dummy token and chat 0, never the real bot token, and no SMTP AUTH", () => {
+    const ch = channelsFrom(
+      { ALERT_DELIVERY: "standin", TELEGRAM_BOT_TOKEN: "must-not-be-used", SMTP_PASSWORD: "nor-this" },
+      alerts,
+    );
+    expect(ch).toEqual({
+      mode: "standin",
+      telegram: { base: "http://telegram-standin:8080", token: "standin", chatId: "0", timeoutMs: 5_000 },
+      email: {
+        host: "mailpit",
+        port: 1025,
+        secure: false,
+        requireTLS: false,
+        ignoreTLS: true,
+        from: "alerts@h4reet.local",
+        to: "operator@h4reet.local",
+        timeoutMs: 10_000,
+      },
+    });
+  });
+
+  it("uses the env file's channel keys in real mode, with TLS as SMTP_TLS says", () => {
+    const real = (tls: string, port: string) =>
+      channelsFrom(
+        {
+          ALERT_DELIVERY: "real",
+          TELEGRAM_API_BASE: "https://api.telegram.org",
+          TELEGRAM_BOT_TOKEN: "token-made-for-this-test",
+          TELEGRAM_CHAT_ID: "12345",
+          SMTP_HOST: "smtp.example.org",
+          SMTP_PORT: port,
+          SMTP_TLS: tls,
+          SMTP_USER: "alerts",
+          SMTP_PASSWORD: "password-made-for-this-test",
+          ALERT_EMAIL_FROM: "alerts@example.org",
+          ALERT_EMAIL_TO: "operator@example.org",
+        },
+        alerts,
+      );
+    expect(real("implicit", "465").email).toMatchObject({
+      port: 465,
+      secure: true,
+      requireTLS: false,
+      ignoreTLS: false,
+    });
+    expect(real("starttls", "587").email).toMatchObject({
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      ignoreTLS: false,
+    });
+    expect(real("implicit", "465").telegram).toEqual({
+      base: "https://api.telegram.org",
+      token: "token-made-for-this-test",
+      chatId: "12345",
+      timeoutMs: 5_000,
+    });
   });
 });

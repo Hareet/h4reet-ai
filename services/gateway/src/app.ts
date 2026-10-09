@@ -6,7 +6,7 @@
 // - Startup: validate the environment and the configuration (exit 78 on failure), build the route's adapters
 //   (registry.ts: exit 78 for a configuration it refuses, 1 for a broken build), connect the store (retrying in the
 //   background while it is down), then start the listeners and the background work: the adapters' health probes, the
-//   meter's sweep, and the gauges' refresh.
+//   meter's sweep, the gauges' refresh, and the alert dispatcher with its daily reminder.
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
@@ -14,6 +14,7 @@ import { metrics as otelMetrics, trace, type Tracer } from "@opentelemetry/api";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { buildRoute, loadFactories, RegistryError, type AdapterFactory } from "./adapters/registry.js";
+import { channelsFrom, Dispatcher } from "./alerts/dispatcher.js";
 import {
   ENV_CLASSES,
   routeFor,
@@ -149,6 +150,8 @@ export interface GatewayServices {
   journal: Journal;
   meter: Meter;
   gateway: Gateway;
+  /** The alert outbox's delivery, the in-memory store_unreachable alert, and the daily reminder. */
+  dispatcher: Dispatcher;
   /** The route's fallback adapter as built, or null: none configured, or its switch off (the synthetic one). */
   fallbackId: string | null;
   clientCap: ClientCap;
@@ -239,6 +242,19 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
   });
   // A committed change to a meter or the state replaces the gauges' snapshot at once (telemetry.md §4.1).
   meter.onChange = () => void gateway.refreshGauges().catch(() => {});
+  const dispatcher = new Dispatcher({
+    stack,
+    envClass,
+    store: opts.store,
+    alerts,
+    budgets,
+    channels: channelsFrom(env, alerts),
+    hasFallback: gateway.fallbackId() !== null,
+    clock,
+    metrics,
+    logger,
+    realNow,
+  });
   return {
     stack,
     envClass,
@@ -255,6 +271,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     journal,
     meter,
     gateway,
+    dispatcher,
     fallbackId: gateway.fallbackId(),
     clientCap: new ClientCap(budgets.limits.perClient),
     realNow,
@@ -453,6 +470,7 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     throw err;
   }
   services.gateway.start();
+  services.dispatcher.start();
   const port = (app: FastifyInstance): number => {
     const address = app.server.address();
     return typeof address === "object" && address !== null ? address.port : 0;
@@ -479,6 +497,7 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     close: () =>
       (closing ??= (async () => {
         await Promise.allSettled([api.close(), admin.close()]);
+        await services.dispatcher.stop();
         await services.gateway.close();
         await store.close();
       })()),

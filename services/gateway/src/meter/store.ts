@@ -666,6 +666,11 @@ export class Store {
     }
   }
 
+  /** The dedicated LISTEN connection: the alert dispatcher's wake-up (data-model.md §2.7). Resolves to its close. */
+  listen(channel: string, onNotify: () => void): Promise<() => Promise<void>> {
+    return this.opts.db.listen(channel, onNotify);
+  }
+
   async close(): Promise<void> {
     this.closed = true;
     if (this.timer) clearTimeout(this.timer);

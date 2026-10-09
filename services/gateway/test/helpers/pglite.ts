@@ -54,7 +54,9 @@ export async function testDatabase(): Promise<TestDatabase> {
     hook: undefined,
     query: (text, params) => exclusive(() => session.query(text, params)),
     withSession: (fn) => exclusive(() => fn(session)),
-    listen: async (channel, onNotify) => pg.listen(channel, () => onNotify()),
+    // PGlite delivers a NOTIFY during the COMMIT that sends it, inside that session's context; a real LISTEN
+    // connection delivers it on its own socket. So the callback runs outside the session, once the COMMIT returns.
+    listen: async (channel, onNotify) => pg.listen(channel, () => inSession.exit(() => setImmediate(onNotify))),
     // The store owns its database and closes it; a test's own cleanup may close it again.
     close: async () => {
       if (!pg.closed) await pg.close();
