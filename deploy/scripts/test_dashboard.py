@@ -104,6 +104,8 @@ def test_the_dashboard_itself() -> None:
 
 @pytest.mark.parametrize("number", US1)
 def test_every_us1_panel_has_the_contracts_exact_queries(number: str) -> None:
+    # The parse of the contract mustn't come back empty, or the comparison below proves nothing.
+    assert contract_panels(number), f"no panels parsed from telemetry.md §{number}"
     found = by_title()
     for title, (kind, expected) in contract_panels(number).items():
         assert title in found, f"§{number} {title}"

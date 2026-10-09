@@ -169,8 +169,10 @@ DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 # check 2 found no SeaweedFS release tag, so make pin-images resolves it in the first stack task. While the line's
 # tag and digest are "-" and the compose file names the line's bare repository, the policy reports the service
 # PLANNED instead of refusing it. Once the lock holds a digest the ordinary check applies, so nothing here needs
-# undoing when the pin lands. Any other open pin, or any other spelling of the image, is refused.
+# undoing when the pin lands. Any other open pin, or any other spelling of the image, is refused. The mark expires
+# with its task, as plan §11's marks do: once tasks.md marks the task done, an open pin is refused again.
 OPEN_PINS = {"seaweedfs": "T063"}
+TASKS_FILE = "specs/000-local-foundations/tasks.md"
 PLANNED_RULE = "planned"
 
 
@@ -504,7 +506,7 @@ def check_service(
     elif not image:
         refuse("image", "neither an image nor a build")
     else:
-        found.extend(check_image(where, name, str(image), lock))
+        found.extend(check_image(where, name, str(image), lock, tree))
 
     # Dev-only switches come from the env file, never from compose itself (FR-036).
     environment = as_mapping(service.get("environment"))
@@ -535,11 +537,34 @@ def open_pin(name: str, image: str, lock: dict[str, LockEntry]) -> str | None:
     return f"PLANNED ({task}): {name}'s pin is open; make pin-images resolves it"
 
 
+def done_tasks(tree: Path) -> frozenset[str]:
+    """The task IDs tasks.md marks done ("- [X] Tnnn"). A mark naming one of them has expired."""
+    path = tree / TASKS_FILE
+    if not path.is_file():
+        return frozenset()
+    text = path.read_text(encoding="utf-8")
+    return frozenset(re.findall(r"^- \[[Xx]\] (T\d{3})\b", text, re.MULTILINE))
+
+
 def check_image(
-    where: str, name: str, image: str, lock: dict[str, LockEntry]
+    where: str,
+    name: str,
+    image: str,
+    lock: dict[str, LockEntry],
+    tree: Path | None = None,
 ) -> list[Finding]:
     planned = open_pin(name, image, lock)
     if planned is not None:
+        task = OPEN_PINS[name]
+        if tree is not None and task in done_tasks(tree):
+            return [
+                Finding(
+                    where,
+                    "image",
+                    f"{name}'s pin is still open, but tasks.md marks {task}, which pins it, done: run make "
+                    "pin-images and commit the pin",
+                )
+            ]
         return [Finding(where, PLANNED_RULE, planned)]
     repository, tag, digest = split_reference(image)
     if not digest or not DIGEST_RE.fullmatch(digest):

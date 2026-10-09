@@ -45,7 +45,7 @@ In your own terminal. On dev-cpu an agent session may run the same target, with 
 
 - `make operator-status ENV=<stack>` shows `state normal`, each meter at the value chosen, and `awaiting renewal: no` if you renewed.
 - hello answers 200.
-- `make operator-audit ENV=<stack>` shows the `init` row, with your reason, every source's candidate value, and the values chosen. The same transaction queues an `operator_action` alert for Telegram and email (dev's go to its stand-ins).
+- The audit log holds the `init` row, with your reason, every source's candidate value, and the values chosen. `make operator-audit ENV=<stack>` shows it once US2 adds that target (tasks.md T075); until then, `make operator-status ENV=<stack>` shows the meters it chose. The same transaction queues an `operator_action` alert for Telegram and email (dev's go to its stand-ins).
 
 ## Undo
 

@@ -10,7 +10,7 @@
 #
 # The secret patterns (telemetry.md §6.3) appear twice: as Go regular expressions in redaction's blocked_values, and
 # inside OTTL strings in transform/redact-text, where every backslash is doubled because OTTL unquotes its strings.
-# deploy/scripts/test_collector.py checks both copies against the contract and the gateway's own fixtures.
+# deploy/scripts/test_observability.py checks both copies against the contract and the gateway's own fixtures.
 
 extensions:
   # For the breach probe and make status; the image has no shell, so compose has no health check for it.

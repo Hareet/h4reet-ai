@@ -1013,3 +1013,37 @@ def test_provider_services_and_models_are_refused(tmp_path: Path) -> None:
         f.rule == "models" and "top-level" in f.detail
         for f in findings(model, tmp_path)
     )
+
+
+def test_an_open_pins_mark_expires_with_its_task(tmp_path: Path) -> None:
+    # While T063 is open, SeaweedFS's open pin is PLANNED; once tasks.md marks T063 done, the same pin is refused.
+    lock = {
+        "seaweedfs": cp.LockEntry(
+            "seaweedfs", "docker.io/chrislusf/seaweedfs", "-", "-", "docker.io", "-"
+        )
+    }
+    where = "deploy/compose.yaml service seaweedfs"
+    tasks = tmp_path / cp.TASKS_FILE
+    tasks.parent.mkdir(parents=True)
+    tasks.write_text("- [ ] T063 **Author** make pin-images\n", encoding="utf-8")
+    open_now = cp.check_image(
+        where, "seaweedfs", "docker.io/chrislusf/seaweedfs", lock, tmp_path
+    )
+    assert [f.rule for f in open_now] == [cp.PLANNED_RULE]
+    tasks.write_text("- [X] T063 **Author** make pin-images\n", encoding="utf-8")
+    expired = cp.check_image(
+        where, "seaweedfs", "docker.io/chrislusf/seaweedfs", lock, tmp_path
+    )
+    assert [f.rule for f in expired] == ["image"] and "marks T063" in expired[0].detail
+    pinned = {
+        "seaweedfs": cp.LockEntry(
+            "seaweedfs",
+            "docker.io/chrislusf/seaweedfs",
+            "3.97",
+            "sha256:" + "a" * 64,
+            "docker.io",
+            "2026-10-09",
+        )
+    }
+    ref = "docker.io/chrislusf/seaweedfs:3.97@sha256:" + "a" * 64
+    assert cp.check_image(where, "seaweedfs", ref, pinned, tmp_path) == []
