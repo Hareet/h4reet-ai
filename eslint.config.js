@@ -8,7 +8,14 @@ import tseslint from "typescript-eslint";
 
 export default defineConfig([
   {
-    ignores: ["**/node_modules/**", "**/dist/**", "**/coverage/**", ".specify/**", "tools/gates/lint-node/**"],
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/coverage/**",
+      ".specify/**",
+      "tools/gates/lint-node/**",
+      ".claude/**",
+    ],
   },
   js.configs.recommended,
   tseslint.configs.recommended,
