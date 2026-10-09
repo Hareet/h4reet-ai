@@ -481,6 +481,37 @@ describe("the channels' error classes (alerts.md §4.1): a class, never a URL or
     expect(smtpErrorClass(Object.assign(new Error("x"), { code: "ETLS" }))).toBe("tls");
   });
 
+  it("keeps the reference only from the server's own reply, never an assumed 250 (tasks.md T156)", async () => {
+    const channel: EmailChannel = {
+      host: "smtp.example.org",
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      ignoreTLS: false,
+      from: "a@example.org",
+      to: "b@example.org",
+      timeoutMs: 1_000,
+    };
+    const mail = { subject: "s", text: "t", alertId: "prod:warn:day:2026-10-29" };
+    const replying = (response: unknown) => () => ({
+      sendMail: async () => ({ response }),
+      close: () => {},
+    });
+    expect(await sendEmail(channel, mail, replying("250 2.0.0 Ok: queued as ABC123"))).toEqual({
+      ok: true,
+      ref: "250 ABC123",
+    });
+    expect(await sendEmail(channel, mail, replying("250 OK"))).toEqual({ ok: true, ref: "250" });
+    // nodemailer resolves only once the server accepted the message, so it was delivered; but with no reply to read,
+    // there is no reference to keep, and none is made up.
+    for (const unreadable of [undefined, "", "OK, queued", 250, { code: 250 }]) {
+      expect(await sendEmail(channel, mail, replying(unreadable)), JSON.stringify(unreadable)).toEqual({
+        ok: true,
+        ref: null,
+      });
+    }
+  });
+
   it("asks nodemailer for TLS with the certificate checked: implicit on 465, STARTTLS required on 587", () => {
     const base: EmailChannel = {
       host: "smtp.example.org",

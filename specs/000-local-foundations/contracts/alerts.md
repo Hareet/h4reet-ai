@@ -198,6 +198,8 @@ Runbook: docs/runbooks/cost-warning.md
 
 **The Telegram URL contains the bot token.** The dispatcher never logs a request URL, never stores one, and records only an error class: `timeout`, `connect`, `tls`, `http_<status>`, `telegram_<error_code>`, `smtp_<reply code>`, `smtp_<nodemailer code>`.
 
+(Tasks.md T156.) The email reference comes from the server's own reply line: its 2xx code and, when the reply names one, its queue ID. A message nodemailer reports accepted with a reply that can't be read is delivered with no reference: `email_ref` and `alert.delivered`'s `provider_ref` are null, never an assumed `250`.
+
 (Departures and readings, tasks.md T077.) nodemailer writes the header's name as `X-H4-Alert-ID`, normalizing the case of every header it sends; header names are case-insensitive, so it is the same header. `telegram_<error_code>` is for an HTTP 200 whose body says `"ok": false`; any other status is `http_<status>`. A claimed row's due time moves past its attempt's timeout before the attempt (a lease), so a stalled process can't send it twice; an outcome the store can't take while it is down is kept in memory and written once it answers, without sending again.
 
 ### 4.2 The retry schedule

@@ -8,7 +8,8 @@
 // From ALERT_EMAIL_FROM to ALERT_EMAIL_TO, text/plain only, with `Auto-Submitted: auto-generated` and
 // `X-H4-Alert-Id: <dedupe key>` (nodemailer writes the name X-H4-Alert-ID; header names are case-insensitive).
 // Delivered is the server's 250; the reference kept is the reply code and the queue
-// ID. A failure is recorded as its class only: timeout, connect, tls, smtp_<reply code>, smtp_<nodemailer code>.
+// ID, read from the server's own reply line: a reply that can't be read keeps none, never an assumed 250 (tasks.md
+// T156). A failure is recorded as its class only: timeout, connect, tls, smtp_<reply code>, smtp_<nodemailer code>.
 import { createTransport } from "nodemailer";
 
 import type { DeliveryResult } from "./telegram.js";
@@ -104,8 +105,11 @@ export async function sendEmail(
       }),
       deadline,
     ]);
+    // nodemailer resolves only once the server accepted the message: delivered. The reference is the reply's own
+    // code and queue ID, or nothing when the reply holds no code that can be read.
     const response = typeof info.response === "string" ? info.response : "";
-    const code = /^([2-5]\d\d)/.exec(response)?.[1] ?? "250";
+    const code = /^(2\d\d)\b/.exec(response)?.[1];
+    if (code === undefined) return { ok: true, ref: null };
     const queueId = /queued as ([A-Za-z0-9._-]{1,64})/i.exec(response)?.[1];
     return { ok: true, ref: queueId === undefined ? code : `${code} ${queueId}` };
   } catch (err) {

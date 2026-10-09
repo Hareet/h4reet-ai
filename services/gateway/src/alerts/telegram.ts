@@ -8,8 +8,11 @@
 // either (telemetry.md §3.1). In stand-in mode the base is config/alerts.yaml's in-network stand-in, the token the
 // fixed dummy `standin`, and the chat 0 (§4.3).
 
-/** One delivery attempt's outcome: a reference to keep, or an error class, never a URL or a response body. */
-export type DeliveryResult = { ok: true; ref: string } | { ok: false; errorClass: string };
+/**
+ * One delivery attempt's outcome: delivered, with the reference the provider's own answer gave (null when its answer
+ * holds none that can be read), or an error class; never a URL or a response body.
+ */
+export type DeliveryResult = { ok: true; ref: string | null } | { ok: false; errorClass: string };
 
 export interface TelegramChannel {
   base: string;
