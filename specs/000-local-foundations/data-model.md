@@ -478,6 +478,9 @@ COMMIT
 ```
 
 - **Precedence.** The order in step 5, followed by `journal_unwritable`, is the precedence of the degraded causes when more than one applies. The `kill_switch_tripped` check repeats the request-start read under the lock, which catches a trip that landed in between.
+- **Metered and test calls** check the state and the ceilings only: the sub-budget's two checks and the adapter's health are fallback's (operator-admin.md §3.2, "the ceilings only", and §5). (Reading recorded by tasks.md T072.)
+- **A refusal after the sweep settled something** commits the settlement, and only the reservation is left out: rolling back would undo spend the live meter must count, a trip among it. A refusal with nothing swept rolls back, as step 5 says. (Departure, tasks.md T072.)
+- **A COMMIT whose answer was lost** may have landed: the gateway withdraws the reservation if the store answers again, as step 8 does, and otherwise the sweep settles it at its maximum once it expires. The call is refused with `store_unreachable` either way. (Added by tasks.md T072.)
 - **The level checks** use the existing reservations, not the new one. The first call admitted near a ceiling can therefore pass it. That is the bounded overshoot, and the commit that crosses the ceiling trips the switch.
 
 ### 7.3 Commit of a metered call

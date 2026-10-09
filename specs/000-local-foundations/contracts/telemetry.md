@@ -243,6 +243,8 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `killswitch.tripped` | error | the commit that sets `degraded` | `ceilings`, `day_micro`, `month_micro` |
 | `fallback.exhausted` | warn | committed fallback spend reaches the allowance | `grant_no`, `allowance_micro`, `spent_micro` |
 | `reservation.expired` | warn | the sweep settles a reservation ([data-model.md §2.4](../data-model.md#24-reservations-metered-calls-in-flight)) | `reservation_id`, `attribution`, `max_micro` |
+| `meter.commit_pending` | warn | a metered call's commit failed on the store, and is kept for retries every 2 s until its reservation expires ([data-model.md §7.3](../data-model.md#73-commit-of-a-metered-call): "the log records the pending commit"; added by tasks.md T072) | `reservation_id`, `attribution`, `error_class` |
+| `meter.commit_gave_up` | error | the retries of a pending commit reached the reservation's expires_at; the sweep settles it at its maximum (added by tasks.md T072) | `reservation_id`, `attribution` |
 | `operator.init`, `operator.reset`, `operator.renew`, `operator.test_clock`, `operator.test_synthetic`, `operator.adapter_call` | info, with `event.name=h4.audit` | an accepted admin write | `audit_id`, `actor` (`operator:<stack>#<8 hex>`), `action`, `reason`, and `before` and `after` summaries in micro-USD as the audit row has them |
 | `operator.auth_failed` | warn, with `event.name=h4.audit` | a failed authentication | `class` (`missing`, `malformed`, `wrong_prefix`, `mismatch`), `route` (the route template, or `other`) |
 | `alert.queued` | info | an outbox row commits | `dedupe_key`, `kind` |

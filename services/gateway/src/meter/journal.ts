@@ -173,10 +173,13 @@ export interface JournalOptions {
   stack: string;
   /** Tests only: the open() the journal uses, so a test can cut a write short. */
   openFile?: typeof open;
+  /** The real clock: when a run of failed appends began. */
+  realNow?: () => number;
 }
 
 export class Journal {
   private state: JournalStatus = "unknown";
+  private failingSince: number | undefined;
   private queue: Promise<unknown> = Promise.resolve();
   readonly dir: string;
 
@@ -187,6 +190,14 @@ export class Journal {
   /** The result of the last append (GET /health's `journal`); unknown before the first. */
   status(): JournalStatus {
     return this.state;
+  }
+
+  /**
+   * When the current run of failed appends began, real ms, or undefined while the last append succeeded: the `since`
+   * of journal_unwritable (gateway-http.md §3).
+   */
+  unwritableSince(): number | undefined {
+    return this.state === "unwritable" ? this.failingSince : undefined;
   }
 
   /** The file a record at this gateway time goes into, relative to the state directory. */
@@ -242,7 +253,9 @@ export class Journal {
       }
       if (fresh) await fsyncDir(this.dir);
       this.state = "ok";
+      this.failingSince = undefined;
     } catch (err) {
+      if (this.state !== "unwritable") this.failingSince = (this.opts.realNow ?? Date.now)();
       this.state = "unwritable";
       throw new JournalWriteError(errorClass(err));
     }

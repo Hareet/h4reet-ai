@@ -198,6 +198,7 @@ services/gateway/                [A] new: the gateway (§5)
   src/core/{types,gateway,router,limits,clock}.ts
   src/adapters/{registry,local-openai,bedrock-converse,synthetic,_settings}.ts   (_settings: each type's routing.yaml settings and the registered types)
   src/meter/{store,admission,commit,rollover,init,journal}.ts
+  src/meter/{types,crossings,sweep,meter,operator}.ts   (Departure, tasks.md T072: the port and its types, the crossings and their effects, the sweep, the Meter that runs them, and the operator's transactions, each its own module)
   src/alerts/{outbox,dispatcher,telegram,smtp,format}.ts
   src/incidents/draft.ts
   src/config/{load,validate,validate-env,validate-config}.ts   (validate-config: the npm script's entry)
