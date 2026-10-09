@@ -1260,14 +1260,19 @@ e14_ports() {
 }
 
 e15_published_ports() {
-	local ok=true
+	local ok=true spec
 	# Without an address, Docker publishes on every interface, and RootlessKit would listen on the WSL VM's own
-	# interfaces (A21, H3). The loopback is how dev-cpu publishes for the Author's browser (E14).
+	# interfaces (A21, H3). The loopback is how dev-cpu publishes for the Author's browser (E14), and only on its own
+	# ports and this row's 18999: a stopped host stack's port is free on the loopback, and a container there would
+	# take the token or the password the Author's client meant for that stack. Docker picks a port for an empty one.
 	admission_refused run --rm -p 18999:80 "$probe_image" true || ok=false
 	admission_refused run --rm -P --expose 80 "$probe_image" true || ok=false
 	admission_refused run --rm -p 0.0.0.0:18999:80 "$probe_image" true || ok=false
+	for spec in 127.0.0.1:18003:80 127.0.0.1:18103:80 '[::1]:18001:80' 127.0.0.1::80; do
+		{ admission_refused run --rm -p "$spec" "$probe_image" true && [ "$refused_rule" = A21 ]; } || ok=false
+	done
 	engine_docker run --rm -p 127.0.0.1:18999:80 "$probe_image" true >/dev/null 2>&1 || ok=false
-	record E15 "$(verdict $ok)" "-p with no address, -P, and 0.0.0.0 are refused (A21); 127.0.0.1 runs"
+	record E15 "$(verdict $ok)" "-p with no address, -P, 0.0.0.0, a host stack's port (18003, 18103, [::1]:18001), and a port Docker picks are refused (A21); 127.0.0.1:18999 runs"
 }
 
 e16_raw_bodies() {
