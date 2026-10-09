@@ -162,6 +162,8 @@ def existing_values(path: Path) -> dict[str, str]:
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         key, _, value = line.partition("=")
+        if key in values:
+            continue  # the first one counts, as in preflight, which refuses the repeat (P2)
         if len(value) >= 2 and value[0] == value[-1] == "'":
             value = value[1:-1]
         values[key] = value
@@ -228,6 +230,7 @@ def init(stack: str, sync: bool, home: Path) -> int:
     if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o600:
         raise FileProblem(f"{path} must be yours, with mode 0600")
     have = existing_keys(path)
+    twice = sorted({key for key in have if have.count(key) > 1})
     template_keys = [key for _, key, _ in lines if key]
     missing = [k for k in template_keys if k not in have]
     extra = [k for k in have if k not in template_keys]
@@ -257,6 +260,10 @@ def init(stack: str, sync: bool, home: Path) -> int:
     if extra:
         print(
             f"the template no longer has: {', '.join(extra)}; remove these by hand, because preflight refuses them"
+        )
+    if twice:
+        print(
+            f"these keys appear more than once: {', '.join(twice)}; keep one of each, because preflight refuses the file"
         )
     # Every __ASK__ the file still holds, not only the appended ones (contracts/env-files.md §9.1, step 5).
     report(stack, path, generated, {**existing_values(path), **values})

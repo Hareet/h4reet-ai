@@ -296,4 +296,41 @@ def test_sync_names_every_ask_key_still_unfilled(
     out = capsys.readouterr().out
     asked = [ln for ln in out.splitlines() if ln.startswith("fill these yourself")]
     assert len(asked) == 1 and "OPERATOR_TOKEN_SHA256" in asked[0]
+    # dev's empty channel keys, already in the file, are named too.
+    channels = [
+        ln
+        for ln in out.splitlines()
+        if ln.startswith("fill these for the recorded run")
+    ]
+    assert (
+        len(channels) == 1
+        and "TELEGRAM_BOT_TOKEN" in channels[0]
+        and "SMTP_PASSWORD" in channels[0]
+    )
     assert "keep-me" not in out
+
+
+def test_sync_reads_a_repeated_key_as_preflight_does(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The first occurrence counts, as in preflight, and the repeat is named; a value appended after the
+    # __ASK__ doesn't hide it.
+    env_dir = private_base(home) / "env"
+    env_dir.mkdir(mode=0o700)
+    path = env_dir / "dev.env"
+    text = (
+        "\n".join(template("dev"))
+        .replace("__GENERATE__", "keep-me")
+        .replace("__HOME__", "/h")
+        .replace("__REPO__", "/r")
+    )
+    path.write_text(
+        text + "\nOPERATOR_TOKEN_SHA256=" + "a" * 64 + "\n", encoding="utf-8"
+    )
+    path.chmod(0o600)
+    assert ie.main(["--stack", "dev", "--sync"]) == 0
+    out = capsys.readouterr().out
+    assert "these keys appear more than once: OPERATOR_TOKEN_SHA256" in out
+    asked = [ln for ln in out.splitlines() if ln.startswith("fill these yourself")]
+    assert len(asked) == 1 and "OPERATOR_TOKEN_SHA256" in asked[0]
+    assert "a" * 64 not in out
