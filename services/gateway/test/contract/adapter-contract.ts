@@ -90,7 +90,19 @@ export interface ContractHarness {
 }
 
 /** §5.3: in the sandbox, timeouts are scaled down through the settings. */
-export const CONTRACT_TIMEOUTS = { connectMs: 100, requestMs: 300 } as const;
+// The request timeout is 3 s, not the first sketch's 300 ms (tasks.md T157): C10 needs it beyond its deadline plus
+// C10_WITHIN_MS, so that only the abort or the deadline can end its calls inside that bound. The stub's slow answer,
+// 5 s, stays beyond the request timeout, so "a timeout" still times out.
+export const CONTRACT_TIMEOUTS = { connectMs: 100, requestMs: 3_000 } as const;
+
+/**
+ * C10's bound past the abort or the deadline (tasks.md T157): the contract's 100 ms, plus 2 s for a loaded host. One
+ * run's stalled event loop ended a call 1,093 ms past its deadline, though the deadline was what ended it. The request
+ * timeout and the stub's answer both come later, so the bound still proves the abort or the deadline ended the call.
+ */
+const C10_WITHIN_MS = 100 + 2_000;
+/** The stub's slow answer: longer than the request timeout, so the timeout, the abort, or the deadline ends the call. */
+const SLOW_MS = 5_000;
 
 // telemetry.md §3.3: the client span's canonical keys.
 const ALWAYS_KEYS = [
@@ -217,7 +229,7 @@ function errorCases(adapter: ProviderAdapter): {
 }[] {
   const paid = adapter.kind === "paid";
   return [
-    { name: "a timeout", behavior: { delayMs: 3_000 }, kind: "timeout", retryable: true, possiblyBilled: paid },
+    { name: "a timeout", behavior: { delayMs: SLOW_MS }, kind: "timeout", retryable: true, possiblyBilled: paid },
     {
       name: "a refused connection",
       behavior: { refuse: true },
@@ -640,7 +652,7 @@ export function describeAdapterContract(
         }
         return;
       }
-      stub().next({ delayMs: 3_000 });
+      stub().next({ delayMs: SLOW_MS });
       const controller = new AbortController();
       let abortedAt = 0;
       setTimeout(() => {
@@ -650,14 +662,15 @@ export function describeAdapterContract(
       const aborted = await call(request({ signal: controller.signal, deadline: Date.now() + 10_000 }));
       expect(aborted.ok).toBe(false);
       if (!aborted.ok) expect(aborted.error.kind).toBe("timeout");
-      expect(Date.now() - abortedAt).toBeLessThan(100);
+      expect(Date.now() - abortedAt).toBeLessThan(C10_WITHIN_MS);
 
-      stub().next({ delayMs: 3_000 });
-      const deadline = Date.now() + 120; // shorter than the request timeout, so the deadline is what ends it
+      stub().next({ delayMs: SLOW_MS });
+      // Far shorter than the request timeout, even with C10_WITHIN_MS on top, so the deadline is what ends it.
+      const deadline = Date.now() + 120;
       const late = await call(request({ deadline }));
       expect(late.ok).toBe(false);
       if (!late.ok) expect(late.error.kind).toBe("timeout");
-      expect(Date.now() - deadline).toBeLessThan(100);
+      expect(Date.now() - deadline).toBeLessThan(C10_WITHIN_MS);
     });
 
     it("C12: returns a filtered answer as a result, not an error", async (ctx) => {
@@ -679,7 +692,7 @@ export function describeAdapterContract(
           : ([
               { ok: { text: "Hi.", inputTokens: 5, outputTokens: 2, finish: "stop" } },
               { status: 500 },
-              { delayMs: 1_000 },
+              { delayMs: SLOW_MS },
               { refuse: true },
               { malformed: true },
             ] as StubBehavior[]);
