@@ -361,13 +361,17 @@ description: "Task list for spec 000, Local Foundations"
   - `-f Makefile` everywhere: in the relay (human-only), the Makefile's recursive calls, and the docs agents read, CLAUDE.md included (human-only);
   - dropping the sandbox write-denies for those two names, keeping `protected-paths.sh`: this weakens the control against a planted makefile, and isn't recommended (Principle IV), per FR-039 and T045 (contradicts)
 
-  The first option is ready as a patch, for the Author's yes or no (2026-10-09, reworked after two reviews on 2026-10-10): `docs/merge-requests/2026-10-09-fix-000-agents-make.patch`. It adds:
+  The first option is ready as a patch, for the Author's yes or no (2026-10-09, reworked after four reviews on 2026-10-10): `docs/merge-requests/2026-10-09-fix-000-agents-make.patch`. It adds:
   - the `GNUmakefile`, which includes the Makefile by its own directory;
-  - `tools/gates/makefiles_check.py`, with a test. It holds that file to its exact bytes, and fails on any `makefile` but the sandbox's /dev/null mask, which holds nothing. The gate runs it on the export before anything runs make, and a FAIL stops the gate (T092). `make check` runs it first, as `makefiles-check`, where it reports only an accidental edit: a hostile `GNUmakefile` has already run;
+  - `tools/gates/makefiles_check.py`, with a test. It holds that file to its exact bytes, and fails on any `makefile`:
+    - **in a live tree,** except the sandbox's empty placeholders, which hold nothing;
+    - **on the gate's export (`--export`),** with no exception: the sandbox never makes a placeholder there, and a read-only export gives a committed empty file the placeholder's mode.
+
+    The gate runs it with `--export` on the proven export, before anything runs make, and anything but a pass stops the gate (T092). `make check` runs it first, as `makefiles-check`, where it reports only an accidental edit: a hostile `GNUmakefile` has already run;
   - the matching lines in plan §2 and §11, in T092, in lifecycle.md, and in `scripts/test_makefile.py`, so a no leaves all of it out.
 
   T001's check was a manual one in its note; no code asserts the file's absence. The branch itself carries, whatever the answer:
-  - T092's and plan §11's makefile step: the export's `GNUmakefile` and `makefile` must be what this task's decision allows, and a FAIL stops the gate (the second review's S-3);
+  - T092's and plan §11's first two steps: the export, proven against the commit with replace objects off (the third and fourth reviews); and its `GNUmakefile` and `makefile`, which must be what this task's decision allows. Anything but a pass at either stops the gate (the second review's S-3);
   - `make help` with `grep -h`, so an included makefile doesn't put a file name before every line, with a test;
   - from the review's S1, make can't remake any makefile it read. make's built-in rules copied a planted `Makefile.sh` over the Makefile and ran it, against plan §11 ("Project code never runs outside a container in the Author's terminal") and Principle IV. The fix is `$(MAKEFILE_LIST): ;` and `.SUFFIXES:`, last in the Makefile, with a test and matrix rows.
 - [ ] T184 [US1] **Author's decision:** does US1-5's "no code is changed or rebuilt per environment" ask for one gateway build that prod and dev share? Today each stack's `make up` builds its own from the same tree: T149 found the layers identical across builds and the image IDs different, by compose's per-project label and each build's provenance attestation. Quickstart §1.9 compares the layers. Two ways to get one image ID:
@@ -499,8 +503,15 @@ description: "Task list for spec 000, Local Foundations"
 
 - [ ] T091 [P] [US3] Create `make secrets` per §11 (make the fresh empty directory for `--gitleaks-ignore-path` with a checked `mktemp -d`, and refuse an empty path: an unchecked `mktemp` failing gave an empty `pycache_prefix`, which loaded planted bytecode, research.md R-35): `gitleaks git --pre-commit` with and without `--staged`, plus `$(git merge-base main HEAD)..HEAD`, each with `--config` (the main tree's `.gitleaks.toml`, from T045's patch), `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow (and refusing to run while a `.gitleaksignore` exists at its scan source (research.md R-36))`. Missing gitleaks fails closed.
 - [ ] T092 [P] [US3] Create `tools/gates/gate` (the Author's clean-room gate, §11) and `tools/gates/test/test_gate.py`:
-  - export the ref with `git archive`, and prove the export as `deploy/scripts/export_tree.py` proves a stack's: refuse a `.git/info/attributes`, extract with tarfile's data filter, and refuse an export that doesn't hash to the commit's own tree. Otherwise `.gitattributes`' export-ignore and export-subst could change what every later step checks (T183's third review);
-  - before anything runs make on the export, check that its `GNUmakefile` and `makefile` are what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. A FAIL stops the gate, and nothing runs make on that export (T183's reviews);
+  - resolve the ref once to its commit SHA, and use that SHA for the export, every later step, and the merge. Export it with `git archive`, and prove the export as `deploy/scripts/export_tree.py` proves a stack's (contracts/env-files.md §12):
+    - every git call runs with `GIT_NO_REPLACE_OBJECTS=1`, main's own reads included;
+    - the commit object is rehashed against its SHA, and the expected tree is read from that object;
+    - no `.git/info/attributes` exists;
+    - extraction uses tarfile's data filter;
+    - the export hashes to that tree.
+
+    Otherwise a replace ref under `.git/refs/replace`, or `.gitattributes`' `export-ignore` and `export-subst`, could change what every later step sees (T183's third and fourth reviews). Anything short of that proof stops the gate;
+  - before anything runs make on the export, check that its `GNUmakefile` and `makefile` are what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. Anything but a pass stops the gate, and nothing runs make on that export (T183's reviews);
   - build the devcontainer image, tagged by `.devcontainer/`'s hash;
   - the container phase: `npm ci --ignore-scripts`, then lint, test, the scaffolds, and stage H with `--network none`;
   - the host phase: githooks, toolchain, policy, `corpus-check` with the denylist through `PY_HOST`, gitleaks, the image build on the engine, and stage E plus the behavioral evals when triggered;

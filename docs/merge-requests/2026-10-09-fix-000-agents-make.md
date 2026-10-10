@@ -1,5 +1,5 @@
 # fix/000-agents-make
-Spec: specs/000-local-foundations/ (task T183, found in T064) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5) · Date: 2026-10-09, reworked on 2026-10-10 after three reviews
+Spec: specs/000-local-foundations/ (task T183, found in T064) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5) · Date: 2026-10-09, reworked on 2026-10-10 after four reviews
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes.
 
 Authorized by: T183 in tasks.md, which asks for the Author's decision; and the Author's "I want you to keep going as far as you can and group all the pieces you need my attention for me to check in the morning" (2026-10-09). The file the proposal adds is human-only, so the proposal comes as a patch, and a no leaves out everything it proposes. The branch's own changes stand either way: the Makefile's guard and `help`, and the gate's makefile step, which T092 and plan §11 now carry whatever the answer.
@@ -35,21 +35,22 @@ T064 ran by naming the file, with `make -f Makefile` and the relay's own call, w
 - **`GNUmakefile`**, whose one line is `include $(dir $(lastword $(MAKEFILE_LIST)))Makefile`, with a comment saying why. The path then exists, so the sandbox binds it read-only, as it binds `CLAUDE.md`: make reads it in agent sessions as in your terminal, and no session can write it.
 - **`tools/gates/makefiles_check.py`**, with its test:
   - `GNUmakefile` must be a regular file, not a link, whose bytes are exactly the committed text;
-  - no `makefile` may exist, apart from the sandbox's two placeholders above, which hold nothing. git records a file's mode only as 644 or 755, so no committed file looks like either;
-  - what it shows of a changed file has its control and format characters escaped, since an agent wrote them.
+  - no `makefile` may exist. In a live tree, the sandbox's two placeholders above are exceptions, since they hold nothing. On the gate's export (`--export`), nothing is: the sandbox never makes a placeholder there, and a read-only export gives a committed empty file the placeholder's mode;
+  - what it shows of a changed file is printable ASCII, with everything else escaped, since an agent wrote it.
 
-  The gate runs it from your tree on the branch's export, which T092 now proves against the commit's own tree first, before anything runs make, and a FAIL stops the gate. `make check` runs it too, as `makefiles-check`, but through make it reports only an accidental edit: a hostile `GNUmakefile` has already run by then, and can skip or fake it.
+  The gate runs it with `--export`, from your tree, on the branch's export. T092 now proves that export against the commit's own tree first, with replace objects off, before anything runs make. Anything but exit 0 stops the gate. `make check` runs it too, as `makefiles-check`, but through make it reports only an accidental edit: a hostile `GNUmakefile` has already run by then, and can skip or fake it.
 - **The patch's lines** in plan §2 and §11, in T092, in lifecycle.md's control table, and in `scripts/test_makefile.py`, which then reads the include from the committed file.
 
 **What keeps agents from changing it:**
 - **In the main tree,** `protected-paths.sh` blocks an agent's edit of the file, and the redteam matrix's `GNUmakefile` row still passes. The sandbox's read-only bind keeps a shell from writing it.
-- **In a worktree,** where agent sessions commit, neither control applies, because both work out paths from the main tree (the us1 note's T117 items record the hook's half). A branch could change the file, and after a merge your plain `make` would run it. From T092, the gate holds it: its makefile step fails such a branch, on an export proven against the commit, and stops before anything runs make. Until the gate exists, `git diff main...<branch> -- GNUmakefile makefile` before a merge shows the same.
+- **In a worktree,** where agent sessions commit, neither control applies, because both work out paths from the main tree (the us1 note's T117 items record the hook's half). A branch could change the file, and after a merge your plain `make` would run it. From T092, the gate holds it: its makefile step fails such a branch, on an export proven against the commit, and stops before anything runs make. Until the gate exists, run `git for-each-ref refs/replace` before a merge, and expect it to print nothing. Then `git --no-replace-objects diff main...<branch> -- GNUmakefile makefile` shows the same. A replace ref would make every other git read show a commit other than the one the merge brings.
 - **`makefile`** stays unwritable in the main tree, and make never looks for it while `GNUmakefile` exists. The check fails on anything there but the sandbox's placeholders.
 
 **Checked**, in a scratch copy of the branch's tracked files with the patch applied. The copy sat outside the repository's worktrees, so no checkout of this repository ever held the file.
 - `make help` printed the same 38 targets as `make -f Makefile help`, plus the patch's `makefiles-check`: 39 lines.
 - `make -C <copy> makefiles-check` passed, run from `/`. It failed with a rule appended to the file, and with a planted `makefile`.
-- pytest passed whole: 1386 tests. They include `scripts/test_makefile.py`'s, which run `make -C ROOT` through the `GNUmakefile`.
+- pytest passed whole: 1390 tests. They include `scripts/test_makefile.py`'s, which run `make -C ROOT` through the `GNUmakefile`.
+- The check passed with `--export` on the copy, and failed with `--export` on an empty read-only `makefile` that the live mode counts as a placeholder.
 - The patched check, run on the main tree from a session, counted the real `makefile` placeholder as none: alone, where it is the device, and while another command ran, where it is that command's empty file. It failed only on `GNUmakefile`, which has no file there until the patch is applied.
 
 ## The reviews, and what changed
@@ -104,8 +105,8 @@ One slip of mine is worth recording. My first scratch run for the extra layouts 
 Nothing blocking, three should-fix findings, and seven nits. Its verdicts: "merge after amending T092 and §11 step 1 for S-A; that's a text change, and the guard and `help` are sound", and for the patch, "hold until S-B is fixed and T092's step is protected against S-A; S-C needs the overlap check." All of it is applied:
 - **S-A: the gate's makefile step checked a `git archive` export, which the branch's own files can change.**
   - A committed `.gitattributes` line, `makefile export-ignore`, would leave `makefile` out of the export, and the step would pass. After a merge with no `GNUmakefile`, your plain `make` would read it. `export-subst` could likewise make the export's bytes differ from the commit's.
-  - The project already proves a stack's export: `deploy/scripts/export_tree.py` refuses the repository's own info attributes file, and any export that doesn't hash to the commit's tree.
-  - **The fix, on the branch:** T092 and plan §11 step 1 now require that proof before step 2. It closes the same gap for every later step, which predates this branch.
+  - The project already proves a stack's export: `deploy/scripts/export_tree.py` runs git with `GIT_NO_REPLACE_OBJECTS=1`, and rehashes the commit object against its SHA. It refuses the repository's own info attributes file, and any export that doesn't hash to the commit's tree.
+  - **The fix, on the branch:** T092 and plan §11 step 1 now require that proof before step 2. This round named only its last two parts; the fourth review's A added the first two. It closes the same gap for every later step, a gap that predates this branch.
 - **S-B: the check printed a hostile `GNUmakefile`'s bytes to your terminal,** escape sequences included: an OSC 52 sequence can set the clipboard, and others can rewrite the FAIL lines on screen. The exit code would stay 1, but what you read could be forged. The check now escapes every control and format character but a newline and a tab, and the line and paragraph separators, before it diffs. A test plants OSC 52, an erase-line sequence, a right-to-left override, and an 8-bit CSI, and finds none of them raw in the output.
 - **S-C: the placeholder at `makefile` isn't always the device.** Confirmed with two overlapping commands: while one runs, the other sees its empty, read-only file at both paths, and so does the host. In a main-tree session that started while another command ran, the check would have failed again, the first S-1 over. The check now also counts an empty file with no write bits as none. Run on the main tree while another command held the placeholder, it passed that path.
 - **Nit 1:** lifecycle.md and plan §2 no longer say the gate refuses, in the present tense, while T092 isn't built. They say "from T092", and lifecycle.md names the interim `git diff`.
@@ -119,13 +120,37 @@ Two slips of mine in this round:
 - **A bash-gate refusal:** a command whose text named the repository's info attributes path was refused as "writing git internals". I made those edits with the Edit tool instead, and respelled nothing.
 - **A bidi character in a test file:** the tool call's encoding turned the backslash-u escape I typed into the character itself. Ruff refused it (PLE2502), and the test now builds it with `chr()`.
 
+### The fourth review, at 3d2c7fa and 357b89a
+
+Nothing blocking, two should-fix findings, and eight nits. Its verdicts: for the branch, "merge after a text-only amendment for A (T092, §11 step 1, lifecycle.md's interim command, the note), or with A recorded under T092". For the patch: "S-B and S-C are sound at runtime. Before a yes, add B's gate mode and corrected reason, and the fix for Nit 1. A applies to the patch's step 1 too." All of it is applied:
+- **A: the export proof left out what ties it to the commit: replace objects off, and a rehash of the commit object.**
+  - **The attack:** a worktree session commits X with a changed `GNUmakefile`, then a clean Y with X's parent, and runs `git replace X Y`. A gate built to the letter reads Y's tree and exports Y, so every step passes, and so does the interim `git diff`.
+  - **What would happen:** the merge brings X. Your `make up ENV=prod` exports X, because `export_tree.py` turns replace objects off, and runs code no gate step saw.
+  - **Why nothing stops it:** neither the deny list nor bash-gate covers `git replace`, and the reference-transaction hook guards only main. The foundations review's C2-4 found the same class.
+  - **The fix:** T092 and plan §11 step 1 now name the whole proof: the ref resolved once to a SHA, which the export, every step, and the merge use; every git call with `GIT_NO_REPLACE_OBJECTS=1`; and the commit object rehashed before its tree is read. The interim check runs `git for-each-ref refs/replace`, then `git --no-replace-objects diff`. Guarding `refs/replace` itself is for the closing patch (T117); it's listed for you below.
+- **B: S-C's exception held in the export only by accident.** `export_tree.py` ends by making the export read-only, so a committed empty `makefile` there would have the placeholder's mode, and the check would pass a branch that has a makefile.
+  - **The fix:** a gate mode, `--export`, counts nothing as a placeholder. T092 and plan §11 step 2 run the check that way, and a test fails an empty read-only `makefile` in that mode.
+  - **The note's earlier reason, git's file modes, was wrong:** tarfile's data filter gives every file owner write, and `make_read_only()` takes it away again.
+- **Nit 1:** the test's 8-bit CSI was a lone 0x9B byte, invalid UTF-8, so the decoder escaped it before `printable()` ran, and the assertion couldn't fail. The test now plants U+009B, NEL, U+2028, U+3164, and U+E0001, all as valid UTF-8, and requires every one escaped and the output all ASCII.
+- **Nit 2:** the check now shows only printable ASCII, a newline, and a tab, and escapes everything else, the astral planes as `\U` with eight digits. EXPECTED is ASCII, so a diff loses nothing.
+- **Nit 3:** T183 says four reviews and two placeholders, and its list of what the branch carries includes the export's proof.
+- **Nit 4:** step 1 has its own stop rule. Both steps stop the gate on anything but a pass, which covers the check's exit 2 too.
+- **Nit 5:** the If-yes steps say "no Claude session's command running", and plan §2 says "never exist, apart from the empty placeholders".
+- **The other three:**
+  - the us1 note names the commit the US2 recipe was checked at;
+  - the `GNUmakefile`'s comment says "the gate (T092)";
+  - a test covers an `lstat` error on `makefile`.
+
 ## If yes, or no
 
-**If yes,** after merging the stack below this branch, with no Claude session running:
+**If yes,** after merging the stack below this branch, with no Claude session's command running:
 
 ```
+git for-each-ref refs/replace
 ls -l GNUmakefile makefile 2>/dev/null
 ```
+
+The first should print nothing (see the fourth review's A).
 
 If either exists, it is an empty, read-only placeholder: a session's command is still running, or a session was killed. An empty `GNUmakefile` makes `git apply` refuse with "already exists in working directory". Let a running session finish; a killed session's you remove with `rm -f GNUmakefile makefile`. Then:
 
@@ -165,6 +190,15 @@ It says both lines fit CLAUDE.md's limits of 60 lines and 6 KB.
 
 **From the third review,** because S-A was the third case, it proposed ending the second review's line with, in its words: "... and a check on a `git archive` export vouches for the commit only if the export is proven against the commit's tree."
 
+**From the fourth review,** because A was the second time a git read honored replace refs, it proposed amending that clause rather than adding a line, since CLAUDE.md is at 57 lines and 5,348 bytes. In its words: "…only if the export is proven against the commit's own tree, read with `GIT_NO_REPLACE_OBJECTS=1`."
+
+## For later: the closing patch (T117)
+
+**Guard `refs/replace`.** Neither the sandbox's deny list nor bash-gate covers `git replace`, and the reference-transaction hook guards only main (the fourth review's A, and the foundations review's C2-4). Until T092's gate proves every export with replace objects off, a replace ref can make a reviewed diff differ from what a merge brings. The closing patch could:
+- deny writes to `.git/refs/replace`;
+- have reference-transaction refuse a session's `refs/replace/*` updates;
+- add the matching rows to the matrix.
+
 ## Verification
 
 - **On the branch:**
@@ -173,8 +207,9 @@ It says both lines fit CLAUDE.md's limits of 60 lines and 6 KB.
   - a target appended after the guard fails all six S1 tests;
   - the matrix's two rows fail with the guard removed (the plant takes over make), and with a `$(error)` line appended (make exits 2).
 - **With the patch applied, in the scratch copy:**
-  - `scripts/test_makefile.py` and `tools/gates/test/test_makefiles_check.py`: 45 passed;
-  - the whole pytest suite: 1386 passed;
+  - `scripts/test_makefile.py` and `tools/gates/test/test_makefiles_check.py`: 49 passed;
+  - the whole pytest suite: 1390 passed;
+  - the check with `--export`: passes on the copy, and fails on an empty read-only `makefile`;
   - the matrix: 241 passed;
   - ruff check and ruff format: clean on the three Python files;
   - the check against the main tree's real placeholders, alone and overlapping: as under "Checked".
@@ -244,8 +279,8 @@ npm test --workspaces --if-present
 
  Test Files  24 passed (24)
       Tests  362 passed (362)
-   Start at  01:32:43
-   Duration  21.03s (tests 91%, transform 5%, import 4%)
+   Start at  02:36:40
+   Duration  21.02s (tests 91%, import 5%, transform 4%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  5%]
@@ -267,7 +302,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 89%]
 ........................................................................ [ 95%]
 ..................................................................       [100%]
-1362 passed in 37.94s
+1362 passed in 33.37s
 -> PASS test
 == secrets
 -> SKIP secrets (added by T091)
