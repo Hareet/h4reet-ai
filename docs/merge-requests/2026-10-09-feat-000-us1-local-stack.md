@@ -4,7 +4,7 @@ Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phase 3" (2026-10-08, plan mode), given before stepping away for the night; and, on 2026-10-09, "Keep going until you hit the limit again."
 
 **Status: DRAFT. Not ready to merge.** Everything an agent session can do on this branch before the engine exists is done: three review rounds with every finding fixed and verified, the convergence pass, and `make check` at 110b42e with 0 FAIL. What's left needs your hands or the engine:
-- **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed.
+- **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. On 2026-10-09 everything up to the seed passed. The seed failed on every image, and T174's patch fixes it ("T063's run" below).
 - **T064 (an agent session, after T063):** dev-cpu on the agents' engine, end to end.
 - **T065 (yours):** quickstart.md §1, the cold prod run.
 - **T149 (an agent session, after T065):** apply the first stack run's findings.
@@ -26,6 +26,7 @@ ADR 0017 puts this section first. Nothing here has run outside the sandbox: ther
 | **`deploy/scripts/isolation-check.sh`** and **`make isolation-check`** (T061) | your terminal, with prod and dev both up | It runs a throwaway probe container on each stack's networks, from the pinned Python image, with no mounts, no capabilities, and a read-only root. |
 | **`deploy/agents-engine/engine.sh`'s `chown_state`** (T145) | `engine.sh up` and `engine.sh seed` | It runs one container on the agents' engine, from `images.lock`'s `base:node` digest, with the state root mounted, to make `dev-cpu/gateway` and give it to the container's uid 1000. With no pinned `base:node` it prints a note and does nothing. |
 | **`make image`** and **`make compose-images`** (7f49655) | your terminal, or the gate | They build the live working tree's images, so they build only on the agents' engine: with `DOCKER_HOST=tcp://198.18.0.1:2376`, or through the relay inside the sandbox. On your host's engine they exit 2. |
+| **`docs/merge-requests/2026-10-09-fix-000-us1-seed-transfer.patch`** (T174) | `git apply` on this branch, then `deploy/agents-engine/engine.sh seed` again | It changes seed's transfer in `engine.sh`, and its tests. Each image is saved with every platform the host holds, never `--platform`, then tagged on the engine by its pinned digest. A failure prints the engine's or the host's own last line. "T063's run" below has the evidence. |
 | **`tools/gates/compose_policy.py`** | the sandbox, and later the gate | It reports an image whose `images.lock` entry is still open as PLANNED until tasks.md marks that pin's task done (T063), and as FAIL from then on. Preflight refuses to start a stack with an open pin either way. This becomes human-only with T098: please review it. |
 
 ## What changed and why
@@ -347,6 +348,32 @@ make check: 5 PASS, 2 SKIP, 4 PLANNED, 0 PENDING, 0 FAIL
 **Cost:** none metered. The local adapter's calls cost 0, basis `none`; the fallback is refused until T074. The local tier's cost is the 5090's power.
 
 **Data flows:** every new service is on `internal` alone, with no route out (rows S4–S10). The new flows that leave the local tier are your terminal's model downloads from Hugging Face (P3) and whatever Grafana's and Langfuse's pages fetch in your browser (B1, whose hosts T065 records). Images come through `make pull`, as before (P1).
+
+## T063's run (2026-10-09)
+
+The Author's run, as far as the seed. None of it holds a secret. The env files and tokens stay in `~/.config/h4reet-ai`, which no session can read.
+1. **The merge of main** (4042f92) was clean.
+2. **The env files and the operator tokens:** both stacks, every `__ASK__` filled, with prod's Telegram bot and alert mailbox. The mailbox is a free one for now; mail from the h4reet.ai domain is for a later intent.
+3. **`make pin-images`:**
+   - SeaweedFS pinned to `4.48@sha256:4e61d15fd359…`, R-09's open pin.
+   - `base:python` moved to `a6e34c598f24…`.
+   - Every other entry unchanged.
+   - Committed as da3a10c. It also asked for the probe's `FROM` by hand, which is 5c2a089; the compose policy passes with it.
+4. **`make pull MODELS=all`:**
+   - preflight passed (P1–P7, P10, P13, P14), with 120.5 GB free on `/mnt/c` before it;
+   - all 15 images were pulled, with no Docker Hub 429;
+   - the prod model, 17.2 GB, downloaded in 5 min 21 s at about 55 MB/s, and the stand-in, 468 MB, in 6 s;
+   - both models' sha256 match `models.lock`.
+5. **`engine.sh seed`:** the disk check passed, and the host pulled the five images only the engine uses. Then **all 19 images FAILED**, and the stand-in model was copied. A failed transfer printed nothing, so two diagnostics took it apart on `ubuntu:24.04`:
+   - **The platform save:** with `--platform linux/amd64`, the engine reported "Loaded image ID: sha256:f610ab94…", the amd64 manifest. Without it, the ID was `sha256:534baea6…`, the pinned index digest.
+   - **The name:** both loads came in unnamed ("Loaded image ID", no name), so `ubuntu:24.04@sha256:534baea6…` gave "No such image". Saving by `repository@digest` didn't help.
+   - **The fix, tried by hand:** `docker tag sha256:534baea6… public.ecr.aws/docker/library/ubuntu:24.04` named it. The pinned reference then resolved: `RepoTags ["…ubuntu:24.04"]`, `RepoDigests ["…ubuntu@sha256:534baea6…"]`.
+   - **What T174 does:** seed saves without `--platform`, tags by the pinned digest, and prints each failure's reason. The tests' fake engine had named images on load, which is why they passed. It now loads as the real engine does, and 9 tests fail against the old seed.
+6. **Two tests read the state T063 changed** (T175). At 5c2a089, `make check`'s `test` failed twice:
+   - `test_pin_images.py`'s no-release-tag test copies the repository's `images.lock`, where SeaweedFS is now pinned.
+   - `test_preflight.py`'s P18 test read dev-cpu's real `/run/h4agents/models`, where the seed had put the stand-in model.
+
+   The code was right both times. Each test now gets its own fixture, keeping the scenario it tests: SeaweedFS unpinned in its copy, and dev-cpu's `H4_MODEL_DIR` inside the test. That is a test change during a fix, so here is why: only the fixtures changed, not what the tests assert.
 
 ## For the Author
 

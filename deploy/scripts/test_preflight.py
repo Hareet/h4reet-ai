@@ -995,6 +995,8 @@ def test_p18_the_model_file(dev: Stage, devcpu: Stage) -> None:
     result = dev.results()["P18"]
     assert result.status == "FAIL" and "a symbolic link" in result.reason
     devcpu.models_lock()
+    # dev-cpu's H4_MODEL_DIR names the engine's real mount, which T063's seed filled on 2026-10-09: inside the test.
+    devcpu.set(H4_MODEL_DIR=str(devcpu.home / "engine-models"))
     assert "engine.sh seed" in devcpu.results()["P18"].reason
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import io
 import json
@@ -133,6 +134,19 @@ def root(tmp_path: Path) -> Path:
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO / rel, tmp_path / rel)
     return tmp_path
+
+
+def unpin(root: Path, service: str) -> None:
+    """The service's lock entry as it stood before make pin-images resolved it: no tag, no digest. The fixture copies
+    the repository's lock, and T063 pinned seaweedfs there on 2026-10-09."""
+    header, entries = pi.read_lock(root / pi.LOCK)
+    entries = [
+        dataclasses.replace(e, tag="-", digest="-", checked="-")
+        if e.service == service
+        else e
+        for e in entries
+    ]
+    (root / pi.LOCK).write_text(pi.render_lock(header, entries), encoding="utf-8")
 
 
 def current(root: Path) -> dict[str, pi.Entry]:
@@ -346,6 +360,7 @@ def test_a_failure_writes_nothing_and_names_a_rate_limit(
 def test_no_release_tag_stops_for_the_author(
     root: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    unpin(root, "seaweedfs")
     code = pi.pin(
         root,
         {"seaweedfs"},
