@@ -3,8 +3,9 @@ Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) ·
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
-**Status: DRAFT. Not ready to merge.** Every task an agent session can do is done but T190, which round 8 opened. T084 passed all 12 steps on the engine, on the simulated merge ("T084's run" below), and T189's engine test passed. Round 8 confirmed round 7's fixes. Round 8's own fixes change code since that run, so T084 runs again on their commit. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 7's checks" below). What's left:
+**Status: DRAFT. Not ready to merge.** Every task an agent session can do is done but T190, which round 8 opened and which needn't block this merge ("What's left"). T084 passed all 12 steps on the engine, on the simulated merge ("T084's run" below), and T189's engine test passed. Round 8 confirmed round 7's fixes. Round 8's own fixes change code since that run, so T084 runs again on their commit. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 7's checks" below). What's left:
 - **T189 (done):** the gateway's other `getaddrinfo` users, round 4's S2. The exporters and edge (round 6), and pg and the email channel (round 7), resolve through c-ares, and the engine test with the collector stopped passed. Bedrock's calls take c-ares in T102 (provider-adapter.md §3.2). `UV_THREADPOOL_SIZE` stays at the default, your call.
+- **T190 (an agent session, needn't block this merge):** a TLS certificate failure on the email channel is classed `smtp_ESOCKET`, not `tls`. It predates this branch's changes, and the runbook says so meanwhile. It needs a design choice, since the TLS failure has to be caught before nodemailer formats it. That's my reading; it's yours to say it blocks.
 - **T084 (done, on the simulated merge):** 52 of 52 assertions, in 368 s. Once this branch has merged main, the diff check in "T084's run" shows whether the run holds.
 - **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
 - **This note:** both runs' output goes into it, and then this block goes.
@@ -261,6 +262,21 @@ A confirming review of af425ec, and of 6155c81's record of the engine runs. Its 
   - sendEmail's deadline doesn't stop a send already in flight, which "For later tasks" lists.
 
 **`ares-lookups.test.ts` changed again,** with the three tests above. No assertion was weakened. Like round 7's changes, it's yours to look at once more.
+
+### Round 9: round 8's fixes confirmed (at 4246c68), applied in the commit after it
+
+A confirming review of 4246c68. Its verdict begins: "Approve 4246c68. Each of round 8's fixes is right and complete." It found nothing to fix before merge. Its nits are applied:
+- **N1: this note's to-do lists had fallen behind its status line.** Step 2 below now names rounds 7 and 8. T190 is filed once, in "What's left", as not blocking this merge.
+- **N2: T190 named half the cause.** nodemailer overwrites the TLS error's code, and `smtpErrorClass` looks for the TLS codes only in `cause.code`, which nodemailer never sets. T190 now says both, and that the TLS failure has to be caught before nodemailer formats it.
+- **N3: the all-addresses test didn't show its fake ran.** It now asserts that the fake was handed one socket, as the hang test does.
+- **N4: Bedrock's SSO path.**
+  - (a) The Client row now builds the credentials with `fromNodeProviderChain({ clientConfig: { requestHandler } })`. The client's built-in chain would hand its SSO clients only its logger and app ID, so their lookups would stay on `getaddrinfo`.
+  - (b) plan.md and research.md said "the SDK can't refresh the SSO token". token-providers 3.1147.0 does refresh it in memory in its last 5 minutes, through SSO-OIDC's `CreateToken`, and only the write back to the read-only mount fails. I read the code before taking it. So once Bedrock lands, prod's gateway would contact `oidc.us-east-1.amazonaws.com` while running, not only at login.
+  - Both files and the plan's disclosure table carry a dated correction beside the original words. T102 decides whether to allow the refresh, and T106's disclosure row follows that decision. Nothing contacts it today: T102 isn't built.
+- **N5: T189's email bullet** points to alerts.md's list instead of a partial one, and names round 8's three tests.
+- **One more:** round 8's checks weren't pasted. The checks below move to this round's commit with T084's re-run, in the commit after this one.
+
+**`ares-lookups.test.ts` changed once more,** with N3's added assertion. It's on your list with rounds 7 and 8's changes.
 
 ## Verification
 
@@ -953,7 +969,7 @@ breach-test exit=2
 ## For the Author
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
-2. **Look again at `ares-lookups.test.ts`,** which round 7 changed after you accepted the seven test files, and say if any of it should be otherwise.
+2. **Look again at `ares-lookups.test.ts`,** which rounds 7, 8, and 9 changed after you accepted the seven test files, and say if any of it should be otherwise.
 3. **T084 ran on the simulated merge and passed** ("T084's run" below). Once this branch has merged main, run `git diff --stat 56c76be HEAD -- . ':!docs' ':!specs'`: if it prints nothing, the run holds; if not, an agent session runs T084 again on the branch.
 4. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
@@ -961,7 +977,6 @@ breach-test exit=2
 
 - **T117:** the breach test's dev route in bash-gate, which turns the nine planned rows to block.
 - **The gateway implementer's notes:** a lost init record is repaired only when the operator's retry gets the 409. A call with several attempts is charged their sum, which can't exceed `max_micro` with today's retry policies.
-- **T190:** a TLS certificate failure on the email channel is classed `smtp_ESOCKET`, not `tls` (round 8).
 - **A send already in flight** goes on after sendEmail's deadline: `close()` doesn't stop nodemailer's session, so a slow server can accept a message the dispatcher recorded as `timeout`, and the retry sends it again. nodemailer's own timeouts bound it. Round 8 found it; it predates this branch's changes.
 - **Only real runs prove:** Prometheus's and Loki's answers about a past moment, and whether the 5 s grace is enough; Mailpit's time format; signal handling in your terminal; step 10's waits against the real limiter; real TLS, SMTP AUTH, and Telegram delivery; re-migration against a recreated Postgres container.
 
@@ -995,6 +1010,10 @@ Round 7's reviewer suggested two more, each the third time its mistake was made:
 Round 8's reviewer suggested another, after stale text survived a change three times on this branch:
 
 > - Closing a task or changing a design without rereading the task's text and the changed files' comments for lines it made false ("Not run yet", "Partly done", a comment about the old path).
+
+Round 9's reviewer suggested ending that line with "…for lines it made false, the merge-request note's status block and 'For the Author' list included," and one more line:
+
+> - Changing how a contract builds an object (an agent, a handler, a credential chain) without updating every row, plan line, and task bullet that shows it being built.
 
 ### Observations
 

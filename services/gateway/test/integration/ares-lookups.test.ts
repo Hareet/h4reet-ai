@@ -309,11 +309,12 @@ describe("the email channel (alerts/smtp.ts, T189)", () => {
       Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" }),
       Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }),
     ];
-    fakeConnect("aggregate.invalid", Object.assign(new AggregateError(attempts), { code: "ETIMEDOUT" }));
+    const handed = fakeConnect("aggregate.invalid", Object.assign(new AggregateError(attempts), { code: "ETIMEDOUT" }));
     expect(await sendEmail(channel({ host: "aggregate.invalid" }), mail)).toEqual({
       ok: false,
       errorClass: "connect",
     });
+    expect(handed).toHaveLength(1);
   });
 
   it("asks TLS for the host's name while it connects to the address: implicit, as on 465", async () => {

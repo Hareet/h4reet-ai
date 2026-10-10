@@ -345,7 +345,7 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
   - That directory is mounted read-only into prod's gateway only. Non-prod stacks mount an empty directory.
 - **Rationale**: an SSO access token can fetch credentials for *every* permission set its user is assigned. Mounting the Author's own `~/.aws` would hand any gateway build (including one from an agent's branch, since there is no prod guard) the Author's whole AWS access. A dedicated user makes the narrow permission set the whole of what the container can reach. IAM changes are human actions under the constitution; nothing here is a resource this spec creates.
 - **Consequences**:
-  - The read-only mount means the SDK can't refresh the SSO token. The gateway raises `credentials_expiring` 2 h before expiry, and the Author runs `make aws-login`.
+  - The read-only mount means the SDK can't refresh the SSO token. The gateway raises `credentials_expiring` 2 h before expiry, and the Author runs `make aws-login`. (Corrected 2026-10-10, US2's round 9: token-providers 3.1147.0 does refresh the SSO token in memory in its last 5 minutes, through SSO-OIDC's `CreateToken`, when the cached token holds a refresh token, and drops the failed write to the read-only mount. So prod's gateway would contact `oidc.us-east-1.amazonaws.com` while running, not only at login. T102 decides whether to allow it, and T106's disclosure row follows.)
   - Prod's gateway reaches `portal.sso.us-east-1.amazonaws.com` to exchange the token for role credentials, which is listed in the disclosure.
 - **Alternatives**:
   - The Author's own profile, mounted read-only: too broad, as above.
