@@ -78,6 +78,13 @@ HTTP_TIMEOUT_S = 15
 MAX_BODY = 8 * 1024 * 1024
 MAX_INPUT = 1024 * 1024
 TOLERANCE = 1e-6  # USD and flags are compared to a millionth: a micro-USD
+# Langfuse's v2 observations list, for one trace (T187): the field groups that carry the type, the cost (usage), and
+# the span's attributes (metadata); the metadata key it returns whole, since it cuts longer values at 200 characters
+# otherwise; its largest page; and the most pages one trace may take.
+TRACE_FIELDS = "core,basic,usage,metadata"
+TRACE_EXPAND = "attributes"
+TRACE_LIMIT = 1000
+TRACE_PAGES = 10
 SLACK_S = 5.0  # a window starts this long before its action, for the clocks of two containers on one host
 # A window's last try waits this long past its end, so a sample or record stamped by then has arrived: the collector's
 # 2 s batch and Prometheus's under-1 s ingestion (contracts/telemetry.md §6.5). It still asks for the deadline itself.
@@ -552,7 +559,8 @@ def incident_checks(
 
 
 def langfuse_observations(body: object) -> list[dict[str, Any]]:
-    """A trace's observations (GET /api/public/traces/{id}), or a list of them (GET /api/public/observations)."""
+    """A page of observations: the v2 list's `data` (GET /api/public/v2/observations, T187), or the `observations`
+    of a v1 trace, which Langfuse v4 no longer serves."""
     if isinstance(body, dict):
         for key in ("observations", "data"):
             if isinstance(body.get(key), list):
@@ -572,12 +580,24 @@ def flatten(node: object, prefix: str = "") -> dict[str, Any]:
     return out
 
 
+def json_or_same(value: Any) -> Any:
+    """value parsed, when it is JSON text for an object; otherwise value itself."""
+    if isinstance(value, str):
+        with contextlib.suppress(ValueError):
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+    return value
+
+
 def attribute(observation: Mapping[str, Any], key: str) -> Any:
     """A span attribute Langfuse kept in the observation's metadata: under "attributes", nested by its dots, or at
-    the top. The resource's attributes aren't the span's."""
-    metadata = observation.get("metadata")
+    the top. The resource's attributes aren't the span's. The v2 list may give metadata, or its "attributes", as JSON
+    text (T187), which is read as the object it holds."""
+    metadata = json_or_same(observation.get("metadata"))
     if not isinstance(metadata, dict):
         return None
+    metadata = {k: json_or_same(v) for k, v in metadata.items()}
     attributes = metadata.get("attributes")
     if isinstance(attributes, dict) and key in attributes:
         return attributes[key]
@@ -1234,18 +1254,37 @@ class Probe:
         via: dict[str, str] = {}
 
         def observations() -> list[dict[str, Any]]:
-            response = self.http.request(
-                "GET", f"{LANGFUSE}/api/public/traces/{trace_id}", headers=headers
+            # Langfuse v4 runs in events_only mode, where /api/public/traces and /api/public/observations answer 404
+            # (research.md, from T149). Its v2 list answers, filtered to the trace, with only the field groups asked
+            # for: usage carries the cost, and metadata the span's attributes (T187). Until the trace is ingested,
+            # the list is empty.
+            found: list[dict[str, Any]] = []
+            cursor: str | None = None
+            for _ in range(TRACE_PAGES):
+                query = {
+                    "traceId": trace_id,
+                    "fields": TRACE_FIELDS,
+                    "expandMetadata": TRACE_EXPAND,
+                    "limit": TRACE_LIMIT,
+                }
+                if cursor is not None:
+                    query["cursor"] = cursor
+                url = (
+                    f"{LANGFUSE}/api/public/v2/observations?"
+                    + urllib.parse.urlencode(query)
+                )
+                response = self.http.request("GET", url, headers=headers)
+                if response.status != 200:
+                    raise SourceError(f"Langfuse answered {response.status}")
+                body = response.json()
+                found.extend(langfuse_observations(body))
+                meta = body.get("meta") if isinstance(body, dict) else None
+                cursor = meta.get("cursor") if isinstance(meta, dict) else None
+                if not isinstance(cursor, str) or not cursor:
+                    return found
+            raise SourceError(
+                f"Langfuse listed more than {TRACE_PAGES} pages of one trace's observations"
             )
-            if response.status == 200:
-                return langfuse_observations(response.json())
-            if response.status != 404:
-                raise SourceError(f"Langfuse answered {response.status}")
-            url = f"{LANGFUSE}/api/public/observations?" + urllib.parse.urlencode(
-                {"traceId": trace_id}
-            )
-            listed = self.http.request("GET", url, headers=headers)
-            return langfuse_observations(listed.json()) if listed.status == 200 else []
 
         # A trace's window is the time Langfuse may take to ingest it, from the call: it has no evaluation time to ask
         # for, so a try counts what is there.

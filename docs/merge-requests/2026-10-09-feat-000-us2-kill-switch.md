@@ -4,7 +4,7 @@ Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
 **Status: DRAFT. Not ready to merge.** Every task an agent session can do before the engine exists is done, reviewed, and passes `make check`. What's left needs the engine or your hands:
-- **T084 (an agent session, on the engine):** `make breach-test ENV=dev-cpu` passes all 12 steps. Its pre-run, on a simulated merge with the us1 stack (2026-10-10), passed 45 of 52 assertions; T187 and T188 fix the seven misses ("T084's pre-run" below).
+- **T084 (an agent session, on the engine):** `make breach-test ENV=dev-cpu` passes all 12 steps. Its pre-run, on a simulated merge with the us1 stack (2026-10-10), passed 45 of 52 assertions. T187 and T188 fix the seven misses, and are done (d43da3e and the commit after it, "T084's pre-run" below); T084's run on the engine checks them.
 - **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
 - **This note:** both runs' output goes into it, and then this block goes.
 
@@ -456,7 +456,7 @@ breach-test exit=2
 ## For the Author
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
-2. **T187 and T188, then T084:** an agent session fixes the pre-run's two findings, then runs `make breach-test ENV=dev-cpu` on the engine, all 12 steps.
+2. **T084:** an agent session runs `make breach-test ENV=dev-cpu` on the engine, all 12 steps, with T187's and T188's fixes in.
 3. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
 ### For later tasks

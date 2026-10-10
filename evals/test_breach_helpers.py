@@ -299,11 +299,8 @@ def test_a_check_is_timed_from_the_action_it_follows_not_from_its_own_start() ->
 
         def trace(*_: Any, rig: Rig = rig, start: float = start) -> tuple[int, Any]:
             if rig.clock.wall() < start + 55:
-                return 404, {"message": "Trace not found"}
-            return 200, {
-                "id": TRACE,
-                "observations": [generation(**{"h4.cost.usd": 0.1})],
-            }
+                return 200, page()
+            return 200, page(generation(**{"h4.cost.usd": 0.1}))
 
         def meter(
             method: str,
@@ -318,9 +315,6 @@ def test_a_check_is_timed_from_the_action_it_follows_not_from_its_own_start() ->
             return 200, vector(({}, "0.1" if at >= start + 110 else "0"))
 
         rig.http.on("GET", TRACE_URL, trace)
-        rig.http.on(
-            "GET", f"{probe.LANGFUSE}/api/public/observations", fixed(200, {"data": []})
-        )
         rig.http.on("GET", f"{probe.PROMETHEUS}/api/v1/query", meter)
         ops = [
             {**spend_op(1, answered=1, stopped=None), "id": "s2.spend"},
@@ -849,16 +843,47 @@ def test_logql_quotes_its_values() -> None:
 
 
 def generation(**attributes: Any) -> dict[str, Any]:
+    """One observation as Langfuse's v2 list gives it (T187): the core, basic, and usage groups' keys, as one real
+    answer on dev-cpu had them (2026-10-10), and the metadata group. A stray input stands in for a payload the probe
+    must never print, though it doesn't ask for the io group."""
     return {
         "id": "obs-1",
+        "traceId": TRACE,
         "type": "GENERATION",
         "name": "chat metered-test",
+        "startTime": "2026-11-20T08:01:00.000Z",
+        "endTime": "2026-11-20T08:01:00.250Z",
+        "projectId": "h4reet",
+        "parentObservationId": "obs-0",
+        "isRootObservation": False,
+        "level": "DEFAULT",
+        "statusMessage": None,
+        "version": None,
+        "environment": "default",
+        "bookmarked": False,
+        "public": False,
+        "userId": None,
+        "sessionId": None,
+        "usageDetails": {"input": 12, "output": 8, "total": 20},
+        "inputUsage": 12,
+        "outputUsage": 8,
+        "totalUsage": 20,
+        "costDetails": {},
+        "inputCost": None,
+        "outputCost": None,
+        "totalCost": None,
+        "usagePricingTierName": None,
         "input": "a payload that never leaves the probe",
         "metadata": {
             "attributes": attributes,
             "resourceAttributes": {"service.name": "gateway"},
         },
     }
+
+
+def page(*observations: dict[str, Any], cursor: str | None = None) -> dict[str, Any]:
+    """A page of Langfuse's v2 list: its data, and a cursor while more pages follow."""
+    return {"data": list(observations), "meta": {"cursor": cursor} if cursor else {}}
 
 
 def test_span_attributes_are_found_wherever_langfuse_keeps_them() -> None:
@@ -897,23 +922,25 @@ def trace_op(**expect: Any) -> dict[str, Any]:
     }
 
 
-TRACE_URL = f"{probe.LANGFUSE}/api/public/traces/{TRACE}"
+TRACE_URL = f"{probe.LANGFUSE}/api/public/v2/observations"
 
 
 def test_a_trace_check_waits_for_langfuse_to_ingest_it() -> None:
     rig = make()
     expect = {"h4.cost.usd": 0.1, "gen_ai.provider.name": "synthetic"}
-    found = (200, {"id": TRACE, "observations": [generation(**expect)]})
-    rig.http.on(
-        "GET", TRACE_URL, sequence((404, {"message": "Trace not found"}), found)
-    )
-    rig.http.on(
-        "GET", f"{probe.LANGFUSE}/api/public/observations", fixed(200, {"data": []})
-    )
+    found = (200, page(generation(**expect)))
+    rig.http.on("GET", TRACE_URL, sequence((200, page()), found))
     rig.run([trace_op(**expect)], "2")
     result = rig.result()
     assert result["ok"] and result["waited_s"] == 3
     assert result["observed"] == expect
+    # One trace, the groups that carry the type, the cost, and the attributes, and the attributes whole.
+    assert rig.http.calls[0]["query"] == {
+        "traceId": [TRACE],
+        "fields": ["core,basic,usage,metadata"],
+        "expandMetadata": ["attributes"],
+        "limit": ["1000"],
+    }
     auth = rig.http.calls[0]["headers"]["Authorization"]
     assert (
         base64.b64decode(auth.removeprefix("Basic ")).decode()
@@ -926,8 +953,7 @@ def test_a_trace_check_waits_for_langfuse_to_ingest_it() -> None:
 
 def test_a_trace_check_misses_the_wrong_cost() -> None:
     rig = make()
-    wrong = {"id": TRACE, "observations": [generation(**{"h4.cost.usd": 0.2})]}
-    rig.http.on("GET", TRACE_URL, fixed(200, wrong))
+    rig.http.on("GET", TRACE_URL, fixed(200, page(generation(**{"h4.cost.usd": 0.2}))))
     rig.run([trace_op()], "2")
     assert not rig.result()["ok"]
 
@@ -938,10 +964,9 @@ def test_the_cost_langfuse_derived_from_h4_cost_usd_stands_in_for_the_attribute(
     # The collector copies h4.cost.usd into Langfuse's own cost (telemetry.md §3.5); if Langfuse keeps the cost but not
     # the attribute, the cost is still the gateway's.
     rig = make()
-    observation = {"type": "GENERATION", "metadata": {}, "costDetails": {"total": 0.1}}
-    rig.http.on(
-        "GET", TRACE_URL, fixed(200, {"id": TRACE, "observations": [observation]})
-    )
+    observation = {**generation(), "costDetails": {"total": 0.1}, "totalCost": 0.1}
+    observation["metadata"] = {}
+    rig.http.on("GET", TRACE_URL, fixed(200, page(observation)))
     rig.run([trace_op()], "2")
     result = rig.result()
     assert result["ok"] and result["via"] == {"h4.cost.usd": "costDetails.total"}
@@ -952,6 +977,64 @@ def test_a_trace_check_without_langfuses_keys_says_so() -> None:
     rig.run([trace_op()], "2")
     result = rig.result()
     assert not result["ok"] and "LANGFUSE_PUBLIC_KEY" in result["error"]
+
+
+def test_a_trace_check_follows_the_lists_cursor() -> None:
+    # A trace's spans can fill a page before its generation comes (T187).
+    rig = make()
+    span = {**generation(), "id": "obs-0", "type": "SPAN"}
+
+    def listed(
+        method: str, url: str, query: dict[str, list[str]], *_: Any
+    ) -> tuple[int, Any]:
+        if "cursor" not in query:
+            return 200, page(span, cursor="page-2")
+        return 200, page(generation(**{"h4.cost.usd": 0.1}))
+
+    rig.http.on("GET", TRACE_URL, listed)
+    rig.run([trace_op()], "2")
+    assert rig.result()["ok"]
+    assert [call["query"].get("cursor") for call in rig.http.calls] == [
+        None,
+        ["page-2"],
+    ]
+
+
+def test_a_trace_check_reads_metadata_given_as_json_text() -> None:
+    # The v2 list may give metadata, or its attributes, as JSON text (T187).
+    for metadata in (
+        {"attributes": json.dumps({"h4.cost.usd": 0.1}), "resourceAttributes": "{}"},
+        json.dumps({"attributes": {"h4.cost.usd": 0.1}}),
+    ):
+        rig = make()
+        rig.http.on(
+            "GET", TRACE_URL, fixed(200, page({**generation(), "metadata": metadata}))
+        )
+        rig.run([trace_op()], "2")
+        assert rig.result()["ok"], metadata
+
+
+def test_a_langfuse_error_is_a_miss_that_names_its_status() -> None:
+    # Langfuse v4 answers 404 to the v1 endpoints; any status but 200 from the v2 list is a source error.
+    rig = make()
+    rig.http.on("GET", TRACE_URL, fixed(500, {"message": "internal"}))
+    rig.run([trace_op()], "2")
+    result = rig.result()
+    assert not result["ok"] and "Langfuse answered 500" in result["error"]
+
+
+def test_a_trace_too_long_to_page_through_is_a_miss() -> None:
+    rig = make()
+    rig.http.on(
+        "GET",
+        TRACE_URL,
+        fixed(200, page({**generation(), "type": "SPAN"}, cursor="again")),
+    )
+    rig.run([trace_op()], "2")
+    result = rig.result()
+    assert (
+        not result["ok"] and f"more than {probe.TRACE_PAGES} pages" in result["error"]
+    )
 
 
 # --- the receivers -------------------------------------------------------------------------------------------------
