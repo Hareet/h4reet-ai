@@ -142,7 +142,9 @@ export function fromSdk(err: unknown): ProviderError {
  * The SSO session's end for the profile the SDK uses (AWS_PROFILE, ~/.aws/config), from the token cache the CLI's
  * `aws sso login` writes: ~/.aws/sso/cache/<sha1 of the sso_session name, or of a legacy profile's start URL>.json.
  * Only `expiresAt` is read out of it; the token never leaves this function. The keys are the ones the SDK's own chain
- * reads.
+ * reads. A cache entry holding a refresh token (an sso_session profile) gives the access token's end, not the
+ * session's, and the SDK refreshes the token past it, so the session's end is unknown and nothing is reported: a
+ * warning from it would come at every login, then go stale. A legacy profile's token lasts the session.
  */
 export async function readSsoSessionEnd(
   env: Readonly<Record<string, string | undefined>> = process.env,
@@ -167,8 +169,9 @@ export async function readSsoSessionEnd(
     const key = settings.get("sso_session") ?? settings.get("sso_start_url");
     if (key === undefined || key === "") return undefined;
     const file = join(home, ".aws", "sso", "cache", `${createHash("sha1").update(key).digest("hex")}.json`);
-    const cached: unknown = JSON.parse(await readFile(file, "utf8"));
-    const expiresAt = (cached as { expiresAt?: unknown } | null)?.expiresAt;
+    const cached = JSON.parse(await readFile(file, "utf8")) as { expiresAt?: unknown; refreshToken?: unknown } | null;
+    if (typeof cached?.refreshToken === "string" && cached.refreshToken !== "") return undefined;
+    const expiresAt = cached?.expiresAt;
     if (typeof expiresAt !== "string") return undefined;
     // Older CLIs wrote "2026-10-29T18:00:00UTC"; Date.parse wants a Z.
     const at = Date.parse(expiresAt.replace(/UTC$/, "Z"));

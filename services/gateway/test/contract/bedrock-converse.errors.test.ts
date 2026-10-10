@@ -282,6 +282,14 @@ describe("the SSO session's end, from the token cache (§3.2's health probe, 2)"
     expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, dir)).toBe("2026-10-29T18:00:00.000Z");
   });
 
+  it("is undefined when the cache holds a refresh token: its expiresAt is the access token's, not the session's", async () => {
+    const dir = await home(config, {
+      key: "h4reet",
+      body: { accessToken: token, expiresAt: "2026-10-29T18:00:00Z", refreshToken: `refresh-${token}` },
+    });
+    expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, dir)).toBeUndefined();
+  });
+
   it("is undefined with no profile, no session, no cache file, or no expiry it can read", async () => {
     expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, await home("[default]\n"))).toBeUndefined();
     expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, await home(config))).toBeUndefined();
