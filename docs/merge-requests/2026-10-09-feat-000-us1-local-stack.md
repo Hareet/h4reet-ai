@@ -8,9 +8,9 @@ Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phas
 - **T064 (an agent session):** dev-cpu on the agents' engine, end to end. Done: it passes, run with the makefile named ("T064's run" below, T183).
 - **T065 (yours):** quickstart.md §1, the cold prod run. Done, after four starts. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 puts your GPU fix into setup ("T065's run" below). The fourth, at aa69d8d, passed §1.1, and §1.2–§1.12 followed: SC-001 in 431 s, the rollback, isolation, and state kept across `make down` all pass.
 - **T149 (an agent session):** the first stack run's findings. Done, checked end to end on dev-cpu ("T149's run" below), with T181 and T182.
-- **What's left is yours:** merge the stack and apply the GPU-user patch, and decide T184. Then this block goes, and the branch merges to main.
+- **What's left is yours:** merge the stack and apply the GPU-user patch, decide T184, and say yes or no to T183's patch. Then this block goes, and the branch merges to main.
 
-**Merge order:** foundations and its T046 are on main, and this branch merged main at 4042f92. Three fix branches stack on it, in this order: `fix/000-us1-first-prod-run`, `fix/000-us1-t149-findings`, `fix/000-engine-gpu-user`. The last carries the other two, so one `git merge --ff-only fix/000-engine-gpu-user` brings all three.
+**Merge order:** foundations and its T046 are on main, and this branch merged main at 4042f92. Four fix branches stack on it, in this order: `fix/000-us1-first-prod-run`, `fix/000-us1-t149-findings`, `fix/000-engine-gpu-user`, `fix/000-agents-make`. The last carries the other three, so one `git merge --ff-only fix/000-agents-make` brings all four.
 
 ## Runs in the Author's terminal
 
@@ -939,7 +939,7 @@ exit 2
 2. **The stack, then the GPU-user patch,** with no agent session working:
 
    ```
-   git merge --ff-only fix/000-engine-gpu-user
+   git merge --ff-only fix/000-agents-make
    git apply docs/merge-requests/2026-10-09-fix-000-engine-gpu-user.patch
    git add -u deploy/agents-engine
    git commit -m "Apply the GPU-user patch (T179)"
@@ -948,9 +948,10 @@ exit 2
    ```
 
    What to expect, and how to undo it, is in `docs/merge-requests/2026-10-09-fix-000-engine-gpu-user.md`. The next `make up ENV=prod` then runs T149's changes: Prometheus's new flag, the collector's gzip and single cost attribute, and Langfuse's allowlists. Quickstart §1.5's request panel should show a first hello.
-3. **Decide T184:** one gateway build both stacks share, or today's per-stack builds with identical layers. spec.md's Assumptions record it as pending. Either answer is a short edit there, then a task for the build if you want it.
-4. **Then this branch merges to main,** once the status block at the top is gone. I can take it out when you've done 2 and 3.
-5. **After main has it, US2** (`feat/000-us2-kill-switch`) merges main. On 2026-10-09 a simulated merge, of US2 with this stack's tip, needed two things, and with both, `make check` passed apart from the toolchain pin and US2's planned matrix rows (T117):
+3. **Say yes or no to T183's patch,** a `GNUmakefile` that only includes the Makefile, so agent sessions can run plain `make`. Its note, `docs/merge-requests/2026-10-09-fix-000-agents-make.md`, has both answers' steps.
+4. **Decide T184:** one gateway build both stacks share, or today's per-stack builds with identical layers. spec.md's Assumptions record it as pending. Either answer is a short edit there, then a task for the build if you want it.
+5. **Then this branch merges to main,** once the status block at the top is gone. I can take it out when you've done 2 to 4.
+6. **After main has it, US2** (`feat/000-us2-kill-switch`) merges main. On 2026-10-09 a simulated merge, of US2 with this stack's tip, needed two things, and with both, `make check` passed apart from the toolchain pin and US2's planned matrix rows (T117):
    - **one conflict,** in `docs/data-flow-disclosure.md`: keep US2's rows S11–A2, and this branch's row B1;
    - **one line** no conflict shows: US2's `evals/standins/Dockerfile` must take `base:python`'s new digest, `a6e34c598f24…`, as 5c2a089 did for the probe. The compose policy and `test_the_standin_image` fail without it.
 
