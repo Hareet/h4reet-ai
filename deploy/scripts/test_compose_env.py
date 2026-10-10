@@ -444,9 +444,13 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
         "langfuse-db",
         "valkey",
     ]
-    # ClickHouse runs as its own user, as Langfuse's compose runs it, so its entrypoint changes no ownership. SeaweedFS
-    # runs as its image's user, who owns /data (T065's second prod start, 2026-10-09).
+    # ClickHouse and SeaweedFS run as their images' own users instead, with nothing added back (plan §1 and §2).
+    # ClickHouse's is how Langfuse's compose runs it, so its entrypoint changes no ownership. SeaweedFS's, seaweed, owns
+    # /data: our entrypoint replaces the image's, which chowns it and drops to that user, and root with every
+    # capability dropped couldn't write it. The master died at "mkdir /data/m9333: permission denied" (T065's second
+    # prod start, 2026-10-09).
     assert SERVICES["clickhouse"]["user"] == "101:101"
+    assert SERVICES["seaweedfs"]["user"] == "1000:1000"
     assert [n for n, s in SERVICES.items() if "user" in s] == [
         "clickhouse",
         "seaweedfs",
@@ -512,8 +516,8 @@ def test_health_checks() -> None:
         ("grafana", "http://127.0.0.1:3000/api/health"),
     ):
         assert SERVICES[name]["healthcheck"]["test"] == ["CMD", "wget", "-qO-", url]
-    # The collector's and Loki's images have no shell and no wget: Prometheus scrapes them instead (plan §2). Loki's
-    # wget check could never run (T065's second prod start, 2026-10-09).
+    # The collector's and Loki's images have no shell and no wget, so they have no health check, and only Prometheus's
+    # scrape watches them (plan §2). Loki's wget check could never run (T065's second prod start, 2026-10-09).
     for name in ("otel-collector", "loki"):
         assert "healthcheck" not in SERVICES[name], name
     # Langfuse and its stores (plan §2).
@@ -564,9 +568,6 @@ def test_valkey_and_seaweedfs_run_as_plan_6_says() -> None:
     ]
     assert SERVICES["seaweedfs"]["entrypoint"] == ["/bin/sh", "/h4/entrypoint.sh"]
     assert "command" not in SERVICES["seaweedfs"]
-    # As the image's own user, seaweed, who owns /data: with every capability dropped, root couldn't write it, and
-    # the master died at "mkdir /data/m9333: permission denied" (T065's second prod start, 2026-10-09).
-    assert SERVICES["seaweedfs"]["user"] == "1000:1000"
 
 
 def test_edge_runs_nginx_without_the_entrypoint_scripts() -> None:

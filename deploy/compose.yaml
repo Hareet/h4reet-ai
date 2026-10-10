@@ -7,9 +7,7 @@
 # Rules the compose policy holds every service to (tools/gates/compose_policy.py, plan §11):
 #   - every service joins `internal`, which has no route out; only `edge` joins `edge` and publishes ports, on the
 #     literal 127.0.0.1; only `gateway` joins `egress`, the one route to the internet (FR-040);
-#   - every image is pinned by digest and matches deploy/images.lock (SeaweedFS's alone may be open, until make
-#     pin-images pins it: the policy reports it PLANNED, and preflight starts nothing unpinned); built images come
-#     from this file's own tree;
+#   - every image is pinned by digest and matches deploy/images.lock; built images come from this file's own tree;
 #   - binds come only from ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR};
 #   - no container_name, no external resource, no host network, no privileged mode, no Docker socket;
 #   - every service has a row in docs/data-flow-disclosure.md.
@@ -397,8 +395,9 @@ services:
         source: "${H4_TREE:?set by make up}/deploy/loki/loki.yaml"
         target: /etc/loki/loki.yaml
         read_only: true
-    # The image is distroless: no shell and no wget, so it has no health check here, like the collector's. Prometheus
-    # scrapes it, and nothing waits on it. Its wget check could never run (T065's second prod start, 2026-10-09).
+    # The image is distroless: no shell and no wget, so it has no health check here, like the collector, and nothing
+    # waits on it. Prometheus's scrape shows that it answers, though not that it's ready. The wget check it had could
+    # never run (T065's second prod start, 2026-10-09).
     deploy:
       resources:
         limits:
@@ -636,7 +635,7 @@ services:
   # SeaweedFS, Langfuse's S3 store (ADR 0022, research.md R-09), unpublished. deploy/seaweedfs/entrypoint.sh renders
   # its S3 identity from the env file into a tmpfs, starts it, and creates the langfuse bucket if it isn't there.
   # Healthy means the master answers and the bucket exists. Its tag and digest are the newest release make pin-images
-  # found: until that runs, the line below names the repository alone, and the compose policy reports it PLANNED.
+  # found, in T063.
   seaweedfs:
     <<: *service
     image: docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d

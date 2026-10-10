@@ -49,14 +49,30 @@ def pinned(service: str) -> str:
     return f"{LOCK[service][1]}@{LOCK[service][3]}"
 
 
+def printed(service: str) -> str:
+    """The lock's image as docker image inspect prints it in RepoDigests, copied from the agents' engine on
+    2026-10-09: valkey/valkey@sha256:…, with Docker Hub's host dropped, and an official image's library/ too; other
+    registries' names in full."""
+    ref = pinned(service)
+    if ref.startswith("docker.io/"):
+        ref = ref.removeprefix("docker.io/")
+        if ref.startswith("library/") and ref.split("@")[0].count("/") == 1:
+            ref = ref.removeprefix("library/")
+    return ref
+
+
 class FakeDocker(st.Docker):
     def __init__(self, tree: Path, stack: str) -> None:
         super().__init__({"PATH": "/usr/bin"})
         self.tree, self.stack = tree, stack
         self.raw = copy.deepcopy(RAW)
-        self.state = {name: ("running", "healthy") for name in self.raw["services"]}
-        self.digests = {
-            name: [pinned(name)] for name in self.raw["services"] if name in LOCK
+        # As docker compose ps reports them: a service with no health check (the collector, Loki) has no health.
+        self.state = {
+            name: ("running", "healthy" if "healthcheck" in service else "")
+            for name, service in self.raw["services"].items()
+        }
+        self.digests: dict[str, list[str] | None] = {
+            name: [printed(name)] for name in self.raw["services"] if name in LOCK
         }
         self.created_from = str(tree / "deploy/compose.yaml")
         self.health_report: dict | None = {
@@ -357,17 +373,19 @@ def test_docker_hub_images_match_by_the_short_names_docker_prints(
     host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
 ) -> None:
     # docker image inspect prints valkey/valkey@sha256:…, not the lock's docker.io/valkey/valkey: at both of T065's
-    # prod starts (2026-10-09) every Hub image read "differs from the pin". A short name with another digest still
-    # differs.
+    # prod starts (2026-10-09) every Hub image read "differs from the pin". The fake prints names as Docker does, so
+    # they read "pinned" here; a short name with another digest still differs, and so does an image with no digests.
     env, run, tree = host_stack
     docker = FakeDocker(tree, "prod")
     hub = sorted(
         name for name in docker.digests if LOCK[name][1].startswith("docker.io/")
     )
     assert "valkey" in hub and "seaweedfs" in hub
-    for name in hub:
-        docker.digests[name] = [pinned(name).removeprefix("docker.io/")]
+    assert docker.digests["valkey"] == [
+        f"valkey/valkey@{LOCK['valkey'][3]}"
+    ]  # the fake copies Docker
     docker.digests["valkey"] = [f"valkey/valkey@sha256:{'0' * 64}"]
+    docker.digests["edge"] = None  # {{json .RepoDigests}} of an image with none
     assert status(env, run, docker) == 0
     out = capsys.readouterr().out
     notes = {
@@ -378,7 +396,9 @@ def test_docker_hub_images_match_by_the_short_names_docker_prints(
     assert {name: notes[name] for name in hub} == {
         name: "differs from the pin" if name == "valkey" else "pinned" for name in hub
     }
+    assert notes["edge"] == "differs from the pin"
     assert "WARN valkey runs an image whose digest isn't deploy/images.lock's" in out
+    assert "WARN edge runs an image whose digest isn't deploy/images.lock's" in out
 
 
 @pytest.mark.parametrize(
