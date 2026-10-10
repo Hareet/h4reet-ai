@@ -948,7 +948,7 @@ exit 2
    ```
 
    What to expect, and how to undo it, is in `docs/merge-requests/2026-10-09-fix-000-engine-gpu-user.md`. The next `make up ENV=prod` then runs T149's changes: Prometheus's new flag, the collector's gzip and single cost attribute, and Langfuse's allowlists. Quickstart §1.5's request panel should show a first hello.
-3. **Say yes or no to T183's patch,** a `GNUmakefile` that only includes the Makefile, so agent sessions can run plain `make`. Its note, `docs/merge-requests/2026-10-09-fix-000-agents-make.md`, has both answers' steps.
+3. **Say yes or no to T183's patch,** a `GNUmakefile` that only includes the Makefile, so agent sessions can run plain `make`, with a gate check that holds it to its text. Its note, `docs/merge-requests/2026-10-09-fix-000-agents-make.md`, has both answers' steps. The branch itself also fixes what the patch's review found, and that part needs no decision: make copied a planted `Makefile.sh` over the Makefile and ran it.
 4. **Decide T184:** one gateway build both stacks share, or today's per-stack builds with identical layers. spec.md's Assumptions record it as pending. Either answer is a short edit there, then a task for the build if you want it.
 5. **Then this branch merges to main,** once the status block at the top is gone. I can take it out when you've done 2 to 4.
 6. **After main has it, US2** (`feat/000-us2-kill-switch`) merges main. On 2026-10-09 a simulated merge, of US2 with this stack's tip, needed two things, and with both, `make check` passed apart from the toolchain pin and US2's planned matrix rows (T117):
