@@ -122,7 +122,7 @@ PRE_COMMIT_PLANNED := T045
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets@T091 evals redteam=redteam-suite matrix image
+CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets evals redteam=redteam-suite matrix image
 
 help: ## List the targets
 	@grep -E '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -234,6 +234,11 @@ test-fast: ## The quick subset
 
 corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local denylist
 	$(PY_HOST) corpus/tools/check_corpus.py
+
+# gitleaks with only the main working tree's .gitleaks.toml, a fresh empty ignore directory, and
+# --ignore-gitleaks-allow, refusing while a .gitleaksignore could hold an entry at its source (research.md R-36).
+secrets: ## gitleaks over the unstaged and staged changes and every commit since main (plan §11)
+	bash tools/gates/secrets.sh
 
 evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, and the behavioral tier's status
 	@case "$${ADAPTER:-fake}" in fake) ;; \
@@ -499,5 +504,5 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
+	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
