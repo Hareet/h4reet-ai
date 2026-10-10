@@ -928,7 +928,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
     - `deploy/agents-engine/engine.sh` with any subcommand but `smoke` and `status`, by any spelling;
     - `make operator-*` and admin URLs for any stack but dev-cpu;
     - `make breach-test` and `evals/breach.py` for any stack but dev-cpu, by any spelling, `SANDBOX_RUNTIME=0` or `env -u SANDBOX_RUNTIME` in front included: the run inits, resets, and renews the stack it runs on, which FR-008 gives a pre-execution hook with a reason and an audit record, and make's and the script's own `SANDBOX_RUNTIME` checks are one unset away. (Added by tasks.md T080's review: planned rows until the closing patch, T117, switches them to block rows; `ENV=dev-cpu` stays an allow row.)
-    - `make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`, `make aws-login`, and `make contract-live`.
+    - `make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`, `make aws-login`, and `make contract-live`. US5's patch refuses the last two, with the Bedrock evals and the commands they run, before the first paid route ([§15](#15-the-enforcement-layer-patch)); the closing patch, the other four.
   - **Secret content:** fake keys assembled at run time, so the matrix file itself contains none. Three rows prove gitleaks can't be talked out of a finding: a planted `.gitleaksignore` naming the fake finding's fingerprint, at the scan source's root, a `gitleaks:allow` comment on its line, and a `.gitleaks.toml` in the scanned directory.
   - **Settings rows:**
     - exactly one IP entry in `allowedDomains`;
@@ -999,7 +999,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
 
 Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert*`, nor the other human-only paths once the patch that protects them lands. Their changes travel as patch files in `docs/merge-requests/`, as in session 1. The Author reviews each, applies it with `git apply`, and runs `claude doctor` and `make git-hooks`.
 
-**The rule for when:** a deny lands in a patch applied before the risk it guards exists, that is, before the first real secret, the first paid route, the first file prod reads, or the first run of code the Author executes. A deny in the closing patch is one whose risk only arrives at the end. There are four patches:
+**The rule for when:** a deny lands in a patch applied before the risk it guards exists, that is, before the first real secret, the first paid route, the first file prod reads, or the first run of code the Author executes. A deny in the closing patch is one whose risk only arrives at the end. There are five patches:
 
 1. **The config patch** (the foundations branch, tasks.md T022): `config/budgets.yaml` and `config/alerts.yaml`, exactly as contracts/config-files.md gives them.
 2. **The early patch** (the foundations branch, tasks.md T045). T046 applies it, before the first engine run, the first real secret (T065), and the first paid route (T105). It holds:
@@ -1029,14 +1029,15 @@ Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert
      - under "Things Claude gets wrong", the review round's feed-back line (REVIEW.md): "Scheduling a deny after the risk it guards: a secret, a paid route, or a file prod reads gets its deny in the same patch that creates it, or an earlier one." It comes early because the agents writing the later patches need it.
    - **The matrix rows** for these changes, and the PLANNED marks they clear in `make check` ([§11](#11-local-gates-fr-041)).
 3. **The governance patch** (the US3 branch, tasks.md T098), which the Author applies when first running the gate (T099). It holds `denyWrite`, `Edit(...)` denies, and `protected-paths.sh` rules for `./tools/gates` and `./evals/agent-config`, and their matrix rows. From then on, those paths run in the Author's terminal or decide what merges.
-4. **The closing patch** (the last branch, tasks.md T117): everything below, with the matrix's remaining planned rows turned into block or allow rows.
+4. **US5's patch** (the US5 branch, tasks.md T103 and T104), applied with US5's merge, before the first paid route (T105). It holds the bash-gate rules refusing `make contract-live`, `make aws-login`, and the Bedrock evals (`make evals ADAPTER=bedrock`, `evals/run.py --adapter bedrock`), and the commands those targets run (`scripts/operator.py contract-record`, `deploy/scripts/aws-login.sh`, the AWS CLI's SSO sign-in), in the spellings the matrix lists, and their rows. They come before the closing patch by the rule above: the contract run and the evals call Bedrock with prod's token, and `make aws-login` writes prod's session. (Added on 2026-10-10 by US5's review.)
+5. **The closing patch** (the last branch, tasks.md T117): everything below, with the matrix's remaining planned rows turned into block or allow rows.
 
 The closing patch holds:
 - **`.claude/settings.json`:**
   - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)).
   - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, and `./.git/refs/heads/main`, and `permissions.deny` gets the matching `Edit(...)`.
 - **`.claude/hooks/bash-gate.sh`:**
-  - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the breach test on any stack but dev-cpu, the Author-only targets, `--no-verify`, and `claude mcp add`;
+  - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the breach test on any stack but dev-cpu, the Author-only targets US5's patch leaves (`make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`), `--no-verify`, and `claude mcp add`;
   - the read-only roles' rules, keyed on the hook input's `agent_type`. For `reviewer` and `red-teamer`, it refuses:
     - `git diff --output`;
     - `git diff` or `git log` with a redirection;
