@@ -5,7 +5,7 @@ Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phas
 
 **Status: DRAFT. Not ready to merge.** Everything an agent session can do on this branch before the engine exists is done: three review rounds with every finding fixed and verified, the convergence pass, and `make check` at 110b42e with 0 FAIL. What's left needs your hands or the engine:
 - **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. Done on 2026-10-09. The seed failed on every image at first, and passed after T174's patch ("T063's run" below). tasks.md marks it done since T065's fix: no pin is open any more.
-- **T064 (an agent session, after T063):** dev-cpu on the agents' engine, end to end.
+- **T064 (an agent session, after T063):** dev-cpu on the agents' engine, end to end. Done on 2026-10-09: it passes, run with the makefile named ("T064's run" below, T183).
 - **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 records the GPU fix you made by hand ("T065's run" below) The fourth, at aa69d8d, passed §1.1, and §1.2–§1.12 followed: SC-001 in 431 s, the rollback, isolation, and state kept across `make down` all pass. §1.5's panels and §1.9's gateway image are T149's. T065 is done.
 - **T149 (an agent session, after T065):** apply the first stack run's findings.
 - **This note:** T064's and T065's output goes into it, and then this block goes.
@@ -601,7 +601,119 @@ exit 2
 
 </details>
 
-**T065 is done.** Next: T064 on the agents' engine, then T149, T181, and T182.
+**T065 is done,** and so is T064 (below). Next: T149, T181, and T182.
+
+## T064's run (2026-10-09)
+
+An agent session, on the agents' engine, after T065, with both host stacks down. **It passes:** dev-cpu came up healthy in 1 min 16 s, init wrote audit #1, hello answered 200 from the stand-in through the probe hop (`"route":"local"`, `qwen2.5-0.5b-instruct`, 397 ms, trace `984e400311dfdf5493e892343932e176`), and `make down` exited 0 with its eight volumes kept.
+
+**How it ran, which isn't how T064 says (T183):** plain `make` can't run dev-cpu from an agent session.
+- **In the main tree,** the sandbox's write-deny on `./GNUmakefile` (and `./makefile`) leaves a placeholder at that path that no process can open, and GNU make opens `GNUmakefile` first: "make: GNUmakefile: Permission denied", then "No rule to make target 'GNUmakefile'. Stop."
+- **In a worktree,** preflight refuses, as designed, because the engine mounts the main tree: "FAIL P20 this is a linked worktree: run dev-cpu from the main working tree".
+- **What ran:** from the main tree, `make -f Makefile` for the targets that hop by themselves (`operator-init`, `operator-status`, `hello`), and the relay's own call with the file named for the relayed ones: `deploy/agents-engine/docker-relay make -f Makefile --no-print-directory up ENV=dev-cpu`, the same call the Makefile's sandbox rule makes. Naming the file leaves both controls in force: nothing writes a `GNUmakefile`, and dev-cpu still runs the main tree.
+
+<details><summary>T064's output: up, init, status, hello, down (BuildKit and compose progress lines left out)</summary>
+
+```
+== deploy/agents-engine/docker-relay make -f Makefile --no-print-directory up ENV=dev-cpu
+python3 -I -B -X pycache_prefix=/dev/null ./deploy/scripts/preflight.py --stack dev-cpu --env-file deploy/env.agents/dev-cpu.vars --repo /home/h4reet/h4reet-ai/h4reet-ai
+PASS P1 deploy/env.agents/dev-cpu.vars is readable
+PASS P2 every line is KEY=VALUE, each key once
+PASS P3 no placeholder or empty value is left
+PASS P4 the keys are the template's
+PASS P5 the shell sets no COMPOSE_*, H4_*, or template key
+PASS P6 ENV, H4_STACK, H4_ENV, the project, and the profiles agree on dev-cpu
+PASS P7 every value is dev-cpu's
+PASS P8 no dev-only switch outside dev, and no paid route outside prod
+PASS P9 no deploy/.env, no override file, and no env file in the working tree
+PASS P10 Docker 28.3.3, Compose 2.39.1
+PASS P11 the agents' engine
+PASS P12 no gpu profile
+PASS P13 needs 20.0 GB free (0 model(s) to download, 0.0 GB; 0 image(s) missing locally; and the 20.0 GB margin): /mnt/c 48.7 GB free, / 478.8 GB free
+PASS P14 /run/h4agents/models isn't under /mnt/
+PASS P15 the limits sum to 12.9 GiB with the breach probe, against the engine's 15.0 GiB
+PASS P16 ports 18300-18304 are free or this stack's edge's
+PASS P17 every image is pinned, as deploy/images.lock pins it
+PASS P18 qwen2.5-0.5b-instruct-q4_k_m.gguf has the lock's size, mode 0444
+PASS P20 the main working tree
+preflight: passed
+h4reet-dev-cpu: the working tree, served to the agents' engine (no run file)
+service              state      health     image
+clickhouse           running    healthy    pinned
+edge                 running    healthy    pinned
+gateway              running    healthy    built
+gateway-state        running    healthy    pinned
+grafana              running    healthy    pinned
+langfuse-db          running    healthy    pinned
+langfuse-web         running    healthy    pinned
+langfuse-worker      running    healthy    pinned
+loki                 running    none       pinned
+model-server-cpu     running    healthy    pinned
+otel-collector       running    none       pinned
+prometheus           running    healthy    pinned
+seaweedfs            running    healthy    pinned
+valkey               running    healthy    pinned
+gateway /health: degraded · store uninitialized · state None · cause store_uninitialized · adapters: local healthy
+prometheus targets: 6 up, 0 down
+WARN the store is uninitialized, so hello answers store_uninitialized. Once, in your terminal: make operator-init ENV=dev-cpu REASON="<why, at least 10 characters>", adding CONFIRM_ZERO=1 only if this host has no earlier records, and RENEW=1 to grant today's fallback (contracts/operator-admin.md §2.3)
+status: healthy, waiting on the operator
+deploy/agents-engine/docker-relay make -f Makefile --no-print-directory up   3.06s user 1.49s system 5% cpu 1:15.88 total
+exit 0
+
+== make operator-init ENV=dev-cpu
+python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack dev-cpu init --reason="$REASON" --renew --confirm-zero
+dev-cpu  initialized · audit #1 · state normal · periods 2026-10-10 and 2026-10
+day            0.00 USD          (ledger 0.00, journal 0.00, stated none)
+month          0.00 USD          (ledger 0.00, journal 0.00, stated none)
+fallback today 0.00 / 2.00 USD   (grant 2; ledger 0.00, journal 0.00, stated none)
+journal        0 files read, 0 records, 0 lines skipped
+fallback       renewed: grant 2 passes today
+confirm zero   yes: no earlier records and nothing stated
+exit 0
+== make operator-status ENV=dev-cpu
+python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack dev-cpu status
+dev-cpu  state normal since 2026-10-10T04:25:26Z · store ok · time 2026-10-10T04:25:31Z
+day            0.00 / 5.00 USD   (warning 3.50)
+month          0.00 / 20.00 USD  (warning 14.00)
+fallback today 0.00 / 2.00 USD   (grant 2, warning 1.40, available 2.00) · awaiting renewal: no
+adapters       local healthy
+alerts         1 pending, 0 failed in the last 24 h
+test machinery clock on · synthetic on
+exit 0
+== make hello ENV=dev-cpu
+python3 -I -B -X pycache_prefix=/dev/null scripts/hello.py --stack dev-cpu
+HTTP 200
+{
+  "answer": "Hello! How can I assist you today?",
+  "route": "local",
+  "route_reason": null,
+  "provider": "local",
+  "model": "qwen2.5-0.5b-instruct",
+  "usage": {
+    "input_tokens": 67,
+    "output_tokens": 10
+  },
+  "cost_usd": 0,
+  "cost_micro_usd": 0,
+  "price_version": "2026-10-08.1",
+  "latency_ms": 397,
+  "stack": "dev-cpu",
+  "request_id": "2e9cedcd3d8d4899a17126a84eb89c7f",
+  "trace_id": "984e400311dfdf5493e892343932e176"
+}
+exit 0
+
+== deploy/agents-engine/docker-relay make -f Makefile --no-print-directory down ENV=dev-cpu (17 Removed lines; the networks shown)
+ Network h4reet-dev-cpu_egress  Removing
+ Network h4reet-dev-cpu_edge  Removing
+ Network h4reet-dev-cpu_internal  Removing
+ Network h4reet-dev-cpu_edge  Removed
+ Network h4reet-dev-cpu_internal  Removed
+ Network h4reet-dev-cpu_egress  Removed
+exit 0
+```
+
+</details>
 
 ## For the Author
 
