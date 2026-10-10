@@ -1,7 +1,7 @@
 {
   "uid": "h4-runtime",
   "title": "h4reet.ai runtime",
-  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, and telemetry health (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
+  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
   "tags": ["h4reet", "spec-000"],
   "timezone": "utc",
   "refresh": "10s",
@@ -2559,6 +2559,378 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "type": "row",
+      "id": 42,
+      "title": "Development time on the Team plan: notional cost, outside the production meter",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 101,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 43,
+      "title": "Claude Code notional cost by model",
+      "description": "Claude Code's own accounting of its sessions in the dashboard's time range, by model: notional cost on the Team plan's flat fee, outside the production meter (FR-037): it never adds to h4_cost_usd_total or the ceilings. Only prod's collector receives it (edge's x004), so dev and dev-cpu show none. For a month's figure, set the range to the month; Prometheus keeps 30 days.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 102,
+        "w": 10,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (model) (increase(claude_code_cost_usage_USD_total[$__range]))",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Notional cost",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "model": "Model",
+              "Value": "Notional cost"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 44,
+      "title": "Claude Code notional cost by model (stat)",
+      "description": "The same sums as the table, one tile per model: notional cost on the Team plan's flat fee, outside the production meter (FR-037): it never adds to h4_cost_usd_total or the ceilings. Only prod's collector receives it (edge's x004), so dev and dev-cpu show none.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 102,
+        "w": 4,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (model) (increase(claude_code_cost_usage_USD_total[$__range]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [],
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "barchart",
+      "id": 45,
+      "title": "Claude Code tokens by type",
+      "description": "Claude Code's tokens in the dashboard's time range, by type: input, output, cacheRead, and cacheCreation. They carry the notional cost on the Team plan's flat fee, outside the production meter (FR-037): it never adds to h4_cost_usd_total or the ceilings. Only prod's collector receives it (edge's x004), so dev and dev-cpu show none.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 102,
+        "w": 10,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (type) (increase(claude_code_token_usage_tokens_total[$__range]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "gradientMode": "none"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Field",
+        "showValue": "auto",
+        "barWidth": 0.8,
+        "groupWidth": 0.7,
+        "stacking": "none",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "seriesToRows",
+            "reducers": ["lastNotNull"]
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 46,
+      "title": "Agent-config eval runs: notional cost",
+      "description": "The behavioral agent-config evals' cost in the dashboard's time range: each run the Author's gate recorded from evals/agent-config/history/ (plan \u00a714; telemetry.md \u00a74.4), counted once however often it was posted. It is notional cost on the Team plan's flat fee, outside the production meter (FR-037): it never adds to h4_cost_usd_total or the ceilings. Only prod's collector receives it (edge's x004), so dev and dev-cpu show none.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 109,
+        "w": 4,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(max_over_time(h4_devtime_eval_cost_usd[$__range]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "eval runs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [],
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "barchart",
+      "id": 47,
+      "title": "Agent-config eval runs: tokens",
+      "description": "The behavioral agent-config evals' tokens in the dashboard's time range, by type: input, output, cache_read, and cache_creation, from each recorded run's history entry. They carry the notional cost on the Team plan's flat fee, outside the production meter (FR-037): it never adds to h4_cost_usd_total or the ceilings. Only prod's collector receives it (edge's x004), so dev and dev-cpu show none.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 109,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (gen_ai_token_type) (max_over_time(h4_devtime_eval_tokens[$__range]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{gen_ai_token_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "gradientMode": "none"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Field",
+        "showValue": "auto",
+        "barWidth": 0.8,
+        "groupWidth": 0.7,
+        "stacking": "none",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "seriesToRows",
+            "reducers": ["lastNotNull"]
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "id": 48,
+      "title": "Agent-config eval runs",
+      "description": "Each behavioral agent-config eval run the gate recorded in the dashboard's time range: its history entry in evals/agent-config/history/ (<UTC>-<branch>-<sha>), its verdict, and its cost, notional cost on the Team plan's flat fee, outside the production meter (FR-037): it never adds to h4_cost_usd_total or the ceilings. Only prod's collector receives it (edge's x004), so dev and dev-cpu show none. The committed history is the long-term record (SC-008).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 109,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (h4_eval_run, h4_eval_verdict) (max_over_time(h4_devtime_eval_cost_usd[$__range]))",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Run",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "h4_eval_run": "Run",
+              "h4_eval_verdict": "Verdict",
+              "Value": "Notional cost"
+            }
+          }
+        }
+      ]
     }
   ]
 }
