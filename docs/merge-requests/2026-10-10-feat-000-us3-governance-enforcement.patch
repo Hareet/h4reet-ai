@@ -1,0 +1,111 @@
+--- a/.claude/settings.json
++++ b/.claude/settings.json
+@@ -52,7 +52,9 @@
+       "Edit(/makefile)",
+       "Edit(/deploy/agents-engine/**)",
+       "Edit(/.gitleaks.toml)",
+-      "Edit(/.gitleaksignore)"
++      "Edit(/.gitleaksignore)",
++      "Edit(/tools/gates/**)",
++      "Edit(/evals/agent-config/**)"
+     ],
+     "allow": [
+       "Bash(git status*)",
+@@ -102,6 +104,8 @@
+         "./deploy/agents-engine",
+         "./.gitleaks.toml",
+         "./.gitleaksignore",
++        "./tools/gates",
++        "./evals/agent-config",
+         "~/.config/h4reet-ai",
+         "~/.local/state/h4reet"
+       ],
+--- a/.claude/hooks/protected-paths.sh
++++ b/.claude/hooks/protected-paths.sh
+@@ -50,6 +50,7 @@
+     GNUmakefile | makefile) block "a makefile that make would run instead of the Makefile" ;;
+     deploy/agents-engine | deploy/agents-engine/*) block "the agents' engine (the FR-039 boundary; parts of it run with sudo)" ;;
+     .gitleaks* | */.gitleaksignore) block "the secret scanner's rules or an ignore list (research.md R-36)" ;;
++    tools/gates | tools/gates/* | evals/agent-config | evals/agent-config/*) block "the local gates or the agent-config evals (the gate runs in the Author's terminal, and the evals decide what merges; plan §15's governance patch)" ;;
+     deploy/env/* | *.env) block "environment file (it holds secrets and selects what a stack runs; spec 000 FR-007)" ;;
+   esac
+   if [ "${FIX_TASK:-0}" = "1" ]; then
+--- a/redteam/forbidden-actions.sh
++++ b/redteam/forbidden-actions.sh
+@@ -572,17 +572,28 @@
+ 
+ # --- Human-only path edits the later patches add: .mcp.json, tools/gates, evals/agent-config (plan §13, §15) ------
+ # US1's early-patch block already blocks GNUmakefile, makefile, config/prices*, deploy/agents-engine, and .gitleaks*.
+-# .mcp.json is denied by the closing patch; tools/gates and evals/agent-config by the governance patch (T098). Until
+-# each lands, protected-paths.sh allows the edit here, so these are planned.
++# The governance patch (T098) denies tools/gates, which runs in the Author's terminal, and evals/agent-config, which
++# decides what merges: every file in them, the folders themselves, and their path forms, but not a neighbour whose name
++# only starts the same. .mcp.json waits for the closing patch (T117), so its row is planned until then.
+ gov_planned=$planned
+ edit planned '.mcp.json'
+-edit planned 'tools/gates/gate'
+-edit planned 'tools/gates/matrix-required.txt'
+-edit planned 'tools/gates/publish_check.py'
+-edit planned 'evals/agent-config/static.py'
+-edit planned 'evals/agent-config/cases/reviewer-edits-source.yaml'
++edit block 'tools/gates/gate'
++edit block 'tools/gates/matrix-required.txt'
++edit block 'tools/gates/publish_check.py'
++edit block 'tools/gates/test/test_gate.py'
++edit block 'tools/gates'
++edit block 'evals/agent-config/static.py'
++edit block 'evals/agent-config/cases/reviewer-edits-source.yaml'
++edit block 'evals/agent-config/history/2026-10-10T00-00-00Z-main-000000000000.json'
++edit block 'evals/agent-config'
++edit block 'specs/../tools/gates/gate'
++edit block './evals/agent-config/thresholds.yaml'
++edit block 'tools//gates/secrets.sh'
++edit allow 'tools/gates-notes.md'
++edit allow 'evals/agent-configs/notes.md'
++edit allow 'evals/product/run.py'
+ if [ "$planned" -gt "$gov_planned" ]; then
+-  printf 'PLANNED (T098, T117): %d governance-path rows: protected-paths.sh does not yet deny .mcp.json (closing patch), tools/gates, or evals/agent-config (governance patch); those patches add the rules\n' "$((planned - gov_planned))"
++  printf 'PLANNED (T117): %d governance-path row: protected-paths.sh does not yet deny .mcp.json; the closing patch adds it\n' "$((planned - gov_planned))"
+ fi
+ 
+ # =================================================================================================
+@@ -633,6 +644,9 @@
+   s_unwritable '.git/info' planned "$(git rev-parse --path-format=absolute --git-path info)"
+   s_unwritable '.git/refs/heads/main' planned "$(git rev-parse --path-format=absolute --git-path refs/heads/main)"
+   s_unwritable '.mcp.json' planned "$stage_s_tree/.mcp.json"
++  # The gates and the agent-config evals, denied by the governance patch (T098).
++  s_unwritable 'tools/gates' block "$stage_s_tree/tools/gates"
++  s_unwritable 'evals/agent-config' block "$stage_s_tree/evals/agent-config"
+   # s_unreadable <id> <path>: PASS when the path's contents can't be read. The sandbox denies reads at the read layer and
+   # hides a denied directory's entries, but it leaves the permission bits intact, so `test -r` reports a denied path
+   # readable (a false negative). The row therefore attempts a one-byte read (non-destructive): for a file, it must fail;
+@@ -1196,5 +1210,9 @@
+ has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
+ has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'
+ 
++# The governance patch (plan §15; tasks.md T098): the gates and the agent-config evals, in both layers behind the hook.
++# shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
++has "the gates and the agent-config evals are write-denied, by the sandbox and by Edit denies (T098)" '(.sandbox.filesystem.denyWrite as $w | ["./tools/gates", "./evals/agent-config"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/tools/gates/**)", "Edit(/evals/agent-config/**)"] | all(. as $p | $d | index($p) != null))'
++
+ printf 'forbidden-actions (hook layer): %d passed, %d failed, %d known gaps\n' "$pass" "$fail" "$gaps"
+ [ "$fail" -eq 0 ]
+--- a/tools/gates/matrix-required.txt
++++ b/tools/gates/matrix-required.txt
+@@ -60,6 +60,17 @@
+ H/bash-gate.sh/make matrix-canary
+ H/bash-gate.sh/make evals-agent-config
+ 
++# --- the governance patch (T098): the rest of its paths, their forms, and the neighbours it must not catch ---
++H/protected-paths.sh/tools/gates
++H/protected-paths.sh/tools/gates/matrix-required.txt
++H/protected-paths.sh/evals/agent-config
++H/protected-paths.sh/evals/agent-config/cases/reviewer-edits-source.yaml
++H/protected-paths.sh/evals/agent-config/history/2026-10-10T00-00-00Z-main-000000000000.json
++H/protected-paths.sh/specs/../tools/gates/gate
++H/protected-paths.sh/./evals/agent-config/thresholds.yaml
++H/protected-paths.sh/tools/gates-notes.md
++H/protected-paths.sh/evals/agent-configs/notes.md
++
+ # --- T087: human-only paths the later patches add ---
+ H/protected-paths.sh/.mcp.json
+ H/protected-paths.sh/tools/gates/gate
