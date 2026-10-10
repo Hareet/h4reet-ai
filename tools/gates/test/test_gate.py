@@ -1,0 +1,1283 @@
+"""Tests for tools/gates/gate, the Author's clean-room gate (spec 000 FR-041; plan §11; ADR 0017; tasks.md T092).
+
+Docker, the agents' engine, and the network don't exist here, so each test builds a repository in a temporary
+directory and runs the real gate in it, with stand-ins on PATH:
+
+- docker records every call, its arguments, and the DOCKER_* variables it got, and answers as a control file says;
+- gitleaks records its flags and whether the ignore directory was fresh and empty when it ran.
+
+The fixture's main working tree holds the real gate and the real corpus check, plus stand-ins for the compose
+policy, the toolchain check, and engine.sh that record how they were run. The branch under test commits its own,
+hostile copies of those files, which leave a marker if anything runs them: the gate runs only git, docker,
+gitleaks, and the main tree's own code, never the exported tree's code on the host (plan §11).
+"""
+
+from __future__ import annotations
+
+import http.server
+import importlib.util
+import json
+import math
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+from dataclasses import dataclass
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[3]
+GATE = REPO / "tools" / "gates" / "gate"
+# Imported, the gate runs nothing (its PY_HOST re-exec is for a run), so its pieces can be tested one at a time.
+_LOADER = SourceFileLoader("h4_gate", str(GATE))
+_SPEC = importlib.util.spec_from_loader("h4_gate", _LOADER)
+assert _SPEC
+gm = importlib.util.module_from_spec(_SPEC)
+sys.modules["h4_gate"] = gm  # dataclasses look their module up here
+_LOADER.exec_module(gm)
+CHECK_CORPUS = REPO / "corpus" / "tools" / "check_corpus.py"
+SYSTEM_PATH = "/usr/local/bin:/usr/bin:/bin"
+TARGETS = ["lint", "validate-config", "test", "evals", "redteam-suite", "matrix"]
+ENGINE = "tcp://198.18.0.1:2376"
+RECORDING = "/run/h4-contract/recording.json"
+PHRASE = "zebra quartz lantern"  # the fixture denylist's one phrase
+CHANGE = {"docs/readme.md": "docs, changed\n"}  # a branch that touches no trigger
+# A history entry as the gate reads it (plan §14's fields; T094 writes them).
+ENTRY = {
+    "verdict": "pass",
+    "notional_cost_usd": 0.42,
+    "tokens": {"input": 1200, "output": 300, "cache_read": 5000, "cache_creation": 700},
+}
+RUN = "2026-10-10T120000Z-feature-0123abc"
+
+STUB_DOCKER = r"""#!/usr/bin/env python3
+import hashlib, json, os, sys
+here = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+path = os.path.join(here, "docker.control.json")
+control = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
+entry = {
+    "argv": args,
+    "env_keys": sorted(os.environ),
+    "docker_env": {k: v for k, v in os.environ.items() if k.startswith("DOCKER_")},
+}
+rc = 0
+if args[:1] == ["build"]:
+    context = args[-1]
+    entry["context_listing"] = sorted(os.listdir(context))
+    entry["context_writable"] = os.access(context, os.W_OK)
+    if control.get("build_fails"):
+        print("build: a step failed")
+        rc = 1
+    else:
+        iid = args[args.index("--iidfile") + 1]
+        with open(iid, "w", encoding="utf-8") as handle:
+            handle.write("sha256:" + hashlib.sha256(b"devcontainer").hexdigest())
+elif args[:1] == ["run"]:
+    image = next(a for a in args if a.startswith("sha256:"))
+    command = args[args.index(image) + 1 :]
+    entry["command"] = command
+    for spec in [args[i + 1] for i, a in enumerate(args) if a == "--mount"]:
+        fields = dict(f.partition("=")[::2] for f in spec.split(","))
+        if fields.get("target") == "/work":
+            entry["work_has_node_modules_dir"] = os.path.isdir(fields["source"])
+        if fields.get("target") == "/run/h4-contract/recording.json":
+            entry["recording_readable"] = os.access(fields["source"], os.R_OK)
+    if command[:1] == ["npm"]:
+        rc = 1 if control.get("npm_fails") else 0
+    elif command[:1] == ["make"]:
+        target = command[-1]
+        print(control.get("print", {}).get(target, f"{target}: ok"))
+        rc = 1 if target in control.get("fail", []) else 0
+    else:
+        print(control.get("vitest_output", " \u2713 test/contract/replay.test.ts > the adapter contract: recorded live: local (live) > C1: ok 2ms"))
+        rc = control.get("vitest_rc", 0)
+elif args[:1] == ["compose"]:
+    rc = 1 if control.get("compose_fails") else 0
+with open(os.path.join(here, "docker.calls"), "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(entry) + "\n")
+sys.exit(rc)
+"""
+
+STUB_GITLEAKS = r"""#!/usr/bin/env python3
+import json, os, sys
+here = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+ignore = args[args.index("--gitleaks-ignore-path") + 1] if "--gitleaks-ignore-path" in args else ""
+entry = {
+    "argv": args,
+    "env_keys": sorted(os.environ),
+    "no_replace": os.environ.get("GIT_NO_REPLACE_OBJECTS"),
+    "ignore_was_fresh": bool(ignore) and os.path.isdir(ignore) and not os.listdir(ignore),
+}
+with open(os.path.join(here, "gitleaks.calls"), "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(entry) + "\n")
+if os.path.exists(os.path.join(here, "gitleaks.finds")):
+    report = args[args.index("--report-path") + 1]
+    finding = {"RuleID": "probe-token", "File": "docs/readme.md", "StartLine": 3, "Commit": "c" * 40}
+    with open(report, "w", encoding="utf-8") as handle:
+        json.dump([finding], handle)
+    sys.exit(1)
+"""
+
+# The main tree's stand-ins log to <fixture>/logs, found from their own path, because the gate gives them a
+# minimal environment.
+STUB_SCRIPT = r"""#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+here = Path(__file__).resolve()
+logs = here.parents[{depth}] / "logs"
+name = "{name}"
+entry = {{
+    "argv": sys.argv[1:],
+    "isolated": sys.flags.isolated,
+    "no_bytecode": sys.flags.dont_write_bytecode,
+    "pycache_prefix": sys.pycache_prefix,
+    "path": os.environ.get("PATH", ""),
+    "env_keys": sorted(os.environ),
+}}
+with open(logs / f"{{name}}.calls", "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(entry) + "\n")
+control = logs / f"{{name}}.control"
+if control.exists():
+    text = control.read_text(encoding="utf-8")
+    print(text.split("\n", 1)[1] if "\n" in text else "")
+    sys.exit(int(text.split("\n", 1)[0]))
+print("{ok}")
+"""
+
+# What the branch commits in place of the Author's code: anything that runs it leaves a marker.
+HOSTILE = """#!/usr/bin/env python3
+from pathlib import Path
+Path({marker!r}).write_text("ran", encoding="utf-8")
+print("compose policy: PASS")
+"""
+
+
+def git(cwd: Path, *args: str) -> str:
+    done = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(cwd),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            *args,
+        ],
+        env={
+            "PATH": SYSTEM_PATH,
+            "HOME": str(cwd),
+            "LC_ALL": "C",
+            "GIT_CONFIG_NOSYSTEM": "1",
+        },
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return done.stdout.strip()
+
+
+def write(path: Path, text: str, mode: int = 0o644) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    path.chmod(mode)
+
+
+@dataclass
+class Fixture:
+    root: Path
+    main: Path
+    home: Path
+    stubs: Path
+    sysbin: Path
+    logs: Path
+    tmp: Path
+
+    def control(self, **values: object) -> None:
+        (self.stubs / "docker.control.json").write_text(
+            json.dumps(values), encoding="utf-8"
+        )
+
+    def docker(self) -> list[dict]:
+        return read_calls(self.stubs / "docker.calls")
+
+    def gitleaks(self) -> list[dict]:
+        return read_calls(self.stubs / "gitleaks.calls")
+
+    def logged(self, name: str) -> list[dict]:
+        return read_calls(self.logs / f"{name}.calls")
+
+    def markers(self) -> list[str]:
+        return sorted(p.name for p in self.logs.glob("EXPORT-*"))
+
+    def branch(self, files: dict[str, str], name: str = "feature") -> str:
+        """A branch off main with one commit that writes these files, by path."""
+        git(self.main, "switch", "-q", "main")
+        git(self.main, "switch", "-qc", name)
+        for rel, text in files.items():
+            write(self.main / rel, text)
+        # These files only: the working tree's untracked and ignored ones stay out of every commit.
+        git(self.main, "add", "-f", "--", *files)
+        git(self.main, "commit", "-qm", f"{name} work")
+        sha = git(self.main, "rev-parse", "HEAD")
+        git(self.main, "switch", "-q", "main")
+        return sha
+
+
+def read_calls(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+@pytest.fixture
+def fx(tmp_path: Path) -> Fixture:
+    root = tmp_path.resolve()
+    main, home, stubs, sysbin, logs, tmp = (
+        root / "main",
+        root / "home",
+        root / "stubs",
+        root / "sysbin",
+        root / "logs",
+        root / "tmp",
+    )
+    for directory in (main, home, stubs, sysbin, logs, tmp):
+        directory.mkdir()
+    for tool in ("python3", "git"):
+        found = shutil.which(tool, path=SYSTEM_PATH)
+        assert found, f"needs {tool}"
+        (sysbin / tool).symlink_to(found)
+    write(stubs / "docker", STUB_DOCKER, 0o755)
+    write(stubs / "gitleaks", STUB_GITLEAKS, 0o755)
+    # The Author's engine certificate, and the pinned Node the toolchain check puts first on PATH.
+    write(home / ".config/h4reet-ai/agents-engine/docker/cert.pem", "not a real one\n")
+    (home / ".nvm/versions/node/v24.21.0/bin").mkdir(parents=True)
+
+    git(main, "init", "-q", "-b", "main")
+    files = {
+        ".gitignore": "corpus/intake/private/\n.venv/\n",
+        ".gitleaks.toml": 'title = "fixture"\n',
+        ".claude/git-hooks/reference-transaction": "#!/bin/sh\nexit 0\n",
+        ".claude/git-hooks/pre-commit": "#!/bin/sh\nexit 0\n",
+        ".claude/settings.json": "{}\n",
+        ".devcontainer/Dockerfile": "FROM scratch\n",
+        ".devcontainer/toolchain.vars": "NODE_VERSION=24.21.0\nCLAUDE_CODE_VERSION=2.1.295\n",
+        "CLAUDE.md": "# fixture\n",
+        "Makefile": f"lint test evals redteam-suite matrix validate-config:\n\t@touch {logs}/EXPORT-make\n",
+        "corpus/00-profile.md": "A public corpus file.\n",
+        "deploy/compose.yaml": "services: {}\n",
+        "deploy/env.agents/dev-cpu.vars": "H4_STACK=dev-cpu\n",
+        "docs/readme.md": "docs\n",
+        "services/gateway/test/contract/live-cases.json": '{"cases": []}\n',
+    }
+    for rel, text in files.items():
+        write(main / rel, text)
+    write(main / "corpus/tools/check_corpus.py", CHECK_CORPUS.read_text("utf-8"))
+    write(main / "tools/gates/gate", GATE.read_text("utf-8"), 0o755)
+    for name, ok in (
+        ("compose_policy", "compose policy: PASS"),
+        ("toolchain_check", "toolchain-check: all match their pins"),
+    ):
+        write(
+            main / f"tools/gates/{name}.py",
+            STUB_SCRIPT.format(depth=3, name=name, ok=ok),
+        )
+    write(
+        main / "deploy/agents-engine/engine.sh",
+        STUB_SCRIPT.format(depth=3, name="engine", ok="E1-E16: PASS"),
+        0o755,
+    )
+    git(main, "add", "-A")
+    git(main, "commit", "-qm", "init")
+    # Not committed: the Author's denylist, an untracked file, and an ignored .venv, none of which an export holds.
+    write(main / "corpus/intake/private/denylist.txt", f"# phrases\n{PHRASE}\n")
+    write(main / "untracked.txt", "only in the working tree\n")
+    write(main / ".venv/bin/python", "planted\n")
+    hooks = Path(
+        git(main, "rev-parse", "--path-format=absolute", "--git-path", "hooks")
+    )
+    for name in ("reference-transaction", "pre-commit"):
+        shutil.copy(main / ".claude/git-hooks" / name, hooks / name)
+        (hooks / name).chmod(0o755)
+    git(main, "config", "gc.packRefs", "false")
+    return Fixture(root, main, home, stubs, sysbin, logs, tmp)
+
+
+def gate(
+    fx: Fixture, *args: str, path: str | None = None, **extra: str
+) -> subprocess.CompletedProcess[str]:
+    env = {
+        "PATH": path or f"{fx.stubs}:{fx.sysbin}",
+        "HOME": str(fx.home),
+        "LC_ALL": "C",
+        "TMPDIR": str(fx.tmp),
+        **extra,
+    }
+    return subprocess.run(
+        [str(fx.main / "tools/gates/gate"), *args],
+        cwd=fx.main,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+
+
+def has(argv: list[str], *seq: str) -> bool:
+    """argv holds seq as a contiguous run."""
+    n = len(seq)
+    return any(argv[i : i + n] == list(seq) for i in range(len(argv) - n + 1))
+
+
+def by_kind(calls: list[dict], kind: str) -> list[dict]:
+    return [c for c in calls if c["argv"][:1] == [kind]]
+
+
+def make_runs(calls: list[dict]) -> list[dict]:
+    return [c for c in by_kind(calls, "run") if c["command"][:1] == ["make"]]
+
+
+def mount_source(argv: list[str], target: str) -> str:
+    for i, arg in enumerate(argv):
+        if arg == "--mount":
+            fields = dict(f.partition("=")[::2] for f in argv[i + 1].split(","))
+            if fields.get("target") == target:
+                return fields["source"]
+    raise AssertionError(f"no mount at {target}: {argv}")
+
+
+def summary(done: subprocess.CompletedProcess[str]) -> str:
+    lines = [ln for ln in done.stdout.splitlines() if ln.startswith("gate: ")]
+    assert lines, done.stdout + done.stderr
+    return lines[-1]
+
+
+def status_of(done: subprocess.CompletedProcess[str], step: str) -> str:
+    """The status the final table gives a step: lines of the form 'STATUS   step  notes'."""
+    for line in reversed(done.stdout.splitlines()):  # the table is last
+        parts = line.split()
+        if len(parts) >= 2 and parts[1] == step and parts[0] in STATUSES:
+            return parts[0]
+    raise AssertionError(f"no table line for {step}:\n{done.stdout}")
+
+
+STATUSES = {"PASS", "FAIL", "SKIP", "WARN", "PLANNED", "PENDING"}
+
+
+# --------------------------------------------------------------------------------------------------
+# A clean branch, end to end: what runs where, and with which flags
+# --------------------------------------------------------------------------------------------------
+def test_a_clean_branch_passes_and_each_phase_runs_where_and_how_plan_11_says(
+    fx: Fixture,
+) -> None:
+    sha = fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+
+    # The export: the commit's own tree, read-only, and nothing git doesn't track.
+    (build,) = by_kind(calls, "build")
+    export = Path(build["argv"][-1])
+    tree = git(fx.main, "rev-parse", f"{sha}:.devcontainer")
+    assert build["argv"][:5] == [
+        "build",
+        "--file",
+        f"{export}/.devcontainer/Dockerfile",
+        "--tag",
+        f"h4reet-devcontainer:{tree}",
+    ]
+    assert build["argv"][5] == "--iidfile"
+    assert ".git" not in build["context_listing"]
+    assert "untracked.txt" not in build["context_listing"]
+    assert ".venv" not in build["context_listing"]
+    assert not build["context_writable"]
+    assert build["docker_env"] == {"DOCKER_HOST": "unix:///var/run/docker.sock"}
+    assert fx.tmp in export.parents
+    assert not export.exists(), "the export outlived the run"
+
+    # npm ci with the network, from the lockfile with scripts off; every later step without it.
+    runs = by_kind(calls, "run")
+    npm, *checks = runs
+    assert npm["command"] == [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+    ]
+    assert "--network" not in npm["argv"]
+    assert [c["command"] for c in checks] == [
+        ["make", "-f", "Makefile", "--no-print-directory", t] for t in TARGETS
+    ]
+    work = mount_source(npm["argv"], "/work")
+    assert Path(work) != export and fx.tmp in Path(work).parents
+    for call in runs:
+        argv = call["argv"]
+        assert has(argv, "--cap-drop", "ALL")
+        assert has(argv, "--security-opt", "no-new-privileges")
+        assert has(argv, "--user", f"{os.getuid()}:{os.getgid()}")
+        assert has(argv, "--workdir", "/work")
+        assert mount_source(argv, "/work") == work
+        assert call["docker_env"] == {"DOCKER_HOST": "unix:///var/run/docker.sock"}
+    for call in checks:
+        assert has(call["argv"], "--network", "none")
+
+    # The host phase: the main tree's own scripts, through PY_HOST's flags, on the export.
+    (policy,) = fx.logged("compose_policy")
+    assert policy["argv"] == ["--root", str(export)]
+    (toolchain,) = fx.logged("toolchain_check")
+    assert toolchain["argv"] == [f"{export}/.devcontainer/toolchain.vars"]
+    assert toolchain["path"].startswith(f"{fx.home}/.nvm/versions/node/v24.21.0/bin:")
+    for run in (policy, toolchain):
+        assert (run["isolated"], run["no_bytecode"], run["pycache_prefix"]) == (
+            1,
+            1,
+            "/dev/null",
+        )
+
+    # gitleaks over the range, with the flags of plan §11.
+    (scan,) = fx.gitleaks()
+    base = git(fx.main, "merge-base", "main", sha)
+    argv = scan["argv"]
+    assert argv[:2] == ["git", f"--log-opts={base}..{sha}"]
+    assert argv[argv.index("--config") + 1] == str(fx.main / ".gitleaks.toml")
+    assert "--ignore-gitleaks-allow" in argv and "--redact" in argv
+    assert argv[-1] == str(fx.main)
+    assert scan["ignore_was_fresh"]
+    assert scan["no_replace"] == "1"
+
+    # The image build on the agents' engine, with the Author's certificate.
+    (compose,) = by_kind(calls, "compose")
+    assert compose["argv"] == [
+        "compose",
+        "-p",
+        "h4reet-dev-cpu",
+        "-f",
+        f"{export}/deploy/compose.yaml",
+        "--env-file",
+        f"{export}/deploy/env.agents/dev-cpu.vars",
+        "--profile",
+        "*",
+        "build",
+    ]
+    assert compose["docker_env"] == {
+        "DOCKER_HOST": ENGINE,
+        "DOCKER_TLS_VERIFY": "1",
+        "DOCKER_CERT_PATH": f"{fx.home}/.config/h4reet-ai/agents-engine/docker",
+    }
+
+    # The corpus, checked against the Author's denylist by the main tree's check_corpus.
+    assert "denylist applied (1 phrase)" in done.stdout
+    assert fx.logged("engine") == []  # stage E's triggers weren't touched
+    line = summary(done)
+    assert line.startswith(f"gate: {sha} (feature) by tools/gates/gate at ")
+    assert re.search(r"\d+ PASS, \d+ SKIP, 0 WARN, 0 PLANNED, 0 PENDING, 0 FAIL", line)
+    assert "DEGRADED" not in line
+    assert (
+        f"git --no-replace-objects merge --no-ff -m 'Merge feature ({sha[:12]})' -m '{line}' {sha}"
+        in (done.stdout)
+    )
+
+
+def test_nothing_from_the_export_runs_on_the_host(fx: Fixture) -> None:
+    hostile = {
+        rel: HOSTILE.format(marker=str(fx.logs / f"EXPORT-{rel.replace('/', '-')}"))
+        for rel in (
+            "tools/gates/compose_policy.py",
+            "tools/gates/toolchain_check.py",
+            "tools/gates/gate",
+            "corpus/tools/check_corpus.py",
+            "deploy/agents-engine/engine.sh",
+            "node_modules/.bin/prettier",
+        )
+    }
+    fx.branch(hostile)
+    done = gate(fx, "feature", "--prove")
+    assert fx.markers() == [], done.stdout
+    assert len(fx.logged("compose_policy")) == 1
+    assert fx.logged("engine")[0]["argv"] == [
+        "prove"
+    ]  # the main tree's engine.sh, by --prove
+
+
+def test_the_authors_environment_never_reaches_a_tool(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    done = gate(
+        fx,
+        "feature",
+        H4_PROBE_CANARY="canary",
+        DOCKER_CONTEXT="elsewhere",
+        DOCKER_HOST="tcp://10.0.0.9:2375",
+        HTTPS_PROXY="http://proxy.invalid:1",
+        GIT_DIR="/nonexistent",
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    allowed = {
+        "PATH",
+        "HOME",
+        "LC_ALL",
+        "LC_CTYPE",
+        "PWD",
+        "GIT_NO_REPLACE_OBJECTS",
+        "DOCKER_HOST",
+        "DOCKER_TLS_VERIFY",
+        "DOCKER_CERT_PATH",
+    }
+    for call in fx.docker() + fx.gitleaks() + fx.logged("compose_policy"):
+        assert set(call["env_keys"]) <= allowed, call["env_keys"]
+    for call in fx.docker():
+        assert call["docker_env"].get("DOCKER_HOST") != "tcp://10.0.0.9:2375"
+
+
+# --------------------------------------------------------------------------------------------------
+# The export: one SHA, proven, or the gate stops
+# --------------------------------------------------------------------------------------------------
+def test_a_replace_ref_stops_the_gate_before_anything_runs(fx: Fixture) -> None:
+    sha = fx.branch(CHANGE)
+    other = git(fx.main, "rev-parse", "main")
+    git(fx.main, "replace", sha, other)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert "refs/replace" in done.stdout + done.stderr
+    assert fx.docker() == [] and fx.gitleaks() == []
+
+
+def test_info_attributes_stops_the_gate(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    info = Path(
+        git(fx.main, "rev-parse", "--path-format=absolute", "--git-path", "info")
+    )
+    write(info / "attributes", "docs/readme.md export-ignore\n")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert "info/attributes" in done.stdout + done.stderr
+    assert fx.docker() == []
+
+
+def test_an_export_that_doesnt_hash_to_the_commits_tree_stops_the_gate(
+    fx: Fixture,
+) -> None:
+    # A committed .gitattributes tells git archive to leave a file out: the tree check catches what no list names.
+    fx.branch({".gitattributes": "docs/readme.md export-ignore\n"})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert "doesn't match the commit's own tree" in done.stdout + done.stderr
+    assert fx.docker() == []
+
+
+def swap_commit_object(repo: Path, sha: str, other: str) -> None:
+    """Put another commit's loose object where sha's is, as a corrupted or tampered object store would."""
+    objects = Path(
+        git(repo, "rev-parse", "--path-format=absolute", "--git-path", "objects")
+    )
+    loose = objects / sha[:2] / sha[2:]
+    loose.chmod(0o644)
+    loose.write_bytes((objects / other[:2] / other[2:]).read_bytes())
+
+
+def test_a_commit_object_that_isnt_its_sha_stops_the_gate(fx: Fixture) -> None:
+    sha = fx.branch(CHANGE)
+    swap_commit_object(fx.main, sha, git(fx.main, "rev-parse", "main"))
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of_export_failure(done)
+    assert fx.docker() == []
+
+
+def status_of_export_failure(done: subprocess.CompletedProcess[str]) -> bool:
+    return "-> FAIL export" in done.stdout and "nothing else ran" in done.stdout
+
+
+def test_the_commit_object_is_rehashed_even_where_git_wouldnt(fx: Fixture) -> None:
+    # git rev-parse ...^{commit} checks the hash; git cat-file, which reads the tree, doesn't. So commit_tree() does.
+    sha = fx.branch(CHANGE)
+    swap_commit_object(fx.main, sha, git(fx.main, "rev-parse", "main"))
+    with pytest.raises(gm.Stop, match="isn't that commit"):
+        gm.commit_tree(fx.main, sha)
+
+
+def test_a_link_out_of_the_tree_isnt_extracted(fx: Fixture) -> None:
+    git(fx.main, "switch", "-qc", "feature")
+    (fx.main / "docs/escape").symlink_to("/etc/hostname")
+    git(fx.main, "add", "docs/escape")
+    git(fx.main, "commit", "-qm", "a link out")
+    git(fx.main, "switch", "-q", "main")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert "couldn't be extracted safely" in done.stdout
+    assert fx.docker() == []
+
+
+def test_every_git_call_reads_the_commits_own_objects(fx: Fixture) -> None:
+    real = (fx.sysbin / "git").resolve()
+    log = fx.logs / "git.calls"
+    (fx.sysbin / "git").unlink()
+    write(
+        fx.sysbin / "git",
+        "#!/usr/bin/env python3\nimport json, os, sys\n"
+        f"with open({str(log)!r}, 'a') as h:\n"
+        "    h.write(json.dumps(os.environ.get('GIT_NO_REPLACE_OBJECTS')) + '\\n')\n"
+        f"os.execv({str(real)!r}, ['git', *sys.argv[1:]])\n",
+        0o755,
+    )
+    fx.branch(CHANGE)
+    assert gate(fx, "feature").returncode == 0
+    seen = log.read_text(encoding="utf-8").splitlines()
+    assert len(seen) > 10 and set(seen) == {'"1"'}
+
+
+@pytest.mark.parametrize("ref", ["-x", "feature..main", "has space"])
+def test_a_ref_that_isnt_a_plain_name_is_refused(fx: Fixture, ref: str) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "--", ref)
+    assert done.returncode == 2
+    assert fx.docker() == []
+
+
+def test_a_ref_that_isnt_a_commit_stops_the_gate(fx: Fixture) -> None:
+    done = gate(fx, "no-such-branch")
+    assert done.returncode == 1
+    assert "isn't a commit" in done.stdout + done.stderr
+    assert fx.docker() == []
+
+
+# --------------------------------------------------------------------------------------------------
+# Who may run it, and how
+# --------------------------------------------------------------------------------------------------
+def test_it_refuses_the_agent_sandbox(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "feature", SANDBOX_RUNTIME="1")
+    assert done.returncode == 2
+    assert "the Author's" in done.stderr
+    assert fx.docker() == []
+
+
+def test_it_refuses_a_linked_worktrees_copy(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    worktree = fx.root / "wt"
+    git(fx.main, "worktree", "add", "-q", str(worktree), "feature")
+    done = subprocess.run(
+        [str(worktree / "tools/gates/gate"), "feature"],
+        cwd=worktree,
+        env={
+            "PATH": f"{fx.stubs}:{fx.sysbin}",
+            "HOME": str(fx.home),
+            "LC_ALL": "C",
+            "TMPDIR": str(fx.tmp),
+        },
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert done.returncode == 2
+    assert f"{fx.main}/tools/gates/gate" in done.stderr
+    assert fx.docker() == []
+
+
+def test_run_by_a_bare_python3_it_starts_again_with_py_host_flags(fx: Fixture) -> None:
+    # Without -I, PYTHONPATH would put this json.py ahead of the standard library's.
+    planted = fx.root / "planted"
+    write(
+        planted / "json.py", f"open({str(fx.logs / 'EXPORT-planted')!r}, 'w').close()\n"
+    )
+    done = subprocess.run(
+        ["python3", str(fx.main / "tools/gates/gate"), "--help"],
+        env={
+            "PATH": f"{fx.stubs}:{fx.sysbin}",
+            "HOME": str(fx.home),
+            "PYTHONPATH": str(planted),
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    assert "--contract-replay" in done.stdout
+    assert fx.markers() == []
+
+
+# --------------------------------------------------------------------------------------------------
+# The makefiles the container phase's make would read
+# --------------------------------------------------------------------------------------------------
+@pytest.mark.parametrize("name", ["GNUmakefile", "makefile"])
+def test_a_makefile_main_doesnt_allow_stops_the_container_phase(
+    fx: Fixture, name: str
+) -> None:
+    fx.branch({name: "lint:\n\t@true\n"})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "makefiles") == "FAIL"
+    assert make_runs(fx.docker()) == []
+    assert status_of(done, "gitleaks") == "PASS"  # the host phase still runs
+
+
+def test_exactly_mains_gnumakefile_is_allowed(fx: Fixture) -> None:
+    write(fx.main / "GNUmakefile", "include Makefile\n")
+    git(fx.main, "add", "GNUmakefile")
+    git(fx.main, "commit", "-qm", "main's GNUmakefile")
+    fx.branch(CHANGE)
+    assert gate(fx, "feature").returncode == 0
+    fx.branch({"GNUmakefile": "include Makefile\nlint:\n\t@true\n"}, name="other")
+    done = gate(fx, "other")
+    assert status_of(done, "makefiles") == "FAIL"
+
+
+# --------------------------------------------------------------------------------------------------
+# The container phase
+# --------------------------------------------------------------------------------------------------
+def test_a_failing_check_fails_the_gate_and_the_rest_still_run(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.control(fail=["lint"])
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert [c["command"][-1] for c in make_runs(fx.docker())] == TARGETS
+    assert status_of(done, "lint") == "FAIL"
+    assert status_of(done, "test") == "PASS"
+    assert "failing: lint FAIL" in summary(done)
+    assert "merge --no-ff" not in done.stdout
+
+
+def test_a_pending_line_from_make_evals_makes_the_gate_pending(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.control(print={"evals": "PENDING: run make evals-agent-config"})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "evals") == "PENDING"
+
+
+def test_a_devcontainer_that_wont_build_points_at_the_host_gate(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.control(build_fails=True)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert by_kind(fx.docker(), "run") == []
+    assert status_of(done, "lint") == "FAIL"
+    assert "tools/gates/gate --host" in done.stdout
+    assert status_of(done, "gitleaks") == "PASS"
+
+
+def test_npm_ci_failing_stops_the_checks_that_need_it(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.control(npm_fails=True)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert make_runs(fx.docker()) == []
+    assert status_of(done, "npm-ci") == "FAIL"
+
+
+def test_host_mode_runs_no_container_and_says_degraded(fx: Fixture) -> None:
+    sha = fx.branch(CHANGE)
+    done = gate(fx, "--host", "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+    assert by_kind(calls, "build") == [] and by_kind(calls, "run") == []
+    assert (
+        len(by_kind(calls, "compose")) == 1
+    )  # the host phase's image build still runs
+    line = summary(done)
+    assert line.startswith(f"gate: {sha} (feature)")
+    assert "DEGRADED (--host)" in line
+
+
+# --------------------------------------------------------------------------------------------------
+# The host phase
+# --------------------------------------------------------------------------------------------------
+def test_the_corpus_is_the_exports_checked_against_the_authors_denylist(
+    fx: Fixture,
+) -> None:
+    fx.branch({"corpus/01-new.md": f"Something about the {PHRASE} here.\n"})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "corpus") == "FAIL"
+    assert "01-new.md: contains a denylisted phrase" in done.stdout
+    assert PHRASE not in done.stdout + done.stderr  # never printed
+
+
+def test_the_main_trees_working_corpus_isnt_what_is_checked(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    write(fx.main / "corpus/02-draft.md", f"An uncommitted draft with {PHRASE}.\n")
+    done = gate(fx, "feature")
+    assert status_of(done, "corpus") == "PASS"
+
+
+def test_a_corpus_file_that_wont_parse_fails_the_step_not_the_gate(fx: Fixture) -> None:
+    fx.branch({"corpus/facts/broken.yaml": "facts: [unclosed\n"})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "corpus") == "FAIL"
+    assert "check_corpus stopped" in done.stdout
+    assert status_of(done, "gitleaks") == "PASS"  # the steps after it still ran
+
+
+def test_without_docker_every_container_step_says_why(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.stubs / "docker").unlink()
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    for step in ("devcontainer", "npm-ci", "lint", "matrix-h", "image"):
+        assert status_of(done, step) == "FAIL"
+    assert "docker isn't installed" in done.stdout
+
+
+def test_a_missing_denylist_fails_the_corpus_step(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.main / "corpus/intake/private/denylist.txt").unlink()
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "corpus") == "FAIL"
+    assert "is missing, so the corpus can't be checked against it" in done.stdout
+
+
+def test_a_denylist_check_corpus_couldnt_apply_fails_the_corpus_step(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    (fx.main / "corpus/intake/private/denylist.txt").chmod(0o000)
+    done = gate(fx, "feature")
+    assert status_of(done, "corpus") == "FAIL"
+    assert "the denylist wasn't applied" in done.stdout
+
+
+@pytest.mark.parametrize("damage", ["uninstalled", "packed", "hookspath", "packrefs"])
+def test_githooks_checks_what_make_githooks_check_does(
+    fx: Fixture, damage: str
+) -> None:
+    fx.branch(CHANGE)
+    hooks = Path(
+        git(fx.main, "rev-parse", "--path-format=absolute", "--git-path", "hooks")
+    )
+    if damage == "uninstalled":
+        (hooks / "pre-commit").unlink()
+    elif damage == "packed":
+        git(fx.main, "pack-refs", "--all", "--prune")
+    elif damage == "hookspath":
+        git(fx.main, "config", "core.hooksPath", str(fx.root / "elsewhere"))
+    else:
+        git(fx.main, "config", "--unset", "gc.packRefs")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "githooks") == "FAIL"
+
+
+def test_a_failing_policy_means_the_engine_never_builds(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "compose_policy.control").write_text(
+        "1\ncompose policy: 1 refusal(s)", encoding="utf-8"
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "policy") == "FAIL"
+    assert status_of(done, "image") == "FAIL"
+    assert by_kind(fx.docker(), "compose") == []
+
+
+def test_a_planned_policy_still_builds(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "compose_policy.control").write_text(
+        "0\nPLANNED (T063): seaweedfs's pin is open\ncompose policy: PASS, 1 planned",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "policy") == "PLANNED"
+    assert len(by_kind(fx.docker(), "compose")) == 1
+
+
+def test_no_engine_certificate_fails_the_image_step_without_calling_docker(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    shutil.rmtree(fx.home / ".config/h4reet-ai/agents-engine")
+    done = gate(fx, "feature")
+    assert status_of(done, "image") == "FAIL"
+    assert "engine.sh setup" in done.stdout
+    assert by_kind(fx.docker(), "compose") == []
+
+
+def test_an_engine_that_doesnt_build_names_the_authors_command(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.control(compose_fails=True)
+    done = gate(fx, "feature")
+    assert status_of(done, "image") == "FAIL"
+    assert "deploy/agents-engine/engine.sh up" in done.stdout
+
+
+def test_a_gitleaks_finding_is_named_without_the_match(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.stubs / "gitleaks.finds").write_text("", encoding="utf-8")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "gitleaks") == "FAIL"
+    assert "probe-token in docs/readme.md:3" in done.stdout
+
+
+def test_a_gitleaksignore_that_could_hold_entries_stops_the_scan(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    write(fx.main / ".gitleaksignore", "x:y:z:1\n")
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks") == "FAIL"
+    assert fx.gitleaks() == []
+
+
+def test_the_main_trees_empty_placeholder_is_let_through(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    write(fx.main / ".gitleaksignore", "")
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks") == "PASS"
+
+
+def test_missing_gitleaks_fails_closed(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.stubs / "gitleaks").unlink()
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "gitleaks") == "FAIL"
+    assert "gitleaks isn't installed" in done.stdout
+
+
+def test_stage_e_waits_for_prove_when_the_branch_touches_the_engine(
+    fx: Fixture,
+) -> None:
+    fx.branch({"deploy/agents-engine/notes.txt": "a change at the boundary\n"})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "matrix-e") == "PENDING"
+    assert "tools/gates/gate --prove feature" in done.stdout
+    assert fx.logged("engine") == []
+    proven = gate(fx, "--prove", "feature")
+    assert status_of(proven, "matrix-e") == "PASS", proven.stdout
+    assert fx.logged("engine")[0]["argv"] == ["prove"]
+
+
+def test_a_failing_prove_fails_stage_e(fx: Fixture) -> None:
+    fx.branch({".claude/settings.json": '{"sandbox": {}}\n'})
+    (fx.logs / "engine.control").write_text("1\nE9: FAIL", encoding="utf-8")
+    done = gate(fx, "--prove", "feature")
+    assert status_of(done, "matrix-e") == "FAIL"
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"CLAUDE.md": "# fixture, changed\n"},
+        {
+            ".devcontainer/toolchain.vars": "NODE_VERSION=24.21.0\nCLAUDE_CODE_VERSION=2.1.296\n"
+        },
+    ],
+)
+def test_the_behavioral_evals_wait_for_t094_when_triggered(
+    fx: Fixture, files: dict[str, str]
+) -> None:
+    fx.branch(files)
+    done = gate(fx, "feature")
+    assert status_of(done, "agent-config-evals") == "SKIP"
+    assert "T094" in done.stdout
+
+
+def test_once_the_behavioral_evals_exist_the_gate_must_run_them(fx: Fixture) -> None:
+    fx.branch({"CLAUDE.md": "# fixture, changed\n"})
+    write(fx.main / "evals/agent-config/behavioral.py", "# T094's\n")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "agent-config-evals") == "FAIL"
+
+
+def test_untriggered_steps_say_so(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert status_of(done, "matrix-e") == "SKIP"
+    assert status_of(done, "agent-config-evals") == "SKIP"
+    assert "T094" not in done.stdout
+
+
+# --------------------------------------------------------------------------------------------------
+# The pieces, one at a time
+# --------------------------------------------------------------------------------------------------
+def test_holds_nothing_lets_through_only_what_holds_no_entry(tmp_path: Path) -> None:
+    path = tmp_path / ".gitleaksignore"
+    assert gm.holds_nothing(path)  # nothing there
+    path.write_text("", encoding="utf-8")
+    assert gm.holds_nothing(path)  # a killed session's empty placeholder
+    path.write_text("x:y:z:1\n", encoding="utf-8")
+    assert not gm.holds_nothing(path)
+    path.unlink()
+    path.symlink_to(tmp_path / "elsewhere")
+    assert not gm.holds_nothing(path)
+    path.unlink()
+    os.mkfifo(path)
+    assert not gm.holds_nothing(path)
+    path.unlink()
+    path.mkdir()
+    assert not gm.holds_nothing(path)
+    # The sandbox's mask is /dev/null itself, device 1:3; any other device could feed entries.
+    assert gm.holds_nothing(Path("/dev/null"))
+    assert not gm.holds_nothing(Path("/dev/zero"))
+
+
+def test_clean_keeps_a_terminal_out_of_reach() -> None:
+    assert gm.clean("ok\tline\n") == "ok\tline\n"
+    assert gm.clean("\x1b]52;c;x\x07 \x9b2J \x7f") == "?]52;c;x? ?2J ?"
+
+
+@pytest.mark.parametrize(
+    ("entry", "says"),
+    [
+        ([], "not a JSON object"),
+        ({**ENTRY, "verdict": "maybe"}, '"verdict"'),
+        ({**ENTRY, "notional_cost_usd": True}, '"notional_cost_usd"'),
+        ({**ENTRY, "notional_cost_usd": -1}, '"notional_cost_usd"'),
+        ({**ENTRY, "notional_cost_usd": math.nan}, '"notional_cost_usd"'),
+        ({**ENTRY, "notional_cost_usd": "0.4"}, '"notional_cost_usd"'),
+        ({**ENTRY, "tokens": []}, '"tokens" isn\'t an object'),
+        (
+            {**ENTRY, "tokens": {"input": 1, "output": 1, "cache_read": 1}},
+            "tokens.cache_creation",
+        ),
+        (
+            {**ENTRY, "tokens": {**ENTRY["tokens"], "output": 1.5}},
+            "tokens.output",
+        ),
+        (
+            {**ENTRY, "tokens": {**ENTRY["tokens"], "input": False}},
+            "tokens.input",
+        ),
+    ],
+)
+def test_history_problems_names_each_malformed_field(entry: object, says: str) -> None:
+    assert gm.history_problems(ENTRY) == []
+    assert any(says in problem for problem in gm.history_problems(entry))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1:18004/v1/metrics",
+        "http://localhost:18104/v1/metrics",
+        "http://[::1]:18004/v1/metrics",
+    ],
+)
+def test_check_url_takes_loopback_metrics_urls(url: str) -> None:
+    assert gm.check_url(url) == url
+
+
+def test_fresh_dir_refuses_what_mkdtemp_should_never_give(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    made = gm.fresh_dir(tmp_path)
+    assert made.is_dir() and not any(made.iterdir()) and made.parent == tmp_path
+    full = tmp_path / "full"
+    full.mkdir()
+    (full / ".gitleaksignore").write_text("x\n", encoding="utf-8")
+    for given in ("", "relative", str(full), str(tmp_path / "missing")):
+        monkeypatch.setattr(gm.tempfile, "mkdtemp", lambda dir=None, g=given: g)
+        with pytest.raises(OSError):
+            gm.fresh_dir(tmp_path)
+
+
+# --------------------------------------------------------------------------------------------------
+# The eval history's push to prod's x004 (contracts/telemetry.md §4.4)
+# --------------------------------------------------------------------------------------------------
+class _Collector(http.server.BaseHTTPRequestHandler):
+    def do_POST(self) -> None:
+        body = self.rfile.read(int(self.headers["Content-Length"]))
+        self.server.posts.append((self.path, self.headers["Content-Type"], body))  # type: ignore[attr-defined]
+        self.send_response(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    def log_message(self, *args: object) -> None:
+        pass
+
+
+@pytest.fixture
+def collector():
+    server = http.server.HTTPServer(("127.0.0.1", 0), _Collector)
+    server.posts = []  # type: ignore[attr-defined]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield server
+    server.shutdown()
+    server.server_close()
+
+
+def attrs(point: dict) -> dict[str, str]:
+    return {a["key"]: a["value"]["stringValue"] for a in point["attributes"]}
+
+
+def test_each_history_entry_the_branch_adds_is_posted_once_as_otlp_json(
+    fx: Fixture, collector: http.server.HTTPServer
+) -> None:
+    fx.branch({f"evals/agent-config/history/{RUN}.json": json.dumps(ENTRY)})
+    url = f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
+    before = time.time_ns()
+    # A proxy in the Author's shell is never used: the push goes straight to this machine's loopback.
+    dead = "http://127.0.0.1:9"
+    done = gate(fx, "--otlp-url", url, "feature", http_proxy=dead, HTTP_PROXY=dead)
+    after = time.time_ns()
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert len(collector.posts) == 1, done.stdout  # type: ignore[attr-defined]
+    (post,) = collector.posts  # type: ignore[attr-defined]
+    path, content_type, raw = post
+    assert (path, content_type) == ("/v1/metrics", "application/json")
+    resource = json.loads(raw)["resourceMetrics"][0]
+    assert {"key": "service.name", "value": {"stringValue": "h4-gate"}} in resource[
+        "resource"
+    ]["attributes"]
+    metrics = {m["name"]: m for m in resource["scopeMetrics"][0]["metrics"]}
+    assert set(metrics) == {"h4.devtime.eval.cost_usd", "h4.devtime.eval.tokens"}
+    cost = metrics["h4.devtime.eval.cost_usd"]
+    assert cost["unit"] == "{USD}"
+    (point,) = cost["gauge"]["dataPoints"]
+    assert point["asDouble"] == 0.42
+    assert attrs(point) == {"h4.eval.run": RUN, "h4.eval.verdict": "pass"}
+    assert before <= int(point["timeUnixNano"]) <= after  # stamped at the post
+    tokens = metrics["h4.devtime.eval.tokens"]
+    assert tokens["unit"] == "{token}"
+    by_type = {
+        attrs(p)["gen_ai.token.type"]: int(p["asInt"])
+        for p in tokens["gauge"]["dataPoints"]
+    }
+    assert by_type == ENTRY["tokens"]
+    assert all(attrs(p)["h4.eval.run"] == RUN for p in tokens["gauge"]["dataPoints"])
+    assert status_of(done, "eval-history") == "PASS"
+    assert (
+        status_of(done, "agent-config-evals") == "SKIP"
+    )  # a history entry alone isn't a trigger
+    assert "T094" not in done.stdout
+
+
+def test_a_malformed_history_entry_fails_and_isnt_posted(
+    fx: Fixture, collector: http.server.HTTPServer
+) -> None:
+    broken = {k: v for k, v in ENTRY.items() if k != "tokens"}
+    fx.branch({f"evals/agent-config/history/{RUN}.json": json.dumps(broken)})
+    url = f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
+    done = gate(fx, "--otlp-url", url, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "eval-history") == "FAIL"
+    assert collector.posts == []  # type: ignore[attr-defined]
+
+
+def test_a_collector_that_doesnt_answer_is_a_warning_not_a_failure(fx: Fixture) -> None:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    fx.branch({f"evals/agent-config/history/{RUN}.json": json.dumps(ENTRY)})
+    done = gate(fx, "--otlp-url", f"http://127.0.0.1:{port}/v1/metrics", "feature")
+    assert done.returncode == 0, done.stdout
+    assert status_of(done, "eval-history") == "WARN"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://example.com/v1/metrics",
+        "https://127.0.0.1:18004/v1/metrics",
+        "http://127.0.0.1:18004/v1/traces",
+    ],
+)
+def test_the_push_goes_to_the_loopback_metrics_path_only(fx: Fixture, url: str) -> None:
+    done = gate(fx, "--otlp-url", url, "main")
+    assert done.returncode == 2
+    assert fx.docker() == []
+
+
+# --------------------------------------------------------------------------------------------------
+# --contract-replay FILE: make contract-live's replay (contracts/provider-adapter.md §5.3)
+# --------------------------------------------------------------------------------------------------
+def recording(fx: Fixture, body: str = '{"adapter": "local", "cases": []}') -> Path:
+    directory = fx.root / "recording"
+    directory.mkdir(mode=0o700, exist_ok=True)
+    path = directory / "recording.json"
+    path.write_text(body, encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def test_contract_replay_runs_the_replay_test_on_heads_export_without_network(
+    fx: Fixture,
+) -> None:
+    head = git(fx.main, "rev-parse", "HEAD")
+    file = recording(fx)
+    done = gate(fx, "--contract-replay", str(file))
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+    (build,) = by_kind(calls, "build")
+    export = Path(build["argv"][-1])
+    tree = git(fx.main, "rev-parse", f"{head}:.devcontainer")
+    assert build["argv"][4] == f"h4reet-devcontainer:{tree}"
+    npm, replay = by_kind(calls, "run")
+    assert npm["command"][:3] == ["npm", "ci", "--ignore-scripts"]
+    argv = replay["argv"]
+    assert has(argv, "--network", "none")
+    assert has(argv, "--cap-drop", "ALL")
+    assert has(argv, "--workdir", "/work/services/gateway")
+    assert has(argv, "--env", f"H4_CONTRACT_RECORDING={RECORDING}")
+    assert has(argv, "--mount", f"type=bind,source={file},target={RECORDING},readonly")
+    assert replay["recording_readable"]
+    assert replay["command"] == [
+        "/work/node_modules/.bin/vitest",
+        "run",
+        "test/contract/replay.test.ts",
+        "--reporter=verbose",
+    ]
+    assert mount_source(argv, "/work") != str(export)
+    assert by_kind(calls, "compose") == [] and fx.gitleaks() == []
+    assert f"HEAD {head[:12]}" in done.stdout
+    assert not export.exists()
+
+
+def test_a_replay_that_never_reads_the_recording_fails(fx: Fixture) -> None:
+    fx.control(
+        vitest_output=" \u2713 test/contract/replay.test.ts > the adapter contract: recorded here: local (live) > C1"
+    )
+    done = gate(fx, "--contract-replay", str(recording(fx)))
+    assert done.returncode == 1
+    assert "recorded live" in done.stdout + done.stderr
+
+
+def test_a_failing_replay_fails(fx: Fixture) -> None:
+    fx.control(vitest_rc=1)
+    assert gate(fx, "--contract-replay", str(recording(fx))).returncode == 1
+
+
+@pytest.mark.parametrize("problem", ["missing", "link", "not-json", "not-a-recording"])
+def test_contract_replay_refuses_a_file_that_isnt_a_recording(
+    fx: Fixture, problem: str
+) -> None:
+    file = recording(fx)
+    if problem == "missing":
+        file.unlink()
+    elif problem == "link":
+        link = file.with_name("link.json")
+        link.symlink_to(file)
+        file = link
+    elif problem == "not-json":
+        file.write_text("{", encoding="utf-8")
+    else:
+        file.write_text("[]", encoding="utf-8")
+    done = gate(fx, "--contract-replay", str(file))
+    assert done.returncode == 2
+    assert fx.docker() == []
+
+
+@pytest.mark.parametrize("extra", [["feature"], ["--host"], ["--prove"]])
+def test_contract_replay_takes_no_ref_and_no_other_mode(
+    fx: Fixture, extra: list[str]
+) -> None:
+    done = gate(fx, "--contract-replay", str(recording(fx)), *extra)
+    assert done.returncode == 2
+    assert fx.docker() == []
