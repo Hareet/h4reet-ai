@@ -9,8 +9,9 @@
 //   the deadline: @smithy/node-http-handler 4.12.1 only logs a warning at its requestTimeout unless
 //   throwOnRequestTimeout is set. complete() settles when the signal aborts, whatever the SDK is still doing.
 // - health(): never calls Bedrock. It resolves credentials through the chain, which the SDK caches, and passes when
-//   they resolve and haven't expired; anything else is `credentials`. It reads the SSO session's end from the token
-//   cache into credentialsExpireAt, and keeps nothing else from that file.
+//   they resolve with an expiry still ahead; anything else is `credentials`, credentials that never expire included,
+//   since only a long-term key gives those and FR-013 allows none (tasks.md T194). It reads the SSO session's end from
+//   the token cache into credentialsExpireAt, and keeps nothing else from that file.
 // - Every failure is one ProviderError kind (§2.5), carrying the SDK exception's name or a Node error code, and its
 //   HTTP status when there was one: no provider text, no request, and no original error.
 // - Lookups go through c-ares (core/resolve.ts, tasks.md T189): the handler's agent passes aresLookup, and the
@@ -284,7 +285,7 @@ export class BedrockConverseAdapter implements ProviderAdapter {
     try {
       const credentials = await settleBy(this.deps.credentials(), signal);
       const expires = credentials.expiration?.getTime();
-      return expires !== undefined && expires <= this.ctx.realNow() ? status(false, "credentials") : status(true);
+      return expires === undefined || expires <= this.ctx.realNow() ? status(false, "credentials") : status(true);
     } catch {
       return status(false, "credentials");
     }

@@ -26,6 +26,7 @@ as plan §3 lists them.
 from __future__ import annotations
 
 import argparse
+import configparser
 import hashlib
 import json
 import os
@@ -1281,6 +1282,14 @@ def p18(ctx: Context) -> Result:
 
 def p19(ctx: Context) -> Result:
     aws = Path(ctx.values.get("H4_AWS_DIR", ""))
+    # A link, there or one level up, would put prod's mount wherever it points, the Author's own ~/.aws among them
+    # (research.md R-17); aws-login.sh refuses the same two (tasks.md T194).
+    for path in (aws, aws.parent):
+        if path.is_symlink():
+            return fail(
+                "P19",
+                f"{path} is a symbolic link: it must be the directory itself, so prod's mount can't land anywhere else",
+            )
     if not aws.is_dir():
         return fail("P19", f"{aws} is missing: make init-env ENV=prod creates it")
     if stat.S_IMODE(aws.stat().st_mode) != 0o700:
@@ -1305,7 +1314,28 @@ def p19(ctx: Context) -> Result:
             "P19",
             f"prod routes to {adapter}, but {config} has no [profile h4reet-bedrock] (quickstart.md §0.6)",
         )
-    return ok("P19", f"{aws} is 0700, with the h4reet-bedrock profile")
+    region = sso_region(config)
+    if region != "us-east-1":
+        return fail(
+            "P19",
+            f"the h4reet-bedrock profile's SSO region is {region or 'not set'}: it must be us-east-1, whose sign-in "
+            "hosts docs/data-flow-disclosure.md lists (row F2)",
+        )
+    return ok("P19", f"{aws} is 0700, with the h4reet-bedrock profile, in us-east-1")
+
+
+def sso_region(config: Path) -> str | None:
+    """The h4reet-bedrock profile's SSO region, as the AWS CLI reads it: its sso-session's, when it names one."""
+    parser = configparser.ConfigParser(interpolation=None, strict=False)
+    try:
+        parser.read_string(config.read_text(encoding="utf-8"))
+    except (OSError, configparser.Error):
+        return None
+    profile = "profile h4reet-bedrock"
+    session = parser.get(profile, "sso_session", fallback=None)
+    if session:
+        return parser.get(f"sso-session {session}", "sso_region", fallback=None)
+    return parser.get(profile, "sso_region", fallback=None)
 
 
 def p20(ctx: Context) -> Result:

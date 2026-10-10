@@ -1009,8 +1009,44 @@ def test_p19_prods_aws_directory(prod: Stage) -> None:
         "adapters:\n  local: {kind: local}\n  bedrock: {kind: paid}\nenvs:\n  prod: {primary: local, fallback: bedrock}\n  dev: {primary: local}\n",
     )
     assert "[profile h4reet-bedrock]" in prod.results()["P19"].reason
-    prod.write(aws / "config", "[profile h4reet-bedrock]\nsso_session = x\n")
+    # The profile's SSO region is its sso-session's, and must be us-east-1 (tasks.md T194).
+    prod.write(
+        aws / "config",
+        "[profile h4reet-bedrock]\nsso_session = x\n\n[sso-session x]\nsso_region = us-east-1\n",
+    )
     assert prod.results()["P19"].status == "PASS"
+    prod.write(aws / "config", "[profile h4reet-bedrock]\nsso_session = x\n")
+    assert "SSO region is not set" in prod.results()["P19"].reason
+    prod.write(
+        aws / "config",
+        "[profile h4reet-bedrock]\nsso_session = x\n\n[sso-session x]\nsso_region = eu-west-1\n",
+    )
+    assert "SSO region is eu-west-1" in prod.results()["P19"].reason
+    prod.write(
+        aws / "config",
+        "[profile h4reet-bedrock]\nsso_start_url = https://example.invalid/start\nsso_region = us-east-1\n",
+    )
+    assert prod.results()["P19"].status == "PASS"  # a legacy profile names its own
+
+
+def test_p19_refuses_a_linked_aws_directory(prod: Stage, tmp_path: Path) -> None:
+    # A link would put prod's mount wherever it points, the Author's own ~/.aws among them (tasks.md T194).
+    aws = prod.home / ".config/h4reet-ai/aws-home/.aws"
+    real = tmp_path / "elsewhere-aws"
+    real.mkdir(mode=0o700)
+    real.chmod(0o700)
+    aws.rmdir()
+    aws.symlink_to(real)
+    result = prod.results()["P19"]
+    assert result.status == "FAIL" and f"{aws} is a symbolic link" in result.reason
+    aws.unlink()
+    home = aws.parent
+    moved = tmp_path / "elsewhere-home"
+    home.rename(moved)
+    (moved / ".aws").mkdir(mode=0o700, exist_ok=True)
+    home.symlink_to(moved)
+    result = prod.results()["P19"]
+    assert result.status == "FAIL" and f"{home} is a symbolic link" in result.reason
 
 
 def test_p20_dev_cpu_from_the_main_tree_only(devcpu: Stage) -> None:

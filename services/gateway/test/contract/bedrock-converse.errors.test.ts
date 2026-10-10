@@ -231,6 +231,9 @@ describe("the Bedrock adapter's health (§3.2's health probe)", () => {
   it("is credentials when they have expired, when the chain fails, or when it outlasts the probe", async () => {
     const expired = adapter({ deps: { credentials: async () => ({ expiration: new Date(Date.now() - 1) }) } });
     expect(await expired.health(AbortSignal.timeout(1_000))).toMatchObject({ healthy: false, reason: "credentials" });
+    // A long-term key never expires, and FR-013 allows none (tasks.md T194).
+    const forever = adapter({ deps: { credentials: async () => ({}) } });
+    expect(await forever.health(AbortSignal.timeout(1_000))).toMatchObject({ healthy: false, reason: "credentials" });
     const failing = adapter({
       deps: {
         credentials: async () => {
