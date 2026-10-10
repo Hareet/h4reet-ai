@@ -485,7 +485,7 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 5
 
-- [X] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review). Its name lookups, the SSO refresh's included, go through c-ares: the credential chain gets the same handler as `clientConfig.requestHandler` (§3.2's name-lookup row, from T189). It decides whether the SDK may refresh the SSO token in memory, which token-providers 3.1147.0 does in the token's last 5 minutes, contacting `oidc.us-east-1.amazonaws.com` while running (plan.md's correction, US2's round 9).
+- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review). Its name lookups, the SSO refresh's included, go through c-ares: the credential chain gets the same handler as `clientConfig.requestHandler` (§3.2's name-lookup row, from T189). It decides whether the SDK may refresh the SSO token in memory, which token-providers 3.1147.0 does in the token's last 5 minutes, contacting `oidc.us-east-1.amazonaws.com` while running (plan.md's correction, US2's round 9).
   - `ConverseCommand` in us-east-1, `maxAttempts: 1`, `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000, httpsAgent})`, with `httpsAgent` keeping the SDK default's `keepAlive: true` and `maxSockets: 50` and adding `lookup: aresLookup`;
   - one retry, only on `ThrottlingException`;
   - a timeout counts as `possiblyBilled`;
@@ -519,6 +519,15 @@ description: "Task list for spec 000, Local Foundations"
   - **For the Author's acceptance:** two existing test files changed with the registration. The note lists them.
     - `test/unit/registry.test.ts` pins the registered types, and now names bedrock-converse, as its comment anticipated.
     - `test/unit/config.test.ts`'s sample §1.3 error was the unregistered bedrock-converse type. It now passes the pre-T102 type set explicitly, and keeps its assertions.
+
+  Reopened on 2026-10-10 by the branch's review: it was marked done without its circuit breaker.
+  - **The circuit breaker** (provider-adapter.md §6 item 5, and its readings there) has landed since. `AdapterHealth` combines it with the probes, and the type spec's `circuit()` gives its settings.
+    - It counts calls' ends, opens after 3 counted failures in a row, and holds fallback calls at admission as `fallback_unavailable`.
+    - After `open_s`, the first fallback call is the trial: its success closes the circuit, and its failure opens it for another `open_s`.
+    - Entering `circuit_open` raises T152's `fallback_unavailable` alert through the existing hook.
+    - `auth` on a paid adapter now reads as `credentials` (§2.5's auth row).
+    - `test/unit/circuit.test.ts` covers the state machine and the circuit around Bedrock's calls. Each behavior fails a test when taken out (15 mutations, checked).
+  - **Still open:** the `credentials.expiring` log record (telemetry.md §5.2), and moving the refresh decision to T105, which the Author takes.
 - [ ] T103 [US5] Implement `POST /admin/adapters/{id}/complete` per contracts/operator-admin.md §5: local on any stack, bedrock on prod only, attribution `test`, through admission. Add `scripts/operator.py contract-record` and `make contract-live ENV=prod ADAPTER=local|bedrock`, which records in the Author's terminal and replays in the devcontainer image with `--network none` (§7).
   Partly done on 2026-10-10: the endpoint.
   - `src/routes/adapters.ts` validates §5's body and answers 200, 502, 404, 400, 415, 429, or 503.

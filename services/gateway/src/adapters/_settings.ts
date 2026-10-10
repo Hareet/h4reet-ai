@@ -36,6 +36,14 @@ export interface HealthCadence {
   healthyAfter: number;
 }
 
+/** A circuit breaker's settings, on the real clock (provider-adapter.md §6 item 5). */
+export interface CircuitSettings {
+  /** Counted failures in a row that open it. */
+  failures: number;
+  /** How long it stays open before a trial call, ms. */
+  openMs: number;
+}
+
 export interface AdapterTypeSpec {
   readonly type: string;
   /** The kinds an adapter of this type may be declared as (rule R5). */
@@ -58,6 +66,8 @@ export interface AdapterTypeSpec {
   readonly label?: string;
   /** A paid type with expiring credentials: how long before the session ends credentials_expiring fires (alerts.md §2). */
   credentialsWarnMs?(settings: Record<string, unknown>): number;
+  /** A type with a circuit breaker, from its `circuit` settings (provider-adapter.md §6 item 5). */
+  circuit?(settings: Record<string, unknown>): CircuitSettings;
 }
 
 /** A value only the Author can supply, such as "<inference-profile ID the Author confirms>" (§0). */
@@ -248,6 +258,7 @@ const bedrockConverse: AdapterTypeSpec = {
   checkEnv: () => [],
   label: "Bedrock",
   credentialsWarnMs: (s) => num(s, "credentials_warn_before_s") * 1_000,
+  circuit: (s) => ({ failures: num(s, "circuit", "failures"), openMs: num(s, "circuit", "open_s") * 1_000 }),
 };
 
 const synthetic: AdapterTypeSpec = {
