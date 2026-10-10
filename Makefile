@@ -347,6 +347,14 @@ isolation-check: ## (the Author) With prod and dev up: neither reaches the other
 init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its template; SYNC=1 adds new keys
 	$(PY_HOST) deploy/scripts/init_env.py --stack $(ENV) $(if $(filter 1,$(SYNC)),--sync)
 
+# prod's Bedrock session (plan §4 and §5.2; research.md R-17; tasks.md T104): aws sso login for the runtime identity's
+# profile, with HOME at ~/.config/h4reet-ai/aws-home, whose .aws prod's gateway mounts read-only. Only prod has one:
+# dev and dev-cpu mount deploy/aws-none. Agent sessions can't read that directory, and the script refuses them too.
+aws-login: ## (the Author) A new SSO session for prod's Bedrock identity: aws sso login --profile h4reet-bedrock
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make aws-login is the Author's: it writes prod's Bedrock session to ~/.config/h4reet-ai, which agent sessions can't read" >&2; exit 2; }
+	@[ "$(ENV)" = prod ] || { echo "make aws-login ENV=$(ENV): the session is prod's alone; dev and dev-cpu mount deploy/aws-none and route no paid adapter" >&2; exit 2; }
+	bash deploy/scripts/aws-login.sh
+
 # The operator CLI (contracts/operator-admin.md §6, §6.1): scripts/operator.py, by path through PY_HOST, because it
 # holds the operator token. prod and dev are the Author's, with ~/.config/h4reet-ai/operator/<stack>.token. dev-cpu's
 # token is the committed public dummy. The CLI reaches dev-cpu's admin listener at 127.0.0.1:18303 from your terminal,
@@ -463,4 +471,4 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
 	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
-	init-env operator-token operator-status operator-init hello isolation-check breach-test plan
+	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
