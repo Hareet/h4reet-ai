@@ -45,8 +45,9 @@ const failed = (kind: ProviderErrorKind): AttemptOutcome => ({
 });
 
 /** One AdapterHealth on a clock the test moves (or the real one), its flips and its unhealthy reasons recorded. */
-function healthRig(o: { kind?: "paid" | "local"; circuit?: boolean; openMs?: number; realClock?: boolean } = {}) {
+function healthRig(o: { kind?: "paid" | "local"; circuit?: boolean; openMs?: number; clock?: "real" | "slow" } = {}) {
   const clock = { now: T0 };
+  const slowStart = Date.now();
   let next: HealthStatus = { healthy: true, checkedAt: new Date(T0).toISOString() };
   const adapter: ProviderAdapter = {
     id: o.kind === "local" ? "local" : "bedrock",
@@ -64,7 +65,13 @@ function healthRig(o: { kind?: "paid" | "local"; circuit?: boolean; openMs?: num
   const flips: string[] = [];
   const reasons: string[] = [];
   const h = new AdapterHealth(adapter, CADENCE, {
-    realNow: o.realClock === true ? Date.now : () => clock.now,
+    // "slow" runs at half the real clock's speed, so a timer fires before this clock says its time is up.
+    realNow:
+      o.clock === "real"
+        ? Date.now
+        : o.clock === "slow"
+          ? () => slowStart + (Date.now() - slowStart) / 2
+          : () => clock.now,
     onChange: (x) => flips.push(x.status().healthy ? "healthy" : `unhealthy ${String(x.status().reason)}`),
     onUnhealthy: (x) => reasons.push(String(x.status().reason)),
     ...(o.circuit === false ? {} : { circuit: { failures: 3, openMs: o.openMs ?? 30_000 } }),
@@ -207,11 +214,19 @@ describe("AdapterHealth's circuit (provider-adapter.md §6 item 5)", () => {
   });
 
   it("turns half-open on its own: the effective health moves when the time is up, without a read", async () => {
-    const r = await healthy({ realClock: true, openMs: 40 });
+    const r = await healthy({ clock: "real", openMs: 40 });
     r.open();
     await vi.waitFor(() => expect(r.flips.at(-1)).toBe("healthy"), { timeout: 2_000, interval: 10 });
     expect(r.flips).toEqual(["healthy", "unhealthy circuit_open", "healthy"]);
     r.h.stop(); // and stop() clears a pending turn
+  });
+
+  it("turns half-open on its own when its timer fires before the clock says the time is up", async () => {
+    const r = await healthy({ clock: "slow", openMs: 40 }); // the timer fires at 40 real ms: 20 on this clock
+    r.open();
+    await vi.waitFor(() => expect(r.flips.at(-1)).toBe("healthy"), { timeout: 2_000, interval: 10 });
+    expect(r.flips).toEqual(["healthy", "unhealthy circuit_open", "healthy"]);
+    r.h.stop();
   });
 
   it("never opens for an adapter whose type has no circuit", async () => {

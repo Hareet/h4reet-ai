@@ -445,11 +445,25 @@ export class AdapterHealth {
     if (this.halfOpenTimer !== undefined) clearTimeout(this.halfOpenTimer);
     this.halfOpenTimer = undefined;
     this.openedAt = circuit === undefined ? undefined : this.opts.realNow();
-    if (circuit !== undefined) {
-      this.halfOpenTimer = setTimeout(() => this.update(), circuit.openMs);
-      this.halfOpenTimer.unref();
-    }
+    if (circuit !== undefined) this.scheduleHalfOpen(circuit.openMs);
     this.update();
+  }
+
+  /**
+   * The turn to half-open, for the gauge and the log. A timer can fire before the real clock says the time is up (its
+   * clock isn't Date.now's), so one that finds the circuit still open waits out the rest.
+   */
+  private scheduleHalfOpen(delayMs: number): void {
+    this.halfOpenTimer = setTimeout(() => {
+      this.halfOpenTimer = undefined;
+      const { openedAt } = this;
+      if (openedAt !== undefined && this.phase() === "open") {
+        this.scheduleHalfOpen(Math.max(1, (this.opts.circuit?.openMs ?? 0) - (this.opts.realNow() - openedAt)));
+        return;
+      }
+      this.update();
+    }, delayMs);
+    this.halfOpenTimer.unref();
   }
 
   /** Closed; open, for `openMs` after it opened; then half-open until a call's end closes or reopens it. */
