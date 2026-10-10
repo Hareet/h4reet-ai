@@ -1,9 +1,12 @@
-"""docs/data-flow-disclosure.md against the code whose flows it lists (spec 000 FR-040; plan §17; tasks.md T083, T106).
+"""docs/data-flow-disclosure.md against the code whose flows it lists (spec 000 FR-040; plan §17; tasks.md T083, T106,
+T110).
 
 The compose policy already requires a row for every service (tools/gates/compose_policy.py). These hold rows to what
 the code does: the breach probe's row names exactly the services evals/breach_probe.py calls, and the alerts' rows
 name the Telegram Bot API and the alerts mailbox, which the gateway's egress row points at. Bedrock's two rows keep
 plan §17's words, name the region config/routing.yaml must use, and name the SSO token's refresh while prod runs.
+Every flow plan §17 lists has its row (T110); the rows T110 adds keep the plan's words too, and say what their code
+does; the file closes with FR-040's sentence; and SECURITY.md links it.
 """
 
 from __future__ import annotations
@@ -188,3 +191,129 @@ def test_the_telegram_row_says_what_puts_dev_back_on_the_stand_ins() -> None:
     off = rows()["A1"][6]  # how to switch it off
     assert "success or not" not in off
     assert "SIGKILL" in off and "`make up ENV=dev`" in off
+
+
+# plan §17's flows, each with the row that discloses it (tasks.md T110). A flow the plan adds fails here until it has
+# its row, and a row's ID can't vanish from the file.
+PLAN_FLOWS = {
+    "Bedrock fallback": "F1",
+    "AWS SSO credential exchange": "F2",
+    "Telegram alerts": "A1",
+    "Email alerts": "A2",
+    "Image pulls": "P1",
+    "Image builds": "P2",
+    "Model downloads": "P3",
+    "Third-party phone-homes": "H1",
+    "Development time: Claude Code": "D1",
+    "Development time: the engine's proxied pulls": "E1",
+    "The Author's browser": "B1",
+    "The devcontainer build": "D2",
+    "`make tools`": "D3",
+}
+# The rows T110 adds, which carry the plan's words in their cells as F1 and F2 do.
+T110_ROWS = {
+    "D1": "Development time: Claude Code",
+    "D2": "The devcontainer build",
+    "D3": "`make tools`",
+}
+
+
+def plan_flows() -> list[str]:
+    """The Flow cell of every row of plan §17's table."""
+    start = PLAN.index("\n## 17. ")
+    flows = []
+    for line in PLAN[start : PLAN.index("\n## 18. ", start)].splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if (
+            line.startswith("| ")
+            and len(cells) == 5
+            and cells[0] != "Flow"
+            and not cells[0].startswith("---")
+        ):
+            flows.append(cells[0])
+    return flows
+
+
+def test_every_flow_plan_17_lists_has_its_row() -> None:
+    flows = plan_flows()
+    assert len(flows) >= 13  # not vacuous: the table parses
+    assert sorted(flows) == sorted(PLAN_FLOWS)
+    found = rows()
+    assert [PLAN_FLOWS[f] for f in flows if PLAN_FLOWS[f] not in found] == []
+
+
+def test_the_rows_t110_adds_keep_plan_17s_words() -> None:
+    # As for F1 and F2: a row is a privacy promise, so the plan's own words are in it, each cell's beside the reading
+    # the row adds (CLAUDE.md): the destination in From → To, When in Trigger, Carries in Carries, and the control in
+    # How to switch it off.
+    found = rows()
+    for row_id, flow in T110_ROWS.items():
+        destination, carries, when, control = plan_row(flow)
+        from_to, trigger, carried, never, why, default, off, fr = found[row_id]
+        assert destination in from_to, row_id
+        assert when in trigger, row_id
+        assert carries in carried, row_id
+        assert control in off, row_id
+        assert "FR-040" in fr, row_id
+        assert all((never, why, default)), row_id
+
+
+def test_the_claude_code_row_names_what_keeps_secrets_out_of_a_session() -> None:
+    # The plan's control is "the sandbox, the deny lists": the row says what they keep out, by the requirement and the
+    # contract that list it, and that the stack itself never calls Anthropic.
+    from_to, _trigger, _carried, never, _why, default, _off, fr = rows()["D1"]
+    assert "FR-007" in never and "contracts/env-files.md §8" in never
+    assert "FR-037" in fr and "FR-007" in fr
+    assert "Claude Code" in from_to
+    assert "never" in default.lower()
+
+
+def test_the_devcontainer_row_names_every_registry_its_build_reaches() -> None:
+    # .devcontainer/Dockerfile's bases come from the registries its FROM lines name, and devcontainer.json runs
+    # make setup (npm ci) when it opens: the row names each.
+    dockerfile = (REPO / ".devcontainer" / "Dockerfile").read_text(encoding="utf-8")
+    registries = set(
+        re.findall(r"^FROM ([a-z0-9.-]+\.[a-z]+)/", dockerfile, re.MULTILINE)
+    )
+    assert registries == {"public.ecr.aws", "ghcr.io"}
+    from_to = rows()["D2"][0]
+    assert all(f"`{r}`" in from_to for r in registries), registries
+    assert (
+        "`pkg-containers.githubusercontent.com`" in from_to
+    )  # ghcr.io's blobs, as P1 says
+    devcontainer = (REPO / ".devcontainer" / "devcontainer.json").read_text(
+        encoding="utf-8"
+    )
+    assert '"postCreateCommand": "make setup"' in devcontainer
+    assert "`make setup`" in from_to and "`npm ci --ignore-scripts`" in from_to
+
+
+def test_the_make_tools_row_says_what_install_tools_does() -> None:
+    # tools/gates/install-tools.sh: Node through nvm, pytest through uv without the requirements file's hashes, the
+    # gitleaks image from ghcr.io, and the lint toolchain with npm's audit and funding checks off.
+    script = (REPO / "tools" / "gates" / "install-tools.sh").read_text(encoding="utf-8")
+    assert "nvm install" in script and "uv tool install --no-config" in script
+    comments = " ".join(
+        line.strip().removeprefix("#").strip()
+        for line in script.splitlines()
+        if line.strip().startswith("#")
+    )
+    assert "uv doesn't check that file's hashes on this path" in comments
+    assert "ghcr.io/gitleaks/gitleaks" in script and "--no-audit --no-fund" in script
+    from_to, _trigger, _carried, never, _why, _default, off, _fr = rows()["D3"]
+    assert "`tools/gates/install-tools.sh`" in from_to
+    assert "`pkg-containers.githubusercontent.com`" in from_to
+    assert "`--no-audit --no-fund`" in never
+    assert "without checking its hashes" in off
+
+
+def test_the_disclosure_closes_with_fr_040s_sentence() -> None:
+    spec = (SPEC_DIR / "spec.md").read_text(encoding="utf-8")
+    assert "No visitor data flows in this spec." in spec
+    assert TEXT.rstrip().splitlines()[-1] == "No visitor data flows in this spec."
+    assert "aren't here yet" not in TEXT  # the intro no longer waits for rows
+
+
+def test_security_md_links_the_disclosure() -> None:
+    security = (REPO / "SECURITY.md").read_text(encoding="utf-8")
+    assert "](docs/data-flow-disclosure.md)" in security
