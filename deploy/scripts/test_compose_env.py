@@ -444,9 +444,13 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
         "langfuse-db",
         "valkey",
     ]
-    # ClickHouse runs as its own user, as Langfuse's compose runs it, so its entrypoint changes no ownership.
+    # ClickHouse runs as its own user, as Langfuse's compose runs it, so its entrypoint changes no ownership. SeaweedFS
+    # runs as its image's user, who owns /data (T065's second prod start, 2026-10-09).
     assert SERVICES["clickhouse"]["user"] == "101:101"
-    assert [n for n, s in SERVICES.items() if "user" in s] == ["clickhouse"]
+    assert [n for n, s in SERVICES.items() if "user" in s] == [
+        "clickhouse",
+        "seaweedfs",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -505,12 +509,13 @@ def test_health_checks() -> None:
     # Plan §2: the images' own busybox wget.
     for name, url in (
         ("prometheus", "http://127.0.0.1:9090/-/ready"),
-        ("loki", "http://127.0.0.1:3100/ready"),
         ("grafana", "http://127.0.0.1:3000/api/health"),
     ):
         assert SERVICES[name]["healthcheck"]["test"] == ["CMD", "wget", "-qO-", url]
-    # The collector's image has no shell: Prometheus scrapes it instead (plan §2).
-    assert "healthcheck" not in SERVICES["otel-collector"]
+    # The collector's and Loki's images have no shell and no wget: Prometheus scrapes them instead (plan §2). Loki's
+    # wget check could never run (T065's second prod start, 2026-10-09).
+    for name in ("otel-collector", "loki"):
+        assert "healthcheck" not in SERVICES[name], name
     # Langfuse and its stores (plan §2).
     web = SERVICES["langfuse-web"]["healthcheck"]
     assert web["test"] == [
@@ -559,6 +564,9 @@ def test_valkey_and_seaweedfs_run_as_plan_6_says() -> None:
     ]
     assert SERVICES["seaweedfs"]["entrypoint"] == ["/bin/sh", "/h4/entrypoint.sh"]
     assert "command" not in SERVICES["seaweedfs"]
+    # As the image's own user, seaweed, who owns /data: with every capability dropped, root couldn't write it, and
+    # the master died at "mkdir /data/m9333: permission denied" (T065's second prod start, 2026-10-09).
+    assert SERVICES["seaweedfs"]["user"] == "1000:1000"
 
 
 def test_edge_runs_nginx_without_the_entrypoint_scripts() -> None:

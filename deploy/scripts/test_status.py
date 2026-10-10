@@ -353,6 +353,53 @@ def test_drift_from_the_pin_and_from_the_running_commit(
     )
 
 
+def test_docker_hub_images_match_by_the_short_names_docker_prints(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # docker image inspect prints valkey/valkey@sha256:…, not the lock's docker.io/valkey/valkey: at both of T065's
+    # prod starts (2026-10-09) every Hub image read "differs from the pin". A short name with another digest still
+    # differs.
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    hub = sorted(
+        name for name in docker.digests if LOCK[name][1].startswith("docker.io/")
+    )
+    assert "valkey" in hub and "seaweedfs" in hub
+    for name in hub:
+        docker.digests[name] = [pinned(name).removeprefix("docker.io/")]
+    docker.digests["valkey"] = [f"valkey/valkey@sha256:{'0' * 64}"]
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    notes = {
+        line.split()[0]: line.split(None, 3)[3]
+        for line in out.splitlines()
+        if len(line.split()) >= 4 and line.split()[0] in RAW["services"]
+    }
+    assert {name: notes[name] for name in hub} == {
+        name: "differs from the pin" if name == "valkey" else "pinned" for name in hub
+    }
+    assert "WARN valkey runs an image whose digest isn't deploy/images.lock's" in out
+
+
+@pytest.mark.parametrize(
+    ("reference", "short"),
+    [
+        ("docker.io/valkey/valkey@sha256:aa", "valkey/valkey@sha256:aa"),
+        ("docker.io/library/postgres@sha256:aa", "postgres@sha256:aa"),
+        ("index.docker.io/library/postgres", "postgres"),
+        ("docker.io/library/a/b", "library/a/b"),
+        ("valkey/valkey@sha256:aa", "valkey/valkey@sha256:aa"),
+        (
+            "public.ecr.aws/docker/library/postgres@sha256:aa",
+            "public.ecr.aws/docker/library/postgres@sha256:aa",
+        ),
+        ("ghcr.io/library/x", "ghcr.io/library/x"),
+    ],
+)
+def test_familiar_drops_only_docker_hubs_host(reference: str, short: str) -> None:
+    assert st.familiar(reference) == short
+
+
 def test_dev_cpu_runs_the_working_tree(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

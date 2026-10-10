@@ -119,6 +119,20 @@ def read_lock(path: Path) -> dict[str, tuple[str, str]]:
     return pins
 
 
+def familiar(reference: str) -> str:
+    """A repository, or repository@digest, as Docker prints it: Docker Hub's host dropped, and with it an official
+    image's library/. The lock writes docker.io/valkey/valkey; docker image inspect says valkey/valkey, so every Hub
+    image read "differs from the pin" at both of T065's prod starts (2026-10-09)."""
+    name, at, digest = reference.partition("@")
+    for hub in ("docker.io/", "index.docker.io/"):
+        if name.startswith(hub):
+            name = name.removeprefix(hub)
+            if name.startswith("library/") and name.count("/") == 1:
+                name = name.removeprefix("library/")
+            break
+    return name + at + digest
+
+
 def parse_ps(text: str) -> list[dict]:
     """docker compose ps --format json: one object per line, or (older compose) one array."""
     text = text.strip()
@@ -246,7 +260,11 @@ class Status:
             repo_digests = json.loads(digests.stdout) if digests.returncode == 0 else []
         except json.JSONDecodeError:
             repo_digests = []
-        if f"{pin[0]}@{pin[1]}" in repo_digests:
+        if not isinstance(repo_digests, list):
+            repo_digests = []  # null, for an image with no digests
+        if familiar(f"{pin[0]}@{pin[1]}") in {
+            familiar(d) for d in repo_digests if isinstance(d, str)
+        }:
             return "pinned"
         self.warnings.append(
             f"{name} runs an image whose digest isn't deploy/images.lock's: make up ENV={self.stack}"

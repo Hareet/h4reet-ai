@@ -397,13 +397,8 @@ services:
         source: "${H4_TREE:?set by make up}/deploy/loki/loki.yaml"
         target: /etc/loki/loki.yaml
         read_only: true
-    # /ready answers 503 for a short while after the ingester starts.
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3100/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-      start_period: 60s
+    # The image is distroless: no shell and no wget, so it has no health check here, like the collector's. Prometheus
+    # scrapes it, and nothing waits on it. Its wget check could never run (T065's second prod start, 2026-10-09).
     deploy:
       resources:
         limits:
@@ -645,6 +640,10 @@ services:
   seaweedfs:
     <<: *service
     image: docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    # The image's own user, seaweed, uid 1000, which owns /data. The image's entrypoint chowns /data and drops to that
+    # user; ours replaces it, and root with no capabilities can't write a directory it doesn't own. T065's second prod
+    # start, 2026-10-09: the master died at "mkdir /data/m9333: permission denied", and Langfuse never started.
+    user: "1000:1000"
     entrypoint: ["/bin/sh", "/h4/entrypoint.sh"]
     networks: [internal]
     environment:

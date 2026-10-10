@@ -4,9 +4,9 @@ Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phase 3" (2026-10-08, plan mode), given before stepping away for the night; and, on 2026-10-09, "Keep going until you hit the limit again."
 
 **Status: DRAFT. Not ready to merge.** Everything an agent session can do on this branch before the engine exists is done: three review rounds with every finding fixed and verified, the convergence pass, and `make check` at 110b42e with 0 FAIL. What's left needs your hands or the engine:
-- **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. On 2026-10-09 everything up to the seed passed. The seed failed on every image, and T174's patch fixes it ("T063's run" below).
+- **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. Done on 2026-10-09. The seed failed on every image at first, and passed after T174's patch ("T063's run" below). T064's session marks the task done.
 - **T064 (an agent session, after T063):** dev-cpu on the agents' engine, end to end.
-- **T065 (yours):** quickstart.md §1, the cold prod run.
+- **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, and the second at SeaweedFS. T176–T178 fix what the second found, and T179 records the GPU fix you made by hand ("T065's run" below).
 - **T149 (an agent session, after T065):** apply the first stack run's findings.
 - **This note:** T064's and T065's output goes into it, and then this block goes.
 
@@ -27,6 +27,8 @@ ADR 0017 puts this section first. Nothing here has run outside the sandbox: ther
 | **`deploy/agents-engine/engine.sh`'s `chown_state`** (T145) | `engine.sh up` and `engine.sh seed` | It runs one container on the agents' engine, from `images.lock`'s `base:node` digest, with the state root mounted, to make `dev-cpu/gateway` and give it to the container's uid 1000. With no pinned `base:node` it prints a note and does nothing. |
 | **`make image`** and **`make compose-images`** (7f49655) | your terminal, or the gate | They build the live working tree's images, so they build only on the agents' engine: with `DOCKER_HOST=tcp://198.18.0.1:2376`, or through the relay inside the sandbox. On your host's engine they exit 2. |
 | **`docs/merge-requests/2026-10-09-fix-000-us1-seed-transfer.patch`** (T174) | `git apply` on this branch, then `deploy/agents-engine/engine.sh seed` again | It changes seed's transfer in `engine.sh`, and its tests. Each image is saved with every platform the host holds, never `--platform`, then tagged on the engine by its pinned digest. A failure prints the engine's or the host's own last line. "T063's run" below has the evidence. |
+| **`deploy/compose.yaml`'s SeaweedFS user and Loki's health check** (T176, T177) | `make up ENV=…` | SeaweedFS runs as `1000:1000`, the image's own user, still with every capability dropped. Loki loses a health check that could never run. Nothing new runs. "T065's run" below has the evidence. |
+| **`deploy/scripts/status.py`'s pin check** (T178) | `make up`'s last step, and `make status` | It compares strings only: Docker Hub's host, and an official image's `library/`, dropped from both sides. It calls Docker exactly as before. |
 | **`tools/gates/compose_policy.py`** | the sandbox, and later the gate | It reports an image whose `images.lock` entry is still open as PLANNED until tasks.md marks that pin's task done (T063), and as FAIL from then on. Preflight refuses to start a stack with an open pin either way. This becomes human-only with T098: please review it. |
 
 ## What changed and why
@@ -374,6 +376,27 @@ The Author's run, as far as the seed. None of it holds a secret. The env files a
    - `test_preflight.py`'s P18 test read dev-cpu's real `/run/h4agents/models`, where the seed had put the stand-in model.
 
    The code was right both times. Each test now gets its own fixture, keeping the scenario it tests: SeaweedFS unpinned in its copy, and dev-cpu's `H4_MODEL_DIR` inside the test. That is a test change during a fix, so here is why: only the fixtures changed, not what the tests assert.
+7. **The seed's second run,** after the patch (e745177): 18 images seeded, `ubuntu:24.04` already present, the stand-in model copied, and dev-cpu's state directory made. "seed complete".
+
+## T065's run (2026-10-09)
+
+The Author's two `make up ENV=prod` runs at e745177, as far as the second one's health checks. Status's output goes through `redact.sh`, and none of it holds a secret.
+1. **The first start stopped at the GPU.** The other containers started; model-server-gpu didn't: "nvidia-container-cli: initialization error: nvml error: not supported". A diagnostic narrowed it down:
+   - `nvidia-container-cli info` failed with the same error as nobody (65534), and worked as root and as root:`h4gpu`.
+   - H6 sets `/dev/dxg` to 0660 root:`h4gpu`. The NVIDIA hook's CLI runs its driver step as an unprivileged user unless `nvidia-container-cli.user` is set, and that user can't open the device. `/etc/nvidia-container-runtime/config.toml` had only the commented `#user = "root:video"`.
+   - **Your fix, by hand:** `sudo nvidia-ctk config --in-place --set nvidia-container-cli.user=root:h4gpu`. The second start ran the model server, which was still loading when status printed.
+   - **T179** puts the setting into `setup-host.sh`, as a patch, and corrects H6's "Rootful Docker runs as root and keeps the GPU".
+2. **The second start stopped at SeaweedFS:** "dependency failed to start: container h4reet-prod-seaweedfs-1 is unhealthy", so langfuse-web and langfuse-worker stayed created. Three things were wrong:
+   - **SeaweedFS (T176):** the master died at "mkdir /data/m9333: permission denied". The image sets no `USER`. Its own entrypoint chowns `/data` and drops to `seaweed`, uid 1000. Ours replaces it, so the server ran as root with every capability dropped, which can't write a directory it doesn't own. On the agents' engine, the pinned image ran as `1000:1000` with our entrypoint, `--cap-drop ALL`, and `--tmpfs /tmp`. It started the master, the volume server, the filer, and S3, and printed "seaweedfs entrypoint: the langfuse bucket is ready", which the entrypoint prints right after it writes the ready file the health check reads.
+   - **Loki (T177):** its health check could never run: "exec: "wget": executable file not found in $PATH". The 3.7.8 image is distroless: user 10001, entrypoint `/usr/bin/loki`, no `/bin/sh` or `/busybox/sh`, and no health flag. Plan §2 said its busybox had been checked at pin time. Like the collector, it now has no compose health check: Prometheus scrapes it, and nothing waits on it.
+   - **Status (T178):** ClickHouse, Grafana, Loki, SeaweedFS, and Valkey read "differs from the pin" at both starts, each with a WARN line. They are the five Docker Hub images, and the only ones. Docker prints them by their short names: on the agents' engine, `valkey/valkey@sha256:081c2f5c…` and `chrislusf/seaweedfs@sha256:4e61d15f…`, while nginx's stays in full, `ghcr.io/nginx/nginx-unprivileged@sha256:15c994d1…`. The lock writes `docker.io/…`, so the strings never matched, though the digests did.
+3. **To watch at the trace step (§1.4):** SeaweedFS's S3 logs "Failed to load IAM configuration: no signing key found for STS service" as it starts, then serves on 8333. The entrypoint creates the bucket through `weed shell`, not through S3. The trace step shows whether Langfuse's uploads authenticate with the keys in `s3.json`.
+4. **Seen while starting, not failures:** the model server's 503 while the model loads, within its 300 s start period; Grafana's "Connection refused" before it listens; Loki's "empty ring" as it starts. Valkey warns "Memory overcommit must be enabled!", a host sysctl. It runs, and T149 can decide whether that matters.
+5. **Disk:** at the first start, `docker system df` counted 65 local volumes holding 127.2 GB, with 8 in use and 127.1 GB reclaimable. The 57 that no container uses aren't this stack's running volumes, and may be other projects'. Check what they belong to before §1.2's cold start, and prune nothing blindly.
+
+**The fix's checks,** in its worktree, before the commit: `make check ENGINE_MODE=none-yet` gave 8 PASS, 2 SKIP (secrets, T091; the image gate, held back here to spare the engine the builds), and 1 FAIL. The failure is `toolchain-check`: Claude Code updated itself to 2.1.296, against its pin of 2.1.295, as the engine-bringup note says; re-pinning or rolling back is your call. The gateway has 362 tests passing, and pytest has 1349.
+
+**Resume** once this fix is merged into the branch: §1.1 again, from `make up ENV=prod`.
 
 ## For the Author
 
