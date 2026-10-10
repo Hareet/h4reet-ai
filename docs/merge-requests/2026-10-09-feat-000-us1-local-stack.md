@@ -951,11 +951,13 @@ exit 2
 3. **Say yes or no to T183's patch,** a `GNUmakefile` that only includes the Makefile, so agent sessions can run plain `make` (the sandbox binds a denied file that exists read-only, as it binds `CLAUDE.md`), with a gate check that holds it to its text. Its note, `docs/merge-requests/2026-10-09-fix-000-agents-make.md`, has both answers' steps. The branch itself also fixes what the patch's review found, and that part needs no decision: make copied a planted `Makefile.sh` over the Makefile and ran it.
 4. **Decide T184:** one gateway build both stacks share, or today's per-stack builds with identical layers. spec.md's Assumptions record it as pending. Either answer is a short edit there, then a task for the build if you want it.
 5. **Then this branch merges to main,** once the status block at the top is gone. I can take it out when you've done 2 to 4.
-6. **After main has it, US2** (`feat/000-us2-kill-switch`) merges main. On 2026-10-09 a simulated merge, of US2 with this stack's tip, needed two things, and with both, `make check` passed apart from the toolchain pin and US2's planned matrix rows (T117):
+6. **After main has it, US2** (`feat/000-us2-kill-switch`) merges main. A simulated merge of US2 with this stack's tip needed two things. I ran it on 2026-10-09, and again on 2026-10-10 against the new tip (792d8f2). With both, `make check` passed, apart from the toolchain pin and US2's planned matrix rows (T117):
    - **one conflict,** in `docs/data-flow-disclosure.md`: keep US2's rows S11–A2, and this branch's row B1;
    - **one line** no conflict shows: US2's `evals/standins/Dockerfile` must take `base:python`'s new digest, `a6e34c598f24…`, as 5c2a089 did for the probe. The compose policy and `test_the_standin_image` fail without it.
 
-   Then T084, the breach test, on the engine.
+   Then T187 and T188, then T084, the breach test, on the engine. T084's pre-run found those two on 2026-10-10, on that simulation (`sim/000-us2-on-us1-stack`, never to be merged). It passed 45 of 52 assertions, and US2's note has the run:
+   - **T187:** the probe's trace reads hit Langfuse v4's 404s;
+   - **T188:** Telegram alerts time out while the local model server is down, because the gateway's hung DNS lookups of the stopped server starve its other lookups.
 
 ### For later tasks
 
