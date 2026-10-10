@@ -401,7 +401,20 @@ The Author's four `make up ENV=prod` runs: two at e745177, one at a6b0e80 after 
    - **`make operator-status`:** "prod  state normal since 2026-10-10T03:29:16Z · store ok"; day 0.00 / 5.00 USD, month 0.00 / 20.00 USD, fallback today 0.00 / 2.00 USD with "awaiting renewal: no"; "adapters       local healthy".
    - **"alerts         1 pending, 0 failed in the last 24 h"** is init's confirmation alert, queued in the outbox in init's own transaction. Nothing delivers alerts until the dispatcher (T077), so no Telegram message or email comes yet.
    - **§1.1's record:** each command exited 0; the audit row is #1.
-5. **To watch at the trace step (§1.4):** SeaweedFS's S3 logs "Failed to load IAM configuration: no signing key found for STS service" as it starts, then serves on 8333. The entrypoint creates the bucket through `weed shell`, not through S3. The trace step shows whether Langfuse's uploads authenticate with the keys in `s3.json`.
+   - **§1.3, hello:** 200, with `"route":"local"`, `"provider":"local"`, `"model":"qwen3-30b-a3b-instruct-2507"`, usage 68 tokens in and 10 out, `"cost_micro_usd":0`, `"latency_ms":820`, and trace `ef6da123179773c36bfa3b2643afbc7f`.
+   - **§1.4, the trace, in Langfuse:** the root `POST /hello` (0.82 s), `gateway.route`, and the generation `chat qwen3-30b-a3b-instruct-2507` (0.81 s, 78 tokens, $0.00), with env `prod`. Fastify's hook spans, the `pg` spans, and the client's `POST` under the generation are there too, as telemetry.md §3.1–§3.2 allow. Still to confirm: no input or output on the generation.
+   - **§1.5, Grafana: not yet.**
+     - Model-server health is 1, with its target up.
+     - The request and latency panels showed nothing for the first hello. After four more, through prod-diag1, the panels' queries gave 0.039 requests/s and a p95 of 1.8 s. A new counter series starts at 1, so `rate()` and `increase()` never see its first increment.
+     - The collector's panels can't show at all. Prometheus 3 scrapes the collector's own metrics as UTF-8 names without `_total`: `otelcol_exporter_sent_spans` went from 47 to 99, and `otelcol_processor_filter_spans.filtered` keeps its dot. The dashboard asks for `otelcol_exporter_sent_spans_total`, and the same for the failure, drop, and refusal counters, which exist only after their first count.
+     - The error rate's "no data" is right, with no errors. T149 now lists both findings.
+   - **§1.6, the measurements:**
+     - **VRAM (R-03):** 21,768 of 24,463 MiB used with the prod model loaded, after the hello; the estimate was 21.3 GiB.
+     - **Egress from the internal network (R-06):** "curl: (6) Could not resolve host: example.com", with exit 6 and no HTTP code.
+     - **A port published from the internal network (R-06):** "curl: (7) Failed to connect to 127.0.0.1 port 18992 after 0 ms: Couldn't connect to server".
+     - **Prometheus 3.15.0:** no feature flags, OTLP translation `UnderscoreEscapingWithSuffixes`, and all six targets up.
+     - **The telemetry facts (telemetry.md §8):** the dashboard's four `llamacpp:` names exist as written. Which cost attribute Langfuse reads can't be told yet, since every local call costs 0. gzip is T149's, on dev-cpu.
+5. **To watch at the trace step (§1.4):** SeaweedFS's S3 logs "Failed to load IAM configuration: no signing key found for STS service" as it starts, then serves on 8333. The entrypoint creates the bucket through `weed shell`, not through S3. The trace step shows whether Langfuse's uploads authenticate with the keys in `s3.json`. **Answered at §1.4:** the trace arrived, so they do.
 6. **Seen while starting, not failures:** the model server's 503 while the model loads, within its 300 s start period; Grafana's "Connection refused" before it listens; Loki's "empty ring" as it starts. Valkey warns "Memory overcommit must be enabled!", a host sysctl. It runs, and T149 can decide whether that matters.
 7. **Disk:** at the first start, `docker system df` counted 65 local volumes holding 127.2 GB, with 8 in use and 127.1 GB reclaimable. The 57 that no container uses aren't this stack's running volumes, and may be other projects'. Check what they belong to before §1.2's cold start, and prune nothing blindly.
 8. **Test changes in a fix, and why.** Each follows a plan line this branch changes; none bends a test to fit the code:
@@ -567,7 +580,7 @@ exit 2
 
 </details>
 
-**Next:** §1.3–§1.6 at aa69d8d, then §1.2's timed cold start, which removes the images and the model.
+**Next:** §1.2's timed cold start, which removes the images and the model; then §1.7 with dev up, §1.8's port scan from another machine, and §1.12's rollback rehearsal on dev. §1.5's panels wait for T149.
 
 ## For the Author
 
