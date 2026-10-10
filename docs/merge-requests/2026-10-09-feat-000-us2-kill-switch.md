@@ -4,7 +4,7 @@ Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
 **Status: DRAFT. Not ready to merge.** Every task an agent session can do before the engine exists is done, reviewed, and passes `make check`. What's left needs the engine or your hands:
-- **T084 (an agent session, on the engine):** `make breach-test ENV=dev-cpu` passes all 12 steps.
+- **T084 (an agent session, on the engine):** `make breach-test ENV=dev-cpu` passes all 12 steps. Its pre-run, on a simulated merge with the us1 stack (2026-10-10), passed 45 of 52 assertions; T187 and T188 fix the seven misses ("T084's pre-run" below).
 - **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
 - **This note:** both runs' output goes into it, and then this block goes.
 
@@ -325,6 +325,128 @@ make check: 4 PASS, 2 SKIP, 5 PLANNED, 0 PENDING, 0 FAIL
 
 </details>
 
+## T084's pre-run (2026-10-10, on a simulated merge)
+
+**This isn't T084 itself.** T084 runs on this branch once it has merged main. This run used `sim/000-us2-on-us1-stack` (222a58c):
+- what it holds: this branch's tip (d4cc4c3) and the us1 stack's tip (792d8f2), merged with `git merge-tree` and the recipe in the us1 note's step 6;
+- how it's kept: squashed into one commit, never to be merged;
+- how it ran: the main tree was detached at it for the run, as dev-cpu requires, and switched back after.
+
+**How it ran:** from the main tree, in an agent session, on the agents' engine, with no other agent running. A preflight came first: C: had 67 GB free, 58 GB of memory was available, and the engine was idle.
+- `deploy/agents-engine/docker-relay make -f Makefile --no-print-directory up ENV=dev-cpu`: healthy in 1:15. Every service was healthy, the stand-ins included, and 6 Prometheus targets were up.
+- The same with `breach-test ENV=dev-cpu`: 1,405 s, exit 1.
+- The same with `down ENV=dev-cpu`: 19 removed, and the engine idle after.
+
+The relay's own `make` names the file because of T183's mask.
+
+**The result:** 52 assertions, 45 passed, 7 missed. Every metric assertion passed (25 of 25), both trace assertions missed (0 of 2), and 20 of 25 log assertions passed. These passed:
+- the kill switch, with its trips and resets;
+- the incident draft;
+- the store failing closed, and its rebuild from the journal;
+- every alert, except the fallback alerts on Telegram.
+
+**The two findings, both this branch's:**
+- **T187, the trace reads (2a, 9c):** the probe reads `/api/public/traces/{id}`, then `/api/public/observations`, and Langfuse v4's events_only mode answers 404 to both. On the run's stack, `/api/public/v2/observations?traceId=<id>&fields=core,basic,usage,cost` answered 200, with the trace's observations and the cost the probe reads.
+- **T188, Telegram while the local model is down (4b, 4c, 5c, 5d, 6c):** every Telegram attempt timed out while `model-server-cpu` was stopped (steps 4 to 7), and email delivered every alert.
+  - **The cause:** on the agents' engine, each of the gateway's DNS lookups of the stopped `model-server` hangs 8 s and fails with `EAI_AGAIN`. They fill libuv's four-thread pool, and starve the Telegram sender's own lookup past its timeout: 17.4 s behind five of them, against 2 ms alone.
+  - **Why it matters:** in production, that is the moment the fallback alerts are for.
+
+**Also seen:** the Telegram stand-in printed a `ConnectionResetError` traceback once, when a health check's client hung up early. It answered every request.
+
+<details><summary>make breach-test ENV=dev-cpu, the whole output (the incident draft's sha256 cut to 12 characters, since the content scan refuses 64-hex strings)</summary>
+
+```
+python3 -I -B -X pycache_prefix=/dev/null ./evals/breach.py --stack dev-cpu --env-file deploy/env.agents/dev-cpu.vars
+breach test: h4reet-dev-cpu, checking /health first
+step 1 · a clean start: the store wiped, initialized, and the clock on the 20th
+  docker compose stop gateway-state
+  docker compose rm gateway-state
+  docker volume rm h4reet-dev-cpu_gateway-state-data
+  docker compose up gateway-state
+step 2 · US2-1: one metered call, $0.10
+step 3 · US2-2: metered calls to $3.50 today, the daily warning
+step 4 · the 21st: the model server stopped, and fallback calls to $1.40, then $1.50
+  docker compose stop model-server-cpu
+step 5 · US5-7: a restart keeps fallback's 1.50; five more calls spend it, the sixth is refused
+  docker compose restart gateway
+step 6 · US5-6: a same-day renewal grants $2 more; the next day's grants $2, not $4
+  docker compose restart gateway
+step 7 · US2-3: the model server back, and metered calls to $5.00 today: the kill switch trips
+  docker compose start model-server-cpu
+step 8 · US2-6: the incident draft, with its evidence
+2026/10/10 01:57:20 socat[6] W waitpid(-1, {}, WNOHANG): no child has exited
+step 9 · US2-4: a reset brings local answers back; metered calls stay refused at the ceiling
+step 10 · US2-5: the month to $20.00 trips; rollovers leave it degraded until a reset
+step 11 · US2-7: the store stopped, then wiped: fail closed, then rebuilt from the journal
+  docker compose stop gateway-state
+  docker compose rm gateway-state
+  docker volume rm h4reet-dev-cpu_gateway-state-data
+  docker compose up gateway-state
+
+id   step scenario source result assertion
+1a   1    setup    M      PASS   the kill switch reads normal once the store is initialized (observed ['normal'], seen 9.359 s after its action)
+1b   1    setup    M      PASS   on the test clock's 20th, today and this month read 0.00 (observed 0.0, seen 9.363 s after its action; observed 0.0, seen 9.366 s after its action)
+1c   1    setup    L      PASS   operator.init and operator.test_clock audit records (2026-10-10T07:37:04.679Z, seen 14.154 s after its action; 2026-10-10T07:37:09.466Z, seen 9.383 s after its action)
+2a   2    US2-1    T      MISS   the metered call's trace carries h4.cost.usd = 0.10 (observed None, in 57.253 s)
+2b   2    US2-1    M      PASS   today and this month show the 0.10 within 60 s (observed 0.1, seen 60.0 s after its action; observed 0.1, seen 60.0 s after its action)
+3a   3    US2-2    L      PASS   the daily warning is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.006, channel email attempt 1 lag_s 1.849, seen 6.015 s after its action)
+3b   3    US2-2    L      PASS   both stand-ins hold the daily warning (telegram message 2, seen 6.022 s after its action; mailpit by header, seen 6.024 s after its action)
+3c   3    US2-2    M      PASS   Spend today shows 3.50 at its 3.50 warning (observed 3.5, seen 8.03 s after its action; observed [3.5, 3.5], seen 8.033 s after its action)
+4a   4    US2-5    M      PASS   the next UTC day: today reads 0.00, and the month carries 3.50 (observed 0.0, seen 4.007 s after its action; observed 3.5, seen 4.01 s after its action)
+4b   4    US2-2    L      MISS   fallback grant 1's 1.40 warning is delivered on both channels within 300 s (channel email attempt 1 lag_s 0.058, in 293.721 s)
+4c   4    US2-2    L      MISS   both stand-ins hold grant 1's warning (telegram message None, in 0.002 s)
+4d   4    US2-2    M      PASS   the fallback panel shows 1.40 spent at its 1.40 warning (observed 1.4, seen 60.0 s after its action; observed 1.4, seen 60.0 s after its action)
+4e   4    US5-7    M      PASS   fallback today reads 1.50 (observed 1.5, seen 12.042 s after its action)
+5a   5    US5-7    M      PASS   after a gateway restart, fallback today still reads 1.50 (observed 1.5, seen 50.842 s after its action)
+5b   5    US5-7    L      PASS   fallback.exhausted at the 2.00 allowance, grant 1 (grant_no 1 allowance_micro 2000000, seen 4.011 s after its action)
+5c   5    US5-7    L      MISS   the fallback_exhausted alert is delivered on both channels within 300 s (channel email attempt 1 lag_s 10.085, in 290.273 s)
+5d   5    US5-7    L      MISS   both stand-ins hold the fallback_exhausted alert (telegram message None, in 0.002 s)
+5e   5    US5-3    M      PASS   renewal is awaited, and Why responses are degraded shows fallback_awaiting_renewal (observed 1.0, seen 60.0 s after its action; observed ['fallback_awaiting_renewal'], seen 60.0 s after its action)
+6a   6    US5-6    L      PASS   operator.renew, and its audit row: who, when, why, allowance 4.00, grant 2 (2026-10-10T07:50:33.570Z, seen 2.005 s after its action; audit #10 by operator:dev-cpu#a2d31213 at 2026-11-21T08:13:24.099Z, seen 2.011 s after its action)
+6b   6    US5-6    M      PASS   the allowance reads 4.00, and renewal is no longer awaited (observed 4.0, seen 12.168 s after its action; observed 0.0, seen 12.172 s after its action)
+6c   6    US5-6    L      MISS   grant 2's 3.40 warning is delivered on both channels within 300 s (channel email attempt 1 lag_s 41.466, in 293.707 s)
+6d   6    US5-6    L      PASS   fallback.exhausted at the 4.00 allowance, grant 2 (grant_no 2 allowance_micro 4000000, seen 60.0 s after its action)
+6e   6    US5-6    M      PASS   today stands at 4.00, under its ceiling, with renewal awaited (observed 4.0, seen 60.0 s after its action; observed 1.0, seen 60.0 s after its action)
+6f   6    US5-6    M      PASS   the next day, after a restart: Why responses are degraded shows fallback_awaiting_renewal (observed ['fallback_awaiting_renewal'], seen 39.437 s after its action)
+6g   6    US5-6    L      PASS   that hello's call.degraded record names fallback_awaiting_renewal (2026-10-10T07:56:10.732Z, seen 39.418 s after its action)
+6h   6    US5-6    M      PASS   the next day's renewal: the allowance reads 2.00, not 4.00 (observed 2.0, seen 10.015 s after its action; observed 0.0, seen 10.018 s after its action)
+7a   7    US2-3    M      PASS   the kill switch reads degraded within 60 s of the crossing (observed ['degraded'], seen 4.003 s after its action)
+7b   7    US2-3    L      PASS   killswitch.tripped within 60 s of the crossing call's record (SC-002) (2026-10-10T07:57:07.680Z, seen 4.006 s after its action; 2026-10-10T07:57:07.680Z, 0.0 s apart, seen 4.012 s after its action)
+7c   7    US2-3    L      PASS   the trip alert is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.008, channel email attempt 1 lag_s 1.956, seen 6.022 s after its action)
+7d   7    US2-3    L      PASS   both stand-ins hold the trip alert (telegram message 4, seen 6.028 s after its action; mailpit by header, seen 6.03 s after its action)
+7e   7    US2-3    M      PASS   Why responses are degraded shows kill_switch_tripped, with local healthy (observed ['kill_switch_tripped'], seen 6.038 s after its action; observed 1.0, seen 6.04 s after its action)
+7f   7    US2-3    L      PASS   a hello's call.degraded record names kill_switch_tripped: local is refused too (2026-10-10T07:57:13.726Z, seen 4.013 s after its action)
+8a   8    US2-6    L      PASS   incident.drafted for the daily ceiling (incident_id 1 path incidents/2026-11-22-dev-cpu-day.intent.md sha256 82b935aa4ade…, seen 15.031 s after its action)
+8b   8    US2-6    L      PASS   GET /admin/incidents holds that draft, unchanged, with every evidence field (incident #1 written, seen 14.941 s after its action)
+9a   9    US2-4    L      PASS   operator.reset, and its audit row: who, when, why (2026-10-10T07:57:27.774Z, seen 4.011 s after its action; audit #18 by operator:dev-cpu#a2d31213 at 2026-11-22T08:20:18.316Z, seen 4.017 s after its action)
+9b   9    US2-4    M      PASS   the kill switch reads normal after the reset (observed ['normal'], seen 4.022 s after its action)
+9c   9    US2-4    T      MISS   hello answers locally again: its trace is a local call at 0 USD (observed None, in 57.282 s)
+9d   9    US2-4    L      PASS   a metered call is refused with meter_at_ceiling (call.degraded) (2026-10-10T07:58:32.196Z, seen 4.011 s after its action)
+9e   9    US2-4    M      PASS   Spend today stays at its 5.00 ceiling (observed 5.0, seen 4.014 s after its action; observed [5.0, 5.0], seen 4.015 s after its action)
+10a  10   US2-5    L      PASS   the monthly warning is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.012, channel email attempt 1 lag_s 0.074, seen 3.371 s after its action)
+10b  10   US2-5    L      PASS   both stand-ins hold the monthly warning (telegram message 7, seen 3.376 s after its action; mailpit by header, seen 3.378 s after its action)
+10c  10   US2-5    M      PASS   Spend month-to-date shows 14.00 at its 14.00 warning (observed 14.0, seen 3.381 s after its action; observed [14.0, 14.0], seen 3.382 s after its action)
+10d  10   US2-5    M      PASS   the kill switch reads degraded once the month reaches 20.00 (observed 20.0, seen 2.002 s after its action; observed ['degraded'], seen 2.004 s after its action)
+10e  10   US2-5    L      PASS   killswitch.tripped for the month, and its trip alert delivered on both channels (2026-10-10T07:59:44.465Z, seen 2.006 s after its action; channel telegram attempt 1 lag_s 0.01, channel email attempt 1 lag_s 0.075, seen 2.011 s after its action)
+10f  10   US2-5    M      PASS   the next day: today reads 0.00, and the kill switch still degraded (observed 0.0, seen 11.31 s after its action; observed ['degraded'], seen 11.313 s after its action)
+10g  10   US2-5    M      PASS   the next month: the month reads 0.00, and the kill switch still degraded (observed 0.0, seen 10.017 s after its action; observed ['degraded'], seen 10.022 s after its action)
+10h  10   US2-5    M      PASS   after the reset: normal, and one metered call reads 0.10 today and this month (observed ['normal'], seen 10.042 s after its action; observed 0.1, seen 10.023 s after its action; observed 0.1, seen 10.024 s after its action)
+11a  11   US2-7    M      PASS   with the store stopped, Why responses are degraded shows store_unreachable (observed ['store_unreachable'], seen 10.86 s after its action)
+11b  11   US2-7    L      PASS   state.unknown names store_unreachable (2026-10-10T08:00:21.365Z, seen 10.865 s after its action)
+11c  11   US2-7    M      PASS   with the store wiped, Why responses are degraded shows store_uninitialized (observed ['store_uninitialized'], seen 12.501 s after its action)
+11d  11   US2-7    L      PASS   operator.init, and its audit row: 0.10 from the journal, the test clock restored (2026-10-10T08:00:49.211Z, seen 2.005 s after its action; audit #1 by operator:dev-cpu#a2d31213 at 2026-12-01T08:00:51.351Z, seen 2.011 s after its action)
+11e  11   US2-7    M      PASS   the rebuilt meters read 0.10 today and this month, with renewal awaited (observed 0.1, seen 11.409 s after its action; observed 0.1, seen 11.413 s after its action; observed 1.0, seen 21.431 s after its action)
+summary: 52 assertions: 45 passed, 7 missed; T 0/2, M 25/25, L 20/25
+breach test: h4reet-dev-cpu, standin delivery, 1405 s
+breach.py: exit 1: an assertion missed, or the run stopped (the table says which)
+make: *** [Makefile:436: breach-test] Error 1
+2026/10/10 02:01:10 socat[6] W exiting on signal 15
+deploy/agents-engine/docker-relay make -f Makefile --no-print-directory    7.76s user 2.84s system 0% cpu 24:24.41 total
+breach-test exit=2
+```
+
+</details>
+
 ## Cost and data-flow impact
 
 **Cost:** the breach test's synthetic spend is dev-only and never reaches a provider. In production, the fallback runs inside its sub-budget, and the meter refuses a call once a ceiling is reached (FR-030, FR-031).
@@ -334,7 +456,7 @@ make check: 4 PASS, 2 SKIP, 5 PLANNED, 0 PENDING, 0 FAIL
 ## For the Author
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
-2. **T084:** ask me for an agent session on the engine: `make breach-test ENV=dev-cpu`, all 12 steps.
+2. **T187 and T188, then T084:** an agent session fixes the pre-run's two findings, then runs `make breach-test ENV=dev-cpu` on the engine, all 12 steps.
 3. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
 ### For later tasks

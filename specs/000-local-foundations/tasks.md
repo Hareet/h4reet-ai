@@ -676,3 +676,23 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
 - [X] T155 Count a synthetic run that a limit stops under its own route decision, `metered` for metered spend, in `h4.gateway.requests` (`routes/test.ts`), and test it, per telemetry.md §4.1 (contradicts)
 - [X] T156 Record the email delivery's reference only from the SMTP server's own reply, never an assumed `250` (`alerts/smtp.ts`), and test an unreadable reply, per alerts.md §4.1 and SC-002's evidence (contradicts)
 - [X] T157 Make the contract suite's C10 timing check robust to a loaded host. Its stub case failed once at 1,093 ms against a 100 ms limit, while the call still ended as `timeout`, so `make check` can fail at random. Use the approach round 3 took for C3: keep what the check proves, widen only the margin, per T051 and provider-adapter.md §5.3 (partial)
+
+## Phase 13: Convergence
+
+From T084's pre-run (2026-10-10): `make breach-test ENV=dev-cpu` on the agents' engine, from the main tree detached at `sim/000-us2-on-us1-stack` (222a58c), a squashed simulation of this branch merged with the us1 stack's tip. 52 assertions: 45 passed, 7 missed (T 0/2, M 25/25, L 20/25), in 1,405 s. This branch's merge-request note has the run.
+
+- [ ] T187 [US2] Read traces in `evals/breach_probe.py` through Langfuse v4's `/api/public/v2/observations?traceId=<id>&fields=…`. Langfuse v4 runs in events_only mode, where `/api/public/traces/{id}` and `/api/public/observations` answer 404 (research.md, from T149). So the pre-run missed both trace assertions:
+  - 2a: "the metered call's trace carries h4.cost.usd = 0.10 (observed None, in 57.253 s)";
+  - 9c: hello's trace as a local call at 0 USD.
+
+  On the pre-run's stack, `fields=core,basic,usage,cost` answered 200 with the trace's observations. Its GENERATION carried `totalCost` 0.1 and `costDetails` `{"total":0.1}`, which `COST_FIELDS` reads; without `fields=`, no cost comes back. 9c also reads `gen_ai.provider.name` from the observation's metadata, which those fields didn't return: find, on a dev-cpu run, the field group that does. Model the probe's fake on one real v2 response, per FR-036, plan §8, and research.md (contradicts)
+- [ ] T188 [US2] Keep alert delivery from waiting on another service's DNS lookups (`services/gateway/src/alerts/telegram.ts`, and the local adapter's probes).
+  - **What failed:** every Telegram attempt timed out from 07:39:04 to 07:57:00 UTC, exactly while steps 4 to 7 kept `model-server-cpu` stopped: 32 `alert.retry` and 8 `alert.failed`, all with error class `timeout`. The fallback alerts reached email only, so 4b, 4c, 5c, 5d, and 6c missed. The stand-in logged no failed request.
+  - **Reproduced** in the gateway container, with the model server stopped. `dns.lookup("model-server")` failed with `EAI_AGAIN` after 8,007 ms. `dns.lookup("telegram-standin")` took 2 ms alone, and 17,409 ms behind five of them.
+  - **The cause:** Node runs `getaddrinfo` on libuv's threadpool, 4 threads by default. The local adapter's lookups fill it, so Telegram's `AbortSignal.timeout` fires before its own lookup runs. Email's longer timeouts ride it out; one email took 41 s.
+  - **The options:**
+    - resolve alert channels' hosts without the threadpool: an undici `Agent` whose `connect.lookup` uses `dns.promises`, which is c-ares;
+    - keep the local adapter's probes single-flight while it's unhealthy;
+    - raise `UV_THREADPOOL_SIZE`.
+
+  Test that a held lookup doesn't delay a delivery. Whether the host's engine hangs the same way is unverified. Per FR-032 ("Telegram (primary) and email (secondary) within 5 minutes") and contracts/alerts.md §4 (contradicts)
