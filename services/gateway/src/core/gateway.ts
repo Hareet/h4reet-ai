@@ -725,11 +725,32 @@ export class Gateway {
     for (const r of this.routed()) r.health.start();
     this.opts.meter?.start();
     if (this.gaugeTimer !== undefined) return;
+    this.seedCostSeries();
     this.gaugeTimer = setInterval(() => {
       void this.refreshGauges().catch(() => {});
       this.checkCredentials();
     }, this.opts.gaugeIntervalMs ?? 10_000);
     this.gaugeTimer.unref();
+  }
+
+  /**
+   * A zero on each cost series a routed metered adapter can be charged under, at start (telemetry.md §4.1; tasks.md
+   * T191). A metered call's series is first written at its commit, with its cost, and Prometheus ingests no zero at a
+   * series' start, so `increase()` would miss the first call. The fallback is charged as `fallback`; a paid adapter
+   * also as `test` (operator-admin.md §5), and the synthetic one as `metered` (dev's synthetic spend).
+   */
+  private seedCostSeries(): void {
+    for (const r of this.routed()) {
+      const { adapter, role } = r.built;
+      if (adapter.kind === "local") continue;
+      const attributions: Attribution[] = [
+        ...(role === "fallback" ? (["fallback"] as const) : []),
+        adapter.kind === "paid" ? "test" : "metered",
+      ];
+      for (const attribution of attributions) {
+        this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution });
+      }
+    }
   }
 
   async close(): Promise<void> {
