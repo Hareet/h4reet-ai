@@ -201,12 +201,27 @@ cmd planned 'make --eval=.DEFAULT_GOAL:=contract-live ENV=prod ADAPTER=bedrock R
 cmd planned "printf 'x: aws-login\\n' | make -f Makefile -f - x"
 cmd planned '{make,aws-login} ENV=prod'
 cmd planned 'python3 tools/gates/run_checks.py aws-login'
-# The evals with bedrock: through make in either order or from the environment, and through evals/run.py or its module.
+cmd planned 'python3 -m tools.gates.run_checks aws-login'
+# shellcheck disable=SC2016
+cmd planned 'make ${T:-aws-login} ENV=prod'
+# shellcheck disable=SC2016
+cmd planned '${M:-make} aws-login ENV=prod'
+cmd planned 'make aws-$"login" ENV=prod'
+cmd planned "make aws-log\$'i'n ENV=prod"
+check bash-gate.sh planned 'make contract-\<newline>live ENV=prod ADAPTER=bedrock REASON="a live run"' \
+  "$(jq -cn --arg c "$(printf 'make contract-\\\nlive ENV=prod ADAPTER=bedrock REASON="a live run"')" '{command:$c}')"
+# The evals with bedrock: through make evals, or make check, whose evals gate runs make evals, in either order or from
+# the environment; and through evals/run.py, its module, or an import of it.
 cmd planned 'make evals ADAPTER=bedrock'
 cmd planned 'ADAPTER=bedrock make evals'
 cmd planned 'make ADAPTER="bedrock" evals'
+# shellcheck disable=SC2016
+cmd planned 'make evals ADAPTER=${A:-bedrock}'
+cmd planned 'SANDBOX_RUNTIME=0 make -f Makefile check ADAPTER=bedrock'
+cmd planned 'ADAPTER=bedrock make check'
 cmd planned 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter bedrock'
 cmd planned 'python3 -m evals.run --suite product --adapter bedrock'
+cmd planned 'python3 -c "from evals import run; run.main()" --adapter bedrock'
 # The commands the targets run: operator.py's contract-record, quoted whole or in part, through runpy, and copied in the
 # same command; aws-login.sh where it runs; and the AWS CLI's sign-in, through bash -c, quotes, a path, backticks, a
 # separator inside a quoted value, configure sso, and sso-oidc.
@@ -215,10 +230,18 @@ cmd planned 'python3 scripts/operator.py --stack prod "contract-record" --adapte
 cmd planned 'python3 scripts/operator.py --stack prod contract-recor"d" --adapter bedrock --out /tmp/r.json --reason "a live run"'
 cmd planned "python3 -c 'import runpy, sys; sys.argv = [\"operator.py\", \"--stack\", \"prod\", \"contract-record\"]; runpy.run_path(\"scripts/operator.py\", run_name=\"__main__\")'"
 cmd planned 'cp scripts/operator.py /tmp/o.py && python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
+# shellcheck disable=SC2016
+cmd planned 'python3 scripts/operator.py --stack prod ${C:-contract-record} --adapter bedrock --out /tmp/r.json --reason "a live run"'
 cmd planned 'bash deploy/scripts/aws-login.sh'
 cmd planned './deploy/scripts/aws-login.sh'
 cmd planned "bash deploy/scripts/aws-log''in.sh"
 cmd planned "bash -c 'deploy/scripts/aws-login.sh'"
+cmd planned 'cat deploy/scripts/aws-login.sh | bash'
+cmd planned 'bash < deploy/scripts/aws-login.sh'
+# shellcheck disable=SC2016
+cmd planned 'sh -c "$(cat deploy/scripts/aws-login.sh)"'
+# shellcheck disable=SC2016
+cmd planned 'eval "$(<deploy/scripts/aws-login.sh)"'
 cmd planned 'HOME=/home/a/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock'
 cmd planned 'aws --profile h4reet-bedrock sso login'
 cmd planned "bash -c 'aws sso login --profile h4reet-bedrock'"
@@ -230,13 +253,20 @@ cmd planned 'echo `aws sso login --profile h4reet-bedrock`'
 cmd planned "aws --query 'a|b' sso login --profile h4reet-bedrock"
 cmd planned 'aws configure sso --profile h4reet-bedrock'
 cmd planned 'aws sso-oidc create-token --client-id x --client-secret y --grant-type refresh_token'
-# Spellings the rules don't see: a name built at run time or held in a variable, a glob, run.py reached from its own
-# directory, and a copy run in a command of its own. The targets' and the CLI's own SANDBOX_RUNTIME refusals, and the
-# token and session the sandbox can't read, still stop them.
+# A command longer than a pipe buffer: every rule reads the command through a pipe, and under pipefail a grep that
+# matches early leaves the writer a SIGPIPE and the rule false, so such a command is refused outright.
+check bash-gate.sh planned "a forbidden first line, then 100 KB" \
+  "$(jq -cn --arg c "$(printf 'make aws-login ENV=prod\n#%0100000d' 0)" '{command:$c}')"
+check bash-gate.sh planned "an 80,000-byte command" "$(jq -cn --arg c "$(printf 'echo %080000d' 0)" '{command:$c}')"
+# Spellings the rules don't see: a name built at run time or held in a variable, a glob, an ANSI-C escape inside a name,
+# run.py reached from its own directory or by a computed import, and a copy run in a command of its own. The targets'
+# and the CLI's own SANDBOX_RUNTIME refusals, and the token and session the sandbox can't read, still stop them.
 cmd gap "make \$(printf 'aws-%s' login) ENV=prod"
 # shellcheck disable=SC2016
 cmd gap 't=aws; make "$t-login" ENV=prod'
 cmd gap 'bash deploy/scripts/aws-l?gin.sh'
+cmd gap "make \$'aws\\x2dlogin' ENV=prod"
+cmd gap 'python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter bedrock'
 cmd gap 'cd evals && python3 run.py --suite product --adapter bedrock'
 cmd gap 'python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
 cmd gap '/tmp/a sso login --profile h4reet-bedrock'
@@ -252,6 +282,10 @@ cmd allow 'pytest -q scripts/test_operator.py -k contract-record'
 cmd allow 'git add deploy/scripts/aws-login.sh'
 cmd allow 'git diff main -- deploy/scripts/aws-login.sh'
 cmd allow 'shellcheck deploy/scripts/aws-login.sh'
+cmd allow 'cat deploy/scripts/aws-login.sh'
+cmd allow 'make check ENGINE_MODE=none-yet'
+cmd allow 'make lint && pytest -q evals/test_runbooks.py -k bedrock'
+check bash-gate.sh allow "a 50,000-byte command" "$(jq -cn --arg c "$(printf 'echo %050000d' 0)" '{command:$c}')"
 if [ "$planned" -gt "$author_planned" ]; then
   printf "PLANNED (US5's enforcement patch): %d Author-only rows: bash-gate.sh lets an agent run make contract-live, make aws-login, and the Bedrock evals; the patch refuses them\n" "$((planned - author_planned))"
 fi

@@ -13,7 +13,7 @@ Prod's gateway calls Bedrock as the dedicated runtime identity, through that ide
 
 - **Nothing yet.** Bedrock still serves, local answers are unaffected, and so are the meter, the ceilings, and the sub-budget.
 - **When the session ends,** the gateway can't get new role credentials. Once the ones it holds expire, Bedrock's health turns `credentials`, and the `fallback_unavailable` alert follows (the runbook `bedrock-unavailable.md`). From then on, if the local model goes down, hello answers 503 with `fallback_unavailable` instead of falling back.
-- **The gateway never renews the session itself.** With an `sso_session` profile, the SDK refreshes the SSO token in its last 5 minutes, through `oidc.us-east-1.amazonaws.com` (plan §5.2's correction), and uses the fresh token for one exchange of role credentials. Its write back to the read-only mount fails, so the session in the cache stays as it was. Once the session has ended, it asks again at most every 30 s with the dead refresh token, until the next login. With a legacy profile nothing is refreshed. Either way, only `make aws-login` writes a new session.
+- **The gateway never renews the session itself.** With an `sso_session` profile, the SDK refreshes the SSO token from its last 5 minutes on, through `oidc.us-east-1.amazonaws.com` (plan §5.2's correction), and uses the fresh token for one exchange of role credentials. Its write back to the read-only mount fails, so the session in the cache stays as it was. Once the session has ended, it asks again at most every 30 s with the dead refresh token, until the next login. With a legacy profile nothing is refreshed. Either way, only `make aws-login` writes a new session.
 
 ## Act
 
