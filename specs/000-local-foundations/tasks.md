@@ -361,7 +361,7 @@ description: "Task list for spec 000, Local Foundations"
   - `-f Makefile` everywhere: in the relay (human-only), the Makefile's recursive calls, and the docs agents read, CLAUDE.md included (human-only);
   - dropping the sandbox write-denies for those two names, keeping `protected-paths.sh`: this weakens the control against a planted makefile, and isn't recommended (Principle IV), per FR-039 and T045 (contradicts)
 
-  The first option is ready as a patch, for the Author's yes or no (2026-10-09, reworked after four reviews on 2026-10-10): `docs/merge-requests/2026-10-09-fix-000-agents-make.patch`. It adds:
+  The first option is ready as a patch, for the Author's yes or no (2026-10-09, reworked after five reviews on 2026-10-10): `docs/merge-requests/2026-10-09-fix-000-agents-make.patch`. It adds:
   - the `GNUmakefile`, which includes the Makefile by its own directory;
   - `tools/gates/makefiles_check.py`, with a test. It holds that file to its exact bytes, and fails on any `makefile`:
     - **in a live tree,** except the sandbox's empty placeholders, which hold nothing;
@@ -507,10 +507,11 @@ description: "Task list for spec 000, Local Foundations"
     - every git call runs with `GIT_NO_REPLACE_OBJECTS=1`, main's own reads included;
     - the commit object is rehashed against its SHA, and the expected tree is read from that object;
     - no `.git/info/attributes` exists;
+    - no ref exists under `refs/replace` (`git for-each-ref refs/replace` prints nothing). The Author's merge and checkouts honor a replace ref, so with one the gate would vouch for a commit other than the one the merge writes;
     - extraction uses tarfile's data filter;
     - the export hashes to that tree.
 
-    Otherwise a replace ref under `.git/refs/replace`, or `.gitattributes`' `export-ignore` and `export-subst`, could change what every later step sees (T183's third and fourth reviews). Anything short of that proof stops the gate;
+    Otherwise a replace ref, or `.gitattributes`' `export-ignore` and `export-subst`, could change what every later step sees, or what the merge writes (T183's third to fifth reviews). Anything short of that proof stops the gate. The merge command the gate prints is `git --no-replace-objects merge --ff-only <SHA>`;
   - before anything runs make on the export, check that its `GNUmakefile` and `makefile` are what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. Anything but a pass stops the gate, and nothing runs make on that export (T183's reviews);
   - build the devcontainer image, tagged by `.devcontainer/`'s hash;
   - the container phase: `npm ci --ignore-scripts`, then lint, test, the scaffolds, and stage H with `--network none`;
@@ -614,7 +615,7 @@ description: "Task list for spec 000, Local Foundations"
 **Purpose**: the closing enforcement patch, the switch from planned rows to enforced rows, and the final validation.
 
 - [ ] T117 **Patch**: write the closing enforcement patch, `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, per §15:
-  - `.claude/settings.json`: `denyWrite` on `./.mcp.json`, `./.git/info`, and `./.git/refs/heads/main`, their `Edit(...)` denies, and the Claude Code telemetry `env` entries. Every credential deny, and the denies on the files prod reads and the code the Author runs, came with T045; the gate's came with T098;
+  - `.claude/settings.json`: `denyWrite` on `./.mcp.json`, `./.git/info`, `./.git/refs/heads/main`, and `./.git/refs/replace` (T183's fifth review: a merge honors a replace ref), their `Edit(...)` denies, and the Claude Code telemetry `env` entries. Every credential deny, and the denies on the files prod reads and the code the Author runs, came with T045; the gate's came with T098;
   - `.claude/hooks/bash-gate.sh`: `operator-*` and admin URLs outside dev-cpu, the Author-only targets, `--no-verify`, `claude mcp add`, git-alias expansion, and the `terraform` global-flag pattern; and, keyed on `agent_type`, the reviewer's and red-teamer's refusals: `git diff --output`, `git diff` or `git log` with a redirection, `tee`, `make -f`, and any `ADAPTER=` but `fake`;
   - `.claude/hooks/protected-paths.sh`: `.mcp.json`, role write scopes from `agent_type`, and writes denied when `agent_id` comes without `agent_type`;
   - `.claude/hooks/post-edit-check.sh`: TypeScript, JSON, YAML, and Markdown through `~/.local/share/h4reet/lint-node` with its own configs;

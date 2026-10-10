@@ -43,15 +43,15 @@ index acbb22a..68a413c 100644
  	init-env operator-token operator-status operator-init hello isolation-check breach-test plan
  
 diff --git a/docs/how-we-build/lifecycle.md b/docs/how-we-build/lifecycle.md
-index 48a47f1..092e1cf 100644
+index 17c5430..6790e71 100644
 --- a/docs/how-we-build/lifecycle.md
 +++ b/docs/how-we-build/lifecycle.md
 @@ -31,7 +31,7 @@ A skill makes a violation rare; a hook makes it close to impossible; the sandbox
  | Fix the code, not the test | `CLAUDE.md` verification block | `protected-paths.sh` under `FIX_TASK=1` | Reviewer compliance pass |
  | Cost bounded | `constitution-check` skill | — | Real-time meter + kill switch; AWS Budgets as safety net |
  | Agents run containers only on their own engine (spec 000 FR-039) | `CLAUDE.md` engine line; `ops` agent prompt | From the early patch, `bash-gate.sh` refuses `engine.sh`'s Author subcommands | The sandbox's one opening (`198.18.0.1:2376`); the engine's admission plugin, firewall, and egress proxy; the read-only tree and its masks, which the daemon starts only behind (H8); rootless Docker under `h4agents` |
--| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first. The hook and the deny work out paths from the main tree, so from T092 the gate refuses a branch whose `GNUmakefile` or `makefile` isn't what T183 allows; until then, before a merge, `git --no-replace-objects diff main...<branch> -- GNUmakefile makefile` shows one, once `git for-each-ref refs/replace` prints nothing |
-+| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first. The hook and the deny work out paths from the main tree, so from T092 the gate refuses a branch whose `GNUmakefile` isn't exactly main's, or that has a `makefile` (`tools/gates/makefiles_check.py --export`); until then, before a merge, `git --no-replace-objects diff main...<branch> -- GNUmakefile makefile` shows one, once `git for-each-ref refs/replace` prints nothing |
+-| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first. The hook and the deny work out paths from the main tree, so from T092 the gate refuses a branch whose `GNUmakefile` or `makefile` isn't what T183 allows. Before any merge, before T092 and after, `git for-each-ref refs/replace` must print nothing, since a merge honors a replace ref. Until T092, pin the branch with `git rev-parse --verify '<branch>^{commit}'`; `git --no-replace-objects diff main...<SHA> -- GNUmakefile makefile` then shows such a file, before you merge that SHA |
++| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first. The hook and the deny work out paths from the main tree, so from T092 the gate refuses a branch whose `GNUmakefile` isn't exactly main's, or that has a `makefile` (`tools/gates/makefiles_check.py --export`). Before any merge, before T092 and after, `git for-each-ref refs/replace` must print nothing, since a merge honors a replace ref. Until T092, pin the branch with `git rev-parse --verify '<branch>^{commit}'`; `git --no-replace-objects diff main...<SHA> -- GNUmakefile makefile` then shows such a file, before you merge that SHA |
  
  Until publication (ADR 0013), the GitHub and AWS entries in the last column don't exist yet. What remains is the sandbox, the hooks, `make check`, and the Author's review.
  
@@ -70,7 +70,7 @@ index bf8f7e2..57827e8 100644
  PLANTED = "help:\n\t@touch PWNED\n"
  MAKE_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "LC_ALL": "C"}
 diff --git a/specs/000-local-foundations/plan.md b/specs/000-local-foundations/plan.md
-index 31f6a4d..df08fca 100644
+index 2899b4d..bf859e7 100644
 --- a/specs/000-local-foundations/plan.md
 +++ b/specs/000-local-foundations/plan.md
 @@ -182,9 +182,12 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
@@ -106,23 +106,23 @@ index 31f6a4d..df08fca 100644
  | Git hooks installed | `githooks-check` | `reference-transaction` and `pre-commit` match `.claude/git-hooks/` (`pre-commit` is PLANNED until the early patch adds it); `core.hooksPath` is unset; `gc.packRefs=false`; `main` is a loose ref | runs |
  | Toolchain pins | `toolchain-check` | `toolchain_check.py` against `.devcontainer/toolchain.vars` | runs |
  | Compose and file policy | `policy` | `tools/gates/compose_policy.py` (below) | runs (no daemon needed) |
-@@ -878,7 +882,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
+@@ -879,7 +883,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
     - the export hashes to that tree.
  
-    Otherwise a replace ref, or `.gitattributes`' export-ignore and export-subst, could change what every later step checks. Anything short of that proof stops the gate.
+    Otherwise a replace ref, or `.gitattributes`' export-ignore and export-subst, could change what every later step checks, or what the merge writes. Anything short of that proof stops the gate. The merge command the gate prints is `git --no-replace-objects merge --ff-only <SHA>`.
 -2. **Makefiles:** the export's `GNUmakefile` and `makefile` must be what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. Anything but a pass stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
 +2. **Makefiles:** `tools/gates/makefiles_check.py --export`, from the Author's tree, on the proven export: `GNUmakefile` holds exactly the text in the Author's copy of the check, which is main's, and there is no `makefile` at all, since an export holds no placeholder (T183). Anything but exit 0 stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
  3. **Container phase:** in the devcontainer image (built from the exported `.devcontainer/`, tagged by its hash), `npm ci --ignore-scripts`, then, with `--network none`, lint, tests, the scaffolds, and matrix stage H.
  4. **Host phase:**
     - `githooks-check`, `toolchain-check`, and the policy;
 diff --git a/specs/000-local-foundations/tasks.md b/specs/000-local-foundations/tasks.md
-index 2d9065f..ab4eeea 100644
+index 73ed90e..34dbc98 100644
 --- a/specs/000-local-foundations/tasks.md
 +++ b/specs/000-local-foundations/tasks.md
-@@ -511,7 +511,7 @@ description: "Task list for spec 000, Local Foundations"
+@@ -512,7 +512,7 @@ description: "Task list for spec 000, Local Foundations"
      - the export hashes to that tree.
  
-     Otherwise a replace ref under `.git/refs/replace`, or `.gitattributes`' `export-ignore` and `export-subst`, could change what every later step sees (T183's third and fourth reviews). Anything short of that proof stops the gate;
+     Otherwise a replace ref, or `.gitattributes`' `export-ignore` and `export-subst`, could change what every later step sees, or what the merge writes (T183's third to fifth reviews). Anything short of that proof stops the gate. The merge command the gate prints is `git --no-replace-objects merge --ff-only <SHA>`;
 -  - before anything runs make on the export, check that its `GNUmakefile` and `makefile` are what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. Anything but a pass stops the gate, and nothing runs make on that export (T183's reviews);
 +  - before anything runs make on the export, `tools/gates/makefiles_check.py --export` from the Author's tree on it: `GNUmakefile` holds exactly the text in the Author's copy of the check, which is main's, and there is no `makefile` at all. Anything but exit 0 stops the gate, and nothing runs make on that export (T183);
    - build the devcontainer image, tagged by `.devcontainer/`'s hash;
@@ -130,7 +130,7 @@ index 2d9065f..ab4eeea 100644
    - the host phase: githooks, toolchain, policy, `corpus-check` with the denylist through `PY_HOST`, gitleaks, the image build on the engine, and stage E plus the behavioral evals when triggered;
 diff --git a/tools/gates/makefiles_check.py b/tools/gates/makefiles_check.py
 new file mode 100644
-index 0000000..552c524
+index 0000000..a994cb5
 --- /dev/null
 +++ b/tools/gates/makefiles_check.py
 @@ -0,0 +1,180 @@
@@ -250,7 +250,7 @@ index 0000000..552c524
 +        if "makefile" in names and not export:
 +            why_none = placeholder(root / "makefile")
 +    except OSError as err:
-+        return [f"{root} can't be checked: {err.strerror}"], notes
++        return [f"{err.filename or root} can't be checked: {err.strerror}"], notes
 +    if "makefile" in names:
 +        if why_none:
 +            notes.append(f"makefile: {why_none}, which holds nothing: counted as none")
@@ -290,7 +290,7 @@ index 0000000..552c524
 +    export = bool(args) and args[0] == "--export"
 +    if export:
 +        args = args[1:]
-+    if len(args) > 1 or (args and args[0].startswith("-")):
++    if len(args) > 1 or (args and (not args[0] or args[0].startswith("-"))):
 +        print(USAGE, file=sys.stderr)
 +        return 2
 +    root = Path(args[0]) if args else Path.cwd()
@@ -316,10 +316,10 @@ index 0000000..552c524
 +    sys.exit(main(sys.argv))
 diff --git a/tools/gates/test/test_makefiles_check.py b/tools/gates/test/test_makefiles_check.py
 new file mode 100644
-index 0000000..6ec5732
+index 0000000..2f2fbf1
 --- /dev/null
 +++ b/tools/gates/test/test_makefiles_check.py
-@@ -0,0 +1,277 @@
+@@ -0,0 +1,281 @@
 +"""Tests for tools/gates/makefiles_check.py (tasks.md T183): the committed GNUmakefile passes, the sandbox's placeholders
 +count as no makefile, each way a branch could change what make reads before the Makefile fails, and what it shows of
 +a changed file can't drive the Author's terminal."""
@@ -395,7 +395,9 @@ index 0000000..6ec5732
 +    assert mc.placeholder(Path("/dev/null")) == "the sandbox's mask, /dev/null's device"
 +    assert "no write bits" in (mc.placeholder(made("empty-0444", b"", 0o444)) or "")
 +    assert mc.placeholder(Path("/dev/zero")) is None  # a device too, but 1:5
-+    assert mc.placeholder(made("empty-0644", b"", 0o644)) is None  # what git exports
++    assert (
++        mc.placeholder(made("empty-0644", b"", 0o644)) is None
++    )  # a checkout's empty file
 +    assert mc.placeholder(made("full-0444", PLANTED, 0o444)) is None
 +    assert mc.placeholder(tmp_path / "link") is None  # a link to the device isn't it
 +
@@ -456,7 +458,7 @@ index 0000000..6ec5732
 +        gnu.mkdir()
 +    elif how == "a makefile beside it":
 +        (tree / "makefile").write_bytes(PLANTED)
-+    elif how == "an empty makefile git could export":
++    elif how == "an empty writable makefile":
 +        (tree / "makefile").write_bytes(b"")
 +    else:
 +        raise AssertionError(how)
@@ -475,7 +477,7 @@ index 0000000..6ec5732
 +        ("a link to the same text", "it is a link"),
 +        ("a directory", "isn't a regular file"),
 +        ("a makefile beside it", "a makefile exists"),
-+        ("an empty makefile git could export", "a makefile exists"),
++        ("an empty writable makefile", "a makefile exists"),
 +    ],
 +)
 +def test_a_change_fails(
@@ -583,7 +585,7 @@ index 0000000..6ec5732
 +    (tree / "makefile").write_bytes(b"")
 +    monkeypatch.setattr(mc, "placeholder", refused)
 +    assert mc.main(["makefiles_check.py", str(tree)]) == 1
-+    assert "can't be checked: Permission denied" in capsys.readouterr().err
++    assert "makefile can't be checked: Permission denied" in capsys.readouterr().err
 +
 +
 +@pytest.mark.parametrize(
@@ -592,6 +594,8 @@ index 0000000..6ec5732
 +        ["makefiles_check.py", "a", "b"],
 +        ["makefiles_check.py", "--export", "a", "b"],
 +        ["makefiles_check.py", "--exported"],
++        ["makefiles_check.py", ""],
++        ["makefiles_check.py", "--export", ""],
 +        ["makefiles_check.py", "/nonexistent"],
 +    ],
 +)

@@ -874,10 +874,11 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
    - every git call runs with `GIT_NO_REPLACE_OBJECTS=1`;
    - the commit object is rehashed against its SHA, and the expected tree is read from it;
    - no `.git/info/attributes` exists;
+   - no ref exists under `refs/replace` (`git for-each-ref refs/replace` prints nothing), because the Author's merge and checkouts honor one;
    - extraction uses tarfile's data filter;
    - the export hashes to that tree.
 
-   Otherwise a replace ref, or `.gitattributes`' export-ignore and export-subst, could change what every later step checks. Anything short of that proof stops the gate.
+   Otherwise a replace ref, or `.gitattributes`' export-ignore and export-subst, could change what every later step checks, or what the merge writes. Anything short of that proof stops the gate. The merge command the gate prints is `git --no-replace-objects merge --ff-only <SHA>`.
 2. **Makefiles:** the export's `GNUmakefile` and `makefile` must be what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. Anything but a pass stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
 3. **Container phase:** in the devcontainer image (built from the exported `.devcontainer/`, tagged by its hash), `npm ci --ignore-scripts`, then, with `--network none`, lint, tests, the scaffolds, and matrix stage H.
 4. **Host phase:**
@@ -1043,7 +1044,7 @@ Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert
 The closing patch holds:
 - **`.claude/settings.json`:**
   - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)).
-  - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, and `./.git/refs/heads/main`, and `permissions.deny` gets the matching `Edit(...)`.
+  - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, `./.git/refs/heads/main`, and `./.git/refs/replace`, since a merge honors a replace ref (T183's fifth review). `permissions.deny` gets the matching `Edit(...)`.
 - **`.claude/hooks/bash-gate.sh`:**
   - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the Author-only targets, `--no-verify`, and `claude mcp add`;
   - the read-only roles' rules, keyed on the hook input's `agent_type`. For `reviewer` and `red-teamer`, it refuses:
