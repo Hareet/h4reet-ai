@@ -341,20 +341,33 @@ SOCKET = "unix:///run/user/999/docker/plugins/h4-authz.sock"
 AS_H4AGENTS = 'runuser() { shift 2; [ "$1" = -- ] && shift; command "$@"; }'
 
 
-def _plugin_spec(tmp_path: Path, *, before: str | None = None, link: bool = False):
-    """ensure_plugin_spec into a temporary h4agents home, twice, this user standing in for h4agents. The
-    plugins directory is there, as setup_rootless_docker makes it. `before` is a spec already there, mode
-    0644; `link` puts a link there instead, to a file of its own."""
+# The two rootless spec directories setup writes, in moby's order. With a correct copy in the first alone,
+# dockerd 28.3.3 refused to start; with one in each, it started (T046).
+SPEC_DIRS = (Path(".config/docker/plugins"), Path(".local/lib/docker/plugins"))
+
+
+def _plugin_spec(
+    tmp_path: Path,
+    *,
+    before: str | None = None,
+    link: bool = False,
+    planted: int = 1,
+):
+    """ensure_plugin_spec into a temporary h4agents home, twice, this user standing in for h4agents. Both
+    plugins directories are there, as setup_rootless_docker makes them. `before` is a spec already in
+    SPEC_DIRS[planted], mode 0644; `link` puts a link there instead, to a file of its own."""
     home = tmp_path / "home"
-    spec = home / ".config" / "docker" / "plugins" / "h4-authz.spec"
+    specs = [home / directory / "h4-authz.spec" for directory in SPEC_DIRS]
+    for spec in specs:
+        spec.parent.mkdir(parents=True)
     victim = tmp_path / "victim"
-    spec.parent.mkdir(parents=True)
+    target = specs[planted]
     if link:
         victim.write_text("unix:///elsewhere.sock\n", encoding="utf-8")
-        spec.symlink_to(victim)
+        target.symlink_to(victim)
     elif before is not None:
-        spec.write_text(before, encoding="utf-8")
-        spec.chmod(0o644)
+        target.write_text(before, encoding="utf-8")
+        target.chmod(0o644)
     script = f"""
 user={q(ME)}
 {AS_H4AGENTS}
@@ -365,40 +378,46 @@ ensure_plugin_spec {q(home)} /run/user/999
 echo SECOND-DONE
 """
     done = setup_host(script, tmp_path)
-    return done, spec, victim
+    return done, specs, victim
 
 
-def test_plugin_spec_names_the_socket_by_path(tmp_path: Path) -> None:
-    done, spec, _ = _plugin_spec(tmp_path)
+def test_plugin_spec_names_the_socket_by_path_in_both_directories(
+    tmp_path: Path,
+) -> None:
+    # With only the first, as setup wrote it at first, dockerd 28.3.3 refused to start again (2026-10-09).
+    done, specs, _ = _plugin_spec(tmp_path)
     assert "SECOND-DONE" in done.stdout, done.stderr
-    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
-    info = spec.stat()
-    assert stat.S_IMODE(info.st_mode) == 0o644
-    assert info.st_uid == os.getuid()
+    for spec in specs:
+        assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
+        info = spec.stat()
+        assert stat.S_IMODE(info.st_mode) == 0o644
+        assert info.st_uid == os.getuid()
 
 
 def test_plugin_spec_write_is_idempotent(tmp_path: Path) -> None:
     done, _, _ = _plugin_spec(tmp_path)
     first, second = done.stdout.split("FIRST-DONE")
-    assert "h4-authz.spec" in first  # the first run writes it and says so
-    assert "log:" not in second  # the second finds it right and changes nothing
+    assert first.count("h4-authz.spec") == 2  # the first run writes both and says so
+    assert "log:" not in second  # the second finds them right and changes nothing
 
 
-def test_plugin_spec_replaces_an_empty_one(tmp_path: Path) -> None:
+@pytest.mark.parametrize("planted", range(len(SPEC_DIRS)))
+def test_plugin_spec_replaces_an_empty_one(tmp_path: Path, planted: int) -> None:
     # An empty spec, as a wrapped command left on 2026-10-09, reads as "legacy plugin: Unknown protocol".
-    done, spec, _ = _plugin_spec(tmp_path, before="")
+    done, specs, _ = _plugin_spec(tmp_path, before="", planted=planted)
     assert "SECOND-DONE" in done.stdout, done.stderr
-    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
+    assert specs[planted].read_text(encoding="utf-8") == SOCKET + "\n"
 
 
+@pytest.mark.parametrize("planted", range(len(SPEC_DIRS)))
 def test_plugin_spec_replaces_a_link_rather_than_writing_through_it(
-    tmp_path: Path,
+    tmp_path: Path, planted: int
 ) -> None:
-    done, spec, victim = _plugin_spec(tmp_path, link=True)
+    done, specs, victim = _plugin_spec(tmp_path, link=True, planted=planted)
     assert "SECOND-DONE" in done.stdout, done.stderr
     assert victim.read_text(encoding="utf-8") == "unix:///elsewhere.sock\n"
-    assert not spec.is_symlink()
-    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
+    assert not specs[planted].is_symlink()
+    assert specs[planted].read_text(encoding="utf-8") == SOCKET + "\n"
 
 
 def test_h4agents_owns_the_decision_logs_directory(tmp_path: Path) -> None:
@@ -445,9 +464,10 @@ echo DONE
     here = SETUP.parent
     docker = home / ".config" / "docker"
     assert (docker / "daemon.json").read_bytes() == (here / "daemon.json").read_bytes()
-    assert (docker / "plugins" / "h4-authz.spec").read_text(
-        encoding="utf-8"
-    ) == SOCKET + "\n"
+    for directory in SPEC_DIRS:
+        spec = home / directory / "h4-authz.spec"
+        assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
+        assert stat.S_IMODE(spec.parent.stat().st_mode) == 0o700
     assert (unit_dir / "h4-authz.service").read_bytes() == (
         here / "systemd" / "h4-authz.service"
     ).read_bytes()

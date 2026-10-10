@@ -197,6 +197,52 @@ def test_status_says_why_it_lists_no_refusals(
     assert '"refuse"' not in done.stdout
 
 
+# systemctl, standing in: it answers with the manager it was asked of and what it was asked, so each state names
+# its own unit, or it answers nothing and fails, as when it can't reach a manager.
+ECHO_SYSTEMCTL = 'systemctl() { local who=system; if [ "$1" = --user ]; then who=user; shift; fi; echo "$who:$*"; }'
+UNITS = ["h4agents-net", "h4agents-nft", "h4agents-dxg", "h4agents-tree"]
+NAMED_UNITS = [
+    *([f"{unit}.service", f"system:is-active {unit}.service"] for unit in UNITS),
+    ["h4-egress-proxy.service", "user:is-active h4-egress-proxy.service"],
+]
+
+
+def test_status_names_each_unit_and_asks_the_proxy_of_the_authors_manager(
+    tmp_path: Path,
+) -> None:
+    # The proxy is the Author's user unit: asked of the system manager, it always read "inactive" (2026-10-09).
+    done = engine(f"{ECHO_SYSTEMCTL}\nstatus_units", tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert [line.split(maxsplit=1) for line in done.stdout.splitlines()] == NAMED_UNITS
+
+
+def test_status_says_unknown_when_systemctl_cant_answer(tmp_path: Path) -> None:
+    done = engine("systemctl() { return 1; }\nstatus_units", tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert [line.split() for line in done.stdout.splitlines()] == [
+        *([f"{unit}.service", "unknown"] for unit in UNITS),
+        ["h4-egress-proxy.service", "unknown"],
+    ]
+
+
+def test_the_authors_status_lists_the_units_by_name(tmp_path: Path) -> None:
+    # In the Author's terminal (no SANDBOX_RUNTIME), cmd_status itself gives the named list.
+    script = f"""
+{ECHO_SYSTEMCTL}
+engine_docker() {{ :; }}
+images_lock={q(tmp_path / "no-images.lock")}
+status_list_hashes() {{ :; }}
+status_refusals() {{ :; }}
+cmd_status
+"""
+    done = engine(script, tmp_path)
+    assert done.returncode == 0, done.stderr
+    lines = done.stdout.splitlines()
+    start = lines.index("-- the engine's system units, and the Author's proxy") + 1
+    named = [line.split(maxsplit=1) for line in lines[start : start + len(NAMED_UNITS)]]
+    assert named == NAMED_UNITS
+
+
 def _running(pid: str) -> bool:
     """Is the process there and not a zombie waiting to be reaped?"""
     try:

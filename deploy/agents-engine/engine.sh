@@ -494,13 +494,25 @@ cmd_status() {
 	fi
 	engine_docker system df || true
 	if ! in_sandbox; then
-		echo "-- system units"
-		# shellcheck disable=SC2086
-		systemctl is-active $system_units h4-egress-proxy.service 2>/dev/null || true
+		echo "-- the engine's system units, and the Author's proxy"
+		status_units
 		status_list_hashes
 		echo "-- the plugin's last 20 refusals"
 		status_refusals
 	fi
+}
+
+# Each unit by name, with its state, or "unknown" when systemctl can't say (no user bus, say). The proxy is the
+# Author's user unit: asked of the system manager, as status once asked it, it always read "inactive", even while
+# it served (2026-10-09).
+status_units() {
+	local unit state
+	for unit in $system_units; do
+		state="$(systemctl is-active "$unit" 2>/dev/null)" || true
+		printf '  %-26s %s\n' "$unit" "${state:-unknown}"
+	done
+	state="$(systemctl --user is-active h4-egress-proxy.service 2>/dev/null)" || true
+	printf '  %-26s %s\n' h4-egress-proxy.service "${state:-unknown}"
 }
 
 # The plugin's last 20 refusals, read as h4agents and never as root: h4agents owns the log's directory, so a link

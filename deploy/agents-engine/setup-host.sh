@@ -254,21 +254,29 @@ h4agents_copy() {
 	rm -f -- "$tmp"
 }
 
-# ensure_plugin_spec <home> <runtime dir>: the spec file through which dockerd finds the admission plugin
-# (§3.1). A rootless daemon doesn't find the socket in the runtime directory where authz.py makes it, and refuses
-# to start: "plugin h4-authz not found" (T046, 2026-10-09). It reads spec files from ~/.config/docker/plugins
-# first, and this one names the socket by path. Left alone when it already holds exactly that, as h4agents'
-# regular file, mode 0644. h4agents compares them, so a FIFO there holds setup up for 5 s at most.
+# ensure_plugin_spec <home> <runtime dir>: the spec files through which dockerd finds the admission plugin (§3.1).
+# A rootless daemon doesn't find the socket in the runtime directory where authz.py makes it, and refuses to start:
+# "plugin h4-authz not found" (T046, 2026-10-09). Each file names the socket by path. Moby documents the rootless
+# spec directories as $XDG_CONFIG_HOME/docker/plugins, then $HOME/.local/lib/docker/plugins. What T046 saw:
+# - with a correct copy in ~/.config/docker/plugins alone, dockerd 28.3.3 refused to start;
+# - with one in each directory, it started.
+# The second directory is what dockerd read, in our reading; why it skipped the first isn't known, and the daemon's
+# XDG_CONFIG_HOME wasn't checked. Both directories get the spec, so neither goes stale whichever a later dockerd
+# reads. Each is left alone when it already holds exactly that, as h4agents' regular file, mode 0644. h4agents
+# compares them, so a FIFO there holds setup up for 5 s at most.
 ensure_plugin_spec() {
-	local spec="$1/.config/docker/plugins/h4-authz.spec" tmp
+	local dir spec tmp
 	tmp="$(mktemp)"
 	printf 'unix://%s/docker/plugins/h4-authz.sock\n' "$2" >"$tmp"
 	chmod 0644 "$tmp"
-	if [ -L "$spec" ] || [ "$(stat -c '%a %U %F' -- "$spec" 2>/dev/null)" != "644 $user regular file" ] ||
-		! as_h4agents timeout 5 cmp -s -- "$tmp" "$spec"; then
-		log "writing $spec: $(cat -- "$tmp")"
-		as_h4agents install -T -m 0644 "$tmp" "$spec"
-	fi
+	for dir in "$1/.config/docker/plugins" "$1/.local/lib/docker/plugins"; do
+		spec="$dir/h4-authz.spec"
+		if [ -L "$spec" ] || [ "$(stat -c '%a %U %F' -- "$spec" 2>/dev/null)" != "644 $user regular file" ] ||
+			! as_h4agents timeout 5 cmp -s -- "$tmp" "$spec"; then
+			log "writing $spec: $(cat -- "$tmp")"
+			as_h4agents install -T -m 0644 "$tmp" "$spec"
+		fi
+	done
 	rm -f -- "$tmp"
 }
 
@@ -276,7 +284,8 @@ setup_rootless_docker() {
 	local uid runtime
 	uid="$(id -u "$user")"
 	runtime="/run/user/$uid"
-	as_h4agents install -d -m 0700 "$h4_home/.config/docker/plugins" "$h4_home/.config/systemd/user/docker.service.d"
+	as_h4agents install -d -m 0700 "$h4_home/.config/docker/plugins" "$h4_home/.local/lib/docker/plugins" \
+		"$h4_home/.config/systemd/user/docker.service.d"
 	h4agents_copy 0644 "$here/daemon.json" "$h4_home/.config/docker/daemon.json"
 	ensure_plugin_spec "$h4_home" "$runtime"
 	h4agents_copy 0644 "$here/systemd/h4-authz.service" "$h4_home/.config/systemd/user/h4-authz.service"
