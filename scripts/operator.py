@@ -761,7 +761,15 @@ def status_lines(stack: str, body: dict[str, Any]) -> list[str]:
     journal = obj(body.get("journal"))
     if journal.get("status") not in (None, "ok"):
         where = f" ({text(journal['file'])})" if journal.get("file") else ""
-        lines.append(f"{'journal':<15}{text(journal.get('status'))}{where}")
+        # unknown is the gateway's word for no record since it started: it learns whether it can write only at its
+        # next one. Every restart read as a fault until a metered call (T182, from T065).
+        state = journal.get("status")
+        said = (
+            "not written since the gateway started"
+            if state == "unknown"
+            else text(state)
+        )
+        lines.append(f"{'journal':<15}{said}{where}")
     alerts = obj(body.get("alerts"))
     pending, failed = alerts.get("pending"), alerts.get("failed_last_24h")
     if pending or failed:

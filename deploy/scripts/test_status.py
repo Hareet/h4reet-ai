@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -75,6 +76,15 @@ class FakeDocker(st.Docker):
             name: [printed(name)] for name in self.raw["services"] if name in LOCK
         }
         self.created_from = str(tree / "deploy/compose.yaml")
+        # docker compose config --hash '*': one "service hash" line each, the hash compose computes from the running
+        # commit's files; and each container's com.docker.compose.config-hash label, equal until a test says not
+        # (both copied from dev-cpu on the agents' engine, 2026-10-09: 64 hex, the same for an unchanged service).
+        self.hashes = {
+            name: hashlib.sha256(name.encode()).hexdigest()
+            for name in self.raw["services"]
+        }
+        self.created_hashes = dict(self.hashes)
+        self.hash_fails = False
         self.health_report: dict | None = {
             "status": "ok",
             "store": "ok",
@@ -108,6 +118,12 @@ class FakeDocker(st.Docker):
             rest = args[args.index("--env-file") + 2 :]
             if rest and rest[0] == "--env-file":
                 rest = rest[2:]
+            if rest[:3] == ("config", "--hash", "*"):
+                if self.hash_fails:
+                    return done("", 1)
+                return done(
+                    "".join(f"{n} {h}\n" for n, h in sorted(self.hashes.items()))
+                )
             if rest[0] == "config":
                 return done(json.dumps(self.raw))
             if rest[0] == "ps":
@@ -116,6 +132,8 @@ class FakeDocker(st.Docker):
                     if state == "absent":
                         continue
                     labels = f"com.docker.compose.project=h4reet-{self.stack},com.docker.compose.project.config_files={self.created_from}"
+                    if name in self.created_hashes:
+                        labels += f",com.docker.compose.config-hash={self.created_hashes[name]}"
                     lines.append(
                         json.dumps(
                             {
@@ -252,7 +270,8 @@ def test_a_compose_file_without_prometheus_is_named(
     assert status(env, run, docker) == 0
     out = capsys.readouterr().out
     assert "prometheus: not in this commit's compose file" in out
-    assert out.rstrip().endswith("status: healthy, waiting on the operator")
+    # A warning, not something only the operator clears (T182).
+    assert out.rstrip().endswith("status: healthy, with warnings")
 
 
 def test_prometheus_unreachable_is_a_warning(
@@ -357,6 +376,7 @@ def test_drift_from_the_pin_and_from_the_running_commit(
     docker = FakeDocker(tree, "prod")
     docker.digests["edge"] = [f"{LOCK['edge'][1]}@sha256:{'0' * 64}"]
     docker.created_from = "/elsewhere/tree/old/deploy/compose.yaml"
+    docker.created_hashes["edge"] = "0" * 64  # created with another configuration
     assert status(env, run, docker) == 0
     out = capsys.readouterr().out
     assert (
@@ -364,9 +384,58 @@ def test_drift_from_the_pin_and_from_the_running_commit(
         and "WARN edge runs an image whose digest isn't deploy/images.lock's" in out
     )
     assert (
-        "WARN edge was created from another commit's compose file: make up ENV=prod recreates it"
+        "WARN edge runs another configuration than the running commit's: make up ENV=prod recreates it"
         in out
     )
+    assert out.rstrip().endswith("status: healthy, with warnings")
+
+
+def test_a_container_another_export_created_with_this_configuration_is_current(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # T065: make up kept six containers whose configuration hadn't changed, and status said make up would recreate
+    # them, because another commit's export had created them. Compose's own config hash decides now (T181).
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    docker.created_from = "/elsewhere/tree/old/deploy/compose.yaml"
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    assert "runs another configuration" not in out
+    assert out.rstrip().endswith("status: healthy")
+    assert any(c[-3:] == ("config", "--hash", "*") for c in docker.calls)
+
+
+def test_without_compose_hashes_the_export_path_decides(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    docker.created_from = "/elsewhere/tree/old/deploy/compose.yaml"
+    docker.hash_fails = True
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    assert "WARN edge runs another configuration than the running commit's" in out
+
+
+def test_only_what_the_operator_clears_waits_on_the_operator(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # T065's rollback rehearsal: an initialized stack said "waiting on the operator" because of a Prometheus target
+    # seconds after its restart (T182).
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    docker.prom = {
+        "data": {
+            "activeTargets": [
+                {"health": "down" if job == "loki" else "up", "labels": {"job": job}}
+                for job in PROM_JOBS
+            ]
+        }
+    }
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    assert "WARN Prometheus targets down: loki" in out
+    assert out.rstrip().endswith("status: healthy, with warnings")
 
 
 def test_docker_hub_images_match_by_the_short_names_docker_prints(

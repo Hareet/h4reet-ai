@@ -467,7 +467,7 @@ fallback today 0.40 / 2.00 USD   (grant 1, warning 1.40, available 1.48) · awai
 adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:00Z
 ```
 
-Below these lines it adds one for each thing that needs a look: the journal when it isn't `ok`, alerts pending or failed in the last 24 hours, dev's test machinery when it is on, and, for an uninitialized store, the `make operator-init` command.
+Below these lines it adds one for each thing that needs a look: the journal when it isn't `ok` (`unknown`, the state until the gateway's first record since it started, reads "not written since the gateway started", T182), alerts pending or failed in the last 24 hours, dev's test machinery when it is on, and, for an uninitialized store, the `make operator-init` command.
 
 The `status` and `init` summaries name the CLI's own `--stack`, in the first line and in any command they suggest. They never use the answer's `stack` field (T056's review).
 

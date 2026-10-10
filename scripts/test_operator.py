@@ -457,6 +457,25 @@ def test_a_token_file_with_mode_0400_is_accepted(
     assert run(["--stack", "dev", "--url", stub.url, "status"], capsys)[0] == 0
 
 
+@pytest.mark.parametrize(
+    ("state", "said"),
+    [
+        ("unknown", "not written since the gateway started"),
+        ("unwritable", "unwritable"),
+    ],
+)
+def test_the_journal_line_says_what_its_state_means(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str], state: str, said: str
+) -> None:
+    # unknown is every restart's state until the gateway's next record, not a fault (T182, from T065's runs).
+    plant(home, "prod", token("prod") + "\n")
+    body = STATUS_BODY | {"journal": {"status": state, "file": "journal/2026-10.jsonl"}}
+    stub.answer("GET", "/admin/status", 200, body)
+    code, out, err = run(["--stack", "prod", "--url", stub.url, "status"], capsys)
+    assert code == 0, err
+    assert f"{'journal':<15}{said} (journal/2026-10.jsonl)" in out.splitlines()
+
+
 @pytest.mark.parametrize("loose", [0o644, 0o640, 0o604, 0o700, 0o660, 0o200])
 def test_a_token_file_with_another_mode_is_refused(
     home: Path, stub: Stub, capsys: pytest.CaptureFixture[str], loose: int

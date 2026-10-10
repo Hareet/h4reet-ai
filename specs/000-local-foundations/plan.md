@@ -417,7 +417,7 @@ Keys that select the stack:
 
 Exit codes:
 - 0: every service is healthy.
-- 0 with a WARN: healthy, but waiting on the operator (an empty store or a tripped switch).
+- 0 with a WARN: healthy. The last line says "waiting on the operator" for what only the operator clears (an empty store, a tripped switch), and "with warnings" for any other WARN: an image off its pin, a container whose configuration isn't the running commit's by compose's config hash, a Prometheus target down (tasks.md T181, T182).
 - 1: preflight refused, or a service failed its health check. The output names the service with its health output and redacted error lines, and the rest keeps running with hello degraded.
 
 **Rollback** (Development Workflow step 6). `make up ENV=<stack> REF=<previous sha>` (the run file and `make status` show `H4_REF_PREVIOUS`) brings back the previous commit's compose file, configuration, and images in one command. The store and the journal stay as they are. The gateway refuses to start against a store whose schema is newer than its own migrations (exit 78, `schema_newer_than_code`, naming the migration), so a rollback across a migration fails closed instead of corrupting the meter. quickstart.md §1.12 rehearses it on dev, and the runbook is `docs/runbooks/rollback.md`.

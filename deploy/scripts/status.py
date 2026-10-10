@@ -8,14 +8,16 @@ It prints:
   - the commit a host stack runs, its branch, and the commit before it, from the run file. A host stack with no run
     file wasn't started by make up, and that is all it says. dev-cpu runs the working tree;
   - each service of the stack's profiles: its state, its health, and whether its image is the one deploy/images.lock
-    pins; and a warning for a container created from another commit's export;
+    pins; and a warning for a container whose configuration isn't the running commit's, by compose's own config hash,
+    so make up would recreate it;
   - the gateway's GET /health, asked from inside the stack through edge, so it works on either engine: the store,
     the state, the degraded cause, and the adapters. With an uninitialized store it prints the one-time
     make operator-init command; it never initializes, resets, or changes anything itself (FR-031);
   - Prometheus's target health, asked from inside its own container; GPU memory on a gpu stack; and docker system df.
 
-Exit codes: 0 every service is healthy, with WARN lines when the stack waits on the operator (an uninitialized
-store, a tripped switch); 1 a service is down or unhealthy, which it names with its last health-check output and
+Exit codes: 0 every service is healthy. Its last line says "waiting on the operator" when a WARN is something only
+the operator clears (an uninitialized store, a tripped switch), and "with warnings" for any other WARN. 1 a service
+is down or unhealthy, which it names with its last health-check output and
 its error lines from the logs, both through deploy/scripts/redact.sh; or Docker didn't answer. Reading a missing
 run file is never a failure (contracts/env-files.md §12).
 """
@@ -169,6 +171,8 @@ class Status:
         self.docker, self.after_up = docker, after_up
         self.warnings: list[str] = []
         self.failing: list[str] = []
+        # Set by a WARN that waits on the operator (an empty store, a tripped switch), which names the last line (T182).
+        self.waiting = False
 
     def say(self, text: str = "") -> None:
         print(text, flush=True)
@@ -309,6 +313,36 @@ class Status:
             self.say(f"  {name}'s error lines, redacted:")
             self.say(redact("\n".join(errors) + "\n").rstrip())
 
+    def config_hashes(self, tree: Path) -> dict[str, str] | None:
+        """Each service's configuration hash, as compose computes it from the running commit's files: one "service
+        hash" line each. None when compose can't say."""
+        done = self.compose(tree, "config", "--hash", "*")
+        if done.returncode != 0:
+            return None
+        out = {}
+        for line in done.stdout.splitlines():
+            service, _, digest = line.strip().partition(" ")
+            if service and digest:
+                out[service] = digest.strip()
+        return out
+
+    def stale(
+        self, name: str, container: dict, hashes: dict[str, str] | None, tree: Path
+    ) -> bool:
+        """Whether make up would recreate the container: compose recreates exactly the ones whose
+        com.docker.compose.config-hash label isn't the hash the running commit's files give. A container another
+        export created, with the same configuration, is current: compose kept it on purpose, and the export's path
+        changes with every commit (T181; T065 warned about six such containers). Without a hash on either side,
+        the path is all there is to go on."""
+        own = labels(container).get("com.docker.compose.config-hash", "")
+        current = (hashes or {}).get(name, "")
+        if own and current:
+            return own != current
+        created_from = labels(container).get(
+            "com.docker.compose.project.config_files", ""
+        )
+        return bool(created_from) and not created_from.startswith(str(tree) + "/")
+
     def services(self, tree: Path, expected: dict[str, dict] | None) -> bool:
         ps = self.compose(tree, "ps", "-a", "--format", "json")
         if expected is None or ps.returncode != 0:
@@ -316,6 +350,7 @@ class Status:
             self.failing.append("docker")
             return False
         containers = {c.get("Service"): c for c in parse_ps(ps.stdout)}
+        hashes = self.config_hashes(tree) if self.stack in HOST_STACKS else None
         pins = (
             read_lock(tree / "deploy/images.lock")
             if (tree / "deploy/images.lock").is_file()
@@ -341,16 +376,9 @@ class Status:
                 self.failing.append(name)
             elif health == "starting":
                 self.warnings.append(f"{name} is still starting")
-            created_from = labels(container).get(
-                "com.docker.compose.project.config_files", ""
-            )
-            if (
-                self.stack in HOST_STACKS
-                and created_from
-                and not created_from.startswith(str(tree) + "/")
-            ):
+            if self.stack in HOST_STACKS and self.stale(name, container, hashes, tree):
                 self.warnings.append(
-                    f"{name} was created from another commit's compose file: make up ENV={self.stack} recreates it"
+                    f"{name} runs another configuration than the running commit's: make up ENV={self.stack} recreates it"
                 )
         for name in self.failing:
             if name != "docker":
@@ -386,6 +414,7 @@ class Status:
             f" · cause {report.get('degraded_cause')} · adapters: {adapters or 'none'}"
         )
         if report.get("store") == "uninitialized":
+            self.waiting = True
             self.warnings.append(
                 f"the store is uninitialized, so hello answers store_uninitialized. Once, in your terminal: "
                 f'make operator-init ENV={self.stack} REASON="<why, at least 10 characters>", adding CONFIRM_ZERO=1 '
@@ -399,6 +428,7 @@ class Status:
                 + " SERVICE=gateway-state"
             )
         if report.get("state") == "degraded":
+            self.waiting = True
             crossed = ", ".join(report.get("crossed") or []) or "?"
             self.warnings.append(
                 f"the kill switch is tripped ({crossed}): make operator-status ENV={self.stack}; only you reset it, "
@@ -481,9 +511,14 @@ class Status:
                 f"status: {len(self.failing)} service(s) failing: {', '.join(self.failing)}; the rest keep running"
             )
             return 1
-        self.say(
-            "status: healthy" + (", waiting on the operator" if self.warnings else "")
-        )
+        # Waiting on the operator only for what only the operator can clear; any other WARN is just that (T182: dev's
+        # initialized stack said "waiting on the operator" for a Prometheus target seconds after its restart).
+        if self.waiting:
+            self.say("status: healthy, waiting on the operator")
+        elif self.warnings:
+            self.say("status: healthy, with warnings")
+        else:
+            self.say("status: healthy")
         return 0
 
 
