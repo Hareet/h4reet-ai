@@ -258,6 +258,12 @@ cmd planned 'aws sso-oidc create-token --client-id x --client-secret y --grant-t
 check bash-gate.sh planned "a forbidden first line, then 100 KB" \
   "$(jq -cn --arg c "$(printf 'make aws-login ENV=prod\n#%0100000d' 0)" '{command:$c}')"
 check bash-gate.sh planned "an 80,000-byte command" "$(jq -cn --arg c "$(printf 'echo %080000d' 0)" '{command:$c}')"
+# A comment ends at its newline, backslash or not, and bash runs the next line: US5's rules read the joined form too,
+# but the stack's rules still see the next line as written, so these block before the patch and after it.
+check bash-gate.sh block ": #\<newline>terraform apply" "$(jq -cn --arg c "$(printf ': #\\\nterraform apply')" '{command:$c}')"
+check bash-gate.sh block "echo hi #\<newline>gh pr merge 1" "$(jq -cn --arg c "$(printf 'echo hi #\\\ngh pr merge 1')" '{command:$c}')"
+check bash-gate.sh planned "#\<newline>bash deploy/scripts/aws-login.sh" \
+  "$(jq -cn --arg c "$(printf '#\\\nbash deploy/scripts/aws-login.sh')" '{command:$c}')"
 # Spellings the rules don't see: a name built at run time or held in a variable, a glob, an ANSI-C escape inside a name,
 # run.py reached from its own directory or by a computed import, and a copy run in a command of its own. The targets'
 # and the CLI's own SANDBOX_RUNTIME refusals, and the token and session the sandbox can't read, still stop them.
@@ -265,6 +271,8 @@ cmd gap "make \$(printf 'aws-%s' login) ENV=prod"
 # shellcheck disable=SC2016
 cmd gap 't=aws; make "$t-login" ENV=prod'
 cmd gap 'bash deploy/scripts/aws-l?gin.sh'
+# The stack's rules read the command as written, so a backslash-newline inside one of their names hides it (T117).
+check bash-gate.sh gap "terraform ap\<newline>ply" "$(jq -cn --arg c "$(printf 'terraform ap\\\nply')" '{command:$c}')"
 cmd gap "make \$'aws\\x2dlogin' ENV=prod"
 cmd gap 'python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter bedrock'
 cmd gap 'cd evals && python3 run.py --suite product --adapter bedrock'

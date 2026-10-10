@@ -1017,6 +1017,12 @@ def test_p19_prods_aws_directory(prod: Stage) -> None:
     assert prod.results()["P19"].status == "PASS"
     prod.write(aws / "config", "[profile h4reet-bedrock]\nsso_session = x\n")
     assert "SSO region is not set" in prod.results()["P19"].reason
+    # A file that doesn't parse says so, rather than calling the region missing (round 3's review).
+    prod.write(
+        aws / "config",
+        "[profile h4reet-bedrock]\nsso_session = x\nnot a key and a value\n",
+    )
+    assert "isn't a config the AWS CLI can read" in prod.results()["P19"].reason
     prod.write(
         aws / "config",
         "[profile h4reet-bedrock]\nsso_session = x\n\n[sso-session x]\nsso_region = eu-west-1\n",

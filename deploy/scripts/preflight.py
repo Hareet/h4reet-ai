@@ -1314,7 +1314,13 @@ def p19(ctx: Context) -> Result:
             "P19",
             f"prod routes to {adapter}, but {config} has no [profile h4reet-bedrock] (quickstart.md §0.6)",
         )
-    region = sso_region(config)
+    try:
+        region = sso_region(config)
+    except configparser.Error as error:
+        return fail(
+            "P19",
+            f"{config} isn't a config the AWS CLI can read ({type(error).__name__}), so its SSO region can't be checked",
+        )
     if region != "us-east-1":
         return fail(
             "P19",
@@ -1325,12 +1331,16 @@ def p19(ctx: Context) -> Result:
 
 
 def sso_region(config: Path) -> str | None:
-    """The h4reet-bedrock profile's SSO region, as the AWS CLI reads it: its sso-session's, when it names one."""
+    """The h4reet-bedrock profile's SSO region, as the AWS CLI reads it: its sso-session's, when it names one.
+
+    A config that doesn't parse raises configparser.Error, so P19 can say so rather than call the region missing.
+    """
     parser = configparser.ConfigParser(interpolation=None, strict=False)
     try:
-        parser.read_string(config.read_text(encoding="utf-8"))
-    except (OSError, configparser.Error):
+        text = config.read_text(encoding="utf-8")
+    except OSError:
         return None
+    parser.read_string(text)
     profile = "profile h4reet-bedrock"
     session = parser.get(profile, "sso_session", fallback=None)
     if session:
