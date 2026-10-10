@@ -727,3 +727,12 @@ From T084's pre-run (2026-10-10): `make breach-test ENV=dev-cpu` on the agents' 
   - c-ares, or a timeout, in `edge.ts`.
 
   Prove it on the engine with the collector stopped. Whether the host's engine hangs on stopped names the same way is unverified. Per contracts/telemetry.md §3 and FR-033 (partial)
+
+  Partly done on 2026-10-10:
+  - **The three OTLP exporters** use `EXPORT_AGENT`: keep-alive, as their default is, with the collector's name resolved through c-ares. `test/unit/otel-export.test.ts` delivers a span to a collector only c-ares can name, and fails without it.
+  - **`edge.ts`'s default resolver** is c-ares. A lookup that doesn't answer now gives up after c-ares's own tries, instead of waiting in libuv's queue, and `test/unit/edge.test.ts` shows the path.
+  - **Still on `getaddrinfo`:** pg, whose client takes no lookup option, so a new store connection still needs a lookup slot; and nodemailer's fallback, which c-ares answers first. With the model server's, the exporters', and edge's lookups off the threadpool, nothing in the gateway is known to fill its two lookup slots, but pg would still wait behind anything that did.
+  - **The Author's call:** whether `UV_THREADPOOL_SIZE` goes into the gateway's image as defense in depth (N threads give (N + 1) / 2 lookup slots).
+  - **Not run yet:** the engine test with the collector stopped, which needs the main tree.
+
+  The task stays open for those three.

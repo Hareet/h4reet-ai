@@ -580,7 +580,7 @@ The full contract is in [contracts/alerts.md](contracts/alerts.md).
 ### 5.7 Telemetry
 
 The canonical names, attributes, and Prometheus forms are in [contracts/telemetry.md](contracts/telemetry.md).
-- **SDK setup:** `@opentelemetry/sdk-node` with OTLP/HTTP exporters to `http://otel-collector:4318`, metrics exported every 10 s with cumulative temporality, and explicit histogram buckets up to 120 s.
+- **SDK setup:** `@opentelemetry/sdk-node` with OTLP/HTTP exporters to `http://otel-collector:4318`, metrics exported every 10 s with cumulative temporality, and explicit histogram buckets up to 120 s. The exporters' agent is keep-alive and resolves the collector through c-ares (tasks.md T189).
 - **Spans:** the `POST /hello` server span (from `@fastify/otel`), an internal `gateway.route` span, and one client span per provider attempt, named `chat {gen_ai.request.model}`. The client span carries:
   - `gen_ai.operation.name`, `gen_ai.provider.name`, the request and response model, max tokens, input and output tokens, finish reasons, and the response ID;
   - `server.address` and `error.type`;

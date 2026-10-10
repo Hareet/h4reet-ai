@@ -15,6 +15,8 @@
 // Instrumentations are built switched off, so building this configuration patches nothing; NodeSDK.start() enables
 // them, and startTelemetry switches on the undici instrumentation's own flag, which it reads on every request.
 // server.ts starts the SDK before it loads Fastify, pg, or pino, so their instrumentations can wrap them.
+import type { AgentOptions } from "node:http";
+
 import { FastifyOtelInstrumentation } from "@fastify/otel";
 import type { Context, Span as ApiSpan } from "@opentelemetry/api";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
@@ -43,6 +45,7 @@ import { NodeSDK, tracing, type NodeSDKConfiguration } from "@opentelemetry/sdk-
 import { ATTR_DB_QUERY_TEXT } from "@opentelemetry/semantic-conventions";
 
 import { isServiceHost } from "../adapters/_settings.js";
+import { aresLookup } from "../core/resolve.js";
 import { SECONDS_BUCKETS } from "./metrics.js";
 
 export const METRIC_EXPORT_INTERVAL_MS = 10_000;
@@ -238,8 +241,18 @@ function stripped(span: tracing.ReadableSpan): tracing.ReadableSpan {
 }
 
 /** OTLP/HTTP metrics, cumulative for every instrument type: Prometheus accepts only cumulative. */
+/**
+ * The OTLP exporters' connections: keep-alive, as the exporters' own default is, with the collector's name resolved
+ * through c-ares (core/resolve.ts). An export to a stopped collector then holds neither of the two threads libuv gives
+ * lookups, which the store's connections need (tasks.md T189).
+ */
+export const EXPORT_AGENT: AgentOptions = { keepAlive: true, lookup: aresLookup };
+
 export function metricExporter(): OTLPMetricExporter {
-  return new OTLPMetricExporter({ temporalityPreference: AggregationTemporality.CUMULATIVE });
+  return new OTLPMetricExporter({
+    temporalityPreference: AggregationTemporality.CUMULATIVE,
+    httpAgentOptions: EXPORT_AGENT,
+  });
 }
 
 /** The environment's resource (OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES) and the package's version. */
@@ -264,9 +277,9 @@ const secondsView = (instrumentName: string): ViewOptions => ({
 });
 
 export function buildSdkConfiguration(opts: TelemetryOptions): Partial<NodeSDKConfiguration> {
-  const traces = opts.exporters?.traces ?? new OTLPTraceExporter();
+  const traces = opts.exporters?.traces ?? new OTLPTraceExporter({ httpAgentOptions: EXPORT_AGENT });
   const metrics = opts.exporters?.metrics ?? metricExporter();
-  const logs = opts.exporters?.logs ?? new OTLPLogExporter();
+  const logs = opts.exporters?.logs ?? new OTLPLogExporter({ httpAgentOptions: EXPORT_AGENT });
   return {
     resource: buildResource(opts.version),
     autoDetectResources: false,
