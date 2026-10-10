@@ -333,6 +333,35 @@ for f in x.py x.md; do
   nothing_ran "$pc" "project code, editing $f"
 done
 
+# --- the Makefile: make never remakes a makefile from a file planted beside it (T183's review) -----------
+# make remakes each makefile it has read, and its built-in rules would copy a planted Makefile.sh or GNUmakefile.sh
+# over one, then run the copy. These rows are plain make, alone and through T183's GNUmakefile;
+# scripts/test_makefile.py covers the other ways make is called.
+remake_dir="$scratch/remake"
+mkdir -p "$remake_dir/alone" "$remake_dir/gnu"
+cp "$repo/Makefile" "$remake_dir/alone/"
+cp "$repo/Makefile" "$remake_dir/gnu/"
+# shellcheck disable=SC2016 # make's own $(...), as T183's patch writes it
+printf '%s\n' 'include $(dir $(lastword $(MAKEFILE_LIST)))Makefile' >"$remake_dir/gnu/GNUmakefile"
+for m in "$remake_dir/alone/Makefile" "$remake_dir/gnu/Makefile" "$remake_dir/gnu/GNUmakefile"; do
+  printf 'help:\n\t@touch PWNED\n' >"$m.sh"
+  touch -d 2000-01-01 "$m" # older than the planted file, so make would remake it
+  cp "$m" "$m.before"
+done
+for d in "$remake_dir/alone" "$remake_dir/gnu"; do
+  make -s -C "$d" help >/dev/null 2>&1 || true
+  remade=''
+  for m in "$d/Makefile" "$d/GNUmakefile"; do
+    if [ -e "$m.before" ] && ! cmp -s "$m" "$m.before"; then remade="$remade ${m##*/}"; fi
+  done
+  if [ -e "$d/PWNED" ] || [ -n "$remade" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' Makefile "a planted .sh (${d##*/}): remade${remade:- nothing}; the planted recipe ran: $([ -e "$d/PWNED" ] && echo yes || echo no)"
+  else
+    pass=$((pass + 1))
+  fi
+done
+
 # --- .claude/git-hooks/reference-transaction: only the Author changes main ------------------------
 gr="$scratch/git-hook"
 git init -q -b main "$gr"

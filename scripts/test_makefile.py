@@ -8,6 +8,7 @@ the short list of names that only ever come from the environment, so the next va
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -181,27 +182,99 @@ def test_the_agents_engine_builds_them(tmp_path: Path, env: dict[str, str]) -> N
     assert calls == [expected]
 
 
+# --------------------------------------------------------------------------------------------------
+# A GNUmakefile that only includes the Makefile (tasks.md T183), and makefiles make never remakes
+# --------------------------------------------------------------------------------------------------
+INCLUDE_LINE = "include $(dir $(lastword $(MAKEFILE_LIST)))Makefile"  # T183's patch's GNUmakefile, word for word
+GUARD = "$(MAKEFILE_LIST): ;\n.SUFFIXES:\n"
+PLANTED = "help:\n\t@touch PWNED\n"
+MAKE_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "LC_ALL": "C"}
+
+
 def test_help_lists_the_targets_through_an_including_makefile(tmp_path: Path) -> None:
-    # T183's option (a): a committed GNUmakefile that only includes the Makefile. make then reads two files, and help
-    # must still print bare target names, not grep's "file:" before each line.
+    # make then reads two files, and help must still print bare target names, not grep's "file:" before each line.
     make = shutil.which("make")
     if make is None:
         pytest.skip("no make on this host")
-    outer = tmp_path / "GNUmakefile"
-    outer.write_text(f"include {MAKEFILE}\n", encoding="utf-8")
+    shutil.copyfile(MAKEFILE, tmp_path / "Makefile")
+    (tmp_path / "GNUmakefile").write_text(INCLUDE_LINE + "\n", encoding="utf-8")
 
-    def help_from(makefile: Path) -> subprocess.CompletedProcess[str]:
+    def help_from(*args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [make, "-s", "-f", str(makefile), "help"],
-            cwd=ROOT,
+            [make, "-s", "-C", str(tmp_path), *args, "help"],
+            env={**MAKE_ENV, "HOME": str(tmp_path)},
             capture_output=True,
             text=True,
             check=False,
             timeout=60,
         )
 
-    direct, included = help_from(MAKEFILE), help_from(outer)
+    direct, included = help_from("-f", "Makefile"), help_from()
     assert direct.returncode == 0, direct.stderr
     assert included.returncode == 0, included.stderr
     assert "  help " in direct.stdout
     assert included.stdout == direct.stdout
+
+
+def _plant_and_run(
+    root: Path, makefile_text: str, layout: str
+) -> tuple[list[str], bool]:
+    """Lay out a Makefile with makefile_text, plant <name>.sh beside each makefile make reads, newer than it, and run
+    make help. Returns the makefiles that changed, and whether the planted recipe ran."""
+    make = shutil.which("make")
+    assert make is not None
+    (root / "Makefile").write_text(makefile_text, encoding="utf-8")
+    makefiles, cwd, args = [root / "Makefile"], root, ["help"]
+    if layout == "through GNUmakefile":
+        makefiles.append(root / "GNUmakefile")
+        makefiles[-1].write_text(INCLUDE_LINE + "\n", encoding="utf-8")
+    elif layout == "-f Makefile":
+        args = ["-f", "Makefile", "help"]
+    elif layout == "included by path":
+        cwd = root / "outer"
+        cwd.mkdir()
+        makefiles.append(cwd / "GNUmakefile")
+        makefiles[-1].write_text(f"include {root / 'Makefile'}\n", encoding="utf-8")
+    before = {}
+    for makefile in makefiles:
+        makefile.with_name(makefile.name + ".sh").write_text(PLANTED, encoding="utf-8")
+        # 2000-01-01: older than the planted file, so make would remake it
+        os.utime(makefile, (946684800, 946684800))
+        before[makefile] = makefile.read_bytes()
+    subprocess.run(
+        [make, "-s", *args],
+        cwd=cwd,
+        env={**MAKE_ENV, "HOME": str(root)},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    changed = [
+        str(m.relative_to(root)) for m in makefiles if m.read_bytes() != before[m]
+    ]
+    return changed, (root / "PWNED").exists() or (cwd / "PWNED").exists()
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize(
+    "layout", ["alone", "through GNUmakefile", "-f Makefile", "included by path"]
+)
+def test_make_never_remakes_a_makefile_from_a_planted_file(
+    tmp_path: Path, layout: str
+) -> None:
+    # T183's review, S1: make's built-in .sh rule copies a planted Makefile.sh over the Makefile, and make runs it.
+    assert GUARD in TEXT, "the Makefile's empty rule and empty .SUFFIXES are gone"
+    (tmp_path / "unguarded").mkdir()
+    (tmp_path / "guarded").mkdir()
+    # Not vacuous: without the two lines, the same plant takes over this make.
+    changed, ran = _plant_and_run(
+        tmp_path / "unguarded", TEXT.replace(GUARD, ""), layout
+    )
+    if not (changed and ran):
+        pytest.skip(
+            "this make remakes no makefile from a planted .sh, so the plant proves nothing here"
+        )
+    changed, ran = _plant_and_run(tmp_path / "guarded", TEXT, layout)
+    assert not changed, f"make remade {changed} from a planted file"
+    assert not ran, "make ran the planted recipe"
