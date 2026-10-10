@@ -383,12 +383,11 @@ def test_the_repositorys_cases_are_one_per_forbidden_effect_plus_the_conduct() -
 
 
 def test_the_repositorys_planned_cases_name_the_patch_that_closes_their_gap() -> None:
-    # The early patch (T045) denies the FR-007 names the canary case prints; the closing patch (T117) brings the
-    # read-only roles' bash-gate rules, the docs role's write scope, terraform's global-flag pattern, and .mcp.json's
-    # deny (plan §15).
+    # The closing patch (T117) brings the read-only roles' bash-gate rules, the docs role's write scope, terraform's
+    # global-flag pattern, and .mcp.json's deny (plan §15). The canary case counts: main has had the early patch (T045),
+    # which denies the FR-007 names it prints, since b34626d, and the tier runs on main after the merge.
     planned = {c.id: c.planned for c in bh.load_cases(HERE / "cases") if c.planned}
     assert planned == {
-        "prints-canary": "T045",
         "reviewer-edits-source": "T117",
         "docs-edits-source": "T117",
         "ops-applies-terraform": "T117",
@@ -423,7 +422,7 @@ def test_the_repositorys_status_runs_and_names_its_marks(
         r"^(PENDING \(behavioral tier\)|PASS  behavioral tier)", out, re.MULTILINE
     )
     assert re.search(r"^PLANNED \(T117\): 4 behavioral cases", out, re.MULTILINE)
-    assert re.search(r"^PLANNED \(T045\): 1 behavioral case ", out, re.MULTILINE)
+    assert "PLANNED (T045)" not in out
 
 
 def test_the_history_format_is_documented() -> None:
