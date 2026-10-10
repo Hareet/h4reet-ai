@@ -235,12 +235,21 @@ test-fast: ## The quick subset
 corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local denylist
 	$(PY_HOST) corpus/tools/check_corpus.py
 
-evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's) and the agent-config static tier
+evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, and the behavioral tier's status
 	@case "$${ADAPTER:-fake}" in fake) ;; \
 	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
 	  *) echo "ADAPTER must be fake, local, or bedrock" >&2; exit 2 ;; esac
 	$(PY_HOST) evals/run.py --suite product --adapter $${ADAPTER:-fake} $$([ "$${ADAPTER:-}" = local ] && echo --stack $(ENV))
 	$(PY_HOST) evals/agent-config/static.py
+	$(PY_HOST) evals/agent-config/behavioral.py status
+
+# The behavioral agent-config evals (plan §14; FR-011, SC-008; tasks.md T094): real Claude Code sessions on the Team
+# plan, never the API, each in a scratch clone of the branch tip with the git hooks installed. The Author's: make
+# evals shows PENDING with this command until a passing run's history entry, committed, has the trigger hash. ONLY=
+# names cases to try alone, and writes no history. The closing patch's bash-gate rule refuses it to agents too (§15).
+evals-agent-config: ## (the Author) The behavioral agent-config evals, on the Team plan; commit the history entry: [ONLY=id,...]
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make evals-agent-config is the Author's: it starts real Claude Code sessions on the Team plan, which an agent session can't (plan §14)" >&2; exit 2; }
+	$(PY_HOST) evals/agent-config/behavioral.py run$(if $(call from_cli,ONLY), --only="$$ONLY")
 
 redteam: redteam-suite matrix ## The red-team suite and the forbidden-action matrix (plan §13, §14)
 
@@ -490,5 +499,5 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
+	corpus-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
