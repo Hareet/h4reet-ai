@@ -40,6 +40,8 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04@sha256:e778509d37
 
 Expected: the RTX 5090 Laptop GPU, driver 592.01, compute capability 12.0, 24,463 MiB (research.md R-01).
 
+Once §0.5 gives `/dev/dxg` to root:`h4gpu`, the NVIDIA hook's CLI needs a user in that group, or every GPU container fails with "nvml error: not supported" (T065). `engine.sh setup` sets it (§0.5; contracts/agents-engine.md H6, tasks.md T179).
+
 ### 0.3 Node 24 and the tools
 
 ```bash
@@ -63,8 +65,10 @@ deploy/agents-engine/engine.sh setup      # sudo; the user h4agents, the firewal
 # then in PowerShell: wsl --shutdown, and open a new WSL shell
 id -nG                 # includes h4gpu
 stat -c '%a %U:%G' /dev/dxg /mnt/c/Users   # 660 root:h4gpu, and 700 for /mnt/c/Users
+deploy/agents-engine/engine.sh setup      # again, once: with /dev/dxg in its H6 mode now, it can try nobody:h4gpu for the NVIDIA CLI (T179)
 deploy/agents-engine/engine.sh up
 make engine-status     # reachable, rootless, plugin h4-authz listed
+deploy/agents-engine/engine.sh status     # also: /dev/dxg root:h4gpu 660; the NVIDIA container CLI runs as nobody:h4gpu (or root:h4gpu)
 ```
 
 `wsl --shutdown` ends every WSL session, agents' included. Run the engine's commands directly, never through make ([agents-engine.md §8](contracts/agents-engine.md#8-commands)). Seeding comes after the pull ([§0.9](#09-the-first-pull-and-the-seed)), once US1 has the models' lock and the last image pin.
