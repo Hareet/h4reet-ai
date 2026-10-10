@@ -170,6 +170,39 @@ cmd allow 'python3 -I -B -X pycache_prefix=/dev/null evals/breach.py --stack dev
 if [ "$planned" -gt "$breach_planned" ]; then
   printf 'PLANNED (T117): %d breach-test rows: bash-gate.sh lets an agent run it on dev (FR-008); the closing patch refuses it\n' "$((planned - breach_planned))"
 fi
+# The Author's own targets (plan §13; tasks.md T103, T104): make contract-live calls a live adapter, Bedrock's paid,
+# with an operator token, and make aws-login starts prod's Bedrock session. A paid route gets its deny with it (CLAUDE.md),
+# so US5's enforcement patch adds the bash-gate rules (docs/merge-requests/2026-10-10-feat-000-us5-fallback-enforcement.patch)
+# and makes these rows "block". Until the Author applies it they are planned; meanwhile the targets refuse
+# SANDBOX_RUNTIME=1 themselves, and the sandbox can't read the operator token or the AWS session.
+author_planned=$planned
+cmd planned 'make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd planned 'make aws-login ENV=prod'
+cmd planned 'make -C . contract-live ENV=prod ADAPTER=local REASON="a live run"'
+cmd planned 'make ENV=prod aws-login'
+cmd planned "bash -c 'make aws-login ENV=prod'"
+cmd planned '(make contract-live ENV=dev ADAPTER=local REASON="a live run")'
+cmd planned 'SANDBOX_RUNTIME=0 make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd planned 'env -u SANDBOX_RUNTIME make aws-login ENV=prod'
+cmd planned 'make "aws-login" ENV=prod'
+cmd planned '/usr/bin/make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd planned 'deploy/agents-engine/docker-relay make aws-login ENV=prod'
+cmd planned 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
+cmd planned 'bash deploy/scripts/aws-login.sh'
+cmd planned './deploy/scripts/aws-login.sh'
+cmd planned 'HOME=/home/a/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock'
+cmd planned 'aws --profile h4reet-bedrock sso login'
+# Spellings the rules don't see: another make, a target built at run time, and the CLI copied elsewhere. The targets'
+# and the CLI's own SANDBOX_RUNTIME refusals, and the token the sandbox can't read, still stop them.
+cmd gap 'gmake contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd gap "make \$(printf 'aws-%s' login) ENV=prod"
+cmd gap 'cp scripts/operator.py /tmp/o.py && python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
+cmd allow 'make operator-status ENV=dev-cpu'
+cmd allow 'grep -n contract-live Makefile'
+cmd allow 'pytest -q scripts/test_contract_live.py deploy/scripts/test_aws_login.py'
+if [ "$planned" -gt "$author_planned" ]; then
+  printf "PLANNED (US5's enforcement patch): %d Author-only target rows: bash-gate.sh lets an agent run make contract-live and make aws-login; the patch refuses them\n" "$((planned - author_planned))"
+fi
 # Fix tasks may not weaken tests, evals, or the red-team suite.
 cmd block "sed -i 's/2/3/' services/gateway/router.test.ts" FIX_TASK=1
 cmd block "sed -i 's/2/3/' tests/test_router.py" FIX_TASK=1

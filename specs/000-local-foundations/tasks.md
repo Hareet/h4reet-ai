@@ -533,7 +533,10 @@ description: "Task list for spec 000, Local Foundations"
     - `scripts/test_operator_record.py` covers it.
   - **`make contract-live ENV= ADAPTER=local|bedrock REASON=`** refuses an agent session, a missing reason or adapter, and bedrock off prod. It records into a 0700 temporary directory, which it deletes, then hands the recording to `tools/gates/gate --contract-replay`. `scripts/test_contract_live.py` covers the refusals.
   - **Still open, the replay:** it runs in the gate's container phase (plan.md §11), which T092 builds; T092 now carries the mode. Until the gate exists, `make contract-live` stops before it calls anything, saying `PLANNED (T092)`, so no live call is made without its replay.
-  - **Its deny for agents** is in the US5 note's enforcement patch, beside `make aws-login`'s: a paid route gets its deny with it (CLAUDE.md).
+  - **Its deny for agents,** beside `make aws-login`'s, is `docs/merge-requests/2026-10-10-feat-000-us5-fallback-enforcement.patch`, since a paid route gets its deny with it (CLAUDE.md).
+    - The patch adds two bash-gate rules: the two targets by name in any spelling, and the commands they run (operator.py's contract-record, aws-login.sh, and `aws sso login`).
+    - `redteam/forbidden-actions.sh` carries their 16 rows as planned, and the patch makes them block. With it applied to an export, the matrix passes 185 rows, with no failures and 10 known gaps, 3 of them new: another make, a target built at run time, and the CLI copied elsewhere.
+    - The closing patch (T117) keeps the other Author-only targets.
 - [X] T104 [US5] Create `deploy/scripts/aws-login.sh` and `make aws-login` (Author): `HOME=~/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock`. Wire the gateway's `${H4_AWS_DIR}` mount and `GATEWAY_AWS_PROFILE` in `deploy/compose.yaml` (§5.2).
 
   Done on 2026-10-10.
