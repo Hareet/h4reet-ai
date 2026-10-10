@@ -513,6 +513,13 @@ description: "Task list for spec 000, Local Foundations"
     - `test/unit/registry.test.ts` pins the registered types, and now names bedrock-converse, as its comment anticipated.
     - `test/unit/config.test.ts`'s sample §1.3 error was the unregistered bedrock-converse type. It now passes the pre-T102 type set explicitly, and keeps its assertions.
 - [ ] T103 [US5] Implement `POST /admin/adapters/{id}/complete` per contracts/operator-admin.md §5: local on any stack, bedrock on prod only, attribution `test`, through admission. Add `scripts/operator.py contract-record` and `make contract-live ENV=prod ADAPTER=local|bedrock`, which records in the Author's terminal and replays in the devcontainer image with `--network none` (§7).
+  Partly done on 2026-10-10: the endpoint.
+  - `src/routes/adapters.ts` validates §5's body and answers 200, 502, 404, 400, 415, 429, or 503.
+  - `Gateway.adapterCall` runs §5's pipeline: the state read first; the paid adapter through the limits and admission as `test`; the local adapter free; no failover.
+  - The metered path is split so hello's answer is unchanged: `meteredAttempt` returns the outcome, and `callMetered` keeps answering `fallback_unavailable` on a failure.
+  - Each attempt record now carries its client span's name and keys, and `GatewayCall` takes a temperature.
+  - `test/integration/adapter-calls.test.ts` covers the local path, the refusals, and prod's Bedrock path under `aws-sdk-client-mock`: charged to the day and month and never to the sub-budget, a throttle retried once, and a timeout charged its reservation. `test/helpers/stack.ts` takes a `configDir`.
+  - Still to do: `scripts/operator.py contract-record`, `make contract-live`, and its deny.
 - [ ] T104 [US5] Create `deploy/scripts/aws-login.sh` and `make aws-login` (Author): `HOME=~/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock`. Wire the gateway's `${H4_AWS_DIR}` mount and `GATEWAY_AWS_PROFILE` in `deploy/compose.yaml` (§5.2).
 - [ ] T105 [US5] **Author**: set up Bedrock and fill `config/prices.yaml` and `config/routing.yaml` (research.md R-12 and R-17, quickstart.md §0.6):
   - in IAM Identity Center, create the permission set allowing only `bedrock:InvokeModel` on the confirmed inference profile and the foundation models it routes to, and the dedicated user `h4reet-runtime` if you confirmed it. This is the spec's named deviation from "Infrastructure exclusively via Terraform" (spec Assumptions);

@@ -68,6 +68,8 @@ export async function testStack(
     storeDown?: boolean;
     /** dev's route with the synthetic fallback (config-files.md §1.2, step 2), built when its switch is on. */
     fallback?: boolean;
+    /** A configuration directory of the test's own, such as prod's route with a Bedrock fallback; the test removes it. */
+    configDir?: string;
   } = {},
 ): Promise<TestStack> {
   const stack = o.stack ?? "dev";
@@ -76,6 +78,7 @@ export async function testStack(
   const tokenSha256 = sha256(token);
   const stateDir = await mkdtemp(join(tmpdir(), "h4-stack-"));
   const configDir = o.fallback === true ? await fallbackConfigDir() : undefined;
+  const loadFrom = o.configDir ?? configDir ?? FIXTURES;
   const logged: Logged[] = [];
   const at = (level: string) => (record: object) =>
     void logged.push({ level, record: record as Record<string, unknown> });
@@ -106,7 +109,7 @@ export async function testStack(
       GATEWAY_STATE_DIR: stateDir,
       ...o.env,
     },
-    config: await loadConfig(configDir ?? FIXTURES, { allowPlanned: false }),
+    config: await loadConfig(loadFrom, { allowPlanned: false }),
     store,
     logger,
     version: "0.1.0",

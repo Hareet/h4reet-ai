@@ -45,7 +45,7 @@ import {
   type StackName,
 } from "../config/validate.js";
 import type { MeterRow, StateRead, Store } from "../meter/store.js";
-import type { CallEnd, MeteredAttribution, MeterPort, RouteReason, Settlement } from "../meter/types.js";
+import type { Admitted, CallEnd, MeteredAttribution, MeterPort, RouteReason, Settlement } from "../meter/types.js";
 import type { GatewayMetrics, GaugeSnapshot } from "../telemetry/metrics.js";
 import { redactSecrets } from "../telemetry/redact.js";
 import { gatewayTime, periodKeys, toRfc3339, type GatewayClock } from "./clock.js";
@@ -94,9 +94,17 @@ export interface AttemptContext {
   onFailure?: (err: ProviderError) => void;
 }
 
+/** An attempt's client span as operator-admin.md §5 reports it: its name, its kind, and its attribute keys, no values. */
+export interface SpanShape {
+  name: string;
+  kind: "client";
+  attributeKeys: string[];
+}
+
 interface AttemptBase {
   costMicro: bigint;
   costBasis: CostBasis;
+  span: SpanShape;
   /** Real clock, epoch ms. */
   startedAt: number;
   endedAt: number;
@@ -136,6 +144,12 @@ function costOf(
   return { micro: 0n, basis: "none" };
 }
 
+/** A whole call's cost basis: `reservation` if any attempt was possibly billed, else `usage` if one answered. */
+export function basisOf(attempts: readonly AttemptRecord[]): CostBasis {
+  if (attempts.some((a) => a.costBasis === "reservation")) return "reservation";
+  return attempts.some((a) => a.costBasis === "usage") ? "usage" : "none";
+}
+
 async function oneAttempt(
   adapter: ProviderAdapter,
   req: CompletionRequest,
@@ -163,14 +177,20 @@ async function oneAttempt(
   if (ctx.payloadSampling) always["gen_ai.input.messages"] = redactSecrets(inputMessages(req.messages));
 
   const parent = context.active();
-  const span = ctx.tracer.startSpan(`chat ${adapter.model}`, { kind: SpanKind.CLIENT, attributes: always }, parent);
+  const name = `chat ${adapter.model}`;
+  const span = ctx.tracer.startSpan(name, { kind: SpanKind.CLIENT, attributes: always }, parent);
+  const keys = new Set(Object.keys(always));
+  const shape = (more: Attributes): SpanShape => {
+    for (const key of Object.keys(more)) keys.add(key);
+    return { name, kind: "client", attributeKeys: [...keys].sort() };
+  };
   const startedAt = now();
   const metricBase = { provider: adapter.provider, requestModel: adapter.model, server: adapter.server.address };
   try {
     const result = await context.with(trace.setSpan(parent, span), () => adapter.complete(req));
     const endedAt = now();
     const cost = costOf(adapter, ctx, { result });
-    span.setAttributes({
+    const answered: Attributes = {
       "gen_ai.response.model": result.responseModel,
       "gen_ai.usage.input_tokens": result.usage.inputTokens,
       "gen_ai.usage.output_tokens": result.usage.outputTokens,
@@ -178,8 +198,9 @@ async function oneAttempt(
       ...(result.responseId === undefined ? {} : { "gen_ai.response.id": result.responseId }),
       "h4.cost.usd": usd(cost.micro),
       "h4.cost.basis": cost.basis,
-    });
-    if (ctx.payloadSampling) span.setAttribute("gen_ai.output.messages", redactSecrets(outputMessages(result)));
+      ...(ctx.payloadSampling ? { "gen_ai.output.messages": redactSecrets(outputMessages(result)) } : {}),
+    };
+    span.setAttributes(answered);
     span.end();
     const seconds = (endedAt - startedAt) / 1_000;
     ctx.metrics?.operationDuration(seconds, { ...metricBase, responseModel: result.responseModel });
@@ -187,19 +208,36 @@ async function oneAttempt(
       const tokens = tokenType === "input" ? result.usage.inputTokens : result.usage.outputTokens;
       ctx.metrics?.tokenUsage(tokens, { ...metricBase, responseModel: result.responseModel, tokenType });
     }
-    return { outcome: "ok", result, costMicro: cost.micro, costBasis: cost.basis, startedAt, endedAt };
+    return {
+      outcome: "ok",
+      result,
+      costMicro: cost.micro,
+      costBasis: cost.basis,
+      span: shape(answered),
+      startedAt,
+      endedAt,
+    };
   } catch (thrown) {
     // An adapter rejects only with a ProviderError; anything else is a bug, and becomes one with nothing of it kept.
     const error = thrown instanceof ProviderError ? thrown : new ProviderError("provider_error", true, false);
     const endedAt = now();
     const cost = costOf(adapter, ctx, { error });
     const errorType = error.code ?? error.kind;
-    span.setAttributes({ "error.type": errorType, "h4.cost.usd": usd(cost.micro), "h4.cost.basis": cost.basis });
+    const failed: Attributes = { "error.type": errorType, "h4.cost.usd": usd(cost.micro), "h4.cost.basis": cost.basis };
+    span.setAttributes(failed);
     span.setStatus({ code: SpanStatusCode.ERROR, message: error.kind });
     span.end();
     ctx.metrics?.operationDuration((endedAt - startedAt) / 1_000, { ...metricBase, errorType });
     ctx.onFailure?.(error);
-    return { outcome: "error", error, costMicro: cost.micro, costBasis: cost.basis, startedAt, endedAt };
+    return {
+      outcome: "error",
+      error,
+      costMicro: cost.micro,
+      costBasis: cost.basis,
+      span: shape(failed),
+      startedAt,
+      endedAt,
+    };
   }
 }
 
@@ -381,6 +419,8 @@ export interface GatewayCall {
   arrivedAt: number;
   /** Aborts when the caller goes away. */
   signal: AbortSignal;
+  /** POST /admin/adapters/{id}/complete only (operator-admin.md §5): 0 to 1; hello never sends one. */
+  temperature?: number;
   /** X-H4-Client: the ledger keeps it, and nothing else does (§2.3). */
   clientLabel?: string;
   /** hello only: the client, which may have one metered call in flight (gateway-http.md §2.4 step 5.5). */
@@ -417,6 +457,25 @@ export type GatewayAnswer =
       traceId: string;
     }
   | { kind: "local_error"; errorKind: ProviderErrorKind; traceId: string };
+
+/** What POST /admin/adapters/{id}/complete gets back (operator-admin.md §5): a refusal before the call, or its outcome. */
+export type AdapterCallAnswer =
+  | Extract<GatewayAnswer, { kind: "degraded" }>
+  | Extract<GatewayAnswer, { kind: "refused" }>
+  | {
+      kind: "called";
+      adapter: string;
+      attribution: "test" | "none";
+      /** Every attempt, and how the call ended. */
+      outcome: AttemptOutcome;
+      /** What the call was charged: the meter's settlement, 0 for the local adapter. */
+      costMicro: bigint;
+      costBasis: CostBasis;
+      priceVersion: string;
+      traceId: string;
+      /** The key of the call's ledger rows: the metered call's reservation, or the local attempts' own IDs. */
+      ledgerRef: string | null;
+    };
 
 export type JournalStatus = "ok" | "unwritable" | "unknown";
 
@@ -682,6 +741,97 @@ export class Gateway {
     });
   }
 
+  /**
+   * One named adapter, called directly (operator-admin.md §5): the state read first; then a paid adapter through the
+   * limits and admission as `test`, the ceilings only, with the journal, the call, and the commit; or the local
+   * adapter, free, with no admission. It never fails over. Undefined for an ID that isn't this route's local or paid
+   * adapter, a synthetic one included.
+   */
+  async adapterCall(call: GatewayCall, adapterId: string): Promise<AdapterCallAnswer | undefined> {
+    const routed = this.routed().find((r) => r.built.config.id === adapterId && r.built.adapter.kind !== "synthetic");
+    if (routed === undefined) return undefined;
+    return this.routeSpan<AdapterCallAnswer>(call, async (span, traceId) => {
+      const read = await this.readState();
+      span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
+      const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
+      if (early !== undefined)
+        return { kind: "degraded", decision: early, traceId: this.degrade(span, early, traceId).traceId };
+      if (routed.built.adapter.kind === "local") return this.localAdapterCall(span, call, traceId, routed);
+      const step = await this.meteredAttempt(span, call, traceId, routed, "test", null);
+      if ("early" in step) {
+        if (step.early.kind === "degraded" || step.early.kind === "refused") return step.early;
+        throw new Error("the metered path refused with an answer that isn't a refusal");
+      }
+      return {
+        kind: "called",
+        adapter: adapterId,
+        attribution: "test",
+        outcome: step.outcome,
+        costMicro: step.settlement.costMicro,
+        costBasis: basisOf(step.outcome.attempts),
+        priceVersion: step.admitted.price.id,
+        traceId,
+        ledgerRef: step.admitted.reservationId,
+      };
+    });
+  }
+
+  /**
+   * The live endpoint's local call: free, unmetered, and whatever the adapter's health, since the endpoint is how the
+   * Author checks it. Its spans carry `local` and `local_healthy`, the one reason telemetry.md gives a local call.
+   */
+  private async localAdapterCall(
+    span: Span,
+    call: GatewayCall,
+    traceId: string,
+    routed: Routed,
+  ): Promise<AdapterCallAnswer> {
+    const { built, health, requestTimeoutMs } = routed;
+    const version = this.opts.prices.active(this.opts.clock.now());
+    if (version === undefined) throw new Error("no active price version"); // startup refuses this (config-files.md §2.5)
+    span.setAttributes({ "h4.route.decision": "local", "h4.route.reason": "local_healthy" });
+    const req: CompletionRequest = {
+      requestId: call.requestId,
+      purpose: call.purpose,
+      messages: call.messages,
+      maxOutputTokens: call.maxOutputTokens,
+      ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
+      deadline: call.arrivedAt + this.opts.routing.deadlineMs,
+      signal: call.signal,
+    };
+    const outcome = await attemptCall(built.adapter, req, {
+      tracer: this.opts.tracer,
+      stack: this.opts.stack,
+      routingSha: this.opts.routing.sha256,
+      priceVersion: version,
+      decision: { kind: "local", reason: "local_healthy" },
+      attribution: "none",
+      payloadSampling: this.opts.payloadSampling,
+      requestTimeoutMs,
+      realNow: this.realNow,
+      metrics: this.opts.metrics,
+      onFailure: (err) => {
+        if (!call.signal.aborted) health.callFailed(err);
+      },
+    });
+    const ids: string[] = [];
+    for (const attempt of outcome.attempts) {
+      const id = await this.recordLocal(attempt, call, traceId, version);
+      if (id !== null) ids.push(id);
+    }
+    return {
+      kind: "called",
+      adapter: built.config.id,
+      attribution: "none",
+      outcome,
+      costMicro: 0n,
+      costBasis: "none",
+      priceVersion: version.id,
+      traceId,
+      ledgerRef: ids.length > 0 ? ids.join(",") : null,
+    };
+  }
+
   /** GET /health (gateway-http.md §5): it reports, it doesn't gate, and it never calls a provider. */
   async report(): Promise<HealthReport> {
     const read = await this.readState();
@@ -750,10 +900,7 @@ export class Gateway {
   }
 
   /** The gateway.route span of one routing decision; a call of its own trace starts a root span, linked to its caller. */
-  private routeSpan(
-    call: GatewayCall,
-    fn: (span: Span, traceId: string) => Promise<GatewayAnswer>,
-  ): Promise<GatewayAnswer> {
+  private routeSpan<T>(call: GatewayCall, fn: (span: Span, traceId: string) => Promise<T>): Promise<T> {
     const attributes = { "h4.stack": this.opts.stack, "h4.routing.sha": this.opts.routing.sha256 };
     const caller = trace.getSpan(context.active())?.spanContext();
     const options =
@@ -796,6 +943,41 @@ export class Gateway {
     attribution: MeteredAttribution,
     routeReason: RouteReason | null,
   ): Promise<GatewayAnswer> {
+    const step = await this.meteredAttempt(span, call, traceId, routed, attribution, routeReason);
+    if ("early" in step) return step.early;
+    if (!step.outcome.ok) return this.degrade(span, degraded("fallback_unavailable"), traceId);
+    return {
+      kind: "answered",
+      route: step.decision.kind,
+      routeReason: step.decision.kind === "fallback" ? step.decision.reason : null,
+      provider: routed.built.adapter.provider,
+      result: step.outcome.result,
+      costMicro: step.settlement.costMicro,
+      priceVersion: step.admitted.price.id,
+      traceId,
+    };
+  }
+
+  /**
+   * The metered path up to the commit: the limits and admission, which refuse with an early answer, then the attempts
+   * under the retry policy and their settlement. callMetered answers hello from it, and adapterCall the live endpoint.
+   */
+  private async meteredAttempt(
+    span: Span,
+    call: GatewayCall,
+    traceId: string,
+    routed: Routed,
+    attribution: MeteredAttribution,
+    routeReason: RouteReason | null,
+  ): Promise<
+    | { early: GatewayAnswer }
+    | {
+        outcome: AttemptOutcome;
+        settlement: Settlement;
+        admitted: Admitted;
+        decision: { kind: "fallback"; reason: RouteReason } | { kind: "metered"; reason: MeteredAttribution };
+      }
+  > {
     const meter = this.opts.meter;
     if (meter === undefined) throw new Error("a metered call needs the meter");
     const adapter = routed.built.adapter;
@@ -823,14 +1005,16 @@ export class Gateway {
       routeReason: attribution === "fallback" ? routeReason : null,
     });
     if (!admit.ok) {
-      if (admit.refusal === "degraded") return this.degrade(span, admit.decision, traceId);
+      if (admit.refusal === "degraded") return { early: this.degrade(span, admit.decision, traceId) };
       return {
-        kind: "refused",
-        route: decision.kind,
-        error: admit.error,
-        limit: admit.limit,
-        retryAfterS: admit.retryAfterS,
-        traceId,
+        early: {
+          kind: "refused",
+          route: decision.kind,
+          error: admit.error,
+          limit: admit.limit,
+          retryAfterS: admit.retryAfterS,
+          traceId,
+        },
       };
     }
     const a = admit.admitted;
@@ -840,6 +1024,7 @@ export class Gateway {
       purpose: call.purpose,
       messages: call.messages,
       maxOutputTokens: call.maxOutputTokens,
+      ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
       deadline: call.arrivedAt + this.opts.routing.deadlineMs,
       signal: call.signal,
     };
@@ -874,17 +1059,7 @@ export class Gateway {
     }
     // The commit is retried in the background; the answer doesn't wait (gateway-http.md §2.4, notes).
     if (!settlement.committed) span.setAttribute("h4.meter.commit", "pending");
-    if (!outcome.ok) return this.degrade(span, degraded("fallback_unavailable"), traceId);
-    return {
-      kind: "answered",
-      route: decision.kind,
-      routeReason: decision.kind === "fallback" ? decision.reason : null,
-      provider: adapter.provider,
-      result: outcome.result,
-      costMicro: settlement.costMicro,
-      priceVersion: a.price.id,
-      traceId,
-    };
+    return { outcome, settlement, admitted: a, decision };
   }
 
   /** The local call (§2.4 step 5.1): free, unmetered, within its own timeouts and the request's deadline. */
@@ -898,6 +1073,7 @@ export class Gateway {
       purpose: call.purpose,
       messages: call.messages,
       maxOutputTokens: call.maxOutputTokens,
+      ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
       deadline: call.arrivedAt + this.opts.routing.deadlineMs,
       signal: call.signal,
     };
@@ -944,9 +1120,11 @@ export class Gateway {
     call: GatewayCall,
     traceId: string,
     version: PriceVersion,
-  ): Promise<void> {
+  ): Promise<string | null> {
     const adapter = this.primary.built.adapter;
     const offset = this.opts.clock.offsetMs();
+    const id = randomUUID();
+    let written = false;
     const startedAt = gatewayTime(attempt.startedAt, offset);
     const periods = periodKeys(startedAt);
     const ok = attempt.outcome === "ok" ? attempt.result : undefined;
@@ -954,7 +1132,7 @@ export class Gateway {
     const latencyMs = ok?.latencyMs ?? Math.max(0, Math.round(attempt.endedAt - attempt.startedAt));
     try {
       await this.opts.store.query(LOCAL_LEDGER_ROW, [
-        randomUUID(),
+        id,
         toRfc3339(gatewayTime(attempt.endedAt, offset)),
         toRfc3339(startedAt),
         this.opts.stack,
@@ -979,6 +1157,7 @@ export class Gateway {
         call.clientLabel ?? null,
       ]);
       this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution: "none" });
+      written = true;
     } catch {
       // Logged by the store as state.unknown, at most once a minute (telemetry.md §5.2).
     }
@@ -1003,6 +1182,7 @@ export class Gateway {
       },
       "A provider attempt completed.",
     );
+    return written ? id : null;
   }
 
   /**
