@@ -117,7 +117,7 @@ LIST_SH = { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path
 NAMED_SCRIPTS := $(wildcard .claude/git-hooks/*) $(wildcard deploy/agents-engine/docker-relay)
 
 # Cleared once the early patch adds the pre-commit hook (tasks.md T045, T046); githooks-check fails while both exist.
-PRE_COMMIT_PLANNED := T045
+PRE_COMMIT_PLANNED :=
 
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target

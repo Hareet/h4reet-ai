@@ -677,14 +677,17 @@ class AuditLog:
 
     MAX_BYTES = 10 * 1024 * 1024
     KEEP = 5
+    WARN_EVERY = 60.0  # seconds between two reports of records it can't write
 
     def __init__(self, path: str):
         self.path = path
         self._lock = threading.Lock()
+        self._warned = float("-inf")
 
     def write(self, record: dict) -> None:
         line = json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n"
         data = line.encode("utf-8")
+        failed: OSError | None = None
         with self._lock:
             try:
                 if (
@@ -698,8 +701,28 @@ class AuditLog:
                     os.write(fd, data)
                 finally:
                     os.close(fd)
-            except OSError:
-                pass  # the block still happens when the record cannot be written (§3.1)
+            except OSError as err:
+                failed = err
+        if failed is not None:
+            self._report(failed)
+
+    def _report(self, err: OSError) -> None:
+        """The block still happens when the record can't be written (§3.1), but not silently: the journal shows
+        it, once a minute. A root-owned directory lost every record unseen (T046, 2026-10-09). The path and the
+        error only, never the record. A report that fails to print is dropped too, so the request still gets
+        its answer."""
+        now = time.monotonic()
+        if now - self._warned < self.WARN_EVERY:
+            return
+        self._warned = now
+        try:
+            print(
+                f"h4-authz: cannot write the audit log {self.path}: {err.strerror or err}",
+                file=sys.stderr,
+                flush=True,
+            )
+        except (OSError, ValueError):
+            pass
 
     def _rotate(self) -> None:
         oldest = f"{self.path}.{self.KEEP}"

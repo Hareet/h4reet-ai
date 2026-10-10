@@ -642,6 +642,48 @@ def test_audit_log_rotates_and_keeps_five(
     assert len([p for p in rotated if p != "authz.jsonl"]) <= authz.AuditLog.KEEP
 
 
+def test_audit_log_reports_a_record_it_cannot_write_once_a_minute(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A directory the plugin can't write lost every record without a trace (T046, 2026-10-09). The write
+    # still returns, so the decision stands, and the journal says why the records are missing.
+    log = authz.AuditLog(str(tmp_path / "missing" / "authz.jsonl"))
+    secret = "s3cr3t-value-in-a-record"
+    for _ in range(3):
+        log.write({"decision": "refuse", "rule": "A1", "value": secret})
+    err = capsys.readouterr().err
+    assert err.count("h4-authz: cannot write the audit log") == 1
+    assert str(tmp_path / "missing" / "authz.jsonl") in err
+    assert secret not in err  # the path and the error only, never the record
+
+
+def test_audit_log_reports_again_after_a_minute(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = iter([1000.0, 1030.0, 1061.0])
+    monkeypatch.setattr(authz.time, "monotonic", lambda: next(clock))
+    log = authz.AuditLog(str(tmp_path / "missing" / "authz.jsonl"))
+    for _ in range(3):  # at 0 s, 30 s, and 61 s
+        log.write({"decision": "allow", "rule": "allow"})
+    assert capsys.readouterr().err.count("h4-authz: cannot write the audit log") == 2
+
+
+def test_audit_log_survives_a_report_it_cannot_print(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # journald's stream gone: the report fails, and the request must still get its answer.
+    class Gone:
+        def write(self, _text: str) -> int:
+            raise BrokenPipeError(32, "Broken pipe")
+
+        def flush(self) -> None:
+            raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr(authz.sys, "stderr", Gone())
+    log = authz.AuditLog(str(tmp_path / "missing" / "authz.jsonl"))
+    log.write({"decision": "refuse", "rule": "A1"})  # returns: no exception
+
+
 # --------------------------------------------------------------------------------------------------
 # The server path: what dockerd's AuthZReq call reaches. The rules above are judged directly; these
 # drive the handler, so a request that never reaches the rules (as a wrong call once did) fails here.

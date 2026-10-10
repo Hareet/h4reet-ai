@@ -594,6 +594,16 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
 - **Rationale:** without them, gitleaks loads a `.gitleaks.toml` from the directory it scans, honours a `.gitleaksignore` there, and skips any line marked `gitleaks:allow`. All three are agent-writable, and the hooks run outside the sandbox as the Author.
   - **The ignore flag isn't enough** (Phase 1's review). `--gitleaks-ignore-path` adds an ignore location; it doesn't stop gitleaks 8.30.1 from reading the source's own `.gitleaksignore`. A planted fingerprint suppressed a finding in `dir`, `git --pre-commit --staged`, and `stdin` modes, with the flag naming an empty directory (reproduced twice).
   - **What holds:** the early patch denies agents `./.gitleaksignore` at the root, but a source such as `docs/recordings` has no deny, so the refusal is what holds there.
+  - **What the refusal refuses** (2026-10-09). The first `pre-commit` refused anything that existed. With the sandbox's mask in place, that refused every commit from a session. It now depends on where the file is.
+    - **In the main tree,** the sandbox denies the path, so a session can't fill what is there. Two things that hold no entry pass:
+      - `/dev/null` itself, device 1:3. The sandbox masks a denied path that doesn't exist this way while a session runs.
+      - An empty regular file. A killed session leaves one at the masked path.
+
+      A link is refused, and so is a FIFO, whose size is 0 but which gives gitleaks whatever a writer feeds it. So is anything with content.
+    - **In a worktree of its own,** nothing masks the path and an agent can write it. An empty file there could be filled between the check and gitleaks' read, so anything at all is refused, as before (the hooks review).
+
+    The matrix holds a row for each case. It meets the mask itself only when it runs inside a session, in the main tree, because making one takes a mount.
+  - **A session's commit in the main tree still fails** (2026-10-09). The hook's check lets the mask through, but gitleaks then opens its source's `.gitleaksignore`, and inside the sandbox opening the mask is refused: "permission denied", though it shows as `/dev/null`. gitleaks stops, so the hook refuses, failing closed. A session's commit in a worktree goes through, because there the source has no mask. T173 is the closing patch's fix.
 - **Alternatives:** none kept. Protecting the file alone leaves the ignore list and the inline marker.
 
 ### R-37. The agents' engine's memory cap is 16 GB (review, 2026-10-08)

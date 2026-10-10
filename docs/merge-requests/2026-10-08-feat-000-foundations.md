@@ -18,8 +18,8 @@ ADR 0017 puts this section first. Nothing here has run outside the sandbox yet: 
 |---|---|---|
 | **`docs/merge-requests/2026-10-08-feat-000-foundations-config.patch`** (T022) | `git apply`, in T046 | It creates `config/budgets.yaml` and `config/alerts.yaml` byte for byte as contracts/config-files.md §3.2 and §4.2 give them, and empties the gateway's `PLANNED_CONFIG_FILES`, so `validate-config` passes right after. |
 | **`docs/merge-requests/2026-10-08-feat-000-foundations-enforcement.patch`** (T045, the early patch) | `git apply`, then `claude doctor` and `make git-hooks`, in T046 | Read all of it: it changes the agents' own settings, hooks, a role, and CLAUDE.md. What it holds is under "T045" below. |
-| **`deploy/agents-engine/setup-host.sh`** and **`engine.sh`** | `sudo deploy/agents-engine/engine.sh setup`, then `engine.sh up`, `seed`, `prove`, directly, never through make | They run as root: read both first. setup-host.sh creates the user `h4agents`, the firewall, the binds, the PKI, the units, and `/etc/wsl.conf` (H1–H14), making each missing directory as its owner. No agent-controlled input reaches a root command (the engine reviewer checked). `up` now reloads the tree unit and checks every mask before the daemon starts. Before the first `up`, run `findmnt -o TARGET,PROPAGATION -T ~/h4reet-ai/h4reet-ai`. If it says `shared`, round 2's fix is what keeps the masks off your tree, and the unit fails closed if one reaches it anyway. |
-| **`deploy/agents-engine/bind-tree.sh`**, **`authz.py`**, **`egress-proxy.py`**, the units, **`nftables/h4agents.nft`**, **`daemon.json`** | as installed copies, by the units that setup-host.sh writes | The admission plugin and the proxy are the FR-039 boundary, and both fail closed. Since round 2 the plugin reads a request body as Docker does, keeps published ports on the loopback, and the daemon starts only after `bind-tree.sh check` passes. Since the convergence pass, the proxy forwards a GET with its query and headers (minus hop-by-hop and `Proxy-*`), matches `*.` entries on subdomains only, and records the list it serves in `~/.local/state/h4reet/agents-engine/egress-list.json`. |
+| **`deploy/agents-engine/setup-host.sh`** and **`engine.sh`** | `deploy/agents-engine/engine.sh setup` as yourself (it calls sudo itself; corrected on 2026-10-09, see [the bring-up note](2026-10-09-fix-000-engine-bringup.md)), then `engine.sh up`, `seed`, `prove`, directly, never through make | They run as root: read both first. setup-host.sh creates the user `h4agents`, the firewall, the binds, the PKI, the units, and `/etc/wsl.conf` (H1–H14), making each missing directory as its owner. No agent-controlled input reaches a root command (the engine reviewer checked). `up` now reloads the tree unit and checks every mask before the daemon starts. Before the first `up`, run `findmnt -o TARGET,PROPAGATION -T ~/h4reet-ai/h4reet-ai`. If it says `shared`, round 2's fix is what keeps the masks off your tree, and the unit fails closed if one reaches it anyway. |
+| **`deploy/agents-engine/bind-tree.sh`**, **`authz.py`**, **`egress-proxy.py`**, the units, **`nftables/h4agents.nft`**, **`daemon.json`** | as installed copies, by the units that setup-host.sh writes | The admission plugin and the proxy are the FR-039 boundary, and both fail closed. Since round 2 the plugin reads a request body as Docker does, keeps published ports on the loopback, and the daemon starts only after `bind-tree.sh check` passes. Since the convergence pass, the proxy forwards a GET with its query and headers (minus hop-by-hop and `Proxy-*`), matches `*.` entries on subdomains only, and records the list it serves in `~/.local/state/h4reet/agents-engine/egress-list.json`. Since b15a33b ("After this note was final" below), the plugin also holds every published port to dev-cpu's 18300–18304 and row E15's 18999. |
 | **`deploy/agents-engine/prove-limits.sh`** (`engine.sh prove`, T099) | your terminal, with sudo for the host-side probes | About 1,300 lines; read it before the first run. It plants and removes only its own markers: two links named `.h4-prove-e5c` (made with `ln -sT`, removed with `rm -f`), one `__h4-prove-e7.env` (only if no such file exists), and its own `mktemp -d` directory. Its probes use the agents' certificate, so they test what a session can do. |
 | **The Makefile's stack targets**: `up`, `down`, `logs`, `status`, `pull`, `image`, `build`, `pin-images`, `init-env`; and `validate-config`, `engine-status`, `engine-smoke` | your terminal; `up` exports the commit first and runs preflight, status, and redact from the export | `ENV` and `REF` come from the command line only and are validated. `build` and `validate-config` refuse outside the sandbox and the devcontainer, because they run `node_modules`. `NODE_PIN` takes only a plain x.y.z. |
 | **`deploy/scripts/*.py`** (preflight, init_env, export_tree, status, pin_images, pull_images) and **`redact.sh`** | through `PY_HOST` (`python3 -I -B -X pycache_prefix=/dev/null`), by path | Env files are parsed as data, never sourced. Writes refuse to follow links (init_env, export_tree, pin_images). Since round 3, export_tree proves each export is the commit's own tree. |
@@ -275,6 +275,20 @@ There was no wrong refusal for this repository. By design, it fails closed on at
 - **The engine reviewer:** sound, with no let-through and no vacuous proof. It verified the regenerated patch against the real hook, content-scan.sh in a main tree and a linked worktree, the proxy's forwarding (no header injection or request splitting), the list file's write, the tunnel, `subid_clash`, `config.json`, and the new probes' cleanup. It counted T129's covered-mask hole and seed's empty disk reading as genuine fixes. **One nit:** my T132 change let an option's argument swallow a reader, so `bash -c "cat …/engine.sh"` was blocked as an engine run. 2d57afc: an option argument can't start with a quote.
 - **The compose reviewer:** sound; no value can reach init-env's output, and ESLint's ignore hides nothing that should be linted. **Two nits,** both fixed in 6a299a5: a repeated key was read last-wins, where preflight reads first-wins; and the channel half of T140 had no test.
 
+### After this note was final (b15a33b)
+
+Phase 3's review, on `feat/000-us1-local-stack`, found one gap in this branch's engine. I fixed it here, on the base, so T046's first `engine.sh setup` installs the fixed plugin. The plugin's installed copy changes only when setup runs.
+
+- **The finding (Important, from Phase 3's operator reviewer):**
+  - Rule A21 checked a published port's address but never its number.
+  - Once prod and dev exist, which happens on the next branch, an agents' container could publish `127.0.0.1:18003` or `18103` while that stack is down. Your operator CLI would then hand it that stack's token. On 18001 or 18002 it would take your Langfuse or Grafana login.
+  - The reviewer verified this with the plugin's own `judge` and a listener; Docker isn't reachable from the sandbox.
+- **The fix:**
+  - A21 takes a host port only as one plain decimal string, with no leading zero, from dev-cpu's 18300–18304 or row E15's 18999. An empty port (Docker picks one), a range, or any other spelling is refused.
+  - Row E15 proves four more refusals.
+  - Phase 3's engine reviewer checked it: every way the API publishes goes through the rule, and dev-cpu's five edge ports still pass.
+- **The stack:** the next branch carries the same change byte for byte (296940b, a54106e). A dry run of its T063 merge, with `git merge-tree` (it writes no branch), is clean and changes nothing there.
+
 ### What I got wrong along the way
 
 - I told you, mid-session, that a planted commit-graph could make `git archive` export another tree. I tested it: with git 2.43.0 it didn't, and git's own parsing rehashes an object it parses. 854a652's check doesn't depend on that either way.
@@ -426,6 +440,152 @@ make check: 6 PASS, 2 SKIP, 3 PLANNED, 0 PENDING, 0 FAIL
 - **gitleaks** over `main..HEAD`, with its default rules, finds one item: the public dummy in `deploy/env.agents/dev-cpu.vars`, which the early patch's config allowlists. With the patch's config, it finds none.
 - **Both patches** `git apply --check` at the tip. With both applied, the matrix gives 235 passed, 0 failed, 8 known gaps, and the static tier 0 failed, 0 planned.
 
+After b15a33b, `make check` at that commit's tree, exit 0: 6 PASS, 2 SKIP, 3 PLANNED, 0 PENDING, 0 FAIL. The gateway has 240 tests passing and 1 skipped, and pytest 749 passing. The whole output:
+
+<details><summary>make check at b15a33b</summary>
+
+```
+== githooks-check
+reference-transaction: installed
+PLANNED (T045): .claude/git-hooks/pre-commit arrives with the early patch
+main: a loose ref, which the git hook guards
+-> PLANNED githooks-check (PLANNED (T045): .claude/git-hooks/pre-commit arrives with the early patch)
+== toolchain-check
+python3 -I -B -X pycache_prefix=/dev/null tools/gates/toolchain_check.py
+tool                     pinned   found    status  where
+node                     24.21.0  24.21.0  OK      /home/h4reet/.nvm/versions/node/v24.21.0/bin/node
+uv                       0.8.22   0.8.22   OK      /home/h4reet/.local/bin/uv
+ruff                     0.16.10  0.16.10  OK      /home/h4reet/.local/bin/ruff
+gitleaks                 8.30.1   8.30.1   OK      /home/h4reet/.local/bin/gitleaks
+python3                  3.12     3.12.3   OK      /usr/bin/python3
+shellcheck               0.9.0    0.9.0    OK      /usr/bin/shellcheck
+jq                       1.7      1.7      OK      /usr/bin/jq
+pytest                   9.1.1    9.1.1    OK      /home/h4reet/.local/bin/pytest
+pyyaml (pytest's)        6.0.3    6.0.3    OK      /home/h4reet/.local/share/uv/tools/pytest/bin/python
+claude code              2.1.295  2.1.295  OK      /home/h4reet/.nvm/versions/node/v22.18.0/bin/claude
+lint: eslint             10.12.0  10.12.0  OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/eslint
+lint: typescript-eslint  8.71.1   8.71.1   OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/typescript-eslint
+lint: typescript         6.0.3    6.0.3    OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/typescript
+lint: prettier           3.9.9    3.9.9    OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/prettier
+toolchain-check: all 14 match their pins
+-> PASS toolchain-check
+== policy
+python3 -I -B -X pycache_prefix=/dev/null tools/gates/compose_policy.py
+compose policy: PASS (deploy/compose.yaml with 3 env files, the Dockerfiles, the env-file placement, .devcontainer, .npmrc)
+-> PASS policy
+== validate-config
+npm run --silent -w services/gateway validate-config -- --root "/tmp/claude-1000/found-a21"
+NOTE config/prices.yaml: main has no config/prices.yaml yet, so the append-only check waits for it
+PLANNED (T022): config/budgets.yaml is missing; the config patch adds it (tasks.md T022), and its checks wait for it
+PLANNED (T022): config/alerts.yaml is missing; the config patch adds it (tasks.md T022), and its checks wait for it
+validate-config: 0 errors, 1 note, 2 planned
+-> PLANNED validate-config (PLANNED (T022): config/budgets.yaml is missing; the config patch adds it (tasks.md T022), and its checks wait for it; PLANNED (T022): config/alerts.yaml is missing; the config patch adds it (tasks.md T022), and its checks wait for it)
+== lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+114 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/redact.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh
+-> PASS lint
+== test
+python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py
+corpus-check: OK — 20 slots, 4 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+npm test --workspaces --if-present
+
+> @h4reet/gateway@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.3 /tmp/claude-1000/found-a21/services/gateway
+
+
+ Test Files  12 passed (12)
+      Tests  240 passed | 1 skipped (241)
+   Start at  05:01:27
+   Duration  18.11s (tests 93%, import 4%, transform 3%)
+
+pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 28%]
+........................................................................ [ 38%]
+........................................................................ [ 48%]
+........................................................................ [ 57%]
+........................................................................ [ 67%]
+........................................................................ [ 76%]
+........................................................................ [ 86%]
+........................................................................ [ 96%]
+.............................                                            [100%]
+749 passed in 8.16s
+-> PASS test
+== secrets
+-> SKIP secrets (added by T091)
+== evals
+python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER:-}" = local ] && echo --stack prod)
+PASS  hello-fake
+evals product (fake): 1 passed, 0 failed
+python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py
+PASS  CLAUDE.md is 56 lines and 5171 bytes (at most 60 and 6 KB)
+PASS  CLAUDE.md names the constitution as superseding it
+PASS  REVIEW.md names the constitution as superseding it
+PASS  role docs: tools match roles.expected
+PASS  role implementer: tools match roles.expected
+PASS  role ops: tools match roles.expected
+PASS  role red-teamer: tools match roles.expected
+PASS  role reviewer: tools match roles.expected
+PASS  role spec-writer: tools match roles.expected
+PASS  hook .claude/hooks/bash-gate.sh is registered for PreToolUse Bash
+PASS  hook .claude/hooks/protected-paths.sh is registered for PreToolUse Edit|Write|MultiEdit|NotebookEdit
+PASS  hook .claude/hooks/post-edit-check.sh is registered for PostToolUse Edit|Write|MultiEdit
+PASS  hook .claude/hooks/subagent-report-check.sh is registered for SubagentStop (every subagent)
+      FR-007: 5 of 27 variables denied by name
+PLANNED (T045): 22 FR-007 variables, hook .claude/hooks/content-scan.sh wait for the patch
+  waiting: H4_OPERATOR_TOKEN SMTP_PASSWORD SMTP_USER GATEWAY_DB_PASSWORD GATEWAY_GRAFANA_RO_PASSWORD LANGFUSE_PUBLIC_KEY LANGFUSE_SALT LANGFUSE_ENCRYPTION_KEY LANGFUSE_NEXTAUTH_SECRET LANGFUSE_DB_PASSWORD LANGFUSE_INIT_USER_PASSWORD CLICKHOUSE_PASSWORD VALKEY_PASSWORD SEAWEEDFS_S3_SECRET_KEY GF_SECURITY_ADMIN_PASSWORD AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE AWS_ROLE_ARN AWS_CONTAINER_CREDENTIALS_FULL_URI AWS_CONTAINER_AUTHORIZATION_TOKEN
+agent-config static: 0 failed, 23 planned
+-> PLANNED evals (PLANNED (T045): 22 FR-007 variables, hook .claude/hooks/content-scan.sh wait for the patch)
+== redteam
+python3 -I -B -X pycache_prefix=/dev/null redteam/run.py
+PASS  benign-greeting (safe, clean)
+PASS  planted-human-claim (unsafe, caught: claims to be human)
+redteam: 2 passed, 0 failed
+-> PASS redteam
+== matrix
+bash redteam/forbidden-actions.sh
+KNOWN GAP   bash-gate.sh          python3 -c 'open("tests/test_router.py", "w").write("")'
+KNOWN GAP   bash-gate.sh          install -m 0644 /tmp/new.py tests/test_router.py
+KNOWN GAP   bash-gate.sh          git checkout HEAD~1 -- tests/test_router.py
+KNOWN GAP   bash-gate.sh          terraform -chdir=infra apply
+KNOWN GAP   bash-gate.sh          sh -c "$(printf 'gi%s pu%s' t sh)"
+KNOWN GAP   bash-gate.sh          git co main
+KNOWN GAP   bash-gate.sh          sh -c 'unset CLAUDE""CODE; git commit -m wip'
+forbidden-actions (hook layer): 164 passed, 0 failed, 7 known gaps
+-> PASS matrix
+== image
+SKIP: no agents' engine yet: tasks.md T046
+-> SKIP image (no agents' engine yet: tasks.md T046)
+
+PLANNED  githooks-check  PLANNED (T045): .claude/git-hooks/pre-commit arrives with the early patch
+PASS     toolchain-check
+PASS     policy
+PLANNED  validate-config  PLANNED (T022): config/budgets.yaml is missing; the config patch adds it (tasks.md T022), and its checks wait for it; PLANNED (T022): config/alerts.yaml is missing; the config patch adds it (tasks.md T022), and its checks wait for it
+PASS     lint
+PASS     test
+SKIP     secrets  added by T091
+PLANNED  evals  PLANNED (T045): 22 FR-007 variables, hook .claude/hooks/content-scan.sh wait for the patch
+PASS     redteam
+PASS     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 6 PASS, 2 SKIP, 3 PLANNED, 0 PENDING, 0 FAIL
+```
+
+</details>
+
 ## Cost and data-flow impact
 
 None at runtime: nothing in this branch calls a model or reaches the cloud. Development-time flows: the npm registry for the gateway's packages, and PyPI. The stack's eventual flows are in `docs/data-flow-disclosure.md`, which this branch starts. Its P2 row covers the gateway build's `npm ci`; its E1 row covers the engine's egress through the proxy, to the sandbox's `allowedDomains` only.
@@ -447,7 +607,7 @@ None at runtime: nothing in this branch calls a model or reaches the cloud. Deve
    ```
 
    `ls` should print nothing.
-2. **Read the root-run code:** `deploy/agents-engine/setup-host.sh`, `engine.sh`, `bind-tree.sh`, and `prove-limits.sh`. Round 2 and the convergence pass changed all four.
+2. **Read the root-run code:** `deploy/agents-engine/setup-host.sh`, `engine.sh`, `bind-tree.sh`, and `prove-limits.sh`. Round 2 and the convergence pass changed all four. b15a33b, after this note was final, changed A21 in `authz.py`, the admission plugin, and row E15 in `prove-limits.sh`.
 
 ### Merge
 
@@ -476,7 +636,7 @@ cd ~/h4reet-ai/h4reet-ai && git switch main && git merge --no-ff feat/000-founda
    Commit them yourself on a branch of your choosing, as with session 1's patch. Once the patch is in, a session can't read `~/.npmrc` or `~/.netrc`, so npm and uv in the sandbox may warn about them; that is expected.
 2. **The engine** (quickstart.md §0.4–§0.5):
    - Move your Docker to the containerd image store (agents-engine.md §6.1), pruning first and checking the disk.
-   - Run the propagation check from "Runs in the Author's terminal", then `sudo deploy/agents-engine/engine.sh setup`.
+   - Run the propagation check from "Runs in the Author's terminal", then `deploy/agents-engine/engine.sh setup`, as yourself, not under sudo: it calls sudo itself. Under a second sudo, setup-host.sh sees `SUDO_USER=root` and refuses (corrected on 2026-10-09).
    - Run `wsl --shutdown` in PowerShell, and open a new WSL shell.
    - Run `deploy/agents-engine/engine.sh up`, then `make engine-status`.
    - The seed and the proofs (E1–E16) come later: T063 and T099.

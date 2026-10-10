@@ -80,16 +80,10 @@ DENIED_BEFORE_SPEC_000 = {
     "AWS_SESSION_TOKEN",
 }
 
-# Enforcement a patch hasn't applied yet: the item, and the task that writes the patch (tasks.md).
-# The early patch (T045) deletes these entries along with adding the hook and the denies; left behind, they fail as stale.
-PLANNED = {
-    "hook .claude/hooks/content-scan.sh": "T045",
-    **{
-        f"variable {name}": "T045"
-        for name in FR007_VARIABLES
-        if name not in DENIED_BEFORE_SPEC_000
-    },
-}
+# Enforcement a patch hasn't applied yet: the item, and the task that writes the patch (tasks.md). The early patch
+# (T045) added the content-scan hook and every FR-007 deny, and deleted its entries here. A new entry names the task
+# whose patch adds the enforcement; left behind once it lands, it fails as stale.
+PLANNED: dict[str, str] = {}
 
 
 class Report:

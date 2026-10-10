@@ -76,7 +76,7 @@ host_docker() {
 as_h4agents_systemctl() {
 	local uid
 	uid="$(h4_uid)"
-	[ -n "$uid" ] || die "the user h4agents does not exist; run: sudo $0 setup"
+	[ -n "$uid" ] || die "the user h4agents does not exist; run: $0 setup"
 	sudo -u h4agents XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user "$@"
 }
 
@@ -84,6 +84,8 @@ as_h4agents_systemctl() {
 # setup
 # ------------------------------------------------------------------------------------------------
 cmd_setup() {
+	# setup-host.sh takes the Author from SUDO_USER, which this sudo sets: run under sudo already, it would be root.
+	[ "$(id -u)" -ne 0 ] || die "run setup as yourself, without sudo: it calls sudo itself"
 	exec sudo "$here/setup-host.sh"
 }
 
@@ -233,6 +235,8 @@ cmd_up() {
 	sudo systemctl reload h4agents-tree.service
 	"$lib/bind-tree.sh" check || die "the tree's masks are not all mounted; see: sudo systemctl status h4agents-tree.service"
 	echo "== starting h4agents' admission plugin and daemon"
+	# Load the units as setup last installed them: a start otherwise runs the copies the manager read at boot.
+	as_h4agents_systemctl daemon-reload
 	as_h4agents_systemctl start h4-authz.service
 	# At boot, lingering starts the daemon on its own; its start check refuses until the tree is masked, and
 	# three refusals in a minute hit the start limit, which a plain start would not clear.
@@ -240,7 +244,8 @@ cmd_up() {
 	as_h4agents_systemctl start docker.service
 	echo "== restarting the Author's egress proxy"
 	# Restart, not start: the proxy's list is fixed until it restarts (§4), so up serves the settings as they
-	# are now, and the proxy records that list for status.
+	# are now, and the proxy records that list for status. The reload first, so it runs the unit setup installed.
+	systemctl --user daemon-reload
 	systemctl --user restart h4-egress-proxy.service
 	wait_for_tls
 	chown_state up
@@ -248,15 +253,30 @@ cmd_up() {
 	engine_docker info --format 'id={{.ID}} rootless={{.SecurityOptions}} plugins={{.Plugins.Authorization}}' || true
 }
 
+# Up to a minute, one try at a time, each stopped after 5 s. A forward that accepts the connection and never
+# reaches the daemon holds docker version until the far side gives up, and one unbounded try held up here for
+# minutes, silently (T046, 2026-10-09). The tests shorten both through tls_wait and tls_try.
 wait_for_tls() {
-	local _
-	for _ in $(seq 1 60); do
-		if engine_docker version >/dev/null 2>&1; then
+	local wait="${tls_wait:-60}" try="${tls_try:-5}" deadline pid _
+	# Whole seconds only, checked before any arithmetic: bash evaluates a name in $(( )), and a[$(cmd)] runs cmd.
+	case "$wait$try" in *[!0-9]*) die "tls_wait and tls_try take whole seconds" ;; esac
+	deadline=$((SECONDS + wait))
+	while [ "$SECONDS" -lt "$deadline" ]; do
+		engine_docker version >/dev/null 2>&1 &
+		pid=$!
+		for _ in $(seq 1 "$try"); do
+			sleep 1
+			kill -0 "$pid" 2>/dev/null || break
+		done
+		if kill -0 "$pid" 2>/dev/null; then
+			pkill -P "$pid" 2>/dev/null || true # the docker client, when the try runs it as a child
+			kill "$pid" 2>/dev/null || true
+			wait "$pid" 2>/dev/null || true
+		elif wait "$pid"; then
 			return 0
 		fi
-		sleep 1
 	done
-	die "the engine did not answer TLS on 198.18.0.1:2376; check: sudo systemctl status $system_units"
+	die "the engine did not answer TLS on 198.18.0.1:2376 within $wait s. See h4agents' journal: sudo journalctl _UID=$(h4_uid) -n 40; and the firewall's drops: sudo journalctl -k -g h4agents-drop -n 5"
 }
 
 # The base:node image by digest, from images.lock, as repository:tag@sha256:…: exactly one base:node line, each
@@ -518,14 +538,40 @@ cmd_status() {
 	fi
 	engine_docker system df || true
 	if ! in_sandbox; then
-		echo "-- system units"
-		# shellcheck disable=SC2086
-		systemctl is-active $system_units h4-egress-proxy.service 2>/dev/null || true
+		echo "-- the engine's system units, and the Author's proxy"
+		status_units
 		status_list_hashes
 		echo "-- the plugin's last 20 refusals"
-		if [ -r "$H4_AUTHZ_LOG" ]; then
-			grep '"decision":"refuse"' "$H4_AUTHZ_LOG" | tail -n 20 || true
-		fi
+		status_refusals
+	fi
+}
+
+# Each unit by name, with its state, or "unknown" when systemctl can't say (no user bus, say). The proxy is the
+# Author's user unit: asked of the system manager, as status once asked it, it always read "inactive", even while
+# it served (2026-10-09).
+status_units() {
+	local unit state
+	for unit in $system_units; do
+		state="$(systemctl is-active "$unit" 2>/dev/null)" || true
+		printf '  %-26s %s\n' "$unit" "${state:-unknown}"
+	done
+	state="$(systemctl --user is-active h4-egress-proxy.service 2>/dev/null)" || true
+	printf '  %-26s %s\n' h4-egress-proxy.service "${state:-unknown}"
+}
+
+# The plugin's last 20 refusals, read as h4agents and never as root: h4agents owns the log's directory, so a link
+# there could lead anywhere. sudo -n, so status never asks for a password. It says why when it reads nothing,
+# where it once printed nothing at all (§3.5).
+status_refusals() {
+	local refusals
+	if ! sudo -n -u h4agents true 2>/dev/null; then
+		echo "  (not read: sudo would ask for a password. Run: sudo -u h4agents tail -n 20 $H4_AUTHZ_LOG)"
+	elif refusals="$(sudo -n -u h4agents grep -- '"decision":"refuse"' "$H4_AUTHZ_LOG" 2>/dev/null)"; then
+		tail -n 20 <<<"$refusals"
+	elif sudo -n -u h4agents test -f "$H4_AUTHZ_LOG"; then
+		echo "  (none)"
+	else
+		echo "  (no log yet at $H4_AUTHZ_LOG)"
 	fi
 }
 
@@ -598,7 +644,7 @@ cmd_smoke() {
 usage() {
 	cat >&2 <<'EOF'
 usage: deploy/agents-engine/engine.sh <subcommand>
-  setup    host setup (sudo; then wsl --shutdown)        [Author]
+  setup    host setup, as yourself (it asks for sudo)    [Author]
   up       start the engine                              [Author]
   down     stop the daemon, plugin, and proxy            [Author]
   reset    wipe and re-seed the engine                   [Author; Heavy]

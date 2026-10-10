@@ -1,0 +1,904 @@
+diff --git a/deploy/agents-engine/authz.py b/deploy/agents-engine/authz.py
+index 90691c4..5d969fd 100644
+--- a/deploy/agents-engine/authz.py
++++ b/deploy/agents-engine/authz.py
+@@ -677,14 +677,17 @@ class AuditLog:
+ 
+     MAX_BYTES = 10 * 1024 * 1024
+     KEEP = 5
++    WARN_EVERY = 60.0  # seconds between two reports of records it can't write
+ 
+     def __init__(self, path: str):
+         self.path = path
+         self._lock = threading.Lock()
++        self._warned = float("-inf")
+ 
+     def write(self, record: dict) -> None:
+         line = json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n"
+         data = line.encode("utf-8")
++        failed: OSError | None = None
+         with self._lock:
+             try:
+                 if (
+@@ -698,8 +701,28 @@ class AuditLog:
+                     os.write(fd, data)
+                 finally:
+                     os.close(fd)
+-            except OSError:
+-                pass  # the block still happens when the record cannot be written (§3.1)
++            except OSError as err:
++                failed = err
++        if failed is not None:
++            self._report(failed)
++
++    def _report(self, err: OSError) -> None:
++        """The block still happens when the record can't be written (§3.1), but not silently: the journal shows
++        it, once a minute. A root-owned directory lost every record unseen (T046, 2026-10-09). The path and the
++        error only, never the record. A report that fails to print is dropped too, so the request still gets
++        its answer."""
++        now = time.monotonic()
++        if now - self._warned < self.WARN_EVERY:
++            return
++        self._warned = now
++        try:
++            print(
++                f"h4-authz: cannot write the audit log {self.path}: {err.strerror or err}",
++                file=sys.stderr,
++                flush=True,
++            )
++        except (OSError, ValueError):
++            pass
+ 
+     def _rotate(self) -> None:
+         oldest = f"{self.path}.{self.KEEP}"
+diff --git a/deploy/agents-engine/engine.sh b/deploy/agents-engine/engine.sh
+index 9ac31cf..ab42bb9 100755
+--- a/deploy/agents-engine/engine.sh
++++ b/deploy/agents-engine/engine.sh
+@@ -63,7 +63,7 @@ engine_docker() {
+ as_h4agents_systemctl() {
+ 	local uid
+ 	uid="$(h4_uid)"
+-	[ -n "$uid" ] || die "the user h4agents does not exist; run: sudo $0 setup"
++	[ -n "$uid" ] || die "the user h4agents does not exist; run: $0 setup"
+ 	sudo -u h4agents XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user "$@"
+ }
+ 
+@@ -71,6 +71,8 @@ as_h4agents_systemctl() {
+ # setup
+ # ------------------------------------------------------------------------------------------------
+ cmd_setup() {
++	# setup-host.sh takes the Author from SUDO_USER, which this sudo sets: run under sudo already, it would be root.
++	[ "$(id -u)" -ne 0 ] || die "run setup as yourself, without sudo: it calls sudo itself"
+ 	exec sudo "$here/setup-host.sh"
+ }
+ 
+@@ -220,6 +222,8 @@ cmd_up() {
+ 	sudo systemctl reload h4agents-tree.service
+ 	"$lib/bind-tree.sh" check || die "the tree's masks are not all mounted; see: sudo systemctl status h4agents-tree.service"
+ 	echo "== starting h4agents' admission plugin and daemon"
++	# Load the units as setup last installed them: a start otherwise runs the copies the manager read at boot.
++	as_h4agents_systemctl daemon-reload
+ 	as_h4agents_systemctl start h4-authz.service
+ 	# At boot, lingering starts the daemon on its own; its start check refuses until the tree is masked, and
+ 	# three refusals in a minute hit the start limit, which a plain start would not clear.
+@@ -227,7 +231,8 @@ cmd_up() {
+ 	as_h4agents_systemctl start docker.service
+ 	echo "== restarting the Author's egress proxy"
+ 	# Restart, not start: the proxy's list is fixed until it restarts (§4), so up serves the settings as they
+-	# are now, and the proxy records that list for status.
++	# are now, and the proxy records that list for status. The reload first, so it runs the unit setup installed.
++	systemctl --user daemon-reload
+ 	systemctl --user restart h4-egress-proxy.service
+ 	wait_for_tls
+ 	chown_state
+@@ -235,15 +240,30 @@ cmd_up() {
+ 	engine_docker info --format 'id={{.ID}} rootless={{.SecurityOptions}} plugins={{.Plugins.Authorization}}' || true
+ }
+ 
++# Up to a minute, one try at a time, each stopped after 5 s. A forward that accepts the connection and never
++# reaches the daemon holds docker version until the far side gives up, and one unbounded try held up here for
++# minutes, silently (T046, 2026-10-09). The tests shorten both through tls_wait and tls_try.
+ wait_for_tls() {
+-	local _
+-	for _ in $(seq 1 60); do
+-		if engine_docker version >/dev/null 2>&1; then
++	local wait="${tls_wait:-60}" try="${tls_try:-5}" deadline pid _
++	# Whole seconds only, checked before any arithmetic: bash evaluates a name in $(( )), and a[$(cmd)] runs cmd.
++	case "$wait$try" in *[!0-9]*) die "tls_wait and tls_try take whole seconds" ;; esac
++	deadline=$((SECONDS + wait))
++	while [ "$SECONDS" -lt "$deadline" ]; do
++		engine_docker version >/dev/null 2>&1 &
++		pid=$!
++		for _ in $(seq 1 "$try"); do
++			sleep 1
++			kill -0 "$pid" 2>/dev/null || break
++		done
++		if kill -0 "$pid" 2>/dev/null; then
++			pkill -P "$pid" 2>/dev/null || true # the docker client, when the try runs it as a child
++			kill "$pid" 2>/dev/null || true
++			wait "$pid" 2>/dev/null || true
++		elif wait "$pid"; then
+ 			return 0
+ 		fi
+-		sleep 1
+ 	done
+-	die "the engine did not answer TLS on 198.18.0.1:2376; check: sudo systemctl status $system_units"
++	die "the engine did not answer TLS on 198.18.0.1:2376 within $wait s. See h4agents' journal: sudo journalctl _UID=$(h4_uid) -n 40; and the firewall's drops: sudo journalctl -k -g h4agents-drop -n 5"
+ }
+ 
+ chown_state() {
+@@ -479,9 +499,23 @@ cmd_status() {
+ 		systemctl is-active $system_units h4-egress-proxy.service 2>/dev/null || true
+ 		status_list_hashes
+ 		echo "-- the plugin's last 20 refusals"
+-		if [ -r "$H4_AUTHZ_LOG" ]; then
+-			grep '"decision":"refuse"' "$H4_AUTHZ_LOG" | tail -n 20 || true
+-		fi
++		status_refusals
++	fi
++}
++
++# The plugin's last 20 refusals, read as h4agents and never as root: h4agents owns the log's directory, so a link
++# there could lead anywhere. sudo -n, so status never asks for a password. It says why when it reads nothing,
++# where it once printed nothing at all (§3.5).
++status_refusals() {
++	local refusals
++	if ! sudo -n -u h4agents true 2>/dev/null; then
++		echo "  (not read: sudo would ask for a password. Run: sudo -u h4agents tail -n 20 $H4_AUTHZ_LOG)"
++	elif refusals="$(sudo -n -u h4agents grep -- '"decision":"refuse"' "$H4_AUTHZ_LOG" 2>/dev/null)"; then
++		tail -n 20 <<<"$refusals"
++	elif sudo -n -u h4agents test -f "$H4_AUTHZ_LOG"; then
++		echo "  (none)"
++	else
++		echo "  (no log yet at $H4_AUTHZ_LOG)"
+ 	fi
+ }
+ 
+@@ -554,7 +588,7 @@ cmd_smoke() {
+ usage() {
+ 	cat >&2 <<'EOF'
+ usage: deploy/agents-engine/engine.sh <subcommand>
+-  setup    host setup (sudo; then wsl --shutdown)        [Author]
++  setup    host setup, as yourself (it asks for sudo)    [Author]
+   up       start the engine                              [Author]
+   down     stop the daemon, plugin, and proxy            [Author]
+   reset    wipe and re-seed the engine                   [Author; Heavy]
+diff --git a/deploy/agents-engine/prove-limits.sh b/deploy/agents-engine/prove-limits.sh
+index 73ff9df..2c92653 100755
+--- a/deploy/agents-engine/prove-limits.sh
++++ b/deploy/agents-engine/prove-limits.sh
+@@ -1299,9 +1299,18 @@ nft_drop_count() {
+ }
+ 
+ excerpts() {
++	local refusals
+ 	echo
+ 	echo "== the plugin's last refusals (${H4_AUTHZ_LOG})"
+-	[ -r "$H4_AUTHZ_LOG" ] && grep '"decision":"refuse"' "$H4_AUTHZ_LOG" | tail -n 10 || echo "  (none)"
++	# Read as h4agents, never as root: h4agents owns the log's directory, so a link there could lead anywhere. As
++	# the Author it was never readable, and "(none)" hid that (§3.5; the review of T046's bring-up).
++	if refusals="$(sudo -u h4agents grep -- '"decision":"refuse"' "$H4_AUTHZ_LOG" 2>/dev/null)"; then
++		tail -n 10 <<<"$refusals"
++	elif sudo -u h4agents test -f "$H4_AUTHZ_LOG"; then
++		echo "  (none)"
++	else
++		echo "  (no log, or h4agents can't read it: $H4_AUTHZ_LOG)"
++	fi
+ 	echo "== the egress proxy's last decisions (${H4_EGRESS_LOG})"
+ 	[ -r "$H4_EGRESS_LOG" ] && tail -n 10 "$H4_EGRESS_LOG" || echo "  (none)"
+ 	echo "== the firewall's drop counter"
+diff --git a/deploy/agents-engine/setup-host.sh b/deploy/agents-engine/setup-host.sh
+index b542763..ac50191 100755
+--- a/deploy/agents-engine/setup-host.sh
++++ b/deploy/agents-engine/setup-host.sh
+@@ -1,8 +1,9 @@
+ #!/usr/bin/env bash
+ # The agents' engine host setup (spec 000, FR-039; contracts/agents-engine.md §5, H1-H14).
+ #
+-# Run once by the Author with sudo, through `deploy/agents-engine/engine.sh setup`, followed by one
+-# `wsl --shutdown`. Idempotent: every step checks before it changes, and reissues a client certificate
++# Run by the Author as themselves through `deploy/agents-engine/engine.sh setup`, which calls sudo: under a
++# second sudo, SUDO_USER would be root. The first run is followed by one `wsl --shutdown`; a re-run says
++# whether it needs one. Idempotent: every step checks before it changes, and reissues a client certificate
+ # only when it is missing or within 30 days of expiry. It fails closed on any error.
+ #
+ # NEVER run from an agent session: it needs sudo, and a user that does not exist yet. Human-only (the
+@@ -33,6 +34,11 @@ author=""
+ author_home=""
+ agent_cert_dir=""
+ author_cert_dir=""
++h4_home="/var/lib/h4agents/home"
++# What only a wsl --shutdown applies, still waiting for one: ensure_gpu_group and ensure_wsl_conf note it, with the
++# boot's ID, so a re-run before the shutdown still asks for it, and the first run after one doesn't.
++restart_marker="$etc/wsl-restart-pending"
++boot_id_file="/proc/sys/kernel/random/boot_id"
+ 
+ log() { printf '== %s\n' "$*"; }
+ 
+@@ -49,7 +55,8 @@ resolve_author() {
+ 	fi
+ 	author="${SUDO_USER:-}"
+ 	if [ -z "$author" ] || [ "$author" = "root" ]; then
+-		echo "run through sudo as the Author, not as root directly (SUDO_USER is unset)" >&2
++		# Unset when root runs this directly; root under `sudo engine.sh setup`, whose own sudo is the second.
++		echo "SUDO_USER is ${author:-unset}, so the Author is unknown: run deploy/agents-engine/engine.sh setup as yourself, without sudo (it calls sudo itself)" >&2
+ 		exit 1
+ 	fi
+ 	author_home="$(getent passwd "$author" | cut -d: -f6)"
+@@ -161,13 +168,17 @@ ensure_gpu_group() {
+ 	if ! id -nG "$author" | tr ' ' '\n' | grep -qx "$gpu_group"; then
+ 		log "adding $author to $gpu_group"
+ 		usermod --append --groups "$gpu_group" "$author"
++		note_restart "$author's membership of $gpu_group"
+ 	fi
+ }
+ 
+ # --- directories ---------------------------------------------------------------------------------
+ ensure_dirs() {
+ 	install -d -o root -g root -m 0755 "$lib" "$etc" "$models_src"
+-	install -d -o root -g "$user" -m 0750 "$pki" "$log_dir"
++	install -d -o root -g "$user" -m 0750 "$pki"
++	# The plugin runs as h4agents and writes and rotates its decision log here (§3.5), so h4agents owns it. Under
++	# root, the plugin's writes failed, and it drops a record it can't write rather than block (T046, 2026-10-09).
++	install -d -o "$user" -g "$user" -m 0750 "$log_dir"
+ 	install -d -o "$user" -g "$user" -m 0700 "$state"
+ }
+ 
+@@ -226,23 +237,53 @@ owned_dirs() {
+ }
+ 
+ # --- H14, H5: rootless docker for h4agents -------------------------------------------------------
++# h4agents owns every directory in its home, so a process running as h4agents can make any of them a link. Root
++# following one would chown or write wherever it led, /usr/local/lib/h4agents included, and the copies root runs
++# would be h4agents' to change (H13; the review of T046's bring-up, 2026-10-09). So setup writes there only as
++# h4agents: a link then reaches only what h4agents could write already. Each file goes through a copy h4agents
++# can read, since the repository sits under the Author's home.
++as_h4agents() { runuser -u "$user" -- "$@"; }
++
++# h4agents_copy <mode> <source> <destination>: the file, installed there by h4agents.
++h4agents_copy() {
++	local tmp
++	tmp="$(mktemp)"
++	cp -- "$2" "$tmp"
++	chmod 0644 "$tmp"
++	as_h4agents install -T -m "$1" "$tmp" "$3" # -T: a directory there fails, not fills
++	rm -f -- "$tmp"
++}
++
++# ensure_plugin_spec <home> <runtime dir>: the spec file through which dockerd finds the admission plugin
++# (§3.1). A rootless daemon doesn't find the socket in the runtime directory where authz.py makes it, and refuses
++# to start: "plugin h4-authz not found" (T046, 2026-10-09). It reads spec files from ~/.config/docker/plugins
++# first, and this one names the socket by path. Left alone when it already holds exactly that, as h4agents'
++# regular file, mode 0644. h4agents compares them, so a FIFO there holds setup up for 5 s at most.
++ensure_plugin_spec() {
++	local spec="$1/.config/docker/plugins/h4-authz.spec" tmp
++	tmp="$(mktemp)"
++	printf 'unix://%s/docker/plugins/h4-authz.sock\n' "$2" >"$tmp"
++	chmod 0644 "$tmp"
++	if [ -L "$spec" ] || [ "$(stat -c '%a %U %F' -- "$spec" 2>/dev/null)" != "644 $user regular file" ] ||
++		! as_h4agents timeout 5 cmp -s -- "$tmp" "$spec"; then
++		log "writing $spec: $(cat -- "$tmp")"
++		as_h4agents install -T -m 0644 "$tmp" "$spec"
++	fi
++	rm -f -- "$tmp"
++}
++
+ setup_rootless_docker() {
+ 	local uid runtime
+ 	uid="$(id -u "$user")"
+ 	runtime="/run/user/$uid"
+-	owned_dirs "$user" "/var/lib/h4agents/home/.config" "/var/lib/h4agents/home/.config/systemd"
+-	install -d -o "$user" -g "$user" -m 0700 \
+-		"/var/lib/h4agents/home/.config/docker" \
+-		"/var/lib/h4agents/home/.config/systemd/user" \
+-		"/var/lib/h4agents/home/.config/systemd/user/docker.service.d"
+-	install -o "$user" -g "$user" -m 0644 "$here/daemon.json" \
+-		"/var/lib/h4agents/home/.config/docker/daemon.json"
+-	install -o "$user" -g "$user" -m 0644 "$here/systemd/h4-authz.service" \
+-		"/var/lib/h4agents/home/.config/systemd/user/h4-authz.service"
+-	install -o "$user" -g "$user" -m 0644 "$here/systemd/docker.service.d/override.conf" \
+-		"/var/lib/h4agents/home/.config/systemd/user/docker.service.d/override.conf"
++	as_h4agents install -d -m 0700 "$h4_home/.config/docker/plugins" "$h4_home/.config/systemd/user/docker.service.d"
++	h4agents_copy 0644 "$here/daemon.json" "$h4_home/.config/docker/daemon.json"
++	ensure_plugin_spec "$h4_home" "$runtime"
++	h4agents_copy 0644 "$here/systemd/h4-authz.service" "$h4_home/.config/systemd/user/h4-authz.service"
++	h4agents_copy 0644 "$here/systemd/docker.service.d/override.conf" \
++		"$h4_home/.config/systemd/user/docker.service.d/override.conf"
+ 	# Install the rootless daemon as h4agents' user service (idempotent).
+-	if [ ! -e "/var/lib/h4agents/home/.config/systemd/user/docker.service" ]; then
++	if [ ! -e "$h4_home/.config/systemd/user/docker.service" ]; then
+ 		log "installing rootless docker for $user"
+ 		runuser -u "$user" -- env XDG_RUNTIME_DIR="$runtime" PATH="/usr/bin:/usr/sbin:/bin:/sbin" \
+ 			dockerd-rootless-setuptool.sh install --skip-iptables || {
+@@ -273,6 +314,7 @@ ensure_wsl_conf() {
+ 		return 0
+ 	fi
+ 	log "setting /etc/wsl.conf automount umask=077,fmask=077 (needs one wsl --shutdown)"
++	note_restart "/etc/wsl.conf's automount change"
+ 	if [ ! -f "$conf" ]; then
+ 		cat >"$conf" <<'EOF'
+ [automount]
+@@ -405,15 +447,58 @@ main() {
+ 	install_author_units
+ 	enable_system_units
+ 	ensure_wsl_conf
+-	cat <<EOF
++	next_steps
++}
++
++# note_restart <reason>: a change only a wsl --shutdown applies, recorded at once in the marker, under this boot's
++# ID, so a run that fails later still leaves it. A marker from an earlier boot is spent, and starts over.
++note_restart() {
++	local boot
++	boot="$(cat -- "$boot_id_file")"
++	install -d -o root -g root -m 0755 "${restart_marker%/*}"
++	if [ ! -f "$restart_marker" ] || [ "$(head -n 1 -- "$restart_marker")" != "$boot" ]; then
++		printf '%s\n' "$boot" >"$restart_marker"
++	fi
++	awk -v reason="$1" 'NR > 1 && $0 == reason { held = 1 } END { exit !held }' "$restart_marker" ||
++		printf '%s\n' "$1" >>"$restart_marker"
++}
++
++# pending_restart: what still waits for a wsl --shutdown this boot, joined, or nothing. A marker from an earlier
++# boot is spent: the shutdown came, and the marker goes.
++pending_restart() {
++	[ -f "$restart_marker" ] || return 0
++	if [ "$(head -n 1 -- "$restart_marker")" != "$(cat -- "$boot_id_file")" ]; then
++		rm -f -- "$restart_marker"
++		return 0
++	fi
++	awk 'NR > 1 { printf "%s%s", (NR > 2 ? ", and " : ""), $0; n++ } END { if (n) print "" }' "$restart_marker"
++}
++
++# The run's last words: the wsl --shutdown while a change that needs one still waits for it, whichever run made
++# the change, and otherwise the restart of h4agents' plugin and daemon, which up alone wouldn't give a daemon
++# already running.
++next_steps() {
++	local why
++	why="$(pending_restart)"
++	if [ -n "$why" ]; then
++		cat <<EOF
+ 
+ Host setup complete. Next, in PowerShell:
+     wsl --shutdown
+ Then open a new WSL shell and run:
+     deploy/agents-engine/engine.sh up
+-The shutdown is needed for /etc/wsl.conf's automount change to take effect, and it ends every WSL
++The shutdown is needed for $why to take effect, and it ends every WSL
+ session, agents' included.
+ EOF
++	else
++		cat <<EOF
++
++Host setup complete. No wsl --shutdown is needed: nothing waits for one. To run h4agents' plugin and daemon
++from what it installed:
++    deploy/agents-engine/engine.sh down
++    deploy/agents-engine/engine.sh up
++EOF
++	fi
+ }
+ 
+ # Run as a command; sourced, it only defines the functions above, which the tests call
+diff --git a/deploy/agents-engine/systemd/docker.service.d/override.conf b/deploy/agents-engine/systemd/docker.service.d/override.conf
+index c194691..cfa475b 100644
+--- a/deploy/agents-engine/systemd/docker.service.d/override.conf
++++ b/deploy/agents-engine/systemd/docker.service.d/override.conf
+@@ -9,7 +9,10 @@
+ ExecStartPre=/usr/local/lib/h4agents/bind-tree.sh check
+ Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_NET=slirp4netns"
+ Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_DISABLE_HOST_LOOPBACK=true"
+-Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS=--publish 198.18.0.1:2376:2376/tcp"
++# The publish names the child address, 127.0.0.1. Without one, RootlessKit's builtin driver dials the parent's
++# address inside the namespace, where 198.18.0.1 doesn't exist: the dial leaves through slirp4netns as h4agents,
++# the firewall drops it (H4), and a client's connection is accepted and never answered (T046, 2026-10-09).
++Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS=--publish 198.18.0.1:2376:127.0.0.1:2376/tcp"
+ Environment="HTTPS_PROXY=http://198.18.0.1:3128"
+ Environment="HTTP_PROXY=http://198.18.0.1:3128"
+ Environment="NO_PROXY=127.0.0.1,localhost"
+diff --git a/deploy/agents-engine/systemd/h4-authz.service b/deploy/agents-engine/systemd/h4-authz.service
+index e488d58..f46b318 100644
+--- a/deploy/agents-engine/systemd/h4-authz.service
++++ b/deploy/agents-engine/systemd/h4-authz.service
+@@ -1,8 +1,10 @@
+ # The agents' engine admission plugin (spec 000, FR-039; contracts/agents-engine.md §3).
+ # A systemd *user* service of h4agents. It must be up before dockerd, which names it in daemon.json
+ # ("authorization-plugins": ["h4-authz"]) and refuses every request when it is down (fail closed).
+-# The socket lives in dockerd's plugin directory, $XDG_RUNTIME_DIR/docker/plugins/h4-authz.sock, which
+-# the service sets for itself. Installed to ~h4agents/.config/systemd/user/ by engine.sh setup.
++# The socket is $XDG_RUNTIME_DIR/docker/plugins/h4-authz.sock, which authz.py makes for itself. A rootless
++# dockerd never looks for sockets there: it finds this one through the spec file setup writes,
++# ~h4agents/.config/docker/plugins/h4-authz.spec, which names the socket by path (contracts/agents-engine.md
++# §3). Installed to ~h4agents/.config/systemd/user/ by engine.sh setup.
+ [Unit]
+ Description=h4agents engine admission plugin (h4-authz)
+ Before=docker.service
+diff --git a/deploy/agents-engine/test/test_authz.py b/deploy/agents-engine/test/test_authz.py
+index 9806cab..f6b940d 100644
+--- a/deploy/agents-engine/test/test_authz.py
++++ b/deploy/agents-engine/test/test_authz.py
+@@ -642,6 +642,48 @@ def test_audit_log_rotates_and_keeps_five(
+     assert len([p for p in rotated if p != "authz.jsonl"]) <= authz.AuditLog.KEEP
+ 
+ 
++def test_audit_log_reports_a_record_it_cannot_write_once_a_minute(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    # A directory the plugin can't write lost every record without a trace (T046, 2026-10-09). The write
++    # still returns, so the decision stands, and the journal says why the records are missing.
++    log = authz.AuditLog(str(tmp_path / "missing" / "authz.jsonl"))
++    secret = "s3cr3t-value-in-a-record"
++    for _ in range(3):
++        log.write({"decision": "refuse", "rule": "A1", "value": secret})
++    err = capsys.readouterr().err
++    assert err.count("h4-authz: cannot write the audit log") == 1
++    assert str(tmp_path / "missing" / "authz.jsonl") in err
++    assert secret not in err  # the path and the error only, never the record
++
++
++def test_audit_log_reports_again_after_a_minute(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
++) -> None:
++    clock = iter([1000.0, 1030.0, 1061.0])
++    monkeypatch.setattr(authz.time, "monotonic", lambda: next(clock))
++    log = authz.AuditLog(str(tmp_path / "missing" / "authz.jsonl"))
++    for _ in range(3):  # at 0 s, 30 s, and 61 s
++        log.write({"decision": "allow", "rule": "allow"})
++    assert capsys.readouterr().err.count("h4-authz: cannot write the audit log") == 2
++
++
++def test_audit_log_survives_a_report_it_cannot_print(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    # journald's stream gone: the report fails, and the request must still get its answer.
++    class Gone:
++        def write(self, _text: str) -> int:
++            raise BrokenPipeError(32, "Broken pipe")
++
++        def flush(self) -> None:
++            raise BrokenPipeError(32, "Broken pipe")
++
++    monkeypatch.setattr(authz.sys, "stderr", Gone())
++    log = authz.AuditLog(str(tmp_path / "missing" / "authz.jsonl"))
++    log.write({"decision": "refuse", "rule": "A1"})  # returns: no exception
++
++
+ # --------------------------------------------------------------------------------------------------
+ # The server path: what dockerd's AuthZReq call reaches. The rules above are judged directly; these
+ # drive the handler, so a request that never reaches the rules (as a wrong call once did) fails here.
+diff --git a/deploy/agents-engine/test/test_engine_sh.py b/deploy/agents-engine/test/test_engine_sh.py
+index 65b9a3b..7ea4299 100644
+--- a/deploy/agents-engine/test/test_engine_sh.py
++++ b/deploy/agents-engine/test/test_engine_sh.py
+@@ -15,6 +15,7 @@ import shlex
+ import shutil
+ import subprocess
+ import sys
++import time
+ from pathlib import Path
+ 
+ import pytest
+@@ -88,6 +89,167 @@ def test_run_it_still_runs_main_and_refuses_the_authors_subcommands_in_a_session
+     assert "'up' is the Author's" in refused.stderr
+ 
+ 
++# --------------------------------------------------------------------------------------------------
++# T046's bring-up on 2026-10-09: setup under sudo, up's reload of h4agents' units, a bounded TLS wait
++# --------------------------------------------------------------------------------------------------
++def test_setup_refuses_to_run_under_sudo(tmp_path: Path) -> None:
++    # setup-host.sh takes the Author from SUDO_USER, which a second sudo sets to root. A sudo of the test's own
++    # comes first on PATH, so a guard that regressed runs it, not the real one.
++    bin_dir = tmp_path / "bin"
++    bin_dir.mkdir()
++    fake = bin_dir / "sudo"
++    fake.write_text("#!/bin/sh\necho FAKE-SUDO-RAN\n", encoding="utf-8")
++    fake.chmod(0o755)
++    script = (
++        'id() { if [ "$*" = "-u" ]; then echo 0; else command id "$@"; fi; }\ncmd_setup'
++    )
++    done = engine(script, tmp_path, PATH=f"{bin_dir}:/usr/local/bin:/usr/bin:/bin")
++    assert done.returncode == 1
++    assert "FAKE-SUDO-RAN" not in done.stdout
++    assert "run setup as yourself, without sudo" in done.stderr
++
++
++def test_up_reloads_both_user_managers_before_it_starts_their_units(
++    tmp_path: Path,
++) -> None:
++    # A re-run of setup installs new unit files, h4agents' and the Author's proxy's; a start without a reload
++    # runs the old ones.
++    calls = tmp_path / "calls"
++    lib = tmp_path / "lib"
++    lib.mkdir()
++    (lib / "bind-tree.sh").symlink_to(shutil.which("true") or "/bin/true")
++    script = f"""
++lib={q(lib)}
++check_tree_masks() {{ :; }}
++sudo() {{ :; }}
++systemctl() {{ printf 'author %s\\n' "$*" >>{q(calls)}; }}
++as_h4agents_systemctl() {{ printf 'h4agents %s\\n' "$*" >>{q(calls)}; }}
++wait_for_tls() {{ :; }}
++chown_state() {{ :; }}
++engine_docker() {{ :; }}
++cmd_up
++"""
++    done = engine(script, tmp_path)
++    assert done.returncode == 0, done.stderr
++    lines = calls.read_text(encoding="utf-8").splitlines()
++    h4agents = [line for line in lines if line.startswith("h4agents ")]
++    assert h4agents[0] == "h4agents daemon-reload"
++    assert "h4agents start h4-authz.service" in h4agents
++    assert "h4agents start docker.service" in h4agents
++    assert lines.index("author --user daemon-reload") < lines.index(
++        "author --user restart h4-egress-proxy.service"
++    )
++
++
++def test_wait_for_tls_takes_only_whole_seconds(tmp_path: Path) -> None:
++    # bash evaluates a name inside $(( )), so a value like a[$(cmd)] would run cmd.
++    ran = tmp_path / "ran"
++    script = f"""
++tls_wait='a[$(touch {q(ran)})]'
++engine_docker() {{ return 0; }}
++wait_for_tls
++echo ANSWERED
++"""
++    done = engine(script, tmp_path)
++    assert done.returncode == 1
++    assert "tls_wait and tls_try take whole seconds" in done.stderr
++    assert not ran.exists()
++
++
++def _refusals(
++    tmp_path: Path, log: str | None, *, password: bool = False
++) -> subprocess.CompletedProcess[str]:
++    """status_refusals with `log` as the decision log (None: no log), read through a stand-in sudo that runs
++    the command as this user, or refuses as sudo -n does when it would ask for a password."""
++    path = tmp_path / "authz.jsonl"
++    if log is not None:
++        path.write_text(log, encoding="utf-8")
++    sudo = (
++        "sudo() { return 1; }"
++        if password
++        else 'sudo() { [ "$1" = -n ] && shift; [ "$1" = -u ] && shift 2; "$@"; }'
++    )
++    return engine(f"H4_AUTHZ_LOG={q(path)}\n{sudo}\nstatus_refusals", tmp_path)
++
++
++def test_status_lists_the_refusals_it_reads_as_h4agents(tmp_path: Path) -> None:
++    log = '{"decision":"allow","rule":"allow"}\n{"decision":"refuse","rule":"A14"}\n'
++    done = _refusals(tmp_path, log)
++    assert done.returncode == 0, done.stderr
++    assert done.stdout.strip() == '{"decision":"refuse","rule":"A14"}'
++
++
++@pytest.mark.parametrize(
++    ("log", "password", "said"),
++    [
++        ('{"decision":"allow","rule":"allow"}\n', False, "(none)"),
++        (None, False, "(no log yet at "),
++        ('{"decision":"refuse","rule":"A14"}\n', True, "sudo would ask for a password"),
++    ],
++)
++def test_status_says_why_it_lists_no_refusals(
++    tmp_path: Path, log: str | None, password: bool, said: str
++) -> None:
++    # It once printed nothing at all when the Author couldn't read h4agents' log (§3.5).
++    done = _refusals(tmp_path, log, password=password)
++    assert done.returncode == 0, done.stderr
++    assert said in done.stdout
++    assert '"refuse"' not in done.stdout
++
++
++def _running(pid: str) -> bool:
++    """Is the process there and not a zombie waiting to be reaped?"""
++    try:
++        stat_line = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
++    except OSError:
++        return False
++    return stat_line.rpartition(")")[2].split()[0] != "Z"
++
++
++def _wait_for_tls(
++    tmp_path: Path, probe: str
++) -> tuple[subprocess.CompletedProcess[str], float]:
++    """wait_for_tls with `probe` standing in for docker version: a 3 s wait, each try stopped at 1 s."""
++    script = f"""
++tls_wait=3
++tls_try=1
++engine_docker() {{ {probe}; }}
++h4_uid() {{ echo 999; }}
++wait_for_tls
++echo ANSWERED
++"""
++    start = time.monotonic()
++    done = engine(script, tmp_path)
++    return done, time.monotonic() - start
++
++
++def test_wait_for_tls_returns_once_the_engine_answers(tmp_path: Path) -> None:
++    done, _ = _wait_for_tls(tmp_path, "return 0")
++    assert "ANSWERED" in done.stdout, done.stderr
++
++
++def test_wait_for_tls_gives_up_on_an_engine_that_refuses(tmp_path: Path) -> None:
++    done, took = _wait_for_tls(tmp_path, "return 1")
++    assert done.returncode == 1
++    assert "did not answer TLS on 198.18.0.1:2376 within 3 s" in done.stderr
++    assert took < 20
++
++
++def test_wait_for_tls_stops_a_try_that_never_returns(tmp_path: Path) -> None:
++    # The forward that took the connection and never reached the daemon: docker version hung for minutes.
++    pids = tmp_path / "pids"
++    probe = f"sh -c 'echo $$ >>{q(pids)}; exec sleep 300'"
++    done, took = _wait_for_tls(tmp_path, probe)
++    assert done.returncode == 1
++    assert "ANSWERED" not in done.stdout
++    assert "did not answer TLS on 198.18.0.1:2376 within 3 s" in done.stderr
++    assert "sudo journalctl _UID=999" in done.stderr
++    assert took < 20
++    started = pids.read_text(encoding="utf-8").split()
++    assert started  # at least one try ran
++    assert not [pid for pid in started if _running(pid)]  # and none outlives the wait
++
++
+ # --------------------------------------------------------------------------------------------------
+ # status: the proxy's list in use against the settings' (§4, §8, tasks.md T131)
+ # --------------------------------------------------------------------------------------------------
+diff --git a/deploy/agents-engine/test/test_setup_host_sh.py b/deploy/agents-engine/test/test_setup_host_sh.py
+index 7cd8ddc..8f1cc13 100644
+--- a/deploy/agents-engine/test/test_setup_host_sh.py
++++ b/deploy/agents-engine/test/test_setup_host_sh.py
+@@ -293,3 +293,251 @@ def test_ensure_subids_refuses_a_range_of_h4agents_that_overlaps_another(
+     assert done.returncode != 0
+     assert "h4reet:100000:65536" in done.stderr
+     assert calls == []
++
++
++# --------------------------------------------------------------------------------------------------
++# T046's bring-up on 2026-10-09: who runs it, the plugin's spec file, the decision log's directory, and
++# the run's last words
++# --------------------------------------------------------------------------------------------------
++def _resolve_author(
++    tmp_path: Path, sudo_user: str | None
++) -> subprocess.CompletedProcess[str]:
++    """resolve_author past its root check, with SUDO_USER as given (None: unset)."""
++    sudo = (
++        "unset SUDO_USER" if sudo_user is None else f"export SUDO_USER={q(sudo_user)}"
++    )
++    script = f"""
++id() {{ if [ "$*" = "-u" ]; then echo 0; else command id "$@"; fi; }}
++{sudo}
++resolve_author
++echo "RESOLVED $author_cert_dir"
++"""
++    return setup_host(script, tmp_path)
++
++
++@pytest.mark.parametrize(("sudo_user", "named"), [(None, "unset"), ("root", "root")])
++def test_without_the_author_in_sudo_user_it_says_to_run_setup_without_sudo(
++    tmp_path: Path, sudo_user: str | None, named: str
++) -> None:
++    # root is what `sudo engine.sh setup` gives it, engine.sh's own sudo being the second.
++    done = _resolve_author(tmp_path, sudo_user)
++    assert done.returncode == 1
++    assert "RESOLVED" not in done.stdout
++    assert f"SUDO_USER is {named}" in done.stderr
++    assert "engine.sh setup as yourself, without sudo" in done.stderr
++
++
++def test_the_author_comes_from_sudo_user(tmp_path: Path) -> None:
++    done = _resolve_author(tmp_path, ME)
++    assert done.returncode == 0, done.stderr
++    assert done.stdout.strip().endswith("/.config/h4reet-ai/agents-engine/docker")
++
++
++SOCKET = "unix:///run/user/999/docker/plugins/h4-authz.sock"
++
++
++# runuser, standing in: the command runs as this user, who stands in for h4agents. `command` skips the shell
++# functions that stand in for root's own commands, so a test can tell the two apart.
++AS_H4AGENTS = 'runuser() { shift 2; [ "$1" = -- ] && shift; command "$@"; }'
++
++
++def _plugin_spec(tmp_path: Path, *, before: str | None = None, link: bool = False):
++    """ensure_plugin_spec into a temporary h4agents home, twice, this user standing in for h4agents. The
++    plugins directory is there, as setup_rootless_docker makes it. `before` is a spec already there, mode
++    0644; `link` puts a link there instead, to a file of its own."""
++    home = tmp_path / "home"
++    spec = home / ".config" / "docker" / "plugins" / "h4-authz.spec"
++    victim = tmp_path / "victim"
++    spec.parent.mkdir(parents=True)
++    if link:
++        victim.write_text("unix:///elsewhere.sock\n", encoding="utf-8")
++        spec.symlink_to(victim)
++    elif before is not None:
++        spec.write_text(before, encoding="utf-8")
++        spec.chmod(0o644)
++    script = f"""
++user={q(ME)}
++{AS_H4AGENTS}
++log() {{ printf 'log: %s\\n' "$*"; }}
++ensure_plugin_spec {q(home)} /run/user/999
++echo FIRST-DONE
++ensure_plugin_spec {q(home)} /run/user/999
++echo SECOND-DONE
++"""
++    done = setup_host(script, tmp_path)
++    return done, spec, victim
++
++
++def test_plugin_spec_names_the_socket_by_path(tmp_path: Path) -> None:
++    done, spec, _ = _plugin_spec(tmp_path)
++    assert "SECOND-DONE" in done.stdout, done.stderr
++    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
++    info = spec.stat()
++    assert stat.S_IMODE(info.st_mode) == 0o644
++    assert info.st_uid == os.getuid()
++
++
++def test_plugin_spec_write_is_idempotent(tmp_path: Path) -> None:
++    done, _, _ = _plugin_spec(tmp_path)
++    first, second = done.stdout.split("FIRST-DONE")
++    assert "h4-authz.spec" in first  # the first run writes it and says so
++    assert "log:" not in second  # the second finds it right and changes nothing
++
++
++def test_plugin_spec_replaces_an_empty_one(tmp_path: Path) -> None:
++    # An empty spec, as a wrapped command left on 2026-10-09, reads as "legacy plugin: Unknown protocol".
++    done, spec, _ = _plugin_spec(tmp_path, before="")
++    assert "SECOND-DONE" in done.stdout, done.stderr
++    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
++
++
++def test_plugin_spec_replaces_a_link_rather_than_writing_through_it(
++    tmp_path: Path,
++) -> None:
++    done, spec, victim = _plugin_spec(tmp_path, link=True)
++    assert "SECOND-DONE" in done.stdout, done.stderr
++    assert victim.read_text(encoding="utf-8") == "unix:///elsewhere.sock\n"
++    assert not spec.is_symlink()
++    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
++
++
++def test_h4agents_owns_the_decision_logs_directory(tmp_path: Path) -> None:
++    # The plugin writes and rotates its log there as h4agents; under root its writes failed (§3.5).
++    calls = tmp_path / "calls"
++    script = f"""
++install() {{ printf 'install %s\\n' "$*" >>{q(calls)}; }}
++ensure_dirs
++echo DIRS-OK
++"""
++    done = setup_host(script, tmp_path)
++    assert "DIRS-OK" in done.stdout, done.stderr
++    lines = calls.read_text(encoding="utf-8").splitlines()
++    assert "install -d -o h4agents -g h4agents -m 0750 /var/log/h4agents" in lines
++    assert [line for line in lines if "/var/log/h4agents" in line] == [
++        "install -d -o h4agents -g h4agents -m 0750 /var/log/h4agents"
++    ]
++
++
++def test_setup_writes_into_h4agents_home_only_as_h4agents(tmp_path: Path) -> None:
++    # h4agents can make any directory in its home a link; root following one could chown or write anywhere,
++    # /usr/local/lib/h4agents included (H13; the review of T046's bring-up, 2026-10-09).
++    home = tmp_path / "home"
++    unit_dir = home / ".config" / "systemd" / "user"
++    unit_dir.mkdir(parents=True)
++    (unit_dir / "docker.service").write_text(
++        "", encoding="utf-8"
++    )  # the rootless install is done
++    calls = tmp_path / "calls"
++    script = f"""
++user={q(ME)}
++h4_home={q(home)}
++id() {{ if [ "$*" = "-u {ME}" ]; then echo 999; else command id "$@"; fi; }}
++runuser() {{ shift 2; [ "$1" = -- ] && shift; printf 'as-h4agents %s\\n' "$*" >>{q(calls)}; command "$@"; }}
++install() {{ printf 'as-root install %s\\n' "$*" >>{q(calls)}; command install "$@"; }}
++log() {{ :; }}
++setup_rootless_docker
++echo DONE
++"""
++    done = setup_host(script, tmp_path)
++    assert "DONE" in done.stdout, done.stderr
++    lines = calls.read_text(encoding="utf-8").splitlines()
++    assert [line for line in lines if line.startswith("as-root")] == []
++    here = SETUP.parent
++    docker = home / ".config" / "docker"
++    assert (docker / "daemon.json").read_bytes() == (here / "daemon.json").read_bytes()
++    assert (docker / "plugins" / "h4-authz.spec").read_text(
++        encoding="utf-8"
++    ) == SOCKET + "\n"
++    assert (unit_dir / "h4-authz.service").read_bytes() == (
++        here / "systemd" / "h4-authz.service"
++    ).read_bytes()
++    override = unit_dir / "docker.service.d" / "override.conf"
++    assert (
++        override.read_bytes()
++        == (here / "systemd" / "docker.service.d" / "override.conf").read_bytes()
++    )
++    assert stat.S_IMODE((docker / "plugins").stat().st_mode) == 0o700
++
++
++def test_the_api_publish_names_its_child_address() -> None:
++    # Without one, RootlessKit dialed 198.18.0.1 inside its namespace, and the firewall dropped it (T046).
++    conf = SETUP.parent / "systemd" / "docker.service.d" / "override.conf"
++    flags = [
++        line
++        for line in conf.read_text(encoding="utf-8").splitlines()
++        if line.startswith('Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS=')
++    ]
++    publish = "--publish 198.18.0.1:2376:127.0.0.1:2376/tcp"
++    assert flags == [f'Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS={publish}"']
++
++
++def _restart(
++    tmp_path: Path, steps: str, *, boot: str = "boot-a"
++) -> subprocess.CompletedProcess[str]:
++    """Run `steps` with the restart marker and the boot's ID in a temporary directory."""
++    (tmp_path / "boot_id").write_text(boot + "\n", encoding="utf-8")
++    script = f"""
++restart_marker={q(tmp_path / "etc" / "wsl-restart-pending")}
++boot_id_file={q(tmp_path / "boot_id")}
++install() {{ command install -d -m 0755 "${{@: -1}}"; }}
++{steps}
++"""
++    return setup_host(script, tmp_path)
++
++
++def test_a_change_that_needs_a_shutdown_is_asked_for_until_one_comes(
++    tmp_path: Path,
++) -> None:
++    # The first run notes it; a re-run before the shutdown asks for it too, though it changed nothing itself.
++    noted = _restart(tmp_path, 'note_restart "the Author\'s membership of h4gpu"')
++    assert noted.returncode == 0, noted.stderr
++    again = _restart(tmp_path, "next_steps")
++    assert "    wsl --shutdown\n" in again.stdout
++    assert "needed for the Author's membership of h4gpu to take effect" in again.stdout
++    after = _restart(
++        tmp_path, "next_steps", boot="boot-b"
++    )  # a new boot: the shutdown came
++    assert "    wsl --shutdown\n" not in after.stdout
++    assert "No wsl --shutdown is needed" in after.stdout
++    assert "    deploy/agents-engine/engine.sh down\n" in after.stdout
++    assert not (tmp_path / "etc" / "wsl-restart-pending").exists()
++
++
++def test_the_reasons_are_each_named_once(tmp_path: Path) -> None:
++    steps = """
++note_restart "the Author's membership of h4gpu"
++note_restart "/etc/wsl.conf's automount change"
++note_restart "the Author's membership of h4gpu"
++pending_restart
++"""
++    done = _restart(tmp_path, steps)
++    assert done.returncode == 0, done.stderr
++    assert done.stdout.strip() == (
++        "the Author's membership of h4gpu, and /etc/wsl.conf's automount change"
++    )
++
++
++def test_nothing_noted_means_no_shutdown(tmp_path: Path) -> None:
++    done = _restart(tmp_path, "next_steps")
++    assert done.returncode == 0, done.stderr
++    assert "No wsl --shutdown is needed" in done.stdout
++
++
++@pytest.mark.parametrize("held", [True, False])
++def test_a_new_gpu_group_membership_notes_a_wsl_shutdown(
++    tmp_path: Path, held: bool
++) -> None:
++    groups = f"{ME} h4gpu" if held else ME
++    steps = f"""
++author={q(ME)}
++getent() {{ return 0; }}
++id() {{ if [ "$1" = -nG ]; then echo {q(groups)}; else command id "$@"; fi; }}
++usermod() {{ :; }}
++log() {{ :; }}
++ensure_gpu_group
++echo "WHY [$(pending_restart)]"
++"""
++    done = _restart(tmp_path, steps)
++    assert done.returncode == 0, done.stderr
++    want = "" if held else f"{ME}'s membership of h4gpu"
++    assert f"WHY [{want}]" in done.stdout

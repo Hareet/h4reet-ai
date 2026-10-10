@@ -1,8 +1,11 @@
 # The agents' engine admission plugin (spec 000, FR-039; contracts/agents-engine.md §3).
 # A systemd *user* service of h4agents. It must be up before dockerd, which names it in daemon.json
 # ("authorization-plugins": ["h4-authz"]) and refuses every request when it is down (fail closed).
-# The socket lives in dockerd's plugin directory, $XDG_RUNTIME_DIR/docker/plugins/h4-authz.sock, which
-# the service sets for itself. Installed to ~h4agents/.config/systemd/user/ by engine.sh setup.
+# The socket is $XDG_RUNTIME_DIR/docker/plugins/h4-authz.sock, which authz.py makes for itself. A rootless
+# dockerd didn't find it there alone (T046): it finds it through the spec file setup writes, h4-authz.spec, which
+# names the socket by path, in both rootless spec directories, ~h4agents/.config/docker/plugins and
+# ~h4agents/.local/lib/docker/plugins (contracts/agents-engine.md §3.1). Installed to
+# ~h4agents/.config/systemd/user/ by engine.sh setup.
 [Unit]
 Description=h4agents engine admission plugin (h4-authz)
 Before=docker.service

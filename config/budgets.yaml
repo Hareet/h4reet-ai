@@ -1,0 +1,22 @@
+schema: 1
+
+timing:
+  timezone: UTC
+  reservation_ttl_s: 120
+
+envs:
+  prod:                       # the only class that spends real money (FR-031)
+    daily_usd: 5.00
+    monthly_usd: 20.00
+    fallback_daily_usd: 2.00  # per grant; a renewal grants a fresh $2 inside the daily ceiling (FR-030)
+    warn_ratio: 0.70
+  dev:                        # dev and dev-cpu: the same thresholds, applied to synthetic spend (FR-036)
+    daily_usd: 5.00
+    monthly_usd: 20.00
+    fallback_daily_usd: 2.00
+    warn_ratio: 0.70
+
+limits:
+  per_client:  { requests_per_minute: 20, burst: 5, requests_per_day: 500, metered_in_flight: 1 }
+  global:      { metered_in_flight: 4, metered_per_minute: 60 }
+  per_call:    { max_input_chars: 2000, hello_max_output_tokens: 128, max_output_tokens: 512 }

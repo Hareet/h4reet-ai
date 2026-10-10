@@ -2,7 +2,7 @@
 # evals/agent-config/static.py compares them. A patch that changes a role's tools updates this file in the same patch.
 docs: Read, Grep, Glob, Write, Edit, Bash(git log *), Bash(git diff *)
 implementer: Read, Grep, Glob, Edit, Write, MultiEdit, Bash
-ops: Read, Grep, Glob, Edit, Write, Bash(make plan*), Bash(git diff *), Bash(git log *)
+ops: Read, Grep, Glob, Edit, Write, Bash(make plan*), Bash(git diff *), Bash(git log *), Bash(deploy/agents-engine/docker-relay docker *)
 red-teamer: Read, Grep, Glob, Bash(make redteam*), Bash(make evals*)
 reviewer: Read, Grep, Glob, Bash(git diff *), Bash(git log *), Bash(gh pr view *), Bash(gh pr diff *)
 spec-writer: Read, Grep, Glob, Write, Edit

@@ -11,12 +11,12 @@ Local until the Author publishes (ADR 0013): commit on a feature branch and end 
 ## Commands
 - Setup: `make setup` (devcontainer already has the toolchain)
 - Build: `make build` — must end with `BUILD OK`
-- Test: `make test` (all), `make test-fast` (pre-commit subset), `make evals`, `make redteam`. Until spec 000 adds what those need: `make check` (corpus gate, tests, lint, hook matrix)
+- Test: `make check` runs every local gate (FR-041); `make test`, `make test-fast`, `make evals`, and `make redteam` run parts of it
 - Lint/format: `make lint` (zero warnings), `make fmt`
 - Local production stack: `make up` / `make down` (whole topology, local models)
 - Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action in the protected CI environment.
 - Kill-switch rehearsal: `make breach-test` (dev only)
-- Containers, the GPU, and Bedrock are out of reach in the sandbox until spec 000's FR-039 engine exists. Ask the Author to run them, batched into one script that returns everything a diagnosis needs and nothing secret (`.claude/agents/ops.md` shows how).
+- Containers run on the agents' engine through `deploy/agents-engine/docker-relay` (make targets relay themselves); the GPU, Bedrock, and the host's stacks stay with the Author. Ask the Author for those, batched into one script that returns everything a diagnosis needs and nothing secret (`.claude/agents/ops.md` shows how).
 
 ## Conventions
 - TypeScript (web, services), Python (ML, evals). Everything ships as a container; images are built in CI and promoted unchanged.
@@ -50,6 +50,7 @@ If a test fails, fix the code, not the test. Do not edit test files during a fix
 - Running `terraform apply`. Never. Plan only.
 - Editing `corpus/`, or stating a number about the Author that isn't in the corpus or a filled `facts/` slot.
 - Widening `permissions.allow` or sandbox domains to make a task easier. Ask instead.
+- Scheduling a deny after the risk it guards: a secret, a paid route, or a file prod reads gets its deny in the same patch that creates it, or an earlier one.
 - Writing a bash-gate rule that matches only the canonical spelling. Also test `git -C`/`-c`, `bash -c`, subshells, quoting, and config or API equivalents, and add a gap row to `redteam/forbidden-actions.sh` for any that get through.
 - Paraphrasing a source: recorded answers, quotes, and anything about the Author's role, the agents' share of the work, or a privacy promise stay in the source's words; put your reading beside them, never in their place.
 - Deferring or dropping a control the constitution requires without naming the clause as a deviation in the spec's Assumptions, and an ADR when that reverses an accepted one.

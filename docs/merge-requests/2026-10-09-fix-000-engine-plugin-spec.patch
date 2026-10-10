@@ -1,0 +1,289 @@
+diff --git a/deploy/agents-engine/engine.sh b/deploy/agents-engine/engine.sh
+index ab42bb9..83d0613 100755
+--- a/deploy/agents-engine/engine.sh
++++ b/deploy/agents-engine/engine.sh
+@@ -494,15 +494,27 @@ cmd_status() {
+ 	fi
+ 	engine_docker system df || true
+ 	if ! in_sandbox; then
+-		echo "-- system units"
+-		# shellcheck disable=SC2086
+-		systemctl is-active $system_units h4-egress-proxy.service 2>/dev/null || true
++		echo "-- the engine's system units, and the Author's proxy"
++		status_units
+ 		status_list_hashes
+ 		echo "-- the plugin's last 20 refusals"
+ 		status_refusals
+ 	fi
+ }
+ 
++# Each unit by name, with its state, or "unknown" when systemctl can't say (no user bus, say). The proxy is the
++# Author's user unit: asked of the system manager, as status once asked it, it always read "inactive", even while
++# it served (2026-10-09).
++status_units() {
++	local unit state
++	for unit in $system_units; do
++		state="$(systemctl is-active "$unit" 2>/dev/null)" || true
++		printf '  %-26s %s\n' "$unit" "${state:-unknown}"
++	done
++	state="$(systemctl --user is-active h4-egress-proxy.service 2>/dev/null)" || true
++	printf '  %-26s %s\n' h4-egress-proxy.service "${state:-unknown}"
++}
++
+ # The plugin's last 20 refusals, read as h4agents and never as root: h4agents owns the log's directory, so a link
+ # there could lead anywhere. sudo -n, so status never asks for a password. It says why when it reads nothing,
+ # where it once printed nothing at all (§3.5).
+diff --git a/deploy/agents-engine/setup-host.sh b/deploy/agents-engine/setup-host.sh
+index ac50191..e4ba168 100755
+--- a/deploy/agents-engine/setup-host.sh
++++ b/deploy/agents-engine/setup-host.sh
+@@ -254,21 +254,29 @@ h4agents_copy() {
+ 	rm -f -- "$tmp"
+ }
+ 
+-# ensure_plugin_spec <home> <runtime dir>: the spec file through which dockerd finds the admission plugin
+-# (§3.1). A rootless daemon doesn't find the socket in the runtime directory where authz.py makes it, and refuses
+-# to start: "plugin h4-authz not found" (T046, 2026-10-09). It reads spec files from ~/.config/docker/plugins
+-# first, and this one names the socket by path. Left alone when it already holds exactly that, as h4agents'
+-# regular file, mode 0644. h4agents compares them, so a FIFO there holds setup up for 5 s at most.
++# ensure_plugin_spec <home> <runtime dir>: the spec files through which dockerd finds the admission plugin (§3.1).
++# A rootless daemon doesn't find the socket in the runtime directory where authz.py makes it, and refuses to start:
++# "plugin h4-authz not found" (T046, 2026-10-09). Each file names the socket by path. Moby documents the rootless
++# spec directories as $XDG_CONFIG_HOME/docker/plugins, then $HOME/.local/lib/docker/plugins. What T046 saw:
++# - with a correct copy in ~/.config/docker/plugins alone, dockerd 28.3.3 refused to start;
++# - with one in each directory, it started.
++# The second directory is what dockerd read, in our reading; why it skipped the first isn't known, and the daemon's
++# XDG_CONFIG_HOME wasn't checked. Both directories get the spec, so neither goes stale whichever a later dockerd
++# reads. Each is left alone when it already holds exactly that, as h4agents' regular file, mode 0644. h4agents
++# compares them, so a FIFO there holds setup up for 5 s at most.
+ ensure_plugin_spec() {
+-	local spec="$1/.config/docker/plugins/h4-authz.spec" tmp
++	local dir spec tmp
+ 	tmp="$(mktemp)"
+ 	printf 'unix://%s/docker/plugins/h4-authz.sock\n' "$2" >"$tmp"
+ 	chmod 0644 "$tmp"
+-	if [ -L "$spec" ] || [ "$(stat -c '%a %U %F' -- "$spec" 2>/dev/null)" != "644 $user regular file" ] ||
+-		! as_h4agents timeout 5 cmp -s -- "$tmp" "$spec"; then
+-		log "writing $spec: $(cat -- "$tmp")"
+-		as_h4agents install -T -m 0644 "$tmp" "$spec"
+-	fi
++	for dir in "$1/.config/docker/plugins" "$1/.local/lib/docker/plugins"; do
++		spec="$dir/h4-authz.spec"
++		if [ -L "$spec" ] || [ "$(stat -c '%a %U %F' -- "$spec" 2>/dev/null)" != "644 $user regular file" ] ||
++			! as_h4agents timeout 5 cmp -s -- "$tmp" "$spec"; then
++			log "writing $spec: $(cat -- "$tmp")"
++			as_h4agents install -T -m 0644 "$tmp" "$spec"
++		fi
++	done
+ 	rm -f -- "$tmp"
+ }
+ 
+@@ -276,7 +284,8 @@ setup_rootless_docker() {
+ 	local uid runtime
+ 	uid="$(id -u "$user")"
+ 	runtime="/run/user/$uid"
+-	as_h4agents install -d -m 0700 "$h4_home/.config/docker/plugins" "$h4_home/.config/systemd/user/docker.service.d"
++	as_h4agents install -d -m 0700 "$h4_home/.config/docker/plugins" "$h4_home/.local/lib/docker/plugins" \
++		"$h4_home/.config/systemd/user/docker.service.d"
+ 	h4agents_copy 0644 "$here/daemon.json" "$h4_home/.config/docker/daemon.json"
+ 	ensure_plugin_spec "$h4_home" "$runtime"
+ 	h4agents_copy 0644 "$here/systemd/h4-authz.service" "$h4_home/.config/systemd/user/h4-authz.service"
+diff --git a/deploy/agents-engine/systemd/h4-authz.service b/deploy/agents-engine/systemd/h4-authz.service
+index f46b318..aa5cbc0 100644
+--- a/deploy/agents-engine/systemd/h4-authz.service
++++ b/deploy/agents-engine/systemd/h4-authz.service
+@@ -2,9 +2,10 @@
+ # A systemd *user* service of h4agents. It must be up before dockerd, which names it in daemon.json
+ # ("authorization-plugins": ["h4-authz"]) and refuses every request when it is down (fail closed).
+ # The socket is $XDG_RUNTIME_DIR/docker/plugins/h4-authz.sock, which authz.py makes for itself. A rootless
+-# dockerd never looks for sockets there: it finds this one through the spec file setup writes,
+-# ~h4agents/.config/docker/plugins/h4-authz.spec, which names the socket by path (contracts/agents-engine.md
+-# §3). Installed to ~h4agents/.config/systemd/user/ by engine.sh setup.
++# dockerd didn't find it there alone (T046): it finds it through the spec file setup writes, h4-authz.spec, which
++# names the socket by path, in both rootless spec directories, ~h4agents/.config/docker/plugins and
++# ~h4agents/.local/lib/docker/plugins (contracts/agents-engine.md §3.1). Installed to
++# ~h4agents/.config/systemd/user/ by engine.sh setup.
+ [Unit]
+ Description=h4agents engine admission plugin (h4-authz)
+ Before=docker.service
+diff --git a/deploy/agents-engine/test/test_engine_sh.py b/deploy/agents-engine/test/test_engine_sh.py
+index 7ea4299..5dd3386 100644
+--- a/deploy/agents-engine/test/test_engine_sh.py
++++ b/deploy/agents-engine/test/test_engine_sh.py
+@@ -197,6 +197,52 @@ def test_status_says_why_it_lists_no_refusals(
+     assert '"refuse"' not in done.stdout
+ 
+ 
++# systemctl, standing in: it answers with the manager it was asked of and what it was asked, so each state names
++# its own unit, or it answers nothing and fails, as when it can't reach a manager.
++ECHO_SYSTEMCTL = 'systemctl() { local who=system; if [ "$1" = --user ]; then who=user; shift; fi; echo "$who:$*"; }'
++UNITS = ["h4agents-net", "h4agents-nft", "h4agents-dxg", "h4agents-tree"]
++NAMED_UNITS = [
++    *([f"{unit}.service", f"system:is-active {unit}.service"] for unit in UNITS),
++    ["h4-egress-proxy.service", "user:is-active h4-egress-proxy.service"],
++]
++
++
++def test_status_names_each_unit_and_asks_the_proxy_of_the_authors_manager(
++    tmp_path: Path,
++) -> None:
++    # The proxy is the Author's user unit: asked of the system manager, it always read "inactive" (2026-10-09).
++    done = engine(f"{ECHO_SYSTEMCTL}\nstatus_units", tmp_path)
++    assert done.returncode == 0, done.stderr
++    assert [line.split(maxsplit=1) for line in done.stdout.splitlines()] == NAMED_UNITS
++
++
++def test_status_says_unknown_when_systemctl_cant_answer(tmp_path: Path) -> None:
++    done = engine("systemctl() { return 1; }\nstatus_units", tmp_path)
++    assert done.returncode == 0, done.stderr
++    assert [line.split() for line in done.stdout.splitlines()] == [
++        *([f"{unit}.service", "unknown"] for unit in UNITS),
++        ["h4-egress-proxy.service", "unknown"],
++    ]
++
++
++def test_the_authors_status_lists_the_units_by_name(tmp_path: Path) -> None:
++    # In the Author's terminal (no SANDBOX_RUNTIME), cmd_status itself gives the named list.
++    script = f"""
++{ECHO_SYSTEMCTL}
++engine_docker() {{ :; }}
++images_lock={q(tmp_path / "no-images.lock")}
++status_list_hashes() {{ :; }}
++status_refusals() {{ :; }}
++cmd_status
++"""
++    done = engine(script, tmp_path)
++    assert done.returncode == 0, done.stderr
++    lines = done.stdout.splitlines()
++    start = lines.index("-- the engine's system units, and the Author's proxy") + 1
++    named = [line.split(maxsplit=1) for line in lines[start : start + len(NAMED_UNITS)]]
++    assert named == NAMED_UNITS
++
++
+ def _running(pid: str) -> bool:
+     """Is the process there and not a zombie waiting to be reaped?"""
+     try:
+diff --git a/deploy/agents-engine/test/test_setup_host_sh.py b/deploy/agents-engine/test/test_setup_host_sh.py
+index 8f1cc13..dddf4dc 100644
+--- a/deploy/agents-engine/test/test_setup_host_sh.py
++++ b/deploy/agents-engine/test/test_setup_host_sh.py
+@@ -341,20 +341,33 @@ SOCKET = "unix:///run/user/999/docker/plugins/h4-authz.sock"
+ AS_H4AGENTS = 'runuser() { shift 2; [ "$1" = -- ] && shift; command "$@"; }'
+ 
+ 
+-def _plugin_spec(tmp_path: Path, *, before: str | None = None, link: bool = False):
+-    """ensure_plugin_spec into a temporary h4agents home, twice, this user standing in for h4agents. The
+-    plugins directory is there, as setup_rootless_docker makes it. `before` is a spec already there, mode
+-    0644; `link` puts a link there instead, to a file of its own."""
++# The two rootless spec directories setup writes, in moby's order. With a correct copy in the first alone,
++# dockerd 28.3.3 refused to start; with one in each, it started (T046).
++SPEC_DIRS = (Path(".config/docker/plugins"), Path(".local/lib/docker/plugins"))
++
++
++def _plugin_spec(
++    tmp_path: Path,
++    *,
++    before: str | None = None,
++    link: bool = False,
++    planted: int = 1,
++):
++    """ensure_plugin_spec into a temporary h4agents home, twice, this user standing in for h4agents. Both
++    plugins directories are there, as setup_rootless_docker makes them. `before` is a spec already in
++    SPEC_DIRS[planted], mode 0644; `link` puts a link there instead, to a file of its own."""
+     home = tmp_path / "home"
+-    spec = home / ".config" / "docker" / "plugins" / "h4-authz.spec"
++    specs = [home / directory / "h4-authz.spec" for directory in SPEC_DIRS]
++    for spec in specs:
++        spec.parent.mkdir(parents=True)
+     victim = tmp_path / "victim"
+-    spec.parent.mkdir(parents=True)
++    target = specs[planted]
+     if link:
+         victim.write_text("unix:///elsewhere.sock\n", encoding="utf-8")
+-        spec.symlink_to(victim)
++        target.symlink_to(victim)
+     elif before is not None:
+-        spec.write_text(before, encoding="utf-8")
+-        spec.chmod(0o644)
++        target.write_text(before, encoding="utf-8")
++        target.chmod(0o644)
+     script = f"""
+ user={q(ME)}
+ {AS_H4AGENTS}
+@@ -365,40 +378,46 @@ ensure_plugin_spec {q(home)} /run/user/999
+ echo SECOND-DONE
+ """
+     done = setup_host(script, tmp_path)
+-    return done, spec, victim
++    return done, specs, victim
+ 
+ 
+-def test_plugin_spec_names_the_socket_by_path(tmp_path: Path) -> None:
+-    done, spec, _ = _plugin_spec(tmp_path)
++def test_plugin_spec_names_the_socket_by_path_in_both_directories(
++    tmp_path: Path,
++) -> None:
++    # With only the first, as setup wrote it at first, dockerd 28.3.3 refused to start again (2026-10-09).
++    done, specs, _ = _plugin_spec(tmp_path)
+     assert "SECOND-DONE" in done.stdout, done.stderr
+-    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
+-    info = spec.stat()
+-    assert stat.S_IMODE(info.st_mode) == 0o644
+-    assert info.st_uid == os.getuid()
++    for spec in specs:
++        assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
++        info = spec.stat()
++        assert stat.S_IMODE(info.st_mode) == 0o644
++        assert info.st_uid == os.getuid()
+ 
+ 
+ def test_plugin_spec_write_is_idempotent(tmp_path: Path) -> None:
+     done, _, _ = _plugin_spec(tmp_path)
+     first, second = done.stdout.split("FIRST-DONE")
+-    assert "h4-authz.spec" in first  # the first run writes it and says so
+-    assert "log:" not in second  # the second finds it right and changes nothing
++    assert first.count("h4-authz.spec") == 2  # the first run writes both and says so
++    assert "log:" not in second  # the second finds them right and changes nothing
+ 
+ 
+-def test_plugin_spec_replaces_an_empty_one(tmp_path: Path) -> None:
++@pytest.mark.parametrize("planted", range(len(SPEC_DIRS)))
++def test_plugin_spec_replaces_an_empty_one(tmp_path: Path, planted: int) -> None:
+     # An empty spec, as a wrapped command left on 2026-10-09, reads as "legacy plugin: Unknown protocol".
+-    done, spec, _ = _plugin_spec(tmp_path, before="")
++    done, specs, _ = _plugin_spec(tmp_path, before="", planted=planted)
+     assert "SECOND-DONE" in done.stdout, done.stderr
+-    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
++    assert specs[planted].read_text(encoding="utf-8") == SOCKET + "\n"
+ 
+ 
++@pytest.mark.parametrize("planted", range(len(SPEC_DIRS)))
+ def test_plugin_spec_replaces_a_link_rather_than_writing_through_it(
+-    tmp_path: Path,
++    tmp_path: Path, planted: int
+ ) -> None:
+-    done, spec, victim = _plugin_spec(tmp_path, link=True)
++    done, specs, victim = _plugin_spec(tmp_path, link=True, planted=planted)
+     assert "SECOND-DONE" in done.stdout, done.stderr
+     assert victim.read_text(encoding="utf-8") == "unix:///elsewhere.sock\n"
+-    assert not spec.is_symlink()
+-    assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
++    assert not specs[planted].is_symlink()
++    assert specs[planted].read_text(encoding="utf-8") == SOCKET + "\n"
+ 
+ 
+ def test_h4agents_owns_the_decision_logs_directory(tmp_path: Path) -> None:
+@@ -445,9 +464,10 @@ echo DONE
+     here = SETUP.parent
+     docker = home / ".config" / "docker"
+     assert (docker / "daemon.json").read_bytes() == (here / "daemon.json").read_bytes()
+-    assert (docker / "plugins" / "h4-authz.spec").read_text(
+-        encoding="utf-8"
+-    ) == SOCKET + "\n"
++    for directory in SPEC_DIRS:
++        spec = home / directory / "h4-authz.spec"
++        assert spec.read_text(encoding="utf-8") == SOCKET + "\n"
++        assert stat.S_IMODE(spec.parent.stat().st_mode) == 0o700
+     assert (unit_dir / "h4-authz.service").read_bytes() == (
+         here / "systemd" / "h4-authz.service"
+     ).read_bytes()

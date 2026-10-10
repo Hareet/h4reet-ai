@@ -160,6 +160,46 @@ cmd gap "sh -c \"\$(printf 'gi%s pu%s' t sh)\""
 cmd gap 'git co main' # an alias that was already defined
 cmd gap "sh -c 'unset CLAUDE\"\"CODE; git commit -m wip'" # the git hook then sees no CLAUDECODE
 
+# The agents' engine (FR-039; the early patch): agents run only engine.sh's status and the smoke run.
+cmd block 'deploy/agents-engine/engine.sh up'
+cmd block './deploy/agents-engine/engine.sh setup'
+cmd block 'bash deploy/agents-engine/engine.sh destroy'
+cmd block 'sudo deploy/agents-engine/engine.sh reset'
+cmd block 'sh -c "deploy/agents-engine/engine.sh seed"'
+cmd block 'cd deploy/agents-engine && ./engine.sh prove'
+cmd block 'env H4_X=1 deploy/agents-engine/engine.sh down'
+cmd block 'deploy/agents-engine/eng""ine.sh up'
+cmd block 'echo up | xargs deploy/agents-engine/engine.sh'
+cmd block '(deploy/agents-engine/engine.sh destroy)'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'x=$(deploy/agents-engine/engine.sh reset)'
+cmd block 'find . -exec deploy/agents-engine/engine.sh up \;'
+cmd block 'deploy/agents-engine/engine.sh status; deploy/agents-engine/engine.sh up'
+# Assignments first or empty, options with an argument, bare durations, and a dot-source (convergence T132).
+cmd block 'H4_X=1 deploy/agents-engine/engine.sh down'
+cmd block 'SANDBOX_RUNTIME= deploy/agents-engine/engine.sh up'
+cmd block 'nice -n 5 deploy/agents-engine/engine.sh up'
+cmd block 'watch -n 1 deploy/agents-engine/engine.sh up'
+cmd block 'timeout 5 deploy/agents-engine/engine.sh up'
+cmd block 'timeout -s KILL 5 deploy/agents-engine/engine.sh up'
+cmd block '. deploy/agents-engine/engine.sh up'
+cmd block 'cd x; . deploy/agents-engine/engine.sh up'
+cmd allow 'deploy/agents-engine/engine.sh status'
+cmd allow './deploy/agents-engine/engine.sh smoke'
+cmd allow 'make engine-status'
+cmd allow 'make engine-smoke'
+cmd allow 'H4_X=1 make engine-status'
+cmd allow 'cat deploy/agents-engine/engine.sh'
+cmd allow 'FOO=bar cat deploy/agents-engine/engine.sh'
+cmd allow 'shellcheck deploy/agents-engine/engine.sh'
+cmd allow 'git diff -- deploy/agents-engine/engine.sh'
+cmd allow 'ls -la deploy/agents-engine/engine.sh'
+cmd allow 'bash -c "cat deploy/agents-engine/engine.sh"'
+cmd allow 'bash -c "shellcheck deploy/agents-engine/engine.sh"'
+cmd block 'bash -c "deploy/agents-engine/engine.sh up"'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 'e=engine; deploy/agents-engine/$e.sh up'
+
 # --- protected-paths.sh: edits -------------------------------------------------------------------
 edit block '.claude/settings.json'
 edit block '.claude/hooks/bash-gate.sh'
@@ -209,6 +249,19 @@ edit allow 'specs/000-local-foundations/spec.md' # exists, one link
 edit allow 'corpus/proposals/2026-10-07-example.md'
 edit allow 'services/gateway/src/router.ts'
 edit allow 'docs/adr/0013-example.md'
+
+# The early patch's human-only paths (plan §15).
+edit block 'config/prices.yaml'
+edit block 'GNUmakefile'
+edit block 'makefile'
+edit block 'deploy/agents-engine/authz.py'
+edit block 'deploy/agents-engine'
+edit block '.gitleaks.toml'
+edit block '.gitleaksignore'
+edit block 'docs/recordings/.gitleaksignore'
+edit allow 'Makefile'
+edit allow 'config/routing.yaml'
+edit allow 'deploy/scripts/preflight.py'
 
 # --- Both gates fail closed when their own dependencies break --------------------------------------
 # failclosed <hook> <label> <tool_input JSON> <noaudit|nohelper|nojq|norealpath>
@@ -329,6 +382,85 @@ if env -u CLAUDECODE git -C "$gr" merge -q --no-ff --no-edit feature >/dev/null 
   printf 'FAIL        %-21s %s\n' git-hook "the Author's merge into main did not go through"
 fi
 
+# --- .claude/git-hooks/pre-commit: gitleaks over the staged changes (FR-008; research.md R-36) ---------
+# Fake keys are assembled here, at run time, so this file holds none. The content-scan rows below use them too.
+b64="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+fake_op="h4op""_prod_$(for _ in $(seq 43); do printf '%s' "${b64:RANDOM%64:1}"; done)"
+fake_lf="sk-""lf-$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+pc="$scratch/pre-commit"
+git init -q -b feature "$pc"
+git -C "$pc" config user.name matrix
+git -C "$pc" config user.email matrix@example.invalid
+cp "$repo/.gitleaks.toml" "$pc/.gitleaks.toml"
+git -C "$pc" add .gitleaks.toml
+git -C "$pc" commit -q -m init
+install -m 0755 "$repo/.claude/git-hooks/pre-commit" "$pc/.git/hooks/pre-commit"
+# pcommit <ok|refused> <label> <file> <content> [VAR=value ...]: stage the file and commit through the hook
+pcommit() {
+  local expect="$1" label="$2" file="$3" content="$4" got=ok
+  shift 4
+  mkdir -p "$(dirname "$pc/$file")"
+  printf '%s\n' "$content" >"$pc/$file"
+  git -C "$pc" add -- "$file"
+  env "$@" git -C "$pc" commit -q -m "$label" >/dev/null 2>&1 || got=refused
+  if [ "$got" = refused ]; then git -C "$pc" reset -q -- "$file"; fi
+  if [ "$got" = "$expect" ]; then pass=$((pass + 1)); else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: expected %s, got %s\n' pre-commit "$label" "$expect" "$got"
+  fi
+}
+pcommit ok 'a clean commit' notes.md 'nothing secret here'
+pcommit refused 'a staged operator token' leak.txt "token = $fake_op"
+pcommit refused 'a staged key marked gitleaks:allow' leak2.txt "k = $fake_lf # gitleaks:allow"
+printf '%s\n' 'anything' >"$pc/.gitleaksignore"
+pcommit refused 'a .gitleaksignore at the root (research.md R-36)' notes2.md 'still clean'
+rm -f "$pc/.gitleaksignore"
+# In the main tree, a .gitleaksignore passes only when it holds nothing a session could fill: an empty file, what a
+# killed session leaves at the denied path (2026-10-09). A link or a FIFO could carry entries whatever their size
+# says. In a worktree of its own, anything there refuses. plant <empty|link|fifo>: one at the root, or a FAIL row.
+plant() {
+  case "$1" in
+    empty) : >"$pc/.gitleaksignore" ;;
+    link) ln -s /dev/null "$pc/.gitleaksignore" ;;
+    fifo) mkfifo "$pc/.gitleaksignore" ;;
+  esac 2>/dev/null && return 0
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' pre-commit "couldn't plant a .gitleaksignore that is $1"
+  return 1
+}
+if plant empty; then pcommit ok 'an empty .gitleaksignore, as a killed session leaves at the denied path' notes4.md 'clean'; fi
+rm -f "$pc/.gitleaksignore"
+if plant link; then pcommit refused 'a .gitleaksignore that is a link, even to /dev/null' notes5.md 'clean'; fi
+rm -f "$pc/.gitleaksignore"
+if plant fifo; then pcommit refused 'a .gitleaksignore that is a FIFO, whose size is 0' notes6.md 'clean'; fi
+rm -f "$pc/.gitleaksignore"
+pcw="$scratch/pre-commit-worktree"
+if git -C "$pc" worktree add -q -b pc-worktree "$pcw" >/dev/null 2>&1; then
+  : >"$pcw/.gitleaksignore"
+  printf '%s\n' clean >"$pcw/notes7.md"
+  git -C "$pcw" add -- notes7.md
+  if git -C "$pcw" commit -q -m 'an empty .gitleaksignore in a worktree' >/dev/null 2>&1; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' pre-commit "an empty .gitleaksignore in a worktree of its own: expected refused, got ok"
+  else
+    pass=$((pass + 1))
+  fi
+else
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' pre-commit "couldn't add a worktree to plant a .gitleaksignore in"
+fi
+# The sandbox's own mask, /dev/null bound over the denied path, takes a mount to make, so only a run inside a session
+# meets it, in this repository's main tree. There the hook's holds_nothing must let it through.
+if [ -c "$repo/.gitleaksignore" ]; then
+  if (eval "$(sed -n '/^holds_nothing()/,/^}/p' "$repo/.claude/git-hooks/pre-commit")" && holds_nothing "$repo/.gitleaksignore"); then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' pre-commit "the sandbox's /dev/null mask over .gitleaksignore is refused"
+  fi
+fi
+pcommit refused 'gitleaks missing from PATH (fails closed)' notes3.md 'clean' PATH=/usr/bin:/bin
+
 # --- subagent-report-check.sh: a report it can't check is a warning, never silence (FR-010) ------
 # unchecked <reason>: how many "report not checked" warnings with that reason the audit log holds
 unchecked() {
@@ -348,6 +480,33 @@ subagent_row() {
 }
 subagent_row 'a payload with no transcript path is logged as WARN' '{"session_id":"matrix"}' 'no transcript path in payload'
 subagent_row 'a transcript path with no file is logged as WARN' '{"agent_transcript_path":"/nonexistent/agent.jsonl"}' 'no file at the transcript path'
+
+# --- content-scan.sh: no secret-shaped text lands through an edit (FR-008, FR-012; research.md R-36) -----
+cp "$repo/.gitleaks.toml" "$project/.gitleaks.toml"
+# scan <block|allow> <label> <tool_input JSON> [VAR=value ...]
+scan() { check content-scan.sh "$@"; }
+write_json() { jq -cn --arg p "$project/$1" --arg c "$2" '{file_path:$p, content:$c}'; }
+scan block 'Write with an operator token' "$(write_json notes.txt "token = $fake_op")"
+scan block 'Write with a Langfuse secret key' "$(write_json app.ts "const k = \"$fake_lf\";")"
+scan block 'Edit adding a key' "$(jq -cn --arg p "$project/a.py" --arg n "KEY = '$fake_lf'" '{file_path:$p, old_string:"x", new_string:$n}')"
+scan block 'MultiEdit with a key in its second edit' "$(jq -cn --arg p "$project/b.md" --arg n "$fake_op" '{file_path:$p, edits:[{old_string:"a", new_string:"fine"}, {old_string:"b", new_string:$n}]}')"
+scan block 'a key marked gitleaks:allow' "$(write_json c.txt "token = $fake_op # gitleaks:allow")"
+scan block 'a .gitleaksignore at the root' "$(write_json .gitleaksignore 'anything')"
+scan block 'a .gitleaksignore where the recording scan looks' "$(write_json docs/recordings/.gitleaksignore 'anything')"
+scan allow 'Write with ordinary text' "$(write_json d.md 'Hello, this is fine.')"
+scan allow 'dev-cpu.vars with its public dummies, the one allowlisted path' "$(write_json deploy/env.agents/dev-cpu.vars "$(cat "$repo/deploy/env.agents/dev-cpu.vars")")"
+scan block 'any edit, with gitleaks missing from PATH (fails closed)' "$(write_json e.txt 'plain')" PATH=/usr/bin:/bin
+mv "$project/.gitleaks.toml" "$project/.gitleaks.toml.off"
+scan block 'any edit, with no .gitleaks.toml (fails closed)' "$(write_json f.txt 'plain')"
+mv "$project/.gitleaks.toml.off" "$project/.gitleaks.toml"
+# A session in a linked worktree: the main tree's config applies, never the worktree's own, which an agent there could
+# empty out; and the allowlisted path is read relative to the worktree (convergence T139).
+linked="$scratch/linked"
+git -C "$project" worktree add -q --detach "$linked" >/dev/null 2>&1
+: >"$linked/.gitleaks.toml"
+mkdir -p "$linked/.claude" && ln -s "$project/.claude/audit" "$linked/.claude/audit" # one audit log, which check counts
+scan block "a key, in a linked worktree whose own .gitleaks.toml has no rules" "$(jq -cn --arg p "$linked/g.txt" --arg c "token = $fake_op" '{file_path:$p, content:$c}')" CLAUDE_PROJECT_DIR="$linked"
+scan allow "dev-cpu.vars, edited in a linked worktree" "$(jq -cn --arg p "$linked/deploy/env.agents/dev-cpu.vars" --arg c "$(cat "$repo/deploy/env.agents/dev-cpu.vars")" '{file_path:$p, content:$c}')" CLAUDE_PROJECT_DIR="$linked"
 
 # --- .claude/settings.json keeps the layers behind the hooks ---------------------------------------
 settings="$repo/.claude/settings.json"
@@ -372,6 +531,19 @@ has 'the sandbox is required and has no unsandboxed retry' '.sandbox.enabled == 
 has 'env files are Read- and Edit-denied, wherever they are (FR-007)' '.permissions.deny as $d | ["Read(*.env)", "Edit(*.env)"] | all(. as $r | $d | index($r) != null)'
 has 'the sandbox hides deploy/env and denies writes to it (FR-007)' '(.sandbox.filesystem.denyRead | index("./deploy/env") != null) and (.sandbox.filesystem.denyWrite | index("./deploy/env") != null)'
 has 'protected-paths.sh also covers NotebookEdit' '[.hooks.PreToolUse[] | select(.matcher | test("NotebookEdit"))] | length == 1'
+
+# The early patch (plan §15): the engine opening, the credential denies, and the scanners.
+has "the one engine opening, 198.18.0.1:2376, is allowed" '.sandbox.network.allowedDomains | index("198.18.0.1:2376") != null'
+has "DOCKER_CONFIG names the agents' engine certificate, and the autoupdater is off" '.env.DOCKER_CONFIG == "~/.config/h4reet/agents-engine/docker" and .env.DISABLE_AUTOUPDATER == "1"'
+has "the Author's config is denied in every layer (FR-007)" '(.sandbox.filesystem.denyRead | index("~/.config/h4reet-ai") != null) and (.sandbox.filesystem.denyWrite | index("~/.config/h4reet-ai") != null) and (.permissions.deny | index("Read(~/.config/h4reet-ai/**)") != null and index("Edit(~/.config/h4reet-ai/**)") != null) and ([.sandbox.credentials.files[] | select(.path == "~/.config/h4reet-ai" and .mode == "deny")] | length == 1)'
+# shellcheck disable=SC2016 # $r and $p are jq variables, not shell expansions
+has "the state directory, the engine's PKI, and the other credential stores are denied" '(.sandbox.filesystem.denyWrite | index("~/.local/state/h4reet") != null) and (.sandbox.filesystem.denyRead as $r | ["/etc/h4agents/pki", "~/.docker/config.json", "~/.npmrc", "~/.pypirc", "~/.netrc", "~/.gnupg", "/mnt/c/Users"] | all(. as $p | $r | index($p) != null))'
+has "the agents' own engine certificate stays readable" '[.sandbox.filesystem.denyRead[] | select(startswith("~/.config/h4reet/"))] | length == 0'
+# shellcheck disable=SC2016 # $w and $p are jq variables, not shell expansions
+has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
+# shellcheck disable=SC2016 # $n and $v are jq variables, not shell expansions
+has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
+has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'
 
 printf 'forbidden-actions (hook layer): %d passed, %d failed, %d known gaps\n' "$pass" "$fail" "$gaps"
 [ "$fail" -eq 0 ]
