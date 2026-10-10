@@ -391,7 +391,8 @@ description: "Task list for spec 000, Local Foundations"
 - [X] T081 [US2] Add the US2 panels to `deploy/grafana/dashboards/h4-runtime.json`, with the exact queries of contracts/telemetry.md §7.1, §7.2, and §7.5: spend today and month-to-date with thresholds, fallback remaining, the kill-switch state timeline, the degraded cause, the audit log (through `grafana_ro`), and alerts.
 - [X] T082 [P] [US2] Create the runbooks in `docs/runbooks/`, each with Symptoms · Impact · Act · Verify · Undo · Record: `cost-warning.md`, `kill-switch-trip.md`, `kill-switch-reset.md`, `fallback-renewal.md`, `alert-channel-down.md`, `store-unreachable.md`, `journal-unwritable.md`, `operator-auth-failures.md`, and `gateway-down.md`.
 - [X] T083 [P] [US2] Add the Telegram and SMTP rows to `docs/data-flow-disclosure.md` (§17).
-- [ ] T084 [US2] Agent session, on the engine: `make breach-test ENV=dev-cpu` passes all 12 steps. Paste the summary table into `docs/merge-requests/<date>-feat-000-us2-kill-switch.md`.
+- [X] T084 [US2] Agent session, on the engine: `make breach-test ENV=dev-cpu` passes all 12 steps. Paste the summary table into `docs/merge-requests/<date>-feat-000-us2-kill-switch.md`.
+  Done on 2026-10-10, on `sim/000-us2-on-us1-stack` at 56c76be: this branch at af425ec merged with the us1 stack at 903439e by the us1 note's recipe, the tree this branch becomes once it merges main. 52 assertions, 52 passed, 0 missed, in 368 s; the note has the table and the whole output. After that merge, `git diff --stat 56c76be HEAD -- . ':!docs/merge-requests'` printing nothing shows the run holds; otherwise T084 runs again on the branch.
 - [ ] T085 [US2] **Author** (Heavy): `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before commit), with the phone on camera (SC-002, quickstart.md §2.2).
 - [ ] T086 [US2] Write the merge-request note `docs/merge-requests/<date>-feat-000-us2-kill-switch.md`.
 
@@ -477,7 +478,7 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 5
 
-- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review).
+- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review). Its name lookups, the SSO refresh's included, go through c-ares (§3.2's name-lookup row, from T189).
   - `ConverseCommand` in us-east-1, `maxAttempts: 1`, `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000})`;
   - one retry, only on `ThrottlingException`;
   - a timeout counts as `possiblyBilled`;
@@ -714,7 +715,7 @@ From T084's pre-run (2026-10-10): `make breach-test ENV=dev-cpu` on the agents' 
   - **Contracts:** provider-adapter.md §3.1 records the departure, alerts.md §4.1 the Telegram transport, and telemetry.md §3.1 the HTTP instrumentation's skip of the Telegram hosts.
 
   The other two options weren't needed for this cause: with the probe's lookups off the threadpool, their overlap and its size don't matter. Other `getaddrinfo` users can still fill it, so this task frees the model server's lookups and the alert channel, not the threadpool: T189 takes the rest (the review's S2). T084's run on the engine checks the fix end to end.
-- [ ] T189 [US2] Keep the gateway's other `getaddrinfo` users from starving the store, as T188 did for the local adapter's (T188's review, S2). These still resolve through `getaddrinfo`, on the two threads libuv gives lookups:
+- [X] T189 [US2] Keep the gateway's other `getaddrinfo` users from starving the store, as T188 did for the local adapter's (T188's review, S2). These still resolve through `getaddrinfo`, on the two threads libuv gives lookups:
   - **pg:** `gateway-state`, on every new connection, with `connectionTimeoutMillis: 500` (`services/gateway/src/meter/store.ts`). It is the first victim, and itself a source while the store is stopped (steps 1 and 11);
   - **the three OTLP exporters** (`src/telemetry/otel.ts`): a keep-alive agent with the default lookup, retrying on `ENOTFOUND`, `EAI_AGAIN`, and `ETIMEDOUT`;
   - **`src/core/edge.ts`:** `dns/promises.lookup("edge")` with no timeout, which hello's onRequest awaits before the kill-switch read whenever the 30 s cache is due;
@@ -742,4 +743,4 @@ From T084's pre-run (2026-10-10): `make breach-test ENV=dev-cpu` on the agents' 
   - **The test files:** the first part added `test/unit/otel-export.test.ts` and edited `test/unit/edge.test.ts`; the second added `test/integration/ares-lookups.test.ts`. They are test files, added or edited during a fix; all three only add tests, and no assertion was weakened. The Author accepted them on 2026-10-10, at c904034: "Yes, accepted." The second part's review then changed `ares-lookups.test.ts` again (round 7 in the note), which the note puts to the Author.
   - **Not run yet:** the engine test with the collector stopped, which needs the main tree.
 
-  The task stays open for Bedrock's calls once T102 lands, and the engine test.
+  Done on 2026-10-10. The engine test passed on the simulated merge at 56c76be. With `otel-collector` stopped, every `/health` read over two minutes answered "store ok" in 3 to 62 ms. The store's session counter rose from 40 to 69 meanwhile, and the gateway logged no `store_unreachable`. On that engine, `getaddrinfo` for the stopped collector failed after 8,006 ms, and c-ares after 3,003 ms. Bedrock's calls and their SSO refresh go to T102, which provider-adapter.md §3.2's name-lookup row now binds.
