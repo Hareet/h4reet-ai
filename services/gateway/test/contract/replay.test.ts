@@ -90,13 +90,21 @@ function recordedAdapter(recording: LiveRecording): ProviderAdapter {
   };
 }
 
+/** A case's request, as POST /admin/adapters/{id}/complete takes it and the recording keeps it. */
+function requestOf(c: LiveCase): LiveRecording["cases"][number]["request"] {
+  return {
+    messages: c.messages,
+    max_output_tokens: c.max_output_tokens,
+    ...(c.temperature === undefined ? {} : { temperature: c.temperature }),
+  };
+}
+
 /** Each recorded case was sent as live-cases.json has it, so a recording can't stand for other cases. */
 function expectCasesMatch(recording: LiveRecording): void {
   for (const c of recording.cases) {
     const sent = CASES.find((x) => x.name === c.name);
     expect(sent, c.name).toBeDefined();
-    const { name: _name, ...request } = sent as LiveCase;
-    expect(c.request, c.name).toEqual(request);
+    if (sent !== undefined) expect(c.request, c.name).toEqual(requestOf(sent));
   }
 }
 
