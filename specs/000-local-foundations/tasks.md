@@ -591,7 +591,8 @@ description: "Task list for spec 000, Local Foundations"
   - `tools/gates/gate` on the branch.
 
   The results go into `docs/merge-requests/<date>-feat-000-us5-fallback.md`.
-- [ ] T108 [US5] Write the merge-request note `docs/merge-requests/<date>-feat-000-us5-fallback.md`.
+- [X] T108 [US5] Write the merge-request note `docs/merge-requests/<date>-feat-000-us5-fallback.md`.
+  Done on 2026-10-10: `docs/merge-requests/2026-10-10-feat-000-us5-fallback.md`.
 
 **Checkpoint**: US5's fallback works on prod, and both adapters pass one suite.
 
