@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { stubBedrock, type StubBedrock } from "../helpers/stub-bedrock.js";
 import { stubOpenAI, type StubOpenAI } from "../helpers/stub-openai.js";
@@ -91,13 +91,16 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
 
-async function stack(o: { stack?: StackName; withBedrock?: boolean; init?: boolean } = {}): Promise<TestStack> {
+async function stack(
+  o: { stack?: StackName; withBedrock?: boolean; synthetic?: boolean; init?: boolean; renew?: boolean } = {},
+): Promise<TestStack> {
   const configDir = o.withBedrock === true ? await bedrockConfigDir() : undefined;
   if (configDir !== undefined) dirs.push(configDir);
   const s = await testStack({
     stack: o.stack ?? "dev",
     env: { LOCAL_MODEL_BASE_URL: openai.baseUrl },
     ...(configDir === undefined ? {} : { configDir }),
+    ...(o.synthetic === true ? { fallback: true } : {}),
   });
   stacks.push(s);
   if (o.init !== false) {
@@ -105,7 +108,11 @@ async function stack(o: { stack?: StackName; withBedrock?: boolean; init?: boole
       method: "POST",
       url: "/admin/init",
       headers: { ...s.auth(), "content-type": "application/json" },
-      payload: JSON.stringify({ reason: "A fresh stack for the adapter-calls test.", confirm_zero: true, renew: true }),
+      payload: JSON.stringify({
+        reason: "A fresh stack for the adapter-calls test.",
+        confirm_zero: true,
+        renew: o.renew ?? true,
+      }),
     });
     expect(res.statusCode).toBe(200);
   }
@@ -201,6 +208,14 @@ describe("POST /admin/adapters/local/complete (§5)", () => {
       const res = await post(s, id, body());
       expect([id, res.statusCode, res.json()]).toEqual([id, 404, { error: "unknown_adapter" }]);
     }
+    expect(await audits(s)).toEqual([]);
+  });
+
+  it("is 404 for the synthetic adapter even where the route builds it as dev's fallback", async () => {
+    const s = await stack({ synthetic: true });
+    expect(s.services.gateway.fallbackId()).toBe("synthetic");
+    const res = await post(s, "synthetic", body());
+    expect([res.statusCode, res.json()]).toEqual([404, { error: "unknown_adapter" }]);
     expect(await audits(s)).toEqual([]);
   });
 
@@ -308,6 +323,27 @@ describe("POST /admin/adapters/bedrock/complete, prod only (§5)", () => {
     expect((await audits(s))[0]?.detail).toMatchObject({ outcome: "error", error_kind: "rate_limited", attempts: 2 });
   });
 
+  it("never fails over: a local call that finds the model server down answers 502, and Bedrock isn't called", async () => {
+    const s = await stack({ stack: "prod", withBedrock: true });
+    openai.next({ refuse: true });
+    const res = await post(s, "local", body());
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toMatchObject({ error: "provider_error", kind: "unavailable", cost_micro_usd: "0" });
+    expect(bedrock.requests()).toEqual([]);
+  });
+
+  it("goes by the ceilings alone: a fallback awaiting renewal doesn't hold a test call", async () => {
+    const s = await stack({ stack: "prod", withBedrock: true, renew: false });
+    const state = await s.db.pg.query<{ fallback_awaiting_renewal: boolean }>(
+      "SELECT fallback_awaiting_renewal FROM gateway.stack_state",
+    );
+    expect(state.rows[0]?.fallback_awaiting_renewal).toBe(true);
+    bedrock.next({ ok: { text: "Red.", inputTokens: 12, outputTokens: 3, finish: "stop" } });
+    const res = await post(s, "bedrock", body({ reason: "contract-live bedrock, 2026-10-10" }));
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ attribution: "test", cost_micro_usd: "27" });
+  });
+
   it("charges a timeout its reservation: the request may have reached the model", async () => {
     const s = await stack({ stack: "prod", withBedrock: true });
     bedrock.next({ delayMs: 5_000 });
@@ -317,5 +353,88 @@ describe("POST /admin/adapters/bedrock/complete, prod only (§5)", () => {
     expect(b).toMatchObject({ kind: "timeout", possibly_billed: true });
     expect(BigInt(b.cost_micro_usd)).toBeGreaterThan(0n);
     expect((await audits(s))[0]?.detail).toMatchObject({ outcome: "error", error_kind: "timeout" });
+  });
+});
+
+describe("the endpoint's records (telemetry.md §4.1, §5.2; data-model.md §1)", () => {
+  it("counts each response once in h4.gateway.requests, by its decision and outcome", async () => {
+    const s = await stack({ stack: "prod", withBedrock: true });
+    const counted = vi.spyOn(s.services.metrics, "request");
+    openai.next({ ok: { text: "Blue.", inputTokens: 31, outputTokens: 2, finish: "stop" } });
+    expect((await post(s, "local", body())).statusCode).toBe(200);
+    openai.next({ status: 500, body: "the model server broke" });
+    expect((await post(s, "local", body())).statusCode).toBe(502);
+    bedrock.next({ ok: { text: "Red.", inputTokens: 12, outputTokens: 3, finish: "stop" } });
+    expect((await post(s, "bedrock", body({ reason: "contract-live bedrock, 2026-10-10" }))).statusCode).toBe(200);
+    expect((await post(s, "local", body({ purpose: "hello" }))).statusCode).toBe(400);
+    expect((await post(s, "nope", body())).statusCode).toBe(404);
+    const anon = await s.admin.inject({
+      method: "POST",
+      url: "/admin/adapters/local/complete",
+      headers: { "content-type": "application/json" },
+      payload: JSON.stringify(body()),
+    });
+    expect(anon.statusCode).toBe(401); // counted as hello counts an unauthorized answer: invalid
+    expect(counted.mock.calls.map(([decision, outcome]) => [decision, outcome])).toEqual([
+      ["local", "ok"],
+      ["local", "error"],
+      ["metered", "ok"],
+      ["none", "invalid"],
+      ["none", "invalid"],
+      ["none", "invalid"],
+    ]);
+    for (const [, , seconds] of counted.mock.calls) expect(seconds).toBeGreaterThanOrEqual(0);
+  });
+
+  it("logs call.degraded and counts the cause for a degraded response", async () => {
+    const s = await stack({ init: false });
+    const counted = vi.spyOn(s.services.metrics, "request");
+    const causes = vi.spyOn(s.services.metrics, "degradedResponse");
+    expect((await post(s, "local", body())).statusCode).toBe(503);
+    expect(counted.mock.calls.map(([decision, outcome]) => [decision, outcome])).toEqual([["degraded", "degraded"]]);
+    expect(causes.mock.calls).toEqual([["store_uninitialized"]]);
+    expect(s.logged.filter((l) => l.record.event === "call.degraded")).toEqual([
+      {
+        level: "warn",
+        record: expect.objectContaining({ cause: "store_uninitialized", route_decision: "degraded" }),
+      },
+    ]);
+  });
+
+  it("logs call.refused for a 429, under the call's own decision", async () => {
+    const s = await stack({ stack: "prod", withBedrock: true });
+    const counted = vi.spyOn(s.services.metrics, "request");
+    vi.spyOn(s.services.gateway, "adapterCall").mockResolvedValue({
+      kind: "refused",
+      route: "metered",
+      error: "metered_capacity_exceeded",
+      limit: "global_in_flight",
+      retryAfterS: 1,
+      traceId: "0af7651916cd43dd8448eb211c80319c",
+    });
+    const res = await post(s, "bedrock", body({ reason: "contract-live bedrock, 2026-10-10" }));
+    expect(res.statusCode).toBe(429);
+    expect(counted.mock.calls.map(([decision, outcome]) => [decision, outcome])).toEqual([["metered", "refused"]]);
+    expect(s.logged.filter((l) => l.record.event === "call.refused")).toEqual([
+      {
+        level: "info",
+        record: expect.objectContaining({ error: "metered_capacity_exceeded", limit: "global_in_flight" }),
+      },
+    ]);
+  });
+
+  it("stamps the audit row with the gateway clock, test offset included", async () => {
+    const s = await stack();
+    const day = 86_400_000;
+    await s.db.pg.query("UPDATE gateway.stack_state SET test_clock_offset_ms = $1", [day]);
+    openai.next({ ok: { text: "Blue.", inputTokens: 31, outputTokens: 2, finish: "stop" } });
+    const before = Date.now();
+    expect((await post(s, "local", body())).statusCode).toBe(200);
+    const { rows } = await s.db.pg.query<{ ts: unknown }>(
+      "SELECT ts FROM gateway.audit_log WHERE action = 'adapter_call'",
+    );
+    const ts = new Date(String(rows[0]?.ts instanceof Date ? rows[0].ts.toISOString() : rows[0]?.ts)).getTime();
+    expect(ts - before).toBeGreaterThanOrEqual(day - 1_000);
+    expect(ts - Date.now()).toBeLessThanOrEqual(day + 1_000);
   });
 });

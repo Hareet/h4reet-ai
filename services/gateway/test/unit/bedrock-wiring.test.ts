@@ -42,7 +42,12 @@ describe("the Bedrock adapter's client and chain (§3.2)", () => {
     const deps = bedrockDeps(SETTINGS);
     built.push(deps);
     const handler = deps.client.config.requestHandler as unknown as {
-      configProvider: Promise<{ httpsAgent: unknown; connectionTimeout: number; requestTimeout: number }>;
+      configProvider: Promise<{
+        httpsAgent: unknown;
+        connectionTimeout: number;
+        requestTimeout: number;
+        throwOnRequestTimeout?: boolean;
+      }>;
     };
     const config = await handler.configProvider;
     expect(config.httpsAgent).toBeInstanceOf(HttpsAgent);
@@ -50,6 +55,7 @@ describe("the Bedrock adapter's client and chain (§3.2)", () => {
     expect(agent.options).toMatchObject({ keepAlive: true, maxSockets: 50 });
     expect(agent.options.lookup).toBe(aresLookup);
     expect([config.connectionTimeout, config.requestTimeout]).toEqual([1_000, 4_000]);
+    expect(config.throwOnRequestTimeout).toBe(true); // a request past its timeout ends, rather than logging a warning
     // The chain gets that same handler, which the SDK hands its SSO and SSO-OIDC clients (US2's round 9).
     expect(chain.inits).toHaveLength(1);
     const init = chain.inits[0] as { clientConfig?: { requestHandler?: unknown } };

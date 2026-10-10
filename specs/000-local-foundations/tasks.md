@@ -527,7 +527,11 @@ description: "Task list for spec 000, Local Foundations"
     - Entering `circuit_open` raises T152's `fallback_unavailable` alert through the existing hook.
     - `auth` on a paid adapter now reads as `credentials` (§2.5's auth row).
     - `test/unit/circuit.test.ts` covers the state machine and the circuit around Bedrock's calls. Each behavior fails a test when taken out (15 mutations, checked).
-  - **Still open:** the `credentials.expiring` log record (telemetry.md §5.2), and moving the refresh decision to T105, which the Author takes.
+  - **credentials_expiring, after the review:**
+    - The check logs `credentials.expiring` (telemetry.md §5.2) once per session end.
+    - It asks the dispatcher at each tick, one question at a time, until the row is queued or found already there. Before, a store that was down at the first tick in the window lost the alert for good: the dispatcher now answers `queued`, `present`, or `retry`.
+  - **The client's handler** now sets `throwOnRequestTimeout` (§3.2's client row). `ECONNRESET` and `EPIPE` are billed timeouts under their own codes, and `EHOSTUNREACH`, `ENETUNREACH`, and `EADDRNOTAVAIL` are `unavailable` (§2.5's readings).
+  - **Still open:** moving the refresh decision to T105, which the Author takes.
 - [ ] T103 [US5] Implement `POST /admin/adapters/{id}/complete` per contracts/operator-admin.md §5: local on any stack, bedrock on prod only, attribution `test`, through admission. Add `scripts/operator.py contract-record` and `make contract-live ENV=prod ADAPTER=local|bedrock`, which records in the Author's terminal and replays in the devcontainer image with `--network none` (§7).
   Partly done on 2026-10-10: the endpoint.
   - `src/routes/adapters.ts` validates §5's body and answers 200, 502, 404, 400, 415, 429, or 503.
@@ -535,6 +539,12 @@ description: "Task list for spec 000, Local Foundations"
   - The metered path is split so hello's answer is unchanged: `meteredAttempt` returns the outcome, and `callMetered` keeps answering `fallback_unavailable` on a failure.
   - Each attempt record now carries its client span's name and keys, and `GatewayCall` takes a temperature.
   - `test/integration/adapter-calls.test.ts` covers the local path, the refusals, and prod's Bedrock path under `aws-sdk-client-mock`: charged to the day and month and never to the sub-budget, a throttle retried once, and a timeout charged its reservation. `test/helpers/stack.ts` takes a `configDir`.
+  - After the review, the endpoint's records match hello's:
+    - each response counts once in `h4.gateway.requests`;
+    - a degraded one logs `call.degraded`, and a 429 `call.refused`;
+    - the audit row's `ts` is on the gateway clock.
+
+    New tests pin those records. Three more pin the rules: the synthetic adapter is 404 even where dev's route builds it, the endpoint never fails over, and a fallback awaiting renewal doesn't hold a test call.
   Then the rest, the same day, but for the replay:
   - **`scripts/operator.py contract-record`** reads `/admin/status`, sends each case of `live-cases.json`, and reads `/admin/status` again. It writes the recording, the suite's `LiveRecording`, into a new 0600 file, ASCII with what isn't escaped.
     - A provider's 502 is a case's answer; any other refusal stops the run, and nothing is written.

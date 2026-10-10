@@ -71,7 +71,10 @@ export interface BedrockDeps {
   credentials: CredentialsProvider;
   /** The SSO session's end, RFC 3339, from the profile's token cache; undefined when it can't be read. */
   ssoSessionEnd(): Promise<string | undefined>;
-  /** Releases what the client doesn't: the handler leaves an agent it was handed open when it is destroyed. */
+  /**
+   * Releases what the client may not: the handler destroys the agent it was handed only once its config has resolved,
+   * at its first request, so an adapter that never called leaves the agent to this.
+   */
   release?(): void;
 }
 
@@ -83,8 +86,21 @@ const ERROR_CODE = /^[A-Za-z][A-Za-z0-9_]{1,60}$/;
 const PRINTABLE_ID = /^[\x21-\x7e]{1,128}$/;
 /** The handler's error when no connection was made in time: nothing reached Bedrock, so nothing was billed. */
 const CONNECT_TIMEOUT = /did not establish a connection/;
-/** Node's and c-ares's codes for a refused connection or a failed lookup: nothing reached Bedrock. */
-const UNREACHED = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ETIMEOUT", "ESERVFAIL", "ENODATA", "EREFUSED"]);
+/** Node's and c-ares's codes for a connection that failed or a lookup that did: nothing reached Bedrock. */
+const UNREACHED = new Set([
+  "ECONNREFUSED",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "EADDRNOTAVAIL",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ETIMEOUT",
+  "ESERVFAIL",
+  "ENODATA",
+  "EREFUSED",
+]);
+/** A connection lost mid-call, which the handler renames TimeoutError, keeping the code: Bedrock may have the request. */
+const SOCKET_LOST = new Set(["ECONNRESET", "EPIPE"]);
 
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 
@@ -127,6 +143,7 @@ export function fromSdk(err: unknown): ProviderError {
   const httpStatus = typeof status === "number" && Number.isInteger(status) ? status : undefined;
   const named = BY_NAME[name];
   if (named !== undefined) return new ProviderError(named[0], named[1], named[2], httpStatus, name);
+  if (SOCKET_LOST.has(nodeCode)) return timeout(nodeCode);
   if (name === "TimeoutError") {
     return typeof e?.message === "string" && CONNECT_TIMEOUT.test(e.message)
       ? new ProviderError("unavailable", true, false, undefined, "ETIMEDOUT")
@@ -193,6 +210,8 @@ export function bedrockDeps(settings: BedrockSettings): BedrockDeps {
   const requestHandler = new NodeHttpHandler({
     connectionTimeout: settings.timeouts.connect_ms,
     requestTimeout: settings.timeouts.request_ms,
+    // Without it the handler only logs a warning at requestTimeout; with it, it destroys the socket and throws.
+    throwOnRequestTimeout: true,
     httpsAgent,
   });
   const credentials = fromNodeProviderChain({ clientConfig: { requestHandler } });

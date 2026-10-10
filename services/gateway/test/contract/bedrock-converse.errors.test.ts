@@ -102,13 +102,19 @@ describe("the Bedrock adapter's errors past C4 (§2.5's Bedrock column)", () => 
     expect(await failure(adapter())).toEqual(["auth", false, false, undefined, "CredentialsProviderError"]);
   });
 
-  it.each([["ECONNREFUSED"], ["ENOTFOUND"], ["EAI_AGAIN"], ["ETIMEOUT"], ["ESERVFAIL"]])(
-    "%s, no connection or no address, is unavailable and not billed",
-    async (code) => {
-      stub.nextError(Object.assign(new Error(`${code} ${stub.canary}`), { code }));
-      expect(await failure(adapter())).toEqual(["unavailable", true, false, undefined, code]);
-    },
-  );
+  it.each([
+    ["ECONNREFUSED"],
+    ["EHOSTUNREACH"],
+    ["ENETUNREACH"],
+    ["EADDRNOTAVAIL"],
+    ["ENOTFOUND"],
+    ["EAI_AGAIN"],
+    ["ETIMEOUT"],
+    ["ESERVFAIL"],
+  ])("%s, no connection or no address, is unavailable and not billed", async (code) => {
+    stub.nextError(Object.assign(new Error(`${code} ${stub.canary}`), { code }));
+    expect(await failure(adapter())).toEqual(["unavailable", true, false, undefined, code]);
+  });
 
   it("the handler's connect timeout is unavailable, since nothing reached Bedrock; any other timeout is billed", async () => {
     stub.nextError(
@@ -124,6 +130,16 @@ describe("the Bedrock adapter's errors past C4 (§2.5's Bedrock column)", () => 
     expect(await failure(adapter())).toEqual(["timeout", true, true, undefined, "TimeoutError"]);
     stub.nextError(Object.assign(new Error("aborted"), { name: "AbortError" }));
     expect(await failure(adapter())).toEqual(["timeout", true, true, undefined, "AbortError"]);
+  });
+
+  it("a reset or a broken pipe is a billed timeout under its own code: Bedrock may have had the request", async () => {
+    for (const code of ["ECONNRESET", "EPIPE"]) {
+      // As the handler passes them on: renamed TimeoutError, the code kept.
+      stub.nextError(Object.assign(new Error(`read ${code} ${stub.canary}`), { name: "TimeoutError", code }));
+      expect(await failure(adapter())).toEqual(["timeout", true, true, undefined, code]);
+    }
+    stub.nextError(Object.assign(new Error(`socket hang up ${stub.canary}`), { code: "ECONNRESET" }));
+    expect(await failure(adapter())).toEqual(["timeout", true, true, undefined, "ECONNRESET"]);
   });
 
   it("an unnamed error is provider_error with no code, and no error carries the provider's text", async () => {

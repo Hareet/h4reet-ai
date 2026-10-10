@@ -230,6 +230,9 @@ interface MemoryAlert {
 
 const iso = (ms: number): string => new Date(ms).toISOString();
 
+/** What asking for an alert row came to: queued now, already there, or not now (the store was empty, down, or failed). */
+export type QueueAnswer = "queued" | "present" | "retry";
+
 export class Dispatcher {
   private timer: NodeJS.Timeout | undefined;
   private reminderTimer: NodeJS.Timeout | undefined;
@@ -595,14 +598,15 @@ export class Dispatcher {
 
   /**
    * A paid adapter's SSO session ends within its warning lead time: one row, keyed by the adapter and the session's
-   * end to the minute, so one per session however often the ticker asks. While the store is empty or down, nothing is
-   * queued, and the next tick asks again. Resolves true when this call queued it.
+   * end to the minute, so one per session however often the ticker asks. Resolves `queued` when this call queued it,
+   * `present` when the row was already there, and `retry` when nothing could be queued: the store was empty, down, or
+   * failed under it, and the next tick asks again.
    */
-  async credentialsExpiring(adapter: string, label: string, endsAt: number): Promise<boolean> {
+  async credentialsExpiring(adapter: string, label: string, endsAt: number): Promise<QueueAnswer> {
     const { deps } = this;
-    if (deps.store.status !== "ready") return false;
+    if (deps.store.status !== "ready") return "retry";
     const read = await deps.store.readStackState();
-    if (read.kind !== "ok") return false;
+    if (read.kind !== "ok") return "retry";
     const now = gatewayTime(deps.realNow(), read.testClockOffsetMs);
     const key = dedupeKey.credentialsExpiring(deps.stack, adapter, endsAt);
     const t = thresholds(deps.budgets.envs[deps.envClass]);
@@ -632,15 +636,11 @@ export class Dispatcher {
         ),
       );
     } catch {
-      return false; // the store failed under it: its outage is noted, and the next tick asks again
+      return "retry"; // the store failed under it: its outage is noted, and the next tick asks again
     }
-    if (queued) {
-      deps.logger.info(
-        { event: "alert.queued", dedupe_key: key, kind: "credentials_expiring" },
-        "An alert was queued.",
-      );
-    }
-    return queued;
+    if (!queued) return "present";
+    deps.logger.info({ event: "alert.queued", dedupe_key: key, kind: "credentials_expiring" }, "An alert was queued.");
+    return "queued";
   }
 
   // -------------------------------------------------------------------------------------------------------------

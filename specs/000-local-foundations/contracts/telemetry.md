@@ -88,7 +88,7 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 | `h4.stack` | always | `prod`, `dev`, `dev-cpu` |
 | `h4.outcome` | always | `ok` (200), `degraded` (503 with a degraded cause), `refused` (429: `client_cap_exceeded` or `metered_capacity_exceeded`; and an admin refusal, 403 or 409), `invalid` (400, 415, and another 4xx, such as 404 or 413), `error` (502 `local_error`, an admin 503 `store_unreachable`, or an unexpected 5xx), `unauthorized` (401 on the admin listener). The admin refusals and the other 4xx were added with tasks.md T055, so every admin answer has an outcome. |
 | `h4.degraded.cause` | when the response is degraded | the causes in [§4.1](#41-the-gateways-instruments) |
-| `error.type` | on an `error` outcome | `local_error`; `store_unreachable` for an admin 503; the class name of an unexpected error; or `http_<status>` for any other 5xx |
+| `error.type` | on an `error` outcome | `local_error`; `provider_error` for the live adapter endpoint's 502 ([operator-admin.md §5](operator-admin.md#5-live-adapter-calls-post-adminadaptersidcomplete)); `store_unreachable` for an admin 503; the class name of an unexpected error; or `http_<status>` for any other 5xx |
 
 **Routing span** (`gateway.route`; kind INTERNAL):
 

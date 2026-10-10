@@ -422,6 +422,7 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
     stack: deps.stack,
     gateway: deps.gateway,
     store: deps.store,
+    clock: deps.clock,
     budgets: deps.budgets,
     metrics: deps.metrics,
     logger: deps.logger,

@@ -82,6 +82,7 @@ describe("the 10 s ticker's credentials check (alerts.md §2)", () => {
 
   function rig() {
     const clock = { now: END - 3 * HOUR };
+    const warned: object[] = [];
     const local = probed({ id: "local", kind: "local", type: "openai-compatible" });
     const bedrock = probed({ id: "bedrock", kind: "paid", type: "bedrock-converse" });
     const fixture = config.routing?.adapters.get("local");
@@ -105,7 +106,7 @@ describe("the 10 s ticker's credentials check (alerts.md §2)", () => {
       clock: new GatewayClock(),
       tracer: trace.getTracer("test"),
       metrics: new GatewayMetrics(metrics.getMeter("test")),
-      logger: { info() {}, warn() {}, error() {} },
+      logger: { info() {}, warn: (record) => void warned.push(record), error() {} },
       payloadSampling: false,
       testMachinery: { clock: false, synthetic: false },
       // The route has a fallback, which needs a meter; these tests never call through it.
@@ -120,7 +121,12 @@ describe("the 10 s ticker's credentials check (alerts.md §2)", () => {
       realNow: () => clock.now,
     });
     const fired: [string, string, number][] = [];
-    gateway.onCredentialsExpiring = (adapter, label, endsAt) => void fired.push([adapter, label, endsAt]);
+    // The dispatcher's answers, in order: `queued` once they run out.
+    const answers: Promise<"queued" | "present" | "retry">[] = [];
+    gateway.onCredentialsExpiring = (adapter, label, endsAt) => {
+      fired.push([adapter, label, endsAt]);
+      return answers.shift() ?? Promise.resolve("queued");
+    };
     const probeWith = async (endsAt: number | undefined) => {
       for (const a of [local, bedrock]) {
         a.next = {
@@ -131,7 +137,7 @@ describe("the 10 s ticker's credentials check (alerts.md §2)", () => {
       }
       await gateway.probeAll();
     };
-    return { gateway, clock, fired, probeWith };
+    return { gateway, clock, fired, answers, warned, probeWith };
   }
 
   it("fires once per session end, from 2 h before it, naming the adapter by its type's label", async () => {
@@ -169,5 +175,56 @@ describe("the 10 s ticker's credentials check (alerts.md §2)", () => {
     r.clock.now = END;
     r.gateway.checkCredentials();
     expect(r.fired).toEqual([]);
+  });
+
+  /** Lets the dispatcher's answer settle, as the next tick would, 10 s later. */
+  const tick = async (r: ReturnType<typeof rig>) => {
+    r.gateway.checkCredentials();
+    await new Promise((resolve) => setImmediate(resolve));
+    r.clock.now += 10_000;
+  };
+
+  it("asks again at each tick while nothing could be queued, and stops once the row is queued or already there", async () => {
+    const r = rig();
+    await r.probeWith(END);
+    r.clock.now = END - HOUR;
+    const failed = Promise.reject(new Error("the store failed"));
+    failed.catch(() => {}); // handled here, so it waits in the queue; the gateway still sees it reject
+    r.answers.push(Promise.resolve("retry"), failed, Promise.resolve("present"));
+    for (let i = 0; i < 5; i++) await tick(r);
+    expect(r.fired).toHaveLength(3);
+  });
+
+  it("asks one question at a time: a tick while the dispatcher is still answering asks nothing", async () => {
+    const r = rig();
+    await r.probeWith(END);
+    r.clock.now = END - HOUR;
+    let answer: (a: "queued") => void = () => {};
+    r.answers.push(new Promise((resolve) => (answer = resolve)));
+    await tick(r);
+    await tick(r);
+    expect(r.fired).toHaveLength(1);
+    answer("queued");
+    await tick(r);
+    await tick(r);
+    expect(r.fired).toHaveLength(1);
+  });
+
+  it("logs credentials.expiring once per session end, at warn, with the adapter and the end", async () => {
+    const r = rig();
+    await r.probeWith(END);
+    await tick(r); // 3 h before: nothing
+    r.clock.now = END - 2 * HOUR;
+    r.answers.push(Promise.resolve("retry"));
+    await tick(r);
+    await tick(r);
+    const renewed = END + 8 * HOUR;
+    await r.probeWith(renewed);
+    r.clock.now = renewed - HOUR;
+    await tick(r);
+    expect(r.warned).toEqual([
+      { event: "credentials.expiring", adapter: "bedrock", expires_at: "2026-10-29T18:00:00.000Z" },
+      { event: "credentials.expiring", adapter: "bedrock", expires_at: "2026-10-30T02:00:00.000Z" },
+    ]);
   });
 });

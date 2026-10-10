@@ -640,8 +640,11 @@ interface Routed {
   built: BuiltAdapter;
   health: AdapterHealth;
   requestTimeoutMs: number;
-  /** The SSO session end credentials_expiring last fired for, real ms: once per session end. */
-  credentialsWarnedFor?: number;
+  /**
+   * The SSO session end the credentials check last found within its warning lead time, real ms; whether its alert row
+   * is settled, queued or found already there; and whether the dispatcher is still answering for it.
+   */
+  credentials?: { endsAt: number; settled: boolean; asking: boolean };
 }
 
 const STATE_LOG_EVERY_MS = 60_000;
@@ -668,8 +671,12 @@ const LOCAL_LEDGER_ROW = `INSERT INTO gateway.ledger (id, reservation_id, ts, st
 export class Gateway {
   /** Queues the fallback_unavailable alert (app.ts sets it to the dispatcher's): a paid fallback turned unhealthy. */
   onFallbackUnavailable: ((adapter: string, reason: "credentials" | "circuit_open") => void) | undefined;
-  /** Queues the credentials_expiring alert (app.ts sets it to the dispatcher's): a paid adapter's session ends soon. */
-  onCredentialsExpiring: ((adapter: string, label: string, endsAt: number) => void) | undefined;
+  /**
+   * Queues the credentials_expiring alert (app.ts sets it to the dispatcher's): a paid adapter's session ends soon. It
+   * answers whether the row is queued, already there, or to be asked for again at the next tick.
+   */
+  onCredentialsExpiring:
+    ((adapter: string, label: string, endsAt: number) => Promise<"queued" | "present" | "retry">) | undefined;
   private readonly primary: Routed;
   /** When the route was built: a switched-off adapter's checked_at. */
   private readonly disabledAt: number;
@@ -750,9 +757,10 @@ export class Gateway {
 
   /**
    * The 10 s ticker's credentials check (alerts.md §2): a routed paid adapter whose last probe reports an SSO session
-   * ending within its type's warning lead time, 2 h for Bedrock, queues credentials_expiring. It fires once per session
-   * end; the outbox's dedupe key, to the minute of the end, holds it to one across restarts. A session that has
-   * already ended doesn't warn: its credentials fail, and fallback_unavailable says so.
+   * ending within its type's warning lead time, 2 h for Bedrock, logs credentials.expiring once (telemetry.md §5.2) and
+   * queues credentials_expiring. The dispatcher is asked at each tick until the row is queued or found already there,
+   * one question at a time; the outbox's dedupe key, to the minute of the end, holds it to one across restarts. A
+   * session that has already ended doesn't warn: its credentials fail, and fallback_unavailable says so.
    */
   checkCredentials(): void {
     const now = this.realNow();
@@ -761,10 +769,26 @@ export class Gateway {
       const warnMs = config.spec.credentialsWarnMs?.(config.settings);
       if (config.kind !== "paid" || warnMs === undefined) continue;
       const endsAt = Date.parse(r.health.status().credentialsExpireAt ?? "");
-      if (!Number.isFinite(endsAt) || now < endsAt - warnMs || now >= endsAt || r.credentialsWarnedFor === endsAt)
-        continue;
-      r.credentialsWarnedFor = endsAt;
-      this.onCredentialsExpiring?.(config.id, config.spec.label ?? config.id, endsAt);
+      if (!Number.isFinite(endsAt) || now < endsAt - warnMs || now >= endsAt) continue;
+      if (r.credentials?.endsAt !== endsAt) {
+        r.credentials = { endsAt, settled: false, asking: false };
+        this.opts.logger.warn(
+          { event: "credentials.expiring", adapter: config.id, expires_at: new Date(endsAt).toISOString() },
+          "A paid adapter's SSO session ends soon.",
+        );
+      }
+      const check = r.credentials;
+      const ask = this.onCredentialsExpiring;
+      if (check.settled || check.asking || ask === undefined) continue;
+      check.asking = true;
+      void ask(config.id, config.spec.label ?? config.id, endsAt)
+        .then((answer) => {
+          if (answer !== "retry") check.settled = true;
+        })
+        .catch(() => {})
+        .finally(() => {
+          check.asking = false;
+        });
     }
   }
 

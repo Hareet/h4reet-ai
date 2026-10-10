@@ -77,11 +77,11 @@ describe("the credentials_expiring row (alerts.md §2)", () => {
   it("queues one per session end, with the session's end in its key, its headline, and its facts", async () => {
     const r = await rig();
     expect((await init(r)).statusCode).toBe(200);
-    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", END)).toBe(true);
-    r.clock.now += 10_000; // the next tick asks again: the dedupe key holds it to one
-    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", END)).toBe(false);
+    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", END)).toBe("queued");
+    r.clock.now += 10_000; // asked again, after a restart say: the dedupe key holds it to one
+    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", END)).toBe("present");
     const renewed = END + 8 * 3_600_000; // after make aws-login, a new session
-    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", renewed)).toBe(true);
+    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", renewed)).toBe("queued");
     const queued = await rows(r);
     expect(queued.map((x) => x.dedupe_key)).toEqual([
       "dev:credentials_expiring:bedrock:2026-10-29T18:00Z",
@@ -98,9 +98,13 @@ describe("the credentials_expiring row (alerts.md §2)", () => {
     ).toHaveLength(2);
   });
 
-  it("queues nothing while the store is empty: the store's own state answers for the stack then", async () => {
+  it("answers retry while the store is empty, queueing nothing, and queues it once the store is ready", async () => {
     const r = await rig();
-    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", END)).toBe(false);
+    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", END)).toBe("retry");
     expect(await rows(r)).toEqual([]);
+    expect((await init(r)).statusCode).toBe(200);
+    r.clock.now += 10_000; // the gateway's next tick asks again (test/unit/credentials-expiring.test.ts)
+    expect(await r.d.credentialsExpiring("bedrock", "Bedrock", END)).toBe("queued");
+    expect((await rows(r)).map((x) => x.dedupe_key)).toEqual(["dev:credentials_expiring:bedrock:2026-10-29T18:00Z"]);
   });
 });
