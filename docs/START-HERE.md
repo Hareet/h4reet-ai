@@ -6,13 +6,32 @@ Summary notes for the first sessions. Read `.specify/memory/constitution.md`, `C
 
 Work inside the Linux filesystem (here, `~/h4reet-ai/h4reet-ai`), never under `/mnt/c/` — exec bits, file watching, and Docker performance all break there.
 
+- **Disk first**: about 50 GB free beyond today's use, on the Windows drive that holds WSL's `ext4.vhdx`. Check it with `df -h /mnt/c`, not `df /`, which measures the virtual disk rather than the drive under it. A full Windows drive crashed WSL, and every session in it, on 2026-10-08. Preflight checks both figures before every pull, and quickstart.md §0.1 says how to make room ([research.md R-32](../specs/000-local-foundations/research.md#r-32-host-disk-space-is-the-windows-drives)).
 - **Windows side**: current NVIDIA driver (the Windows driver provides GPU access to WSL2 — do not install a Linux GPU driver inside the distro); Docker Desktop with the WSL2 backend, or Docker Engine + `nvidia-container-toolkit` inside the distro. Verify: `docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi` shows the RTX 5090.
+- **The NVIDIA runtime** (done on 2026-10-08): the toolkit must also be registered with Docker, or `--gpus all` fails with `could not select device driver "" with capabilities: [[gpu]]` ([research.md R-01](../specs/000-local-foundations/research.md#r-01-the-model-server-runs-on-the-rtx-5090-through-cuda-128-images)):
+
+  ```bash
+  sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker
+  docker info --format '{{json .Runtimes}}'          # lists "nvidia"
+  ```
+
+  Preflight refuses to start a GPU stack, prod or dev, without it (P12).
 - **`.wslconfig`** (`%UserProfile%\.wslconfig`): give WSL2 enough memory for model containers (e.g. `memory=48GB`, `swap=8GB`), then `wsl --shutdown`.
 - **Distro packages**: `git`, `make`, `jq`, `shellcheck`, `bubblewrap`, `socat`, `unzip`, `build-essential`, `python3-yaml`.
-- **Toolchain**: `nvm` with a Node LTS as your default, for Claude Code (spec 000's `make tools` adds the pinned Node 24 through nvm and leaves your default alone), Python 3.12 + `uv`, `ruff` (`uv tool install ruff`), `gh` (GitHub CLI), AWS CLI v2 configured with IAM Identity Center (`aws configure sso`; no access keys), Terraform (spec 001; install now, use later).
+- **Toolchain**: `nvm` with a Node LTS as your default, for Claude Code; Python 3.12 + `uv`; `ruff`; `gh` (GitHub CLI); AWS CLI v2 configured with IAM Identity Center (`aws configure sso`; no access keys); Terraform (spec 001; install now, use later). Then run `make tools` in your own terminal: it installs the pinned Node 24 through nvm, pytest, gitleaks, and the lint toolchain where agents can't write, and leaves your default Node alone. After it, `make toolchain-check` passes: every version matches `.devcontainer/toolchain.vars`, uv's and ruff's included, which you install at their pins yourself (quickstart.md §0.3). Don't make Node 24 your default (`nvm alias default`): Claude Code is installed under your default Node, and the Makefile finds the pinned one itself.
 - **Claude Code**: `npm install -g @anthropic-ai/claude-code@<version>`, with the version `.devcontainer/toolchain.vars` pins (`make toolchain-check` fails on any other), then `claude` once to sign in with your subscription. Dev-time model spend is separate from the production budget by constitution — do not point Claude Code at the production Bedrock path.
 - **Spec Kit**: `uv tool install specify-cli` (or `--from git+https://github.com/github/spec-kit.git@<tag>` to pin), then `specify check`.
 - **Line endings**: `git config --global core.autocrlf input`. The repo ships `.gitattributes` with `* text=auto eol=lf`; hooks fail with CRLF.
+- **The agents' engine** (Heavy: it ends with `wsl --shutdown`): agents run containers on their own rootless Docker engine, never on yours (ADR 0016). Set it up once, directly in your terminal and never through make, as yourself: it calls sudo itself.
+
+  ```bash
+  deploy/agents-engine/engine.sh setup      # the user h4agents, the firewall, /dev/dxg, the masked tree, the certificates
+  # then, when it asks, in PowerShell: wsl --shutdown, and open a new WSL shell
+  deploy/agents-engine/engine.sh up
+  make engine-status     # reachable, rootless, the plugin h4-authz listed
+  ```
+
+  `wsl --shutdown` ends every WSL session, agents' included. Before the engine's first seed, move your Docker to the containerd image store (quickstart.md §0.4); the seed comes after the first pull (§0.9). When the engine misbehaves, the runbook is [`runbooks/agents-engine.md`](runbooks/agents-engine.md).
 
 ## 2. Bootstrap commit (done, 2026-10-07)
 
@@ -20,7 +39,7 @@ The enforcement layer cannot gate its own creation, so the scaffold went in as o
 
 What was done, locally, in `~/h4reet-ai/h4reet-ai`: `specify init` (Spec Kit 1.0.8 for Claude, Python scripts) combined with the scaffold, the hooks made executable, `.gitattributes` forcing LF, Spec Kit's git extension added (`specify extension add git`), and `.specify/feature.json` pointed at spec 000.
 
-There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; the agents' `make check` fails until you do.
+There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal, after the steps in section 7. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; the agents' `make check` fails until you do.
 
 ## 3. First Claude Code session
 
@@ -38,12 +57,15 @@ Spec 001 is specified in full only after spec 000's success criteria pass on you
 
 - **Sandbox on Linux** depends on OS packages (`bubblewrap`, `socat`). `.claude/settings.json` sets `failIfUnavailable: true`, so Claude Code refuses to start until they're present — that is the intended behavior, not a bug. Check the sandboxing doc for the current dependency list.
 - **`settings.json` keys**: the sandbox and credential blocks follow the playbook's managed-settings example; a few keys may be managed-only. If Claude Code warns about an unknown key, remove it and note the removal in the session 1 merge-request note. (The scaffold's `Write(...)` rules were removed on 2026-10-07: Claude Code consults only `Edit(...)` rules for writes. Run `claude doctor` after any settings change; it lists rejected entries.)
-- **Local model server**: the RTX 5090 is Blackwell; use CUDA 12.8+ images and confirm the server build supports the architecture before choosing it in `/speckit-plan`. Model download on first `make up` can dominate the 10-minute budget — pre-pull in the plan.
+- **Glob denies are ignored on Linux.** In ADR 0006's words: "Bash can read `*.env` files outside `deploy/env`, because Linux ignores glob denies. Placement contains that." So the real env files live outside the repository, in `~/.config/h4reet-ai/env/`, which is denied by path, and the compose policy refuses a `*.env` file anywhere in the working tree (plan §11). Plan §13 lists the glob as a known gap.
+- **`-p` silently ignores invalid settings** (plan §14): a headless `claude -p` session gives no warning about an entry it rejects. Run `claude doctor` after every settings change. For the same reason the behavioral agent-config evals fail a case that shows no hook events (plan §14).
+- **User-level settings merge into the allowlist**: an allow rule in your own `~/.claude/settings.json` applies to this repository's sessions too, beside the project's. Keep it narrow. The behavioral evals and the canary start Claude Code with `--setting-sources project`, which reads only the project's settings (plan §13, §14).
+- **Local model server**: llama.cpp's `llama-server`, one build for GPU and CPU (ADR 0019), on CUDA 12.8 images, which the RTX 5090 runs (research.md R-01). The models are about 19 GB: `make pull MODELS=all` fetches them, and every image, before the first `make up` (quickstart.md §0.9).
 - **Ports**: the stack should bind to `127.0.0.1` by default; WSL2 forwards localhost to Windows, which is convenient and also why nothing may bind `0.0.0.0` until spec 001's tunnel exists.
-- **Bedrock adapter tests** use your SSO session (`aws sso login`) from your shell, never from inside the agent sandbox (credentials are denied there by design). Run them yourself or in CI via OIDC later.
-- **Telegram**: create the bot with `@BotFather`, get your chat id, store the token in your shell profile or a local env file outside the repo. Inside the repo, `*.env` files are gitignored but not yet hidden from agents: `Read(.env*)` only matches names that start with `.env`.
-- **Hooks and humans**: hooks govern agents. You can still edit `.claude/**` in your editor — `CODEOWNERS` and the agent-config evals govern you once they exist (at publication and in spec 000); until then, your own review does.
-- **Denylist**: `corpus/intake/private/denylist.txt` exists only on this machine and is gitignored. Keep a copy somewhere safe: a fresh clone won't have it, and without it `make corpus-check` skips the denylist rule silently.
+- **Bedrock** runs as a dedicated runtime identity, never your own AWS session: `make aws-login` signs it in under `~/.config/h4reet-ai/aws-home` (quickstart.md §0.6), and the live contract run is `make contract-live ENV=prod ADAPTER=bedrock REASON="…"`, in your terminal. Agents can run neither: the sandbox holds no AWS credentials, and US5's patch refuses both targets.
+- **Telegram**: only after the early patch is applied and `make init-env` has written the env file (quickstart.md §0.7–§0.8). Create the bot with `@BotFather`, paste its token into `TELEGRAM_BOT_TOKEN` in `~/.config/h4reet-ai/env/prod.env` in an editor, and read your chat ID as quickstart.md §0.7 shows, which keeps the token out of the browser, argv, and your shell history. Never put it in your shell profile: preflight refuses to start while your shell sets a variable an env template uses (P5).
+- **Hooks and humans**: hooks govern agents. You can still edit `.claude/**` in your editor. The agent-config evals govern you instead: their static tier runs in `make evals`, and their behavioral tier when you run `make evals-agent-config` (section 7). `CODEOWNERS` joins them at publication.
+- **Denylist**: `corpus/intake/private/denylist.txt` exists only on this machine and is gitignored. Keep a copy somewhere safe: a fresh clone won't have it. Without it, `make corpus-check` says it skipped the denylist rule, and `make publish-check` exits 3: it can't certify.
 
 ## 5. Decision state
 
@@ -57,7 +79,7 @@ Before Phase 1: the job/role/task corpus, and a final read of `intent/000-ai-twi
 
 When spec 000's success criteria pass locally and you're ready for interviews (ADR 0013), run these in your own terminal; the hooks block them for agents:
 
-1. Scan the whole history, not just the working tree, for secrets and denylisted phrases, and the corpus for amounts. Spec 000's `make publish-check` (FR-042) does this. If it finds anything, clean it out of history before the first push; ADR 0013 allows that one rewrite.
+1. **`make publish-check`** (FR-042), in a full clone, with the denylist in place. It scans the whole history, not just the working tree, for secrets and denylisted phrases, and the corpus for amounts. Exit 0 is clean. Exit 1 lists each finding by commit, path, line, and rule, never the phrase: clean it out of history before the first push; ADR 0013 allows that one rewrite. Exit 3 means it can't certify: inside the agent sandbox, in a shallow clone, with the wrong gitleaks, or with no denylist (quickstart.md §6.4). Record its summary line only.
 2. Check GitHub's email privacy setting. With "Block command line pushes that expose my email" on, GitHub rejects commits authored with your personal address (GH007).
 3. Publish:
 
@@ -69,3 +91,20 @@ When spec 000's success criteria pass locally and you're ready for interviews (A
 
 4. On GitHub: branch protection on `main` (require PR, require the Author's review, require status checks, no force push, include admins). Add a `production` environment with required reviewers = you (used by spec 001's apply). Enable secret scanning, Dependabot, and private vulnerability reporting (`SECURITY.md` sends reporters there).
 5. Leave local mode: replace the local-only lines in `CLAUDE.md`, `docs/KICKOFF-PROMPT.md`, `README.md`, `SECURITY.md`, and `CONTRIBUTING.md`; relax the local-phase rules in `.claude/hooks/bash-gate.sh` and their matrix rows, so agents push feature branches again while `main` stays yours; move github.com and api.github.com from `sandbox.network.deniedDomains` back to `allowedDomains` in `.claude/settings.json`; and supersede ADR 0013 with an ADR for the switch. Only after protection is on, start the next Claude Code session. From then on, agents push feature branches and open PRs.
+
+## 7. Before you merge
+
+Every branch ends with a note in `docs/merge-requests/`. Before `git switch main && git merge --no-ff <branch>`, in your own terminal:
+
+1. **Read the note's first section,** on what runs in your terminal: every change to the Makefile, `deploy/scripts/**`, `deploy/agents-engine/**`, and `tools/gates/**` is listed there, first (ADR 0017). The note also carries `make check`'s whole output from an agent session: the agents' run of every local gate (FR-041).
+2. **Run the gate, never `make check` or `make test`:**
+
+   ```bash
+   tools/gates/gate <branch>
+   ```
+
+   Run it directly, not through make, because a planted `GNUmakefile` would shadow the Makefile. It exports the branch with `git archive` and runs lint, the tests, the scaffolds, and matrix stage H in the devcontainer image with `--network none`. Then, on the host, it checks the git hooks, the toolchain, and the compose policy, runs `corpus-check` with your denylist and gitleaks over the branch, builds the images on the agents' engine, and runs matrix stage E and the behavioral evals when the branch touches their triggers (plan §11). `make check`, `make test`, and `make lint` would run the working tree's `node_modules` and test code, which agents installed and git doesn't show, so in your terminal they refuse to run. If the devcontainer image won't build, `tools/gates/gate --host <branch>` runs on host tools and marks its summary DEGRADED (plan §19). Put the gate's summary line in the merge commit's message.
+3. **The agent-config evals, when `make evals` shows PENDING:** the branch changed `CLAUDE.md`, `REVIEW.md`, `.claude/**`, `evals/agent-config/**`, or the Claude Code pin, and no passing history entry has that hash. Run `make evals-agent-config`: about 12 cases, three runs each, with `claude -p` on the Team plan in a scratch clone of the branch (plan §14). Commit the entry it writes in `evals/agent-config/history/` on the branch (SC-008), then run the gate again.
+4. **After the merge, apply the branch's patch,** if its note has one: `git apply <patch>`, then `claude doctor` and `make git-hooks` (plan §15). Each patch lands before the risk it guards, so its note says when.
+
+The agents' engine's commands are yours too, and they also run directly, never through make: `deploy/agents-engine/engine.sh` with `setup`, `up`, `down`, `seed`, `reset`, `destroy`, or `prove` ([contracts/agents-engine.md §8](../specs/000-local-foundations/contracts/agents-engine.md#8-commands)). Agents have `make engine-status` and `make engine-smoke`. When a gate fails or waits, the runbook is [`runbooks/local-gate.md`](runbooks/local-gate.md).

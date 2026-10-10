@@ -7,3 +7,12 @@
 /.specify/   @hareet
 /.github/    @hareet
 /corpus/     @hareet
+
+# Spec 000's human-only paths (FR-001; ADR 0017): the gate code only the Author runs, the secret rules, the FR-039
+# boundary, agent tool configuration, and the price table.
+/tools/gates/            @hareet
+/evals/agent-config/     @hareet
+/.gitleaks.toml          @hareet
+/deploy/agents-engine/   @hareet
+/.mcp.json               @hareet
+/config/prices*          @hareet
