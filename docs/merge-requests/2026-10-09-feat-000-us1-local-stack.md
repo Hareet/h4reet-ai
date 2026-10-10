@@ -954,10 +954,11 @@ exit 2
 6. **After main has it, US2** (`feat/000-us2-kill-switch`) merges main. A simulated merge of US2 with this stack's tip needed two things. I ran it on 2026-10-09, and again on 2026-10-10 at 792d8f2, the stack's last commit that changes code. Later commits change only docs and specs, and `git merge-tree` still finds the one conflict at 357b89a. With both, `make check` passed, apart from the toolchain pin and US2's planned matrix rows (T117):
    - **one conflict,** in `docs/data-flow-disclosure.md`: keep US2's rows S11–A2, and this branch's row B1;
    - **one line** no conflict shows: US2's `evals/standins/Dockerfile` must take `base:python`'s new digest, `a6e34c598f24…`, as 5c2a089 did for the probe. The compose policy and `test_the_standin_image` fail without it.
+   - **a second conflict since 2026-10-10,** in `specs/000-local-foundations/tasks.md`, T117's first two bullets. This stack changed the settings line (the deny on `./.git/refs/replace`), and US2 the bash-gate line (the breach test's dev route): keep each side's own line. Checked on `sim/000-us2-on-us1-stack` at 0233673, where `make check` passed as above.
 
-   Then T187 and T188, then T084, the breach test, on the engine. T084's pre-run found those two on 2026-10-10, on that simulation (`sim/000-us2-on-us1-stack`, never to be merged). It passed 45 of 52 assertions, and US2's note has the run:
-   - **T187:** the probe's trace reads hit Langfuse v4's 404s;
-   - **T188:** Telegram alerts time out while the local model server is down, because the gateway's hung DNS lookups of the stopped server starve its other lookups.
+   Then T084, the breach test, on the engine. T084's pre-run on that simulation (`sim/000-us2-on-us1-stack`, never to be merged) passed 45 of 52 assertions on 2026-10-10. Its two findings are fixed on US2, and US2's note has the run:
+   - **T187 (071d6bd):** the probe's trace reads hit Langfuse v4's 404s; it reads the v2 list now;
+   - **T188 (d43da3e):** while the local model server was down, the gateway's hung lookups of it starved every other lookup. Telegram alerts timed out, and the store's connections failed, so the kill switch failed closed again and again. The gateway resolves through c-ares now.
 
 ### For later tasks
 
