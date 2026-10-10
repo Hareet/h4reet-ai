@@ -51,12 +51,13 @@ def expand(cell: str) -> list[str]:
             codes[0],
             codes[0].replace("histogram_quantile(0.50,", "histogram_quantile(0.95,"),
         ]
-    if "and the same for" in cell and "_spans_total" in codes[0]:
+    # The collector's counters carry no _total (telemetry.md §4.3; T065 found the panels empty with it).
+    if "and the same for" in cell and re.search(r"_spans\b", codes[0]):
         base = codes[0]
         return [
             base,
-            base.replace("_spans_total", "_metric_points_total"),
-            base.replace("_spans_total", "_log_records_total"),
+            re.sub(r"_spans\b", "_metric_points", base),
+            re.sub(r"_spans\b", "_log_records", base),
         ]
     return [c for c in codes if re.search(r"[({\[]", c)]
 
@@ -173,7 +174,7 @@ def test_every_metric_name_is_the_contracts() -> None:
                     names.add(name)
     assert names
     for name in names:
-        spelled = re.sub(r"_(metric_points|log_records)_total$", "_spans_total", name)
+        spelled = re.sub(r"_(metric_points|log_records)$", "_spans", name)
         assert name in words or spelled in words, name
 
 

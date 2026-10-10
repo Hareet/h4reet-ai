@@ -363,6 +363,10 @@ services:
       - --storage.tsdb.retention.time=30d
       - --storage.tsdb.retention.size=2GB
       - --web.enable-otlp-receiver
+      # A series' first sample comes with a 0 at its start time, so rate() and increase() count a new counter's first
+      # increment and a histogram's first observation: one hello after a start never showed on the dashboard (T065,
+      # 2026-10-09). Experimental in 3.15. It also prefers protobuf scrapes, which renamed none of the dashboard's metrics.
+      - --enable-feature=created-timestamp-zero-ingestion
     networks: [internal]
     volumes:
       - type: volume

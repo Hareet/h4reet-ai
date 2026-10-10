@@ -196,8 +196,8 @@ These don't pass through the collector; Prometheus scrapes them ([§6.6](#66-pro
 
 | Job (target) | Metrics the dashboard uses | Meaning |
 |---|---|---|
-| `model-server` (`model-server:8080/metrics`, every 5 s) | `up`; `llamacpp:prompt_tokens_total`; `llamacpp:tokens_predicted_total`; `llamacpp:predicted_tokens_seconds`; `llamacpp:requests_processing`; `llamacpp:requests_deferred` | `up` is 1 only when the server answers its metrics endpoint, which it does once the model is loaded. The `llamacpp:` names are build b11459's (`--metrics`); the first stack task checks them against the running server's `/metrics` and fixes this table if a name differs. |
-| `otel-collector` (`otel-collector:8888/metrics`) | `up`; `otelcol_receiver_accepted_spans_total`, `otelcol_receiver_refused_spans_total`; `otelcol_exporter_sent_spans_total`, `otelcol_exporter_send_failed_spans_total`, `otelcol_exporter_enqueue_failed_spans_total`; the same three for `_metric_points` and `_log_records`; `otelcol_exporter_queue_size`, `otelcol_exporter_queue_capacity` | the collector's own telemetry at level `normal`, labelled by `exporter` (`otlphttp/langfuse`, `otlphttp/prometheus`, `otlphttp/loki`) and `receiver` |
+| `model-server` (`model-server:8080/metrics`, every 5 s) | `up`; `llamacpp:prompt_tokens_total`; `llamacpp:tokens_predicted_total`; `llamacpp:predicted_tokens_seconds`; `llamacpp:requests_processing`; `llamacpp:requests_deferred` | `up` is 1 only when the server answers its metrics endpoint, which it does once the model is loaded. The `llamacpp:` names are build b11459's (`--metrics`); the first stack task checks them against the running server's `/metrics` and fixes this table if a name differs. Checked in T065 (2026-10-09): all five exist as written. |
+| `otel-collector` (`otel-collector:8888/metrics`) | `up`; `otelcol_receiver_accepted_spans`, `otelcol_receiver_refused_spans`; `otelcol_exporter_sent_spans`, `otelcol_exporter_send_failed_spans`, `otelcol_exporter_enqueue_failed_spans`; the same three for `_metric_points` and `_log_records`; `otelcol_exporter_queue_size`, `otelcol_exporter_queue_capacity` | the collector's own telemetry at level `normal`, labelled by `exporter` (`otlphttp/langfuse`, `otlphttp/prometheus`, `otlphttp/loki`) and `receiver`. Collector 0.162 names its counters without `_total` in every exposition format, so Prometheus stores them that way; this table had `_total`, and the panels found nothing (T065, 2026-10-09). A counter appears only with its first count, so the failure, drop, and refusal series exist only after something has failed. |
 | `loki` (`loki:3100/metrics`), `grafana` (`grafana:3000/metrics`), `clickhouse` (`clickhouse:9363/metrics`), `prometheus` (`localhost:9090/metrics`) | `up` | the telemetry-health panel's backend row |
 
 ### 4.4 Development-time metrics (FR-037)
@@ -356,7 +356,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 
 ### 6.6 Prometheus, Loki, and Grafana
 
-- **Prometheus** (`deploy/prometheus/prometheus.yml`; flags `--web.enable-otlp-receiver --storage.tsdb.retention.time=30d --storage.tsdb.retention.size=2GB`, and neither the admin nor the lifecycle API):
+- **Prometheus** (`deploy/prometheus/prometheus.yml`; flags `--web.enable-otlp-receiver --storage.tsdb.retention.time=30d --storage.tsdb.retention.size=2GB --enable-feature=created-timestamp-zero-ingestion`, and neither the admin nor the lifecycle API). The feature, experimental in 3.15, writes a 0 at each series' start time, so `rate()` and `increase()` count a new counter's first increment and a histogram's first observation. Without it, one hello after a start never showed on the request and latency panels (T065, 2026-10-09). It also makes Prometheus prefer protobuf scrapes; on dev-cpu's targets that renamed none of §4.3's metrics, and dropped only some of Grafana's own histograms, which no panel uses (T149):
 
   ```yaml
   otlp:
@@ -451,13 +451,13 @@ The error rate counts 5xx answers that aren't degraded: the 502 `local_error` an
 |---|---|---|
 | Backends up | stat, one per job | `max by (job) (up{job=~"model-server\|otel-collector\|loki\|grafana\|clickhouse\|prometheus"})` |
 | Spend freshness | stat, in seconds | `time() - max(timestamp(h4_meter_spend_usd{h4_meter="day"}))`. Green under 30, amber under 60, red at 60 or more, and red on no data. |
-| Export failures | time series | `sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))`, and the same for `_metric_points_total` and `_log_records_total` |
-| Dropped at the queue | time series | `sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total[5m]))`, and the same for metric points and log records |
+| Export failures | time series | `sum by (exporter) (rate(otelcol_exporter_send_failed_spans[5m]))`, and the same for `_metric_points` and `_log_records` |
+| Dropped at the queue | time series | `sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans[5m]))`, and the same for metric points and log records |
 | Queue fill | time series | `max by (exporter) (otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)` |
-| Spans to Langfuse | time series | `sum(rate(otelcol_exporter_sent_spans_total{exporter="otlphttp/langfuse"}[5m]))` |
-| Refused at the receiver | time series | `sum by (receiver) (rate(otelcol_receiver_refused_spans_total[5m]))`, and the same for metric points and log records |
+| Spans to Langfuse | time series | `sum(rate(otelcol_exporter_sent_spans{exporter="otlphttp/langfuse"}[5m]))` |
+| Refused at the receiver | time series | `sum by (receiver) (rate(otelcol_receiver_refused_spans[5m]))`, and the same for metric points and log records |
 
-This row is how a degraded telemetry pipeline shows itself ([plan.md §19](../plan.md#19-degraded-modes)): a stale freshness value, failures and drops per exporter, and backends down.
+The collector's counters carry no `_total` ([§4.3](#43-metrics-scraped-by-prometheus)), and its failure, drop, and refusal series appear only with their first count, so "No data" in those three panels means nothing has failed yet. This row is how a degraded telemetry pipeline shows itself ([plan.md §19](../plan.md#19-degraded-modes)): a stale freshness value, failures and drops per exporter, and backends down.
 
 ### 7.7 Development time (FR-037)
 

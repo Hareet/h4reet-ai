@@ -403,13 +403,15 @@ def test_the_observability_services_commands() -> None:
     assert SERVICES["otel-collector"]["command"] == [
         "--config=/etc/otelcol-contrib/config.yaml"
     ]
-    # Plan §6: the OTLP receiver on, 30 days or 2 GB, and neither the admin nor the lifecycle API.
+    # Plan §6: the OTLP receiver on, 30 days or 2 GB, neither the admin nor the lifecycle API, and a 0 at each series'
+    # start, so a new counter's first increment counts (T149).
     assert SERVICES["prometheus"]["command"] == [
         "--config.file=/etc/prometheus/prometheus.yml",
         "--storage.tsdb.path=/prometheus",
         "--storage.tsdb.retention.time=30d",
         "--storage.tsdb.retention.size=2GB",
         "--web.enable-otlp-receiver",
+        "--enable-feature=created-timestamp-zero-ingestion",
     ]
     assert SERVICES["loki"]["command"] == ["-config.file=/etc/loki/loki.yaml"]
     assert "command" not in SERVICES["grafana"]
