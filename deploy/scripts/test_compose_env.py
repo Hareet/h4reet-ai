@@ -713,13 +713,14 @@ LANGFUSE_SHARED = {
     "LANGFUSE_S3_MEDIA_UPLOAD_PREFIX": "media/",
     "LANGFUSE_S3_BATCH_EXPORT_ENABLED": "false",
     "LANGFUSE_IN_APP_AGENT_ENABLED": "false",
+    # Both listen on $HOSTNAME, which Docker sets to the container's ID (contracts/env-files.md §5, tasks.md T180).
+    "HOSTNAME": "0.0.0.0",
 }
 LANGFUSE_WEB_ONLY = {
     "NODE_OPTIONS": "--max-old-space-size=1024",
     "NEXTAUTH_URL": "http://localhost:${H4_LANGFUSE_PORT}",
     "NEXTAUTH_SECRET": "${LANGFUSE_NEXTAUTH_SECRET}",
     "AUTH_DISABLE_SIGNUP": "true",
-    "HOSTNAME": "0.0.0.0",
     "LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT": "http://seaweedfs:8333",
     "LANGFUSE_INIT_ORG_ID": "h4reet",
     "LANGFUSE_INIT_ORG_NAME": "h4reet.ai",

@@ -627,6 +627,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
   - **S3:** `LANGFUSE_S3_EVENT_UPLOAD_*`, pointed at `http://seaweedfs:8333`, bucket `langfuse`, with `FORCE_PATH_STYLE=true`.
   - **Secrets and URLs:** `SALT`, `ENCRYPTION_KEY` (64 hex), `NEXTAUTH_SECRET`, and `NEXTAUTH_URL=http://localhost:<x001>`.
   - **Switches:** `AUTH_DISABLE_SIGNUP=true` and `TELEMETRY_ENABLED=false`.
+  - **Listening:** `HOSTNAME=0.0.0.0` on both. Each listens on `$HOSTNAME`, which Docker sets to the container's ID, so without it neither answers its health check on 127.0.0.1 (tasks.md T180).
   - **Headless initialization:** `LANGFUSE_INIT_ORG_*`, `LANGFUSE_INIT_PROJECT_*` (with the same public and secret keys the collector uses, so no UI step stands between `make up` and the first trace), and `LANGFUSE_INIT_USER_*`.
 
   The authoritative variable list is Langfuse's own `docker-compose.yml` at 4.54.0, whose key names check 2 printed ([research.md R-08](research.md#r-08-langfuse-v4-not-v3)). The settings that keep Langfuse from reaching out are all off:

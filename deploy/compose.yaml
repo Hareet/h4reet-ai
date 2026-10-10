@@ -61,6 +61,9 @@ x-langfuse-env: &langfuse-env
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
   LANGFUSE_IN_APP_AGENT_ENABLED: "false"
+  # Both listen on $HOSTNAME, and Docker sets it to the container's ID, which binds only the container's network
+  # address, while their health checks ask 127.0.0.1. The worker's was refused at T065's third prod start (2026-10-09).
+  HOSTNAME: 0.0.0.0
 
 services:
   # The only publisher: nginx, unprivileged, on the stack's five 127.0.0.1 ports (deploy/edge/nginx.conf).
@@ -481,7 +484,6 @@ services:
       NEXTAUTH_URL: "http://localhost:${H4_LANGFUSE_PORT}"
       NEXTAUTH_SECRET: "${LANGFUSE_NEXTAUTH_SECRET}"
       AUTH_DISABLE_SIGNUP: "true"
-      HOSTNAME: 0.0.0.0
       LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://seaweedfs:8333
       LANGFUSE_INIT_ORG_ID: h4reet
       LANGFUSE_INIT_ORG_NAME: h4reet.ai

@@ -6,7 +6,7 @@ Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phas
 **Status: DRAFT. Not ready to merge.** Everything an agent session can do on this branch before the engine exists is done: three review rounds with every finding fixed and verified, the convergence pass, and `make check` at 110b42e with 0 FAIL. What's left needs your hands or the engine:
 - **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. Done on 2026-10-09. The seed failed on every image at first, and passed after T174's patch ("T063's run" below). tasks.md marks it done since T065's fix: no pin is open any more.
 - **T064 (an agent session, after T063):** dev-cpu on the agents' engine, end to end.
-- **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, and the second at SeaweedFS. T176–T178 fix what the second found, and T179 records the GPU fix you made by hand ("T065's run" below).
+- **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 records the GPU fix you made by hand ("T065's run" below).
 - **T149 (an agent session, after T065):** apply the first stack run's findings.
 - **This note:** T064's and T065's output goes into it, and then this block goes.
 
@@ -380,7 +380,7 @@ The Author's run, as far as the seed. None of it holds a secret. The env files a
 
 ## T065's run (2026-10-09)
 
-The Author's two `make up ENV=prod` runs at e745177, as far as the second one's health checks. Status passes failing services' health-check output and error lines through `redact.sh`, and none of the output holds a secret.
+The Author's three `make up ENV=prod` runs: two at e745177, and one at a6b0e80 after the first fix. Status passes failing services' health-check output and error lines through `redact.sh`, and none of the output holds a secret.
 1. **The first start stopped at the GPU.** The other containers started; model-server-gpu didn't: "nvidia-container-cli: initialization error: nvml error: not supported". A diagnostic narrowed it down:
    - `nvidia-container-cli info` failed with the same error as nobody (65534), and worked as root and as root:`h4gpu`.
    - H6 sets `/dev/dxg` to 0660 root:`h4gpu`. The NVIDIA hook's CLI runs its driver step as an unprivileged user unless `nvidia-container-cli.user` is set, and that user can't open the device. `/etc/nvidia-container-runtime/config.toml` had only the commented `#user = "root:video"`.
@@ -390,20 +390,27 @@ The Author's two `make up ENV=prod` runs at e745177, as far as the second one's 
    - **SeaweedFS (T176):** the master died at "mkdir /data/m9333: permission denied". The image sets no `USER`. Its own entrypoint chowns `/data` and drops to `seaweed`, uid 1000. Ours replaces it, so the server ran as root with every capability dropped, which can't write a directory it doesn't own. On the agents' engine, the pinned image ran as `1000:1000` with our entrypoint, `--cap-drop ALL`, and `--tmpfs /tmp`. It started the master, the volume server, the filer, and S3, and printed "seaweedfs entrypoint: the langfuse bucket is ready", which the entrypoint prints right after it writes the ready file the health check reads.
    - **Loki (T177):** its health check could never run: "exec: "wget": executable file not found in $PATH". The 3.7.8 image is distroless: user 10001, entrypoint `/usr/bin/loki`, no `/bin/sh` or `/busybox/sh`, and no health flag. Plan §2 said its busybox had been checked at pin time. Like the collector, it now has no compose health check, and nothing waits on it. Prometheus's scrape shows that it answers, though not that it's ready: a Loki stuck at "empty ring" would still look up.
    - **Status (T178):** ClickHouse, Grafana, Loki, SeaweedFS, and Valkey read "differs from the pin" at both starts, each with a WARN line. They are the five services whose images come from Docker Hub, and the only ones. Docker prints them by their short names: on the agents' engine, `valkey/valkey@sha256:081c2f5c…` and `chrislusf/seaweedfs@sha256:4e61d15f…`, while nginx's stays in full, `ghcr.io/nginx/nginx-unprivileged@sha256:15c994d1…`. The lock writes `docker.io/…`, so the strings never matched, though the digests did.
-3. **To watch at the trace step (§1.4):** SeaweedFS's S3 logs "Failed to load IAM configuration: no signing key found for STS service" as it starts, then serves on 8333. The entrypoint creates the bucket through `weed shell`, not through S3. The trace step shows whether Langfuse's uploads authenticate with the keys in `s3.json`.
-4. **Seen while starting, not failures:** the model server's 503 while the model loads, within its 300 s start period; Grafana's "Connection refused" before it listens; Loki's "empty ring" as it starts. Valkey warns "Memory overcommit must be enabled!", a host sysctl. It runs, and T149 can decide whether that matters.
-5. **Disk:** at the first start, `docker system df` counted 65 local volumes holding 127.2 GB, with 8 in use and 127.1 GB reclaimable. The 57 that no container uses aren't this stack's running volumes, and may be other projects'. Check what they belong to before §1.2's cold start, and prune nothing blindly.
-6. **Test changes in a fix, and why.** Each follows a plan line this branch changes; none bends a test to fit the code:
+3. **The third start, at a6b0e80, stopped at Langfuse's worker.** The first fix worked: SeaweedFS, Loki, the GPU model server, and Langfuse's web app were healthy, every image read "pinned", and Prometheus had 6 targets up. Only langfuse-worker failed, after 81 s: "container h4reet-prod-langfuse-worker-1 is unhealthy", with its last check "wget: can't connect to remote host (127.0.0.1): Connection refused".
+   - **The cause (T180):** the worker calls `app.listen(PORT, HOSTNAME)` (`worker/dist/index.js` in the pinned image), and `HOSTNAME` falls back to `0.0.0.0` only when it is unset. Docker sets it to the container's ID, so the worker bound only the container's network address. Our compose gave web `HOSTNAME=0.0.0.0` and the worker nothing, as contracts/env-files.md §5 said: "on web only".
+   - **Proven on the agents' engine,** with the pinned worker image and its own Node, listening as the worker does: with Docker's default, "HOSTNAME=9746698b4ff6 listens on {"address":"172.17.0.2",…}", and "127.0.0.1:3030 gives ECONNREFUSED"; with `HOSTNAME=0.0.0.0`, "127.0.0.1:3030 answers 200".
+   - **The fix:** `HOSTNAME: 0.0.0.0` moves into the settings web and worker share, and the contract moves it to "on web and worker". `make up` recreates the worker, whose configuration changes, and, as at every new commit, the services that bind the tree. Web's configuration is unchanged: it had the same value already.
+   - **Six false WARNs (T181, open):** status said gateway-state, langfuse-db, langfuse-web, langfuse-worker, model-server-gpu, and valkey "was created from another commit's compose file: make up ENV=prod recreates it", right after make up had kept them. Their configuration was the same at both commits: none of them binds the tree, and the services that do were recreated, because each commit's export has its own path. The check compares that path. T181 makes it compare compose's own configuration hash instead. Until then, these WARNs after a `make up` mean nothing; expect them again after the next one, for the same services but the worker.
+   - **Measured on the way:** with the prod model loaded, the GPU used 21,804 of 24,463 MiB.
+4. **To watch at the trace step (§1.4):** SeaweedFS's S3 logs "Failed to load IAM configuration: no signing key found for STS service" as it starts, then serves on 8333. The entrypoint creates the bucket through `weed shell`, not through S3. The trace step shows whether Langfuse's uploads authenticate with the keys in `s3.json`.
+5. **Seen while starting, not failures:** the model server's 503 while the model loads, within its 300 s start period; Grafana's "Connection refused" before it listens; Loki's "empty ring" as it starts. Valkey warns "Memory overcommit must be enabled!", a host sysctl. It runs, and T149 can decide whether that matters.
+6. **Disk:** at the first start, `docker system df` counted 65 local volumes holding 127.2 GB, with 8 in use and 127.1 GB reclaimable. The 57 that no container uses aren't this stack's running volumes, and may be other projects'. Check what they belong to before §1.2's cold start, and prune nothing blindly.
+7. **Test changes in a fix, and why.** Each follows a plan line this branch changes; none bends a test to fit the code:
    - `test_compose_env.py`: the services with a `user` key are now ClickHouse and SeaweedFS, and SeaweedFS's is `1000:1000` (plan §1's rule, new here, and §2's seaweedfs row); Loki moves from the busybox health checks to the services with none (§2's loki row).
    - `test_status.py`: the fake now prints RepoDigests as Docker does (`valkey/valkey@…`, copied from the agents' engine) and gives a service with no health check no health, as `docker compose ps` does. Its old defaults, `docker.io/` names and every service healthy, are why no test caught T178: with `familiar()` disabled, the healthy-stack test and the new one both fail. Two tests are new: the short names, with a drifted digest and an image with no digests, and `familiar()` against Docker's normalization.
-7. **Review:** one read-only reviewer at 17b458f found nothing blocking, two should-fix items (this paste of `make check`'s output, and item 6's record), and five nits: the test fake, T179's least privileged user, four claims the evidence didn't support, stale lines about SeaweedFS's open pin and T063, and a plan §1 rule for the services that run as their images' own users. The commit after 17b458f applies all of them.
+   - `test_compose_env.py` again, for T180: `HOSTNAME` moves from the web-only settings to the shared ones, as contracts/env-files.md §5 now says.
+8. **Review:** one read-only reviewer at 17b458f found nothing blocking, two should-fix items (this paste of `make check`'s output, and item 7's record), and five nits: the test fake, T179's least privileged user, four claims the evidence didn't support, stale lines about SeaweedFS's open pin and T063, and a plan §1 rule for the services that run as their images' own users. The commit after 17b458f applies all of them.
 
-**The fix's checks,** on its final tree in the worktree, before its second commit: `make check ENGINE_MODE=none-yet`, exit 2, with 8 PASS, 2 SKIP, and 1 FAIL.
-- `ENGINE_MODE=none-yet` holds the image gate back, so its SKIP reads "no agents' engine yet", which is no longer true: the engine is up. This fix changes no Dockerfile, so the builds were spared.
+**The fixes' checks,** in the worktree, on the tree of each commit before it was made. Each gave the same result: `make check ENGINE_MODE=none-yet`, exit 2, with 8 PASS, 2 SKIP, and 1 FAIL. The output below is the last, before T180's commit.
+- `ENGINE_MODE=none-yet` holds the image gate back, so its SKIP reads "no agents' engine yet", which is no longer true: the engine is up. These fixes change no Dockerfile, so the builds were spared.
 - The FAIL is `toolchain-check`: Claude Code updated itself to 2.1.296, against its pin of 2.1.295, as the engine-bringup note says. Re-pinning or rolling back is your call.
 - The gateway has 362 tests passing, and pytest has 1349.
 
-<details><summary>make check ENGINE_MODE=none-yet, on the fix's final tree</summary>
+<details><summary>make check ENGINE_MODE=none-yet, before T180's commit</summary>
 
 ```
 == githooks-check
@@ -466,8 +473,8 @@ npm test --workspaces --if-present
 
  Test Files  24 passed (24)
       Tests  362 passed (362)
-   Start at  21:06:07
-   Duration  21.91s (tests 91%, import 5%, transform 4%)
+   Start at  21:25:29
+   Duration  21.39s (tests 89%, transform 5%, import 5%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  5%]
@@ -489,7 +496,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 90%]
 ........................................................................ [ 96%]
 .....................................................                    [100%]
-1349 passed in 35.88s
+1349 passed in 37.53s
 -> PASS test
 == secrets
 -> SKIP secrets (added by T091)
@@ -555,7 +562,7 @@ exit 2
 
 </details>
 
-**Resume** once this fix is merged into the branch: §1.1 again, from `make up ENV=prod`.
+**Resume** once T180's commit is merged into the branch: §1.1 again, from `make up ENV=prod`.
 
 ## For the Author
 
