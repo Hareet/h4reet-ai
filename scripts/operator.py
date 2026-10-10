@@ -11,6 +11,9 @@
     renew      POST /admin/renew: --reason TEXT                                                make operator-renew
     audit      GET /admin/audit: [--limit N] [--action A]                                      make operator-audit
     incidents  GET /admin/incidents: [--limit N] [--id N] [--show]                             make operator-incidents
+    contract-record  the live contract run (provider-adapter.md §5.3): --adapter ID --out FILE     make contract-live
+               --reason TEXT [--cases FILE]; /admin/status, each case through
+               POST /admin/adapters/ID/complete, /admin/status again, into a new file
 
 It runs in the Author's terminal with the operator token, so it is standard library only, and it runs by path
 through PY_HOST, never with -m: -I keeps out PYTHON* variables, the user's site directory, and the script's own
@@ -73,6 +76,8 @@ from typing import Any, NoReturn, TextIO
 
 ROOT = Path(__file__).resolve().parents[1]
 DEVCPU_VARS = ROOT / "deploy" / "env.agents" / "dev-cpu.vars"
+# The live contract cases, which the replay test reads too (provider-adapter.md §5.4).
+LIVE_CASES = ROOT / "services" / "gateway" / "test" / "contract" / "live-cases.json"
 # The dev-cpu hop's image (tasks.md T144).
 PROBE_DOCKERFILE = ROOT / "evals" / "Dockerfile.probe"
 RELAY = ROOT / "deploy" / "agents-engine" / "docker-relay"
@@ -645,6 +650,112 @@ class AdminClient:
         return self.request("POST", f"/admin/adapters/{adapter_id}/complete", body)
 
 
+# --- contract-record (provider-adapter.md §5.3, §5.4) ----------------------------------------------------------------
+
+
+def read_cases(path: Path) -> list[dict[str, Any]]:
+    """live-cases.json's cases: each a name, its messages, its output cap, and an optional temperature."""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as problem:
+        raise Usage(
+            f"{path}: not a readable cases file ({failure_reason(problem)})"
+        ) from None
+    cases = doc.get("cases") if isinstance(doc, dict) else None
+    if not isinstance(cases, list) or not cases:
+        raise Usage(f"{path}: no cases")
+    for case in cases:
+        messages = case.get("messages") if isinstance(case, dict) else None
+        if (
+            not isinstance(case, dict)
+            or not isinstance(case.get("name"), str)
+            or not isinstance(messages, list)
+            or not all(
+                isinstance(m, dict)
+                and isinstance(m.get("role"), str)
+                and isinstance(m.get("content"), str)
+                for m in messages
+            )
+            or not isinstance(case.get("max_output_tokens"), int)
+            or not isinstance(case.get("temperature", 0), (int, float))
+        ):
+            raise Usage(
+                f"{path}: a case isn't a name, messages, max_output_tokens, and an optional temperature"
+            )
+    return cases
+
+
+def contract_record(
+    client: AdminClient,
+    adapter: str,
+    cases: list[dict[str, Any]],
+    reason: str,
+    out: Path,
+) -> dict[str, Any]:
+    """The recording: /admin/status, each case, /admin/status again, written to `out`, a new file.
+
+    A provider error is a case's answer, its 502 body kept; any other refusal stops the run, and nothing is written.
+    The bodies hold the test prompts and their completions, and never a secret (provider-adapter.md §5.3).
+    """
+    before = client.status()
+    recorded: list[dict[str, Any]] = []
+    for case in cases:
+        request: dict[str, Any] = {
+            "messages": case["messages"],
+            "max_output_tokens": case["max_output_tokens"],
+        }
+        if "temperature" in case:
+            request["temperature"] = case["temperature"]
+        try:
+            body = client.adapter_complete(
+                adapter,
+                case["messages"],
+                max_output_tokens=case["max_output_tokens"],
+                purpose="contract",
+                reason=reason,
+                temperature=case.get("temperature"),
+            )
+            recorded.append(
+                {"name": case["name"], "request": request, "status": 200, "body": body}
+            )
+        except AdminError as problem:
+            if problem.status != 502 or problem.body is None:
+                raise
+            recorded.append(
+                {
+                    "name": case["name"],
+                    "request": request,
+                    "status": 502,
+                    "body": problem.body,
+                }
+            )
+    after = client.status()
+    recording = {
+        "adapter": adapter,
+        "statusBefore": before,
+        "statusAfter": after,
+        "cases": recorded,
+    }
+    # JSON escapes what isn't ASCII, as write_new writes ASCII only.
+    write_new(out, json.dumps(recording, indent=2) + "\n")
+    return recording
+
+
+def record_lines(
+    stack: str, adapter: str, recording: dict[str, Any], out: Path
+) -> list[str]:
+    cases = recording["cases"]
+    answered = sum(1 for c in cases if c["status"] == 200)
+    summary = (
+        f"contract-record: {adapter} on {stack}: {len(cases)} cases, {answered} answered, "
+        f"{len(cases) - answered} provider errors"
+    )
+    return [
+        summary,
+        f"Written to {out}, mode 0600. The replay reads it (make contract-live).",
+    ]
+
+
 # --- mint (§6) ------------------------------------------------------------------------------------------------------
 
 
@@ -1102,6 +1213,22 @@ def build_parser() -> Parser:
         action="store_true",
         help="print the newest draft's Markdown (or --id's), ready to redirect into a file",
     )
+    record = commands.add_parser(
+        "contract-record",
+        parents=[common],
+        allow_abbrev=False,
+        help="the live contract run's recording (make contract-live)",
+    )
+    record.add_argument(
+        "--adapter", required=True, help="the adapter: local, or bedrock on prod"
+    )
+    record.add_argument("--out", required=True, help="the recording, a new file")
+    record.add_argument("--reason", required=True, help="why: 10 to 500 characters")
+    record.add_argument(
+        "--cases",
+        default=str(LIVE_CASES),
+        help="the cases file (live-cases.json by default)",
+    )
     return parser
 
 
@@ -1290,6 +1417,44 @@ def show_draft(body: dict[str, Any]) -> int:
     return 0
 
 
+def record_command(
+    args: argparse.Namespace,
+    stack: str,
+    *,
+    url: str | None,
+    token_stdin: bool,
+    stdin: TextIO | None,
+    as_json: bool,
+) -> int:
+    """contract-record: the Author's, through make contract-live, never an agent session's."""
+    if os.environ.get("SANDBOX_RUNTIME") == "1":
+        raise Usage(
+            "contract-record is the Author's: make contract-live runs it in their terminal (provider-adapter.md §5.3)"
+        )
+    if not ADAPTER_ID_RE.fullmatch(args.adapter):
+        raise Usage("an adapter ID is lowercase letters, digits, - and _")
+    if args.adapter == "bedrock" and stack != "prod":
+        raise Usage(
+            "bedrock is prod's adapter: --adapter bedrock needs --stack prod (operator-admin.md §5)"
+        )
+    reason = check_reason(args.reason)
+    cases = read_cases(Path(args.cases))
+    out = Path(args.out)
+    if out.exists() or out.is_symlink():
+        raise Usage(f"{out} exists: the recording goes into a new file")
+    client = AdminClient(stack, url=url, token_stdin=token_stdin, stdin=stdin)
+    try:
+        recording = contract_record(client, args.adapter, cases, reason, out)
+    except AdminError as problem:
+        return refused(problem, client, as_json)
+    print(
+        json.dumps(recording, indent=2)
+        if as_json
+        else "\n".join(record_lines(stack, args.adapter, recording, out))
+    )
+    return 0
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -1313,6 +1478,15 @@ def main(
                     "mint calls nothing, so it takes neither --url nor --token-stdin"
                 )
             return mint(stack, Path.home(), as_json=as_json)
+        if args.command == "contract-record":
+            return record_command(
+                args,
+                stack,
+                url=url,
+                token_stdin=token_stdin,
+                stdin=stdin,
+                as_json=as_json,
+            )
         reason, stated = init_arguments(args) if args.command == "init" else (None, {})
         if args.command in ("reset", "renew"):
             reason = check_reason(args.reason)

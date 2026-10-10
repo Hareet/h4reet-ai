@@ -441,6 +441,7 @@ description: "Task list for spec 000, Local Foundations"
   - the push of the agent-config eval history as the `h4.devtime.eval.*` metrics to prod's x004 (§4.4);
   - a summary line for the merge commit;
   - `gate --host`, marked DEGRADED.
+  - `gate --contract-replay FILE` for `make contract-live` (T103): the container phase over an exported tree with the recording mounted read-only, running `vitest run test/contract/replay.test.ts` with `H4_CONTRACT_RECORDING` set, and `--network none` (provider-adapter.md §5.3).
 - [ ] T093 [P] [US3] Create `tools/gates/publish_check.py` per §12 (exit codes 0, 1, 3; it refuses with 3 while a `.gitleaksignore` exists at the repository root, research.md R-36) and `tools/gates/test/test_publish_check.py`, with fixture repositories:
   - a fake secret assembled at run time in an old commit;
   - a denylisted phrase in a removed file;
@@ -474,7 +475,13 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Tests for User Story 5
 
-- [ ] T101 [P] [US5] Create `services/gateway/test/contract/bedrock-converse.contract.test.ts`, running every assertion C1–C12 with `aws-sdk-client-mock` and `aws-sdk-client-mock-vitest`. Create `test/contract/replay.test.ts`, which replays a recording made by `operator.py contract-record` (contracts/provider-adapter.md §5.3 and §5.4).
+- [X] T101 [P] [US5] Create `services/gateway/test/contract/bedrock-converse.contract.test.ts`, running every assertion C1–C12 with `aws-sdk-client-mock` and `aws-sdk-client-mock-vitest`. Create `test/contract/replay.test.ts`, which replays a recording made by `operator.py contract-record` (contracts/provider-adapter.md §5.3 and §5.4).
+  Done on 2026-10-10:
+  - **`bedrock-converse.contract.test.ts`** runs C1–C12 against `aws-sdk-client-mock` (`test/helpers/stub-bedrock.ts`), with T102. Every case passes; the one skip is the direct-only variant. `bedrock-converse.errors.test.ts` covers §5.2's "past C4".
+  - **`replay.test.ts`:**
+    - It checks `live-cases.json`, §5.4's eight cases, against §5's body rules and hello's own system prompt.
+    - It replays a recording made in the test, through the real endpoint against the stub OpenAI server, so the endpoint's bodies and the live assertions can't drift.
+    - With `H4_CONTRACT_RECORDING`, it replays the Author's recording, priced with the repository's own `prices.yaml`; I checked that path with a hand-made recording.
 
 ### Implementation for User Story 5
 
@@ -519,7 +526,14 @@ description: "Task list for spec 000, Local Foundations"
   - The metered path is split so hello's answer is unchanged: `meteredAttempt` returns the outcome, and `callMetered` keeps answering `fallback_unavailable` on a failure.
   - Each attempt record now carries its client span's name and keys, and `GatewayCall` takes a temperature.
   - `test/integration/adapter-calls.test.ts` covers the local path, the refusals, and prod's Bedrock path under `aws-sdk-client-mock`: charged to the day and month and never to the sub-budget, a throttle retried once, and a timeout charged its reservation. `test/helpers/stack.ts` takes a `configDir`.
-  - Still to do: `scripts/operator.py contract-record`, `make contract-live`, and its deny.
+  Then the rest, the same day, but for the replay:
+  - **`scripts/operator.py contract-record`** reads `/admin/status`, sends each case of `live-cases.json`, and reads `/admin/status` again. It writes the recording, the suite's `LiveRecording`, into a new 0600 file, ASCII with what isn't escaped.
+    - A provider's 502 is a case's answer; any other refusal stops the run, and nothing is written.
+    - It refuses inside the agent sandbox, `bedrock` off prod, and an existing output file.
+    - `scripts/test_operator_record.py` covers it.
+  - **`make contract-live ENV= ADAPTER=local|bedrock REASON=`** refuses an agent session, a missing reason or adapter, and bedrock off prod. It records into a 0700 temporary directory, which it deletes, then hands the recording to `tools/gates/gate --contract-replay`. `scripts/test_contract_live.py` covers the refusals.
+  - **Still open, the replay:** it runs in the gate's container phase (plan.md §11), which T092 builds; T092 now carries the mode. Until the gate exists, `make contract-live` stops before it calls anything, saying `PLANNED (T092)`, so no live call is made without its replay.
+  - **Its deny for agents** is in the US5 note's enforcement patch, beside `make aws-login`'s: a paid route gets its deny with it (CLAUDE.md).
 - [ ] T104 [US5] Create `deploy/scripts/aws-login.sh` and `make aws-login` (Author): `HOME=~/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock`. Wire the gateway's `${H4_AWS_DIR}` mount and `GATEWAY_AWS_PROFILE` in `deploy/compose.yaml` (§5.2).
 - [ ] T105 [US5] **Author**: set up Bedrock and fill `config/prices.yaml` and `config/routing.yaml` (research.md R-12 and R-17, quickstart.md §0.6):
   - in IAM Identity Center, create the permission set allowing only `bedrock:InvokeModel` on the confirmed inference profile and the foundation models it routes to, and the dedicated user `h4reet-runtime` if you confirmed it. This is the spec's named deviation from "Infrastructure exclusively via Terraform" (spec Assumptions);

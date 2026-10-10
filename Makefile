@@ -399,6 +399,25 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 	$(OPERATOR) incidents --show$(call OPERATOR_VALUE,ID,--id)
 .PHONY: operator-incidents
 
+# The live contract run (contracts/provider-adapter.md §5.3; tasks.md T103), the Author's: operator.py records each case
+# of live-cases.json through ENV's POST /admin/adapters/ADAPTER/complete into a 0700 temporary directory, then the
+# replay runs in tools/gates/gate's container phase, the devcontainer image with --network none on an exported tree,
+# and the directory is deleted. Bedrock is prod's alone, and its calls are charged to prod's meters as test. Until the
+# gate exists (T092), the target stops before it calls anything, so no live call is made without its replay.
+contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock REASON="..." (provider-adapter.md §5.3)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make contract-live is the Author's: it calls a live adapter with ENV's operator token (provider-adapter.md §5.3)" >&2; exit 2; }
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make contract-live needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	@case "$(if $(call from_cli,ADAPTER),$(ADAPTER))" in \
+	  local) ;; \
+	  bedrock) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=bedrock: bedrock is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
+	  *) echo "make contract-live needs ADAPTER=local or ADAPTER=bedrock on the command line" >&2; exit 2 ;; \
+	esac
+	@[ -x tools/gates/gate ] || { echo "PLANNED (T092): make contract-live replays in tools/gates/gate's container phase, which T092 adds; nothing was called" >&2; exit 2; }
+	@dir=$$(mktemp -d) && chmod 700 "$$dir" && trap 'rm -rf "$$dir"' EXIT && \
+	  $(OPERATOR) contract-record --adapter "$$ADAPTER" --out "$$dir/recording.json" --reason="$$REASON" && \
+	  tools/gates/gate --contract-replay "$$dir/recording.json"
+.PHONY: contract-live
+
 # hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
 # gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes
 # straight to the stack's api port on 127.0.0.1 (18000, 18100, or 18300); inside the sandbox, for dev-cpu only, the

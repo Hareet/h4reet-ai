@@ -1,0 +1,110 @@
+{
+  "about": "The live contract cases (contracts/provider-adapter.md §5.4): operator.py contract-record sends each, and test/contract/replay.test.ts holds the recording to them. health-before and health-after are the recorded /admin/status reads.",
+  "cases": [
+    {
+      "name": "hello-shape",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are the hello endpoint of the h4reet.ai stack, a test of its model gateway. You are not the Author and not the Author's AI twin, and you know nothing about the Author. Reply to the message in at most two short sentences."
+        },
+        {
+          "role": "user",
+          "content": "Say hello."
+        }
+      ],
+      "max_output_tokens": 128
+    },
+    {
+      "name": "cap-length",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Count from one to one hundred in words."
+        }
+      ],
+      "max_output_tokens": 8
+    },
+    {
+      "name": "short-stop",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Answer in one word."
+        },
+        {
+          "role": "user",
+          "content": "Name a colour."
+        }
+      ],
+      "max_output_tokens": 16
+    },
+    {
+      "name": "multi-turn",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My favourite colour is green."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted."
+        },
+        {
+          "role": "user",
+          "content": "What is my favourite colour? Answer in one word."
+        }
+      ],
+      "max_output_tokens": 32
+    },
+    {
+      "name": "non-ascii",
+      "messages": [
+        {
+          "role": "user",
+          "content": "नमस्ते! こんにちは! Reply with one short greeting."
+        }
+      ],
+      "max_output_tokens": 32
+    },
+    {
+      "name": "temperature-zero",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Say hello."
+        }
+      ],
+      "max_output_tokens": 16,
+      "temperature": 0
+    },
+    {
+      "name": "system-only-once",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Answer in one word."
+        },
+        {
+          "role": "user",
+          "content": "The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm today. The sky is clear, the grass is green, and the sea is calm to What colour is the grass?"
+        }
+      ],
+      "max_output_tokens": 16
+    },
+    {
+      "name": "repeat-cost",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are the hello endpoint of the h4reet.ai stack, a test of its model gateway. You are not the Author and not the Author's AI twin, and you know nothing about the Author. Reply to the message in at most two short sentences."
+        },
+        {
+          "role": "user",
+          "content": "Say hello."
+        }
+      ],
+      "max_output_tokens": 128
+    }
+  ]
+}
