@@ -413,6 +413,14 @@ The Author's four `make up ENV=prod` runs: two at e745177, one at a6b0e80 after 
      - **Egress from the internal network (R-06):** "curl: (6) Could not resolve host: example.com", with exit 6 and no HTTP code.
      - **A port published from the internal network (R-06):** "curl: (7) Failed to connect to 127.0.0.1 port 18992 after 0 ms: Couldn't connect to server".
      - **Prometheus 3.15.0:** no feature flags, OTLP translation `UnderscoreEscapingWithSuffixes`, and all six targets up.
+   - **§1.2, the timed cold start (SC-001), at e58d0dd: 431 s, within the 600 s budget.** prod-cold.sh ran `make down ENV=prod`, which keeps the volumes, so the store stayed initialized; removed the 12 images of prod's services, the gateway's built image, and the prod model, each checked gone; then timed `make up ENV=prod` and one hello, with a clock time on every line. `make up` exited 0, status said "status: healthy" with no WARN, and the hello answered `"route":"local"` in 534 ms, trace `134d4f4b92ee5a256302b9c5320d2f87`. The phases:
+     - export and preflight, 1 s (P13 needed 50.6 GB, with `/mnt/c` at 69.4 GB free);
+     - the model, 4 min 34 s: 17.2 GiB at an average of 64.5 MiB/s, then 15 s for its sha256 and rename;
+     - the 12 images and the gateway's build, 1 min 21 s, the CUDA model server's image last;
+     - from the first container started to the last healthy (langfuse-web), 47 s;
+     - status and the hello, 8 s.
+
+     R-03 planned 3.2 minutes for the model at 786 Mbps, about 2 minutes of startup, and images of 4–5 GB. The model took longer and the rest less, with 169 s to spare. Still to confirm: the trace opening in Langfuse within 60 s of the answer, SC-001's other half.
      - **The telemetry facts (telemetry.md §8):** the dashboard's four `llamacpp:` names exist as written. Which cost attribute Langfuse reads can't be told yet, since every local call costs 0. gzip is T149's, on dev-cpu.
 5. **To watch at the trace step (§1.4):** SeaweedFS's S3 logs "Failed to load IAM configuration: no signing key found for STS service" as it starts, then serves on 8333. The entrypoint creates the bucket through `weed shell`, not through S3. The trace step shows whether Langfuse's uploads authenticate with the keys in `s3.json`. **Answered at §1.4:** the trace arrived, so they do.
 6. **Seen while starting, not failures:** the model server's 503 while the model loads, within its 300 s start period; Grafana's "Connection refused" before it listens; Loki's "empty ring" as it starts. Valkey warns "Memory overcommit must be enabled!", a host sysctl. It runs, and T149 can decide whether that matters.
@@ -580,7 +588,7 @@ exit 2
 
 </details>
 
-**Next:** §1.2's timed cold start, which removes the images and the model; then §1.7 with dev up, §1.8's port scan from another machine, and §1.12's rollback rehearsal on dev. §1.5's panels wait for T149.
+**Next:** §1.7 with dev up, §1.8's port scan from another machine, §1.9–§1.11, and §1.12's rollback rehearsal on dev. §1.5's panels wait for T149.
 
 ## For the Author
 
