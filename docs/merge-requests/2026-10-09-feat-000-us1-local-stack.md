@@ -3,14 +3,14 @@ Spec: specs/000-local-foundations/ (Phase 3, User Story 1: tasks T048–T066; Ph
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phase 3" (2026-10-08, plan mode), given before stepping away for the night; and, on 2026-10-09, "Keep going until you hit the limit again."
 
-**Status: DRAFT. Not ready to merge.** Everything an agent session can do on this branch before the engine exists is done: three review rounds with every finding fixed and verified, the convergence pass, and `make check` at 110b42e with 0 FAIL. What's left needs your hands or the engine:
-- **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. Done on 2026-10-09. The seed failed on every image at first, and passed after T174's patch ("T063's run" below). tasks.md marks it done since T065's fix: no pin is open any more.
-- **T064 (an agent session, after T063):** dev-cpu on the agents' engine, end to end. Done on 2026-10-09: it passes, run with the makefile named ("T064's run" below, T183).
-- **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 records the GPU fix you made by hand ("T065's run" below) The fourth, at aa69d8d, passed §1.1, and §1.2–§1.12 followed: SC-001 in 431 s, the rollback, isolation, and state kept across `make down` all pass. §1.5's panels and §1.9's gateway image are T149's. T065 is done.
-- **T149 (an agent session, after T065):** apply the first stack run's findings.
-- **This note:** T064's and T065's output goes into it, and then this block goes.
+**Status: DRAFT. Not ready to merge until you've done the steps in "For the Author".** US1's work is done: T048–T066's code, three review rounds, the convergence pass, and on 2026-10-09 the four runs, each with its section below.
+- **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. Done. The seed failed on every image at first, and passed after T174's patch ("T063's run" below).
+- **T064 (an agent session):** dev-cpu on the agents' engine, end to end. Done: it passes, run with the makefile named ("T064's run" below, T183).
+- **T065 (yours):** quickstart.md §1, the cold prod run. Done, after four starts. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 puts your GPU fix into setup ("T065's run" below). The fourth, at aa69d8d, passed §1.1, and §1.2–§1.12 followed: SC-001 in 431 s, the rollback, isolation, and state kept across `make down` all pass.
+- **T149 (an agent session):** the first stack run's findings. Done, checked end to end on dev-cpu ("T149's run" below), with T181 and T182.
+- **What's left is yours:** merge the stack and apply the GPU-user patch, and decide T184. Then this block goes, and the branch merges to main.
 
-**Merge order:** this branch is stacked on `feat/000-foundations`: branched at 8a854f8, whose tip is now bf7cefb, after one fix from this branch's review (b15a33b). Merge that branch first and run its T046; then bring this one up to date with main (T063's first step); then merge it once this block is gone.
+**Merge order:** foundations and its T046 are on main, and this branch merged main at 4042f92. Three fix branches stack on it, in this order: `fix/000-us1-first-prod-run`, `fix/000-us1-t149-findings`, `fix/000-engine-gpu-user`. The last carries the other two, so one `git merge --ff-only fix/000-engine-gpu-user` brings all three.
 
 ## Runs in the Author's terminal
 
@@ -934,11 +934,27 @@ exit 2
 
 ## For the Author
 
-**Your steps on this branch**, after foundations is merged and its T046 is done:
-1. **T063:** done on 2026-10-09 ("T063's run" above).
-2. **T064:** ask me for an agent session on the engine.
-3. **T065 (Heavy):** quickstart.md §1, as tasks.md lists it: the first measurements, a cold `make up ENV=prod`, timed for SC-001, init, the hello, the trace, the panels, `make isolation-check` with dev up, the port scan from another machine, and the rollback rehearsal on dev. Paste the results here, with no secrets. Started on 2026-10-09; resume from §1.1 once the branch has T065's fix ("T065's run" above).
-4. **T149:** then ask me to apply what T065 found.
+**Your steps on this branch:**
+1. **T063, T064, T065, and T149:** done on 2026-10-09; each has its section above.
+2. **The stack, then the GPU-user patch,** with no agent session working:
+
+   ```
+   git merge --ff-only fix/000-engine-gpu-user
+   git apply docs/merge-requests/2026-10-09-fix-000-engine-gpu-user.patch
+   git add -u deploy/agents-engine
+   git commit -m "Apply the GPU-user patch (T179)"
+   deploy/agents-engine/engine.sh setup
+   deploy/agents-engine/engine.sh status
+   ```
+
+   What to expect, and how to undo it, is in `docs/merge-requests/2026-10-09-fix-000-engine-gpu-user.md`. The next `make up ENV=prod` then runs T149's changes: Prometheus's new flag, the collector's gzip and single cost attribute, and Langfuse's allowlists. Quickstart §1.5's request panel should show a first hello.
+3. **Decide T184:** one gateway build both stacks share, or today's per-stack builds with identical layers. spec.md's Assumptions record it as pending. Either answer is a short edit there, then a task for the build if you want it.
+4. **Then this branch merges to main,** once the status block at the top is gone. I can take it out when you've done 2 and 3.
+5. **After main has it, US2** (`feat/000-us2-kill-switch`) merges main. On 2026-10-09 a simulated merge, of US2 with this stack's tip, needed two things, and with both, `make check` passed apart from the toolchain pin and US2's planned matrix rows (T117):
+   - **one conflict,** in `docs/data-flow-disclosure.md`: keep US2's rows S11–A2, and this branch's row B1;
+   - **one line** no conflict shows: US2's `evals/standins/Dockerfile` must take `base:python`'s new digest, `a6e34c598f24…`, as 5c2a089 did for the probe. The compose policy and `test_the_standin_image` fail without it.
+
+   Then T084, the breach test, on the engine.
 
 ### For later tasks
 
@@ -962,6 +978,10 @@ The operator reviewer suggested a line for "Things Claude gets wrong", and its f
 The T065 fix's reviewer suggested another, because two test fakes in a row (T174's engine, T178's `docker image inspect`) behaved as the code expected, not as the tool does, and passed on broken code:
 
 > - Writing a test double from what the code expects: copy one real output of the tool into the fake's defaults.
+
+The T149 reviewer seconded it. The GPU-user patch's reviewer, after the same failure in its first tests, proposed a wording that also covers a fake's arguments and state (its note has it):
+
+> - Writing a stand-in that answers whatever it's asked: a fake checks the real tool's arguments, prints its format from one real run, and changes state as it does.
 
 ### Observations
 

@@ -366,6 +366,13 @@ description: "Task list for spec 000, Local Foundations"
 
   Either way, plan §4, the compose policy, and the tests change to match, and spec.md's pending deviation goes, per US1-5 and FR-017 (partial)
 - [ ] T185 [US1] Push the collector's own metrics to Prometheus over OTLP, so they carry a start time and a fresh collector's first batch counts. T149 found Prometheus's created-timestamp-zero-ingestion reaches only pushed series: after a hello on a fresh dev-cpu stack, the gateway's counter had a 0 and then a 1, and `otelcol_exporter_sent_spans` went straight to 13, so Spans to Langfuse showed the first batch as 0. Keep `up{job="otel-collector"}` for the backends panel without counting a series twice, per telemetry.md §4.3, §6.6, and §7.6 (partial)
+- [ ] T186 [US1] **Patch**, with the closing patch (T117): the seed review's follow-ups, deferred when T174's patch was applied. For `deploy/agents-engine/engine.sh seed`:
+  - keep `docker save`'s stderr apart from `docker load`'s, so a failure names the side that failed;
+  - refuse two `images.lock` lines that give one repository and tag different digests, since the tag step would move that tag;
+  - make the tests' fake engine model the tag's move and `--platform`;
+  - test a failure line that holds ESC or CR, across lines.
+
+  Per contracts/agents-engine.md §6.2 (partial)
 - [X] T064 [US1] Agent session, on the engine: `make up ENV=dev-cpu` comes up healthy, `make operator-init ENV=dev-cpu` with the dummy token, hello answers from the stand-in (`make hello ENV=dev-cpu`, which makes the probe hop, T147), then `make down ENV=dev-cpu`. Paste the output into `docs/merge-requests/<date>-feat-000-us1-local-stack.md`. Done on 2026-10-09, with the makefile named (`make -f Makefile`, and the relay's own call for `up` and `down`), because plain `make` can't run from an agent session (T183).
 - [X] T065 [US1] **Author** (Heavy): run `quickstart.md` §1 (§0.7–§0.8 are done at T063's start, after the early patch):
   - the first stack task's measurements (§1.6): the prod model's load time and VRAM, whether the internal network blocks egress, and whether an internal-only container can publish a port;
