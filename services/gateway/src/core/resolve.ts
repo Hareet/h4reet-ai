@@ -10,9 +10,13 @@
 //
 // This lookup asks the resolvers in /etc/resolv.conf itself, through c-ares, which holds no thread and gives up after
 // its own short timeout. It doesn't read /etc/hosts, so it answers localhost and IP literals itself; compose service
-// names come from the engine's DNS.
-import { Resolver, type LookupAddress } from "node:dns";
+// names come from the engine's DNS. Like getaddrinfo, it honors ADDRCONFIG, which net passes for a connect that names
+// no family: a family no non-loopback interface has an address in isn't asked for. Without that, a host with an AAAA
+// record would hand a container without IPv6 an address it can't reach, and net's happy eyeballs would give up on
+// the IPv4 connect after 250 ms to try it (the T188 review's S1).
+import { ADDRCONFIG, Resolver, type LookupAddress } from "node:dns";
 import { isIP, type LookupFunction } from "node:net";
+import os from "node:os";
 
 type Family = 4 | 6;
 type Answer = (err: NodeJS.ErrnoException | null, addresses: string[]) => void;
@@ -31,6 +35,17 @@ function familyOf(option: number | "IPv4" | "IPv6" | undefined): 0 | Family {
   return 0;
 }
 
+/** The families a non-loopback interface has an address in: what getaddrinfo's ADDRCONFIG keeps. */
+export function configuredFamilies(): ReadonlySet<Family> {
+  const found = new Set<Family>();
+  for (const addresses of Object.values(os.networkInterfaces())) {
+    for (const address of addresses ?? []) {
+      if (!address.internal) found.add(address.family === "IPv6" ? 6 : 4);
+    }
+  }
+  return found;
+}
+
 /** The error a name with no address gets: its code only, as dns.lookup's ENOTFOUND, and no hostname in its text. */
 function notFound(): NodeJS.ErrnoException {
   const err: NodeJS.ErrnoException = new Error("no address");
@@ -40,11 +55,16 @@ function notFound(): NodeJS.ErrnoException {
 
 /**
  * A lookup with dns.lookup's contract over resolver: one address, or all of them when options.all is set; A records
- * before AAAA when either family will do. It asks for the next family only when the name has no record of this one
- * (ENODATA): a name that doesn't exist, or a resolver that doesn't answer, won't do better for the other. Its callback
- * always runs on a later tick, as dns.lookup's does.
+ * before AAAA when either family will do, and, with ADDRCONFIG in options.hints, only the families `families` names
+ * (both when it names neither). After an A query it asks for AAAA only when options.all wants every address, or the
+ * name has no A record (ENODATA): a name that doesn't exist, or a resolver that doesn't answer, won't do better for
+ * the other. An error that says more than ENODATA is the one reported. Its callback always runs on a later tick, as
+ * dns.lookup's does.
  */
-export function makeLookup(resolver: AddressResolver): LookupFunction {
+export function makeLookup(
+  resolver: AddressResolver,
+  families: () => ReadonlySet<Family> = configuredFamilies,
+): LookupFunction {
   return (hostname, options, callback) => {
     const finish = (err: NodeJS.ErrnoException | null, found: LookupAddress[]): void => {
       process.nextTick(() => {
@@ -60,20 +80,26 @@ export function makeLookup(resolver: AddressResolver): LookupFunction {
       return;
     }
     const wanted = familyOf(options.family);
-    const order: Family[] = wanted === 0 ? [4, 6] : [wanted];
+    const either: Family[] = wanted === 0 ? [4, 6] : [wanted];
     if (hostname.toLowerCase() === "localhost") {
       finish(
         null,
-        order.map((family) => ({ address: LOCALHOST[family], family })),
+        either.map((family) => ({ address: LOCALHOST[family], family })),
       );
       return;
     }
+    let order = either;
+    if (wanted === 0 && ((options.hints ?? 0) & ADDRCONFIG) !== 0) {
+      const have = families();
+      const kept = either.filter((family) => have.has(family));
+      if (kept.length > 0) order = kept;
+    }
     const found: LookupAddress[] = [];
-    let firstError: NodeJS.ErrnoException | null = null;
+    let error: NodeJS.ErrnoException | null = null;
     const ask = (rest: Family[]): void => {
       const [family, ...later] = rest;
       if (family === undefined || (found.length > 0 && !options.all)) {
-        finish(found.length > 0 ? null : firstError, found);
+        finish(found.length > 0 ? null : error, found);
         return;
       }
       const query = family === 4 ? resolver.resolve4 : resolver.resolve6;
@@ -81,9 +107,9 @@ export function makeLookup(resolver: AddressResolver): LookupFunction {
         if (err === null) {
           found.push(...addresses.map((address) => ({ address, family })));
         } else {
-          firstError ??= err;
+          if (error === null || error.code === "ENODATA") error = err;
           if (err.code !== "ENODATA") {
-            finish(found.length > 0 ? null : firstError, found);
+            finish(found.length > 0 ? null : error, found);
             return;
           }
         }

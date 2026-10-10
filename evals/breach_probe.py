@@ -78,10 +78,11 @@ HTTP_TIMEOUT_S = 15
 MAX_BODY = 8 * 1024 * 1024
 MAX_INPUT = 1024 * 1024
 TOLERANCE = 1e-6  # USD and flags are compared to a millionth: a micro-USD
-# Langfuse's v2 observations list, for one trace (T187): the field groups that carry the type, the cost (usage), and
-# the span's attributes (metadata); the metadata key it returns whole, since it cuts longer values at 200 characters
-# otherwise; its largest page; and the most pages one trace may take.
-TRACE_FIELDS = "core,basic,usage,metadata"
+# Langfuse's v2 observations list, for one trace (T187): the field groups that carry the type, the cost (usage, and
+# cost, which the only v2 query a stack has answered named: research.md R-08), and the span's attributes (metadata);
+# the metadata key it returns whole, since it cuts longer values at 200 characters otherwise; its largest page; and
+# the most pages one trace may take.
+TRACE_FIELDS = "core,basic,usage,cost,metadata"
 TRACE_EXPAND = "attributes"
 TRACE_LIMIT = 1000
 TRACE_PAGES = 10

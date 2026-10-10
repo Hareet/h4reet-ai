@@ -465,7 +465,7 @@ One interface, `ProviderAdapter { id, provider, kind, model, complete(req), heal
   - `POST {base}/chat/completions` over `node:http`, one connection per call. (A departure from `fetch` with an undici `Agent`, recorded in [contracts/provider-adapter.md §3.1](contracts/provider-adapter.md#31-local-openai-type-openai-compatible): built-in `fetch` has no connect timeout, and `undici` isn't a pinned dependency.) The host resolves through c-ares, not `getaddrinfo`, so a lookup the connect watchdog abandons holds no libuv thread (tasks.md T188).
   - Connect timeout 1 s, request timeout 10 s, and no retries: failing over is the retry.
   - Health: `GET {base}/models` every 1 s with an 800 ms timeout. One failure marks it unhealthy; three passes in a row mark it healthy again.
-  - So a stopped model server fails over at once on the call itself, and within 1.8 s at worst by health check (SC-005).
+  - So a stopped model server fails over on the call itself: at once when its name no longer resolves, or at the 1 s connect watchdog where the resolver doesn't answer for it (the agents' engine); and within 1.8 s at worst by health check (SC-005).
 - **`bedrock-converse`** (`type: bedrock-converse`):
   - Client: `BedrockRuntimeClient` in us-east-1 with `maxAttempts: 1` and `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000})`, calling `ConverseCommand`, with no streaming.
   - Retries: one, only on `ThrottlingException`, and only while the deadline allows. A timeout counts as `possiblyBilled`, so the meter charges the reserved maximum.

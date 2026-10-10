@@ -8,9 +8,9 @@
 //   detector runs, since the cloud ones would call instance-metadata endpoints, an undisclosed data flow.
 // - Health probes make no spans; nor do outgoing calls outside a request, such as the model server's 1 s health
 //   probe or the store's background queries, which would otherwise each be a trace of their own.
-// - A span processor drops the client attributes and the query string before export, and the undici instrumentation
-//   skips the Telegram API host, whose URL path carries the bot token. The collector repeats both as a second layer
-//   (§6.3).
+// - A span processor drops the client attributes and the query string before export, and the http and undici
+//   instrumentations skip the Telegram API host, whose URL path carries the bot token: the channel sends over
+//   node:https since T188, and any fetch to it is skipped too. The collector repeats both as a second layer (§6.3).
 //
 // Instrumentations are built switched off, so building this configuration patches nothing; NodeSDK.start() enables
 // them, and startTelemetry switches on the undici instrumentation's own flag, which it reads on every request.

@@ -6,8 +6,9 @@
 // - The statuses come from the in-process stub of llama.cpp's API (test/helpers/stub-openai.ts).
 // - The name lookup is core/resolve.ts's, through c-ares (T188). Its A and AAAA queries are replaced for the one host
 //   model-server, so nothing leaves the process: A fails as c-ares reports it, never answers, or answers 127.0.0.1
-//   alone, and AAAA has no record (one address, so no happy-eyeballs attempt timeout can end a connect before the
-//   watchdog does).
+//   alone, and AAAA has no record. The container is IPv4-only, as compose's networks are, so ADDRCONFIG keeps the
+//   AAAA query from being asked at all: one address, so no happy-eyeballs attempt timeout can end a connect before
+//   the watchdog does, and each test can name every query the adapter made.
 // - The watchdog needs a connect that never completes. A listener that accepts and never answers completes it, and
 //   the call then ends at the request timeout as `timeout`, which is C4's "a timeout". So this listener never
 //   accepts: it runs in a worker thread whose event loop is blocked, and once its queue is full the kernel drops the
@@ -15,6 +16,7 @@
 // - Everything runs at routing.yaml's own timeouts, connect 1 s and request 10 s, so the watchdog is the 1 s one.
 import dns from "node:dns";
 import { connect, type Socket } from "node:net";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 
@@ -123,8 +125,19 @@ function lookupOfModelServer(answer: { code: string } | { address: string } | "n
   const [real4, real6] = [proto.resolve4, proto.resolve6];
   vi.spyOn(proto, "resolve4").mockImplementation(fake("A", real4));
   vi.spyOn(proto, "resolve6").mockImplementation(fake("AAAA", real6));
+  vi.spyOn(os, "networkInterfaces").mockReturnValue({ eth0: [IPV4_ONLY] });
   return seen;
 }
+
+/** A compose network's interface: one IPv4 address, and no IPv6. */
+const IPV4_ONLY: os.NetworkInterfaceInfo = {
+  address: "172.18.0.4",
+  netmask: "255.255.0.0",
+  family: "IPv4",
+  mac: "02:42:ac:12:00:04",
+  internal: false,
+  cidr: "172.18.0.4/16",
+};
 
 /** A connect to 127.0.0.1:port: connected, still pending after `ms`, or failed. A pending one is destroyed. */
 async function probe(port: number, ms: number): Promise<{ socket?: Socket; state: "connected" | "pending" }> {
@@ -229,7 +242,9 @@ describe("the local adapter's HTTP statuses (provider-adapter.md §2.5, the loca
 });
 
 describe("a DNS failure (provider-adapter.md §2.5: unavailable)", () => {
-  // c-ares's codes for a name that doesn't exist and for a resolver that doesn't answer; neither asks for AAAA next.
+  // c-ares's codes for a name that doesn't exist and for a resolver that doesn't answer. A real ETIMEOUT comes after
+  // c-ares's own 1 s tries, so the 1 s watchdog usually ends the call first, as ETIMEDOUT; this one answers at once, to
+  // show the code is kept.
   for (const code of ["ENOTFOUND", "ETIMEOUT"]) {
     it(`maps a lookup that fails with ${code} to unavailable at once, keeping only the code`, async () => {
       const seen = lookupOfModelServer({ code });
@@ -262,7 +277,7 @@ describe("the connect watchdog (provider-adapter.md §3.1: connect 1 s, then una
     try {
       const seen = lookupOfModelServer({ address: "127.0.0.1" });
       const { err, ms } = await failure(localAdapter(`http://${MODEL_SERVER}:${listener.port}/v1`));
-      expect(seen[0]).toBe(`A ${MODEL_SERVER}`); // then AAAA, when the connect asks for every address
+      expect(seen).toEqual([`A ${MODEL_SERVER}`]); // no AAAA query: ADDRCONFIG, and an IPv4-only container
       expect(flags(err)).toEqual(timedOut);
       expect(ms).toBeGreaterThanOrEqual(900);
       expect(ms).toBeLessThan(3_000);

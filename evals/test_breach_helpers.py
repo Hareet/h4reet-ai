@@ -937,7 +937,7 @@ def test_a_trace_check_waits_for_langfuse_to_ingest_it() -> None:
     # One trace, the groups that carry the type, the cost, and the attributes, and the attributes whole.
     assert rig.http.calls[0]["query"] == {
         "traceId": [TRACE],
-        "fields": ["core,basic,usage,metadata"],
+        "fields": ["core,basic,usage,cost,metadata"],
         "expandMetadata": ["attributes"],
         "limit": ["1000"],
     }

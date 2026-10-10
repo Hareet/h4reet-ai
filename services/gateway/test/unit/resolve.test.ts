@@ -1,11 +1,12 @@
 // core/resolve.ts (tasks.md T188): a lookup with dns.lookup's contract, answered through c-ares, so a lookup the
 // resolver never answers holds no libuv thread. A fake resolver stands in for c-ares, answering as it does: addresses,
 // or an error with c-ares's code (ENOTFOUND, ETIMEOUT, ENODATA) and nothing else.
-import type { LookupAddress } from "node:dns";
+import { ADDRCONFIG, type LookupAddress } from "node:dns";
+import os from "node:os";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { makeLookup, type AddressResolver } from "../../src/core/resolve.js";
+import { configuredFamilies, makeLookup, type AddressResolver } from "../../src/core/resolve.js";
 
 type Reply = string[] | { code: string } | "never";
 
@@ -28,8 +29,13 @@ function fakeResolver(table: Record<string, Reply>): AddressResolver & { asked: 
 
 type Outcome = { err: NodeJS.ErrnoException | null; address: string | LookupAddress[]; family?: number | undefined };
 
-function look(resolver: AddressResolver, host: string, options: { family?: number; all?: boolean }): Promise<Outcome> {
-  const lookup = makeLookup(resolver);
+function look(
+  resolver: AddressResolver,
+  host: string,
+  options: { family?: number; all?: boolean; hints?: number },
+  families: ReadonlySet<4 | 6> = new Set([4, 6]),
+): Promise<Outcome> {
+  const lookup = makeLookup(resolver, () => families);
   return new Promise((resolve) => {
     lookup(host, options, (err, address, family) => resolve({ err, address, family }));
   });
@@ -99,6 +105,39 @@ describe("makeLookup: dns.lookup's contract over c-ares", () => {
     expect(out).toMatchObject({ address: "" });
     expect(out.err?.code).toBe("ENOTFOUND");
     expect(out.err?.message).not.toContain("blank");
+  });
+
+  it("with ADDRCONFIG, as net asks, skips a family no interface has an address in", async () => {
+    // A host with both records, from a container without IPv6: getaddrinfo returned only the A record (S1).
+    const r = fakeResolver({ "A api.example": ["203.0.113.7"], "AAAA api.example": ["2001:db8::7"] });
+    const v4only = await look(r, "api.example", { all: true, hints: ADDRCONFIG }, new Set([4]));
+    expect(v4only.address).toEqual([{ address: "203.0.113.7", family: 4 }]);
+    expect(r.asked).toEqual(["A api.example"]);
+    const both = await look(r, "api.example", { all: true, hints: ADDRCONFIG }, new Set([4, 6]));
+    expect(both.address).toEqual([
+      { address: "203.0.113.7", family: 4 },
+      { address: "2001:db8::7", family: 6 },
+    ]);
+    // With no interface in either family, it asks both rather than none.
+    const none = await look(r, "api.example", { hints: ADDRCONFIG }, new Set());
+    expect(none.address).toBe("203.0.113.7");
+    // Without the hint, a missing family doesn't matter: dns.lookup's own behavior.
+    expect((await look(r, "api.example", { all: true }, new Set([4]))).address).toHaveLength(2);
+  });
+
+  it("reports the error that says more than ENODATA", async () => {
+    const r = fakeResolver({ "A slow": { code: "ENODATA" }, "AAAA slow": { code: "ETIMEOUT" } });
+    expect((await look(r, "slow", {})).err?.code).toBe("ETIMEOUT");
+  });
+
+  it("reads the interfaces' families as getaddrinfo's ADDRCONFIG does, loopback left out", () => {
+    const address = (family: "IPv4" | "IPv6", internal: boolean) =>
+      ({ address: "x", netmask: "x", family, mac: "x", internal, cidr: null }) as os.NetworkInterfaceInfo;
+    vi.spyOn(os, "networkInterfaces").mockReturnValue({
+      lo: [address("IPv4", true), address("IPv6", true)],
+      eth0: [address("IPv4", false)],
+    });
+    expect([...configuredFamilies()]).toEqual([4]);
   });
 
   it("always calls back on a later tick, as dns.lookup does", async () => {

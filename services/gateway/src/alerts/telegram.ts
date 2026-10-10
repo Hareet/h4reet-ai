@@ -11,7 +11,9 @@
 // The transport is node:http(s), as the local adapter's is, not fetch: the host resolves through c-ares
 // (core/resolve.ts), so a send never waits behind lookups queued on libuv's threadpool. At T084's pre-run every send
 // timed out that way while the model server was stopped (T188). It follows no redirect: a 3xx is http_<status>. One
-// deadline bounds the whole send, from the lookup to the answer's last byte.
+// deadline bounds the whole send, from the lookup to the answer's last byte, and at most 64 KiB of an answer is kept.
+// A host that doesn't resolve is `connect`, as a refused connection is. With no agent, a send takes no proxy from the
+// environment either; prod reaches api.telegram.org directly through `egress`, and a proxy would need code here.
 import { request as httpRequest, type IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
 
@@ -30,11 +32,12 @@ export interface TelegramChannel {
   timeoutMs: number;
 }
 
-/** The longest answer read back: a sendMessage answer is a few hundred bytes. */
+/** The most of an answer kept: a sendMessage answer is a few hundred bytes. */
 const MAX_ANSWER_BYTES = 65_536;
 
+// EPROTO is what node:https reports when the peer doesn't speak TLS at all ("wrong version number"; Node 24).
 const TLS_CODES =
-  /^(ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|HOSTNAME_MISMATCH)/;
+  /^(ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|HOSTNAME_MISMATCH|EPROTO$)/;
 
 /** A failed request's class: timeout, tls, or connect. Only codes are read, never a message. */
 export function requestErrorClass(err: unknown): string {
