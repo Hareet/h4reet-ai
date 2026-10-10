@@ -13,10 +13,14 @@
 // has one would be a dependency plan.md's Technical Context doesn't pin, so a watchdog on the socket's connect does
 // the same job (a departure recorded in provider-adapter.md §3.1). Each call opens its own connection (no
 // keep-alive), so a socket the model server closed between calls can never fail a call as `unavailable`.
+// Each connection resolves the host through c-ares (core/resolve.ts), not getaddrinfo: with the model server stopped,
+// the watchdog ends the call, but a getaddrinfo lookup would go on holding one of libuv's four threads until the
+// resolver gave up, and the probe's once-a-second lookups would starve every other one in the process (T188).
 import { Agent, request as httpRequest } from "node:http";
 
 import type { z } from "zod";
 
+import { aresLookup } from "../core/resolve.js";
 import { ADAPTER_TYPE_SPECS, isInStackUrl, type AdapterTypeSpec } from "./_settings.js";
 import { AdapterConfigError, type AdapterContext, type AdapterFactory } from "./registry.js";
 import {
@@ -251,6 +255,7 @@ export class LocalOpenAIAdapter implements ProviderAdapter {
         method,
         agent: this.agent,
         headers,
+        lookup: aresLookup,
       });
       // Every way out goes through settle(), once; the listeners it removes are added below.
       const settle = (err: ProviderError | undefined, res?: Response): void => {

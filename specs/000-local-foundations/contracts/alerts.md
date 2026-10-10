@@ -193,12 +193,14 @@ Runbook: docs/runbooks/cost-warning.md
 
 | Channel | Request | Timeout | Success | Recorded reference |
 |---|---|---|---|---|
-| Telegram | `POST {base}/bot<TELEGRAM_BOT_TOKEN>/sendMessage`, JSON `{chat_id, text, disable_web_page_preview: true}`, with no `parse_mode` (plain text). `base` is `TELEGRAM_API_BASE`, which prod requires to be `https://api.telegram.org`. | 5 s | HTTP 200 with `"ok": true` | `result.message_id` |
+| Telegram | `POST {base}/bot<TELEGRAM_BOT_TOKEN>/sendMessage` over `node:http(s)`, its host resolved through c-ares, JSON `{chat_id, text, disable_web_page_preview: true}`, with no `parse_mode` (plain text). `base` is `TELEGRAM_API_BASE`, which prod requires to be `https://api.telegram.org`. No redirect is followed. | 5 s, from the lookup to the answer's last byte | HTTP 200 with `"ok": true` | `result.message_id` |
 | Email | nodemailer 10.0.16 to `SMTP_HOST:SMTP_PORT`: implicit TLS on 465 (`secure: true`) or STARTTLS on 587 (`requireTLS: true`), certificates verified, AUTH with `SMTP_USER` and `SMTP_PASSWORD`. From `ALERT_EMAIL_FROM` to `ALERT_EMAIL_TO`, `text/plain` only, with the headers `Auto-Submitted: auto-generated` and `X-H4-Alert-Id: <dedupe key>`. | 10 s | a 250 reply to the message | the reply code and the server's queue ID |
 
 **The Telegram URL contains the bot token.** The dispatcher never logs a request URL, never stores one, and records only an error class: `timeout`, `connect`, `tls`, `http_<status>`, `telegram_<error_code>`, `smtp_<reply code>`, `smtp_<nodemailer code>`.
 
 (Tasks.md T156.) The email reference comes from the server's own reply line: its 2xx code and, when the reply names one, its queue ID. A message nodemailer reports accepted with a reply that can't be read is delivered with no reference: `email_ref` and `alert.delivered`'s `provider_ref` are null, never an assumed `250`.
+
+(Tasks.md T188.) The Telegram channel sends over `node:http(s)`, as the local adapter does, not `fetch`, with its host resolved through c-ares (provider-adapter.md §3.1's departure). At T084's pre-run, while the model server was stopped, the gateway's lookups of it held libuv's four threads, and every Telegram send timed out waiting for its own lookup. A redirect is `http_<status>`, since nothing follows it; an answer is read to 64 KiB at most.
 
 (Departures and readings, tasks.md T077.) nodemailer writes the header's name as `X-H4-Alert-ID`, normalizing the case of every header it sends; header names are case-insensitive, so it is the same header. `telegram_<error_code>` is for an HTTP 200 whose body says `"ok": false`; any other status is `http_<status>`. A claimed row's due time moves past its attempt's timeout before the attempt (a lease), so a stalled process can't send it twice; an outcome the store can't take while it is down is kept in memory and written once it answers, without sending again.
 

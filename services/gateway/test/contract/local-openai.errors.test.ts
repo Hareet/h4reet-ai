@@ -4,9 +4,10 @@
 // nothing else.
 //
 // - The statuses come from the in-process stub of llama.cpp's API (test/helpers/stub-openai.ts).
-// - The name lookup is node:dns's, replaced for the one host model-server, so nothing leaves the process: it fails
-//   as getaddrinfo does, never answers, or answers 127.0.0.1 alone (one address, so no happy-eyeballs attempt
-//   timeout can end a connect before the watchdog does).
+// - The name lookup is core/resolve.ts's, through c-ares (T188). Its A and AAAA queries are replaced for the one host
+//   model-server, so nothing leaves the process: A fails as c-ares reports it, never answers, or answers 127.0.0.1
+//   alone, and AAAA has no record (one address, so no happy-eyeballs attempt timeout can end a connect before the
+//   watchdog does).
 // - The watchdog needs a connect that never completes. A listener that accepts and never answers completes it, and
 //   the call then ends at the request timeout as `timeout`, which is C4's "a timeout". So this listener never
 //   accepts: it runs in a worker thread whose event loop is blocked, and once its queue is full the kernel drops the
@@ -92,33 +93,36 @@ function expectBare(err: ProviderError, ...markers: string[]): void {
   }
 }
 
-type LookupDone = (err: Error | null, address?: unknown, family?: number) => void;
+type ResolveDone = (err: NodeJS.ErrnoException | null, addresses: string[]) => void;
+type Resolve = (this: dns.Resolver, host: string, ...rest: unknown[]) => void;
+
+/** An error as c-ares reports one: its code, the query, and the host, which the adapter must drop. */
+const caresError = (syscall: string, code: string, host: string): NodeJS.ErrnoException =>
+  Object.assign(new Error(`${syscall} ${code} ${host}`), { code, syscall, hostname: host });
 
 /**
- * node:dns's lookup for model-server alone: it fails with `code` as getaddrinfo reports it, never answers, or
- * answers one IPv4 address. Every other host is looked up as usual. Returns the model-server lookups seen.
+ * c-ares's queries for model-server alone, as core/resolve.ts asks them: A fails with `code` as c-ares reports it,
+ * never answers, or answers one IPv4 address; AAAA has no record (ENODATA). Every other host is asked as usual.
+ * Returns the model-server queries seen, as "A model-server" or "AAAA model-server".
  */
 function lookupOfModelServer(answer: { code: string } | { address: string } | "never"): string[] {
-  const real = dns.lookup as (...args: unknown[]) => void;
+  const proto = dns.Resolver.prototype as unknown as { resolve4: Resolve; resolve6: Resolve };
   const seen: string[] = [];
-  const fake = (host: string, options: unknown, callback?: unknown): void => {
-    if (host !== MODEL_SERVER) return real(host, options, callback);
-    seen.push(host);
-    if (answer === "never") return;
-    const done = (typeof options === "function" ? options : callback) as LookupDone;
-    const all = typeof options === "object" && options !== null && (options as { all?: unknown }).all === true;
-    process.nextTick(() => {
-      if ("code" in answer) {
-        const message = `getaddrinfo ${answer.code} ${host}`;
-        done(Object.assign(new Error(message), { code: answer.code, syscall: "getaddrinfo", hostname: host }));
-      } else if (all) {
-        done(null, [{ address: answer.address, family: 4 }]);
-      } else {
-        done(null, answer.address, 4);
-      }
-    });
-  };
-  vi.spyOn(dns, "lookup").mockImplementation(fake as unknown as typeof dns.lookup);
+  const fake = (type: "A" | "AAAA", real: Resolve): Resolve =>
+    function (this: dns.Resolver, host: string, ...rest: unknown[]): void {
+      if (host !== MODEL_SERVER) return real.call(this, host, ...rest);
+      seen.push(`${type} ${host}`);
+      if (answer === "never") return;
+      const done = rest[rest.length - 1] as ResolveDone;
+      process.nextTick(() => {
+        if (type === "AAAA") done(caresError("queryAaaa", "ENODATA", host), []);
+        else if ("code" in answer) done(caresError("queryA", answer.code, host), []);
+        else done(null, [answer.address]);
+      });
+    };
+  const [real4, real6] = [proto.resolve4, proto.resolve6];
+  vi.spyOn(proto, "resolve4").mockImplementation(fake("A", real4));
+  vi.spyOn(proto, "resolve6").mockImplementation(fake("AAAA", real6));
   return seen;
 }
 
@@ -225,11 +229,12 @@ describe("the local adapter's HTTP statuses (provider-adapter.md §2.5, the loca
 });
 
 describe("a DNS failure (provider-adapter.md §2.5: unavailable)", () => {
-  for (const code of ["ENOTFOUND", "EAI_AGAIN"]) {
+  // c-ares's codes for a name that doesn't exist and for a resolver that doesn't answer; neither asks for AAAA next.
+  for (const code of ["ENOTFOUND", "ETIMEOUT"]) {
     it(`maps a lookup that fails with ${code} to unavailable at once, keeping only the code`, async () => {
       const seen = lookupOfModelServer({ code });
       const { err, ms } = await failure(localAdapter(`http://${MODEL_SERVER}:8080/v1`));
-      expect(seen).toEqual([MODEL_SERVER]);
+      expect(seen).toEqual([`A ${MODEL_SERVER}`]);
       expect(flags(err)).toEqual({
         kind: "unavailable",
         retryable: true,
@@ -238,7 +243,7 @@ describe("a DNS failure (provider-adapter.md §2.5: unavailable)", () => {
         code,
       });
       expect(ms).toBeLessThan(500); // the lookup's own failure, not the 1 s watchdog
-      expectBare(err, MODEL_SERVER, "getaddrinfo");
+      expectBare(err, MODEL_SERVER, "queryA");
     });
   }
 });
@@ -257,7 +262,7 @@ describe("the connect watchdog (provider-adapter.md §3.1: connect 1 s, then una
     try {
       const seen = lookupOfModelServer({ address: "127.0.0.1" });
       const { err, ms } = await failure(localAdapter(`http://${MODEL_SERVER}:${listener.port}/v1`));
-      expect(seen).toEqual([MODEL_SERVER]);
+      expect(seen[0]).toBe(`A ${MODEL_SERVER}`); // then AAAA, when the connect asks for every address
       expect(flags(err)).toEqual(timedOut);
       expect(ms).toBeGreaterThanOrEqual(900);
       expect(ms).toBeLessThan(3_000);
@@ -270,7 +275,7 @@ describe("the connect watchdog (provider-adapter.md §3.1: connect 1 s, then una
   it("counts the name lookup in the connect: a lookup that never answers fails the same way, at 1 s", async () => {
     const seen = lookupOfModelServer("never");
     const { err, ms } = await failure(localAdapter(`http://${MODEL_SERVER}:8080/v1`));
-    expect(seen).toEqual([MODEL_SERVER]);
+    expect(seen).toEqual([`A ${MODEL_SERVER}`]);
     expect(flags(err)).toEqual(timedOut);
     expect(ms).toBeGreaterThanOrEqual(900);
     expect(ms).toBeLessThan(3_000);

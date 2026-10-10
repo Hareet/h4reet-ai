@@ -462,7 +462,7 @@ A request in flight when the state flips completes: the state is read at request
 One interface, `ProviderAdapter { id, provider, kind, model, complete(req), health(signal) }`. `kind` is `local`, `paid`, or `synthetic`. The full types and the error taxonomy are in [contracts/provider-adapter.md](contracts/provider-adapter.md). Adapters are built from `config/routing.yaml` by `src/adapters/registry.ts`, keyed by `type`; nothing else in the gateway names a provider (SC-006).
 
 - **`local-openai`** (`type: openai-compatible`):
-  - `POST {base}/chat/completions` over `node:http`, one connection per call. (A departure from `fetch` with an undici `Agent`, recorded in [contracts/provider-adapter.md §3.1](contracts/provider-adapter.md#31-local-openai-type-openai-compatible): built-in `fetch` has no connect timeout, and `undici` isn't a pinned dependency.)
+  - `POST {base}/chat/completions` over `node:http`, one connection per call. (A departure from `fetch` with an undici `Agent`, recorded in [contracts/provider-adapter.md §3.1](contracts/provider-adapter.md#31-local-openai-type-openai-compatible): built-in `fetch` has no connect timeout, and `undici` isn't a pinned dependency.) The host resolves through c-ares, not `getaddrinfo`, so a lookup the connect watchdog abandons holds no libuv thread (tasks.md T188).
   - Connect timeout 1 s, request timeout 10 s, and no retries: failing over is the retry.
   - Health: `GET {base}/models` every 1 s with an 800 ms timeout. One failure marks it unhealthy; three passes in a row mark it healthy again.
   - So a stopped model server fails over at once on the call itself, and within 1.8 s at worst by health check (SC-005).
@@ -560,7 +560,7 @@ The full API is in [contracts/operator-admin.md](contracts/operator-admin.md).
 The full contract is in [contracts/alerts.md](contracts/alerts.md).
 
 - **The dispatcher** wakes on `LISTEN alert_outbox`, or every 2 s.
-  - Each channel is tried on its own: Telegram's Bot API `sendMessage` (plain text, 5 s timeout), and SMTP through nodemailer (implicit TLS on 465 or STARTTLS on 587, 10 s timeout).
+  - Each channel is tried on its own: Telegram's Bot API `sendMessage` (plain text, 5 s timeout, over `node:http(s)` with its host resolved through c-ares, tasks.md T188), and SMTP through nodemailer (implicit TLS on 465 or STARTTLS on 587, 10 s timeout).
   - Retries back off 5, 15, 30, 60, and 120 s, so every attempt falls within 300 s. After 300 s the channel is marked failed for that alert.
   - Delivery lag and failures are metrics with their own panel. The other channel keeps going, and enforcement is never affected.
 - **When the store is unreachable,** the outbox can't be written. The gateway sends one in-memory, deduplicated `store_unreachable` alert once the condition has lasted 60 s.

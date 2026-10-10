@@ -686,7 +686,7 @@ From T084's pre-run (2026-10-10): `make breach-test ENV=dev-cpu` on the agents' 
   - 9c: hello's trace as a local call at 0 USD.
 
   On the pre-run's stack, `fields=core,basic,usage,cost` answered 200 with the trace's observations. Its GENERATION carried `totalCost` 0.1 and `costDetails` `{"total":0.1}`, which `COST_FIELDS` reads; without `fields=`, no cost comes back. 9c also reads `gen_ai.provider.name` from the observation's metadata, which those fields didn't return: find, on a dev-cpu run, the field group that does. Model the probe's fake on one real v2 response, per FR-036, plan §8, and research.md (contradicts)
-- [ ] T188 [US2] Keep alert delivery from waiting on another service's DNS lookups (`services/gateway/src/alerts/telegram.ts`, and the local adapter's probes).
+- [X] T188 [US2] Keep alert delivery from waiting on another service's DNS lookups (`services/gateway/src/alerts/telegram.ts`, and the local adapter's probes).
   - **What failed:** every Telegram attempt timed out from 07:39:04 to 07:57:00 UTC, exactly while steps 4 to 7 kept `model-server-cpu` stopped: 32 `alert.retry` and 8 `alert.failed`, all with error class `timeout`. The fallback alerts reached email only, so 4b, 4c, 5c, 5d, and 6c missed. The stand-in logged no failed request.
   - **Reproduced** in the gateway container, with the model server stopped. `dns.lookup("model-server")` failed with `EAI_AGAIN` after 8,007 ms. `dns.lookup("telegram-standin")` took 2 ms alone, and 17,409 ms behind five of them.
   - **The cause:** Node runs `getaddrinfo` on libuv's threadpool, 4 threads by default. The local adapter's lookups fill it, so Telegram's `AbortSignal.timeout` fires before its own lookup runs. Email's longer timeouts ride it out; one email took 41 s.
@@ -696,3 +696,13 @@ From T084's pre-run (2026-10-10): `make breach-test ENV=dev-cpu` on the agents' 
     - raise `UV_THREADPOOL_SIZE`.
 
   Test that a held lookup doesn't delay a delivery. Whether the host's engine hangs the same way is unverified. Per FR-032 ("Telegram (primary) and email (secondary) within 5 minutes") and contracts/alerts.md §4 (contradicts)
+
+  Done on 2026-10-10. The same run's gateway log showed the starvation reached the store too: 73 of its 77 `state.unknown` (`store_unreachable`) records fell while the model server was stopped, so the kill switch failed closed every 10 to 20 s. The other four were steps 1 and 11, which stop the store on purpose. The fix removes the cause and frees the alerts:
+  - **`services/gateway/src/core/resolve.ts`,** new: a lookup with `dns.lookup`'s contract, answered through c-ares, which holds no thread (1 s a try, two tries). It answers IP literals and `localhost` itself, and asks for AAAA only after `ENODATA`.
+  - **The local adapter** resolves its host through it, so the probe's lookups of a stopped server hold no thread.
+  - **The Telegram channel** sends over `node:http(s)` with the same lookup, not `fetch`. One deadline covers the whole send, no redirect is followed, and an answer is read to 64 KiB.
+  - **Tests:** `test/unit/resolve.test.ts` (the lookup) and `test/unit/telegram.test.ts` (the transport) are new. All four Telegram tests fail on the old `fetch` sender.
+  - **The T151 tests changed in one respect:** `test/contract/local-openai.errors.test.ts` faked `dns.lookup`, which the adapter no longer calls. They now fake c-ares's A and AAAA answers, with its codes (`ENOTFOUND`, `ETIMEOUT`, `ENODATA`). Their assertions about the adapter's behavior are unchanged, and all four fail without the adapter's new lookup.
+  - **Contracts:** provider-adapter.md §3.1 records the departure, alerts.md §4.1 the Telegram transport, and telemetry.md §3.1 the HTTP instrumentation's skip of the Telegram hosts.
+
+  The other two options weren't needed: with the threadpool free, the probes' overlap and its size don't matter. T084's run on the engine checks the fix end to end.
