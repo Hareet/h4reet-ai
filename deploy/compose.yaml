@@ -644,7 +644,7 @@ services:
   # found: until that runs, the line below names the repository alone, and the compose policy reports it PLANNED.
   seaweedfs:
     <<: *service
-    image: docker.io/chrislusf/seaweedfs
+    image: docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     entrypoint: ["/bin/sh", "/h4/entrypoint.sh"]
     networks: [internal]
     environment:
