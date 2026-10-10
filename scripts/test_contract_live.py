@@ -70,3 +70,11 @@ def test_waits_for_the_gates_container_phase_before_any_call() -> None:
     assert done.returncode == 2
     assert "PLANNED (T092)" in done.stderr
     assert "nothing was called" in done.stderr
+
+
+def test_reads_the_adapter_through_the_shell_never_splicing_it_into_a_command() -> None:
+    # make reads ADAPTER as "$ADAPTER" (the Makefile's rule for values), so quotes in it can't end the string.
+    done = make("ENV=prod", 'ADAPTER=x"; echo SPLICED >&2; "', REASON, sandbox=False)
+    assert done.returncode == 2
+    assert "needs ADAPTER=local or ADAPTER=bedrock" in done.stderr
+    assert "SPLICED" not in done.stdout + done.stderr

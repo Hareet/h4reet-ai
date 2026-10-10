@@ -4,8 +4,8 @@ Prod's gateway calls Bedrock as the dedicated runtime identity, through that ide
 
 ## Symptoms
 
-- **The alert**, on Telegram and by email: "CREDENTIALS EXPIRING: the Bedrock SSO session ends at <time>", id `prod:credentials_expiring:bedrock:<session end, YYYY-MM-DDTHH:MMZ>`, with the sentence "Fallback to Bedrock stops then. Run make aws-login in your terminal." It comes 2 h before the session ends (`credentials_warn_before_s`, 7,200 s, on the `bedrock` adapter in `config/routing.yaml`), once for each session end.
-- **`make operator-status ENV=prod`**: the adapters line reads `bedrock healthy, SSO session ends <time>`.
+- **The alert**, on Telegram and by email: "CREDENTIALS EXPIRING: the Bedrock SSO session ends at <time>", id `prod:credentials_expiring:bedrock:<session end, YYYY-MM-DDTHH:MMZ>`, with the sentence "Fallback to Bedrock stops then. Run make aws-login in your terminal." It comes 2 h before the session ends (`credentials_warn_before_s`, 7,200 s, on the `bedrock` adapter in `config/routing.yaml`), once for each session end. That needs a legacy profile, whose token cache records the session's end. With an `sso_session` profile the cache records only the access token's end, so the gateway knows no session end and this alert never comes: the first sign is `fallback_unavailable` with `credentials`, once the session has ended (the runbook `bedrock-unavailable.md`). Which kind prod uses is the Author's choice at T105.
+- **`make operator-status ENV=prod`**: the adapters line reads `bedrock healthy, SSO session ends <time>`; with an `sso_session` profile it names no end.
 - **The gateway's log** has a `credentials.expiring` record with the adapter and `expires_at`.
 - **Only prod.** The other stacks route no paid adapter and mount the empty `deploy/aws-none` ([contracts/alerts.md §2](../../specs/000-local-foundations/contracts/alerts.md#2-kinds-triggers-and-dedupe-keys), "Outside prod").
 
@@ -13,7 +13,7 @@ Prod's gateway calls Bedrock as the dedicated runtime identity, through that ide
 
 - **Nothing yet.** Bedrock still serves, local answers are unaffected, and so are the meter, the ceilings, and the sub-budget.
 - **When the session ends,** the gateway can't get new role credentials. Once the ones it holds expire, Bedrock's health turns `credentials`, and the `fallback_unavailable` alert follows (the runbook `bedrock-unavailable.md`). From then on, if the local model goes down, hello answers 503 with `fallback_unavailable` instead of falling back.
-- **The gateway never renews the session itself.** Until the Author decides T102's question, the SDK may refresh the SSO token in memory in its last 5 minutes, through `oidc.us-east-1.amazonaws.com` (plan §5.2's correction), but its write back to the read-only mount fails, so the session in the cache, whose end the alert reads, stays as it was. Only `make aws-login` writes a new one.
+- **The gateway never renews the session itself.** With an `sso_session` profile, the SDK refreshes the SSO token in its last 5 minutes, through `oidc.us-east-1.amazonaws.com` (plan §5.2's correction), and uses the fresh token for one exchange of role credentials. Its write back to the read-only mount fails, so the session in the cache stays as it was. Once the session has ended, it asks again at most every 30 s with the dead refresh token, until the next login. With a legacy profile nothing is refreshed. Either way, only `make aws-login` writes a new session.
 
 ## Act
 
@@ -43,9 +43,9 @@ In your own terminal. Agent sessions can't read `~/.config/h4reet-ai`, and `make
 
 ## Verify
 
-- Within about 10 s, the health check's cadence ([contracts/provider-adapter.md §3.2](../../specs/000-local-foundations/contracts/provider-adapter.md#32-bedrock-converse-type-bedrock-converse)), `make operator-status ENV=prod` shows `bedrock healthy, SSO session ends <time>`, with the new end.
+- Within about 10 s, the health check's cadence ([contracts/provider-adapter.md §3.2](../../specs/000-local-foundations/contracts/provider-adapter.md#32-bedrock-converse-type-bedrock-converse)), `make operator-status ENV=prod` shows `bedrock healthy, SSO session ends <time>`, with the new end (with an `sso_session` profile, `bedrock healthy` and no end).
 - The dashboard's "Model-server health" shows `adapter bedrock` up.
-- The alert you got doesn't come again, since its id names the old end. The next `credentials_expiring` comes 2 h before the new one.
+- The alert you got doesn't come again, since its id names the old end. With a legacy profile, the next `credentials_expiring` comes 2 h before the new one.
 
 ## Undo
 

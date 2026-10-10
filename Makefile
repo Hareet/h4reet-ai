@@ -415,7 +415,7 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock REASON="..." (provider-adapter.md §5.3)
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make contract-live is the Author's: it calls a live adapter with ENV's operator token (provider-adapter.md §5.3)" >&2; exit 2; }
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make contract-live needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
-	@case "$(if $(call from_cli,ADAPTER),$(ADAPTER))" in \
+	@case "$(if $(call from_cli,ADAPTER),$$ADAPTER)" in \
 	  local) ;; \
 	  bedrock) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=bedrock: bedrock is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
 	  *) echo "make contract-live needs ADAPTER=local or ADAPTER=bedrock on the command line" >&2; exit 2 ;; \

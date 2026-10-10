@@ -238,13 +238,13 @@ def test_records_the_status_reads_and_every_case_into_a_new_private_file(
         for r in posts
     )
     assert [r["method"] for r in listener.requests] == ["GET", "POST", "POST", "GET"]
-    printed = capsys.readouterr().out
-    assert "2 cases, 1 answered, 1 provider errors" in printed
-    assert token("dev") not in printed
+    printed = capsys.readouterr()
+    assert "2 cases, 1 answered, 1 provider errors" in printed.out
+    assert token("dev") not in printed.out + printed.err + raw.decode("ascii")
 
 
 def test_a_refusal_other_than_a_provider_error_stops_the_run_and_writes_nothing(
-    home: Path, listener: Any, tmp_path: Path
+    home: Path, listener: Any, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     listener.answers[("GET", "/admin/status")] = (200, status("dev"))
     listener.queue = [
@@ -265,15 +265,29 @@ def test_a_refusal_other_than_a_provider_error_stops_the_run_and_writes_nothing(
     ]
     assert record(tmp_path) == 1  # a 4xx is the gateway refusing
     assert not (tmp_path / "rec" / "recording.json").exists()
+    # A 502 that isn't the gateway's provider-error answer is no case's answer either.
+    listener.queue = [(502, {"error": "bad_gateway"})]
+    assert record(tmp_path) == 4
+    assert not (tmp_path / "rec" / "recording.json").exists()
+    printed = capsys.readouterr()
+    assert token("dev") not in printed.out + printed.err
 
 
 @pytest.mark.parametrize(
     ("setup", "args", "why"),
     [
-        ("sandbox", (), "the Author's"),
+        # dev-cpu, which the sandbox's own operator calls may reach, so only contract-record's check refuses it.
+        (
+            "sandbox",
+            ("--stack", "dev-cpu", "--adapter", "local"),
+            "contract-record is the Author's",
+        ),
         ("", ("--stack", "dev", "--adapter", "bedrock"), "needs --stack prod"),
         ("exists", (), "exists"),
         ("bad-cases", (), "no cases"),
+        ("too-many", (), "more than 16"),
+        ("no-dir", (), "not a directory this user can write"),
+        ("read-only-dir", (), "not a directory this user can write"),
     ],
 )
 def test_refuses_what_isnt_the_authors_run(
@@ -295,6 +309,13 @@ def test_refuses_what_isnt_the_authors_run(
         out.write_text("{}", encoding="utf-8")
     if setup == "bad-cases":
         cases.write_text('{"cases": []}', encoding="utf-8")
+    if setup == "too-many":
+        one = json.loads(cases.read_text(encoding="utf-8"))["cases"][0]
+        cases.write_text(json.dumps({"cases": [one] * 17}), encoding="utf-8")
+    if setup == "no-dir":
+        out.parent.rmdir()
+    if setup == "read-only-dir":
+        out.parent.chmod(0o500)
     stack, adapter = (args[1], args[3]) if args else ("dev", "local")
     code = op.main(
         [
@@ -328,3 +349,26 @@ def test_the_committed_cases_file_reads_as_cases() -> None:
         "system-only-once",
         "repeat-cost",
     ]
+
+
+def test_a_recording_that_cant_be_written_is_exit_2_after_the_calls(
+    home: Path,
+    listener: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    listener.answers[("GET", "/admin/status")] = (200, status("dev"))
+    listener.queue = [(200, answer("Blue.")), (200, answer("Hello."))]
+
+    def full_disk(path: Path, text: str) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(op, "write_new", full_disk)
+    assert record(tmp_path) == 2
+    err = capsys.readouterr().err
+    assert (
+        "couldn't be written (No space left on device), after the calls were made"
+        in err
+    )
+    assert err.rstrip().endswith("operator.py: exit 2: usage")

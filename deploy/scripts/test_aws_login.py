@@ -1,8 +1,9 @@
 """Tests for deploy/scripts/aws-login.sh and make aws-login (spec 000 FR-013; plan §4 and §5.2; research.md R-17;
 tasks.md T104): a fake aws CLI, a home in a temporary directory, and the real script.
 
-Every run gets a PATH of its own: the fake aws, and links to the few tools the script needs. The real AWS CLI, which
-may be installed on the host, is never on it, so no test can reach AWS. The fake records how it was run (its
+Every run of the script gets a PATH of its own: the fake aws, and links to the few tools the script needs, so the real
+AWS CLI, which may be installed on the host, is never on it. The runs of make aws-login need make's PATH, with /usr/bin
+and /bin, so there the fake comes first and shadows any real aws. Either way, no test can reach AWS. The fake records how it was run (its
 arguments, its HOME, its umask, and the names of the AWS_* variables it received), writes a token cache as aws sso
 login does, with canary values built at run time, and prints what the CLI prints, so the tests can show that the
 script passes the CLI's output through and prints nothing of the cache or the calling shell's credentials.
@@ -270,6 +271,55 @@ def test_the_profile_must_be_configured(stage: Stage, config: str | None) -> Non
     assert stage.calls() == []
 
 
+@pytest.mark.parametrize(
+    ("config", "ok"),
+    [
+        (
+            f"[profile {PROFILE}]\nsso_start_url = https://example.invalid/start\nsso_region = us-east-1\n",
+            True,
+        ),
+        (
+            f"[profile {PROFILE}]\nsso_start_url = https://example.invalid/start\nsso_region = eu-west-1\n",
+            False,
+        ),
+        (
+            f"[profile {PROFILE}]\nsso_session = s\n\n[sso-session s]\nsso_region = eu-west-1\n",
+            False,
+        ),
+        (
+            f"[profile {PROFILE}]\nsso_session = s\nsso_region = us-east-1\n\n[sso-session s]\nsso_region = eu-west-1\n",
+            False,
+        ),
+        (
+            f"[profile {PROFILE}]\nsso_start_url = https://example.invalid/start\n# sso_region = us-east-1\n",
+            False,
+        ),
+        (f"[profile {PROFILE}]\nsso_session = s\n", False),
+    ],
+    ids=[
+        "legacy-us-east-1",
+        "legacy-elsewhere",
+        "session-elsewhere",
+        "session-wins",
+        "commented-out",
+        "no-region",
+    ],
+)
+def test_the_sso_region_must_be_the_disclosures(
+    stage: Stage, config: str, ok: bool
+) -> None:
+    # docs/data-flow-disclosure.md's row F2 lists us-east-1's portal and oidc hosts: an sso_session profile's region
+    # is its session's, and a legacy profile's its own.
+    stage.config.write_text(config, encoding="utf-8")
+    done = stage.run()
+    if ok:
+        assert done.returncode == 0, done.stderr
+        assert len(stage.calls()) == 1
+    else:
+        assert done.returncode == 2 and "it must be us-east-1" in done.stderr
+        assert stage.calls() == []
+
+
 def test_the_session_lands_where_prods_gateway_reads_it() -> None:
     # The script's directory and profile are the ones prod's env template and compose give the gateway (plan §5.2;
     # contracts/env-files.md §2 and §4; provider-adapter.md §3.2): H4_AWS_DIR, mounted read-only as the container's
@@ -323,7 +373,17 @@ def make(stage: Stage, *args: str, **environ: str) -> subprocess.CompletedProces
     whole, so the session's own SANDBOX_RUNTIME reaches make only when a test passes it."""
     env = {**stage.environ, "PATH": f"{stage.fake_bin}:/usr/bin:/bin", **environ}
     return subprocess.run(
-        ["make", "--no-print-directory", "-C", str(REPO), "aws-login", *args],
+        # -f Makefile: T183's mask leaves plain make nothing to read in the main tree.
+        [
+            "make",
+            "--no-print-directory",
+            "-C",
+            str(REPO),
+            "-f",
+            "Makefile",
+            "aws-login",
+            *args,
+        ],
         capture_output=True,
         text=True,
         env=env,

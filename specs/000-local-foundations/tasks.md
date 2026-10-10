@@ -441,7 +441,9 @@ description: "Task list for spec 000, Local Foundations"
   - the push of the agent-config eval history as the `h4.devtime.eval.*` metrics to prod's x004 (§4.4);
   - a summary line for the merge commit;
   - `gate --host`, marked DEGRADED.
-  - `gate --contract-replay FILE` for `make contract-live` (T103): the container phase over an exported tree with the recording mounted read-only, running `vitest run test/contract/replay.test.ts` with `H4_CONTRACT_RECORDING` set, and `--network none` (provider-adapter.md §5.3).
+  - `gate --contract-replay FILE` for `make contract-live` (T103): the container phase over `git archive HEAD`, with the recording mounted read-only, running `vitest run test/contract/replay.test.ts` with `H4_CONTRACT_RECORDING` set, and `--network none` (provider-adapter.md §5.3).
+    - The command is narrower than §5.3's `vitest run test/contract`: only the replay test reads the recording, and the rest of the contract suite runs in the gate's own test phase.
+    - The recorder reads the working tree's `live-cases.json`, and the replay reads HEAD's. So T092 also makes `make contract-live` refuse, before it records, a case file that differs from HEAD's, with its test, and §5.4's "can't drift" holds. Until then the target stops at `PLANNED (T092)` before anything is recorded (US5's review).
 - [ ] T093 [P] [US3] Create `tools/gates/publish_check.py` per §12 (exit codes 0, 1, 3; it refuses with 3 while a `.gitleaksignore` exists at the repository root, research.md R-36) and `tools/gates/test/test_publish_check.py`, with fixture repositories:
   - a fake secret assembled at run time in an old commit;
   - a denylisted phrase in a removed file;
@@ -485,7 +487,7 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 5
 
-- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review). Its name lookups, the SSO refresh's included, go through c-ares: the credential chain gets the same handler as `clientConfig.requestHandler` (§3.2's name-lookup row, from T189). It decides whether the SDK may refresh the SSO token in memory, which token-providers 3.1147.0 does in the token's last 5 minutes, contacting `oidc.us-east-1.amazonaws.com` while running (plan.md's correction, US2's round 9).
+- [X] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review). Its name lookups, the SSO refresh's included, go through c-ares: the credential chain gets the same handler as `clientConfig.requestHandler` (§3.2's name-lookup row, from T189). It decides whether the SDK may refresh the SSO token in memory, which token-providers 3.1147.0 does in the token's last 5 minutes, contacting `oidc.us-east-1.amazonaws.com` while running (plan.md's correction, US2's round 9).
   - `ConverseCommand` in us-east-1, `maxAttempts: 1`, `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000, httpsAgent})`, with `httpsAgent` keeping the SDK default's `keepAlive: true` and `maxSockets: 50` and adding `lookup: aresLookup`;
   - one retry, only on `ThrottlingException`;
   - a timeout counts as `possiblyBilled`;
@@ -531,7 +533,7 @@ description: "Task list for spec 000, Local Foundations"
     - The check logs `credentials.expiring` (telemetry.md §5.2) once per session end.
     - It asks the dispatcher at each tick, one question at a time, until the row is queued or found already there. Before, a store that was down at the first tick in the window lost the alert for good: the dispatcher now answers `queued`, `present`, or `retry`.
   - **The client's handler** now sets `throwOnRequestTimeout` (§3.2's client row). `ECONNRESET` and `EPIPE` are billed timeouts under their own codes, and `EHOSTUNREACH`, `ENETUNREACH`, and `EADDRNOTAVAIL` are `unavailable` (§2.5's readings).
-  - **Still open:** moving the refresh decision to T105, which the Author takes.
+  - **The refresh decision** is the Author's, at T105: the profile's kind decides whether the SDK refreshes. The record says what each kind does: plan.md §5.2, research.md R-17, provider-adapter.md §3.2, the runbook, and disclosure row F2. T102 keeps the SDK's default, which handles both kinds, so T102 is done again.
 - [ ] T103 [US5] Implement `POST /admin/adapters/{id}/complete` per contracts/operator-admin.md §5: local on any stack, bedrock on prod only, attribution `test`, through admission. Add `scripts/operator.py contract-record` and `make contract-live ENV=prod ADAPTER=local|bedrock`, which records in the Author's terminal and replays in the devcontainer image with `--network none` (§7).
   Partly done on 2026-10-10: the endpoint.
   - `src/routes/adapters.ts` validates §5's body and answers 200, 502, 404, 400, 415, 429, or 503.
@@ -546,11 +548,11 @@ description: "Task list for spec 000, Local Foundations"
 
     New tests pin those records. Three more pin the rules: the synthetic adapter is 404 even where dev's route builds it, the endpoint never fails over, and a fallback awaiting renewal doesn't hold a test call.
   Then the rest, the same day, but for the replay:
-  - **`scripts/operator.py contract-record`** reads `/admin/status`, sends each case of `live-cases.json`, and reads `/admin/status` again. It writes the recording, the suite's `LiveRecording`, into a new 0600 file, ASCII with what isn't escaped.
+  - **`scripts/operator.py contract-record`** reads `/admin/status`, sends each case of `live-cases.json`, and reads `/admin/status` again. It writes the recording, the suite's `LiveRecording`, into a new 0600 file, in ASCII, with what isn't ASCII escaped.
     - A provider's 502 is a case's answer; any other refusal stops the run, and nothing is written.
     - It refuses inside the agent sandbox, `bedrock` off prod, and an existing output file.
     - `scripts/test_operator_record.py` covers it.
-  - **`make contract-live ENV= ADAPTER=local|bedrock REASON=`** refuses an agent session, a missing reason or adapter, and bedrock off prod. It records into a 0700 temporary directory, which it deletes, then hands the recording to `tools/gates/gate --contract-replay`. `scripts/test_contract_live.py` covers the refusals.
+  - **`make contract-live ENV= ADAPTER=local|bedrock REASON=`** refuses an agent session, a missing reason or adapter, and bedrock off prod. It records into a 0700 temporary directory, hands the recording to `tools/gates/gate --contract-replay`, and deletes the directory once the gate returns. `scripts/test_contract_live.py` covers the refusals.
   - **Still open, the replay:** it runs in the gate's container phase (plan.md §11), which T092 builds; T092 now carries the mode. Until the gate exists, `make contract-live` stops before it calls anything, saying `PLANNED (T092)`, so no live call is made without its replay.
   - **Its deny for agents,** beside `make aws-login`'s and the Bedrock evals', is `docs/merge-requests/2026-10-10-feat-000-us5-fallback-enforcement.patch`, since a paid route gets its deny with it (CLAUDE.md). It is plan §15's fourth patch, applied to this branch's merge with main, where it uses the early patch's engine rule.
     - Its bash-gate rules refuse `make contract-live`, `make aws-login`, and `make evals ADAPTER=bedrock` as two matches in one command: make, gmake, or `tools/gates/run_checks.py` anywhere, and the target's name after any character a name can't hold. They refuse `operator.py` with `contract-record`, and `evals/run.py` or `evals.run` with `bedrock`, the same way.
@@ -571,7 +573,8 @@ description: "Task list for spec 000, Local Foundations"
   - confirm the model with `aws bedrock list-inference-profiles`: Claude Haiku 5.5 in us-east-1, otherwise Claude Haiku 4.5's `us.` profile;
   - append a new version to `config/prices.yaml` with its entry from the Bedrock pricing page, repeating the local and synthetic entries (P5: a published version never changes);
   - set its ID in `config/routing.yaml`, and add `fallback: bedrock` to the prod route;
-  - commit both, then `make up ENV=prod`; preflight P19 now checks the AWS profile.
+  - commit both, then `make up ENV=prod`; preflight P19 now checks the AWS profile;
+  - choose the profile's kind at `aws configure sso`, the decision T102 left you (the US5 note's decision 1). Leaving "SSO session name" blank makes a legacy profile. It has no refresh token, so prod never contacts `oidc` while running, and the 2 h `credentials_expiring` warning works. Naming a session makes an `sso_session` profile: the SDK refreshes the token through `oidc` while running, and no warning comes, since no session end is known. After the first `make aws-login`, `make operator-status ENV=prod` shows which kind is in use: a legacy profile's line names the session's end. Record the AWS CLI's version.
 - [X] T106 [US5] Add the Bedrock panels (cost by provider, adapter health) to `deploy/grafana/dashboards/h4-runtime.json` (contracts/telemetry.md §7.2 and §7.4); the Bedrock and AWS SSO rows to `docs/data-flow-disclosure.md`, naming `oidc.us-east-1.amazonaws.com` while running if T102 allows the SDK's token refresh; and the runbooks `docs/runbooks/bedrock-credentials-expiring.md` and `docs/runbooks/bedrock-unavailable.md`.
 
   Done on 2026-10-10.
@@ -642,7 +645,7 @@ description: "Task list for spec 000, Local Foundations"
 - **US1 (Phase 3)**: after Foundational.
 - **US2 (Phase 4)**: after US1. It extends the gateway US1 builds, and the breach test runs the US1 stack.
 - **US3 (Phase 5)**: after Foundational. T087–T096 can run in parallel with US1 and US2. T097 needs US2 merged, and T099 runs after T097. The governance patch is applied right after US3 merges.
-- **US5 (Phase 6)**: after US2, which supplies the meter and the fallback branch. T105 (the Author's IAM and price steps) blocks T107.
+- **US5 (Phase 6)**: after US2, which supplies the meter and the fallback branch. T105 (the Author's IAM and price steps) blocks T107. T092 (the gate's `--contract-replay` mode) blocks T103's replay and T107's `make contract-live`. US5's enforcement patch lands before T105's `fallback: bedrock`, the first paid route.
 - **US6 (Phase 7)**: after US1. It can run in parallel with US2, US3, and US5, but its link check (T114) is final only after them.
 - **Polish (Phase 8)**: after every story. The closing patch switches every planned row and clears every PLANNED mark left.
 

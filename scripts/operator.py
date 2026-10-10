@@ -653,6 +653,10 @@ class AdminClient:
 # --- contract-record (provider-adapter.md §5.3, §5.4) ----------------------------------------------------------------
 
 
+# Each case is a live call, Bedrock's charged: a cases file can't turn the run into more than twice the committed 8.
+MAX_CASES = 16
+
+
 def read_cases(path: Path) -> list[dict[str, Any]]:
     """live-cases.json's cases: each a name, its messages, its output cap, and an optional temperature."""
     try:
@@ -664,6 +668,10 @@ def read_cases(path: Path) -> list[dict[str, Any]]:
     cases = doc.get("cases") if isinstance(doc, dict) else None
     if not isinstance(cases, list) or not cases:
         raise Usage(f"{path}: no cases")
+    if len(cases) > MAX_CASES:
+        raise Usage(
+            f"{path}: {len(cases)} cases, more than {MAX_CASES}: each is a live call"
+        )
     for case in cases:
         messages = case.get("messages") if isinstance(case, dict) else None
         if (
@@ -719,7 +727,11 @@ def contract_record(
                 {"name": case["name"], "request": request, "status": 200, "body": body}
             )
         except AdminError as problem:
-            if problem.status != 502 or problem.body is None:
+            # Only the gateway's own provider-error answer is a case's (operator-admin.md §5); any other 502 stops.
+            if (
+                problem.status != 502
+                or (problem.body or {}).get("error") != "provider_error"
+            ):
                 raise
             recorded.append(
                 {
@@ -1442,11 +1454,20 @@ def record_command(
     out = Path(args.out)
     if out.exists() or out.is_symlink():
         raise Usage(f"{out} exists: the recording goes into a new file")
+    # Checked before the first call: a recording that can't be written would come after every case was charged.
+    if not out.parent.is_dir() or not os.access(out.parent, os.W_OK | os.X_OK):
+        raise Usage(
+            f"{out.parent}: not a directory this user can write, so the recording would be lost"
+        )
     client = AdminClient(stack, url=url, token_stdin=token_stdin, stdin=stdin)
     try:
         recording = contract_record(client, args.adapter, cases, reason, out)
     except AdminError as problem:
         return refused(problem, client, as_json)
+    except OSError as error:
+        raise Usage(
+            f"{out}: the recording couldn't be written ({failure_reason(error)}), after the calls were made"
+        ) from None
     print(
         json.dumps(recording, indent=2)
         if as_json

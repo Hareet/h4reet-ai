@@ -16,7 +16,9 @@
 #   - no aws CLI on PATH;
 #   - ~/.config/h4reet-ai/aws-home or its .aws missing, a symbolic link, another user's, or not mode 0700 (make init-env
 #     ENV=prod creates both). A link would put the session, and the gateway's mount, wherever it points;
-#   - .aws/config without a [profile h4reet-bedrock] section (quickstart.md §0.6, step 4, configures it once).
+#   - .aws/config without a [profile h4reet-bedrock] section (quickstart.md §0.6, step 4, configures it once), or
+#     with an SSO region other than us-east-1, the profile's sso_region or its sso-session's: the region decides which
+#     portal and oidc hosts the login and prod's gateway reach, and docs/data-flow-disclosure.md lists us-east-1's (F2).
 # The AWS CLI then runs without any AWS_* variable of the calling shell, so none can point it at another profile,
 # config file, or credential (AWS_CONFIG_FILE could name the Author's own), and under umask 077, so what it creates is
 # the Author's alone. A setting the login really needs, such as a CA bundle, goes in that config file.
@@ -61,6 +63,35 @@ if [ ! -f "$aws_dir/config" ] || ! grep -Eq "^\[profile $profile\][[:space:]]*$"
 	die "$aws_dir/config has no [profile $profile]. Configure it once (quickstart.md §0.6, step 4):" \
 		"HOME=\"\$HOME/.config/h4reet-ai/aws-home\" aws configure sso --profile $profile"
 fi
+# ini_value <section> <key>: the key's value in that section of the config, or nothing. Bash alone, no other tool.
+ini_value() {
+	local want="[$1]" section="" line key value
+	while IFS= read -r line || [ -n "$line" ]; do
+		line="${line#"${line%%[![:space:]]*}"}"
+		line="${line%"${line##*[![:space:]]}"}"
+		case "$line" in
+		\[*\]) section="$line" ;;
+		*=*)
+			[ "$section" = "$want" ] || continue
+			key="${line%%=*}"
+			key="${key%"${key##*[![:space:]]}"}"
+			[ "$key" = "$2" ] || continue
+			value="${line#*=}"
+			printf '%s' "${value#"${value%%[![:space:]]*}"}"
+			return 0
+			;;
+		esac
+	done <"$aws_dir/config"
+	return 0
+}
+session="$(ini_value "profile $profile" sso_session)"
+if [ -n "$session" ]; then
+	region="$(ini_value "sso-session $session" sso_region)"
+else
+	region="$(ini_value "profile $profile" sso_region)"
+fi
+[ "$region" = us-east-1 ] \
+	|| die "the profile's SSO region is ${region:-not set}: it must be us-east-1, whose sign-in hosts docs/data-flow-disclosure.md lists (row F2)"
 
 # The calling shell's AWS_* settings stay out of the login.
 while IFS= read -r name; do
