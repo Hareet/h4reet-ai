@@ -426,6 +426,16 @@ contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock
 	  tools/gates/gate --contract-replay "$$dir/recording.json"
 .PHONY: contract-live
 
+# The history scan before the first push (spec 000 FR-042; plan §12; tasks.md T093), the Author's, in a full clone:
+# tools/gates/publish_check.py, through PY_HOST, runs gitleaks over every commit, and the denylist and corpus-check's
+# currency rule over every blob, path, and message. It exits 0 clean, 1 with findings, and 3 when it can't certify,
+# and make shows any of those as error 2, so its summary line says which. It names commits, paths, lines, and rules,
+# never a phrase or a matching line.
+publish-check: ## (the Author) Every commit's secrets, denylisted phrases, and corpus amounts, before the first push (FR-042)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make publish-check is the Author's: an agent session can't certify the history for publication (plan §12)" >&2; exit 2; }
+	$(PY_HOST) tools/gates/publish_check.py
+.PHONY: publish-check
+
 # hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
 # gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes
 # straight to the stack's api port on 127.0.0.1 (18000, 18100, or 18300); inside the sandbox, for dev-cpu only, the
