@@ -1,8 +1,9 @@
-"""docs/data-flow-disclosure.md against the code whose flows it lists (spec 000 FR-040; plan §17; tasks.md T083).
+"""docs/data-flow-disclosure.md against the code whose flows it lists (spec 000 FR-040; plan §17; tasks.md T083, T106).
 
-The compose policy already requires a row for every service (tools/gates/compose_policy.py). These hold three rows to
-what the code does: the breach probe's row names exactly the services evals/breach_probe.py calls, and the alerts'
-rows name the Telegram Bot API and the alerts mailbox, which the gateway's egress row points at.
+The compose policy already requires a row for every service (tools/gates/compose_policy.py). These hold rows to what
+the code does: the breach probe's row names exactly the services evals/breach_probe.py calls, and the alerts' rows
+name the Telegram Bot API and the alerts mailbox, which the gateway's egress row points at. Bedrock's two rows keep
+plan §17's words, name the region config/routing.yaml must use, and name the SSO token's refresh while prod runs.
 """
 
 from __future__ import annotations
@@ -89,6 +90,80 @@ def test_the_alert_channels_have_their_rows() -> None:
     # The gateway's egress row points at them, by ID.
     ids = [i for i, r in found.items() if r in (*telegram, *email)]
     assert all(i in found["S2"][1] for i in ids), found["S2"][1]
+
+
+SPEC_DIR = REPO / "specs" / "000-local-foundations"
+PLAN = (SPEC_DIR / "plan.md").read_text(encoding="utf-8")
+
+
+def plan_row(flow: str) -> list[str]:
+    """plan §17's row for a flow: its cells after the flow's name (destination, carries, when, control)."""
+    start = PLAN.index("\n## 17. ")
+    for line in PLAN[start : PLAN.index("\n## 18. ", start)].splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells and cells[0] == flow:
+            return cells[1:]
+    raise AssertionError(f"plan §17 has no row {flow!r}")
+
+
+def test_bedrock_and_its_credentials_have_their_rows() -> None:
+    # plan §17's two AWS rows (tasks.md T106). A row is a privacy promise, so the plan's own words are in it, each
+    # cell's beside the reading the row adds (CLAUDE.md): the destination in From → To, When in Trigger, Carries in
+    # Carries, and the control in How to switch it off.
+    found = rows()
+    for row_id, flow in (
+        ("F1", "Bedrock fallback"),
+        ("F2", "AWS SSO credential exchange"),
+    ):
+        destination, carries, when, control = plan_row(flow)
+        from_to, trigger, carried, _never, _why, _default, off, fr = found[row_id]
+        assert destination in from_to, row_id
+        assert when in trigger, row_id
+        assert carries in carried, row_id
+        assert control in off, row_id
+        assert "FR-040" in fr and "FR-022" in fr, row_id
+    assert named(found["F1"][0].split("→", 1)[0]) == {"gateway"}
+    assert "`bedrock-runtime.us-east-1.amazonaws.com`" in found["F1"][0]
+    assert "FR-013" in found["F2"][-1]
+
+
+def test_the_sso_row_names_the_refresh_until_the_author_decides() -> None:
+    # plan §5.2's correction (2026-10-10): the SDK refreshes the SSO token in memory in its last 5 minutes, through
+    # oidc.us-east-1.amazonaws.com, while prod runs. T102 keeps that default until the Author decides, so the row
+    # names the host both at login and while running, and says the decision could narrow it to login only.
+    from_to = rows()["F2"][0]
+    assert "`oidc.us-east-1.amazonaws.com`" in from_to
+    assert "at login, and while running" in from_to
+    assert "T102" in from_to and "login only" in from_to
+    assert "last 5 minutes" in from_to
+
+
+def test_bedrocks_region_is_the_one_routing_must_name() -> None:
+    # contracts/config-files.md §1.1: `region` must be "the region the data-flow disclosure lists" (rule R7), so the
+    # contract's region, and any bedrock-converse adapter's in config/routing.yaml, is the host F1 names.
+    config_files = (SPEC_DIR / "contracts" / "config-files.md").read_text(
+        encoding="utf-8"
+    )
+    (region,) = re.findall(
+        r"\| `region` \| string \| `([a-z0-9-]+)`, the region the data-flow disclosure lists",
+        config_files,
+    )
+    routing = yaml.safe_load(
+        (REPO / "config" / "routing.yaml").read_text(encoding="utf-8")
+    )
+    regions = {region} | {
+        adapter["region"]
+        for adapter in routing["adapters"].values()
+        if adapter.get("type") == "bedrock-converse"
+    }
+    assert regions == {"us-east-1"}
+    assert f"`bedrock-runtime.{region}.amazonaws.com`" in rows()["F1"][0]
+
+
+def test_the_gateways_egress_row_points_at_the_aws_rows() -> None:
+    trigger = rows()["S2"][1]
+    assert "F1" in trigger and "F2" in trigger
+    assert "get their rows with the code that calls them" not in trigger
 
 
 def test_the_stand_ins_rows_point_at_the_probes() -> None:
