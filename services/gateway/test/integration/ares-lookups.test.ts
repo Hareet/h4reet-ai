@@ -3,7 +3,7 @@
 // listener behind one proves its client asked c-ares. dns.lookup, the way to getaddrinfo, is watched for the same
 // hosts: a call there is a lookup that could hold one of the two threads libuv gives lookups.
 import dns from "node:dns";
-import { createServer, type Server } from "node:net";
+import { createServer, Socket, type Server } from "node:net";
 import os from "node:os";
 import { createServer as createTlsServer, TLSSocket, type TlsOptions } from "node:tls";
 
@@ -14,37 +14,43 @@ import { pgDatabase } from "../../src/meter/store.js";
 import { fakePostgres } from "../helpers/fake-postgres.js";
 import { stubSmtp } from "../helpers/stub-smtp.js";
 
-/** What c-ares answers for each made-up host: an A record, or one error for every query. */
-const ANSWERS: Readonly<Record<string, { address: string } | { code: string }>> = {
-  "store.invalid": { address: "127.0.0.1" },
+type Answer = { addresses: string[] } | { code: string };
+
+/** What c-ares answers for each made-up host, until a test changes it: A records, or one error for every query. */
+const ANSWERS: Readonly<Record<string, Answer>> = {
+  "store.invalid": { addresses: ["127.0.0.1"] },
   "gone.invalid": { code: "ENOTFOUND" },
-  "smtp.invalid": { address: "127.0.0.1" },
+  "smtp.invalid": { addresses: ["127.0.0.1"] },
   "servfail.invalid": { code: "ESERVFAIL" },
+  // 127.0.0.2 is loopback too, and nothing listens there: a connection to it is refused.
+  "two.invalid": { addresses: ["127.0.0.2", "127.0.0.1"] },
+  "flaky.invalid": { addresses: ["127.0.0.1"] },
 };
 
 type Resolve = (this: dns.Resolver, host: string, ...rest: unknown[]) => void;
 
-/** Replaces c-ares's A and AAAA queries for the made-up hosts. Returns the queries asked for them. */
-function fakeAres(): string[] {
+/** Replaces c-ares's A and AAAA queries for the made-up hosts. Returns the queries asked, and answers a test can change. */
+function fakeAres(): { asked: string[]; answers: Map<string, Answer> } {
   const proto = dns.Resolver.prototype as unknown as { resolve4: Resolve; resolve6: Resolve };
   const asked: string[] = [];
+  const answers = new Map(Object.entries(ANSWERS));
   const fake = (type: "A" | "AAAA", real: Resolve): Resolve =>
     function (this: dns.Resolver, host: string, ...rest: unknown[]): void {
-      const answer = ANSWERS[host];
+      const answer = answers.get(host);
       if (answer === undefined) return real.call(this, host, ...rest);
       asked.push(`${type} ${host}`);
       const done = rest[rest.length - 1] as (err: NodeJS.ErrnoException | null, addresses: string[]) => void;
       const fail = (code: string) => Object.assign(new Error(`query${type} ${code} ${host}`), { code });
       setImmediate(() => {
         if ("code" in answer) done(fail(answer.code), []);
-        else if (type === "A") done(null, [answer.address]);
+        else if (type === "A") done(null, answer.addresses);
         else done(fail("ENODATA"), []);
       });
     };
   const [real4, real6] = [proto.resolve4, proto.resolve6];
   vi.spyOn(proto, "resolve4").mockImplementation(fake("A", real4));
   vi.spyOn(proto, "resolve6").mockImplementation(fake("AAAA", real6));
-  return asked;
+  return { asked, answers };
 }
 
 /** Watches dns.lookup for the made-up hosts, answering each ENOTFOUND at once. Returns the hosts it was asked for. */
@@ -71,14 +77,30 @@ const IPV4_ONLY: os.NetworkInterfaceInfo = {
 };
 
 const servers: Server[] = [];
+const sockets = new Set<Socket>();
 beforeEach(() => {
   vi.spyOn(os, "networkInterfaces").mockReturnValue({ eth0: [IPV4_ONLY] });
 });
 afterEach(async () => {
+  // A listener closes only once its connections have: end them first, as the helpers do.
+  for (const socket of sockets) socket.destroy();
+  sockets.clear();
   for (const server of servers.splice(0)) await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-/** A TLS listener on 127.0.0.1 with no certificate: it records the name each client asks for, then ends the handshake. */
+/** Listens on 127.0.0.1, keeping each connection so afterEach can end it. */
+async function listen(server: Server): Promise<number> {
+  servers.push(server);
+  server.on("connection", (socket: Socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  return typeof address === "object" && address !== null ? address.port : 0;
+}
+
+/** A TLS listener with no certificate: it records the name each client asks for, then ends the handshake. */
 function sniOptions(names: string[]): TlsOptions {
   return {
     SNICallback: (name, callback) => {
@@ -86,13 +108,6 @@ function sniOptions(names: string[]): TlsOptions {
       callback(new Error("no certificate here"));
     },
   };
-}
-
-async function listen(server: Server): Promise<number> {
-  servers.push(server);
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  return typeof address === "object" && address !== null ? address.port : 0;
 }
 
 /** Implicit TLS, as on 465. */
@@ -133,7 +148,7 @@ async function startTls(): Promise<{ port: number; names: string[] }> {
 
 describe("the store's connections (meter/store.ts, T189)", () => {
   it("resolve the store's host through c-ares", async () => {
-    const asked = fakeAres();
+    const ares = fakeAres();
     const fallback = watchGetaddrinfo();
     const store = await fakePostgres("answer");
     const db = pgDatabase({
@@ -146,7 +161,7 @@ describe("the store's connections (meter/store.ts, T189)", () => {
     try {
       await db.query("SELECT 1");
       expect(store.connections()).toBe(1);
-      expect(asked).toEqual(["A store.invalid"]);
+      expect(ares.asked).toEqual(["A store.invalid"]);
       expect(fallback).toEqual([]);
     } finally {
       await db.close();
@@ -154,13 +169,13 @@ describe("the store's connections (meter/store.ts, T189)", () => {
     }
   });
 
-  it("fail at once on a host c-ares can't resolve, and never ask getaddrinfo", async () => {
-    const asked = fakeAres();
+  it("fail on a host c-ares can't resolve, and never ask getaddrinfo", async () => {
+    const ares = fakeAres();
     const fallback = watchGetaddrinfo();
     const db = pgDatabase({ host: "gone.invalid", port: 5432, database: "gateway", user: "gateway", password: "x" });
     try {
       await expect(db.query("SELECT 1")).rejects.toMatchObject({ code: "ENOTFOUND" });
-      expect(asked).toEqual(["A gone.invalid"]);
+      expect(ares.asked).toEqual(["A gone.invalid"]);
       expect(fallback).toEqual([]);
     } finally {
       await db.close();
@@ -182,15 +197,25 @@ describe("the email channel (alerts/smtp.ts, T189)", () => {
   });
   const mail = { subject: "s", text: "t", alertId: "dev:warn:day:2026-10-29" };
 
-  it("delivers to a host only c-ares can name", async () => {
-    const asked = fakeAres();
+  it("delivers to a host only c-ares can name, over a connection the gateway made by that name", async () => {
+    const ares = fakeAres();
     const fallback = watchGetaddrinfo();
+    const connects = vi.spyOn(Socket.prototype, "connect");
     const smtp = await stubSmtp();
     try {
       expect(await sendEmail(channel({ port: smtp.port }), mail)).toEqual({ ok: true, ref: "250 ABC123" });
       expect(smtp.messages).toHaveLength(1);
-      expect(asked).toEqual(["A smtp.invalid"]);
+      expect(ares.asked).toEqual(["A smtp.invalid"]);
       expect(fallback).toEqual([]);
+      // nodemailer, resolving the name itself, would connect to the address it found, with no lookup given. net.connect
+      // hands the socket its normalized arguments: an array whose first item is the options.
+      const byName = connects.mock.calls
+        .map(([first]) => {
+          const arg: unknown = first;
+          return (Array.isArray(arg) ? arg[0] : arg) as { host?: unknown; lookup?: unknown } | null;
+        })
+        .filter((options) => typeof options === "object" && options?.host === "smtp.invalid");
+      expect(byName.map((options) => typeof options?.lookup)).toEqual(["function"]);
     } finally {
       await smtp.close();
     }
@@ -198,11 +223,41 @@ describe("the email channel (alerts/smtp.ts, T189)", () => {
 
   it("is connect when c-ares finds no address, and never falls back to getaddrinfo", async () => {
     // nodemailer's own resolver reads a SERVFAIL as no address, and asks dns.lookup next.
-    const asked = fakeAres();
+    const ares = fakeAres();
     const fallback = watchGetaddrinfo();
     expect(await sendEmail(channel({ host: "servfail.invalid" }), mail)).toEqual({ ok: false, errorClass: "connect" });
-    expect(asked).toEqual(["A servfail.invalid"]);
+    expect(ares.asked).toEqual(["A servfail.invalid"]);
     expect(fallback).toEqual([]);
+  });
+
+  it("tries the host's next address when one refuses, within the same attempt", async () => {
+    const ares = fakeAres();
+    const smtp = await stubSmtp();
+    try {
+      const sent = await sendEmail(channel({ host: "two.invalid", port: smtp.port }), mail);
+      expect(sent).toEqual({ ok: true, ref: "250 ABC123" });
+      expect(smtp.messages).toHaveLength(1);
+      expect(ares.asked).toEqual(["A two.invalid"]);
+    } finally {
+      await smtp.close();
+    }
+  });
+
+  it("uses the addresses c-ares last found when a lookup fails, and still never asks getaddrinfo", async () => {
+    const ares = fakeAres();
+    const fallback = watchGetaddrinfo();
+    const smtp = await stubSmtp();
+    try {
+      const to = channel({ host: "flaky.invalid", port: smtp.port });
+      expect(await sendEmail(to, mail)).toEqual({ ok: true, ref: "250 ABC123" });
+      ares.answers.set("flaky.invalid", { code: "ESERVFAIL" });
+      expect(await sendEmail(to, mail)).toEqual({ ok: true, ref: "250 ABC123" });
+      expect(smtp.messages).toHaveLength(2);
+      expect(ares.asked).toEqual(["A flaky.invalid", "A flaky.invalid"]);
+      expect(fallback).toEqual([]);
+    } finally {
+      await smtp.close();
+    }
   });
 
   it("asks TLS for the host's name while it connects to the address: implicit, as on 465", async () => {

@@ -10,9 +10,10 @@
 // Delivered is the server's 250; the reference kept is the reply code and the queue
 // ID, read from the server's own reply line: a reply that can't be read keeps none, never an assumed 250 (tasks.md
 // T156). A failure is recorded as its class only: timeout, connect, tls, smtp_<reply code>, smtp_<nodemailer code>.
-// The host is resolved through c-ares alone, and nodemailer is given its address (aresTransport below, tasks.md T189).
-import { ADDRCONFIG } from "node:dns";
-import { isIP } from "node:net";
+// The gateway connects to the host itself, through c-ares, and hands nodemailer the socket (aresTransport below,
+// tasks.md T189).
+import type { LookupAddress } from "node:dns";
+import { connect, type LookupFunction, type Socket } from "node:net";
 
 import { createTransport } from "nodemailer";
 
@@ -34,7 +35,10 @@ export interface EmailChannel {
   timeoutMs: number;
 }
 
-/** What createTransport is given: the test asserts it, so TLS and its certificate check can't be dropped by mistake. */
+/**
+ * What the transport is built from: the test asserts it, so TLS and its certificate check can't be dropped by mistake.
+ * The default transport adds only its getSocket (aresTransport below).
+ */
 export function transportOptions(channel: EmailChannel) {
   return {
     host: channel.host,
@@ -83,42 +87,68 @@ type TransportFactory = (options: ReturnType<typeof transportOptions>) => {
   close(): void;
 };
 
-/** The host's first address through c-ares, as net would ask for it; a host with none fails as nodemailer's EDNS. */
-function addressOf(host: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    aresLookup(host, { hints: ADDRCONFIG }, (err, address) => {
-      if (err === null && typeof address === "string") resolve(address);
-      else reject(Object.assign(new Error("the SMTP host has no address"), { code: "EDNS" }));
-    });
+/** The addresses c-ares last found for each SMTP host, which a lookup that fails falls back to. */
+const lastFound = new Map<string, LookupAddress[]>();
+
+/** A host with no address, now or before: nodemailer's own code for it, which classes as connect. */
+function noAddress(): NodeJS.ErrnoException {
+  return Object.assign(new Error("the SMTP host has no address"), { code: "EDNS" });
+}
+
+/**
+ * The SMTP host's lookup: aresLookup, keeping each answer for the host and giving the last one when a lookup fails, as
+ * nodemailer's own cache did through a resolver outage. It asks at every attempt, where nodemailer reused an answer
+ * for 5 minutes.
+ */
+const smtpLookup: LookupFunction = (hostname, options, callback) => {
+  aresLookup(hostname, { ...options, all: true }, (err, found) => {
+    const fresh = err === null && Array.isArray(found) && found.length > 0 ? found : undefined;
+    if (fresh !== undefined) lastFound.set(hostname, fresh);
+    const addresses = fresh ?? lastFound.get(hostname);
+    const first = addresses?.[0];
+    if (addresses === undefined || first === undefined) callback(noAddress(), options.all ? [] : "");
+    else if (options.all) callback(null, addresses);
+    else callback(null, first.address, first.family);
+  });
+};
+
+/**
+ * nodemailer's getSocket (tasks.md T189): a socket connected to the host through smtpLookup, which nodemailer then
+ * speaks SMTP, and TLS, over. net tries each address in turn, 250 ms apiece but the last, as for the Telegram channel,
+ * and the connection timeout bounds the lookup and the connect together. A failure takes nodemailer's own codes: a
+ * timeout is ETIMEDOUT, a host with no address EDNS, and any other failure to connect ECONNECTION.
+ */
+function connectThroughAres(
+  options: ReturnType<typeof transportOptions>,
+  callback: (err: Error | null, socketOptions?: { connection: Socket }) => void,
+): void {
+  const socket = connect({ host: options.host, port: options.port, lookup: smtpLookup });
+  const timer = setTimeout(
+    () => socket.destroy(Object.assign(new Error("Connection timeout"), { code: "ETIMEDOUT" })),
+    options.connectionTimeout,
+  );
+  const fail = (err: NodeJS.ErrnoException): void => {
+    clearTimeout(timer);
+    const kept = err.code === "ETIMEDOUT" || err.code === "EDNS";
+    callback(kept ? err : Object.assign(new Error("the SMTP host couldn't be reached"), { code: "ECONNECTION" }));
+  };
+  socket.once("error", fail);
+  socket.once("connect", () => {
+    clearTimeout(timer);
+    socket.off("error", fail);
+    callback(null, { connection: socket });
   });
 }
 
 /**
  * The transport sendEmail uses unless it is handed one (tasks.md T189). nodemailer resolves a host name through
- * c-ares, but falls back to getaddrinfo whenever c-ares finds no address, a SERVFAIL or a timeout included. A
- * getaddrinfo the resolver doesn't answer holds one of the two threads libuv gives lookups, and the store's
- * connections queue behind it. So the host is resolved here, through c-ares alone, and nodemailer is given the
- * address: it resolves nothing, and `servername` keeps TLS's SNI and certificate check on the name. Only that address
- * is tried, not the host's others; the dispatcher's next attempt asks again.
+ * c-ares, but falls back to getaddrinfo whenever c-ares finds no address, a SERVFAIL or a timeout included, and a
+ * getaddrinfo the resolver doesn't answer holds one of the two threads libuv gives lookups until the resolver gives up.
+ * So the gateway connects itself and hands nodemailer the socket: nodemailer resolves nothing, and its TLS, on 465 or
+ * after STARTTLS, still asks for the host's name and checks the certificate against it.
  */
-const aresTransport: TransportFactory = (options) => {
-  let transport: ReturnType<typeof createTransport> | undefined;
-  let closed = false;
-  return {
-    async sendMail(mail) {
-      const address = await addressOf(options.host);
-      // sendEmail's deadline may have passed and closed this transport while the lookup ran: send nothing then.
-      if (closed) throw Object.assign(new Error("the send was abandoned"), { code: "ETIMEDOUT" });
-      const servername = isIP(options.host) === 0 ? { servername: options.host } : {};
-      transport = createTransport({ ...options, host: address, ...servername });
-      return transport.sendMail(mail);
-    },
-    close() {
-      closed = true;
-      transport?.close();
-    },
-  };
-};
+const aresTransport: TransportFactory = (options) =>
+  createTransport({ ...options, getSocket: (_options, callback) => connectThroughAres(options, callback) });
 
 export async function sendEmail(
   channel: EmailChannel,

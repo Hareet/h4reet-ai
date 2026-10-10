@@ -9,8 +9,8 @@
 // switch failed closed again and again while the model server was stopped.
 //
 // This lookup asks the resolvers in /etc/resolv.conf itself, through c-ares, which holds no thread and gives up after
-// its own short timeout. It doesn't read /etc/hosts, so it answers localhost and IP literals itself; compose service
-// names come from the engine's DNS. Like getaddrinfo, it honors ADDRCONFIG, which net passes for a connect that names
+// its own short timeout. It asks for the name as given, with none of resolv.conf's search domains, and doesn't read
+// /etc/hosts, so it answers localhost and IP literals itself; compose service names come from the engine's DNS. Like getaddrinfo, it honors ADDRCONFIG, which net passes for a connect that names
 // no family: a family no non-loopback interface has an address in isn't asked for, or answered for localhost. Without
 // that, a host with an AAAA record would hand a container without IPv6 an address it can't reach, and net's happy
 // eyeballs would give up on the IPv4 connect after 250 ms to try it (the T188 review's S1). An explicit family is

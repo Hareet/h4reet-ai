@@ -3,8 +3,8 @@ Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) ·
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
-**Status: DRAFT. Not ready to merge.** Every task an agent session can do without the engine is done, except T189, which round 4 opened; round 6 reviewed its first part. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 6's checks" below). What's left:
-- **T189 (an agent session):** the gateway's other `getaddrinfo` users, round 4's S2. Its first part, the exporters and edge, is done and reviewed (round 6). pg's stream, nodemailer's fallback, and an engine test with the collector stopped remain, and the image's threadpool size is your call.
+**Status: DRAFT. Not ready to merge.** Every task an agent session can do without the engine is done. T189's two parts are done and reviewed (rounds 6 and 7); its engine test, and T102's Bedrock calls once they land, remain. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 6's checks" below). What's left:
+- **T189 (an agent session):** the gateway's other `getaddrinfo` users, round 4's S2. Both parts are done and reviewed: the exporters and edge (round 6), and pg and the email channel (round 7). The engine test with the collector stopped remains, and T102's Bedrock calls once they land. `UV_THREADPOOL_SIZE` stays at the default, your call.
 - **T084 (an agent session, on the engine):** `make breach-test ENV=dev-cpu` passes all 12 steps. Its pre-run, on a simulated merge with the us1 stack (2026-10-10), passed 45 of 52 assertions. T187 and T188 fix the seven misses, and are done (d43da3e and the commit after it, "T084's pre-run" below); T084's run on the engine checks them.
 - **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
 - **This note:** both runs' output goes into it, and then this block goes.
@@ -164,7 +164,7 @@ One read-only reviewer read d43da3e and 071d6bd (2026-10-10), the fixes for T084
   - this note's status line no longer says the round's commits were reviewed and checked before they were (N5);
   - the smaller ones: "kept to 64 KiB", not "read to"; the error that says more than `ENODATA` is the one reported; and a comment on the T151 `ETIMEOUT` case.
 
-**The test-file edits are yours to accept:** round 5 lists four, and round 6 two more.
+**The test-file edits:** round 5 lists four and round 6 two more. You accepted them with round 7's one, and round 7 changed that one again.
 
 ### Round 5: round 4's fixes confirmed (at 20897a9 and aaf9293), applied at 39f5a67
 
@@ -218,6 +218,25 @@ T189 began from round 4's S2: other `getaddrinfo` users could still fill the two
 **Two more test files for you to accept,** beside round 5's four. Both only add tests, and no assertion was weakened:
 - **`services/gateway/test/unit/otel-export.test.ts`,** new: the agent's options, a span through c-ares, and the wiring test above.
 - **`services/gateway/test/unit/edge.test.ts`:** one new test, for the default resolver through c-ares, with its exact queries and a failing name.
+
+### Round 7: T189's second part (at c904034), applied in the commit after it
+
+c904034 moved pg's connections and the email channel's lookups onto c-ares. One read-only reviewer read it. Its verdict begins: "Approve after S1 and S2. For the store, c904034 does what T189's second part says. The pool's connections, the LISTEN connection and the migrations' connection all resolve `gateway-state` through c-ares. pg's 500 ms connect timeout still ends a hung lookup as `store_unreachable`. Apart from T102's Bedrock calls, which haven't landed, no `getaddrinfo` user is left in `services/gateway/src`." It checked the TLS name check on both paths with throwaway certificates. All of it is applied:
+- **S1: the new test file wasn't put to you,** though T189 said the note listed it. It is now, below, beside your acceptance, and the status line and T189's bullet say what remains.
+- **S2: the email channel tried one address, the first, and kept no answer.** nodemailer had picked an address at random, moved to the host's next one after a failed connect, and reused its last answer when the resolver failed. The record named only the second.
+  - The default transport now makes the connection itself, through c-ares, and hands nodemailer the socket through nodemailer's `getSocket` hook. nodemailer resolves nothing.
+  - net tries every address in turn, as for the Telegram channel. The addresses c-ares last found carry a failed lookup.
+  - alerts.md §4.1 lists what's kept, what's changed, and what's lost. Changed: the resolver's order instead of a random first, and a lookup at every attempt instead of a 5-minute reuse. Lost: `/etc/hosts` and resolv.conf's search domains.
+- **The nits:**
+  - N1: the delivery test now checks that the connection was made by the host's name, with the gateway's lookup. So it fails wherever nodemailer resolves the name itself; I checked by loading nodemailer with an IPv4 interface.
+  - N2: "at once" is gone from the pg test's name and from T189.
+  - N3: smtp.ts's comments say what the code does now.
+  - N4: telemetry.md's store sentence follows the exporter agent's caveats.
+  - N5: the file's own listeners end their connections in `afterEach`, as the helpers do.
+- **Two new tests,** for what S2 restored: a refusing address gives way to the host's next within the attempt, and the addresses last found carry a failed lookup. Each fails with its behavior taken out (checked).
+- **For T084:** the store, the enforcement point, now depends on c-ares answering compose names inside the gateway's container, and no stack run has shown that yet. T084's run checks the store's connections as well as the alerts (step 3 below).
+
+**The test files:** you accepted all seven on 2026-10-10, at c904034: "Yes, accepted." They are round 5's four, round 6's two, and `services/gateway/test/integration/ares-lookups.test.ts`, new in c904034. Round 7 then changed that one again: N1, N2, and N5 above, and two new tests. No assertion was weakened. It's yours to look at once more.
 
 ## Verification
 
@@ -713,8 +732,8 @@ breach-test exit=2
 ## For the Author
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
-2. **Accept the six test-file edits** listed in rounds 5 and 6, or say what each should be instead.
-3. **T084:** an agent session runs `make breach-test ENV=dev-cpu` on the engine, all 12 steps, with T187's and T188's fixes in. It also checks that the gateway container's `/proc/net/if_inet6` lists only `lo`: S1's fix assumes no IPv6 address but loopback, link-local included. T189 can follow it.
+2. **Look again at `ares-lookups.test.ts`,** which round 7 changed after you accepted the seven test files, and say if any of it should be otherwise.
+3. **T084:** an agent session runs `make breach-test ENV=dev-cpu` on the engine, all 12 steps, with T187's, T188's, and T189's fixes in. It also checks that the gateway container's `/proc/net/if_inet6` lists only `lo`: S1's fix assumes no IPv6 address but loopback, link-local included. And it checks that the store's connections resolve `gateway-state` through c-ares (round 7). You cleared the main tree for this run on 2026-10-10: "Yes, youc an detach the main tree for about 30 minutes to do what you need."
 4. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
 ### For later tasks
@@ -745,7 +764,14 @@ Round 6's reviewer suggested a fifth, after test files went unlisted twice:
 
 > - Adding or editing a test file during a fix without putting it on the branch's merge-request list of test edits for the Author to accept.
 
+Round 7's reviewer suggested two more, each the third time its mistake was made:
+
+> - Committing a fix that adds or edits a test file without adding it to the merge-request note's acceptance list in the same commit.
+> - Replacing a library's default (a lookup, an HTTP agent, a mail transport) without listing what the default did, such as its cache, fallbacks, retries, and the files it reads, and either keeping each or recording its loss.
+
 ### Observations
+
+- **Round 7's reviewer wrote outside the repository:** throwaway Node scripts, and two self-signed test certificates with their keys, under `/tmp/claude-1000/review-t189`. bash-gate refused its recursive delete there, and I left them too, rather than run what it was refused. /tmp's wipe at boot removes them, or `rm -r /tmp/claude-1000/review-t189` does. Reviewers' Bash grants aren't enforced until the closing patch (T117).
 
 - **The usage limits stopped both implementers twice.** Before your WSL restart, I committed their unfinished work as `wip` commits on their branches. Both agents later folded those into finished commits, and the integration squashed the evals half's `wip` into T071's commit (1962034).
 - **The matrix gate now reports PLANNED (T117)** for the thirteen breach-test rows (nine, plus T153's four). A FAIL elsewhere in the matrix still fails the gate: the verifier checked it with a mutant.

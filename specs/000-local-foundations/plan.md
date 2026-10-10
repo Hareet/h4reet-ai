@@ -560,7 +560,7 @@ The full API is in [contracts/operator-admin.md](contracts/operator-admin.md).
 The full contract is in [contracts/alerts.md](contracts/alerts.md).
 
 - **The dispatcher** wakes on `LISTEN alert_outbox`, or every 2 s.
-  - Each channel is tried on its own: Telegram's Bot API `sendMessage` (plain text, 5 s timeout, over `node:http(s)` with its host resolved through c-ares, tasks.md T188), and SMTP through nodemailer (implicit TLS on 465 or STARTTLS on 587, 10 s timeout, given the address c-ares found for the host, tasks.md T189).
+  - Each channel is tried on its own: Telegram's Bot API `sendMessage` (plain text, 5 s timeout, over `node:http(s)` with its host resolved through c-ares, tasks.md T188), and SMTP through nodemailer (implicit TLS on 465 or STARTTLS on 587, 10 s timeout, over a connection the gateway makes through c-ares, tasks.md T189).
   - Retries back off 5, 15, 30, 60, and 120 s, so every attempt falls within 300 s. After 300 s the channel is marked failed for that alert.
   - Delivery lag and failures are metrics with their own panel. The other channel keeps going, and enforcement is never affected.
 - **When the store is unreachable,** the outbox can't be written. The gateway sends one in-memory, deduplicated `store_unreachable` alert once the condition has lasted 60 s.
