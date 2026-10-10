@@ -424,8 +424,10 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 # The live contract run (contracts/provider-adapter.md §5.3; tasks.md T103), the Author's: operator.py records each case
 # of live-cases.json through ENV's POST /admin/adapters/ADAPTER/complete into a 0700 temporary directory, then the
 # replay runs in tools/gates/gate's container phase, the devcontainer image with --network none on an exported tree,
-# and the directory is deleted. Bedrock is prod's alone, and its calls are charged to prod's meters as test. Until the
-# gate exists (T092), the target stops before it calls anything, so no live call is made without its replay.
+# and the directory is deleted. Bedrock is prod's alone, and its calls are charged to prod's meters as test. The
+# recorder reads the working tree's live-cases.json and the replay HEAD's, so the target refuses, before it records, a
+# case file that differs from HEAD's (provider-adapter.md §5.4; T092). Without the gate it calls nothing, so no live
+# call is made without its replay. The gate refuses to run from a linked worktree, so this runs in the main tree.
 contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock REASON="..." (provider-adapter.md §5.3)
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make contract-live is the Author's: it calls a live adapter with ENV's operator token (provider-adapter.md §5.3)" >&2; exit 2; }
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make contract-live needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
@@ -434,7 +436,12 @@ contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock
 	  bedrock) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=bedrock: bedrock is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
 	  *) echo "make contract-live needs ADAPTER=local or ADAPTER=bedrock on the command line" >&2; exit 2 ;; \
 	esac
-	@[ -x tools/gates/gate ] || { echo "PLANNED (T092): make contract-live replays in tools/gates/gate's container phase, which T092 adds; nothing was called" >&2; exit 2; }
+	@[ -x tools/gates/gate ] || { echo "make contract-live replays in tools/gates/gate's container phase, and there is no gate here; nothing was called" >&2; exit 2; }
+	@cases=services/gateway/test/contract/live-cases.json; \
+	if ! GIT_NO_REPLACE_OBJECTS=1 git cat-file -e "HEAD:$$cases" 2>/dev/null \
+	  || ! GIT_NO_REPLACE_OBJECTS=1 git cat-file blob "HEAD:$$cases" | cmp -s - "$$cases"; then \
+	  echo "make contract-live: $$cases differs from HEAD's, and the replay reads HEAD's (provider-adapter.md §5.4): commit or restore it; nothing was called" >&2; exit 2; \
+	fi
 	@dir=$$(mktemp -d) && chmod 700 "$$dir" && trap 'rm -rf "$$dir"' EXIT && \
 	  $(OPERATOR) contract-record --adapter "$$ADAPTER" --out "$$dir/recording.json" --reason="$$REASON" && \
 	  tools/gates/gate --contract-replay "$$dir/recording.json"
