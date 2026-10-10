@@ -182,8 +182,9 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
 .dockerignore                    [A] new: excludes .git, deploy/env, *.env, node_modules, __pycache__, corpus/intake/private
 .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
                                      allowlists deploy/env.agents/dev-cpu.vars, and ADR 0004 at 8c15b95
-GNUmakefile, makefile            never exist: denied at the OS level in the main tree from the early patch on; a branch
-                                     from a worktree could add one, and the gate refuses it (§11)
+GNUmakefile, makefile            never exist as files: denied at the OS level in the main tree from the early patch on,
+                                     where a session's sandbox puts placeholders that hold nothing. A branch from a
+                                     worktree could add one; the gate refuses it from T092 (§11)
 .devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
                                      hashed requirements-tools.txt
 config/
@@ -869,8 +870,8 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
 - in a build: `ssh`, `secrets`, `cache_from`, `cache_to`, and `extra_hosts`, each of which reaches the host; and a `build.context` that is absolute, or that resolves outside the compose file's tree. Each image builds from the tree the compose file came from: on a host stack, the export, so `--build` can't pick up the live working tree ([§4](#4-environment-files-preflight-and-the-stack-targets)).
 
 **The Author's gate** (`tools/gates/gate <ref>`, human-only, run directly rather than through make, because a planted `GNUmakefile` would shadow the Makefile):
-1. **Export:** `git archive <ref>` into a temporary directory.
-2. **Makefiles:** the export's `GNUmakefile` and `makefile` must be what T183's decision allows: neither, or exactly the committed `GNUmakefile` and no `makefile`. A FAIL stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
+1. **Export:** `git archive <ref>` into a temporary directory, proven as `deploy/scripts/export_tree.py` proves a stack's export: no `.git/info/attributes`, tarfile's data filter, and the export hashing to the commit's own tree. Otherwise `.gitattributes`' export-ignore and export-subst could change what every later step checks.
+2. **Makefiles:** the export's `GNUmakefile` and `makefile` must be what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. A FAIL stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
 3. **Container phase:** in the devcontainer image (built from the exported `.devcontainer/`, tagged by its hash), `npm ci --ignore-scripts`, then, with `--network none`, lint, tests, the scaffolds, and matrix stage H.
 4. **Host phase:**
    - `githooks-check`, `toolchain-check`, and the policy;

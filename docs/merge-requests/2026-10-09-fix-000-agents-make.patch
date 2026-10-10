@@ -43,15 +43,15 @@ index acbb22a..68a413c 100644
  	init-env operator-token operator-status operator-init hello isolation-check breach-test plan
  
 diff --git a/docs/how-we-build/lifecycle.md b/docs/how-we-build/lifecycle.md
-index 540d383..581cb87 100644
+index f9fda80..a122cae 100644
 --- a/docs/how-we-build/lifecycle.md
 +++ b/docs/how-we-build/lifecycle.md
 @@ -31,7 +31,7 @@ A skill makes a violation rare; a hook makes it close to impossible; the sandbox
  | Fix the code, not the test | `CLAUDE.md` verification block | `protected-paths.sh` under `FIX_TASK=1` | Reviewer compliance pass |
  | Cost bounded | `constitution-check` skill | — | Real-time meter + kill switch; AWS Budgets as safety net |
  | Agents run containers only on their own engine (spec 000 FR-039) | `CLAUDE.md` engine line; `ops` agent prompt | From the early patch, `bash-gate.sh` refuses `engine.sh`'s Author subcommands | The sandbox's one opening (`198.18.0.1:2376`); the engine's admission plugin, firewall, and egress proxy; the read-only tree and its masks, which the daemon starts only behind (H8); rootless Docker under `h4agents` |
--| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first. The hook and the deny work out paths from the main tree, so the gate refuses a branch whose `GNUmakefile` or `makefile` isn't what T183 allows (tasks.md T092) |
-+| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first. The hook and the deny work out paths from the main tree, so the gate refuses a branch whose `GNUmakefile` isn't exactly the committed one, or that has a `makefile` (`tools/gates/makefiles_check.py`, tasks.md T092) |
+-| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first. The hook and the deny work out paths from the main tree, so from T092 the gate refuses a branch whose `GNUmakefile` or `makefile` isn't what T183 allows; until then, `git diff main...<branch> -- GNUmakefile makefile` before a merge shows one |
++| The files prod reads and the code the Author runs are human-only (ADR 0017) | `CLAUDE.md` | From the early patch, `protected-paths.sh` and sandbox `denyWrite` on `config/prices*`, `GNUmakefile`, `makefile`, `deploy/agents-engine/**`, `.gitleaks*`, and any `.gitleaksignore` | Each merge-request note lists changes to what runs in the Author's terminal first. The hook and the deny work out paths from the main tree, so from T092 the gate refuses a branch whose `GNUmakefile` isn't exactly main's, or that has a `makefile` (`tools/gates/makefiles_check.py`); until then, `git diff main...<branch> -- GNUmakefile makefile` before a merge shows one |
  
  Until publication (ADR 0013), the GitHub and AWS entries in the last column don't exist yet. What remains is the sandbox, the hooks, `make check`, and the Author's review.
  
@@ -70,24 +70,26 @@ index bf8f7e2..57827e8 100644
  PLANTED = "help:\n\t@touch PWNED\n"
  MAKE_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "LC_ALL": "C"}
 diff --git a/specs/000-local-foundations/plan.md b/specs/000-local-foundations/plan.md
-index 823effd..5a86b6b 100644
+index 696c017..10aa08c 100644
 --- a/specs/000-local-foundations/plan.md
 +++ b/specs/000-local-foundations/plan.md
-@@ -182,8 +182,11 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
+@@ -182,9 +182,12 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
  .dockerignore                    [A] new: excludes .git, deploy/env, *.env, node_modules, __pycache__, corpus/intake/private
  .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
                                       allowlists deploy/env.agents/dev-cpu.vars, and ADR 0004 at 8c15b95
--GNUmakefile, makefile            never exist: denied at the OS level in the main tree from the early patch on; a branch
--                                     from a worktree could add one, and the gate refuses it (§11)
+-GNUmakefile, makefile            never exist as files: denied at the OS level in the main tree from the early patch on,
+-                                     where a session's sandbox puts placeholders that hold nothing. A branch from a
+-                                     worktree could add one; the gate refuses it from T092 (§11)
 +GNUmakefile                      [H] new, by the Author's patch (T183): only `include`s the Makefile. In the main tree
 +                                     the sandbox binds it read-only, so make reads it there too; the gate holds it to its
 +                                     exact text (tools/gates/makefiles_check.py), since a worktree branch could change it
-+makefile                         never exists: denied at the OS level in the main tree from the early patch on. make never
-+                                     looks for it while GNUmakefile exists, and makefiles_check.py fails if it does
++makefile                         never exists as a file: denied at the OS level in the main tree from the early patch on,
++                                     where a session's sandbox puts placeholders that hold nothing. make never looks for
++                                     it while GNUmakefile exists, and makefiles_check.py fails on anything but a placeholder
  .devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
                                       hashed requirements-tools.txt
  config/
-@@ -228,7 +231,7 @@ deploy/
+@@ -229,7 +232,7 @@ deploy/
  scripts/operator.py              [A] new: stdlib operator CLI (§5.5)
  tools/gates/                     [H] new: gate, compose_policy.py, publish_check.py, toolchain_check.py,
                                       run_checks.py (make check's runner), install-tools.sh (make tools),
@@ -96,42 +98,42 @@ index 823effd..5a86b6b 100644
                                       lint-node/ (the post-edit hook's lint toolchain, installed by make tools)
  evals/                           [A] new: __init__.py, run.py, breach.py, breach_probe.py, Dockerfile.probe, docs_links.py,
                                       standins/{telegram_standin.py,Dockerfile}, product/cases/*.yaml, test_*.py
-@@ -835,6 +838,7 @@ Every gate this spec adds that can run locally has a make target, and `make chec
+@@ -836,6 +839,7 @@ Every gate this spec adds that can run locally has a make target, and `make chec
  
  | Gate | Target | What it runs | In the sandbox |
  |---|---|---|---|
-+| Makefiles | `makefiles-check` | `tools/gates/makefiles_check.py`: `GNUmakefile` holds exactly its include, and there is no `makefile` (T183). Through make it reports only an accidental edit: a hostile `GNUmakefile` has already run, and can skip or fake it | runs |
++| Makefiles | `makefiles-check` | `tools/gates/makefiles_check.py`: `GNUmakefile` holds exactly its include, and there is no `makefile` but the sandbox's placeholders, which hold nothing (T183). Through make it reports only an accidental edit: a hostile `GNUmakefile` has already run, and can skip or fake it | runs |
  | Git hooks installed | `githooks-check` | `reference-transaction` and `pre-commit` match `.claude/git-hooks/` (`pre-commit` is PLANNED until the early patch adds it); `core.hooksPath` is unset; `gc.packRefs=false`; `main` is a loose ref | runs |
  | Toolchain pins | `toolchain-check` | `toolchain_check.py` against `.devcontainer/toolchain.vars` | runs |
  | Compose and file policy | `policy` | `tools/gates/compose_policy.py` (below) | runs (no daemon needed) |
-@@ -870,7 +874,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
+@@ -871,7 +875,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
  
  **The Author's gate** (`tools/gates/gate <ref>`, human-only, run directly rather than through make, because a planted `GNUmakefile` would shadow the Makefile):
- 1. **Export:** `git archive <ref>` into a temporary directory.
--2. **Makefiles:** the export's `GNUmakefile` and `makefile` must be what T183's decision allows: neither, or exactly the committed `GNUmakefile` and no `makefile`. A FAIL stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
-+2. **Makefiles:** `tools/gates/makefiles_check.py`, from the Author's tree, on the export: `GNUmakefile` holds exactly the committed text, and there is no `makefile` (T183). A FAIL stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
+ 1. **Export:** `git archive <ref>` into a temporary directory, proven as `deploy/scripts/export_tree.py` proves a stack's export: no `.git/info/attributes`, tarfile's data filter, and the export hashing to the commit's own tree. Otherwise `.gitattributes`' export-ignore and export-subst could change what every later step checks.
+-2. **Makefiles:** the export's `GNUmakefile` and `makefile` must be what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. A FAIL stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
++2. **Makefiles:** `tools/gates/makefiles_check.py`, from the Author's tree, on the proven export: `GNUmakefile` holds exactly the text in the Author's copy of the check, which is main's, and there is no `makefile` (T183). A FAIL stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
  3. **Container phase:** in the devcontainer image (built from the exported `.devcontainer/`, tagged by its hash), `npm ci --ignore-scripts`, then, with `--network none`, lint, tests, the scaffolds, and matrix stage H.
  4. **Host phase:**
     - `githooks-check`, `toolchain-check`, and the policy;
 diff --git a/specs/000-local-foundations/tasks.md b/specs/000-local-foundations/tasks.md
-index 73ba9be..d8df8f8 100644
+index 3a1710e..69c467e 100644
 --- a/specs/000-local-foundations/tasks.md
 +++ b/specs/000-local-foundations/tasks.md
 @@ -500,7 +500,7 @@ description: "Task list for spec 000, Local Foundations"
  - [ ] T091 [P] [US3] Create `make secrets` per §11 (make the fresh empty directory for `--gitleaks-ignore-path` with a checked `mktemp -d`, and refuse an empty path: an unchecked `mktemp` failing gave an empty `pycache_prefix`, which loaded planted bytecode, research.md R-35): `gitleaks git --pre-commit` with and without `--staged`, plus `$(git merge-base main HEAD)..HEAD`, each with `--config` (the main tree's `.gitleaks.toml`, from T045's patch), `--gitleaks-ignore-path` naming a fresh empty directory, and `--ignore-gitleaks-allow (and refusing to run while a `.gitleaksignore` exists at its scan source (research.md R-36))`. Missing gitleaks fails closed.
  - [ ] T092 [P] [US3] Create `tools/gates/gate` (the Author's clean-room gate, §11) and `tools/gates/test/test_gate.py`:
-   - export the ref with `git archive`;
--  - before anything runs make on the export, check that its `GNUmakefile` and `makefile` are what T183's decision allows: neither, or exactly the committed `GNUmakefile` and no `makefile`. A FAIL stops the gate, and nothing runs make on that export (T183's reviews);
-+  - before anything runs make on the export, `tools/gates/makefiles_check.py` from the Author's tree on it: `GNUmakefile` holds exactly the committed text, and there is no `makefile`. A FAIL stops the gate, and nothing runs make on that export (T183);
+   - export the ref with `git archive`, and prove the export as `deploy/scripts/export_tree.py` proves a stack's: refuse a `.git/info/attributes`, extract with tarfile's data filter, and refuse an export that doesn't hash to the commit's own tree. Otherwise `.gitattributes`' export-ignore and export-subst could change what every later step checks (T183's third review);
+-  - before anything runs make on the export, check that its `GNUmakefile` and `makefile` are what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. A FAIL stops the gate, and nothing runs make on that export (T183's reviews);
++  - before anything runs make on the export, `tools/gates/makefiles_check.py` from the Author's tree on it: `GNUmakefile` holds exactly the text in the Author's copy of the check, which is main's, and there is no `makefile`. A FAIL stops the gate, and nothing runs make on that export (T183);
    - build the devcontainer image, tagged by `.devcontainer/`'s hash;
    - the container phase: `npm ci --ignore-scripts`, then lint, test, the scaffolds, and stage H with `--network none`;
    - the host phase: githooks, toolchain, policy, `corpus-check` with the denylist through `PY_HOST`, gitleaks, the image build on the engine, and stage E plus the behavioral evals when triggered;
 diff --git a/tools/gates/makefiles_check.py b/tools/gates/makefiles_check.py
 new file mode 100644
-index 0000000..8d0a68f
+index 0000000..a3a5036
 --- /dev/null
 +++ b/tools/gates/makefiles_check.py
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,170 @@
 +#!/usr/bin/env python3
 +"""GNUmakefile holds only the Author's include, and there is no makefile (spec 000, tasks.md T183).
 +
@@ -139,13 +141,16 @@ index 0000000..8d0a68f
 +
 +GNU make reads the first of GNUmakefile, makefile, and Makefile that it finds, so either of the first two would run
 +in place of the Makefile. GNUmakefile must be a regular file, not a link, whose bytes are exactly EXPECTED, which
-+only includes the Makefile; and makefile must not exist. One thing counts as no makefile: the sandbox's mask in the
-+main tree, /dev/null's character device (1:3), which it binds over a write-denied path that doesn't exist, and which
-+holds nothing. In the main tree agent sessions can't write either file; a branch made in a worktree can carry both.
++only includes the Makefile; and makefile must not exist. Two things count as no makefile, both of the sandbox's
++making in the main tree, and both holding nothing (placeholder() below). git records a file's mode only as 644 or
++755, so no committed file looks like either. In the main tree agent sessions can't write either file; a branch made
++in a worktree can carry both.
 +
-+The gate runs this from the Author's tree on the branch's export, before anything runs make, and a FAIL stops the
-+gate (tasks.md T092). make check runs it too (`makefiles-check`), but through make it reports only an accidental
-+edit: a hostile GNUmakefile has already run by then, and can skip or fake this check. Standard library only.
++The gate runs this from the Author's tree on the branch's export, proven against the commit's own tree, before
++anything runs make, and a FAIL stops the gate (tasks.md T092). make check runs it too (`makefiles-check`), but
++through make it reports only an accidental edit: a hostile GNUmakefile has already run by then, and can skip or fake
++this check. What it shows of a changed file has its control characters escaped, since an agent wrote them.
++Standard library only.
 +
 +Exit 0 when both hold, 1 when either doesn't, 2 on a usage error. DIR defaults to the working directory.
 +"""
@@ -157,6 +162,7 @@ index 0000000..8d0a68f
 +import os
 +import stat
 +import sys
++import unicodedata
 +from pathlib import Path
 +
 +EXPECTED = b"""\
@@ -172,12 +178,24 @@ index 0000000..8d0a68f
 +SHOWN = (
 +    len(EXPECTED) + 4096
 +)  # read at most this much: enough to show a change, never a whole planted file
++ESCAPED = {
++    "Cc",
++    "Cf",
++    "Zl",
++    "Zp",
++}  # control and format characters, and the line and paragraph separators
 +
 +
-+def is_sandbox_mask(path: Path) -> bool:
-+    """path is the sandbox's mask: /dev/null's device, bound over a write-denied path that doesn't exist."""
++def placeholder(path: Path) -> str | None:
++    """Why the makefile at path holds nothing and counts as none, or None. Inside a session, the sandbox binds
++    /dev/null's device over a write-denied path that doesn't exist. To bind it, it makes an empty file with no write
++    bits there, which the host, a command that starts while another runs, and a killed session's leftovers show."""
 +    st = os.lstat(path)
-+    return stat.S_ISCHR(st.st_mode) and st.st_rdev == SANDBOX_MASK
++    if stat.S_ISCHR(st.st_mode) and st.st_rdev == SANDBOX_MASK:
++        return "the sandbox's mask, /dev/null's device"
++    if stat.S_ISREG(st.st_mode) and st.st_size == 0 and not st.st_mode & 0o222:
++        return "an empty placeholder with no write bits, a running or killed session's"
++    return None
 +
 +
 +def read_regular(path: Path, limit: int) -> tuple[bytes | None, str]:
@@ -206,21 +224,34 @@ index 0000000..8d0a68f
 +        os.close(fd)
 +
 +
++def printable(text: str) -> str:
++    """text, safe for a terminal: a control or format character (an escape sequence, a bidi mark) shows as \\x.. or
++    \\u...., except a newline and a tab."""
++    return "".join(
++        ch
++        if ch in "\n\t" or unicodedata.category(ch) not in ESCAPED
++        else (f"\\x{ord(ch):02x}" if ord(ch) < 0x100 else f"\\u{ord(ch):04x}")
++        for ch in text
++    )
++
++
 +def problems(root: Path) -> tuple[list[str], list[str]]:
 +    """What is wrong with the makefiles make would read in root before its Makefile, and what was noted about them."""
 +    found: list[str] = []
 +    notes: list[str] = []
-+    names = set(os.listdir(root))  # exact names, also on a filesystem that ignores case
-+    if "makefile" in names:
-+        if is_sandbox_mask(root / "makefile"):
-+            notes.append(
-+                "makefile: the sandbox's mask, a /dev/null device that holds nothing, counted as none"
-+            )
-+        else:
-+            found.append(
-+                "a makefile exists: make reads it instead of the Makefile whenever GNUmakefile is missing. An empty one"
-+                " in the main tree is a killed session's mask: remove it while no session runs"
-+            )
++    try:
++        names = set(
++            os.listdir(root)
++        )  # exact names, also on a filesystem that ignores case
++        why_none = placeholder(root / "makefile") if "makefile" in names else ""
++    except OSError as err:
++        return [f"{root} can't be checked: {err.strerror}"], notes
++    if why_none:
++        notes.append(f"makefile: {why_none}, which holds nothing: counted as none")
++    elif why_none is None:
++        found.append(
++            "a makefile exists: make reads it instead of the Makefile whenever GNUmakefile is missing"
++        )
 +    if "GNUmakefile" not in names:
 +        found.append("GNUmakefile is missing")
 +        return found, notes
@@ -228,7 +259,7 @@ index 0000000..8d0a68f
 +    if data is None:
 +        found.append(f"GNUmakefile can't be checked: {why}")
 +    elif data != EXPECTED:
-+        shown = data.decode("utf-8", errors="backslashreplace").replace("\r", "\\r")
++        shown = printable(data.decode("utf-8", errors="backslashreplace"))
 +        diff = difflib.unified_diff(
 +            EXPECTED.decode("utf-8").splitlines(keepends=True),
 +            shown.splitlines(keepends=True),
@@ -275,12 +306,13 @@ index 0000000..8d0a68f
 +    sys.exit(main(sys.argv))
 diff --git a/tools/gates/test/test_makefiles_check.py b/tools/gates/test/test_makefiles_check.py
 new file mode 100644
-index 0000000..a888089
+index 0000000..2e56eb6
 --- /dev/null
 +++ b/tools/gates/test/test_makefiles_check.py
-@@ -0,0 +1,170 @@
-+"""Tests for tools/gates/makefiles_check.py (tasks.md T183): the committed GNUmakefile passes, the sandbox's mask counts
-+as no makefile, and each way a branch could change what make reads before the Makefile fails."""
+@@ -0,0 +1,220 @@
++"""Tests for tools/gates/makefiles_check.py (tasks.md T183): the committed GNUmakefile passes, the sandbox's placeholders
++count as no makefile, each way a branch could change what make reads before the Makefile fails, and what it shows of
++a changed file can't drive the Author's terminal."""
 +
 +from __future__ import annotations
 +
@@ -305,7 +337,7 @@ index 0000000..a888089
 +
 +
 +def test_the_committed_gnumakefile_passes() -> None:
-+    # In the main tree inside the sandbox, makefile is the sandbox's mask, which counts as none.
++    # In the main tree inside the sandbox, makefile is one of the sandbox's placeholders, which count as none.
 +    assert (REPO / "GNUmakefile").read_bytes() == mc.EXPECTED
 +    assert mc.problems(REPO)[0] == []
 +
@@ -341,21 +373,46 @@ index 0000000..a888089
 +    assert mc.main(["makefiles_check.py"]) == 0
 +
 +
-+def test_only_dev_null_is_the_sandbox_mask(tmp_path: Path) -> None:
-+    (tmp_path / "file").write_bytes(b"")
++def test_only_the_sandboxs_two_placeholders_hold_nothing(tmp_path: Path) -> None:
++    def made(name: str, data: bytes, mode: int) -> Path:
++        path = tmp_path / name
++        path.write_bytes(data)
++        path.chmod(mode)
++        return path
++
 +    (tmp_path / "link").symlink_to("/dev/null")
-+    assert mc.is_sandbox_mask(Path("/dev/null"))
-+    assert not mc.is_sandbox_mask(Path("/dev/zero"))  # a device too, but 1:5
-+    assert not mc.is_sandbox_mask(tmp_path / "file")
-+    assert not mc.is_sandbox_mask(tmp_path / "link")  # a link to it isn't the device
++    assert mc.placeholder(Path("/dev/null")) == "the sandbox's mask, /dev/null's device"
++    assert "no write bits" in (mc.placeholder(made("empty-0444", b"", 0o444)) or "")
++    assert mc.placeholder(Path("/dev/zero")) is None  # a device too, but 1:5
++    assert mc.placeholder(made("empty-0644", b"", 0o644)) is None  # what git exports
++    assert mc.placeholder(made("full-0444", PLANTED, 0o444)) is None
++    assert mc.placeholder(tmp_path / "link") is None  # a link to the device isn't it
++
++
++def test_a_session_placeholder_at_makefile_counts_as_none(
++    tree: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    # What a command started while another runs sees at makefile, and what the host shows meanwhile.
++    (tree / "makefile").write_bytes(b"")
++    (tree / "makefile").chmod(0o444)
++    assert mc.main(["makefiles_check.py", str(tree)]) == 0
++    assert "a running or killed session's" in capsys.readouterr().out
 +
 +
 +def test_the_sandbox_mask_at_makefile_counts_as_none(
 +    tree: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 +) -> None:
-+    # Making a device takes root, so the mask's own test is the one above; here a stand-in answers for it.
++    # Making a device takes root, so the device's own test is the one above; here a stand-in answers for it.
 +    (tree / "makefile").write_bytes(b"")
-+    monkeypatch.setattr(mc, "is_sandbox_mask", lambda path: path.name == "makefile")
++    monkeypatch.setattr(
++        mc,
++        "placeholder",
++        lambda path: (
++            "the sandbox's mask, /dev/null's device"
++            if path.name == "makefile"
++            else None
++        ),
++    )
 +    assert mc.main(["makefiles_check.py", str(tree)]) == 0
 +    assert "the sandbox's mask" in capsys.readouterr().out
 +
@@ -388,7 +445,7 @@ index 0000000..a888089
 +        gnu.mkdir()
 +    elif how == "a makefile beside it":
 +        (tree / "makefile").write_bytes(PLANTED)
-+    elif how == "an empty makefile beside it":
++    elif how == "an empty makefile git could export":
 +        (tree / "makefile").write_bytes(b"")
 +    else:
 +        raise AssertionError(how)
@@ -401,13 +458,13 @@ index 0000000..a888089
 +        ("another file included", "+include evil.mk"),
 +        ("a newline added", "differs from the text the Author committed"),
 +        ("a comment changed", "+# it to exactly this text, before any make"),
-+        ("CRLF line ends", "\\r"),
++        ("CRLF line ends", "\\x0d"),
 +        ("not UTF-8", "\\xff"),
 +        ("missing", "GNUmakefile is missing"),
 +        ("a link to the same text", "it is a link"),
 +        ("a directory", "isn't a regular file"),
 +        ("a makefile beside it", "a makefile exists"),
-+        ("an empty makefile beside it", "a killed session's mask"),
++        ("an empty makefile git could export", "a makefile exists"),
 +    ],
 +)
 +def test_a_change_fails(
@@ -420,12 +477,36 @@ index 0000000..a888089
 +    assert says in err
 +
 +
++def test_a_changed_file_cant_drive_the_terminal(
++    tree: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    # OSC 52 would set the clipboard, CSI 2K erase a line, and U+202E reverse what follows it.
++    hostile = b"\x1b]52;c;ZWNobyBwd25lZA==\x07\x1b[2K\xe2\x80\xae\x9b2J\n"
++    (tree / "GNUmakefile").write_bytes(mc.EXPECTED + hostile)
++    assert mc.main(["makefiles_check.py", str(tree)]) == 1
++    err = capsys.readouterr().err
++    assert "\\x1b]52;" in err and "\\x1b[2K" in err and "\\u202e" in err
++    assert not any(ch in err for ch in ("\x1b", "\x07", chr(0x202E), "\x9b"))
++
++
 +def test_a_long_file_is_read_only_in_part(
 +    tree: Path, capsys: pytest.CaptureFixture[str]
 +) -> None:
 +    (tree / "GNUmakefile").write_bytes(mc.EXPECTED + b"x" * 100_000)
 +    assert mc.main(["makefiles_check.py", str(tree)]) == 1
 +    assert f"the file's first {mc.SHOWN} bytes" in capsys.readouterr().err
++
++
++@pytest.mark.skipif(os.geteuid() == 0, reason="root lists any directory")
++def test_a_directory_it_cant_list_fails(
++    tree: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    tree.chmod(0o300)  # no read: listdir fails
++    try:
++        assert mc.main(["makefiles_check.py", str(tree)]) == 1
++    finally:
++        tree.chmod(0o700)
++    assert "can't be checked" in capsys.readouterr().err
 +
 +
 +def test_a_fifo_fails_without_blocking(tree: Path) -> None:

@@ -1,5 +1,5 @@
 # fix/000-agents-make
-Spec: specs/000-local-foundations/ (task T183, found in T064) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5) · Date: 2026-10-09, reworked on 2026-10-10 after two reviews
+Spec: specs/000-local-foundations/ (task T183, found in T064) · Intent: specs/000-local-foundations/intent.md · Written by: Claude Code (Opus 5.5) · Date: 2026-10-09, reworked on 2026-10-10 after three reviews
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes.
 
 Authorized by: T183 in tasks.md, which asks for the Author's decision; and the Author's "I want you to keep going as far as you can and group all the pieces you need my attention for me to check in the morning" (2026-10-09). The file the proposal adds is human-only, so the proposal comes as a patch, and a no leaves out everything it proposes. The branch's own changes stand either way: the Makefile's guard and `help`, and the gate's makefile step, which T092 and plan §11 now carry whatever the answer.
@@ -24,9 +24,10 @@ An agent session can't run plain `make` for dev-cpu:
 
 T064 ran by naming the file, with `make -f Makefile` and the relay's own call, which leaves both controls in force. Every future agent session would need the same, and CLAUDE.md's commands don't say so.
 
-**What the placeholder is:** the mount table, read from a session on 2026-10-10, shows two kinds of denied path in the main tree.
-- **Paths that don't exist,** `GNUmakefile` and `makefile`, get the character device 1:3 (/dev/null), mounted read-only from a no-device tmpfs, so opening it fails.
-- **Paths that exist,** `CLAUDE.md`, `REVIEW.md`, and `.gitleaks.toml`, get read-only binds of the real file: readable, and not writable.
+**What the placeholder is:** the mount table and `stat`, read from sessions on 2026-10-10, show three cases in the main tree.
+- **A denied path that doesn't exist,** such as `GNUmakefile` or `makefile`, inside a command: a read-only, no-device bind of /dev/null's character device (1:3), so opening it fails. To bind over the path, the sandbox makes an empty file with no write bits there, for as long as the command runs.
+- **The same paths, seen while another command runs:** that command's empty read-only files, since the paths now exist. The host sees them too, and a killed session leaves them behind.
+- **A denied path that exists,** such as `CLAUDE.md`, `REVIEW.md`, or `.gitleaks.toml`: a read-only bind of the real file, readable and not writable.
 
 ## The proposal: a `GNUmakefile` that only includes the Makefile, and a check that holds it there
 
@@ -34,21 +35,22 @@ T064 ran by naming the file, with `make -f Makefile` and the relay's own call, w
 - **`GNUmakefile`**, whose one line is `include $(dir $(lastword $(MAKEFILE_LIST)))Makefile`, with a comment saying why. The path then exists, so the sandbox binds it read-only, as it binds `CLAUDE.md`: make reads it in agent sessions as in your terminal, and no session can write it.
 - **`tools/gates/makefiles_check.py`**, with its test:
   - `GNUmakefile` must be a regular file, not a link, whose bytes are exactly the committed text;
-  - no `makefile` may exist, apart from the sandbox's /dev/null mask, which holds nothing and stays at that path in the main tree.
+  - no `makefile` may exist, apart from the sandbox's two placeholders above, which hold nothing. git records a file's mode only as 644 or 755, so no committed file looks like either;
+  - what it shows of a changed file has its control and format characters escaped, since an agent wrote them.
 
-  The gate runs it from your tree on the branch's export, before anything runs make, and a FAIL stops the gate. `make check` runs it too, as `makefiles-check`, but through make it reports only an accidental edit: a hostile `GNUmakefile` has already run by then, and can skip or fake it.
+  The gate runs it from your tree on the branch's export, which T092 now proves against the commit's own tree first, before anything runs make, and a FAIL stops the gate. `make check` runs it too, as `makefiles-check`, but through make it reports only an accidental edit: a hostile `GNUmakefile` has already run by then, and can skip or fake it.
 - **The patch's lines** in plan §2 and §11, in T092, in lifecycle.md's control table, and in `scripts/test_makefile.py`, which then reads the include from the committed file.
 
 **What keeps agents from changing it:**
 - **In the main tree,** `protected-paths.sh` blocks an agent's edit of the file, and the redteam matrix's `GNUmakefile` row still passes. The sandbox's read-only bind keeps a shell from writing it.
-- **In a worktree,** where agent sessions commit, neither control applies, because both work out paths from the main tree (the us1 note's T117 items record the hook's half). A branch could change the file, and after a merge your plain `make` would run it. The gate is what holds it: its makefile step fails such a branch, and stops before anything runs make. Until the gate exists (T092), `git diff main...<branch> -- GNUmakefile makefile` before a merge shows the same.
-- **`makefile`** stays unwritable in the main tree, and make never looks for it while `GNUmakefile` exists. The check fails if one appears.
+- **In a worktree,** where agent sessions commit, neither control applies, because both work out paths from the main tree (the us1 note's T117 items record the hook's half). A branch could change the file, and after a merge your plain `make` would run it. From T092, the gate holds it: its makefile step fails such a branch, on an export proven against the commit, and stops before anything runs make. Until the gate exists, `git diff main...<branch> -- GNUmakefile makefile` before a merge shows the same.
+- **`makefile`** stays unwritable in the main tree, and make never looks for it while `GNUmakefile` exists. The check fails on anything there but the sandbox's placeholders.
 
 **Checked**, in a scratch copy of the branch's tracked files with the patch applied. The copy sat outside the repository's worktrees, so no checkout of this repository ever held the file.
 - `make help` printed the same 38 targets as `make -f Makefile help`, plus the patch's `makefiles-check`: 39 lines.
 - `make -C <copy> makefiles-check` passed, run from `/`. It failed with a rule appended to the file, and with a planted `makefile`.
-- pytest passed whole: 1383 tests. They include `scripts/test_makefile.py`'s, which run `make -C ROOT` through the `GNUmakefile`.
-- The patched check, run on the main tree from a session, counted the real `makefile` mask as none. It failed only on `GNUmakefile`, which is still a mask there because the patch isn't applied.
+- pytest passed whole: 1386 tests. They include `scripts/test_makefile.py`'s, which run `make -C ROOT` through the `GNUmakefile`.
+- The patched check, run on the main tree from a session, counted the real `makefile` placeholder as none: alone, where it is the device, and while another command ran, where it is that command's empty file. It failed only on `GNUmakefile`, which has no file there until the patch is applied.
 
 ## The reviews, and what changed
 
@@ -97,6 +99,26 @@ Nothing blocking, three should-fix findings, and seven nits. Its verdict: "merge
 
 One slip of mine is worth recording. My first scratch run for the extra layouts copied the branch's Makefile, which already had the guard, so even its "unguarded" control was guarded and proved nothing. I caught that, and re-ran from a copy without the guard: every layout was taken over unguarded and held guarded.
 
+### The third review, at 792d8f2
+
+Nothing blocking, three should-fix findings, and seven nits. Its verdicts: "merge after amending T092 and §11 step 1 for S-A; that's a text change, and the guard and `help` are sound", and for the patch, "hold until S-B is fixed and T092's step is protected against S-A; S-C needs the overlap check." All of it is applied:
+- **S-A: the gate's makefile step checked a `git archive` export, which the branch's own files can change.**
+  - A committed `.gitattributes` line, `makefile export-ignore`, would leave `makefile` out of the export, and the step would pass. After a merge with no `GNUmakefile`, your plain `make` would read it. `export-subst` could likewise make the export's bytes differ from the commit's.
+  - The project already proves a stack's export: `deploy/scripts/export_tree.py` refuses the repository's own info attributes file, and any export that doesn't hash to the commit's tree.
+  - **The fix, on the branch:** T092 and plan §11 step 1 now require that proof before step 2. It closes the same gap for every later step, which predates this branch.
+- **S-B: the check printed a hostile `GNUmakefile`'s bytes to your terminal,** escape sequences included: an OSC 52 sequence can set the clipboard, and others can rewrite the FAIL lines on screen. The exit code would stay 1, but what you read could be forged. The check now escapes every control and format character but a newline and a tab, and the line and paragraph separators, before it diffs. A test plants OSC 52, an erase-line sequence, a right-to-left override, and an 8-bit CSI, and finds none of them raw in the output.
+- **S-C: the placeholder at `makefile` isn't always the device.** Confirmed with two overlapping commands: while one runs, the other sees its empty, read-only file at both paths, and so does the host. In a main-tree session that started while another command ran, the check would have failed again, the first S-1 over. The check now also counts an empty file with no write bits as none. Run on the main tree while another command held the placeholder, it passed that path.
+- **Nit 1:** lifecycle.md and plan §2 no longer say the gate refuses, in the present tense, while T092 isn't built. They say "from T092", and lifecycle.md names the interim `git diff`.
+- **Nit 2:** "exactly the committed `GNUmakefile`" could be read as the branch's own file, which always matches. It now reads "neither while main has no `GNUmakefile`, or exactly main's", and the patch says "the text in the Author's copy of the check, which is main's".
+- **Nit 3:** an error from listing the directory or reading `makefile`'s type is now a FAIL line, not a traceback. A test lists a directory it can't read.
+- **Nit 4:** the placeholder is a read-only, no-device bind of /dev/null's device, not a tmpfs (above).
+- **Nit 5:** the patch's plan lines name the placeholder exception, in §2 and in §11's row.
+- **The other two:** the If-yes step uses `rm -f`, since the placeholders are read-only. One test layout plants both `.sh` files at once; it compares each file, so it shows both held. I left it.
+
+Two slips of mine in this round:
+- **A bash-gate refusal:** a command whose text named the repository's info attributes path was refused as "writing git internals". I made those edits with the Edit tool instead, and respelled nothing.
+- **A bidi character in a test file:** the tool call's encoding turned the backslash-u escape I typed into the character itself. Ruff refused it (PLE2502), and the test now builds it with `chr()`.
+
 ## If yes, or no
 
 **If yes,** after merging the stack below this branch, with no Claude session running:
@@ -105,7 +127,7 @@ One slip of mine is worth recording. My first scratch run for the extra layouts 
 ls -l GNUmakefile makefile 2>/dev/null
 ```
 
-If either exists, it is an empty file a killed session left (an empty `GNUmakefile` makes `git apply` refuse with "already exists in working directory"). Remove it with `rm GNUmakefile makefile`. Then:
+If either exists, it is an empty, read-only placeholder: a session's command is still running, or a session was killed. An empty `GNUmakefile` makes `git apply` refuse with "already exists in working directory". Let a running session finish; a killed session's you remove with `rm -f GNUmakefile makefile`. Then:
 
 ```
 git merge --ff-only fix/000-agents-make
@@ -116,12 +138,12 @@ git commit -m "A GNUmakefile that only includes the Makefile, and its check (T18
 make help
 ```
 
-The check runs before any make has read the file, and prints "makefiles: GNUmakefile holds only its include, and there is no makefile". `make help` lists the same targets as before, plus `makefiles-check`. Then tell me. The next agent session runs `make makefiles-check` and plain `make help` from the main tree, where `makefile` is still the sandbox's mask, and marks T183 done.
+The check runs before any make has read the file, and prints "makefiles: GNUmakefile holds only its include, and there is no makefile". `make help` lists the same targets as before, plus `makefiles-check`. Then tell me. The next agent session runs `make makefiles-check` and plain `make help` from the main tree, where `makefile` is still one of the sandbox's placeholders, and marks T183 done.
 
 **If no:** merge the branch anyway. Its changes stand on their own:
 - the guard closes S1 with or without a `GNUmakefile`;
 - `help` keeps its `-h`;
-- T092's makefile step makes the gate refuse a branch that adds either file.
+- T092's makefile step makes the gate refuse a branch that adds either file, on an export proven against the commit.
 
 T183 stays open for the closing patch's other options: `-f Makefile` everywhere, or dropping the write-deny, which isn't recommended.
 
@@ -141,6 +163,8 @@ with, in its words, "or a file make's built-in rules rebuild a makefile from". M
 
 It says both lines fit CLAUDE.md's limits of 60 lines and 6 KB.
 
+**From the third review,** because S-A was the third case, it proposed ending the second review's line with, in its words: "... and a check on a `git archive` export vouches for the commit only if the export is proven against the commit's tree."
+
 ## Verification
 
 - **On the branch:**
@@ -149,11 +173,11 @@ It says both lines fit CLAUDE.md's limits of 60 lines and 6 KB.
   - a target appended after the guard fails all six S1 tests;
   - the matrix's two rows fail with the guard removed (the plant takes over make), and with a `$(error)` line appended (make exits 2).
 - **With the patch applied, in the scratch copy:**
-  - `scripts/test_makefile.py` and `tools/gates/test/test_makefiles_check.py`: 42 passed;
-  - the whole pytest suite: 1383 passed;
+  - `scripts/test_makefile.py` and `tools/gates/test/test_makefiles_check.py`: 45 passed;
+  - the whole pytest suite: 1386 passed;
   - the matrix: 241 passed;
   - ruff check and ruff format: clean on the three Python files;
-  - the check against the main tree's real masks: as under "Checked".
+  - the check against the main tree's real placeholders, alone and overlapping: as under "Checked".
 - **`git apply --check`** of the patch on the branch: clean.
 - **`make check ENGINE_MODE=none-yet`** on the branch, before its last commit: exit 2, with 8 PASS, 2 SKIP, and 1 FAIL. The FAIL is the known `toolchain-check` drift: Claude Code is 2.1.296 against its pin of 2.1.295. `ENGINE_MODE=none-yet` holds the image gate back: no Dockerfile changed. The gateway has 362 tests passing, and pytest has 1362.
 
@@ -220,8 +244,8 @@ npm test --workspaces --if-present
 
  Test Files  24 passed (24)
       Tests  362 passed (362)
-   Start at  01:01:45
-   Duration  20.76s (tests 91%, transform 5%, import 4%)
+   Start at  01:32:43
+   Duration  21.03s (tests 91%, transform 5%, import 4%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  5%]
@@ -243,7 +267,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 89%]
 ........................................................................ [ 95%]
 ..................................................................       [100%]
-1362 passed in 38.06s
+1362 passed in 37.94s
 -> PASS test
 == secrets
 -> SKIP secrets (added by T091)
@@ -312,4 +336,5 @@ make: *** [Makefile:143: check] Error 1
 
 - The bash-gate refused a read of git's hooks setting, by its text. Nothing was respelled, and the read wasn't needed: the scratch index never commits.
 - The second reviewer said it had no Grep or Glob tool, and used Bash for `git show`, `grep`, `sed`, `awk`, `stat`, and `ls`, beyond its `git diff` and `git log` grant. Everything it ran was read-only. Role scopes come with the closing patch.
-- **Scratch left in `/tmp/claude-1000`:** `t183tree` and `t183tree2` (the patched copies), `t183`, `s1v`, `s1-test`, and `oldhelp`. `rm -rf` them after reading.
+- The third reviewer, too, had no Grep or Glob tool, and used Bash for `grep`, `sed`, `awk`, `ls`, `tail`, `wc`, and `git diff --no-index`. It read the mount table and listed `/run/h4agents/tree`, the host's read-only view of the main tree, which is how it saw S-C's placeholders. It also tried to read the sandbox's logic from the installed Claude Code binary. The permission classifier refused that, and it didn't retry. Everything it ran was read-only.
+- **Scratch left in `/tmp/claude-1000`:** `t183tree`, `t183tree2`, and `t183tree3` (the patched copies; the last is the patch's), `t183`, `s1v`, `s1-test`, and `oldhelp`. `rm -rf` them after reading.
