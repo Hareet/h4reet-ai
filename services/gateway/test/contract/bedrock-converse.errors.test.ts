@@ -97,9 +97,12 @@ describe("the Bedrock adapter's errors past C4 (§2.5's Bedrock column)", () => 
     expect(await failure(adapter())).toEqual([kind, retryable, billed, status, name]);
   });
 
-  it("a credential-provider error is auth, with no status", async () => {
-    stub.nextError(Object.assign(new Error(`no credentials ${stub.canary}`), { name: "CredentialsProviderError" }));
-    expect(await failure(adapter())).toEqual(["auth", false, false, undefined, "CredentialsProviderError"]);
+  it("a credential- or token-provider error is auth, with no status", async () => {
+    // TokenProviderError is token-providers' answer for an SSO token that's missing, expired, or can't be refreshed.
+    for (const name of ["CredentialsProviderError", "TokenProviderError"]) {
+      stub.nextError(Object.assign(new Error(`no credentials ${stub.canary}`), { name }));
+      expect(await failure(adapter())).toEqual(["auth", false, false, undefined, name]);
+    }
   });
 
   it.each([
