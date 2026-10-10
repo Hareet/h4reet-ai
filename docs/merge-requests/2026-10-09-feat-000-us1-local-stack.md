@@ -6,7 +6,7 @@ Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phas
 **Status: DRAFT. Not ready to merge.** Everything an agent session can do on this branch before the engine exists is done: three review rounds with every finding fixed and verified, the convergence pass, and `make check` at 110b42e with 0 FAIL. What's left needs your hands or the engine:
 - **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. Done on 2026-10-09. The seed failed on every image at first, and passed after T174's patch ("T063's run" below). tasks.md marks it done since T065's fix: no pin is open any more.
 - **T064 (an agent session, after T063):** dev-cpu on the agents' engine, end to end.
-- **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 records the GPU fix you made by hand ("T065's run" below) The fourth, at aa69d8d, passed §1.1.
+- **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 records the GPU fix you made by hand ("T065's run" below) The fourth, at aa69d8d, passed §1.1, and §1.2–§1.12 followed: SC-001 in 431 s, the rollback, isolation, and state kept across `make down` all pass. §1.5's panels and §1.9's gateway image are T149's; §1.8's scan from another machine and §1.10's browser hosts remain.
 - **T149 (an agent session, after T065):** apply the first stack run's findings.
 - **This note:** T064's and T065's output goes into it, and then this block goes.
 
@@ -402,7 +402,7 @@ The Author's four `make up ENV=prod` runs: two at e745177, one at a6b0e80 after 
    - **"alerts         1 pending, 0 failed in the last 24 h"** is init's confirmation alert, queued in the outbox in init's own transaction. Nothing delivers alerts until the dispatcher (T077), so no Telegram message or email comes yet.
    - **§1.1's record:** each command exited 0; the audit row is #1.
    - **§1.3, hello:** 200, with `"route":"local"`, `"provider":"local"`, `"model":"qwen3-30b-a3b-instruct-2507"`, usage 68 tokens in and 10 out, `"cost_micro_usd":0`, `"latency_ms":820`, and trace `ef6da123179773c36bfa3b2643afbc7f`.
-   - **§1.4, the trace, in Langfuse:** the root `POST /hello` (0.82 s), `gateway.route`, and the generation `chat qwen3-30b-a3b-instruct-2507` (0.81 s, 78 tokens, $0.00), with env `prod`. Fastify's hook spans, the `pg` spans, and the client's `POST` under the generation are there too, as telemetry.md §3.1–§3.2 allow. Still to confirm: no input or output on the generation.
+   - **§1.4, the trace, in Langfuse:** the root `POST /hello` (0.82 s), `gateway.route`, and the generation `chat qwen3-30b-a3b-instruct-2507` (0.81 s, 78 tokens, $0.00), with env `prod`. Fastify's hook spans, the `pg` spans, and the client's `POST` under the generation are there too, as telemetry.md §3.1–§3.2 allow. No payload at the trace's level (§1.2's trace, below); the generation's own view is the last look.
    - **§1.5, Grafana: not yet.**
      - Model-server health is 1, with its target up.
      - The request and latency panels showed nothing for the first hello. After four more, through prod-diag1, the panels' queries gave 0.039 requests/s and a p95 of 1.8 s. A new counter series starts at 1, so `rate()` and `increase()` never see its first increment.
@@ -413,6 +413,7 @@ The Author's four `make up ENV=prod` runs: two at e745177, one at a6b0e80 after 
      - **Egress from the internal network (R-06):** "curl: (6) Could not resolve host: example.com", with exit 6 and no HTTP code.
      - **A port published from the internal network (R-06):** "curl: (7) Failed to connect to 127.0.0.1 port 18992 after 0 ms: Couldn't connect to server".
      - **Prometheus 3.15.0:** no feature flags, OTLP translation `UnderscoreEscapingWithSuffixes`, and all six targets up.
+     - **The telemetry facts (telemetry.md §8):** the dashboard's four `llamacpp:` names exist as written. Which cost attribute Langfuse reads can't be told yet, since every local call costs 0. gzip is T149's, on dev-cpu.
    - **§1.2, the timed cold start (SC-001), at e58d0dd: 431 s, within the 600 s budget.** prod-cold.sh ran `make down ENV=prod`, which keeps the volumes, so the store stayed initialized; removed the 12 images of prod's services, the gateway's built image, and the prod model, each checked gone; then timed `make up ENV=prod` and one hello, with a clock time on every line. `make up` exited 0, status said "status: healthy" with no WARN, and the hello answered `"route":"local"` in 534 ms, trace `134d4f4b92ee5a256302b9c5320d2f87`. The phases:
      - export and preflight, 1 s (P13 needed 50.6 GB, with `/mnt/c` at 69.4 GB free);
      - the model, 4 min 34 s: 17.2 GiB at an average of 64.5 MiB/s, then 15 s for its sha256 and rename;
@@ -420,8 +421,17 @@ The Author's four `make up ENV=prod` runs: two at e745177, one at a6b0e80 after 
      - from the first container started to the last healthy (langfuse-web), 47 s;
      - status and the hello, 8 s.
 
-     R-03 planned 3.2 minutes for the model at 786 Mbps, about 2 minutes of startup, and images of 4–5 GB. The model took longer and the rest less, with 169 s to spare. Still to confirm: the trace opening in Langfuse within 60 s of the answer, SC-001's other half.
-     - **The telemetry facts (telemetry.md §8):** the dashboard's four `llamacpp:` names exist as written. Which cost attribute Langfuse reads can't be told yet, since every local call costs 0. gzip is T149's, on dev-cpu.
+     R-03 planned 3.2 minutes for the model at 786 Mbps, about 2 minutes of startup, and images of 4–5 GB. The model took longer and the rest less, with 169 s to spare. The trace opened in Langfuse on the first load, right after the answer: SC-001's other half. Its root shows "Input null" and "Output undefined", with Langfuse's "Looks like this trace didn't receive an input or output."
+   - **§1.7, §1.9, §1.11, and §1.12, with §1.8's local half, at 8a38709, through us1-rest.sh:**
+     - **§1.11, `make down` keeps state: passes.** After `make down ENV=prod`, prod's eight volumes were all there. Prod's operator status after `make up` matched the one before, line for line: "state normal since 2026-10-10T03:29:16Z", every meter at 0.00, "awaiting renewal: no".
+     - **§1.12, the rollback on dev: passes.** A is e58d0dd and B is 8a38709. `make up ENV=dev REF=A`, then dev's init (audit #1), then `make up ENV=dev`, then the rollback `make up ENV=dev REF=A`: each exited 0. `make status` named B running with A previous, then A running with B previous. Dev's operator status after the rollback matched its status at A in state, meters, and renewal. The hello after the rollback answered `"route":"local"` from `qwen2.5-0.5b-instruct` in 281 ms.
+     - **§1.7, isolation: passes.** "isolation-check: PASS: neither stack reaches the other's names, addresses, ports, or volumes (FR-020)": all 20 assertions, both ways, plus the mounts (16 volumes, each its own stack's; the models' directory the only shared bind, read-only). The two models together used 22,558 of 24,463 MiB.
+     - **§1.9:** `make policy` passes, and every pulled image's ID is the same in both stacks. The gateway's aren't: prod's `277d65399ae9…` at B, and dev's `c06649f69d8b…` at A. Compose builds the gateway once per stack, as `h4reet-prod-gateway` and `h4reet-dev-gateway`, each from its own export. Two builds give two IDs even from one commit unless the build is reproducible, and these two were at different commits as well. §1.9 expects one ID ("nothing was rebuilt for an environment"), so T149 now lists it.
+     - **§1.8, the local half:** all ten listening ports in 18000–18399 are on `127.0.0.1`. The scan from another machine is still to do.
+     - **Two status messages that mislead (T182):**
+       - At B, dev's status ended "status: healthy, waiting on the operator" with the store initialized. `status.py` says that after any WARN; here the WARNs were T181's false positives and "Prometheus targets down: loki, prometheus" a few seconds after Prometheus restarted, gone at the next status.
+       - After every gateway restart, operator status prints "journal        unknown (journal/2026-10.jsonl)". That is by design: the gateway reports `unknown` until its first journal record since it started, and a local hello writes none. The wording reads like a fault.
+
 5. **To watch at the trace step (§1.4):** SeaweedFS's S3 logs "Failed to load IAM configuration: no signing key found for STS service" as it starts, then serves on 8333. The entrypoint creates the bucket through `weed shell`, not through S3. The trace step shows whether Langfuse's uploads authenticate with the keys in `s3.json`. **Answered at §1.4:** the trace arrived, so they do.
 6. **Seen while starting, not failures:** the model server's 503 while the model loads, within its 300 s start period; Grafana's "Connection refused" before it listens; Loki's "empty ring" as it starts. Valkey warns "Memory overcommit must be enabled!", a host sysctl. It runs, and T149 can decide whether that matters.
 7. **Disk:** at the first start, `docker system df` counted 65 local volumes holding 127.2 GB, with 8 in use and 127.1 GB reclaimable. The 57 that no container uses aren't this stack's running volumes, and may be other projects'. Check what they belong to before §1.2's cold start, and prune nothing blindly.
@@ -588,7 +598,7 @@ exit 2
 
 </details>
 
-**Next:** §1.7 with dev up, §1.8's port scan from another machine, §1.9–§1.11, and §1.12's rollback rehearsal on dev. §1.5's panels wait for T149.
+**Next:** §1.8's port scan from another machine and §1.10's browser hosts. §1.5's panels and §1.9's gateway image wait for T149.
 
 ## For the Author
 
