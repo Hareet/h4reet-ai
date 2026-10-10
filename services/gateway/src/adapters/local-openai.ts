@@ -14,8 +14,8 @@
 // the same job (a departure recorded in provider-adapter.md §3.1). Each call opens its own connection (no
 // keep-alive), so a socket the model server closed between calls can never fail a call as `unavailable`.
 // Each connection resolves the host through c-ares (core/resolve.ts), not getaddrinfo: with the model server stopped,
-// the watchdog ends the call, but a getaddrinfo lookup would go on holding one of libuv's four threads until the
-// resolver gave up, and the probe's once-a-second lookups would starve every other one in the process (T188).
+// the watchdog ends the call, but a getaddrinfo lookup would go on holding one of the two threads libuv gives
+// lookups until the resolver gave up, and the probe's once-a-second lookups would starve every other one (T188).
 import { Agent, request as httpRequest } from "node:http";
 
 import type { z } from "zod";

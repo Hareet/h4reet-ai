@@ -35,16 +35,20 @@ export interface TelegramChannel {
 /** The most of an answer kept: a sendMessage answer is a few hundred bytes. */
 const MAX_ANSWER_BYTES = 65_536;
 
-// EPROTO is what node:https reports when the peer doesn't speak TLS at all ("wrong version number"; Node 24).
 const TLS_CODES =
-  /^(ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|HOSTNAME_MISMATCH|EPROTO$)/;
+  /^(ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|HOSTNAME_MISMATCH)/;
 
-/** A failed request's class: timeout, tls, or connect. Only codes are read, never a message. */
-export function requestErrorClass(err: unknown): string {
+/**
+ * A failed request's class: timeout, tls, or connect. Only codes are read, never a message. On an https request,
+ * EPROTO is what node:https reports when the peer doesn't speak TLS at all ("wrong version number"; Node 24), so it is
+ * tls. On plain http it can only come from the network, an ICMP Parameter Problem during the connect, so it stays
+ * connect.
+ */
+export function requestErrorClass(err: unknown, https = false): string {
   const e = err as { name?: unknown; code?: unknown } | null;
   if (e?.name === "TimeoutError") return "timeout";
   const code = typeof e?.code === "string" ? e.code : "";
-  if (TLS_CODES.test(code)) return "tls";
+  if (TLS_CODES.test(code) || (https && code === "EPROTO")) return "tls";
   return "connect";
 }
 
@@ -110,12 +114,14 @@ function post(url: URL, body: string, timeoutMs: number): Promise<{ status: numb
 export async function sendTelegram(channel: TelegramChannel, text: string): Promise<DeliveryResult> {
   let status: number;
   let raw: string;
+  let https = false;
   try {
     const url = new URL(`${channel.base}/bot${channel.token}/sendMessage`);
+    https = url.protocol === "https:";
     const body = JSON.stringify({ chat_id: channel.chatId, text, disable_web_page_preview: true });
     ({ status, raw } = await post(url, body, channel.timeoutMs));
   } catch (err) {
-    return { ok: false, errorClass: requestErrorClass(err) };
+    return { ok: false, errorClass: requestErrorClass(err, https) };
   }
   if (status !== 200) return { ok: false, errorClass: `http_${status}` };
   let answer: { ok?: unknown; result?: { message_id?: unknown }; error_code?: unknown };

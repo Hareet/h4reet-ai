@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { sendTelegram } from "../../src/alerts/telegram.js";
+import { requestErrorClass, sendTelegram } from "../../src/alerts/telegram.js";
 
 const HOST = "telegram-standin.invalid";
 const TOKEN = "123456789:made-for-this-test-and-never-logged-y";
@@ -102,8 +102,10 @@ describe("the Telegram channel's transport (alerts.md §4.1, T188)", () => {
     expect(api.seen).toEqual([`POST /bot${TOKEN}/sendMessage`]);
   });
 
-  it("delivers while libuv's four threads are held, as hung getaddrinfo lookups held them", async () => {
-    // Four opens of a FIFO with no writer each block a threadpool thread until a writer comes.
+  it("delivers while every one of libuv's threads is held, stricter than the two hung lookups held", async () => {
+    // Four opens of a FIFO with no writer each block a threadpool thread until a writer comes. libuv gives lookups at
+    // most half its threads, so this holds more of it than hung getaddrinfo lookups did. The file runs in its own
+    // process (vitest's forks pool), so no other test file's threadpool work waits meanwhile.
     resolveHost("127.0.0.1");
     const api = await listener(delivered);
     const dir = mkdtempSync(join(os.tmpdir(), "h4-threadpool-"));
@@ -118,7 +120,7 @@ describe("the Telegram channel's transport (alerts.md §4.1, T188)", () => {
       const channel = { base: `http://${HOST}:${api.port}`, token: TOKEN, chatId: "0", timeoutMs: 2_000 };
       expect(await sendTelegram(channel, "hi")).toEqual({ ok: true, ref: "41" });
     } finally {
-      const writer = openSync(fifo, constants.O_WRONLY | constants.O_NONBLOCK); // releases every blocked open
+      const writer = openSync(fifo, constants.O_RDWR); // a FIFO opened read-write never blocks, and releases every reader
       for (const fd of await Promise.all(held)) closeSync(fd);
       closeSync(writer);
       rmSync(dir, { recursive: true, force: true });
@@ -161,5 +163,15 @@ describe("the Telegram channel's transport (alerts.md §4.1, T188)", () => {
     const channel = { base: `https://${HOST}:${api.port}`, token: TOKEN, chatId: "0", timeoutMs: 2_000 };
     expect(await sendTelegram(channel, "hi")).toEqual({ ok: false, errorClass: "tls" });
     expect(api.seen).toEqual([]); // no request was ever made in the clear
+  });
+});
+
+describe("the Telegram channel's error classes (alerts.md §4.1)", () => {
+  it("counts EPROTO as tls only on https: on plain http it can only come from the network", () => {
+    expect(requestErrorClass({ code: "EPROTO" }, true)).toBe("tls");
+    expect(requestErrorClass({ code: "EPROTO" }, false)).toBe("connect");
+    expect(requestErrorClass({ code: "EPROTOCOL" }, true)).toBe("connect");
+    expect(requestErrorClass({ code: "ERR_SSL_WRONG_VERSION_NUMBER" })).toBe("tls");
+    expect(requestErrorClass({ name: "TimeoutError" })).toBe("timeout");
   });
 });

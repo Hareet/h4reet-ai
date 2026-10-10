@@ -125,6 +125,36 @@ describe("makeLookup: dns.lookup's contract over c-ares", () => {
     expect((await look(r, "api.example", { all: true }, new Set([4]))).address).toHaveLength(2);
   });
 
+  for (const code of ["ENODATA", "ETIMEOUT"]) {
+    it(`keeps the A answer when, asked for every address, the AAAA query fails with ${code}`, async () => {
+      const r = fakeResolver({ "A model-server": ["172.18.0.5"], "AAAA model-server": { code } });
+      const out = await look(r, "model-server", { all: true });
+      expect(out).toEqual({ err: null, address: [{ address: "172.18.0.5", family: 4 }], family: undefined });
+      expect(r.asked).toEqual(["A model-server", "AAAA model-server"]);
+    });
+  }
+
+  it("answers localhost under ADDRCONFIG with the configured families alone, as getaddrinfo does", async () => {
+    const r = fakeResolver({});
+    expect((await look(r, "localhost", { all: true, hints: ADDRCONFIG }, new Set([4]))).address).toEqual([
+      { address: "127.0.0.1", family: 4 },
+    ]);
+    expect(r.asked).toEqual([]);
+  });
+
+  it("filters nothing when the interfaces can't be read", async () => {
+    const r = fakeResolver({ "A api.example": ["203.0.113.7"], "AAAA api.example": ["2001:db8::7"] });
+    const lookup = makeLookup(r, () => {
+      throw new Error("no interfaces here");
+    });
+    const out = await new Promise<Outcome>((resolve) =>
+      lookup("api.example", { all: true, hints: ADDRCONFIG }, (err, address, family) =>
+        resolve({ err, address, family }),
+      ),
+    );
+    expect(out.address).toHaveLength(2);
+  });
+
   it("reports the error that says more than ENODATA", async () => {
     const r = fakeResolver({ "A slow": { code: "ENODATA" }, "AAAA slow": { code: "ETIMEOUT" } });
     expect((await look(r, "slow", {})).err?.code).toBe("ETIMEOUT");
