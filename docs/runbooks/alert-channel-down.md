@@ -30,8 +30,8 @@ In your own terminal.
    - **`telegram_400`:** usually the chat. Check `TELEGRAM_CHAT_ID` the way quickstart.md §0.7 reads it, without the token in anything you type.
    - **`telegram_429` or `http_429`:** Telegram is limiting the bot. The retries carry on within the 300 s window.
    - **`smtp_535`, or another `smtp_5xx`:** the mailbox refused the login or the message. Check `SMTP_USER` and `SMTP_PASSWORD` (the mailbox's app password), then `make up ENV=<stack>`.
-   - **`tls`:** the TLS handshake failed. `SMTP_TLS` must be `implicit` with port 465, or `starttls` with 587, and the server's certificate must verify.
-   - **`timeout` or `connect`:** the host's network, its DNS, or the provider. Nothing in the stack needs changing; check the host's connection.
+   - **`tls`:** the TLS handshake failed. `SMTP_TLS` must be `implicit` with port 465, or `starttls` with 587, and the server's certificate must verify. Until tasks.md T190 lands, a certificate that fails to verify shows as `smtp_ESOCKET` instead.
+   - **`timeout` or `connect`:** the host's network, its DNS, or the provider. Nothing in the stack needs changing; check the host's connection. One exception, on email: `connect` also follows an `SMTP_HOST` that resolved only through resolv.conf's search domains. The channel asks for the name as given (tasks.md T189), so give the host's full name.
    - **dev and dev-cpu,** in stand-in mode, deliver to the stand-ins: `make status ENV=<stack>` shows whether `telegram-standin` and `mailpit` are healthy, and `make up ENV=<stack>` starts them again.
 3. **Never** paste the bot token or the mailbox password into a terminal command, a browser's address bar, or a note.
 

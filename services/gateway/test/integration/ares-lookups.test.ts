@@ -25,6 +25,7 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // 127.0.0.2 is loopback too, and nothing listens there: a connection to it is refused.
   "two.invalid": { addresses: ["127.0.0.2", "127.0.0.1"] },
   "flaky.invalid": { addresses: ["127.0.0.1"] },
+  "moved.invalid": { addresses: ["127.0.0.2"] },
 };
 
 type Resolve = (this: dns.Resolver, host: string, ...rest: unknown[]) => void;
@@ -64,6 +65,25 @@ function watchGetaddrinfo(): string[] {
     setImmediate(() => done(Object.assign(new Error(`getaddrinfo ENOTFOUND ${host}`), { code: "ENOTFOUND" })));
   }) as unknown as typeof dns.lookup);
   return asked;
+}
+
+/**
+ * Stands in for net's connect to one made-up host, which no lookup is asked about: "hang" never connects, and an error
+ * fails the socket with it, as net does once every address has failed. Returns the sockets it was handed.
+ */
+function fakeConnect(host: string, outcome: "hang" | Error): Socket[] {
+  const handed: Socket[] = [];
+  const real = Socket.prototype.connect as unknown as (this: Socket, ...args: unknown[]) => Socket;
+  vi.spyOn(Socket.prototype, "connect").mockImplementation(function (this: Socket, ...args: unknown[]): Socket {
+    // net.connect hands the socket its normalized arguments: an array whose first item is the options.
+    const first = args[0];
+    const options = (Array.isArray(first) ? first[0] : first) as { host?: unknown } | null;
+    if (typeof options !== "object" || options?.host !== host) return real.apply(this, args);
+    handed.push(this);
+    if (outcome !== "hang") process.nextTick(() => this.destroy(outcome));
+    return this;
+  } as unknown as typeof Socket.prototype.connect);
+  return handed;
 }
 
 // A container's interfaces: IPv4 only, so ADDRCONFIG keeps the A query alone and the lists below are exact.
@@ -258,6 +278,42 @@ describe("the email channel (alerts/smtp.ts, T189)", () => {
     } finally {
       await smtp.close();
     }
+  });
+
+  it("takes a fresh answer over the addresses it kept", async () => {
+    const ares = fakeAres();
+    const smtp = await stubSmtp();
+    try {
+      const to = channel({ host: "moved.invalid", port: smtp.port });
+      expect(await sendEmail(to, mail)).toEqual({ ok: false, errorClass: "connect" });
+      ares.answers.set("moved.invalid", { addresses: ["127.0.0.1"] });
+      expect(await sendEmail(to, mail)).toEqual({ ok: true, ref: "250 ABC123" });
+      expect(ares.asked).toEqual(["A moved.invalid", "A moved.invalid"]);
+    } finally {
+      await smtp.close();
+    }
+  });
+
+  it("is timeout when the connection timeout passes, and leaves no socket connecting", async () => {
+    const handed = fakeConnect("hang.invalid", "hang");
+    expect(await sendEmail(channel({ host: "hang.invalid", timeoutMs: 300 }), mail)).toEqual({
+      ok: false,
+      errorClass: "timeout",
+    });
+    expect(handed.map((socket) => socket.destroyed)).toEqual([true]);
+  });
+
+  it("is connect when every address fails, though the first attempt timed out", async () => {
+    // net's error then takes the first attempt's code, ETIMEDOUT for one that didn't answer within 250 ms.
+    const attempts = [
+      Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" }),
+      Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }),
+    ];
+    fakeConnect("aggregate.invalid", Object.assign(new AggregateError(attempts), { code: "ETIMEDOUT" }));
+    expect(await sendEmail(channel({ host: "aggregate.invalid" }), mail)).toEqual({
+      ok: false,
+      errorClass: "connect",
+    });
   });
 
   it("asks TLS for the host's name while it connects to the address: implicit, as on 465", async () => {

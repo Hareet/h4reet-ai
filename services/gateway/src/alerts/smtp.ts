@@ -69,7 +69,8 @@ export function smtpErrorClass(err: unknown): string {
   const cause = typeof e?.cause?.code === "string" ? e.cause.code : "";
   if (code === "ETIMEDOUT" || cause === "ETIMEDOUT") return "timeout";
   if (code === "ETLS" || /^(ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|DEPTH_ZERO|SELF_SIGNED)/.test(cause)) return "tls";
-  // A refused or unresolvable connection: nodemailer reports it as ESOCKET on the connect or lookup call.
+  // A refused or unresolvable connection: the default transport reports ECONNECTION or EDNS itself
+  // (connectThroughAres); a transport that connects through nodemailer reports ESOCKET on the connect or lookup.
   const connecting = code === "ESOCKET" && (e?.syscall === "connect" || e?.syscall === "getaddrinfo");
   if (
     connecting ||
@@ -115,21 +116,21 @@ const smtpLookup: LookupFunction = (hostname, options, callback) => {
 /**
  * nodemailer's getSocket (tasks.md T189): a socket connected to the host through smtpLookup, which nodemailer then
  * speaks SMTP, and TLS, over. net tries each address in turn, 250 ms apiece but the last, as for the Telegram channel,
- * and the connection timeout bounds the lookup and the connect together. A failure takes nodemailer's own codes: a
- * timeout is ETIMEDOUT, a host with no address EDNS, and any other failure to connect ECONNECTION.
+ * and the connection timeout bounds the lookup and the connect together. A failure takes nodemailer's own codes: the
+ * connection timeout is ETIMEDOUT, a host with no address EDNS, and any other failure to connect ECONNECTION. net's
+ * own ETIMEDOUT is one address's 250 ms attempt: when every address fails, its error takes the first attempt's code,
+ * so it is ECONNECTION here, as nodemailer reported its last address's failure.
  */
 function connectThroughAres(
   options: ReturnType<typeof transportOptions>,
   callback: (err: Error | null, socketOptions?: { connection: Socket }) => void,
 ): void {
   const socket = connect({ host: options.host, port: options.port, lookup: smtpLookup });
-  const timer = setTimeout(
-    () => socket.destroy(Object.assign(new Error("Connection timeout"), { code: "ETIMEDOUT" })),
-    options.connectionTimeout,
-  );
+  const timedOut = Object.assign(new Error("Connection timeout"), { code: "ETIMEDOUT" });
+  const timer = setTimeout(() => socket.destroy(timedOut), options.connectionTimeout);
   const fail = (err: NodeJS.ErrnoException): void => {
     clearTimeout(timer);
-    const kept = err.code === "ETIMEDOUT" || err.code === "EDNS";
+    const kept = err === timedOut || err.code === "EDNS";
     callback(kept ? err : Object.assign(new Error("the SMTP host couldn't be reached"), { code: "ECONNECTION" }));
   };
   socket.once("error", fail);

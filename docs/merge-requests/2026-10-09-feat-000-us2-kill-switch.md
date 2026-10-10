@@ -3,7 +3,7 @@ Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) ·
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
-**Status: DRAFT. Not ready to merge.** Every task an agent session can do is done. T084 passed all 12 steps on the engine, on the simulated merge ("T084's run" below), and T189's engine test passed. Round 7's fixes (af425ec) await a confirming review. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 7's checks" below). What's left:
+**Status: DRAFT. Not ready to merge.** Every task an agent session can do is done but T190, which round 8 opened. T084 passed all 12 steps on the engine, on the simulated merge ("T084's run" below), and T189's engine test passed. Round 8 confirmed round 7's fixes. Round 8's own fixes change code since that run, so T084 runs again on their commit. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 7's checks" below). What's left:
 - **T189 (done):** the gateway's other `getaddrinfo` users, round 4's S2. The exporters and edge (round 6), and pg and the email channel (round 7), resolve through c-ares, and the engine test with the collector stopped passed. Bedrock's calls take c-ares in T102 (provider-adapter.md §3.2). `UV_THREADPOOL_SIZE` stays at the default, your call.
 - **T084 (done, on the simulated merge):** 52 of 52 assertions, in 368 s. Once this branch has merged main, the diff check in "T084's run" shows whether the run holds.
 - **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
@@ -237,6 +237,30 @@ c904034 moved pg's connections and the email channel's lookups onto c-ares. One 
 - **For T084:** the store, the enforcement point, now depends on c-ares answering compose names inside the gateway's container, and no stack run has shown that yet. T084's run checks the store's connections as well as the alerts (step 3 below).
 
 **The test files:** you accepted all seven on 2026-10-10, at c904034: "Yes, accepted." They are round 5's four, round 6's two, and `services/gateway/test/integration/ares-lookups.test.ts`, new in c904034. Round 7 then changed that one again: N1, N2, and N5 above, and two new tests. No assertion was weakened. It's yours to look at once more.
+
+### Round 8: round 7's fixes confirmed (at af425ec and 6155c81), applied in the commit after them
+
+A confirming review of af425ec, and of 6155c81's record of the engine runs. Its verdict begins: "Approve af425ec's code, but fix one text item (S1) before merge. The new email design is sound." It found the previous review's S1, S2, and N1 to N5 fixed. It found 6155c81's pasted output supports marking T084 and T189 done. All of its findings are applied:
+- **S1: the after-merge check for T084 could never print nothing.** 6155c81 itself changed tasks.md and provider-adapter.md after the simulated merge was built. The check is now `git diff --stat 56c76be HEAD -- . ':!docs' ':!specs'`, in tasks.md, in "T084's run", and in step 3 below. Nothing the stack builds or the breach test reads lives under `docs/` or `specs/`. I had found the same flaw while the review ran.
+- **N1: alerts.md's kept/changed/lost list had two errors and an unstated assumption.**
+  - The connection timeout bounding the lookup is new, so it moved to Changed.
+  - Changed now names the fallback that was lost: on 465, a failed TLS handshake no longer moves to the next address.
+  - Lost now says real mode's `SMTP_HOST` is assumed to be a full name, not checked. The runbook says what `connect` means for a short one.
+- **N2: T189's text contradicted itself** ("Not run yet" beside "Done"). It's rewritten as done.
+- **N3: a failure across several addresses could be classed `timeout` too early.** net's error takes the first attempt's code, ETIMEDOUT for one that didn't answer within 250 ms. Now only the gateway's own connection timeout is `timeout`, and every other failure to connect is `connect`, as nodemailer reported its last address's failure.
+- **N4: Bedrock's contract disagreed with itself.** Its Client row, plan.md, and T102's sub-bullet now carry the `httpsAgent` (the SDK default's `keepAlive` and `maxSockets: 50`, plus the lookup). The name-lookup row names the mechanism: the credential chain's `clientConfig.requestHandler`, which reaches the SSO client and the SSO-OIDC token refresh.
+- **N5: a stale comment in smtp.ts** now says which codes come from where.
+- **Three new tests:**
+  - a connect that never completes is `timeout` at the connection timeout, and leaves no socket connecting;
+  - a failure across several addresses is `connect`, though the first attempt timed out;
+  - a fresh answer wins over the addresses kept.
+
+  Each fails with its behavior taken out (checked). The review suggested a mutation for the last one, reading the cache first, but as it wrote it the mutation changes nothing, since the code stores the fresh answer before it reads the cache. Reading the cache before storing is the one that fails.
+- **Outside the diff, two things it found true before it:**
+  - A certificate that fails to verify is classed `smtp_ESOCKET`, not `tls`: nodemailer overwrites the TLS error's code. That is now T190, and the runbook says so meanwhile.
+  - sendEmail's deadline doesn't stop a send already in flight, which "For later tasks" lists.
+
+**`ares-lookups.test.ts` changed again,** with the three tests above. No assertion was weakened. Like round 7's changes, it's yours to look at once more.
 
 ## Verification
 
@@ -607,7 +631,7 @@ make check exit=2
 
 **`make breach-test ENV=dev-cpu` passed all 12 steps: 52 assertions, 52 passed, 0 missed** (traces 2/2, metrics 25/25, logs 25/25), in 368 s, exit 0. The pre-run, before T187 to T189, passed 45 of 52 in 1,405 s.
 
-**Where it ran:** `sim/000-us2-on-us1-stack` at 56c76be, this branch at af425ec merged with the us1 stack at 903439e by the us1 note's recipe. The pre-run called itself not T084, since the fixes for its misses weren't in yet; this run has them, on the tree this branch becomes once it merges main. After that merge, `git diff --stat 56c76be HEAD -- . ':!docs/merge-requests'` printing nothing shows the run holds for the branch. Anything else means T084 runs again there.
+**Where it ran:** `sim/000-us2-on-us1-stack` at 56c76be, this branch at af425ec merged with the us1 stack at 903439e by the us1 note's recipe. The pre-run called itself not T084, since the fixes for its misses weren't in yet; this run has them, on the tree this branch becomes once it merges main. After that merge, `git diff --stat 56c76be HEAD -- . ':!docs' ':!specs'` printing nothing shows the run holds for the branch. Anything else means T084 runs again there.
 
 **How it ran:** you cleared the main tree for it ("Yes, youc an detach the main tree for about 30 minutes to do what you need."). It ran in an agent session, on the agents' engine, with no other agent running.
 - **Preflight:** C: had 65 GB free and 58 GB of memory was available. The engine ran no containers, and every tree was committed.
@@ -627,6 +651,44 @@ make check exit=2
   ```
   00000000000000000000000000000001 01 80 10 80       lo
   ```
+
+<details><summary>make up ENV=dev-cpu and make down ENV=dev-cpu, their last lines</summary>
+
+```
+gateway              running    healthy    built
+gateway-state        running    healthy    pinned
+grafana              running    healthy    pinned
+langfuse-db          running    healthy    pinned
+langfuse-web         running    healthy    pinned
+langfuse-worker      running    healthy    pinned
+loki                 running    none       pinned
+mailpit              running    healthy    pinned
+model-server-cpu     running    healthy    pinned
+otel-collector       running    none       pinned
+prometheus           running    healthy    pinned
+seaweedfs            running    healthy    pinned
+telegram-standin     running    healthy    built
+valkey               running    healthy    pinned
+gateway /health: ok · store ok · state normal · cause None · adapters: local healthy, synthetic healthy
+prometheus targets: 6 up, 0 down
+docker system df:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          41        28        11.86GB   6.72GB (56%)
+Containers      16        16        245.8kB   0B (0%)
+Local Volumes   10        8         148.6MB   4.56kB (0%)
+Build Cache     47        0         256.4MB   256.4MB
+status: healthy
+up exit=0 after 76 s
+```
+
+```
+ Network h4reet-dev-cpu_egress  Removed
+ Network h4reet-dev-cpu_internal  Removed
+down exit=0 after 58 s
+(19 lines name a container, network, or volume removed)
+```
+
+</details>
 
 <details><summary>make breach-test ENV=dev-cpu, the whole output (the incident draft's sha256 cut to 12 characters, since the content scan refuses 64-hex strings; the socat lines are the relay's)</summary>
 
@@ -892,13 +954,15 @@ breach-test exit=2
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
 2. **Look again at `ares-lookups.test.ts`,** which round 7 changed after you accepted the seven test files, and say if any of it should be otherwise.
-3. **T084 ran on the simulated merge and passed** ("T084's run" below). Once this branch has merged main, run `git diff --stat 56c76be HEAD -- . ':!docs/merge-requests'`: if it prints nothing, the run holds; if not, an agent session runs T084 again on the branch.
+3. **T084 ran on the simulated merge and passed** ("T084's run" below). Once this branch has merged main, run `git diff --stat 56c76be HEAD -- . ':!docs' ':!specs'`: if it prints nothing, the run holds; if not, an agent session runs T084 again on the branch.
 4. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
 ### For later tasks
 
 - **T117:** the breach test's dev route in bash-gate, which turns the nine planned rows to block.
 - **The gateway implementer's notes:** a lost init record is repaired only when the operator's retry gets the 409. A call with several attempts is charged their sum, which can't exceed `max_micro` with today's retry policies.
+- **T190:** a TLS certificate failure on the email channel is classed `smtp_ESOCKET`, not `tls` (round 8).
+- **A send already in flight** goes on after sendEmail's deadline: `close()` doesn't stop nodemailer's session, so a slow server can accept a message the dispatcher recorded as `timeout`, and the retry sends it again. nodemailer's own timeouts bound it. Round 8 found it; it predates this branch's changes.
 - **Only real runs prove:** Prometheus's and Loki's answers about a past moment, and whether the 5 s grace is enough; Mailpit's time format; signal handling in your terminal; step 10's waits against the real limiter; real TLS, SMTP AUTH, and Telegram delivery; re-migration against a recreated Postgres container.
 
 ### CLAUDE.md, by your hand
@@ -928,7 +992,13 @@ Round 7's reviewer suggested two more, each the third time its mistake was made:
 > - Committing a fix that adds or edits a test file without adding it to the merge-request note's acceptance list in the same commit.
 > - Replacing a library's default (a lookup, an HTTP agent, a mail transport) without listing what the default did, such as its cache, fallbacks, retries, and the files it reads, and either keeping each or recording its loss.
 
+Round 8's reviewer suggested another, after stale text survived a change three times on this branch:
+
+> - Closing a task or changing a design without rereading the task's text and the changed files' comments for lines it made false ("Not run yet", "Partly done", a comment about the old path).
+
 ### Observations
+
+- **Round 8's reviewer ran `git merge-tree --write-tree`** to reproduce S1. That writes unreferenced objects into the repository's object store; no ref, index, or working tree changed, and `git gc` prunes them. My own simulated merges do the same.
 
 - **Round 7's reviewer wrote outside the repository:** throwaway Node scripts, and two self-signed test certificates with their keys, under `/tmp/claude-1000/review-t189`. bash-gate refused its recursive delete there, and I left them too, rather than run what it was refused. /tmp's wipe at boot removes them, or `rm -r /tmp/claude-1000/review-t189` does. Reviewers' Bash grants aren't enforced until the closing patch (T117).
 
