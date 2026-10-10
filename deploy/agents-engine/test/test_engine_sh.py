@@ -676,8 +676,30 @@ engine_docker() {
 	printf 'engine %s\n' "$*" >>"$CALLS"
 	case "$1" in
 	version) [ "$ENGINE_UP" = 1 ] ;;
-	image) [ -f "$STATE/engine/$(key "${!#}")" ] ;;
-	load) local line; read -r line; : >"$STATE/engine/$(key "${line#tar-of }")" ;;
+	image)
+		[ -f "$STATE/engine/$(key "${!#}")" ] && return 0
+		echo "Error response from daemon: No such image: ${!#}" >&2
+		return 1
+		;;
+	load)
+		# As the real engine does (T063): a load registers the image's ID alone, and names nothing. LOAD_FAIL names
+		# images whose load breaks; MISMATCH, images that arrive under another ID.
+		local line ref name id
+		read -r line
+		ref="${line#tar-of }"
+		name="${ref#registry.example/}"
+		name="${name%%:*}"
+		case " ${LOAD_FAIL:-} " in *" $name "*) echo "Error response from daemon: unexpected EOF" >&2; return 1 ;; esac
+		id="${ref#*@}"
+		case " ${MISMATCH:-} " in *" $name "*) id="sha256:$(printf '%064d' 0 | tr 0 f)" ;; esac
+		: >"$STATE/engine/id-$(key "$id")"
+		echo "Loaded image ID: $id"
+		;;
+	tag)
+		# docker tag <image ID> <repository:tag>: only an ID the engine holds, which then answers to tag@digest.
+		[ -f "$STATE/engine/id-$(key "$2")" ] || { echo "Error response from daemon: No such image: $2" >&2; return 1; }
+		: >"$STATE/engine/$(key "$3@$2")"
+		;;
 	run)
 		[ "$CHOWN_OK" = 1 ] && return 0
 		printf 'Unable to find image locally\ndocker: Error response from daemon: refused by h4-authz (A14)\n' >&2
@@ -721,6 +743,8 @@ def _seed(
     engine_up: bool = True,
     base_node: bool = True,
     chown_ok: bool = True,
+    load_fail: tuple[str, ...] = (),
+    mismatch: tuple[str, ...] = (),
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     """Run cmd_seed with the stand-ins. `host` and `registry` map image names to their host-side size."""
     names = sorted(set(host) | set(engine_has) | set(registry or {}))
@@ -764,8 +788,56 @@ def _seed(
         DISK_OK="1" if disk_ok else "0",
         ENGINE_UP="1" if engine_up else "0",
         CHOWN_OK="1" if chown_ok else "0",
+        LOAD_FAIL=" ".join(load_fail),
+        MISMATCH=" ".join(mismatch),
     )
     return done, calls.read_text(encoding="utf-8").splitlines()
+
+
+def _row(done: subprocess.CompletedProcess[str], name: str) -> tuple[str, str]:
+    """seed's table row for an image, and the line under it."""
+    lines = [*done.stdout.splitlines(), ""]
+    i = next(
+        i
+        for i, line in enumerate(lines)
+        if line.startswith(f"registry.example/{name}:1.0 ")
+    )
+    return lines[i].rstrip(), lines[i + 1].strip()
+
+
+def test_seed_saves_every_platform_and_names_the_image_by_its_pinned_digest(
+    tmp_path: Path,
+) -> None:
+    # T063, 2026-10-09: a --platform save lost the index digest, and the load named nothing, so all 19 failed.
+    done, calls = _seed(tmp_path, host={"alpha": GIB})
+    assert done.returncode == 0, done.stderr
+    ref = _ref("alpha")
+    repo_tag, _, digest = ref.partition("@")
+    assert f"host save {ref}" in calls
+    assert not [c for c in calls if c.startswith("host save") and "--platform" in c]
+    tag = f"engine tag {digest} {repo_tag}"
+    assert calls.index(tag) > _first(calls, "engine load")
+    row, _ = _row(done, "alpha")
+    assert row.endswith("seeded")
+
+
+def test_seed_says_why_an_image_failed(tmp_path: Path) -> None:
+    done, _ = _seed(tmp_path, host={"alpha": GIB, "bravo": GIB}, load_fail=("bravo",))
+    assert done.returncode != 0
+    row, why = _row(done, "bravo")
+    assert row.endswith("FAILED")
+    assert why == "Error response from daemon: unexpected EOF"
+    assert _row(done, "alpha")[0].endswith("seeded")
+    assert "1 image(s) failed to seed" in done.stderr
+
+
+def test_seed_fails_an_image_whose_digest_changed_on_the_way(tmp_path: Path) -> None:
+    # The tag names only the pinned digest: a load that brings another ID fails, and never seeds.
+    done, _ = _seed(tmp_path, host={"alpha": GIB}, mismatch=("alpha",))
+    assert done.returncode != 0
+    row, why = _row(done, "alpha")
+    assert row.endswith("FAILED")
+    assert why == f"Error response from daemon: No such image: sha256:{'a' * 64}"
 
 
 def _first(calls: list[str], prefix: str) -> int:

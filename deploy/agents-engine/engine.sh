@@ -465,19 +465,29 @@ cmd_seed() {
 		disk_check_bytes $((known + 20 * gib))
 	fi
 
-	# Move each image to the engine by digest: save on the host, load over the TLS endpoint.
-	local fails=0
+	# Move each image to the engine by digest: save on the host, load over the TLS endpoint, then name it. T063
+	# found on 2026-10-09 that every image failed:
+	# - The save keeps every platform the host holds, never --platform. A one-platform save keeps only that
+	#   platform's manifest, so the engine got the image under the manifest's ID and lost the index digest the
+	#   pins name.
+	# - docker load names nothing that was saved by digest: the image arrives as its ID alone. Tagging the pinned
+	#   digest with its repository:tag names it, and works only when the engine holds exactly that digest, so a
+	#   changed image fails here rather than seeds.
+	# A failure prints the engine's or the host's own last line under its row.
+	local fails=0 err
 	printf '%-60s %-20s %s\n' "IMAGE" "DIGEST" "RESULT"
 	for ref in "${refs[@]}"; do
-		if engine_docker image inspect "${ref%@*}@${ref#*@}" >/dev/null 2>&1; then
+		if engine_docker image inspect "$ref" >/dev/null 2>&1; then
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "present"
 			continue
 		fi
-		if host_docker save --platform linux/amd64 "$ref" | engine_docker load >/dev/null 2>&1 &&
-			engine_docker image inspect "$ref" >/dev/null 2>&1; then
+		if err="$({ host_docker save "$ref" | engine_docker load >/dev/null; } 2>&1 &&
+			engine_docker tag "${ref#*@}" "${ref%@*}" 2>&1 &&
+			engine_docker image inspect "$ref" 2>&1 >/dev/null)"; then
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "seeded"
 		else
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "FAILED"
+			printf '  %s\n' "$(printf '%s\n' "$err" | tail -n 1 | LC_ALL=C tr -cd '\040-\176' | cut -c1-200)"
 			fails=$((fails + 1))
 		fi
 	done
