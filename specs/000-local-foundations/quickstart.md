@@ -65,7 +65,7 @@ deploy/agents-engine/engine.sh setup      # sudo; the user h4agents, the firewal
 # then in PowerShell: wsl --shutdown, and open a new WSL shell
 id -nG                 # includes h4gpu
 stat -c '%a %U:%G' /dev/dxg /mnt/c/Users   # 660 root:h4gpu, and 700 for /mnt/c/Users
-deploy/agents-engine/engine.sh setup      # again, once: with /dev/dxg in its H6 mode now, it can try nobody:h4gpu for the NVIDIA CLI (T179)
+deploy/agents-engine/engine.sh setup      # again, when its last lines ask: with /dev/dxg in H6's mode now, it tries nobody:h4gpu for the NVIDIA CLI (T179)
 deploy/agents-engine/engine.sh up
 make engine-status     # reachable, rootless, plugin h4-authz listed
 deploy/agents-engine/engine.sh status     # also: /dev/dxg root:h4gpu 660; the NVIDIA container CLI runs as nobody:h4gpu (or root:h4gpu)
