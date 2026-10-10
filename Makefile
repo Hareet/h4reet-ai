@@ -436,6 +436,16 @@ publish-check: ## (the Author) Every commit's secrets, denylisted phrases, and c
 	$(PY_HOST) tools/gates/publish_check.py
 .PHONY: publish-check
 
+# FR-007's canary (plan §13; contracts/env-files.md §8; tasks.md T095), the Author's: tools/gates/matrix_canary.py,
+# through PY_HOST, starts one claude -p session with the project's settings alone and a fake value, made at run time,
+# for every FR-007 variable, and checks that none reaches the session's environment or its transcript. It runs on the
+# Team plan: ANTHROPIC_API_KEY is unset for the session, and API-key auth stops it at its init event. It exits 0
+# passed, 1 leaked, and 3 when it can't tell, and prints names, never values.
+matrix-canary: ## (the Author) FR-007's canary: a claude -p session with a fake value for every FR-007 variable (plan §13)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make matrix-canary is the Author's: it starts a Claude Code session with the project's settings, from your own terminal (plan §13)" >&2; exit 2; }
+	$(PY_HOST) tools/gates/matrix_canary.py
+.PHONY: matrix-canary
+
 # hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
 # gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes
 # straight to the stack's api port on 127.0.0.1 (18000, 18100, or 18300); inside the sandbox, for dev-cpu only, the
