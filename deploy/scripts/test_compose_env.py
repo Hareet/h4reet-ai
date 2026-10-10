@@ -715,6 +715,10 @@ LANGFUSE_SHARED = {
     "LANGFUSE_S3_MEDIA_UPLOAD_PREFIX": "media/",
     "LANGFUSE_S3_BATCH_EXPORT_ENABLED": "false",
     "LANGFUSE_IN_APP_AGENT_ENABLED": "false",
+    # No exception to Langfuse's block on internal addresses for an LLM connection (contracts/env-files.md §5, T149).
+    "LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST": "",
+    "LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS": "",
+    "LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS": "",
     # Both listen on $HOSTNAME, which Docker sets to the container's ID (contracts/env-files.md §5, tasks.md T180).
     "HOSTNAME": "0.0.0.0",
 }

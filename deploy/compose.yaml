@@ -61,6 +61,11 @@ x-langfuse-env: &langfuse-env
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
   LANGFUSE_IN_APP_AGENT_ENABLED: "false"
+  # The exceptions to Langfuse's block on internal addresses for an LLM connection's base URL: none, so no connection
+  # can name an in-stack host. Langfuse 4.54.0 reads "" and unset alike as an empty list (T149).
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: ""
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: ""
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS: ""
   # Both listen on $HOSTNAME, and Docker sets it to the container's ID, which binds only the container's network
   # address, while their health checks ask 127.0.0.1. The worker's was refused at T065's third prod start (2026-10-09).
   HOSTNAME: 0.0.0.0
