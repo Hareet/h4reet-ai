@@ -67,6 +67,7 @@ sudo -u h4agents tail -n 3 /var/log/h4agents/authz.jsonl
   - It writes everything in `h4agents`' home as `h4agents`, the plugin's spec file included. It logs that write only if the copy my diagnostic made differs.
   - It should end with "No wsl --shutdown is needed".
 - **The `sudo rm`** removes the second spec file my diagnostic wrote, in `~h4agents/.local/lib/docker/plugins`. The daemon reads the `.config` one first, and setup keeps only that one.
+  - **Wrong, as `up` then showed.** With a correct copy in `.config` alone, dockerd 28.3.3 refused to start. With the `.local/lib` copy back, put there by the Author by hand, it started. [The plugin-spec note](2026-10-09-fix-000-engine-plugin-spec.md) has setup write both.
 - **`down`, then `up`.** `up` now reloads both user managers, so the daemon starts with the new publish. It should end with `== engine up` and a line that shows `plugins=[h4-authz]`. `chown_state` will say it waits for the seed (T063). That is expected.
 - **The log's tail,** read as `h4agents`, never as root. It should show decision records, the first that were ever written.
 
@@ -75,7 +76,8 @@ Send me the output of `up`, `make engine-status`, and the tail. Then come T063 a
 ## What happened
 
 1. **The daemon refused to start.** After `engine.sh setup` and `wsl --shutdown`, `engine.sh up` failed at `docker.service`. h4agents' journal held "Unable to locate plugin: h4-authz, retrying in 1s", then 2s, 4s, and 8s, though the plugin was up. Asked directly on its socket, it answered `{"Implements": ["authz"]}` and `{"Allow": true}`.
-   - **The spec file.** A spec file in `~h4agents/.config/docker/plugins`, naming the socket by path, let the daemon start: "Daemon has completed initialization", "API listen on [::]:2376". An empty spec read as "legacy plugin: Unknown protocol".
+   - **The spec file.** A spec file naming the socket by path, in `~h4agents/.config/docker/plugins` and in `~h4agents/.local/lib/docker/plugins`, let the daemon start: "Daemon has completed initialization", "API listen on [::]:2376". An empty spec read as "legacy plugin: Unknown protocol".
+     - **Corrected later that day:** this said the `.config` copy did it. The diagnostic had written both, and the `.config` copy alone wasn't enough. See [the plugin-spec note](2026-10-09-fix-000-engine-plugin-spec.md).
    - **A second finding.** The plugin's log directory was `drwxr-x--- root h4agents`, so `authz.jsonl` never existed. `AuditLog.write` drops a record it can't write, by design, but it dropped them silently.
 2. **`up` then hung at its TLS wait,** for several minutes, until you stopped it.
    - **From the host:** a TCP connect to `198.18.0.1:2376` succeeded, but a TLS handshake got no answer, with a client certificate or without. `docker version` hung for the 70 s the diagnostic allowed.

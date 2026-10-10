@@ -603,6 +603,7 @@ The Author chose "Narrow permission set (Recommended)", which read: "A dedicated
     - **In a worktree of its own,** nothing masks the path and an agent can write it. An empty file there could be filled between the check and gitleaks' read, so anything at all is refused, as before (the hooks review).
 
     The matrix holds a row for each case. It meets the mask itself only when it runs inside a session, in the main tree, because making one takes a mount.
+  - **A session's commit in the main tree still fails** (2026-10-09). The hook's check lets the mask through, but gitleaks then opens its source's `.gitleaksignore`, and inside the sandbox opening the mask is refused: "permission denied", though it shows as `/dev/null`. gitleaks stops, so the hook refuses, failing closed. A session's commit in a worktree goes through, because there the source has no mask. T173 is the closing patch's fix.
 - **Alternatives:** none kept. Protecting the file alone leaves the ignore list and the inline marker.
 
 ### R-37. The agents' engine's memory cap is 16 GB (review, 2026-10-08)
