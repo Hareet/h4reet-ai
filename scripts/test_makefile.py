@@ -179,3 +179,29 @@ def test_the_agents_engine_builds_them(tmp_path: Path, env: dict[str, str]) -> N
         "--profile * build"
     )
     assert calls == [expected]
+
+
+def test_help_lists_the_targets_through_an_including_makefile(tmp_path: Path) -> None:
+    # T183's option (a): a committed GNUmakefile that only includes the Makefile. make then reads two files, and help
+    # must still print bare target names, not grep's "file:" before each line.
+    make = shutil.which("make")
+    if make is None:
+        pytest.skip("no make on this host")
+    outer = tmp_path / "GNUmakefile"
+    outer.write_text(f"include {MAKEFILE}\n", encoding="utf-8")
+
+    def help_from(makefile: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [make, "-s", "-f", str(makefile), "help"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+
+    direct, included = help_from(MAKEFILE), help_from(outer)
+    assert direct.returncode == 0, direct.stderr
+    assert included.returncode == 0, included.stderr
+    assert "  help " in direct.stdout
+    assert included.stdout == direct.stdout

@@ -124,8 +124,10 @@ PRE_COMMIT_PLANNED :=
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
 CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets@T091 evals redteam=redteam-suite matrix image
 
+# -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
+# file name before every line.
 help: ## List the targets
-	@grep -E '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
 
 setup: ## Install the workspace's dependencies, then the git hooks (the devcontainer runs this)
 	npm ci --ignore-scripts

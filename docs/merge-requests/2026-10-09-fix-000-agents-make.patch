@@ -1,0 +1,26 @@
+diff --git a/GNUmakefile b/GNUmakefile
+new file mode 100644
+index 0000000..7749b61
+--- /dev/null
++++ b/GNUmakefile
+@@ -0,0 +1,5 @@
++# The Makefile, by name, and nothing else (spec 000, tasks.md T183). GNU make reads GNUmakefile before Makefile.
++# With no file here, the sandbox's write-deny on this path (T045) left a placeholder no process can open, and make
++# stopped in every agent session: "make: GNUmakefile: Permission denied". Human-only: the write-deny and
++# protected-paths.sh keep agents from changing it, so it can't shadow the Makefile. Never add a rule here.
++include $(dir $(lastword $(MAKEFILE_LIST)))Makefile
+diff --git a/specs/000-local-foundations/plan.md b/specs/000-local-foundations/plan.md
+index 6cc4b68..36784f2 100644
+--- a/specs/000-local-foundations/plan.md
++++ b/specs/000-local-foundations/plan.md
+@@ -182,7 +182,9 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
+ .dockerignore                    [A] new: excludes .git, deploy/env, *.env, node_modules, __pycache__, corpus/intake/private
+ .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
+                                      allowlists deploy/env.agents/dev-cpu.vars, and ADR 0004 at 8c15b95
+-GNUmakefile, makefile            never exist: denied at the OS level from the early patch on, so nothing shadows the Makefile
++GNUmakefile                      [H] new, by the Author's patch (T183): only `include`s the Makefile, so make reads a
++                                     real file in agent sessions too; write-denied, as before
++makefile                         never exists: denied at the OS level from the early patch on, and read after GNUmakefile
+ .devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
+                                      hashed requirements-tools.txt
+ config/
