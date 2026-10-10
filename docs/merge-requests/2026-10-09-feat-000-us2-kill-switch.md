@@ -3,10 +3,10 @@ Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) ·
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
-**Status: DRAFT. Not ready to merge.** Every task an agent session can do is done but T190, which round 8 opened and which needn't block this merge ("What's left"). T084 passed all 12 steps on the engine, on the simulated merge ("T084's run" below), and T189's engine test passed. Round 8 confirmed round 7's fixes. Round 8's own fixes change code since that run, so T084 runs again on their commit. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 7's checks" below). What's left:
+**Status: DRAFT. Not ready to merge.** Every task an agent session can do is done but T190, which round 8 opened and which needn't block this merge ("What's left"). T084 passed all 12 steps on the engine, on round 9's commit merged with the us1 stack ("T084's run" below), and T189's engine test passed. Rounds 8 and 9 confirmed the fixes before them; round 9 found nothing to fix before merge. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 9's checks" below). What's left:
 - **T189 (done):** the gateway's other `getaddrinfo` users, round 4's S2. The exporters and edge (round 6), and pg and the email channel (round 7), resolve through c-ares, and the engine test with the collector stopped passed. Bedrock's calls take c-ares in T102 (provider-adapter.md §3.2). `UV_THREADPOOL_SIZE` stays at the default, your call.
 - **T190 (an agent session, needn't block this merge):** a TLS certificate failure on the email channel is classed `smtp_ESOCKET`, not `tls`. It predates this branch's changes, and the runbook says so meanwhile. It needs a design choice, since the TLS failure has to be caught before nodemailer formats it. That's my reading; it's yours to say it blocks.
-- **T084 (done, on the simulated merge):** 52 of 52 assertions, in 368 s. Once this branch has merged main, the diff check in "T084's run" shows whether the run holds.
+- **T084 (done, on the simulated merge):** 52 of 52 assertions, in 375 s, on round 9's commit. Once this branch has merged main, the diff check in "T084's run" shows whether the run holds.
 - **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
 - **This note:** both runs' output goes into it, and then this block goes.
 
@@ -456,24 +456,24 @@ make check: 4 PASS, 2 SKIP, 5 PLANNED, 0 PENDING, 0 FAIL
 
 </details>
 
-### Rounds 4 to 7's checks (2026-10-10, at af425ec)
+### Rounds 4 to 9's checks (2026-10-10, at 5fc31f2)
 
 - **The gateway's suite, on this branch:** tsc, ESLint, and Prettier are clean. The run's summary:
 
   ```
   Test Files  38 passed (38)
-  Tests  602 passed | 12 skipped (614)
-  Start at  07:59:03
-  Duration  57.32s (tests 94%, transform 3%, import 3%)
+  Tests  605 passed | 12 skipped (617)
+  Start at  09:15:13
+  Duration  57.01s (tests 95%, import 3%, transform 3%)
   ```
-- **The probe's tests, on this branch:** `84 passed in 0.12s`.
+- **The probe's tests, on this branch:** `84 passed in 0.22s`.
 - **`make check ENGINE_MODE=none-yet` on this branch alone:** `test` fails one case, `deploy/scripts/test_preflight.py::test_p18_the_model_file`. It reads the agents' engine's real model directory, seeded on 2026-10-09, and the us1 stack already fixed it (T175). This branch's other rows are PLANNED for patches its base predates. So the merge with the us1 stack is the state worth checking.
-- **`make check ENGINE_MODE=none-yet` on that merge:** `sim/000-us2-on-us1-stack` (56c76be), this branch at af425ec merged with the stack at 903439e by the us1 note's recipe. Its tree differs from `git merge-tree`'s result in the recipe's three files alone.
+- **`make check ENGINE_MODE=none-yet` on that merge:** `sim/000-us2-on-us1-stack` (3f276e5), this branch at 5fc31f2 merged with the stack at 903439e by the us1 note's recipe, the tree T084 ran on.
   - **Exit 2.** Every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). The matrix is PLANNED, for the 13 breach-test rows (T117).
-  - **Counts:** 7 PASS, 2 SKIP, 1 PLANNED, 1 FAIL. The gateway has 603 tests passing and 11 skipped; pytest has 1621 passing and 2 skipped.
+  - **Counts:** 7 PASS, 2 SKIP, 1 PLANNED, 1 FAIL. The gateway has 606 tests passing and 11 skipped; pytest has 1621 passing and 2 skipped.
   - **The image gate** is held back by `ENGINE_MODE=none-yet`, since no Dockerfile changed.
 
-<details><summary>make check ENGINE_MODE=none-yet, on the simulated merge at 56c76be</summary>
+<details><summary>make check ENGINE_MODE=none-yet, on the simulated merge at 3f276e5</summary>
 
 ```
 == githooks-check
@@ -535,9 +535,9 @@ npm test --workspaces --if-present
 
 
  Test Files  38 passed (38)
-      Tests  603 passed | 11 skipped (614)
-   Start at  08:01:01
-   Duration  53.83s (tests 95%, transform 3%, import 2%)
+      Tests  606 passed | 11 skipped (617)
+   Start at  09:17:05
+   Duration  50.89s (tests 95%, import 3%, transform 2%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  4%]
@@ -563,7 +563,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 93%]
 ........................................................................ [ 97%]
 .......................................                                  [100%]
-1621 passed, 2 skipped in 40.26s
+1621 passed, 2 skipped in 39.24s
 -> PASS test
 == secrets
 -> SKIP secrets (added by T091)
@@ -643,11 +643,162 @@ make check exit=2
 
 </details>
 
-## T084's run (2026-10-10, on the simulated merge at 56c76be)
+## T084's run (2026-10-10, on the simulated merge at 3f276e5)
+
+**`make breach-test ENV=dev-cpu` passed all 12 steps: 52 assertions, 52 passed, 0 missed** (traces 2/2, metrics 25/25, logs 25/25), in 375 s, exit 0. This is T084's evidence. The first run, at 56c76be, also passed 52 of 52; round 8 then changed code, so T084 ran again on round 9's commit. The first run's record is below, collapsed.
+
+**Where it ran:** `sim/000-us2-on-us1-stack` at 3f276e5, this branch at 5fc31f2 merged with the us1 stack at 903439e by the us1 note's recipe. Its tree differs from `git merge-tree`'s result in the recipe's three files alone. After this branch merges main, `git diff --stat 3f276e5 HEAD -- . ':!docs' ':!specs'` printing nothing shows the run holds for the branch, since nothing the stack builds or the breach test reads lives under `docs/` or `specs/`. Anything else means T084 runs again there.
+
+**How it ran:** as the first run did, under your clearance of the main tree. It ran in an agent session, on the agents' engine, with no other agent running.
+- **Preflight:** C: had 64 GB free and 58 GB of memory was available. The engine ran no containers, and every tree was committed.
+- **The main tree** was detached at 3f276e5 from 15:19:05Z to 15:28:15Z. Today's three detachments came to about 23 minutes.
+- `up ENV=dev-cpu`: healthy in 77 s, with `/health` answering "store ok · state normal" and 6 Prometheus targets up.
+- `breach-test ENV=dev-cpu`: 375 s (393 s with the relay), exit 0.
+- `down ENV=dev-cpu`: 19 removed in 60 s, and the engine idle after.
+- **Round 4's S1:** the gateway container's `/proc/net/if_inet6` again lists only `lo`.
+
+**What it shows, beside the assertions:**
+- **Telegram (T188)** delivered each of its seven alerts on the first attempt, 0.005 to 0.623 s after the alert. That includes the three while `model-server-cpu` was stopped (4b at 0.623 s, 5c, 6c).
+- **Email (T189 and rounds 7 to 9)** connected to Mailpit through c-ares and delivered its seven on the first attempt, 0.056 to 1.908 s after the alert.
+- **The traces (T187)** and the store's fail-closed and rebuild (11a to 11e) passed, as in the first run.
+
+<details><summary>make up ENV=dev-cpu and make down ENV=dev-cpu, their last lines</summary>
+
+```
+gateway              running    healthy    built
+gateway-state        running    healthy    pinned
+grafana              running    healthy    pinned
+langfuse-db          running    healthy    pinned
+langfuse-web         running    healthy    pinned
+langfuse-worker      running    healthy    pinned
+loki                 running    none       pinned
+mailpit              running    healthy    pinned
+model-server-cpu     running    healthy    pinned
+otel-collector       running    none       pinned
+prometheus           running    healthy    pinned
+seaweedfs            running    healthy    pinned
+telegram-standin     running    healthy    built
+valkey               running    healthy    pinned
+gateway /health: ok · store ok · state normal · cause None · adapters: local healthy, synthetic healthy
+prometheus targets: 6 up, 0 down
+docker system df:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          41        28        12.1GB    6.955GB (57%)
+Containers      16        16        245.8kB   0B (0%)
+Local Volumes   10        8         153.6MB   4.56kB (0%)
+Build Cache     53        0         384.1MB   384.1MB
+status: healthy
+up exit=0 after 77 s
+```
+
+```
+ Network h4reet-dev-cpu_egress  Removed
+ Network h4reet-dev-cpu_internal  Removed
+down exit=0 after 60 s
+(19 lines name a container, network, or volume removed)
+```
+
+</details>
+
+<details><summary>make breach-test ENV=dev-cpu, the whole output (the incident draft's sha256 cut to 12 characters, since the content scan refuses 64-hex strings; the socat lines are the relay's)</summary>
+
+```
+python3 -I -B -X pycache_prefix=/dev/null ./evals/breach.py --stack dev-cpu --env-file deploy/env.agents/dev-cpu.vars
+breach test: h4reet-dev-cpu, checking /health first
+step 1 · a clean start: the store wiped, initialized, and the clock on the 20th
+  docker compose stop gateway-state
+  docker compose rm gateway-state
+  docker volume rm h4reet-dev-cpu_gateway-state-data
+  docker compose up gateway-state
+2026/10/10 09:20:50 socat[34] W waitpid(-1, {}, WNOHANG): no child has exited
+step 2 · US2-1: one metered call, $0.10
+2026/10/10 09:21:03 socat[34] W waitpid(-1, {}, WNOHANG): no child has exited
+step 3 · US2-2: metered calls to $3.50 today, the daily warning
+step 4 · the 21st: the model server stopped, and fallback calls to $1.40, then $1.50
+  docker compose stop model-server-cpu
+2026/10/10 09:21:36 socat[34] W waitpid(-1, {}, WNOHANG): no child has exited
+step 5 · US5-7: a restart keeps fallback's 1.50; five more calls spend it, the sixth is refused
+  docker compose restart gateway
+step 6 · US5-6: a same-day renewal grants $2 more; the next day's grants $2, not $4
+  docker compose restart gateway
+2026/10/10 09:23:01 socat[34] W waitpid(-1, {}, WNOHANG): no child has exited
+step 7 · US2-3: the model server back, and metered calls to $5.00 today: the kill switch trips
+  docker compose start model-server-cpu
+step 8 · US2-6: the incident draft, with its evidence
+step 9 · US2-4: a reset brings local answers back; metered calls stay refused at the ceiling
+step 10 · US2-5: the month to $20.00 trips; rollovers leave it degraded until a reset
+step 11 · US2-7: the store stopped, then wiped: fail closed, then rebuilt from the journal
+  docker compose stop gateway-state
+  docker compose rm gateway-state
+  docker volume rm h4reet-dev-cpu_gateway-state-data
+  docker compose up gateway-state
+
+id   step scenario source result assertion
+1a   1    setup    M      PASS   the kill switch reads normal once the store is initialized (observed ['normal'], seen 8.016 s after its action)
+1b   1    setup    M      PASS   on the test clock's 20th, today and this month read 0.00 (observed 0.0, seen 8.021 s after its action; observed 0.0, seen 8.024 s after its action)
+1c   1    setup    L      PASS   operator.init and operator.test_clock audit records (2026-10-10T15:20:48.145Z, seen 13.286 s after its action; 2026-10-10T15:20:53.404Z, seen 8.04 s after its action)
+2a   2    US2-1    T      PASS   the metered call's trace carries h4.cost.usd = 0.10 (h4.cost.usd 0.1, seen 3.058 s after its action)
+2b   2    US2-1    M      PASS   today and this month show the 0.10 within 60 s (observed 0.1, seen 5.123 s after its action; observed 0.1, seen 5.125 s after its action)
+3a   3    US2-2    L      PASS   the daily warning is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.005, channel email attempt 1 lag_s 1.542, seen 4.009 s after its action)
+3b   3    US2-2    L      PASS   both stand-ins hold the daily warning (telegram message 3, seen 4.016 s after its action; mailpit by header, seen 4.018 s after its action)
+3c   3    US2-2    M      PASS   Spend today shows 3.50 at its 3.50 warning (observed 3.5, seen 4.021 s after its action; observed [3.5, 3.5], seen 4.023 s after its action)
+4a   4    US2-5    M      PASS   the next UTC day: today reads 0.00, and the month carries 3.50 (observed 0.0, seen 6.01 s after its action; observed 3.5, seen 6.015 s after its action)
+4b   4    US2-2    L      PASS   fallback grant 1's 1.40 warning is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.623, channel email attempt 1 lag_s 0.058, seen 4.014 s after its action)
+4c   4    US2-2    L      PASS   both stand-ins hold grant 1's warning (telegram message 4, seen 4.02 s after its action; mailpit by header, seen 4.023 s after its action)
+4d   4    US2-2    M      PASS   the fallback panel shows 1.40 spent at its 1.40 warning (observed 1.4, seen 4.027 s after its action; observed 1.4, seen 4.029 s after its action)
+4e   4    US5-7    M      PASS   fallback today reads 1.50 (observed 1.5, seen 10.01 s after its action)
+5a   5    US5-7    M      PASS   after a gateway restart, fallback today still reads 1.50 (observed 1.5, seen 19.504 s after its action)
+5b   5    US5-7    L      PASS   fallback.exhausted at the 2.00 allowance, grant 1 (grant_no 1 allowance_micro 2000000, seen 4.01 s after its action)
+5c   5    US5-7    L      PASS   the fallback_exhausted alert is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.012, channel email attempt 1 lag_s 1.908, seen 6.022 s after its action)
+5d   5    US5-7    L      PASS   both stand-ins hold the fallback_exhausted alert (telegram message 5, seen 6.029 s after its action; mailpit by header, seen 6.031 s after its action)
+5e   5    US5-3    M      PASS   renewal is awaited, and Why responses are degraded shows fallback_awaiting_renewal (observed 1.0, seen 10.038 s after its action; observed ['fallback_awaiting_renewal'], seen 10.04 s after its action)
+6a   6    US5-6    L      PASS   operator.renew, and its audit row: who, when, why, allowance 4.00, grant 2 (2026-10-10T15:22:38.783Z, seen 2.003 s after its action; audit #10 by operator:dev-cpu#a2d31213 at 2027-03-21T08:01:45.386Z, seen 2.009 s after its action)
+6b   6    US5-6    M      PASS   the allowance reads 4.00, and renewal is no longer awaited (observed 4.0, seen 4.053 s after its action; observed 0.0, seen 4.057 s after its action)
+6c   6    US5-6    L      PASS   grant 2's 3.40 warning is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.009, channel email attempt 1 lag_s 0.092, seen 2.004 s after its action)
+6d   6    US5-6    L      PASS   fallback.exhausted at the 4.00 allowance, grant 2 (grant_no 2 allowance_micro 4000000, seen 2.01 s after its action)
+6e   6    US5-6    M      PASS   today stands at 4.00, under its ceiling, with renewal awaited (observed 4.0, seen 11.459 s after its action; observed 1.0, seen 11.461 s after its action)
+6f   6    US5-6    M      PASS   the next day, after a restart: Why responses are degraded shows fallback_awaiting_renewal (observed ['fallback_awaiting_renewal'], seen 8.035 s after its action)
+6g   6    US5-6    L      PASS   that hello's call.degraded record names fallback_awaiting_renewal (2026-10-10T15:23:03.643Z, seen 8.016 s after its action)
+6h   6    US5-6    M      PASS   the next day's renewal: the allowance reads 2.00, not 4.00 (observed 2.0, seen 11.456 s after its action; observed 0.0, seen 11.459 s after its action)
+7a   7    US2-3    M      PASS   the kill switch reads degraded within 60 s of the crossing (observed ['degraded'], seen 4.004 s after its action)
+7b   7    US2-3    L      PASS   killswitch.tripped within 60 s of the crossing call's record (SC-002) (2026-10-10T15:23:29.258Z, seen 4.006 s after its action; 2026-10-10T15:23:29.258Z, 0.0 s apart, seen 4.012 s after its action)
+7c   7    US2-3    L      PASS   the trip alert is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.006, channel email attempt 1 lag_s 0.471, seen 4.017 s after its action)
+7d   7    US2-3    L      PASS   both stand-ins hold the trip alert (telegram message 12, seen 4.02 s after its action; mailpit by header, seen 4.085 s after its action)
+7e   7    US2-3    M      PASS   Why responses are degraded shows kill_switch_tripped, with local healthy (observed ['kill_switch_tripped'], seen 4.096 s after its action; observed 1.0, seen 4.098 s after its action)
+7f   7    US2-3    L      PASS   a hello's call.degraded record names kill_switch_tripped: local is refused too (2026-10-10T15:23:33.360Z, seen 4.014 s after its action)
+8a   8    US2-6    L      PASS   incident.drafted for the daily ceiling (incident_id 1 path incidents/2027-03-22-dev-cpu-day.intent.md sha256 e80b4ffca8d0…, seen 13.131 s after its action)
+8b   8    US2-6    L      PASS   GET /admin/incidents holds that draft, unchanged, with every evidence field (incident #1 written, seen 13.036 s after its action)
+9a   9    US2-4    L      PASS   operator.reset, and its audit row: who, when, why (2026-10-10T15:23:46.690Z, seen 4.011 s after its action; audit #18 by operator:dev-cpu#a2d31213 at 2027-03-22T08:02:53.288Z, seen 4.017 s after its action)
+9b   9    US2-4    M      PASS   the kill switch reads normal after the reset (observed ['normal'], seen 6.026 s after its action)
+9c   9    US2-4    T      PASS   hello answers locally again: its trace is a local call at 0 USD (gen_ai.provider.name local, h4.cost.usd 0, seen 4.458 s after its action)
+9d   9    US2-4    L      PASS   a metered call is refused with meter_at_ceiling (call.degraded) (2026-10-10T15:23:57.666Z, seen 2.004 s after its action)
+9e   9    US2-4    M      PASS   Spend today stays at its 5.00 ceiling (observed 5.0, seen 2.011 s after its action; observed [5.0, 5.0], seen 2.013 s after its action)
+10a  10   US2-5    L      PASS   the monthly warning is delivered on both channels within 300 s (channel telegram attempt 1 lag_s 0.008, channel email attempt 1 lag_s 0.066, seen 4.011 s after its action)
+10b  10   US2-5    L      PASS   both stand-ins hold the monthly warning (telegram message 14, seen 4.017 s after its action; mailpit by header, seen 4.021 s after its action)
+10c  10   US2-5    M      PASS   Spend month-to-date shows 14.00 at its 14.00 warning (observed 14.0, seen 4.025 s after its action; observed [14.0, 14.0], seen 4.027 s after its action)
+10d  10   US2-5    M      PASS   the kill switch reads degraded once the month reaches 20.00 (observed 20.0, seen 5.518 s after its action; observed ['degraded'], seen 5.521 s after its action)
+10e  10   US2-5    L      PASS   killswitch.tripped for the month, and its trip alert delivered on both channels (2026-10-10T15:25:33.123Z, seen 5.523 s after its action; channel telegram attempt 1 lag_s 0.006, channel email attempt 1 lag_s 0.056, seen 5.53 s after its action)
+10f  10   US2-5    M      PASS   the next day: today reads 0.00, and the kill switch still degraded (observed 0.0, seen 10.018 s after its action; observed ['degraded'], seen 10.022 s after its action)
+10g  10   US2-5    M      PASS   the next month: the month reads 0.00, and the kill switch still degraded (observed 0.0, seen 10.018 s after its action; observed ['degraded'], seen 10.022 s after its action)
+10h  10   US2-5    M      PASS   after the reset: normal, and one metered call reads 0.10 today and this month (observed ['normal'], seen 10.043 s after its action; observed 0.1, seen 10.023 s after its action; observed 0.1, seen 10.025 s after its action)
+11a  11   US2-7    M      PASS   with the store stopped, Why responses are degraded shows store_unreachable (observed ['store_unreachable'], seen 9.198 s after its action)
+11b  11   US2-7    L      PASS   state.unknown names store_unreachable (2026-10-10T15:26:12.027Z, seen 9.201 s after its action)
+11c  11   US2-7    M      PASS   with the store wiped, Why responses are degraded shows store_uninitialized (observed ['store_uninitialized'], seen 12.713 s after its action)
+11d  11   US2-7    L      PASS   operator.init, and its audit row: 0.10 from the journal, the test clock restored (2026-10-10T15:26:39.991Z, seen 5.539 s after its action; audit #1 by operator:dev-cpu#a2d31213 at 2027-04-01T08:00:51.251Z, seen 5.546 s after its action)
+11e  11   US2-7    M      PASS   the rebuilt meters read 0.10 today and this month, with renewal awaited (observed 0.1, seen 11.562 s after its action; observed 0.1, seen 11.566 s after its action; observed 1.0, seen 21.586 s after its action)
+summary: 52 assertions: 52 passed, 0 missed; T 2/2, M 25/25, L 25/25
+breach test: h4reet-dev-cpu, standin delivery, 375 s
+2026/10/10 09:27:01 socat[34] W exiting on signal 15
+breach-test exit=0 after 393 s
+```
+
+</details>
+
+<details><summary>The first run, at 56c76be (round 7's commit), before round 8's change</summary>
 
 **`make breach-test ENV=dev-cpu` passed all 12 steps: 52 assertions, 52 passed, 0 missed** (traces 2/2, metrics 25/25, logs 25/25), in 368 s, exit 0. The pre-run, before T187 to T189, passed 45 of 52 in 1,405 s.
 
-**Where it ran:** `sim/000-us2-on-us1-stack` at 56c76be, this branch at af425ec merged with the us1 stack at 903439e by the us1 note's recipe. The pre-run called itself not T084, since the fixes for its misses weren't in yet; this run has them, on the tree this branch becomes once it merges main. After that merge, `git diff --stat 56c76be HEAD -- . ':!docs' ':!specs'` printing nothing shows the run holds for the branch. Anything else means T084 runs again there.
+**Where it ran:** `sim/000-us2-on-us1-stack` at 56c76be, this branch at af425ec merged with the us1 stack at 903439e by the us1 note's recipe. The pre-run called itself not T084, since the fixes for its misses weren't in yet; this run has them, on the tree this branch becomes once it merges main. Its after-merge check is superseded by the re-run's, above.
 
 **How it ran:** you cleared the main tree for it ("Yes, youc an detach the main tree for about 30 minutes to do what you need."). It ran in an agent session, on the agents' engine, with no other agent running.
 - **Preflight:** C: had 65 GB free and 58 GB of memory was available. The engine ran no containers, and every tree was committed.
@@ -799,6 +950,8 @@ breach-test exit=0 after 380 s
 
 </details>
 
+</details>
+
 ## T189's engine test (2026-10-10, on the simulated merge at 56c76be)
 
 **With the collector stopped, the store stayed reachable:** every `/health` answered "store ok" in 3 to 62 ms, and the gateway logged no `store_unreachable` or `state.unknown`. T189 asked for this test: "Prove it on the engine with the collector stopped."
@@ -809,6 +962,8 @@ breach-test exit=0 after 380 s
 3. **Inside the gateway container,** one lookup of each kind was timed: `getaddrinfo` and c-ares for the stopped collector, and c-ares for the store.
 4. **`/health` was read** from inside the container ten times, 12 s apart, longer than pg-pool's 10 s idle drop.
 5. **The counter was read again,** and the gateway's log since the stop was searched.
+
+**Why it stands at 56c76be:** round 8's only code change since is the email channel's error class when every address fails, which this test doesn't touch.
 
 **What it shows:**
 - **The premise holds on this engine:** `getaddrinfo` for the stopped collector failed after 8,006 ms (`EAI_AGAIN`), and c-ares after 3,003 ms (`ETIMEOUT`), with no thread held. c-ares answered for `gateway-state` at once.
@@ -970,7 +1125,7 @@ breach-test exit=2
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
 2. **Look again at `ares-lookups.test.ts`,** which rounds 7, 8, and 9 changed after you accepted the seven test files, and say if any of it should be otherwise.
-3. **T084 ran on the simulated merge and passed** ("T084's run" below). Once this branch has merged main, run `git diff --stat 56c76be HEAD -- . ':!docs' ':!specs'`: if it prints nothing, the run holds; if not, an agent session runs T084 again on the branch.
+3. **T084 ran on the simulated merge and passed** ("T084's run" below). Once this branch has merged main, run `git diff --stat 3f276e5 HEAD -- . ':!docs' ':!specs'`: if it prints nothing, the run holds; if not, an agent session runs T084 again on the branch.
 4. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
 ### For later tasks
