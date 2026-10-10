@@ -1125,7 +1125,7 @@ breach-test exit=2
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
 2. **Look again at `ares-lookups.test.ts`,** which rounds 7, 8, and 9 changed after you accepted the seven test files, and say if any of it should be otherwise.
-3. **T084 ran on the simulated merge and passed** ("T084's run" below). Once this branch has merged main, run `git diff --stat 3f276e5 HEAD -- . ':!docs' ':!specs'`: if it prints nothing, the run holds; if not, an agent session runs T084 again on the branch.
+3. **T084 ran on the simulated merge and passed** ("T084's run" below). Once this branch has merged main, run `git diff --stat 3f276e5 HEAD -- . ':!docs' ':!specs'`: if it prints nothing, the run holds. A raw `git merge-tree` of this branch's tip with the stack differs from 3f276e5 there in one line, the stand-in's base digest, which the us1 note's recipe sets (checked at 46bd5c6); so a missed recipe step shows up too; if not, an agent session runs T084 again on the branch.
 4. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
 ### For later tasks
