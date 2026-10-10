@@ -3,8 +3,8 @@ Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) ·
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
-**Status: DRAFT. Not ready to merge.** Every task an agent session can do without the engine is done, except T189, which round 4 opened. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 and 5's checks" below). What's left:
-- **T189 (an agent session):** the gateway's other `getaddrinfo` users, round 4's S2.
+**Status: DRAFT. Not ready to merge.** Every task an agent session can do without the engine is done, except T189, which round 4 opened; round 6 reviewed its first part. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 to 6's checks" below). What's left:
+- **T189 (an agent session):** the gateway's other `getaddrinfo` users, round 4's S2. Its first part, the exporters and edge, is done and reviewed (round 6). pg's stream, nodemailer's fallback, and an engine test with the collector stopped remain, and the image's threadpool size is your call.
 - **T084 (an agent session, on the engine):** `make breach-test ENV=dev-cpu` passes all 12 steps. Its pre-run, on a simulated merge with the us1 stack (2026-10-10), passed 45 of 52 assertions. T187 and T188 fix the seven misses, and are done (d43da3e and the commit after it, "T084's pre-run" below); T084's run on the engine checks them.
 - **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
 - **This note:** both runs' output goes into it, and then this block goes.
@@ -164,7 +164,7 @@ One read-only reviewer read d43da3e and 071d6bd (2026-10-10), the fixes for T084
   - this note's status line no longer says the round's commits were reviewed and checked before they were (N5);
   - the smaller ones: "kept to 64 KiB", not "read to"; the error that says more than `ENODATA` is the one reported; and a comment on the T151 `ETIMEOUT` case.
 
-**The test-file edits are yours to accept:** round 5 lists all four.
+**The test-file edits are yours to accept:** round 5 lists four, and round 6 two more.
 
 ### Round 5: round 4's fixes confirmed (at 20897a9 and aaf9293), applied at 39f5a67
 
@@ -200,6 +200,24 @@ A confirming review of round 4's fixes. Its verdict: "approve the code. The S1 f
   - the trace fakes moved to Langfuse's v2 list;
   - the expected `fields` changed to match the code (with `cost`);
   - four new tests.
+
+### Round 6: T189, in part (at 4cd7907), applied at 601a5e7
+
+T189 began from round 4's S2: other `getaddrinfo` users could still fill the two threads libuv gives lookups, and with them the store's connections. 4cd7907 moved the three OTLP exporters (`EXPORT_AGENT`) and `edge.ts`'s default resolver onto c-ares. One read-only reviewer read it. Its verdict: "The code works and does what T189's partial note says. Nothing else breaks. Approve after one fix and two record fixes, all before the Author is asked to merge." All of it is applied:
+- **S1: nothing tested that the production exporters use the agent.** A test now sends a span, a metric export, and a log record through `buildSdkConfiguration`'s own processors and reader, to a collector only c-ares can name. It fails when any one exporter loses the agent; I checked with the log exporter.
+- **S2: T189's residual risk understated what remains.** It now names the two known sources still on `getaddrinfo`: pg, which opens a connection per request in a quiet stack and hangs its own lookups while the store is stopped; and nodemailer's fallback to `dns.lookup`, used whenever c-ares can't resolve the SMTP host. It adds pg's `stream` factory as the route off the threadpool, and keeps T102's Bedrock calls open. It cites FR-031 and telemetry.md §3, not FR-033.
+- **S3: two test files from this part weren't put to you.** The list below now has six.
+- **The nits applied:**
+  - `EXPORT_AGENT` is frozen. Its comment and telemetry.md say what it changes beside the lookup: no `/etc/hosts`, c-ares's `ETIMEOUT` and `ESERVFAIL` not retried by the exporter, and the environment's certificates ignored on https.
+  - `metricExporter`'s comment is back above it.
+  - gateway-http.md §7 has a row for edge's lookup.
+  - The edge test asserts its exact queries, covers a name c-ares can't resolve, and claims only what it shows.
+  - The span test shuts its provider down in a `finally`.
+- **One nit not taken:** a shared c-ares fake for the five test files that copy it. It would edit those test files once more, for no change in what they prove.
+
+**Two more test files for you to accept,** beside round 5's four. Both only add tests, and no assertion was weakened:
+- **`services/gateway/test/unit/otel-export.test.ts`,** new: the agent's options, a span through c-ares, and the wiring test above.
+- **`services/gateway/test/unit/edge.test.ts`:** one new test, for the default resolver through c-ares, with its exact queries and a failing name.
 
 ## Verification
 
@@ -379,23 +397,23 @@ make check: 4 PASS, 2 SKIP, 5 PLANNED, 0 PENDING, 0 FAIL
 
 </details>
 
-### Rounds 4 and 5's checks (2026-10-10, at 39f5a67)
+### Rounds 4 to 6's checks (2026-10-10, at 601a5e7)
 
 - **The gateway's suite, on this branch:** tsc, ESLint, and Prettier are clean. The run's summary:
 
   ```
-  Tests  590 passed | 12 skipped (602)
-  Start at  06:28:14
-  Duration  52.82s (tests 95%, import 2%, transform 2%)
+  Tests  594 passed | 12 skipped (606)
+  Start at  07:04:41
+  Duration  53.27s (tests 95%, transform 3%, import 3%)
   ```
-- **The probe's tests, on this branch:** `84 passed in 0.14s`.
+- **The probe's tests, on this branch:** `84 passed in 0.22s`.
 - **`make check ENGINE_MODE=none-yet` on this branch alone:** `test` fails one case, `deploy/scripts/test_preflight.py::test_p18_the_model_file`. It reads the agents' engine's real model directory, seeded on 2026-10-09, and the us1 stack already fixed it (T175). This branch's other rows are PLANNED for patches its base predates. So the merge with the us1 stack is the state worth checking.
-- **`make check ENGINE_MODE=none-yet` on that merge:** `sim/000-us2-on-us1-stack` (13c3d42), this branch at 39f5a67 merged with the stack at 903439e by the us1 note's recipe.
+- **`make check ENGINE_MODE=none-yet` on that merge:** `sim/000-us2-on-us1-stack` (f6bb088), this branch at 601a5e7 merged with the stack at 903439e by the us1 note's recipe.
   - **Exit 2.** Every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). The matrix is PLANNED, for the 13 breach-test rows (T117).
-  - **Counts:** 7 PASS, 2 SKIP, 1 PLANNED, 1 FAIL. The gateway has 591 tests passing and 11 skipped; pytest has 1621 passing and 2 skipped.
+  - **Counts:** 7 PASS, 2 SKIP, 1 PLANNED, 1 FAIL. The gateway has 595 tests passing and 11 skipped; pytest has 1621 passing and 2 skipped.
   - **The image gate** is held back by `ENGINE_MODE=none-yet`, since no Dockerfile changed.
 
-<details><summary>make check ENGINE_MODE=none-yet, on the simulated merge at 13c3d42</summary>
+<details><summary>make check ENGINE_MODE=none-yet, on the simulated merge at f6bb088</summary>
 
 ```
 == githooks-check
@@ -456,10 +474,10 @@ npm test --workspaces --if-present
  RUN  v5.0.3 /tmp/claude-1000/wt-merge-sim/services/gateway
 
 
- Test Files  36 passed (36)
-      Tests  591 passed | 11 skipped (602)
-   Start at  06:29:50
-   Duration  54.45s (tests 96%, import 2%, transform 2%)
+ Test Files  37 passed (37)
+      Tests  595 passed | 11 skipped (606)
+   Start at  07:06:23
+   Duration  50.86s (tests 95%, import 3%, transform 3%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  4%]
@@ -485,7 +503,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 93%]
 ........................................................................ [ 97%]
 .......................................                                  [100%]
-1621 passed, 2 skipped in 39.27s
+1621 passed, 2 skipped in 41.70s
 -> PASS test
 == secrets
 -> SKIP secrets (added by T091)
@@ -695,7 +713,7 @@ breach-test exit=2
 ## For the Author
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
-2. **Accept the four test-file edits** listed in round 5, or say what each should be instead.
+2. **Accept the six test-file edits** listed in rounds 5 and 6, or say what each should be instead.
 3. **T084:** an agent session runs `make breach-test ENV=dev-cpu` on the engine, all 12 steps, with T187's and T188's fixes in. It also checks that the gateway container's `/proc/net/if_inet6` lists only `lo`: S1's fix assumes no IPv6 address but loopback, link-local included. T189 can follow it.
 4. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
@@ -722,6 +740,10 @@ Round 4's reviewer suggested a third, after the probe's v1 trace fake and the Te
 Round 5's reviewer suggested a fourth, after this note's status line claimed a pass twice:
 
 > - A status line that outruns its evidence: "passes" only for exit 0 in the pasted output, "reviewed" only once the review has run.
+
+Round 6's reviewer suggested a fifth, after test files went unlisted twice:
+
+> - Adding or editing a test file during a fix without putting it on the branch's merge-request list of test edits for the Author to accept.
 
 ### Observations
 
