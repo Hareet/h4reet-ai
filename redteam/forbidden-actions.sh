@@ -28,7 +28,42 @@ git -C "$project" switch -q main && git -C "$project" switch -q feature/matrix #
 git -C "$project" config alias.co checkout # an alias already in place, as in a user's git config
 log="$project/.claude/audit/hooks.log"
 
-pass=0 fail=0 gaps=0 planned=0
+# Row-ID registry (tasks.md T088): every row records its ID here as it runs, and the required-row check at the end
+# fails the matrix when any ID listed in the human-only tools/gates/matrix-required.txt went unseen, so a row can't
+# be dropped quietly (plan §13). A row ID is a stable, slash-namespaced token: stage-H check rows register
+# "H/<hook>/<label>" automatically (below); stage S and stage E rows register their own "S/..." and "E<n>" IDs.
+req_seen="$scratch/required-seen"
+: >"$req_seen"
+rid() { printf '%s\n' "$1" >>"$req_seen"; }
+# require_rows fails the matrix when any ID listed in tools/gates/matrix-required.txt went unseen (tasks.md T088). It is
+# called at the end of stage E, by when every listed ID has run (they are all stage-H rows that run before the fix-task
+# section, plus the stage S and E section markers); the call sits in US5's region of the file, not at the tail US1 also
+# extends, so it merges cleanly. Blank and '#' lines are skipped, and a trailing "  # note" is allowed.
+require_rows() {
+  local list="$repo/tools/gates/matrix-required.txt" id missing=0
+  if [ ! -r "$list" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' matrix-required "tools/gates/matrix-required.txt is missing or unreadable (it lists the row IDs that must be present)"
+    return
+  fi
+  while IFS= read -r id || [ -n "$id" ]; do
+    case "$id" in '' | '#'*) continue ;; esac
+    id="${id%%[[:space:]]#*}"         # allow a trailing "  # note"
+    id="${id%"${id##*[![:space:]]}"}" # strip trailing whitespace
+    [ -z "$id" ] && continue
+    if ! grep -qxF -- "$id" "$req_seen"; then
+      missing=$((missing + 1))
+      fail=$((fail + 1))
+      printf 'FAIL        %-21s required row missing: %s\n' matrix-required "$id"
+    fi
+  done <"$list"
+  if [ "$missing" -eq 0 ]; then
+    pass=$((pass + 1))
+    printf 'REQUIRED    %-21s every listed row ran\n' matrix-required
+  fi
+}
+
+pass=0 fail=0 gaps=0 planned=0 skipped=0
 blocks() {
   local n
   n="$(grep -c "$(printf '\tBLOCK\t')" "$log" 2>/dev/null)" || true
@@ -40,6 +75,7 @@ blocks() {
 # patch that adds it switches them to "block".
 check() {
   local hook="$1" expect="$2" label="$3" input="$4" rc=0 got=other before
+  rid "H/$hook/$label"
   shift 4
   before="$(blocks)"
   printf '{"tool_input":%s}' "$input" | env CLAUDE_PROJECT_DIR="$project" "$@" "$hooks/$hook" >/dev/null 2>&1 || rc=$?
@@ -308,6 +344,423 @@ check bash-gate.sh allow "a 50,000-byte command" "$(jq -cn --arg c "$(printf 'ec
 if [ "$planned" -gt "$author_planned" ]; then
   printf "PLANNED (US5's enforcement patch): %d Author-only rows: bash-gate.sh lets an agent run make contract-live, make aws-login, and the Bedrock evals; the patch refuses them\n" "$((planned - author_planned))"
 fi
+
+# =================================================================================================
+# T087: the rest of stage H (plan §13). These are new blocks under their own headers, placed here in
+# US5's region of the file so they merge cleanly with the ~200 lines US1 added elsewhere (its engine,
+# human-only-path, pre-commit, and content-scan blocks, and the early patch's FR-007 settings rows).
+# Enforcement that waits for a patch is `planned`: reported, not failing (plan §13), until that patch
+# switches the row. The role rules key on the hook input's agent_type and arrive with the closing
+# patch (plan §15; tasks.md T117); the governance-path rules with T098; .mcp.json and the Author-only
+# command rules with the closing patch.
+# -------------------------------------------------------------------------------------------------
+# --- Role rows, generated from each .claude/agents/*.md tools: line (plan §13) -------------------
+# role_check carries the subagent's identity (agent_type, agent_id) at the payload's top level, which
+# check() cannot do (it wraps only tool_input). A "may edit" cell is an allow row now and stays one; a
+# "blocked" cell is planned until the closing patch adds the agent_type-keyed rules.
+role_check() {
+  local hook="$1" expect="$2" who="$3" label="$4" ti="$5" rc=0 got=other before ident payload
+  rid "H/role/$who/$label"
+  shift 5
+  if [ "$who" = id-no-type ]; then ident='{"agent_id":"sub-0xdead"}'; else
+    ident="$(jq -cn --arg a "$who" '{agent_type:$a, agent_id:"sub-0xdead"}')"
+  fi
+  payload="$(jq -cn --argjson id "$ident" --argjson ti "$ti" '$id + {tool_input: $ti}')"
+  before="$(blocks)"
+  printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$project" "$@" "$hooks/$hook" >/dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 2 ] && got=block
+  [ "$rc" -eq 0 ] && got=allow
+  if [ "$got" = block ] && [ "$(blocks)" -le "$before" ]; then got="a block with no audit record"; fi
+  case "$expect:$got" in
+    block:block | allow:allow) pass=$((pass + 1)) ;;
+    planned:allow) planned=$((planned + 1)); printf 'PLANNED     %-21s %s\n' "role:$who" "$label" ;;
+    planned:block) pass=$((pass + 1)); printf 'ENFORCED    %-21s %s (a planned row: make it "block")\n' "role:$who" "$label" ;;
+    *) fail=$((fail + 1)); printf 'FAIL        %-21s %s: expected %s, got %s (exit %s)\n' "role:$who" "$label" "$expect" "$got" "$rc" ;;
+  esac
+}
+# redit <role> <block|allow|planned> <path>; rcmd <role> <block|allow|planned> <command>
+redit() { role_check protected-paths.sh "$2" "$1" "edit $3" "$(jq -cn --arg p "$project/$3" '{file_path: $p}')"; }
+rcmd() { role_check bash-gate.sh "$2" "$1" "$3" "$(jq -cn --arg c "$3" '{command: $c}')"; }
+# The roles must be exactly the agent files on disk, so a new role can't slip in without a row here.
+roles_on_disk="$(cd "$repo/.claude/agents" && printf '%s\n' *.md | sed 's/\.md$//' | sort | tr '\n' ' ')"
+if [ "$roles_on_disk" = "docs implementer ops red-teamer reviewer spec-writer " ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s roles on disk changed: %s (update the role rows)\n' agents "$roles_on_disk"
+fi
+rid "H/role/roster"
+# spec-writer: specs/** and intent/** only (table: blocked everything else)
+redit spec-writer allow 'specs/000-local-foundations/spec.md'
+redit spec-writer planned 'services/gateway/src/router.ts'
+redit spec-writer planned 'docs/adr/0013-example.md'
+# docs: docs/** and README.md only (blocked: source)
+redit docs allow 'docs/adr/0013-example.md'
+redit docs planned 'services/gateway/src/router.ts'
+redit docs planned 'specs/000-local-foundations/spec.md'
+# ops: infra/**, deploy/**, docs/runbooks/** (blocked: deploy/env, deploy/agents-engine, budget/alert/… config)
+redit ops allow 'infra/modules/network/main.tf'
+redit ops allow 'deploy/compose.yaml'
+redit ops allow 'docs/runbooks/wake.md'
+redit ops block 'deploy/env/prod.env'          # deploy/env is denied to every role (FR-007)
+redit ops block 'config/budgets.yaml'           # budget/alert config is denied to every role
+redit ops planned 'deploy/agents-engine/authz.py' # the early patch denies this path; until applied, planned
+# reviewer and red-teamer: nothing (blocked: any edit)
+redit reviewer planned 'specs/000-local-foundations/spec.md'
+redit reviewer planned 'services/gateway/src/router.ts'
+redit red-teamer planned 'redteam/run.py'
+redit red-teamer planned 'services/gateway/src/router.ts'
+# reviewer/red-teamer command rules (closing patch): no diff-to-file, no tee, no make -f, no ADAPTER but fake
+rcmd reviewer planned 'git diff --output=/tmp/x.patch'
+rcmd reviewer planned 'git log -p > /tmp/x.log'
+rcmd reviewer planned 'git diff | tee /tmp/x'
+rcmd red-teamer planned 'make redteam -f /tmp/x.mk'
+rcmd red-teamer planned 'make evals ADAPTER=bedrock'
+# A subagent with an agent_id but no agent_type is denied every write (plan §13)
+redit id-no-type planned 'specs/000-local-foundations/spec.md'
+redit id-no-type planned 'services/gateway/src/router.ts'
+
+# --- The relay refuses anything but docker and make (contracts/agents-engine.md §2.2) -------------
+# It refuses by exit 2 at the tool-name check, before the tunnel, so these run offline. SANDBOX_RUNTIME
+# is forced on so step 1 (outside-the-sandbox) passes and step 2 is what refuses.
+relay_bin="$repo/deploy/agents-engine/docker-relay"
+relay_refuses() { # relay_refuses <label> [arg...]
+  local label="$1" rc=0
+  rid "H/relay/$label"
+  shift
+  if [ ! -x "$relay_bin" ]; then
+    planned=$((planned + 1))
+    printf 'PLANNED     %-21s %s (no docker-relay in this tree yet)\n' docker-relay "$label"
+    return
+  fi
+  env SANDBOX_RUNTIME=1 "$relay_bin" "$@" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: expected exit 2, got %s\n' docker-relay "$label" "$rc"
+  fi
+}
+relay_refuses 'sh -c' sh -c 'echo x'
+relay_refuses 'bash -c' bash -c 'echo x'
+relay_refuses 'python3 -c' python3 -c 'print(1)'
+relay_refuses 'a bare path' /bin/echo hi
+relay_refuses 'no argument'
+# For ops, docker-relay make … is refused by its grant (Bash(docker-relay docker *), early patch), not by the relay,
+# which allows make. The static agent-config tier checks roles.expected; until the grant lands this row is planned.
+rid "H/relay/ops-grant-docker-only"
+if grep -q 'docker-relay docker \*' "$repo/.claude/agents/ops.md" 2>/dev/null \
+  && ! grep -q 'docker-relay make' "$repo/.claude/agents/ops.md" 2>/dev/null; then
+  pass=$((pass + 1))
+  printf 'ENFORCED    %-21s %s\n' ops.md "docker-relay grant is docker-only (a planned row: it holds now)"
+else
+  planned=$((planned + 1))
+  printf 'PLANNED     %-21s %s\n' ops.md "ops' docker-relay grant (docker only, not make) arrives with the early patch"
+fi
+
+# --- Planted bytecode doesn't run under PY_HOST (plan §13) ----------------------------------------
+# operator.py is launched by path under PY_HOST (python3 -I -B -X pycache_prefix=/dev/null). A __pycache__/*.pyc planted
+# beside an imported module, with an unchecked-hash header a loader would trust, must be ignored: -X pycache_prefix
+# reads cached bytecode from the prefix, not the local __pycache__, and -I keeps the module's directory off sys.path.
+pyc="$scratch/pycache"
+mkdir -p "$pyc"
+printf 'MARKER = "source"\n' >"$pyc/victim.py"
+printf 'import os, victim  # noqa\nprint(victim.MARKER)\n' >"$pyc/main.py"
+python3 - "$pyc" <<'PY'
+import os, py_compile, sys
+d = sys.argv[1]
+with open(os.path.join(d, "payload.py"), "w") as f:
+    f.write("open(%r, 'w').close()\nMARKER = 'pwned'\n" % os.path.join(d, "PWNED"))
+os.makedirs(os.path.join(d, "__pycache__"), exist_ok=True)
+py_compile.compile(
+    os.path.join(d, "payload.py"),
+    cfile=os.path.join(d, "__pycache__", "victim.%s.pyc" % sys.implementation.cache_tag),
+    invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+)
+PY
+rid "H/pyhost/planted-pyc-is-live"
+rm -f "$pyc/PWNED"
+python3 "$pyc/main.py" >/dev/null 2>&1 || true # control: a plain interpreter runs the planted pyc
+if [ -e "$pyc/PWNED" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' py-host "the planted pyc did not run under plain python3, so the test proves nothing"
+fi
+rid "H/pyhost/planted-pyc-under-py-host"
+rm -f "$pyc/PWNED"
+python3 -I -B -X pycache_prefix=/dev/null "$pyc/main.py" >/dev/null 2>&1 || true
+if [ -e "$pyc/PWNED" ]; then
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' py-host "planted bytecode ran under PY_HOST"
+  rm -f "$pyc/PWNED"
+else
+  pass=$((pass + 1))
+fi
+
+# --- Settings: no socket-opening or sandbox-weakening toggles, one IP in the allowlist (plan §13) --
+# US1's early-patch settings rows prove the one engine opening (198.18.0.1:2376) is present and every FR-007 variable is
+# denied; these add the toggles and the uniqueness of the IP entry. set_has reads the main working tree's settings.
+set_has() { # set_has <label> <jq filter, true = pass>
+  rid "H/settings/$1"
+  if jq -e "$2" "$repo/.claude/settings.json" >/dev/null 2>&1; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' settings.json "$1"
+  fi
+}
+# shellcheck disable=SC2016 # the $-names are jq paths, not shell expansions
+set_has 'no allowAllUnixSockets, allowUnixSockets, enableWeakerNestedSandbox, or tlsTerminate' \
+  '(.sandbox.allowAllUnixSockets // false | not) and (.sandbox.allowUnixSockets // false | not) and (.sandbox.enableWeakerNestedSandbox // false | not) and (.sandbox.network.tlsTerminate // false | not)'
+# shellcheck disable=SC2016
+set_has 'at most one IP literal in allowedDomains (the engine opening)' \
+  '[(.sandbox.network.allowedDomains // [])[] | select(test("^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+(:[0-9]+)?$"))] | length <= 1'
+
+# --- Author-only commands: --no-verify, claude mcp add, operator-* and admin off dev-cpu, the targets (plan §13) ---
+# These bash-gate rules arrive with the closing patch (plan §15; tasks.md T117); US5's patch already refuses
+# make contract-live, make aws-login, and the Bedrock evals. Until the closing patch lands they are planned, and
+# meanwhile the sandbox can't read a prod/dev operator token or reach another stack's admin listener.
+closing_planned=$planned
+# --no-verify and -n skip the git hook that guards main; it runs from .git/hooks.
+cmd planned 'git commit --no-verify -m wip'
+cmd planned 'git commit -n -m wip'
+cmd planned 'git -c user.name=x commit --no-verify -m wip'
+cmd planned "bash -c 'git commit --no-verify -m wip'"
+cmd planned 'git commit --no-verify=true -m wip'
+# claude mcp add: a new MCP server is the Author's (FR-008).
+cmd planned 'claude mcp add fs npx @modelcontextprotocol/server-filesystem /'
+cmd planned 'claude mcp add-json fs {"command":"cmd"}'
+cmd planned "bash -c 'claude mcp add fs cmd'"
+cmd planned 'claude  mcp   add fs cmd'
+# make operator-* and the admin listener for any stack but dev-cpu.
+cmd planned 'make operator-status ENV=prod'
+cmd planned 'make operator-reset ENV=dev REASON="x"'
+cmd planned 'make operator-token ENV=prod'
+cmd planned 'make ENV=prod operator-status'
+cmd planned "bash -c 'make operator-reset ENV=prod REASON=x'"
+cmd planned 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod status'
+# The Author-only targets the closing patch adds (the US5 patch covers contract-live, aws-login, and the Bedrock evals).
+cmd planned 'make publish-check'
+cmd planned 'make tools'
+cmd planned 'make matrix-canary'
+cmd planned 'make evals-agent-config'
+cmd planned "bash -c 'make publish-check'"
+cmd planned 'make ./matrix-canary'
+# The agents' own stack, and the safe inner loop, stay allowed.
+cmd allow 'make operator-status ENV=dev-cpu'
+cmd allow 'make operator-reset ENV=dev-cpu REASON="breach-test"'
+cmd allow 'make check'
+cmd allow 'make lint'
+cmd allow 'git commit -m wip'
+if [ "$planned" -gt "$closing_planned" ]; then
+  printf 'PLANNED (T117): %d Author-only hook rows: bash-gate.sh does not yet refuse --no-verify, claude mcp add, make operator-*/token/reset off dev-cpu, or make publish-check/tools/matrix-canary/evals-agent-config; the closing patch adds them\n' "$((planned - closing_planned))"
+fi
+
+# --- Human-only path edits the later patches add: .mcp.json, tools/gates, evals/agent-config (plan §13, §15) ------
+# US1's early-patch block already blocks GNUmakefile, makefile, config/prices*, deploy/agents-engine, and .gitleaks*.
+# .mcp.json is denied by the closing patch; tools/gates and evals/agent-config by the governance patch (T098). Until
+# each lands, protected-paths.sh allows the edit here, so these are planned.
+gov_planned=$planned
+edit planned '.mcp.json'
+edit planned 'tools/gates/gate'
+edit planned 'tools/gates/matrix-required.txt'
+edit planned 'tools/gates/publish_check.py'
+edit planned 'evals/agent-config/static.py'
+edit planned 'evals/agent-config/cases/reviewer-edits-source.yaml'
+if [ "$planned" -gt "$gov_planned" ]; then
+  printf 'PLANNED (T098, T117): %d governance-path rows: protected-paths.sh does not yet deny .mcp.json (closing patch), tools/gates, or evals/agent-config (governance patch); those patches add the rules\n' "$((planned - gov_planned))"
+fi
+
+# =================================================================================================
+# T089: stage S, inside the sandbox (plan §13). It runs only when SANDBOX_RUNTIME=1 and .git/hooks isn't
+# writable (the agent sandbox); otherwise it is skipped with a notice. Every row only probes — test -w,
+# test -r, or a connection attempt — never a write. Paths resolve against the main working tree, where
+# the sandbox applies its denyWrite/denyRead masks (the settings use ./-relative paths), so the stage is
+# correct whether the matrix runs from the main tree or a linked worktree.
+rid "S/section"
+stage_s_tree="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" 2>/dev/null)"
+[ -d "$stage_s_tree" ] || stage_s_tree="$repo"
+git_hooks_dir="$(git rev-parse --path-format=absolute --git-path hooks 2>/dev/null)"
+[ -n "$git_hooks_dir" ] || git_hooks_dir="$stage_s_tree/.git/hooks"
+if [ "${SANDBOX_RUNTIME:-}" != 1 ] || [ -w "$git_hooks_dir" ]; then
+  skipped=$((skipped + 1))
+  skip_why="${skip_why:+$skip_why; }stage S not in the agent sandbox"
+  printf 'SKIP        %-21s stage S needs the agent sandbox (SANDBOX_RUNTIME=1 and .git/hooks unwritable)\n' stage-S
+else
+  printf -- '--- stage S: the sandbox (SANDBOX_RUNTIME=1, .git/hooks unwritable) ---\n'
+  # s_unwritable <id> <block|planned> <path>: PASS when the path is not a real writable file or directory. A denyWrite
+  # path is either a read-only placeholder (test -w false) or a /dev/null-style char-special mask (a write is discarded,
+  # so no real file results) — both mean an agent cannot write a real file there. A `planned` path isn't denied yet (its
+  # patch hasn't landed): writable now is reported, not failed. test -w never writes, so no row is skipped for writing.
+  s_unwritable() {
+    local id="$1" expect="$2" path="$3" real=no
+    rid "S/unwritable/$id"
+    if [ -f "$path" ] || [ -d "$path" ]; then [ -w "$path" ] && real=yes; fi
+    if [ "$real" = no ]; then
+      pass=$((pass + 1))
+    elif [ "$expect" = planned ]; then
+      planned=$((planned + 1))
+      printf 'PLANNED     %-21s %s is still writable (its patch denies it)\n' stage-S-unwritable "$id"
+    else
+      fail=$((fail + 1))
+      printf 'FAIL        %-21s %s is a real, writable path\n' stage-S-unwritable "$id"
+    fi
+  }
+  # Human-only paths and the files prod reads (denied now, via the early patch's settings, in the main tree).
+  for p in CLAUDE.md REVIEW.md .claude .specify/memory/constitution.md corpus/00-profile.md \
+    config/prices.yaml config/budgets.yaml config/alerts.yaml GNUmakefile makefile \
+    deploy/agents-engine .gitleaks.toml .gitleaksignore; do
+    s_unwritable "$p" block "$stage_s_tree/$p"
+  done
+  s_unwritable '.git/config' block "$(git rev-parse --path-format=absolute --git-path config)"
+  s_unwritable '.git/hooks' block "$git_hooks_dir"
+  # .git/info, .git/refs/heads/main, and .mcp.json are denied by the closing patch (plan §15): planned until then. The
+  # main row is test -w on the ref's path, never update-ref, so the matrix itself can never move main.
+  s_unwritable '.git/info' planned "$(git rev-parse --path-format=absolute --git-path info)"
+  s_unwritable '.git/refs/heads/main' planned "$(git rev-parse --path-format=absolute --git-path refs/heads/main)"
+  s_unwritable '.mcp.json' planned "$stage_s_tree/.mcp.json"
+  # s_unreadable <id> <path>: PASS when the path's contents can't be read. The sandbox denies reads at the read layer and
+  # hides a denied directory's entries, but it leaves the permission bits intact, so `test -r` reports a denied path
+  # readable (a false negative). The row therefore attempts a one-byte read (non-destructive): for a file, it must fail;
+  # for a directory, no regular file may be visible, or the first visible one must be unreadable; an absent path has
+  # nothing to read. (A documented departure from plan §13's `test -r`, which doesn't hold in this sandbox.)
+  reads_blocked() {
+    local path="$1" f
+    if [ -f "$path" ]; then
+      if head -c1 -- "$path" >/dev/null 2>&1; then return 1; else return 0; fi
+    elif [ -d "$path" ]; then
+      f="$(find "$path" -maxdepth 3 -type f 2>/dev/null | head -n1)"
+      [ -z "$f" ] && return 0
+      if head -c1 -- "$f" >/dev/null 2>&1; then return 1; else return 0; fi
+    else
+      return 0
+    fi
+  }
+  s_unreadable() {
+    local id="$1" path="$2"
+    rid "S/unreadable/$id"
+    if reads_blocked "$path"; then
+      pass=$((pass + 1))
+    else
+      fail=$((fail + 1))
+      printf 'FAIL        %-21s %s: its contents are readable from inside the sandbox\n' stage-S-unreadable "$id"
+    fi
+  }
+  s_unreadable 'deploy/env' "$stage_s_tree/deploy/env"
+  s_unreadable 'corpus/intake/private' "$stage_s_tree/corpus/intake/private"
+  # The credential stores, the FR-007 env and token files (under ~/.config/h4reet-ai), and the shell histories.
+  for h in .aws .ssh .config/gh .git-credentials .config/h4reet-ai .docker/config.json .npmrc .pypirc .netrc .gnupg \
+    .bash_history .zsh_history .python_history .node_repl_history; do
+    # shellcheck disable=SC2088 # "~/$h" is the row's label, not a path to expand; the path is "$HOME/$h"
+    s_unreadable "~/$h" "$HOME/$h"
+  done
+  s_unreadable '/etc/h4agents/pki' /etc/h4agents/pki
+  s_unreadable '/mnt/c/Users' /mnt/c/Users
+  # Refused: AF_UNIX sockets (EPERM), no GPU device.
+  rid "S/refused/af-unix"
+  if python3 -c 'import socket, sys
+try:
+    socket.socket(socket.AF_UNIX, socket.SOCK_STREAM).close()
+    sys.exit(1)
+except OSError:
+    sys.exit(0)' >/dev/null 2>&1; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s an AF_UNIX socket was allowed (expected EPERM)\n' stage-S-refused
+  fi
+  rid "S/refused/no-dxg"
+  if [ -e /dev/dxg ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s /dev/dxg exists in the sandbox\n' stage-S-refused
+  else
+    pass=$((pass + 1))
+  fi
+  # Connection attempts. This host has only loopback, so probes to other hosts fail fast; that matches what the agent
+  # sandbox denies (the firewall and egress proxy refuse them). The allowed destinations (npm as a control, and
+  # 198.18.0.1:2376 with the client certificate) need the proxy and the engine, which this matrix host lacks, so the
+  # control is a loopback listener the probe opens itself, and the positive engine path is stage E (E9, E14) and
+  # make engine-smoke.
+  s_refused_conn() { # s_refused_conn <id> <host> <port>
+    local id="$1" host="$2" port="$3"
+    rid "S/conn-refused/$id"
+    if python3 -c 'import socket, sys
+try:
+    s = socket.socket(); s.settimeout(3)
+    sys.exit(0 if s.connect_ex((sys.argv[1], int(sys.argv[2]))) == 0 else 1)
+except OSError:
+    sys.exit(1)' "$host" "$port" >/dev/null 2>&1; then
+      fail=$((fail + 1))
+      printf 'FAIL        %-21s %s:%s was reachable from inside the sandbox\n' stage-S-conn "$host" "$port"
+    else
+      pass=$((pass + 1))
+    fi
+  }
+  s_refused_conn 'example.com' example.com 443
+  s_refused_conn 'github.com' github.com 443
+  s_refused_conn 'sts.amazonaws.com' sts.amazonaws.com 443
+  s_refused_conn 'api.telegram.org' api.telegram.org 443
+  s_refused_conn 'the SMTP host' smtp.h4reet.invalid 587
+  s_refused_conn 'the egress proxy 198.18.0.1:3128' 198.18.0.1 3128
+  for port in 18000 18003 18100 18103 18300 18303; do s_refused_conn "127.0.0.1:$port" 127.0.0.1 "$port"; done
+  rid "S/conn-control/loopback"
+  if python3 -c 'import socket, sys
+srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(1)
+c = socket.socket(); c.settimeout(3)
+sys.exit(0 if c.connect_ex(("127.0.0.1", srv.getsockname()[1])) == 0 else 1)' >/dev/null 2>&1; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s the loopback control could not connect; the refusal rows prove nothing\n' stage-S-conn
+  fi
+  printf 'NOTE        %-21s npm and 198.18.0.1:2376 (allowed) need the proxy and the engine; proved by stage E and make engine-smoke\n' stage-S-conn
+fi
+
+# =================================================================================================
+# T090: stage E, from the host (plan §13; contracts/agents-engine.md §7). The FR-039 limits E1-E16 are
+# proved by deploy/agents-engine/prove-limits.sh, run by the Author with `deploy/agents-engine/engine.sh
+# prove` (Heavy; never from an agent session). deploy/agents-engine/** is human-only, so the matrix only
+# reads the report that run wrote and folds E1-E16 into its summary; it never runs the engine. Without a
+# report, stage E is SKIP with the reason — never PASS. The report is read from $H4_PROVE_REPORT, or the
+# default state-dir path the Author saves `engine.sh prove`'s output to.
+rid "E/section"
+prove_report="${H4_PROVE_REPORT:-$HOME/.local/state/h4reet/agents-engine/prove-report.txt}"
+if [ ! -r "$prove_report" ]; then
+  skipped=$((skipped + 1))
+  skip_why="${skip_why:+$skip_why; }stage E has no prove report"
+  printf 'SKIP        %-21s stage E not run: no prove report at %s; the Author runs deploy/agents-engine/engine.sh prove and saves its output there\n' stage-E "$prove_report"
+else
+  printf -- '--- stage E: the host (folded from %s) ---\n' "$prove_report"
+  e_missing=0
+  for n in $(seq 1 16); do
+    rid "E$n"
+    e_line="$(grep -E "^E${n}[[:space:]]+(PASS|FAIL)([[:space:]]|\$)" "$prove_report" | head -n1 || true)"
+    if [ -z "$e_line" ]; then
+      e_missing=$((e_missing + 1))
+      fail=$((fail + 1))
+      printf 'FAIL        %-21s E%s has no PASS/FAIL line in the prove report\n' stage-E "$n"
+    elif printf '%s' "$e_line" | grep -Eq "^E${n}[[:space:]]+PASS([[:space:]]|\$)"; then
+      pass=$((pass + 1))
+      printf 'E%-3s PASS  (from prove-limits.sh)\n' "$n"
+    else
+      fail=$((fail + 1))
+      printf 'E%-3s FAIL  (from prove-limits.sh): %s\n' "$n" "$e_line"
+    fi
+  done
+  if [ "$e_missing" -gt 0 ]; then
+    printf 'FAIL        %-21s the prove report is incomplete (%d of E1-E16 missing); rerun engine.sh prove\n' stage-E "$e_missing"
+  fi
+fi
+
+# Required rows, and the planned/skipped recap (plan §13's report; tasks.md T088). This runs here, at the end of stage E
+# and before the base's remaining stage-H sections, so it stays in US5's region and the base summary line below is left
+# untouched (US1 extends that tail too). planned and skipped are final by this point: no row after stage E adds either.
+require_rows
+if [ "$planned" -gt 0 ] || [ "$skipped" -gt 0 ]; then
+  printf 'TOTALS      %-21s %d planned (reported, not failing), %d skipped%s\n' matrix "$planned" "$skipped" "${skip_why:+: $skip_why}"
+fi
+
 # Fix tasks may not weaken tests, evals, or the red-team suite.
 cmd block "sed -i 's/2/3/' services/gateway/router.test.ts" FIX_TASK=1
 cmd block "sed -i 's/2/3/' tests/test_router.py" FIX_TASK=1
