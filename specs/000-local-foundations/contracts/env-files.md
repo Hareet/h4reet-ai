@@ -143,7 +143,7 @@ Langfuse's own `docker-compose.yml` at 4.54.0 is the authority for its variable 
 
 **Fixed in compose, on web only:** `NEXTAUTH_URL=http://localhost:${H4_LANGFUSE_PORT}`, `NEXTAUTH_SECRET`, `AUTH_DISABLE_SIGNUP=true`, and headless initialization: `LANGFUSE_INIT_ORG_ID=h4reet`, `LANGFUSE_INIT_ORG_NAME=h4reet.ai`, `LANGFUSE_INIT_PROJECT_ID=h4reet-${H4_STACK}`, `LANGFUSE_INIT_PROJECT_NAME=h4reet-${H4_STACK}`, `LANGFUSE_INIT_PROJECT_PUBLIC_KEY`, `LANGFUSE_INIT_PROJECT_SECRET_KEY`, `LANGFUSE_INIT_USER_EMAIL`, `LANGFUSE_INIT_USER_NAME=operator`, `LANGFUSE_INIT_USER_PASSWORD`. The project ID is what the trace links use (`/project/h4reet-<stack>/traces/<id>`, [telemetry.md §6.6](telemetry.md#66-prometheus-loki-and-grafana)).
 
-**Kept off: set nowhere** (plan §6, R-08). Each reaches out or calls a model. The internal network blocks them anyway; these settings are the first layer.
+**Kept off** (plan §6, R-08): unset, or set to the value that switches it off. Each reaches out or calls a model. The internal network blocks them anyway; these settings are the first layer.
 
 | Keys | State | Why |
 |---|---|---|

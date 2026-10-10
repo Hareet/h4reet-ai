@@ -316,10 +316,31 @@ def test_a_tripped_switch_is_a_warning(
         "crossed": ["day"],
     }
     assert status(env, run, docker) == 0
-    assert (
-        "WARN the kill switch is tripped (day): make operator-status ENV=prod"
-        in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "WARN the kill switch is tripped (day): make operator-status ENV=prod" in out
+    # Only the operator clears a tripped switch (plan §4; T182).
+    assert out.rstrip().endswith("status: healthy, waiting on the operator")
+
+
+def test_config_hashes_read_composes_own_output_shape(tmp_path: Path) -> None:
+    # The shape `docker compose config --hash '*'` printed on dev-cpu (2026-10-09): one "service hash" line per
+    # service, 64 hex each, newline-ended, services in order. The values are made here: the content scan refuses real
+    # 64-hex hashes as secret-shaped (T181's review).
+    want = {
+        name: hashlib.sha256(name.encode()).hexdigest()
+        for name in ("clickhouse", "edge", "valkey")
+    }
+    printed = "".join(f"{name} {digest}\n" for name, digest in want.items())
+
+    class Compose(st.Docker):
+        def run(self, *args: str, timeout: float = 30) -> subprocess.CompletedProcess:
+            assert args[-3:] == ("config", "--hash", "*")
+            return subprocess.CompletedProcess(["docker", *args], 0, printed, "")
+
+    reader = st.Status(
+        "prod", tmp_path / "prod.env", None, tmp_path, Compose({}), False
     )
+    assert reader.config_hashes(tmp_path) == want
 
 
 def test_a_failing_service_is_named_with_redacted_evidence(

@@ -329,8 +329,9 @@ class Status:
     def stale(
         self, name: str, container: dict, hashes: dict[str, str] | None, tree: Path
     ) -> bool:
-        """Whether make up would recreate the container: compose recreates exactly the ones whose
-        com.docker.compose.config-hash label isn't the hash the running commit's files give. A container another
+        """Whether make up would recreate the container for its configuration: compose recreates one whose
+        com.docker.compose.config-hash label isn't the hash the running commit's files give (and one whose image
+        changed, which image_note's pin check covers). A container another
         export created, with the same configuration, is current: compose kept it on purpose, and the export's path
         changes with every commit (T181; T065 warned about six such containers). Without a hash on either side,
         the path is all there is to go on."""

@@ -753,7 +753,7 @@ def test_langfuse_receives_exactly_its_variables() -> None:
 
 @pytest.mark.parametrize("name", ["langfuse-web", "langfuse-worker"])
 def test_langfuse_keeps_off_everything_that_reaches_out(name: str) -> None:
-    """contracts/env-files.md §5's "Kept off: set nowhere": none of these keys is set to switch anything on."""
+    """contracts/env-files.md §5's "Kept off" table: none of these keys is set to switch anything on."""
     environment = SERVICES[name]["environment"]
     for key, value in environment.items():
         assert not key.startswith(("LANGFUSE_AI_", "AWS_")), key
