@@ -9,7 +9,7 @@
 # `# syntax=` line: it would pull an unpinned frontend image. Nothing is installed: the base's own python3 runs the
 # scripts, which are standard library only. compose passes H4_BUILD_PROXY as the HTTP_PROXY and HTTPS_PROXY build
 # arguments, as it does for the gateway; this build fetches nothing, and they never reach the image's environment.
-FROM public.ecr.aws/docker/library/python:3.12.15-slim-trixie@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f
+FROM public.ecr.aws/docker/library/python:3.12.15-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 # The one build step: the user the scripts run as, never root. No password, home, or login shell.
 RUN useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin probe
 # Root-owned and read-only to the probe user; the container's root filesystem is read-only besides (compose.yaml).
