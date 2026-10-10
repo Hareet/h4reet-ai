@@ -240,14 +240,16 @@ function stripped(span: tracing.ReadableSpan): tracing.ReadableSpan {
     : span;
 }
 
-/** OTLP/HTTP metrics, cumulative for every instrument type: Prometheus accepts only cumulative. */
 /**
  * The OTLP exporters' connections: keep-alive, as the exporters' own default is, with the collector's name resolved
  * through c-ares (core/resolve.ts). An export to a stopped collector then holds neither of the two threads libuv gives
- * lookups, which the store's connections need (tasks.md T189).
+ * lookups, which the store's connections need (tasks.md T189). Unlike the default agent, it reads no /etc/hosts, a
+ * c-ares ETIMEOUT or ESERVFAIL isn't one of the exporter's retryable codes, and on https it would ignore the
+ * environment's OTEL_EXPORTER_OTLP_*CERTIFICATE; the collector is plain http inside the stack.
  */
-export const EXPORT_AGENT: AgentOptions = { keepAlive: true, lookup: aresLookup };
+export const EXPORT_AGENT: Readonly<AgentOptions> = Object.freeze({ keepAlive: true, lookup: aresLookup });
 
+/** OTLP/HTTP metrics, cumulative for every instrument type: Prometheus accepts only cumulative. */
 export function metricExporter(): OTLPMetricExporter {
   return new OTLPMetricExporter({
     temporalityPreference: AggregationTemporality.CUMULATIVE,

@@ -726,13 +726,17 @@ From T084's pre-run (2026-10-10): `make breach-test ENV=dev-cpu` on the agents' 
   - `httpAgentOptions: { keepAlive: true, lookup: aresLookup }` for the exporters;
   - c-ares, or a timeout, in `edge.ts`.
 
-  Prove it on the engine with the collector stopped. Whether the host's engine hangs on stopped names the same way is unverified. Per contracts/telemetry.md §3 and FR-033 (partial)
+  Prove it on the engine with the collector stopped. Whether the host's engine hangs on stopped names the same way is unverified. Per contracts/telemetry.md §3 ("Telemetry failures never touch enforcement") and FR-031 ("A store that is unreachable counts as unknown, which is `degraded` (fail closed)") (partial)
 
   Partly done on 2026-10-10:
-  - **The three OTLP exporters** use `EXPORT_AGENT`: keep-alive, as their default is, with the collector's name resolved through c-ares. `test/unit/otel-export.test.ts` delivers a span to a collector only c-ares can name, and fails without it.
-  - **`edge.ts`'s default resolver** is c-ares. A lookup that doesn't answer now gives up after c-ares's own tries, instead of waiting in libuv's queue, and `test/unit/edge.test.ts` shows the path.
-  - **Still on `getaddrinfo`:** pg, whose client takes no lookup option, so a new store connection still needs a lookup slot; and nodemailer's fallback, which c-ares answers first. With the model server's, the exporters', and edge's lookups off the threadpool, nothing in the gateway is known to fill its two lookup slots, but pg would still wait behind anything that did.
+  - **The three OTLP exporters** use `EXPORT_AGENT`: keep-alive, as their default is, with the collector's name resolved through c-ares. It also reads no `/etc/hosts`, makes a c-ares `ETIMEOUT` or `ESERVFAIL` non-retryable for the exporter, and would ignore the environment's certificate settings on https (the collector is plain http). `test/unit/otel-export.test.ts` sends a span, a metric export, and a log record through `buildSdkConfiguration`'s own processors to a collector only c-ares can name. Its wiring test fails when any one exporter loses the agent (the review's S1).
+  - **`edge.ts`'s default resolver** is c-ares. A lookup that doesn't answer now gives up after c-ares's own tries, about 3 s at most, instead of waiting in libuv's queue. `test/unit/edge.test.ts` shows the path and its exact queries, and that a name c-ares can't resolve believes no one; gateway-http.md §7 has the row.
+  - **Still on `getaddrinfo`, and known to fill the two lookup slots** (the review's S2):
+    - **pg:** it resolves `gateway-state` on every new connection. pg-pool drops an idle client after 10 s and `store.ts` sets no `idleTimeoutMillis`, so in a quiet stack most requests open one. While the store is stopped (steps 1 and 11), its own lookups hang and fill the slots. pg 8.23.1 accepts a `stream` factory: a socket whose connect passes `lookup: aresLookup` would take it off the threadpool.
+    - **nodemailer 10.0.16:** it falls back to `dns.lookup` whenever c-ares finds no address for the SMTP host, a SERVFAIL included. So during an outage of the mail host's DNS, each email attempt holds a slot for the resolver's 8 s, and a store connection can queue past its 500 ms.
+    - **later,** T102's Bedrock calls and their SSO refresh.
   - **The Author's call:** whether `UV_THREADPOOL_SIZE` goes into the gateway's image as defense in depth (N threads give (N + 1) / 2 lookup slots).
+  - **For the Author's acceptance:** this part added `test/unit/otel-export.test.ts` and edited `test/unit/edge.test.ts`, test files, during a fix. Both only add tests; no assertion was weakened. The note lists them.
   - **Not run yet:** the engine test with the collector stopped, which needs the main tree.
 
-  The task stays open for those three.
+  The task stays open for pg's stream, nodemailer's fallback, the image's threadpool size, Bedrock's calls once T102 lands, and the engine test.

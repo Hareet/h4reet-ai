@@ -310,6 +310,7 @@ Edge, nginx in `deploy/edge/nginx.conf`, serves this body itself, at once, when 
 | Bedrock circuit | opens after 3 failures, for 30 s | `config/routing.yaml` `adapters.bedrock.circuit` | `fallback_unavailable` |
 | Store | 250 ms per statement and per lock wait, 500 ms to connect | the gateway's pool (code) | `store_unreachable` |
 | Edge to gateway | 2 s connect, 30 s read | `deploy/edge/nginx.conf` | 503 `api_unavailable` |
+| Edge's address (§2.3) | through c-ares, 1 s a try, two tries; at most once per 30 s | `src/core/edge.ts`, `src/core/resolve.ts` (code, tasks.md T189) | a failed lookup believes no one for 30 s |
 
 ## 8. Examples
 
