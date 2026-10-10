@@ -23,7 +23,7 @@
  engine_name="e${eq}n${eq}g${eq}i${eq}n${eq}e${eq}\\.${eq}s${eq}h\\b"
  engine_start="(^|[;&|(\`{]|\\\$\\(|\\b(then|do|else|exec|sudo|doas|env|nohup|time|command|builtin|xargs|timeout|nice|ionice|stdbuf|setsid|watch|bash|sh|zsh|dash|ksh|source)\\b|-exec(dir)?\\b|(^|[[:space:];&|(\`{])\\.[[:space:]])"
  engine_skip="[[:space:]]*-[^[:space:]]*([[:space:]]+[^-[:space:]\"'][^[:space:]]*)?|[[:space:]]+[0-9][0-9.]*[smhd]?|[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*"
-@@ -102,6 +109,77 @@
+@@ -102,6 +109,80 @@
    && ! echo "$cmd" | grep -Eq '^[[:space:]]*(\./)?deploy/agents-engine/engine\.sh[[:space:]]+(status|smoke)[[:space:]]*$'; then
    block "running the agents' engine's Author commands" "$engine_route"
  fi
@@ -47,12 +47,15 @@
 +# operator.py, aws-login.sh and a shell started in the same command, or aws with sso login or configure sso (a grep of
 +# T105's steps). Read with the Read and Grep tools, and commit with a message file.
 +author_route="the Author runs it (spec 000 plan §13); ask the Author"
-+# These rules read the command both as written and with each backslash-newline joined, as bash joins a line
-+# continuation outside a comment (make contract-\<newline>live). The rules above read it as written only: bash ends a
-+# comment at its newline, backslash or not, and runs the next line, which the joined form would hide.
++# These rules read the command three ways: as written; with each backslash-newline joined (make contract-\<newline>live);
++# and as bash reads it, each comment ended at its newline first, backslash or not, and then the lines joined. The
++# rules above read it as written only, since joining alone would put the line after a comment's backslash onto the
++# comment, where they'd miss it.
 +continued=$'\\\n'
 +joined="${cmd//"$continued"/}"
-+has() { grep -Eq "$1" <<<"$cmd" || grep -Eq "$1" <<<"$joined"; }
++uncommented="$(printf '%s\n' "$cmd" | sed -E 's/(^|[[:space:];&|(])#.*$/\1/')"
++uncommented="${uncommented//"$continued"/}"
++has() { grep -Eq "$1" <<<"$cmd" || grep -Eq "$1" <<<"$joined" || grep -Eq "$1" <<<"$uncommented"; }
 +# A name, with quotes, backslashes, or $ allowed between its characters, as an extended regular expression.
 +spelled() {
 +  local s="" c i
@@ -64,10 +67,10 @@
 +  printf '%s' "${s%"$eq"}"
 +}
 +# Before and after a name: a character a name can't hold, or a parameter's default (${v:-name}); for a make target,
-+# not a path's / either.
++# not a path's / either, but a leading ./, which make strips from a goal (make ./aws-login runs aws-login).
 +nb="(^|[^[:alnum:]_.-]|\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])"
 +ne="([^[:alnum:]_.-]|\$)"
-+tb="(^|[^[:alnum:]_./-]|\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])"
++tb="(^|[^[:alnum:]_./-]|\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])(\.${eq}(/${eq})+)*"
 +te="([^[:alnum:]_./-]|\$)"
 +bedrock_word="${nb}$(spelled bedrock)${ne}"
 +make_word="${nb}(g${eq})?$(spelled make)${ne}|${nb}$(spelled run_checks)(${eq}$(spelled .py))?${ne}|$(spelled tools.gates.run_checks)${ne}"
@@ -103,7 +106,7 @@
  # shellcheck disable=SC2016
 --- a/redteam/forbidden-actions.sh
 +++ b/redteam/forbidden-actions.sh
-@@ -172,97 +172,95 @@
+@@ -172,102 +172,100 @@
  fi
  # The Author's own targets and commands (plan §13; tasks.md T103, T104): make contract-live calls a live adapter,
  # Bedrock's paid, with an operator token; make aws-login starts prod's Bedrock session; and the Bedrock evals call
@@ -135,6 +138,8 @@
 -cmd planned 'gmake contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 -cmd planned 'deploy/agents-engine/docker-relay make aws-login ENV=prod'
 -cmd planned 'make .DEFAULT_GOAL=aws-login ENV=prod'
+-cmd planned 'make ./aws-login ENV=prod'
+-cmd planned 'SANDBOX_RUNTIME=0 make .//contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 -cmd planned 'make --eval=.DEFAULT_GOAL:=contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 -cmd planned "printf 'x: aws-login\\n' | make -f Makefile -f - x"
 -cmd planned '{make,aws-login} ENV=prod'
@@ -164,6 +169,8 @@
 +cmd block 'gmake contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 +cmd block 'deploy/agents-engine/docker-relay make aws-login ENV=prod'
 +cmd block 'make .DEFAULT_GOAL=aws-login ENV=prod'
++cmd block 'make ./aws-login ENV=prod'
++cmd block 'SANDBOX_RUNTIME=0 make .//contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 +cmd block 'make --eval=.DEFAULT_GOAL:=contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 +cmd block "printf 'x: aws-login\\n' | make -f Makefile -f - x"
 +cmd block '{make,aws-login} ENV=prod'
@@ -186,6 +193,7 @@
 -cmd planned 'make evals ADAPTER=${A:-bedrock}'
 -cmd planned 'SANDBOX_RUNTIME=0 make -f Makefile check ADAPTER=bedrock'
 -cmd planned 'ADAPTER=bedrock make check'
+-cmd planned 'make ./evals ADAPTER=bedrock'
 -cmd planned 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter bedrock'
 -cmd planned 'python3 -m evals.run --suite product --adapter bedrock'
 -cmd planned 'python3 -c "from evals import run; run.main()" --adapter bedrock'
@@ -196,6 +204,7 @@
 +cmd block 'make evals ADAPTER=${A:-bedrock}'
 +cmd block 'SANDBOX_RUNTIME=0 make -f Makefile check ADAPTER=bedrock'
 +cmd block 'ADAPTER=bedrock make check'
++cmd block 'make ./evals ADAPTER=bedrock'
 +cmd block 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter bedrock'
 +cmd block 'python3 -m evals.run --suite product --adapter bedrock'
 +cmd block 'python3 -c "from evals import run; run.main()" --adapter bedrock'
@@ -272,11 +281,14 @@
 -check bash-gate.sh planned "#\<newline>bash deploy/scripts/aws-login.sh" \
 +check bash-gate.sh block "#\<newline>bash deploy/scripts/aws-login.sh" \
    "$(jq -cn --arg c "$(printf '#\\\nbash deploy/scripts/aws-login.sh')" '{command:$c}')"
+-check bash-gate.sh planned ": #\<newline>./deploy/scripts/aws-\<newline>login.sh" \
++check bash-gate.sh block ": #\<newline>./deploy/scripts/aws-\<newline>login.sh" \
+   "$(jq -cn --arg c "$(printf ': #\\\n./deploy/scripts/aws-\\\nlogin.sh')" '{command:$c}')"
  # Spellings the rules don't see: a name built at run time or held in a variable, a glob, an ANSI-C escape inside a name,
  # run.py reached from its own directory or by a computed import, and a copy run in a command of its own. The targets'
-@@ -294,9 +292,6 @@
- cmd allow 'make check ENGINE_MODE=none-yet'
+@@ -303,9 +301,6 @@
  cmd allow 'make lint && pytest -q evals/test_runbooks.py -k bedrock'
+ cmd allow 'make lint && pytest -q ./evals/test_runbooks.py -k bedrock'
  check bash-gate.sh allow "a 50,000-byte command" "$(jq -cn --arg c "$(printf 'echo %050000d' 0)" '{command:$c}')"
 -if [ "$planned" -gt "$author_planned" ]; then
 -  printf "PLANNED (US5's enforcement patch): %d Author-only rows: bash-gate.sh lets an agent run make contract-live, make aws-login, and the Bedrock evals; the patch refuses them\n" "$((planned - author_planned))"

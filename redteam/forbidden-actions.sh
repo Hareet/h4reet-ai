@@ -197,6 +197,8 @@ cmd planned '/usr/bin/make contract-live ENV=prod ADAPTER=bedrock REASON="a live
 cmd planned 'gmake contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 cmd planned 'deploy/agents-engine/docker-relay make aws-login ENV=prod'
 cmd planned 'make .DEFAULT_GOAL=aws-login ENV=prod'
+cmd planned 'make ./aws-login ENV=prod'
+cmd planned 'SANDBOX_RUNTIME=0 make .//contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 cmd planned 'make --eval=.DEFAULT_GOAL:=contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
 cmd planned "printf 'x: aws-login\\n' | make -f Makefile -f - x"
 cmd planned '{make,aws-login} ENV=prod'
@@ -219,6 +221,7 @@ cmd planned 'make ADAPTER="bedrock" evals'
 cmd planned 'make evals ADAPTER=${A:-bedrock}'
 cmd planned 'SANDBOX_RUNTIME=0 make -f Makefile check ADAPTER=bedrock'
 cmd planned 'ADAPTER=bedrock make check'
+cmd planned 'make ./evals ADAPTER=bedrock'
 cmd planned 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter bedrock'
 cmd planned 'python3 -m evals.run --suite product --adapter bedrock'
 cmd planned 'python3 -c "from evals import run; run.main()" --adapter bedrock'
@@ -264,6 +267,8 @@ check bash-gate.sh block ": #\<newline>terraform apply" "$(jq -cn --arg c "$(pri
 check bash-gate.sh block "echo hi #\<newline>gh pr merge 1" "$(jq -cn --arg c "$(printf 'echo hi #\\\ngh pr merge 1')" '{command:$c}')"
 check bash-gate.sh planned "#\<newline>bash deploy/scripts/aws-login.sh" \
   "$(jq -cn --arg c "$(printf '#\\\nbash deploy/scripts/aws-login.sh')" '{command:$c}')"
+check bash-gate.sh planned ": #\<newline>./deploy/scripts/aws-\<newline>login.sh" \
+  "$(jq -cn --arg c "$(printf ': #\\\n./deploy/scripts/aws-\\\nlogin.sh')" '{command:$c}')"
 # Spellings the rules don't see: a name built at run time or held in a variable, a glob, an ANSI-C escape inside a name,
 # run.py reached from its own directory or by a computed import, and a copy run in a command of its own. The targets'
 # and the CLI's own SANDBOX_RUNTIME refusals, and the token and session the sandbox can't read, still stop them.
@@ -271,8 +276,11 @@ cmd gap "make \$(printf 'aws-%s' login) ENV=prod"
 # shellcheck disable=SC2016
 cmd gap 't=aws; make "$t-login" ENV=prod'
 cmd gap 'bash deploy/scripts/aws-l?gin.sh'
-# The stack's rules read the command as written, so a backslash-newline inside one of their names hides it (T117).
+# The stack's rules read the command as written, so a backslash-newline hides a name from them, inside it or between
+# its words (T117; reading the command as bash does, as US5's rules do, would close these).
 check bash-gate.sh gap "terraform ap\<newline>ply" "$(jq -cn --arg c "$(printf 'terraform ap\\\nply')" '{command:$c}')"
+check bash-gate.sh gap "terraform \<newline>  apply" "$(jq -cn --arg c "$(printf 'terraform \\\n  apply')" '{command:$c}')"
+check bash-gate.sh gap "gh pr \<newline>merge 1" "$(jq -cn --arg c "$(printf 'gh pr \\\nmerge 1')" '{command:$c}')"
 cmd gap "make \$'aws\\x2dlogin' ENV=prod"
 cmd gap 'python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter bedrock'
 cmd gap 'cd evals && python3 run.py --suite product --adapter bedrock'
@@ -293,6 +301,7 @@ cmd allow 'shellcheck deploy/scripts/aws-login.sh'
 cmd allow 'cat deploy/scripts/aws-login.sh'
 cmd allow 'make check ENGINE_MODE=none-yet'
 cmd allow 'make lint && pytest -q evals/test_runbooks.py -k bedrock'
+cmd allow 'make lint && pytest -q ./evals/test_runbooks.py -k bedrock'
 check bash-gate.sh allow "a 50,000-byte command" "$(jq -cn --arg c "$(printf 'echo %050000d' 0)" '{command:$c}')"
 if [ "$planned" -gt "$author_planned" ]; then
   printf "PLANNED (US5's enforcement patch): %d Author-only rows: bash-gate.sh lets an agent run make contract-live, make aws-login, and the Bedrock evals; the patch refuses them\n" "$((planned - author_planned))"
