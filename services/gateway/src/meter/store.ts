@@ -3,6 +3,10 @@
 // - The pool runs statement_timeout=250ms, lock_timeout=250ms, idle_in_transaction_session_timeout=2s, and
 //   connectionTimeoutMillis=500, with at most 10 connections plus one for LISTEN. Any error or timeout on a
 //   request's path is store_unreachable: the stack fails closed (FR-031).
+// - Every connection resolves the store's host through c-ares (core/resolve.ts), not getaddrinfo (tasks.md T189).
+//   pg-pool drops a client idle for 10 s, so a quiet stack opens a connection for most requests. A getaddrinfo the
+//   resolver doesn't answer holds one of the two threads libuv gives lookups after pg has given up at 500 ms, and
+//   while the store is stopped, the pool's own lookups would fill both and queue every other lookup in the process.
 // - Migrations apply at startup, in file order, one transaction each, under a fixed advisory lock, each recorded
 //   with its SHA-256. A changed file stops the gateway (exit 1). A store that records a migration this build doesn't
 //   have, which is what a rollback across a migration looks like, exits 78 schema_newer_than_code.
@@ -15,6 +19,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 
 import type pg from "pg";
+
+import { aresSocket } from "../core/resolve.js";
 
 export const STORE_RETRY_MS = 5_000;
 /** The fixed advisory lock migrations run under: "h4ga". */
@@ -78,6 +84,7 @@ export function buildPoolConfig(s: PgSettings): pg.PoolConfig {
     lock_timeout: 250,
     idle_in_transaction_session_timeout: 2_000,
     connectionTimeoutMillis: 500,
+    stream: aresSocket,
   };
 }
 

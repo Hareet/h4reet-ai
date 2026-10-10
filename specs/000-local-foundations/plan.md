@@ -504,7 +504,7 @@ The schema, the state machines, and both transactions in full are in [data-model
 
 - **Store:**
   - `gateway-state` (Postgres 17), schema `gateway`. Migrations live in `services/gateway/migrations/` and are applied at startup under an advisory lock.
-  - The pool runs `statement_timeout=250ms` and `connectionTimeoutMillis=500`, and any error or timeout is `store_unreachable` (fail closed, FR-031).
+  - The pool runs `statement_timeout=250ms` and `connectionTimeoutMillis=500`, and any error or timeout is `store_unreachable` (fail closed, FR-031). Its connections resolve `gateway-state` through c-ares (tasks.md T189).
   - The state is read on every request, never cached.
 - **Meters:** integer micro-USD per UTC period: `day`, `month`, and `fallback_day`. The `fallback_day` row carries `allowance_micro`, which starts at 2,000,000.
 - **Admission for a metered call** (one transaction, serialized by `SELECT … FOR UPDATE` on `stack_state`):
@@ -560,7 +560,7 @@ The full API is in [contracts/operator-admin.md](contracts/operator-admin.md).
 The full contract is in [contracts/alerts.md](contracts/alerts.md).
 
 - **The dispatcher** wakes on `LISTEN alert_outbox`, or every 2 s.
-  - Each channel is tried on its own: Telegram's Bot API `sendMessage` (plain text, 5 s timeout, over `node:http(s)` with its host resolved through c-ares, tasks.md T188), and SMTP through nodemailer (implicit TLS on 465 or STARTTLS on 587, 10 s timeout).
+  - Each channel is tried on its own: Telegram's Bot API `sendMessage` (plain text, 5 s timeout, over `node:http(s)` with its host resolved through c-ares, tasks.md T188), and SMTP through nodemailer (implicit TLS on 465 or STARTTLS on 587, 10 s timeout, given the address c-ares found for the host, tasks.md T189).
   - Retries back off 5, 15, 30, 60, and 120 s, so every attempt falls within 300 s. After 300 s the channel is marked failed for that alert.
   - Delivery lag and failures are metrics with their own panel. The other channel keeps going, and enforcement is never affected.
 - **When the store is unreachable,** the outbox can't be written. The gateway sends one in-memory, deduplicated `store_unreachable` alert once the condition has lasted 60 s.

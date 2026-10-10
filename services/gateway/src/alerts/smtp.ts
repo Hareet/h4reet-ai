@@ -10,8 +10,13 @@
 // Delivered is the server's 250; the reference kept is the reply code and the queue
 // ID, read from the server's own reply line: a reply that can't be read keeps none, never an assumed 250 (tasks.md
 // T156). A failure is recorded as its class only: timeout, connect, tls, smtp_<reply code>, smtp_<nodemailer code>.
+// The host is resolved through c-ares alone, and nodemailer is given its address (aresTransport below, tasks.md T189).
+import { ADDRCONFIG } from "node:dns";
+import { isIP } from "node:net";
+
 import { createTransport } from "nodemailer";
 
+import { aresLookup } from "../core/resolve.js";
 import type { DeliveryResult } from "./telegram.js";
 
 export interface EmailChannel {
@@ -78,10 +83,47 @@ type TransportFactory = (options: ReturnType<typeof transportOptions>) => {
   close(): void;
 };
 
+/** The host's first address through c-ares, as net would ask for it; a host with none fails as nodemailer's EDNS. */
+function addressOf(host: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    aresLookup(host, { hints: ADDRCONFIG }, (err, address) => {
+      if (err === null && typeof address === "string") resolve(address);
+      else reject(Object.assign(new Error("the SMTP host has no address"), { code: "EDNS" }));
+    });
+  });
+}
+
+/**
+ * The transport sendEmail uses unless it is handed one (tasks.md T189). nodemailer resolves a host name through
+ * c-ares, but falls back to getaddrinfo whenever c-ares finds no address, a SERVFAIL or a timeout included. A
+ * getaddrinfo the resolver doesn't answer holds one of the two threads libuv gives lookups, and the store's
+ * connections queue behind it. So the host is resolved here, through c-ares alone, and nodemailer is given the
+ * address: it resolves nothing, and `servername` keeps TLS's SNI and certificate check on the name. Only that address
+ * is tried, not the host's others; the dispatcher's next attempt asks again.
+ */
+const aresTransport: TransportFactory = (options) => {
+  let transport: ReturnType<typeof createTransport> | undefined;
+  let closed = false;
+  return {
+    async sendMail(mail) {
+      const address = await addressOf(options.host);
+      // sendEmail's deadline may have passed and closed this transport while the lookup ran: send nothing then.
+      if (closed) throw Object.assign(new Error("the send was abandoned"), { code: "ETIMEDOUT" });
+      const servername = isIP(options.host) === 0 ? { servername: options.host } : {};
+      transport = createTransport({ ...options, host: address, ...servername });
+      return transport.sendMail(mail);
+    },
+    close() {
+      closed = true;
+      transport?.close();
+    },
+  };
+};
+
 export async function sendEmail(
   channel: EmailChannel,
   mail: { subject: string; text: string; alertId: string },
-  factory: TransportFactory = (options) => createTransport(options),
+  factory: TransportFactory = aresTransport,
 ): Promise<DeliveryResult> {
   const transport = factory(transportOptions(channel));
   let timer: NodeJS.Timeout | undefined;

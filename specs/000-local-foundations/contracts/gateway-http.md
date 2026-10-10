@@ -308,7 +308,7 @@ Edge, nginx in `deploy/edge/nginx.conf`, serves this body itself, at once, when 
 | Local health | every 1 s, 800 ms timeout; unhealthy after 1 failure, healthy after 3 passes | `config/routing.yaml` `adapters.local.health` | failover within 1.8 s at worst (SC-005) |
 | Bedrock | connect 1 s, request 4 s; one retry, on throttling only, while the deadline allows | `config/routing.yaml` `adapters.bedrock` | `fallback_unavailable` |
 | Bedrock circuit | opens after 3 failures, for 30 s | `config/routing.yaml` `adapters.bedrock.circuit` | `fallback_unavailable` |
-| Store | 250 ms per statement and per lock wait, 500 ms to connect | the gateway's pool (code) | `store_unreachable` |
+| Store | 250 ms per statement and per lock wait, 500 ms to connect, the host through c-ares | the gateway's pool, `src/core/resolve.ts` (code, tasks.md T189) | `store_unreachable` |
 | Edge to gateway | 2 s connect, 30 s read | `deploy/edge/nginx.conf` | 503 `api_unavailable` |
 | Edge's address (§2.3) | through c-ares, 1 s a try, two tries; at most once per 30 s | `src/core/edge.ts`, `src/core/resolve.ts` (code, tasks.md T189) | a failed lookup believes no one for 30 s |
 

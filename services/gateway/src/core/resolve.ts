@@ -16,7 +16,7 @@
 // eyeballs would give up on the IPv4 connect after 250 ms to try it (the T188 review's S1). An explicit family is
 // asked as given; net never sends one with the hint.
 import { ADDRCONFIG, Resolver, type LookupAddress } from "node:dns";
-import { isIP, type LookupFunction } from "node:net";
+import { isIP, Socket, type LookupFunction } from "node:net";
 import os from "node:os";
 
 type Family = 4 | 6;
@@ -127,3 +127,18 @@ export function makeLookup(
 
 /** The lookup for a request to a named host: 1 s a try, two tries, and no thread held meanwhile. */
 export const aresLookup: LookupFunction = makeLookup(new Resolver({ timeout: 1000, tries: 2 }));
+
+/**
+ * A socket that resolves its host through aresLookup when it connects, for a client that connects a socket it is
+ * handed: pg's `stream` (meter/store.ts, tasks.md T189). pg calls connect(port, host), or connect(path) for a Unix
+ * socket, and with no lookup given, net would ask getaddrinfo for the host.
+ */
+export function aresSocket(): Socket {
+  const socket = new Socket();
+  const connect = socket.connect.bind(socket);
+  socket.connect = ((portOrPath: number | string, host?: string) =>
+    typeof portOrPath === "string"
+      ? connect(portOrPath)
+      : connect({ port: portOrPath, host, lookup: aresLookup })) as Socket["connect"];
+  return socket;
+}
