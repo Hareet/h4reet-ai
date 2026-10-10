@@ -301,10 +301,10 @@ const CIRCUIT_KINDS: ReadonlySet<ProviderErrorKind> = new Set<ProviderErrorKind>
  * at once and resets the count, and so does `auth` on a paid adapter, as `credentials` (§2.5). Probes never spend.
  *
  * An adapter whose type has a circuit (Bedrock) also counts its calls' ends: `failures` counted failures in a row open
- * the circuit, and while it's open the adapter is unhealthy with `circuit_open`, unless its probes give a reason of
- * their own. Once it has been open for `openMs`, one fallback call at a time goes through as the trial: a success
- * closes it, and a counted failure opens it for another `openMs`. Probes don't close it, so it stays open, and the
- * adapter unhealthy, until a call succeeds.
+ * the circuit for `openMs`, and while it's open the adapter is unhealthy with `circuit_open`, unless its probes give a
+ * reason of their own. Then it's half-open: the adapter reads as its probes do, and one fallback call at a time goes
+ * through as the trial. A success closes it, and a counted failure opens it for another `openMs`. Probes don't close
+ * it.
  */
 export class AdapterHealth {
   /** The effective health, as status() reports it. */
@@ -323,6 +323,8 @@ export class AdapterHealth {
   private circuitFailures = 0;
   private openedAt: number | undefined;
   private trialOut = false;
+  /** Fires when an open circuit turns half-open, so the gauge and the log see it without a read. */
+  private halfOpenTimer: NodeJS.Timeout | undefined;
   /** When the effective health last flipped, real ms; startup counts as turning unhealthy. */
   private changedAt: number;
   private timer: NodeJS.Timeout | undefined;
@@ -346,6 +348,7 @@ export class AdapterHealth {
   }
 
   status(): HealthStatus {
+    this.update(); // an open circuit turns half-open with time, not with an event
     return {
       healthy: this.healthy,
       checkedAt: this.checkedAt,
@@ -357,6 +360,7 @@ export class AdapterHealth {
 
   /** When it last turned unhealthy (real ms), or undefined while healthy: the `since` of no_fallback_in_stack. */
   unhealthySince(): number | undefined {
+    this.update();
     return this.healthy ? undefined : this.changedAt;
   }
 
@@ -369,6 +373,7 @@ export class AdapterHealth {
   stop(): void {
     this.running = false;
     if (this.timer !== undefined) clearTimeout(this.timer);
+    if (this.halfOpenTimer !== undefined) clearTimeout(this.halfOpenTimer);
   }
 
   /**
@@ -389,30 +394,31 @@ export class AdapterHealth {
     this.setProbed(false, reason);
   }
 
-  /** The circuit's trial is due: open for its open time, no trial in flight, and the probes healthy. */
-  trialDue(): boolean {
-    const circuit = this.opts.circuit;
-    return (
-      circuit !== undefined &&
-      this.openedAt !== undefined &&
-      !this.trialOut &&
-      this.probedHealthy &&
-      this.opts.realNow() - this.openedAt >= circuit.openMs
-    );
+  /**
+   * A fallback call's pass through the circuit (§6 item 5): always while it's closed, never while it's open, and while
+   * it's half-open, to one call at a time, the trial, while the probes say healthy. callEnded gives the trial back.
+   */
+  admitCall(): { allowed: boolean; trial: boolean } {
+    this.update();
+    const phase = this.phase();
+    if (phase === "closed") return { allowed: true, trial: false };
+    if (phase === "open" || this.trialOut || !this.probedHealthy) return { allowed: false, trial: false };
+    this.trialOut = true;
+    return { allowed: true, trial: true };
   }
 
-  /** Takes the trial if it's due: true lets this call through, and its callEnded gives the turn back. */
-  takeTrial(): boolean {
-    if (!this.trialDue()) return false;
-    this.trialOut = true;
-    return true;
+  /** Whether admitCall would let a fallback call through now, taking nothing: GET /health's dry run. */
+  wouldAdmit(): boolean {
+    this.update();
+    const phase = this.phase();
+    return phase === "closed" || (phase === "half_open" && !this.trialOut && this.probedHealthy);
   }
 
   /**
    * A call's end, for the circuit (§6 item 5). A success closes it and clears the count. A failure of a counted kind
-   * counts, and opens it at `failures` in a row; while it's open, one opens it for another `openMs`. Any other failure
-   * neither counts nor clears the count, and nor does a call that never reached the adapter (no outcome) or one whose
-   * caller went away. A trial gives its turn back whatever the end.
+   * counts, and opens it at `failures` in a row; while it's open or half-open, one opens it for another `openMs`. Any
+   * other failure neither counts nor clears the count, and nor does a call that never reached the adapter (no outcome)
+   * or one whose caller went away. A trial gives its turn back whatever the end.
    */
   callEnded(outcome: AttemptOutcome | undefined, o: { trial: boolean; callerGone: boolean }): void {
     if (o.trial) this.trialOut = false;
@@ -420,21 +426,37 @@ export class AdapterHealth {
     if (circuit === undefined || outcome === undefined) return;
     if (outcome.ok) {
       this.circuitFailures = 0;
-      if (this.openedAt === undefined) return;
-      this.openedAt = undefined;
-      this.update();
+      if (this.openedAt !== undefined) this.openCircuit(undefined);
       return;
     }
     if (o.callerGone || !CIRCUIT_KINDS.has(outcome.error.kind)) return;
     if (this.openedAt !== undefined) {
-      this.openedAt = this.opts.realNow();
+      this.openCircuit(circuit);
       return;
     }
     this.circuitFailures += 1;
     if (this.circuitFailures < circuit.failures) return;
     this.circuitFailures = 0;
-    this.openedAt = this.opts.realNow();
+    this.openCircuit(circuit);
+  }
+
+  /** Opens the circuit for its open time, from now; with no settings, closes it. */
+  private openCircuit(circuit: CircuitSettings | undefined): void {
+    if (this.halfOpenTimer !== undefined) clearTimeout(this.halfOpenTimer);
+    this.halfOpenTimer = undefined;
+    this.openedAt = circuit === undefined ? undefined : this.opts.realNow();
+    if (circuit !== undefined) {
+      this.halfOpenTimer = setTimeout(() => this.update(), circuit.openMs);
+      this.halfOpenTimer.unref();
+    }
     this.update();
+  }
+
+  /** Closed; open, for `openMs` after it opened; then half-open until a call's end closes or reopens it. */
+  private phase(): "closed" | "open" | "half_open" {
+    if (this.openedAt === undefined) return "closed";
+    const openMs = this.opts.circuit?.openMs ?? 0;
+    return this.opts.realNow() - this.openedAt < openMs ? "open" : "half_open";
   }
 
   /** One probe now, counted as the loop counts it. */
@@ -477,9 +499,9 @@ export class AdapterHealth {
     this.update();
   }
 
-  /** The probes' view combined with the circuit (§6 item 6): the probes' reason first, then circuit_open. */
+  /** The probes' view combined with the circuit (§6 item 6): the probes' reason first, then circuit_open while open. */
   private update(): void {
-    const healthy = this.probedHealthy && this.openedAt === undefined;
+    const healthy = this.probedHealthy && this.phase() !== "open";
     const reason = healthy ? undefined : this.probedHealthy ? "circuit_open" : this.probedReason;
     const flipped = healthy !== this.healthy;
     const was = this.reason;
@@ -1033,8 +1055,8 @@ export class Gateway {
         ? {}
         : {
             fallback: {
-              // A due trial is a call the fallback would take (§6 item 5).
-              healthy: this.fallback.health.status().healthy || this.fallback.health.trialDue(),
+              // A trial in flight holds the next fallback call (§6 item 5).
+              healthy: this.fallback.health.status().healthy && this.fallback.health.wouldAdmit(),
               ceilings: { day: t.dayCeiling, month: t.monthCeiling },
               journalUnwritable: this.opts.journalStatus?.() === "unwritable",
               ...(meters === undefined ? {} : { meters }),
@@ -1134,9 +1156,11 @@ export class Gateway {
         ? { kind: "fallback" as const, reason: routeReason ?? "local_unhealthy" }
         : { kind: "metered" as const, reason: attribution };
     span.setAttributes({ "h4.route.decision": decision.kind, "h4.route.reason": decision.reason });
-    // A fallback call takes the circuit's trial when it's due (§6 item 5). Whatever follows, the call's end is the
-    // circuit's to count, and gives the trial back; a test call goes by the ceilings alone, as health doesn't hold it.
-    const trial = attribution === "fallback" && routed.health.takeTrial();
+    // A fallback call passes the circuit first (§6 item 5): while it's half-open, as the trial. Whatever follows, the
+    // call's end is the circuit's to count, and gives the trial back; a test call goes by the ceilings alone, as
+    // health doesn't hold it.
+    const pass = attribution === "fallback" ? routed.health.admitCall() : { allowed: true, trial: false };
+    const { trial } = pass;
     let outcome: AttemptOutcome | undefined;
     let callerGone = false;
     try {
@@ -1149,8 +1173,8 @@ export class Gateway {
           model: adapter.model,
           ...(adapter.fixedUsage === undefined ? {} : { fixedUsage: adapter.fixedUsage }),
         },
-        adapterHealthy: trial || routed.health.status().healthy,
-        ...(trial || unhealthySince === undefined ? {} : { adapterUnhealthySince: unhealthySince }),
+        adapterHealthy: routed.health.status().healthy && pass.allowed,
+        ...(unhealthySince === undefined ? {} : { adapterUnhealthySince: unhealthySince }),
         maxOutputTokens: call.maxOutputTokens,
         ...(attribution === "fallback" && call.clientKey !== undefined ? { clientKey: call.clientKey } : {}),
         requestId: call.requestId,

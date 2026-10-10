@@ -222,7 +222,7 @@ const bedrockConverse: AdapterTypeSpec = {
     backoffMs: num(s, "retry", "backoff_ms"),
   }),
   // §3.2: every interval_ms; one failure makes it unhealthy and one pass healthy. The probe resolves credentials and
-  // never calls Bedrock; tasks.md T102 may tighten its timeout.
+  // never calls Bedrock, within 5 s or the interval, whichever is shorter.
   healthCadence: (s) => ({
     intervalMs: num(s, "health", "interval_ms"),
     timeoutMs: Math.min(5_000, num(s, "health", "interval_ms") - 1),

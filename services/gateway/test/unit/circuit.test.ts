@@ -1,12 +1,12 @@
 // The circuit breaker (contracts/provider-adapter.md §6 items 5 and 6; gateway-http.md §2.4 step 5.6; alerts.md §2;
-// tasks.md T102): an adapter whose type has a circuit, Bedrock, opens it after `failures` counted failures in a row,
-// and reads unhealthy with circuit_open until a call succeeds; once it has been open for `open_s`, one fallback call at
-// a time goes through as the trial. A clock the test moves, scripted adapters, and a fake meter that refuses an
-// unhealthy fallback as admission does: no network, no Postgres, no AWS.
+// tasks.md T102, T193): an adapter whose type has a circuit, Bedrock, opens it for `open_s` after `failures` counted
+// failures in a row, and reads unhealthy with circuit_open while it's open. Then it's half-open: the adapter reads as
+// its probes do, and one fallback call at a time goes through as the trial. A clock the test moves, scripted
+// adapters, and a fake meter that refuses an unhealthy fallback as admission does: no network, no Postgres, no AWS.
 import { fileURLToPath } from "node:url";
 
 import { metrics, trace } from "@opentelemetry/api";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ADAPTER_TYPE_SPECS, type AdapterTypeSpec } from "../../src/adapters/_settings.js";
 import { loadConfig, type AdapterConfig, type LoadedConfig, type PriceVersion } from "../../src/config/validate.js";
@@ -21,7 +21,7 @@ import {
   type ProviderErrorKind,
 } from "../../src/core/types.js";
 import type { StateRead, Store } from "../../src/meter/store.js";
-import type { AdmitRequest, MeterPort } from "../../src/meter/types.js";
+import type { AdmitRequest, AdmitResult, MeterPort } from "../../src/meter/types.js";
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -44,8 +44,8 @@ const failed = (kind: ProviderErrorKind): AttemptOutcome => ({
   attempts: [],
 });
 
-/** One AdapterHealth on a clock the test moves, its flips and its unhealthy reasons recorded. */
-function healthRig(o: { kind?: "paid" | "local"; circuit?: boolean } = {}) {
+/** One AdapterHealth on a clock the test moves (or the real one), its flips and its unhealthy reasons recorded. */
+function healthRig(o: { kind?: "paid" | "local"; circuit?: boolean; openMs?: number; realClock?: boolean } = {}) {
   const clock = { now: T0 };
   let next: HealthStatus = { healthy: true, checkedAt: new Date(T0).toISOString() };
   const adapter: ProviderAdapter = {
@@ -64,10 +64,10 @@ function healthRig(o: { kind?: "paid" | "local"; circuit?: boolean } = {}) {
   const flips: string[] = [];
   const reasons: string[] = [];
   const h = new AdapterHealth(adapter, CADENCE, {
-    realNow: () => clock.now,
+    realNow: o.realClock === true ? Date.now : () => clock.now,
     onChange: (x) => flips.push(x.status().healthy ? "healthy" : `unhealthy ${String(x.status().reason)}`),
     onUnhealthy: (x) => reasons.push(String(x.status().reason)),
-    ...(o.circuit === false ? {} : { circuit: { failures: 3, openMs: 30_000 } }),
+    ...(o.circuit === false ? {} : { circuit: { failures: 3, openMs: o.openMs ?? 30_000 } }),
   });
   const probe = (status: Partial<HealthStatus> = {}) => {
     next = { healthy: true, checkedAt: new Date(clock.now).toISOString(), ...status };
@@ -149,48 +149,50 @@ describe("AdapterHealth's circuit (provider-adapter.md §6 item 5)", () => {
     expect(r.flips).toEqual(["healthy", "unhealthy circuit_open"]);
   });
 
-  it("lets one trial through once open_s has passed, one at a time; its success closes the circuit", async () => {
+  it("turns half-open after open_s: it reads as its probes do, and one fallback call at a time is the trial", async () => {
     const r = await healthy();
     r.open();
     r.clock.now += 29_999;
-    expect([r.h.trialDue(), r.h.takeTrial()]).toEqual([false, false]);
+    expect(r.h.status().reason).toBe("circuit_open");
+    expect([r.h.wouldAdmit(), r.h.admitCall()]).toEqual([false, { allowed: false, trial: false }]);
     r.clock.now += 1;
-    expect(r.h.trialDue()).toBe(true);
-    expect(r.h.takeTrial()).toBe(true);
-    expect([r.h.trialDue(), r.h.takeTrial()]).toEqual([false, false]); // the trial is out
-    expect(r.h.status().reason).toBe("circuit_open"); // and the adapter still reads unhealthy until it ends
-    r.end(ok, true);
     expect(r.h.status()).toMatchObject({ healthy: true });
     expect(r.flips).toEqual(["healthy", "unhealthy circuit_open", "healthy"]);
-    expect(r.h.trialDue()).toBe(false);
+    expect(r.h.wouldAdmit()).toBe(true);
+    expect(r.h.admitCall()).toEqual({ allowed: true, trial: true });
+    expect([r.h.wouldAdmit(), r.h.admitCall()]).toEqual([false, { allowed: false, trial: false }]); // the trial is out
+    r.end(ok, true);
+    expect(r.h.admitCall()).toEqual({ allowed: true, trial: false }); // closed: every call goes through
+    expect(r.flips).toEqual(["healthy", "unhealthy circuit_open", "healthy"]);
   });
 
-  it("opens it for another open_s when the trial fails, with no second entry into circuit_open", async () => {
+  it("opens it for another open_s when the trial fails, unhealthy again", async () => {
     const r = await healthy();
     r.open();
     r.clock.now += 30_000;
-    expect(r.h.takeTrial()).toBe(true);
+    expect(r.h.admitCall()).toEqual({ allowed: true, trial: true });
     r.end(failed("provider_error"), true);
-    expect(r.h.status().reason).toBe("circuit_open");
+    expect(r.h.status()).toMatchObject({ healthy: false, reason: "circuit_open" });
+    expect(r.reasons).toEqual(["circuit_open", "circuit_open"]); // fallback_unavailable's hourly key holds the alert
     r.clock.now += 29_999;
-    expect(r.h.takeTrial()).toBe(false);
+    expect(r.h.admitCall().allowed).toBe(false);
     r.clock.now += 1;
-    expect(r.h.takeTrial()).toBe(true);
-    expect(r.reasons).toEqual(["circuit_open"]);
+    expect(r.h.status().healthy).toBe(true);
+    expect(r.h.admitCall()).toEqual({ allowed: true, trial: true });
   });
 
-  it("gives the trial back, still open, when the trial never reached the adapter or ended uncounted", async () => {
+  it("gives the trial back, still half-open, when the trial never reached the adapter or ended uncounted", async () => {
     const r = await healthy();
     r.open();
     r.clock.now += 30_000;
-    expect(r.h.takeTrial()).toBe(true);
+    expect(r.h.admitCall().trial).toBe(true);
     r.end(undefined, true); // admission refused it
-    expect(r.h.takeTrial()).toBe(true);
+    expect(r.h.admitCall().trial).toBe(true);
     r.end(failed("bad_request"), true);
-    expect(r.h.takeTrial()).toBe(true);
+    expect(r.h.admitCall().trial).toBe(true);
     r.end(failed("timeout"), true, true); // its caller went away
-    expect(r.h.status().reason).toBe("circuit_open");
-    expect(r.h.takeTrial()).toBe(true);
+    expect(r.h.status().healthy).toBe(true);
+    expect(r.h.admitCall().trial).toBe(true);
   });
 
   it("holds the trial back while the probes say unhealthy", async () => {
@@ -198,16 +200,25 @@ describe("AdapterHealth's circuit (provider-adapter.md §6 item 5)", () => {
     r.open();
     await r.probe({ healthy: false, reason: "credentials" });
     r.clock.now += 30_000;
-    expect(r.h.takeTrial()).toBe(false);
+    expect(r.h.status()).toMatchObject({ healthy: false, reason: "credentials" });
+    expect([r.h.wouldAdmit(), r.h.admitCall().allowed]).toEqual([false, false]);
     await r.probe();
-    expect(r.h.takeTrial()).toBe(true);
+    expect(r.h.admitCall().trial).toBe(true);
+  });
+
+  it("turns half-open on its own: the effective health moves when the time is up, without a read", async () => {
+    const r = await healthy({ realClock: true, openMs: 40 });
+    r.open();
+    await vi.waitFor(() => expect(r.flips.at(-1)).toBe("healthy"), { timeout: 2_000, interval: 10 });
+    expect(r.flips).toEqual(["healthy", "unhealthy circuit_open", "healthy"]);
+    r.h.stop(); // and stop() clears a pending turn
   });
 
   it("never opens for an adapter whose type has no circuit", async () => {
     const r = await healthy({ circuit: false });
     for (let i = 0; i < 20; i++) r.end(failed("provider_error"));
     expect(r.h.status().healthy).toBe(true);
-    expect(r.h.trialDue()).toBe(false);
+    expect(r.h.admitCall()).toEqual({ allowed: true, trial: false });
   });
 });
 
@@ -265,10 +276,13 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
     testClockOffsetMs: null,
   };
 
+  /** A paid adapter's scripted end: an answer, an error, or a call that waits for its signal and then times out. */
+  type Next = AdapterResult | ProviderError | Promise<AdapterResult> | "hang";
+
   /** prod's route: a local adapter that never passed a probe, and a Bedrock-like paid fallback with routing.yaml's circuit. */
   function rig() {
     const clock = { now: T0 };
-    const next: (AdapterResult | ProviderError | Promise<AdapterResult>)[] = [];
+    const next: Next[] = [];
     let calls = 0;
     const paid: ProviderAdapter = {
       id: "bedrock",
@@ -278,9 +292,14 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
       model: MODEL,
       server: { address: "bedrock-runtime.us-east-1.amazonaws.com", port: 443 },
       retry: { on: [], max: 0, backoffMs: 0 },
-      complete: async () => {
+      complete: async (req) => {
         calls += 1;
         const n = next.shift() ?? answer;
+        if (n === "hang") {
+          return new Promise<AdapterResult>((_, reject) =>
+            req.signal.addEventListener("abort", () => reject(new ProviderError("timeout", true, true))),
+          );
+        }
         if (n instanceof ProviderError) throw n;
         return n;
       },
@@ -315,11 +334,16 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
       placeholders: [],
     };
     // Admission as data-model.md §7.2 step 5 has it, for what this test needs: a fallback call needs a healthy
-    // adapter; a test call goes by the ceilings alone, which these calls never reach.
+    // adapter; a test call goes by the ceilings alone, which these calls never reach. A test can queue a refusal
+    // for another cause, or a throw, for the next admission.
     const admits: AdmitRequest[] = [];
+    const meterNext: ("refuse" | "throw")[] = [];
     const meter: MeterPort = {
-      admit: async (r) => {
+      admit: async (r): Promise<AdmitResult> => {
         admits.push(r);
+        const queued = meterNext.shift();
+        if (queued === "throw") throw new Error("the store failed under admission");
+        if (queued === "refuse") return { ok: false, refusal: "degraded", decision: degraded("meter_at_ceiling") };
         if (r.attribution === "fallback" && !r.adapterHealthy) {
           return { ok: false, refusal: "degraded", decision: degraded("fallback_unavailable") };
         }
@@ -383,15 +407,15 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
     const alerts: string[] = [];
     g.onFallbackUnavailable = (adapter, reason) => void alerts.push(`${adapter} ${reason}`);
     const bedrock = () => g.routedAdapters().find((a) => a.id === "bedrock")?.health;
-    const call = (): GatewayCall => ({
+    const call = (signal = new AbortController().signal): GatewayCall => ({
       requestId: "cd".repeat(16),
       purpose: "hello",
       messages: [{ role: "user", content: "hi" }],
       maxOutputTokens: 128,
       arrivedAt: clock.now,
-      signal: new AbortController().signal,
+      signal,
     });
-    return { g, clock, next, calls: () => calls, admits, alerts, bedrock, call };
+    return { g, clock, next, calls: () => calls, admits, meterNext, alerts, bedrock, call };
   }
 
   /** Three provider errors in a row: each fallback call fails, and the third opens the circuit. */
@@ -406,6 +430,13 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
     }
     expect(r.bedrock()).toMatchObject({ healthy: false, reason: "circuit_open" });
     expect(r.alerts).toEqual(["bedrock circuit_open"]);
+  }
+
+  /** opened(), then open_s later: half-open. */
+  async function halfOpen(r: ReturnType<typeof rig>) {
+    await opened(r);
+    r.clock.now += 30_000;
+    expect(r.bedrock()).toMatchObject({ healthy: true });
   }
 
   it("refuses fallback calls while it's open, without calling Bedrock, as fallback_unavailable", async () => {
@@ -424,10 +455,9 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
     expect(r.alerts).toEqual(["bedrock circuit_open"]);
   });
 
-  it("admits the first fallback call after open_s as the trial, and closes the circuit when it answers", async () => {
+  it("reads healthy after open_s, admits the first fallback call as the trial, and closes on its success", async () => {
     const r = rig();
-    await opened(r);
-    r.clock.now += 30_000;
+    await halfOpen(r);
     const a = await r.g.complete(r.call());
     expect(a).toMatchObject({ kind: "answered", route: "fallback", routeReason: "local_unhealthy" });
     expect(r.calls()).toBe(4);
@@ -436,10 +466,24 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
     expect(r.bedrock()).toMatchObject({ healthy: true });
   });
 
+  it("reopens on a failed trial, unhealthy again, and refuses until another open_s has passed", async () => {
+    const r = rig();
+    await halfOpen(r);
+    r.next.push(new ProviderError("provider_error", true, false));
+    expect(await r.g.complete(r.call())).toMatchObject({ kind: "degraded" });
+    expect(r.bedrock()).toMatchObject({ healthy: false, reason: "circuit_open" });
+    // The flip back raises the hook again; the outbox's hourly key holds the alert to one an hour (alerts.md §2).
+    expect(r.alerts).toEqual(["bedrock circuit_open", "bedrock circuit_open"]);
+    r.clock.now += 29_999;
+    expect(await r.g.complete(r.call())).toMatchObject({ kind: "degraded" });
+    expect(r.calls()).toBe(4);
+    r.clock.now += 1;
+    expect(await r.g.complete(r.call())).toMatchObject({ kind: "answered" });
+  });
+
   it("lets only one call through while the trial is out", async () => {
     const r = rig();
-    await opened(r);
-    r.clock.now += 30_000;
+    await halfOpen(r);
     let release: (x: AdapterResult) => void = () => {};
     r.next.push(new Promise<AdapterResult>((resolve) => (release = resolve)));
     const trial = r.g.complete(r.call());
@@ -448,10 +492,47 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
       kind: "degraded",
       decision: { cause: "fallback_unavailable" },
     });
+    expect((await r.g.report()).degraded_cause).toBe("fallback_unavailable"); // the dry run sees the trial out
     expect(r.calls()).toBe(4);
     release(answer);
     expect(await trial).toMatchObject({ kind: "answered" });
     expect(r.bedrock()?.healthy).toBe(true);
+  });
+
+  it("gives the trial back when admission refuses it for another cause, or throws", async () => {
+    const r = rig();
+    await halfOpen(r);
+    r.meterNext.push("refuse");
+    expect(await r.g.complete(r.call())).toMatchObject({ kind: "degraded", decision: { cause: "meter_at_ceiling" } });
+    r.meterNext.push("throw");
+    await expect(r.g.complete(r.call())).rejects.toThrow("the store failed under admission");
+    expect(r.calls()).toBe(3);
+    expect(await r.g.complete(r.call())).toMatchObject({ kind: "answered" }); // the trial, given back twice
+    expect(r.calls()).toBe(4);
+  });
+
+  it("gives the trial back when its caller goes away, and counts nothing against the adapter", async () => {
+    const r = rig();
+    await halfOpen(r);
+    r.next.push("hang");
+    const gone = new AbortController();
+    const pending = r.g.complete(r.call(gone.signal));
+    await new Promise((resolve) => setImmediate(resolve));
+    gone.abort();
+    expect(await pending).toMatchObject({ kind: "degraded" });
+    expect(r.bedrock()).toMatchObject({ healthy: true }); // still half-open, not reopened
+    expect(await r.g.complete(r.call())).toMatchObject({ kind: "answered" });
+    expect(r.calls()).toBe(5);
+  });
+
+  it("doesn't spend the trial on a live endpoint's test call", async () => {
+    const r = rig();
+    await halfOpen(r);
+    r.next.push(new ProviderError("bad_request", false, false)); // an end the circuit doesn't count
+    expect(await r.g.adapterCall(r.call(), "bedrock")).toMatchObject({ kind: "called", outcome: { ok: false } });
+    const a = await r.g.complete(r.call());
+    expect(a).toMatchObject({ kind: "answered" });
+    expect(r.admits.at(-1)).toMatchObject({ attribution: "fallback", adapterHealthy: true });
   });
 
   it("counts the live endpoint's calls, which an open circuit doesn't hold: a success closes it", async () => {
@@ -463,13 +544,13 @@ describe("the circuit around Bedrock's calls (gateway-http.md §2.4 step 5.6; al
     expect(r.bedrock()).toMatchObject({ healthy: true });
   });
 
-  it("reads a due trial in GET /health's dry run as a call the fallback would take", async () => {
+  it("reads open, then half-open, in GET /health's dry run", async () => {
     const r = rig();
     await opened(r);
     expect((await r.g.report()).degraded_cause).toBe("fallback_unavailable");
     r.clock.now += 30_000;
     const report = await r.g.report();
     expect(report.degraded_cause).toBeNull();
-    expect(report.adapters.find((x) => x.id === "bedrock")).toMatchObject({ healthy: false, reason: "circuit_open" });
+    expect(report.adapters.find((x) => x.id === "bedrock")).toMatchObject({ healthy: true });
   });
 });
