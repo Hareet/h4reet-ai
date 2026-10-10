@@ -350,13 +350,15 @@ description: "Task list for spec 000, Local Foundations"
 - [ ] T181 [US1] Warn in `deploy/scripts/status.py` only when a container's configuration differs from the running commit's: compare its `com.docker.compose.config-hash` label with `docker compose config --hash` from the export, not the path in its `config_files` label, which changes with every commit's export. At T065's third `make up ENV=prod` (2026-10-09), status warned that six services "was created from another commit's compose file: make up ENV=prod recreates it", right after make up had kept them: gateway-state, langfuse-db, langfuse-web, langfuse-worker, model-server-gpu, and valkey, none of which binds the tree, so their configuration was the same at both commits. Model the label and the hash in `deploy/scripts/test_status.py`'s fake from one real output, per plan §4 (contradicts)
 - [ ] T182 [US1] Make two status messages say what they mean: `deploy/scripts/status.py`'s "status: healthy, waiting on the operator" only when a WARN is an operator wait (an uninitialized store, a tripped switch), and "status: healthy, with warnings" otherwise; and `scripts/operator.py`'s journal line for `unknown` as "no record since the gateway started", not as a fault. At T065's rollback rehearsal (2026-10-09), dev's initialized stack said "waiting on the operator" because of T181's false WARNs and a Prometheus target seconds after its restart, and every gateway restart left "journal        unknown (journal/2026-10.jsonl)" until a metered call, per contracts/env-files.md §12 and contracts/operator-admin.md §6 (partial)
 - [ ] T064 [US1] Agent session, on the engine: `make up ENV=dev-cpu` comes up healthy, `make operator-init ENV=dev-cpu` with the dummy token, hello answers from the stand-in (`make hello ENV=dev-cpu`, which makes the probe hop, T147), then `make down ENV=dev-cpu`. Paste the output into `docs/merge-requests/<date>-feat-000-us1-local-stack.md`.
-- [ ] T065 [US1] **Author** (Heavy): run `quickstart.md` §1 (§0.7–§0.8 are done at T063's start, after the early patch):
+- [X] T065 [US1] **Author** (Heavy): run `quickstart.md` §1 (§0.7–§0.8 are done at T063's start, after the early patch):
   - the first stack task's measurements (§1.6): the prod model's load time and VRAM, whether the internal network blocks egress, and whether an internal-only container can publish a port;
   - a cold `make up ENV=prod`, timed (SC-001);
   - `make operator-init`, the hello, the trace, the US1 panels, `make isolation-check` with dev up, and the port scan from another machine;
   - the rollback rehearsal on dev (§1.12).
 
   The results go into `docs/merge-requests/<date>-feat-000-us1-local-stack.md`, with no secrets.
+
+  Done on 2026-10-09, after four starts and the fixes T176–T178 and T180 (the us1 note's "T065's run"). Every step ran; SC-001 took 431 s. §1.5's panels and §1.9's gateway image didn't meet their expectations, and T149 lists them; T181 and T182 fix what status said along the way.
 - [ ] T066 [US1] Write the merge-request note `docs/merge-requests/<date>-feat-000-us1-local-stack.md`.
 
 **Checkpoint**: US1 runs on the 5090 and on the agents' engine. This is the MVP.

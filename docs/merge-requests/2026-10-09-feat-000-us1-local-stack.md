@@ -6,7 +6,7 @@ Authorized by: spec 000's plan.md and tasks.md; the Author's "Continue into Phas
 **Status: DRAFT. Not ready to merge.** Everything an agent session can do on this branch before the engine exists is done: three review rounds with every finding fixed and verified, the convergence pass, and `make check` at 110b42e with 0 FAIL. What's left needs your hands or the engine:
 - **T063 (yours):** bring the branch up to date with main after T046, then the env files and tokens, the pins, the pulls, and the seed. Done on 2026-10-09. The seed failed on every image at first, and passed after T174's patch ("T063's run" below). tasks.md marks it done since T065's fix: no pin is open any more.
 - **T064 (an agent session, after T063):** dev-cpu on the agents' engine, end to end.
-- **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 records the GPU fix you made by hand ("T065's run" below) The fourth, at aa69d8d, passed §1.1, and §1.2–§1.12 followed: SC-001 in 431 s, the rollback, isolation, and state kept across `make down` all pass. §1.5's panels and §1.9's gateway image are T149's; §1.8's scan from another machine and §1.10's browser hosts remain.
+- **T065 (yours):** quickstart.md §1, the cold prod run. Started on 2026-10-09. The first `make up ENV=prod` stopped at the GPU, the second at SeaweedFS, and the third at Langfuse's worker. T176–T178 fix what the second found, T180 what the third found, and T179 records the GPU fix you made by hand ("T065's run" below) The fourth, at aa69d8d, passed §1.1, and §1.2–§1.12 followed: SC-001 in 431 s, the rollback, isolation, and state kept across `make down` all pass. §1.5's panels and §1.9's gateway image are T149's. T065 is done.
 - **T149 (an agent session, after T065):** apply the first stack run's findings.
 - **This note:** T064's and T065's output goes into it, and then this block goes.
 
@@ -427,7 +427,10 @@ The Author's four `make up ENV=prod` runs: two at e745177, one at a6b0e80 after 
      - **§1.12, the rollback on dev: passes.** A is e58d0dd and B is 8a38709. `make up ENV=dev REF=A`, then dev's init (audit #1), then `make up ENV=dev`, then the rollback `make up ENV=dev REF=A`: each exited 0. `make status` named B running with A previous, then A running with B previous. Dev's operator status after the rollback matched its status at A in state, meters, and renewal. The hello after the rollback answered `"route":"local"` from `qwen2.5-0.5b-instruct` in 281 ms.
      - **§1.7, isolation: passes.** "isolation-check: PASS: neither stack reaches the other's names, addresses, ports, or volumes (FR-020)": all 20 assertions, both ways, plus the mounts (16 volumes, each its own stack's; the models' directory the only shared bind, read-only). The two models together used 22,558 of 24,463 MiB.
      - **§1.9:** `make policy` passes, and every pulled image's ID is the same in both stacks. The gateway's aren't: prod's `277d65399ae9…` at B, and dev's `c06649f69d8b…` at A. Compose builds the gateway once per stack, as `h4reet-prod-gateway` and `h4reet-dev-gateway`, each from its own export. Two builds give two IDs even from one commit unless the build is reproducible, and these two were at different commits as well. §1.9 expects one ID ("nothing was rebuilt for an environment"), so T149 now lists it.
-     - **§1.8, the local half:** all ten listening ports in 18000–18399 are on `127.0.0.1`. The scan from another machine is still to do.
+     - **§1.8:** all ten listening ports in 18000–18399 are on `127.0.0.1`, and the scan from another machine found "No open ports" (the Author's words).
+     - **§1.10, the browser's own requests:** none to a host other than localhost, in Grafana or Langfuse, so disclosure row B1 has no host to add.
+     - **§1.4's last look:** the generation itself has no input or output either.
+     - **The prod model's load time (§1.6):** in the cold start, model-server-gpu started at 22:02:44 and was healthy by 22:03:11, 27 s at most at the health check's interval. The file had just been written, so it likely loaded from the page cache.
      - **Two status messages that mislead (T182):**
        - At B, dev's status ended "status: healthy, waiting on the operator" with the store initialized. `status.py` says that after any WARN; here the WARNs were T181's false positives and "Prometheus targets down: loki, prometheus" a few seconds after Prometheus restarted, gone at the next status.
        - After every gateway restart, operator status prints "journal        unknown (journal/2026-10.jsonl)". That is by design: the gateway reports `unknown` until its first journal record since it started, and a local hello writes none. The wording reads like a fault.
@@ -598,7 +601,7 @@ exit 2
 
 </details>
 
-**Next:** §1.8's port scan from another machine and §1.10's browser hosts. §1.5's panels and §1.9's gateway image wait for T149.
+**T065 is done.** Next: T064 on the agents' engine, then T149, T181, and T182.
 
 ## For the Author
 
