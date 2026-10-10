@@ -269,6 +269,8 @@ check bash-gate.sh planned "#\<newline>bash deploy/scripts/aws-login.sh" \
   "$(jq -cn --arg c "$(printf '#\\\nbash deploy/scripts/aws-login.sh')" '{command:$c}')"
 check bash-gate.sh planned ": #\<newline>./deploy/scripts/aws-\<newline>login.sh" \
   "$(jq -cn --arg c "$(printf ': #\\\n./deploy/scripts/aws-\\\nlogin.sh')" '{command:$c}')"
+check bash-gate.sh planned "( : )#\<newline>./deploy/scripts/aws-\<newline>login.sh" \
+  "$(jq -cn --arg c "$(printf '( : )#\\\n./deploy/scripts/aws-\\\nlogin.sh')" '{command:$c}')"
 # Spellings the rules don't see: a name built at run time or held in a variable, a glob, an ANSI-C escape inside a name,
 # run.py reached from its own directory or by a computed import, and a copy run in a command of its own. The targets'
 # and the CLI's own SANDBOX_RUNTIME refusals, and the token and session the sandbox can't read, still stop them.

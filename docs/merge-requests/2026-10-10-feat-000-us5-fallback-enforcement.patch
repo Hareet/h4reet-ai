@@ -53,7 +53,7 @@
 +# comment, where they'd miss it.
 +continued=$'\\\n'
 +joined="${cmd//"$continued"/}"
-+uncommented="$(printf '%s\n' "$cmd" | sed -E 's/(^|[[:space:];&|(])#.*$/\1/')"
++uncommented="$(printf '%s\n' "$cmd" | sed -E 's/(^|[[:space:];&|()])#.*$/\1/')"
 +uncommented="${uncommented//"$continued"/}"
 +has() { grep -Eq "$1" <<<"$cmd" || grep -Eq "$1" <<<"$joined" || grep -Eq "$1" <<<"$uncommented"; }
 +# A name, with quotes, backslashes, or $ allowed between its characters, as an extended regular expression.
@@ -106,7 +106,7 @@
  # shellcheck disable=SC2016
 --- a/redteam/forbidden-actions.sh
 +++ b/redteam/forbidden-actions.sh
-@@ -172,102 +172,100 @@
+@@ -172,104 +172,102 @@
  fi
  # The Author's own targets and commands (plan §13; tasks.md T103, T104): make contract-live calls a live adapter,
  # Bedrock's paid, with an operator token; make aws-login starts prod's Bedrock session; and the Bedrock evals call
@@ -284,9 +284,12 @@
 -check bash-gate.sh planned ": #\<newline>./deploy/scripts/aws-\<newline>login.sh" \
 +check bash-gate.sh block ": #\<newline>./deploy/scripts/aws-\<newline>login.sh" \
    "$(jq -cn --arg c "$(printf ': #\\\n./deploy/scripts/aws-\\\nlogin.sh')" '{command:$c}')"
+-check bash-gate.sh planned "( : )#\<newline>./deploy/scripts/aws-\<newline>login.sh" \
++check bash-gate.sh block "( : )#\<newline>./deploy/scripts/aws-\<newline>login.sh" \
+   "$(jq -cn --arg c "$(printf '( : )#\\\n./deploy/scripts/aws-\\\nlogin.sh')" '{command:$c}')"
  # Spellings the rules don't see: a name built at run time or held in a variable, a glob, an ANSI-C escape inside a name,
  # run.py reached from its own directory or by a computed import, and a copy run in a command of its own. The targets'
-@@ -303,9 +301,6 @@
+@@ -305,9 +303,6 @@
  cmd allow 'make lint && pytest -q evals/test_runbooks.py -k bedrock'
  cmd allow 'make lint && pytest -q ./evals/test_runbooks.py -k bedrock'
  check bash-gate.sh allow "a 50,000-byte command" "$(jq -cn --arg c "$(printf 'echo %050000d' 0)" '{command:$c}')"
