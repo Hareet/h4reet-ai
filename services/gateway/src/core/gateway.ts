@@ -256,6 +256,8 @@ export class AdapterHealth {
   private reason: HealthReason | undefined = "not_ready";
   private checkedAt: string;
   private latencyMs: number | undefined;
+  /** The last probe's credentialsExpireAt: a paid adapter's SSO session end (provider-adapter.md §2.4). */
+  private credentialsExpireAt: string | undefined;
   private passes = 0;
   private failures = 0;
   /** When the effective health last flipped, real ms; startup counts as turning unhealthy. */
@@ -284,6 +286,7 @@ export class AdapterHealth {
       checkedAt: this.checkedAt,
       ...(this.reason === undefined ? {} : { reason: this.reason }),
       ...(this.latencyMs === undefined ? {} : { latencyMs: this.latencyMs }),
+      ...(this.credentialsExpireAt === undefined ? {} : { credentialsExpireAt: this.credentialsExpireAt }),
     };
   }
 
@@ -315,6 +318,7 @@ export class AdapterHealth {
     const status = await this.adapter.health(AbortSignal.timeout(this.cadence.timeoutMs));
     this.checkedAt = status.checkedAt;
     this.latencyMs = status.latencyMs;
+    this.credentialsExpireAt = status.credentialsExpireAt;
     if (status.healthy) {
       this.failures = 0;
       this.passes += 1;
@@ -482,6 +486,8 @@ interface Routed {
   built: BuiltAdapter;
   health: AdapterHealth;
   requestTimeoutMs: number;
+  /** The SSO session end credentials_expiring last fired for, real ms: once per session end. */
+  credentialsWarnedFor?: number;
 }
 
 const STATE_LOG_EVERY_MS = 60_000;
@@ -502,6 +508,8 @@ const LOCAL_LEDGER_ROW = `INSERT INTO gateway.ledger (id, reservation_id, ts, st
 export class Gateway {
   /** Queues the fallback_unavailable alert (app.ts sets it to the dispatcher's): a paid fallback turned unhealthy. */
   onFallbackUnavailable: ((adapter: string, reason: "credentials" | "circuit_open") => void) | undefined;
+  /** Queues the credentials_expiring alert (app.ts sets it to the dispatcher's): a paid adapter's session ends soon. */
+  onCredentialsExpiring: ((adapter: string, label: string, endsAt: number) => void) | undefined;
   private readonly primary: Routed;
   /** When the route was built: a switched-off adapter's checked_at. */
   private readonly disabledAt: number;
@@ -549,7 +557,10 @@ export class Gateway {
     for (const r of this.routed()) r.health.start();
     this.opts.meter?.start();
     if (this.gaugeTimer !== undefined) return;
-    this.gaugeTimer = setInterval(() => void this.refreshGauges().catch(() => {}), this.opts.gaugeIntervalMs ?? 10_000);
+    this.gaugeTimer = setInterval(() => {
+      void this.refreshGauges().catch(() => {});
+      this.checkCredentials();
+    }, this.opts.gaugeIntervalMs ?? 10_000);
     this.gaugeTimer.unref();
   }
 
@@ -574,6 +585,26 @@ export class Gateway {
   /** The in-memory metered counters, for GET /admin/status. */
   meteredCounters(): { inFlight: number; lastMinute: number } {
     return this.opts.meter?.counters() ?? { inFlight: 0, lastMinute: 0 };
+  }
+
+  /**
+   * The 10 s ticker's credentials check (alerts.md §2): a routed paid adapter whose last probe reports an SSO session
+   * ending within its type's warning lead time, 2 h for Bedrock, queues credentials_expiring. It fires once per session
+   * end; the outbox's dedupe key, to the minute of the end, holds it to one across restarts. A session that has
+   * already ended doesn't warn: its credentials fail, and fallback_unavailable says so.
+   */
+  checkCredentials(): void {
+    const now = this.realNow();
+    for (const r of this.routed()) {
+      const { config } = r.built;
+      const warnMs = config.spec.credentialsWarnMs?.(config.settings);
+      if (config.kind !== "paid" || warnMs === undefined) continue;
+      const endsAt = Date.parse(r.health.status().credentialsExpireAt ?? "");
+      if (!Number.isFinite(endsAt) || now < endsAt - warnMs || now >= endsAt || r.credentialsWarnedFor === endsAt)
+        continue;
+      r.credentialsWarnedFor = endsAt;
+      this.onCredentialsExpiring?.(config.id, config.spec.label ?? config.id, endsAt);
+    }
   }
 
   /** One probe of every routed adapter now, counted as their loops count it. */

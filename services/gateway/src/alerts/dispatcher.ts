@@ -590,6 +590,60 @@ export class Dispatcher {
   }
 
   // -------------------------------------------------------------------------------------------------------------
+  // credentials_expiring (alerts.md §2, §3; data-model.md §7.7)
+  // -------------------------------------------------------------------------------------------------------------
+
+  /**
+   * A paid adapter's SSO session ends within its warning lead time: one row, keyed by the adapter and the session's
+   * end to the minute, so one per session however often the ticker asks. While the store is empty or down, nothing is
+   * queued, and the next tick asks again. Resolves true when this call queued it.
+   */
+  async credentialsExpiring(adapter: string, label: string, endsAt: number): Promise<boolean> {
+    const { deps } = this;
+    if (deps.store.status !== "ready") return false;
+    const read = await deps.store.readStackState();
+    if (read.kind !== "ok") return false;
+    const now = gatewayTime(deps.realNow(), read.testClockOffsetMs);
+    const key = dedupeKey.credentialsExpiring(deps.stack, adapter, endsAt);
+    const t = thresholds(deps.budgets.envs[deps.envClass]);
+    const periods = periodKeys(now);
+    let queued: boolean;
+    try {
+      queued = await deps.store.transaction(async (q) =>
+        queueAlert(
+          q,
+          {
+            stack: deps.stack,
+            envClass: deps.envClass,
+            prefix: deps.alerts.prefixes[deps.stack],
+            dedupeKey: key,
+            at: now,
+            testClock: read.testClockOffsetMs !== null,
+            runtime:
+              read.state === "degraded" ? { state: "degraded", since: read.since.getTime() } : { state: "normal" },
+            fallback:
+              read.fallbackAwaitingRenewal && read.fallbackAwaitingSince !== null
+                ? { state: "awaiting", since: read.fallbackAwaitingSince.getTime() }
+                : { state: "available" },
+            meters: meterFactsOf(await readPeriodRows(q, periods), t),
+          },
+          { kind: "credentials_expiring", adapter, label, endsAt },
+          deps.realNow(),
+        ),
+      );
+    } catch {
+      return false; // the store failed under it: its outage is noted, and the next tick asks again
+    }
+    if (queued) {
+      deps.logger.info(
+        { event: "alert.queued", dedupe_key: key, kind: "credentials_expiring" },
+        "An alert was queued.",
+      );
+    }
+    return queued;
+  }
+
+  // -------------------------------------------------------------------------------------------------------------
   // The daily reminder (alerts.md §2, §3; data-model.md §7.7)
   // -------------------------------------------------------------------------------------------------------------
 

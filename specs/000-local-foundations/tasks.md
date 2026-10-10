@@ -478,7 +478,7 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 5
 
-- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review). Its name lookups, the SSO refresh's included, go through c-ares: the credential chain gets the same handler as `clientConfig.requestHandler` (§3.2's name-lookup row, from T189). It decides whether the SDK may refresh the SSO token in memory, which token-providers 3.1147.0 does in the token's last 5 minutes, contacting `oidc.us-east-1.amazonaws.com` while running (plan.md's correction, US2's round 9).
+- [X] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review). Its name lookups, the SSO refresh's included, go through c-ares: the credential chain gets the same handler as `clientConfig.requestHandler` (§3.2's name-lookup row, from T189). It decides whether the SDK may refresh the SSO token in memory, which token-providers 3.1147.0 does in the token's last 5 minutes, contacting `oidc.us-east-1.amazonaws.com` while running (plan.md's correction, US2's round 9).
   - `ConverseCommand` in us-east-1, `maxAttempts: 1`, `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000, httpsAgent})`, with `httpsAgent` keeping the SDK default's `keepAlive: true` and `maxSockets: 50` and adding `lookup: aresLookup`;
   - one retry, only on `ThrottlingException`;
   - a timeout counts as `possiblyBilled`;
@@ -486,6 +486,32 @@ description: "Task list for spec 000, Local Foundations"
   - a `credentials_expiring` outbox row 2 h before the SSO session ends.
 
   Add the `bedrock` adapter to `config/routing.yaml` with its placeholder model (contracts/config-files.md §1.2, step 3); prod's route doesn't name it yet.
+
+  Done on 2026-10-10:
+  - **The adapter,** `src/adapters/bedrock-converse.ts`, follows §3.2:
+    - the client and chain: one handler whose `httpsAgent` keeps the SDK default's options and resolves through c-ares, shared with `fromNodeProviderChain({ clientConfig: { requestHandler } })`;
+    - the Converse request and response, and §2.5's mapping, with the handler's connect timeout unbilled (§2.5's readings);
+    - a health probe that resolves credentials and reads the SSO session's end;
+    - `close()`, which also destroys the agent, since the handler leaves an agent it was handed open.
+
+    It refuses routing.yaml's placeholder model.
+  - **The SSO token refresh:** the chain is the SDK's default, which refreshes the token in memory in its last 5 minutes. That stays allowed until the Author decides; the merge-request note asks.
+  - **credentials_expiring:**
+    - `AdapterHealth` now keeps the probe's `credentialsExpireAt`, which it had dropped, so `/health`'s `credentials_expire_at` reports it too.
+    - The 10 s ticker's `checkCredentials()` queues the alert once per session end, from `credentials_warn_before_s` before it, through the dispatcher's new `credentialsExpiring()`. Its dedupe key holds the alert to one across restarts.
+    - The type spec gives the label ("Bedrock") and the lead time.
+  - **routing.yaml** has the bedrock adapter with its placeholder model, and `REGISTERED_ADAPTER_TYPES` names bedrock-converse. validate-config notes the placeholder, and no route names it.
+  - **Tests:**
+    - `test/contract/bedrock-converse.contract.test.ts`: the suite, C1–C12, against `aws-sdk-client-mock`;
+    - `test/contract/bedrock-converse.errors.test.ts`: past C4;
+    - `test/unit/bedrock-wiring.test.ts`;
+    - `test/unit/credentials-expiring.test.ts` and `test/integration/credentials-expiring.test.ts`;
+    - the helper `test/helpers/stub-bedrock.ts`.
+
+    Each new behavior fails its test when taken out (checked).
+  - **For the Author's acceptance:** two existing test files changed with the registration. The note lists them.
+    - `test/unit/registry.test.ts` pins the registered types, and now names bedrock-converse, as its comment anticipated.
+    - `test/unit/config.test.ts`'s sample §1.3 error was the unregistered bedrock-converse type. It now passes the pre-T102 type set explicitly, and keeps its assertions.
 - [ ] T103 [US5] Implement `POST /admin/adapters/{id}/complete` per contracts/operator-admin.md §5: local on any stack, bedrock on prod only, attribution `test`, through admission. Add `scripts/operator.py contract-record` and `make contract-live ENV=prod ADAPTER=local|bedrock`, which records in the Author's terminal and replays in the devcontainer image with `--network none` (§7).
 - [ ] T104 [US5] Create `deploy/scripts/aws-login.sh` and `make aws-login` (Author): `HOME=~/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock`. Wire the gateway's `${H4_AWS_DIR}` mount and `GATEWAY_AWS_PROFILE` in `deploy/compose.yaml` (§5.2).
 - [ ] T105 [US5] **Author**: set up Bedrock and fill `config/prices.yaml` and `config/routing.yaml` (research.md R-12 and R-17, quickstart.md §0.6):
