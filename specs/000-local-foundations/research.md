@@ -211,13 +211,19 @@ Each row gives the question as asked, the option the Author chose, and that opti
   - Off in this stack, because each one reaches out or calls a model:
     - the in-app agent: `LANGFUSE_IN_APP_AGENT_ENABLED=false`, with its sandbox and AWS keys unset;
     - the AI features: every `LANGFUSE_AI_*` key unset;
-    - LLM connections: `LANGFUSE_LLM_CONNECTION_WHITELISTED_*` empty;
+    - LLM connections: `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST`, `_IPS`, and `_IP_SEGMENTS` empty, the exceptions to Langfuse's block on internal addresses (names from the pinned images, T149);
     - Langfuse's own email: `SMTP_CONNECTION_URL` and `EMAIL_FROM_ADDRESS` unset;
     - batch export: `LANGFUSE_S3_BATCH_EXPORT_ENABLED=false`;
     - other blob backends: `LANGFUSE_USE_AZURE_BLOB` and `LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE` unset;
     - the MCP keys: unset;
     - cloud credentials: no `AWS_*` key in Langfuse's containers.
   - The internal network blocks all of these anyway; the settings are the first layer. The first stack task verifies how Langfuse reads cost from the gateway's spans.
+- **Checked on dev-cpu** (tasks.md T149, 2026-10-09), with generations sent straight to Langfuse's OTLP endpoint:
+  - **The cost:** Langfuse reads `gen_ai.usage.cost` and `langfuse.observation.cost_details` alike. With only `gen_ai.usage.cost` at 0.0123, or only `cost_details` at `{"total":0.0456}`, the generation's `totalCost` was 0.0123 and 0.0456. The collector keeps `gen_ai.usage.cost`, a plain number.
+  - **gzip:** taken. A gzip-encoded request got 200, and its generation arrived, with a `totalCost` of 0.0789. The collector's Langfuse exporter compresses with gzip.
+  - **Generations:** spans with `gen_ai.*` attributes and no `langfuse.observation.type` became generations, with their model and usage.
+  - **Reading back:** v4 runs in events_only mode, where `/api/public/traces` and `/api/public/observations` answer 404, "This endpoint is not available on deployments running in Langfuse v4 events_only mode." `/api/public/v2/observations` answers, with the cost and usage fields only when asked for (`fields=…,usage,cost`).
+  - **The LLM-connection allowlists:** `@langfuse/shared`'s `env.js` reads each of the three keys as `s ? s.split(",")… : []`, so the empty string and unset are both an empty list.
 - **Alternatives**:
   - v3: about to lose security fixes.
   - Langfuse Cloud: payloads would leave the local tier.

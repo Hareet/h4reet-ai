@@ -168,7 +168,7 @@ def test_the_exporters_and_extensions() -> None:
     assert exporters["otlphttp/langfuse"] == {
         "traces_endpoint": "http://langfuse-web:3000/api/public/otel/v1/traces",
         "auth": {"authenticator": "basicauth/langfuse"},
-        "compression": "none",
+        "compression": "gzip",  # Langfuse 4.54.0 takes it (telemetry.md §6.4, T149)
         "timeout": "10s",
         "retry_on_failure": {
             "enabled": True,
@@ -441,16 +441,14 @@ def test_client_identifiers_are_always_deleted(context: str, kind: str) -> None:
     ) and not pattern.fullmatch("http.request.method")
 
 
-def test_the_cost_attributes_langfuse_reads() -> None:
+def test_the_cost_attribute_langfuse_reads() -> None:
+    # Langfuse 4.54.0 reads both; the plain number stays, and the JSON one goes (telemetry.md §3.5, T149).
     span = statements("span", "trace_statements")
     assert (
         'set(attributes["gen_ai.usage.cost"], attributes["h4.cost.usd"]) where attributes["h4.cost.usd"] != nil'
         in span
     )
-    assert (
-        'set(attributes["langfuse.observation.cost_details"], Format("{\\"total\\":%v}", [attributes["h4.cost.usd"]]))'
-        ' where attributes["h4.cost.usd"] != nil'
-    ) in span
+    assert not [s for s in span if "langfuse.observation.cost_details" in s]
 
 
 def test_every_ottl_string_unquotes_cleanly() -> None:

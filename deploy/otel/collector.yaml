@@ -58,7 +58,8 @@ processors:
         - 'IsMatch(name, "^gen_ai\\.")'
 
   # FR-029: no payload unless the span opts in and this collector's own switch is on (dev only), and never a client
-  # identifier. Then the cost attributes Langfuse reads (telemetry.md §3.5); the first stack task keeps the one it uses.
+  # identifier. Then the cost attribute Langfuse reads (telemetry.md §3.5): it reads gen_ai.usage.cost and
+  # langfuse.observation.cost_details alike, and the plain number is kept (T149, on dev-cpu).
   transform/payloads:
     error_mode: ignore
     trace_statements:
@@ -75,7 +76,6 @@ processors:
           - 'delete_key(attributes, "cookie")'
           - 'delete_matching_keys(attributes, "^http\\.(request|response)\\.header\\..*$")'
           - 'set(attributes["gen_ai.usage.cost"], attributes["h4.cost.usd"]) where attributes["h4.cost.usd"] != nil'
-          - 'set(attributes["langfuse.observation.cost_details"], Format("{\"total\":%v}", [attributes["h4.cost.usd"]])) where attributes["h4.cost.usd"] != nil'
       - context: spanevent
         statements:
           - 'delete_matching_keys(attributes, "^(gen_ai\\.(input|output)\\.messages|gen_ai\\.system_instructions|gen_ai\\.(prompt|completion)(\\..*)?|langfuse\\.observation\\.(input|output)|input\\.value|output\\.value|http\\.(request|response)\\.body(\\..*)?)$") where not (span.attributes["h4.payload.sampled"] == true and "${env:TELEMETRY_PAYLOAD_SAMPLING}" == "on")'
@@ -206,8 +206,8 @@ exporters:
     traces_endpoint: http://langfuse-web:3000/api/public/otel/v1/traces
     auth:
       authenticator: basicauth/langfuse
-    # gzip waits for the first stack task to confirm Langfuse takes it (telemetry.md §8).
-    compression: none
+    # Langfuse 4.54.0 takes gzip: a gzip-encoded request on dev-cpu got 200 and its generation (T149).
+    compression: gzip
     timeout: 10s
     retry_on_failure:
       enabled: true

@@ -637,7 +637,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
     - batch exports: `LANGFUSE_S3_BATCH_EXPORT_ENABLED=false`;
     - cloud credentials: no `AWS_*` key in Langfuse's containers.
 
-  The media-upload keys point at the same SeaweedFS bucket under the prefix `media/`. Spec 000 uploads no media, so SeaweedFS stays unpublished. Whether Langfuse reads cost from `h4.cost.usd` mapped to its cost-details attribute is verified in the first stack task, with the mapping in the collector's transform.
+  The media-upload keys point at the same SeaweedFS bucket under the prefix `media/`. Spec 000 uploads no media, so SeaweedFS stays unpublished. Langfuse reads the cost from `gen_ai.usage.cost`, which the collector's transform sets from `h4.cost.usd`; T149 found it reads `langfuse.observation.cost_details` alike, and kept the plain number. The collector's Langfuse exporter compresses with gzip, which Langfuse takes (T149).
 - **SeaweedFS** (ADR 0022): `weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json`. `deploy/seaweedfs/entrypoint.sh` renders `s3.json` from `SEAWEEDFS_S3_ACCESS_KEY` and `SEAWEEDFS_S3_SECRET_KEY`, starts the server, waits for the master, creates the `langfuse` bucket idempotently with `weed shell`, and waits. Usage reporting is off where the pinned version has a switch for it.
 - **Prometheus 3:**
   - `--web.enable-otlp-receiver`, with `otlp.promote_resource_attributes: [service.name, service.namespace, deployment.environment.name]` and `out_of_order_time_window: 30m`.
