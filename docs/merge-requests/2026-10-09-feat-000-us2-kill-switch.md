@@ -3,7 +3,7 @@ Spec: specs/000-local-foundations/ (Phase 4, User Story 2: tasks T067–T086) ·
 Session: started from `~/h4reet-ai/h4reet-ai`, the repository root · Repo hooks active: yes
 Authorized by: spec 000's plan.md and tasks.md; the Author's "Keep going until you hit the limit again. Try to continue as much as you can" (2026-10-09); "Let's continue as much as possible until the restart is needed" (2026-10-09); and the standing rule to stack the next phase's branch while a finished one waits for its merge.
 
-**Status: DRAFT. Not ready to merge.** Every task an agent session can do without the engine is done and reviewed, except T189, which round 4 opened. `make check` passes on this branch merged with the us1 stack ("Round 4's checks" below). What's left:
+**Status: DRAFT. Not ready to merge.** Every task an agent session can do without the engine is done, except T189, which round 4 opened. Round 5 confirmed round 4's fixes. On this branch merged with the us1 stack, `make check` exits 2: every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). On this branch alone, `test` also fails `test_p18_the_model_file`, which T175 fixed on the stack ("Rounds 4 and 5's checks" below). What's left:
 - **T189 (an agent session):** the gateway's other `getaddrinfo` users, round 4's S2.
 - **T084 (an agent session, on the engine):** `make breach-test ENV=dev-cpu` passes all 12 steps. Its pre-run, on a simulated merge with the us1 stack (2026-10-10), passed 45 of 52 assertions. T187 and T188 fix the seven misses, and are done (d43da3e and the commit after it, "T084's pre-run" below); T084's run on the engine checks them.
 - **T085 (yours, Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded, with the phone on camera (SC-002).
@@ -155,7 +155,7 @@ One read-only reviewer read d43da3e and 071d6bd (2026-10-10), the fixes for T084
   - **The fix:** `core/resolve.ts` skips a family no non-loopback interface has an address in, as `getaddrinfo` did.
   - **Tests:** without the fix, three fail: the lookup's, the Telegram transport's (its fake host now has an AAAA record, as api.telegram.org does), and a T151 case.
 - **S2: other `getaddrinfo` users can still starve the store,** with the collector stopped, for instance: pg's reconnects, the three OTLP exporters, `edge.ts`, and nodemailer's fallback. T188's record had implied the threadpool was free of every cause. It now says what T188 freed, and **T189** names the rest, with the options and a test on the engine.
-- **T188's own criterion,** "test that a held lookup doesn't delay a delivery," had no test. Now four opens of a FIFO with no writer hold libuv's four threads, `dns.lookup` waits, and a Telegram delivery still arrives.
+- **T188's own criterion,** "test that a held lookup doesn't delay a delivery," had no test. Now four opens of a FIFO with no writer hold all four of libuv's threads, more than hung lookups can, `dns.lookup` waits, and a Telegram delivery still arrives.
 - **The nits:**
   - the T151 tests assert each query list exactly again, in an IPv4-only container (N1);
   - stale lines in provider-adapter.md, otel.ts, plan.md, and research.md are corrected (N2);
@@ -164,7 +164,42 @@ One read-only reviewer read d43da3e and 071d6bd (2026-10-10), the fixes for T084
   - this note's status line no longer says the round's commits were reviewed and checked before they were (N5);
   - the smaller ones: "kept to 64 KiB", not "read to"; the error that says more than `ENODATA` is the one reported; and a comment on the T151 `ETIMEOUT` case.
 
-**The T151 test change is yours to accept.** The constitution counts a test edit during a fix as needing a human. `test/contract/local-openai.errors.test.ts` faked `dns.lookup`, which the adapter no longer calls, so its fake stopped intercepting anything. It now fakes c-ares's A and AAAA answers, with c-ares's error codes. Every assertion about the adapter's behavior is unchanged, and the query lists are exact.
+**The test-file edits are yours to accept:** round 5 lists all four.
+
+### Round 5: round 4's fixes confirmed (at 20897a9 and aaf9293), applied at 39f5a67
+
+A confirming review of round 4's fixes. Its verdict: "approve the code. The S1 fix, the T188 test and EPROTO are correct and broke nothing I could find. Before the Author is asked to merge, fix the three text-only should-fix items: the status line, the test-edit acceptance list, and T189's threadpool arithmetic." All of it is applied:
+- **The status line outran its evidence.** It said `make check` "passes" on the merge, whose output exits 2, and "reviewed" before this review had run. It now gives the exit code and names each failure.
+- **Only one of four test-file edits was put to you.** The list below names all four.
+- **libuv gives lookups at most two of its four threads.** It treats `getaddrinfo` as slow I/O, (n + 1) / 2 threads at most, so "four threads" was wrong everywhere it was said: the code's comments, alerts.md, provider-adapter.md, T188's record, T189, and this note.
+  - **T189** keeps the first reviewer's estimate beside the corrected arithmetic. Two hung exports already queue every other lookup, pg's included, and `UV_THREADPOOL_SIZE` of N buys (N + 1) / 2 lookup slots.
+  - **The reproduction fits two slots:** 17,409 ms behind five 8,007 ms lookups is two batches ahead.
+- **The nits applied:**
+  - `localhost` under `ADDRCONFIG` answers only the configured families, as glibc does;
+  - interfaces that can't be read filter nothing, instead of throwing into net's connect;
+  - a test keeps an A answer when the AAAA query fails under `all`, so the mutant that dropped it now fails;
+  - `EPROTO` is `tls` only on an `https` request, since on plain http it can come from the network;
+  - the FIFO test releases its readers with `O_RDWR`, which never fails with `ENXIO`, and says it relies on vitest's forks pool;
+  - T084 now checks the gateway container's IPv6 interfaces (For the Author, below).
+- **The rest, recorded:** an explicit family ignores `ADDRCONFIG`, unreachable since net sends the hint only without one, and the R-08 citation resolves only on the us1 stack.
+
+**The test-file edits made during these fixes, for you to accept** (the constitution counts a test edit during a fix as needing a human). No assertion about behavior was weakened:
+- **`services/gateway/test/contract/local-openai.errors.test.ts`** (T151's tests):
+  - its fake moved from `dns.lookup`, which the adapter no longer calls, to c-ares's A and AAAA queries, with c-ares's codes (`ENOTFOUND`, `ETIMEOUT`, `ENODATA` in place of `EAI_AGAIN`);
+  - an IPv4-only interface stub;
+  - each query list asserted exactly.
+- **`services/gateway/test/unit/telegram.test.ts`,** new in d43da3e, then changed:
+  - the fixture's AAAA answer, from `ENODATA` to `2001:db8::7`, as api.telegram.org has one;
+  - the first test's assertion, from `asked[0]` to the exact list;
+  - the FIFO test's title and release;
+  - new tests for `https` and for `EPROTO`.
+- **`services/gateway/test/unit/resolve.test.ts`,** new in d43da3e, then changed:
+  - `look()` takes the interfaces' families;
+  - new cases for `ADDRCONFIG`, error precedence, a partial answer, localhost, and unreadable interfaces.
+- **`evals/test_breach_helpers.py`** (T080's tests):
+  - the trace fakes moved to Langfuse's v2 list;
+  - the expected `fields` changed to match the code (with `cost`);
+  - four new tests.
 
 ## Verification
 
@@ -344,14 +379,23 @@ make check: 4 PASS, 2 SKIP, 5 PLANNED, 0 PENDING, 0 FAIL
 
 </details>
 
-### Round 4's checks (2026-10-10, at 20897a9)
+### Rounds 4 and 5's checks (2026-10-10, at 39f5a67)
 
-- **The gateway's suite, on this branch:** 585 passed, 12 skipped. tsc, ESLint, and Prettier are clean.
-- **The probe's tests:** 84 passed.
-- **`make check ENGINE_MODE=none-yet` on this branch alone:** `test` fails in one case, `deploy/scripts/test_preflight.py::test_p18_the_model_file`. It reads the agents' engine's real model directory, seeded on 2026-10-09, and the us1 stack already fixed it (T175). This branch's other rows are PLANNED for patches its base predates. So the merge with the us1 stack is the state worth checking.
-- **`make check ENGINE_MODE=none-yet` on that merge:** `sim/000-us2-on-us1-stack` (da500cd), this branch at 20897a9 merged with the stack at 903439e by the us1 note's recipe. Exit 2, with 7 PASS, 2 SKIP, 1 PLANNED (the 13 breach-test rows, T117), and 1 FAIL, the known toolchain pin (Claude Code 2.1.296 against 2.1.295). The gateway has 586 tests passing and 11 skipped; pytest has 1621 passing and 2 skipped. `ENGINE_MODE=none-yet` holds the image gate back: no Dockerfile changed.
+- **The gateway's suite, on this branch:** tsc, ESLint, and Prettier are clean. The run's summary:
 
-<details><summary>make check ENGINE_MODE=none-yet, on the simulated merge at da500cd</summary>
+  ```
+  Tests  590 passed | 12 skipped (602)
+  Start at  06:28:14
+  Duration  52.82s (tests 95%, import 2%, transform 2%)
+  ```
+- **The probe's tests, on this branch:** `84 passed in 0.14s`.
+- **`make check ENGINE_MODE=none-yet` on this branch alone:** `test` fails one case, `deploy/scripts/test_preflight.py::test_p18_the_model_file`. It reads the agents' engine's real model directory, seeded on 2026-10-09, and the us1 stack already fixed it (T175). This branch's other rows are PLANNED for patches its base predates. So the merge with the us1 stack is the state worth checking.
+- **`make check ENGINE_MODE=none-yet` on that merge:** `sim/000-us2-on-us1-stack` (13c3d42), this branch at 39f5a67 merged with the stack at 903439e by the us1 note's recipe.
+  - **Exit 2.** Every gate passes except `toolchain-check`, the known drift (Claude Code 2.1.296 against its pin of 2.1.295). The matrix is PLANNED, for the 13 breach-test rows (T117).
+  - **Counts:** 7 PASS, 2 SKIP, 1 PLANNED, 1 FAIL. The gateway has 591 tests passing and 11 skipped; pytest has 1621 passing and 2 skipped.
+  - **The image gate** is held back by `ENGINE_MODE=none-yet`, since no Dockerfile changed.
+
+<details><summary>make check ENGINE_MODE=none-yet, on the simulated merge at 13c3d42</summary>
 
 ```
 == githooks-check
@@ -413,9 +457,9 @@ npm test --workspaces --if-present
 
 
  Test Files  36 passed (36)
-      Tests  586 passed | 11 skipped (597)
-   Start at  05:55:42
-   Duration  53.54s (tests 95%, import 2%, transform 2%)
+      Tests  591 passed | 11 skipped (602)
+   Start at  06:29:50
+   Duration  54.45s (tests 96%, import 2%, transform 2%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  4%]
@@ -441,7 +485,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 93%]
 ........................................................................ [ 97%]
 .......................................                                  [100%]
-1621 passed, 2 skipped in 42.37s
+1621 passed, 2 skipped in 39.27s
 -> PASS test
 == secrets
 -> SKIP secrets (added by T091)
@@ -543,7 +587,7 @@ The relay's own `make` names the file because of T183's mask.
 **The two findings, both this branch's:**
 - **T187, the trace reads (2a, 9c):** the probe reads `/api/public/traces/{id}`, then `/api/public/observations`, and Langfuse v4's events_only mode answers 404 to both. On the run's stack, `/api/public/v2/observations?traceId=<id>&fields=core,basic,usage,cost` answered 200, with the trace's observations and the cost the probe reads.
 - **T188, Telegram while the local model is down (4b, 4c, 5c, 5d, 6c):** every Telegram attempt timed out while `model-server-cpu` was stopped (steps 4 to 7), and email delivered every alert.
-  - **The cause:** on the agents' engine, each of the gateway's DNS lookups of the stopped `model-server` hangs 8 s and fails with `EAI_AGAIN`. They fill libuv's four-thread pool, and starve the Telegram sender's own lookup past its timeout: 17.4 s behind five of them, against 2 ms alone.
+  - **The cause:** on the agents' engine, each of the gateway's DNS lookups of the stopped `model-server` hangs 8 s and fails with `EAI_AGAIN`. They fill the two threads libuv gives lookups, half its pool, and starve the Telegram sender's own lookup past its timeout: 17.4 s behind five of them, two batches, against 2 ms alone.
   - **Why it matters:** in production, that is the moment the fallback alerts are for.
 
 **Also seen:** the Telegram stand-in printed a `ConnectionResetError` traceback once, when a health check's client hung up early. It answered every request.
@@ -651,8 +695,8 @@ breach-test exit=2
 ## For the Author
 
 1. **After us1 merges:** bring this branch up to date with main, as T063 does for us1.
-2. **Accept round 4's T151 test change,** or say what it should be instead ("Round 4" above).
-3. **T084:** an agent session runs `make breach-test ENV=dev-cpu` on the engine, all 12 steps, with T187's and T188's fixes in. T189 can follow it.
+2. **Accept the four test-file edits** listed in round 5, or say what each should be instead.
+3. **T084:** an agent session runs `make breach-test ENV=dev-cpu` on the engine, all 12 steps, with T187's and T188's fixes in. It also checks that the gateway container's `/proc/net/if_inet6` lists only `lo`: S1's fix assumes no IPv6 address but loopback, link-local included. T189 can follow it.
 4. **T085 (Heavy):** `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before you commit it), with the phone on camera (quickstart.md §2.2). Fill dev's channel keys first.
 
 ### For later tasks
@@ -674,6 +718,10 @@ The last reviewer suggested another, from the cleanup's process group:
 Round 4's reviewer suggested a third, after the probe's v1 trace fake and the Telegram host's missing AAAA record:
 
 > - A fake answers as the production dependency does (its API version, its DNS records); a shape no run recorded is marked unverified in the test.
+
+Round 5's reviewer suggested a fourth, after this note's status line claimed a pass twice:
+
+> - A status line that outruns its evidence: "passes" only for exit 0 in the pasted output, "reviewed" only once the review has run.
 
 ### Observations
 
