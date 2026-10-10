@@ -4,13 +4,6 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-# Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
-# GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review). An
-# empty rule for every makefile read so far (this one includes no other) leaves make nothing to remake them with,
-# whatever path it read them by; and with no suffixes, no suffix rule is left for any target.
-$(MAKEFILE_LIST): ;
-.SUFFIXES:
-
 # A command-line variable is make code: make expands its value wherever it's used, and again when it exports it to a
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
@@ -414,3 +407,10 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
 	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
 	init-env operator-token operator-status operator-init hello isolation-check breach-test plan
+
+# Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
+# GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
+# §11, Principle IV). An empty rule for every makefile read before this line, which stays the last, leaves make nothing
+# to remake them with, whatever path it read them by; and with no suffixes, no suffix rule is left for any target.
+$(MAKEFILE_LIST): ;
+.SUFFIXES:

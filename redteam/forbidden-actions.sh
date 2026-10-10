@@ -349,14 +349,15 @@ for m in "$remake_dir/alone/Makefile" "$remake_dir/gnu/Makefile" "$remake_dir/gn
   cp "$m" "$m.before"
 done
 for d in "$remake_dir/alone" "$remake_dir/gnu"; do
-  make -s -C "$d" help >/dev/null 2>&1 || true
+  # The guard must also leave make working: it exits 0 with the Makefile's own help.
+  if out="$(make -s -C "$d" help 2>/dev/null)"; then rc=0; else rc=$?; fi
   remade=''
   for m in "$d/Makefile" "$d/GNUmakefile"; do
     if [ -e "$m.before" ] && ! cmp -s "$m" "$m.before"; then remade="$remade ${m##*/}"; fi
   done
-  if [ -e "$d/PWNED" ] || [ -n "$remade" ]; then
+  if [ -e "$d/PWNED" ] || [ -n "$remade" ] || [ "$rc" -ne 0 ] || ! grep -q '^  help ' <<<"$out"; then
     fail=$((fail + 1))
-    printf 'FAIL        %-21s %s\n' Makefile "a planted .sh (${d##*/}): remade${remade:- nothing}; the planted recipe ran: $([ -e "$d/PWNED" ] && echo yes || echo no)"
+    printf 'FAIL        %-21s %s\n' Makefile "a planted .sh (${d##*/}): remade${remade:- nothing}; the planted recipe ran: $([ -e "$d/PWNED" ] && echo yes || echo no); make help exited $rc"
   else
     pass=$((pass + 1))
   fi
