@@ -624,18 +624,26 @@ description: "Task list for spec 000, Local Foundations"
 
 **Independent test**: quickstart.md §5.1 and §5.2. The README's links, and every ADR within two clicks (SC-009).
 
-- [ ] T109 [P] [US6] Update `README.md`:
+- [X] T109 [P] [US6] Update `README.md`:
   - the status and a devcontainer quickstart;
   - links to the constitution, `intent/`, the spec index, the ADR index, `docs/how-we-build/`, `SECURITY.md`, the MIT license, `docs/data-flow-disclosure.md`, `docs/runbooks/`, and `docs/recordings/`, with the breach recording on the non-engineer path.
-- [ ] T110 [P] [US6] Complete `docs/data-flow-disclosure.md` with every row of §17, closing with "No visitor data flows in this spec.". Link it from `SECURITY.md`.
-- [ ] T111 [P] [US6] Create `docs/runbooks/README.md`, an index of every runbook, and the runbooks for the agents' engine and the local gate. Update `docs/how-we-build/lifecycle.md`'s enforcement table with the new layers.
+
+  Done on 2026-10-10 (feat/000-us6-docs-wip, folded into this branch). `docs/recordings/README.md` is new, so the link resolves before T085's recording exists. The status relies on US1's T065 results.
+- [X] T110 [P] [US6] Complete `docs/data-flow-disclosure.md` with every row of §17, closing with "No visitor data flows in this spec.". Link it from `SECURITY.md`.
+  Done on 2026-10-10: rows D1 to D3 add the development-time flows (Claude Code, the engine's proxied pulls, the devcontainer build and `make tools`); D1 leaves Claude Code's own default telemetry as an open question (FR-040), the Author's to check or switch off. `evals/test_disclosure.py` holds every §17 flow to a row.
+- [X] T111 [P] [US6] Create `docs/runbooks/README.md`, an index of every runbook, and the runbooks for the agents' engine and the local gate. Update `docs/how-we-build/lifecycle.md`'s enforcement table with the new layers.
+  Done on 2026-10-10, with `evals/test_runbooks.py` holding the index to the folder. The local-gate runbook was then matched to the gate US3 built (`--prove`, the eval history's WARN, the main-tree mask).
 - [ ] T112 [P] [US6] Update `docs/START-HERE.md` per §16:
   - §1: the NVIDIA runtime step, the disk check, `make tools` (Node 24 through nvm, the default Node left alone), and `deploy/agents-engine/engine.sh setup` with its `wsl --shutdown`;
   - a new "Before you merge" section;
   - §4's gotchas;
   - §6 step 1: `make publish-check`.
-- [ ] T113 [US6] Add the new human-only paths to `.github/CODEOWNERS` (FR-001): `tools/gates/**`, `evals/agent-config/**`, `.gitleaks.toml`, `deploy/agents-engine/**`, `.mcp.json`, and `config/prices*`.
-- [ ] T114 [US6] Add a docs-link check, `evals/docs_links.py`, run by `make evals` (outside `evals/agent-config/`, which is human-only by now): every relative link in `README.md`, `docs/**`, and `specs/**` resolves; the README links the ADR index; and the index links every ADR file (SC-009).
+
+  Done on 2026-10-10. "Before you merge" is a new §7, so §4 and §6 keep the numbers plan §12, FR-042, and T120 cite; it was then matched to the gate US3 built. Stale §4 lines were updated, one of which kept the Telegram token in a shell profile, which preflight's P5 now refuses.
+- [X] T113 [US6] Add the new human-only paths to `.github/CODEOWNERS` (FR-001): `tools/gates/**`, `evals/agent-config/**`, `.gitleaks.toml`, `deploy/agents-engine/**`, `.mcp.json`, and `config/prices*`.
+  Done on 2026-10-10: the six paths. `config/budgets*`, `config/alert*`, `.gitleaksignore`, `GNUmakefile`, and `makefile` are human-only too but not listed here; the Author decides whether CODEOWNERS covers them.
+- [X] T114 [US6] Add a docs-link check, `evals/docs_links.py`, run by `make evals` (outside `evals/agent-config/`, which is human-only by now): every relative link in `README.md`, `docs/**`, and `specs/**` resolves; the README links the ADR index; and the index links every ADR file (SC-009).
+  Done on 2026-10-10: it also checks each `#fragment` against the target's headings, and that ADRs 0001 to 0005 exist. `make evals` runs it through `PY_HOST`. 0 failed, of 791 links in 69 files.
 - [ ] T115 [US6] **Author**: `tools/gates/gate` on the branch, and `make evals-agent-config` if the behavioral tier's trigger fired, committing its history entry. The summary goes into the note.
 - [ ] T116 [US6] Write the merge-request note `docs/merge-requests/<date>-feat-000-us6-docs.md`.
 
