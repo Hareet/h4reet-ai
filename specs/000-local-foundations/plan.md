@@ -867,7 +867,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
 - `.npmrc` keys outside an allowlist (`node-options` and `script-shell` run code);
 - in a build: `ssh`, `secrets`, `cache_from`, `cache_to`, and `extra_hosts`, each of which reaches the host; and a `build.context` that is absolute, or that resolves outside the compose file's tree. Each image builds from the tree the compose file came from: on a host stack, the export, so `--build` can't pick up the live working tree ([§4](#4-environment-files-preflight-and-the-stack-targets)).
 
-**The Author's gate** (`tools/gates/gate <ref>`, human-only, run directly from main's checkout rather than through make, because a planted `GNUmakefile` would shadow the Makefile):
+**The Author's gate** (`tools/gates/gate <ref>`, human-only, run directly rather than through make, because a planted `GNUmakefile` would shadow the Makefile):
 1. **Export:** `git archive <ref>` into a temporary directory.
 2. **Container phase:** in the devcontainer image (built from the exported `.devcontainer/`, tagged by its hash), `npm ci --ignore-scripts`, then, with `--network none`, lint, tests, the scaffolds, and matrix stage H.
 3. **Host phase:**
