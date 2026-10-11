@@ -11,6 +11,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -674,6 +675,46 @@ def test_a_linked_folder_hashes_alike_in_a_work_tree_and_an_export(
     export = tmp_path / "export"
     shutil.copytree(repo, export, symlinks=True, ignore=shutil.ignore_patterns(".git"))
     assert bh.trigger_hash(export) == bh.trigger_hash(repo)
+
+
+def stand_in_git(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A git first on PATH that logs each call to a file, then runs the real one: anything that calls git shows."""
+    real = shutil.which("git")
+    assert real
+    calls = tmp_path / "git-calls"
+    write(
+        tmp_path / "standin" / "git",
+        f'#!/bin/sh\nprintf "%s\\n" "$*" >> {shlex.quote(str(calls))}\n'
+        f'exec {shlex.quote(real)} "$@"\n',
+        0o755,
+    )
+    monkeypatch.setenv(
+        "PATH", f"{tmp_path / 'standin'}{os.pathsep}{os.environ['PATH']}"
+    )
+    return calls
+
+
+def test_export_mode_never_runs_git_even_where_the_tree_holds_a_git_folder(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The gate's status reads an export (review A, 1b). A branch could carry a .git folder or file, whose index,
+    # excludes, and config git would read, and a config can name programs git runs. In export mode nothing runs git.
+    expected = bh.trigger_hash(repo)
+    export = tmp_path / "export"
+    shutil.copytree(
+        repo, export, symlinks=True
+    )  # its .git too: git would take it for a work tree
+    calls = stand_in_git(tmp_path, monkeypatch)
+    assert bh.trigger_hash(export, export=True) == expected
+    assert bh.status(export, here_of(export), export=True) == 0
+    assert "PENDING (behavioral tier)" in capsys.readouterr().out
+    assert not calls.exists()
+    # The stand-in has teeth: outside export mode, the same tree's status runs git.
+    bh.status(export, here_of(export))
+    assert "ls-files" in calls.read_text()
 
 
 def test_a_missing_pin_is_refused(repo: Path) -> None:

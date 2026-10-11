@@ -1131,7 +1131,8 @@ def agent_config_evals(
             "its history entry)",
         )
     # The main tree's own behavioral.py, in this process, as the corpus step loads check_corpus: its status reads the
-    # export's cases, thresholds, history, and trigger files as data, and starts nothing (plan §14).
+    # export's cases, thresholds, history, and trigger files as data, and starts nothing (plan §14). In export mode
+    # it walks the tree and never runs git, so a .git folder or file the branch carries is data too (review A, 1b).
     spec = importlib.util.spec_from_file_location("h4gate_behavioral", tier)
     if spec is None or spec.loader is None:
         return step.fail(f"can't load {tier}")
@@ -1141,7 +1142,9 @@ def agent_config_evals(
         sys.modules[spec.name] = module  # its dataclasses look their module up there
         spec.loader.exec_module(module)
         with contextlib.redirect_stdout(out):
-            rc = module.status(export_dir, export_dir / "evals" / "agent-config")
+            rc = module.status(
+                export_dir, export_dir / "evals" / "agent-config", export=True
+            )
     except Exception as exc:  # noqa: BLE001 (the export's files are data: a bad one fails the step, not the gate)
         return step.fail(f"behavioral.py stopped: {type(exc).__name__}: {exc}")
     text = out.getvalue()

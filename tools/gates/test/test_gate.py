@@ -1423,9 +1423,10 @@ import sys
 from pathlib import Path
 
 
-def status(repo, here):
+def status(repo, here, *, export=False):
     print(f"read {{repo}}")
     print(f"here {{here}}")
+    print(f"export {{export}}")
     for line in {lines!r}:
         print(line)
     if {raises!r}:
@@ -1505,6 +1506,50 @@ def test_the_behavioral_tier_reads_the_export_not_the_main_tree(fx: Fixture) -> 
     assert len(read) == 1 and len(here) == 1, done.stdout
     assert Path(read[0]) != fx.main
     assert Path(here[0]) == Path(read[0]) / "evals" / "agent-config"
+    # In export mode, which never runs git on the export (review A, 1b).
+    assert "export True" in done.stdout.splitlines(), done.stdout
+
+
+def test_the_real_tier_runs_no_git_on_an_export_that_holds_a_git_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The export is data (review A, 1b): a .git folder in it would have git read the branch's index, excludes, and
+    # config, and a config can name programs git runs. The gate calls the main tree's status in export mode, which
+    # walks the tree, so a stand-in git first on PATH is never called.
+    main, export = tmp_path / "main", tmp_path / "export"
+    for name in ("behavioral.py", "static.py"):
+        write(
+            main / "evals/agent-config" / name,
+            (REPO / "evals/agent-config" / name).read_text(encoding="utf-8"),
+        )
+    for rel in (
+        "CLAUDE.md",
+        "REVIEW.md",
+        ".devcontainer/toolchain.vars",
+        "evals/agent-config/thresholds.yaml",
+    ):
+        write(export / rel, (REPO / rel).read_text(encoding="utf-8"))
+    for folder, pattern in (
+        ("evals/agent-config/cases", "*.yaml"),
+        (".claude/agents", "*.md"),
+    ):
+        for path in sorted((REPO / folder).glob(pattern)):
+            write(export / folder / path.name, path.read_text(encoding="utf-8"))
+    write(export / ".claude/settings.json", "{}\n")
+    git(export, "init", "-q")
+    git(export, "add", "-A")
+    calls = tmp_path / "git-calls"
+    real = shutil.which("git", path=SYSTEM_PATH)
+    write(
+        tmp_path / "standin/git",
+        f'#!/bin/sh\necho "$*" >> {calls}\nexec {real} "$@"\n',
+        0o755,
+    )
+    monkeypatch.setenv("PATH", f"{tmp_path / 'standin'}:{SYSTEM_PATH}")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    step = gm.agent_config_evals(main, export, "0" * 40, ["CLAUDE.md"])
+    assert step.status == "PENDING", step.notes
+    assert not calls.exists(), calls.read_text()
 
 
 def test_a_behavioral_tier_that_raises_fails_the_step_not_the_gate(fx: Fixture) -> None:

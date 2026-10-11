@@ -13,10 +13,12 @@ Standard library plus PyYAML.
 then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, and evals/agent-config/** (without
 history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
 but not ignored (every file there, in a git archive export), with their executable bits, plus the Claude Code pin
-in .devcontainer/toolchain.vars. It prints PASS when a history entry with that hash passed, and otherwise PENDING
-with the Author's command (FAIL when the newest run for the hash failed). A case whose enforcement waits for a
-patch prints PLANNED, naming the patch's task; once that patch's enforcement is in the tree, the mark is stale and
-fails, so the patch deletes it (plan §11, "marks expire").
+in .devcontainer/toolchain.vars. The gate calls status(export=True) on its export, which walks the tree and never
+runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. It prints
+PASS when a history entry with that hash passed, and otherwise PENDING with the Author's command (FAIL when the
+newest run for the hash failed). A case whose enforcement waits for a patch prints PLANNED, naming the patch's task;
+once that patch's enforcement is in the tree, the mark is stale and fails, so the patch deletes it (plan §11, "marks
+expire").
 
 `run` is the Author's (make evals-agent-config refuses SANDBOX_RUNTIME=1, as make aws-login does). It runs each case
 three times, each run a real Claude Code session on the Team plan, in a scratch clone of the branch tip with the git
@@ -543,9 +545,11 @@ def _in_work_tree(repo: Path) -> bool:
     return try_git(repo, "rev-parse", "--is-inside-work-tree") == "true"
 
 
-def trigger_files(repo: Path) -> list[str]:
-    """The trigger paths' files: what git lists, tracked or new but not ignored, or in an export, every file."""
-    if _in_work_tree(repo):
+def trigger_files(repo: Path, *, export: bool = False) -> list[str]:
+    """The trigger paths' files: what git lists, tracked or new but not ignored; in an export, every file. Export mode
+    walks the tree and never runs git, whatever the tree holds: a .git folder or file there is the branch's, and git
+    would read its index, excludes, and config, which can name programs git runs (the gate's case, review A 1b)."""
+    if not export and _in_work_tree(repo):
         done = subprocess.run(
             [
                 "git",
@@ -596,9 +600,9 @@ def read_pin(repo: Path) -> str:
     raise CaseError(f"{PIN_FILE} has no {PIN_KEY}, the pin the trigger hash names")
 
 
-def trigger_hash(repo: Path) -> str:
+def trigger_hash(repo: Path, *, export: bool = False) -> str:
     digest = hashlib.sha256(b"h4reet agent-config trigger, version 1\n")
-    for rel in trigger_files(repo):
+    for rel in trigger_files(repo, export=export):
         path = repo / rel
         if path.is_symlink():
             kind, data = "l", os.readlink(path).encode("utf-8", "surrogateescape")
@@ -769,12 +773,14 @@ def _plural(n: int, one: str, many: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
-def status(repo: Path = REPO, here: Path = HERE) -> int:
+def status(repo: Path = REPO, here: Path = HERE, *, export: bool = False) -> int:
+    """make evals' line for the tier. export=True is the gate's: repo is an export, read as data, and nothing runs git
+    on it, whatever it holds."""
     try:
         cases = load_cases(here / "cases")
         thresholds = load_thresholds(here / "thresholds.yaml")
         history = load_history(here / "history")
-        digest = trigger_hash(repo)
+        digest = trigger_hash(repo, export=export)
         found = problems(cases, repo)
     except CaseError as exc:
         print(f"FAIL  behavioral tier: {exc}")
