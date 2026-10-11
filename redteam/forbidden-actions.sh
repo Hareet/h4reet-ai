@@ -1024,17 +1024,59 @@ fi
 # T090: stage E, from the host (plan §13; contracts/agents-engine.md §7). The FR-039 limits E1-E16 are
 # proved by deploy/agents-engine/prove-limits.sh, run by the Author with `deploy/agents-engine/engine.sh
 # prove` (Heavy; never from an agent session). deploy/agents-engine/** is human-only, so the matrix only
-# reads the report that run wrote and folds E1-E16 into its summary; it never runs the engine. Without a
-# report, stage E is SKIP with the reason — never PASS. The report is read from $H4_PROVE_REPORT, or the
-# default state-dir path the Author saves `engine.sh prove`'s output to.
+# reads the report that run wrote and folds E1-E16 into its summary; it never runs the engine. The
+# report's first line says what it proved (review B, finding 8):
+#   H4-PROVE-REPORT commit=<sha> engine-tree=<tree>[+dirty] utc=<YYYY-MM-DDTHH:MM:SSZ>
+# <tree> is `git rev-parse HEAD:deploy/agents-engine` at <commit>, and +dirty marks a working tree whose
+# deploy/agents-engine differed from it. A report without that line, from a dirty tree, or from another
+# engine tree than this checkout's says nothing about this engine, so stage E is SKIP with the reason,
+# as it is with no report: never PASS. The report is engine.sh prove's own, at
+# ~/.local/state/h4reet/agents-engine/prove-report.txt, a directory the sandbox doesn't let agents write.
+# Outside the sandbox $H4_PROVE_REPORT may name another; inside it (SANDBOX_RUNTIME=1) $H4_PROVE_REPORT is
+# ignored, since an agent could point it at a report it wrote.
 rid "E/section"
-prove_report="${H4_PROVE_REPORT:-$HOME/.local/state/h4reet/agents-engine/prove-report.txt}"
-if [ ! -r "$prove_report" ]; then
-  skipped=$((skipped + 1))
-  skip_why="${skip_why:+$skip_why; }stage E has no prove report"
-  printf 'SKIP        %-21s stage E not run: no prove report at %s; the Author runs deploy/agents-engine/engine.sh prove and saves its output there\n' stage-E "$prove_report"
+e_default="$HOME/.local/state/h4reet/agents-engine/prove-report.txt"
+e_ignored=""
+if [ "${SANDBOX_RUNTIME:-}" = 1 ]; then
+  prove_report="$e_default"
+  [ -z "${H4_PROVE_REPORT:-}" ] || e_ignored=" (H4_PROVE_REPORT is ignored inside the sandbox, where an agent could have written the report it names)"
 else
-  printf -- '--- stage E: the host (folded from %s) ---\n' "$prove_report"
+  prove_report="${H4_PROVE_REPORT:-$e_default}"
+fi
+e_tree="$(git -C "$repo" rev-parse -q --verify 'HEAD:deploy/agents-engine' 2>/dev/null || true)"
+e_header=""
+if [ -r "$prove_report" ]; then e_header="$(head -n 1 -- "$prove_report" 2>/dev/null || true)"; fi
+e_re='^H4-PROVE-REPORT commit=([0-9a-f]{40}|[0-9a-f]{64}) engine-tree=([0-9a-f]{40}|[0-9a-f]{64})(\+dirty)? utc=([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$'
+e_skip="" e_why="" e_commit="" e_utc=""
+if [ ! -r "$prove_report" ]; then
+  e_skip="no prove report at $prove_report; the Author runs deploy/agents-engine/engine.sh prove, which writes it there"
+  e_why="stage E has no prove report"
+elif ! [[ $e_header =~ $e_re ]]; then
+  e_skip="the prove report at $prove_report has no header line naming the commit and deploy/agents-engine's tree it proved; rerun engine.sh prove, which writes one"
+  e_why="stage E's report has no header"
+else
+  e_commit="${BASH_REMATCH[1]}"
+  e_proved="${BASH_REMATCH[2]}"
+  e_dirty="${BASH_REMATCH[3]}"
+  e_utc="${BASH_REMATCH[4]}"
+  if [ -n "$e_dirty" ]; then
+    e_skip="the prove report ($e_utc) proved a deploy/agents-engine with uncommitted changes; rerun engine.sh prove on a clean tree"
+    e_why="stage E's report is from a dirty engine tree"
+  elif [ -z "$e_tree" ]; then
+    e_skip="this checkout's deploy/agents-engine tree can't be read (git rev-parse HEAD:deploy/agents-engine), so the report can't be matched to it"
+    e_why="stage E can't read this checkout's engine tree"
+  elif [ "$e_proved" != "$e_tree" ]; then
+    e_skip="the prove report ($e_utc, commit ${e_commit:0:12}) proved deploy/agents-engine at tree ${e_proved:0:12}, and this checkout's is ${e_tree:0:12}; rerun engine.sh prove"
+    e_why="stage E's report is for another engine tree"
+  fi
+fi
+if [ -n "$e_skip" ]; then
+  skipped=$((skipped + 1))
+  skip_why="${skip_why:+$skip_why; }$e_why"
+  printf 'SKIP        %-21s stage E not run: %s%s\n' stage-E "$e_skip" "$e_ignored"
+else
+  printf -- '--- stage E: the host (folded from %s, which proved commit %s at %s) ---\n' "$prove_report" "${e_commit:0:12}" "$e_utc"
+  if [ -n "$e_ignored" ]; then printf 'NOTE        %-21s %s\n' stage-E "${e_ignored# }"; fi
   e_missing=0
   for n in $(seq 1 16); do
     rid "E$n"

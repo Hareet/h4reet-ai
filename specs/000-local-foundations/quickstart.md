@@ -366,7 +366,7 @@ make matrix
 deploy/agents-engine/engine.sh prove
 ```
 
-**Expected:** rows E1 to E16 pass ([agents-engine.md §7](contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs)), with excerpts from the admission plugin's log, the egress proxy's log, and the firewall's drop counter. Row E14 carries an open question about its mechanism; record what it finds.
+**Expected:** rows E1 to E16 pass ([agents-engine.md §7](contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs)), with excerpts from the admission plugin's log, the egress proxy's log, and the firewall's drop counter. Row E14 carries an open question about its mechanism; record what it finds. `prove` also writes its report to `~/.local/state/h4reet/agents-engine/prove-report.txt`, headed `H4-PROVE-REPORT commit=… engine-tree=… utc=…`. `make matrix` (§3.1, §3.2) folds rows E1 to E16 from it while `git rev-parse HEAD:deploy/agents-engine` matches the header's tree, and shows stage E as SKIP, with the reason, for a report with no header, from a tree with uncommitted changes, or from another engine tree. The header comes with the engine change review B asked for, the Author's to apply; until then stage E stays SKIP.
 
 ### 3.4 The engine's positive half (US3-9)
 
