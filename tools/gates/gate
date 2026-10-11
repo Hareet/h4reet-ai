@@ -851,7 +851,7 @@ def run_gitleaks(
     return findings, log, problems
 
 
-def verdict(step: Step, findings: list[dict], problems: list[str]) -> Step:
+def scan_verdict(step: Step, findings: list[dict], problems: list[str]) -> Step:
     """Each finding named by its rule, file, line, and commit, never its match; then the step's status."""
     for found in findings:
         commit = str(found.get("Commit") or "")[:12]
@@ -943,7 +943,7 @@ def gitleaks(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
         problems.append(
             f"gitleaks scanned 0 commits, though the branch adds {added} line(s)"
         )
-    return verdict(step, findings, problems)
+    return scan_verdict(step, findings, problems)
 
 
 def gitleaks_tree(repo: Path, export_dir: Path, tmp: Path) -> Step:
@@ -987,7 +987,7 @@ def gitleaks_tree(repo: Path, export_dir: Path, tmp: Path) -> Step:
         problems.append("gitleaks didn't say how much it scanned")
     elif int(scanned.group(1)) == 0 and holds_content(export_dir):
         problems.append("gitleaks scanned 0 bytes of a tree that holds some")
-    return verdict(step, findings, problems)
+    return scan_verdict(step, findings, problems)
 
 
 def image(export_dir: Path, policy_step: Step, tmp: Path) -> Step:
@@ -1408,7 +1408,7 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
 
 
 def read_recording(file: Path) -> str:
-    """The recording's adapter name, after refusing anything that isn't a recording file."""
+    """The recording's adapter name, whole, after refusing anything that isn't a recording file."""
     if file.is_symlink() or not file.is_file():
         raise Refusal(f"{file} isn't a regular file (a link isn't followed)")
     if "," in str(file.resolve()):
@@ -1425,16 +1425,17 @@ def read_recording(file: Path) -> str:
         raise Refusal(
             f"{file} isn't a recording: no adapter and cases (provider-adapter.md §5.1, LiveRecording)"
         )
-    return recording["adapter"][:40]
+    return recording["adapter"]
 
 
 def run_replay(repo: Path, file: Path) -> int:
     adapter = read_recording(file)
+    shown = adapter[:40]
     file = file.resolve()
     report = Report()
     tmp = private_tmp()
     try:
-        say(f"gate --contract-replay: the {adapter} recording, on HEAD's export")
+        say(f"gate --contract-replay: the {shown} recording, on HEAD's export")
         begin("export", "git archive HEAD")
         try:
             sha, export_dir, data = export(repo, "HEAD", tmp)
@@ -1473,19 +1474,23 @@ def run_replay(repo: Path, file: Path) -> int:
                 tmp,
             )
             step = classify(Step("replay"), rc, out)
+            # replay.test.ts names the suite "recorded live: <adapter>", and the contract adds " (<mode>)": a test
+            # passed under the recording's own adapter, not another or one it only begins, read the recording.
+            suite = f"recorded live: {adapter} ("
             replayed = [
                 ln
                 for ln in out.splitlines()
-                if ln.lstrip().startswith("✓") and "recorded live: " in ln
+                if ln.lstrip().startswith("✓") and suite in ln
             ]
             if step.status == "PASS" and not replayed:
                 step.fail(
-                    "no test passed under recorded live: <adapter>, so the replay never read the recording"
+                    f"no test passed under recorded live: {shown}, the recording's own adapter, so the replay never "
+                    "read the recording"
                 )
             report.add(step)
         verdict = "FAIL" if report.failing() else "PASS"
         say(
-            f"gate --contract-replay: the {adapter} recording, replayed at HEAD {sha[:12]}: {verdict}"
+            f"gate --contract-replay: the {shown} recording, replayed at HEAD {sha[:12]}: {verdict}"
         )
         return 1 if report.failing() else 0
     finally:

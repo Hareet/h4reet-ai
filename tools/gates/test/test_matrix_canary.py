@@ -11,6 +11,7 @@ a leak, and the ways a session can go wrong. The fake values are made at run tim
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import os
@@ -56,6 +57,10 @@ with open(os.environ["FAKE_CLAUDE_LOG"], "a", encoding="utf-8") as log:
         "pid": os.getpid(),
         "marked": marked,
         "api_key": "ANTHROPIC_API_KEY" in os.environ,
+        "stripped_seen": sorted(k for k in (
+            "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+            "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "SANDBOX_RUNTIME",
+        ) if k in os.environ),
     }) + "\n")
 def emit(event):
     print(json.dumps(event), flush=True)
@@ -263,6 +268,41 @@ def test_a_session_whose_environment_and_transcript_hold_no_value_passes(
     assert len(set(values.values())) == len(values)
     assert call["api_key"] is False
     assert_no_values(done, stage)
+
+
+def behavioral_stripped() -> set[str]:
+    """evals/agent-config/behavioral.py's STRIPPED, read from its source: importing it needs PyYAML and runs it."""
+    source = (REPO / "evals" / "agent-config" / "behavioral.py").read_text(
+        encoding="utf-8"
+    )
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "STRIPPED"
+            for target in node.targets
+        ):
+            return set(ast.literal_eval(node.value))
+    raise AssertionError("behavioral.py has no STRIPPED")
+
+
+def test_the_canary_strips_what_the_behavioral_tier_strips() -> None:
+    assert set(mc.STRIPPED) >= behavioral_stripped()
+
+
+def test_nothing_that_could_sign_the_session_in_elsewhere_reaches_it(
+    stage: Stage,
+) -> None:
+    # Beside ANTHROPIC_API_KEY, which every run sets: another credential, another endpoint, another provider, and
+    # SANDBOX_RUNTIME, which the session's own sandbox sets. Not "1", which the canary refuses outright.
+    done = stage.run(
+        ANTHROPIC_AUTH_TOKEN="not-a-token-" + secrets.token_hex(4),
+        ANTHROPIC_BASE_URL="http://127.0.0.1:9",
+        CLAUDE_CODE_USE_BEDROCK="1",
+        CLAUDE_CODE_USE_VERTEX="1",
+        SANDBOX_RUNTIME="0",
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    (call,) = stage.calls()
+    assert call["stripped_seen"] == []
 
 
 def test_each_run_makes_new_values(stage: Stage) -> None:

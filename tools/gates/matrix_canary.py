@@ -12,9 +12,10 @@ transcript:
     too and must be seen, so a probe that can't read the environment shows up as that, not as a pass.
   - The whole transcript, `--output-format stream-json` with hook events, and claude's stderr are searched for every
     fake value.
-ANTHROPIC_API_KEY is unset for the session, and the run is stopped at the init event if it shows API-key auth, so the
-session runs on the Team plan, as plan §14 has the behavioral evals do. It keeps no session
-(--no-session-persistence), and prints names, never values. Standard library only.
+ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL, CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, and
+SANDBOX_RUNTIME are unset for the session, as the behavioral evals unset them, and the run is stopped at the init event
+if it shows API-key auth, so the session runs on the Team plan, as plan §14 has the behavioral evals do. It keeps no
+session (--no-session-persistence), and prints names, never values. Standard library only.
 Exit codes: 0 passed; 1 a fake value reached the session's environment or its transcript; 3 it can't tell: inside the
 agent sandbox, no claude, API-key auth, no answer in time, or a session that didn't run the probe as written. make
 shows any non-zero exit as error 2, so the summary line says which it was.
@@ -52,6 +53,17 @@ END = "h4-canary end "
 DEFAULT_TIMEOUT = 300
 PASSED, LEAKED, CANNOT_TELL = 0, 1, 3
 NAME = re.compile(r"[A-Z][A-Z0-9_]*")
+# Never passed to the session: everything that could sign it in to anything but the Team plan's login (another
+# credential, endpoint, or provider), and SANDBOX_RUNTIME, which the session's own sandbox sets. These are
+# evals/agent-config/behavioral.py's STRIPPED, which a test holds this list to.
+STRIPPED = (
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "SANDBOX_RUNTIME",
+)
 
 
 class CannotTell(Exception):
@@ -318,9 +330,7 @@ def canary(timeout: float) -> tuple[int, str]:
     fakes = {name: MARKER + secrets.token_hex(12) for name in names}
     nonce = secrets.token_hex(4)
     command = probe(nonce)
-    env = {
-        key: value for key, value in os.environ.items() if key != "ANTHROPIC_API_KEY"
-    }
+    env = {key: value for key, value in os.environ.items() if key not in STRIPPED}
     env.update(fakes)
     env[CONTROL] = MARKER + secrets.token_hex(12)
     argv = [

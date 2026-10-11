@@ -1810,6 +1810,20 @@ def test_a_replay_that_never_reads_the_recording_fails(fx: Fixture) -> None:
     assert "recorded live" in done.stdout + done.stderr
 
 
+@pytest.mark.parametrize("adapter", ["bedrock", "localhost"])
+def test_a_replay_that_passed_under_another_adapters_name_fails(
+    fx: Fixture, adapter: str
+) -> None:
+    # The recording's adapter is "local": a test passed under another name, or one it only begins, didn't read it.
+    fx.control(
+        vitest_output=" \u2713 test/contract/replay.test.ts > the adapter contract: "
+        f"recorded live: {adapter} (live) > C1: ok 2ms"
+    )
+    done = gate(fx, "--contract-replay", str(recording(fx)))
+    assert done.returncode == 1
+    assert "no test passed under recorded live: local" in done.stdout
+
+
 def test_a_failing_replay_fails(fx: Fixture) -> None:
     fx.control(vitest_rc=1)
     assert gate(fx, "--contract-replay", str(recording(fx))).returncode == 1
