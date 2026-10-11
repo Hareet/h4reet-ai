@@ -981,10 +981,11 @@ def status(
         )
         failed, state = True, "fail"
     elif unattested:
+        verb = "isn't" if len(unattested) == 1 else "aren't"
         print(
-            f"PENDING (behavioral tier): no attested run for trigger hash {digest[:12]}: {named} in "
-            f"evals/agent-config/history/, but this machine has no attestation of its bytes in {_display(store)}, "
-            f"which only {COMMAND} writes, so it isn't attested and doesn't count; {RUN_HINT}"
+            f"PENDING (behavioral tier): no attested run for trigger hash {digest[:12]}: {', '.join(unattested)} "
+            f"{verb} attested on this machine, in {_display(store)}, which only {COMMAND} writes, so not counted; "
+            f"{RUN_HINT}"
         )
         state = "pending"
     else:
