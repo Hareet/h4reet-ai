@@ -6,18 +6,18 @@ Until publication, the local gate stands in for CI (ADR 0013). Every gate spec 0
 
 - `make check` prints each gate's output under `== <gate>`, then one line per gate, then a summary such as `make check: 9 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: lint FAIL`. It exits non-zero on any FAIL or PENDING (`tools/gates/run_checks.py`). Each gate's line says why it isn't `PASS`:
   - **FAIL:** its target exited non-zero; or it has no target and no task to add one; or make would do nothing for it; or its `@Tnnn` mark is stale, because the target exists now ("stale mark: make … exists now, so remove @T… from the gate list").
-  - **PENDING:** a run only you can make. In spec 000 that is the behavioral agent-config evals, when the branch changed `CLAUDE.md`, `REVIEW.md`, `.claude/**`, `evals/agent-config/**`, or the Claude Code pin, and no passing history entry has that hash (plan §14).
+  - **PENDING:** a run only you can make. In spec 000 that is the behavioral agent-config evals: `make evals` prints "PENDING (behavioral tier): no passing run for trigger hash …" whenever no passing history entry has this tree's trigger hash, a hash over `CLAUDE.md`, `REVIEW.md`, `.claude/**`, `evals/agent-config/**` (its history aside), and the Claude Code pin (plan §14). The history holds no entry until your first run's is committed, so until then every branch shows it. The gate's `agent-config-evals` step waits only for a branch that touches one of those, and is SKIP for any other.
   - **PLANNED (Tnnn):** enforcement a patch adds that you haven't applied yet, naming the task that writes it. It doesn't fail the run.
   - **SKIP:** with its reason: a target a later task adds ("added by T…"), or a gate that can't run where it is, such as the compose policy or the image gate without a docker CLI.
 - The image gate fails with "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up".
 - `tools/gates/gate <branch>` ends with a failing summary line; or, run as `tools/gates/gate --host`, its summary says DEGRADED.
 - The gate's table shows `matrix-e` PENDING, waiting for `--prove`, or `eval-history` WARN: prod's collector didn't take a history entry.
 - `make secrets`, or the `pre-commit` hook, reports a finding, or refuses to run while a `.gitleaksignore` exists where it scans.
-- `make publish-check` exits 1, with findings, or 3: it can't certify.
+- `make publish-check` fails: its summary line reads `publish-check: FAIL (exit 1)`, with findings, or `publish-check: CANNOT CERTIFY (exit 3)`. make itself exits 2 for either, so the summary line says which.
 
 ## Impact
 
-The branch doesn't merge: every merge-request note carries `make check`'s whole output and the reviewer's passes (FR-041), and the gate's summary line goes into the merge commit's message. Nothing running is affected. The gates read the tree and change nothing, except `make git-hooks`, which installs the hooks.
+The branch doesn't merge: every merge-request note carries `make check`'s whole output and the reviewer's passes (FR-041), and the gate's summary line goes into the merge commit's message. Nothing running is affected, except by `tools/gates/gate --prove`: its `deploy/agents-engine/engine.sh prove` resets and reseeds the agents' engine, so agent sessions using it lose their containers, dev-cpu's stack among them. The gates read the tree and change nothing else, except `make git-hooks`, which installs the hooks.
 
 ## Act
 
@@ -38,9 +38,9 @@ The branch doesn't merge: every merge-request note carries `make check`'s whole 
 9. **gitleaks is missing:** the hooks and `make secrets` fail closed, and publish-check exits 3 (plan §19). `make tools` installs it.
 10. **A secret finding:** never add an allowlist entry, a `gitleaks:allow` marker, or a `.gitleaksignore`: every scan takes its rules only from your `.gitleaks.toml`, and refuses a `.gitleaksignore` (research.md R-36). Rotate the secret if it was real, and take it out of the branch's history, not just its tip, before the merge: a later commit that deletes it leaves it where publish-check looks.
 11. **The devcontainer image won't build:** `tools/gates/gate --host <branch>` skips the container phase. In the gate's words: "Lint, tests, the scaffolds, and stage H then run nowhere: never on the host." Every summary line says so, "DEGRADED (--host): no container phase, so lint, tests, the scaffolds, and stage H didn't run" (plan §19), and the merge command the gate prints carries that line into the merge commit's message.
-12. **publish-check exits 3:** run it in your terminal, in a full clone, with gitleaks at its pin and the denylist in place. Exit 1 lists findings by commit, path, line, and rule, never the phrase: clean them out of history before the first push, which ADR 0013 allows once (quickstart.md §6.4).
+12. **publish-check can't certify,** its summary line `publish-check: CANNOT CERTIFY (exit 3)`: run it in your terminal, in a full clone, with gitleaks at its pin and the denylist in place. `publish-check: FAIL (exit 1)` lists findings by commit, path, line, and rule, never the phrase: clean them out of history before the first push, which ADR 0013 allows once (quickstart.md §6.4). make itself exits 2 for both, so read the summary line, not make's exit code.
 13. **The gate's `matrix-e` step is PENDING:** the branch changed `deploy/agents-engine/` or `.claude/settings.json`, so stage E has to prove the engine's limits again. With no agent session using the engine, run `tools/gates/gate --prove <branch>`: it runs `deploy/agents-engine/engine.sh prove`, which resets and reseeds the engine (Heavy).
-14. **The gate's `eval-history` step is WARN:** prod's collector didn't take the agent-config evals' cost and tokens, so the dashboard's dev-time row misses that run. It doesn't block the merge. Check prod is up (`make status ENV=prod`); an entry is posted only once, by the gate that records it.
+14. **The gate's `eval-history` step is WARN:** prod's collector didn't take the cost and tokens of one or more of the history entries the branch adds. A WARN means the dashboard missed that run's numbers: in the gate's words, "the dashboard misses them, and Prometheus takes no back-fill". It doesn't block the merge. The gate posts every entry the branch adds on every run, each timestamped at its post, so check prod is up (`make status ENV=prod`); the next gate run on the branch posts them again.
 15. **`make secrets` fails closed in an agent session in the main tree:** gitleaks can't open the sandbox's mask at `.gitleaksignore` there. Agents run `make check` in a worktree, where it works; in your terminal there is no mask.
 
 ## Verify
@@ -57,7 +57,7 @@ The branch doesn't merge: every merge-request note carries `make check`'s whole 
 
 ## Undo
 
-Nothing to undo: the gates change nothing they check. `make git-hooks` replaces the installed hooks with `.claude/git-hooks/`'s copies, which are what the git hooks' gate compares them with.
+Nothing to undo: the gates change nothing they check. `make git-hooks` replaces the installed hooks with `.claude/git-hooks/`'s copies, which are what the git hooks' gate compares them with. The one exception is `tools/gates/gate --prove`: the reset of the agents' engine can't be undone, by design, and the seed it ends with brings back every pinned image ([agents-engine.md](agents-engine.md)).
 
 ## Record
 

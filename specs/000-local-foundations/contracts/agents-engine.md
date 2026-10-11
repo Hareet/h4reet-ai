@@ -320,7 +320,7 @@ In the Author's terminal, engine.sh's client for the engine is always `tcp://198
 | The proxy is down | Pulls, and the npm steps of builds, fail closed. Seeded images still run. |
 | The proxy's list can't be read | It refuses every request (`no_list`): fail closed. |
 | The dummy interface is gone after a WSL restart | `engine.sh up` fails and shows the unit's status. |
-| An image is missing after a reset | `make up ENV=dev-cpu` fails at preflight; the fix is `deploy/agents-engine/engine.sh seed`. |
+| An image is missing after a reset | Preflight passes: P17 checks only each image's pin against `images.lock`. `make up ENV=dev-cpu` then fails when compose pulls the image, or a build needs it as a base, through the proxy, which can't serve an image from any registry ([§4](#4-egress-the-proxy)); `engine.sh status` lists it as `MISSING`. The fix is `deploy/agents-engine/engine.sh seed`. (Corrected on 2026-10-10 by US6's review: the row had said `make up` fails at preflight.) |
 | The stand-in model is missing | preflight P18: "ask the Author to run deploy/agents-engine/engine.sh seed". |
 | The Windows drive is short of space | The seed refuses before it writes, naming both figures. |
 | A client certificate is near expiry | `engine.sh setup` reissues it. |

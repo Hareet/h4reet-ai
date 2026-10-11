@@ -21,7 +21,7 @@ The twin will ask each visitor which version they want, and this repository offe
 1. [**The idea**](intent/000-ai-twin-portfolio.md), in the Author's own words: what the twin is for, and why it is built this way.
 2. [**The constitution**](.specify/memory/constitution.md): eight principles. Principles VII and VIII say what the twin may say about the Author, and what it never will.
 3. [**Why foundations come first**](specs/000-local-foundations/intent.md): spending limits and safety rails before any feature.
-4. [**The kill switch, tripped on purpose**](docs/recordings/): spec 000's breach test, recorded in the terminal, as the spend crosses the ceiling, the site degrades, and the real Telegram and email alerts arrive (SC-002). The recording is the Author's run (tasks.md T085); until it lands, the folder says so. Public dashboards follow in spec 001.
+4. [**The kill switch, tripped on purpose**](docs/recordings/): spec 000's breach test, recorded in the terminal, as the spend crosses the ceiling, the stack's hello endpoint switches to its degraded response, and the real Telegram and email alerts arrive (SC-002). The recording is the Author's run (tasks.md T085); until it lands, the folder says so. Public dashboards follow in spec 001.
 5. [**What leaves the machine**](docs/data-flow-disclosure.md): every flow, what it carries, and why. "No visitor data flows in this spec."
 6. [**The merge requests**](docs/merge-requests/): each change, who approved it, and what the review found, including what went wrong.
 
@@ -38,7 +38,7 @@ The twin will ask each visitor which version they want, and this repository offe
 
 ## Quickstart: the devcontainer
 
-The devcontainer ([`.devcontainer/`](.devcontainer/)) holds every pinned tool, the versions the agents' sessions and the Author's gate use too. A newcomer reaches a running devcontainer with passing tests in under 30 minutes (SC-007). It needs Docker, and `npx` or VS Code to open it; nothing of the Author's: no Claude login, agents' engine, GPU, or denylist (plan §9).
+The devcontainer ([`.devcontainer/`](.devcontainer/)) holds every pinned tool, the versions the agents' sessions and the Author's gate use too. SC-007 sets its target: "A newcomer reaches a running devcontainer with passing tests in under 30 minutes." The Author times it at tasks.md T099, on a fresh clone with an empty build cache (quickstart.md §6.2). It needs Docker, and `npx` or VS Code to open it; nothing of the Author's: no Claude login, agents' engine, GPU, or denylist (plan §9).
 
 ```bash
 git clone <repository URL> h4reet-ai && cd h4reet-ai

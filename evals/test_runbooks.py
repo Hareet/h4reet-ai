@@ -376,3 +376,52 @@ def test_the_gates_page_gives_the_host_gate_in_its_own_words() -> None:
     text = " ".join((RUNBOOKS / "local-gate.md").read_text(encoding="utf-8").split())
     assert nowhere in text and degraded in text
     assert "host tools" not in text
+
+
+def test_the_gates_page_reads_publish_checks_end_from_its_summary_line() -> None:
+    # make exits 2 whenever a recipe fails, so publish-check's own 1 and 3 reach the Author as make's 2; the page
+    # quotes the summary lines tools/gates/publish_check.py prints, which say which (US6's review).
+    source = (REPO / "tools" / "gates" / "publish_check.py").read_text(encoding="utf-8")
+    (codes,) = re.findall(
+        r"^CLEAN, FINDINGS, CANNOT_CERTIFY = (\d+), (\d+), (\d+)$", source, re.MULTILINE
+    )
+    (verdicts,) = re.findall(
+        r'\{CLEAN: "([^"]+)", FINDINGS: "([^"]+)", CANNOT_CERTIFY: "([^"]+)"\}', source
+    )
+    assert 'f"publish-check: {verdict} (exit {code}) — "' in source
+    text = (RUNBOOKS / "local-gate.md").read_text(encoding="utf-8")
+    for verdict, exit_code in list(zip(verdicts, codes, strict=True))[1:]:
+        assert f"`publish-check: {verdict} (exit {exit_code})`" in text, verdict
+    assert "`make publish-check` exits" not in text
+    assert "exits 2" in text
+
+
+def test_the_gates_page_says_what_pending_and_the_eval_history_warn_mean() -> None:
+    # As the code has them (US6's review): the behavioral tier's PENDING line, which it prints whenever no passing
+    # entry has the tree's trigger hash, and the gate's eval-history WARN, for a post prod's collector didn't take.
+    # The gate posts every entry the branch adds on every run, not once.
+    tier = (REPO / "evals" / "agent-config" / "behavioral.py").read_text(
+        encoding="utf-8"
+    )
+    (pending,) = re.findall(r'f"(PENDING \(behavioral tier\): [^{"]*)\{', tier)
+    gate = re.sub(
+        r'"\s*\n\s*f?"',
+        "",
+        (REPO / "tools" / "gates" / "gate").read_text(encoding="utf-8"),
+    )
+    (warn,) = re.findall(r"; (the dashboard misses them, [^\"]*)\"", gate)
+    text = " ".join((RUNBOOKS / "local-gate.md").read_text(encoding="utf-8").split())
+    assert pending.strip() in text
+    assert "trigger hash" in text and "the branch changed `CLAUDE.md`" not in text
+    assert warn in text
+    assert "posted only once" not in text and "every entry the branch adds" in text
+
+
+def test_the_gates_page_says_prove_resets_the_engine() -> None:
+    # The gates change nothing they check, but --prove's engine.sh prove resets and reseeds the agents' engine, which
+    # can't be undone, by design: Impact and Undo both say so (US6's review).
+    text = (RUNBOOKS / "local-gate.md").read_text(encoding="utf-8")
+    for heading in ("## Impact", "## Undo"):
+        start = text.index(f"\n{heading}\n")
+        part = text[start : text.index("\n## ", start + 1)]
+        assert "`tools/gates/gate --prove`" in part, heading

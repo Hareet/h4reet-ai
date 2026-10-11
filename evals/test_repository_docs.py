@@ -186,6 +186,34 @@ def test_start_heres_going_public_starts_with_publish_check() -> None:
     assert first_step and first_step.group(1).startswith("**`make publish-check`")
 
 
+def publish_check_lines() -> list[str]:
+    """The start of each summary line tools/gates/publish_check.py prints: clean, findings, and cannot certify."""
+    source = (REPO / "tools" / "gates" / "publish_check.py").read_text(encoding="utf-8")
+    (codes,) = re.findall(
+        r"^CLEAN, FINDINGS, CANNOT_CERTIFY = (\d+), (\d+), (\d+)$", source, re.MULTILINE
+    )
+    (verdicts,) = re.findall(
+        r'\{CLEAN: "([^"]+)", FINDINGS: "([^"]+)", CANNOT_CERTIFY: "([^"]+)"\}', source
+    )
+    assert 'f"publish-check: {verdict} (exit {code}) — "' in source
+    return [
+        f"publish-check: {v} (exit {c})" for v, c in zip(verdicts, codes, strict=True)
+    ]
+
+
+def test_start_here_reads_publish_checks_end_from_its_summary_line() -> None:
+    # make exits 2 whenever a recipe fails, so publish-check's own 1 (findings) and 3 (can't certify) reach the
+    # Author as make's 2, and the summary line says which (US6's review). START-HERE quotes the lines as the script
+    # prints them, and never gives make's exit as publish-check's.
+    lines = publish_check_lines()
+    assert lines[-1] == "publish-check: CANNOT CERTIFY (exit 3)"
+    first = re.search(r"^1\. .*$", section(START_HERE, "## 6. "), re.MULTILINE)
+    assert first and all(f"`{line}`" in first.group(0) for line in lines)
+    gotchas = section(START_HERE, "## 4. ")
+    assert f"`{lines[-1]}`" in gotchas  # a missing denylist
+    assert "`make publish-check` exits" not in START_HERE
+
+
 def test_start_here_has_a_before_you_merge_section() -> None:
     merge = section(START_HERE, "## 7. Before you merge")
     for item in (
@@ -283,6 +311,29 @@ def test_the_enforcement_table_keeps_claude_mds_words_on_what_the_author_runs() 
     ]
     assert any(words in rule and "ADR 0017" in rule for rule in rules)
     assert not any("never runs in the Author's terminal" in rule for rule in rules)
+
+
+def test_the_enforcement_table_counts_the_behavioral_cases_and_their_triggers() -> None:
+    # The behavioral tier's row counts the cases in evals/agent-config/cases/, says how many wait for the closing
+    # patch (a default run skips them), and names the Claude Code pin among the triggers (US6's review).
+    cases = sorted((REPO / "evals" / "agent-config" / "cases").glob("*.yaml"))
+    planned = [
+        c
+        for c in cases
+        if re.search(r"^planned: T117$", c.read_text(encoding="utf-8"), re.MULTILINE)
+    ]
+    assert cases and planned
+    lifecycle = (REPO / "docs" / "how-we-build" / "lifecycle.md").read_text(
+        encoding="utf-8"
+    )
+    (row,) = [
+        line
+        for line in section(lifecycle, "## Enforcement layers").splitlines()
+        if line.startswith("| The agent configuration behaves as written")
+    ]
+    assert f"{len(cases)} cases" in row and "about" not in row
+    assert f"the {len(planned)} that wait for the closing patch" in row
+    assert "the Claude Code pin" in row
 
 
 # tasks.md T113: the human-only paths spec 000 adds (FR-001; ADR 0017); then, from US6's review (finding 5), the

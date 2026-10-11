@@ -10,7 +10,7 @@ Everything under `deploy/agents-engine/` is human-only, and its commands are you
   - the relay's "the engine's opening isn't reachable; ask the Author: deploy/agents-engine/engine.sh up";
   - `make engine-status`'s "engine: unreachable (ask the Author: deploy/agents-engine/engine.sh up)";
   - `make check`'s image gate, FAIL: "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up", or the same from `make build`.
-- `make up ENV=dev-cpu` stops at preflight on an image the engine lacks, or on the stand-in model: "ask the Author to run deploy/agents-engine/engine.sh seed" (P18).
+- `make up ENV=dev-cpu` stops at preflight on a missing stand-in model: "ask the Author to run deploy/agents-engine/engine.sh seed" (P18). Preflight doesn't look for images: P17 checks only that each is pinned as `deploy/images.lock` pins it. An image the engine lacks fails later, when compose pulls it, or a build needs it as a base, through the egress proxy, which can't serve an image from any registry ([contracts/agents-engine.md §4](../../specs/000-local-foundations/contracts/agents-engine.md#4-egress-the-proxy)). `make up` fails there, and its status lists each service that didn't start.
 - `make engine-status` reaches the engine but lists images as `MISSING` against `deploy/images.lock`.
 - Every Docker request is refused: the admission plugin is down, and the daemon fails closed (row E12).
 - Pulls, and the `npm ci` steps of builds, fail while seeded images still run: the egress proxy is down, or it found no list it could read and refuses everything (`no_list`).
