@@ -48,8 +48,9 @@ def flat(text: str) -> str:
 
 
 def gate_merge_command() -> str:
-    """The fixed start of the merge command tools/gates/gate's finish() prints."""
-    (command,) = re.findall(r'f"(git switch main && [^"{]*?) -m \{', GATE)
+    """The fixed start of the merge command tools/gates/gate's finish() prints. Since US3's review D the gate runs
+    only from main's checkout, so the command starts at the merge, with no switch to main."""
+    (command,) = re.findall(r'f"(git --no-replace-objects merge [^"{]*?) -m \{', GATE)
     return command
 
 
@@ -241,7 +242,8 @@ def test_the_merge_is_the_command_the_gate_prints() -> None:
         ("START-HERE §7", section(START_HERE, "## 7. ")),
         ("docs/merge-requests/README.md", merge_requests),
     ):
-        assert command in text, name
+        # The whole printed line, as finish() shows it, so nothing can stand in front of the merge (US3's review D).
+        assert f"merge: {command}" in text, name
         assert "summary line" in text, name
     for name, text in (
         ("START-HERE", START_HERE),
