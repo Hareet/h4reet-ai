@@ -2,7 +2,7 @@
 
 `make evals-agent-config` (the Author) writes one JSON file here per run of the behavioral tier, named `<UTC>-<branch>-<sha>.json`: the run's start in UTC, the branch with anything but letters, digits, `.`, `_`, and `-` turned into `-`, and the first 12 characters of its tip (spec 000 plan §14; `evals/agent-config/behavioral.py`). The Author commits it before merging (SC-008).
 
-- `make evals` reads every entry. It prints PASS when one with `"verdict": "pass"` has the current trigger hash, FAIL when the newest one for the hash failed, and otherwise PENDING with the command.
+- `make evals` reads every entry. The newest entry with the current trigger hash, by name, decides: PASS when its `verdict` is `pass`, and FAIL when it's `fail`, even after an earlier pass. With no entry for the hash, it prints PENDING with the command.
 - `main`'s newest entry is the baseline: a run's conduct may not fall below it.
 - The Author's gate (`tools/gates/gate`, tasks.md T092) posts an entry's `cost_usd` and `tokens` once, as the `h4.devtime.eval.cost_usd` and `h4.devtime.eval.tokens` metrics, labelled with `run` and `verdict` (contracts/telemetry.md §4.4). The dashboard's dev-time row shows them, as the Team plan's notional cost, outside the production meter (FR-037).
 - Transcripts never come here. They stay on the Author's machine, in `~/.local/state/h4reet/evals/<run>/`, mode 0600.

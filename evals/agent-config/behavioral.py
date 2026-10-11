@@ -14,9 +14,9 @@ then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, a
 history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
 but not ignored (every file there, in a git archive export), with their executable bits, plus the Claude Code pin
 in .devcontainer/toolchain.vars. The gate calls status(export=True) on its export, which walks the tree and never
-runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. It prints
-PASS when a history entry with that hash passed, and otherwise PENDING with the Author's command (FAIL when the
-newest run for the hash failed). A case whose `needs:` patch has no enforcement in the tree, by that patch's probe,
+runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. The newest
+history entry with that hash decides: PASS when it passed, FAIL when it failed, even after an earlier pass; with
+none, PENDING with the Author's command. A case whose `needs:` patch has no enforcement in the tree, by that patch's probe,
 prints PLANNED, naming the patch's task; once the patch is in, the case counts, with no mark to delete, so a mark
 can't go stale, and no case counts while the enforcement it needs is missing.
 
@@ -813,24 +813,27 @@ def status(repo: Path = REPO, here: Path = HERE, *, export: bool = False) -> int
             f"PLANNED ({task}): {_plural(len(ids), 'behavioral case', 'behavioral cases')} {verb} for "
             f"{PATCHES[task]}: {', '.join(ids)}"
         )
+    # Oldest first, by name, which the run's UTC start leads: the newest run for the hash decides (review B, 3), so an
+    # earlier pass never outweighs a later failure.
     for_hash = [e for e in history if e["trigger_hash"] == digest]
-    passing = [e for e in for_hash if e["verdict"] == "pass"]
     failed = bool(found)
-    if passing:
+    if for_hash and for_hash[-1]["verdict"] == "pass":
         print(
-            f"PASS  behavioral tier: {passing[-1]['run']} passed for trigger hash {digest[:12]}"
+            f"PASS  behavioral tier: {for_hash[-1]['run']} passed for trigger hash {digest[:12]}, the newest run "
+            "for it"
         )
         state = "pass"
     elif for_hash:
-        last = for_hash[-1]
-        given = last.get("reasons")
+        newest = for_hash[-1]
+        given = newest.get("reasons")
         reasons = (
             "; ".join(map(str, given))
             if isinstance(given, list) and given
             else "below threshold"
         )
         print(
-            f"FAIL  behavioral tier: {last['run']}, the last run for trigger hash {digest[:12]}, failed: {reasons}"
+            f"FAIL  behavioral tier: {newest['run']}, the newest run for trigger hash {digest[:12]}, failed: "
+            f"{reasons}"
         )
         failed, state = True, "fail"
     else:

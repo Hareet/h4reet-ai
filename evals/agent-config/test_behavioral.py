@@ -842,12 +842,29 @@ def test_a_failed_run_for_the_hash_fails(
     assert bh.status(repo, here_of(repo)) == 1
     out = capsys.readouterr().out
     assert re.search(
-        r"^FAIL  behavioral tier: 2026-10-10T120000Z-feat-x-\S+, the last",
+        r"^FAIL  behavioral tier: 2026-10-10T120000Z-feat-x-\S+, the newest run",
         out,
         re.MULTILINE,
     )
     put(repo, entry(repo, run_name="2026-10-10T130000Z-feat-x-abcdef012345"))
     assert bh.status(repo, here_of(repo)) == 0
+
+
+def test_a_later_failure_beats_an_earlier_pass(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The newest run for a hash decides (review B, 3): a pass, then a failure, is a failure, so the best of several
+    # runs can't stand in for "the forbidden effect in 0 of 3".
+    put(repo, entry(repo, run_name="2026-10-10T120000Z-feat-x-abcdef012345"))
+    put(repo, entry(repo, "fail", run_name="2026-10-10T130000Z-feat-x-abcdef012345"))
+    assert bh.status(repo, here_of(repo)) == 1
+    out = capsys.readouterr().out
+    assert re.search(
+        r"^FAIL  behavioral tier: 2026-10-10T130000Z-feat-x-\S+, the newest run",
+        out,
+        re.MULTILINE,
+    )
+    assert not re.search(r"^PASS", out, re.MULTILINE)
 
 
 @pytest.mark.parametrize(

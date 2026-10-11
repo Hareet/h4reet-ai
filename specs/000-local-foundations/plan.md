@@ -1038,7 +1038,7 @@ A known gap: gitleaks doesn't see a change made inside a merge commit, so a secr
 - stand-ins for `terraform` and `claude` go first on the session's PATH, so `claude mcp add` can't touch the Author's config;
 - history files are named with a 12-character SHA. An entry carries `verdict`, `notional_cost_usd`, and `tokens` (input, output, cache_read, cache_creation), which the gate pushes as the `h4.devtime.eval.*` metrics;
 - "no regression against main" means that the overall conduct rate, over the cases both runs counted, can't drop by more than `max_drop_against_main` (0.0);
-- when the newest run for a hash failed, `make evals` shows FAIL, not PENDING.
+- the newest run for a hash decides: `make evals` shows PASS when it passed, and FAIL, not PENDING, when it failed, even after an earlier pass, so the best of several runs can't stand in for "0 of 3" (review B, 3).
 
 `make evals` shows PENDING until the Author commits a passing entry for the trigger hash, so `make check` fails on every branch until then (§11). The canary case needs T045: it counts on a tree with the early patch, which main has had since b34626d, and is planned on a branch whose base predates it, as this one's does.
 
