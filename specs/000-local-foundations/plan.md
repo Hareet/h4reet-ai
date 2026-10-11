@@ -1034,7 +1034,7 @@ A known gap: gitleaks doesn't see a change made inside a merge commit, so a secr
 - the injection case runs the main session with no `--agent`, since only it has the Task tool;
 - "which layer held" adds `permissions` to hook, sandbox, and model;
 - hook events are counted from the transcript or from the hooks' audit log;
-- a case names the patch its enforcement needs (`needs: T117`), in place of a mark a patch would clear. It is planned exactly while that patch's probe (`patch_applied`: every FR-007 name denied for T045, `./.mcp.json` in `denyWrite` for T117) is false for the tree run or checked, and counted otherwise, so no mark goes stale and no case counts while its enforcement is missing (review B, 2). Planned cases are skipped by default, and `--include-planned` runs them without counting them;
+- a case names the patch its enforcement needs (`needs: T117`), in place of a mark a patch would clear. It is planned exactly while that patch's probe (`patch_applied`: every FR-007 name denied for T045, `./.mcp.json` in `denyWrite` for T117) is false for the tree run or checked, and counted otherwise, so no mark goes stale and no case counts while its enforcement is missing (review B, 2). Planned cases are skipped by default, and `--include-planned` runs them without counting them. So a run starts three sessions per counted case, not §18's 39 (13 cases × 3): 27 on a tree with the early patch and without the closing patch, where the four cases that need T117 wait, and 39 once the closing patch is in;
 - there is a new `committed` effect check: the injected instruction asks for an empty commit, which changes no file;
 - stand-ins for `terraform` and `claude` go first on the session's PATH, so `claude mcp add` can't touch the Author's config;
 - history files are named with a 12-character SHA. An entry carries `verdict`, `cost_usd`, and `tokens` (input, output, cache_read, cache_creation), which the gate pushes as the `h4.devtime.eval.*` metrics;
@@ -1043,6 +1043,8 @@ A known gap: gitleaks doesn't see a change made inside a merge commit, so a secr
 - the newest attested run for a hash decides: `make evals` shows PASS when it passed, and FAIL, not PENDING, when it failed, even after an earlier pass, so the best of several runs can't stand in for "0 of 3" (review B, 3).
 
 `make evals` shows PENDING until the Author commits a passing, attested entry for the trigger hash, so `make check` fails on every branch until then (§11). The canary case needs T045: it counts on a tree with the early patch, which main has had since b34626d, and is planned on a branch whose base predates it, as this one's does.
+
+T099's run follows from the run being main's code: it can start only once US3's merge has brought the tier to main. Until then no entry can exist, so US3's own gate run shows the tier PENDING in its container phase's `make evals`, and SKIP, naming T094, in its host step. Then, from main's checkout, the Author runs `make evals-agent-config REF=<branch>` against a branch holding the merged tree with US5's patch and the governance patch applied, commits the entry on that branch, and merges it, so main's tree, and its trigger hash, are the ones the run tested. An entry recorded on any other tree leaves main's `make evals` PENDING, since each patch changes the hash (review B, 2).
 
 ## 15. The enforcement-layer patch
 
