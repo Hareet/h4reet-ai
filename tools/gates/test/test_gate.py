@@ -624,10 +624,11 @@ def test_a_clean_branch_passes_and_each_phase_runs_where_and_how_plan_11_says(
     assert line.startswith(f"gate: {sha} (feature) by tools/gates/gate at ")
     assert re.search(r"\d+ PASS, \d+ SKIP, 0 WARN, 0 PLANNED, 0 PENDING, 0 FAIL", line)
     assert "DEGRADED" not in line
-    assert (
-        f"git --no-replace-objects merge --no-ff -m 'Merge feature ({sha[:12]})' -m '{line}' {sha}"
-        in (done.stdout)
-    )
+    # The gate runs only from main's checkout, so the merge is the one command, with no switch first (review D, 1).
+    merge = [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
+    assert merge == [
+        f"merge: git --no-replace-objects merge --no-ff -m 'Merge feature ({sha[:12]})' -m '{line}' {sha}"
+    ]
 
 
 def hostile_copies(fx: Fixture) -> dict[str, str]:
@@ -662,14 +663,29 @@ def real_tier_files() -> dict[str, str]:
     return files
 
 
+def commit_on_main(fx: Fixture, files: dict[str, str], message: str) -> None:
+    """Write these files into the main tree and commit them on main, where its checkout is. The gate runs only from
+    main's checkout with the tracked files clean and nothing untracked where its code is (review D, finding 1), so what
+    a test changes in the main tree's code or config is committed there. After fx.branch, so the branch's tree stays as
+    it was given."""
+    for rel, text in files.items():
+        write(fx.main / rel, text)
+    git(fx.main, "add", "-f", "--", *files)
+    git(fx.main, "commit", "-qm", message)
+
+
 def install_real_tier(fx: Fixture) -> None:
-    """The repository's behavioral.py and static.py in the main tree. After fx.branch: switching back to main
-    removes the files a branch tracks at these paths."""
-    for name in ("behavioral.py", "static.py"):
-        write(
-            fx.main / "evals/agent-config" / name,
-            (REPO / "evals/agent-config" / name).read_text(encoding="utf-8"),
-        )
+    """The repository's behavioral.py and static.py, committed on main (commit_on_main)."""
+    commit_on_main(
+        fx,
+        {
+            f"evals/agent-config/{name}": (
+                REPO / "evals/agent-config" / name
+            ).read_text(encoding="utf-8")
+            for name in ("behavioral.py", "static.py")
+        },
+        "main's behavioral tier",
+    )
 
 
 def test_nothing_from_the_export_runs_on_the_host(fx: Fixture) -> None:
@@ -905,6 +921,135 @@ def test_it_refuses_a_linked_worktrees_copy(fx: Fixture) -> None:
     assert done.returncode == 2
     assert f"{fx.main}/tools/gates/gate" in done.stderr
     assert fx.docker() == []
+
+
+def refused(fx: Fixture, done: subprocess.CompletedProcess[str]) -> None:
+    """The gate refused (exit 2) before anything ran: no output but the refusal, and no tool or script called."""
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert done.stdout == "", done.stdout
+    assert fx.docker() == [] and fx.gitleaks() == []
+    for name in ("compose_policy", "toolchain_check", "engine"):
+        assert fx.logged(name) == [], name
+    assert fx.markers() == []
+
+
+@pytest.mark.parametrize(
+    "head", ["the branch", "detached at main", "another branch at main"]
+)
+def test_it_refuses_unless_head_is_main(fx: Fixture, head: str) -> None:
+    # With the branch checked out, the main tree's compose policy, toolchain check, check_corpus, behavioral.py, and
+    # engine.sh are the branch's own, and would grade it (review D, finding 1). This branch leaves the gate alone: one
+    # that changed it would be running its own gate, which no check inside the gate can stop (plan §11). HEAD must be
+    # refs/heads/main itself, not a commit or another branch that matches main today.
+    copies = {r: t for r, t in hostile_copies(fx).items() if r != "tools/gates/gate"}
+    fx.branch({**real_tier_files(), **copies})
+    if head == "the branch":
+        git(fx.main, "switch", "-q", "feature")
+    elif head == "detached at main":
+        git(fx.main, "switch", "-q", "--detach", "main")
+    else:
+        git(fx.main, "switch", "-qc", "also-main", "main")
+    done = gate(fx, "--prove", "feature")
+    refused(fx, done)
+    assert "refs/heads/main" in done.stderr, done.stderr
+
+
+@pytest.mark.parametrize("change", ["edited", "staged", "deleted", "edited elsewhere"])
+def test_it_refuses_tracked_files_that_dont_match_main(
+    fx: Fixture, change: str
+) -> None:
+    # The gate runs and loads the working tree's files, so every tracked file must match HEAD, in the index and the
+    # working tree, wherever it is (review D, finding 1).
+    fx.branch(CHANGE)
+    rel = (
+        "docs/readme.md"
+        if change == "edited elsewhere"
+        else "tools/gates/compose_policy.py"
+    )
+    if change == "deleted":
+        (fx.main / rel).unlink()
+    else:
+        write(
+            fx.main / rel, HOSTILE.format(marker=str(fx.logs / "EXPORT-edited-on-main"))
+        )
+    if change == "staged":
+        git(fx.main, "add", "--", rel)
+    done = gate(fx, "feature")
+    refused(fx, done)
+    assert "tracked" in done.stderr and rel in done.stderr, done.stderr
+
+
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+def test_it_refuses_a_change_git_is_told_to_hide(fx: Fixture, flag: str) -> None:
+    # git status shows no change to a file marked assume-unchanged or skip-worktree, so the mark itself refuses.
+    fx.branch(CHANGE)
+    rel = "tools/gates/compose_policy.py"
+    git(fx.main, "update-index", flag, "--", rel)
+    write(fx.main / rel, HOSTILE.format(marker=str(fx.logs / "EXPORT-hidden-on-main")))
+    assert git(fx.main, "status", "--porcelain", "--untracked-files=no") == ""
+    done = gate(fx, "feature")
+    refused(fx, done)
+    assert rel in done.stderr and "assume-unchanged or skip-worktree" in done.stderr, (
+        done.stderr
+    )
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "tools/gates/planted.py",
+        "tools/gates/compose_policy.pyc",  # sourceless bytecode beside its source, which Python 3 never writes
+        "tools/gates/__pycache__/notes.txt",  # in a cache folder, but not bytecode
+        "corpus/tools/yaml.py",
+        "evals/agent-config/static.py",
+        "evals/agent-config/cases/planted.yaml",
+        "deploy/agents-engine/systemd/planted.service",
+        "deploy/agents-engine/.venv/bin/python",  # ignored (.venv/), and still not main's
+    ],
+)
+def test_it_refuses_a_file_git_doesnt_track_where_its_code_is(
+    fx: Fixture, rel: str
+) -> None:
+    # A glob, a copy, or an import from its folder would pick it up. Ignored files count too: an ignored file is one
+    # agents can write and git doesn't show (CLAUDE.md).
+    fx.branch(CHANGE)
+    write(fx.main / rel, "planted\n")
+    done = gate(fx, "feature")
+    refused(fx, done)
+    assert rel in done.stderr, done.stderr
+
+
+def test_files_git_doesnt_track_elsewhere_dont_refuse_it(fx: Fixture) -> None:
+    # The Author's own untracked folders; an entry make evals-agent-config left in history/, untracked, which is data
+    # the gate never reads from the main tree; and Python's caches beside main's code, which PY_HOST never reads (the
+    # matrix's H/pyhost rows). The fixture's untracked.txt, its ignored .venv/, and the denylist are there too.
+    fx.branch(CHANGE)
+    for rel in (
+        ".idea/workspace.xml",
+        ".vscode/settings.json",
+        ".github/workflows/ci.yml",
+        "docs/draft.md",
+        f"evals/agent-config/history/{RUN}.json",
+        "tools/gates/__pycache__/compose_policy.cpython-312.pyc",
+        "corpus/tools/__pycache__/test_check_corpus.cpython-312-pytest-9.1.1.pyc",
+        "evals/agent-config/__pycache__/static.cpython-312.pyc",
+        "deploy/agents-engine/test/__pycache__/test_authz.cpython-312-pytest-9.1.1.pyc",
+    ):
+        write(fx.main / rel, "not main's\n")
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_contract_replay_is_held_to_the_main_tree_only(fx: Fixture) -> None:
+    # make contract-live reaches the replay through the checkout's own Makefile and operator.py, which have run by
+    # then, so the checkout is the Author's choice there, and the replay reads HEAD's export, whatever HEAD is (plan
+    # §11). Only a linked worktree's copy is refused.
+    fx.branch(CHANGE)
+    git(fx.main, "switch", "-q", "feature")
+    head = git(fx.main, "rev-parse", "HEAD")
+    done = gate(fx, "--contract-replay", str(recording(fx)))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert f"HEAD {head[:12]}" in done.stdout
 
 
 def test_run_by_a_bare_python3_it_starts_again_with_py_host_flags(fx: Fixture) -> None:
@@ -1306,10 +1451,10 @@ def test_a_tree_finding_is_named_without_its_match(fx: Fixture) -> None:
 
 def real_gitleaks(fx: Fixture) -> None:
     """The real gitleaks in the stand-in's place, and the probe rule in the main tree's .gitleaks.toml, the working
-    tree's file the gate reads. After fx.branch, which commits only the files it's given."""
+    tree's file the gate reads, committed on main (commit_on_main)."""
     (fx.stubs / "gitleaks").unlink()
     (fx.stubs / "gitleaks").symlink_to(REAL_GITLEAKS)
-    write(fx.main / ".gitleaks.toml", PROBE_RULES)
+    commit_on_main(fx, {".gitleaks.toml": PROBE_RULES}, "the probe rule")
 
 
 @needs_gitleaks
@@ -1356,7 +1501,7 @@ def test_the_configs_anchored_allowlist_holds_in_the_tree_scan_too(fx: Fixture) 
     fx.branch({"docs/allowed.txt": f"value {TOKEN}\n"})
     real_gitleaks(fx)
     allowlist = "[[allowlists]]\npaths = ['''^docs/allowed\\.txt$''']\n"
-    write(fx.main / ".gitleaks.toml", PROBE_RULES + allowlist)
+    commit_on_main(fx, {".gitleaks.toml": PROBE_RULES + allowlist}, "an allowlist")
     done = gate(fx, "feature")
     assert status_of(done, "gitleaks") == "PASS", done.stdout
     assert status_of(done, "gitleaks-tree") == "PASS", done.stdout
@@ -1452,7 +1597,9 @@ def status(repo, here, *, export=False):
 
 def tier(fx: Fixture, lines: list[str], rc: int = 0, raises: bool = False) -> None:
     text = STUB_TIER.format(lines=lines, rc=rc, raises=raises)
-    write(fx.main / "evals/agent-config/behavioral.py", text)
+    commit_on_main(
+        fx, {"evals/agent-config/behavioral.py": text}, "main's stand-in tier"
+    )
 
 
 @pytest.mark.parametrize(

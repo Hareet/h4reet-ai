@@ -4,12 +4,20 @@
     tools/gates/gate [--host] [--prove] [--otlp-url URL] REF
     tools/gates/gate --contract-replay FILE
 
-Run it directly from the main working tree, never through make: a planted GNUmakefile would shadow the Makefile.
+Run it directly from main's checkout, never through make: a planted GNUmakefile would shadow the Makefile.
 Project code never runs outside a container in the Author's terminal. On the host the gate runs only git, docker,
 gitleaks, and the main working tree's own code: this file, tools/gates/*.py, and deploy/agents-engine/engine.sh, each
 with an environment it builds itself; and, loaded into this process, so in its environment, corpus/tools/
 check_corpus.py, evals/agent-config/behavioral.py, the static.py it loads beside it, and the PyYAML both import, from
 the host's own Python. The commit under test is data there.
+
+That code is main's only in main's checkout, so the gate refuses to start (exit 2) unless HEAD is refs/heads/main, the
+tracked files match it in the index and the working tree, git is told to hide no change (assume-unchanged,
+skip-worktree), and no file git doesn't track, ignored or not, sits in tools/gates/, corpus/tools/, evals/agent-config/
+(its history/ aside), or deploy/agents-engine/, but Python's bytecode caches, which PY_HOST never reads. With a branch
+checked out, the branch's code would grade the branch. A branch that changes this file runs its own copy, which no
+check in it can stop, so the Author runs main's. --contract-replay is held to the main working tree alone: make
+contract-live reaches it through the checkout's own Makefile and operator.py, which have run by then.
 
 1. Export. REF resolves once to a commit SHA, which every later step and the merge use. Every git call runs with
    GIT_NO_REPLACE_OBJECTS=1. A ref under refs/replace stops the gate, since the Author's merge would honor it. So do
@@ -154,12 +162,24 @@ GITLEAKS_COMMITS = re.compile(r"^\S+ INF (\d+) commits scanned\b", re.MULTILINE)
 GITLEAKS_BYTES = re.compile(r"^\S+ INF scanned ~(\d+) bytes\b", re.MULTILINE)
 GITLEAKS_SKIPPED = re.compile(r"^\S+ WRN skipping\b.*$", re.MULTILINE)
 HISTORY = "evals/agent-config/history/"
+# Where the gate's own code is in main's checkout (the docstring's list): this file and tools/gates/*.py, which it runs;
+# check_corpus.py, and behavioral.py with the static.py beside it, which it loads; and engine.sh, which --prove runs, with
+# the scripts beside it. A file git doesn't track there could be picked up by a glob, a copy, or an import from its
+# folder. HISTORY is data the gate reads from the export alone, and make evals-agent-config leaves its new entry there,
+# untracked, for the Author to commit.
+CODE_PATHS = (
+    "tools/gates/",
+    "corpus/tools/",
+    "evals/agent-config/",
+    "deploy/agents-engine/",
+)
 TOKEN_TYPES = ("input", "output", "cache_read", "cache_creation")
 COUNTED = ("PASS", "SKIP", "WARN", "PLANNED", "PENDING", "FAIL")
 
 
 class Refusal(Exception):
-    """The gate won't start: a usage error, the sandbox, the wrong copy, or a file that isn't a recording. Exit 2."""
+    """The gate won't start: a usage error, the sandbox, the wrong copy or checkout, or a file that isn't a recording.
+    Exit 2."""
 
 
 class Stop(Exception):
@@ -321,6 +341,85 @@ def main_tree() -> Path:
             "which a branch can change"
         )
     return main
+
+
+def some(items: list[str]) -> str:
+    return ", ".join(items[:3]) + (
+        f", and {len(items) - 3} more" if len(items) > 3 else ""
+    )
+
+
+def bytecode_cache(path: str) -> bool:
+    """Whether a path is Python's bytecode cache, __pycache__/<module>.<tag>.pyc: PY_HOST's pycache_prefix=/dev/null
+    keeps Python from reading one (the matrix's H/pyhost rows), and Python never imports one without its source."""
+    folder, _, name = path.rpartition("/")
+    return folder.rpartition("/")[2] == "__pycache__" and name.endswith(".pyc")
+
+
+def checkout_problem(repo: Path) -> str | None:
+    """Why main's checkout isn't one whose code the gate may run, or None (US3 review D, finding 1). The gate runs and
+    loads the working tree's files, so they must be main's: HEAD is refs/heads/main itself; the tracked files match it,
+    in the index and the working tree; git is told to hide no change; and no file git doesn't track, ignored or not,
+    sits where the gate's code is (CODE_PATHS), but Python's bytecode caches. Untracked files elsewhere don't matter:
+    the gate reads nothing else of the working tree but tracked .gitleaks.toml and what its steps check by name."""
+    head = git(repo, "symbolic-ref", "--quiet", "HEAD")
+    ref = head.stdout.strip()
+    if head.returncode or ref != "refs/heads/main":
+        return (
+            f"run the gate from main's checkout: HEAD is {ref or 'detached'} here, not refs/heads/main, so the code "
+            "it would run and load from this working tree is that commit's, and a branch would grade itself: switch "
+            "to main, then run tools/gates/gate <branch>"
+        )
+    listed = git(repo, "ls-files", "-v", "-z", binary=True)
+    if listed.returncode:
+        return "git ls-files couldn't list main's checkout"
+    # -v tags a file marked assume-unchanged in lower case, and one marked skip-worktree S.
+    hidden = [
+        entry[2:].decode("utf-8", "surrogateescape")
+        for entry in listed.stdout.split(b"\0")
+        if entry[:1].islower() or entry[:1] == b"S"
+    ]
+    if hidden:
+        return (
+            f"git is told to hide changes to {some(hidden)} (assume-unchanged or skip-worktree), so main's checkout "
+            "can't be shown to match main: git update-index --no-assume-unchanged --no-skip-worktree -- <path>"
+        )
+    # No optional locks: the Author's index isn't rewritten. No fsmonitor: nothing but git's own reading says what
+    # changed.
+    status = git(
+        repo, "--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z", "--no-renames",
+        "--untracked-files=no", "--ignore-submodules=none", binary=True,
+    )  # fmt: skip
+    if status.returncode:
+        return "git status couldn't read main's checkout"
+    changed = [
+        e.decode("utf-8", "surrogateescape") for e in status.stdout.split(b"\0") if e
+    ]
+    if changed:
+        return (
+            f"main's checkout has tracked files that don't match HEAD, so the code the gate would run might not be "
+            f"main's: {some(changed)}; stash or restore them"
+        )
+    # --others without --exclude-standard: ignored files too.
+    others = git(repo, "ls-files", "-z", "--others", "--", *CODE_PATHS, binary=True)
+    if others.returncode:
+        return "git ls-files couldn't list main's checkout"
+    planted = [
+        path
+        for path in (
+            e.decode("utf-8", "surrogateescape")
+            for e in others.stdout.split(b"\0")
+            if e
+        )
+        if not path.startswith(HISTORY) and not bytecode_cache(path)
+    ]
+    if planted:
+        return (
+            f"main's checkout has files git doesn't track where the gate's code is ({', '.join(CODE_PATHS)}; "
+            f"{HISTORY} aside), which a glob, a copy, or an import from their folder would pick up: {some(planted)}; "
+            "move them out of the tree"
+        )
+    return None
 
 
 def object_id(kind: bytes, data: bytes) -> str:
@@ -1388,8 +1487,9 @@ def finish(report: Report, repo: Path, sha: str, ref: str, degraded: bool) -> in
     if report.failing():
         say("Not ready to merge: the summary names what failed or waits.")
         return 1
+    # The gate ran from main's checkout, so the merge is this one command.
     merge = (
-        f"git switch main && git --no-replace-objects merge --no-ff -m {shlex.quote(f'Merge {ref} ({sha[:12]})')} "
+        f"git --no-replace-objects merge --no-ff -m {shlex.quote(f'Merge {ref} ({sha[:12]})')} "
         f"-m {shlex.quote(line)} {sha}"
     )
     say(f"merge: {merge}")
@@ -1590,6 +1690,9 @@ def main(argv: list[str]) -> int:
         repo = main_tree()
         if args.contract_replay is not None:
             return run_replay(repo, args.contract_replay)
+        problem = checkout_problem(repo)
+        if problem:
+            raise Refusal(problem)
         return run_gate(repo, args.ref, args.host, args.prove, args.otlp_url)
     except Refusal as exc:
         say(f"gate: {exc}", err=True)

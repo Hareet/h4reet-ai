@@ -532,7 +532,7 @@ time npx @devcontainers/cli@0.89.0 exec --workspace-folder . make test
    tools/gates/gate <branch>
    ```
 
-   Expected: its container phase, run on an exported tree with `--network none`, and its host phase both pass. Its summary line goes into the merge commit's message.
+   Run it from main's checkout. It refuses (exit 2), and runs nothing, unless HEAD is `main` itself, the tracked files are clean with no change hidden by assume-unchanged or skip-worktree, and nothing git doesn't track, ignored or not, sits in `tools/gates/`, `corpus/tools/`, `evals/agent-config/` (its `history/` aside), or `deploy/agents-engine/`, Python's `__pycache__` aside; untracked files elsewhere don't matter (plan §11). Expected: its container phase, run on an exported tree with `--network none`, and its host phase both pass. Its summary line goes into the merge commit's message, and the merge command it prints runs where the gate ran.
 
 ### 6.4 The history scan before publication (FR-042)
 
