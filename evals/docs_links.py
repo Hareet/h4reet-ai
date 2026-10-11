@@ -7,10 +7,12 @@ links lead somewhere.
 Standard library only. It reads Markdown as text and runs nothing. Four checks:
   1. Every relative link in README.md, and in the Markdown under docs/ and specs/, resolves: its file or directory
      exists inside the repository, and a #fragment names a heading, or an explicit anchor, of the Markdown page it
-     points at (for a directory, its README.md). Inline links, images, and reference definitions count. Links inside
-     code, HTML comments, and front matter don't, since they don't render as links. A destination with a scheme
-     (https:, mailto:) or starting with // leaves the repository and isn't followed. A leading / is the repository's
-     root, as GitHub reads it, and a query string is ignored. A fragment on a file that isn't Markdown isn't checked.
+     points at (for a directory, its README.md). Inline links, images, HTML's <a href> and <img src>, and reference
+     definitions count, a definition in a block quote or a list item too. Links inside code, HTML comments, and front
+     matter don't, since they don't render as links. A destination with a scheme (https:, mailto:) or starting with //
+     leaves the repository and isn't followed. A leading / is the repository's root, as GitHub reads it, and a query
+     string is ignored. A fragment on a file that isn't Markdown isn't checked. Inside the repository means as the
+     file system resolves the path: a symbolic link out of it leads outside, whatever the link's text says.
   2. README.md links the ADR index, docs/adr/ or its README.md.
   3. The index links every ADR file, docs/adr/NNNN-*.md. With 2, every ADR is two clicks from the README (SC-009).
   4. Each decision User Story 6 names has its ADR: 0001 to 0005 (quickstart.md §5.2).
@@ -18,6 +20,13 @@ Standard library only. It reads Markdown as text and runs nothing. Four checks:
 Anchors follow GitHub's rule for headings: the heading's text as it renders, lowercased, keeping only letters, marks,
 digits, underscores, hyphens, and spaces, each space then a hyphen. A repeated anchor gets -1, -2, and so on. Only
 ATX headings (#) are read, which is all this repository writes.
+
+Blocks follow CommonMark where a link could hide or appear: a fence opens only on a line indented at most three
+columns past the content of the list item it is in, or past the margin outside a list. A line indented further is
+indented code, which never opens a fence, so a stray one can't hide the rest of a page. Indented code isn't blanked:
+a link in it is checked, which can fail a link that doesn't render, never pass one. List items are followed by
+their markers and indentation alone; a lazy continuation line, indented less than its item, ends the item here,
+which at worst leaves a fence unopened and its code checked.
 Exit codes: 0 every check passed, 1 a check failed.
 """
 
@@ -60,6 +69,18 @@ REFERENCE = re.compile(
     re.MULTILINE,
 )
 ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
+# An HTML link or image and its destination: <a href="…"> and <img src="…">, the value quoted either way or not at
+# all. The attribute follows white space, so data-href isn't href.
+HTML_LINK = re.compile(
+    r"<(?:(a)|img)\s[^<>]*?(?<=\s)(?(1)href|src)\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s\"'=<>`]+))",
+    re.IGNORECASE,
+)
+# A list item's marker, a bullet or a number with a dot or a parenthesis, followed by white space or the line's end.
+LIST_MARKER = re.compile(r"(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)")
+# The block-quote markers that open a line, nested or not.
+QUOTES = re.compile(r"(?: {0,3}>[ \t]?)+")
+# What opens a line inside a container, ahead of a reference definition: a block quote's marker or a list item's.
+CONTAINER = re.compile(r" {0,3}(?:>[ \t]?|(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$))")
 
 
 def blank(match: re.Match[str]) -> str:
@@ -67,31 +88,78 @@ def blank(match: re.Match[str]) -> str:
     return re.sub(r"[^\n]", " ", match.group(0))
 
 
-def mask_blocks(text: str) -> str:
-    """The text with front matter, fenced code, and HTML comments blanked: none of them renders a link or a heading."""
+def indent(line: str) -> int:
+    """How many columns of white space open a line, a tab reaching the next multiple of four."""
+    expanded = line.expandtabs(4)
+    return len(expanded) - len(expanded.lstrip(" "))
+
+
+def scan_blocks(text: str) -> tuple[list[str], list[int]]:
+    """Each line, blanked when it is front matter or fenced code; and for each, the column a line must be indented
+    to, to continue the list item it is in, after any block-quote markers: 0 outside a list."""
     lines = text.split("\n")
     out: list[str] = []
+    bases: list[int] = []
     start = 0
     if lines and lines[0].strip() == "---":
         for i in range(1, len(lines)):
             if lines[i].strip() in ("---", "..."):
-                out, start = [""] * (i + 1), i + 1
+                out, bases, start = [""] * (i + 1), [0] * (i + 1), i + 1
                 break
     fence = ""
+    # The content columns of the open list items, the innermost last.
+    items: list[int] = []
     for line in lines[start:]:
+        base = items[-1] if items else 0
         if fence:
             stripped = line.strip()
             if stripped and set(stripped) == {fence[0]} and len(stripped) >= len(fence):
                 fence = ""
             out.append("")
+            bases.append(base)
             continue
-        opened = FENCE.match(line)
-        if opened and (opened.group(1)[0] == "~" or "`" not in line[opened.end() :]):
-            fence = opened.group(1)
-            out.append("")
-            continue
+        quote = QUOTES.match(line)
+        body = (line[quote.end() :] if quote else line).expandtabs(4)
+        if body.strip():
+            column = indent(body)
+            while items and column < items[-1]:
+                items.pop()  # indented less than its content: the line is outside that item
+            base = items[-1] if items else 0
+            opened = FENCE.match(line)
+            if (
+                opened
+                and column - base <= 3
+                and (opened.group(1)[0] == "~" or "`" not in line[opened.end() :])
+            ):
+                fence = opened.group(1)
+                out.append("")
+                bases.append(base)
+                continue
+            marker = LIST_MARKER.match(body, column) if column - base <= 3 else None
+            if marker:
+                gap = indent(body[marker.end() :])
+                # Content starts after the marker's spaces, or after one when it has none, or five or more.
+                items.append(marker.end() + (gap if 1 <= gap <= 4 else 1))
         out.append(line)
-    return COMMENT.sub(blank, "\n".join(out))
+        bases.append(base)
+    return out, bases
+
+
+def mask_blocks(text: str) -> str:
+    """The text with front matter, fenced code, and HTML comments blanked: none of them renders a link or a heading."""
+    return COMMENT.sub(blank, "\n".join(scan_blocks(text)[0]))
+
+
+def definition_view(line: str, base: int) -> str:
+    """A line as a reference definition would start it: without its block-quote markers, the indentation that
+    continues its list item (base, from scan_blocks), or the markers of the list items it opens."""
+    quote = QUOTES.match(line)
+    rest = (line[quote.end() :] if quote else line).expandtabs(4)
+    if base and indent(rest) >= base:
+        rest = rest[base:]
+    while inner := CONTAINER.match(rest):
+        rest = rest[inner.end() :]
+    return rest
 
 
 def mask(text: str) -> str:
@@ -180,7 +248,8 @@ def destination(text: str, start: int) -> tuple[str, int] | None:
 
 
 def find_links(text: str) -> list[tuple[int, str]]:
-    """Each link's line and destination, as written: inline links and images, then reference definitions."""
+    """Each link's line and destination, as written: inline links and images, HTML links and images, then reference
+    definitions, in a block quote or a list item too."""
     masked = mask(text)
     found = []
     for match in re.finditer(r"\]\(", masked):
@@ -191,9 +260,25 @@ def find_links(text: str) -> list[tuple[int, str]]:
         if parsed:
             dest, at = parsed
             found.append((masked.count("\n", 0, at) + 1, dest))
-    for match in REFERENCE.finditer(masked):
+    for match in HTML_LINK.finditer(masked):
+        if escaped(masked, match.start()):
+            continue  # \< is a literal <, not a tag
+        value = next(g for g in (2, 3, 4) if match.group(g) is not None)
+        found.append(
+            (
+                masked.count("\n", 0, match.start(value)) + 1,
+                html.unescape(match.group(value)).strip(),
+            )
+        )
+    # Masking keeps every line where it was, so scan_blocks' bases line up with the masked text's lines.
+    bases = scan_blocks(text)[1]
+    definitions = "\n".join(
+        definition_view(line, base)
+        for line, base in zip(masked.split("\n"), bases, strict=True)
+    )
+    for match in REFERENCE.finditer(definitions):
         dest = ESCAPE.sub(r"\1", match.group(1).removeprefix("<").removesuffix(">"))
-        found.append((masked.count("\n", 0, match.start(1)) + 1, dest))
+        found.append((definitions.count("\n", 0, match.start(1)) + 1, dest))
     return sorted(found)
 
 
@@ -250,8 +335,14 @@ def anchors(text: str) -> set[str]:
 class Checker:
     def __init__(self, repo: Path) -> None:
         self.repo = Path(os.path.abspath(repo))
+        # The repository as the file system resolves it.
+        self.real = os.path.realpath(self.repo)
         self.failed = 0
         self.cache: dict[Path, set[str] | None] = {}
+
+    def escapes(self, path: Path) -> bool:
+        """Whether a path inside the repository by its text resolves outside it, through a symbolic link."""
+        return os.path.commonpath([self.real, os.path.realpath(path)]) != self.real
 
     def ok(self, what: str) -> None:
         print(f"PASS  {what}")
@@ -303,6 +394,8 @@ class Checker:
         target, fragment = found
         if os.path.commonpath([self.repo, target]) != str(self.repo):
             return "outside the repository"
+        if self.escapes(target):
+            return "outside the repository, through a symbolic link"
         if not target.exists():
             return "no such file or directory"
         if not fragment:
@@ -310,6 +403,8 @@ class Checker:
         holder = target / "README.md" if target.is_dir() else target
         if holder.suffix.lower() != ".md":
             return None  # a line anchor on a source file, say: GitHub's, not a heading
+        if self.escapes(holder):
+            return f"{self.rel(holder)}, which holds #{fragment}, leads outside the repository, through a symbolic link"
         if not holder.is_file():
             return f"{self.rel(target)} has no README.md to hold #{fragment}"
         names = self.anchors_of(holder)

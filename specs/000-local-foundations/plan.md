@@ -1145,7 +1145,7 @@ The closing patch holds:
   - §6 step 1: `make publish-check`.
 - **`docs/how-we-build/lifecycle.md`:** the new enforcement layers in its table.
 
-**As built (tasks.md T109 to T114, 2026-10-10).** START-HERE's "Before you merge" is a new §7, so §4 and §6 keep the numbers §12, FR-042, and T120 cite. `docs/recordings/README.md` is new. `evals/docs_links.py` also checks each link's `#fragment` against the target's headings, and that ADRs 0001 to 0005 exist, and `make evals` runs it through `PY_HOST`.
+**As built (tasks.md T109 to T114, 2026-10-10).** START-HERE's "Before you merge" is a new §7, so §4 and §6 keep the numbers §12, FR-042, and T120 cite. `docs/recordings/README.md` is new. `evals/docs_links.py` also checks each link's `#fragment` against the target's headings, and that ADRs 0001 to 0005 exist, and `make evals` runs it through `PY_HOST`. From US6's review, it also reads HTML's `<a href>` and `<img src>`, and reference definitions in block quotes and list items; a line indented four columns past its list item's content, or past the margin outside a list, never opens a fence; and a link that resolves outside the repository through a symbolic link fails.
 
 ## 17. Data flows that leave the local tier (FR-040)
 

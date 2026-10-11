@@ -2,7 +2,10 @@
 
 Each check must fail when its subject is broken: a missing file or heading anywhere in README.md, docs/**, or specs/**;
 a README that doesn't link the ADR index; an index that misses an ADR file; and a missing ADR for one of the five
-decisions User Story 6 names. The last test runs the check on the repository itself.
+decisions User Story 6 names. From US6's review, the links it could be fooled into missing: HTML's <a href> and
+<img src>, a reference definition in a block quote or a list item, the links after a line of backticks indented four
+columns outside a list, and a symbolic link out of the repository. The last test runs the check on the repository
+itself.
 """
 
 from __future__ import annotations
@@ -317,6 +320,111 @@ def test_reference_definitions_and_images_are_checked(
     assert code == 1
     assert f"FAIL  docs/guide.md:{line + 1}: nope.md: " in out
     assert f"FAIL  docs/guide.md:{line + 3}: nope.gif: " in out
+
+
+def test_html_links_and_images_are_checked(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # GitHub renders <a href> and <img src> in Markdown, relative ones against the page (US6's review). An anchor
+    # without href, a data- attribute, an external URL, and HTML inside code aren't links to follow.
+    append(
+        tree,
+        "docs/guide.md",
+        '\n<a href="guide.md#getting-started">ok</a> <IMG alt="adr" SRC=\'adr/0001-local-first.md\'>\n'
+        '<a id="spot"></a> <a data-href="nope.md" href="https://example.com/x.md">out</a>\n'
+        '`<a href="nope.md">` and <a href="a&#46;md"></a>\n',
+    )
+    write(tree, "docs/a.md", "# A\n")
+    code, out = run(tree, capsys)
+    assert code == 0, out
+    line = append(
+        tree,
+        "docs/guide.md",
+        '\n<a href="nope.md">gone</a>\n<img alt="x" src=nope.png>\n<a\n  href="missing.md#x">split</a>\n',
+    )
+    code, out = run(tree, capsys)
+    assert code == 1
+    assert f"FAIL  docs/guide.md:{line + 1}: nope.md: " in out
+    assert f"FAIL  docs/guide.md:{line + 2}: nope.png: " in out
+    assert f"FAIL  docs/guide.md:{line + 4}: missing.md#x: " in out
+    assert out.count("FAIL  ") == 3
+
+
+def test_reference_definitions_in_quotes_and_list_items_are_checked(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A definition counts inside a block quote or a list item, as CommonMark has it, a line that continues an item
+    # included (US6's review). Indented four columns past the margin outside a list, it is code, not a definition.
+    append(
+        tree,
+        "docs/guide.md",
+        "\n> [q-ok]: guide.md\n\n- [i-ok]: guide.md\n\nA paragraph.\n\n    [code]: nope-code.md\n",
+    )
+    code, out = run(tree, capsys)
+    assert code == 0, out
+    line = append(
+        tree,
+        "docs/guide.md",
+        "\n> [quoted]: nope-quoted.md\n\n- [item]: nope-item.md\n\n10. An item:\n\n"
+        "    [continued]: nope-continued.md\n\n> 1. [nested]:\n>    nope-nested.md\n",
+    )
+    code, out = run(tree, capsys)
+    assert code == 1
+    for offset, dest in (
+        (1, "nope-quoted.md"),
+        (3, "nope-item.md"),
+        (7, "nope-continued.md"),
+        (10, "nope-nested.md"),
+    ):
+        assert f"FAIL  docs/guide.md:{line + offset}: {dest}: " in out, dest
+    assert out.count("FAIL  ") == 4
+
+
+def test_an_indented_backtick_line_outside_a_list_opens_no_fence(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Four columns past the margin, outside a list, a line of backticks is indented code, which never opens a fence,
+    # so nothing after it is hidden (US6's review). Inside a list item, a fence indented to the item's content still
+    # hides its code; the blank line in it keeps a code span from hiding the link instead.
+    append(
+        tree,
+        "docs/guide.md",
+        "\n10. An item:\n\n    ```\n    [gone](missing.md)\n\n    [gone](missing.md)\n    ```\n",
+    )
+    code, out = run(tree, capsys)
+    assert code == 0, out
+    line = append(
+        tree, "docs/guide.md", "\nA paragraph.\n\n    ```\n\n[gone](nope.md)\n"
+    )
+    code, out = run(tree, capsys)
+    assert code == 1
+    assert f"FAIL  docs/guide.md:{line + 5}: nope.md: " in out
+
+
+def test_a_symbolic_link_out_of_the_repository_fails(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The path is read as the file system reads it: a link whose text stays inside, to a symbolic link out of the
+    # repository, leads outside it (US6's review). A symbolic link that stays inside resolves.
+    write(tree.parent, "outside.md", "# Outside\n")
+    (tree / "docs" / "inside.md").symlink_to(tree / "docs" / "guide.md")
+    append(tree, "README.md", "[in](docs/inside.md#getting-started)\n")
+    code, out = run(tree, capsys)
+    assert code == 0, out
+    (tree / "specs" / "out.md").symlink_to(tree.parent / "outside.md")
+    line = append(tree, "README.md", "[out](specs/out.md)\n")
+    code, out = run(tree, capsys)
+    assert code == 1
+    assert f"FAIL  README.md:{line}: specs/out.md: outside the repository" in out
+    # A directory inside whose README.md, read for a fragment, is a symbolic link out.
+    (tree / "docs" / "box").mkdir()
+    (tree / "docs" / "box" / "README.md").symlink_to(tree.parent / "outside.md")
+    line = append(tree, "README.md", "[box](docs/box/#outside)\n")
+    code, out = run(tree, capsys)
+    assert (
+        f"FAIL  README.md:{line}: docs/box/#outside: docs/box/README.md, which holds #outside, leads outside"
+        in out
+    )
 
 
 def test_the_readme_must_link_the_adr_index(
