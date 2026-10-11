@@ -1096,7 +1096,7 @@ Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert
 The closing patch holds:
 - **`.claude/settings.json`:**
   - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)).
-  - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, `./.git/refs/heads/main`, and `./.github/workflows`, and `permissions.deny` gets the matching `Edit(...)`. FR-008 denies the CI workflows, which the settings named only in an Edit deny (`Edit(/.github/workflows/**)`). The sandbox masks the folder today, as stage S's row shows, though no `denyWrite` entry names it; the explicit entry keeps the mask from depending on how Claude Code derives it (convergence T195).
+  - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, and `./.git/refs/heads/main`, and `permissions.deny` gets the matching `Edit(...)`.
 - **`.claude/hooks/bash-gate.sh`:**
   - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the breach test on any stack but dev-cpu, the Author-only targets US5's patch leaves (`make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`), `--no-verify`, and `claude mcp add`;
   - the read-only roles' rules, keyed on the hook input's `agent_type`. For `reviewer` and `red-teamer`, it refuses:
