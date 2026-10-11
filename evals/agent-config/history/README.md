@@ -1,6 +1,6 @@
 # Agent-config eval history
 
-`make evals-agent-config` (the Author) writes one JSON file here per run of the behavioral tier, named `<UTC>-<branch>-<sha>.json`: the run's start in UTC, the branch with anything but letters, digits, `.`, `_`, and `-` turned into `-`, and the first 12 characters of its tip (spec 000 plan §14; `evals/agent-config/behavioral.py`). The Author commits it before merging (SC-008).
+`make evals-agent-config REF=<branch>` (the Author, from main's checkout) writes one JSON file per run of the behavioral tier into this folder of main's checkout, untracked, named `<UTC>-<branch>-<sha>.json`: the run's start in UTC, the branch with anything but letters, digits, `.`, `_`, and `-` turned into `-`, and the first 12 characters of the branch's tip (spec 000 plan §14; `evals/agent-config/behavioral.py`). The Author commits it on that branch, as written, before it merges (SC-008).
 
 - `make evals` reads every entry, and counts one only when this machine attests it (below). The newest counted entry with the current trigger hash, by name, decides: PASS when its `verdict` is `pass`, and FAIL when it's `fail`, even after an earlier pass. With no counted entry for the hash, it prints PENDING with the command, naming any entry for the hash that isn't attested.
 - `main`'s newest attested entry is the baseline: a run's conduct may not fall below it.
