@@ -469,7 +469,8 @@ description: "Task list for spec 000, Local Foundations"
   After review D1 (plan §14's as-built note): the run ends with the commands that commit its entry on the branch from main's repository with git's plumbing (a temporary index from the tip, `commit-tree`, and `update-ref` from the tip they read), never switching main's checkout to the branch, and working while another worktree holds it; and its clean check refuses untracked files only in `evals/agent-config/` (earlier entries aside), so the Author's `.idea/`, `.vscode/`, and `.github/workflows/` don't block it.
 - [X] T095 [P] [US3] Add `make matrix-canary` (Author): `claude -p --setting-sources project` with fake values for every FR-007 variable, asserting that none appears in the session's environment or transcript (§13).
   Done on 2026-10-10: `tools/gates/matrix_canary.py`, 32 tests, with a stub `claude` the only one on the tests' PATH (plan §13's as-built note).
-- [ ] T096 [US3] Agent session: run stage H and stage S of `redteam/forbidden-actions.sh`, and paste the matrix report, planned rows listed, into `docs/merge-requests/<date>-feat-000-us3-governance.md`.
+- [X] T096 [US3] Agent session: run stage H and stage S of `redteam/forbidden-actions.sh`, and paste the matrix report, planned rows listed, into `docs/merge-requests/<date>-feat-000-us3-governance.md`.
+  Done on 2026-10-11: the report, stage H and stage S in the sandbox, is pasted into `docs/merge-requests/2026-10-11-feat-000-us3-governance.md` (300 passed, 0 failed, 30 known gaps; the planned rows listed with the patch that turns each to block).
 - [ ] T097 [US3] Agent session, after Phase 4 has merged: `make engine-smoke` (`deploy/agents-engine/engine.sh smoke`), meaning `make up ENV=dev-cpu` comes up healthy and `make breach-test ENV=dev-cpu` passes (US3-9's positive half, quickstart.md §3.4).
 - [X] T098 **Patch**: write the governance patch, `docs/merge-requests/<date>-feat-000-us3-governance-enforcement.patch`, per §15: `sandbox.filesystem.denyWrite` on `./tools/gates` and `./evals/agent-config`, the matching `Edit(...)` denies, the `protected-paths.sh` rules, and their matrix rows.
   Done on 2026-10-10: `docs/merge-requests/2026-10-10-feat-000-us3-governance-enforcement.patch`. It holds `denyWrite` and `Edit(...)` denies for `./tools/gates` and `./evals/agent-config`; `protected-paths.sh`'s rule for both; the matrix's five governance rows switched to block, with path forms, neighbours that must pass, two stage S rows, and a settings row; and the required list's new IDs. It applies to the merged tree with or without US5's patch. There, stage H runs 301 passed, 0 failed without US5's patch, and 370 passed, 0 failed with it. Stage S reads the session's own sandbox, so its two rows pass once the patch is applied on main.
@@ -481,7 +482,8 @@ description: "Task list for spec 000, Local Foundations"
   - the SC-007 timing of quickstart.md §6.2 (Heavy): a fresh clone, then the devcontainer with an empty build cache, `make setup`, and `make test`, in under 30 minutes.
 
   The results go into `docs/merge-requests/<date>-feat-000-us3-governance.md`. After this branch merges, apply the governance patch (T098), then run `claude doctor`.
-- [ ] T100 [US3] Write the merge-request note `docs/merge-requests/<date>-feat-000-us3-governance.md`.
+- [X] T100 [US3] Write the merge-request note `docs/merge-requests/<date>-feat-000-us3-governance.md`.
+  Done on 2026-10-11: `docs/merge-requests/2026-10-11-feat-000-us3-governance.md`.
 
 **Checkpoint**: every FR-039 limit is proven from the host, and every hook row passes except the planned ones.
 
