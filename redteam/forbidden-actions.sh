@@ -607,7 +607,7 @@ pyc_row planted-pyc-under-py-host dead -I -B -X pycache_prefix=/dev/null
 
 # --- Settings: no socket-opening or sandbox-weakening toggles, one IP in the allowlist (plan §13) --
 # US1's early-patch settings rows prove the one engine opening (198.18.0.1:2376) is present and every FR-007 variable is
-# denied; these add the toggles and the uniqueness of the IP entry. set_has reads the main working tree's settings.
+# denied; these add the toggles and the uniqueness of the IP entry. set_has reads the checkout's settings.
 set_has() { # set_has <label> <jq filter, true = pass>
   rid "H/settings/$1"
   if jq -e "$2" "$repo/.claude/settings.json" >/dev/null 2>&1; then
@@ -707,8 +707,8 @@ fi
 # linked worktree's copies are under neither. An index write (git apply --cached, update-index, read-tree --prefix)
 # never touches a working tree, so it gets past the denyWrite in the main tree too, and the next commit carries it.
 # What holds these: the gate runs the main tree's tools/gates and behavioral.py, and reads the branch only as data
-# (tools/gates/gate), and the Author reads `git diff main...<branch>` before merging. make evals-agent-config, though,
-# still runs the branch's own behavioral.py (review B's finding 1, the half this file doesn't hold). T117's worktree point,
+# (tools/gates/gate), and the Author reads `git diff main...<branch>` before merging; make evals-agent-config runs main's
+# behavioral.py against the branch's tree as data (review B's finding 1, since db43cfe). T117's worktree point,
 # path checks that cover each of the repository's worktrees, may close the Edit rows, and T098 inherits it (plan §13).
 # No planned rule reads a shell write's target directory or what an index write carries, so those rows stay gaps.
 # A worktree of the scratch project, registered there, outside the project's directory. Its own name and branch: US1's

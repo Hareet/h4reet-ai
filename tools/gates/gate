@@ -5,7 +5,7 @@
     tools/gates/gate --contract-replay FILE
 
 Run it directly from main's checkout, never through make: a planted GNUmakefile would shadow the Makefile.
-Project code never runs outside a container in the Author's terminal. On the host the gate runs only git, docker,
+The branch's code never runs outside a container in the Author's terminal. On the host the gate runs only git, docker,
 gitleaks, and the main working tree's own code: this file, tools/gates/*.py, and deploy/agents-engine/engine.sh, each
 with an environment it builds itself; and, loaded into this process, so in its environment, corpus/tools/
 check_corpus.py, evals/agent-config/behavioral.py, the static.py it loads beside it, and the PyYAML both import, from
@@ -1379,7 +1379,7 @@ def post(url: str, body: bytes) -> str | None:
 def eval_history(
     repo: Path, export_dir: Path, base: str | None, sha: str, url: str
 ) -> Step | None:
-    """Post each history entry the branch adds, once, as the h4.devtime.eval.* gauges, when this machine attests its
+    """Post each history entry the branch adds, on every gate run, as the h4.devtime.eval.* gauges, when this machine attests its
     exact bytes: make evals-agent-config writes the SHA-256 of each entry it writes under ~/.local/state/h4reet, which
     agent sessions can't write (review A, 4). An unattested entry isn't posted, and the merge waits (PENDING). The
     history is append-only: the newest attested run decides, so a branch that changes or removes an entry fails."""
