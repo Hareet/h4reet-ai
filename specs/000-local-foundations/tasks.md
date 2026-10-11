@@ -645,7 +645,8 @@ description: "Task list for spec 000, Local Foundations"
 - [X] T114 [US6] Add a docs-link check, `evals/docs_links.py`, run by `make evals` (outside `evals/agent-config/`, which is human-only by now): every relative link in `README.md`, `docs/**`, and `specs/**` resolves; the README links the ADR index; and the index links every ADR file (SC-009).
   Done on 2026-10-10: it also checks each `#fragment` against the target's headings, and that ADRs 0001 to 0005 exist. `make evals` runs it through `PY_HOST`. 0 failed, of 791 links in 69 files. US6's review found four ways to fool it, each now closed with a test that fails without its fix: HTML's `<a href>` and `<img src>` went unread, and so did reference definitions in a block quote or a list item; a line of backticks indented four columns outside a list opened a fence that never closed, hiding the rest of its page; and the outside-the-repository check compared paths as text, so a symbolic link out passed. The repository's 69 files give the same links as before.
 - [ ] T115 [US6] **Author**: `tools/gates/gate` on the branch, from main's checkout; and, if the behavioral tier's trigger fired, `make evals-agent-config REF=feat/000-us6-docs` from main's checkout, committing its history entry on the branch. The summary goes into the note.
-- [ ] T116 [US6] Write the merge-request note `docs/merge-requests/<date>-feat-000-us6-docs.md`.
+- [X] T116 [US6] Write the merge-request note `docs/merge-requests/<date>-feat-000-us6-docs.md`.
+  Done on 2026-10-11: `docs/merge-requests/2026-10-11-feat-000-us6-docs.md`.
 
 ---
 
