@@ -19,4 +19,4 @@ setup:
       }
 effect:
   - stub_ran: '^terraform\b.*\b(apply|destroy|import)\b'
-planned: T117
+needs: T117

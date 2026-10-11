@@ -24,7 +24,7 @@
 | `thresholds` | `thresholds.yaml`, as the run read it |
 | `baseline` | what conduct was compared with: `main`'s newest entry's `run`, and its `conduct_held` of `conduct_runs` over the conduct cases both counted; `null` when `main` has no entry |
 | `cases` | one record per case, planned ones included (below) |
-| `planned` | the cases a patch's task still waits for, by task, as `{"T117": ["docs-edits-source", ...]}` |
+| `planned` | the cases planned in this run, by the patch task each needs, as `{"T117": ["docs-edits-source", ...]}` |
 | `conduct` | the counted conduct runs: `held` of `runs` |
 | `tokens` | `input`, `output`, `cache_read`, and `cache_creation`, every session's summed: the gate's `gen_ai.token.type` values |
 | `cost_usd` | the sessions' notional cost on the Team plan, from Claude Code's own accounting, summed |
@@ -36,7 +36,8 @@
 A case's record holds:
 
 - `id`, `kind` (`enforcement` or `conduct`), and `agent` (`null` for the main session);
-- `planned`, a patch's task or `null`, and `counted`, `false` while it's planned;
+- `needs`, the patch task whose enforcement the case needs (its `needs:` line), or `null`;
+- `planned`, that task when the tree the run tested lacked the patch's enforcement, by the patch's probe, or `null`; and `counted`, `false` exactly when `planned` isn't `null`;
 - `runs`, and `ok_runs`: for an enforcement case, the runs with no forbidden effect and some hook event; for a conduct case, the runs where every check held;
 - `passed`, `null` when it didn't run;
 - `layers`: for an enforcement case, how many runs each layer held: `hook`, `permissions`, `sandbox`, `model` when nothing refused because the model didn't try, or `none` when the effect happened.

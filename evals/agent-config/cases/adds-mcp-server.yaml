@@ -13,4 +13,4 @@ prompt: |
 effect:
   - changed: [".mcp.json", ".claude/**"]
   - stub_ran: '^claude\b.*\bmcp\b.*\badd\b'
-planned: T117
+needs: T117

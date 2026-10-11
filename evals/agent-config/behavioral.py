@@ -16,9 +16,9 @@ but not ignored (every file there, in a git archive export), with their executab
 in .devcontainer/toolchain.vars. The gate calls status(export=True) on its export, which walks the tree and never
 runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. It prints
 PASS when a history entry with that hash passed, and otherwise PENDING with the Author's command (FAIL when the
-newest run for the hash failed). A case whose enforcement waits for a patch prints PLANNED, naming the patch's task;
-once that patch's enforcement is in the tree, the mark is stale and fails, so the patch deletes it (plan §11, "marks
-expire").
+newest run for the hash failed). A case whose `needs:` patch has no enforcement in the tree, by that patch's probe,
+prints PLANNED, naming the patch's task; once the patch is in, the case counts, with no mark to delete, so a mark
+can't go stale, and no case counts while the enforcement it needs is missing.
 
 `run` is the Author's (make evals-agent-config refuses SANDBOX_RUNTIME=1, as make aws-login does). It runs each case
 three times, each run a real Claude Code session on the Team plan, in a scratch clone of the branch tip with the git
@@ -51,7 +51,8 @@ A case is one YAML file in cases/, named by its id:
     env: {FIX_TASK: "1"}                # optional, added to the session's environment
     effect: [...]                       # enforcement: the forbidden effect, any of these checks
     conduct: [...]                      # conduct: what must hold, every one of these checks
-    planned: T117                       # optional: the patch task its enforcement waits for
+    needs: T117                         # optional: the patch task whose enforcement the case needs; the case is
+                                        # planned exactly while that patch's probe is false for the tree
 
 Effect checks: changed: [globs]; changed_outside: [globs]; main_moved: true; committed: true, a commit made on any
 branch or none; pushed: true; canary_printed: env or files; stub_ran: regex, over the calls recorded by the
@@ -218,7 +219,7 @@ class Case:
     env: dict[str, str]
     effect: list[dict[str, Any]]
     conduct: list[dict[str, Any]]
-    planned: str | None
+    needs: str | None
 
 
 CASE_KEYS = {
@@ -231,7 +232,7 @@ CASE_KEYS = {
     "env",
     "effect",
     "conduct",
-    "planned",
+    "needs",
 }
 
 
@@ -392,10 +393,10 @@ def parse_case(data: Any, stem: str) -> Case:
             )
         if "pushed" in check and not remote:
             raise CaseError("pushed needs setup.remote: true, a remote to push to")
-    planned = data.get("planned")
-    if planned is not None and planned not in PATCHES:
+    needs = data.get("needs")
+    if needs is not None and needs not in PATCHES:
         raise CaseError(
-            f"planned names a patch task, one of {', '.join(PATCHES)}; not {planned!r}"
+            f"needs names a patch task, one of {', '.join(PATCHES)}; not {needs!r}"
         )
     return Case(
         stem,
@@ -408,7 +409,7 @@ def parse_case(data: Any, stem: str) -> Case:
         dict(env),
         effect,
         conduct,
-        planned,
+        needs,
     )
 
 
@@ -645,20 +646,29 @@ def patch_applied(task: str, repo: Path) -> bool:
 
 
 def problems(cases: list[Case], repo: Path) -> list[str]:
-    """What makes the cases unfit to run here: a role that doesn't exist, or a planned mark that's stale."""
-    found = []
+    """What makes the cases unfit to run here: a role that doesn't exist."""
+    return [
+        f"{case.id}: no .claude/agents/{case.agent}.md"
+        for case in cases
+        if case.agent
+        and not (repo / ".claude" / "agents" / f"{case.agent}.md").is_file()
+    ]
+
+
+def waiting(cases: list[Case], repo: Path) -> dict[str, str]:
+    """The planned cases, by id, each with the patch task it needs: those whose patch's probe is false for this tree.
+    A case is planned exactly then, and counted otherwise, so no mark can go stale, and no case can count while the
+    enforcement it needs is missing (review B, 2)."""
+    applied: dict[str, bool] = {}
+    planned = {}
     for case in cases:
-        if (
-            case.agent
-            and not (repo / ".claude" / "agents" / f"{case.agent}.md").is_file()
-        ):
-            found.append(f"{case.id}: no .claude/agents/{case.agent}.md")
-        if case.planned and patch_applied(case.planned, repo):
-            found.append(
-                f"stale PLANNED mark: {case.id} waits for {case.planned}, {PATCHES[case.planned]}, whose enforcement "
-                "is in the tree now: delete its planned: line, so the case counts"
-            )
-    return found
+        if case.needs is None:
+            continue
+        if case.needs not in applied:
+            applied[case.needs] = patch_applied(case.needs, repo)
+        if not applied[case.needs]:
+            planned[case.id] = case.needs
+    return planned
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -782,6 +792,7 @@ def status(repo: Path = REPO, here: Path = HERE, *, export: bool = False) -> int
         history = load_history(here / "history")
         digest = trigger_hash(repo, export=export)
         found = problems(cases, repo)
+        waits = waiting(cases, repo)
     except CaseError as exc:
         print(f"FAIL  behavioral tier: {exc}")
         print("agent-config behavioral: fail")
@@ -794,9 +805,8 @@ def status(repo: Path = REPO, here: Path = HERE, *, export: bool = False) -> int
     for problem in found:
         print(f"FAIL  {problem}")
     planned: dict[str, list[str]] = {}
-    for case in cases:
-        if case.planned:
-            planned.setdefault(case.planned, []).append(case.id)
+    for case_id, task in waits.items():
+        planned.setdefault(task, []).append(case_id)
     for task, ids in sorted(planned.items()):
         verb = "waits" if len(ids) == 1 else "wait"
         print(
@@ -1567,8 +1577,12 @@ def run_once(
 
 
 def summarize(
-    case: Case, runs: list[dict[str, Any]], thresholds: dict[str, Any]
+    case: Case,
+    runs: list[dict[str, Any]],
+    thresholds: dict[str, Any],
+    planned: str | None,
 ) -> dict[str, Any]:
+    """A case's record. planned is the patch task it waits for in the tree under test, or None when it counts."""
     ok = sum(1 for r in runs if r["ok"])
     if not runs:
         passed = None
@@ -1584,8 +1598,9 @@ def summarize(
         "id": case.id,
         "kind": case.kind,
         "agent": case.agent,
-        "planned": case.planned,
-        "counted": case.planned is None,
+        "needs": case.needs,
+        "planned": planned,
+        "counted": planned is None,
         "runs": runs,
         "ok_runs": ok,
         "passed": passed,
@@ -1741,6 +1756,7 @@ def run(
         found = problems(cases, repo)
         if found:
             raise Abort("; ".join(found))
+        planned = waiting(cases, repo)
         if args.only is not None:
             wanted = [w for w in args.only.split(",") if w]
             ids = {c.id for c in cases}
@@ -1803,12 +1819,13 @@ def run(
             seed = Path(scratch) / "seed.git"
             git(None, "clone", "--quiet", "--bare", "--no-local", str(repo), str(seed))
             for case in cases:
-                if case.planned and not (args.include_planned or args.only):
+                task = planned.get(case.id)
+                if task and not (args.include_planned or args.only):
                     print(
-                        f"PLANNED ({case.planned}): {case.id} waits for {PATCHES[case.planned]}; not run",
+                        f"PLANNED ({task}): {case.id} waits for {PATCHES[task]}; not run",
                         flush=True,
                     )
-                    results.append(summarize(case, [], thresholds))
+                    results.append(summarize(case, [], thresholds, task))
                     continue
                 runs = []
                 for n in range(1, thresholds["runs_per_case"] + 1):
@@ -1831,7 +1848,7 @@ def run(
                         flush=True,
                     )
                     shutil.rmtree(ws.root, ignore_errors=True)
-                results.append(summarize(case, runs, thresholds))
+                results.append(summarize(case, runs, thresholds, task))
         verdict, reasons, conduct, compared = judge(
             results, thresholds, baseline, partial=args.only is not None
         )
