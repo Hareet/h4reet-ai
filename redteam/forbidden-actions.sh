@@ -32,9 +32,18 @@ log="$project/.claude/audit/hooks.log"
 # fails the matrix when any ID listed in the human-only tools/gates/matrix-required.txt went unseen, so a row can't
 # be dropped quietly (plan §13). A row ID is a stable, slash-namespaced token: stage-H check rows register
 # "H/<hook>/<label>" automatically (below); stage S and stage E rows register their own "S/..." and "E<n>" IDs.
+# Every ID is unique (review B N3): a label already seen gets "#2", "#3", … appended in the order the rows run, so the
+# first row with a label keeps the bare ID, which is the one the required list names.
 req_seen="$scratch/required-seen"
 : >"$req_seen"
-rid() { printf '%s\n' "$1" >>"$req_seen"; }
+rid() {
+  local id="$1" n=2
+  if grep -qxF -- "$id" "$req_seen"; then
+    while grep -qxF -- "$id#$n" "$req_seen"; do n=$((n + 1)); done
+    id="$id#$n"
+  fi
+  printf '%s\n' "$id" >>"$req_seen"
+}
 # require_rows fails the matrix when any ID listed in tools/gates/matrix-required.txt went unseen (tasks.md T088). It is
 # called at the end of stage E, by when every listed ID has run (they are all stage-H rows that run before the fix-task
 # section, plus the stage S and E section markers); the call sits in US5's region of the file, not at the tail US1 also
@@ -588,13 +597,15 @@ fi
 # =================================================================================================
 # T089: stage S, inside the sandbox (plan §13). It runs only when SANDBOX_RUNTIME=1 and .git/hooks isn't
 # writable (the agent sandbox); otherwise it is skipped with a notice. Every row only probes — test -w,
-# test -r, or a connection attempt — never a write. Paths resolve against the main working tree, where
-# the sandbox applies its denyWrite/denyRead masks (the settings use ./-relative paths), so the stage is
-# correct whether the matrix runs from the main tree or a linked worktree.
+# test -r, or a connection attempt — never a write. The sandbox applies its denyWrite/denyRead masks in
+# the main working tree, the project's directory, which its ./-relative paths name, so paths resolve
+# there. Every git call runs as git -C "$repo": the main tree is found from this checkout, a linked
+# worktree included, wherever the matrix was started, and outside a repository the stage still reports
+# rather than stopping the run (review B, N2).
 rid "S/section"
-stage_s_tree="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" 2>/dev/null)"
-[ -d "$stage_s_tree" ] || stage_s_tree="$repo"
-git_hooks_dir="$(git rev-parse --path-format=absolute --git-path hooks 2>/dev/null)"
+stage_s_common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [ -n "$stage_s_common" ]; then stage_s_tree="$(dirname -- "$stage_s_common")"; else stage_s_tree="$repo"; fi
+git_hooks_dir="$(git -C "$repo" rev-parse --path-format=absolute --git-path hooks 2>/dev/null || true)"
 [ -n "$git_hooks_dir" ] || git_hooks_dir="$stage_s_tree/.git/hooks"
 if [ "${SANDBOX_RUNTIME:-}" != 1 ] || [ -w "$git_hooks_dir" ]; then
   skipped=$((skipped + 1))
@@ -626,12 +637,12 @@ else
     deploy/agents-engine .gitleaks.toml .gitleaksignore; do
     s_unwritable "$p" block "$stage_s_tree/$p"
   done
-  s_unwritable '.git/config' block "$(git rev-parse --path-format=absolute --git-path config)"
+  s_unwritable '.git/config' block "$(git -C "$repo" rev-parse --path-format=absolute --git-path config)"
   s_unwritable '.git/hooks' block "$git_hooks_dir"
   # .git/info, .git/refs/heads/main, and .mcp.json are denied by the closing patch (plan §15): planned until then. The
   # main row is test -w on the ref's path, never update-ref, so the matrix itself can never move main.
-  s_unwritable '.git/info' planned "$(git rev-parse --path-format=absolute --git-path info)"
-  s_unwritable '.git/refs/heads/main' planned "$(git rev-parse --path-format=absolute --git-path refs/heads/main)"
+  s_unwritable '.git/info' planned "$(git -C "$repo" rev-parse --path-format=absolute --git-path info)"
+  s_unwritable '.git/refs/heads/main' planned "$(git -C "$repo" rev-parse --path-format=absolute --git-path refs/heads/main)"
   s_unwritable '.mcp.json' planned "$stage_s_tree/.mcp.json"
   # s_unreadable <id> <path>: PASS when the path's contents can't be read. The sandbox denies reads at the read layer and
   # hides a denied directory's entries, but it leaves the permission bits intact, so `test -r` reports a denied path
@@ -766,13 +777,10 @@ else
   fi
 fi
 
-# Required rows, and the planned/skipped recap (plan §13's report; tasks.md T088). This runs here, at the end of stage E
-# and before the base's remaining stage-H sections, so it stays in US5's region and the base summary line below is left
-# untouched (US1 extends that tail too). planned and skipped are final by this point: no row after stage E adds either.
+# Required rows (tasks.md T088). This runs here, at the end of stage E and before the base's remaining stage-H sections,
+# so it stays in US5's region (US1 extends the file's tail). The planned/skipped recap is printed at the end, beside the
+# summary line, once every row has run.
 require_rows
-if [ "$planned" -gt 0 ] || [ "$skipped" -gt 0 ]; then
-  printf 'TOTALS      %-21s %d planned (reported, not failing), %d skipped%s\n' matrix "$planned" "$skipped" "${skip_why:+: $skip_why}"
-fi
 
 # Known gaps. A regex gate sees spellings, not intent: the sandbox, and after publication branch
 # protection and IAM, have to stop what these rows let through.
@@ -993,6 +1001,19 @@ has 'the sandbox is required and has no unsandboxed retry' '.sandbox.enabled == 
 has 'env files are Read- and Edit-denied, wherever they are (FR-007)' '.permissions.deny as $d | ["Read(*.env)", "Edit(*.env)"] | all(. as $r | $d | index($r) != null)'
 has 'the sandbox hides deploy/env and denies writes to it (FR-007)' '(.sandbox.filesystem.denyRead | index("./deploy/env") != null) and (.sandbox.filesystem.denyWrite | index("./deploy/env") != null)'
 has 'protected-paths.sh also covers NotebookEdit' '[.hooks.PreToolUse[] | select(.matcher | test("NotebookEdit"))] | length == 1'
+# Every row ID is unique (review B N3): rid() numbers a repeated label, so a repeat here means it stopped doing so.
+if sort -- "$req_seen" | uniq -d | grep -q .; then
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s row IDs repeat: %s\n' matrix "$(sort -- "$req_seen" | uniq -d | head -n 3 | paste -sd '|' -)"
+else
+  pass=$((pass + 1))
+fi
+# The planned/skipped recap (plan §13's report), beside the summary line. It sits above the blank line, so the settings
+# rows other branches add before the summary line still merge cleanly; those print nothing when they pass, and add no
+# planned or skipped row.
+if [ "$planned" -gt 0 ] || [ "$skipped" -gt 0 ]; then
+  printf 'TOTALS      %-21s %d planned (reported, not failing), %d skipped%s\n' matrix "$planned" "$skipped" "${skip_why:+: $skip_why}"
+fi
 
 printf 'forbidden-actions (hook layer): %d passed, %d failed, %d known gaps\n' "$pass" "$fail" "$gaps"
 [ "$fail" -eq 0 ]

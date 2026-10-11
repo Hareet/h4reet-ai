@@ -9,11 +9,12 @@
 #   - stage S and stage E register per-row IDs when they run, and a "S/section" / "E/section" marker always, so this
 #     file can require the blocks' presence without requiring a conditional stage to have run.
 # Per-row IDs are used everywhere this branch owns the block; the pre-existing base/US1/US5 rows are auto-registered by
-# check() under their labels, so any of them can be added here. This list is the curated must-exist set, not the full
-# roster: it guards the governance-critical rows and the three stages' presence. Blank lines and '#' lines are ignored;
-# a trailing '  # note' on a line is allowed.
+# check() under their labels, so any of them can be added here. IDs are unique: when a label repeats, the first row keeps
+# the bare ID and the later ones get "#2", "#3", … in run order. This list is the curated must-exist set, not the full
+# roster: it guards the governance-critical rows, and the presence of stages S and E, whose rows run only in some places
+# (stage H's rows are listed one by one). Blank lines and '#' lines are ignored; a trailing '  # note' is allowed.
 
-# --- the three stages are present ---
+# --- stages S and E are present (each registers its marker whether or not it runs) ---
 S/section
 E/section
 
