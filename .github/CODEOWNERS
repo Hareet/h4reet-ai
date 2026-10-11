@@ -16,3 +16,14 @@
 /deploy/agents-engine/   @hareet
 /.mcp.json               @hareet
 /config/prices*          @hareet
+
+# The other human-only paths spec 000 names (plan §15; ADR 0017; protected-paths.sh): the budgets, the alerts, and the
+# kill switch, which the stacks read; the env files; the makefiles make would read before the Makefile, at the root;
+# and gitleaks' ignore list, wherever one sits.
+/config/budgets*         @hareet
+/config/alert*           @hareet
+/config/kill-switch*     @hareet
+/deploy/env/             @hareet
+/GNUmakefile             @hareet
+/makefile                @hareet
+**/.gitleaksignore       @hareet

@@ -7,7 +7,8 @@
   the plan, the spec, and tasks.md cite (START-HERE §4, §6). From US6's review, "Before you merge" describes the gate
   from its code, not the plan's words: the merge command finish() prints, --host in the gate's own words, ADR 0017's
   list of what runs in the Author's terminal, and what make check runs there, read from the Makefile.
-- .github/CODEOWNERS covers the human-only paths T113 lists (FR-001).
+- .github/CODEOWNERS covers the human-only paths T113 lists (FR-001), and from US6's review the other human-only
+  paths spec 000 names, each pattern reaching a file in its path as GitHub matches.
 - docs/how-we-build/lifecycle.md's enforcement table has the layers each later patch and gate adds (T111).
 """
 
@@ -284,7 +285,8 @@ def test_the_enforcement_table_keeps_claude_mds_words_on_what_the_author_runs() 
     assert not any("never runs in the Author's terminal" in rule for rule in rules)
 
 
-# tasks.md T113: the human-only paths spec 000 adds (FR-001; ADR 0017).
+# tasks.md T113: the human-only paths spec 000 adds (FR-001; ADR 0017); then, from US6's review (finding 5), the
+# other human-only paths spec 000 names, as plan §15, ADR 0017, and protected-paths.sh have them.
 T113_PATTERNS = [
     "/tools/gates/",
     "/evals/agent-config/",
@@ -292,22 +294,90 @@ T113_PATTERNS = [
     "/deploy/agents-engine/",
     "/.mcp.json",
     "/config/prices*",
+    "/config/budgets*",
+    "/config/alert*",
+    "/config/kill-switch*",
+    "/deploy/env/",
+    "/GNUmakefile",
+    "/makefile",
+    "**/.gitleaksignore",
+]
+# A file in each of those paths, which the Author's pattern must reach as GitHub matches it. A .gitleaksignore counts
+# wherever it sits, as protected-paths.sh has it; GNUmakefile and makefile only at the root, where make reads them.
+HUMAN_ONLY_FILES = [
+    "tools/gates/gate",
+    "evals/agent-config/history/README.md",
+    ".gitleaks.toml",
+    "deploy/agents-engine/engine.sh",
+    ".mcp.json",
+    "config/prices.yaml",
+    "config/budgets.yaml",
+    "config/alerts.yaml",
+    "config/kill-switch.yaml",
+    "deploy/env/prod.env",
+    "GNUmakefile",
+    "makefile",
+    ".gitleaksignore",
+    "services/gateway/.gitleaksignore",
 ]
 
 
+def codeowners() -> list[tuple[str, list[str]]]:
+    """CODEOWNERS' entries, in order: each pattern and its owners."""
+    lines = (REPO / ".github" / "CODEOWNERS").read_text(encoding="utf-8").splitlines()
+    return [
+        (pattern, owners)
+        for pattern, *owners in (
+            line.split() for line in lines if line.strip() and not line.startswith("#")
+        )
+    ]
+
+
+def reaches(pattern: str, path: str) -> bool:
+    """Whether a CODEOWNERS pattern reaches a path, by gitignore's rules as GitHub applies them: a slash before the end
+    anchors it at the root, a trailing slash takes the folder and everything under it, ** spans folders, * and ?
+    stay within one, and case counts."""
+    body, regex, i = pattern.strip("/"), "", 0
+    while i < len(body):
+        if body.startswith("**/", i):
+            regex, i = regex + "(?:.*/)?", i + 3
+        elif body.startswith("**", i):
+            regex, i = regex + ".*", i + 2
+        else:
+            regex, i = (
+                regex + {"*": "[^/]*", "?": "[^/]"}.get(body[i], re.escape(body[i])),
+                i + 1,
+            )
+    head = "" if "/" in pattern.rstrip("/") else "(?:.*/)?"
+    tail = "/.*" if pattern.endswith("/") else "(?:/.*)?"
+    return re.fullmatch(head + regex + tail, path) is not None
+
+
+def owner_of(path: str, entries: list[tuple[str, list[str]]]) -> list[str] | None:
+    """A path's owners: the last entry whose pattern reaches it decides, as on GitHub."""
+    found = None
+    for pattern, owners in entries:
+        if reaches(pattern, path):
+            found = owners
+    return found
+
+
 def test_codeowners_covers_the_new_human_only_paths() -> None:
-    entries = {}
-    for line in (
-        (REPO / ".github" / "CODEOWNERS").read_text(encoding="utf-8").splitlines()
-    ):
-        if line.strip() and not line.startswith("#"):
-            pattern, *owners = line.split()
-            entries[pattern] = owners
-    owner = entries["/.claude/"]
+    entries = codeowners()
+    by_pattern = dict(entries)
+    owner = by_pattern["/.claude/"]
     assert owner  # the enforcement layer's owner, whom the new paths share
-    assert {p: entries.get(p) for p in T113_PATTERNS} == {
+    assert {p: by_pattern.get(p) for p in T113_PATTERNS} == {
         p: owner for p in T113_PATTERNS
     }
+    # Each reaches its files as GitHub matches them, the last matching line deciding.
+    assert {f: owner_of(f, entries) for f in HUMAN_ONLY_FILES} == {
+        f: owner for f in HUMAN_ONLY_FILES
+    }
+    # Not vacuous: the matcher tells paths apart by case, and keeps an anchored pattern at the root.
+    assert owner_of("Makefile", [("/makefile", owner)]) is None
+    assert owner_of("docs/GNUmakefile", [("/GNUmakefile", owner)]) is None
+    assert owner_of("config/alerts.yaml", [("/config/alert*", owner)]) == owner
 
 
 def test_the_enforcement_table_has_the_later_layers() -> None:
