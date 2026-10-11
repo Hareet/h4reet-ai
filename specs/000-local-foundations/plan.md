@@ -1212,7 +1212,7 @@ Total cloud spend for spec 000: the Bedrock line only, bounded by prod's ceiling
 | `evals/breach.py` can't reach its stack | It fails at its first step, naming the stack and the port, before asserting anything, so no step passes by default. |
 | Team plan unavailable | The behavioral tier stays PENDING, and the merge waits (FR-011). |
 | Denylist missing | `corpus-check` notes it, as today; publish-check exits 3. |
-| Devcontainer image won't build | `tools/gates/gate --host` runs on host tools, marked DEGRADED in its summary. |
+| Devcontainer image won't build | `tools/gates/gate --host` skips the container phase, and every summary line says DEGRADED. In the gate's words: "Lint, tests, the scaffolds, and stage H then run nowhere: never on the host." (Corrected on 2026-10-10 by US6's review: the row had said the host gate runs on host tools, which the gate as built never does.) |
 | Dummy interface lost after a WSL restart | `engine.sh up` fails and shows the unit's status. |
 
 ## 20. Requirement coverage

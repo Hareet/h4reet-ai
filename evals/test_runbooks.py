@@ -9,7 +9,8 @@ gateway-http.md §3 does, read from those files.
 
 From T111: the folder holds exactly the pages plan §16 lists; the index, docs/runbooks/README.md, links each and
 names the alerts and causes alerts.md §6 sends to it; the agents' engine's page quotes the messages the engine's code
-prints and names the Author's commands its code takes; and the local gate's page names what make check prints.
+prints and names the Author's commands its code takes; and the local gate's page names what make check prints. From
+US6's review, it gives --host in the gate's own words, read from tools/gates/gate.
 """
 
 from __future__ import annotations
@@ -362,3 +363,16 @@ def test_the_gates_page_names_what_make_check_prints() -> None:
     )
     assert image_fail.split(": ", 1)[1] in text
     assert "agents-engine.md" in text  # where an engine that's down sends you
+
+
+def test_the_gates_page_gives_the_host_gate_in_its_own_words() -> None:
+    # tools/gates/gate's docstring on what --host leaves out, and its summary line's DEGRADED mark, read from the gate,
+    # not the plan's "runs on host tools" (US6's review, finding 2).
+    gate = (REPO / "tools" / "gates" / "gate").read_text(encoding="utf-8")
+    (nowhere,) = re.findall(
+        r"Lint, [^.]*? run nowhere: [^.]*\.", " ".join(gate.split('"""')[1].split())
+    )
+    (degraded,) = re.findall(r'"; (DEGRADED \(--host\): [^"]*)"', gate)
+    text = " ".join((RUNBOOKS / "local-gate.md").read_text(encoding="utf-8").split())
+    assert nowhere in text and degraded in text
+    assert "host tools" not in text

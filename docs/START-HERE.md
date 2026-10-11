@@ -39,7 +39,7 @@ The enforcement layer cannot gate its own creation, so the scaffold went in as o
 
 What was done, locally, in `~/h4reet-ai/h4reet-ai`: `specify init` (Spec Kit 1.0.8 for Claude, Python scripts) combined with the scaffold, the hooks made executable, `.gitattributes` forcing LF, Spec Kit's git extension added (`specify extension add git`), and `.specify/feature.json` pointed at spec 000.
 
-There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge with `git switch main && git merge --no-ff <branch>` in your own terminal, after the steps in section 7. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; the agents' `make check` fails until you do.
+There is no remote. Development stays local until you publish (ADR 0013; section 6): agents work on feature branches and end each with a note in `docs/merge-requests/`, and you merge each in your own terminal with the merge command the gate prints, after the steps in section 7. Agents can't run it, and inside Claude Code the git hook that guards `main` may refuse it too, because Claude Code sets `CLAUDECODE=1` in the shells it starts. After a fresh clone, run `make git-hooks` once; the agents' `make check` fails until you do.
 
 ## 3. First Claude Code session
 
@@ -94,18 +94,29 @@ When spec 000's success criteria pass locally and you're ready for interviews (A
 
 ## 7. Before you merge
 
-Every branch ends with a note in `docs/merge-requests/`. Before `git switch main && git merge --no-ff <branch>`, in your own terminal:
+Every branch ends with a note in `docs/merge-requests/`. Before you merge it, in your own terminal:
 
-1. **Read the note's first section,** on what runs in your terminal: every change to the Makefile, `deploy/scripts/**`, `deploy/agents-engine/**`, and `tools/gates/**` is listed there, first (ADR 0017). The note also carries `make check`'s whole output from an agent session: the agents' run of every local gate (FR-041).
+1. **Read the note's first section,** on what runs in your terminal. In ADR 0017's words: "Agent-editable and reviewed: the Makefile, `deploy/scripts/**`, `scripts/operator.py`, and `.devcontainer/**`. These run in the Author's terminal, so each merge-request note lists changes to them under its own heading, first, and the reviewer checks that heading first." `tools/gates/**` and `deploy/agents-engine/**` are human-only (ADR 0017), so they reach main only as your own patches. Once the patch that protects each has landed, plan §15's rule holds: "Their changes travel as patch files in `docs/merge-requests/`", which you review and apply yourself (step 4). The note also carries `make check`'s whole output from an agent session: the agents' run of every local gate (FR-041).
 2. **Run the gate, never `make check` or `make test`:**
 
    ```bash
    tools/gates/gate <branch>
    ```
 
-   Run it directly, not through make, because a planted `GNUmakefile` would shadow the Makefile. It exports the branch's commit with `git archive`, proves the export is that commit's tree, and runs lint, `validate-config`, the tests, the evals, the red-team suite, and matrix stage H in the devcontainer image with `--network none`. Then, on the host, it checks the git hooks, the toolchain, and the compose policy, runs `corpus-check` with your denylist and gitleaks over the branch, builds the images on the agents' engine, and reads the behavioral evals' history when the branch touches their triggers (plan §11). Matrix stage E waits, PENDING, when the branch touches `deploy/agents-engine/` or `.claude/settings.json`: run `tools/gates/gate --prove <branch>` with no agent session using the engine, because `deploy/agents-engine/engine.sh prove` resets and reseeds it. `make check`, `make test`, and `make lint` would run the working tree's `node_modules` and test code, which agents installed and git doesn't show, so in your terminal they refuse to run. If the devcontainer image won't build, `tools/gates/gate --host <branch>` runs on host tools and marks its summary DEGRADED (plan §19).
+   Run it directly, not through make, because a planted `GNUmakefile` would shadow the Makefile. It exports the branch's commit with `git archive` and proves the export is that commit's tree. In the devcontainer image, it installs the workspace's packages in a copy of the export with `npm ci --ignore-scripts`, its one step with the network, then runs lint, `validate-config`, the tests, the evals, the red-team suite, and matrix stage H with `--network none`. Then, on the host, it checks the git hooks, the toolchain, and the compose policy, runs `corpus-check` with your denylist and gitleaks over the branch, builds the images on the agents' engine, and reads the behavioral evals' history when the branch touches their triggers (plan §11). Matrix stage E waits, PENDING, when the branch touches `deploy/agents-engine/` or `.claude/settings.json`: run `tools/gates/gate --prove <branch>` with no agent session using the engine, because `deploy/agents-engine/engine.sh prove` resets and reseeds it.
 
-   When nothing fails or waits, the gate prints the merge command to use. It merges the commit it checked, by SHA, with replace objects off, and puts the gate's summary line in the merge commit's message. If main has commits the branch doesn't, it says so: the merge would then write a tree the gate didn't check. For a stacked branch, the note names a simulated merge you can gate instead.
+   Never run `make check` in your own terminal. There it runs the working tree's `evals/run.py` and `evals/docs_links.py` (`make evals`), `redteam/run.py` (`make redteam-suite`), and `redteam/forbidden-actions.sh` (`make matrix`) on your host, outside any container, and agents write that code. Only its `lint`, `test`, and `validate-config` refuse there, as `make lint` and `make test` do on their own, because they would run the working tree's `node_modules` and test code, which agents installed and git doesn't show.
+
+   If the devcontainer image won't build, `tools/gates/gate --host <branch>` skips the container phase, and every summary line says DEGRADED. In the gate's words: "Lint, tests, the scaffolds, and stage H then run nowhere: never on the host." (plan §19)
+
+   When nothing fails or waits, the gate prints the merge command: merge with it, not with a command of your own. It merges the commit the gate checked, by SHA, with replace objects off, and puts the gate's summary line in the merge commit's message. Their shape, as the gate's `finish()` prints them:
+
+   ```text
+   gate: <SHA> (<branch>) by tools/gates/gate at <its own commit's first 12>: <n> PASS, <n> SKIP, <n> WARN, <n> PLANNED, <n> PENDING, <n> FAIL
+   merge: git switch main && git --no-replace-objects merge --no-ff -m 'Merge <branch> (<the SHA's first 12>)' -m '<that gate: line>' <SHA>
+   ```
+
+   If main has commits the branch doesn't, it says so: the merge would then write a tree the gate didn't check. For a stacked branch, the note names a simulated merge you can gate instead.
 3. **The agent-config evals, when `make evals` shows PENDING:** the branch changed `CLAUDE.md`, `REVIEW.md`, `.claude/**`, `evals/agent-config/**`, or the Claude Code pin, and no passing history entry has that hash. Run `make evals-agent-config`: 13 cases, three runs each, with `claude -p` on the Team plan in a scratch clone of the branch (plan §14). Commit the entry it writes in `evals/agent-config/history/` on the branch (SC-008), then run the gate again: it reads the entry, and posts its cost and tokens to prod's collector for the dashboard's dev-time row.
 4. **After the merge, apply the branch's patch,** if its note has one: `git apply <patch>`, then `claude doctor` and `make git-hooks` (plan §15). Each patch lands before the risk it guards, so its note says when.
 

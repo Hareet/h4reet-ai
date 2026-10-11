@@ -37,7 +37,7 @@ The branch doesn't merge: every merge-request note carries `make check`'s whole 
 8. **The git hooks' gate fails:** `make git-hooks`, in your terminal, once per clone. The agent sandbox can't write `.git/hooks`.
 9. **gitleaks is missing:** the hooks and `make secrets` fail closed, and publish-check exits 3 (plan §19). `make tools` installs it.
 10. **A secret finding:** never add an allowlist entry, a `gitleaks:allow` marker, or a `.gitleaksignore`: every scan takes its rules only from your `.gitleaks.toml`, and refuses a `.gitleaksignore` (research.md R-36). Rotate the secret if it was real, and take it out of the branch's history, not just its tip, before the merge: a later commit that deletes it leaves it where publish-check looks.
-11. **The devcontainer image won't build:** `tools/gates/gate --host <branch>` runs the gate on host tools, marked DEGRADED in its summary (plan §19). Say so in the merge commit.
+11. **The devcontainer image won't build:** `tools/gates/gate --host <branch>` skips the container phase. In the gate's words: "Lint, tests, the scaffolds, and stage H then run nowhere: never on the host." Every summary line says so, "DEGRADED (--host): no container phase, so lint, tests, the scaffolds, and stage H didn't run" (plan §19), and the merge command the gate prints carries that line into the merge commit's message.
 12. **publish-check exits 3:** run it in your terminal, in a full clone, with gitleaks at its pin and the denylist in place. Exit 1 lists findings by commit, path, line, and rule, never the phrase: clean them out of history before the first push, which ADR 0013 allows once (quickstart.md §6.4).
 13. **The gate's `matrix-e` step is PENDING:** the branch changed `deploy/agents-engine/` or `.claude/settings.json`, so stage E has to prove the engine's limits again. With no agent session using the engine, run `tools/gates/gate --prove <branch>`: it runs `deploy/agents-engine/engine.sh prove`, which resets and reseeds the engine (Heavy).
 14. **The gate's `eval-history` step is WARN:** prod's collector didn't take the agent-config evals' cost and tokens, so the dashboard's dev-time row misses that run. It doesn't block the merge. Check prod is up (`make status ENV=prod`); an entry is posted only once, by the gate that records it.
@@ -52,7 +52,7 @@ The branch doesn't merge: every merge-request note carries `make check`'s whole 
   tools/gates/gate <branch>
   ```
 
-  Run it directly, not through make: a planted `GNUmakefile` would shadow the Makefile (plan §11). Its summary line goes into the merge commit's message.
+  Run it directly, not through make: a planted `GNUmakefile` would shadow the Makefile (plan §11). Once nothing fails or waits, it prints the merge command, which puts its summary line in the merge commit's message; merge with that ([START-HERE §7](../START-HERE.md#7-before-you-merge)).
 - After the closing patch: no PLANNED line, and no SKIP that names a task (tasks.md T118).
 
 ## Undo
