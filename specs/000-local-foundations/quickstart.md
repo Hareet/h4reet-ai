@@ -356,7 +356,7 @@ make matrix
 
 ### 3.2 Stage S, inside the sandbox (US3-1, FR-007)
 
-**Where:** an agent session, after the early patch; the rows that need the closing patch show as planned until it lands. The same `make matrix` runs stage S when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable. **Expected:** every unwritable, unreadable, and refused-connection row passes, including the FR-007 file of each secret ([env-files.md §8](contracts/env-files.md#8-the-fr-007-deny-list)), and the opening's half of row E9: `198.18.0.1:2376` answers with the agents' certificate, and `198.18.0.1:3128` and the stack ports are refused.
+**Where:** an agent session, after the early patch; the rows that need the closing patch show as planned until it lands. The same `make matrix` runs stage S when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable. Give the session the alert channel's SMTP host, deploy/env's `SMTP_HOST`, which the sandbox can't read: it runs `H4_STAGE_S_SMTP_HOST=<host> make matrix`, adding `H4_STAGE_S_SMTP_PORT=<port>` if the port is neither 465 nor 587. Without it, the SMTP row is SKIP. **Expected:** every unwritable, unreadable, and refused-connection row passes, including the FR-007 file of each secret ([env-files.md §8](contracts/env-files.md#8-the-fr-007-deny-list)), and the opening's half of row E9: `198.18.0.1:2376` answers with the agents' certificate, and `198.18.0.1:3128` and the stack ports are refused. An unwritable row passes on the sandbox's mount at that very path, not on a file that merely can't be written, and Windows interop is refused.
 
 ### 3.3 Stage E, the engine's limits from the host (US3-9, FR-039)
 

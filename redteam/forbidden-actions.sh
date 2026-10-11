@@ -722,23 +722,122 @@ if [ "${SANDBOX_RUNTIME:-}" != 1 ] || [ -w "$git_hooks_dir" ]; then
   printf 'SKIP        %-21s stage S needs the agent sandbox (SANDBOX_RUNTIME=1 and .git/hooks unwritable)\n' stage-S
 else
   printf -- '--- stage S: the sandbox (SANDBOX_RUNTIME=1, .git/hooks unwritable) ---\n'
-  # s_unwritable <id> <block|planned> <path>: PASS when the path is not a real writable file or directory. A denyWrite
-  # path is either a read-only placeholder (test -w false) or a /dev/null-style char-special mask (a write is discarded,
-  # so no real file results) — both mean an agent cannot write a real file there. A `planned` path isn't denied yet (its
-  # patch hasn't landed): writable now is reported, not failed. test -w never writes, so no row is skipped for writing.
+  # The mask itself (review B, finding 4). test -w isn't evidence of a deny: a path an earlier command's sandbox left as
+  # an empty 0444 placeholder is unwritable whether or not the deny is in the settings, and an absent path passed too.
+  # mount_of.py reads /proc/self/mountinfo, its octal escapes undone, and names the mount that holds the path (the
+  # kernel's mnt_id for it, from /proc/self/fdinfo), on one line: "mask <how> <mount point>" for a mount at exactly
+  # that path that keeps a write off it (read-only, or an empty stand-in: a tmpfs no other mount shares, or /dev/null,
+  # as the sandbox mounts over a path it also hides); "covered read-only <mount point>" when the path has no mount of
+  # its own but sits, or its nearest existing parent does, on a read-only mount; "open writable <mount point>" when a
+  # writable mount holds it; "unknown <why>" when it can't tell. It never opens a file for reading or writing.
+  mount_of="$scratch/mount_of.py"
+  cat >"$mount_of" <<'PY'
+import os
+import re
+import sys
+
+
+def unescape(field):  # proc(5): space, tab, newline, and backslash are written as \ooo
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), field)
+
+
+def table():
+    mounts = {}
+    with open("/proc/self/mountinfo", encoding="utf-8", errors="surrogateescape") as f:
+        for line in f:
+            fields = line.rstrip("\n").split(" ")
+            dash = fields.index("-", 6)
+            mounts[fields[0]] = {
+                "dev": fields[2],
+                "root": unescape(fields[3]),
+                "point": unescape(fields[4]),
+                "ro": "ro" in fields[5].split(","),
+                "fstype": fields[dash + 1],
+            }
+    return mounts
+
+
+def mount_id(path):
+    fd = os.open(path, os.O_PATH | os.O_NOFOLLOW)
+    try:
+        with open(f"/proc/self/fdinfo/{fd}", encoding="ascii") as f:
+            for line in f:
+                if line.startswith("mnt_id:"):
+                    return line.split()[1]
+    finally:
+        os.close(fd)
+    raise OSError(0, "no mnt_id in fdinfo")
+
+
+def main():
+    path = os.path.abspath(sys.argv[1])
+    path = os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path))
+    try:
+        mounts = table()
+    except (OSError, ValueError):
+        print("unknown the mount table can't be read")
+        return 3
+    probe = path
+    while True:
+        try:
+            mid = mount_id(probe)
+            break
+        except FileNotFoundError:
+            if os.path.dirname(probe) == probe:
+                print("unknown nothing on the path exists")
+                return 3
+            probe = os.path.dirname(probe)
+        except OSError as e:
+            print(f"unknown {e.strerror}")
+            return 3
+    m = mounts.get(mid)
+    if m is None:
+        print("unknown its mount isn't in the table")
+        return 3
+    exact = probe == path and m["point"] == path
+    alone = sum(x["dev"] == m["dev"] for x in mounts.values()) == 1
+    if exact and m["ro"]:
+        print("mask read-only", m["point"])
+    elif exact and m["fstype"] == "tmpfs" and m["root"] == "/" and alone:
+        print("mask an-empty-tmpfs", m["point"])
+    elif exact and m["fstype"] == "devtmpfs" and m["root"] == "/null":
+        print("mask /dev/null", m["point"])
+    elif m["ro"]:
+        print("covered read-only", m["point"])
+    else:
+        print("open writable", m["point"])
+    return 0
+
+
+sys.exit(main())
+PY
+  # s_unwritable <id> <block|planned> <path>: PASS when a mask at exactly that path keeps a write off it; FAIL when there
+  # is none, so an absent path, a leftover placeholder on the tree's writable mount, and a writable mount all fail. A
+  # path on a read-only mount with no mask of its own can't be written either: it passes, with a NOTE saying so, since
+  # it proves the mount, not the deny. A planned path (its patch hasn't landed) without a mask is reported, not failed.
   s_unwritable() {
-    local id="$1" expect="$2" path="$3" real=no
+    local id="$1" expect="$2" path="$3" how
     rid "S/unwritable/$id"
-    if [ -f "$path" ] || [ -d "$path" ]; then [ -w "$path" ] && real=yes; fi
-    if [ "$real" = no ]; then
-      pass=$((pass + 1))
-    elif [ "$expect" = planned ]; then
-      planned=$((planned + 1))
-      printf 'PLANNED     %-21s %s is still writable (its patch denies it)\n' stage-S-unwritable "$id"
-    else
-      fail=$((fail + 1))
-      printf 'FAIL        %-21s %s is a real, writable path\n' stage-S-unwritable "$id"
-    fi
+    how="$(python3 -I "$mount_of" "$path" 2>/dev/null)" || true
+    case "$expect:$how" in
+      block:"mask "*) pass=$((pass + 1)) ;;
+      planned:"mask "*)
+        pass=$((pass + 1))
+        printf 'ENFORCED    %-21s %s: %s (a planned row: make it "block")\n' stage-S-unwritable "$id" "$how"
+        ;;
+      *:"covered "*)
+        pass=$((pass + 1))
+        printf 'NOTE        %-21s %s: no mask of its own, but it sits on a read-only mount (%s)\n' stage-S-unwritable "$id" "$how"
+        ;;
+      planned:*)
+        planned=$((planned + 1))
+        printf 'PLANNED     %-21s %s has no mask yet: %s (its patch denies it)\n' stage-S-unwritable "$id" "${how:-unknown}"
+        ;;
+      *)
+        fail=$((fail + 1))
+        printf 'FAIL        %-21s %s has no mask: %s\n' stage-S-unwritable "$id" "${how:-unknown}"
+        ;;
+    esac
   }
   # Human-only paths and the files prod reads (denied now, via the early patch's settings, in the main tree).
   for p in CLAUDE.md REVIEW.md .claude .specify/memory/constitution.md corpus/00-profile.md \
@@ -748,11 +847,31 @@ else
   done
   s_unwritable '.git/config' block "$(git -C "$repo" rev-parse --path-format=absolute --git-path config)"
   s_unwritable '.git/hooks' block "$git_hooks_dir"
-  # .git/info, .git/refs/heads/main, and .mcp.json are denied by the closing patch (plan §15): planned until then. The
-  # main row is test -w on the ref's path, never update-ref, so the matrix itself can never move main.
+  # FR-007's files, for writing as well as reading (review B, finding 7): deploy/env and ~/.config/h4reet-ai, which the
+  # sandbox hides under an empty tmpfs, and the state directory, ~/.local/state/h4reet.
+  s_unwritable 'deploy/env' block "$stage_s_tree/deploy/env"
+  # shellcheck disable=SC2088 # "~/..." is the row's label; the path is "$HOME/..."
+  s_unwritable '~/.config/h4reet-ai' block "$HOME/.config/h4reet-ai"
+  # shellcheck disable=SC2088
+  s_unwritable '~/.local/state/h4reet' block "$HOME/.local/state/h4reet"
+  # .git/info and .mcp.json are denied by the closing patch (plan §15): planned until then.
   s_unwritable '.git/info' planned "$(git -C "$repo" rev-parse --path-format=absolute --git-path info)"
-  s_unwritable '.git/refs/heads/main' planned "$(git -C "$repo" rev-parse --path-format=absolute --git-path refs/heads/main)"
   s_unwritable '.mcp.json' planned "$stage_s_tree/.mcp.json"
+  # main can't move (plan §13): test -w on the ref's path, and nothing more. The row never runs update-ref, so the matrix
+  # itself can't move main before the closing patch denies the ref.
+  # A main that isn't a loose ref (packed, or no path) would make test -w say nothing, so that fails instead.
+  rid "S/unwritable/.git/refs/heads/main"
+  main_ref="$(git -C "$repo" rev-parse --path-format=absolute --git-path refs/heads/main 2>/dev/null || true)"
+  if [ -z "$main_ref" ] || [ ! -f "$main_ref" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s .git/refs/heads/main: no loose ref at %s, so test -w proves nothing (gc.packRefs must stay false)\n' stage-S-unwritable "${main_ref:-an unknown path}"
+  elif [ -w "$main_ref" ]; then
+    planned=$((planned + 1))
+    printf 'PLANNED     %-21s .git/refs/heads/main is still writable (test -w; the closing patch denies it)\n' stage-S-unwritable
+  else
+    pass=$((pass + 1))
+    printf 'ENFORCED    %-21s .git/refs/heads/main is unwritable (test -w) (a planned row: make it "block")\n' stage-S-unwritable
+  fi
   # s_unreadable <id> <path>: PASS when the path's contents can't be read. The sandbox denies reads at the read layer and
   # hides a denied directory's entries, but it leaves the permission bits intact, so `test -r` reports a denied path
   # readable (a false negative). The row therefore attempts a one-byte read (non-destructive): for a file, it must fail;
@@ -810,6 +929,24 @@ except OSError:
   else
     pass=$((pass + 1))
   fi
+  # Windows interop fails (plan §13; review B, finding 7). WSL starts a Windows binary through binfmt_misc's WSLInterop
+  # entry: PASS when no such entry is enabled, or when launching a Windows binary fails anyway; FAIL when one starts,
+  # since that is a process outside the sandbox, on the Author's Windows side. The launch is tried only when an entry
+  # is enabled, and it is cmd.exe exiting at once.
+  rid "S/refused/windows-interop"
+  interop=off
+  for f in /proc/sys/fs/binfmt_misc/WSLInterop /proc/sys/fs/binfmt_misc/WSLInterop-late; do
+    if [ -r "$f" ] && [ "$(head -n 1 -- "$f" 2>/dev/null)" = enabled ]; then interop=on; fi
+  done
+  if [ "$interop" = off ]; then
+    pass=$((pass + 1))
+  elif timeout 10 /mnt/c/Windows/System32/cmd.exe /d /c exit 0 </dev/null >/dev/null 2>&1; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s a Windows binary started from inside the sandbox (WSL interop is on)\n' stage-S-refused
+  else
+    pass=$((pass + 1))
+    printf 'NOTE        %-21s binfmt_misc has WSLInterop enabled, but launching a Windows binary failed\n' stage-S-refused
+  fi
   # Connection attempts. This host has only loopback, so probes to other hosts fail fast; that matches what the agent
   # sandbox denies (the firewall and egress proxy refuse them). The allowed destinations (npm as a control, and
   # 198.18.0.1:2376 with the client certificate) need the proxy and the engine, which this matrix host lacks, so the
@@ -834,9 +971,42 @@ except OSError:
   s_refused_conn 'github.com' github.com 443
   s_refused_conn 'sts.amazonaws.com' sts.amazonaws.com 443
   s_refused_conn 'api.telegram.org' api.telegram.org 443
-  s_refused_conn 'the SMTP host' smtp.h4reet.invalid 587
+  # The alert channel's SMTP host (review B, finding 4) is deploy/env's SMTP_HOST, which the sandbox can't read, so it
+  # comes from H4_STAGE_S_SMTP_HOST, and its port from H4_STAGE_S_SMTP_PORT (465 and 587, the two the env file allows,
+  # when unset). Inside the sandbox no name resolves, which is part of what it refuses; but a reserved name resolves
+  # nowhere at all, so a refusal there would prove nothing. Without a usable host the row is SKIP, with the reason.
+  rid "S/conn-refused/the SMTP host"
+  smtp_host="${H4_STAGE_S_SMTP_HOST:-}"
+  smtp_ports="${H4_STAGE_S_SMTP_PORT:-465 587}"
+  smtp_name="$(printf '%s' "$smtp_host" | tr '[:upper:]' '[:lower:]')"
+  smtp_name="${smtp_name%.}"
+  case "$smtp_name" in
+    '') smtp_skip="H4_STAGE_S_SMTP_HOST isn't set: it names the alert channel's SMTP host, deploy/env's SMTP_HOST" ;;
+    *[!a-z0-9.-]* | .* | *..*) smtp_skip="H4_STAGE_S_SMTP_HOST isn't a host name" ;;
+    localhost | *.localhost | *.invalid | *.test | *.example | *.local | example.com | example.net | example.org)
+      smtp_skip="H4_STAGE_S_SMTP_HOST names a reserved name, which resolves nowhere" ;;
+    *) smtp_skip="" ;;
+  esac
+  read -r -a smtp_port_list <<<"$smtp_ports"
+  [ "${#smtp_port_list[@]}" -gt 0 ] || smtp_skip="${smtp_skip:-H4_STAGE_S_SMTP_PORT names no port}"
+  for port in "${smtp_port_list[@]}"; do
+    if ! [[ $port =~ ^[1-9][0-9]{0,4}$ ]] || [ "$port" -gt 65535 ]; then
+      smtp_skip="${smtp_skip:-H4_STAGE_S_SMTP_PORT holds something other than port numbers}"
+    fi
+  done
+  if [ -n "$smtp_skip" ]; then
+    skipped=$((skipped + 1))
+    skip_why="${skip_why:+$skip_why; }stage S's SMTP row has no usable host"
+    printf 'SKIP        %-21s the SMTP host row: %s\n' stage-S-conn "$smtp_skip"
+  else
+    for port in "${smtp_port_list[@]}"; do s_refused_conn "the SMTP host:$port" "$smtp_name" "$port"; done
+  fi
   s_refused_conn 'the egress proxy 198.18.0.1:3128' 198.18.0.1 3128
-  for port in 18000 18003 18100 18103 18300 18303; do s_refused_conn "127.0.0.1:$port" 127.0.0.1 "$port"; done
+  # Every stack's ports on the host's loopback (plan §4: x000 api, x001 Langfuse, x002 Grafana, x003 admin, x004 OTLP,
+  # where the gate posts; review B, finding 7).
+  for port in 18000 18001 18002 18003 18004 18100 18101 18102 18103 18104 18300 18301 18302 18303 18304; do
+    s_refused_conn "127.0.0.1:$port" 127.0.0.1 "$port"
+  done
   rid "S/conn-control/loopback"
   if python3 -c 'import socket, sys
 srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(1)
