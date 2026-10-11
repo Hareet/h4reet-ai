@@ -12,8 +12,8 @@ transcript:
     too and must be seen, so a probe that can't read the environment shows up as that, not as a pass.
   - The whole transcript, `--output-format stream-json` with hook events, and claude's stderr are searched for every
     fake value.
-ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL, CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, and
-SANDBOX_RUNTIME are unset for the session, as the behavioral evals unset them, and the run is stopped at the init event
+ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL, CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX,
+CLAUDE_CODE_USE_FOUNDRY, and SANDBOX_RUNTIME are unset for the session, as the behavioral evals unset them, and the run is stopped at the init event
 if it shows API-key auth, so the session runs on the Team plan, as plan §14 has the behavioral evals do. It keeps no
 session (--no-session-persistence), and prints names, never values. Standard library only.
 Exit codes: 0 passed; 1 a fake value reached the session's environment or its transcript; 3 it can't tell: inside the
@@ -62,6 +62,7 @@ STRIPPED = (
     "ANTHROPIC_BASE_URL",
     "CLAUDE_CODE_USE_BEDROCK",
     "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
     "SANDBOX_RUNTIME",
 )
 

@@ -52,13 +52,18 @@ the host's own Python. The commit under test is data there.
    - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
      evals/agent-config/ (its history aside), or the Claude Code pin: the main tree's evals/agent-config/behavioral.py,
      loaded into this process like check_corpus, whose status reads the export's cases, thresholds, history, and
-     trigger files as data and starts nothing. PASS when a passing entry has the export's trigger hash, PENDING when
-     none has (the Author runs make evals-agent-config and commits the entry), FAIL when the newest run failed or a
-     file doesn't load. Before main has the tier (T094), this step is SKIP naming it.
+     trigger files as data and starts nothing; in export mode it walks the tree and never runs git. An entry counts
+     only when this machine attests its exact bytes (make evals-agent-config writes the SHA-256 under
+     ~/.local/state/h4reet, which agent sessions can't write), and the newest attested run for the export's trigger
+     hash decides: PASS, FAIL, or PENDING when none has run (the Author runs make evals-agent-config REF=<branch> from
+     main's checkout and commits the entry). A file that doesn't load fails. Before main has the tier (T094), this
+     step is SKIP naming it.
 5. eval-history: each history entry the branch adds is posted once to prod's x004 as the h4.devtime.eval.* gauges
    (contracts/telemetry.md §4.4): OTLP/JSON, stdlib, no proxy, timestamped at the post. An entry needs "verdict"
    ("pass" or "fail"), "cost_usd" (a number), and "tokens" with "input", "output", "cache_read", and
-   "cache_creation" (integers). A malformed entry fails; a collector that doesn't answer is a WARN.
+   "cache_creation" (integers), and a "run" that is its file's name. Only an entry this machine attests is posted;
+   the rest wait (PENDING). The history is append-only: a branch that changes or removes an entry fails, and so does
+   a malformed entry or a link. A collector that doesn't answer is a WARN.
 6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off.
 
 --host skips the container phase (plan §19: the devcontainer image won't build), and every summary line says

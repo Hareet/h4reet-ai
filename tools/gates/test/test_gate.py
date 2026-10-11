@@ -685,7 +685,7 @@ def test_nothing_from_the_export_runs_on_the_host(fx: Fixture) -> None:
     ]  # the main tree's engine.sh, by --prove
     # The step ran, on the export, through to the trigger hash.
     assert status_of(done, "agent-config-evals") == "PENDING", done.stdout
-    assert "PENDING (behavioral tier): no passing run for trigger hash" in done.stdout
+    assert "PENDING (behavioral tier): no run for trigger hash" in done.stdout
 
 
 @pytest.mark.parametrize(
