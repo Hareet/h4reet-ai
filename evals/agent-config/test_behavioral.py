@@ -2050,6 +2050,224 @@ def test_an_unattested_entry_on_main_isnt_the_baseline(
 
 
 # --------------------------------------------------------------------------------------------------
+# The entry goes on the branch from main's checkout, which never switches to the branch (review D1, 1)
+# --------------------------------------------------------------------------------------------------
+SHELLS = ("sh", "bash", "zsh")
+
+
+def commit_block(out: str) -> str:
+    """The commands the run prints to commit its entry on the branch: the lines from "(" to ")"."""
+    lines = out.splitlines()
+    start = lines.index("(")
+    return "\n".join(lines[start : lines.index(")", start) + 1]) + "\n"
+
+
+def paste(
+    block: str, shell: str = "sh", **environ: str
+) -> subprocess.CompletedProcess[str]:
+    """The block, pasted into the Author's terminal: the test's HOME and a git identity; zsh without startup files."""
+    if shutil.which(shell) is None:
+        pytest.skip(f"no {shell} here")
+    argv = [shell, "-f", "-c", block] if shell == "zsh" else [shell, "-c", block]
+    return subprocess.run(
+        argv,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **IDENTITY, **environ},
+        check=False,
+    )
+
+
+def blob(repo: Path, spec: str) -> bytes:
+    return subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "blob", spec],
+        capture_output=True,
+        check=True,
+    ).stdout
+
+
+def porcelain(repo: Path) -> list[str]:
+    """git status --porcelain, its lines as git wrote them (git() strips the first line's leading space)."""
+    done = subprocess.run(
+        ["git", "-C", str(repo), "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return sorted(done.stdout.splitlines())
+
+
+def export_of(repo: Path, ref: str, where: Path) -> Path:
+    """The ref's tree, as the gate exports it: git archive, with no .git."""
+    where.mkdir()
+    archive = subprocess.run(
+        ["git", "-C", str(repo), "archive", ref], capture_output=True, check=True
+    )
+    subprocess.run(["tar", "-x", "-C", str(where)], input=archive.stdout, check=True)
+    return where
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_the_run_prints_the_commands_that_commit_its_entry_on_the_branch(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], shell: str
+) -> None:
+    # Never a switch of main's checkout to the branch: the gate run there, and live sessions' hooks, would then be the
+    # branch's code, run as the Author. The printed commands build the commit with git's plumbing from main's checkout
+    # and check nothing out anywhere. The Author's shell is zsh; sh and bash read them alike.
+    assert run(repo, Agent(), tmp_path) == 0
+    out = capsys.readouterr().out
+    (path,) = history_files(repo)
+    data, rel = path.read_bytes(), path.relative_to(repo).as_posix()
+    tip, main = git(repo, "rev-parse", "feat/x"), git(repo, "rev-parse", "main")
+    for never in ("git switch", "git checkout", "worktree add"):
+        assert never not in out
+    done = paste(commit_block(out), shell)
+    assert done.returncode == 0, done.stderr
+    # One new commit on the branch's tip, adding the entry's exact bytes and nothing else, which the commands show.
+    new = git(repo, "rev-parse", "feat/x")
+    assert git(repo, "rev-list", "--parents", "-n", "1", new) == f"{new} {tip}"
+    assert (
+        git(repo, "diff-tree", "--no-commit-id", "--name-status", "-r", tip, new)
+        == f"A\t{rel}"
+    )
+    assert blob(repo, f"{new}:{rel}") == data
+    assert done.stdout.strip() == f"A\t{rel}"
+    # main's checkout is still on main, main hasn't moved, and the checkout is clean: the copy goes once the branch
+    # holds the entry, since a merge of the branch would refuse to overwrite an untracked file there.
+    assert git(repo, "symbolic-ref", "HEAD") == "refs/heads/main"
+    assert git(repo, "rev-parse", "main") == main
+    assert not path.exists() and porcelain(repo) == []
+    # The branch's tree, exported as the gate does, passes with the entry, attested.
+    export = export_of(repo, "feat/x", tmp_path / "export")
+    assert bh.status(export, here_of(export), export=True) == 0
+    assert re.search(r"^PASS  behavioral tier", capsys.readouterr().out, re.MULTILINE)
+
+
+def test_the_commands_work_while_another_worktree_holds_the_branch(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # An agent's worktree usually holds the branch the Author evaluates, and `git worktree add`, like a switch,
+    # refuses a branch another worktree has checked out. update-ref moves the branch under that worktree: its HEAD
+    # follows, its index doesn't, and the note after the commands gives the restore that brings the entry in, leaving
+    # the work in progress there as it was.
+    holder = tmp_path / "holder"
+    on_main(repo)  # the fixture ends on feat/x
+    git(repo, "worktree", "add", "-q", str(holder), "feat/x")
+    write(holder / "src" / "app.py", "print('work in progress')\n")
+    write(holder / "src" / "wip.py", "x = 1\n")
+    assert run(repo, Agent(), tmp_path) == 0
+    out = capsys.readouterr().out
+    (path,) = history_files(repo)
+    data, rel = path.read_bytes(), path.relative_to(repo).as_posix()
+    done = paste(commit_block(out))
+    assert done.returncode == 0, done.stderr
+    assert git(holder, "rev-parse", "HEAD") == git(repo, "rev-parse", "feat/x")
+    assert f"D  {rel}" in porcelain(holder)  # the next commit there would delete it
+    restore = f"git restore --source=HEAD --staged --worktree -- {rel}"
+    assert restore in out
+    subprocess.run(
+        shlex.split(restore), cwd=holder, env={**os.environ, **IDENTITY}, check=True
+    )
+    assert (holder / rel).read_bytes() == data
+    assert porcelain(holder) == [" M src/app.py", "?? src/wip.py"]
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_the_branch_moves_only_from_the_tip_the_commands_read(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], shell: str
+) -> None:
+    # A commit made on the branch meanwhile, in the worktree that holds it, is never lost: update-ref names the tip
+    # the commands read, so they stop, keeping the copy in main's checkout and leaving no temporary index behind.
+    # Pasted again, they commit the entry on the new tip, and leave no temporary index either.
+    holder = tmp_path / "holder"
+    on_main(repo)  # the fixture ends on feat/x
+    git(repo, "worktree", "add", "-q", str(holder), "feat/x")
+    assert run(repo, Agent(), tmp_path) == 0
+    out = capsys.readouterr().out
+    (path,) = history_files(repo)
+    rel = path.relative_to(repo).as_posix()
+    real = shutil.which("git")
+    assert real
+    # A git first on PATH that, as the commit is built, commits on the branch from the worktree holding it.
+    standin = write(
+        tmp_path / "standin" / "git",
+        '#!/bin/sh\ncase " $* " in *" commit-tree "*) '
+        f"{shlex.quote(real)} -C {shlex.quote(str(holder))} commit -q --allow-empty -m meanwhile ;; esac\n"
+        f'exec {shlex.quote(real)} "$@"\n',
+        0o755,
+    )
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    done = paste(
+        commit_block(out),
+        shell,
+        PATH=f"{standin.parent}{os.pathsep}{os.environ['PATH']}",
+        TMPDIR=str(scratch),
+    )
+    assert done.returncode != 0
+    meanwhile = git(repo, "rev-parse", "feat/x")
+    assert git(repo, "log", "-1", "--format=%s", meanwhile) == "meanwhile"
+    missing = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "-e", f"feat/x:{rel}"],
+        capture_output=True,
+        check=False,
+    )
+    assert missing.returncode != 0
+    assert path.exists() and list(scratch.iterdir()) == []
+    done = paste(commit_block(out), shell, TMPDIR=str(scratch))
+    assert done.returncode == 0, done.stderr
+    assert git(repo, "rev-parse", "feat/x^") == meanwhile and not path.exists()
+    assert list(scratch.iterdir()) == []
+
+
+def test_the_commands_commit_the_exact_bytes_whatever_the_checkout_or_shell_says(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The attestation covers the entry's exact bytes, so no filter of main's checkout may touch them; a replace object
+    # for the tip, under main's .git, must not change the tree the commit builds on; and a GIT_DIR left in the Author's
+    # shell must not send git to another repository.
+    assert run(repo, Agent(), tmp_path) == 0
+    out = capsys.readouterr().out
+    (path,) = history_files(repo)
+    data, rel = path.read_bytes(), path.relative_to(repo).as_posix()
+    tip = git(repo, "rev-parse", "feat/x")
+    git(repo, "config", "filter.upper.clean", "tr a-z A-Z")
+    write(repo / ".gitattributes", "*.json filter=upper\n")
+    git(repo, "replace", tip, git(repo, "rev-parse", "main"))
+    done = paste(commit_block(out), GIT_DIR=str(tmp_path / "elsewhere"))
+    assert done.returncode == 0, done.stderr
+    git(repo, "replace", "-d", tip)
+    new = git(repo, "rev-parse", "feat/x")
+    assert blob(repo, f"{new}:{rel}") == data
+    assert (
+        git(repo, "diff-tree", "--no-commit-id", "--name-status", "-r", tip, new)
+        == f"A\t{rel}"
+    )
+
+
+def section(path: Path, start: str, end: str) -> str:
+    text = path.read_text(encoding="utf-8")
+    begin = text.index(f"\n{start}")
+    return text[begin : text.index(f"\n{end}", begin)]
+
+
+@pytest.mark.parametrize("doc", ["quickstart §6.3", "history/README.md", "plan §14"])
+def test_the_docs_commit_the_entry_without_switching_mains_checkout(doc: str) -> None:
+    spec = REPO / "specs" / "000-local-foundations"
+    text = {
+        "quickstart §6.3": lambda: section(
+            spec / "quickstart.md", "### 6.3", "### 6.4"
+        ),
+        "history/README.md": lambda: (HERE / "history" / "README.md").read_text(
+            encoding="utf-8"
+        ),
+        "plan §14": lambda: section(spec / "plan.md", "## 14.", "## 15."),
+    }[doc]()
+    assert "git switch" not in text and "git checkout" not in text
+    assert "update-ref" in text  # the commands the run prints
+
+
+# --------------------------------------------------------------------------------------------------
 # The checks, on outcomes built by hand
 # --------------------------------------------------------------------------------------------------
 def state(**changes: Any) -> Any:

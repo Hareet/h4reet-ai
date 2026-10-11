@@ -51,8 +51,10 @@ assertions read outcomes, never phrasing: the transcript, what changed in the cl
 audit log, main's SHA, and an empty decoy remote. A run with no hook event, in the transcript or the audit log, is
 invalid and fails, because -p silently ignores invalid settings. The verdict follows thresholds.yaml, and the
 history entry goes to evals/agent-config/history/<UTC>-<branch>-<sha>.json in main's checkout, untracked, whose
-format history/README.md gives, once its attestation is written; the Author commits it on the branch. Transcripts
-stay in ~/.local/state/h4reet/evals/<run>/. main's newest attested entry is the baseline.
+format history/README.md gives, once its attestation is written. The Author commits it on the branch with the
+commands the run prints (commit_commands): git's plumbing in main's repository, which never switches main's checkout
+to the branch and works while another worktree holds it (review D1, 1). Transcripts stay in
+~/.local/state/h4reet/evals/<run>/. main's newest attested entry is the baseline.
 
 A case is one YAML file in cases/, named by its id:
 
@@ -115,7 +117,10 @@ TRIGGER_PATHS = ("CLAUDE.md", "REVIEW.md", ".claude", "evals/agent-config")
 PIN_FILE = ".devcontainer/toolchain.vars"
 PIN_KEY = "CLAUDE_CODE_VERSION"
 COMMAND = "make evals-agent-config"
-RUN_HINT = f"the Author runs {COMMAND} REF=<branch> from main's checkout, and commits its entry on the branch"
+RUN_HINT = (
+    f"the Author runs {COMMAND} REF=<branch> from main's checkout, and commits its entry on the branch with the "
+    "commands it prints"
+)
 CANARY = "@@CANARY@@"
 # A branch name REF may take, checked before git sees it; git then decides whether the local branch exists.
 BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
@@ -153,6 +158,17 @@ CASE_ENV = ("FIX_TASK",)
 # The runner's own git in its scratch clones reads no system or global config, so no filter, hook path, or signing
 # setting acts on the branch's files.
 ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+# What would send git to another repository, index, or object store: the commands the run prints to commit an entry
+# (commit_commands) unset them, in case the Author's shell carries one.
+GIT_LOCATION = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+)
 GIT_HOOKS = ("reference-transaction", "pre-commit")
 STUBS = ("terraform", "claude")
 # The gen_ai.token.type values of h4.devtime.eval.tokens (contracts/telemetry.md §4.4), from a session's usage.
@@ -2027,6 +2043,43 @@ def human_only_diff(seed: Path, main: str, commit: str) -> str:
     return _clean((summary + lines).decode("utf-8", errors="replace"))
 
 
+def commit_commands(repo: Path, entry: str, branch: str, message: str) -> str:
+    """The commands that commit an entry on a branch, for the Author to paste into a terminal (review D1, 1). They never
+    switch main's checkout to the branch, where the gate and live sessions' hooks would run the branch's code as the
+    Author, and check the branch out nowhere: git's plumbing, in main's repository, builds the commit in a temporary
+    index from the branch's tip with the entry's exact bytes (no filter), and update-ref moves the branch only from
+    the tip they read, so a commit made meanwhile stops them instead of being lost. So they work while another
+    worktree holds the branch, which `git worktree add` refuses. Replace objects are off, and no GIT_* variable left in
+    the shell sends git elsewhere. Once the branch holds the entry, the copy in main's checkout goes, since a merge of
+    the branch would refuse to overwrite it. One subshell, with no comment (zsh reads # as text at its prompt) and no
+    variable zsh keeps for itself (path is PATH there)."""
+    q = shlex.quote
+    index = 'GIT_INDEX_FILE="$scratch/index"'
+    return "\n".join(
+        [
+            "(",
+            "  set -eu",
+            f"  unset {' '.join(GIT_LOCATION)}",
+            "  export GIT_NO_REPLACE_OBJECTS=1",
+            f"  repo={q(str(repo))}",
+            f"  entry={q(entry)}",
+            f"  branch={q('refs/heads/' + branch)}",
+            '  tip=$(git -C "$repo" rev-parse --verify "$branch^{commit}")',
+            "  scratch=$(mktemp -d)",
+            "  trap 'rm -rf -- \"$scratch\"' EXIT",
+            f'  {index} git -C "$repo" read-tree "$tip"',
+            '  blob=$(git -C "$repo" hash-object -w --no-filters -- "$repo/$entry")',
+            f'  {index} git -C "$repo" update-index --add --cacheinfo "100644,$blob,$entry"',
+            f'  tree=$({index} git -C "$repo" write-tree)',
+            f'  new=$(git -C "$repo" commit-tree "$tree" -p "$tip" -m {q(message)})',
+            f'  git -C "$repo" update-ref -m {q(message)} "$branch" "$new" "$tip"',
+            '  rm -- "$repo/$entry"',
+            '  git -C "$repo" diff-tree --no-commit-id --name-status -r "$tip" "$new"',
+            ")",
+        ]
+    )
+
+
 def confirm(stream: TextIO) -> None:
     """The Author's yes, typed at a terminal, before any session starts."""
     try:
@@ -2285,10 +2338,18 @@ def run(
         folder = here / "history"
         folder.mkdir(exist_ok=True)
         path = write_history(folder, name, data_bytes)
+        rel = path.relative_to(repo).as_posix()
+        message = f"evals(agent-config): behavioral run {name} of {ref}, {verdict}"
         print(
-            f"history: {path.relative_to(repo).as_posix()}, attested in {_display(store)}; commit it on {ref}, as "
-            f"written, before it merges (SC-008). It's untracked in main's checkout, so git switch {ref} carries it "
-            "there."
+            f"history: {rel}, attested in {_display(store)}; commit it on {ref}, as written, before it merges "
+            f"(SC-008), with the commands below, and never by switching main's checkout to {ref}, where the gate "
+            f"and the hooks would run {ref}'s code as you (review D1, 1). Pasted into a terminal, they commit it on "
+            f"{ref}'s tip with git's plumbing, checking {ref} out nowhere; {ref} moves only if its tip is still the "
+            "one they read, and then the copy here goes, since a merge of the branch would refuse to overwrite it:"
+            f"\n\n{commit_commands(repo, rel, ref, message)}\n\n"
+            f"If a worktree holds {ref} (git worktree list), its HEAD moves with the branch and its index doesn't: "
+            f"whoever works there runs `git restore --source=HEAD --staged --worktree -- {rel}` before the next "
+            "commit there, which would otherwise delete the entry."
         )
         return 0 if verdict == "pass" else 1
     except (Abort, CaseError) as exc:
