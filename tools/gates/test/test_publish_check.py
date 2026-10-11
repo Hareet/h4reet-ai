@@ -575,7 +575,9 @@ def test_a_linked_worktree_is_checked_with_the_main_trees_config_and_denylist(
 # --------------------------------------------------------------------------------------------------
 # Exit 3: what it can't certify
 # --------------------------------------------------------------------------------------------------
-@pytest.mark.parametrize("kind", ["file", "dangling link", "directory"])
+@pytest.mark.parametrize(
+    "kind", ["file", "dangling link", "link to an empty file", "directory", "fifo"]
+)
 def test_a_gitleaksignore_at_the_root_means_it_cannot_certify(
     repo: Fixture, tmp_path: Path, kind: str
 ) -> None:
@@ -584,14 +586,71 @@ def test_a_gitleaksignore_at_the_root_means_it_cannot_certify(
         target.write_text("fingerprint:old.txt:rule:1\n", encoding="utf-8")
     elif kind == "dangling link":
         target.symlink_to(tmp_path / "nowhere")
-    else:
+    elif kind == "link to an empty file":
+        (tmp_path / "empty").write_text("", encoding="utf-8")
+        target.symlink_to(tmp_path / "empty")
+    elif kind == "directory":
         target.mkdir()
+    else:
+        os.mkfifo(target)  # size 0, but gitleaks reads what a writer feeds it
     done, calls = run_fake(repo.root, tmp_path)
     assert done.returncode == 3, done.stdout + done.stderr
     line = summary(done)
     assert line.startswith("publish-check: CANNOT CERTIFY (exit 3) — ")
     assert ".gitleaksignore" in line and "research.md R-36" in line
     assert calls == []
+
+
+@pytest.mark.parametrize("cwd", ["the main tree", "a linked worktree"])
+def test_the_main_trees_empty_placeholder_holds_nothing_and_is_let_through(
+    repo: Fixture, tmp_path: Path, cwd: str
+) -> None:
+    # The gate's, make secrets', and the pre-commit hook's rule: while any agent command runs, the sandbox masks the
+    # main tree's .gitleaksignore with /dev/null, and a killed session leaves an empty file there. Neither holds an
+    # entry, and the sandbox denies agents the path.
+    (repo.root / ".gitleaksignore").write_text("", encoding="utf-8")
+    where = repo.root
+    if cwd == "a linked worktree":
+        where = tmp_path / "linked"
+        repo.git("worktree", "add", "-q", "-b", "side", str(where))
+    done, calls = run_fake(where, tmp_path)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert summary(done).startswith("publish-check: OK (exit 0) — ")
+    assert len(calls) == 1
+
+
+def test_an_empty_gitleaksignore_at_a_linked_worktrees_root_cannot_certify(
+    repo: Fixture, tmp_path: Path
+) -> None:
+    # Anywhere but the main tree, nothing masks the path, so even an empty file is no placeholder: it refuses.
+    linked = tmp_path / "linked"
+    repo.git("worktree", "add", "-q", "-b", "side", str(linked))
+    (linked / ".gitleaksignore").write_text("", encoding="utf-8")
+    done, calls = run_fake(linked, tmp_path)
+    assert done.returncode == 3, done.stdout + done.stderr
+    assert f"a .gitleaksignore exists at {linked.resolve()}" in summary(done)
+    assert calls == []
+
+
+def test_holds_nothing_lets_through_only_what_holds_no_entry(tmp_path: Path) -> None:
+    path = tmp_path / ".gitleaksignore"
+    assert pc.holds_nothing(path)  # nothing there
+    path.write_text("", encoding="utf-8")
+    assert pc.holds_nothing(path)  # a killed session's empty placeholder
+    path.write_text("x:y:z:1\n", encoding="utf-8")
+    assert not pc.holds_nothing(path)
+    path.unlink()
+    path.symlink_to(tmp_path / "elsewhere")
+    assert not pc.holds_nothing(path)
+    path.unlink()
+    os.mkfifo(path)
+    assert not pc.holds_nothing(path)
+    path.unlink()
+    path.mkdir()
+    assert not pc.holds_nothing(path)
+    # The sandbox's mask is /dev/null itself, device 1:3; any other device could feed entries.
+    assert pc.holds_nothing(Path("/dev/null"))
+    assert not pc.holds_nothing(Path("/dev/zero"))
 
 
 def test_inside_the_agent_sandbox_it_cannot_certify(

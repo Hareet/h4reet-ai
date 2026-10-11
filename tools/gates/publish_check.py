@@ -7,9 +7,10 @@ Run from anywhere in a full clone's work tree, it certifies the whole history fo
 Standard library only.
   1. Secrets: gitleaks over every commit, `gitleaks git --log-opts="--all --text" --redact`, with the main working
      tree's .gitleaks.toml, an empty ignore path, and --ignore-gitleaks-allow. git log's --text makes it read what git
-     takes for binary. It refuses while a .gitleaksignore exists at the repository root (or the main working tree's),
-     which gitleaks obeys whatever its flags say (research.md R-36). The report goes to a 0700 temporary directory,
-     deleted on exit.
+     takes for binary. gitleaks obeys a .gitleaksignore at the work tree it scans whatever its flags say (research.md
+     R-36), so it refuses while one could hold an entry: at the main working tree, anything but nothing, an empty
+     file, or the sandbox's /dev/null mask (the gate's rule); at a linked worktree's root, anything at all. The
+     report goes to a 0700 temporary directory, deleted on exit.
   2. The denylist, corpus/intake/private/denylist.txt in the main working tree, read as corpus-check reads it (strip,
      lowercase, skip blank and # lines): against every blob of every commit in `git rev-list --all`, each unique blob
      read once through `git cat-file --batch`; against every path; and against the history's metadata: commit and
@@ -34,6 +35,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -185,6 +187,20 @@ def public_corpus_markdown(path: str) -> bool:
 # --------------------------------------------------------------------------------------------------
 # git and gitleaks
 # --------------------------------------------------------------------------------------------------
+def holds_nothing(path: Path) -> bool:
+    """Nothing, the empty file a killed sandbox session leaves, or the sandbox's /dev/null mask (device 1:3): no entry.
+    A link, a FIFO (size 0, but gitleaks reads what a writer feeds it), a directory, or content could hold entries.
+    The gate's rule, make secrets', and the pre-commit hook's."""
+    if not os.path.lexists(path):
+        return True
+    info = os.lstat(path)
+    if stat.S_ISREG(info.st_mode):
+        return info.st_size == 0
+    if stat.S_ISCHR(info.st_mode):
+        return (os.major(info.st_rdev), os.minor(info.st_rdev)) == (1, 3)
+    return False
+
+
 def scan_env() -> dict[str, str]:
     """The environment for git and gitleaks. No GIT_* variable of the caller's can point them at another repository,
     object store, namespace, or config, nor GITLEAKS_* at another config; replace refs and lazy fetches are off."""
@@ -705,12 +721,21 @@ def certify(cwd: Path, report: Report) -> None:
         raise CannotCertify(
             "the clone is shallow, so part of the history isn't here to scan: run it in a full clone"
         )
-    for root in dict.fromkeys((top, main_tree)):
-        if os.path.lexists(root / ".gitleaksignore"):
-            raise CannotCertify(
-                f"a .gitleaksignore exists at {root}, and gitleaks obeys it whatever its flags say "
-                "(research.md R-36): remove it"
-            )
+    # gitleaks obeys a .gitleaksignore at its source, the work tree it scans, whatever its flags say (research.md
+    # R-36). In the main tree the sandbox denies agents the path, and while any agent command runs it masks it with
+    # /dev/null, so what holds no entry passes there; anywhere else nothing masks it, and anything at all refuses.
+    if top.resolve() != main_tree.resolve() and os.path.lexists(
+        top / ".gitleaksignore"
+    ):
+        raise CannotCertify(
+            f"a .gitleaksignore exists at {top}, the scan's source, and gitleaks obeys it whatever its flags say "
+            "(research.md R-36): remove it"
+        )
+    if not holds_nothing(main_tree / ".gitleaksignore"):
+        raise CannotCertify(
+            f"a .gitleaksignore exists at {main_tree} and could hold an entry, and gitleaks obeys it whatever its "
+            "flags say (research.md R-36): remove it, or leave it empty"
+        )
     config = main_tree / ".gitleaks.toml"
     if not config.is_file():
         raise CannotCertify(
