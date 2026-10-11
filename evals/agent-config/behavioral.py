@@ -2,10 +2,12 @@
 """The behavioral tier of the agent-configuration evals (spec 000 FR-011, FR-037, SC-008; plan §14).
 
     python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py status   # make evals, everywhere
-    python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py run      # make evals-agent-config
-    ... run --only ID[,ID]      # those cases alone, planned or not, to try the plumbing; writes no history
-    ... run --include-planned   # the planned cases run too, recorded but never counted
-    ... hash                    # the trigger hash
+    python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py run --ref=BRANCH
+                                # make evals-agent-config REF=BRANCH, from main's checkout
+    ... run --ref=BRANCH --only ID[,ID]     # those cases alone, planned or not, to try the plumbing; writes no history
+    ... run --ref=BRANCH --include-planned  # the planned cases run too, recorded but never counted
+    ... run --ref=BRANCH --yes              # no question at the terminal: for tests; make never passes it
+    ... hash                                # the trigger hash
 
 Standard library plus PyYAML.
 
@@ -24,21 +26,31 @@ counts, and a note says so. A case whose `needs:` patch has no enforcement in th
 PLANNED, naming the patch's task; once the patch is in, the case counts, with no mark to delete, so a mark can't go
 stale, and no case counts while the enforcement it needs is missing.
 
-`run` is the Author's (make evals-agent-config refuses SANDBOX_RUNTIME=1, as make aws-login does). It runs each case
-three times, each run a real Claude Code session on the Team plan, in a scratch clone of the branch tip with the git
-hooks installed:
+`run` is the Author's (make evals-agent-config refuses SANDBOX_RUNTIME=1, as make aws-login does), and it is main's
+code run against a branch (review B, 1). It refuses unless this checkout is main, clean (an entry an earlier run
+left, untracked in history/, aside), and matches main's tree, with no change git is told to hide. It clones the
+repository into a scratch folder and checks the branch out there, and that tree's cases, thresholds, roles,
+settings, and Claude Code pin are data; the runner, its checks, and the FR-007 list are main's. Before any session
+starts it prints the branch's diff against main under .claude/, CLAUDE.md, REVIEW.md, and every other human-only
+path (HUMAN_ONLY; plan §15, ADR 0017), read as text and cleaned for the terminal, and waits for the Author to type
+yes at a terminal. Then it runs each case three times, each run a real Claude Code session on the Team plan, in a
+fresh clone of the branch with the git hooks installed:
 
     claude -p PROMPT [--agent ROLE] --setting-sources project --output-format stream-json --verbose
            --include-hook-events --no-session-persistence
 
-with a 180 s timeout and, in its environment, a fresh canary value for every FR-007 variable (contracts/env-files.md
-§8). The variables that would bill anything but the Team plan's login (ANTHROPIC_API_KEY and its kin) are removed,
-and the run stops, writing no history, if a session's init event shows any other auth. The assertions read outcomes,
-never phrasing: the transcript, what changed in the clone (files and commits), its hook audit log, main's SHA, and an
-empty decoy remote. A run with no hook event, in the transcript or the audit log, is invalid and fails, because -p
-silently ignores invalid settings. The verdict follows thresholds.yaml, and the history entry goes to
-evals/agent-config/history/<UTC>-<branch>-<sha>.json, whose format history/README.md gives, once its attestation is
-written. Transcripts stay in ~/.local/state/h4reet/evals/<run>/. main's newest attested entry is the baseline.
+with a 180 s timeout, in an environment built from an allowlist, never the Author's whole environment: PATH, HOME,
+LANG, LC_*, TERM, and CLAUDE_CONFIG_DIR, where Claude Code finds its login, plus a fresh canary value for every
+FR-007 variable (contracts/env-files.md §8), FIX_TASK when the case sets it, and DISABLE_AUTOUPDATER=1. So nothing
+that would bill anything but the Team plan's login (ANTHROPIC_API_KEY and its kin) reaches a session, and the run
+stops, writing no history, if a session's init event shows any other auth. The runner's own git in the scratch
+clones reads no system or global config, and it writes and copies nothing through a link the branch holds. The
+assertions read outcomes, never phrasing: the transcript, what changed in the clone (files and commits), its hook
+audit log, main's SHA, and an empty decoy remote. A run with no hook event, in the transcript or the audit log, is
+invalid and fails, because -p silently ignores invalid settings. The verdict follows thresholds.yaml, and the
+history entry goes to evals/agent-config/history/<UTC>-<branch>-<sha>.json in main's checkout, untracked, whose
+format history/README.md gives, once its attestation is written; the Author commits it on the branch. Transcripts
+stay in ~/.local/state/h4reet/evals/<run>/. main's newest attested entry is the baseline.
 
 A case is one YAML file in cases/, named by its id:
 
@@ -87,10 +99,11 @@ import sys
 import tempfile
 import threading
 import time
+import unicodedata
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, TextIO
 
 import yaml
 
@@ -100,8 +113,44 @@ TRIGGER_PATHS = ("CLAUDE.md", "REVIEW.md", ".claude", "evals/agent-config")
 PIN_FILE = ".devcontainer/toolchain.vars"
 PIN_KEY = "CLAUDE_CODE_VERSION"
 COMMAND = "make evals-agent-config"
-RUN_HINT = f"the Author runs {COMMAND} on this branch and commits its entry"
+RUN_HINT = f"the Author runs {COMMAND} REF=<branch> from main's checkout, and commits its entry on the branch"
 CANARY = "@@CANARY@@"
+# A branch name REF may take, checked before git sees it; git then decides whether the local branch exists.
+BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
+CASE_ID_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
+# What the Author reads before any session starts (review B, 1): the branch's diff against main under .claude/,
+# CLAUDE.md, REVIEW.md, and every other human-only path (plan §15, ADR 0017), as pathspecs from the root.
+HUMAN_ONLY = (
+    ".claude",
+    "CLAUDE.md",
+    "REVIEW.md",
+    ".specify/memory/constitution.md",
+    "tools/gates",
+    "evals/agent-config",
+    ".gitleaks.toml",
+    ".gitleaksignore",
+    "deploy/agents-engine",
+    "deploy/env",
+    "*.env",
+    ".mcp.json",
+    "config/prices*",
+    "config/budgets*",
+    "config/alert*",
+    "config/kill-switch*",
+    "GNUmakefile",
+    "makefile",
+)
+# A session's environment is built from these, never from the Author's whole environment (review B, 1): the shell's
+# basics, and what Claude Code needs to find its login, which is CLAUDE_CONFIG_DIR when set (its .credentials.json is
+# in that folder, ~/.claude by default, so HOME). LC_* goes too. The canaries, the case's env, and the runner's own
+# settings are added to them.
+SESSION_ENV = ("PATH", "HOME", "LANG", "TERM", "CLAUDE_CONFIG_DIR")
+# The only variables a case's env may add: a case is the branch's data, and a variable like NODE_OPTIONS or LD_PRELOAD
+# would run code in the Author's terminal.
+CASE_ENV = ("FIX_TASK",)
+# The runner's own git in its scratch clones reads no system or global config, so no filter, hook path, or signing
+# setting acts on the branch's files.
+ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
 GIT_HOOKS = ("reference-transaction", "pre-commit")
 STUBS = ("terraform", "claude")
 # The gen_ai.token.type values of h4.devtime.eval.tokens (contracts/telemetry.md §4.4), from a session's usage.
@@ -376,6 +425,10 @@ def parse_case(data: Any, stem: str) -> Case:
             raise CaseError(f"env: {name!r} isn't a variable name")
         if name in RESERVED:
             raise CaseError(f"env: {name} is reserved: the runner sets or removes it")
+        if name not in CASE_ENV:
+            raise CaseError(
+                f"env: a case may set only {', '.join(CASE_ENV)}, which main's runner passes to a session; not {name}"
+            )
         if not isinstance(value, str):
             raise CaseError(f"env: {name}'s value must be a string; quote it")
     if kind == "enforcement":
@@ -526,9 +579,11 @@ def git(repo: Path | None, *args: str, extra: Mapping[str, str] | None = None) -
     return done.stdout.strip()
 
 
-def try_git(repo: Path | None, *args: str) -> str:
+def try_git(
+    repo: Path | None, *args: str, extra: Mapping[str, str] | None = None
+) -> str:
     try:
-        return git(repo, *args)
+        return git(repo, *args, extra=extra)
     except Abort:
         return ""
 
@@ -1435,47 +1490,77 @@ SETUP_IDENTITY = {
 }
 
 
+def _no_link(clone: Path, rel: str, what: str) -> Path:
+    """clone/rel, after refusing a link anywhere on the way: the branch's tree is data, and the runner, in the Author's
+    terminal, never writes or copies through a link it holds (review B, 1)."""
+    parts = PurePosixPath(rel).parts
+    for i in range(1, len(parts) + 1):
+        if clone.joinpath(*parts[:i]).is_symlink():
+            raise Abort(
+                f"{what}: {'/'.join(parts[:i])} is a link in the branch's tree, so nothing goes through it, and no "
+                "session started"
+            )
+    return clone.joinpath(*parts)
+
+
 def prepare(
     seed: Path, root: Path, branch: str, main: str | None, case: Case
 ) -> Workspace:
     """A clone of the branch tip for one session: main where it is, no origin (or an empty decoy), the case's files
-    committed, the git hooks installed, and the stand-ins ready."""
+    committed, the git hooks installed, and the stand-ins ready. The runner's git here reads no system or global
+    config, and nothing is written or copied through a link the branch holds."""
     root.mkdir(parents=True)
     clone = root / "clone"
-    git(None, "clone", "--quiet", "--shared", "--branch", branch, str(seed), str(clone))
+    git(
+        None,
+        "clone",
+        "--quiet",
+        "--shared",
+        "--branch",
+        branch,
+        str(seed),
+        str(clone),
+        extra=ISOLATED,
+    )
     if main:
-        git(clone, "branch", "--quiet", "main", main)
-    git(clone, "remote", "remove", "origin")
+        git(clone, "branch", "--quiet", "main", main, extra=ISOLATED)
+    git(clone, "remote", "remove", "origin", extra=ISOLATED)
     canaries = {f"env:{name}": canary(name) for name in FR007_VARIABLES}
     for rel, text in case.files.items():
         if CANARY in text:
             canaries[f"file:{rel}"] = value = canary("file")
             text = text.replace(CANARY, value)
-        path = clone / rel
+        path = _no_link(clone, rel, f"setup.files: {rel}")
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-    git(clone, "add", "-A")
-    if try_git(clone, "diff", "--cached", "--name-only"):
+        try:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+            handle = os.open(path, flags, 0o644)
+        except OSError as exc:
+            raise Abort(f"setup.files: {rel}: {exc}, so no session started") from exc
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
+            out.write(text)
+    git(clone, "add", "-A", extra=ISOLATED)
+    if try_git(clone, "diff", "--cached", "--name-only", extra=ISOLATED):
         git(
             clone,
             "commit",
             "--quiet",
             "-m",
             f"agent-config eval setup: {case.id}",
-            extra=SETUP_IDENTITY,
+            extra={**ISOLATED, **SETUP_IDENTITY},
         )
     decoy = None
     if case.remote:
         decoy = root / "origin.git"
-        git(None, "init", "--quiet", "--bare", str(decoy))
-        git(clone, "remote", "add", "origin", str(decoy))
-    git_dir = Path(git(clone, "rev-parse", "--absolute-git-dir"))
+        git(None, "init", "--quiet", "--bare", str(decoy), extra=ISOLATED)
+        git(clone, "remote", "add", "origin", str(decoy), extra=ISOLATED)
+    git_dir = Path(git(clone, "rev-parse", "--absolute-git-dir", extra=ISOLATED))
     for name in GIT_HOOKS:
-        source = clone / ".claude" / "git-hooks" / name
+        source = _no_link(clone, f".claude/git-hooks/{name}", f"the git hook {name}")
         if source.is_file():
             shutil.copyfile(source, git_dir / "hooks" / name)
             (git_dir / "hooks" / name).chmod(0o755)
-    git(clone, "config", "gc.packRefs", "false")
+    git(clone, "config", "gc.packRefs", "false", extra=ISOLATED)
     nonce, effects, bin_ = (
         secrets.token_hex(8),
         git_dir / "h4-eval-effects",
@@ -1511,9 +1596,8 @@ def session_argv(claude: str, case: Case) -> list[str]:
 
 
 def session_env(base: Mapping[str, str], ws: Workspace, case: Case) -> dict[str, str]:
-    env = {
-        k: v for k, v in base.items() if k not in STRIPPED and not k.startswith("GIT_")
-    }
+    """The session's environment, from the allowlist alone (review B, 1): nothing else of the Author's reaches it."""
+    env = {k: v for k, v in base.items() if k in SESSION_ENV or k.startswith("LC_")}
     env.update(
         {k.split(":", 1)[1]: v for k, v in ws.canaries.items() if k.startswith("env:")}
     )
@@ -1784,11 +1868,15 @@ def judge(
     )
 
 
-def git_bytes(repo: Path, *args: str) -> bytes:
-    """git's output, exactly, for what an attestation's digest covers."""
+def git_bytes(repo: Path, *args: str, extra: Mapping[str, str] | None = None) -> bytes:
+    """git's output, exactly: what an attestation's digest covers, or text the branch wrote, in whatever encoding."""
     argv = ["git", "-C", str(repo), *args]
     done = subprocess.run(
-        argv, capture_output=True, env=_git_env(), stdin=subprocess.DEVNULL, check=False
+        argv,
+        capture_output=True,
+        env=_git_env(extra),
+        stdin=subprocess.DEVNULL,
+        check=False,
     )
     if done.returncode != 0:
         raise Abort(f"{' '.join(argv)}: {done.stderr.decode(errors='replace').strip()}")
@@ -1848,6 +1936,98 @@ def _branch_slug(branch: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "-", branch).strip("-") or "branch"
 
 
+def _clean(text: str) -> str:
+    """Text for the Author's terminal: each control or format character but a newline and a tab shown as <U+XXXX>, so
+    nothing a branch commits can move the cursor, clear a line, set the title, or reorder what the Author reads."""
+    return "".join(
+        ch
+        if ch in "\n\t" or unicodedata.category(ch) not in ("Cc", "Cf")
+        else f"<U+{ord(ch):04X}>"
+        for ch in text
+    )
+
+
+def checkout_problem(repo: Path, history_rel: str) -> str | None:
+    """Why the checkout isn't one whose code may run in the Author's terminal: main's, clean, and matching main's tree
+    (review B, 1). An entry an earlier run left in history/, untracked, is the run's own output."""
+    branch = try_git(repo, "symbolic-ref", "--short", "-q", "HEAD")
+    if branch != "main":
+        return (
+            f"{COMMAND} runs main's behavioral.py from main's checkout, and reads the branch it tests as data "
+            f"(review B, 1): switch this checkout to main (it's on {branch or 'a detached HEAD'}), and name the "
+            "branch with REF=<branch>"
+        )
+    listed = git(
+        repo,
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+    )
+    dirty = [
+        ln
+        for ln in listed.splitlines()
+        if not (ln.startswith(f"?? {history_rel}/") and ln.endswith(".json"))
+    ]
+    if dirty:
+        return (
+            "main's checkout isn't clean, so the code that would run here might not be main's: commit, stash, or "
+            "remove\n" + "\n".join(dirty)
+        )
+    hidden = [
+        ln[2:]
+        for ln in git(repo, "ls-files", "-v").splitlines()
+        if ln[:1].islower() or ln[:1] == "S"
+    ]
+    if hidden:
+        return (
+            f"git is told to hide changes to {', '.join(hidden)} (assume-unchanged or skip-worktree), so main's "
+            "checkout can't be shown to match main's tree"
+        )
+    return None
+
+
+def human_only_diff(seed: Path, main: str, commit: str) -> str:
+    """The branch's diff against main under .claude/, CLAUDE.md, REVIEW.md, and every other human-only path: a summary,
+    then every line, all of it as text (a -diff attribute or a NUL byte can't hide a file), with no external diff or
+    textconv, and cleaned for the terminal."""
+    options = [
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--text",
+        "--no-renames",
+        main,
+        commit,
+        "--",
+        *HUMAN_ONLY,
+    ]
+    summary = git_bytes(seed, "diff", "--stat=200", *options, extra=ISOLATED)
+    lines = git_bytes(seed, "diff", *options, extra=ISOLATED)
+    return _clean((summary + lines).decode("utf-8", errors="replace"))
+
+
+def confirm(stream: TextIO) -> None:
+    """The Author's yes, typed at a terminal, before any session starts."""
+    try:
+        tty = stream.isatty()
+    except (AttributeError, OSError, ValueError):
+        tty = False
+    if not tty:
+        raise Abort(
+            "starting the sessions needs the Author's yes, typed at a terminal, and stdin isn't one: run "
+            f"{COMMAND} REF=<branch> in a terminal (--yes skips the question, for tests; make never passes it)"
+        )
+    print(
+        "Each session runs this branch's .claude/ hooks unsandboxed, as you, so read the diff above. Type yes to "
+        "start the sessions: ",
+        end="",
+        flush=True,
+    )
+    if stream.readline().strip() != "yes":
+        raise Abort("not confirmed, so no session started")
+
+
 def run(
     options: list[str],
     *,
@@ -1857,12 +2037,24 @@ def run(
     session: SessionRunner = run_session,
     environ: Mapping[str, str] | None = None,
     claude: str | None = None,
+    stdin: TextIO | None = None,
 ) -> int:
+    """make evals-agent-config REF=<branch>: main's behavioral.py, started from main's checkout, which must be clean
+    and match main's tree, against a clone of the branch, whose cases and thresholds it reads as data. The branch's
+    diff under the human-only paths is shown, and the Author types yes, before any session starts (review B, 1)."""
     parser = argparse.ArgumentParser(prog="behavioral.py run")
+    parser.add_argument(
+        "--ref", help="the branch to test: a local branch other than main"
+    )
     parser.add_argument(
         "--only", help="the cases to run, by id, comma-separated; writes no history"
     )
     parser.add_argument("--include-planned", action="store_true")
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="start the sessions without asking: for tests; make never passes it",
+    )
     args = parser.parse_args(options)
     environ = dict(os.environ if environ is None else environ)
     state = state_dir() if state is None else state
@@ -1873,84 +2065,123 @@ def run(
                 f"{COMMAND} is the Author's: it starts real Claude Code sessions on the Team plan, which an agent "
                 "session can't (plan §14)"
             )
-        cases = load_cases(here / "cases")
-        thresholds = load_thresholds(here / "thresholds.yaml")
-        found = problems(cases, repo)
-        if found:
-            raise Abort("; ".join(found))
-        planned = waiting(cases, repo)
+        wanted = None
         if args.only is not None:
             wanted = [w for w in args.only.split(",") if w]
-            ids = {c.id for c in cases}
-            missing = [w for w in wanted if w not in ids]
-            if missing or not wanted:
+            bad = [w for w in wanted if not CASE_ID_RE.fullmatch(w)]
+            if bad or not wanted:
                 raise Abort(
-                    f"no case {', '.join(missing) or '(none named)'} in {here / 'cases'}"
+                    f"no case {', '.join(bad) or '(none named)'}: --only takes case ids, comma-separated"
                 )
-            cases = [c for c in cases if c.id in wanted]
-        branch = try_git(repo, "symbolic-ref", "--short", "-q", "HEAD")
-        if not branch or branch == "main":
+        ref = args.ref
+        if not ref:
             raise Abort(
-                "the behavioral evals run on a feature branch, before it merges: switch to it (the entry is committed "
-                "there, SC-008)"
+                f"name the branch to test: {COMMAND} REF=<branch>, from main's checkout"
             )
+        if not BRANCH_RE.fullmatch(ref) or ".." in ref or ref.endswith((".", "/")):
+            raise Abort(f"REF={ref} isn't a branch name")
         history_rel = (here / "history").relative_to(repo).as_posix()
-        dirty = try_git(
-            repo,
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
-            "--",
-            *TRIGGER_PATHS,
-            f":(exclude){history_rel}",
-        )
-        if dirty:
+        problem = checkout_problem(repo, history_rel)
+        if problem:
+            raise Abort(problem)
+        if ref == "main":
             raise Abort(
-                "the sessions run in clones of the branch tip, so commit what they would test first:\n"
-                + dirty
+                "REF=main: the run tests a branch before it merges, and its entry is committed on that branch (SC-008)"
             )
+        if not try_git(
+            repo, "rev-parse", "-q", "--verify", f"refs/heads/{ref}^{{commit}}"
+        ):
+            raise Abort(f"no local branch {ref} in {repo}")
         claude = claude or shutil.which("claude", path=environ.get("PATH"))
         if not claude:
             raise Abort("claude isn't on PATH")
-        version, pin = claude_version(claude), read_pin(repo)
-        if version is None or not (version == pin or version.startswith(pin + ".")):
-            raise Abort(
-                f"the trigger hash names Claude Code {pin} ({PIN_FILE}), but {claude} is {version or 'unreadable'}: "
-                "install the pin, or move the pin in a commit (which triggers the evals again)"
-            )
-        digest = trigger_hash(repo)
-        commit = git(repo, "rev-parse", "HEAD")
-        main = try_git(repo, "rev-parse", "-q", "--verify", "refs/heads/main") or None
-        baseline, skipped = (
-            (None, []) if args.only else main_baseline(repo, history_rel, store)
-        )
-        if skipped:
-            print(
-                f"baseline: main's {', '.join(skipped)} not attested on this machine, so skipped; main's newest "
-                f"attested entry is the baseline: {baseline['run'] if baseline else 'none'}",
-                flush=True,
-            )
-        started = dt.datetime.now(dt.UTC)
-        name = f"{started.strftime('%Y-%m-%dT%H%M%SZ')}-{_branch_slug(branch)}-{commit[:12]}"
-        transcripts = state / name
-        try:
-            transcripts.mkdir(parents=True, mode=0o700)
-        except FileExistsError as exc:
-            raise Abort(
-                f"{transcripts} already exists: a run started this second; run again"
-            ) from exc
-        print(
-            f"behavioral tier: {len(cases)} cases, {thresholds['runs_per_case']} runs each, Claude Code {version}, "
-            f"trigger hash {digest[:12]}; transcripts in {_display(transcripts)}",
-            flush=True,
-        )
         results = []
         with tempfile.TemporaryDirectory(prefix="h4-agent-evals-") as scratch:
-            seed = Path(scratch) / "seed.git"
-            git(None, "clone", "--quiet", "--bare", "--no-local", str(repo), str(seed))
+            # A snapshot of the Author's repository, and in it a checkout of the branch, whose tree is data from here
+            # on: its cases, thresholds, roles, settings, and pin are read, and nothing in it runs before the yes.
+            seed, tree = Path(scratch) / "seed.git", Path(scratch) / "branch"
+            git(
+                None,
+                "clone",
+                "--quiet",
+                "--bare",
+                "--no-local",
+                str(repo),
+                str(seed),
+                extra=ISOLATED,
+            )
+            git(
+                None,
+                "clone",
+                "--quiet",
+                "--shared",
+                "--branch",
+                ref,
+                str(seed),
+                str(tree),
+                extra=ISOLATED,
+            )
+            commit = git(tree, "rev-parse", "HEAD", extra=ISOLATED)
+            main = git(seed, "rev-parse", "--verify", "refs/heads/main", extra=ISOLATED)
+            data = tree / "evals" / "agent-config"
+            cases = load_cases(data / "cases")
+            thresholds = load_thresholds(data / "thresholds.yaml")
+            found = problems(cases, tree)
+            if found:
+                raise Abort("; ".join(found))
+            planned = waiting(cases, tree)
+            if wanted is not None:
+                missing = [w for w in wanted if w not in {c.id for c in cases}]
+                if missing:
+                    raise Abort(
+                        f"no case {', '.join(missing)} in {ref}'s evals/agent-config/cases"
+                    )
+                cases = [c for c in cases if c.id in wanted]
+            version, pin = claude_version(claude), read_pin(tree)
+            if version is None or not (version == pin or version.startswith(pin + ".")):
+                raise Abort(
+                    f"the trigger hash names Claude Code {pin} ({PIN_FILE} on {ref}), but {claude} is "
+                    f"{version or 'unreadable'}: install the pin, or move the pin in a commit (which triggers the "
+                    "evals again)"
+                )
+            digest = trigger_hash(tree, export=True)
+            baseline, skipped = (
+                (None, [])
+                if wanted is not None
+                else main_baseline(repo, history_rel, store)
+            )
+            if skipped:
+                print(
+                    f"baseline: main's {', '.join(skipped)} not attested on this machine, so skipped; main's newest "
+                    f"attested entry is the baseline: {baseline['run'] if baseline else 'none'}",
+                    flush=True,
+                )
+            print(
+                f"behavioral tier: {ref} at {commit[:12]}, against main at {main[:12]}: {len(cases)} cases, "
+                f"{thresholds['runs_per_case']} runs each, Claude Code {version}, trigger hash {digest[:12]}",
+                flush=True,
+            )
+            shown = human_only_diff(seed, main, commit)
+            print(
+                f"{ref}'s changes under .claude/, CLAUDE.md, REVIEW.md, and the other paths only the Author edits "
+                f"(plan §15, ADR 0017), against main:\n{shown.rstrip() or '(none)'}",
+                flush=True,
+            )
+            if not args.yes:
+                confirm(sys.stdin if stdin is None else stdin)
+            started = dt.datetime.now(dt.UTC)
+            name = f"{started.strftime('%Y-%m-%dT%H%M%SZ')}-{_branch_slug(ref)}-{commit[:12]}"
+            transcripts = state / name
+            try:
+                transcripts.mkdir(parents=True, mode=0o700)
+            except FileExistsError as exc:
+                raise Abort(
+                    f"{transcripts} already exists: a run started this second; run again"
+                ) from exc
+            print(f"transcripts in {_display(transcripts)}", flush=True)
             for case in cases:
                 task = planned.get(case.id)
-                if task and not (args.include_planned or args.only):
+                if task and not (args.include_planned or wanted is not None):
                     print(
                         f"PLANNED ({task}): {case.id} waits for {PATCHES[task]}; not run",
                         flush=True,
@@ -1960,7 +2191,7 @@ def run(
                 runs = []
                 for n in range(1, thresholds["runs_per_case"] + 1):
                     ws = prepare(
-                        seed, Path(scratch) / f"{case.id}-{n}", branch, main, case
+                        seed, Path(scratch) / f"{case.id}-{n}", ref, main, case
                     )
                     record = run_once(
                         case,
@@ -1980,7 +2211,7 @@ def run(
                     shutil.rmtree(ws.root, ignore_errors=True)
                 results.append(summarize(case, runs, thresholds, task))
         verdict, reasons, conduct, compared = judge(
-            results, thresholds, baseline, partial=args.only is not None
+            results, thresholds, baseline, partial=wanted is not None
         )
         _report(results, reasons, verdict)
         tokens = dict.fromkeys(TOKEN_TYPES, 0)
@@ -1996,14 +2227,14 @@ def run(
             f"notional cost: ${cost:.2f} on the Team plan, outside the production meter; tokens "
             + ", ".join(f"{k} {v}" for k, v in tokens.items())
         )
-        if args.only is not None:
+        if wanted is not None:
             print("--only: no history written; the full run writes it")
             return 0 if verdict == "pass" else 1
         entry = {
             "schema": 1,
             "run": name,
             "trigger_hash": digest,
-            "branch": branch,
+            "branch": ref,
             "commit": commit,
             "main": main,
             "claude_code_version": version,
@@ -2028,14 +2259,15 @@ def run(
         }
         # The attestation first, then the file: the digest covers exactly the bytes written, and a failed attestation
         # leaves no entry behind (review A, 4).
-        data = entry_bytes(entry)
-        attest(store, hashlib.sha256(data).hexdigest(), name)
+        data_bytes = entry_bytes(entry)
+        attest(store, hashlib.sha256(data_bytes).hexdigest(), name)
         folder = here / "history"
         folder.mkdir(exist_ok=True)
-        path = write_history(folder, name, data)
+        path = write_history(folder, name, data_bytes)
         print(
-            f"history: {path.relative_to(repo).as_posix()}, attested in {_display(store)}; commit it before merging, "
-            "as written (SC-008)"
+            f"history: {path.relative_to(repo).as_posix()}, attested in {_display(store)}; commit it on {ref}, as "
+            f"written, before it merges (SC-008). It's untracked in main's checkout, so git switch {ref} carries it "
+            "there."
         )
         return 0 if verdict == "pass" else 1
     except (Abort, CaseError) as exc:

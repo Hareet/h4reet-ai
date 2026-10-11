@@ -519,7 +519,13 @@ time npx @devcontainers/cli@0.89.0 exec --workspace-folder . make test
 ### 6.3 The local gate (FR-041, SC-008)
 
 1. **`make check`,** in an agent session. The Author doesn't run it: in the Author's terminal the gate is step 3 (plan §11). Expected: one line per gate, PASS, FAIL, SKIP (with its reason), PENDING, or PLANNED (naming the patch's task), then a summary. It exits non-zero on any FAIL or PENDING; a PLANNED line doesn't fail it (plan [§11](plan.md#11-local-gates-fr-041)). The whole output goes into every merge-request note.
-2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, or `evals/agent-config/**`): the Author runs `make evals-agent-config`, commits the new `evals/agent-config/history/` entry (SC-008), and runs the gate again.
+2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, `evals/agent-config/**`, or the Claude Code pin): from main's checkout, clean, the Author runs
+
+   ```bash
+   make evals-agent-config REF=<branch>
+   ```
+
+   It runs main's `behavioral.py`, never the branch's: it clones the branch and reads its cases and thresholds as data. Each session runs the branch's `.claude/` hooks unsandboxed, so before any starts it prints the branch's diff against main under `.claude/`, CLAUDE.md, REVIEW.md, and every other human-only path (plan §15), and waits for the Author to type `yes`. It writes the entry, untracked, into main's checkout's `evals/agent-config/history/`, and attests its exact bytes in `~/.local/state/h4reet/evals/attested/`, where agents can't write; only an attested entry counts. The Author commits the entry on the branch as written (`git switch <branch>` carries it; SC-008), and runs the gate again. Since main's tier is what runs, the first run follows the merge that brings it: T099 runs against a branch holding the tree main will have, with US5's patch and the governance patch applied, commits the entry there, and merges that branch, so main's trigger hash is the run's (plan §14).
 3. **The Author's gate,** run directly and not through make, because a planted `GNUmakefile` would shadow the Makefile:
 
    ```bash
