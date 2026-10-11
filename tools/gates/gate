@@ -36,11 +36,14 @@ deploy/agents-engine/engine.sh), each with an environment it builds itself. The 
    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
    - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
-     evals/agent-config/ (its history aside), or the Claude Code pin. T094 adds the tier; until then this step is
-     SKIP naming it, and once evals/agent-config/behavioral.py exists it fails until it is wired here.
+     evals/agent-config/ (its history aside), or the Claude Code pin: the main tree's evals/agent-config/behavioral.py,
+     loaded into this process like check_corpus, whose status reads the export's cases, thresholds, history, and
+     trigger files as data and starts nothing. PASS when a passing entry has the export's trigger hash, PENDING when
+     none has (the Author runs make evals-agent-config and commits the entry), FAIL when the newest run failed or a
+     file doesn't load. Before main has the tier (T094), this step is SKIP naming it.
 5. eval-history: each history entry the branch adds is posted once to prod's x004 as the h4.devtime.eval.* gauges
    (contracts/telemetry.md §4.4): OTLP/JSON, stdlib, no proxy, timestamped at the post. An entry needs "verdict"
-   ("pass" or "fail"), "notional_cost_usd" (a number), and "tokens" with "input", "output", "cache_read", and
+   ("pass" or "fail"), "cost_usd" (a number), and "tokens" with "input", "output", "cache_read", and
    "cache_creation" (integers). A malformed entry fails; a collector that doesn't answer is a WARN.
 6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off.
 
@@ -954,17 +957,42 @@ def agent_config_evals(
             "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, evals/agent-config/, "
             "the Claude Code pin",
         )
-    if (repo / "evals" / "agent-config" / "behavioral.py").exists():
-        return step.fail(
-            "evals/agent-config/behavioral.py exists now, so this step must run the behavioral tier or read its "
-            "history: wire it here (T094)"
-        )
     shown = ", ".join(touched[:3]) + (", ..." if len(touched) > 3 else "")
-    return step.set(
-        "SKIP",
-        f"triggered by {shown}, and added by T094 (quickstart §6.3 step 2: make evals-agent-config, then commit "
-        "its history entry)",
-    )
+    tier = repo / "evals" / "agent-config" / "behavioral.py"
+    if not tier.is_file():
+        return step.set(
+            "SKIP",
+            f"triggered by {shown}, and added by T094 (quickstart §6.3 step 2: make evals-agent-config, then commit "
+            "its history entry)",
+        )
+    # The main tree's own behavioral.py, in this process, as the corpus step loads check_corpus: its status reads the
+    # export's cases, thresholds, history, and trigger files as data, and starts nothing (plan §14).
+    spec = importlib.util.spec_from_file_location("h4gate_behavioral", tier)
+    if spec is None or spec.loader is None:
+        return step.fail(f"can't load {tier}")
+    out = io.StringIO()
+    try:
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module  # its dataclasses look their module up there
+        spec.loader.exec_module(module)
+        with contextlib.redirect_stdout(out):
+            rc = module.status(export_dir, export_dir / "evals" / "agent-config")
+    except Exception as exc:  # noqa: BLE001 (the export's files are data: a bad one fails the step, not the gate)
+        return step.fail(f"behavioral.py stopped: {type(exc).__name__}: {exc}")
+    text = out.getvalue()
+    for line in text.splitlines():
+        say(line)
+    lines = text.splitlines()
+    if rc != 0:
+        failed = [ln for ln in lines if ln.startswith("FAIL")]
+        return step.fail(failed[0] if failed else f"behavioral.py's status exited {rc}")
+    if not any(
+        ln.startswith(("PASS  behavioral tier", "PENDING (behavioral tier)"))
+        for ln in lines
+    ):
+        return step.fail("behavioral.py's status said neither PASS nor PENDING")
+    step.notes.append(f"triggered by {shown}")
+    return classify(step, rc, text)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -991,14 +1019,14 @@ def history_problems(entry: object) -> list[str]:
     problems = []
     if entry.get("verdict") not in ("pass", "fail"):
         problems.append('"verdict" isn\'t "pass" or "fail"')
-    cost = entry.get("notional_cost_usd")
+    cost = entry.get("cost_usd")
     if (
         isinstance(cost, bool)
         or not isinstance(cost, (int, float))
         or not math.isfinite(cost)
         or cost < 0
     ):
-        problems.append('"notional_cost_usd" isn\'t a non-negative number')
+        problems.append('"cost_usd" isn\'t a non-negative number')
     tokens = entry.get("tokens")
     if not isinstance(tokens, dict):
         problems.append('"tokens" isn\'t an object')
@@ -1022,7 +1050,7 @@ def otlp_body(run: str, entry: dict, now_ns: int) -> bytes:
             "dataPoints": [
                 {
                     "timeUnixNano": str(now_ns),
-                    "asDouble": float(entry["notional_cost_usd"]),
+                    "asDouble": float(entry["cost_usd"]),
                     "attributes": [run_attr, attr("h4.eval.verdict", entry["verdict"])],
                 }
             ]

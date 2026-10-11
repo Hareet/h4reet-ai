@@ -51,7 +51,7 @@ CHANGE = {"docs/readme.md": "docs, changed\n"}  # a branch that touches no trigg
 # A history entry as the gate reads it (plan §14's fields; T094 writes them).
 ENTRY = {
     "verdict": "pass",
-    "notional_cost_usd": 0.42,
+    "cost_usd": 0.42,
     "tokens": {"input": 1200, "output": 300, "cache_read": 5000, "cache_creation": 700},
 }
 RUN = "2026-10-10T120000Z-feature-0123abc"
@@ -986,12 +986,129 @@ def test_the_behavioral_evals_wait_for_t094_when_triggered(
     assert "T094" in done.stdout
 
 
-def test_once_the_behavioral_evals_exist_the_gate_must_run_them(fx: Fixture) -> None:
+# A stand-in for the main tree's behavioral.py: status prints what the case asks, and says which tree it read.
+STUB_TIER = """
+import sys
+from pathlib import Path
+
+
+def status(repo, here):
+    print(f"read {{repo}}")
+    print(f"here {{here}}")
+    for line in {lines!r}:
+        print(line)
+    if {raises!r}:
+        raise RuntimeError("a case that doesn't load")
+    return {rc}
+"""
+
+
+def tier(fx: Fixture, lines: list[str], rc: int = 0, raises: bool = False) -> None:
+    text = STUB_TIER.format(lines=lines, rc=rc, raises=raises)
+    write(fx.main / "evals/agent-config/behavioral.py", text)
+
+
+@pytest.mark.parametrize(
+    ("lines", "rc", "expect"),
+    [
+        (
+            ["PENDING (behavioral tier): no passing run for trigger hash 0123abcd4567"],
+            0,
+            "PENDING",
+        ),
+        (
+            [
+                "PASS  behavioral tier: 2026-10-10T120000Z-feature-0123abc passed for trigger hash 0123abcd4567"
+            ],
+            0,
+            "PASS",
+        ),
+        (
+            [
+                "PLANNED (T117): 4 behavioral cases wait for the closing patch: a, b, c, d",
+                "PASS  behavioral tier: 2026-10-10T120000Z-feature-0123abc passed for trigger hash 0123abcd4567",
+            ],
+            0,
+            "PLANNED",
+        ),
+        (
+            [
+                "FAIL  behavioral tier: the last run for trigger hash 0123abcd4567 failed: below threshold"
+            ],
+            1,
+            "FAIL",
+        ),
+        (["behavioral tier: 13 cases"], 0, "FAIL"),  # neither PASS nor PENDING
+    ],
+)
+def test_a_triggered_branch_gets_the_behavioral_tiers_own_verdict(
+    fx: Fixture, lines: list[str], rc: int, expect: str
+) -> None:
     fx.branch({"CLAUDE.md": "# fixture, changed\n"})
-    write(fx.main / "evals/agent-config/behavioral.py", "# T094's\n")
+    tier(fx, lines, rc)
     done = gate(fx, "feature")
-    assert done.returncode == 1
+    assert status_of(done, "agent-config-evals") == expect
+    if expect in ("PENDING", "FAIL"):
+        assert done.returncode == 1  # the gate exits 1 on any FAIL or PENDING
+    if rc:  # a failed run's own reason reaches the table, not just its exit code
+        row = [
+            ln
+            for ln in done.stdout.splitlines()
+            if ln.split()[1:2] == ["agent-config-evals"]
+        ]
+        assert row and "below threshold" in row[-1], done.stdout
+
+
+def test_the_behavioral_tier_reads_the_export_not_the_main_tree(fx: Fixture) -> None:
+    fx.branch({"CLAUDE.md": "# fixture, changed\n"})
+    tier(
+        fx, ["PENDING (behavioral tier): no passing run for trigger hash 0123abcd4567"]
+    )
+    done = gate(fx, "feature")
+    read = [
+        ln.split(" ", 1)[1] for ln in done.stdout.splitlines() if ln.startswith("read ")
+    ]
+    here = [
+        ln.split(" ", 1)[1] for ln in done.stdout.splitlines() if ln.startswith("here ")
+    ]
+    assert len(read) == 1 and len(here) == 1, done.stdout
+    assert Path(read[0]) != fx.main
+    assert Path(here[0]) == Path(read[0]) / "evals" / "agent-config"
+
+
+def test_a_behavioral_tier_that_raises_fails_the_step_not_the_gate(fx: Fixture) -> None:
+    fx.branch({"CLAUDE.md": "# fixture, changed\n"})
+    tier(fx, [], raises=True)
+    done = gate(fx, "feature")
     assert status_of(done, "agent-config-evals") == "FAIL"
+    assert "behavioral.py stopped: RuntimeError" in done.stdout
+    assert summary(done)  # the gate still ends with its summary
+
+
+def test_the_real_behavioral_tier_shows_pending_for_a_branch_with_no_entry(
+    fx: Fixture,
+) -> None:
+    # The repository's own behavioral.py and static.py in the main tree, and its cases and thresholds on the branch,
+    # with no history entry: status computes the export's trigger hash and finds no passing run.
+    for name in ("behavioral.py", "static.py"):
+        write(
+            fx.main / "evals/agent-config" / name,
+            (REPO / "evals/agent-config" / name).read_text(encoding="utf-8"),
+        )
+    files = {"CLAUDE.md": "# fixture, changed\n"}
+    files["evals/agent-config/thresholds.yaml"] = (
+        REPO / "evals/agent-config/thresholds.yaml"
+    ).read_text(encoding="utf-8")
+    for case in sorted((REPO / "evals/agent-config/cases").glob("*.yaml")):
+        files[f"evals/agent-config/cases/{case.name}"] = case.read_text(
+            encoding="utf-8"
+        )
+    for role in sorted((REPO / ".claude/agents").glob("*.md")):
+        files[f".claude/agents/{role.name}"] = role.read_text(encoding="utf-8")
+    fx.branch(files)
+    done = gate(fx, "feature")
+    assert status_of(done, "agent-config-evals") == "PENDING", done.stdout
+    assert "PENDING (behavioral tier): no passing run for trigger hash" in done.stdout
 
 
 def test_untriggered_steps_say_so(fx: Fixture) -> None:
@@ -1036,10 +1153,10 @@ def test_clean_keeps_a_terminal_out_of_reach() -> None:
     [
         ([], "not a JSON object"),
         ({**ENTRY, "verdict": "maybe"}, '"verdict"'),
-        ({**ENTRY, "notional_cost_usd": True}, '"notional_cost_usd"'),
-        ({**ENTRY, "notional_cost_usd": -1}, '"notional_cost_usd"'),
-        ({**ENTRY, "notional_cost_usd": math.nan}, '"notional_cost_usd"'),
-        ({**ENTRY, "notional_cost_usd": "0.4"}, '"notional_cost_usd"'),
+        ({**ENTRY, "cost_usd": True}, '"cost_usd"'),
+        ({**ENTRY, "cost_usd": -1}, '"cost_usd"'),
+        ({**ENTRY, "cost_usd": math.nan}, '"cost_usd"'),
+        ({**ENTRY, "cost_usd": "0.4"}, '"cost_usd"'),
         ({**ENTRY, "tokens": []}, '"tokens" isn\'t an object'),
         (
             {**ENTRY, "tokens": {"input": 1, "output": 1, "cache_read": 1}},

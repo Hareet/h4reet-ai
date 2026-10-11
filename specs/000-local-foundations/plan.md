@@ -894,7 +894,8 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
 - a WARN status, for an eval-history push prod's collector didn't take;
 - `--contract-replay` adds `--reporter=verbose`, and passes only when a test passed under "recorded live: <adapter>";
 - stage E runs when the branch touches `deploy/agents-engine/` or `.claude/settings.json`, and stays PENDING until `--prove`;
-- `ruff.toml` names the gate, which has no `.py` extension, so `make lint` checks it.
+- `ruff.toml` names the gate, which has no `.py` extension, so `make lint` checks it;
+- the behavioral step loads the main tree's `evals/agent-config/behavioral.py` into the gate's process, as the corpus step loads `check_corpus`, and its `status` reads the export's cases, thresholds, history, and trigger files as data: PASS, PENDING, or FAIL as `make evals` has them. An entry's cost is `cost_usd`, the name `evals/agent-config/history/README.md` and telemetry.md §4.4 give it.
 
 From a session in the main tree, `make secrets`, and so `make check`, fails closed on the sandbox's mask at `.gitleaksignore`. It runs in a worktree, and in the Author's terminal.
 
