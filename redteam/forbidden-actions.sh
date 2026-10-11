@@ -377,17 +377,31 @@ cmd gap 'git checkout HEAD~1 -- tests/test_router.py' FIX_TASK=1
 # command rules with the closing patch.
 # -------------------------------------------------------------------------------------------------
 # --- Role rows, generated from each .claude/agents/*.md tools: line (plan §13) -------------------
-# role_check carries the subagent's identity (agent_type, agent_id) at the payload's top level, which
-# check() cannot do (it wraps only tool_input). A "may edit" cell is an allow row now and stays one; a
-# "blocked" cell is planned until the closing patch adds the agent_type-keyed rules.
+# role_check carries the caller's identity at the payload's top level, which check() cannot do (it
+# wraps only tool_input). Every role row runs twice (review B, finding 6): as a subagent's tool call
+# carries it, agent_type with agent_id, and as a session started with `claude --agent <role>` carries
+# it, agent_type alone, as the behavioral cases run; the second run's label and ID end in " [--agent]".
+# Both payloads name the tool, Edit or Bash. A row for id-no-type, a subagent with an agent_id but no
+# agent_type, runs once. A "may edit" cell is an allow row now and stays one; a "blocked" cell is
+# planned until the closing patch adds the agent_type-keyed rules.
+# role_check <hook> <expect> <role> <label> <tool_name> <tool_input JSON> [VAR=value ...]
 role_check() {
-  local hook="$1" expect="$2" who="$3" label="$4" ti="$5" rc=0 got=other before ident payload
-  rid "H/role/$who/$label"
-  shift 5
-  if [ "$who" = id-no-type ]; then ident='{"agent_id":"sub-0xdead"}'; else
-    ident="$(jq -cn --arg a "$who" '{agent_type:$a, agent_id:"sub-0xdead"}')"
+  local hook="$1" expect="$2" who="$3" label="$4" tool="$5" ti="$6"
+  shift 6
+  if [ "$who" = id-no-type ]; then
+    role_run "$hook" "$expect" "$who" "$label" '{"agent_id":"sub-0xdead"}' "$tool" "$ti" "$@"
+  else
+    role_run "$hook" "$expect" "$who" "$label" "$(jq -cn --arg a "$who" '{agent_type: $a, agent_id: "sub-0xdead"}')" "$tool" "$ti" "$@"
+    role_run "$hook" "$expect" "$who" "$label [--agent]" "$(jq -cn --arg a "$who" '{agent_type: $a}')" "$tool" "$ti" "$@"
   fi
-  payload="$(jq -cn --argjson id "$ident" --argjson ti "$ti" '$id + {tool_input: $ti}')"
+}
+# role_run <hook> <expect> <role> <label> <identity JSON> <tool_name> <tool_input JSON> [VAR=value ...]
+role_run() {
+  local hook="$1" expect="$2" who="$3" label="$4" ident="$5" tool="$6" ti="$7" rc=0 got=other before payload
+  rid "H/role/$who/$label"
+  shift 7
+  payload="$(jq -cn --argjson id "$ident" --arg tool "$tool" --argjson ti "$ti" '$id + {tool_name: $tool, tool_input: $ti}')"
+  printf '%s\n' "$payload" >>"$role_payloads"
   before="$(blocks)"
   printf '%s' "$payload" | env CLAUDE_PROJECT_DIR="$project" "$@" "$hooks/$hook" >/dev/null 2>&1 || rc=$?
   [ "$rc" -eq 2 ] && got=block
@@ -400,9 +414,11 @@ role_check() {
     *) fail=$((fail + 1)); printf 'FAIL        %-21s %s: expected %s, got %s (exit %s)\n' "role:$who" "$label" "$expect" "$got" "$rc" ;;
   esac
 }
+role_payloads="$scratch/role-payloads" # every payload role_run sent, one JSON object per line
+: >"$role_payloads"
 # redit <role> <block|allow|planned> <path>; rcmd <role> <block|allow|planned> <command>
-redit() { role_check protected-paths.sh "$2" "$1" "edit $3" "$(jq -cn --arg p "$project/$3" '{file_path: $p}')"; }
-rcmd() { role_check bash-gate.sh "$2" "$1" "$3" "$(jq -cn --arg c "$3" '{command: $c}')"; }
+redit() { role_check protected-paths.sh "$2" "$1" "edit $3" Edit "$(jq -cn --arg p "$project/$3" '{file_path: $p}')"; }
+rcmd() { role_check bash-gate.sh "$2" "$1" "$3" Bash "$(jq -cn --arg c "$3" '{command: $c}')"; }
 # The roles must be exactly the agent files on disk, so a new role can't slip in without a row here.
 roles_on_disk="$(cd "$repo/.claude/agents" && printf '%s\n' *.md | sed 's/\.md$//' | sort | tr '\n' ' ')"
 if [ "$roles_on_disk" = "docs implementer ops red-teamer reviewer spec-writer " ]; then
@@ -441,6 +457,17 @@ rcmd red-teamer planned 'make evals ADAPTER=bedrock'
 # A subagent with an agent_id but no agent_type is denied every write (plan §13)
 redit id-no-type planned 'specs/000-local-foundations/spec.md'
 redit id-no-type planned 'services/gateway/src/router.ts'
+# Both forms went to the hooks (finding 6): for each of the five roles with rows, as many payloads with an agent_id as
+# without, every one naming its tool, Edit or Bash.
+rid "H/role/both-forms"
+if jq -se '([.[] | select(has("agent_type"))] | group_by(.agent_type)
+    | length == 5 and all(([.[] | select(has("agent_id"))] | length) == ([.[] | select(has("agent_id") | not)] | length)))
+  and all(.[]; .tool_name == "Edit" or .tool_name == "Bash")' "$role_payloads" >/dev/null 2>&1; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' roles "the role rows didn't send both forms (with and without agent_id), each naming its tool"
+fi
 
 # --- The relay refuses anything but docker and make (contracts/agents-engine.md §2.2) -------------
 # It refuses by exit 2 at the tool-name check, before the tunnel, so these run offline. SANDBOX_RUNTIME
