@@ -217,6 +217,23 @@ describe("a certificate that fails to verify is tls (alerts/smtp.ts, T190)", () 
     }
   });
 
+  for (const drop of ["end", "reset"] as const) {
+    it(`keeps smtp_ESOCKET when the server drops the connection on 465 before sending a byte (${drop})`, async () => {
+      // The review of T190: a load balancer with no backend, or a rate limiter, drops a connection before any TLS.
+      // Nothing of a handshake came back, so it isn't tls, which would send the operator to the certificate.
+      // 30 ms in, the client has connected and sent its hello: the drop meets its TLS, not its connect.
+      const listener = createServer((socket: Socket) => {
+        sockets.add(socket); // a half-closed socket would hold the listener open past afterEach
+        setTimeout(() => (drop === "reset" ? socket.resetAndDestroy() : socket.end()), 30);
+      });
+      servers.push(listener);
+      await new Promise<void>((resolve) => listener.listen(0, "127.0.0.1", resolve));
+      const address = listener.address();
+      const port = typeof address === "object" && address !== null ? address.port : 0;
+      expect(await sendEmail(channel("implicit", port), mail)).toEqual({ ok: false, errorClass: "smtp_ESOCKET" });
+    });
+  }
+
   it("keeps smtp_ESOCKET for a connection reset before STARTTLS", async () => {
     const server = await tlsSmtp("starttls", selfSigned({ subject: SUBJECT, dnsNames: ["localhost"] }), {
       reset: "before-tls",
