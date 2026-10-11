@@ -46,6 +46,7 @@ H/relay/ops-grant-docker-only
 
 # --- T087: planted bytecode under PY_HOST ---
 H/pyhost/planted-pyc-is-live
+H/pyhost/planted-pyc-without-prefix
 H/pyhost/planted-pyc-under-py-host
 
 # --- T087: settings toggles and the single IP opening ---

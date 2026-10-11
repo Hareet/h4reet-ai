@@ -376,7 +376,7 @@ cmd gap 'git checkout HEAD~1 -- tests/test_router.py' FIX_TASK=1
 # patch (plan §15; tasks.md T117); the governance-path rules with T098; .mcp.json and the Author-only
 # command rules with the closing patch.
 # -------------------------------------------------------------------------------------------------
-# --- Role rows, generated from each .claude/agents/*.md tools: line (plan §13) -------------------
+# --- Role rows, written by hand from each .claude/agents/*.md tools: line, with a roster check (plan §13) --
 # role_check carries the caller's identity at the payload's top level, which check() cannot do (it
 # wraps only tool_input). Every role row runs twice (review B, finding 6): as a subagent's tool call
 # carries it, agent_type with agent_id, and as a session started with `claude --agent <role>` carries
@@ -428,6 +428,7 @@ else
   printf 'FAIL        %-21s roles on disk changed: %s (update the role rows)\n' agents "$roles_on_disk"
 fi
 rid "H/role/roster"
+role_planned=$planned
 # spec-writer: specs/** and intent/** only (table: blocked everything else)
 redit spec-writer allow 'specs/000-local-foundations/spec.md'
 redit spec-writer planned 'services/gateway/src/router.ts'
@@ -477,6 +478,10 @@ rcmd red-teamer allow 'make redteam'
 # A subagent with an agent_id but no agent_type is denied every write (plan §13)
 redit id-no-type planned 'specs/000-local-foundations/spec.md'
 redit id-no-type planned 'services/gateway/src/router.ts'
+# run_checks.py and the gate count a planned row only by a summary line (convergence T201).
+if [ "$planned" -gt "$role_planned" ]; then
+  printf "PLANNED (T117): %d role rows: the hooks don't yet scope writes and commands by agent_type, or refuse a write with an agent_id and no agent_type; the closing patch adds that (on a tree without the early patch or US5's, a few rows wait for those)\n" "$((planned - role_planned))"
+fi
 # Both forms went to the hooks (finding 6): for each of the five roles with rows, as many payloads with an agent_id as
 # without, every one naming its tool, Edit or Bash.
 rid "H/role/both-forms"
@@ -510,11 +515,15 @@ relay_refuses() { # relay_refuses <label> [arg...]
     printf 'FAIL        %-21s %s: expected exit 2, got %s\n' docker-relay "$label" "$rc"
   fi
 }
+relay_planned=$planned
 relay_refuses 'sh -c' sh -c 'echo x'
 relay_refuses 'bash -c' bash -c 'echo x'
 relay_refuses 'python3 -c' python3 -c 'print(1)'
 relay_refuses 'a bare path' /bin/echo hi
 relay_refuses 'no argument'
+if [ "$planned" -gt "$relay_planned" ]; then
+  printf 'PLANNED (T046): %d relay rows: this tree has no docker-relay yet; the engine'"'"'s patches add it\n' "$((planned - relay_planned))"
+fi
 # For ops, docker-relay make … is refused by its grant (Bash(docker-relay docker *), early patch), not by the relay,
 # which allows make. The static agent-config tier checks roles.expected; until the grant lands this row is planned.
 rid "H/relay/ops-grant-docker-only"
@@ -527,45 +536,74 @@ else
   printf 'PLANNED     %-21s %s\n' ops.md "ops' docker-relay grant (docker only, not make) arrives with the early patch"
 fi
 
-# --- Planted bytecode doesn't run under PY_HOST (plan §13) ----------------------------------------
-# operator.py is launched by path under PY_HOST (python3 -I -B -X pycache_prefix=/dev/null). A __pycache__/*.pyc planted
-# beside an imported module, with an unchecked-hash header a loader would trust, must be ignored: -X pycache_prefix
-# reads cached bytecode from the prefix, not the local __pycache__, and -I keeps the module's directory off sys.path.
+# --- Planted bytecode doesn't run under PY_HOST (plan §13; research.md R-35) ----------------------
+# The Author's code loads modules two ways: importlib's spec_from_file_location, as evals/run.py loads
+# scripts/operator.py, and from a folder put on sys.path. Each row plants a __pycache__/*.pyc beside the source with an
+# unchecked-hash header, which a loader trusts without reading the source, and runs both loaders. Under PY_HOST
+# (python3 -I -B -X pycache_prefix=/dev/null) neither may run it: the prefix moves where cached bytecode is read from.
+# -B only stops writing bytecode, and -I only keeps the script's own folder off sys.path, so the second control, PY_HOST
+# without the prefix, must run both planted files: the prefix is what holds (convergence T199).
 pyc="$scratch/pycache"
-mkdir -p "$pyc"
-printf 'MARKER = "source"\n' >"$pyc/victim.py"
-printf 'import os, victim  # noqa\nprint(victim.MARKER)\n' >"$pyc/main.py"
+mkdir -p "$pyc/scripts" "$pyc/lib"
+printf 'MARKER = "source"\n' >"$pyc/scripts/operator.py" # a stand-in, at scripts/operator.py's name
+printf 'MARKER = "source"\n' >"$pyc/lib/victim.py"
+cat >"$pyc/load_spec.py" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("h4_operator", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print(module.MARKER)
+PY
+cat >"$pyc/load_path.py" <<'PY'
+import sys
+
+sys.path.append(sys.argv[1])
+import victim  # noqa: E402
+
+print(victim.MARKER)
+PY
 python3 - "$pyc" <<'PY'
 import os, py_compile, sys
 d = sys.argv[1]
-with open(os.path.join(d, "payload.py"), "w") as f:
-    f.write("open(%r, 'w').close()\nMARKER = 'pwned'\n" % os.path.join(d, "PWNED"))
-os.makedirs(os.path.join(d, "__pycache__"), exist_ok=True)
-py_compile.compile(
-    os.path.join(d, "payload.py"),
-    cfile=os.path.join(d, "__pycache__", "victim.%s.pyc" % sys.implementation.cache_tag),
-    invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
-)
+for folder, name in (("scripts", "operator"), ("lib", "victim")):
+    payload = os.path.join(d, folder, "payload.py")
+    with open(payload, "w") as f:
+        f.write("open(%r, 'w').close()\nMARKER = 'pwned'\n" % os.path.join(d, "PWNED-" + name))
+    os.makedirs(os.path.join(d, folder, "__pycache__"), exist_ok=True)
+    py_compile.compile(
+        payload,
+        cfile=os.path.join(d, folder, "__pycache__", "%s.%s.pyc" % (name, sys.implementation.cache_tag)),
+        invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+    )
+    os.remove(payload)
 PY
-rid "H/pyhost/planted-pyc-is-live"
-rm -f "$pyc/PWNED"
-python3 "$pyc/main.py" >/dev/null 2>&1 || true # control: a plain interpreter runs the planted pyc
-if [ -e "$pyc/PWNED" ]; then
-  pass=$((pass + 1))
-else
-  fail=$((fail + 1))
-  printf 'FAIL        %-21s %s\n' py-host "the planted pyc did not run under plain python3, so the test proves nothing"
-fi
-rid "H/pyhost/planted-pyc-under-py-host"
-rm -f "$pyc/PWNED"
-python3 -I -B -X pycache_prefix=/dev/null "$pyc/main.py" >/dev/null 2>&1 || true
-if [ -e "$pyc/PWNED" ]; then
-  fail=$((fail + 1))
-  printf 'FAIL        %-21s %s\n' py-host "planted bytecode ran under PY_HOST"
-  rm -f "$pyc/PWNED"
-else
-  pass=$((pass + 1))
-fi
+# pyc_row <id> <live|dead> [interpreter flag...]: both loaders under the flags. live: both planted files ran (a control);
+# dead: neither did.
+pyc_row() {
+  local id="$1" expect="$2" ran=0
+  shift 2
+  rid "H/pyhost/$id"
+  rm -f "$pyc"/PWNED-*
+  python3 "$@" "$pyc/load_spec.py" "$pyc/scripts/operator.py" >/dev/null 2>&1 || true
+  python3 "$@" "$pyc/load_path.py" "$pyc/lib" >/dev/null 2>&1 || true
+  if [ -e "$pyc/PWNED-operator" ]; then ran=$((ran + 1)); fi
+  if [ -e "$pyc/PWNED-victim" ]; then ran=$((ran + 1)); fi
+  rm -f "$pyc"/PWNED-*
+  if { [ "$expect" = live ] && [ "$ran" -eq 2 ]; } || { [ "$expect" = dead ] && [ "$ran" -eq 0 ]; }; then
+    pass=$((pass + 1))
+  elif [ "$expect" = live ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: %d of 2 planted files ran, so the PY_HOST row proves nothing\n' py-host "$id" "$ran"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: %d of 2 planted files ran under PY_HOST\n' py-host "$id" "$ran"
+  fi
+}
+pyc_row planted-pyc-is-live live              # control: a plain interpreter runs both
+pyc_row planted-pyc-without-prefix live -I -B # control: -I and -B stop neither
+pyc_row planted-pyc-under-py-host dead -I -B -X pycache_prefix=/dev/null
 
 # --- Settings: no socket-opening or sandbox-weakening toggles, one IP in the allowlist (plan §13) --
 # US1's early-patch settings rows prove the one engine opening (198.18.0.1:2376) is present and every FR-007 variable is
@@ -856,7 +894,11 @@ PY
   s_unwritable '~/.config/h4reet-ai' block "$HOME/.config/h4reet-ai"
   # shellcheck disable=SC2088
   s_unwritable '~/.local/state/h4reet' block "$HOME/.local/state/h4reet"
+  # FR-008's CI workflows (convergence T195). The settings name them only in an Edit deny, yet the sandbox masks the
+  # folder today; the closing patch adds an explicit denyWrite, so the mask doesn't depend on how Claude Code derives it.
+  s_unwritable '.github/workflows' block "$stage_s_tree/.github/workflows"
   # .git/info and .mcp.json are denied by the closing patch (plan §15): planned until then.
+  s_planned=$planned
   s_unwritable '.git/info' planned "$(git -C "$repo" rev-parse --path-format=absolute --git-path info)"
   s_unwritable '.mcp.json' planned "$stage_s_tree/.mcp.json"
   # main can't move (plan §13): test -w on the ref's path, and nothing more. The row never runs update-ref, so the matrix
@@ -873,6 +915,9 @@ PY
   else
     pass=$((pass + 1))
     printf 'ENFORCED    %-21s .git/refs/heads/main is unwritable (test -w) (a planned row: make it "block")\n' stage-S-unwritable
+  fi
+  if [ "$planned" -gt "$s_planned" ]; then
+    printf "PLANNED (T117): %d stage S rows: the sandbox doesn't yet deny writes to .git/info, .git/refs/heads/main, or .mcp.json; the closing patch adds them\n" "$((planned - s_planned))"
   fi
   # s_unreadable <id> <path>: PASS when the path's contents can't be read. The sandbox denies reads at the read layer and
   # hides a denied directory's entries, but it leaves the permission bits intact, so `test -r` reports a denied path
