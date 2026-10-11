@@ -17,6 +17,11 @@
 # commits it scanned: more than none whenever the branch adds a line, since gitleaks counts only commits whose diff
 # has one.
 #
+# The range scan passes --text to git log, which otherwise shows gitleaks no diff for what git takes for binary: a
+# file with a NUL byte, or one a -diff attribute marks in any .gitattributes in the work tree, even an untracked or
+# ignored one. The --pre-commit scans can't: gitleaks runs its own git diff, with no options of ours, so they still
+# miss what git takes for binary in the changes, a gap plan §11 records. The commits are scanned once committed.
+#
 # Exit 0 when every scan is clean, 1 when a scan found something, couldn't run, or was refused.
 set -euo pipefail
 export GIT_NO_REPLACE_OBJECTS=1 # git log reads each commit's own objects, never a replacement an agent planted
@@ -54,8 +59,10 @@ holds_nothing "$main_tree/.gitleaksignore" ||
 base="$(git merge-base main HEAD 2>/dev/null)" ||
 	fail "this clone has no merge base with main, so the branch's commits can't be scanned"
 commits="$(git rev-list --count "$base..HEAD")"
-# The lines the branch adds, as git log --text counts them: what the range scan must have seen some of.
-added="$(git log --text --numstat --format= "$base..HEAD" | awk -F '\t' '$1 ~ /^[0-9]+$/ { n += $1 } END { print n + 0 }')" ||
+# The lines the branch adds, counted in the patch gitleaks reads (git log -p --text): the range scan must have seen
+# some of them. --numstat counts no line in what git takes for binary, even with --text.
+added="$(git log -p -U0 --text --no-textconv --no-ext-diff --no-color --format= "$base..HEAD" | LC_ALL=C tr -d '\000' |
+	LC_ALL=C awk '/^diff --git /{ hunk = 0; next } /^@@ /{ hunk = 1; next } hunk && /^\+/{ n++ } END { print n + 0 }')" ||
 	fail "git log couldn't count the lines the branch adds, so nothing was scanned"
 
 # A fresh, empty directory, or the run stops (R-35): never an empty, relative, or reused path.
@@ -137,7 +144,7 @@ scan() {
 }
 scan "unstaged changes" unstaged "" --pre-commit
 scan "staged changes" staged "" --pre-commit --staged
-scan "$commits commits since main (${base:0:12}..HEAD)" range "$added" --log-opts="$base..HEAD"
+scan "$commits commits since main (${base:0:12}..HEAD)" range "$added" --log-opts="--text $base..HEAD"
 
 if [ "${#failed[@]}" -gt 0 ]; then
 	joined="$(printf '%s, ' "${failed[@]}")"

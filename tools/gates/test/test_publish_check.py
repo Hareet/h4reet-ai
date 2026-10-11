@@ -319,6 +319,25 @@ def test_a_fake_secret_in_an_old_commit_is_found_and_never_printed(
     assert_quiet(done, first, marked)
 
 
+@needs_gitleaks
+@pytest.mark.parametrize("hidden", ["a NUL byte", "a -diff attribute"])
+def test_a_fake_secret_git_takes_for_binary_is_found(
+    repo: Fixture, tmp_path: Path, hidden: str
+) -> None:
+    # git log shows no diff for what it takes for binary, a file with a NUL byte or one a .gitattributes in the work
+    # tree marks -diff, committed or not, so gitleaks saw nothing there without git log's --text.
+    token = fake_token()
+    path = "config/nul.txt" if hidden == "a NUL byte" else "config/hidden.txt"
+    gap = "\0" if hidden == "a NUL byte" else ""
+    sha = repo.commit(f"a file with {hidden}", {path: f"x{gap}\n{token}\n"})
+    if hidden == "a -diff attribute":
+        repo.write(".gitattributes", f"{path} -diff\n")  # untracked
+    done = run(repo.root, tmp_path)
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert f"{sha[:12]} {path}:2: gitleaks rule h4reet-operator-token" in lines(done)
+    assert_quiet(done, token)
+
+
 def test_a_denylisted_phrase_in_a_removed_file_is_found_by_its_denylist_line(
     repo: Fixture, tmp_path: Path
 ) -> None:
@@ -702,7 +721,7 @@ def test_gitleaks_runs_with_the_main_trees_config_an_empty_ignore_path_and_no_al
     top = str(repo.root.resolve())
     assert argv[0] == "git" and argv[-1] == top
     for flag in (
-        "--log-opts=--all",
+        "--log-opts=--all --text",
         "--redact",
         "--no-banner",
         "--ignore-gitleaks-allow",

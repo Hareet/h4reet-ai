@@ -55,6 +55,20 @@ ENTRY = {
     "tokens": {"input": 1200, "output": 300, "cache_read": 5000, "cache_creation": 700},
 }
 RUN = "2026-10-10T120000Z-feature-0123abc"
+# The real gitleaks, where it is installed, with a rule for a probe token assembled at run time, so this file holds
+# nothing shaped like a secret.
+REAL_GITLEAKS = shutil.which("gitleaks")
+needs_gitleaks = pytest.mark.skipif(
+    REAL_GITLEAKS is None, reason="needs gitleaks (make tools; the devcontainer has it)"
+)
+TOKEN = "h4probe_" + "q" * 20
+PROBE_RULES = """title = "probe"
+[[rules]]
+id = "probe-token"
+description = "a probe token, assembled at run time"
+regex = '''h4probe_[a-z]{20}'''
+keywords = ["h4probe_"]
+"""
 
 STUB_DOCKER = r"""#!/usr/bin/env python3
 import hashlib, json, os, sys
@@ -545,17 +559,28 @@ def test_a_clean_branch_passes_and_each_phase_runs_where_and_how_plan_11_says(
             "/dev/null",
         )
 
-    # gitleaks over the range, with the flags of plan §11.
-    (scan,) = fx.gitleaks()
+    # gitleaks over the range, with the flags of plan §11 and git log's --text, then over the export.
+    scan, tree_scan = fx.gitleaks()
     base = git(fx.main, "merge-base", "main", sha)
     argv = scan["argv"]
-    assert argv[:2] == ["git", f"--log-opts={base}..{sha}"]
-    assert argv[argv.index("--config") + 1] == str(fx.main / ".gitleaks.toml")
-    assert "--ignore-gitleaks-allow" in argv and "--redact" in argv
-    assert argv[argv.index("--exit-code") + 1] == "99"
+    assert argv[:2] == ["git", f"--log-opts=--text {base}..{sha}"]
     assert argv[-1] == str(fx.main)
-    assert scan["ignore_was_fresh"]
     assert scan["no_replace"] == "1"
+    # dir mode from inside the export, so it walks paths relative to the tree, which the config's ^-anchored
+    # allowlists match, and names findings by them.
+    tree_argv = tree_scan["argv"]
+    assert (tree_argv[0], tree_argv[-1]) == ("dir", ".")
+    assert tree_scan["cwd"] == str(export)
+    for call in (scan, tree_scan):
+        flags = call["argv"]
+        assert flags[flags.index("--config") + 1] == str(fx.main / ".gitleaks.toml")
+        assert "--ignore-gitleaks-allow" in flags and "--redact" in flags
+        assert flags[flags.index("--exit-code") + 1] == "99"
+        assert call["ignore_was_fresh"]
+    assert (
+        scan["argv"][scan["argv"].index("--gitleaks-ignore-path") + 1]
+        != (tree_argv[tree_argv.index("--gitleaks-ignore-path") + 1])
+    )
 
     # The image build on the agents' engine, with the Author's certificate.
     (compose,) = by_kind(calls, "compose")
@@ -1154,6 +1179,16 @@ def test_a_range_scan_of_no_commits_fails_when_the_branch_adds_lines(
     )
 
 
+def test_lines_git_takes_for_binary_count_as_added(fx: Fixture) -> None:
+    # Counted in the patch gitleaks reads, with --text: --numstat counts no line in a file with a NUL byte.
+    fx.branch({"docs/nul.txt": "x\0y\n"})
+    fx.gitleaks_control(scanned={"git": 0})
+    done = gate(fx, "feature")
+    assert "gitleaks scanned 0 commits, though the branch adds 1 line(s)" in row(
+        done, "gitleaks"
+    )
+
+
 def test_a_branch_that_adds_no_line_may_scan_no_commits(fx: Fixture) -> None:
     # gitleaks counts a commit only when its diff has a line, so a branch of deletions, renames, mode changes,
     # merges, or empty commits honestly scans none.
@@ -1172,7 +1207,9 @@ def test_a_gitleaksignore_that_could_hold_entries_stops_the_scan(fx: Fixture) ->
     write(fx.main / ".gitleaksignore", "x:y:z:1\n")
     done = gate(fx, "feature")
     assert status_of(done, "gitleaks") == "FAIL"
-    assert fx.gitleaks() == []
+    assert [c for c in fx.gitleaks() if c["argv"][0] == "git"] == []
+    # The tree scan's source is the export, whose root holds none, so the main tree's file can't reach it.
+    assert status_of(done, "gitleaks-tree") == "PASS"
 
 
 def test_the_main_trees_empty_placeholder_is_let_through(fx: Fixture) -> None:
@@ -1180,6 +1217,156 @@ def test_the_main_trees_empty_placeholder_is_let_through(fx: Fixture) -> None:
     write(fx.main / ".gitleaksignore", "")
     done = gate(fx, "feature")
     assert status_of(done, "gitleaks") == "PASS"
+
+
+# --------------------------------------------------------------------------------------------------
+# gitleaks over the export, the tree the merge writes (dir mode)
+# --------------------------------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        (".gitleaksignore", ""),
+        (".gitleaksignore", "x:y:z:1\n"),
+        (".GitLeaksIgnore", "x:y:z:1\n"),
+    ],
+)
+def test_a_gitleaksignore_at_the_trees_root_stops_the_tree_scan(
+    fx: Fixture, name: str, text: str
+) -> None:
+    # gitleaks dir obeys a .gitleaksignore at the folder it scans whatever its flags (research.md R-36), and the
+    # branch wrote this one, so anything there refuses, empty or not.
+    fx.branch({name: text})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "gitleaks-tree") == "FAIL"
+    assert f"the commit has {name} at its root" in row(done, "gitleaks-tree")
+    assert [c for c in fx.gitleaks() if c["argv"][0] == "dir"] == []
+    assert status_of(done, "gitleaks") == "PASS"
+
+
+@pytest.mark.parametrize(
+    ("mode", "says"),
+    [
+        ("git-error", "gitleaks logged an error, so its scan may be partial: "),
+        ("no-count", "gitleaks didn't say how much it scanned"),
+        ("no-report", "gitleaks' report is missing or unreadable"),
+        # dir mode logs a file it couldn't read, or a path that isn't there, as a warning and exits 0.
+        ("skipped", "gitleaks skipped what it couldn't read: "),
+        ("quiet-finds", "gitleaks exited 0 with 1 finding(s) in its report"),
+    ],
+)
+def test_a_tree_scan_that_may_not_have_read_everything_fails(
+    fx: Fixture, mode: str, says: str
+) -> None:
+    fx.branch(CHANGE)
+    fx.gitleaks_control(modes={"dir": mode})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "gitleaks-tree") == "FAIL"
+    assert says in row(done, "gitleaks-tree"), done.stdout
+    assert status_of(done, "gitleaks") == "PASS"
+
+
+def test_a_tree_scan_of_no_bytes_fails(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.gitleaks_control(scanned={"dir": 0})
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks-tree") == "FAIL"
+    assert "gitleaks scanned 0 bytes of a tree that holds some" in row(
+        done, "gitleaks-tree"
+    )
+
+
+def test_a_tree_finding_is_named_without_its_match(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.gitleaks_control(finds=["dir"])
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert row(done, "gitleaks-tree").endswith(
+        "gitleaks-tree  1 finding(s), named above without their match"
+    )
+    assert "  probe-token in docs/readme.md:3\n" in done.stdout
+    assert status_of(done, "gitleaks") == "PASS"
+
+
+def real_gitleaks(fx: Fixture) -> None:
+    """The real gitleaks in the stand-in's place, and the probe rule in the main tree's .gitleaks.toml, the working
+    tree's file the gate reads. After fx.branch, which commits only the files it's given."""
+    (fx.stubs / "gitleaks").unlink()
+    (fx.stubs / "gitleaks").symlink_to(REAL_GITLEAKS)
+    write(fx.main / ".gitleaks.toml", PROBE_RULES)
+
+
+@needs_gitleaks
+def test_the_real_gitleaks_passes_a_clean_branch_in_both_modes(fx: Fixture) -> None:
+    # Its own log, count, and report, in each mode, read as the stand-in's are.
+    fx.branch(CHANGE)
+    real_gitleaks(fx)
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks") == "PASS", done.stdout
+    assert status_of(done, "gitleaks-tree") == "PASS", done.stdout
+    assert "INF 1 commits scanned" in done.stdout
+
+
+@needs_gitleaks
+@pytest.mark.parametrize("hidden", ["a NUL byte", "a -diff attribute"])
+def test_what_git_takes_for_binary_is_scanned_in_the_commits_and_the_tree(
+    fx: Fixture, hidden: str
+) -> None:
+    # git log shows no diff for what it takes for binary, a file with a NUL byte or one a .gitattributes in the work
+    # tree marks -diff, committed or not, so gitleaks' git mode saw nothing there without --text.
+    rel = "docs/nul.txt" if hidden == "a NUL byte" else "docs/hidden.txt"
+    fx.branch({rel: f"x{chr(0) if hidden == 'a NUL byte' else ''}\nvalue {TOKEN}\n"})
+    real_gitleaks(fx)
+    if hidden == "a -diff attribute":
+        write(fx.main / ".gitattributes", f"{rel} -diff\n")  # untracked
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks") == "FAIL", done.stdout
+    assert status_of(done, "gitleaks-tree") == "FAIL", done.stdout
+    assert re.search(
+        rf"^  probe-token in {rel}:2 \(commit [0-9a-f]{{12}}\)$",
+        done.stdout,
+        re.MULTILINE,
+    ), done.stdout
+    assert (
+        f"\n  probe-token in {rel}:2\n" in done.stdout
+    )  # the tree's, without a commit
+    assert TOKEN not in done.stdout + done.stderr
+
+
+@needs_gitleaks
+def test_the_configs_anchored_allowlist_holds_in_the_tree_scan_too(fx: Fixture) -> None:
+    # The main tree's .gitleaks.toml allowlists a path with a ^-anchored pattern (deploy/env.agents/dev-cpu.vars),
+    # which dir mode matches against the paths it walks: relative ones only from inside the tree.
+    fx.branch({"docs/allowed.txt": f"value {TOKEN}\n"})
+    real_gitleaks(fx)
+    allowlist = "[[allowlists]]\npaths = ['''^docs/allowed\\.txt$''']\n"
+    write(fx.main / ".gitleaks.toml", PROBE_RULES + allowlist)
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks") == "PASS", done.stdout
+    assert status_of(done, "gitleaks-tree") == "PASS", done.stdout
+
+
+@needs_gitleaks
+def test_a_secret_a_merge_adds_is_found_in_the_tree(fx: Fixture) -> None:
+    # git log shows no diff for a merge commit, so the range scan can't see what a merge's resolution adds; the tree
+    # scan reads the tip the merge writes.
+    fx.branch(CHANGE)
+    write(fx.main / "docs/main.md", "main moves on\n")
+    git(fx.main, "add", "docs/main.md")
+    git(fx.main, "commit", "-qm", "main moves on")
+    git(fx.main, "switch", "-q", "feature")
+    git(fx.main, "merge", "-q", "--no-ff", "--no-commit", "main")
+    write(fx.main / "docs/merged.txt", f"value {TOKEN}\n")
+    git(fx.main, "add", "docs/merged.txt")
+    git(fx.main, "commit", "-qm", "merge main")
+    git(fx.main, "switch", "-q", "main")
+    real_gitleaks(fx)
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks") == "PASS", done.stdout
+    assert status_of(done, "gitleaks-tree") == "FAIL", done.stdout
+    assert "\n  probe-token in docs/merged.txt:1\n" in done.stdout
+    assert TOKEN not in done.stdout + done.stderr
 
 
 def test_missing_gitleaks_fails_closed(fx: Fixture) -> None:

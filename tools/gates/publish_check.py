@@ -5,10 +5,11 @@
 
 Run from anywhere in a full clone's work tree, it certifies the whole history for publication, or says why it can't.
 Standard library only.
-  1. Secrets: gitleaks over every commit, `gitleaks git --log-opts=--all --redact`, with the main working tree's
-     .gitleaks.toml, an empty ignore path, and --ignore-gitleaks-allow. It refuses while a .gitleaksignore exists at
-     the repository root (or the main working tree's), which gitleaks obeys whatever its flags say (research.md
-     R-36). The report goes to a 0700 temporary directory, deleted on exit.
+  1. Secrets: gitleaks over every commit, `gitleaks git --log-opts="--all --text" --redact`, with the main working
+     tree's .gitleaks.toml, an empty ignore path, and --ignore-gitleaks-allow. git log's --text makes it read what git
+     takes for binary. It refuses while a .gitleaksignore exists at the repository root (or the main working tree's),
+     which gitleaks obeys whatever its flags say (research.md R-36). The report goes to a 0700 temporary directory,
+     deleted on exit.
   2. The denylist, corpus/intake/private/denylist.txt in the main working tree, read as corpus-check reads it (strip,
      lowercase, skip blank and # lines): against every blob of every commit in `git rev-list --all`, each unique blob
      read once through `git cat-file --batch`; against every path; and against the history's metadata: commit and
@@ -415,10 +416,13 @@ def scan_secrets(
         empty.mkdir(mode=0o700)
         path = Path(work, "report.json")
         argv = [
-            exe, "git", "--log-opts=--all", "--redact", "--no-banner", "--no-color",
+            exe, "git", "--log-opts=--all --text", "--redact", "--no-banner", "--no-color",
             "--config", str(config), "--gitleaks-ignore-path", str(empty), "--ignore-gitleaks-allow",
             "--report-format", "json", "--report-path", str(path), "--exit-code", str(LEAKS), str(top),
         ]  # fmt: skip
+        # git log's --text: without it git shows no diff for what it takes for binary, a file with a NUL byte or one a
+        # -diff attribute marks in any .gitattributes in the work tree, even an untracked one, and gitleaks reads only
+        # what git shows. gitleaks splits --log-opts at its spaces.
         try:
             # It runs from the empty directory too: gitleaks' default ignore path is the working directory.
             done = subprocess.run(

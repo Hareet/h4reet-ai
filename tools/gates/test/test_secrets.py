@@ -213,7 +213,7 @@ def test_three_scans_each_with_the_main_trees_config_a_fresh_empty_ignore_path_a
     assert [c["argv"][:3] for c in made] == [
         ["git", "--pre-commit", "--no-banner"],
         ["git", "--pre-commit", "--staged"],
-        ["git", f"--log-opts={base}..HEAD", "--no-banner"],
+        ["git", f"--log-opts=--text {base}..HEAD", "--no-banner"],
     ]
     ignore_dirs = set()
     for call in made:
@@ -279,6 +279,19 @@ def test_a_range_scan_that_doesnt_say_its_count_fails(
 def test_a_range_scan_of_no_commits_fails_when_the_branch_adds_lines(
     repo: Path, stub_bin: Path
 ) -> None:
+    leaks_control(stub_bin, "scanned", "0")
+    done = secrets(repo, f"{stub_bin}:{SYSTEM_PATH}")
+    assert done.returncode == 1
+    line = verdicts(done)["1 commits"]
+    assert "gitleaks scanned 0 commits, though the branch adds 1 line(s)" in line
+
+
+def test_lines_git_takes_for_binary_count_as_added(repo: Path, stub_bin: Path) -> None:
+    # Counted in the patch gitleaks reads, with --text: --numstat counts no line in a file with a NUL byte.
+    git(repo, "switch", "-qc", "binary", "main")
+    (repo / "nul.txt").write_bytes(b"x\0y\n")
+    git(repo, "add", "nul.txt")
+    git(repo, "commit", "-qm", "a file git calls binary")
     leaks_control(stub_bin, "scanned", "0")
     done = secrets(repo, f"{stub_bin}:{SYSTEM_PATH}")
     assert done.returncode == 1
@@ -516,6 +529,28 @@ def test_a_branch_of_deletions_and_empty_commits_passes(repo: Path) -> None:
     done = secrets(repo)
     assert done.returncode == 0, done.stdout + done.stderr
     assert "INF 0 commits scanned" in done.stdout
+
+
+@needs_gitleaks
+@pytest.mark.parametrize("hidden", ["a NUL byte", "a -diff attribute"])
+def test_what_git_takes_for_binary_is_found_in_the_commits(
+    repo: Path, hidden: str
+) -> None:
+    # git log shows no diff for what it takes for binary, a file with a NUL byte or one a .gitattributes in the work
+    # tree marks -diff, committed or not, so gitleaks saw nothing there without git log's --text.
+    name = "nul.txt" if hidden == "a NUL byte" else "hidden.txt"
+    gap = b"\0" if hidden == "a NUL byte" else b""
+    (repo / name).write_bytes(b"x" + gap + b"\nvalue " + TOKEN.encode() + b"\n")
+    git(repo, "add", name)
+    git(repo, "commit", "-qm", f"a file with {hidden}")
+    if hidden == "a -diff attribute":
+        (repo / ".gitattributes").write_text(f"{name} -diff\n", encoding="utf-8")
+    done = secrets(repo)
+    assert done.returncode == 1, done.stdout + done.stderr
+    out = done.stdout + done.stderr
+    assert f"probe-token in {name}:2" in out
+    assert "commits since main" in verdicts(done)["2 commits"]
+    assert TOKEN not in out
 
 
 @needs_gitleaks
