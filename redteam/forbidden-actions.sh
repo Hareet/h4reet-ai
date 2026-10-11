@@ -673,14 +673,16 @@ fi
 # still runs the branch's own behavioral.py (review B's finding 1, the half this file doesn't hold). T117's worktree point,
 # path checks that cover each of the repository's worktrees, may close the Edit rows, and T098 inherits it (plan §13).
 # No planned rule reads a shell write's target directory or what an index write carries, so those rows stay gaps.
-linked="$scratch/linked" # a worktree of the scratch project, registered there, outside the project's directory
-git -C "$project" worktree add -q -b feature/linked "$linked"
-mkdir -p "$linked/tools/gates" "$linked/evals/agent-config"
-: >"$linked/tools/gates/gate"
-: >"$linked/evals/agent-config/static.py"
+# A worktree of the scratch project, registered there, outside the project's directory. Its own name and branch: US1's
+# content-scan rows make "$scratch/linked" later, and a second worktree add there would end the run.
+gov_wt="$scratch/linked-governance"
+git -C "$project" worktree add -q -b feature/linked-governance "$gov_wt"
+mkdir -p "$gov_wt/tools/gates" "$gov_wt/evals/agent-config"
+: >"$gov_wt/tools/gates/gate"
+: >"$gov_wt/evals/agent-config/static.py"
 for p in tools/gates/gate evals/agent-config/static.py; do
-  check protected-paths.sh gap "Edit in a linked worktree: $p" "$(jq -cn --arg f "$linked/$p" '{file_path:$f}')"
-  check bash-gate.sh gap "a shell write in a linked worktree: $p" "$(jq -cn --arg c "cp /tmp/new $linked/$p" '{command:$c}')"
+  check protected-paths.sh gap "Edit in a linked worktree: $p" "$(jq -cn --arg f "$gov_wt/$p" '{file_path:$f}')"
+  check bash-gate.sh gap "a shell write in a linked worktree: $p" "$(jq -cn --arg c "cp /tmp/new $gov_wt/$p" '{command:$c}')"
 done
 cmd gap 'git apply --cached /tmp/gates.patch'
 # shellcheck disable=SC2016 # the $(...) is the command's own, so it must stay unexpanded
