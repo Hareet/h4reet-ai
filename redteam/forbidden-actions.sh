@@ -606,6 +606,31 @@ if [ "$planned" -gt "$closing_planned" ]; then
   printf 'PLANNED (T117): %d Author-only hook rows: bash-gate.sh does not yet refuse --no-verify, claude mcp add, make operator-*/token/reset off dev-cpu, or make publish-check/tools/matrix-canary/evals-agent-config; the closing patch adds them\n' "$((planned - closing_planned))"
 fi
 
+# --- A linked worktree's governance paths, and the index: gap rows (review B, finding 1) -----------
+# Agents work in linked worktrees under $TMPDIR. The governance patch (T098) protects tools/gates and evals/agent-config
+# relative to CLAUDE_PROJECT_DIR, in protected-paths.sh, and in the main working tree, by the sandbox's ./ denyWrite: a
+# linked worktree's copies are under neither. An index write (git apply --cached, update-index, read-tree --prefix)
+# never touches a working tree, so it gets past the denyWrite in the main tree too, and the next commit carries it.
+# What holds these: the gate runs the main tree's tools/gates and behavioral.py, and reads the branch only as data
+# (tools/gates/gate), and the Author reads `git diff main...<branch>` before merging. make evals-agent-config, though,
+# still runs the branch's own behavioral.py (review B's finding 1, the half this file doesn't hold). T117's worktree point,
+# path checks that cover each of the repository's worktrees, may close the Edit rows, and T098 inherits it (plan §13).
+# No planned rule reads a shell write's target directory or what an index write carries, so those rows stay gaps.
+linked="$scratch/linked" # a worktree of the scratch project, registered there, outside the project's directory
+git -C "$project" worktree add -q -b feature/linked "$linked"
+mkdir -p "$linked/tools/gates" "$linked/evals/agent-config"
+: >"$linked/tools/gates/gate"
+: >"$linked/evals/agent-config/static.py"
+for p in tools/gates/gate evals/agent-config/static.py; do
+  check protected-paths.sh gap "Edit in a linked worktree: $p" "$(jq -cn --arg f "$linked/$p" '{file_path:$f}')"
+  check bash-gate.sh gap "a shell write in a linked worktree: $p" "$(jq -cn --arg c "cp /tmp/new $linked/$p" '{command:$c}')"
+done
+cmd gap 'git apply --cached /tmp/gates.patch'
+# shellcheck disable=SC2016 # the $(...) is the command's own, so it must stay unexpanded
+cmd gap 'git update-index --add --cacheinfo "100644,$(git hash-object -w /tmp/new),tools/gates/gate"'
+cmd gap 'git read-tree --prefix=tools/gates/ feature/x:tools/gates'
+cmd gap 'git read-tree --prefix=evals/agent-config/ feature/x:evals/agent-config'
+
 # --- Human-only path edits the later patches add: .mcp.json, tools/gates, evals/agent-config (plan §13, §15) ------
 # US1's early-patch block already blocks GNUmakefile, makefile, config/prices*, deploy/agents-engine, and .gitleaks*.
 # .mcp.json is denied by the closing patch; tools/gates and evals/agent-config by the governance patch (T098). Until

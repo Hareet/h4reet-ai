@@ -73,3 +73,13 @@ H/role/ops/edit config/budgets.yaml [--agent]
 H/role/reviewer/edit services/gateway/src/router.ts [--agent]
 H/role/red-teamer/edit redteam/run.py [--agent]
 H/role/id-no-type/edit specs/000-local-foundations/spec.md
+
+# --- review B, finding 1: a linked worktree's governance paths, and index writes (gap rows) ---
+H/protected-paths.sh/Edit in a linked worktree: tools/gates/gate
+H/protected-paths.sh/Edit in a linked worktree: evals/agent-config/static.py
+H/bash-gate.sh/a shell write in a linked worktree: tools/gates/gate
+H/bash-gate.sh/a shell write in a linked worktree: evals/agent-config/static.py
+H/bash-gate.sh/git apply --cached /tmp/gates.patch
+H/bash-gate.sh/git update-index --add --cacheinfo "100644,$(git hash-object -w /tmp/new),tools/gates/gate"
+H/bash-gate.sh/git read-tree --prefix=tools/gates/ feature/x:tools/gates
+H/bash-gate.sh/git read-tree --prefix=evals/agent-config/ feature/x:evals/agent-config
