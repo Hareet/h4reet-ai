@@ -187,10 +187,68 @@ def git(cwd: Path, *args: str) -> str:
     return done.stdout.strip()
 
 
+def git_bytes(cwd: Path, *args: str, data: bytes = b"") -> bytes:
+    """git with bytes in and out, for the plumbing (hash-object, mktree, ls-tree -z)."""
+    done = subprocess.run(
+        ["git", "-C", str(cwd), *args],
+        input=data,
+        env={
+            "PATH": SYSTEM_PATH,
+            "HOME": str(cwd),
+            "LC_ALL": "C",
+            "GIT_CONFIG_NOSYSTEM": "1",
+        },
+        capture_output=True,
+        check=True,
+    )
+    return done.stdout
+
+
 def write(path: Path, text: str, mode: int = 0o644) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     path.chmod(mode)
+
+
+def plant(repo: Path, branch: str, rel: str, kind: str) -> str:
+    """Move a branch to a commit whose tree also holds rel, at the top or in a folder the tree doesn't have yet: a
+    gitfile ("file"), a folder holding a config ("dir") or nothing ("empty"), or a link into the tree ("link"), which
+    tarfile's data filter would extract. git add refuses such a name (verify_path), so the tree is built with git's plumbing, as a hostile
+    branch could be."""
+    if kind == "file":
+        entry = (
+            b"100644 blob "
+            + git_bytes(
+                repo, "hash-object", "-w", "--stdin", data=b"gitdir: ../elsewhere\n"
+            ).strip()
+        )
+    elif kind == "empty":  # a folder holding nothing: the empty tree
+        entry = b"040000 tree " + git_bytes(repo, "mktree", "-z").strip()
+    elif kind == "dir":
+        config = git_bytes(
+            repo, "hash-object", "-w", "--stdin", data=b"[core]\n\tbare = false\n"
+        ).strip()
+        folder = git_bytes(
+            repo, "mktree", "-z", data=b"100644 blob %s\tconfig\0" % config
+        )
+        entry = b"040000 tree " + folder.strip()
+    else:
+        target = b"../docs" if "/" in rel else b"docs"
+        entry = (
+            b"120000 blob "
+            + git_bytes(repo, "hash-object", "-w", "--stdin", data=target).strip()
+        )
+    parent, _, name = rel.rpartition("/")
+    entry += b"\t" + name.encode() + b"\0"
+    if parent:  # a new folder holding the entry
+        folder = git_bytes(repo, "mktree", "-z", data=entry).strip()
+        entry = b"040000 tree " + folder + b"\t" + parent.encode() + b"\0"
+    tip = git(repo, "rev-parse", branch)
+    root = git_bytes(repo, "ls-tree", "-z", f"{tip}^{{tree}}")
+    tree = git_bytes(repo, "mktree", "-z", data=root + entry).decode().strip()
+    commit = git(repo, "commit-tree", tree, "-p", tip, "-m", f"plant {rel}")
+    git(repo, "update-ref", f"refs/heads/{branch}", commit)
+    return commit
 
 
 @dataclass
@@ -490,8 +548,9 @@ def test_a_clean_branch_passes_and_each_phase_runs_where_and_how_plan_11_says(
     )
 
 
-def test_nothing_from_the_export_runs_on_the_host(fx: Fixture) -> None:
-    hostile = {
+def hostile_copies(fx: Fixture) -> dict[str, str]:
+    """The branch's own copies of the code the gate runs on the host, each leaving a marker if anything runs it."""
+    return {
         rel: HOSTILE.format(marker=str(fx.logs / f"EXPORT-{rel.replace('/', '-')}"))
         for rel in (
             "tools/gates/compose_policy.py",
@@ -499,16 +558,96 @@ def test_nothing_from_the_export_runs_on_the_host(fx: Fixture) -> None:
             "tools/gates/gate",
             "corpus/tools/check_corpus.py",
             "deploy/agents-engine/engine.sh",
+            "evals/agent-config/behavioral.py",
+            "evals/agent-config/static.py",
             "node_modules/.bin/prettier",
         )
     }
-    fx.branch(hostile)
+
+
+def real_tier_files() -> dict[str, str]:
+    """The repository's behavioral cases, thresholds, and roles, for a branch: what status reads as data."""
+    files = {"CLAUDE.md": "# fixture, changed\n"}
+    files["evals/agent-config/thresholds.yaml"] = (
+        REPO / "evals/agent-config/thresholds.yaml"
+    ).read_text(encoding="utf-8")
+    for case in sorted((REPO / "evals/agent-config/cases").glob("*.yaml")):
+        files[f"evals/agent-config/cases/{case.name}"] = case.read_text(
+            encoding="utf-8"
+        )
+    for role in sorted((REPO / ".claude/agents").glob("*.md")):
+        files[f".claude/agents/{role.name}"] = role.read_text(encoding="utf-8")
+    return files
+
+
+def install_real_tier(fx: Fixture) -> None:
+    """The repository's behavioral.py and static.py in the main tree. After fx.branch: switching back to main
+    removes the files a branch tracks at these paths."""
+    for name in ("behavioral.py", "static.py"):
+        write(
+            fx.main / "evals/agent-config" / name,
+            (REPO / "evals/agent-config" / name).read_text(encoding="utf-8"),
+        )
+
+
+def test_nothing_from_the_export_runs_on_the_host(fx: Fixture) -> None:
+    # The branch's copies of behavioral.py and static.py sit beside the cases its status reads. The gate loads the
+    # main tree's behavioral.py, which loads the main tree's static.py, and reads the export as data only.
+    fx.branch({**real_tier_files(), **hostile_copies(fx)})
+    install_real_tier(fx)
     done = gate(fx, "feature", "--prove")
     assert fx.markers() == [], done.stdout
     assert len(fx.logged("compose_policy")) == 1
     assert fx.logged("engine")[0]["argv"] == [
         "prove"
     ]  # the main tree's engine.sh, by --prove
+    # The step ran, on the export, through to the trigger hash.
+    assert status_of(done, "agent-config-evals") == "PENDING", done.stdout
+    assert "PENDING (behavioral tier): no passing run for trigger hash" in done.stdout
+
+
+@pytest.mark.parametrize(
+    ("rel", "kind"),
+    [
+        (".git", "file"),
+        (".git", "dir"),
+        (".git", "link"),
+        (".git", "empty"),
+        (".GIT", "dir"),
+        ("sub/.git", "file"),
+        ("sub/.Git", "link"),
+    ],
+)
+def test_a_path_git_takes_for_its_own_directory_stops_the_gate(
+    fx: Fixture, rel: str, kind: str
+) -> None:
+    # The behavioral step's status runs git in a tree that holds .git, and git would read its config and index.
+    fx.branch({**real_tier_files(), **hostile_copies(fx)})
+    plant(fx.main, "feature", rel, kind)
+    install_real_tier(fx)
+    done = gate(fx, "feature", "--prove")
+    assert done.returncode == 1
+    assert status_of_export_failure(done), done.stdout
+    # The gate's own refusal, from the tree's listing: git 2.43's archive refuses these names too, but only as its
+    # version and core.protectNTFS have it.
+    assert "a path git takes for its own directory" in done.stdout, done.stdout
+    assert rel in done.stdout
+    assert fx.docker() == [] and fx.gitleaks() == []
+    assert fx.logged("compose_policy") == [] and fx.logged("engine") == []
+    assert fx.markers() == []
+
+
+def test_the_gate_refuses_a_git_name_that_git_archive_would_export(fx: Fixture) -> None:
+    # With core.protectNTFS off, git archive exports git~1, NTFS's short name for .git. The gate's check doesn't
+    # depend on git's version or its configuration.
+    git(fx.main, "config", "core.protectNTFS", "false")
+    fx.branch(CHANGE)
+    plant(fx.main, "feature", "git~1", "file")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of_export_failure(done), done.stdout
+    assert "holds git~1: a path git takes for its own directory" in done.stdout
+    assert fx.docker() == []
 
 
 def test_the_authors_environment_never_reaches_a_tool(fx: Fixture) -> None:
@@ -1090,22 +1229,8 @@ def test_the_real_behavioral_tier_shows_pending_for_a_branch_with_no_entry(
 ) -> None:
     # The repository's own behavioral.py and static.py in the main tree, and its cases and thresholds on the branch,
     # with no history entry: status computes the export's trigger hash and finds no passing run.
-    for name in ("behavioral.py", "static.py"):
-        write(
-            fx.main / "evals/agent-config" / name,
-            (REPO / "evals/agent-config" / name).read_text(encoding="utf-8"),
-        )
-    files = {"CLAUDE.md": "# fixture, changed\n"}
-    files["evals/agent-config/thresholds.yaml"] = (
-        REPO / "evals/agent-config/thresholds.yaml"
-    ).read_text(encoding="utf-8")
-    for case in sorted((REPO / "evals/agent-config/cases").glob("*.yaml")):
-        files[f"evals/agent-config/cases/{case.name}"] = case.read_text(
-            encoding="utf-8"
-        )
-    for role in sorted((REPO / ".claude/agents").glob("*.md")):
-        files[f".claude/agents/{role.name}"] = role.read_text(encoding="utf-8")
-    fx.branch(files)
+    fx.branch(real_tier_files())
+    install_real_tier(fx)
     done = gate(fx, "feature")
     assert status_of(done, "agent-config-evals") == "PENDING", done.stdout
     assert "PENDING (behavioral tier): no passing run for trigger hash" in done.stdout
@@ -1141,6 +1266,33 @@ def test_holds_nothing_lets_through_only_what_holds_no_entry(tmp_path: Path) -> 
     # The sandbox's mask is /dev/null itself, device 1:3; any other device could feed entries.
     assert gm.holds_nothing(Path("/dev/null"))
     assert not gm.holds_nothing(Path("/dev/zero"))
+
+
+@pytest.mark.parametrize(
+    ("name", "named"),
+    [
+        (b".git", True),
+        (b".GIT", True),
+        (b".gIt", True),
+        (b".git.", True),  # NTFS drops trailing dots and spaces
+        (b".git . ", True),
+        (b"git~1", True),  # NTFS's 8.3 name for .git
+        (b"GIT~1", True),
+        (b".git:stream", True),  # an NTFS stream of .git
+        (b"a\\.git", True),  # a backslash separates on NTFS
+        (b".gitignore", False),
+        (b".github", False),
+        (b".gitattributes", False),
+        (b"x.git", False),
+        (b".git .x", False),
+        (b"git~2", False),
+        (b"git", False),
+    ],
+)
+def test_names_git_reads_a_name_as_gits_own_verify_path_does(
+    name: bytes, named: bool
+) -> None:
+    assert gm.names_git(name) is named
 
 
 def test_clean_keeps_a_terminal_out_of_reach() -> None:

@@ -6,14 +6,18 @@
 
 Run it directly from the main working tree, never through make: a planted GNUmakefile would shadow the Makefile.
 Project code never runs outside a container in the Author's terminal. On the host the gate runs only git, docker,
-gitleaks, and the main working tree's own code (this file, tools/gates/*.py, corpus/tools/check_corpus.py, and
-deploy/agents-engine/engine.sh), each with an environment it builds itself. The commit under test is data there.
+gitleaks, and the main working tree's own code: this file, tools/gates/*.py, and deploy/agents-engine/engine.sh, each
+with an environment it builds itself; and, loaded into this process, so in its environment, corpus/tools/
+check_corpus.py, evals/agent-config/behavioral.py, the static.py it loads beside it, and the PyYAML both import, from
+the host's own Python. The commit under test is data there.
 
 1. Export. REF resolves once to a commit SHA, which every later step and the merge use. Every git call runs with
    GIT_NO_REPLACE_OBJECTS=1. A ref under refs/replace stops the gate, since the Author's merge would honor it. So do
-   .git/info/attributes and submodules, which git archive would apply or skip. `git archive` exports the commit,
-   tarfile's data filter extracts it, and the export must hash to the tree its commit object names, the object
-   rehashed against its SHA. Anything short of that proof stops the gate. The export is read-only from then on.
+   .git/info/attributes and submodules, which git archive would apply or skip, and any path git takes for its own
+   directory (.git in any case, or as NTFS spells it: a file, a folder, or a link, anywhere in the tree), which git
+   would read as a repository if anything ran it in the export. `git archive` exports the commit, tarfile's data
+   filter extracts it, and the export must hash to the tree its commit object names, the object rehashed against
+   its SHA. Anything short of that proof stops the gate. The export is read-only from then on.
 2. Makefiles. The container phase's make would read a GNUmakefile or makefile before the Makefile, so the export may
    hold neither, or exactly main's GNUmakefile and no makefile. Anything else stops the container phase.
 3. Container phase, on this machine's engine (plan §11: the devcontainer build needs Ubuntu's mirrors). The
@@ -333,6 +337,16 @@ def tree_id(directory: Path) -> str | None:
     return object_id(b"tree", body)
 
 
+def names_git(name: bytes) -> bool:
+    """Whether a path component is a name git takes for its own directory, as its verify_path reads one with
+    core.protectNTFS on, git's default everywhere: .git, or NTFS's short name git~1, in any case, followed by nothing
+    but dots and spaces (which NTFS drops) or by a colon (an NTFS stream); a backslash separates on NTFS."""
+    for part in name.split(b"\\"):
+        if part.split(b":", 1)[0].rstrip(b". ").lower() in (b".git", b"git~1"):
+            return True
+    return False
+
+
 def resolve(repo: Path, ref: str) -> str:
     done = git(repo, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
     sha = done.stdout.strip()
@@ -405,12 +419,31 @@ def export(repo: Path, ref: str, tmp: Path) -> tuple[str, Path, bytes]:
             f"{attributes.stdout.strip() or 'info/attributes'} exists, and git archive would apply its "
             "export-ignore and export-subst rules; move it aside first"
         )
-    listing = git(repo, "ls-tree", "-r", "-z", sha, binary=True)
+    # -t lists each folder as well as what it holds, so an empty one is in the listing too.
+    listing = git(repo, "ls-tree", "-r", "-t", "-z", sha, binary=True)
     if listing.returncode:
         raise Stop(f"git ls-tree {sha} failed")
-    if any(line.startswith(b"160000 ") for line in listing.stdout.split(b"\0")):
+    records = [line for line in listing.stdout.split(b"\0") if line]
+    if any(line.startswith(b"160000 ") for line in records):
         raise Stop(
             f"commit {sha} holds a submodule, which git archive exports as an empty directory"
+        )
+    # A file, a folder, or a link the export would hold as .git: git reads a tree that holds .git as a repository,
+    # its config and index included, and the behavioral step's status runs git in the export when it holds one.
+    # git archive refuses these names too, but only as git's version and core.protectNTFS have it.
+    dotgit = sorted(
+        {
+            path
+            for path in (line.partition(b"\t")[2] for line in records)
+            if any(names_git(part) for part in path.split(b"/"))
+        }
+    )
+    if dotgit:
+        shown = ", ".join(p.decode("utf-8", "replace") for p in dotgit[:3])
+        raise Stop(
+            f"commit {sha} holds {shown}{', ...' if len(dotgit) > 3 else ''}: a path git takes for its own "
+            "directory (.git in any case, or as NTFS spells it), which git would read as a repository if anything "
+            "ran it in the export"
         )
     archive = git(repo, "archive", "--format=tar", sha, binary=True)
     if archive.returncode:

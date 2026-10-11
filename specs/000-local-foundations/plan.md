@@ -890,6 +890,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
 **As built (tasks.md T091 and T092, 2026-10-10).** `make secrets` is `tools/gates/secrets.sh`. `tools/gates/gate` follows the steps above, with these departures:
 - the container phase also runs `make validate-config`;
 - the export proof and the makefiles check follow fix/000-agents-make's newer T092 text: one SHA, replace objects off, a refusal of any ref under `refs/replace`, of `info/attributes`, and of a submodule, and a proof that the exported tree's hash is the commit's;
+- the export also refuses, from `git ls-tree -r -t`, any path git takes for its own directory, anywhere in the tree and whether a file, a folder, or a link: `.git` in any case, or as NTFS spells it (trailing dots or spaces, `git~1`, a stream), as git's own verify_path reads a name with `core.protectNTFS` on. The behavioral step's `status` runs git in a tree that holds `.git`, and git would read that tree's config and index. git archive refuses these names too, but only as git's version and `core.protectNTFS` have it (US3 review A, finding 1);
 - the image build runs only after the policy passes or is PLANNED;
 - a WARN status, for an eval-history push prod's collector didn't take;
 - `--contract-replay` adds `--reporter=verbose`, and passes only when a test passed under "recorded live: <adapter>";
