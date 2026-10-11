@@ -1275,39 +1275,75 @@ def post(url: str, body: bytes) -> str | None:
 def eval_history(
     repo: Path, export_dir: Path, base: str | None, sha: str, url: str
 ) -> Step | None:
-    """Post each history entry the branch adds, once, as the h4.devtime.eval.* gauges."""
+    """Post each history entry the branch adds, once, as the h4.devtime.eval.* gauges, when this machine attests its
+    exact bytes: make evals-agent-config writes the SHA-256 of each entry it writes under ~/.local/state/h4reet, which
+    agent sessions can't write (review A, 4). An unattested entry isn't posted, and the merge waits (PENDING). The
+    history is append-only: the newest attested run decides, so a branch that changes or removes an entry fails."""
     if base is None:
         return None
     added = changed_paths(repo, base, sha, "--diff-filter=A", under=HISTORY)
     entries = [p for p in added or [] if p.endswith(".json")]
-    if not entries:
+    altered = [
+        p
+        for p in changed_paths(repo, base, sha, under=HISTORY) or []
+        if p.endswith(".json") and p not in entries
+    ]
+    if not entries and not altered:
         return None
     begin(
         "eval-history",
         f"{len(entries)} entr{'y' if len(entries) == 1 else 'ies'} to prod's x004",
     )
     step = Step("eval-history")
-    problems, unsent = [], []
+    store = Path.home() / ".local" / "state" / "h4reet" / "evals" / "attested"
+    problems, skipped, unsent = [], [], []
     for rel in entries:
         run = Path(rel).stem
+        path = export_dir / rel
         try:
-            entry = json.loads((export_dir / rel).read_text(encoding="utf-8"))
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("a link, or not a file")
+            data = path.read_bytes()
+            entry = json.loads(data.decode("utf-8"))
         except (OSError, ValueError) as exc:
             problems.append(f"{rel}: {exc}")
             continue
         found = history_problems(entry)
         if not RUN_NAME_RE.fullmatch(run):
             found.append("its name isn't <UTC>-<branch>-<sha>")
+        elif isinstance(entry, dict) and entry.get("run") != run:
+            found.append("its \"run\" isn't its file's name")
         if found:
             problems.append(f"{rel}: {'; '.join(found)}")
+            continue
+        try:
+            stamp = (store / hashlib.sha256(data).hexdigest()).lstat()
+            attested = stat.S_ISREG(stamp.st_mode)
+        except OSError:
+            attested = False
+        if not attested:
+            skipped.append(run)
             continue
         why = post(url, otlp_body(run, entry, time.time_ns()))
         if why:
             unsent.append(f"{run}: {why}")
         else:
             say(f"posted {run}")
+    waits = (
+        f"not attested on this machine, so not posted: {', '.join(skipped)} (make evals-agent-config attests each "
+        f"entry it writes, in {store}/; an entry no run here wrote decides nothing)"
+    )
+    failures = []
+    if altered:
+        failures.append(
+            f"history is append-only, and the branch changes or removes {', '.join(altered)}"
+        )
     if problems:
-        return step.fail("malformed, not posted: " + " | ".join(problems))
+        failures.append("malformed, not posted: " + " | ".join(problems))
+    if failures:
+        return step.fail("; ".join([*failures, *([waits] if skipped else [])]))
+    if skipped:
+        return step.set("PENDING", waits)
     if unsent:
         return step.set(
             "WARN",

@@ -14,8 +14,10 @@ gitleaks, and the main tree's own code, never the exported tree's code on the ho
 
 from __future__ import annotations
 
+import hashlib
 import http.server
 import importlib.util
+import io
 import json
 import math
 import os
@@ -24,6 +26,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tarfile
 import threading
 import time
 from dataclasses import dataclass
@@ -48,13 +51,14 @@ ENGINE = "tcp://198.18.0.1:2376"
 RECORDING = "/run/h4-contract/recording.json"
 PHRASE = "zebra quartz lantern"  # the fixture denylist's one phrase
 CHANGE = {"docs/readme.md": "docs, changed\n"}  # a branch that touches no trigger
-# A history entry as the gate reads it (plan §14's fields; T094 writes them).
+RUN = "2026-10-10T120000Z-feature-0123abc"
+# A history entry as the gate reads it (plan §14's fields; T094 writes them), named by its file.
 ENTRY = {
+    "run": RUN,
     "verdict": "pass",
     "cost_usd": 0.42,
     "tokens": {"input": 1200, "output": 300, "cache_read": 5000, "cache_creation": 700},
 }
-RUN = "2026-10-10T120000Z-feature-0123abc"
 # The real gitleaks, where it is installed, with a rule for a probe token assembled at run time, so this file holds
 # nothing shaped like a secret.
 REAL_GITLEAKS = shutil.which("gitleaks")
@@ -69,6 +73,17 @@ description = "a probe token, assembled at run time"
 regex = '''h4probe_[a-z]{20}'''
 keywords = ["h4probe_"]
 """
+
+
+def attest(fx: Fixture, data: bytes, run: str = RUN) -> Path:
+    """What make evals-agent-config writes beside an entry: a file named by the SHA-256 of the entry's exact bytes,
+    in the Author's store under ~/.local/state/h4reet, which agent sessions can't write (review A, 4)."""
+    store = fx.home / ".local/state/h4reet/evals/attested"
+    store.mkdir(parents=True, exist_ok=True)
+    stamp = store / hashlib.sha256(data).hexdigest()
+    stamp.write_text(f"{run}\n", encoding="utf-8")
+    return stamp
+
 
 STUB_DOCKER = r"""#!/usr/bin/env python3
 import hashlib, json, os, sys
@@ -1561,16 +1576,85 @@ def test_a_behavioral_tier_that_raises_fails_the_step_not_the_gate(fx: Fixture) 
     assert summary(done)  # the gate still ends with its summary
 
 
+def real_tier_branch(fx: Fixture) -> str:
+    """The repository's own behavioral.py and static.py in the main tree, and a branch carrying its cases,
+    thresholds, and roles, which touches CLAUDE.md, so the step is triggered. Returns the branch's tip."""
+    tip = fx.branch(real_tier_files())
+    install_real_tier(fx)  # after fx.branch, as install_real_tier says
+    return tip
+
+
 def test_the_real_behavioral_tier_shows_pending_for_a_branch_with_no_entry(
     fx: Fixture,
 ) -> None:
-    # The repository's own behavioral.py and static.py in the main tree, and its cases and thresholds on the branch,
-    # with no history entry: status computes the export's trigger hash and finds no passing run.
-    fx.branch(real_tier_files())
-    install_real_tier(fx)
+    # With no history entry, status computes the export's trigger hash and finds no run for it.
+    real_tier_branch(fx)
     done = gate(fx, "feature")
     assert status_of(done, "agent-config-evals") == "PENDING", done.stdout
-    assert "PENDING (behavioral tier): no passing run for trigger hash" in done.stdout
+    assert "PENDING (behavioral tier): no run for trigger hash" in done.stdout
+
+
+def test_the_real_behavioral_tier_counts_an_entry_only_when_this_machine_attests_it(
+    fx: Fixture, collector: http.server.HTTPServer
+) -> None:
+    # Review A, 4, end to end: an entry for the export's own trigger hash, well formed and passing, that no run on
+    # this machine attested leaves the step PENDING, by name, and isn't posted. Attested, it decides.
+    spec = importlib.util.spec_from_file_location(
+        "h4_gate_test_behavioral", REPO / "evals/agent-config/behavioral.py"
+    )
+    assert spec and spec.loader
+    tier = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = tier  # its dataclasses look their module up there
+    spec.loader.exec_module(tier)
+    sha = real_tier_branch(fx)
+    tree = fx.root / "tree"
+    archive = subprocess.run(
+        ["git", "-C", str(fx.main), "archive", sha], capture_output=True, check=True
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+        tar.extractall(tree, filter="data")
+    record = {
+        "schema": 1,
+        "run": RUN,
+        "trigger_hash": tier.trigger_hash(tree, export=True),
+        "branch": "feature",
+        "commit": sha,
+        "claude_code_version": "2.1.295",
+        "verdict": "pass",
+        "cost_usd": 0.42,
+        "tokens": ENTRY["tokens"],
+        "cases": [
+            {
+                "id": "stays-on-branch",
+                "kind": "conduct",
+                "counted": True,
+                "ok_runs": 3,
+                "runs": [{}, {}, {}],
+            }
+        ],
+        "conduct": {"held": 3, "runs": 3},
+    }
+    data = json.dumps(record).encode()
+    rel = f"evals/agent-config/history/{RUN}.json"
+    git(fx.main, "switch", "-q", "feature")
+    write(fx.main / rel, data.decode())
+    git(fx.main, "add", "-f", "--", rel)
+    git(fx.main, "commit", "-qm", "the run's entry")
+    git(fx.main, "switch", "-q", "main")
+    url = f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
+    done = gate(fx, "--otlp-url", url, "feature")
+    assert status_of(done, "agent-config-evals") == "PENDING", done.stdout
+    assert status_of(done, "eval-history") == "PENDING"
+    pending = rf"^PENDING \(behavioral tier\): .*{RUN}"
+    assert re.search(pending, done.stdout, re.MULTILINE)
+    assert collector.posts == []  # type: ignore[attr-defined]
+    attest(fx, data)
+    done = gate(fx, "--otlp-url", url, "feature")
+    # PASS, shown as PLANNED: the cases that need T045 and T117 wait, since the fixture's settings have neither.
+    assert status_of(done, "agent-config-evals") == "PLANNED", done.stdout
+    assert f"PASS  behavioral tier: {RUN} " in done.stdout
+    assert status_of(done, "eval-history") == "PASS"
+    assert len(collector.posts) == 1  # type: ignore[attr-defined]
 
 
 def test_untriggered_steps_say_so(fx: Fixture) -> None:
@@ -1727,6 +1811,7 @@ def test_each_history_entry_the_branch_adds_is_posted_once_as_otlp_json(
     fx: Fixture, collector: http.server.HTTPServer
 ) -> None:
     fx.branch({f"evals/agent-config/history/{RUN}.json": json.dumps(ENTRY)})
+    attest(fx, json.dumps(ENTRY).encode())
     url = f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
     before = time.time_ns()
     # A proxy in the Author's shell is never used: the push goes straight to this machine's loopback.
@@ -1782,9 +1867,69 @@ def test_a_collector_that_doesnt_answer_is_a_warning_not_a_failure(fx: Fixture) 
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     fx.branch({f"evals/agent-config/history/{RUN}.json": json.dumps(ENTRY)})
+    attest(fx, json.dumps(ENTRY).encode())
     done = gate(fx, "--otlp-url", f"http://127.0.0.1:{port}/v1/metrics", "feature")
     assert done.returncode == 0, done.stdout
     assert status_of(done, "eval-history") == "WARN"
+
+
+def test_an_unattested_entry_is_pending_and_isnt_posted(
+    fx: Fixture, collector: http.server.HTTPServer
+) -> None:
+    # Review A, 4: a well-formed passing entry an agent could have committed, with no attestation on this machine,
+    # isn't posted, and the merge waits; the step names it. Attested, the same entry is posted, and passes.
+    data = json.dumps(ENTRY).encode()
+    fx.branch({f"evals/agent-config/history/{RUN}.json": data.decode()})
+    url = f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
+    done = gate(fx, "--otlp-url", url, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "eval-history") == "PENDING"
+    assert collector.posts == []  # type: ignore[attr-defined]
+    (row,) = [ln for ln in done.stdout.splitlines() if ln.startswith("PENDING  eval")]
+    assert RUN in row and "not attested" in row
+    attest(fx, data)
+    done = gate(fx, "--otlp-url", url, "feature")
+    assert done.returncode == 0, done.stdout
+    assert status_of(done, "eval-history") == "PASS"
+    assert len(collector.posts) == 1  # type: ignore[attr-defined]
+
+
+def test_a_copy_of_an_attested_entry_isnt_posted_under_another_name(
+    fx: Fixture, collector: http.server.HTTPServer
+) -> None:
+    # The bytes are attested, but under another file name the gate would post the run twice.
+    data = json.dumps(ENTRY).encode()
+    attest(fx, data)
+    copy = "2026-10-10T130000Z-feature-0123abc"
+    fx.branch({f"evals/agent-config/history/{copy}.json": data.decode()})
+    url = f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
+    done = gate(fx, "--otlp-url", url, "feature")
+    assert status_of(done, "eval-history") == "FAIL"
+    assert "\"run\" isn't its file's name" in done.stdout
+    assert collector.posts == []  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("change", ["edit", "remove"])
+def test_a_branch_that_changes_or_removes_an_entry_fails(
+    fx: Fixture, change: str
+) -> None:
+    # The history is append-only: the newest attested run decides, so removing a later failure, or editing it,
+    # would let an earlier pass decide.
+    rel = f"evals/agent-config/history/{RUN}.json"
+    write(fx.main / rel, json.dumps({**ENTRY, "verdict": "fail"}))
+    git(fx.main, "add", "-f", "--", rel)
+    git(fx.main, "commit", "-qm", "an entry on main")
+    if change == "edit":
+        fx.branch({rel: json.dumps(ENTRY)})
+    else:
+        git(fx.main, "switch", "-qc", "feature")
+        git(fx.main, "rm", "-q", "--", rel)
+        git(fx.main, "commit", "-qm", "drop the entry")
+        git(fx.main, "switch", "-q", "main")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "eval-history") == "FAIL"
+    assert "append-only" in done.stdout and rel in done.stdout
 
 
 @pytest.mark.parametrize(

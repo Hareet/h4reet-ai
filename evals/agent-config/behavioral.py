@@ -14,11 +14,15 @@ then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, a
 history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
 but not ignored (every file there, in a git archive export), with their executable bits, plus the Claude Code pin
 in .devcontainer/toolchain.vars. The gate calls status(export=True) on its export, which walks the tree and never
-runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. The newest
-history entry with that hash decides: PASS when it passed, FAIL when it failed, even after an earlier pass; with
-none, PENDING with the Author's command. A case whose `needs:` patch has no enforcement in the tree, by that patch's probe,
-prints PLANNED, naming the patch's task; once the patch is in, the case counts, with no mark to delete, so a mark
-can't go stale, and no case counts while the enforcement it needs is missing.
+runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. An entry
+counts only when this machine attests its exact bytes: `run` writes their SHA-256, as a file of that name, under
+~/.local/state/h4reet/evals/attested/, which agent sessions can't write. Of the counted entries with that hash, the
+newest decides: PASS when it passed, FAIL when it failed, even after an earlier pass. With none, it prints PENDING
+with the Author's command, naming any entry for the hash that isn't attested; an unattested entry decides nothing.
+The devcontainer (H4_DEVCONTAINER=1, the gate's container phase among them) can't see the store, so there every entry
+counts, and a note says so. A case whose `needs:` patch has no enforcement in the tree, by that patch's probe, prints
+PLANNED, naming the patch's task; once the patch is in, the case counts, with no mark to delete, so a mark can't go
+stale, and no case counts while the enforcement it needs is missing.
 
 `run` is the Author's (make evals-agent-config refuses SANDBOX_RUNTIME=1, as make aws-login does). It runs each case
 three times, each run a real Claude Code session on the Team plan, in a scratch clone of the branch tip with the git
@@ -33,8 +37,8 @@ and the run stops, writing no history, if a session's init event shows any other
 never phrasing: the transcript, what changed in the clone (files and commits), its hook audit log, main's SHA, and an
 empty decoy remote. A run with no hook event, in the transcript or the audit log, is invalid and fails, because -p
 silently ignores invalid settings. The verdict follows thresholds.yaml, and the history entry goes to
-evals/agent-config/history/<UTC>-<branch>-<sha>.json, whose format history/README.md gives. Transcripts stay in
-~/.local/state/h4reet/evals/<run>/.
+evals/agent-config/history/<UTC>-<branch>-<sha>.json, whose format history/README.md gives, once its attestation is
+written. Transcripts stay in ~/.local/state/h4reet/evals/<run>/. main's newest attested entry is the baseline.
 
 A case is one YAML file in cases/, named by its id:
 
@@ -92,11 +96,11 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-STATE = Path.home() / ".local" / "state" / "h4reet" / "evals"
 TRIGGER_PATHS = ("CLAUDE.md", "REVIEW.md", ".claude", "evals/agent-config")
 PIN_FILE = ".devcontainer/toolchain.vars"
 PIN_KEY = "CLAUDE_CODE_VERSION"
 COMMAND = "make evals-agent-config"
+RUN_HINT = f"the Author runs {COMMAND} on this branch and commits its entry"
 CANARY = "@@CANARY@@"
 GIT_HOOKS = ("reference-transaction", "pre-commit")
 STUBS = ("terraform", "claude")
@@ -738,20 +742,83 @@ def validate_entry(entry: Any, stem: str) -> dict[str, Any]:
     return entry
 
 
-def load_history(folder: Path) -> list[dict[str, Any]]:
+def state_dir() -> Path:
+    """The Author's runs keep their transcripts and attestations here, outside every repository. The early patch's
+    denyWrite on ~/.local/state/h4reet keeps agent sessions from writing it (plan §15)."""
+    return Path.home() / ".local" / "state" / "h4reet" / "evals"
+
+
+def attested_dir() -> Path:
+    """The attestations: for each history entry a run wrote on this machine, a file named by the SHA-256 of the
+    entry's exact bytes, holding its run's name (history/README.md)."""
+    return state_dir() / "attested"
+
+
+@dataclass(frozen=True)
+class Recorded:
+    """A history entry, and the SHA-256 of its file's exact bytes, which an attestation names."""
+
+    run: str
+    entry: dict[str, Any]
+    digest: str
+
+
+def load_history(folder: Path) -> list[Recorded]:
     """Every entry, oldest first by name (the UTC time leads it)."""
     entries = []
     for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+        if path.is_symlink() or not path.is_file():
+            raise CaseError(f"history/{path.name} isn't a plain file")
         try:
-            entry = json.loads(path.read_text(encoding="utf-8"))
+            data = path.read_bytes()
+            entry = json.loads(data.decode("utf-8"))
         except (OSError, ValueError) as exc:
             raise CaseError(f"history/{path.name}: {exc.__class__.__name__}") from exc
-        entries.append(validate_entry(entry, path.stem))
+        digest = hashlib.sha256(data).hexdigest()
+        entries.append(Recorded(path.stem, validate_entry(entry, path.stem), digest))
     return entries
 
 
-def write_history(folder: Path, name: str, entry: dict[str, Any]) -> Path:
-    """Create the entry's file, never through a link and never over an existing file."""
+def is_attested(digest: str, store: Path) -> bool:
+    """Whether a run on this machine wrote an entry with exactly these bytes: a plain file named by their digest."""
+    try:
+        return stat.S_ISREG((store / digest).lstat().st_mode)
+    except OSError:
+        return False
+
+
+def attest(store: Path, digest: str, run_name: str) -> None:
+    """Record that this run wrote an entry whose bytes have this digest: a new 0600 file named by it, in a 0700
+    folder, never through a link. The same bytes attested again need nothing more."""
+    try:
+        store.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if store.is_symlink() or not store.is_dir():
+            raise OSError(f"{store} isn't a plain folder")
+        directory = os.open(store, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise Abort(f"{store}: {exc}, so the entry isn't attested") from exc
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+        handle = os.open(digest, flags, 0o600, dir_fd=directory)
+    except FileExistsError:
+        if is_attested(digest, store):
+            return
+        raise Abort(f"{store / digest} isn't a plain file, so the entry isn't attested")
+    except OSError as exc:
+        raise Abort(f"{store / digest}: {exc}, so the entry isn't attested") from exc
+    finally:
+        os.close(directory)
+    with os.fdopen(handle, "w", encoding="utf-8") as out:
+        out.write(f"{run_name}\n")
+
+
+def entry_bytes(entry: dict[str, Any]) -> bytes:
+    """An entry's file, exactly: what the run attests and writes."""
+    return (json.dumps(entry, indent=2) + "\n").encode("utf-8")
+
+
+def write_history(folder: Path, name: str, data: bytes) -> Path:
+    """Create the entry's file, holding exactly these bytes, never through a link and never over an existing file."""
     if folder.is_symlink() or not folder.is_dir():
         raise Abort(
             f"{folder} isn't a plain folder, so no history is written through it"
@@ -771,8 +838,8 @@ def write_history(folder: Path, name: str, entry: dict[str, Any]) -> Path:
         ) from exc
     finally:
         os.close(directory)
-    with os.fdopen(handle, "w", encoding="utf-8") as out:
-        out.write(json.dumps(entry, indent=2) + "\n")
+    with os.fdopen(handle, "wb") as out:
+        out.write(data)
     return folder / f"{name}.json"
 
 
@@ -783,9 +850,19 @@ def _plural(n: int, one: str, many: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
-def status(repo: Path = REPO, here: Path = HERE, *, export: bool = False) -> int:
+def status(
+    repo: Path = REPO,
+    here: Path = HERE,
+    *,
+    export: bool = False,
+    attested: Path | None = None,
+    unverified: bool = False,
+) -> int:
     """make evals' line for the tier. export=True is the gate's: repo is an export, read as data, and nothing runs git
-    on it, whatever it holds."""
+    on it, whatever it holds. An entry counts only when the store, attested_dir() unless given, attests its exact
+    bytes (review A, 4); unverified=True, the devcontainer's, counts every entry, and says so, since no store can be
+    seen there."""
+    store = attested_dir() if attested is None else attested
     try:
         cases = load_cases(here / "cases")
         thresholds = load_thresholds(here / "thresholds.yaml")
@@ -813,35 +890,57 @@ def status(repo: Path = REPO, here: Path = HERE, *, export: bool = False) -> int
             f"PLANNED ({task}): {_plural(len(ids), 'behavioral case', 'behavioral cases')} {verb} for "
             f"{PATCHES[task]}: {', '.join(ids)}"
         )
-    # Oldest first, by name, which the run's UTC start leads: the newest run for the hash decides (review B, 3), so an
-    # earlier pass never outweighs a later failure.
-    for_hash = [e for e in history if e["trigger_hash"] == digest]
-    failed = bool(found)
-    if for_hash and for_hash[-1]["verdict"] == "pass":
+    if unverified:
         print(
-            f"PASS  behavioral tier: {for_hash[-1]['run']} passed for trigger hash {digest[:12]}, the newest run "
-            "for it"
+            "note: attestations aren't checked here: with H4_DEVCONTAINER=1 (the devcontainer, the gate's container "
+            f"phase among them), no store like {_display(attested_dir())} can be seen, so every entry counts; the "
+            "Author's gate checks them"
+        )
+    # Oldest first, by name, which the run's UTC start leads. Of the entries for the hash, only those whose exact bytes
+    # this machine attests count (review A, 4), and the newest of them decides (review B, 3): an earlier pass never
+    # outweighs a later failure, and an entry no run here wrote decides nothing.
+    for_hash = [r for r in history if r.entry["trigger_hash"] == digest]
+    counted = [r for r in for_hash if unverified or is_attested(r.digest, store)]
+    unattested = [r.run for r in for_hash if r not in counted]
+    named = f"{', '.join(unattested)} {'is' if len(unattested) == 1 else 'are'}"
+    failed = bool(found)
+    if counted and counted[-1].entry["verdict"] == "pass":
+        print(
+            f"PASS  behavioral tier: {counted[-1].run} passed for trigger hash {digest[:12]}, the newest run for "
+            "it"
         )
         state = "pass"
-    elif for_hash:
-        newest = for_hash[-1]
-        given = newest.get("reasons")
+    elif counted:
+        newest = counted[-1]
+        given = newest.entry.get("reasons")
         reasons = (
             "; ".join(map(str, given))
             if isinstance(given, list) and given
             else "below threshold"
         )
         print(
-            f"FAIL  behavioral tier: {newest['run']}, the newest run for trigger hash {digest[:12]}, failed: "
+            f"FAIL  behavioral tier: {newest.run}, the newest run for trigger hash {digest[:12]}, failed: "
             f"{reasons}"
         )
         failed, state = True, "fail"
-    else:
+    elif unattested:
         print(
-            f"PENDING (behavioral tier): no passing run for trigger hash {digest[:12]} in evals/agent-config/history/;"
-            f" the Author runs {COMMAND} on this branch and commits its entry"
+            f"PENDING (behavioral tier): no attested run for trigger hash {digest[:12]}: {named} in "
+            f"evals/agent-config/history/, but this machine has no attestation of its bytes in {_display(store)}, "
+            f"which only {COMMAND} writes, so it isn't attested and doesn't count; {RUN_HINT}"
         )
         state = "pending"
+    else:
+        print(
+            f"PENDING (behavioral tier): no run for trigger hash {digest[:12]} in evals/agent-config/history/; "
+            f"{RUN_HINT}"
+        )
+        state = "pending"
+    if counted and unattested:
+        print(
+            f"note: {named} for this hash too, but not attested on this machine, so not counted: only {COMMAND} "
+            f"attests the entries it writes, in {_display(store)}"
+        )
     print(
         f"agent-config behavioral: {'fail' if failed else state}, {sum(map(len, planned.values()))} planned"
     )
@@ -1685,23 +1784,41 @@ def judge(
     )
 
 
-def main_baseline(repo: Path, history_rel: str) -> dict[str, Any] | None:
-    """main's newest committed history entry, or None when main has none."""
+def git_bytes(repo: Path, *args: str) -> bytes:
+    """git's output, exactly, for what an attestation's digest covers."""
+    argv = ["git", "-C", str(repo), *args]
+    done = subprocess.run(
+        argv, capture_output=True, env=_git_env(), stdin=subprocess.DEVNULL, check=False
+    )
+    if done.returncode != 0:
+        raise Abort(f"{' '.join(argv)}: {done.stderr.decode(errors='replace').strip()}")
+    return done.stdout
+
+
+def main_baseline(
+    repo: Path, history_rel: str, store: Path
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """main's newest committed history entry that this machine attests, or None when it has none; and the newer
+    entries skipped because no run here wrote them (review A, 4)."""
     if not try_git(repo, "rev-parse", "-q", "--verify", "refs/heads/main"):
-        return None
+        return None, []
     listed = try_git(
         repo, "ls-tree", "--name-only", "refs/heads/main", "--", history_rel + "/"
     )
-    names = sorted(n for n in listed.splitlines() if n.endswith(".json"))
-    if not names:
-        return None
-    text = git(repo, "show", f"refs/heads/main:{names[-1]}")
-    try:
-        return validate_entry(json.loads(text), PurePosixPath(names[-1]).stem)
-    except (ValueError, CaseError) as exc:
-        raise Abort(
-            f"main's last history entry, {names[-1]}, doesn't load: {exc}"
-        ) from exc
+    skipped = []
+    for name in sorted(
+        (n for n in listed.splitlines() if n.endswith(".json")), reverse=True
+    ):
+        stem = PurePosixPath(name).stem
+        data = git_bytes(repo, "cat-file", "blob", f"refs/heads/main:{name}")
+        if not is_attested(hashlib.sha256(data).hexdigest(), store):
+            skipped.append(stem)
+            continue
+        try:
+            return validate_entry(json.loads(data.decode("utf-8")), stem), skipped
+        except (ValueError, CaseError) as exc:
+            raise Abort(f"main's history entry {name} doesn't load: {exc}") from exc
+    return None, skipped
 
 
 def claude_version(claude: str) -> str | None:
@@ -1736,7 +1853,7 @@ def run(
     *,
     repo: Path = REPO,
     here: Path = HERE,
-    state: Path = STATE,
+    state: Path | None = None,
     session: SessionRunner = run_session,
     environ: Mapping[str, str] | None = None,
     claude: str | None = None,
@@ -1748,6 +1865,8 @@ def run(
     parser.add_argument("--include-planned", action="store_true")
     args = parser.parse_args(options)
     environ = dict(os.environ if environ is None else environ)
+    state = state_dir() if state is None else state
+    store = state / "attested"
     try:
         if environ.get("SANDBOX_RUNTIME") == "1":
             raise Abort(
@@ -1802,7 +1921,15 @@ def run(
         digest = trigger_hash(repo)
         commit = git(repo, "rev-parse", "HEAD")
         main = try_git(repo, "rev-parse", "-q", "--verify", "refs/heads/main") or None
-        baseline = None if args.only else main_baseline(repo, history_rel)
+        baseline, skipped = (
+            (None, []) if args.only else main_baseline(repo, history_rel, store)
+        )
+        if skipped:
+            print(
+                f"baseline: main's {', '.join(skipped)} not attested on this machine, so skipped; main's newest "
+                f"attested entry is the baseline: {baseline['run'] if baseline else 'none'}",
+                flush=True,
+            )
         started = dt.datetime.now(dt.UTC)
         name = f"{started.strftime('%Y-%m-%dT%H%M%SZ')}-{_branch_slug(branch)}-{commit[:12]}"
         transcripts = state / name
@@ -1899,11 +2026,16 @@ def run(
             "verdict": verdict,
             "reasons": reasons,
         }
+        # The attestation first, then the file: the digest covers exactly the bytes written, and a failed attestation
+        # leaves no entry behind (review A, 4).
+        data = entry_bytes(entry)
+        attest(store, hashlib.sha256(data).hexdigest(), name)
         folder = here / "history"
         folder.mkdir(exist_ok=True)
-        path = write_history(folder, name, entry)
+        path = write_history(folder, name, data)
         print(
-            f"history: {path.relative_to(repo).as_posix()} (commit it before merging, SC-008)"
+            f"history: {path.relative_to(repo).as_posix()}, attested in {_display(store)}; commit it before merging, "
+            "as written (SC-008)"
         )
         return 0 if verdict == "pass" else 1
     except (Abort, CaseError) as exc:
@@ -1946,7 +2078,8 @@ def _report(results: list[dict[str, Any]], reasons: list[str], verdict: str) -> 
 
 def main(argv: list[str]) -> int:
     if argv[:1] == ["status"] and len(argv) == 1:
-        return status()
+        # The devcontainer, the gate's container phase among them, can't see the Author's store (plan §14).
+        return status(unverified=os.environ.get("H4_DEVCONTAINER") == "1")
     if argv[:1] == ["run"]:
         return run(argv[1:])
     if argv == ["hash"]:

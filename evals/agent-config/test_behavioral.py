@@ -7,6 +7,7 @@ stand-in `claude` script that prints one.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -330,7 +331,13 @@ def run(
 
 
 def history_files(repo: Path) -> list[Path]:
-    return sorted((here_of(repo) / "history").glob("*.json"))
+    """The entries in the checkout's history folder that git doesn't track: what a run, or a test, just wrote."""
+    tracked = set(git(repo, "ls-files", "--", "evals/agent-config/history").split())
+    return sorted(
+        p
+        for p in (here_of(repo) / "history").glob("*.json")
+        if p.relative_to(repo).as_posix() not in tracked
+    )
 
 
 def only_entry(repo: Path) -> dict[str, Any]:
@@ -772,9 +779,23 @@ def entry(
     }
 
 
-def put(repo: Path, record: dict[str, Any]) -> Path:
-    path = here_of(repo) / "history" / f"{record['run']}.json"
-    return write(path, json.dumps(record))
+def attest(path: Path) -> Path:
+    """What make evals-agent-config records beside each entry it writes: a file named by the SHA-256 of the entry's
+    exact bytes, in the Author's store, which agent sessions can't write (the early patch's denyWrite)."""
+    target = bh.attested_dir() / hashlib.sha256(path.read_bytes()).hexdigest()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(path.stem + "\n", encoding="utf-8")
+    return target
+
+
+def put(repo: Path, record: dict[str, Any], *, attested: bool = True) -> Path:
+    """An entry in the history, attested on this machine unless the test says otherwise."""
+    path = write(
+        here_of(repo) / "history" / f"{record['run']}.json", json.dumps(record)
+    )
+    if attested:
+        attest(path)
+    return path
 
 
 def classify(out: str) -> str:
@@ -865,6 +886,132 @@ def test_a_later_failure_beats_an_earlier_pass(
         re.MULTILINE,
     )
     assert not re.search(r"^PASS", out, re.MULTILINE)
+
+
+def test_an_unattested_passing_entry_is_pending_by_name_and_passes_once_attested(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Review A, 4: validate_entry checks shape only, and an agent in a linked worktree can commit an entry. An entry
+    # counts only when this machine attests its exact bytes, which only make evals-agent-config writes.
+    (here_of(repo) / "cases" / "docs.yaml").unlink()
+    path = put(repo, entry(repo), attested=False)
+    assert bh.status(repo, here_of(repo)) == 0
+    out = capsys.readouterr().out
+    (line,) = [ln for ln in out.splitlines() if ln.startswith("PENDING")]
+    assert path.stem in line and "isn't attested" in line
+    assert "make evals-agent-config" in line
+    assert not re.search(r"^PASS", out, re.MULTILINE) and classify(out) == "PENDING"
+    attest(path)
+    assert bh.status(repo, here_of(repo)) == 0
+    out = capsys.readouterr().out
+    assert classify(out) == "PASS"
+    assert re.search(rf"^PASS  behavioral tier: {path.stem} ", out, re.MULTILINE)
+
+
+def test_an_attestation_covers_the_entrys_exact_bytes(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The same entry reformatted, by make fmt or by hand, is another file, which no run attested.
+    (here_of(repo) / "cases" / "docs.yaml").unlink()
+    path = put(repo, entry(repo))
+    path.write_text(json.dumps(json.loads(path.read_text()), indent=2) + "\n")
+    assert bh.status(repo, here_of(repo)) == 0
+    assert classify(capsys.readouterr().out) == "PENDING"
+
+
+def test_an_unattested_entry_decides_nothing(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # An attested pass then an unattested failure: the pass stands, and a note names the other entry. An attested
+    # failure then an unattested pass: the failure stands.
+    (here_of(repo) / "cases" / "docs.yaml").unlink()
+    early, late = (
+        "2026-10-10T120000Z-feat-x-abcdef012345",
+        "2026-10-10T130000Z-feat-x-abcdef012345",
+    )
+    put(repo, entry(repo, run_name=early))
+    put(repo, entry(repo, "fail", run_name=late), attested=False)
+    assert bh.status(repo, here_of(repo)) == 0
+    out = capsys.readouterr().out
+    assert classify(out) == "PASS"
+    assert re.search(rf"^note: {late} .*not attested", out, re.MULTILINE)
+    for path in history_files(repo):
+        path.unlink()
+    put(repo, entry(repo, "fail", run_name=early))
+    put(repo, entry(repo, run_name=late), attested=False)
+    assert bh.status(repo, here_of(repo)) == 1
+    out = capsys.readouterr().out
+    assert re.search(rf"^FAIL  behavioral tier: {early}", out, re.MULTILINE)
+
+
+def test_a_linked_history_entry_fails(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = put(repo, entry(repo))
+    link = path.with_name("2026-10-10T130000Z-feat-x-abcdef012345.json")
+    link.symlink_to(path.name)
+    assert bh.status(repo, here_of(repo)) == 1
+    assert "isn't a plain file" in capsys.readouterr().out
+
+
+def test_the_devcontainer_counts_entries_unverified_and_says_so(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The devcontainer, the gate's container phase among them, can't see the Author's store. There an entry counts
+    # without its attestation, and a note says so; the gate's host steps check attestations (plan §14).
+    (here_of(repo) / "cases" / "docs.yaml").unlink()
+    put(repo, entry(repo), attested=False)
+    assert bh.status(repo, here_of(repo), unverified=True) == 0
+    out = capsys.readouterr().out
+    assert classify(out) == "PASS"
+    assert re.search(r"^note: .*H4_DEVCONTAINER", out, re.MULTILINE)
+
+
+def test_make_evals_asks_for_the_unverified_status_in_the_devcontainer_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[dict[str, Any]] = []
+    monkeypatch.setattr(bh, "status", lambda *a, **k: seen.append(k) or 0)
+    monkeypatch.delenv("H4_DEVCONTAINER", raising=False)
+    assert bh.main(["status"]) == 0
+    monkeypatch.setenv("H4_DEVCONTAINER", "1")
+    assert bh.main(["status"]) == 0
+    monkeypatch.setenv("H4_DEVCONTAINER", "0")
+    assert bh.main(["status"]) == 0
+    assert seen == [{"unverified": False}, {"unverified": True}, {"unverified": False}]
+
+
+def test_the_store_is_in_the_authors_state_folder() -> None:
+    # Under ~/.local/state/h4reet, which the early patch's denyWrite keeps from agent sessions (plan §15).
+    assert bh.attested_dir() == (
+        Path.home() / ".local" / "state" / "h4reet" / "evals" / "attested"
+    )
+
+
+def test_an_attestation_is_a_new_private_file_never_through_a_link(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "attested"
+    digest = hashlib.sha256(b"an entry").hexdigest()
+    bh.attest(store, digest, "one")
+    assert (store / digest).read_text() == "one\n"
+    assert stat.S_IMODE(store.stat().st_mode) == 0o700
+    assert stat.S_IMODE((store / digest).stat().st_mode) == 0o600
+    assert bh.is_attested(digest, store)
+    bh.attest(store, digest, "one")  # the same bytes again: attested already
+    other = hashlib.sha256(b"another entry").hexdigest()
+    assert not bh.is_attested(other, store)
+    (store / other).symlink_to(
+        store / digest
+    )  # a link named as a digest isn't an attestation
+    assert not bh.is_attested(other, store)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    linked = tmp_path / "linked"
+    linked.symlink_to(elsewhere, target_is_directory=True)
+    with pytest.raises(bh.Abort):
+        bh.attest(linked, digest, "two")
+    assert list(elsewhere.iterdir()) == []
 
 
 @pytest.mark.parametrize(
@@ -1099,6 +1246,11 @@ def test_a_clean_run_passes_and_writes_its_history_entry(
     # The transcripts stay in the state folder, never in the history.
     assert record["transcripts"] == f"~/.local/state/h4reet/evals/{path.stem}/"
     assert "history: evals/agent-config/history/" in out and "commit it" in out
+    # The run attests the exact bytes it wrote (review A, 4): one private file per entry, named by their SHA-256.
+    stamp = bh.attested_dir() / hashlib.sha256(path.read_bytes()).hexdigest()
+    assert stamp.read_text() == f"{path.stem}\n"
+    assert stat.S_IMODE(stamp.stat().st_mode) == 0o600
+    assert "attested" in out
     # make evals now finds the entry.
     capsys.readouterr()
     assert bh.status(repo, here_of(repo)) == 0
@@ -1393,7 +1545,7 @@ def test_only_runs_the_named_cases_and_writes_no_history(
     agent = Agent()
     assert run(repo, agent, tmp_path, "--only", "settings") == 0
     assert set(agent.prompts()) == {"SETTINGS: add a hook to .claude/settings.json."}
-    assert history_files(repo) == []
+    assert history_files(repo) == [] and not bh.attested_dir().exists()
     assert "no history" in capsys.readouterr().out
 
 
@@ -1461,6 +1613,31 @@ def test_conduct_mustnt_regress_against_mains_last_entry(
     thresholds.write_text(THRESHOLDS.replace("0.9", "0.5").replace("0.0", "0.34"))
     git(repo, "commit", "-q", "-am", "allow a drop")
     assert run(repo, Agent(BRANCH=wander), tmp_path) == 0
+
+
+def test_an_unattested_entry_on_main_isnt_the_baseline(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # main's newest attested entry is the baseline (review A, 4): a newer one this machine never attested, which an
+    # agent could have written, is skipped, by name.
+    old, new = (
+        "2026-10-01T000000Z-feat-old-abcdef012345",
+        "2026-10-02T000000Z-feat-new-abcdef012345",
+    )
+    git(repo, "switch", "-q", "main")
+    put(repo, entry(repo, run_name=old))
+    put(
+        repo,
+        {**entry(repo, run_name=new), "conduct": {"held": 0, "runs": 3}},
+        attested=False,
+    )
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "history")
+    git(repo, "switch", "-q", "feat/x")
+    assert run(repo, Agent(), tmp_path) == 0
+    assert only_entry(repo)["baseline"]["run"] == old
+    out = capsys.readouterr().out
+    assert re.search(rf"^baseline: main's {new} not attested", out, re.MULTILINE)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1902,16 +2079,17 @@ def test_run_session_never_overwrites_a_transcript(tmp_path: Path) -> None:
 def test_the_history_file_is_new_and_never_through_a_link(tmp_path: Path) -> None:
     folder = tmp_path / "history"
     folder.mkdir()
-    path = bh.write_history(folder, "one", {"a": 1})
-    assert json.loads(path.read_text()) == {"a": 1}
+    data = bh.entry_bytes({"a": 1})
+    path = bh.write_history(folder, "one", data)
+    assert path.read_bytes() == data and json.loads(data) == {"a": 1}
     with pytest.raises(bh.Abort):
-        bh.write_history(folder, "one", {"a": 2})
+        bh.write_history(folder, "one", bh.entry_bytes({"a": 2}))
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     linked = tmp_path / "linked"
     linked.symlink_to(elsewhere, target_is_directory=True)
     with pytest.raises(bh.Abort):
-        bh.write_history(linked, "two", {})
+        bh.write_history(linked, "two", bh.entry_bytes({}))
     assert list(elsewhere.iterdir()) == []
 
 
