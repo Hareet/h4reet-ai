@@ -333,7 +333,7 @@ def test_the_enforcement_table_counts_the_behavioral_cases_and_their_triggers() 
         if line.startswith("| The agent configuration behaves as written")
     ]
     assert f"{len(cases)} cases" in row and "about" not in row
-    assert f"the {len(planned)} that wait for the closing patch" in row
+    assert f"the closing patch's {len(planned)}" in row
     assert "the Claude Code pin" in row
 
 
