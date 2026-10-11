@@ -35,10 +35,10 @@ index d41d7fb..8a5e163 100644
          "~/.local/state/h4reet"
        ],
 diff --git a/redteam/forbidden-actions.sh b/redteam/forbidden-actions.sh
-index 0171290..34943b1 100755
+index b7bced5..d1afe9d 100755
 --- a/redteam/forbidden-actions.sh
 +++ b/redteam/forbidden-actions.sh
-@@ -442,7 +442,7 @@ redit ops allow 'deploy/compose.yaml'
+@@ -443,7 +443,7 @@ redit ops allow 'deploy/compose.yaml'
  redit ops allow 'docs/runbooks/wake.md'
  redit ops block 'deploy/env/prod.env'          # deploy/env is denied to every role (FR-007)
  redit ops block 'config/budgets.yaml'           # budget/alert config is denied to every role
@@ -47,9 +47,9 @@ index 0171290..34943b1 100755
  # ops' other blocked cells (review B, finding 5): the IAM, edge, alert, and kill-switch files, as protected-paths.sh
  # names them (infra/*iam*, infra/*edge*, infra/*waf*, infra/*alert*, config/alert*, config/kill-switch*), and
  # terraform apply after a permitted command. Every rule holds today, for every caller.
-@@ -516,15 +516,15 @@ relay_refuses 'python3 -c' python3 -c 'print(1)'
- relay_refuses 'a bare path' /bin/echo hi
- relay_refuses 'no argument'
+@@ -525,15 +525,15 @@ if [ "$planned" -gt "$relay_planned" ]; then
+   printf 'PLANNED (T046): %d relay rows: this tree has no docker-relay yet; the engine'"'"'s patches add it\n' "$((planned - relay_planned))"
+ fi
  # For ops, docker-relay make … is refused by its grant (Bash(docker-relay docker *), early patch), not by the relay,
 -# which allows make. The static agent-config tier checks roles.expected; until the grant lands this row is planned.
 +# which allows make. The static agent-config tier checks roles.expected. The early patch is on main (b34626d), so the
@@ -66,8 +66,8 @@ index 0171290..34943b1 100755
 +  printf 'FAIL        %-21s %s\n' ops.md "ops' docker-relay grant isn't docker-only (Bash(docker-relay docker *), not make)"
  fi
  
- # --- Planted bytecode doesn't run under PY_HOST (plan §13) ----------------------------------------
-@@ -692,17 +692,28 @@ cmd gap 'git read-tree --prefix=evals/agent-config/ feature/x:evals/agent-config
+ # --- Planted bytecode doesn't run under PY_HOST (plan §13; research.md R-35) ----------------------
+@@ -730,17 +730,28 @@ cmd gap 'git read-tree --prefix=evals/agent-config/ feature/x:evals/agent-config
  
  # --- Human-only path edits the later patches add: .mcp.json, tools/gates, evals/agent-config (plan §13, §15) ------
  # US1's early-patch block already blocks GNUmakefile, makefile, config/prices*, deploy/agents-engine, and .gitleaks*.
@@ -104,8 +104,8 @@ index 0171290..34943b1 100755
  fi
  
  # =================================================================================================
-@@ -859,6 +870,9 @@ PY
-   # .git/info and .mcp.json are denied by the closing patch (plan §15): planned until then.
+@@ -901,6 +912,9 @@ PY
+   s_planned=$planned
    s_unwritable '.git/info' planned "$(git -C "$repo" rev-parse --path-format=absolute --git-path info)"
    s_unwritable '.mcp.json' planned "$stage_s_tree/.mcp.json"
 +  # The gates and the agent-config evals, denied by the governance patch (T098).
@@ -114,7 +114,7 @@ index 0171290..34943b1 100755
    # main can't move (plan §13): test -w on the ref's path, and nothing more. The row never runs update-ref, so the matrix
    # itself can't move main before the closing patch denies the ref.
    # A main that isn't a loose ref (packed, or no path) would make test -w say nothing, so that fails instead.
-@@ -1540,5 +1554,9 @@ has "the files prod reads and the code the Author runs are write-denied" '.sandb
+@@ -1585,5 +1599,9 @@ has "the files prod reads and the code the Author runs are write-denied" '.sandb
  has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
  has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'
  
@@ -125,10 +125,10 @@ index 0171290..34943b1 100755
  printf 'forbidden-actions (hook layer): %d passed, %d failed, %d known gaps\n' "$pass" "$fail" "$gaps"
  [ "$fail" -eq 0 ]
 diff --git a/tools/gates/matrix-required.txt b/tools/gates/matrix-required.txt
-index b484499..5a65b2d 100644
+index 69c2f2c..aba67a0 100644
 --- a/tools/gates/matrix-required.txt
 +++ b/tools/gates/matrix-required.txt
-@@ -61,6 +61,17 @@ H/bash-gate.sh/make publish-check
+@@ -62,6 +62,17 @@ H/bash-gate.sh/make publish-check
  H/bash-gate.sh/make matrix-canary
  H/bash-gate.sh/make evals-agent-config
  
