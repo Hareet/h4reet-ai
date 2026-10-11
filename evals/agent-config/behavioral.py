@@ -27,8 +27,10 @@ PLANNED, naming the patch's task; once the patch is in, the case counts, with no
 stale, and no case counts while the enforcement it needs is missing.
 
 `run` is the Author's (make evals-agent-config refuses SANDBOX_RUNTIME=1, as make aws-login does), and it is main's
-code run against a branch (review B, 1). It refuses unless this checkout is main, clean (an entry an earlier run
-left, untracked in history/, aside), and matches main's tree, with no change git is told to hide. It clones the
+code run against a branch (review B, 1). It refuses unless this checkout is on main, every tracked file matches
+main's tree, with no change git is told to hide, and nothing untracked, ignored or not, is in evals/agent-config/,
+where it loads code (an entry an earlier run left in history/ aside); untracked files elsewhere, like an editor's
+.idea/, don't matter (review D1, 6). It clones the
 repository into a scratch folder and checks the branch out there, and that tree's cases, thresholds, roles,
 settings, and Claude Code pin are data; the runner, its checks, and the FR-007 list are main's. Before any session
 starts it prints the branch's diff against main under .claude/, CLAUDE.md, REVIEW.md, and every other human-only
@@ -1950,9 +1952,13 @@ def _clean(text: str) -> str:
     )
 
 
-def checkout_problem(repo: Path, history_rel: str) -> str | None:
-    """Why the checkout isn't one whose code may run in the Author's terminal: main's, clean, and matching main's tree
-    (review B, 1). An entry an earlier run left in history/, untracked, is the run's own output."""
+def checkout_problem(repo: Path, code_rel: str) -> str | None:
+    """Why the checkout isn't one whose code may run in the Author's terminal (review B, 1; review D1, 6): HEAD on
+    main, every tracked file matching main's tree, with no change git is told to hide, and nothing untracked, ignored
+    or not, in code_rel, the folder the run loads code from (behavioral.py, and static.py beside it; a plain python3
+    puts the folder first on sys.path, and without -B reads its __pycache__). The entries earlier runs left directly
+    in its history/ are the run's own output. Untracked files anywhere else, like the Author's .idea/, .vscode/, and
+    .github/workflows/, or the sandbox's placeholders, are no code the run loads."""
     branch = try_git(repo, "symbolic-ref", "--short", "-q", "HEAD")
     if branch != "main":
         return (
@@ -1960,22 +1966,17 @@ def checkout_problem(repo: Path, history_rel: str) -> str | None:
             f"(review B, 1): switch this checkout to main (it's on {branch or 'a detached HEAD'}), and name the "
             "branch with REF=<branch>"
         )
-    listed = git(
+    changed = git(
         repo,
         "status",
         "--porcelain",
-        "--untracked-files=all",
+        "--untracked-files=no",
         "--ignore-submodules=none",
     )
-    dirty = [
-        ln
-        for ln in listed.splitlines()
-        if not (ln.startswith(f"?? {history_rel}/") and ln.endswith(".json"))
-    ]
-    if dirty:
+    if changed:
         return (
             "main's checkout isn't clean, so the code that would run here might not be main's: commit, stash, or "
-            "remove\n" + "\n".join(dirty)
+            "restore\n" + changed
         )
     hidden = [
         ln[2:]
@@ -1986,6 +1987,22 @@ def checkout_problem(repo: Path, history_rel: str) -> str | None:
         return (
             f"git is told to hide changes to {', '.join(hidden)} (assume-unchanged or skip-worktree), so main's "
             "checkout can't be shown to match main's tree"
+        )
+    # Every untracked file there, ignored ones too: ls-files --others with no exclude option lists them all.
+    listed = git_bytes(repo, "ls-files", "--others", "-z", "--", code_rel)
+    entry = re.compile(rf"{re.escape(code_rel)}/history/[^/]+\.json")
+    stray = [
+        name
+        for name in sorted(
+            n.decode("utf-8", "surrogateescape") for n in listed.split(b"\0") if n
+        )
+        if not entry.fullmatch(name)
+    ]
+    if stray:
+        return (
+            f"main's checkout isn't clean where the run loads code: remove the untracked files in {code_rel}/, "
+            "ignored or not (an earlier run's entries in history/ may stay)\n"
+            + _clean("\n".join(stray))
         )
     return None
 
@@ -2042,9 +2059,10 @@ def run(
     claude: str | None = None,
     stdin: TextIO | None = None,
 ) -> int:
-    """make evals-agent-config REF=<branch>: main's behavioral.py, started from main's checkout, which must be clean
-    and match main's tree, against a clone of the branch, whose cases and thresholds it reads as data. The branch's
-    diff under the human-only paths is shown, and the Author types yes, before any session starts (review B, 1)."""
+    """make evals-agent-config REF=<branch>: main's behavioral.py, started from main's checkout, on main, with its
+    tracked files matching main's tree and nothing untracked where the run loads code (checkout_problem), against a
+    clone of the branch, whose cases and thresholds it reads as data. The branch's diff under the human-only paths is
+    shown, and the Author types yes, before any session starts (review B, 1)."""
     parser = argparse.ArgumentParser(prog="behavioral.py run")
     parser.add_argument(
         "--ref", help="the branch to test: a local branch other than main"
@@ -2084,7 +2102,7 @@ def run(
         if not BRANCH_RE.fullmatch(ref) or ".." in ref or ref.endswith((".", "/")):
             raise Abort(f"REF={ref} isn't a branch name")
         history_rel = (here / "history").relative_to(repo).as_posix()
-        problem = checkout_problem(repo, history_rel)
+        problem = checkout_problem(repo, here.relative_to(repo).as_posix())
         if problem:
             raise Abort(problem)
         if ref == "main":

@@ -250,10 +250,11 @@ evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), 
 
 # The behavioral agent-config evals (plan §14; FR-011, SC-008; tasks.md T094): real Claude Code sessions on the Team
 # plan, never the API, each in a scratch clone of the branch REF names, with the git hooks installed. The Author's,
-# from main's checkout, clean: main's behavioral.py reads the branch's cases and thresholds as data, shows its diff
-# under the human-only paths, and starts nothing until the Author types yes. make evals shows PENDING with this
-# command until a passing run's entry, attested and committed, has the trigger hash. ONLY= names cases to try alone,
-# and writes no history. The closing patch's bash-gate rule refuses it to agents too (§15).
+# from main's checkout, on main with its tracked files clean and nothing untracked in evals/agent-config/ but earlier
+# entries (untracked files elsewhere don't matter): main's behavioral.py reads the branch's cases and thresholds as
+# data, shows its diff under the human-only paths, and starts nothing until the Author types yes. make evals shows
+# PENDING with this command until a passing run's entry, attested and committed, has the trigger hash. ONLY= names
+# cases to try alone, and writes no history. The closing patch's bash-gate rule refuses it to agents too (§15).
 evals-agent-config: ## (the Author) The behavioral agent-config evals of a branch, from main's checkout, on the Team plan; commit the entry on the branch: REF=<branch> [ONLY=id,...]
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make evals-agent-config is the Author's: it starts real Claude Code sessions on the Team plan, which an agent session can't (plan §14)" >&2; exit 2; }
 	$(PY_HOST) evals/agent-config/behavioral.py run$(if $(call from_cli,REF), --ref="$$REF")$(if $(call from_cli,ONLY), --only="$$ONLY")

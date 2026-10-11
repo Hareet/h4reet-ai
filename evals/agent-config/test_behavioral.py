@@ -1214,22 +1214,61 @@ def test_run_starts_only_from_mains_checkout(
 
 
 @pytest.mark.parametrize(
-    "dirty",
+    ("dirty", "shown"),
     [
-        lambda r: (r / "CLAUDE.md").write_text("# uncommitted\n"),
-        lambda r: write(
-            here_of(r) / "cases" / "new.yaml",
-            SETTINGS_CASE.replace("id: settings", "id: new"),
+        (lambda r: (r / "CLAUDE.md").write_text("# uncommitted\n"), "CLAUDE.md"),
+        (
+            lambda r: (r / ".claude" / "hooks" / "bash-gate.sh").chmod(0o644),
+            ".claude/hooks/bash-gate.sh",
         ),
-        lambda r: (r / ".claude" / "hooks" / "bash-gate.sh").chmod(0o644),
         # N5: the Claude Code pin is in the trigger hash.
-        lambda r: (r / ".devcontainer" / "toolchain.vars").write_text(
-            f"CLAUDE_CODE_VERSION={PIN}\n# uncommitted\n"
+        (
+            lambda r: (r / ".devcontainer" / "toolchain.vars").write_text(
+                f"CLAUDE_CODE_VERSION={PIN}\n# uncommitted\n"
+            ),
+            ".devcontainer/toolchain.vars",
         ),
-        lambda r: write(r / "src" / "new.py", "print('untracked')\n"),
-        lambda r: (
-            write(r / "src" / "app.py", "print('staged')\n"),
-            git(r, "add", "src/app.py"),
+        (
+            lambda r: (
+                write(r / "src" / "app.py", "print('staged')\n"),
+                git(r, "add", "src/app.py"),
+            ),
+            "src/app.py",
+        ),
+        (lambda r: (r / "src" / "app.py").unlink(), "src/app.py"),
+        # Untracked where the run loads code, main's evals/agent-config/ (review D1, 6): a plain python3 puts the
+        # folder first on sys.path, so a yaml.py there would be imported, and without -B it reads __pycache__, which
+        # git ignores. Only the entries earlier runs left in history/ may wait there.
+        (
+            lambda r: write(
+                here_of(r) / "cases" / "new.yaml",
+                SETTINGS_CASE.replace("id: settings", "id: new"),
+            ),
+            "evals/agent-config/cases/new.yaml",
+        ),
+        (
+            lambda r: write(here_of(r) / "yaml.py", "raise SystemExit('planted')\n"),
+            "evals/agent-config/yaml.py",
+        ),
+        (
+            lambda r: write(
+                here_of(r) / "__pycache__" / "static.cpython-312.pyc", "planted"
+            ),
+            "evals/agent-config/__pycache__/static.cpython-312.pyc",
+        ),
+        (
+            lambda r: write(here_of(r) / "history" / "notes.txt", "not an entry\n"),
+            "evals/agent-config/history/notes.txt",
+        ),
+        (
+            lambda r: write(
+                here_of(r)
+                / "history"
+                / "sub"
+                / "2026-10-09T000000Z-x-abcdef012345.json",
+                "{}",
+            ),
+            "evals/agent-config/history/sub/2026-10-09T000000Z-x-abcdef012345.json",
         ),
     ],
 )
@@ -1238,14 +1277,37 @@ def test_run_refuses_a_checkout_that_isnt_clean(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     dirty: Callable[[Path], Any],
+    shown: str,
 ) -> None:
-    # What runs in the Author's terminal must be main's committed code, so the checkout is clean, everywhere.
+    # What runs in the Author's terminal must be main's committed code: every tracked file matches main's tree, and
+    # nothing untracked sits where the run loads code. The refusal names the path.
     on_main(repo)
     dirty(repo)
     agent = Agent()
     assert run(repo, agent, tmp_path) == 2
-    assert "isn't clean" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "isn't clean" in err and shown in err
     assert agent.calls == []
+
+
+def test_untracked_files_where_the_run_loads_no_code_dont_block_it(
+    repo: Path, tmp_path: Path
+) -> None:
+    # Review D1, 6: the Author's checkout holds untracked .idea/, .vscode/, and .github/workflows/, and the sandbox
+    # leaves placeholders. None is code the run loads, which is main's evals/agent-config/ alone; a sibling folder
+    # whose name starts the same isn't that folder.
+    on_main(repo)
+    for rel in (
+        ".idea/workspace.xml",
+        ".vscode/settings.json",
+        ".github/workflows/ci.yml",
+        "src/scratch.py",
+        "evals/notes.md",
+        "evals/agent-config-old/behavioral.py",
+        "prod.env",  # ignored, outside the run's code
+    ):
+        write(repo / rel, "untracked\n")
+    assert run(repo, Agent(), tmp_path, "--only", "settings") == 0
 
 
 def test_run_refuses_changes_git_is_told_to_hide(
