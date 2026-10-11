@@ -570,6 +570,8 @@ def with_(**changes: Any) -> dict[str, Any]:
         (with_(env={"SMTP_PASSWORD": "x"}), "reserved"),
         (with_(env={"PATH": "/x"}), "reserved"),
         (with_(env={"ANTHROPIC_API_KEY": "x"}), "reserved"),
+        # N5: Microsoft Foundry, like Bedrock and Vertex, would bill something other than the Team plan's login.
+        (with_(env={"CLAUDE_CODE_USE_FOUNDRY": "1"}), "reserved"),
         # The session's environment is an allowlist (review B, 1): a case adds only what main's runner allows.
         (with_(env={"NODE_OPTIONS": "--require=/tmp/x.js"}), "only FIX_TASK"),
         (with_(env={"LD_PRELOAD": "./x.so"}), "only FIX_TASK"),
@@ -580,6 +582,20 @@ def with_(**changes: Any) -> dict[str, Any]:
 def test_a_malformed_case_is_refused(data: dict[str, Any], message: str) -> None:
     with pytest.raises(bh.CaseError, match=message):
         bh.parse_case(data, "c")
+
+
+def test_no_variable_that_bills_elsewhere_reaches_a_session() -> None:
+    # Each provider switch and API credential is stripped, so no case can set one, and none is on the session's
+    # allowlist (N5 adds Microsoft Foundry's).
+    assert {
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+    } <= set(bh.STRIPPED)
+    assert not set(bh.STRIPPED) & set(bh.SESSION_ENV)
 
 
 def test_a_well_formed_case_parses() -> None:

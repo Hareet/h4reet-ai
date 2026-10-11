@@ -169,14 +169,16 @@ USAGE_KEYS = dict(
 )
 # The patch tasks a case may wait for (plan §15); patch_applied() reads what only each one adds.
 PATCHES = {"T045": "the early patch", "T117": "the closing patch"}
-# Never passed to a session: everything that could bill it to anything but the Team plan's login, and
-# SANDBOX_RUNTIME, which the session's own sandbox sets. GIT_* variables are dropped too, so its git sees its clone.
+# Never in a session's environment, which comes from SESSION_ENV alone, and never in a case's env: everything that
+# could bill a session to anything but the Team plan's login, and SANDBOX_RUNTIME, which the session's own sandbox
+# sets. GIT_* variables are left out too, so its git sees its clone.
 STRIPPED = (
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL",
     "CLAUDE_CODE_USE_BEDROCK",
     "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
     "SANDBOX_RUNTIME",
 )
 EXCLUDED_DIRS = {
