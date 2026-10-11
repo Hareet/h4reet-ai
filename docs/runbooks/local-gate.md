@@ -6,7 +6,7 @@ Until publication, the local gate stands in for CI (ADR 0013). Every gate spec 0
 
 - `make check` prints each gate's output under `== <gate>`, then one line per gate, then a summary such as `make check: 9 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: lint FAIL`. It exits non-zero on any FAIL or PENDING (`tools/gates/run_checks.py`). Each gate's line says why it isn't `PASS`:
   - **FAIL:** its target exited non-zero; or it has no target and no task to add one; or make would do nothing for it; or its `@Tnnn` mark is stale, because the target exists now ("stale mark: make … exists now, so remove @T… from the gate list").
-  - **PENDING:** a run only you can make. In spec 000 that is the behavioral agent-config evals: `make evals` prints "PENDING (behavioral tier): no passing run for trigger hash …" whenever no passing history entry has this tree's trigger hash, a hash over `CLAUDE.md`, `REVIEW.md`, `.claude/**`, `evals/agent-config/**` (its history aside), and the Claude Code pin (plan §14). The history holds no entry until your first run's is committed, so until then every branch shows it. The gate's `agent-config-evals` step waits only for a branch that touches one of those, and is SKIP for any other.
+  - **PENDING:** a run only you can make. In spec 000 that is the behavioral agent-config evals: `make evals` prints "PENDING (behavioral tier): no run for trigger hash …" whenever no history entry that this machine attests has this tree's trigger hash, or "PENDING (behavioral tier): no attested run for trigger hash …", naming the entries it doesn't attest, a hash over `CLAUDE.md`, `REVIEW.md`, `.claude/**`, `evals/agent-config/**` (its history aside), and the Claude Code pin (plan §14). The history holds no entry until your first run's is committed, so until then every branch shows it. The gate's `agent-config-evals` step waits only for a branch that touches one of those, and is SKIP for any other.
   - **PLANNED (Tnnn):** enforcement a patch adds that you haven't applied yet, naming the task that writes it. It doesn't fail the run.
   - **SKIP:** with its reason: a target a later task adds ("added by T…"), or a gate that can't run where it is, such as the compose policy or the image gate without a docker CLI.
 - The image gate fails with "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up".
@@ -24,13 +24,14 @@ The branch doesn't merge: every merge-request note carries `make check`'s whole 
 1. **Read the failing gate's own output,** under its `== <gate>` line, above the summary.
 2. **A FAIL in lint, test, evals, the red-team suite, or the matrix:** fix the code, not the test (CLAUDE.md). A fix task starts from the failing test, which it may not edit (`FIX_TASK=1`).
 3. **A stale mark:** the task that adds a target removes its `@Tnnn` from `CHECK_GATES` in the Makefile, and a patch's task deletes its PLANNED entries when the patch lands (plan §11).
-4. **PENDING, the agent-config evals,** in your terminal:
+4. **PENDING, the agent-config evals,** in your terminal, from main's checkout, clean:
 
    ```bash
-   make evals-agent-config
+   git switch main
+   make evals-agent-config REF=<branch>
    ```
 
-   It runs the behavioral cases with `claude -p` on the Team plan, in a scratch clone of the branch (plan §14). Commit the entry it writes in `evals/agent-config/history/` on the branch (SC-008), then run the gate again. With the Team plan unavailable it stays PENDING, and the merge waits (FR-011).
+   main's tier runs against the branch, whose cases and thresholds are data. It shows the branch's diff under `.claude/`, `CLAUDE.md`, `REVIEW.md`, and every human-only path, and starts nothing until you type `yes`. Each case runs three times with `claude -p` on the Team plan, in a fresh clone of the branch with the git hooks installed (plan §14). The entry lands in `evals/agent-config/history/` in main's checkout, untracked, with its attestation under `~/.local/state/h4reet/evals/attested/`: switch to the branch, commit the entry there (SC-008), and run the gate again. An entry this machine didn't attest decides nothing. With the Team plan unavailable it stays PENDING, and the merge waits (FR-011).
 5. **PLANNED:** expected until the patch that clears it lands. Spec 000's acceptance needs none: after the closing patch (tasks.md T117), no PLANNED line and no SKIP that names a task are left (T118).
 6. **The image gate fails:** the agents' engine is down. Follow [agents-engine.md](agents-engine.md).
 7. **The toolchain gate fails on a version drift:** `make tools` installs the pinned Node, pytest, gitleaks, and the lint toolchain in your terminal. A tool `make tools` doesn't install is upgraded by hand, or its pin in `.devcontainer/toolchain.vars` changes in a reviewed commit.

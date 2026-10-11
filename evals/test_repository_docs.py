@@ -315,12 +315,13 @@ def test_the_enforcement_table_keeps_claude_mds_words_on_what_the_author_runs() 
 
 def test_the_enforcement_table_counts_the_behavioral_cases_and_their_triggers() -> None:
     # The behavioral tier's row counts the cases in evals/agent-config/cases/, says how many wait for the closing
-    # patch (a default run skips them), and names the Claude Code pin among the triggers (US6's review).
+    # patch (a case that needs: T117 is planned, and a default run skips it, until the patch is in), and names the
+    # Claude Code pin among the triggers (US6's review).
     cases = sorted((REPO / "evals" / "agent-config" / "cases").glob("*.yaml"))
     planned = [
         c
         for c in cases
-        if re.search(r"^planned: T117$", c.read_text(encoding="utf-8"), re.MULTILINE)
+        if re.search(r"^needs: T117$", c.read_text(encoding="utf-8"), re.MULTILINE)
     ]
     assert cases and planned
     lifecycle = (REPO / "docs" / "how-we-build" / "lifecycle.md").read_text(

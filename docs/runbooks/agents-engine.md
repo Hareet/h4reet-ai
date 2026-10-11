@@ -59,7 +59,7 @@ In your own terminal. The Heavy steps (seed, reset, prove) run with no agent ses
 
 - `make engine-status` shows `engine: reachable`, rootless, the plugin `h4-authz`, and every image `present`.
 - An agent session's `make engine-smoke` passes: `make up ENV=dev-cpu` comes up healthy, `make breach-test ENV=dev-cpu` passes, and `make down ENV=dev-cpu` stops it (US3-9's positive half, quickstart.md §3.4).
-- After a change to the engine's definition: `deploy/agents-engine/engine.sh prove` (Heavy) passes rows E1 to E16 ([contracts/agents-engine.md §7](../../specs/000-local-foundations/contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs); quickstart.md §3.3).
+- After a change to the engine's definition: `deploy/agents-engine/engine.sh prove` (Heavy) passes rows E1 to E16 ([contracts/agents-engine.md §7](../../specs/000-local-foundations/contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs); quickstart.md §3.3). Once US3's prove patch is applied, it also writes `~/.local/state/h4reet/agents-engine/prove-report.txt`, headed with the commit and the engine's tree, which matrix stage E folds only when that tree is the checkout's.
 
 ## Undo
 

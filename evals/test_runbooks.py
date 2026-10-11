@@ -397,13 +397,13 @@ def test_the_gates_page_reads_publish_checks_end_from_its_summary_line() -> None
 
 
 def test_the_gates_page_says_what_pending_and_the_eval_history_warn_mean() -> None:
-    # As the code has them (US6's review): the behavioral tier's PENDING line, which it prints whenever no passing
-    # entry has the tree's trigger hash, and the gate's eval-history WARN, for a post prod's collector didn't take.
-    # The gate posts every entry the branch adds on every run, not once.
+    # As the code has them (US6's review): the behavioral tier's two PENDING lines, which it prints whenever no
+    # attested entry has the tree's trigger hash (none at all, or only unattested ones), and the gate's eval-history
+    # WARN, for a post prod's collector didn't take. The gate posts every entry the branch adds on every run, not once.
     tier = (REPO / "evals" / "agent-config" / "behavioral.py").read_text(
         encoding="utf-8"
     )
-    (pending,) = re.findall(r'f"(PENDING \(behavioral tier\): [^{"]*)\{', tier)
+    pending = re.findall(r'f"(PENDING \(behavioral tier\): [^{"]*)\{', tier)
     gate = re.sub(
         r'"\s*\n\s*f?"',
         "",
@@ -411,7 +411,7 @@ def test_the_gates_page_says_what_pending_and_the_eval_history_warn_mean() -> No
     )
     (warn,) = re.findall(r"; (the dashboard misses them, [^\"]*)\"", gate)
     text = " ".join((RUNBOOKS / "local-gate.md").read_text(encoding="utf-8").split())
-    assert pending.strip() in text
+    assert len(pending) == 2 and all(line.strip() in text for line in pending)
     assert "trigger hash" in text and "the branch changed `CLAUDE.md`" not in text
     assert warn in text
     assert "posted only once" not in text and "every entry the branch adds" in text
