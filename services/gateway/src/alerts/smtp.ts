@@ -115,9 +115,13 @@ const smtpLookup: LookupFunction = (hostname, options, callback) => {
   });
 };
 
-/** One connection's TLS, as far as the gateway can see it: whether the server's certificate passed. */
+/**
+ * One connection's TLS, as far as the gateway can see it: whether the server's certificate passed, and the TCP socket,
+ * whose bytesRead keeps counting what the server sent once TLS is over it.
+ */
 interface Attempt {
   verified: boolean;
+  socket?: Socket;
 }
 
 /** The errors the email channel's TCP sockets raised themselves, as each raised it (connectThroughAres). */
@@ -155,6 +159,7 @@ function connectThroughAres(
 ): void {
   attempt.verified = false;
   const socket = connect({ host: options.host, port: options.port, lookup: smtpLookup });
+  attempt.socket = socket;
   const timedOut = Object.assign(new Error("Connection timeout"), { code: "ETIMEDOUT" });
   const timer = setTimeout(() => socket.destroy(timedOut), options.connectionTimeout);
   const fail = (err: NodeJS.ErrnoException): void => {
@@ -178,11 +183,14 @@ function connectThroughAres(
  * socket's error event, though, and the TCP socket marks its own as it raises them: an ESOCKET the TCP socket didn't
  * raise came from the TLS socket over it. Once TLS is over it, the TCP socket raises none of its own: a reset comes
  * through the TLS socket too. So before the server's certificate passed, such an error is a failed handshake; after,
- * it keeps its class. A failure before STARTTLS was the TCP socket's, and a timeout or a reply is not ESOCKET.
+ * it keeps its class. A failure before STARTTLS was the TCP socket's, and a timeout or a reply is not ESOCKET. A
+ * connection the server dropped before sending a byte had no handshake to fail, on 465 a load balancer with no backend
+ * or a rate limiter (T190's review): it keeps its class too, rather than send the operator to the certificate.
  */
 function failedHandshake(err: unknown, attempt: Attempt): boolean {
   if (typeof err !== "object" || err === null) return false;
-  return (err as { code?: unknown }).code === "ESOCKET" && !raisedByTcp.has(err) && !attempt.verified;
+  const serverSpoke = (attempt.socket?.bytesRead ?? 0) > 0;
+  return (err as { code?: unknown }).code === "ESOCKET" && !raisedByTcp.has(err) && !attempt.verified && serverSpoke;
 }
 
 /** A failed handshake's error: the class tls, and nothing of the certificate, or of what Node said about it. */
