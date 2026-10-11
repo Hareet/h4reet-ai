@@ -55,9 +55,34 @@ entry = {
 }
 with open(os.path.join(here, "gitleaks.calls"), "a", encoding="utf-8") as handle:
     handle.write(json.dumps(entry) + "\n")
-fail = os.path.join(here, "gitleaks.fail")
-if os.path.exists(fail) and open(fail, encoding="utf-8").read().strip() in " ".join(args):
+def control(name, default=""):
+    path = os.path.join(here, "gitleaks." + name)
+    return open(path, encoding="utf-8").read().strip() if os.path.exists(path) else default
+# A scan whose flags hold gitleaks.fail's text exits 1, as gitleaks does on its own errors.
+fail = control("fail")
+if fail and fail in " ".join(args):
     sys.exit(1)
+# Otherwise what gitleaks 8.30.1 does, unless gitleaks.mode says otherwise: its log on stderr, a JSON report, 0 when
+# clean, and --exit-code's value with findings.
+mode = control("mode", "clean")
+def log(line):
+    print("6:25PM " + line, file=sys.stderr)
+if mode == "git-error":  # git failed beneath it: gitleaks logs git's error and exits 0
+    log("ERR [git] fatal: bad object")
+    log('ERR error="stderr is not empty"')
+if mode != "no-count":
+    log("INF " + control("scanned", "1") + " commits scanned.")
+log("INF scanned ~10 bytes (10 bytes) in 1ms")
+findings = []
+if mode == "finds":
+    findings = [{"RuleID": "probe-token", "File": "c.txt", "StartLine": 1, "Commit": "c" * 40}]
+    log("WRN leaks found: 1")
+if mode != "no-report":
+    report = args[args.index("--report-path") + 1]
+    with open(report, "w", encoding="utf-8") as handle:
+        json.dump(findings, handle)
+code = int(args[args.index("--exit-code") + 1]) if "--exit-code" in args else 1
+sys.exit(code if findings else 0)
 """
 
 
@@ -148,6 +173,33 @@ def mktemp_stub(stub_bin: Path, body: str) -> None:
     stub.chmod(0o755)
 
 
+def leaks_control(stub_bin: Path, name: str, value: str) -> None:
+    """A control file for the stand-in gitleaks: mode, scanned, or fail."""
+    (stub_bin / f"gitleaks.{name}").write_text(value, encoding="utf-8")
+
+
+def verdicts(done: subprocess.CompletedProcess[str]) -> dict[str, str]:
+    """Each scan's "-> PASS label" or "-> FAIL label: why" line, by the label's first two words."""
+    found = {}
+    for line in done.stdout.splitlines():
+        if line.startswith(("-> PASS ", "-> FAIL ")):
+            words = line.split()
+            found[" ".join(words[2:4]).rstrip(":")] = line
+    return found
+
+
+def path_without(tmp_path: Path, missing: str) -> str:
+    """A PATH with every program in /usr/bin and /bin but one, each linked into a folder of its own."""
+    folder = tmp_path / f"without-{missing}"
+    folder.mkdir()
+    for directory in ("/usr/bin", "/bin"):
+        for entry in os.scandir(directory):
+            if entry.name != missing and not os.path.lexists(folder / entry.name):
+                (folder / entry.name).symlink_to(entry.path)
+    assert shutil.which(missing, path=str(folder)) is None
+    return str(folder)
+
+
 # --------------------------------------------------------------------------------------------------
 # The three scans, each with the flags of plan §11 (a stand-in gitleaks records them)
 # --------------------------------------------------------------------------------------------------
@@ -166,6 +218,7 @@ def test_three_scans_each_with_the_main_trees_config_a_fresh_empty_ignore_path_a
     ignore_dirs = set()
     for call in made:
         argv = call["argv"]
+        assert argv[argv.index("--exit-code") + 1] == "99"
         assert argv[argv.index("--config") + 1] == str(repo / ".gitleaks.toml")
         assert "--ignore-gitleaks-allow" in argv
         assert "--redact" in argv
@@ -192,6 +245,92 @@ def test_a_failing_scan_fails_the_run_and_the_others_still_run(
     assert len(calls(stub_bin)) == 3
     assert "staged changes" in done.stdout + done.stderr
     assert "secrets: FAIL" in done.stdout + done.stderr
+
+
+def test_an_error_gitleaks_only_logs_fails_every_scan(
+    repo: Path, stub_bin: Path
+) -> None:
+    # gitleaks 8.30.1 logs git's own failure and exits 0, as if it had found nothing.
+    leaks_control(stub_bin, "mode", "git-error")
+    done = secrets(repo, f"{stub_bin}:{SYSTEM_PATH}")
+    assert done.returncode == 1
+    found = verdicts(done)
+    assert len(found) == 3, done.stdout
+    for line in found.values():
+        assert line.startswith("-> FAIL "), line
+        assert "gitleaks logged an error, so its scan may be partial: " in line, line
+    assert "secrets: FAIL" in done.stdout
+
+
+def test_a_range_scan_that_doesnt_say_its_count_fails(
+    repo: Path, stub_bin: Path
+) -> None:
+    # The --pre-commit scans count no commits, so only the range scan needs the line.
+    leaks_control(stub_bin, "mode", "no-count")
+    done = secrets(repo, f"{stub_bin}:{SYSTEM_PATH}")
+    assert done.returncode == 1
+    found = verdicts(done)
+    assert found["unstaged changes"].startswith("-> PASS ")
+    assert found["staged changes"].startswith("-> PASS ")
+    assert found["1 commits"].startswith("-> FAIL "), done.stdout
+    assert "gitleaks didn't say how many commits it scanned" in found["1 commits"]
+
+
+def test_a_range_scan_of_no_commits_fails_when_the_branch_adds_lines(
+    repo: Path, stub_bin: Path
+) -> None:
+    leaks_control(stub_bin, "scanned", "0")
+    done = secrets(repo, f"{stub_bin}:{SYSTEM_PATH}")
+    assert done.returncode == 1
+    line = verdicts(done)["1 commits"]
+    assert "gitleaks scanned 0 commits, though the branch adds 1 line(s)" in line
+
+
+def test_a_branch_that_adds_no_line_may_scan_no_commits(
+    repo: Path, stub_bin: Path
+) -> None:
+    # gitleaks counts a commit only when its diff has a line: deletions and empty commits honestly scan none.
+    git(repo, "switch", "-qc", "deletions", "main")
+    git(repo, "rm", "-q", "a.txt")
+    git(repo, "commit", "-qm", "a deletion")
+    git(repo, "commit", "-q", "--allow-empty", "-m", "nothing")
+    leaks_control(stub_bin, "scanned", "0")
+    done = secrets(repo, f"{stub_bin}:{SYSTEM_PATH}")
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+@pytest.mark.parametrize("mode", ["no-report"])
+def test_a_scan_without_a_readable_report_fails(
+    repo: Path, stub_bin: Path, mode: str
+) -> None:
+    leaks_control(stub_bin, "mode", mode)
+    done = secrets(repo, f"{stub_bin}:{SYSTEM_PATH}")
+    assert done.returncode == 1
+    for line in verdicts(done).values():
+        assert "gitleaks wrote no readable report" in line, line
+
+
+def test_findings_without_jq_say_jq_is_missing(
+    repo: Path, stub_bin: Path, tmp_path: Path
+) -> None:
+    leaks_control(stub_bin, "mode", "finds")
+    done = secrets(repo, f"{stub_bin}:{path_without(tmp_path, 'jq')}")
+    assert done.returncode == 1
+    for line in verdicts(done).values():
+        assert line.startswith("-> FAIL "), line
+        assert "jq is missing" in line, line
+        assert "couldn't scan" not in line
+
+
+def test_findings_are_named_with_their_commit(repo: Path, stub_bin: Path) -> None:
+    leaks_control(stub_bin, "mode", "finds")
+    done = secrets(repo, f"{stub_bin}:{SYSTEM_PATH}")
+    assert done.returncode == 1
+    assert "  probe-token in c.txt:1 (commit cccccccccccc)" in done.stdout
+    # Exit 99, gitleaks' code for findings with --exit-code 99: nothing else is wrong with the scan.
+    assert verdicts(done)["1 commits"].endswith(
+        ": gitleaks found something shaped like a secret; keep it out of the repository"
+    )
 
 
 def test_from_a_linked_worktree_it_reads_the_main_trees_config_and_scans_the_worktree(
@@ -365,6 +504,18 @@ def test_a_commit_main_already_holds_is_outside_the_range(repo: Path) -> None:
     commit(repo, "d.txt", "clean\n", "later work")
     done = secrets(repo)
     assert done.returncode == 0, done.stdout + done.stderr
+
+
+@needs_gitleaks
+def test_a_branch_of_deletions_and_empty_commits_passes(repo: Path) -> None:
+    # The real gitleaks scans no commit of such a branch: it counts only commits whose diff has a line.
+    git(repo, "switch", "-qc", "deletions", "main")
+    git(repo, "rm", "-q", "a.txt")
+    git(repo, "commit", "-qm", "a deletion")
+    git(repo, "commit", "-q", "--allow-empty", "-m", "nothing")
+    done = secrets(repo)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "INF 0 commits scanned" in done.stdout
 
 
 @needs_gitleaks

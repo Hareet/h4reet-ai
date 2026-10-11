@@ -34,7 +34,10 @@ the host's own Python. The commit under test is data there.
      loaded into this process, which runs with PY_HOST's flags, since the script reads only its own tree;
    - gitleaks over $(git merge-base main SHA)..SHA, with the main tree's .gitleaks.toml (--config), a fresh empty
      --gitleaks-ignore-path, and --ignore-gitleaks-allow. It refuses while a .gitleaksignore at the main tree
-     could hold an entry (research.md R-36);
+     could hold an entry (research.md R-36). gitleaks exits 0 when git fails beneath it, and only logs the error,
+     so findings exit 99 (--exit-code) and a scan passes only when gitleaks exits 0, its log holds no line at a
+     level but TRC, DBG, INF, or WRN, its report reads as an empty list, and it says how many commits it scanned:
+     more than none whenever the branch adds a line, since it counts only commits whose diff has one;
    - image: the compose images, built on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
      only after the policy passed, because an unvetted build could read host files into the engine;
    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
@@ -130,6 +133,11 @@ CONTAINER_TARGETS = (
     ("matrix-h", "matrix"),
 )
 STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
+# gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
+# exit code of their own, and its log is read: a line at any level but these means the scan may be partial.
+LEAKS = 99
+GITLEAKS_FINE = re.compile(r"^\S+ (?:TRC|DBG|INF|WRN) ")
+GITLEAKS_COMMITS = re.compile(r"^\S+ INF (\d+) commits scanned\b", re.MULTILINE)
 HISTORY = "evals/agent-config/history/"
 TOKEN_TYPES = ("input", "output", "cache_read", "cache_creation")
 COUNTED = ("PASS", "SKIP", "WARN", "PLANNED", "PENDING", "FAIL")
@@ -793,6 +801,75 @@ def fresh_dir(parent: Path) -> Path:
     return path
 
 
+def run_gitleaks(
+    binary: str, scan: list[str], config: Path, source: str, cwd: Path | None, tmp: Path
+) -> tuple[list[dict], str, list[str]]:
+    """One gitleaks run with plan §11's flags: its findings, its log, and every reason its scan may be partial, read
+    as publish_check.py reads them. The ignore path is a fresh empty directory, which is the working directory too
+    unless cwd names one. Raises OSError when there is no fresh directory."""
+    empty, reports = fresh_dir(tmp), fresh_dir(tmp)
+    report_file = reports / "gitleaks.json"
+    rc, log = stream(
+        [
+            binary, *scan, "--no-banner", "--no-color", "--redact", "--config", str(config),
+            "--gitleaks-ignore-path", str(empty), "--ignore-gitleaks-allow", "--report-format", "json",
+            "--report-path", str(report_file), "--exit-code", str(LEAKS), source,
+        ],
+        tool_env(GIT_NO_REPLACE_OBJECTS="1"),
+        cwd or empty,
+    )  # fmt: skip
+    problems = []
+    errors = [
+        ln for ln in log.splitlines() if ln.strip() and not GITLEAKS_FINE.match(ln)
+    ]
+    if errors:
+        problems.append(
+            f"gitleaks logged an error, so its scan may be partial: {errors[0].strip()[:200]}"
+        )
+    if rc not in (0, LEAKS):
+        problems.append(f"gitleaks exited {rc}")
+    try:
+        findings = json.loads(report_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [], log, [*problems, "gitleaks' report is missing or unreadable"]
+    if not isinstance(findings, list) or not all(isinstance(f, dict) for f in findings):
+        return [], log, [*problems, "gitleaks' report isn't a list of findings"]
+    if rc in (0, LEAKS) and (rc == LEAKS) != bool(findings):
+        problems.append(
+            f"gitleaks exited {rc} with {len(findings)} finding(s) in its report"
+        )
+    return findings, log, problems
+
+
+def verdict(step: Step, findings: list[dict], problems: list[str]) -> Step:
+    """Each finding named by its rule, file, line, and commit, never its match; then the step's status."""
+    for found in findings:
+        commit = str(found.get("Commit") or "")[:12]
+        say(
+            f"  {found.get('RuleID')} in {found.get('File')}:{found.get('StartLine')}"
+            + (f" (commit {commit})" if commit else "")
+        )
+    if findings:
+        problems = [
+            f"{len(findings)} finding(s), named above without their match",
+            *problems,
+        ]
+    return step.fail("; ".join(problems)) if problems else step
+
+
+def added_lines(repo: Path, base: str, sha: str) -> int | None:
+    """The lines the branch's commits add, as `git log --text --numstat` counts them, or None when git can't say.
+    gitleaks counts a commit as scanned only when its diff has a line, so a branch that adds none (deletions, renames,
+    mode changes, merges, or empty commits) honestly scans no commit at all."""
+    done = git(
+        repo, "log", "--text", "--numstat", "--format=", f"{base}..{sha}", binary=True
+    )
+    if done.returncode:
+        return None
+    fields = (line.split(b"\t", 1)[0] for line in done.stdout.splitlines())
+    return sum(int(added) for added in fields if added.isdigit())
+
+
 def gitleaks(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
     begin("gitleaks", f"the commits since main, with {repo / '.gitleaks.toml'}")
     step = Step("gitleaks")
@@ -812,50 +889,25 @@ def gitleaks(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
         return step.fail(
             "no merge base with main, so the branch's commits can't be scanned"
         )
+    added = added_lines(repo, base, sha)
+    if added is None:
+        return step.fail(
+            "git log couldn't count the lines the branch adds, so nothing was scanned"
+        )
     try:
-        empty, reports = fresh_dir(tmp), fresh_dir(tmp)
+        findings, log, problems = run_gitleaks(
+            binary, ["git", f"--log-opts={base}..{sha}"], config, str(repo), None, tmp
+        )
     except OSError as exc:
         return step.fail(f"no fresh directory for gitleaks: {exc}")
-    report_file = reports / "gitleaks.json"
-    rc, _ = stream(
-        [
-            binary,
-            "git",
-            f"--log-opts={base}..{sha}",
-            "--no-banner",
-            "--no-color",
-            "--redact",
-            "--config",
-            str(config),
-            "--gitleaks-ignore-path",
-            str(empty),
-            "--ignore-gitleaks-allow",
-            "--report-format",
-            "json",
-            "--report-path",
-            str(report_file),
-            str(repo),
-        ],
-        tool_env(GIT_NO_REPLACE_OBJECTS="1"),
-        empty,
-    )
-    if rc == 0:
-        return step
-    try:
-        findings = json.loads(report_file.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        findings = []
-    if not isinstance(findings, list) or not findings:
-        return step.fail(
-            f"gitleaks exited {rc} and listed no finding, so it couldn't scan"
+    scanned = GITLEAKS_COMMITS.search(log)
+    if scanned is None:
+        problems.append("gitleaks didn't say how many commits it scanned")
+    elif added and int(scanned.group(1)) == 0:
+        problems.append(
+            f"gitleaks scanned 0 commits, though the branch adds {added} line(s)"
         )
-    for found in (f for f in findings if isinstance(f, dict)):
-        commit = str(found.get("Commit") or "")[:12]
-        say(
-            f"  {found.get('RuleID')} in {found.get('File')}:{found.get('StartLine')}"
-            + (f" (commit {commit})" if commit else "")
-        )
-    return step.fail(f"{len(findings)} finding(s), named above without their match")
+    return verdict(step, findings, problems)
 
 
 def image(export_dir: Path, policy_step: Step, tmp: Path) -> Step:

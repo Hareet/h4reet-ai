@@ -112,18 +112,44 @@ args = sys.argv[1:]
 ignore = args[args.index("--gitleaks-ignore-path") + 1] if "--gitleaks-ignore-path" in args else ""
 entry = {
     "argv": args,
+    "cwd": os.getcwd(),
     "env_keys": sorted(os.environ),
     "no_replace": os.environ.get("GIT_NO_REPLACE_OBJECTS"),
     "ignore_was_fresh": bool(ignore) and os.path.isdir(ignore) and not os.listdir(ignore),
 }
 with open(os.path.join(here, "gitleaks.calls"), "a", encoding="utf-8") as handle:
     handle.write(json.dumps(entry) + "\n")
-if os.path.exists(os.path.join(here, "gitleaks.finds")):
+# What gitleaks 8.30.1 does, per subcommand ("git", "dir"), unless gitleaks.control.json says otherwise: its log on
+# stderr, a JSON report, 0 when clean, and --exit-code's value with findings.
+path = os.path.join(here, "gitleaks.control.json")
+control = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
+kind = args[0]
+mode = control.get("modes", {}).get(kind, "clean")
+scanned = control.get("scanned", {}).get(kind, 1 if kind == "git" else 120)
+def log(line):
+    print("6:25PM " + line, file=sys.stderr)
+if mode == "git-error":  # git failed beneath it: gitleaks logs git's error and exits 0
+    log("ERR [git] fatal: bad object")
+    log('ERR error="stderr is not empty"')
+if mode == "skipped":  # a file dir mode couldn't read
+    log("WRN skipping file: permission denied path=docs/readme.md")
+if kind == "git" and mode != "no-count":
+    log(f"INF {scanned} commits scanned.")
+if kind != "dir" or mode != "no-count":
+    log(f"INF scanned ~{scanned if kind == 'dir' else 10} bytes in 1ms")
+findings = []
+if kind in control.get("finds", []) or mode == "quiet-finds":
+    commit = "c" * 40 if kind == "git" else ""
+    findings = [{"RuleID": "probe-token", "File": "docs/readme.md", "StartLine": 3, "Commit": commit}]
+    log(f"WRN leaks found: {len(findings)}")
+else:
+    log("INF no leaks found")
+if mode != "no-report":
     report = args[args.index("--report-path") + 1]
-    finding = {"RuleID": "probe-token", "File": "docs/readme.md", "StartLine": 3, "Commit": "c" * 40}
     with open(report, "w", encoding="utf-8") as handle:
-        json.dump([finding], handle)
-    sys.exit(1)
+        handle.write("not json" if mode == "garbage" else json.dumps(findings))
+code = int(args[args.index("--exit-code") + 1]) if "--exit-code" in args else 1
+sys.exit(code if findings and mode != "quiet-finds" else 0)
 """
 
 # The main tree's stand-ins log to <fixture>/logs, found from their own path, because the gate gives them a
@@ -263,6 +289,12 @@ class Fixture:
 
     def control(self, **values: object) -> None:
         (self.stubs / "docker.control.json").write_text(
+            json.dumps(values), encoding="utf-8"
+        )
+
+    def gitleaks_control(self, **values: object) -> None:
+        """finds: the subcommands that report a finding; modes: {subcommand: mode}; scanned: {subcommand: count}."""
+        (self.stubs / "gitleaks.control.json").write_text(
             json.dumps(values), encoding="utf-8"
         )
 
@@ -430,6 +462,15 @@ def status_of(done: subprocess.CompletedProcess[str], step: str) -> str:
     raise AssertionError(f"no table line for {step}:\n{done.stdout}")
 
 
+def row(done: subprocess.CompletedProcess[str], step: str) -> str:
+    """The final table's whole line for a step, its notes included."""
+    for line in reversed(done.stdout.splitlines()):
+        parts = line.split()
+        if len(parts) >= 2 and parts[1] == step and parts[0] in STATUSES:
+            return line
+    raise AssertionError(f"no table line for {step}:\n{done.stdout}")
+
+
 STATUSES = {"PASS", "FAIL", "SKIP", "WARN", "PLANNED", "PENDING"}
 
 
@@ -511,6 +552,7 @@ def test_a_clean_branch_passes_and_each_phase_runs_where_and_how_plan_11_says(
     assert argv[:2] == ["git", f"--log-opts={base}..{sha}"]
     assert argv[argv.index("--config") + 1] == str(fx.main / ".gitleaks.toml")
     assert "--ignore-gitleaks-allow" in argv and "--redact" in argv
+    assert argv[argv.index("--exit-code") + 1] == "99"
     assert argv[-1] == str(fx.main)
     assert scan["ignore_was_fresh"]
     assert scan["no_replace"] == "1"
@@ -1055,11 +1097,74 @@ def test_an_engine_that_doesnt_build_names_the_authors_command(fx: Fixture) -> N
 
 def test_a_gitleaks_finding_is_named_without_the_match(fx: Fixture) -> None:
     fx.branch(CHANGE)
-    (fx.stubs / "gitleaks.finds").write_text("", encoding="utf-8")
+    fx.gitleaks_control(finds=["git"])
     done = gate(fx, "feature")
     assert done.returncode == 1
     assert status_of(done, "gitleaks") == "FAIL"
-    assert "probe-token in docs/readme.md:3" in done.stdout
+    assert "probe-token in docs/readme.md:3 (commit cccccccccccc)" in done.stdout
+    # Exit 99, gitleaks' code for findings with --exit-code 99: nothing else is wrong with the scan.
+    assert row(done, "gitleaks").endswith(
+        "gitleaks  1 finding(s), named above without their match"
+    )
+
+
+@pytest.mark.parametrize(
+    ("mode", "says"),
+    [
+        # gitleaks 8.30.1 logs git's own failure and exits 0, as if it had found nothing.
+        ("git-error", "gitleaks logged an error, so its scan may be partial: "),
+        ("no-count", "gitleaks didn't say how many commits it scanned"),
+        ("no-report", "gitleaks' report is missing or unreadable"),
+        ("garbage", "gitleaks' report is missing or unreadable"),
+        ("quiet-finds", "gitleaks exited 0 with 1 finding(s) in its report"),
+    ],
+)
+def test_a_range_scan_that_may_not_have_read_everything_fails(
+    fx: Fixture, mode: str, says: str
+) -> None:
+    fx.branch(CHANGE)
+    fx.gitleaks_control(modes={"git": mode})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "gitleaks") == "FAIL"
+    assert says in row(done, "gitleaks"), done.stdout
+
+
+def test_gitleaks_failing_on_its_own_fails_the_scan(fx: Fixture) -> None:
+    # Findings get their own exit code, 99, so gitleaks' own 1 can't pass for them, nor be read as clean.
+    fx.branch(CHANGE)
+    write(
+        fx.stubs / "gitleaks", "#!/bin/sh\necho 'panic: a crash' >&2\nexit 1\n", 0o755
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks") == "FAIL"
+    assert "gitleaks exited 1" in row(done, "gitleaks")
+
+
+def test_a_range_scan_of_no_commits_fails_when_the_branch_adds_lines(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    fx.gitleaks_control(scanned={"git": 0})
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "gitleaks") == "FAIL"
+    assert "gitleaks scanned 0 commits, though the branch adds 1 line(s)" in row(
+        done, "gitleaks"
+    )
+
+
+def test_a_branch_that_adds_no_line_may_scan_no_commits(fx: Fixture) -> None:
+    # gitleaks counts a commit only when its diff has a line, so a branch of deletions, renames, mode changes,
+    # merges, or empty commits honestly scans none.
+    git(fx.main, "switch", "-qc", "feature")
+    git(fx.main, "rm", "-q", "docs/readme.md")
+    git(fx.main, "commit", "-qm", "a deletion")
+    git(fx.main, "commit", "-q", "--allow-empty", "-m", "nothing")
+    git(fx.main, "switch", "-q", "main")
+    fx.gitleaks_control(scanned={"git": 0})
+    done = gate(fx, "feature")
+    assert status_of(done, "gitleaks") == "PASS", done.stdout
 
 
 def test_a_gitleaksignore_that_could_hold_entries_stops_the_scan(fx: Fixture) -> None:
