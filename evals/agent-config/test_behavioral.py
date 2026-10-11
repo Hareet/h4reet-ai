@@ -1310,6 +1310,25 @@ def test_untracked_files_where_the_run_loads_no_code_dont_block_it(
     assert run(repo, Agent(), tmp_path, "--only", "settings") == 0
 
 
+def test_bytecode_caches_dont_block_a_run_under_py_host(
+    repo: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Review D's narrow check: test runs leave evals/agent-config/__pycache__/*.pyc in the Author's checkout, which git
+    # ignores. make evals-agent-config starts the run under PY_HOST, whose -X pycache_prefix=/dev/null never reads them,
+    # and the gate allows them too. A plain python3 would read them, so there they still block it (the case above), and
+    # anything in __pycache__ but a .pyc blocks it either way.
+    on_main(repo)
+    write(here_of(repo) / "__pycache__" / "static.cpython-312.pyc", "stale")
+    monkeypatch.setattr(sys, "pycache_prefix", "/dev/null")
+    assert run(repo, Agent(), tmp_path, "--only", "settings") == 0
+    write(here_of(repo) / "__pycache__" / "notes.txt", "not bytecode")
+    assert run(repo, Agent(), tmp_path, "--only", "settings") == 2
+    assert "evals/agent-config/__pycache__/notes.txt" in capsys.readouterr().err
+
+
 def test_run_refuses_changes_git_is_told_to_hide(
     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

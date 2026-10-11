@@ -250,8 +250,8 @@ evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), 
 
 # The behavioral agent-config evals (plan §14; FR-011, SC-008; tasks.md T094): real Claude Code sessions on the Team
 # plan, never the API, each in a scratch clone of the branch REF names, with the git hooks installed. The Author's,
-# from main's checkout, on main with its tracked files clean and nothing untracked in evals/agent-config/ but earlier
-# entries (untracked files elsewhere don't matter): main's behavioral.py reads the branch's cases and thresholds as
+# from main's checkout, on main with its tracked files clean and nothing untracked or ignored in evals/agent-config/
+# but earlier entries and __pycache__/*.pyc (untracked files elsewhere don't matter): main's behavioral.py reads the branch's cases and thresholds as
 # data, shows its diff under the human-only paths, and starts nothing until the Author types yes. It ends with the
 # commands that commit the entry on the branch from main's checkout, never switching it to the branch (review D1, 1).
 # make evals shows PENDING with this command until a passing run's entry, attested and committed, has the trigger

@@ -519,7 +519,7 @@ time npx @devcontainers/cli@0.89.0 exec --workspace-folder . make test
 ### 6.3 The local gate (FR-041, SC-008)
 
 1. **`make check`,** in an agent session. The Author doesn't run it: in the Author's terminal the gate is step 3 (plan §11). Expected: one line per gate, PASS, FAIL, SKIP (with its reason), PENDING, or PLANNED (naming the patch's task), then a summary. It exits non-zero on any FAIL or PENDING; a PLANNED line doesn't fail it (plan [§11](plan.md#11-local-gates-fr-041)). The whole output goes into every merge-request note.
-2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, `evals/agent-config/**`, or the Claude Code pin): from main's checkout, on main with its tracked files clean and nothing untracked in `evals/agent-config/` but earlier entries (untracked files elsewhere, like `.idea/`, don't matter), the Author runs
+2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, `evals/agent-config/**`, or the Claude Code pin): from main's checkout, on main with its tracked files clean and nothing untracked or ignored in `evals/agent-config/` but earlier entries and Python's `__pycache__/*.pyc` (untracked files elsewhere, like `.idea/`, don't matter), the Author runs
 
    ```bash
    make evals-agent-config REF=<branch>
@@ -532,7 +532,7 @@ time npx @devcontainers/cli@0.89.0 exec --workspace-folder . make test
    tools/gates/gate <branch>
    ```
 
-   Run it from main's checkout. It refuses (exit 2), and runs nothing, unless HEAD is `main` itself, the tracked files are clean with no change hidden by assume-unchanged or skip-worktree, and nothing git doesn't track, ignored or not, sits in `tools/gates/`, `corpus/tools/`, `evals/agent-config/` (its `history/` aside), or `deploy/agents-engine/`, Python's `__pycache__` aside; untracked files elsewhere don't matter (plan §11). Expected: its container phase, run on an exported tree with `--network none`, and its host phase both pass. Its summary line goes into the merge commit's message, and the merge command it prints runs where the gate ran.
+   Run it from main's checkout. It refuses (exit 2), and runs nothing, unless HEAD is `main` itself, the tracked files are clean with no change hidden by assume-unchanged or skip-worktree, and nothing git doesn't track, ignored or not, sits in `tools/gates/`, `corpus/tools/`, `evals/agent-config/` (its `history/` aside), or `deploy/agents-engine/`, Python's `__pycache__/*.pyc` aside; untracked files elsewhere don't matter (plan §11). Expected: its container phase, run on an exported tree with `--network none`, and its host phase both pass. Its summary line goes into the merge commit's message, and the merge command it prints runs where the gate ran.
 
 ### 6.4 The history scan before publication (FR-042)
 

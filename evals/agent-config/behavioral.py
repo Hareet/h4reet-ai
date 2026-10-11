@@ -1972,8 +1972,9 @@ def checkout_problem(repo: Path, code_rel: str) -> str | None:
     """Why the checkout isn't one whose code may run in the Author's terminal (review B, 1; review D1, 6): HEAD on
     main, every tracked file matching main's tree, with no change git is told to hide, and nothing untracked, ignored
     or not, in code_rel, the folder the run loads code from (behavioral.py, and static.py beside it; a plain python3
-    puts the folder first on sys.path, and without -B reads its __pycache__). The entries earlier runs left directly
-    in its history/ are the run's own output. Untracked files anywhere else, like the Author's .idea/, .vscode/, and
+    puts the folder first on sys.path, and reads its __pycache__ unless -X pycache_prefix moves the reads: -B only stops
+    writing). The entries earlier runs left directly in its history/ are the run's own output, and so, under PY_HOST,
+    are the bytecode caches test runs leave. Untracked files anywhere else, like the Author's .idea/, .vscode/, and
     .github/workflows/, or the sandbox's placeholders, are no code the run loads."""
     branch = try_git(repo, "symbolic-ref", "--short", "-q", "HEAD")
     if branch != "main":
@@ -2007,17 +2008,22 @@ def checkout_problem(repo: Path, code_rel: str) -> str | None:
     # Every untracked file there, ignored ones too: ls-files --others with no exclude option lists them all.
     listed = git_bytes(repo, "ls-files", "--others", "-z", "--", code_rel)
     entry = re.compile(rf"{re.escape(code_rel)}/history/[^/]+\.json")
+    # Bytecode caches test runs leave are no code this run reads when it runs under PY_HOST, as make
+    # evals-agent-config starts it: -X pycache_prefix=/dev/null moves every cache read there, and the gate allows
+    # them too. Under a plain python3 they would be read, so then they count (review D's narrow check).
+    cached = re.compile(rf"{re.escape(code_rel)}/(?:.+/)?__pycache__/[^/]+\.pyc")
+    under_prefix = sys.pycache_prefix == "/dev/null"
     stray = [
         name
         for name in sorted(
             n.decode("utf-8", "surrogateescape") for n in listed.split(b"\0") if n
         )
-        if not entry.fullmatch(name)
+        if not entry.fullmatch(name) and not (under_prefix and cached.fullmatch(name))
     ]
     if stray:
         return (
             f"main's checkout isn't clean where the run loads code: remove the untracked files in {code_rel}/, "
-            "ignored or not (an earlier run's entries in history/ may stay)\n"
+            "ignored or not (an earlier run's entries in history/ may stay, and, under PY_HOST, __pycache__/*.pyc)\n"
             + _clean("\n".join(stray))
         )
     return None
