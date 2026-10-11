@@ -6,7 +6,9 @@ the code does: the breach probe's row names exactly the services evals/breach_pr
 name the Telegram Bot API and the alerts mailbox, which the gateway's egress row points at. Bedrock's two rows keep
 plan §17's words, name the region config/routing.yaml must use, and name the SSO token's refresh while prod runs.
 Every flow plan §17 lists has its row (T110); the rows T110 adds keep the plan's words too, and say what their code
-does; the file closes with FR-040's sentence; and SECURITY.md links it.
+does; the file closes with FR-040's sentence; and SECURITY.md links it. From US6's review, the Claude Code row lists
+Claude Code's own default reporting and the two variables that stop it, and the devcontainer row names the gate's own
+npm ci, read from the gate.
 """
 
 from __future__ import annotations
@@ -268,6 +270,34 @@ def test_the_claude_code_row_names_what_keeps_secrets_out_of_a_session() -> None
     assert "never" in default.lower()
 
 
+def test_the_claude_code_row_lists_its_default_reporting_and_its_switch() -> None:
+    # FR-040 covers "any telemetry or update checks that third-party services send by default, which the plan
+    # switches off or lists". Claude Code's own operational metrics and error reports are such a flow until the
+    # closing patch sets the two variables that stop them. D1 lists the flow, names both variables and the patch,
+    # and leaves no open question, and plan §17's row names both too (US6's review, finding 4).
+    spec = (SPEC_DIR / "spec.md").read_text(encoding="utf-8")
+    assert (
+        "telemetry or update checks that third-party services send by default" in spec
+    )
+    row = rows()["D1"]
+    from_to, _trigger, _carried, _never, _why, _default, off, _fr = row
+    _destination, plan_carries, _when, plan_control = plan_row(
+        "Development time: Claude Code"
+    )
+    for variable in ("`DISABLE_TELEMETRY`", "`DISABLE_ERROR_REPORTING`"):
+        for name, cell in (
+            ("From → To", from_to),
+            ("How to switch it off", off),
+            ("plan §17's control", plan_control),
+        ):
+            assert variable in cell, (variable, name)
+    for name, cell in (("From → To", from_to), ("plan §17's carries", plan_carries)):
+        assert "operational metrics and error reports" in cell, name
+    assert "T117" in from_to and "`env`" in from_to
+    assert "to confirm for the pinned version" in from_to
+    assert not any("open question" in cell for cell in row)
+
+
 def test_the_devcontainer_row_names_every_registry_its_build_reaches() -> None:
     # .devcontainer/Dockerfile's bases come from the registries its FROM lines name, and devcontainer.json runs
     # make setup (npm ci) when it opens: the row names each.
@@ -286,6 +316,20 @@ def test_the_devcontainer_row_names_every_registry_its_build_reaches() -> None:
     )
     assert '"postCreateCommand": "make setup"' in devcontainer
     assert "`make setup`" in from_to and "`npm ci --ignore-scripts`" in from_to
+
+
+def test_the_devcontainer_row_names_the_gates_own_npm_ci() -> None:
+    # The gate's container phase runs npm ci in the devcontainer image, with the network, on every run but --host's
+    # (tools/gates/gate's prepare). D2 names the command as the gate runs it, read from the gate, and the registry it
+    # reaches (US6's review).
+    gate = (REPO / "tools" / "gates" / "gate").read_text(encoding="utf-8")
+    (argv,) = re.findall(r'\["npm", "ci", ([^\]]*)\]', gate)
+    flags = re.findall(r'"(--[a-z-]+)"', argv)
+    assert "--ignore-scripts" in flags
+    from_to, trigger, _carried, never, _why, _default, _off, _fr = rows()["D2"]
+    assert f"`npm ci {' '.join(flags)}`" in from_to
+    assert "`registry.npmjs.org`" in from_to and "`--host`" in from_to
+    assert "npm ci" in trigger and "the gate's" in never
 
 
 def test_the_make_tools_row_says_what_install_tools_does() -> None:
