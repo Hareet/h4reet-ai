@@ -11,6 +11,7 @@ Until publication, the local gate stands in for CI (ADR 0013). Every gate spec 0
   - **SKIP:** with its reason: a target a later task adds ("added by T…"), or a gate that can't run where it is, such as the compose policy or the image gate without a docker CLI.
 - The image gate fails with "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up".
 - `tools/gates/gate <branch>` ends with a failing summary line; or, run as `tools/gates/gate --host`, its summary says DEGRADED.
+- The gate's table shows `matrix-e` PENDING, waiting for `--prove`, or `eval-history` WARN: prod's collector didn't take a history entry.
 - `make secrets`, or the `pre-commit` hook, reports a finding, or refuses to run while a `.gitleaksignore` exists where it scans.
 - `make publish-check` exits 1, with findings, or 3: it can't certify.
 
@@ -38,6 +39,9 @@ The branch doesn't merge: every merge-request note carries `make check`'s whole 
 10. **A secret finding:** never add an allowlist entry, a `gitleaks:allow` marker, or a `.gitleaksignore`: every scan takes its rules only from your `.gitleaks.toml`, and refuses a `.gitleaksignore` (research.md R-36). Rotate the secret if it was real, and take it out of the branch's history, not just its tip, before the merge: a later commit that deletes it leaves it where publish-check looks.
 11. **The devcontainer image won't build:** `tools/gates/gate --host <branch>` runs the gate on host tools, marked DEGRADED in its summary (plan §19). Say so in the merge commit.
 12. **publish-check exits 3:** run it in your terminal, in a full clone, with gitleaks at its pin and the denylist in place. Exit 1 lists findings by commit, path, line, and rule, never the phrase: clean them out of history before the first push, which ADR 0013 allows once (quickstart.md §6.4).
+13. **The gate's `matrix-e` step is PENDING:** the branch changed `deploy/agents-engine/` or `.claude/settings.json`, so stage E has to prove the engine's limits again. With no agent session using the engine, run `tools/gates/gate --prove <branch>`: it runs `deploy/agents-engine/engine.sh prove`, which resets and reseeds the engine (Heavy).
+14. **The gate's `eval-history` step is WARN:** prod's collector didn't take the agent-config evals' cost and tokens, so the dashboard's dev-time row misses that run. It doesn't block the merge. Check prod is up (`make status ENV=prod`); an entry is posted only once, by the gate that records it.
+15. **`make secrets` fails closed in an agent session in the main tree:** gitleaks can't open the sandbox's mask at `.gitleaksignore` there. Agents run `make check` in a worktree, where it works; in your terminal there is no mask.
 
 ## Verify
 
