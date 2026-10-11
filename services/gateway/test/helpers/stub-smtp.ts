@@ -1,7 +1,8 @@
 // A stub SMTP server on the sandbox's own loopback, speaking just enough of RFC 5321 for nodemailer: the greeting,
 // EHLO, AUTH PLAIN, MAIL, RCPT, DATA, RSET, NOOP, and QUIT. It records each message and can refuse one step with a
 // reply code, or never greet at all, so the email channel's error classes can be proven without a real server.
-// Plain text only: stand-in mode's Mailpit is plain SMTP too, and TLS can't be minted here (alerts.md §4.1).
+// Plain text only: stand-in mode's Mailpit is plain SMTP too. The TLS tests run servers of their own, with certificates
+// made at run time (integration/smtp-tls.test.ts, helpers/test-certs.ts; tasks.md T190).
 import { createServer, type Socket } from "node:net";
 
 export interface StubMessage {
