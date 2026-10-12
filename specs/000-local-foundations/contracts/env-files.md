@@ -138,17 +138,18 @@ Langfuse's own `docker-compose.yml` at 4.54.0 is the authority for its variable 
 - `LANGFUSE_S3_EVENT_UPLOAD_BUCKET=langfuse`, `_REGION=auto`, `_ENDPOINT=http://seaweedfs:8333`, `_ACCESS_KEY_ID=${SEAWEEDFS_S3_ACCESS_KEY}`, `_SECRET_ACCESS_KEY=${SEAWEEDFS_S3_SECRET_KEY}`, `_FORCE_PATH_STYLE=true`, `_PREFIX=events/`.
 - `LANGFUSE_S3_MEDIA_UPLOAD_*`: the same values with `_PREFIX=media/`. On web also `LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT=http://seaweedfs:8333`. Spec 000 uploads no media, so no browser ever needs SeaweedFS (ADR 0022).
 - `LANGFUSE_S3_BATCH_EXPORT_ENABLED=false`, `LANGFUSE_IN_APP_AGENT_ENABLED=false`.
+- `HOSTNAME=0.0.0.0`. Both listen on `$HOSTNAME`, and Docker sets it to the container's ID, which binds only the container's network address, while their health checks ask 127.0.0.1. This was web-only until T065's third prod start (2026-10-09), where the worker's check was refused (tasks.md T180).
 - `NODE_OPTIONS=--max-old-space-size=1024` on web and `=768` on the worker (plan §2).
 
-**Fixed in compose, on web only:** `NEXTAUTH_URL=http://localhost:${H4_LANGFUSE_PORT}`, `NEXTAUTH_SECRET`, `AUTH_DISABLE_SIGNUP=true`, `HOSTNAME=0.0.0.0`, and headless initialization: `LANGFUSE_INIT_ORG_ID=h4reet`, `LANGFUSE_INIT_ORG_NAME=h4reet.ai`, `LANGFUSE_INIT_PROJECT_ID=h4reet-${H4_STACK}`, `LANGFUSE_INIT_PROJECT_NAME=h4reet-${H4_STACK}`, `LANGFUSE_INIT_PROJECT_PUBLIC_KEY`, `LANGFUSE_INIT_PROJECT_SECRET_KEY`, `LANGFUSE_INIT_USER_EMAIL`, `LANGFUSE_INIT_USER_NAME=operator`, `LANGFUSE_INIT_USER_PASSWORD`. The project ID is what the trace links use (`/project/h4reet-<stack>/traces/<id>`, [telemetry.md §6.6](telemetry.md#66-prometheus-loki-and-grafana)).
+**Fixed in compose, on web only:** `NEXTAUTH_URL=http://localhost:${H4_LANGFUSE_PORT}`, `NEXTAUTH_SECRET`, `AUTH_DISABLE_SIGNUP=true`, and headless initialization: `LANGFUSE_INIT_ORG_ID=h4reet`, `LANGFUSE_INIT_ORG_NAME=h4reet.ai`, `LANGFUSE_INIT_PROJECT_ID=h4reet-${H4_STACK}`, `LANGFUSE_INIT_PROJECT_NAME=h4reet-${H4_STACK}`, `LANGFUSE_INIT_PROJECT_PUBLIC_KEY`, `LANGFUSE_INIT_PROJECT_SECRET_KEY`, `LANGFUSE_INIT_USER_EMAIL`, `LANGFUSE_INIT_USER_NAME=operator`, `LANGFUSE_INIT_USER_PASSWORD`. The project ID is what the trace links use (`/project/h4reet-<stack>/traces/<id>`, [telemetry.md §6.6](telemetry.md#66-prometheus-loki-and-grafana)).
 
-**Kept off: set nowhere** (plan §6, R-08). Each reaches out or calls a model. The internal network blocks them anyway; these settings are the first layer.
+**Kept off** (plan §6, R-08): unset, or set to the value that switches it off. Each reaches out or calls a model. The internal network blocks them anyway; these settings are the first layer.
 
 | Keys | State | Why |
 |---|---|---|
 | `LANGFUSE_IN_APP_AGENT_ENABLED` | `false`, with its sandbox and AWS keys unset | the in-app agent calls models |
 | every `LANGFUSE_AI_*` | unset | AI features call models |
-| `LANGFUSE_LLM_CONNECTION_WHITELISTED_*` (the names in Langfuse's compose) | set to the empty string | no LLM connection to any host |
+| `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST`, `_IPS`, `_IP_SEGMENTS` | set to the empty string, on web and worker (tasks.md T149). The names come from the pinned images. They are the exceptions to Langfuse's block on internal addresses for an LLM connection's base URL, and `@langfuse/shared`'s `env.js` reads each as `s ? s.split(",")… : []`, so the empty string and unset are both an empty list: no exception | no LLM connection can name an in-stack host; with no provider keys and no route out, none reaches any host |
 | `SMTP_CONNECTION_URL`, `EMAIL_FROM_ADDRESS` | unset | Langfuse's own email |
 | `LANGFUSE_S3_BATCH_EXPORT_ENABLED` | `false` | batch exports |
 | `LANGFUSE_USE_AZURE_BLOB`, `LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE` | unset | other blob backends |
@@ -319,7 +320,7 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 | P20 | dev-cpu only: the run starts from a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`). The engine serves the main working tree only ([§7.3](#73-the-worktree-question)): "run dev-cpu from the main working tree". | dev-cpu |
 | P21 | Host stacks: a WARN, not a refusal, when the working tree has uncommitted changes under `config/`, `deploy/`, `services/`, `evals/`, or `scripts/`: they aren't in the export of the commit being started, and the message names them. A `REF` that doesn't resolve to a commit is a FAIL. | prod, dev |
 
-Until the compose file defines a model server (tasks.md T057), P7's model keys, P12, and P18 are WARN, naming T057, so the foundations' skeleton (edge, gateway, gateway-state) can start.
+P7's model keys, P12, and P18 read `deploy/models.lock` (one model per line, plan §3): a lock that is missing or doesn't parse fails P7 and P18, and a `gpu` stack whose compose file has no `model-server-gpu` fails P12. Each of P7 and P18 names the reason.
 
 **The other commands that share these checks:**
 - `make pull` runs P1 to P7, P10, P13 (for every image and model it will fetch), and P14.

@@ -1,6 +1,6 @@
 # Contract: the gateway's HTTP API (`POST /hello`, `GET /health/live`, `GET /health`)
 
-This contract covers the api listener of `services/gateway`: the hello endpoint (FR-038), the routing decision it exposes (FR-022), the per-client cap (FR-025), the two health endpoints, and the body edge serves when the gateway can't answer. The admin listener is in [operator-admin.md](operator-admin.md). The state behind every answer is in [data-model.md](../data-model.md), and the span, metric, and log names are in [telemetry.md](telemetry.md). [plan.md §5.1](../plan.md#51-layout-and-request-flow) summarizes the flow.
+This contract covers the api listener of `services/gateway`: the hello endpoint (FR-038), the routing decision it exposes (FR-022), the per-client cap (FR-025), the two health endpoints, the body edge serves when the gateway can't answer, and `make hello`, the client for hello (§9). The admin listener is in [operator-admin.md](operator-admin.md). The state behind every answer is in [data-model.md](../data-model.md), and the span, metric, and log names are in [telemetry.md](telemetry.md). [plan.md §5.1](../plan.md#51-layout-and-request-flow) summarizes the flow.
 
 ## 1. Listener, reachability, and common rules
 
@@ -49,7 +49,7 @@ You are the hello endpoint of the h4reet.ai stack, a test of its model gateway. 
 ### 2.3 Client identity and the per-client cap (FR-025)
 
 - **The client** is the pair (source address, label):
-  - **The source address** is the value edge puts in `X-Forwarded-For`. Edge drops whatever the client sent and sets exactly its own `$remote_addr`, so the header always has one value. An in-network caller without the header is identified by its TCP peer address.
+  - **The source address** is the value edge puts in `X-Forwarded-For`. Edge drops whatever the client sent and sets exactly its own `$remote_addr`, so the header always has one value. The gateway believes the header only when its TCP peer is edge, one of the `edge` service's addresses on the stack's network, looked up and cached for 30 s (`src/core/edge.ts`). Any other in-network caller is identified by its TCP peer address, with or without the header, so it can't choose its own identity to slip the cap. A failed lookup believes no one.
   - **The label** is the `X-H4-Client` value, or none.
 - **The cap**, from `config/budgets.yaml` `limits.per_client`, is counted in memory per client:
   - a token bucket of capacity `burst` (5), refilled at `requests_per_minute` (20 a minute, one token every 3 s);
@@ -189,7 +189,7 @@ The response also carries the header `Retry-After: <retry_after_s>`. These are r
 { "error": "invalid_request", "field": "message", "detail": "at most 500 characters", "request_id": "…" }
 ```
 
-`field` names the body field or the header (`X-H4-Client`). The `detail` never echoes the submitted value.
+`field` names the body field or the header (`X-H4-Client`), or is `body` when the body as a whole is wrong: JSON that doesn't parse, not a JSON object, or a field other than `message` (tasks.md T053; an unknown field's name is the client's text, so it isn't echoed either). The `detail` never echoes the submitted value. A body that doesn't parse gets `"detail": "the request is malformed"`, on the admin listener too (tasks.md T150).
 
 #### 2.5.5 502: the local model returned an error
 
@@ -332,3 +332,41 @@ $ curl -sS http://127.0.0.1:18000/health
 ```
 
 [quickstart.md](../quickstart.md) has the validation runs that use these endpoints, story by story.
+
+## 9. The hello client, `make hello`
+
+`make hello ENV=prod|dev|dev-cpu [MESSAGE="…"]` runs `scripts/hello.py` (standard library only) by path through `PY_HOST` ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)). It sends §2's request and prints the status, then the body. Agent sessions, which can't reach any stack's api port, run it for dev-cpu through the probe hop below (tasks.md T147, for T064).
+
+- **The request.** `POST /hello` with `Content-Type: application/json` and the body `{"message": <MESSAGE>}`, or `{}` without `MESSAGE`, so §2.1's default, `Hello.`, applies. The message goes as typed, and the gateway checks it. There is no token, since hello needs none, and no `X-H4-Client` label.
+- **`MESSAGE`** comes from make's command line only, as the operator targets' values do ([operator-admin.md §6.1](operator-admin.md#61-make-targets)): make rebinds it to the text typed, and the recipe passes it as `--message="$MESSAGE"`, which the shell reads.
+- **Where it goes:**
+  - from the Author's terminal, straight to the stack's api port on `127.0.0.1`: 18000, 18100, or 18300 (dev-cpu's, which the agents' engine publishes there). urllib runs with an empty `ProxyHandler`, so no proxy setting carries the message, and redirects are never followed;
+  - inside the sandbox (`SANDBOX_RUNTIME=1`), dev-cpu only, through the operator CLI's hop ([operator-admin.md §6](operator-admin.md#6-the-operator-cli-scriptsoperatorpy), Transport): `deploy/agents-engine/docker-relay` runs a one-off `breach-probe` container, whose copy of the script, `/app/hello.py`, calls `http://gateway:8080` on the stack's `internal` network (§1). The hop's docker client keeps only the variables docker and the relay need, as the operator CLI's does.
+
+    ```text
+    deploy/agents-engine/docker-relay docker compose -p h4reet-dev-cpu -f deploy/compose.yaml \
+      --env-file deploy/env.agents/dev-cpu.vars --profile breach run --build --rm -T breach-probe \
+      python3 -I /app/hello.py --stack dev-cpu --url http://gateway:8080 [--message=<text>]
+    ```
+
+  - prod and dev are the Author's. Inside the sandbox, `make hello` and the script both refuse them with exit 2, as the operator targets do (FR-008, FR-039).
+  - `--url`, which make never passes, names the stack's own api port on `127.0.0.1` or `localhost` (connected as `127.0.0.1`, never looked up), or, for dev and dev-cpu, a single-label in-network host at 8080: the copy inside the probe. A hello for one stack goes to no other stack's port, where prod's gateway might answer from the metered fallback.
+- **What it prints.** `HTTP <status>`, then the body: JSON indented, anything else as text, cut at 1 MiB. Control characters from the listener never reach the terminal: inside JSON they stay escaped, and in text they show as `?`.
+- **Exit codes:**
+  - 0: an answer with a 2xx status;
+  - 1: any other answer, a degraded 503 or a refusal among them, printed with its status and body;
+  - 2: usage, or prod or dev inside the sandbox;
+  - 4: no answer (nothing listening, a timeout), or a hop that failed before the copy in the probe answered.
+
+  On a failure the last line names the code and its meaning, and the hop passes on the code the copy in the probe named.
+
+```console
+$ make hello ENV=prod MESSAGE="Say hello."
+python3 -I -B -X pycache_prefix=/dev/null scripts/hello.py --stack prod --message="$MESSAGE"
+HTTP 200
+{
+  "answer": "Hello! This is the h4reet.ai stack's hello test answering.",
+  "route": "local",
+  …
+}
+```

@@ -339,6 +339,39 @@ export interface StoreOptions {
   realNow?: () => number;
 }
 
+export type MeterName = "day" | "month" | "fallback_day";
+
+export interface MeterRow {
+  meter: MeterName;
+  periodKey: string;
+  spentMicro: bigint;
+  reservedMicro: bigint;
+  allowanceMicro: bigint | null; // fallback_day only
+  grantNo: number | null; // fallback_day only
+}
+
+/** Thrown inside Store.transaction to roll it back and resolve with `value`: a refusal, not a failure. */
+export class Rollback<T> {
+  constructor(readonly value: T) {}
+}
+
+/** A query the store couldn't take: it isn't ready (starting, or retrying after an outage). */
+export class StoreUnavailableError extends Error {
+  readonly code = "STORE_NOT_READY";
+  constructor() {
+    super("the store isn't ready");
+    this.name = "StoreUnavailableError";
+  }
+}
+
+/** A bigint column as pg returns it (a string), as PGlite does (a number), or a numeric sum (a string). */
+export function toBigInt(value: unknown): bigint {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
+  if (typeof value === "string" && /^-?\d+$/.test(value)) return BigInt(value);
+  throw new TypeError("not an integer column");
+}
+
 /** A Postgres SQLSTATE, or a Node error code such as ECONNREFUSED: never a message, which can carry an address. */
 export function errorClass(err: unknown): string {
   const code = (err as { code?: unknown } | null)?.code;
@@ -445,6 +478,75 @@ export class Store {
     this.outageSince = undefined;
     this.outageLoggedAt = undefined;
     this.opts.logger.info({ event: "state.recovered", outage_s: outageS }, "The kill-switch store answers again.");
+  }
+
+  /** When the current outage began (real ms): the `since` of a store_unreachable answer. Undefined while it answers. */
+  outageStartedAt(): number | undefined {
+    return this.outageSince;
+  }
+
+  /**
+   * A query on a request's path. It is refused while the store isn't ready, and any failure is noted as an outage,
+   * since any error or timeout on a request's path means store_unreachable (data-model.md §2.1).
+   */
+  async query<R = Record<string, unknown>>(text: string, params?: unknown[]): Promise<{ rows: R[] }> {
+    if (this.status !== "ready") throw new StoreUnavailableError();
+    try {
+      return await this.opts.db.query<R>(text, params);
+    } catch (err) {
+      this.noteOutage(err);
+      throw err;
+    }
+  }
+
+  /**
+   * One transaction on one connection: BEGIN, `fn`, then COMMIT, or ROLLBACK on any error. `fn` throws a Rollback to
+   * roll back and resolve with its value: a refusal, such as a 409, and no outage. Any other failure is noted as one.
+   */
+  async transaction<T>(fn: (q: Queryable) => Promise<T>): Promise<T> {
+    if (this.status !== "ready") throw new StoreUnavailableError();
+    try {
+      return await this.opts.db.withSession(async (session) => {
+        await session.query("BEGIN");
+        try {
+          const value = await fn(session);
+          await session.query("COMMIT");
+          return value;
+        } catch (err) {
+          await session.query("ROLLBACK").catch(() => {});
+          if (err instanceof Rollback) return err.value as T;
+          throw err;
+        }
+      });
+    } catch (err) {
+      this.noteOutage(err);
+      throw err;
+    }
+  }
+
+  /** The current periods' meter rows (data-model.md §2.3); a period with no row yet has none here. */
+  async readMeters(day: string, month: string): Promise<MeterRow[]> {
+    const { rows } = await this.query<{
+      meter: MeterName;
+      period_key: string;
+      spent_micro: unknown;
+      reserved_micro: unknown;
+      allowance_micro: unknown;
+      grant_no: unknown;
+    }>(
+      `SELECT meter, period_key, spent_micro, reserved_micro, allowance_micro, grant_no FROM gateway.meters
+       WHERE (meter = 'day' AND period_key = $1) OR (meter = 'month' AND period_key = $2)
+          OR (meter = 'fallback_day' AND period_key = $1)`,
+      [day, month],
+    );
+    return rows.map((r) => ({
+      meter: r.meter,
+      periodKey: r.period_key,
+      spentMicro: toBigInt(r.spent_micro),
+      reservedMicro: toBigInt(r.reserved_micro),
+      allowanceMicro: r.allowance_micro === null ? null : toBigInt(r.allowance_micro),
+      grantNo: r.grant_no === null ? null : Number(r.grant_no),
+    }));
   }
 
   /** The state read at request start (data-model.md §7.1): no cache, and any failure is store_unreachable. */

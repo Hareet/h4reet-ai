@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -24,6 +25,12 @@ SPEC.loader.exec_module(st)
 
 SHA, PREVIOUS = "b" * 40, "c" * 40
 RAW = yaml.safe_load((REPO / "deploy/compose.yaml").read_text(encoding="utf-8"))
+PROM_JOBS = [
+    job["job_name"]
+    for job in yaml.safe_load(
+        (REPO / "deploy/prometheus/prometheus.yml").read_text(encoding="utf-8")
+    )["scrape_configs"]
+]
 LOCK = {
     ln.split()[0]: ln.split()
     for ln in (REPO / "deploy/images.lock").read_text().splitlines()
@@ -43,16 +50,41 @@ def pinned(service: str) -> str:
     return f"{LOCK[service][1]}@{LOCK[service][3]}"
 
 
+def printed(service: str) -> str:
+    """The lock's image as docker image inspect prints it in RepoDigests, copied from the agents' engine on
+    2026-10-09: valkey/valkey@sha256:…, with Docker Hub's host dropped, and an official image's library/ too; other
+    registries' names in full."""
+    ref = pinned(service)
+    if ref.startswith("docker.io/"):
+        ref = ref.removeprefix("docker.io/")
+        if ref.startswith("library/") and ref.split("@")[0].count("/") == 1:
+            ref = ref.removeprefix("library/")
+    return ref
+
+
 class FakeDocker(st.Docker):
     def __init__(self, tree: Path, stack: str) -> None:
         super().__init__({"PATH": "/usr/bin"})
         self.tree, self.stack = tree, stack
         self.raw = copy.deepcopy(RAW)
-        self.state = {name: ("running", "healthy") for name in self.raw["services"]}
-        self.digests = {
-            name: [pinned(name)] for name in self.raw["services"] if name in LOCK
+        # As docker compose ps reports them: a service with no health check (the collector, Loki) has no health.
+        self.state = {
+            name: ("running", "healthy" if "healthcheck" in service else "")
+            for name, service in self.raw["services"].items()
+        }
+        self.digests: dict[str, list[str] | None] = {
+            name: [printed(name)] for name in self.raw["services"] if name in LOCK
         }
         self.created_from = str(tree / "deploy/compose.yaml")
+        # docker compose config --hash '*': one "service hash" line each, the hash compose computes from the running
+        # commit's files; and each container's com.docker.compose.config-hash label, equal until a test says not
+        # (both copied from dev-cpu on the agents' engine, 2026-10-09: 64 hex, the same for an unchanged service).
+        self.hashes = {
+            name: hashlib.sha256(name.encode()).hexdigest()
+            for name in self.raw["services"]
+        }
+        self.created_hashes = dict(self.hashes)
+        self.hash_fails = False
         self.health_report: dict | None = {
             "status": "ok",
             "store": "ok",
@@ -61,7 +93,14 @@ class FakeDocker(st.Docker):
             "degraded_cause": None,
             "adapters": [{"id": "local", "healthy": True, "reason": None}],
         }
-        self.prom: dict | None = None
+        # Prometheus's answer: every job of the committed prometheus.yml, up.
+        self.prom: dict | None = {
+            "data": {
+                "activeTargets": [
+                    {"health": "up", "labels": {"job": job}} for job in PROM_JOBS
+                ]
+            }
+        }
         self.down = False
         self.calls: list[tuple[str, ...]] = []
 
@@ -79,6 +118,12 @@ class FakeDocker(st.Docker):
             rest = args[args.index("--env-file") + 2 :]
             if rest and rest[0] == "--env-file":
                 rest = rest[2:]
+            if rest[:3] == ("config", "--hash", "*"):
+                if self.hash_fails:
+                    return done("", 1)
+                return done(
+                    "".join(f"{n} {h}\n" for n, h in sorted(self.hashes.items()))
+                )
             if rest[0] == "config":
                 return done(json.dumps(self.raw))
             if rest[0] == "ps":
@@ -87,6 +132,8 @@ class FakeDocker(st.Docker):
                     if state == "absent":
                         continue
                     labels = f"com.docker.compose.project=h4reet-{self.stack},com.docker.compose.project.config_files={self.created_from}"
+                    if name in self.created_hashes:
+                        labels += f",com.docker.compose.config-hash={self.created_hashes[name]}"
                     lines.append(
                         json.dumps(
                             {
@@ -189,18 +236,52 @@ def test_a_healthy_stack(
         for line in out.splitlines()
         if len(line.split()) == 4 and line.split()[0] in RAW["services"]
     }
-    assert rows == {
-        "edge": ["running", "healthy", "pinned"],
-        "gateway": ["running", "healthy", "built"],
-        "gateway-state": ["running", "healthy", "pinned"],
+    # Every service of prod's profile, gpu, and no other: the GPU model server, not the CPU one.
+    assert rows["edge"] == ["running", "healthy", "pinned"]
+    assert rows["gateway"] == ["running", "healthy", "built"]
+    assert rows["model-server-gpu"] == ["running", "healthy", "pinned"]
+    assert set(rows) == {
+        name
+        for name, service in RAW["services"].items()
+        if not service.get("profiles") or "gpu" in service["profiles"]
     }
+    assert "model-server-cpu" not in rows
+    # SeaweedFS's lock line stays open until make pin-images (T063): its row says so instead of "pinned".
+    assert rows["seaweedfs"][2] == (
+        "unpinned" if LOCK["seaweedfs"][3] == "-" else "pinned"
+    )
     assert (
         "gateway /health: ok · store ok · state normal · cause None · adapters: local healthy"
         in out
     )
-    assert "prometheus: not in this stack yet (tasks.md T058)" in out
+    # Prometheus is in every stack: its targets, asked from inside its container.
+    assert f"prometheus targets: {len(PROM_JOBS)} up, 0 down" in out
     assert "gpu memory (used, total): 1536 MiB, 24463 MiB" in out
     assert "docker system df:" in out and out.rstrip().endswith("status: healthy")
+
+
+def test_a_compose_file_without_prometheus_is_named(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    del docker.raw["services"]["prometheus"]
+    del docker.state["prometheus"]
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    assert "prometheus: not in this commit's compose file" in out
+    # A warning, not something only the operator clears (T182).
+    assert out.rstrip().endswith("status: healthy, with warnings")
+
+
+def test_prometheus_unreachable_is_a_warning(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    docker.prom = None
+    assert status(env, run, docker) == 0
+    assert "WARN Prometheus's targets couldn't be read" in capsys.readouterr().out
 
 
 def test_an_uninitialized_store_prints_the_one_time_command(
@@ -235,10 +316,31 @@ def test_a_tripped_switch_is_a_warning(
         "crossed": ["day"],
     }
     assert status(env, run, docker) == 0
-    assert (
-        "WARN the kill switch is tripped (day): make operator-status ENV=prod"
-        in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "WARN the kill switch is tripped (day): make operator-status ENV=prod" in out
+    # Only the operator clears a tripped switch (plan §4; T182).
+    assert out.rstrip().endswith("status: healthy, waiting on the operator")
+
+
+def test_config_hashes_read_composes_own_output_shape(tmp_path: Path) -> None:
+    # The shape `docker compose config --hash '*'` printed on dev-cpu (2026-10-09): one "service hash" line per
+    # service, 64 hex each, newline-ended, services in order. The values are made here: the content scan refuses real
+    # 64-hex hashes as secret-shaped (T181's review).
+    want = {
+        name: hashlib.sha256(name.encode()).hexdigest()
+        for name in ("clickhouse", "edge", "valkey")
+    }
+    printed = "".join(f"{name} {digest}\n" for name, digest in want.items())
+
+    class Compose(st.Docker):
+        def run(self, *args: str, timeout: float = 30) -> subprocess.CompletedProcess:
+            assert args[-3:] == ("config", "--hash", "*")
+            return subprocess.CompletedProcess(["docker", *args], 0, printed, "")
+
+    reader = st.Status(
+        "prod", tmp_path / "prod.env", None, tmp_path, Compose({}), False
     )
+    assert reader.config_hashes(tmp_path) == want
 
 
 def test_a_failing_service_is_named_with_redacted_evidence(
@@ -295,6 +397,7 @@ def test_drift_from_the_pin_and_from_the_running_commit(
     docker = FakeDocker(tree, "prod")
     docker.digests["edge"] = [f"{LOCK['edge'][1]}@sha256:{'0' * 64}"]
     docker.created_from = "/elsewhere/tree/old/deploy/compose.yaml"
+    docker.created_hashes["edge"] = "0" * 64  # created with another configuration
     assert status(env, run, docker) == 0
     out = capsys.readouterr().out
     assert (
@@ -302,9 +405,109 @@ def test_drift_from_the_pin_and_from_the_running_commit(
         and "WARN edge runs an image whose digest isn't deploy/images.lock's" in out
     )
     assert (
-        "WARN edge was created from another commit's compose file: make up ENV=prod recreates it"
+        "WARN edge runs another configuration than the running commit's: make up ENV=prod recreates it"
         in out
     )
+    assert out.rstrip().endswith("status: healthy, with warnings")
+
+
+def test_a_container_another_export_created_with_this_configuration_is_current(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # T065: make up kept six containers whose configuration hadn't changed, and status said make up would recreate
+    # them, because another commit's export had created them. Compose's own config hash decides now (T181).
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    docker.created_from = "/elsewhere/tree/old/deploy/compose.yaml"
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    assert "runs another configuration" not in out
+    assert out.rstrip().endswith("status: healthy")
+    assert any(c[-3:] == ("config", "--hash", "*") for c in docker.calls)
+
+
+def test_without_compose_hashes_the_export_path_decides(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    docker.created_from = "/elsewhere/tree/old/deploy/compose.yaml"
+    docker.hash_fails = True
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    assert "WARN edge runs another configuration than the running commit's" in out
+
+
+def test_only_what_the_operator_clears_waits_on_the_operator(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # T065's rollback rehearsal: an initialized stack said "waiting on the operator" because of a Prometheus target
+    # seconds after its restart (T182).
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    docker.prom = {
+        "data": {
+            "activeTargets": [
+                {"health": "down" if job == "loki" else "up", "labels": {"job": job}}
+                for job in PROM_JOBS
+            ]
+        }
+    }
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    assert "WARN Prometheus targets down: loki" in out
+    assert out.rstrip().endswith("status: healthy, with warnings")
+
+
+def test_docker_hub_images_match_by_the_short_names_docker_prints(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # docker image inspect prints valkey/valkey@sha256:…, not the lock's docker.io/valkey/valkey: at both of T065's
+    # prod starts (2026-10-09) every Hub image read "differs from the pin". The fake prints names as Docker does, so
+    # they read "pinned" here; a short name with another digest still differs, and so does an image with no digests.
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    hub = sorted(
+        name for name in docker.digests if LOCK[name][1].startswith("docker.io/")
+    )
+    assert "valkey" in hub and "seaweedfs" in hub
+    assert docker.digests["valkey"] == [
+        f"valkey/valkey@{LOCK['valkey'][3]}"
+    ]  # the fake copies Docker
+    docker.digests["valkey"] = [f"valkey/valkey@sha256:{'0' * 64}"]
+    docker.digests["edge"] = None  # {{json .RepoDigests}} of an image with none
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    notes = {
+        line.split()[0]: line.split(None, 3)[3]
+        for line in out.splitlines()
+        if len(line.split()) >= 4 and line.split()[0] in RAW["services"]
+    }
+    assert {name: notes[name] for name in hub} == {
+        name: "differs from the pin" if name == "valkey" else "pinned" for name in hub
+    }
+    assert notes["edge"] == "differs from the pin"
+    assert "WARN valkey runs an image whose digest isn't deploy/images.lock's" in out
+    assert "WARN edge runs an image whose digest isn't deploy/images.lock's" in out
+
+
+@pytest.mark.parametrize(
+    ("reference", "short"),
+    [
+        ("docker.io/valkey/valkey@sha256:aa", "valkey/valkey@sha256:aa"),
+        ("docker.io/library/postgres@sha256:aa", "postgres@sha256:aa"),
+        ("index.docker.io/library/postgres", "postgres"),
+        ("docker.io/library/a/b", "library/a/b"),
+        ("valkey/valkey@sha256:aa", "valkey/valkey@sha256:aa"),
+        (
+            "public.ecr.aws/docker/library/postgres@sha256:aa",
+            "public.ecr.aws/docker/library/postgres@sha256:aa",
+        ),
+        ("ghcr.io/library/x", "ghcr.io/library/x"),
+    ],
+)
+def test_familiar_drops_only_docker_hubs_host(reference: str, short: str) -> None:
+    assert st.familiar(reference) == short
 
 
 def test_dev_cpu_runs_the_working_tree(
@@ -319,8 +522,6 @@ def test_dev_cpu_runs_the_working_tree(
             ]
         }
     }
-    docker.raw["services"]["prometheus"] = {"image": "x"}
-    docker.state["prometheus"] = ("running", "healthy")
     assert (
         status(REPO / "deploy/env.agents/dev-cpu.vars", None, docker, stack="dev-cpu")
         == 0

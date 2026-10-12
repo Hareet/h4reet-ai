@@ -8,10 +8,14 @@ import { metrics as sdkMetrics, type tracing } from "@opentelemetry/sdk-node";
 import type { FastifyInstance } from "fastify";
 import type { LookupAddress } from "node:dns";
 import { createServer, type AddressInfo, type LookupFunction } from "node:net";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Database } from "../../src/meter/store.js";
 import { startTelemetry, type Telemetry } from "../../src/telemetry/otel.js";
 import { fakePostgres } from "../helpers/fake-postgres.js";
+
+const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
 
 /**
  * telemetry.md §3.1: the client's attributes and the query string never leave the gateway. instrumentation-http
@@ -156,7 +160,7 @@ describe("the started SDK", () => {
       headers: { "content-type": "application/json", "user-agent": "curl/8.0-test" },
       body: "{}",
     });
-    expect(hello.status).toBe(404); // /hello arrives with T053; the URL reaches the spans either way
+    expect(hello.status).toBe(404); // these listeners are bare, with no /hello; the URL reaches the spans either way
     const status = await fetch(`${adminUrl}/admin/status?reason=hello-payload`);
     expect(status.status).toBe(401);
     const got = await exported((s) => serverSpanFor("/hello")(s) && serverSpanFor("/admin/status")(s));
@@ -347,6 +351,68 @@ describe("the started SDK", () => {
     } finally {
       await db.close();
       await server.close();
+    }
+  });
+
+  it("puts h4.stack, h4.outcome, and the degraded cause on instrumentation-http's SERVER span for POST /hello", async () => {
+    // instrumentation-http's requestHook leaves the incoming request's SERVER span on it, and the listener's onSend
+    // annotates that span (telemetry.md §3.3). A store that is down answers store_unreachable before any adapter call.
+    const { buildApp: build, createServices } = await import("../../src/app.js");
+    const { loadConfig } = await import("../../src/config/validate.js");
+    const { Store } = await import("../../src/meter/store.js");
+    const refuse = () => Promise.reject(Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }));
+    const down: Database = { query: refuse, withSession: refuse, listen: refuse, close: async () => {} };
+    const store = new Store({
+      db: down,
+      migrations: [],
+      envClass: "dev",
+      logger: quiet,
+      onFatal: () => {},
+      retryMs: 60_000,
+    });
+    await store.start();
+    const services = await createServices({
+      forwardedBy: async (peer) => peer === "127.0.0.1" || peer === "::ffff:127.0.0.1", // edge, in tests
+      env: {
+        H4_STACK: "dev",
+        H4_ENV: "dev",
+        LOCAL_MODEL_BASE_URL: "http://model-server:8080/v1",
+        LOCAL_MODEL_NAME: "stand-in",
+      },
+      config: await loadConfig(FIXTURES, { allowPlanned: false }),
+      store,
+      logger: quiet,
+      version: "0.1.0",
+    });
+    const { api: hello } = build({ stack: "dev", logger: quiet, services });
+    await hello.listen({ host: "127.0.0.1", port: 0 });
+    try {
+      const res = await fetch(`http://127.0.0.1:${(hello.server.address() as AddressInfo).port}/hello`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-h4-client": "sdk-label" },
+        body: JSON.stringify({ message: "sdk-payload" }),
+      });
+      expect(res.status).toBe(503);
+      expect(res.headers.get("x-h4-degraded-cause")).toBe("store_unreachable");
+      const got = await exported((s) => s.some((x) => x.name === "gateway.route"));
+      const server = got.find(
+        (s) => s.kind === SpanKind.SERVER && scope(s) === "@opentelemetry/instrumentation-http" && path(s) === "/hello",
+      );
+      expect(server?.attributes).toMatchObject({
+        "http.route": "/hello",
+        "http.response.status_code": 503,
+        "h4.stack": "dev",
+        "h4.outcome": "degraded",
+        "h4.degraded.cause": "store_unreachable",
+      });
+      const route = got.find((s) => s.name === "gateway.route");
+      expect(route?.spanContext().traceId).toBe(server?.spanContext().traceId);
+      expect(route?.attributes).toMatchObject({ "h4.state": "unknown", "h4.degraded.cause": "store_unreachable" });
+      expect(JSON.stringify(got.map((s) => [s.name, s.attributes, s.events]))).not.toMatch(/sdk-payload|sdk-label/);
+    } finally {
+      await hello.close();
+      await services.gateway.close();
+      await store.close();
     }
   });
 });

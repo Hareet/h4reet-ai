@@ -149,6 +149,7 @@ These are checked with the stack's environment:
 | `local_url_not_in_stack` | the URL in `base_url_env` isn't `http://<single-label host>[:port][/path]`, so it isn't an in-stack service. The label starts with a letter, as a compose service name does, and must come back unchanged and not an address from URL parsing: a label like `2852039166` or `0x7f000001` is an IPv4 address in decimal or hex. |
 | `missing_env` | a key named by `base_url_env` or `model_env` is unset |
 | `invalid_config` | any §1.3 error |
+| `fallback_not_supported` | the route selected by `H4_ENV` names a fallback. Temporary, until tasks.md T074: the build has no metered fallback path before T072–T074, so the gateway refuses to route one, once the registry has built the route and before the store is touched ([plan.md §5.8](../plan.md#58-startup-refusals), tasks.md T148). Step 2 of §1.2, dev's `fallback: synthetic` (T073), lands with T074, which removes this refusal. |
 
 ## 2. `config/prices.yaml`
 

@@ -18,10 +18,9 @@ any check failed; make up stops there, before anything starts.
   locks, and compose file it checks are that commit's; --repo names the working tree, for P9, P20, and P21.
 
 The tree it checks (--root, by default the one this script is in) holds deploy/compose.yaml, the templates,
-deploy/images.lock, and deploy/models.lock. models.lock (tasks.md T057) has one model per line, whitespace-
-separated: id, alias, repo, revision, file, sha256, bytes, license, vram (MiB, or a number with MiB or GiB), and
-stacks (comma-separated), as plan §3 lists them. Until the compose file has a model server, the model checks
-are WARN, naming T057.
+deploy/images.lock, and deploy/models.lock. models.lock has one model per line, whitespace-separated: id, alias,
+repo, revision, file, sha256, bytes, license, vram (MiB, or a number with MiB or GiB), and stacks (comma-separated),
+as plan §3 lists them.
 """
 
 from __future__ import annotations
@@ -391,17 +390,25 @@ class Context:
         model = self.config(interpolated=False) or {}
         return model.get("services") or {}
 
-    def has_model_server(self) -> bool:
-        return any(name.startswith("model-server") for name in self.services())
-
     def models(self) -> list[Model] | None:
+        """deploy/models.lock's entries: None when the file is missing, and [] when it doesn't parse."""
         if "models" not in self._cache:
             path = self.root / "deploy/models.lock"
+            self._cache["models_error"] = None
             try:
                 self._cache["models"] = read_models(path) if path.is_file() else None
-            except (ValueError, OSError):
+            except (ValueError, OSError) as error:
                 self._cache["models"] = []
+                self._cache["models_error"] = str(error)
         return self._cache["models"]  # type: ignore[return-value]
+
+    def models_problem(self) -> str | None:
+        """Why the stack's model can't be checked against deploy/models.lock, or None when it can."""
+        if self.models() is None:
+            return "deploy/models.lock is missing"
+        if self._cache.get("models_error"):
+            return f"deploy/models.lock doesn't parse: {self._cache['models_error']}"
+        return None
 
     def stack_model(self) -> Model | None:
         file = self.values.get("MODEL_FILE")
@@ -585,7 +592,6 @@ def p7(ctx: Context) -> Result:
         return fail("P7", "needs a readable env file (P1)")
     v, s, home = ctx.values, ctx.stack, ctx.host.home()
     problems: list[str] = []
-    warnings: list[str] = []
     for i, key in enumerate(PORT_KEYS):
         if v.get(key) != str(s.base_port + i):
             problems.append(f"{key} isn't {s.name}'s {s.base_port + i}")
@@ -630,13 +636,8 @@ def p7(ctx: Context) -> Result:
             f"H4_VHDX_MOUNT {vhdx or '(empty)'} isn't a mounted Windows drive (9p, aname=drvfs)"
         )
     problems += value_shape_problems(ctx)
-    if ctx.has_model_server():
-        problems += model_key_problems(ctx)
-    elif v:
-        warnings.append(
-            "no model server in this commit's compose file: the model keys wait for tasks.md T057"
-        )
-    return summarize("P7", problems, f"every value is {s.name}'s", warnings)
+    problems += model_key_problems(ctx)
+    return summarize("P7", problems, f"every value is {s.name}'s")
 
 
 def run_file_problems(ctx: Context) -> list[str]:
@@ -771,9 +772,9 @@ def devcpu_dummy_hash(root: Path) -> str | None:
 def model_key_problems(ctx: Context) -> list[str]:
     v, s = ctx.values, ctx.stack
     problems = []
-    models = ctx.models()
-    if models is None:
-        return ["deploy/models.lock is missing (tasks.md T057)"]
+    unreadable = ctx.models_problem()
+    if unreadable:
+        return [unreadable]
     model = ctx.stack_model()
     if model is None:
         problems.append(f"MODEL_FILE names no deploy/models.lock entry for {s.name}")
@@ -790,10 +791,10 @@ def model_key_problems(ctx: Context) -> list[str]:
             *problems,
             "MODEL_CTX_SIZE, MODEL_PARALLEL, and MODEL_THREADS must be integers",
         ]
-    if ctx_size <= 0 or ctx_size % parallel:
-        problems.append("MODEL_CTX_SIZE isn't a positive multiple of MODEL_PARALLEL")
     if not 1 <= parallel <= 8:
         problems.append("MODEL_PARALLEL isn't 1 to 8")
+    elif ctx_size <= 0 or ctx_size % parallel:
+        problems.append("MODEL_CTX_SIZE isn't a positive multiple of MODEL_PARALLEL")
     if not 1 <= threads <= (4 if s.name == "dev-cpu" else 64):
         problems.append("MODEL_THREADS is out of range (1 to 4 on the engine)")
     return problems
@@ -959,9 +960,12 @@ def p11(ctx: Context) -> Result:
 def p12(ctx: Context) -> Result:
     if "gpu" not in ctx.profiles():
         return ok("P12", "no gpu profile")
-    if not ctx.has_model_server():
-        return warn(
-            "P12", "no model server in this commit's compose file yet (tasks.md T057)"
+    if ctx.config(interpolated=False) is None:
+        return fail("P12", "docker compose config didn't render the compose file (P10)")
+    if "model-server-gpu" not in ctx.services():
+        return fail(
+            "P12",
+            "the gpu profile, but deploy/compose.yaml has no model-server-gpu (plan §3)",
         )
     info = ctx.docker_info()
     if info is None:
@@ -1086,7 +1090,7 @@ def disk(host: Host, need: int, vhdx: str, ext4_paths: list[Path], what: str) ->
 def p13(ctx: Context) -> Result:
     if not ctx.readable:
         return fail("P13", "needs a readable env file (P1)")
-    models = models_to_fetch(ctx) if ctx.has_model_server() and ctx.models() else []
+    models = models_to_fetch(ctx) if ctx.models() else []
     missing = images_missing(ctx)
     need = sum(m.bytes for m in models) + (IMAGES_ALLOWANCE if missing else 0) + MARGIN
     parts = [
@@ -1224,7 +1228,12 @@ def p17(ctx: Context) -> Result:
         if service.get("build") is not None or not image:
             continue
         repository, tag, digest = split_reference(str(image))
-        if not digest or not DIGEST_RE.fullmatch(digest):
+        if lock.get(name, ("", "", ""))[1:] == ("-", "-"):
+            # An open pin (research.md R-09): the compose policy reports it PLANNED, but nothing starts unpinned.
+            problems.append(
+                f"{name}: its pin in deploy/images.lock is still open: make pin-images resolves it"
+            )
+        elif not digest or not DIGEST_RE.fullmatch(digest):
             problems.append(f"{name}: not pinned by digest")
         elif lock.get(name) != (repository, tag, digest):
             problems.append(f"{name}: differs from deploy/images.lock")
@@ -1234,17 +1243,19 @@ def p17(ctx: Context) -> Result:
 
 
 def p18(ctx: Context) -> Result:
-    if not ctx.has_model_server():
-        return warn(
-            "P18", "no model server in this commit's compose file yet (tasks.md T057)"
-        )
-    if ctx.models() is None:
-        return fail("P18", "deploy/models.lock is missing (tasks.md T057)")
+    unreadable = ctx.models_problem()
+    if unreadable:
+        return fail("P18", unreadable)
     model = ctx.stack_model()
     if model is None:
         return fail("P18", "the stack's model isn't in deploy/models.lock (P7)")
     path = Path(ctx.values.get("H4_MODEL_DIR", "/nonexistent")) / model.file
     seed = "ask the Author to run deploy/agents-engine/engine.sh seed"
+    if path.is_symlink():
+        return fail(
+            "P18",
+            f"{path} is a symbolic link, which the model server's read-only mount can't follow out of H4_MODEL_DIR",
+        )
     if not path.is_file():
         if ctx.stack.host:
             return warn(
@@ -1258,8 +1269,13 @@ def p18(ctx: Context) -> Result:
         problems.append(f"{path} is {info.st_size} bytes, not the lock's {model.bytes}")
     if stat.S_IMODE(info.st_mode) != 0o444:
         problems.append(f"{path} isn't mode 0444")
-    if problems and not ctx.stack.host:
-        problems.append(seed)
+    if problems:
+        problems.append(
+            f"make pull ENV={ctx.stack.name} checks a file of the lock's size against its sha256 and sets mode 0444;"
+            " move one of another size aside"
+            if ctx.stack.host
+            else seed
+        )
     return summarize("P18", problems, f"{model.file} has the lock's size, mode 0444")
 
 

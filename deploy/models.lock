@@ -1,0 +1,23 @@
+# The models the stacks serve, pinned by revision and sha256 (spec 000 FR-014, FR-019, FR-021; plan §3; research.md
+# R-03; ADR 0019). A model change is a line here plus the stack's MODEL_FILE and MODEL_ALIAS, never a code change.
+#
+# One model per line, whitespace-separated, with its file name and sha256 on that same line, as preflight
+# (deploy/scripts/preflight.py), deploy/scripts/pull-models.sh, and deploy/agents-engine/engine.sh seed read it:
+#   id        the entry's name
+#   alias     the server's --alias, which the stack's MODEL_ALIAS must equal (preflight P7)
+#   repo      the Hugging Face repository
+#   revision  the commit the file is fetched at: https://huggingface.co/<repo>/resolve/<revision>/<file>
+#   file      the GGUF file, which the stack's MODEL_FILE names
+#   sha256    the file's hash: pull-models.sh keeps no download that doesn't match it, and engine.sh seed copies no
+#             model it can't verify against it
+#   bytes     the file's size (preflight P13 and P18)
+#   license   the model's license
+#   vram      what the model needs on the GPU at the stack's context, in MiB or GiB (preflight P12)
+#   stacks    the stacks that serve it, comma-separated
+#
+# The first pin is trust on first use: the Author checks each sha256 against the file's page before committing.
+# The prod model's VRAM is plan §3's estimate until the first stack task measures it (research.md R-03).
+#
+# id                              alias                        repo                                      revision                                  file                                     sha256                                                            bytes        license     vram     stacks
+qwen3-30b-a3b-instruct-2507-q4km  qwen3-30b-a3b-instruct-2507  unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF  eea7b2be5805a5f151f8847ede8e5f9a9284bf77  Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf  6c997b8af17debdfb01d890214400ccbab00db6acc0ba8da5de1cc906c4774d0  18556686752  Apache-2.0  21.3GiB  prod
+qwen2.5-0.5b-instruct-q4km        qwen2.5-0.5b-instruct        Qwen/Qwen2.5-0.5B-Instruct-GGUF           9217f5db79a29953eb74d5343926648285ec7e67  qwen2.5-0.5b-instruct-q4_k_m.gguf        74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db  491400032    Apache-2.0  1.5GiB   dev,dev-cpu

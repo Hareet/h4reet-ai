@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- ClickHouse's Prometheus endpoint, which Prometheus scrapes as job clickhouse (spec 000; plan §6;
+     contracts/telemetry.md §4.3 and §6.6). Mounted read-only into config.d. The image already listens on every
+     interface of the container, which sits on the stack's internal network alone. -->
+<clickhouse>
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9363</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+    </prometheus>
+</clickhouse>

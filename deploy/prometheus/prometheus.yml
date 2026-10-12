@@ -1,0 +1,41 @@
+# The stack's Prometheus 3 (spec 000 FR-026, FR-028; plan §6; contracts/telemetry.md §4.3 and §6.6; ADR 0021).
+# Mounted read-only. The gateway's metrics arrive over OTLP (--web.enable-otlp-receiver, from the collector); the
+# targets below are scraped. Retention, 30 days or 2 GB, is a command-line flag in deploy/compose.yaml, and neither
+# the admin nor the lifecycle API is enabled.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# The OTLP receiver's names follow telemetry.md §1 rule 5: dots become underscores, units and _total are appended.
+otlp:
+  promote_resource_attributes: [service.name, service.namespace, deployment.environment.name]
+  translation_strategy: UnderscoreEscapingWithSuffixes
+
+storage:
+  tsdb:
+    # The collector batches and retries, so samples can arrive late; the eval history posts once per run.
+    out_of_order_time_window: 30m
+
+scrape_configs:
+  # model-server is the alias both variants answer to; up is 1 once the model is loaded.
+  - job_name: model-server
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["model-server:8080"]
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8888"]
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+  # deploy/clickhouse/prometheus.xml turns this endpoint on.
+  - job_name: clickhouse
+    static_configs:
+      - targets: ["clickhouse:9363"]
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

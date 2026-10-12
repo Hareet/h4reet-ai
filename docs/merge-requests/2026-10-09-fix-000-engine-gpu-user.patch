@@ -1,0 +1,486 @@
+diff --git a/deploy/agents-engine/engine.sh b/deploy/agents-engine/engine.sh
+index 7a181b8..ac05578 100755
+--- a/deploy/agents-engine/engine.sh
++++ b/deploy/agents-engine/engine.sh
+@@ -38,6 +38,8 @@ images_lock="$repo/deploy/images.lock"
+ models_lock="$repo/deploy/models.lock"
+ devcpu_vars="$repo/deploy/env.agents/dev-cpu.vars"
+ system_units="h4agents-net.service h4agents-nft.service h4agents-dxg.service h4agents-tree.service"
++dxg="/dev/dxg"                                          # status reads it: H6
++nvidia_config="/etc/nvidia-container-runtime/config.toml" # status reads it: the NVIDIA hook's CLI user (T179)
+ 
+ die() {
+ 	echo "engine.sh: $*" >&2
+@@ -527,6 +529,11 @@ seed_model() {
+ # status: read-only; both the Author and agents may run it
+ # ------------------------------------------------------------------------------------------------
+ cmd_status() {
++	# The host's GPU first: it is about the rootful engine, so it prints even with the agents' engine down (T179).
++	if ! in_sandbox; then
++		echo "-- the host's GPU (H6)"
++		status_gpu
++	fi
+ 	if ! engine_docker version >/dev/null 2>&1; then
+ 		echo "engine: unreachable (ask the Author: deploy/agents-engine/engine.sh up)"
+ 		return 1
+@@ -569,6 +576,17 @@ status_units() {
+ 	printf '  %-26s %s\n' h4-egress-proxy.service "${state:-unknown}"
+ }
+ 
++# The host's side of H6: /dev/dxg's owner and mode, and the user the NVIDIA hook's CLI runs its driver step as, which
++# setup-host.sh's ensure_nvidia_cli_user sets (tasks.md T179). Read-only.
++status_gpu() {
++	local mode user
++	mode="$(stat -c '%U:%G %a' -- "$dxg" 2>/dev/null)" || mode="absent"
++	user="$(awk '/^\[/ { cli = ($0 == "[nvidia-container-cli]") }
++		cli && /^[[:space:]]*user[[:space:]]*=/ { sub(/^[^=]*=[[:space:]]*/, ""); gsub(/"/, ""); print; exit }' \
++		"$nvidia_config" 2>/dev/null)" || true
++	printf '  %-26s %s; the NVIDIA container CLI runs as %s\n' /dev/dxg "$mode" "${user:-its default, unset}"
++}
++
+ # The plugin's last 20 refusals, read as h4agents and never as root: h4agents owns the log's directory, so a link
+ # there could lead anywhere. sudo -n, so status never asks for a password. It says why when it reads nothing,
+ # where it once printed nothing at all (§3.5).
+diff --git a/deploy/agents-engine/setup-host.sh b/deploy/agents-engine/setup-host.sh
+index e4ba168..0796f54 100755
+--- a/deploy/agents-engine/setup-host.sh
++++ b/deploy/agents-engine/setup-host.sh
+@@ -172,6 +172,69 @@ ensure_gpu_group() {
+ 	fi
+ }
+ 
++# --- H6: the NVIDIA hook's CLI, as a user /dev/dxg admits --------------------------------------
++# h4agents-dxg.service gives /dev/dxg to root:h4gpu, mode 0660, and the NVIDIA container hook's CLI runs its driver
++# step as an unprivileged user unless its config names one. That user isn't in h4gpu, so every GPU container of the
++# rootful engine failed: "nvidia-container-cli: initialization error: nvml error: not supported" (T065, 2026-10-09).
++# This sets the least privileged user NVML works as: nobody in h4gpu, or root in h4gpu (tasks.md T179). nobody is
++# tried only while the device has H6's mode. Before the first boot after setup it is 0666, open to every user, and
++# the try would prove nothing: setup sets root, and next_steps asks for one more run after the shutdown. A boot
++# whose H6 mode failed (h4agents-dxg.service ignores a failed chgrp or chmod) keeps a nobody a good boot proved,
++# rather than raising it to root. Each try names the user exactly as the config will.
++nvidia_config="/etc/nvidia-container-runtime/config.toml"
++dxg="/dev/dxg"
++nvidia_cli_retry="" # set when root was chosen only for want of H6's mode; next_steps reads it
++
++# The user = line under [nvidia-container-cli], without its quotes, or nothing.
++nvidia_cli_user() {
++	awk '/^\[/ { cli = ($0 == "[nvidia-container-cli]") }
++		cli && /^[[:space:]]*user[[:space:]]*=/ { sub(/^[^=]*=[[:space:]]*/, ""); gsub(/"/, ""); print; exit }' \
++		"$nvidia_config" 2>/dev/null || true
++}
++
++# nvidia_cli_reaches <user:group>: whether NVML answers the CLI's info as that user, named as the config names it.
++nvidia_cli_reaches() {
++	nvidia-container-cli --user="$1" info >/dev/null 2>&1
++}
++
++ensure_nvidia_cli_user() {
++	if [ ! -e "$dxg" ] || [ ! -f "$nvidia_config" ] ||
++		! command -v nvidia-container-cli >/dev/null || ! command -v nvidia-ctk >/dev/null; then
++		log "no GPU or no NVIDIA container toolkit here: the CLI's user is left alone"
++		return 0
++	fi
++	local nobody="nobody:$gpu_group" root="root:$gpu_group" have want
++	have="$(nvidia_cli_user)"
++	# The agents' engine runs CPU-only, so a GPU nobody reaches warns rather than stopping its setup.
++	if [ "$(stat -c '%G %a' -- "$dxg" 2>/dev/null)" = "$gpu_group 660" ]; then
++		if nvidia_cli_reaches "$nobody"; then
++			want="$nobody"
++		elif nvidia_cli_reaches "$root"; then
++			want="$root"
++		else
++			log "WARNING: nvidia-container-cli reaches the GPU neither as $nobody nor as $root;" \
++				"the CLI's user is left alone (contracts/agents-engine.md H6)"
++			return 0
++		fi
++	elif [ "$have" = "$nobody" ]; then
++		log "WARNING: $dxg isn't root:$gpu_group 0660 this boot, so $nobody can't be tried; the CLI keeps it." \
++			"See h4agents-dxg.service (H6)"
++		return 0
++	elif nvidia_cli_reaches "$root"; then
++		want="$root"
++		nvidia_cli_retry=1
++	else
++		log "WARNING: nvidia-container-cli doesn't reach the GPU as $root, and $nobody waits for $dxg's H6 mode;" \
++			"the CLI's user is left alone (contracts/agents-engine.md H6)"
++		return 0
++	fi
++	if [ "$have" = "$want" ]; then
++		return 0
++	fi
++	log "the NVIDIA container CLI runs its driver step as $want"
++	nvidia-ctk config --config-file "$nvidia_config" --in-place --set "nvidia-container-cli.user=$want"
++}
++
+ # --- directories ---------------------------------------------------------------------------------
+ ensure_dirs() {
+ 	install -d -o root -g root -m 0755 "$lib" "$etc" "$models_src"
+@@ -448,6 +511,7 @@ main() {
+ 	ensure_subids
+ 	ensure_linger
+ 	ensure_gpu_group
++	ensure_nvidia_cli_user
+ 	ensure_dirs
+ 	install_files
+ 	write_env_file
+@@ -485,17 +549,21 @@ pending_restart() {
+ 
+ # The run's last words: the wsl --shutdown while a change that needs one still waits for it, whichever run made
+ # the change, and otherwise the restart of h4agents' plugin and daemon, which up alone wouldn't give a daemon
+-# already running.
++# already running. When the NVIDIA CLI got root only for want of H6's mode, one more setup run comes first (T179).
+ next_steps() {
+-	local why
++	local why again=""
+ 	why="$(pending_restart)"
++	if [ -n "$nvidia_cli_retry" ]; then
++		again="    deploy/agents-engine/engine.sh setup   (once more: with /dev/dxg in H6's mode, it tries nobody:$gpu_group)
++"
++	fi
+ 	if [ -n "$why" ]; then
+ 		cat <<EOF
+ 
+ Host setup complete. Next, in PowerShell:
+     wsl --shutdown
+ Then open a new WSL shell and run:
+-    deploy/agents-engine/engine.sh up
++${again}    deploy/agents-engine/engine.sh up
+ The shutdown is needed for $why to take effect, and it ends every WSL
+ session, agents' included.
+ EOF
+@@ -507,6 +575,12 @@ from what it installed:
+     deploy/agents-engine/engine.sh down
+     deploy/agents-engine/engine.sh up
+ EOF
++		if [ -n "$nvidia_cli_retry" ]; then
++			cat <<EOF
++/dev/dxg isn't root:$gpu_group 0660 this boot, so the NVIDIA container CLI runs as root:$gpu_group. Check
++h4agents-dxg.service, then run setup once more: it tries nobody:$gpu_group with the device in H6's mode.
++EOF
++		fi
+ 	fi
+ }
+ 
+diff --git a/deploy/agents-engine/test/test_engine_sh.py b/deploy/agents-engine/test/test_engine_sh.py
+index 2650743..fb9bc6d 100644
+--- a/deploy/agents-engine/test/test_engine_sh.py
++++ b/deploy/agents-engine/test/test_engine_sh.py
+@@ -9,8 +9,11 @@ variables, its proxy's credentials among them, never reach it or a failure's rep
+ 
+ from __future__ import annotations
+ 
++import getpass
++import grp
+ import importlib.util
+ import json
++import os
+ import shlex
+ import shutil
+ import subprocess
+@@ -231,6 +234,7 @@ def test_the_authors_status_lists_the_units_by_name(tmp_path: Path) -> None:
+ {ECHO_SYSTEMCTL}
+ engine_docker() {{ :; }}
+ images_lock={q(tmp_path / "no-images.lock")}
++status_gpu() {{ echo "GPU LINE"; }}
+ status_list_hashes() {{ :; }}
+ status_refusals() {{ :; }}
+ cmd_status
+@@ -241,6 +245,64 @@ cmd_status
+     start = lines.index("-- the engine's system units, and the Author's proxy") + 1
+     named = [line.split(maxsplit=1) for line in lines[start : start + len(NAMED_UNITS)]]
+     assert named == NAMED_UNITS
++    assert lines[:2] == [
++        "-- the host's GPU (H6)",
++        "GPU LINE",
++    ]  # first, the GPU's line (T179)
++
++
++def test_the_gpu_line_prints_with_the_agents_engine_down(tmp_path: Path) -> None:
++    # The line is about the host's rootful engine, so the agents' engine being down mustn't hide it (T179's review).
++    script = """
++engine_docker() { return 1; }
++status_gpu() { echo "GPU LINE"; }
++cmd_status
++"""
++    done = engine(script, tmp_path)
++    assert done.returncode == 1
++    assert done.stdout.splitlines()[:3] == [
++        "-- the host's GPU (H6)",
++        "GPU LINE",
++        "engine: unreachable (ask the Author: deploy/agents-engine/engine.sh up)",
++    ]
++
++
++@pytest.mark.parametrize(
++    ("config", "device", "said"),
++    [
++        ('[nvidia-container-cli]\nuser = "root:h4gpu"\n', True, "root:h4gpu"),
++        ('[nvidia-container-cli]\n#user = "root:video"\n', True, "its default, unset"),
++        (
++            '[nvidia-container-runtime]\nuser = "x"\n[nvidia-container-cli]\n',
++            True,
++            "its default, unset",
++        ),
++        ("", False, "its default, unset"),
++    ],
++)
++def test_status_names_the_gpu_device_and_the_clis_user(
++    tmp_path: Path, config: str, device: bool, said: str
++) -> None:
++    # The host's side of H6: the device's owner and mode, and the user setup-host.sh gave the NVIDIA CLI (T179).
++    (tmp_path / "config.toml").write_text(config, encoding="utf-8")
++    if device:
++        (tmp_path / "dxg").write_text("", encoding="utf-8")
++        (tmp_path / "dxg").chmod(0o660)
++    script = f"""
++dxg={q(tmp_path / "dxg")}
++nvidia_config={q(tmp_path / "config.toml")}
++status_gpu
++"""
++    done = engine(script, tmp_path)
++    assert done.returncode == 0, done.stderr
++    (line,) = done.stdout.splitlines()
++    owner = (
++        f"{getpass.getuser()}:{grp.getgrgid(os.getgid()).gr_name} 660"
++        if device
++        else "absent"
++    )
++    assert line.split()[0] == "/dev/dxg"
++    assert line.endswith(f" {owner}; the NVIDIA container CLI runs as {said}")
+ 
+ 
+ def _running(pid: str) -> bool:
+diff --git a/deploy/agents-engine/test/test_setup_host_sh.py b/deploy/agents-engine/test/test_setup_host_sh.py
+index dddf4dc..17a340d 100644
+--- a/deploy/agents-engine/test/test_setup_host_sh.py
++++ b/deploy/agents-engine/test/test_setup_host_sh.py
+@@ -561,3 +561,229 @@ echo "WHY [$(pending_restart)]"
+     assert done.returncode == 0, done.stderr
+     want = "" if held else f"{ME}'s membership of h4gpu"
+     assert f"WHY [{want}]" in done.stdout
++
++
++# --------------------------------------------------------------------------------------------------
++# H6: the NVIDIA hook's CLI runs as the least privileged user NVML works as (tasks.md T179)
++# --------------------------------------------------------------------------------------------------
++# The stand-ins act as the real tools do; the review of the first ones found them answering whatever they were
++# asked. /dev/dxg is a real file whose group and mode the real stat reads, in the test user's own group, which
++# stands for h4gpu. nvidia-container-cli answers only "--user=<user:group> info", and reaches NVML only as the users
++# a test names. nvidia-ctk takes only the flags its help lists (config --config-file F --in-place --set K=V) and
++# writes the user line, so a next run reads what the last one wrote.
++GROUP = grp.getgrgid(os.getgid()).gr_name
++
++NVIDIA_FAKES = r"""
++nvidia-container-cli() {
++    [ "$#" -eq 2 ] && [ "$2" = info ] || { echo "nvidia-container-cli: unexpected: $*" >&2; return 2; }
++    case " $REACHES " in *" ${1#--user=} "*) return 0 ;; esac
++    echo "nvidia-container-cli: initialization error: nvml error: not supported" >&2
++    return 1
++}
++nvidia-ctk() {
++    [ "$#" -eq 6 ] && [ "$1" = config ] && [ "$2" = --config-file ] && [ "$4" = --in-place ] && [ "$5" = --set ] ||
++        { echo "nvidia-ctk: unexpected arguments: $*" >&2; return 2; }
++    case "$6" in nvidia-container-cli.user=*) ;; *) echo "nvidia-ctk: unexpected key: $6" >&2; return 2 ;; esac
++    awk -v v="${6#nvidia-container-cli.user=}" '
++        /^\[/ { cli = ($0 == "[nvidia-container-cli]"); print; if (cli) { print "user = \"" v "\""; done = 1 }; next }
++        cli && /^[[:space:]]*user[[:space:]]*=/ { next }
++        { print }
++        END { if (!done) { print "[nvidia-container-cli]"; print "user = \"" v "\"" } }
++    ' "$3" >"$3.new" && command mv -- "$3.new" "$3"
++    echo "CTK $6"
++}
++"""
++
++
++def _nvidia_user(
++    tmp_path: Path,
++    *,
++    mode: int = 0o660,
++    reaches: str = "nobody root",
++    config: str | None = '[nvidia-container-cli]\n#user = "root:video"\n',
++    device: bool = True,
++    steps: str = "ensure_nvidia_cli_user",
++) -> subprocess.CompletedProcess[str]:
++    """Run `steps` with the fakes above. `reaches` names who NVML answers; config=None keeps the file as it is."""
++    cfg = tmp_path / "config.toml"
++    if config is not None:
++        cfg.write_text(config, encoding="utf-8")
++    dxg = tmp_path / "dxg"
++    if device:
++        dxg.touch()
++        dxg.chmod(mode)
++    users = " ".join(f"{who}:{GROUP}" for who in reaches.split())
++    script = f"""
++gpu_group={q(GROUP)}
++nvidia_config={q(cfg)}
++dxg={q(dxg)}
++REACHES={q(users)}
++log() {{ echo "LOG $*"; }}
++{NVIDIA_FAKES}
++{steps}
++"""
++    return setup_host(script, tmp_path)
++
++
++def _cli_user(tmp_path: Path) -> str | None:
++    """The user line under [nvidia-container-cli] in the test's config file, unquoted."""
++    section = ""
++    for line in (tmp_path / "config.toml").read_text(encoding="utf-8").splitlines():
++        if line.startswith("["):
++            section = line
++        elif (
++            section == "[nvidia-container-cli]" and line.split("=")[0].strip() == "user"
++        ):
++            return line.split("=", 1)[1].strip().strip('"')
++    return None
++
++
++def test_nobody_when_nvml_works_as_it(tmp_path: Path) -> None:
++    done = _nvidia_user(tmp_path)
++    assert done.returncode == 0, done.stderr
++    assert f"CTK nvidia-container-cli.user=nobody:{GROUP}" in done.stdout
++    assert _cli_user(tmp_path) == f"nobody:{GROUP}"
++
++
++def test_root_when_nvml_doesnt_answer_nobody(tmp_path: Path) -> None:
++    done = _nvidia_user(tmp_path, reaches="root")
++    assert done.returncode == 0, done.stderr
++    assert _cli_user(tmp_path) == f"root:{GROUP}"
++
++
++def _with_next_steps(tmp_path: Path) -> str:
++    (tmp_path / "boot_id").write_text("boot-a\n", encoding="utf-8")
++    return f"""
++restart_marker={q(tmp_path / "etc" / "wsl-restart-pending")}
++boot_id_file={q(tmp_path / "boot_id")}
++install() {{ command install -d -m 0755 "${{@: -1}}"; }}
++ensure_nvidia_cli_user
++note_restart "the Author's membership of h4gpu"
++echo "RETRY [$nvidia_cli_retry]"
++next_steps
++"""
++
++
++def test_before_h6s_mode_root_and_setup_asks_for_one_more_run(tmp_path: Path) -> None:
++    # Before the first boot after setup /dev/dxg is 0666, open to all: trying nobody would prove nothing.
++    done = _nvidia_user(tmp_path, mode=0o666, steps=_with_next_steps(tmp_path))
++    assert done.returncode == 0, done.stderr
++    assert _cli_user(tmp_path) == f"root:{GROUP}"
++    assert "RETRY [1]" in done.stdout
++    assert (
++        f"    deploy/agents-engine/engine.sh setup   (once more: with /dev/dxg in H6's mode, it tries nobody:{GROUP})\n"
++        "    deploy/agents-engine/engine.sh up\n"
++    ) in done.stdout
++
++
++def test_with_h6s_mode_no_second_run_is_asked(tmp_path: Path) -> None:
++    done = _nvidia_user(tmp_path, steps=_with_next_steps(tmp_path))
++    assert done.returncode == 0, done.stderr
++    assert "RETRY []" in done.stdout
++    assert "once more" not in done.stdout
++
++
++def test_a_nobody_a_good_boot_proved_stays_when_h6s_mode_is_missing(
++    tmp_path: Path,
++) -> None:
++    # h4agents-dxg.service ignores a failed chgrp or chmod: such a boot mustn't raise the CLI to root (Principle IV).
++    config = f'[nvidia-container-cli]\nuser = "nobody:{GROUP}"\n'
++    done = _nvidia_user(tmp_path, mode=0o666, config=config)
++    assert done.returncode == 0, done.stderr
++    assert "CTK" not in done.stdout
++    assert "the CLI keeps it" in done.stdout
++    assert _cli_user(tmp_path) == f"nobody:{GROUP}"
++
++
++def test_root_already_set_and_nobody_unreachable_change_nothing_and_say_nothing(
++    tmp_path: Path,
++) -> None:
++    config = f'[nvidia-container-cli]\nuser = "root:{GROUP}"\n'
++    done = _nvidia_user(tmp_path, reaches="root", config=config)
++    assert done.returncode == 0, done.stderr
++    assert done.stdout == ""
++
++
++def test_a_user_under_another_section_isnt_the_clis(tmp_path: Path) -> None:
++    config = '[nvidia-container-runtime]\nuser = "x:y"\n[nvidia-container-cli]\nldconfig = "@/sbin/ldconfig"\n'
++    done = _nvidia_user(tmp_path, config=config)
++    assert done.returncode == 0, done.stderr
++    assert _cli_user(tmp_path) == f"nobody:{GROUP}"
++    assert 'user = "x:y"' in (tmp_path / "config.toml").read_text(encoding="utf-8")
++
++
++def test_neither_user_reaching_nvml_warns_and_changes_nothing(tmp_path: Path) -> None:
++    done = _nvidia_user(tmp_path, reaches="")
++    assert done.returncode == 0, done.stderr
++    assert (
++        f"reaches the GPU neither as nobody:{GROUP} nor as root:{GROUP}" in done.stdout
++    )
++    assert "CTK" not in done.stdout
++
++
++def test_root_unreachable_before_h6s_mode_doesnt_claim_nobody_was_tried(
++    tmp_path: Path,
++) -> None:
++    done = _nvidia_user(tmp_path, mode=0o666, reaches="")
++    assert done.returncode == 0, done.stderr
++    assert (
++        f"doesn't reach the GPU as root:{GROUP}, and nobody:{GROUP} waits for"
++        in done.stdout
++    )
++    assert "neither" not in done.stdout and "CTK" not in done.stdout
++
++
++@pytest.mark.parametrize(
++    ("case", "device", "config", "steps"),
++    [
++        ("no device", False, "[nvidia-container-cli]\n", "ensure_nvidia_cli_user"),
++        ("no config", True, None, "ensure_nvidia_cli_user"),
++        (
++            "no CLI",
++            True,
++            "[nvidia-container-cli]\n",
++            "unset -f nvidia-container-cli; PATH=/nonexistent; ensure_nvidia_cli_user",
++        ),
++        (
++            "no nvidia-ctk",
++            True,
++            "[nvidia-container-cli]\n",
++            "unset -f nvidia-ctk; PATH=/nonexistent; ensure_nvidia_cli_user",
++        ),
++    ],
++)
++def test_without_the_device_the_config_or_the_tools_it_does_nothing(
++    tmp_path: Path, case: str, device: bool, config: str | None, steps: str
++) -> None:
++    done = _nvidia_user(tmp_path, device=device, config=config, steps=steps)
++    assert done.returncode == 0, (case, done.stderr)
++    assert "the CLI's user is left alone" in done.stdout, case
++    assert "CTK" not in done.stdout, case
++
++
++def test_three_runs_from_a_fresh_host(tmp_path: Path) -> None:
++    # The documented sequence: setup before the first shutdown sets root, the run after it lowers to nobody, and a
++    # third run has nothing to change.
++    first = _nvidia_user(
++        tmp_path,
++        mode=0o666,
++        steps='ensure_nvidia_cli_user; echo "RETRY [$nvidia_cli_retry]"',
++    )
++    assert first.returncode == 0, first.stderr
++    assert _cli_user(tmp_path) == f"root:{GROUP}" and "RETRY [1]" in first.stdout
++    second = _nvidia_user(tmp_path, mode=0o660, config=None)
++    assert second.returncode == 0, second.stderr
++    assert _cli_user(tmp_path) == f"nobody:{GROUP}"
++    third = _nvidia_user(tmp_path, mode=0o660, config=None)
++    assert third.returncode == 0, third.stderr
++    assert third.stdout == "" and _cli_user(tmp_path) == f"nobody:{GROUP}"
++
++
++def test_setup_runs_the_cli_user_step_after_the_group(tmp_path: Path) -> None:
++    main = (
++        SETUP.read_text(encoding="utf-8")
++        .split("\nmain() {\n", 1)[1]
++        .split("\n}\n", 1)[0]
++    )
++    steps = [line.strip() for line in main.splitlines()]
++    assert steps.index("ensure_nvidia_cli_user") == steps.index("ensure_gpu_group") + 1

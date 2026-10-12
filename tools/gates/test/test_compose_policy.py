@@ -433,6 +433,119 @@ def test_an_image_with_no_lock_line_is_refused(tmp_path: Path) -> None:
     assert ("loki", "image") in rules(model, tmp_path, DISCLOSED | {"loki"})
 
 
+# An open pin (research.md R-09): SeaweedFS's lock line has tag and digest "-" until make pin-images resolves it.
+SEAWEEDFS = "docker.io/chrislusf/seaweedfs"
+SEAWEEDFS_DIGEST = "sha256:" + "6" * 64
+OPEN_LOCK = {
+    **LOCK,
+    "seaweedfs": cp.LockEntry("seaweedfs", SEAWEEDFS, "-", "-", "docker.io", "-"),
+}
+PINNED_LOCK = {
+    **LOCK,
+    "seaweedfs": cp.LockEntry(
+        "seaweedfs", SEAWEEDFS, "3.97", SEAWEEDFS_DIGEST, "docker.io", "2026-10-09"
+    ),
+}
+OPEN_LINE = "PLANNED (T063): seaweedfs's pin is open; make pin-images resolves it"
+
+
+def with_seaweedfs(image: str) -> dict:
+    model = good_model()
+    model["services"]["seaweedfs"] = service(image=image)
+    return model
+
+
+def test_an_open_pin_is_planned_while_the_lock_holds_no_digest(tmp_path: Path) -> None:
+    found = cp.check_model(
+        with_seaweedfs(SEAWEEDFS), OPEN_LOCK, tmp_path, DISCLOSED | {"seaweedfs"}
+    )
+    assert [f.line() for f in found] == [OPEN_LINE]
+    assert all(f.planned for f in found)
+
+
+def test_once_the_lock_holds_a_digest_the_ordinary_check_applies(
+    tmp_path: Path,
+) -> None:
+    disclosed = DISCLOSED | {"seaweedfs"}
+    pinned = f"{SEAWEEDFS}:3.97@{SEAWEEDFS_DIGEST}"
+    # The bare repository is refused now, as any unpinned image is ...
+    found = cp.check_model(with_seaweedfs(SEAWEEDFS), PINNED_LOCK, tmp_path, disclosed)
+    assert [(f.rule, f.planned) for f in found] == [("image", False)]
+    assert "not pinned by digest" in found[0].detail
+    # ... make pin-images's line passes ...
+    assert (
+        cp.check_model(with_seaweedfs(pinned), PINNED_LOCK, tmp_path, disclosed) == []
+    )
+    # ... and a compose pin that an open lock line doesn't hold differs from the lock.
+    found = cp.check_model(with_seaweedfs(pinned), OPEN_LOCK, tmp_path, disclosed)
+    assert [(f.rule, f.planned) for f in found] == [("image", False)]
+    assert "differs from deploy/images.lock" in found[0].detail
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        f"{SEAWEEDFS}:latest",
+        f"{SEAWEEDFS}@{SEAWEEDFS_DIGEST}",
+        "docker.io/someone-else/seaweedfs",
+        "chrislusf/seaweedfs",
+    ],
+)
+def test_an_open_pin_covers_the_bare_repository_alone(
+    tmp_path: Path, image: str
+) -> None:
+    found = cp.check_model(
+        with_seaweedfs(image), OPEN_LOCK, tmp_path, DISCLOSED | {"seaweedfs"}
+    )
+    assert found and not [f for f in found if f.planned]
+
+
+def test_an_open_pin_anywhere_else_is_refused(tmp_path: Path) -> None:
+    lock = {
+        **LOCK,
+        "loki": cp.LockEntry(
+            "loki", "docker.io/grafana/loki", "-", "-", "docker.io", "-"
+        ),
+    }
+    model = good_model()
+    model["services"]["loki"] = service(image="docker.io/grafana/loki")
+    found = cp.check_model(model, lock, tmp_path, DISCLOSED | {"loki"})
+    assert [(f.where.rsplit(" ", 1)[-1], f.rule, f.planned) for f in found] == [
+        ("loki", "image", False)
+    ]
+
+
+def test_run_prints_an_open_pin_as_planned_and_passes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """make check reads a "PLANNED (Tnnn): ..." line from a passing gate as PLANNED (tools/gates/run_checks.py)."""
+    model = with_seaweedfs(SEAWEEDFS)
+    monkeypatch.setattr(cp, "compose_available", lambda: True)
+    monkeypatch.setattr(cp, "compose_config", lambda root, stack, env_file: model)
+    monkeypatch.setattr(cp, "parse_lock", lambda path: OPEN_LOCK)
+    monkeypatch.setattr(
+        cp, "disclosed_services", lambda path: DISCLOSED | {"seaweedfs"}
+    )
+    for _, env_file in cp.ENV_FILES:
+        write(tmp_path / env_file, "H4_ENV=dev\n")
+    write(tmp_path / cp.DISCLOSURE_FILE, "| x |\n")
+    assert cp.run(tmp_path) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0] == OPEN_LINE  # once, though three env files render it
+    assert [ln for ln in out if ln.startswith("PLANNED (")] == [OPEN_LINE]
+    assert out[-1].startswith("compose policy: PASS, 1 planned (")
+    # Pinned, the same tree passes with no PLANNED line at all.
+    pinned = with_seaweedfs(f"{SEAWEEDFS}:3.97@{SEAWEEDFS_DIGEST}")
+    monkeypatch.setattr(cp, "compose_config", lambda root, stack, env_file: pinned)
+    monkeypatch.setattr(cp, "parse_lock", lambda path: PINNED_LOCK)
+    assert cp.run(tmp_path) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert not [ln for ln in out if ln.startswith("PLANNED")]
+    assert out[-1].startswith("compose policy: PASS (")
+
+
 @pytest.mark.parametrize(
     ("build", "rule"),
     [
@@ -749,12 +862,15 @@ def test_references_and_names() -> None:
 # ---------------------------------------------------------------------------------------------------------------
 # The real files: through PyYAML, and end to end through docker compose config where the CLI is installed.
 
+PROBE = "breach-probe"
+PROBE_DOCKERFILE = "evals/Dockerfile.probe"
 REAL_FILES = (
     cp.COMPOSE_FILE,
     cp.LOCK_FILE,
     cp.DISCLOSURE_FILE,
     cp.DEVCONTAINER_FILE,
     ".devcontainer/Dockerfile",
+    PROBE_DOCKERFILE,
     *(env for _, env in cp.ENV_FILES),
 )
 needs_compose = pytest.mark.skipif(
@@ -762,12 +878,78 @@ needs_compose = pytest.mark.skipif(
 )
 
 
+def real_model() -> dict:
+    return yaml.safe_load((REPO / cp.COMPOSE_FILE).read_text(encoding="utf-8"))
+
+
+def test_the_breach_probe_meets_the_policy() -> None:
+    """The probe (tasks.md T144): built from this tree on the pinned base:python, on internal alone, and disclosed."""
+    model = real_model()
+    lock = cp.parse_lock(REPO / cp.LOCK_FILE)
+    assert cp.check_service(PROBE, model["services"][PROBE], model, lock, REPO) == []
+    disclosed = cp.disclosed_services(REPO / cp.DISCLOSURE_FILE)
+    assert PROBE in disclosed
+    # The policy requires its row, as every service's (FR-040).
+    found = cp.check_model(model, lock, REPO, disclosed - {PROBE})
+    assert [(f.where, f.rule) for f in found if not f.planned] == [
+        (f"{cp.COMPOSE_FILE} service {PROBE}", "disclosure")
+    ]
+    # Its image's one FROM is base:python's pin, by digest.
+    path = REPO / PROBE_DOCKERFILE
+    assert cp.check_dockerfile(path, PROBE_DOCKERFILE, lock) == []
+    base = lock["base:python"]
+    steps = cp.dockerfile_instructions(path.read_text(encoding="utf-8"))
+    assert [rest for _, word, rest in steps if word == "FROM"] == [
+        f"{base.repository}:{base.tag}@{base.digest}"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "rule"),
+    [
+        ("networks", ["internal", "egress"], "networks"),
+        ("networks", ["internal", "edge"], "networks"),
+        ("network_mode", "host", "network_mode"),
+        ("ports", ["127.0.0.1:18399:8080"], "ports"),
+        (
+            "volumes",
+            [{"type": "bind", "source": "${H4_TREE:?x}/deploy", "target": "/d"}],
+            "binds",
+        ),
+        (
+            "volumes",
+            [{"type": "bind", "source": "/var/run/docker.sock", "target": "/s"}],
+            "docker.sock",
+        ),
+        ("environment", {"AWS_PROFILE": "x"}, "environment"),
+        ("container_name", PROBE, "container_name"),
+        ("cap_add", ["NET_RAW"], "cap_add"),
+        ("image", "h4reet/breach-probe:local", "build"),
+    ],
+)
+def test_the_breach_probe_may_not_stray(field: str, value: object, rule: str) -> None:
+    """The probe as compose.yaml writes it, with one thing changed: the policy refuses each."""
+    model = real_model()
+    lock = cp.parse_lock(REPO / cp.LOCK_FILE)
+    probe = copy.deepcopy(model["services"][PROBE])
+    probe[field] = value
+    assert rule in {f.rule for f in cp.check_service(PROBE, probe, model, lock, REPO)}
+
+
+def real_open_pins() -> list[str]:
+    """The PLANNED lines the committed files should give: SeaweedFS's, until make pin-images pins it (T063)."""
+    lock = cp.parse_lock(REPO / cp.LOCK_FILE)
+    return [OPEN_LINE] if lock["seaweedfs"].digest == "-" else []
+
+
 def test_the_real_compose_file_passes_as_written() -> None:
     """The raw file, through PyYAML (short-syntax ports, anchors), meets every compose rule too."""
     model = yaml.safe_load((REPO / cp.COMPOSE_FILE).read_text(encoding="utf-8"))
     lock = cp.parse_lock(REPO / cp.LOCK_FILE)
     disclosed = cp.disclosed_services(REPO / cp.DISCLOSURE_FILE)
-    assert cp.check_model(model, lock, REPO, disclosed) == []
+    found = cp.check_model(model, lock, REPO, disclosed)
+    assert [f for f in found if not f.planned] == []
+    assert [f.line() for f in found if f.planned] == real_open_pins()
 
 
 @pytest.fixture
@@ -781,16 +963,26 @@ def tree(tmp_path: Path) -> Path:
 @needs_compose
 def test_the_real_files_pass(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert cp.run(tree) == 0
-    assert "compose policy: PASS" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "compose policy: PASS" in out
+    # Either state of SeaweedFS's pin: open, one PLANNED line; pinned, none.
+    assert [
+        ln for ln in out.splitlines() if ln.startswith("PLANNED (")
+    ] == real_open_pins()
 
 
 @needs_compose
 def test_end_to_end_refusals(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     compose = tree / cp.COMPOSE_FILE
-    text = compose.read_text(encoding="utf-8")
-    assert text.count("networks: [internal]\n") == 1
+    # gateway-state's own networks line, the first after its name: it alone joins egress below.
+    head, name, tail = compose.read_text(encoding="utf-8").partition(
+        "  gateway-state:\n"
+    )
+    assert name and "networks: [internal]\n" in tail
     compose.write_text(
-        text.replace("networks: [internal]\n", "networks: [internal, egress]\n"),
+        head
+        + name
+        + tail.replace("networks: [internal]\n", "networks: [internal, egress]\n", 1),
         encoding="utf-8",
     )
     write(tree / "deploy/stray.env", "A=1\n")
@@ -882,3 +1074,37 @@ def test_provider_services_and_models_are_refused(tmp_path: Path) -> None:
         f.rule == "models" and "top-level" in f.detail
         for f in findings(model, tmp_path)
     )
+
+
+def test_an_open_pins_mark_expires_with_its_task(tmp_path: Path) -> None:
+    # While T063 is open, SeaweedFS's open pin is PLANNED; once tasks.md marks T063 done, the same pin is refused.
+    lock = {
+        "seaweedfs": cp.LockEntry(
+            "seaweedfs", "docker.io/chrislusf/seaweedfs", "-", "-", "docker.io", "-"
+        )
+    }
+    where = "deploy/compose.yaml service seaweedfs"
+    tasks = tmp_path / cp.TASKS_FILE
+    tasks.parent.mkdir(parents=True)
+    tasks.write_text("- [ ] T063 **Author** make pin-images\n", encoding="utf-8")
+    open_now = cp.check_image(
+        where, "seaweedfs", "docker.io/chrislusf/seaweedfs", lock, tmp_path
+    )
+    assert [f.rule for f in open_now] == [cp.PLANNED_RULE]
+    tasks.write_text("- [X] T063 **Author** make pin-images\n", encoding="utf-8")
+    expired = cp.check_image(
+        where, "seaweedfs", "docker.io/chrislusf/seaweedfs", lock, tmp_path
+    )
+    assert [f.rule for f in expired] == ["image"] and "marks T063" in expired[0].detail
+    pinned = {
+        "seaweedfs": cp.LockEntry(
+            "seaweedfs",
+            "docker.io/chrislusf/seaweedfs",
+            "3.97",
+            "sha256:" + "a" * 64,
+            "docker.io",
+            "2026-10-09",
+        )
+    }
+    ref = "docker.io/chrislusf/seaweedfs:3.97@sha256:" + "a" * 64
+    assert cp.check_image(where, "seaweedfs", ref, pinned, tmp_path) == []

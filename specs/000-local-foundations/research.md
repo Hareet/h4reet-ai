@@ -108,6 +108,11 @@ Each row gives the question as asked, the option the Author chose, and that opti
     - about 1 GiB of compute buffers.
 
     That leaves about 2 GiB of headroom. The first stack task measures it. If it doesn't fit, `-c 16384 -np 2` halves the KV cache, and a q8_0 KV cache is the next step.
+- **Measured in the first stack task** (T065, 2026-10-09, the Author's terminal; tasks.md T149 records it here):
+  - **VRAM:** 21,768 of 24,463 MiB in use on the GPU after the prod model's first answer. That includes the Windows desktop's share, 524 MiB at check 2, so the model holds about 20.7 GiB, under the estimate's 21.3 GiB. With dev's stand-in loaded too, 22,558 MiB. `-c 32768 -np 4` stays.
+  - **Load:** the cold start's model server was healthy within 27 s of its container's start, at the health check's interval, with the file just written and likely in the page cache.
+  - **Download:** 17.2 GiB in 4 min 34 s, an average of 64.5 MiB/s (about 540 Mbps), then 15 s for the sha256 and the rename. The images (12) and the gateway's build took 1 min 21 s, and startup to every service healthy took 47 s.
+  - **SC-001:** a cold `make up ENV=prod` answered hello in 431 s, against 600. The model took longer than planned and the rest less.
 - **Rationale**:
   - A mixture-of-experts model with 3.3B active parameters is fast on the 5090.
   - It has no separate reasoning channel, so local and Bedrock answers keep one response shape for the contract test.
@@ -158,6 +163,10 @@ Each row gives the question as asked, the option the Author chose, and that opti
   - Spec 001's tunnel attaches to `edge`.
   - The cost is one 15 MB container.
 - **Still to confirm** (check 2 stopped before its network tests): that an internal-only container can't reach the internet, and whether it can publish a port. The design assumes it can't, which is why `edge` joins a second network. The first stack task runs both tests.
+- **Confirmed in the first stack task** (T065, 2026-10-09, prod; tasks.md T149):
+  - From a container on `h4reet-prod_internal`, a request to `https://example.com` failed: "curl: (6) Could not resolve host: example.com", exit 6, no HTTP code.
+  - A container on that network alone, started with `-p 127.0.0.1:18992:9090`, wasn't reachable: "curl: (7) Failed to connect to 127.0.0.1 port 18992 after 0 ms: Couldn't connect to server". The design's assumption holds, and `edge` stays the only publisher.
+  - The egress failure above is DNS. On dev-cpu, from a container on its internal network, direct connections to `1.1.1.1:443`, `8.8.8.8:53`, and `192.168.0.1:80` each failed with `ENETUNREACH`, and the container's only route was the network's own subnet, with no default route (T149, the agents' engine, the same compose network definition).
 - **Alternatives**:
   - Publishing Grafana and Langfuse directly, relying on their switches: unenforced.
   - A host firewall: crosses stacks, and is the Author's machine-wide state.
@@ -203,13 +212,19 @@ Each row gives the question as asked, the option the Author chose, and that opti
   - Off in this stack, because each one reaches out or calls a model:
     - the in-app agent: `LANGFUSE_IN_APP_AGENT_ENABLED=false`, with its sandbox and AWS keys unset;
     - the AI features: every `LANGFUSE_AI_*` key unset;
-    - LLM connections: `LANGFUSE_LLM_CONNECTION_WHITELISTED_*` empty;
+    - LLM connections: `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST`, `_IPS`, and `_IP_SEGMENTS` empty, the exceptions to Langfuse's block on internal addresses (names from the pinned images, T149);
     - Langfuse's own email: `SMTP_CONNECTION_URL` and `EMAIL_FROM_ADDRESS` unset;
     - batch export: `LANGFUSE_S3_BATCH_EXPORT_ENABLED=false`;
     - other blob backends: `LANGFUSE_USE_AZURE_BLOB` and `LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE` unset;
     - the MCP keys: unset;
     - cloud credentials: no `AWS_*` key in Langfuse's containers.
   - The internal network blocks all of these anyway; the settings are the first layer. The first stack task verifies how Langfuse reads cost from the gateway's spans.
+- **Checked on dev-cpu** (tasks.md T149, 2026-10-09), with generations sent straight to Langfuse's OTLP endpoint:
+  - **The cost:** Langfuse reads `gen_ai.usage.cost` and `langfuse.observation.cost_details` alike. With only `gen_ai.usage.cost` at 0.0123, or only `cost_details` at `{"total":0.0456}`, the generation's `totalCost` was 0.0123 and 0.0456. The collector keeps `gen_ai.usage.cost`, a plain number.
+  - **gzip:** taken. A gzip-encoded request got 200, and its generation arrived, with a `totalCost` of 0.0789. The collector's Langfuse exporter compresses with gzip.
+  - **Generations:** spans with `gen_ai.*` attributes and no `langfuse.observation.type` became generations, with their model and usage.
+  - **Reading back:** v4 runs in events_only mode, where `/api/public/traces` and `/api/public/observations` answer 404, "This endpoint is not available on deployments running in Langfuse v4 events_only mode." `/api/public/v2/observations` answers, with the cost and usage fields only when asked for (`fields=…,usage,cost`).
+  - **The LLM-connection allowlists:** `@langfuse/shared`'s `env.js` reads each of the three keys as `s ? s.split(",")… : []`, so the empty string and unset are both an empty list.
 - **Alternatives**:
   - v3: about to lose security fixes.
   - Langfuse Cloud: payloads would leave the local tier.
@@ -229,6 +244,11 @@ Each row gives the question as asked, the option the Author chose, and that opti
   - MinIO's official images answer HTTP 401 on Docker Hub and Quay alike.
   - Langfuse's own compose has moved to Chainguard's MinIO. That strengthens Chainguard as the documented swap, though it doesn't change the Author's choice.
   - The tag lookup for `chrislusf/seaweedfs` matched no plain version tag. `make pin-images` lists the repository's tags in the first stack task. If no maintained release tag exists, the Author decides between Chainguard's MinIO and building SeaweedFS from source.
+- **Resolved in the first stack task** (tasks.md T063, T065, T149, 2026-10-09):
+  - `make pin-images` found a release tag and pinned `4.48`, `sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d`.
+  - It runs as the image's own user, `1000:1000`, because our entrypoint replaces the image's, which chowns `/data` and drops to that user (T176).
+  - At start, its S3 logs "Failed to load IAM configuration: no signing key found for STS service", then serves on 8333. Langfuse's uploads authenticate anyway: both traces T065 opened had arrived.
+  - The health check is the fallback above, the master's `/cluster/status`, once the entrypoint's ready file says the bucket exists.
 - **Known risks**:
   - Langfuse treats non-MinIO stores as community-supported, so the stack's own end-to-end trace checks every run (quickstart US1, breach-test trace assertions) are its test: write, read, list, and the retention delete.
   - The exact health path of the S3 port in the pinned version is checked at pin time. The fallback is the master's `/cluster/status`.

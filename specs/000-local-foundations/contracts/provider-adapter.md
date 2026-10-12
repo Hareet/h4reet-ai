@@ -190,12 +190,14 @@ export class ProviderError extends Error {
 | Module | `src/adapters/local-openai.ts` |
 | Kind and provider | `kind: local`, `provider: local`. In spec 000 this type accepts only `kind: local`. The base URL must use `http` and a single-label host (an in-stack service such as `model-server`), so no paid service can be declared local and escape the meter. The label starts with a letter, so no IPv4 address in decimal, hex, or octal passes as one ([config-files.md §1.4](config-files.md#14-startup-refusals-exit-78)). |
 | Settings | `base_url_env` (the env key holding the base URL: `LOCAL_MODEL_BASE_URL` = `http://model-server:8080/v1`), `model_env` (`LOCAL_MODEL_NAME`, the stack's `MODEL_ALIAS`), `timeouts`, `health` ([config-files.md §1](config-files.md#1-configroutingyaml)) |
-| Request | `fetch` `POST {base}/chat/completions`, with `Content-Type: application/json` and the body `{model, messages, max_tokens: maxOutputTokens, temperature?, stream: false}`. No `Authorization` header and no `user` field. |
+| Request | `POST {base}/chat/completions` over `node:http` (a departure, below), with `Content-Type: application/json` and the body `{model, messages, max_tokens: maxOutputTokens, temperature?, stream: false}`. No `Authorization` header and no `user` field. Each call opens its own connection (no keep-alive), so a socket the model server closed between calls can't fail a call as `unavailable` and fail it over. |
 | Response | `choices[0].message.content` becomes `text`. `usage.prompt_tokens`, `usage.completion_tokens`, and `usage.prompt_tokens_details.cached_tokens` become the usage. `choices[0].finish_reason`: `stop` → `stop`, `length` → `length`, `content_filter` → `content_filter`, anything else → `other`. `model` → `responseModel`, `id` → `responseId`. Missing `usage` is a `provider_error`. |
-| Timeouts | Connect 1 s, through an undici `Agent` with `connect.timeout`. Request 10 s: `AbortSignal.any([req.signal, AbortSignal.timeout(request_ms)])`. No retries: `retry = {on: [], max: 0}`, because failing over is the retry. |
+| Timeouts | Connect 1 s, through a watchdog on the socket's connect: a socket that hasn't connected in time, DNS lookup included, is destroyed, and the call fails as `unavailable` (code `ETIMEDOUT`). Request 10 s: `AbortSignal.any([req.signal, AbortSignal.timeout(min(request_ms, deadline − now))])`. No retries: `retry = {on: [], max: 0}`, because failing over is the retry. |
 | Health probe | `GET {base}/models` with an 800 ms timeout. It passes on a 200 whose list includes the configured model; a 503 is `not_ready`. |
 | Health cadence (the gateway, §6) | every 1 s. It starts unhealthy (`not_ready`). Three passes in a row mark it healthy. One failed probe, or a call that fails as `unavailable` or `timeout`, marks it unhealthy at once and resets the count. |
 | SC-005 | A stopped model server fails at once on the call itself (its name no longer resolves), so hello fails over immediately. The probe notices within 1.8 s at worst. Bedrock typically answers in 1–2 s, inside the 5 s. |
+
+**Departure (tasks.md T051, 2026-10-08): `node:http`, not `fetch` with an undici `Agent`.** This table first named `fetch`, with the connect timeout through an undici `Agent`'s `connect.timeout`. Node's built-in `fetch` exposes no connect timeout, and the `undici` package, whose `Agent` has one, isn't among the gateway's dependencies in plan.md's Technical Context; adding it would change the pinned set and the lockfile for one timeout. The adapter uses `node:http` instead, with the watchdog above for the connect timeout and the same request timeout and signals. Nothing else changes: instrumentation-http's ignore hook treats `node:http` requests as instrumentation-undici's treats `fetch` (telemetry.md §3.1), so a call to `model-server` still gets an HTTP client span under its `chat {model}` span, and no trace context leaves the stack.
 
 ### 3.2 `bedrock-converse` (`type: bedrock-converse`)
 
@@ -241,13 +243,14 @@ export interface AdapterFactory<S = unknown> {
 
 export interface AdapterContext {
   env: Readonly<Record<string, string | undefined>>;  // only the keys its settings name
-  logger: Logger;                                     // a pino child logger, with the redaction rules
+  logger: AdapterLogger;                              // the gateway's pino logger (info, warn, error), with the redaction rules
   realNow(): number;
 }
 ```
 
 - **Keys.** The registry keys factories by `type`. Two modules with the same type, or a module without `factory`, stop startup (exit 1).
-- **Building.** `config/routing.yaml` names adapters by `type`. The registry validates each adapter's settings against its factory's schema and builds only the adapters this `H4_ENV`'s route names. An unknown type, or a kind the type doesn't allow, stops startup (exit 78).
+- **Building.** `config/routing.yaml` names adapters by `type`. The registry validates each adapter's settings against its factory's schema and builds only the adapters this `H4_ENV`'s route names. An unknown type, or a kind the type doesn't allow, stops startup (exit 78). So does a factory's own refusal, an `AdapterConfigError` naming the env key and never its value (the local adapter's `local_url_not_in_stack` and `missing_env`, checked again where the URL is used).
+- **The environment.** An adapter's `env` holds only the keys its own `*_env` settings name, so no store password, operator hash, or alert credential reaches an adapter.
 - **No other file names a provider.** An ESLint `no-restricted-imports` rule refuses `@aws-sdk/*` outside `src/adapters/`. A unit test asserts that no file outside `src/adapters/` contains a provider name: the routes, the router, admission, the meter, telemetry, and alerts stay provider-agnostic (SC-006).
 
 **Switching between existing adapters is configuration only (SC-006):**
@@ -282,11 +285,17 @@ export interface ContractSubject {
   recording?: LiveRecording;   // live mode only: what operator.py contract-record captured
 }
 
+export interface ContractHarness {
+  logger: Logger;              // the suite's captured logger: the subject gives it to its adapter (C6)
+}
+
 export function describeAdapterContract(
   name: string,
-  makeAdapter: () => Promise<ContractSubject>,
+  makeAdapter: (harness: ContractHarness) => Promise<ContractSubject>,
   mode: ContractMode,
 ): void;
+
+export const CONTRACT_TIMEOUTS = { connectMs: 100, requestMs: 300 };   // §5.3's scaled-down timeouts
 
 export type StubBehavior =
   | { ok: { text: string; inputTokens: number; outputTokens: number; finish: 'stop' | 'length' | 'content_filter' } }
@@ -297,14 +306,26 @@ export type StubBehavior =
   | { malformed: true };                // a 200 whose body the adapter can't use
 
 export interface StubControl {
-  next(behavior: StubBehavior): void;
-  requests(): ReadonlyArray<{ path: string; headers: Record<string, string>; body: unknown }>;
+  next(behavior: StubBehavior): void;   // the answer to the next completion request
+  nextHealth?(behavior: StubBehavior): void;   // the next health probe's, where the probe reaches the stub (local's GET /models)
+  requests(): ReadonlyArray<{ method: string; path: string; headers: Record<string, string>; body: unknown }>;
   canary: string;                       // a marker the stub plants in every request echo and error body
   reset(): void;
+}
+
+export interface LiveRecording {        // what operator.py contract-record writes (§5.3, §5.4)
+  adapter: string;
+  statusBefore: unknown;                // GET /admin/status
+  statusAfter: unknown;
+  cases: ReadonlyArray<{ name: string;
+    request: { messages: ChatMessage[]; max_output_tokens: number; temperature?: number };
+    status: number; body: unknown }>;   // each case's 200 or 502 body (operator-admin.md §5)
 }
 ```
 
 Every case runs through the gateway's real attempt wrapper (§6), with an in-memory span exporter and a captured logger. The assertions therefore see exactly what production emits.
+
+Three additions to the first sketch of this signature (tasks.md T048, 2026-10-08), each needed to run an assertion as written: `makeAdapter` receives the harness, so the logger C6 reads is the one the adapter writes to; `nextHealth`, so C3 can make the local adapter's probe meet a 503, a refusal, and a timeout without a completion queued for the call taking the probe's answer; and `method` on a recorded request, so C3 and C9 can tell the probe from the call. `LiveRecording` is what the recorder (tasks.md T103) writes; the suite reads it in live mode.
 
 ### 5.2 Assertions
 
@@ -323,13 +344,15 @@ Every case runs through the gateway's real attempt wrapper (§6), with an in-mem
 | C11 | **Settles once.** `complete()` resolves or rejects exactly once. There is no unhandled rejection, and no timer keeps the process alive after `close()`. | yes | no |
 | C12 | **A filtered answer is a result.** OpenAI's `content_filter`, and Converse's `content_filtered` and `guardrail_intervened`, return `finishReason: 'content_filter'`, not an error. | yes | no |
 
+**Past C4.** What an adapter's own column of §2.5 lists beyond C4's shared cases is tested beside the suite, in stub mode. For the local adapter, that is 404, 413, 422, 502, and 504, a DNS failure (`ENOTFOUND`, `EAI_AGAIN`), and §3.1's connect watchdog, in `test/contract/local-openai.errors.test.ts` (tasks.md T151).
+
 ### 5.3 Three run modes
 
 1. **In the sandbox** (`make test`, `vitest run`): no network beyond the sandbox's own loopback, and no credentials.
    - The local adapter runs against an in-process stub OpenAI server (`node:http` on `127.0.0.1`, a random port).
    - The Bedrock adapter runs against `aws-sdk-client-mock` 4.1.0 with `aws-sdk-client-mock-vitest` 8.0.0, which raises SDK exceptions by `name`.
    - The synthetic adapter runs directly.
-   - Timeouts are scaled down through the settings: connect 100 ms, request 300 ms.
+   - Timeouts are scaled down through the settings: request 300 ms, and connect 100 ms, except that the local adapter's subject keeps routing.yaml's 1 s connect. (Departure, round 3's review of tasks.md T151: at 100 ms a loaded host's stalled event loop fired the connect watchdog before the stub's accept arrived, and C3 failed about once in 17 runs. No case makes a connect hang, and `local-openai.errors.test.ts` tests the watchdog at its real 1 s.)
    - Every assertion runs, with C2's synthetic variant.
 2. **Live, local** (`make contract-live ENV=<stack> ADAPTER=local REASON="…"`): against the stack's real model server, through `POST /admin/adapters/local/complete`. These calls are free and attributed `none`.
 3. **Live, Bedrock** (`make contract-live ENV=prod ADAPTER=bedrock REASON="…"`, the Author's terminal): through prod's `POST /admin/adapters/bedrock/complete` ([operator-admin.md §5](operator-admin.md#5-live-adapter-calls-post-adminadaptersidcomplete)). Every call passes prod's admission and is charged to prod's day and month meters as `test`, not to the sub-budget (FR-031, FR-037). About 10 calls, under $0.05.
@@ -366,7 +389,7 @@ The attempt wrapper in `src/core/gateway.ts`, the same for every adapter:
 1. **One CLIENT span per attempt**, named `chat {gen_ai.request.model}`. It carries the `gen_ai.*` attributes from the result, `server.address` and `server.port` from `adapter.server`, and `error.type` from `ProviderError.code` or `kind`. It also carries `h4.cost.usd` (always set, 0 for local), `h4.cost.basis`, `h4.price.version`, `h4.route.decision`, `h4.route.reason`, `h4.meter.attribution`, `h4.stack`, `h4.routing.sha`, `h4.payload.sampled`, and Langfuse's generation-type attribute ([plan.md §5.7](../plan.md#57-telemetry), [telemetry.md](telemetry.md)).
 2. **Payloads** (`gen_ai.input.messages`, `gen_ai.output.messages`) are added only when `TELEMETRY_PAYLOAD_SAMPLING=on` (dev only) and the span opts in, after secret redaction (FR-029).
 3. **The retry policy:** another attempt, with its own span, only for a kind in `retry.on`, at most `retry.max` times, and only if the backoff plus the adapter's request timeout fits before the deadline.
-4. **Health tracking:** the probe interval and timeout, and the unhealthy-after and healthy-after counts from `config/routing.yaml`, applied with the real clock. A call that fails as `unavailable` or `timeout` counts as a failed probe.
+4. **Health tracking:** the probe interval and timeout, and the unhealthy-after and healthy-after counts from `config/routing.yaml`, applied with the real clock. A call that fails as `unavailable` or `timeout` counts as a failed probe, except when the caller went away first: that ends the call with `timeout` too, and says nothing about the adapter (tasks.md T052).
 5. **The circuit breaker,** for adapters with `circuit` settings (Bedrock): 3 consecutive failures of kind `unavailable`, `timeout`, `rate_limited`, `auth`, or `provider_error` open it for 30 s. Then one trial call is allowed: a success closes it, and a failure opens it for another 30 s. While open, the adapter's effective health is unhealthy, with `circuit_open`.
 6. **Effective health** (the adapter's probe, combined with the circuit) feeds routing, `GET /health`, and the gauge `h4.adapter.healthy` (`h4.adapter`).
 7. **Cost, metering, and the ledger:** [data-model.md §7](../data-model.md#7-transactions-and-background-work).

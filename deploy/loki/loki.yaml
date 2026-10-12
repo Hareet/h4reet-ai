@@ -1,0 +1,54 @@
+# The stack's Loki 3, a single binary on its own volume (spec 000 FR-026; plan §6; contracts/telemetry.md §6.6; ADR
+# 0021). Mounted read-only. The gateway's logs arrive over OTLP from the collector; third-party services' logs stay in
+# Docker's local driver (make logs), because shipping them would mount the host's container-log directory, which
+# crosses stacks (FR-020).
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+
+schema_config:
+  configs:
+    - from: "2026-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # 30 days, applied by the compactor.
+  retention_period: 720h
+  allow_structured_metadata: true
+  # service_name, service_namespace, and deployment_environment_name are index labels; the rest of a record's
+  # attributes are structured metadata (telemetry.md §5.1).
+  otlp_config:
+    resource_attributes:
+      attributes_config:
+        - action: index_label
+          attributes: [service.name, service.namespace, deployment.environment.name]
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+# Loki's usage reporting, off (plan §6; FR-040). The internal network would block it anyway.
+analytics:
+  reporting_enabled: false

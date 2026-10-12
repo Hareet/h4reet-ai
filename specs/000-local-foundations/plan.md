@@ -182,7 +182,9 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
 .dockerignore                    [A] new: excludes .git, deploy/env, *.env, node_modules, __pycache__, corpus/intake/private
 .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
                                      allowlists deploy/env.agents/dev-cpu.vars, and ADR 0004 at 8c15b95
-GNUmakefile, makefile            never exist: denied at the OS level from the early patch on, so nothing shadows the Makefile
+GNUmakefile, makefile            never exist, apart from the empty placeholders a session's sandbox puts there: denied
+                                     at the OS level in the main tree from the early patch on. A branch from a worktree
+                                     could add one; the gate refuses it from T092 (§11)
 .devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
                                      hashed requirements-tools.txt
 config/
@@ -219,7 +221,8 @@ deploy/
   seaweedfs/entrypoint.sh        [A] new: renders s3.json from env, creates the bucket, runs weed
   grafana/provisioning/{datasources,dashboards}/*.yaml, grafana/dashboards/h4-runtime.json   [A] new
   scripts/                       [A] new: preflight.py, init_env.py, export_tree.py, pull_images.py, pull-models.sh,
-                                     pin_images.py, status.py, isolation-check.sh, redact.sh, aws-login.sh
+                                     pin_images.py, status.py, isolation-check.sh (with its probe,
+                                     isolation_probe.py), redact.sh, aws-login.sh
   agents-engine/                 [H] new: the FR-039 boundary (§10)
     setup-host.sh, engine.sh, authz.py, egress-proxy.py, docker-relay, prove-limits.sh, daemon.json,
     tree-masks.txt, nftables/h4agents.nft, systemd/*, test/*.py
@@ -293,7 +296,7 @@ CLAUDE.md                        [P] the lines §15 lists
   - `make isolation-check` proves the isolation with both stacks up ([§4](#4-environment-files-preflight-and-the-stack-targets)).
 - **Rules for every service:**
   - `restart: unless-stopped` and `security_opt: [no-new-privileges:true]`.
-  - `cap_drop: [ALL]` everywhere except the database and storage images, whose entrypoints change ownership at start; those keep only `CHOWN`, `SETUID`, `SETGID`, `FOWNER`, and `DAC_OVERRIDE`.
+  - `cap_drop: [ALL]` everywhere except the database and storage images, whose entrypoints change ownership at start; those keep only `CHOWN`, `SETUID`, `SETGID`, `FOWNER`, and `DAC_OVERRIDE`. That is the two Postgres and Valkey. ClickHouse and SeaweedFS run as their images' own users instead, with nothing added back: ClickHouse as `101:101`, as Langfuse's compose runs it, and SeaweedFS as `1000:1000`, because our entrypoint replaces the image's, which would chown `/data` and drop to that user (T065's second prod start, 2026-10-09, tasks.md T176).
   - `read_only: true` with a tmpfs `/tmp` where the image allows it (edge, gateway, collector, the stand-ins, the probe).
   - The `local` log driver, rotated at 10 MB × 3.
   - No service-level `env_file:`: each container gets only the variables it needs, from the stack's env file through compose interpolation.
@@ -321,9 +324,9 @@ Each `image:` line in `deploy/compose.yaml` is written as `<repository>:<tag>@sh
 | `langfuse-db` | the same Postgres image as `gateway-state` | – | internal | `langfuse-db-data` | `pg_isready -U langfuse` | 0.5 CPU, 512 MiB |
 | `clickhouse` | `docker.io/clickhouse/clickhouse-server:26.8.20.9@sha256:9b61e3c635c04ad5bb521eb4f6e61ce7585b5580814e51c25bb9e8292ce43364` (the newest LTS line; Langfuse 4.54.0's compose pins 25.12, its minimum, [research.md R-08](research.md#r-08-langfuse-v4-not-v3)) | – | internal | `clickhouse-data`; `${H4_TREE}/deploy/clickhouse/*.xml:ro` | `wget -qO- http://127.0.0.1:8123/ping` | 2 CPU, 4 GiB (low-memory profile) |
 | `valkey` | `docker.io/valkey/valkey:8.1.10-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507` | – | internal | `valkey-data` (append-only file on) | `valkey-cli -a "$VALKEY_PASSWORD" ping` returns PONG | 0.5 CPU, 384 MiB (`maxmemory 256mb`, `noeviction`) |
-| `seaweedfs` | `docker.io/chrislusf/seaweedfs:<the newest release tag, pinned by make pin-images; check 2's tag pattern matched none>` | – | internal | `seaweedfs-data`; `${H4_TREE}/deploy/seaweedfs/entrypoint.sh:ro` | the S3 port's health path if the pinned version serves one, otherwise the master's `/cluster/status` (research.md R-09) | 0.5 CPU, 512 MiB |
+| `seaweedfs` | `docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d` (the newest release tag, pinned by `make pin-images` in T063; check 2's tag pattern matched none). It runs as the image's own user, `seaweed` (`1000:1000`), who owns `/data`: our entrypoint replaces the image's, which chowns `/data` and drops to that user, and root with every capability dropped can't write it (T065's second prod start, 2026-10-09, tasks.md T176) | – | internal | `seaweedfs-data`; `${H4_TREE}/deploy/seaweedfs/entrypoint.sh:ro` | the master's `/cluster/status`, research.md R-09's fallback, once the entrypoint's ready file says the bucket exists | 0.5 CPU, 512 MiB |
 | `prometheus` | `quay.io/prometheus/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e` | – | internal | `prometheus-data`; `${H4_TREE}/deploy/prometheus/prometheus.yml:ro` | `wget -qO- http://127.0.0.1:9090/-/ready` | 0.5 CPU, 1 GiB |
-| `loki` | `docker.io/grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193` | – | internal | `loki-data`; `${H4_TREE}/deploy/loki/loki.yaml:ro` | `wget -qO- http://127.0.0.1:3100/ready` (the image's busybox, checked at pin time) | 0.5 CPU, 512 MiB |
+| `loki` | `docker.io/grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193` | – | internal | `loki-data`; `${H4_TREE}/deploy/loki/loki.yaml:ro` | none: the image is distroless, with no shell and no wget. As with the collector, Prometheus's scrape shows that it answers, though not that it's ready, and nothing waits on it. The `wget` check planned here could never run (T065's second prod start, 2026-10-09, tasks.md T177) | 0.5 CPU, 512 MiB |
 | `grafana` | `docker.io/grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572` (OSS) | – | internal | `grafana-data`; `${H4_TREE}/deploy/grafana/**:ro` | `wget -qO- http://127.0.0.1:3000/api/health` | 0.5 CPU, 512 MiB |
 | `telegram-standin` | built from `evals/standins/Dockerfile` on `public.ecr.aws/docker/library/python:3.12.15-slim-trixie@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f` | dev-receivers | internal | – | `python3 -c` probe of `/healthz` | 0.1 CPU, 64 MiB |
 | `mailpit` | `ghcr.io/axllent/mailpit:v1.31.4@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48` | dev-receivers | internal | – | `wget -qO- http://127.0.0.1:8025/livez` | 0.1 CPU, 64 MiB |
@@ -362,8 +365,8 @@ The bases the gates and the devcontainer use aren't compose services but are pin
   - **stand-in, for dev and dev-cpu:** `Qwen/Qwen2.5-0.5B-Instruct-GGUF` at revision `9217f5db79a29953eb74d5343926648285ec7e67`, file `qwen2.5-0.5b-instruct-q4_k_m.gguf`, 491,400,032 bytes, sha256 `74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db`, Apache-2.0.
   - Phase 1's evals pick the twin's final model; changing it is a configuration change.
 - **Fetching.** `deploy/scripts/pull-models.sh` runs on the host only, into `H4_MODEL_DIR` (ext4, never `/mnt/*`):
-  - it downloads `https://huggingface.co/<repo>/resolve/<revision>/<file>` with `curl -fL -C -`, using no token;
-  - it verifies the sha256, renames atomically, and sets mode 0444.
+  - it downloads `https://huggingface.co/<repo>/resolve/<revision>/<file>` with `curl -fL -C -`, using no token, into `.<file>.part` beside the file;
+  - it verifies the sha256, sets mode 0444, and renames atomically. (Departure, tasks.md T057: the mode is set before the rename rather than after it, so the file's own name never holds a writable model; a download that doesn't match is removed.)
 
   The first pin is trust-on-first-use: the Author checks the sha256 against the file's page and commits the lock.
   - **Host stacks:** `make up` fetches a missing model, since SC-001 counts the download.
@@ -416,7 +419,7 @@ Keys that select the stack:
 
 Exit codes:
 - 0: every service is healthy.
-- 0 with a WARN: healthy, but waiting on the operator (an empty store or a tripped switch).
+- 0 with a WARN: healthy. The last line says "waiting on the operator" for what only the operator clears (an empty store, a tripped switch), and "with warnings" for any other WARN: an image off its pin, a container whose configuration isn't the running commit's by compose's config hash, a Prometheus target down (tasks.md T181, T182).
 - 1: preflight refused, or a service failed its health check. The output names the service with its health output and redacted error lines, and the rest keeps running with hello degraded.
 
 **Rollback** (Development Workflow step 6). `make up ENV=<stack> REF=<previous sha>` (the run file and `make status` show `H4_REF_PREVIOUS`) brings back the previous commit's compose file, configuration, and images in one command. The store and the journal stay as they are. The gateway refuses to start against a store whose schema is newer than its own migrations (exit 78, `schema_newer_than_code`, naming the migration), so a rollback across a migration fails closed instead of corrupting the meter. quickstart.md §1.12 rehearses it on dev, and the runbook is `docs/runbooks/rollback.md`.
@@ -428,11 +431,12 @@ Exit codes:
 | `down` | anyone | `down --timeout 30 --remove-orphans`, never `-v`, with the running export's compose file on host stacks |
 | `pull` | the Author | `pull_images.py`: pulls images for every profile by digest, skipping those already present, one Docker Hub image at a time, with backoff (5, 15, 45 s) that names an HTTP 429; then `pull-models.sh` (`MODELS=all` fetches every lock entry) |
 | `pin-images` | the Author | `pin_images.py`: resolves digests, rewrites `compose.yaml` and `images.lock`, prints the table |
-| `build` | agents and the devcontainer (it refuses elsewhere, since `npm run build` runs `node_modules`, §11) | `npm run build --workspaces`, then `docker compose build` (gateway, telegram-standin, breach-probe) on the current engine, with dev-cpu's env file and every profile, through the relay in the sandbox; prints `BUILD OK`. Before the agents' engine exists, or without a docker CLI (the devcontainer), it says so and builds the workspaces alone |
+| `build` | agents and the devcontainer (it refuses elsewhere, since `npm run build` runs `node_modules`, §11) | `npm run build --workspaces`, then `docker compose build` (gateway, telegram-standin, breach-probe) on the agents' engine only, with dev-cpu's env file: `compose-images` refuses any engine but the relay's inside the sandbox and `198.18.0.1:2376`, so the live working tree is never built on the host's (round 3's review) and every profile, through the relay in the sandbox; prints `BUILD OK`. Before the agents' engine exists, or without a docker CLI (the devcontainer), it says so and builds the workspaces alone |
 | `logs` | anyone | `logs --timestamps --tail ${TAIL:-200} ${SERVICE}`, piped through `deploy/scripts/redact.sh` (ops.md's filter); the model server shows warnings and errors only |
 | `status` | anyone | `status.py`: the running commit, its branch, and the previous commit (from the run file); state, health, the running digest against the pin, the gateway's `/health`, Prometheus target health, GPU memory, `docker system df` |
+| `hello` | anyone; agent sessions for dev-cpu only | `scripts/hello.py` (stdlib, through `PY_HOST`): `POST /hello` with `MESSAGE=` from the command line, printing the status and the body, with no token. From the Author's terminal it goes to the stack's api port on `127.0.0.1`; inside the sandbox it makes the operator CLI's probe hop to `gateway:8080` on dev-cpu ([contracts/gateway-http.md §9](contracts/gateway-http.md#9-the-hello-client-make-hello); added by tasks.md T147, for T064) |
 | `init-env` | the Author | `init_env.py`: copies the template to `~/.config/h4reet-ai/env/<stack>.env` (0600, directory 0700), generates each `__GENERATE__` value in its own shape, refuses to overwrite, prints the names of the `__ASK__` keys left; `SYNC=1` appends new template keys without touching existing values |
-| `isolation-check` | the Author | with prod and dev up: a throwaway container on dev's networks asserts that prod's service names don't resolve, prod's container IPs refuse connections, and prod's ports refuse through the host gateway |
+| `isolation-check` | the Author | with prod and dev up: a throwaway container on dev's networks asserts that prod's service names don't resolve, prod's container IPs refuse connections, and prod's ports refuse through the host gateway. (Departure, tasks.md T061: `isolation-check.sh` checks both directions, dev to prod and prod to dev, on each of the source stack's three networks. Since the stacks share service names, a name fails only when it resolves to one of the other stack's addresses, and names are checked on the internal network alone, where Docker's DNS doesn't forward to the host's resolvers. A control on each network confirms the probe reaches its own stack, so a refusal can't come from a probe that reaches nothing. Last, on the host, no named volume and no writable bind may belong to both stacks; only the read-only model cache is shared. The probe, `deploy/scripts/isolation_probe.py`, runs in the pinned `base:python` image with no mounts, no capabilities, and facts on stdin that carry no container's environment.) |
 | `aws-login` | the Author | `aws-login.sh`: `HOME=~/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock`, so prod's gateway sees only the dedicated runtime identity ([§5.2](#52-adapters)) |
 
 ## 5. The gateway
@@ -459,7 +463,7 @@ A request in flight when the state flips completes: the state is read at request
 One interface, `ProviderAdapter { id, provider, kind, model, complete(req), health(signal) }`. `kind` is `local`, `paid`, or `synthetic`. The full types and the error taxonomy are in [contracts/provider-adapter.md](contracts/provider-adapter.md). Adapters are built from `config/routing.yaml` by `src/adapters/registry.ts`, keyed by `type`; nothing else in the gateway names a provider (SC-006).
 
 - **`local-openai`** (`type: openai-compatible`):
-  - `fetch` to `POST {base}/chat/completions`.
+  - `POST {base}/chat/completions` over `node:http`, one connection per call. (A departure from `fetch` with an undici `Agent`, recorded in [contracts/provider-adapter.md §3.1](contracts/provider-adapter.md#31-local-openai-type-openai-compatible): built-in `fetch` has no connect timeout, and `undici` isn't a pinned dependency.)
   - Connect timeout 1 s, request timeout 10 s, and no retries: failing over is the retry.
   - Health: `GET {base}/models` every 1 s with an 800 ms timeout. One failure marks it unhealthy; three passes in a row mark it healthy again.
   - So a stopped model server fails over at once on the call itself, and within 1.8 s at worst by health check (SC-005).
@@ -600,7 +604,8 @@ The gateway exits with code 78 (configuration error) and a named reason when:
 - `OPERATOR_TOKEN_SHA256` is malformed, or equals the published dev-cpu dummy's hash on prod;
 - a paid model has no price, or a price of 0;
 - the store's schema is newer than the gateway's migrations (`schema_newer_than_code`), so a rollback across a migration fails closed;
-- a config file fails validation.
+- a config file fails validation;
+- until T074, the route `H4_ENV` selects names a fallback (`fallback_not_supported`). (Departure, tasks.md T148: a temporary refusal that the approved plan doesn't list. This build has no metered fallback path, because admission, commit, and the fallback branch arrive with T072–T074. So `createServices` in `services/gateway/src/app.ts` refuses a route with a fallback once the registry has built it, closes the adapters it built, and stops before the store's first attempt, and no fallback is ever called outside the meter. No committed route has a fallback yet ([config-files.md §1.2](contracts/config-files.md#12-example-the-committed-file), step 1), so no stack starts differently. Dev's `fallback: synthetic` arrives with T073, and T074 removes the refusal, so the two land together.)
 
 Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live)), and matrix rows cover the first three ([§13](#13-the-forbidden-action-matrix)).
 
@@ -624,19 +629,21 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
   - **S3:** `LANGFUSE_S3_EVENT_UPLOAD_*`, pointed at `http://seaweedfs:8333`, bucket `langfuse`, with `FORCE_PATH_STYLE=true`.
   - **Secrets and URLs:** `SALT`, `ENCRYPTION_KEY` (64 hex), `NEXTAUTH_SECRET`, and `NEXTAUTH_URL=http://localhost:<x001>`.
   - **Switches:** `AUTH_DISABLE_SIGNUP=true` and `TELEMETRY_ENABLED=false`.
+  - **Listening:** `HOSTNAME=0.0.0.0` on both. Each listens on `$HOSTNAME`, which Docker sets to the container's ID, so without it neither answers its health check on 127.0.0.1 (tasks.md T180).
   - **Headless initialization:** `LANGFUSE_INIT_ORG_*`, `LANGFUSE_INIT_PROJECT_*` (with the same public and secret keys the collector uses, so no UI step stands between `make up` and the first trace), and `LANGFUSE_INIT_USER_*`.
 
   The authoritative variable list is Langfuse's own `docker-compose.yml` at 4.54.0, whose key names check 2 printed ([research.md R-08](research.md#r-08-langfuse-v4-not-v3)). The settings that keep Langfuse from reaching out are all off:
     - its in-app agent and AI features: `LANGFUSE_IN_APP_AGENT_ENABLED=false`, with every `LANGFUSE_AI_*` key unset;
-    - its LLM connections: the `LANGFUSE_LLM_CONNECTION_WHITELISTED_*` lists empty;
+    - its LLM connections: `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST`, `_IPS`, and `_IP_SEGMENTS` set to the empty string. They are the exceptions to Langfuse's block on internal addresses for an LLM connection's base URL, so none means no connection can name an in-stack host. (T059 had left them unset, because their names weren't known in the sandbox and unset might have meant unrestricted. T149 read the names from the pinned images, and found that `@langfuse/shared`'s `env.js` reads the empty string and unset alike as an empty list, `s ? s.split(",")… : []`. `deploy/scripts/test_compose_env.py` holds each to the empty string.)
     - its own email: `SMTP_CONNECTION_URL` unset;
     - batch exports: `LANGFUSE_S3_BATCH_EXPORT_ENABLED=false`;
     - cloud credentials: no `AWS_*` key in Langfuse's containers.
 
-  The media-upload keys point at the same SeaweedFS bucket under the prefix `media/`. Spec 000 uploads no media, so SeaweedFS stays unpublished. Whether Langfuse reads cost from `h4.cost.usd` mapped to its cost-details attribute is verified in the first stack task, with the mapping in the collector's transform.
+  The media-upload keys point at the same SeaweedFS bucket under the prefix `media/`. Spec 000 uploads no media, so SeaweedFS stays unpublished. Langfuse reads the cost from `gen_ai.usage.cost`, which the collector's transform sets from `h4.cost.usd`; T149 found it reads `langfuse.observation.cost_details` alike, and kept the plain number. The collector's Langfuse exporter compresses with gzip, which Langfuse takes (T149).
 - **SeaweedFS** (ADR 0022): `weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json`. `deploy/seaweedfs/entrypoint.sh` renders `s3.json` from `SEAWEEDFS_S3_ACCESS_KEY` and `SEAWEEDFS_S3_SECRET_KEY`, starts the server, waits for the master, creates the `langfuse` bucket idempotently with `weed shell`, and waits. Usage reporting is off where the pinned version has a switch for it.
 - **Prometheus 3:**
   - `--web.enable-otlp-receiver`, with `otlp.promote_resource_attributes: [service.name, service.namespace, deployment.environment.name]` and `out_of_order_time_window: 30m`.
+  - `--enable-feature=created-timestamp-zero-ingestion` (experimental in 3.15): a 0 at each series' start time, so a new counter's first increment and a histogram's first observation count in `rate()` and `increase()`. T065's §1.5 found one hello after a start invisible without it (tasks.md T149). It covers what is pushed over OTLP, not the collector's scraped counters (T185).
   - Scrapes every 15 s (the model server every 5 s): the model server, the collector, Loki, Grafana, ClickHouse (its Prometheus endpoint turned on), and itself.
   - Retention 30 days or 2 GB. No admin or lifecycle API.
 - **Loki 3:** single binary on the filesystem, TSDB schema v13, structured metadata on, 30-day retention through the compactor, `analytics.reporting_enabled: false`. Third-party services' logs stay in Docker's `local` driver (`make logs`): shipping them would mount the host's container-log directory into the collector, which crosses stacks (FR-020).
@@ -779,11 +786,11 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
 
 FR-039, ADR 0016. The rule tables and proofs are in [contracts/agents-engine.md](contracts/agents-engine.md). Everything under `deploy/agents-engine/` is human-only: it is the FR-039 boundary, and parts of it run with sudo.
 
-- **Host setup, once** (`deploy/agents-engine/engine.sh setup`, run directly in the Author's terminal, with sudo, followed by one `wsl --shutdown`):
+- **Host setup** (`deploy/agents-engine/engine.sh setup`, run directly in the Author's terminal, with sudo, followed by one `wsl --shutdown`, and run once more after it when it asks, so the NVIDIA CLI can try `nobody:h4gpu`; T179):
   - **The user:** `h4agents`, with subordinate uid and gid ranges and lingering. It is not in the `docker` group, so the host's `docker.sock` refuses it.
   - **The address:** a dummy interface `h4agents0` holding `198.18.0.1/32`, kept by a systemd unit.
   - **The firewall:** nftables table `inet h4agents`, output hook, `meta skuid h4agents`. It accepts established traffic and `198.18.0.1:3128`, and logs and drops everything else, including DNS. Containers, which reach out through slirp4netns as `h4agents`, have no route to the internet, the LAN, the host's stacks, or the bridge networks.
-  - **The GPU:** a systemd unit sets `/dev/dxg` to mode 0660, group `h4gpu`, and the Author joins the group. Rootful Docker runs as root and keeps the GPU.
+  - **The GPU:** a systemd unit sets `/dev/dxg` to mode 0660, group `h4gpu`, and the Author joins the group. Rootful Docker keeps the GPU through the NVIDIA hook. Setup sets the hook's CLI to run its driver step as `nobody:h4gpu`, or as `root:h4gpu` where NVML doesn't work as nobody (contracts/agents-engine.md H6, tasks.md T179). This line used to say "Rootful Docker runs as root and keeps the GPU". The CLI's default user isn't in `h4gpu`, and T065's first `make up ENV=prod` failed at the GPU.
   - **Windows files:** `/etc/wsl.conf` automount `options = "metadata,umask=077,fmask=077"`, so `/mnt/c` is the Author's alone.
   - **The tree:** a systemd unit, run as root, read-only binds the working tree at `/run/h4agents/tree`, with an empty tmpfs over every path in the human-only `deploy/agents-engine/tree-masks.txt`: `deploy/env`, `corpus/intake/private`, `secrets`, and `.git`. `engine.sh up` refuses to start the tree while the sandbox read-denies a path inside it that the list lacks, or while a file matching a denied glob (`.env*`, `*.env`) sits outside a mask ([contracts/agents-engine.md](contracts/agents-engine.md) H8). It also binds `/var/lib/h4agents/models` read-only at `/run/h4agents/models`. That directory is root-owned and holds only the stand-in, which `deploy/agents-engine/engine.sh seed` copies in. It creates `/var/lib/h4agents/state`, owned by `h4agents`. All three bind roots are mounted `nosymfollow`, so a planted symlink can't lead outside them. The tree's bind leaves the repository mount's peer group before any mask, so no mask propagates back onto the Author's own tree, and h4agents' daemon starts only once the tree and every mask are mounted (H8). The engine's code runs from root-owned installed copies, not from the tree. `h4agents` never traverses the Author's home, which stays mode 750.
   - **Limits:** a slice drop-in caps `h4agents` at 4 CPUs and 16 GB. That holds the dev-cpu stack's summed memory limits, about 13.2 GiB with the breach probe; its real use is 5–6 GB.
@@ -806,13 +813,13 @@ FR-039, ADR 0016. The rule tables and proofs are in [contracts/agents-engine.md]
   - Docker 28.3.3 carries the fix for CVE-2024-41110, the authorization-plugin bypass.
   - If the plugin is down, the daemon refuses every request, so it fails closed.
 - **Egress:** `egress-proxy.py` (stdlib), a CONNECT proxy on `198.18.0.1:3128`, run as the Author's user service. It allows CONNECT to 443, and absolute-form GET to 80, only for the hosts in `.claude/settings.json`'s `sandbox.network.allowedDomains`, read at start, so it's the same list by construction. It refuses IP literals, and names that resolve to non-global addresses, so the proxy can't become a way to the LAN or the host. It logs every decision. It fails closed on its own list: if the settings can't be read, or the list is empty, it refuses everything. The Author's user has lingering on, so the proxy runs without a login. Builds reach it through the `H4_BUILD_PROXY` build arguments.
-- **Seeding** (`deploy/agents-engine/engine.sh seed`, the Author): for every digest in `images.lock`, `docker pull` on the host, then `docker save | docker load` into the engine. Both daemons must use the containerd image store, so the digests survive and `@sha256` pins resolve offline. Check 2 found the host's Docker on the classic `overlay2` store. Before the first seed, the Author:
+- **Seeding** (`deploy/agents-engine/engine.sh seed`, the Author): for every pinned image but the GPU-only ones (`model-server-gpu`, `probe:cuda`) that the engine doesn't hold yet: a disk check first, a `docker pull` on the host of those the host lacks, then `docker save` of every platform the host holds, never `--platform`, `docker load` into the engine, and `docker tag` of the pinned digest with its repository and tag there, because a load names nothing saved by digest (contracts/agents-engine.md §6.2, tasks.md T174). Both daemons must use the containerd image store, so the digests survive and `@sha256` pins resolve offline. Check 2 found the host's Docker on the classic `overlay2` store. Before the first seed, the Author:
   1. prunes the images nothing uses;
   2. sets `"features": {"containerd-snapshotter": true}` in `/etc/docker/daemon.json`;
   3. restarts Docker and pulls again.
 
   Images in the old store stay on disk until they are pruned, so this step runs only with C: space to spare. Seeding also copies the stand-in model into the models share. npm, PyPI, and ghcr.io content arrives through the proxy instead.
-- **Bind paths:** compose takes bind sources from `${H4_TREE}`, which is `/run/h4agents/tree` in `dev-cpu.vars`, and state from `${H4_STATE_DIR}`, which is `/var/lib/h4agents/state/dev-cpu`. The same compose file serves both engines (FR-017). `engine.sh up` sets the state directory's ownership through the rootless namespace (`docker run --rm -v …:/s <base> chown 1000:1000 /s`), so the gateway's `node` user can write it.
+- **Bind paths:** compose takes bind sources from `${H4_TREE}`, which is `/run/h4agents/tree` in `dev-cpu.vars`, and state from `${H4_STATE_DIR}`, which is `/var/lib/h4agents/state/dev-cpu`. The same compose file serves both engines (FR-017). `engine.sh up`, and `seed` after it, create `dev-cpu/gateway` and set its ownership through the engine alone (`docker run --rm --pull never -v /var/lib/h4agents/state:/s <base:node by digest> sh -c 'mkdir -p /s/dev-cpu/gateway && chown -R 1000:1000 /s/dev-cpu'`), so the gateway's `node` user can write it. The image comes from `images.lock`'s one `base:node` line, each field checked; at `seed` a failure is fatal, at `up` a note ([agents-engine.md §6.2](contracts/agents-engine.md#62-enginesh-seed)). The Author can't see into the state root, which is `h4agents`' and 0700, so no host-side step could.
 - **The opening:**
   - The early patch adds one `allowedDomains` entry, `"198.18.0.1:2376"`, and an `env` entry, `DOCKER_CONFIG=~/.config/h4reet/agents-engine/docker`, the client certificate directory, which agents can read but not write.
   - `deploy/agents-engine/docker-relay` starts `socat TCP-LISTEN:2376,bind=127.0.0.1,fork PROXY:<sandbox proxy>:198.18.0.1:2376` inside the sandbox and runs the given command, which must be `docker` or `make`, with `DOCKER_HOST=tcp://127.0.0.1:2376` and `DOCKER_TLS_VERIFY=1`. The ops role's grant is `docker-relay docker *` only, because `make -f` runs any recipe. The relay exists because exec, attach, and BuildKit streams don't go through an HTTP proxy.
@@ -839,7 +846,7 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 | Evals | `evals` | the product scaffold on `fake`; the agent-config static tier; the behavioral tier when triggered ([§14](#14-evals-and-red-team-scaffolds-agent-configuration-evals)) | PENDING when triggered; PLANNED for a case or a check whose enforcement waits for a patch |
 | Red-team suite | `redteam` | `redteam/run.py` | runs |
 | Forbidden-action matrix | `matrix` | `redteam/forbidden-actions.sh`: stage H everywhere; stage S inside the sandbox | runs |
-| Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the current engine, and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs Ubuntu's mirrors, and the allowlist stays as it is |
+| Image build | `image` | `docker compose build` (the gateway, the Telegram stand-in, the probe) on the agents' engine only (any other is refused), and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs Ubuntu's mirrors, and the allowlist stays as it is |
 
 `make check` keeps going after a failure and prints PASS, FAIL, SKIP (always with a reason), PENDING, or PLANNED per target, then a summary line. It exits non-zero on any FAIL or PENDING. PLANNED marks enforcement that a patch adds and the Author hasn't applied yet, such as the `pre-commit` hook or an FR-007 name. It works like the matrix's planned rows ([§13](#13-the-forbidden-action-matrix)): the line names the task that writes the patch, the patch clears the mark when it adds the enforcement, and a PLANNED line doesn't fail the run. Spec 000's acceptance requires none (tasks.md T118). Inside the sandbox it sets `npm_config_cache` to `$TMPDIR`, as it already does for `UV_CACHE_DIR`. Its output, pasted whole, goes into every merge-request note (FR-041).
 
@@ -853,7 +860,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
 - the `egress` network on any service but `gateway`, the `edge` network on any service but `edge`, a service off `internal`, and any network but the three; a network or volume `name` other than compose's own `<project>_<key>`, which would join another stack's (FR-020);
 - [§1](#1-topology)'s rules for every service: no `container_name`, `env_file`, `external`, `extra_hosts`, `volumes_from`, `provider`, or `models` (a provider service runs outside compose's containers, and models pull through Docker's model runner); `cap_drop: [ALL]`, with `cap_add` only within the five capabilities; `no-new-privileges`, and nothing that relaxes it; `restart: unless-stopped`; and the `local` log driver, so no log leaves the host;
 - the top-level `secrets` and `configs`, which bring in host files outside the bind roots; `include`, which brings in a compose file the policy never sees; and `models`;
-- an image without a digest, or one that differs from `images.lock`;
+- an image without a digest, or one that differs from `images.lock`. (Departure, tasks.md T059: SeaweedFS's line in `images.lock` stays open, tag and digest `-`, until `make pin-images` resolves it in T063 (research.md R-09). While it is open, and the compose file names that line's bare repository, the policy prints `PLANNED (T063): seaweedfs's pin is open; make pin-images resolves it` instead of refusing it, and `make check` shows the gate as PLANNED. This covers only the services listed in the policy's `OPEN_PINS`, today `seaweedfs`, and only the bare repository: a tag, a digest the lock lacks, or another repository is refused as usual. Once `make pin-images` writes the digest into both files, the ordinary check applies, so the mark expires with the pin and nothing has to be removed. Preflight still refuses the open pin (P17): no stack starts an unpinned image.)
 - a Dockerfile `FROM` without a digest, or with one `images.lock` doesn't pin (the agents' engine is seeded from the lock alone);
 - a dev-only switch, or payload sampling, enabled in the prod template (FR-036), or set by compose itself rather than taken from the env file; and, in any committed env file, a `COMPOSE_*` key other than `COMPOSE_PROJECT_NAME` and `COMPOSE_PROFILES`, or a `DOCKER_*` key;
 - a `*.env` file anywhere in the working tree (the real ones live in `~/.config/h4reet-ai/env/`);
@@ -863,9 +870,18 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
 - in a build: `ssh`, `secrets`, `cache_from`, `cache_to`, and `extra_hosts`, each of which reaches the host; and a `build.context` that is absolute, or that resolves outside the compose file's tree. Each image builds from the tree the compose file came from: on a host stack, the export, so `--build` can't pick up the live working tree ([§4](#4-environment-files-preflight-and-the-stack-targets)).
 
 **The Author's gate** (`tools/gates/gate <ref>`, human-only, run directly rather than through make, because a planted `GNUmakefile` would shadow the Makefile):
-1. **Export:** `git archive <ref>` into a temporary directory.
-2. **Container phase:** in the devcontainer image (built from the exported `.devcontainer/`, tagged by its hash), `npm ci --ignore-scripts`, then, with `--network none`, lint, tests, the scaffolds, and matrix stage H.
-3. **Host phase:**
+1. **Export:** `<ref>` is resolved once to its commit SHA, which the export, every later step, and the merge use. `git archive` writes that SHA into a temporary directory, and the export is proven as `deploy/scripts/export_tree.py` proves a stack's (contracts/env-files.md §12):
+   - every git call runs with `GIT_NO_REPLACE_OBJECTS=1`;
+   - the commit object is rehashed against its SHA, and the expected tree is read from it;
+   - no `.git/info/attributes` exists;
+   - no ref exists under `refs/replace` (`git for-each-ref refs/replace` prints nothing), because the Author's merge and checkouts honor one;
+   - extraction uses tarfile's data filter;
+   - the export hashes to that tree.
+
+   Otherwise a replace ref, or `.gitattributes`' export-ignore and export-subst, could change what every later step checks, or what the merge writes. Anything short of that proof stops the gate. The merge command the gate prints is `git --no-replace-objects merge --ff-only <SHA>`.
+2. **Makefiles:** the export's `GNUmakefile` and `makefile` must be what T183's decision allows: neither while main has no `GNUmakefile`, or exactly main's `GNUmakefile` and no `makefile`. Anything but a pass stops the gate, and nothing runs make on that export. A branch from a worktree can carry either file, because the controls that keep agents from writing them work out paths from the main tree.
+3. **Container phase:** in the devcontainer image (built from the exported `.devcontainer/`, tagged by its hash), `npm ci --ignore-scripts`, then, with `--network none`, lint, tests, the scaffolds, and matrix stage H.
+4. **Host phase:**
    - `githooks-check`, `toolchain-check`, and the policy;
    - `corpus-check` with the Author's denylist, through `PY_HOST` (`python3 -I -B -X pycache_prefix=/dev/null`);
    - gitleaks on the range;
@@ -1028,7 +1044,7 @@ Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert
 The closing patch holds:
 - **`.claude/settings.json`:**
   - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)).
-  - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, and `./.git/refs/heads/main`, and `permissions.deny` gets the matching `Edit(...)`.
+  - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, `./.git/refs/heads/main`, and `./.git/refs/replace`, since a merge honors a replace ref (T183's fifth review). `permissions.deny` gets the matching `Edit(...)`.
 - **`.claude/hooks/bash-gate.sh`:**
   - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the Author-only targets, `--no-verify`, and `claude mcp add`;
   - the read-only roles' rules, keyed on the hook input's `agent_type`. For `reviewer` and `red-teamer`, it refuses:

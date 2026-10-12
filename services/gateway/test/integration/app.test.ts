@@ -2,10 +2,16 @@
 // (contracts/gateway-http.md §1, §4), and the startup order: validate the environment and the configuration (exit 78
 // on failure), connect the store (retrying), then start the listeners.
 import { createHash } from "node:crypto";
+import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { ADAPTER_TYPE_SPECS } from "../../src/adapters/_settings.js";
+import { factory as localFactory } from "../../src/adapters/local-openai.js";
+import type { AdapterFactory } from "../../src/adapters/registry.js";
 import { buildApp, startGateway, type RunningGateway } from "../../src/app.js";
 import { loadConfig, type LoadedConfig } from "../../src/config/validate.js";
 import { readMigrations, runMigrations, type Database, type Migration } from "../../src/meter/store.js";
@@ -51,9 +57,11 @@ beforeAll(async () => {
 
 const running: RunningGateway[] = [];
 const databases: TestDatabase[] = [];
+const dirs: string[] = [];
 afterEach(async () => {
   for (const g of running.splice(0)) await g.close();
   for (const d of databases.splice(0)) await d.close();
+  for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
 
 async function freshDatabase(): Promise<TestDatabase> {
@@ -159,15 +167,24 @@ describe("the api listener", () => {
     });
     expect(text.statusCode).toBe(415);
     expect(text.json()).toEqual({ error: "unsupported_media_type", request_id: text.headers["x-request-id"] });
-    const bad = await api.inject({
-      method: "POST",
-      url: "/echo",
-      headers: { "content-type": "application/json" },
-      payload: '{"message": "unterminated',
-    });
-    expect(bad.statusCode).toBe(400);
-    expect(bad.json()).toMatchObject({ error: "invalid_request", request_id: bad.headers["x-request-id"] });
-    expect(bad.body).not.toContain("unterminated");
+    // A body the parser refuses is wrong as a whole, so its field is body (gateway-http.md §2.5.4): JSON cut short,
+    // an empty body sent as JSON, or a forbidden prototype key (onProtoPoisoning: "error").
+    for (const payload of ['{"message": "unterminated', "", '{"__proto__": {"unterminated": true}}']) {
+      const bad = await api.inject({
+        method: "POST",
+        url: "/echo",
+        headers: { "content-type": "application/json" },
+        payload,
+      });
+      expect(bad.statusCode, payload).toBe(400);
+      expect(bad.json(), payload).toEqual({
+        error: "invalid_request",
+        field: "body",
+        detail: "the request is malformed",
+        request_id: bad.headers["x-request-id"],
+      });
+      expect(bad.body).not.toContain("unterminated");
+    }
     const big = await api.inject({
       method: "POST",
       url: "/echo",
@@ -184,7 +201,8 @@ describe("the api listener", () => {
 });
 
 describe("the admin listener", () => {
-  it("answers 401 to every request until the operator's authentication exists (tasks.md T055)", async () => {
+  // The listener with its routes and the operator's authentication: test/integration/admin.test.ts.
+  it("answers 401 to every request when it is bare, with no operator credential to check against", async () => {
     const { admin } = buildApp({ stack: "dev", logger: capture().logger });
     for (const [method, url] of [
       ["GET", "/admin/status"],
@@ -252,6 +270,104 @@ describe("startup", () => {
     expect(db.state.touched).toBe(0);
   });
 
+  it("refuses a route with a fallback with exit 78 fallback_not_supported until T074, closing what it built", async () => {
+    // config-files.md §1.2's second step, which T073 commits: the synthetic adapter, and dev's fallback. This build
+    // has no metered fallback path (T072–T074), so it refuses to route one (plan §5.8; config-files.md §1.4).
+    const dir = await mkdtemp(join(tmpdir(), "h4-fallback-"));
+    dirs.push(dir);
+    for (const file of ["prices.yaml", "budgets.yaml", "alerts.yaml"])
+      await copyFile(join(FIXTURES, file), join(dir, file));
+    await writeFile(
+      join(dir, "routing.yaml"),
+      [
+        "schema: 1",
+        "deadline_ms: 20000",
+        "adapters:",
+        "  local:",
+        "    type: openai-compatible",
+        "    kind: local",
+        "    provider: local",
+        "    base_url_env: LOCAL_MODEL_BASE_URL",
+        "    model_env: LOCAL_MODEL_NAME",
+        "    timeouts: { connect_ms: 1000, request_ms: 10000 }",
+        "    health: { path: /models, interval_ms: 1000, timeout_ms: 800, unhealthy_after: 1, healthy_after: 3 }",
+        "  synthetic:",
+        "    type: synthetic",
+        "    kind: synthetic",
+        "    model: metered-test",
+        "    output_tokens: 1000",
+        "envs:",
+        "  prod: { primary: local }",
+        "  dev: { primary: local, fallback: synthetic }",
+        "",
+      ].join("\n"),
+    );
+    // A build that registers synthetic, as T073's does, so the file passes validation and the registry builds both.
+    const withFallback = await loadConfig(dir, {
+      allowPlanned: false,
+      registeredTypes: new Set(["openai-compatible", "synthetic"]),
+    });
+    expect(withFallback.issues).toEqual([]);
+    expect(withFallback.routing?.envs.dev).toEqual({ primary: "local", fallback: "synthetic" });
+    const closed: string[] = [];
+    const local: AdapterFactory = {
+      ...localFactory,
+      create(id, settings, ctx) {
+        const adapter = localFactory.create(id, settings as never, ctx);
+        const close = adapter.close?.bind(adapter);
+        adapter.close = async () => {
+          closed.push(id);
+          await close?.();
+        };
+        return adapter;
+      },
+    };
+    const synthetic: AdapterFactory = {
+      type: "synthetic",
+      kinds: ["synthetic"],
+      settings: ADAPTER_TYPE_SPECS.get("synthetic")?.settings as AdapterFactory["settings"],
+      create: (id) => ({
+        id,
+        type: "synthetic",
+        provider: "synthetic",
+        kind: "synthetic",
+        model: "metered-test",
+        server: { address: "synthetic" },
+        retry: { on: [], max: 0, backoffMs: 0 },
+        complete: () => Promise.reject(new Error("the refusal comes before any call")),
+        health: async () => ({ healthy: true, checkedAt: new Date().toISOString() }),
+        close: async () => void closed.push(id),
+      }),
+    };
+    const db = watched(await freshDatabase());
+    const { logged, logger } = capture();
+    const result = await startGateway({
+      env: DEV_ENV,
+      config: withFallback,
+      logger,
+      version: "0.1.0",
+      database: db,
+      migrations,
+      listen: LOCAL,
+      factories: new Map([
+        ["openai-compatible", local],
+        ["synthetic", synthetic],
+      ]),
+      onFatal: () => {},
+    });
+    expect(result.kind === "refused" && [result.exitCode, result.lines]).toEqual([
+      78,
+      [
+        "config/routing.yaml: envs.dev.fallback: this build has no metered fallback path (tasks.md T072–T074) (fallback_not_supported)",
+      ],
+    ]);
+    expect(logged.filter((l) => l.level === "fatal").map((l) => l.record)).toEqual([
+      { event: "gateway.config_refused", reason: "fallback_not_supported" },
+    ]);
+    expect(closed.sort()).toEqual(["local", "synthetic"]);
+    expect(db.state.touched).toBe(0); // before the store's first attempt, and so before any listener
+  });
+
   it("starts with the store down: listeners up, /health/live answers, and the store retries", async () => {
     const db = watched(await freshDatabase(), { down: true, touched: 0 });
     const { events, logger } = capture();
@@ -277,7 +393,15 @@ describe("startup", () => {
     expect(admin.status).toBe(401);
     db.state.down = false;
     await vi.waitFor(() => expect(result.store.status).toBe("ready"), { timeout: 10_000, interval: 20 });
-    expect(events()).toEqual(["state.unknown", "gateway.started", "migrations.applied", "state.recovered"]);
+    // The unauthenticated status read is a failed operator authentication: counted and logged, not audited, while the
+    // store is down (operator-admin.md §1.1).
+    expect(events()).toEqual([
+      "state.unknown",
+      "gateway.started",
+      "operator.auth_failed",
+      "migrations.applied",
+      "state.recovered",
+    ]);
   });
 
   it("logs gateway.started with the routing SHA, the price version, the adapters, and H4_ENV", async () => {

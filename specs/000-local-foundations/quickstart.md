@@ -40,6 +40,8 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04@sha256:e778509d37
 
 Expected: the RTX 5090 Laptop GPU, driver 592.01, compute capability 12.0, 24,463 MiB (research.md R-01).
 
+Once §0.5 gives `/dev/dxg` to root:`h4gpu`, the NVIDIA hook's CLI needs a user in that group, or every GPU container fails with "nvml error: not supported" (T065). `engine.sh setup` sets it (§0.5; contracts/agents-engine.md H6, tasks.md T179).
+
 ### 0.3 Node 24 and the tools
 
 ```bash
@@ -63,8 +65,10 @@ deploy/agents-engine/engine.sh setup      # sudo; the user h4agents, the firewal
 # then in PowerShell: wsl --shutdown, and open a new WSL shell
 id -nG                 # includes h4gpu
 stat -c '%a %U:%G' /dev/dxg /mnt/c/Users   # 660 root:h4gpu, and 700 for /mnt/c/Users
+deploy/agents-engine/engine.sh setup      # again, when its last lines ask: with /dev/dxg in H6's mode now, it tries nobody:h4gpu for the NVIDIA CLI (T179)
 deploy/agents-engine/engine.sh up
 make engine-status     # reachable, rootless, plugin h4-authz listed
+deploy/agents-engine/engine.sh status     # also: /dev/dxg root:h4gpu 660; the NVIDIA container CLI runs as nobody:h4gpu (or root:h4gpu)
 ```
 
 `wsl --shutdown` ends every WSL session, agents' included. Run the engine's commands directly, never through make ([agents-engine.md §8](contracts/agents-engine.md#8-commands)). Seeding comes after the pull ([§0.9](#09-the-first-pull-and-the-seed)), once US1 has the models' lock and the last image pin.
@@ -265,7 +269,9 @@ make isolation-check
 ### 1.9 One compose definition; only configuration differs (US1-5, FR-017)
 
 - `make policy` passes for all three env files ([plan §11](plan.md#11-local-gates-fr-041)).
-- `docker compose -p h4reet-prod -f deploy/compose.yaml --env-file ~/.config/h4reet-ai/env/prod.env images` and the same for dev show the same digests for every shared service, and the same gateway image ID: nothing was rebuilt for an environment. Only the model server's variant (the profile) and the env file differ.
+- With prod and dev up at one commit, each pulled service runs the same image ID in both stacks: `docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}} {{.Image}}' $(docker ps -q --filter label=com.docker.compose.project=h4reet-prod)`, and the same for dev.
+- The gateway's layers are the same in both, and both images exist: `p=$(docker image inspect --format '{{json .RootFS.Layers}}' h4reet-prod-gateway) && d=$(docker image inspect --format '{{json .RootFS.Layers}}' h4reet-dev-gateway) && [ -n "$p" ] && [ "$p" = "$d" ] && echo same` prints `same`. A missing image fails the first or the second inspect, and prints nothing. Nothing was built differently for an environment, on the reading spec.md's Assumptions record as pending (T184). Only the model server's variant (the profile) and the env file differ.
+- The two gateway image IDs differ even so. Each stack's `make up` builds its own, compose labels each image it builds with its project (`com.docker.compose.project`), and each build carries its own provenance attestation. T149 found four builds of one tree on the agents' engine with four IDs over one list of layers. Whether US1-5's "no code is changed or rebuilt per environment" also asks for one build that both stacks share is the Author's call (tasks.md T184). T065 compared the IDs, with dev rolled back to an older commit, and found them different.
 
 ### 1.10 The browser's own requests (FR-040)
 

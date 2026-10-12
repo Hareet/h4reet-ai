@@ -281,6 +281,7 @@ LEFT JOIN gateway.meters f ON f.meter = 'fallback_day' AND f.period_key = to_cha
 - One file per gateway-clock month: `${GATEWAY_STATE_DIR}/journal/YYYY-MM.jsonl`, mode 0600, in a 0700 directory. A record goes into the file of the month of its own `ts`.
 - One JSON object per line, UTF-8, under 4 KB. There is one writer per stack: an in-process queue serializes appends.
 - Each append is one `write()` on a descriptor opened with `O_APPEND`, then `fsync()`. The first append to a new file also fsyncs the directory. Only a record whose `fsync` returned has been written.
+- A `write()` that comes back short, as one does on a filling disk, has not written the record: the gateway truncates the file back to its size before the write, and the append fails as `unwritable`. Before each append, a file whose last byte isn't a newline (a crash tore its last line) gets one first, so a torn line never swallows the next record. A rebuild skips the torn line and counts it.
 
 **Common fields:** `v` (1), `kind`, `ts` (the gateway clock, RFC 3339 with milliseconds, `Z`), and `stack`.
 
@@ -305,8 +306,8 @@ Example lines, from dev's synthetic spend:
 2. **Pairing.** It pairs `reserve` and `commit` records by `reservation_id`. A reservation with a `commit` counts that commit's `cost_micro`. A reservation without one counts its `max_micro`, because the call may have been billed. A `commit` without its `reserve` counts its own `cost_micro`.
 3. **Which meters.** A record counts toward a meter only if its `period_day` or `period_month` is a current period. `fallback` counts toward `day`, `month`, and `fallback_day`; `metered` and `test` toward `day` and `month`.
 4. **The allowance.** It takes `allowance_micro` and `grant_no` from the last `operator` record that set them for today (a `renew`, or an `init` with `renewed: true`). With none, they are 2,000,000 and 1.
-5. **The dev clock.** In dev only, the newest `clock` record gives the offset to restore before the current periods are computed (§8).
-6. **Floors from the last initialization.** The newest `operator` record with action `init` gives a floor to each meter whose period it shares with today: the value that initialization chose for the meter, plus the cost of every `reserve` and `commit` record with a later `ts`, paired as in step 2. So a second loss of the store's volume can't rebuild a meter below what the first initialization stated, even when the stated value isn't in the journal's call records.
+5. **The dev clock.** In dev only, the newest `clock` record gives the offset to restore before the current periods are computed (§8). Since that offset decides which months are current, the clock records are read from every month's file first, and step 1's two files are then the restored clock's (tasks.md T055). Outside dev, a `clock` record is skipped and counted.
+6. **Floors from the last initialization.** The newest `operator` record with action `init` gives a floor to each meter whose period it shares with today: the value that initialization chose for the meter, plus the cost of every `reserve` and `commit` record with a later `ts`, paired as in step 2. So a second loss of the store's volume can't rebuild a meter below what the first initialization stated, even when the stated value isn't in the journal's call records. A pair's `ts` is its `reserve`'s, or its `commit`'s when the `reserve` is missing.
 
 **Retention.** None in spec 000. At test-traffic volume a month's file stays in the kilobytes.
 
@@ -596,6 +597,7 @@ A store found empty (no `stack_state` row) leaves the runtime degraded with `sto
 8. **The write**, in one transaction:
    - `stack_state`: `state = 'normal'`, `crossed = '{}'`, `since = initialized_at = now`, `initialized_by` = the actor, `fallback_awaiting_renewal = NOT renew`, and in dev the restored clock offset;
    - the current meter rows, with `spent_micro` from the max rule and `reserved_micro = 0`;
+   - any rows left in `reservations` deleted: the ledger's candidate counted each at its maximum, and `reserved_micro = 0` must keep §2.3's invariant, or a later sweep would subtract what no row holds (tasks.md T055);
    - with `renew`: today's `allowance_micro` = the rebuilt fallback spend + 2,000,000, and `grant_no` + 1;
    - the `init` audit row, with every candidate by source, the chosen values, `confirm_zero`, `renewed`, and the journal lines skipped;
    - the `operator_action` alert.

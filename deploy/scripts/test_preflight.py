@@ -54,6 +54,7 @@ LOCK = {
     for line in (REPO / "deploy/images.lock").read_text().splitlines()
     if line and not line.startswith("#")
 }
+OPEN_PIN_DIGEST = "sha256:" + "5" * 64
 
 
 def ref(service: str) -> str:
@@ -243,6 +244,7 @@ class Stage:
         for rel in (
             "deploy/compose.yaml",
             "deploy/images.lock",
+            "deploy/models.lock",
             "deploy/env.example/prod.env.example",
             "deploy/env.example/dev.env.example",
             "deploy/env.agents/dev-cpu.vars",
@@ -255,6 +257,7 @@ class Stage:
             "schema: 1\nadapters:\n  local: {type: openai-compatible, kind: local}\nenvs:\n  prod: {primary: local}\n  dev: {primary: local}\n",
         )
         self.host = FakeHost(self.home)
+        self.pin_open_images()
         self.run_file: Path | None = None
         if stack == "dev-cpu":
             self.env_file = self.root / "deploy/env.agents/dev-cpu.vars"
@@ -305,6 +308,23 @@ class Stage:
     def write(path: Path, text: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
+
+    def pin_open_images(self) -> None:
+        """The tree as make pin-images leaves it (tasks.md T063): every open deploy/images.lock line gets a tag and a
+        digest, in the fixture's lock and in the compose model, and its image is present. With the committed lock
+        already pinned, this changes nothing."""
+        lock = self.root / "deploy/images.lock"
+        lines = []
+        for line in lock.read_text(encoding="utf-8").splitlines():
+            fields = line.split()
+            if fields and not line.startswith("#") and fields[3] == "-":
+                fields[2], fields[3], fields[5] = "3.97", OPEN_PIN_DIGEST, "2026-10-09"
+                image = f"{fields[1]}:{fields[2]}@{fields[3]}"
+                self.host.raw["services"][fields[0]]["image"] = image
+                self.host.images.add(image)
+                line = "  ".join(fields)
+            lines.append(line)
+        lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def set(self, **values: str | None) -> None:
         lines = self.env_file.read_text(encoding="utf-8").splitlines()
@@ -380,12 +400,38 @@ def statuses(results: dict[str, pf.Result]) -> dict[str, str]:
     return {k: r.status for k, r in results.items()}
 
 
+def seed_engine_model(stage: Stage, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """dev-cpu's model as engine.sh seed leaves it: the lock's size, mode 0444, in the engine's model directory,
+    which this test moves under tmp_path (P7 holds dev-cpu to the fixed path, and P18 looks there)."""
+    models = stage.root.parent / "engine-models"
+    models.mkdir()
+    monkeypatch.setitem(pf.DEVCPU, "H4_MODEL_DIR", str(models))
+    stage.write(
+        stage.env_file,
+        stage.env_file.read_text(encoding="utf-8").replace(
+            "H4_MODEL_DIR=/run/h4agents/models", f"H4_MODEL_DIR={models}"
+        ),
+    )
+    (entry,) = [
+        m
+        for m in pf.read_models(stage.root / "deploy/models.lock")
+        if "dev-cpu" in m.stacks
+    ]
+    path = models / entry.file
+    with path.open("wb") as handle:
+        handle.truncate(entry.bytes)  # sparse: the lock's size, without the bytes
+    path.chmod(0o444)
+    return path
+
+
 # ---------------------------------------------------------------------------------------------------------------
 
 
 def test_a_valid_stack_passes(
-    any_stack: Stage, capsys: pytest.CaptureFixture[str]
+    any_stack: Stage, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    if any_stack.stack == "dev-cpu":
+        seed_engine_model(any_stack, monkeypatch)
     results = any_stack.results()
     assert {
         k: (r.status, r.reason) for k, r in results.items() if r.status == "FAIL"
@@ -396,8 +442,15 @@ def test_a_valid_stack_passes(
     expected |= {"P21"} if any_stack.stack == "dev" else set()
     expected |= {"P20"} if any_stack.stack == "dev-cpu" else set()
     assert set(results) == expected
-    # No model server on this branch: the model checks wait for T057, named.
-    assert results["P18"].status == "WARN" and "T057" in results["P18"].reason
+    # The model checks run against the committed deploy/models.lock. A host stack's model isn't in the cache yet,
+    # and pull-models.sh fetches it next; dev-cpu's is the seeded one.
+    assert results["P7"].status == "PASS"
+    if any_stack.stack == "dev-cpu":
+        assert results["P18"].status == "PASS"
+    else:
+        assert results["P18"].status == "WARN"
+        assert "pull-models.sh fetches it next" in results["P18"].reason
+    assert "T057" not in "".join(r.reason for r in results.values())
 
 
 def test_main_prints_one_line_per_check_and_never_a_value(
@@ -599,9 +652,9 @@ def test_p7_the_run_file(prod: Stage) -> None:
     )
     prod.run_file.unlink()
     assert "no run file" in prod.results()["P7"].reason
-    # make pull needs no run file: P7 there is only the T057 warning about the model keys.
+    # make pull needs no run file.
     pulled = prod.results(mode="pull")["P7"]
-    assert pulled.status == "WARN" and "run file" not in pulled.reason
+    assert pulled.status == "PASS" and "run file" not in pulled.reason
 
 
 def test_p7_dev_cpus_fixed_paths_and_devs_aws_none(devcpu: Stage, dev: Stage) -> None:
@@ -616,15 +669,79 @@ def test_p7_dev_cpus_fixed_paths_and_devs_aws_none(devcpu: Stage, dev: Stage) ->
     assert "holds more than its README.md" in dev.results()["P7"].reason
 
 
-def test_p7_the_model_keys_once_a_model_server_exists(dev: Stage) -> None:
+def test_p7_the_model_keys(dev: Stage) -> None:
     dev.models_lock()
     assert dev.results()["P7"].status == "PASS"
     dev.set(MODEL_ALIAS="other")
     assert "MODEL_ALIAS isn't the lock's alias" in dev.results()["P7"].reason
     dev.set(MODEL_ALIAS="qwen2.5-0.5b-instruct", MODEL_CTX_SIZE="8191")
     assert "positive multiple of MODEL_PARALLEL" in dev.results()["P7"].reason
+    # No division by zero: the range check comes first.
+    dev.set(MODEL_CTX_SIZE="8192", MODEL_PARALLEL="0")
+    assert "MODEL_PARALLEL isn't 1 to 8" in dev.results()["P7"].reason
+    dev.set(MODEL_PARALLEL="2", MODEL_FILE="other.gguf")
+    assert (
+        "MODEL_FILE names no deploy/models.lock entry for dev"
+        in dev.results()["P7"].reason
+    )
+    dev.set(MODEL_FILE="qwen2.5-0.5b-instruct-q4_k_m.gguf")
+    dev.write(dev.root / "deploy/models.lock", "m a r v f.gguf\n")
+    results = dev.results()
+    assert (
+        "deploy/models.lock doesn't parse: models.lock line 1: expected 10 fields"
+        in results["P7"].reason
+    )
+    assert results["P18"].status == "FAIL" and "doesn't parse" in results["P18"].reason
     (dev.root / "deploy/models.lock").unlink()
-    assert "deploy/models.lock is missing (tasks.md T057)" in dev.results()["P7"].reason
+    results = dev.results()
+    assert results["P7"].reason.endswith("deploy/models.lock is missing")
+    assert results["P18"].reason == "deploy/models.lock is missing"
+
+
+def test_the_committed_models_lock_names_both_models_one_per_line() -> None:
+    """research.md R-03's two pins, each on one line with its file and sha256, as engine.sh seed reads them."""
+    models = {m.file: m for m in pf.read_models(REPO / "deploy/models.lock")}
+    assert set(models) == {
+        "Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+    }
+    prod = models["Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"]
+    standin = models["qwen2.5-0.5b-instruct-q4_k_m.gguf"]
+    assert (prod.repo, prod.revision, prod.bytes, prod.stacks) == (
+        "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF",
+        "eea7b2be5805a5f151f8847ede8e5f9a9284bf77",
+        18556686752,
+        ("prod",),
+    )
+    assert (
+        prod.sha256
+        == "6c997b8af17debdfb01d890214400ccbab00db6acc0ba8da5de1cc906c4774d0"
+    )
+    assert (standin.repo, standin.revision, standin.bytes, standin.stacks) == (
+        "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+        "9217f5db79a29953eb74d5343926648285ec7e67",
+        491400032,
+        ("dev", "dev-cpu"),
+    )
+    assert (
+        standin.sha256
+        == "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"
+    )
+    assert {m.license for m in models.values()} == {"Apache-2.0"}
+    for stack, path in (
+        ("prod", REPO / "deploy/env.example/prod.env.example"),
+        ("dev", REPO / "deploy/env.example/dev.env.example"),
+        ("dev-cpu", REPO / "deploy/env.agents/dev-cpu.vars"),
+    ):
+        values = pf.read_env(path)
+        model = models[values["MODEL_FILE"]]
+        assert stack in model.stacks and values["MODEL_ALIAS"] == model.alias, stack
+    # engine.sh seed_model takes the first 64-hex run on the lines that name the stand-in's file: exactly one line
+    # does, and that run is its sha256 (the 40-hex revision can't be one).
+    text = (REPO / "deploy/models.lock").read_text(encoding="utf-8")
+    lines = [ln for ln in text.splitlines() if standin.file in ln]
+    assert len(lines) == 1
+    assert re.findall(r"[0-9a-f]{64}", lines[0])[0] == standin.sha256
 
 
 def test_p8_switches_and_paid_routes(prod: Stage, dev: Stage) -> None:
@@ -702,6 +819,14 @@ def test_p12_the_gpu(prod: Stage, devcpu: Stage) -> None:
     assert devcpu.results()["P12"].reason == "no gpu profile"
 
 
+def test_p12_a_gpu_stack_needs_the_gpu_model_server(prod: Stage) -> None:
+    # The committed compose file defines it, so P12 checks the GPU itself.
+    assert "model-server-gpu" in RAW["services"]
+    del prod.host.raw["services"]["model-server-gpu"]
+    result = prod.results()["P12"]
+    assert result.status == "FAIL" and "has no model-server-gpu" in result.reason
+
+
 def test_p13_both_drives_with_every_figure(prod: Stage) -> None:
     prod.models_lock()
     result = prod.results()["P13"]
@@ -720,6 +845,11 @@ def test_p13_both_drives_with_every_figure(prod: Stage) -> None:
 
 
 def test_p13_the_windows_drive(prod: Stage) -> None:
+    model = (
+        prod.home / ".local/share/h4reet/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+    )
+    with model.open("wb") as handle:
+        handle.truncate(18556686752)  # sparse: the lock's size, so no model to download
     prod.host.free["/mnt/c"] = 30 * GB
     result = prod.results()["P13"]
     assert (
@@ -768,12 +898,28 @@ def test_p14_the_model_directory(prod: Stage) -> None:
     assert "not ext4" in prod.results()["P14"].reason
 
 
+def limits_gib(raw: dict, profiles: set[str]) -> str:
+    """The memory limits of the services the profiles start, summed from the compose file as written."""
+    total = 0
+    for service in raw["services"].values():
+        wanted = set(service.get("profiles") or [])
+        if not wanted or wanted & profiles:
+            total += int(to_bytes(service["deploy"]["resources"]["limits"]["memory"]))
+    return f"{total / GIB:.1f} GiB"
+
+
 def test_p15_memory(prod: Stage, devcpu: Stage) -> None:
     prod.host.mem = 4 * GIB
     result = prod.results()["P15"]
+    assert result.status == "FAIL"
     assert (
-        result.status == "FAIL"
-        and "the limits sum to 0.8 GiB, plus 4.0 GiB" in result.reason
+        f"the limits sum to {limits_gib(RAW, {'gpu'})}, plus 4.0 GiB" in result.reason
+    )
+    # The engine's budget holds dev-cpu's whole stack.
+    assert devcpu.results()["P15"].status == "PASS"
+    assert (
+        f"the limits sum to {limits_gib(RAW, {'cpu', 'dev-receivers', 'breach'})} with the breach probe"
+        in devcpu.results()["P15"].reason
     )
     devcpu.models_lock()
     devcpu.host.raw["services"]["clickhouse"] = {
@@ -813,6 +959,26 @@ def test_p17_images_against_the_lock(dev: Stage) -> None:
     assert "edge: not pinned by digest" in dev.results()["P17"].reason
 
 
+def test_p17_an_open_pin_starts_nothing(dev: Stage) -> None:
+    """SeaweedFS's lock line, as it stands until make pin-images (T063): the policy says PLANNED, preflight refuses."""
+    lock = dev.root / "deploy/images.lock"
+    lines = []
+    for line in lock.read_text(encoding="utf-8").splitlines():
+        fields = line.split()
+        if fields and fields[0] == "seaweedfs":
+            fields[2] = fields[3] = fields[5] = "-"
+            line = "  ".join(fields)
+        lines.append(line)
+    lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    dev.host.raw["services"]["seaweedfs"]["image"] = "docker.io/chrislusf/seaweedfs"
+    result = dev.results()["P17"]
+    assert result.status == "FAIL"
+    assert (
+        "seaweedfs: its pin in deploy/images.lock is still open: make pin-images"
+        in (result.reason)
+    )
+
+
 def test_p18_the_model_file(dev: Stage, devcpu: Stage) -> None:
     dev.models_lock()
     assert dev.results()["P18"].status == "WARN"  # pull-models.sh fetches it next
@@ -821,7 +987,16 @@ def test_p18_the_model_file(dev: Stage, devcpu: Stage) -> None:
     model.chmod(0o644)
     reason = dev.results()["P18"].reason
     assert "not the lock's 491400032" in reason and "mode 0444" in reason
+    assert "make pull ENV=dev checks a file of the lock's size" in reason
+    model.unlink()
+    real = dev.home / "elsewhere.gguf"
+    real.write_bytes(b"x")
+    model.symlink_to(real)
+    result = dev.results()["P18"]
+    assert result.status == "FAIL" and "a symbolic link" in result.reason
     devcpu.models_lock()
+    # dev-cpu's H4_MODEL_DIR names the engine's real mount, which T063's seed filled on 2026-10-09: inside the test.
+    devcpu.set(H4_MODEL_DIR=str(devcpu.home / "engine-models"))
     assert "engine.sh seed" in devcpu.results()["P18"].reason
 
 

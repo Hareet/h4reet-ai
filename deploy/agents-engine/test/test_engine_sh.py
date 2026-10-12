@@ -676,8 +676,35 @@ engine_docker() {
 	printf 'engine %s\n' "$*" >>"$CALLS"
 	case "$1" in
 	version) [ "$ENGINE_UP" = 1 ] ;;
-	image) [ -f "$STATE/engine/$(key "${!#}")" ] ;;
-	load) local line; read -r line; : >"$STATE/engine/$(key "${line#tar-of }")" ;;
+	image)
+		[ -f "$STATE/engine/$(key "${!#}")" ] && return 0
+		echo "Error response from daemon: No such image: ${!#}" >&2
+		return 1
+		;;
+	load)
+		# As the real engine does (T063): a load registers the image's ID alone, and names nothing. LOAD_FAIL names
+		# images whose load breaks; MISMATCH, images that arrive under another ID.
+		local line ref name id
+		read -r line
+		ref="${line#tar-of }"
+		name="${ref#registry.example/}"
+		name="${name%%:*}"
+		case " ${LOAD_FAIL:-} " in *" $name "*) echo "Error response from daemon: unexpected EOF" >&2; return 1 ;; esac
+		id="${ref#*@}"
+		case " ${MISMATCH:-} " in *" $name "*) id="sha256:$(printf '%064d' 0 | tr 0 f)" ;; esac
+		: >"$STATE/engine/id-$(key "$id")"
+		echo "Loaded image ID: $id"
+		;;
+	tag)
+		# docker tag <image ID> <repository:tag>: only an ID the engine holds, which then answers to tag@digest.
+		[ -f "$STATE/engine/id-$(key "$2")" ] || { echo "Error response from daemon: No such image: $2" >&2; return 1; }
+		: >"$STATE/engine/$(key "$3@$2")"
+		;;
+	run)
+		[ "$CHOWN_OK" = 1 ] && return 0
+		printf 'Unable to find image locally\ndocker: Error response from daemon: refused by h4-authz (A14)\n' >&2
+		return 125
+		;;
 	*) return 1 ;;
 	esac
 }
@@ -693,6 +720,17 @@ def _ref(name: str) -> str:
     return f"registry.example/{name}:1.0@sha256:{name[0] * 64}"
 
 
+# The base:node pin chown_state runs (T145): every seed's lock has it, and the engine already holds it.
+BASE_NODE_LINE = (
+    f"base:node registry.example/node 24-slim sha256:{'e' * 64} example 2026-10-08"
+)
+BASE_NODE = f"registry.example/node:24-slim@sha256:{'e' * 64}"
+
+
+def _store_key(ref: str) -> str:
+    return "".join(c if c.isalnum() or c in "._-" else "_" for c in ref)
+
+
 def _seed(
     tmp_path: Path,
     *,
@@ -703,6 +741,10 @@ def _seed(
     driver_status: str = CONTAINERD,
     disk_ok: bool = True,
     engine_up: bool = True,
+    base_node: bool = True,
+    chown_ok: bool = True,
+    load_fail: tuple[str, ...] = (),
+    mismatch: tuple[str, ...] = (),
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     """Run cmd_seed with the stand-ins. `host` and `registry` map image names to their host-side size."""
     names = sorted(set(host) | set(engine_has) | set(registry or {}))
@@ -713,6 +755,8 @@ def _seed(
         for n in names
     ]
     lines += [f"{n} registry.example/{n} 1.0 - example -" for n in unpinned]
+    if base_node:
+        lines.append(BASE_NODE_LINE)
     lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
     state = tmp_path / "state"
     for store in ("host", "engine", "registry"):
@@ -728,6 +772,8 @@ def _seed(
         path("host", name).write_text(f"{size}\n", encoding="utf-8")
     for name in engine_has:
         path("engine", name).write_text("", encoding="utf-8")
+    if base_node:
+        (state / "engine" / _store_key(BASE_NODE)).write_text("", encoding="utf-8")
     for name, size in (registry or {}).items():
         path("registry", name).write_text(f"{size}\n", encoding="utf-8")
     calls = tmp_path / "calls.log"
@@ -741,8 +787,57 @@ def _seed(
         DRIVER_STATUS=driver_status,
         DISK_OK="1" if disk_ok else "0",
         ENGINE_UP="1" if engine_up else "0",
+        CHOWN_OK="1" if chown_ok else "0",
+        LOAD_FAIL=" ".join(load_fail),
+        MISMATCH=" ".join(mismatch),
     )
     return done, calls.read_text(encoding="utf-8").splitlines()
+
+
+def _row(done: subprocess.CompletedProcess[str], name: str) -> tuple[str, str]:
+    """seed's table row for an image, and the line under it."""
+    lines = [*done.stdout.splitlines(), ""]
+    i = next(
+        i
+        for i, line in enumerate(lines)
+        if line.startswith(f"registry.example/{name}:1.0 ")
+    )
+    return lines[i].rstrip(), lines[i + 1].strip()
+
+
+def test_seed_saves_every_platform_and_names_the_image_by_its_pinned_digest(
+    tmp_path: Path,
+) -> None:
+    # T063, 2026-10-09: a --platform save lost the index digest, and the load named nothing, so all 19 failed.
+    done, calls = _seed(tmp_path, host={"alpha": GIB})
+    assert done.returncode == 0, done.stderr
+    ref = _ref("alpha")
+    repo_tag, _, digest = ref.partition("@")
+    assert f"host save {ref}" in calls
+    assert not [c for c in calls if c.startswith("host save") and "--platform" in c]
+    tag = f"engine tag {digest} {repo_tag}"
+    assert calls.index(tag) > _first(calls, "engine load")
+    row, _ = _row(done, "alpha")
+    assert row.endswith("seeded")
+
+
+def test_seed_says_why_an_image_failed(tmp_path: Path) -> None:
+    done, _ = _seed(tmp_path, host={"alpha": GIB, "bravo": GIB}, load_fail=("bravo",))
+    assert done.returncode != 0
+    row, why = _row(done, "bravo")
+    assert row.endswith("FAILED")
+    assert why == "Error response from daemon: unexpected EOF"
+    assert _row(done, "alpha")[0].endswith("seeded")
+    assert "1 image(s) failed to seed" in done.stderr
+
+
+def test_seed_fails_an_image_whose_digest_changed_on_the_way(tmp_path: Path) -> None:
+    # The tag names only the pinned digest: a load that brings another ID fails, and never seeds.
+    done, _ = _seed(tmp_path, host={"alpha": GIB}, mismatch=("alpha",))
+    assert done.returncode != 0
+    row, why = _row(done, "alpha")
+    assert row.endswith("FAILED")
+    assert why == f"Error response from daemon: No such image: sha256:{'a' * 64}"
 
 
 def _first(calls: list[str], prefix: str) -> int:
@@ -888,3 +983,269 @@ def test_seed_keeps_its_note_for_unpinned_entries(tmp_path: Path) -> None:
     done, _ = _seed(tmp_path, host={"alpha": GIB}, unpinned=("seaweedfs",))
     assert done.returncode == 0, done.stderr
     assert "note: not seeded, no digest yet: seaweedfs" in done.stdout
+
+
+# --------------------------------------------------------------------------------------------------
+# dev-cpu's state directory, through the engine (plan §10, tasks.md T145 and its review)
+# --------------------------------------------------------------------------------------------------
+CHOWN_RUN = (
+    "engine run --rm --pull never -v /var/lib/h4agents/state:/s "
+    f"{BASE_NODE} sh -c mkdir -p /s/dev-cpu/gateway && chown -R 1000:1000 /s/dev-cpu"
+)
+
+
+def test_seed_makes_dev_cpus_state_directory_after_the_images(tmp_path: Path) -> None:
+    done, calls = _seed(tmp_path, host={"alpha": GIB})
+    assert done.returncode == 0, done.stderr
+    # From the pinned base:node, never pulled, with the state root bound, after every load.
+    assert [c for c in calls if c.startswith("engine run")] == [CHOWN_RUN]
+    assert calls.index(CHOWN_RUN) > _first(calls, "engine load")
+    assert (
+        "== dev-cpu's state directory: /var/lib/h4agents/state/dev-cpu/gateway"
+        in done.stdout
+    )
+    assert done.stdout.rstrip().endswith("== seed complete")
+
+
+def test_seed_fails_loudly_without_a_pinned_base_node(tmp_path: Path) -> None:
+    done, calls = _seed(tmp_path, host={"alpha": GIB}, base_node=False)
+    assert done.returncode != 0
+    assert "no single base:node line pinned by digest" in done.stderr
+    assert "seed complete" not in done.stdout
+    assert not [c for c in calls if c.startswith("engine run")]
+
+
+def test_seed_fails_loudly_and_says_why_when_the_directory_cant_be_made(
+    tmp_path: Path,
+) -> None:
+    done, _ = _seed(tmp_path, host={"alpha": GIB}, chown_ok=False)
+    assert done.returncode != 0
+    # The engine's own last line, not a guess.
+    assert (
+        "could not make dev-cpu's state directory: "
+        "docker: Error response from daemon: refused by h4-authz (A14)"
+    ) in done.stderr
+    assert "seed complete" not in done.stdout
+
+
+def _chown_at_up(
+    tmp_path: Path, lines: list[str], *, chown_ok: bool = True, **env: str
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    lock = tmp_path / "images.lock"
+    lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    calls = tmp_path / "calls.log"
+    calls.write_text("", encoding="utf-8")
+    script = SEED_FAKES + f"\nimages_lock={q(lock)}\nchown_state up\necho UP-GOES-ON\n"
+    done = engine(
+        script,
+        tmp_path,
+        CALLS=str(calls),
+        STATE=str(tmp_path),
+        CHOWN_OK="1" if chown_ok else "0",
+        **env,
+    )
+    return done, calls.read_text(encoding="utf-8").splitlines()
+
+
+def test_no_variable_in_the_shell_chooses_the_image(tmp_path: Path) -> None:
+    # The image that runs with the state root bound comes from images.lock alone (T145's review).
+    done, calls = _chown_at_up(
+        tmp_path, [BASE_NODE_LINE], H4_STATE_CHOWN_IMAGE="registry.example/other:latest"
+    )
+    assert done.returncode == 0, done.stderr
+    assert calls == [CHOWN_RUN]
+
+
+def test_up_notes_a_missing_base_node_and_goes_on(tmp_path: Path) -> None:
+    # At up the image may not be seeded yet: a note, and up continues.
+    done, calls = _chown_at_up(
+        tmp_path, ["# service repository tag digest registry checked"]
+    )
+    assert done.returncode == 0, done.stderr
+    assert "note: no pinned base:node" in done.stdout
+    assert "UP-GOES-ON" in done.stdout
+    assert not calls
+
+
+def test_up_notes_why_the_directory_waits_and_goes_on(tmp_path: Path) -> None:
+    done, calls = _chown_at_up(tmp_path, [BASE_NODE_LINE], chown_ok=False)
+    assert done.returncode == 0, done.stderr
+    assert calls == [CHOWN_RUN]
+    assert "note: dev-cpu's state directory waits for:" in done.stdout
+    assert "refused by h4-authz (A14)" in done.stdout
+    assert "UP-GOES-ON" in done.stdout
+
+
+DIGEST = "sha256:" + "a" * 64
+
+
+def _pinned(tmp_path: Path, lines: list[str]) -> subprocess.CompletedProcess[str]:
+    lock = tmp_path / "images.lock"
+    lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return engine(f"images_lock={q(lock)}\npinned_base_node", tmp_path)
+
+
+def test_pinned_base_node_reads_the_one_pinned_line(tmp_path: Path) -> None:
+    done = _pinned(
+        tmp_path,
+        [
+            "# base:node commented out",
+            f"base:python registry.example/python 3.12 {DIGEST} example 2026-10-08",
+            f"base:node public.ecr.aws/docker/library/node 24.21.0-trixie-slim {DIGEST} public.ecr.aws 2026-10-08",
+        ],
+    )
+    assert done.returncode == 0, done.stderr
+    assert (
+        done.stdout
+        == f"public.ecr.aws/docker/library/node:24.21.0-trixie-slim@{DIGEST}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        pytest.param([], id="none"),
+        pytest.param(
+            [
+                f"base:node registry.example/node 24 {DIGEST} example -",
+                f"base:node registry.example/node 25 {DIGEST} example -",
+            ],
+            id="two",
+        ),
+        pytest.param(["base:node registry.example/node 24 - example -"], id="open-pin"),
+        pytest.param(
+            [f"base:node --entrypoint=x 24 {DIGEST} example -"], id="option-repo"
+        ),
+        pytest.param(
+            [f"base:node registry.example/node -rm {DIGEST} example -"], id="option-tag"
+        ),
+        pytest.param(
+            [f"base:node Registry.Example/node 24 {DIGEST} example -"], id="upper-repo"
+        ),
+        pytest.param(
+            [f"base:node registry.example/node {'t' * 129} {DIGEST} example -"],
+            id="long-tag",
+        ),
+        pytest.param(
+            ["base:node registry.example/node 24 sha256:abc example -"], id="short"
+        ),
+        pytest.param(
+            [f"base:node registry.example/node 24 {DIGEST}0 example -"], id="long"
+        ),
+        pytest.param(
+            [f"base:node registry.example/node 24 {DIGEST.upper()} example -"],
+            id="upper",
+        ),
+        pytest.param(["base:node registry.example/node"], id="no-fields"),
+    ],
+)
+def test_pinned_base_node_refuses_anything_but_one_line_in_shape(
+    tmp_path: Path, lines: list[str]
+) -> None:
+    done = _pinned(tmp_path, lines)
+    assert done.returncode != 0
+    assert done.stdout == ""
+
+
+def test_the_repositorys_lock_pins_base_node(tmp_path: Path) -> None:
+    done = _pinned(
+        tmp_path,
+        (REPO / "deploy" / "images.lock").read_text(encoding="utf-8").splitlines(),
+    )
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.startswith("public.ecr.aws/docker/library/node:")
+
+
+# --------------------------------------------------------------------------------------------------
+# The engine's client: the Author's is pinned, a session's is the relay's (T145's review)
+# --------------------------------------------------------------------------------------------------
+CLIENT_VARS = (
+    "DOCKER_HOST",
+    "DOCKER_TLS_VERIFY",
+    "DOCKER_CERT_PATH",
+    "DOCKER_CONTEXT",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+    "NO_PROXY",
+    "no_proxy",
+)
+
+
+def _client(
+    tmp_path: Path, *, script: str = "engine_docker version", **env: str
+) -> dict[str, str]:
+    """A client function with a stand-in docker on PATH that names only the client's variables."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "docker"
+    fake.write_text(
+        "#!/bin/sh\n"
+        + "".join(f"printf '{n}=%s\\n' \"${{{n}-<unset>}}\"\n" for n in CLIENT_VARS)
+        + "printf 'args=%s\\n' \"$*\"\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    done = engine(
+        script,
+        tmp_path,
+        PATH=f"{bindir}:/usr/local/bin:/usr/bin:/bin",
+        **env,
+    )
+    assert done.returncode == 0, done.stderr
+    return dict(line.split("=", 1) for line in done.stdout.splitlines())
+
+
+def test_the_authors_client_is_the_engine_whatever_the_shell_names(
+    tmp_path: Path,
+) -> None:
+    seen = _client(
+        tmp_path,
+        DOCKER_HOST="unix:///var/run/docker.sock",
+        DOCKER_CONTEXT="rootful",
+        DOCKER_TLS_VERIFY="",
+        DOCKER_CERT_PATH=str(tmp_path / "elsewhere"),
+        HTTPS_PROXY="http://proxy.example:3128",
+        http_proxy="http://proxy.example:3128",
+        NO_PROXY="*",
+    )
+    assert seen["DOCKER_HOST"] == "tcp://198.18.0.1:2376"
+    assert seen["DOCKER_TLS_VERIFY"] == "1"
+    assert (
+        seen["DOCKER_CERT_PATH"] == f"{tmp_path}/.config/h4reet-ai/agents-engine/docker"
+    )
+    for name in CLIENT_VARS[3:]:
+        assert seen[name] == "<unset>", name
+    assert seen["args"] == "version"
+
+
+def test_the_hosts_client_is_the_hosts_daemon_whatever_the_shell_names(
+    tmp_path: Path,
+) -> None:
+    seen = _client(
+        tmp_path,
+        script="host_docker version",
+        DOCKER_HOST="tcp://198.18.0.1:2376",
+        DOCKER_CONTEXT="engine",
+        DOCKER_TLS_VERIFY="1",
+        DOCKER_CERT_PATH=str(tmp_path / "elsewhere"),
+    )
+    assert seen["DOCKER_HOST"] == "unix:///var/run/docker.sock"
+    for name in ("DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_CONTEXT"):
+        assert seen[name] == "<unset>", name
+    assert seen["args"] == "version"
+
+
+def test_a_sessions_client_is_the_relays(tmp_path: Path) -> None:
+    seen = _client(
+        tmp_path,
+        SANDBOX_RUNTIME="1",
+        DOCKER_HOST="tcp://relay.example:2375",
+        DOCKER_TLS_VERIFY="1",
+        DOCKER_CERT_PATH=str(tmp_path / "agents"),
+    )
+    assert seen["DOCKER_HOST"] == "tcp://relay.example:2375"
+    assert seen["DOCKER_CERT_PATH"] == str(tmp_path / "agents")

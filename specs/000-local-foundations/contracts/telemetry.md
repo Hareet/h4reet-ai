@@ -84,9 +84,9 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 | `url.path`, `url.scheme` | always | the path (no query string) and `http` |
 | `http.response.status_code` | always | 200, 400, 401, 403, 409, 415, 429, 502, 503, … ([gateway-http.md](gateway-http.md), [operator-admin.md](operator-admin.md)) |
 | `h4.stack` | always | `prod`, `dev`, `dev-cpu` |
-| `h4.outcome` | always | `ok` (200), `degraded` (503 with a degraded cause), `refused` (429: `client_cap_exceeded` or `metered_capacity_exceeded`), `invalid` (400, 415), `error` (502 `local_error`, or an unexpected 5xx), `unauthorized` (401 on the admin listener) |
+| `h4.outcome` | always | `ok` (200), `degraded` (503 with a degraded cause), `refused` (429: `client_cap_exceeded` or `metered_capacity_exceeded`; and an admin refusal, 403 or 409), `invalid` (400, 415, and another 4xx, such as 404 or 413), `error` (502 `local_error`, an admin 503 `store_unreachable`, or an unexpected 5xx), `unauthorized` (401 on the admin listener). The admin refusals and the other 4xx were added with tasks.md T055, so every admin answer has an outcome. |
 | `h4.degraded.cause` | when the response is degraded | the causes in [§4.1](#41-the-gateways-instruments) |
-| `error.type` | on an `error` outcome | `local_error`, or the class name of an unexpected error |
+| `error.type` | on an `error` outcome | `local_error`; `store_unreachable` for an admin 503; the class name of an unexpected error; or `http_<status>` for any other 5xx |
 
 **Routing span** (`gateway.route`; kind INTERNAL):
 
@@ -142,9 +142,9 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 Traces go to Langfuse's OTLP endpoint ([§6.4](#64-exporters-and-extensions)). Langfuse maps:
 - the trace to the root server span (`POST /hello`), and its environment to `deployment.environment.name`;
 - each client span with `langfuse.observation.type=generation` to a generation, with its model from `gen_ai.request.model` and `gen_ai.response.model`, and its usage from `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`;
-- the cost from the attributes the collector derives from `h4.cost.usd`: `gen_ai.usage.cost`, and `langfuse.observation.cost_details` as the JSON object `{"total": <h4.cost.usd>}` ([§6.3](#63-processors)).
+- the cost from `gen_ai.usage.cost`, which the collector sets to `h4.cost.usd` ([§6.3](#63-processors)).
 
-The first stack task checks which of the two cost attributes Langfuse 4.54.0 reads, keeps that one in the collector's transform, and records the answer in research.md (plan §6). Until then both are set.
+T149 checked, on dev-cpu, which of two cost attributes Langfuse 4.54.0 reads: it reads `gen_ai.usage.cost` and `langfuse.observation.cost_details` alike. Generations sent with only one of them recorded a `totalCost` of 0.0123 and 0.0456. The collector keeps the plain number and no longer sets the JSON one; research.md R-08 records the check.
 
 ## 4. Metrics
 
@@ -196,8 +196,8 @@ These don't pass through the collector; Prometheus scrapes them ([§6.6](#66-pro
 
 | Job (target) | Metrics the dashboard uses | Meaning |
 |---|---|---|
-| `model-server` (`model-server:8080/metrics`, every 5 s) | `up`; `llamacpp:prompt_tokens_total`; `llamacpp:tokens_predicted_total`; `llamacpp:predicted_tokens_seconds`; `llamacpp:requests_processing`; `llamacpp:requests_deferred` | `up` is 1 only when the server answers its metrics endpoint, which it does once the model is loaded. The `llamacpp:` names are build b11459's (`--metrics`); the first stack task checks them against the running server's `/metrics` and fixes this table if a name differs. |
-| `otel-collector` (`otel-collector:8888/metrics`) | `up`; `otelcol_receiver_accepted_spans_total`, `otelcol_receiver_refused_spans_total`; `otelcol_exporter_sent_spans_total`, `otelcol_exporter_send_failed_spans_total`, `otelcol_exporter_enqueue_failed_spans_total`; the same three for `_metric_points` and `_log_records`; `otelcol_exporter_queue_size`, `otelcol_exporter_queue_capacity` | the collector's own telemetry at level `normal`, labelled by `exporter` (`otlphttp/langfuse`, `otlphttp/prometheus`, `otlphttp/loki`) and `receiver` |
+| `model-server` (`model-server:8080/metrics`, every 5 s) | `up`; `llamacpp:prompt_tokens_total`; `llamacpp:tokens_predicted_total`; `llamacpp:predicted_tokens_seconds`; `llamacpp:requests_processing`; `llamacpp:requests_deferred` | `up` is 1 only when the server answers its metrics endpoint, which it does once the model is loaded. The `llamacpp:` names are build b11459's (`--metrics`); the first stack task checks them against the running server's `/metrics` and fixes this table if a name differs. Checked in T065 (2026-10-09): prod's Prometheus listed all five among its metric names. |
+| `otel-collector` (`otel-collector:8888/metrics`) | `up`; `otelcol_receiver_accepted_spans`, `otelcol_receiver_refused_spans`; `otelcol_exporter_sent_spans`, `otelcol_exporter_send_failed_spans`, `otelcol_exporter_enqueue_failed_spans`; the same three for `_metric_points` and `_log_records`; `otelcol_exporter_queue_size`, `otelcol_exporter_queue_capacity` | the collector's own telemetry at level `normal`, labelled by `exporter` (`otlphttp/langfuse`, `otlphttp/prometheus`, `otlphttp/loki`) and `receiver`. Collector 0.162 names its counters without `_total` in every exposition format, so Prometheus stores them that way; this table had `_total`, and the panels found nothing (T065, 2026-10-09). A counter appears only with its first count, so the failure, drop, and refusal series exist only after something has failed. |
 | `loki` (`loki:3100/metrics`), `grafana` (`grafana:3000/metrics`), `clickhouse` (`clickhouse:9363/metrics`), `prometheus` (`localhost:9090/metrics`) | `up` | the telemetry-health panel's backend row |
 
 ### 4.4 Development-time metrics (FR-037)
@@ -236,7 +236,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `gateway.stopping` | info | SIGTERM or SIGINT: the listeners stop accepting, and requests in flight finish | `signal` |
 | `request.failed` | error | an unexpected error answered with 500 `internal_error` | `error_class` (the error's code or class name, never its message), `route` (the route template, or `other`) |
 | `migrations.applied` | info | after migrations | `versions` (the ones applied now), `grafana_ro_login` (`enabled` once the gateway has set its password, else `disabled`) |
-| `call.completed` | info | each provider attempt, as its ledger row commits | `route_decision`, `route_reason`, `attribution`, `adapter`, `provider`, `request_model`, `response_model`, `input_tokens`, `output_tokens`, `latency_ms`, `cost_micro`, `cost_basis`, `price_version`, `outcome`, `error_kind` |
+| `call.completed` | info | each provider attempt, as its ledger row commits. A local call's row is written outside any lock and may fail; the record is written then too, so the call's FR-023 fields still have a record, and `state.unknown` records the failure (data-model.md §7.4; tasks.md T052) | `route_decision`, `route_reason`, `attribution`, `adapter`, `provider`, `request_model`, `response_model`, `input_tokens`, `output_tokens` (both left out when the attempt returned no usage), `latency_ms`, `cost_micro`, `cost_basis`, `price_version`, `outcome`, `error_kind` |
 | `call.degraded` | warn | each degraded response | `cause`, `route_decision` |
 | `call.refused` | info | each 429 | `error` (`client_cap_exceeded`, `metered_capacity_exceeded`), `limit` |
 | `meter.threshold_crossed` | warn | a commit crosses a warning, a ceiling, or a fallback allowance | `meter`, `period`, `threshold` (`warn`, `ceiling`, `allowance`), `spent_micro`, `threshold_micro`, `grant_no` (fallback only) |
@@ -297,7 +297,7 @@ logs             otlp         → memory_limiter → transform/payloads → reda
 |---|---|---|
 | `memory_limiter` | `check_interval: 1s`, `limit_mib: 200`, `spike_limit_mib: 50` (the container's cap is 256 MiB) | Over the limit, receivers refuse data, and the senders drop it rather than block. |
 | `filter/probes` (traces) | Drops spans where `attributes["h4.probe"] == true`, or `url.path` or `http.route` matches `^/(health(/live)?\|metrics\|ping)$`. Drops span events whose name starts with `gen_ai.`. | Health and metrics probes never reach Langfuse. `h4.probe` is reserved for synthetic monitoring (spec 001's uptime checks); nothing in spec 000 sets it. |
-| `transform/payloads` (traces and logs) | **Traces:** deletes every key matching `^(gen_ai\.(input\|output)\.messages\|gen_ai\.system_instructions\|gen_ai\.(prompt\|completion)(\..*)?\|langfuse\.observation\.(input\|output)\|input\.value\|output\.value\|http\.(request\|response)\.body(\..*)?)$` from span and span-event attributes, `where not (span.attributes["h4.payload.sampled"] == true and "${env:TELEMETRY_PAYLOAD_SAMPLING}" == "on")`. Always deletes `client.address`, `client.port`, `network.peer.address`, `network.peer.port`, `user_agent.original`, `url.query`, `http.request.header.*`, `http.response.header.*`, `authorization`, and `cookie`. Then sets `gen_ai.usage.cost` to `h4.cost.usd`, and `langfuse.observation.cost_details` to `Format("{\"total\":%v}", [span.attributes["h4.cost.usd"]])`, where `h4.cost.usd` is present ([§3.5](#35-what-langfuse-reads)). **Logs:** always deletes the same payload keys plus `messages`, `prompt`, and `completion`, and the same client keys. | FR-029's "no payloads unless sampling is explicitly on", enforced a second time outside the gateway; no client identifier in Langfuse or Loki |
+| `transform/payloads` (traces and logs) | **Traces:** deletes every key matching `^(gen_ai\.(input\|output)\.messages\|gen_ai\.system_instructions\|gen_ai\.(prompt\|completion)(\..*)?\|langfuse\.observation\.(input\|output)\|input\.value\|output\.value\|http\.(request\|response)\.body(\..*)?)$` from span and span-event attributes, `where not (span.attributes["h4.payload.sampled"] == true and "${env:TELEMETRY_PAYLOAD_SAMPLING}" == "on")`. Always deletes `client.address`, `client.port`, `network.peer.address`, `network.peer.port`, `user_agent.original`, `url.query`, `http.request.header.*`, `http.response.header.*`, `authorization`, and `cookie`. Then sets `gen_ai.usage.cost` to `h4.cost.usd`, where `h4.cost.usd` is present ([§3.5](#35-what-langfuse-reads)). **Logs:** always deletes the same payload keys plus `messages`, `prompt`, and `completion`, and the same client keys. | FR-029's "no payloads unless sampling is explicitly on", enforced a second time outside the gateway; no client identifier in Langfuse or Loki |
 | `redaction` | `allow_all_keys: true`, `summary: info`, and `blocked_values` set to the patterns below. A match is replaced by `****`. | Secret shapes are masked in every attribute value of every signal (FR-029). |
 | `transform/redact-text` (traces and logs) | Applies the same patterns with `replace_pattern` to `span.name`, `span.status.message`, span-event names, and string log bodies. Strips the query string from `url.full` (`replace_pattern(span.attributes["url.full"], "\\?.*$", "")`). | The `redaction` processor covers attributes only; this covers the text fields. |
 | `resource` | Upserts `service.namespace=h4reet` and `deployment.environment.name=${env:H4_STACK}`. Deletes `host.name` and every key matching `^process\.`. | The stack label is the collector's, not the sender's. |
@@ -326,7 +326,7 @@ A unit test (`services/gateway/test/unit/redact.test.ts`) feeds each shape, buil
 
 | Name | Endpoint | Settings |
 |---|---|---|
-| `otlphttp/langfuse` | `traces_endpoint: http://langfuse-web:3000/api/public/otel/v1/traces` (Langfuse takes OTLP over HTTP only) | `auth: {authenticator: basicauth/langfuse}`; `compression: none` until the first stack task confirms gzip; `timeout: 10s`; `retry_on_failure: {initial_interval: 5s, max_interval: 30s, max_elapsed_time: 600s}`; `sending_queue: {num_consumers: 2, queue_size: 600}`, in memory, which holds about 10 minutes of test traffic |
+| `otlphttp/langfuse` | `traces_endpoint: http://langfuse-web:3000/api/public/otel/v1/traces` (Langfuse takes OTLP over HTTP only) | `auth: {authenticator: basicauth/langfuse}`; `compression: gzip`, which Langfuse 4.54.0 takes (T149); `timeout: 10s`; `retry_on_failure: {initial_interval: 5s, max_interval: 30s, max_elapsed_time: 600s}`; `sending_queue: {num_consumers: 2, queue_size: 600}`, in memory, which holds about 10 minutes of test traffic |
 | `otlphttp/prometheus` | `metrics_endpoint: http://prometheus:9090/api/v1/otlp/v1/metrics` | `compression: gzip`; `retry_on_failure: {max_elapsed_time: 120s}`; `sending_queue: {queue_size: 120}` |
 | `otlphttp/loki` | `logs_endpoint: http://loki:3100/otlp/v1/logs` | `compression: gzip`; `retry_on_failure: {max_elapsed_time: 300s}`; `sending_queue: {queue_size: 300}` |
 | extension `basicauth/langfuse` | – | `client_auth: {username: ${env:LANGFUSE_PUBLIC_KEY}, password: ${env:LANGFUSE_SECRET_KEY}}` |
@@ -356,7 +356,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 
 ### 6.6 Prometheus, Loki, and Grafana
 
-- **Prometheus** (`deploy/prometheus/prometheus.yml`; flags `--web.enable-otlp-receiver --storage.tsdb.retention.time=30d --storage.tsdb.retention.size=2GB`, and neither the admin nor the lifecycle API):
+- **Prometheus** (`deploy/prometheus/prometheus.yml`; flags `--web.enable-otlp-receiver --storage.tsdb.retention.time=30d --storage.tsdb.retention.size=2GB --enable-feature=created-timestamp-zero-ingestion`, and neither the admin nor the lifecycle API). The feature, experimental in 3.15, writes a 0 at each series' start time, so `rate()` and `increase()` count a new counter's first increment and a histogram's first observation. Without it, one hello after a start never showed on the request and latency panels (T065, 2026-10-09). It reaches what is pushed over OTLP: on dev-cpu, one hello after a gateway restart gave its counter a 0 and then a 1, an `increase()` of 1.09, and a p50 of 0.375 s. It doesn't reach the collector's own counters, which Prometheus scrapes and which carry no start time, so a fresh collector's first batch still counts only from its second sample (tasks.md T185). It also makes Prometheus prefer protobuf scrapes; on dev-cpu's targets that renamed none of §4.3's metrics, and dropped only some of Grafana's own histograms, which no panel uses (T149):
 
   ```yaml
   otlp:
@@ -451,13 +451,13 @@ The error rate counts 5xx answers that aren't degraded: the 502 `local_error` an
 |---|---|---|
 | Backends up | stat, one per job | `max by (job) (up{job=~"model-server\|otel-collector\|loki\|grafana\|clickhouse\|prometheus"})` |
 | Spend freshness | stat, in seconds | `time() - max(timestamp(h4_meter_spend_usd{h4_meter="day"}))`. Green under 30, amber under 60, red at 60 or more, and red on no data. |
-| Export failures | time series | `sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))`, and the same for `_metric_points_total` and `_log_records_total` |
-| Dropped at the queue | time series | `sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total[5m]))`, and the same for metric points and log records |
+| Export failures | time series | `sum by (exporter) (rate(otelcol_exporter_send_failed_spans[5m]))`, and the same for `_metric_points` and `_log_records` |
+| Dropped at the queue | time series | `sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans[5m]))`, and the same for metric points and log records |
 | Queue fill | time series | `max by (exporter) (otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)` |
-| Spans to Langfuse | time series | `sum(rate(otelcol_exporter_sent_spans_total{exporter="otlphttp/langfuse"}[5m]))` |
-| Refused at the receiver | time series | `sum by (receiver) (rate(otelcol_receiver_refused_spans_total[5m]))`, and the same for metric points and log records |
+| Spans to Langfuse | time series | `sum(rate(otelcol_exporter_sent_spans{exporter="otlphttp/langfuse"}[5m]))` |
+| Refused at the receiver | time series | `sum by (receiver) (rate(otelcol_receiver_refused_spans[5m]))`, and the same for metric points and log records |
 
-This row is how a degraded telemetry pipeline shows itself ([plan.md §19](../plan.md#19-degraded-modes)): a stale freshness value, failures and drops per exporter, and backends down.
+The collector's counters carry no `_total` ([§4.3](#43-metrics-scraped-by-prometheus)), and its failure, drop, and refusal series appear only with their first count, so "No data" in those three panels means nothing has failed yet. This row is how a degraded telemetry pipeline shows itself ([plan.md §19](../plan.md#19-degraded-modes)): a stale freshness value, failures and drops per exporter, and backends down.
 
 ### 7.7 Development time (FR-037)
 

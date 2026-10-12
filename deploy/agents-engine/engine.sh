@@ -48,15 +48,28 @@ in_sandbox() { [ "${SANDBOX_RUNTIME:-}" = 1 ]; }
 
 h4_uid() { id -u h4agents 2>/dev/null || true; }
 
-# A docker client against the engine. The Author reaches 198.18.0.1 with their own certificate; inside
-# a session the relay has already set DOCKER_HOST, so the ambient values (the agents' certificate) are
-# used as they stand.
+# A docker client against the engine. Inside a session the relay has already set DOCKER_HOST and the agents'
+# certificate, so the ambient values are used as they stand. In the Author's terminal it is always 198.18.0.1
+# with the Author's certificate, whatever the shell's DOCKER_HOST, DOCKER_CONTEXT, or proxy settings name: an
+# ambient DOCKER_HOST could name the host's rootful daemon (T145's review).
 engine_docker() {
-	if [ -n "${DOCKER_HOST:-}" ]; then
+	if in_sandbox; then
 		docker "$@"
 	else
-		DOCKER_HOST="$engine_addr" DOCKER_TLS_VERIFY=1 DOCKER_CERT_PATH="$author_cert_dir" docker "$@"
+		env -u DOCKER_CONTEXT -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy \
+			-u ALL_PROXY -u all_proxy -u NO_PROXY -u no_proxy \
+			DOCKER_HOST="$engine_addr" DOCKER_TLS_VERIFY=1 DOCKER_CERT_PATH="$author_cert_dir" docker "$@"
 	fi
+}
+
+# The host's own rootful daemon, for seed's checks, pulls, and saves, whatever the shell's DOCKER_HOST or
+# DOCKER_CONTEXT names, as prove-limits.sh's host_docker is (T145's review, round 2).
+host_docker() {
+	(
+		unset DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+		export DOCKER_HOST=unix:///var/run/docker.sock
+		docker "$@"
+	)
 }
 
 # Run a systemctl --user command as h4agents (its services run under lingering).
@@ -235,7 +248,7 @@ cmd_up() {
 	systemctl --user daemon-reload
 	systemctl --user restart h4-egress-proxy.service
 	wait_for_tls
-	chown_state
+	chown_state up
 	echo "== engine up"
 	engine_docker info --format 'id={{.ID}} rootless={{.SecurityOptions}} plugins={{.Plugins.Authorization}}' || true
 }
@@ -266,15 +279,45 @@ wait_for_tls() {
 	die "the engine did not answer TLS on 198.18.0.1:2376 within $wait s. See h4agents' journal: sudo journalctl _UID=$(h4_uid) -n 40; and the firewall's drops: sudo journalctl -k -g h4agents-drop -n 5"
 }
 
+# The base:node image by digest, from images.lock, as repository:tag@sha256:…: exactly one base:node line, each
+# field in its shape, or nothing and a non-zero exit. Agents can write images.lock on a branch, and this runs
+# the working tree's copy, so a field that docker run would read as an option never reaches it (T145's review).
+pinned_base_node() {
+	awk '
+		$1 == "base:node" { n++; repo = $2; tag = $3; digest = $4 }
+		END {
+			if (n != 1) exit 1
+			if (repo !~ "^[a-z0-9][a-z0-9._/-]*$") exit 1
+			if (tag !~ "^[A-Za-z0-9_][A-Za-z0-9._-]*$" || length(tag) > 128) exit 1
+			if (digest !~ "^sha256:[0-9a-f]+$" || length(digest) != 71) exit 1
+			print repo ":" tag "@" digest
+		}
+	' "$images_lock" 2>/dev/null
+}
+
+# chown_state <up|seed>: dev-cpu's state directory, made and owned through the engine alone. The state root is
+# h4agents' and 0700, so the Author can't see into it. In the container, root is h4agents and uid 1000 is the
+# gateway's node user, so the chown gives the journal its writer (plan §10). compose binds ${H4_STATE_DIR}/gateway
+# with the long syntax, which never creates a missing source. It needs the pinned base:node image, which only
+# seed brings in (--pull never), so at up a failure is a note, and at seed it is fatal.
 chown_state() {
-	# Set the state directory's ownership through the rootless namespace, so the gateway's node user
-	# (uid 1000) can write it. Best effort: it needs a seeded base image.
-	local base="${H4_STATE_CHOWN_IMAGE:-public.ecr.aws/docker/library/node:24.21.0-trixie-slim}"
-	if [ -d "$H4_STATE/dev-cpu" ] || install -d "$H4_STATE/dev-cpu" 2>/dev/null; then
-		# The compose file binds ${H4_STATE_DIR}/gateway with the long syntax, which never creates a missing source.
-		engine_docker run --rm -v "$H4_STATE/dev-cpu:/s" "$base" sh -c 'mkdir -p /s/gateway && chown -R 1000:1000 /s' 2>/dev/null ||
-			echo "note: could not prepare the state dir yet (seed first); dev-cpu's first run will retry"
+	local when="$1" base out why
+	base="$(pinned_base_node)" || base=""
+	if [ -z "$base" ]; then
+		[ "$when" = up ] ||
+			die "$images_lock has no single base:node line pinned by digest, so dev-cpu's state directory can't be made (fail closed)"
+		echo "note: no pinned base:node in $images_lock, so dev-cpu's state directory waits for: $0 seed"
+		return 0
 	fi
+	if out="$(engine_docker run --rm --pull never -v "$H4_STATE:/s" "$base" \
+		sh -c 'mkdir -p /s/dev-cpu/gateway && chown -R 1000:1000 /s/dev-cpu' 2>&1)"; then
+		echo "== dev-cpu's state directory: $H4_STATE/dev-cpu/gateway, owned by the gateway's user"
+		return 0
+	fi
+	# The error's last line, printable characters only.
+	why="$(printf '%s\n' "$out" | tail -n 1 | LC_ALL=C tr -cd '\040-\176' | cut -c1-300)"
+	[ "$when" = up ] || die "could not make dev-cpu's state directory: $why"
+	echo "note: dev-cpu's state directory waits for: $0 seed ($why)"
 }
 
 # ------------------------------------------------------------------------------------------------
@@ -363,7 +406,7 @@ seed_unpinned() {
 # index digest, which the engine resolves its image@sha256 pins by, offline.
 host_uses_containerd_store() {
 	local status
-	status="$(docker info --format '{{json .DriverStatus}}' 2>/dev/null)" || return 1
+	status="$(host_docker info --format '{{json .DriverStatus}}' 2>/dev/null)" || return 1
 	case "$status" in *io.containerd.snapshotter.v1*) return 0 ;; esac
 	return 1
 }
@@ -371,7 +414,7 @@ host_uses_containerd_store() {
 # The host-side size of an image the host holds, in bytes; refuses rather than guess.
 host_image_size() {
 	local size
-	size="$(docker image inspect --format '{{.Size}}' "$1" 2>/dev/null)" || size=""
+	size="$(host_docker image inspect --format '{{.Size}}' "$1" 2>/dev/null)" || size=""
 	[[ $size =~ ^[0-9]+$ ]] || die "cannot read the host-side size of $1 (fail closed)"
 	printf '%s\n' "$size"
 }
@@ -395,7 +438,7 @@ cmd_seed() {
 	for ref in "${refs[@]}"; do
 		engine_docker image inspect "$ref" >/dev/null 2>&1 && continue
 		todo+=("$ref")
-		if docker image inspect "$ref" >/dev/null 2>&1; then
+		if host_docker image inspect "$ref" >/dev/null 2>&1; then
 			size="$(host_image_size "$ref")" || exit 1
 			known=$((known + size))
 		else
@@ -411,7 +454,7 @@ cmd_seed() {
 	if [ "${#pull[@]}" -gt 0 ]; then
 		for ref in "${pull[@]}"; do
 			echo "== pulling $ref on the host"
-			docker pull "$ref" >/dev/null || die "could not pull $ref on the host"
+			host_docker pull "$ref" >/dev/null || die "could not pull $ref on the host"
 		done
 		# Again before any load, with the pulled images' real sizes, against the space the pulls left.
 		known=0
@@ -422,25 +465,36 @@ cmd_seed() {
 		disk_check_bytes $((known + 20 * gib))
 	fi
 
-	# Move each image to the engine by digest: save on the host, load over the TLS endpoint.
-	local fails=0
+	# Move each image to the engine by digest: save on the host, load over the TLS endpoint, then name it. T063
+	# found on 2026-10-09 that every image failed:
+	# - The save keeps every platform the host holds, never --platform. A one-platform save keeps only that
+	#   platform's manifest, so the engine got the image under the manifest's ID and lost the index digest the
+	#   pins name.
+	# - docker load names nothing that was saved by digest: the image arrives as its ID alone. Tagging the pinned
+	#   digest with its repository:tag names it, and works only when the engine holds exactly that digest, so a
+	#   changed image fails here rather than seeds.
+	# A failure prints the engine's or the host's own last line under its row.
+	local fails=0 err
 	printf '%-60s %-20s %s\n' "IMAGE" "DIGEST" "RESULT"
 	for ref in "${refs[@]}"; do
-		if engine_docker image inspect "${ref%@*}@${ref#*@}" >/dev/null 2>&1; then
+		if engine_docker image inspect "$ref" >/dev/null 2>&1; then
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "present"
 			continue
 		fi
-		if docker save --platform linux/amd64 "$ref" | engine_docker load >/dev/null 2>&1 &&
-			engine_docker image inspect "$ref" >/dev/null 2>&1; then
+		if err="$({ host_docker save "$ref" | engine_docker load >/dev/null; } 2>&1 &&
+			engine_docker tag "${ref#*@}" "${ref%@*}" 2>&1 &&
+			engine_docker image inspect "$ref" 2>&1 >/dev/null)"; then
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "seeded"
 		else
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "FAILED"
+			printf '  %s\n' "$(printf '%s\n' "$err" | tail -n 1 | LC_ALL=C tr -cd '\040-\176' | cut -c1-200)"
 			fails=$((fails + 1))
 		fi
 	done
 
 	seed_model
 	[ "$fails" -eq 0 ] || die "$fails image(s) failed to seed"
+	chown_state seed
 	echo "== seed complete"
 }
 

@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!-- ClickHouse for a test-traffic Langfuse in a 4 GiB container (spec 000; plan §2 and §6; research.md R-08).
+     Mounted read-only into config.d. Langfuse's published minimums are sized for production scale; this keeps the
+     server's memory, its caches, and its own system logs small. -->
+<clickhouse>
+    <!-- At most three quarters of the memory ClickHouse reads from its cgroup, leaving room for the rest. -->
+    <max_server_memory_usage_to_ram_ratio>0.75</max_server_memory_usage_to_ram_ratio>
+
+    <!-- Caches far below their multi-GiB defaults. -->
+    <mark_cache_size>268435456</mark_cache_size>
+    <index_mark_cache_size>67108864</index_mark_cache_size>
+    <uncompressed_cache_size>67108864</uncompressed_cache_size>
+
+    <!-- Warnings and errors to the console, which Docker's local driver keeps (make logs): no log files grow inside
+         the container. -->
+    <logger>
+        <level>warning</level>
+        <console>1</console>
+        <log remove="remove"/>
+        <errorlog remove="remove"/>
+    </logger>
+
+    <!-- ClickHouse's own system log tables, which nothing here reads and which grow on disk and in memory. -->
+    <query_log remove="remove"/>
+    <query_thread_log remove="remove"/>
+    <query_views_log remove="remove"/>
+    <part_log remove="remove"/>
+    <trace_log remove="remove"/>
+    <text_log remove="remove"/>
+    <metric_log remove="remove"/>
+    <asynchronous_metric_log remove="remove"/>
+    <session_log remove="remove"/>
+    <opentelemetry_span_log remove="remove"/>
+    <processors_profile_log remove="remove"/>
+</clickhouse>

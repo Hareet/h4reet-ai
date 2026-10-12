@@ -163,7 +163,8 @@ Request:
     "fallback_day": { "spent_micro_usd": 300000, "allowance_micro_usd": 2000000, "grant": 1,
                       "sources": { "ledger": 0, "journal": 300000, "stated": 300000 } }
   },
-  "journal": { "files_read": ["journal/2026-10.jsonl", "journal/2026-09.jsonl"], "records": 214, "lines_skipped": 0 },
+  "journal": { "files_read": ["journal/2026-10.jsonl", "journal/2026-09.jsonl"], "records": 214, "lines_skipped": 0,
+               "append": "ok" },
   "confirm_zero": false,
   "renewed": false,
   "clock_offset_ms": null
@@ -171,13 +172,15 @@ Request:
 ```
 
 - **Each meter takes the largest source.** A stated value can raise a meter, never lower it.
+- **The journal's source** is what data-model.md §3 rebuilds: the paired call records, or the newest `init` record's floor when that is larger. The audit row's `detail` keeps the two apart (`journal_calls`, `journal_floor`), and the ledger's source includes any reservations left in the table, at their maximum.
 - **The allowance** is today's last renewal's value, or 2,000,000 when there was none. With `renew`, it is the rebuilt fallback spend plus 2,000,000, and the grant number goes up by 1.
 - **The dev clock.** In dev, `clock_offset_ms` is the offset restored from the journal's newest `clock` record.
+- **`journal.append`** is the result of appending the `operator` record after the commit, `ok` or `unwritable`: §1.3's `"journal": "unwritable"`, which this response's `journal` object carries since the key is already the read's summary (tasks.md T055). A failed append also writes a `journal_failed` audit row and doesn't undo the initialization.
 
 | Status | `error` | When |
 |---|---|---|
 | 409 | `already_initialized` | a `stack_state` row exists |
-| 409 | `confirm_zero_required` | no ledger rows this month, no journal records in the files read, nothing stated, and `confirm_zero` false. Nothing is zeroed silently. |
+| 409 | `confirm_zero_required` | no ledger rows this month, no `reserve` or `commit` record in the files read, nothing stated, and `confirm_zero` false. Nothing is zeroed silently. (This row first said "no journal records"; data-model.md §8 step 7, the procedure, counts only call records, and an `init` record's floor still applies when the operator confirms.) |
 | 409 | `journal_unreadable` | the journal directory exists but can't be read |
 | 400, 401, 503 | as in §1 | |
 
@@ -296,6 +299,8 @@ It returns everything `GET /health` reports ([gateway-http.md §5](gateway-http.
 
 - **`available_micro_usd`** is the smallest of three rooms: the allowance minus fallback spend and reservations, the day ceiling minus day spend and reservations, and the month ceiling minus month spend and reservations. It is never below 0, and it is 0 while degraded or awaiting renewal. The example's 1,480,000 is the day ceiling's room.
 - **A period with no row yet** shows 0 spend and the configured allowance.
+- **The keys** are the example's, with `GET /health`'s `status` and `version` first among them (`status`, `stack`, `env`, `version`, `time`, …), and `journal` as the object above in place of `/health`'s string.
+- **It reports, as `/health` does** (tasks.md T055): with the store unreachable or empty it answers 200, with `store` saying which, and `initialized_at`, `initialized_by`, `state`, `since`, `crossed`, and `meters` null; `periods` comes from the gateway clock. The CLI's summary line shows the store's state for that reason (§6). Only a read that fails after the state read answers 503 `store_unreachable` (§1).
 
 ### 4.2 `GET /admin/audit`
 
@@ -408,18 +413,28 @@ Request:
 
 - **Never from the environment or the command line.** The variable name `H4_OPERATOR_TOKEN` is denied to agents by name all the same (FR-007).
 - **Never printed.** The CLI shows only the fingerprint.
+- **Not for an agent session.** Inside the sandbox (`SANDBOX_RUNTIME=1`) the CLI and `AdminClient` refuse prod and dev with exit 2, as the make targets do, so a direct call is kept off them too (FR-008).
 
 **Transport.**
-- **prod and dev:** `http://127.0.0.1:18003` and `http://127.0.0.1:18103`, through urllib with an empty `ProxyHandler`, so `HTTP_PROXY` settings can't send the token to a proxy. A `--url` override must name `127.0.0.1`, `localhost`, or a single-label in-network host, or the CLI refuses with exit 2.
-- **dev-cpu:** a session can't reach its ports (they are on the host's loopback, which the sandbox's proxy refuses), so the CLI makes one hop through a one-off probe container on the stack's `internal` network:
+- **prod and dev:** `http://127.0.0.1:18003` and `http://127.0.0.1:18103`, through urllib with an empty `ProxyHandler`, so `HTTP_PROXY` settings can't send the token to a proxy. Redirects are refused, and `Authorization` is an unredirected header, so no `Location` takes the token anywhere else.
+- **A `--url` override** names one of two things, or the CLI refuses it with exit 2:
+  - `127.0.0.1` or `localhost`, at the stack's own port (18003, 18103, or 18303) and no other. Another port may be another stack's listener: 18303 is dev-cpu's, whose gateway agents build, so a prod or dev token must never reach it. `localhost` is connected as `127.0.0.1`, where edge publishes, and never looked up: a lookup may give `::1` first. The agents' engine can't publish on prod's or dev's ports, so a stopped stack's port can't be squatted ([agents-engine.md](agents-engine.md) A21; T056's review, round 2).
+  - With `--token-stdin` only, and for dev and dev-cpu only, a single-label in-network host, at the admin listener's port, 8081, and no other. On the host a single label would resolve through the search domains, so a token read from its file never goes to one; inside a container on the stack's network, where the token comes on standard input, it names a service. The label must start with a letter, so the resolver can't read it as an address (`2130706433`). No prod caller runs in a container, while dev's breach probe and dev-cpu's hop do, so prod never takes one.
+  - T056 narrowed this rule, which first allowed a single label with any token. T056's review narrowed it again: before it, any loopback port was allowed, and a single label for prod.
+- **The answer's stack.** An answer whose `stack` field names another stack came from another stack's listener, and so did a `GET /admin/status` answer with no `stack` field (§4.1 always names it). Either is no usable answer, exit 4. The CLI never shows the name the answer gave, and with `--json` it prints no body. (Added by T056's review.)
+- **dev-cpu, from the Author's terminal:** `http://127.0.0.1:18303`, where the agents' engine publishes the listener, with the dummy read from `dev-cpu.vars`, and the transport as for prod and dev. There is no hop and no Docker: the docker CLI there drives the host's rootful engine, where nothing built from the live working tree, and nothing of dev-cpu's, may be built or run (FR-039), and a hop would skip preflight's P11. The host stacks' own images are built there only from a commit's export (plan §4), and `make image` refuses any other engine than the agents' (round 3's review). (T056's review made this change. Before it, the hop ran wherever the docker CLI pointed.)
+- **dev-cpu, inside the sandbox (`SANDBOX_RUNTIME=1`):** a session can't reach that port (it is on the host's loopback, which the sandbox's proxy refuses). So the CLI makes one hop through a one-off probe container on the stack's `internal` network, always through `deploy/agents-engine/docker-relay`, so only on the agents' engine:
 
   ```text
-  docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars \
-    --profile breach run --rm -T breach-probe \
+  deploy/agents-engine/docker-relay docker compose -p h4reet-dev-cpu -f deploy/compose.yaml \
+    --env-file deploy/env.agents/dev-cpu.vars --profile breach run --build --rm -T breach-probe \
     python3 -I /app/operator.py --stack dev-cpu --url http://gateway:8081 --token-stdin <command> <arguments>
   ```
 
-  The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`. Inside the sandbox (`SANDBOX_RUNTIME=1`), the command runs through `deploy/agents-engine/docker-relay`.
+  `--build` rebuilds the probe's image from the tree first, a cached `COPY` when nothing changed, so the copy in the probe is the code being run, as `make up --build` keeps a stale image from certifying code (plan §4; round 3's review). The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`, and `scripts/hello.py`, which makes the same hop for `make hello` with no token ([gateway-http.md §9](gateway-http.md#9-the-hello-client-make-hello)), to `/app/hello.py`. It is the pinned `base:python` with a non-root user and nothing installed, and the `breach-probe` service runs it on `internal` alone, read-only, with no ports, binds, or variables ([plan.md §2](../plan.md#2-compose-services-and-pinned-images)).
+  - The hop's docker client keeps only the variables docker and the relay need, so no `COMPOSE_*`, `H4_*`, or template key in the shell can override `dev-cpu.vars` ([env-files.md §10](env-files.md#10-make-up-preflight), P5).
+  - The CLI in the probe names its exit code on its last line, and the CLI outside passes that code on. A hop that fails before the CLI in the probe answers is exit 4.
+  - tasks.md T144 brought the probe's image and its service forward from T080, for T064. T080 adds the breach test's own parts: `evals/breach.py`, `evals/breach_probe.py` (in the same image), the steps of [plan.md §8](../plan.md#8-the-breach-test), `make breach-test`, and the delivery overlay. A tree without `evals/Dockerfile.probe` makes the hop exit 4 and say so; the Author's terminal reaches dev-cpu's listener directly.
 
 **Commands.** Every command takes `--stack prod|dev|dev-cpu`, and `--json` to print the response body instead of a summary.
 
@@ -435,7 +450,7 @@ Request:
 | `contract-record` | `--adapter ID --cases FILE --out FILE --reason TEXT` | `GET /admin/status`, then `POST /admin/adapters/{ID}/complete` for each case, then `GET /admin/status` again; writes the recording for the live contract run ([provider-adapter.md §5.3](provider-adapter.md#53-three-run-modes)) |
 
 **`mint`**, which `make operator-token ENV=<stack>` runs:
-1. It refuses `dev-cpu` with exit 2: that token is the committed dummy.
+1. It refuses `dev-cpu` with exit 2: that token is the committed dummy. It refuses inside the sandbox (`SANDBOX_RUNTIME=1`) with exit 2 too, as `make init-env` does.
 2. It creates `~/.config/h4reet-ai/operator/` with mode 0700 if missing. It refuses a looser existing mode with exit 5.
 3. It refuses with exit 5 if `<stack>.token` exists: delete the file first to rotate.
 4. It generates 32 bytes from `secrets.token_bytes`, encodes them as unpadded base64url (43 characters), and adds the `h4op_<scope>_` prefix.
@@ -452,10 +467,14 @@ fallback today 0.40 / 2.00 USD   (grant 1, warning 1.40, available 1.48) · awai
 adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:00Z
 ```
 
+Below these lines it adds one for each thing that needs a look: the journal when it isn't `ok` (`unknown`, the state until the gateway's first record since it started, reads "not written since the gateway started", T182), alerts pending or failed in the last 24 hours, dev's test machinery when it is on, and, for an uninitialized store, the `make operator-init` command.
+
+The `status` and `init` summaries name the CLI's own `--stack`, in the first line and in any command they suggest. They never use the answer's `stack` field (T056's review).
+
 **For other tools.** `operator.py` also exposes an `AdminClient` class:
-- `AdminClient(stack)` reads the stack's token as above, and talks to its admin listener as above.
+- `AdminClient(stack, *, url=None, token_stdin=False)` reads the stack's token as above, and talks to its admin listener as above. `url` and `token_stdin` are the CLI's `--url` and `--token-stdin`, for a caller inside a container on the stack's network.
 - `.adapter_complete(adapter_id, messages, *, max_output_tokens, purpose, reason, temperature=None)` calls §5 and returns its 200 body as a dict: the answer is `result["text"]`, the cost `cost_micro_usd`.
-- Every other answer raises `AdminError`, with `.status` (the HTTP status) and `.error` (the body's `error` field). It never holds the token or a payload.
+- Every other answer raises `AdminError`, with `.status` (the HTTP status) and `.error` (the body's `error` field). It never holds the token or a payload. So does an answer from another stack's listener (Transport, above), with `.error` `wrong_stack`.
 
  `evals/run.py` (its `bedrock` adapter) and `evals/breach.py` import it by path, so the token is handled in one reviewed file. Both are launched the same way in the Author's terminal: by path, with the same flags, never with `-m` ([plan.md §4](../plan.md#4-environment-files-preflight-and-the-stack-targets)).
 
@@ -471,9 +490,10 @@ adapters       local healthy · bedrock healthy, SSO session ends 2026-10-28T18:
 | `operator-audit` | `ENV`, `LIMIT=` | `audit` | the same |
 | `operator-incidents` | `ENV`, `ID=` | `incidents --show` | the same |
 
-- **The reason.** Recipes pass it as `--reason "$$REASON"`, so make never splices the text into a shell line. A write target without `REASON` fails before any call, with exit 2.
-- **The flags.** `RENEW=1` and `CONFIRM_ZERO=1` become `--renew` and `--confirm-zero`. `DAY_USD`, `MONTH_USD`, and `FALLBACK_TODAY_USD` become the stated values.
-- **dev-cpu** recipes use the probe hop.
+- **The reason.** Recipes pass it as `--reason="$$REASON"`, so make never splices the text into a shell line, and the `=` keeps a reason that starts with `-` a value. A write target without `REASON` on the command line fails before any call, with exit 2.
+- **The flags.** `RENEW=1` and `CONFIRM_ZERO=1` become `--renew` and `--confirm-zero`. `DAY_USD`, `MONTH_USD`, and `FALLBACK_TODAY_USD` become the stated values, as `--day-usd="$$DAY_USD"` and so on.
+- **The command line only.** Like `ENV` and `REF`, each of these is taken only from make's command line, so a value left in the shell's environment never renews or states anything. `RENEW` or `CONFIRM_ZERO` with any value but `1` stops make before the recipe runs.
+- **dev-cpu** recipes run the same CLI command. It goes straight to `127.0.0.1:18303` from the Author's terminal, and makes the probe hop inside the sandbox (§6, Transport).
 - **Agents** are kept off every stack but dev-cpu: bash-gate blocks the `operator-*` targets and admin URLs for any other stack (FR-008, in the closing patch, [plan.md §15](../plan.md#15-the-enforcement-layer-patch)).
 
 Examples, from the Author's terminal:
@@ -490,10 +510,10 @@ $ make operator-renew ENV=prod REASON="Model server down for a driver update; re
 | Code | Meaning |
 |---|---|
 | 0 | done |
-| 1 | the gateway refused: a 400, 403, 404, or 409. The CLI prints its `error` and `detail`. |
-| 2 | usage: bad arguments, a missing reason, `mint` for dev-cpu, or a `--url` outside the allowed hosts |
-| 3 | 401: authentication failed. Check the token file against the env file's `OPERATOR_TOKEN_SHA256`. |
-| 4 | no usable answer: connection refused, a timeout (30 s), or a 5xx, including 503 `store_unreachable` and edge's `admin_unavailable` |
+| 1 | the gateway refused: a 400, 403, 404, or 409, or any other 4xx but 401 (edge's 413, a 415). The CLI prints its `error` and `detail`. |
+| 2 | usage: bad arguments, a missing reason or one outside §1.2's rule, a stated value out of shape, `mint` for dev-cpu, prod or dev inside the sandbox, or a `--url` outside the allowed hosts and ports |
+| 3 | 401: authentication failed. Check the token file against the env file's `OPERATOR_TOKEN_SHA256`, which must start with the fingerprint the CLI prints. |
+| 4 | no usable answer: connection refused, a timeout (30 s), a redirect (never followed), a body that isn't a JSON object, an answer from another stack's listener, or a 5xx, including 503 `store_unreachable` and edge's `admin_unavailable`; for dev-cpu, a hop that fails before the CLI in the probe answers |
 | 5 | a token problem: the file is missing, has the wrong owner or mode, or is malformed; or `mint` found an existing file |
 
 Make reports any non-zero exit as its own error 2, so the CLI's last line names the code and its meaning.

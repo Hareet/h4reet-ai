@@ -1,0 +1,48 @@
+# Grafana's three datasources (spec 000 FR-028, FR-034; plan §6; contracts/telemetry.md §6.6; research.md R-10).
+# Mounted read-only. Grafana expands ${...} here from its own environment, which compose gives exactly H4_STACK,
+# H4_LANGFUSE_PORT, and GATEWAY_GRAFANA_RO_PASSWORD for this file; $$ keeps one of Grafana's own variables literal.
+apiVersion: 1
+
+# Provisioned only: a datasource removed here is removed from Grafana too.
+prune: true
+
+datasources:
+  # The default: every metric, the gateway's through the collector's OTLP push and the rest scraped.
+  - name: Prometheus
+    uid: prom
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  # The gateway's logs; a record's trace_id opens its trace in this stack's Langfuse.
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      derivedFields:
+        - name: Langfuse trace
+          matcherType: label
+          matcherRegex: trace_id
+          url: "http://localhost:${H4_LANGFUSE_PORT}/project/h4reet-${H4_STACK}/traces/$${__value.raw}"
+          urlDisplayLabel: Open in Langfuse
+
+  # The gateway's own store, read as grafana_ro, which can SELECT gateway.audit_log and gateway.v_state and nothing
+  # else, so the audit and state panels still work when telemetry is down (FR-034).
+  - name: Gateway store
+    uid: gateway
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: gateway-state:5432
+    user: grafana_ro
+    editable: false
+    jsonData:
+      database: gateway
+      sslmode: disable
+      postgresVersion: 1700
+    secureJsonData:
+      password: "${GATEWAY_GRAFANA_RO_PASSWORD}"

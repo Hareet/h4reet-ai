@@ -12,7 +12,8 @@
 #   - no container_name, no external resource, no host network, no privileged mode, no Docker socket;
 #   - every service has a row in docs/data-flow-disclosure.md.
 # Named volumes belong to the compose project (h4reet-<stack>) and survive make down, which never passes -v.
-# Nothing waits on the model server or the collector, so neither can block hello's degraded path.
+# Nothing waits on the model server or the collector, so neither can block hello's degraded path. Langfuse alone
+# waits, for its own four stores to be healthy.
 
 # Every service: restart unless stopped, no privilege escalation, no capabilities, and Docker's local log driver,
 # rotated at 10 MB x 3 (plan §1). The database images add back only the capabilities their entrypoints need.
@@ -25,6 +26,49 @@ x-service: &service
     options:
       max-size: 10m
       max-file: "3"
+
+# What Langfuse's web app and worker share (contracts/env-files.md §5, after Langfuse 4.54.0's own compose): its four
+# stores, its keys, and the switches that keep it from reaching out. Every other switch that would reach out or call a
+# model stays unset, which is off: the AI features, the in-app agent's sandbox and AWS keys, Langfuse's own email,
+# the other blob stores, and MCP. No AWS_* key, either: its S3 is SeaweedFS, inside the stack.
+x-langfuse-env: &langfuse-env
+  DATABASE_URL: "postgresql://langfuse:${LANGFUSE_DB_PASSWORD}@langfuse-db:5432/langfuse"
+  SALT: "${LANGFUSE_SALT}"
+  ENCRYPTION_KEY: "${LANGFUSE_ENCRYPTION_KEY}"
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD}"
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_HOST: valkey
+  REDIS_PORT: "6379"
+  REDIS_AUTH: "${VALKEY_PASSWORD}"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://seaweedfs:8333
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: "${SEAWEEDFS_S3_ACCESS_KEY}"
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: "${SEAWEEDFS_S3_SECRET_KEY}"
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  # The same bucket under media/. Spec 000 uploads no media, so no browser ever needs SeaweedFS (ADR 0022).
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://seaweedfs:8333
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: "${SEAWEEDFS_S3_ACCESS_KEY}"
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: "${SEAWEEDFS_S3_SECRET_KEY}"
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+  LANGFUSE_IN_APP_AGENT_ENABLED: "false"
+  # The exceptions to Langfuse's block on internal addresses for an LLM connection's base URL: none, so no connection
+  # can name an in-stack host. Langfuse 4.54.0 reads "" and unset alike as an empty list (T149).
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: ""
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: ""
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS: ""
+  # Both listen on $HOSTNAME, and Docker sets it to the container's ID, which binds only the container's network
+  # address, while their health checks ask 127.0.0.1. The worker's was refused at T065's third prod start (2026-10-09).
+  HOSTNAME: 0.0.0.0
 
 services:
   # The only publisher: nginx, unprivileged, on the stack's five 127.0.0.1 ports (deploy/edge/nginx.conf).
@@ -184,6 +228,485 @@ services:
           cpus: "0.5"
           memory: 256M
 
+  # The local model server (plan §3, ADR 0019): llama.cpp's llama-server, one build (b11459) for both variants, so the
+  # gateway sees the same API, flags, and metrics at http://model-server:8080/v1 whichever the env file's profile
+  # picks: gpu on prod and dev, cpu on dev-cpu. It reads the model from the read-only cache and never downloads one
+  # (no -hf): deploy/scripts/pull-models.sh fetches and verifies it first. Left out on purpose: --slots, whose
+  # endpoint shows prompts in flight; -v, whose logs carry prompts; and --api-key, since only this stack's
+  # containers reach it. Nothing waits on it, so a model that won't load leaves hello degraded, never blocked.
+  model-server-gpu:
+    <<: *service
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b11459@sha256:fff6185edd2fbc4093aa5970bf6db53ed11c283e3a1c52a3e244cf27047264f4
+    profiles: [gpu]
+    command:
+      - -m
+      - /models/${MODEL_FILE}
+      - --alias
+      - ${MODEL_ALIAS}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - -c
+      - ${MODEL_CTX_SIZE}
+      - -np
+      - ${MODEL_PARALLEL}
+      - -ngl
+      - "999"
+      - --jinja
+      - --metrics
+      - --no-webui
+      - --no-slots
+    networks:
+      internal:
+        aliases: [model-server]
+    volumes:
+      - type: bind
+        source: "${H4_MODEL_DIR:?set by the env file}"
+        target: /models
+        read_only: true
+    # 503 while the model loads, 200 once it is ready.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 300s
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+        # The one GPU, reserved in the gpu profile only (the compose policy refuses a device anywhere else).
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # The same server on the CPU, for the agents' engine: every layer on the CPU (-ngl 0), with the engine's 4 threads.
+  model-server-cpu:
+    <<: *service
+    image: ghcr.io/ggml-org/llama.cpp:server-b11459@sha256:33868c035b21dc63f7c60b7438774283fd99215bc319114eb03de5df4ce7cd6b
+    profiles: [cpu]
+    command:
+      - -m
+      - /models/${MODEL_FILE}
+      - --alias
+      - ${MODEL_ALIAS}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - -c
+      - ${MODEL_CTX_SIZE}
+      - -np
+      - ${MODEL_PARALLEL}
+      - -ngl
+      - "0"
+      - -t
+      - ${MODEL_THREADS}
+      - --jinja
+      - --metrics
+      - --no-webui
+      - --no-slots
+    networks:
+      internal:
+        aliases: [model-server]
+    volumes:
+      - type: bind
+        source: "${H4_MODEL_DIR:?set by the env file}"
+        target: /models
+        read_only: true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 2G
+
+  # The OpenTelemetry collector (plan §6, contracts/telemetry.md §6): it redacts, then sends traces to Langfuse,
+  # metrics to Prometheus, and logs to Loki. It takes four variables and nothing else; its own config expands them.
+  # The image has no shell, so it has no health check here: Prometheus scrapes it, and its health_check extension
+  # answers on 13133. Nothing waits on it, so a failed telemetry pipeline never blocks hello.
+  otel-collector:
+    <<: *service
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    networks: [internal]
+    environment:
+      LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY}"
+      LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY}"
+      TELEMETRY_PAYLOAD_SAMPLING: "${TELEMETRY_PAYLOAD_SAMPLING}"
+      H4_STACK: "${H4_STACK}"
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/otel/collector.yaml"
+        target: /etc/otelcol-contrib/config.yaml
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # Prometheus 3: the gateway's metrics over OTLP, and the scrape targets of deploy/prometheus/prometheus.yml.
+  # 30 days or 2 GB of data, whichever comes first; no admin or lifecycle API.
+  prometheus:
+    <<: *service
+    image: quay.io/prometheus/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=2GB
+      - --web.enable-otlp-receiver
+      # A series' first sample comes with a 0 at its start time, so rate() and increase() count a new counter's first
+      # increment and a histogram's first observation: one hello after a start never showed on the dashboard (T065,
+      # 2026-10-09). Experimental in 3.15. It also prefers protobuf scrapes, which renamed none of the dashboard's metrics.
+      - --enable-feature=created-timestamp-zero-ingestion
+    networks: [internal]
+    volumes:
+      - type: volume
+        source: prometheus-data
+        target: /prometheus
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/prometheus/prometheus.yml"
+        target: /etc/prometheus/prometheus.yml
+        read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1G
+
+  # Loki 3, single binary on its own volume: the gateway's logs over OTLP (deploy/loki/loki.yaml).
+  loki:
+    <<: *service
+    image: docker.io/grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    networks: [internal]
+    volumes:
+      - type: volume
+        source: loki-data
+        target: /loki
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/loki/loki.yaml"
+        target: /etc/loki/loki.yaml
+        read_only: true
+    # The image is distroless: no shell and no wget, so it has no health check here, like the collector, and nothing
+    # waits on it. Prometheus's scrape shows that it answers, though not that it's ready. The wget check it had could
+    # never run (T065's second prod start, 2026-10-09).
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # Grafana OSS (plan §6, ADR 0004): provisioned datasources and dashboards, read-only, so nothing in its own
+  # database is authoritative. Its alerting is off: alerts are the gateway's, and never wait on the dashboard. Every
+  # phone-home has its switch off (FR-040), and the internal network would block it anyway.
+  grafana:
+    <<: *service
+    image: docker.io/grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
+    networks: [internal]
+    environment:
+      # What the provisioning files expand (contracts/telemetry.md §6.6).
+      H4_STACK: "${H4_STACK}"
+      H4_LANGFUSE_PORT: "${H4_LANGFUSE_PORT}"
+      GATEWAY_GRAFANA_RO_PASSWORD: "${GATEWAY_GRAFANA_RO_PASSWORD}"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "${GF_SECURITY_ADMIN_PASSWORD}"
+      GF_SERVER_ROOT_URL: "http://localhost:${H4_GRAFANA_PORT}/"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_UNIFIED_ALERTING_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED: "true"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+    volumes:
+      - type: volume
+        source: grafana-data
+        target: /var/lib/grafana
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/grafana/provisioning/datasources"
+        target: /etc/grafana/provisioning/datasources
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/grafana/provisioning/dashboards"
+        target: /etc/grafana/provisioning/dashboards
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/grafana/dashboards"
+        target: /etc/grafana/dashboards
+        read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # Langfuse v4's web app and API (ADR 0004, research.md R-08): the collector sends it traces, and edge publishes it on
+  # x001. Headless initialization creates the organization, the project h4reet-<stack> with the collector's own pair
+  # of keys, and the operator's login, so no UI step stands between make up and the first trace (SC-001). It waits
+  # for its four stores to be healthy; nothing in hello's path waits on it.
+  langfuse-web:
+    <<: *service
+    image: ghcr.io/langfuse/langfuse:4.54.0@sha256:ea9f763af1181b444c081353cd2f8174323c84b2447ed7295857d04ae1153f2c
+    networks: [internal]
+    depends_on: &langfuse-stores
+      langfuse-db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    environment:
+      <<: *langfuse-env
+      NODE_OPTIONS: --max-old-space-size=1024
+      NEXTAUTH_URL: "http://localhost:${H4_LANGFUSE_PORT}"
+      NEXTAUTH_SECRET: "${LANGFUSE_NEXTAUTH_SECRET}"
+      AUTH_DISABLE_SIGNUP: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://seaweedfs:8333
+      LANGFUSE_INIT_ORG_ID: h4reet
+      LANGFUSE_INIT_ORG_NAME: h4reet.ai
+      LANGFUSE_INIT_PROJECT_ID: "h4reet-${H4_STACK}"
+      LANGFUSE_INIT_PROJECT_NAME: "h4reet-${H4_STACK}"
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY}"
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: "${LANGFUSE_SECRET_KEY}"
+      LANGFUSE_INIT_USER_EMAIL: "${LANGFUSE_INIT_USER_EMAIL}"
+      LANGFUSE_INIT_USER_NAME: operator
+      LANGFUSE_INIT_USER_PASSWORD: "${LANGFUSE_INIT_USER_PASSWORD}"
+    # Its first start runs the Postgres and ClickHouse migrations.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/public/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1536M
+
+  # Langfuse's worker: it moves each trace's events from Valkey and SeaweedFS into ClickHouse, so a slow or stopped
+  # worker makes traces late, never lost.
+  langfuse-worker:
+    <<: *service
+    image: ghcr.io/langfuse/langfuse-worker:4.54.0@sha256:fe7ea9e288c6586783989920ced1704172624f45da495a68d8ae07ba466641f2
+    networks: [internal]
+    depends_on: *langfuse-stores
+    environment:
+      <<: *langfuse-env
+      NODE_OPTIONS: --max-old-space-size=768
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3030/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  # Langfuse's own Postgres, the same image as gateway-state's, with its own volume.
+  langfuse-db:
+    <<: *service
+    image: public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    # The entrypoint takes ownership of the data directory, then drops to the postgres user.
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    networks: [internal]
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: "${LANGFUSE_DB_PASSWORD}"
+    volumes:
+      - type: volume
+        source: langfuse-db-data
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "langfuse", "-d", "langfuse"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # ClickHouse 26.8 LTS, Langfuse's trace store (research.md R-08), with three settings files from this tree in
+  # config.d: a low-memory profile for its 4 GiB, crash reports to its vendor off, and its Prometheus endpoint on 9363.
+  clickhouse:
+    <<: *service
+    image: docker.io/clickhouse/clickhouse-server:26.8.20.9@sha256:9b61e3c635c04ad5bb521eb4f6e61ce7585b5580814e51c25bb9e8292ce43364
+    # The image's own clickhouse user, as Langfuse's compose runs it: the entrypoint then changes no ownership, so
+    # the container gets no capability back.
+    user: "101:101"
+    networks: [internal]
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD}"
+    volumes:
+      - type: volume
+        source: clickhouse-data
+        target: /var/lib/clickhouse
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/clickhouse/low-memory.xml"
+        target: /etc/clickhouse-server/config.d/low-memory.xml
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/clickhouse/no-crash-reports.xml"
+        target: /etc/clickhouse-server/config.d/no-crash-reports.xml
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/clickhouse/prometheus.xml"
+        target: /etc/clickhouse-server/config.d/prometheus.xml
+        read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+
+  # Valkey 8.1, Langfuse's queue and cache, in place of redis:7 (research.md R-08): 256 MB with no eviction, so a
+  # full queue refuses rather than drops, and an append-only file on its volume.
+  valkey:
+    <<: *service
+    image: docker.io/valkey/valkey:8.1.10-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
+    # The entrypoint takes ownership of /data, then drops to the valkey user.
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    command:
+      - valkey-server
+      - --requirepass
+      - ${VALKEY_PASSWORD}
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "yes"
+    networks: [internal]
+    # For the health check alone, which the shell expands inside the container ($$).
+    environment:
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD}"
+    volumes:
+      - type: volume
+        source: valkey-data
+        target: /data
+    healthcheck:
+      test: ["CMD-SHELL", 'valkey-cli --no-auth-warning -a "$$VALKEY_PASSWORD" ping | grep -qx PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+
+  # SeaweedFS, Langfuse's S3 store (ADR 0022, research.md R-09), unpublished. deploy/seaweedfs/entrypoint.sh renders
+  # its S3 identity from the env file into a tmpfs, starts it, and creates the langfuse bucket if it isn't there.
+  # Healthy means the master answers and the bucket exists. Its tag and digest are the newest release make pin-images
+  # found, in T063.
+  seaweedfs:
+    <<: *service
+    image: docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    # The image's own user, seaweed, uid 1000, which owns /data. The image's entrypoint chowns /data and drops to that
+    # user; ours replaces it, and root with no capabilities can't write a directory it doesn't own. T065's second prod
+    # start, 2026-10-09: the master died at "mkdir /data/m9333: permission denied", and Langfuse never started.
+    user: "1000:1000"
+    entrypoint: ["/bin/sh", "/h4/entrypoint.sh"]
+    networks: [internal]
+    environment:
+      SEAWEEDFS_S3_ACCESS_KEY: "${SEAWEEDFS_S3_ACCESS_KEY}"
+      SEAWEEDFS_S3_SECRET_KEY: "${SEAWEEDFS_S3_SECRET_KEY}"
+    volumes:
+      - type: volume
+        source: seaweedfs-data
+        target: /data
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/seaweedfs/entrypoint.sh"
+        target: /h4/entrypoint.sh
+        read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/h4-bucket-ready && wget -qO- http://127.0.0.1:9333/cluster/status >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # The breach probe (plan §2 and §8; tasks.md T144): a one-off container on the internal network, from which a
+  # client that can't reach the stack's published ports, such as an agent session on the agents' engine, calls the
+  # gateway in-network. The dev-cpu hops of the operator CLI and of hello's client run in it
+  # (contracts/operator-admin.md §6, gateway-http.md §9), and so will the breach test's assertions (T080). Only the
+  # breach profile names it, which no env file selects, so make up never starts it: `docker compose --profile breach
+  # run --rm breach-probe <command>` starts one per call, without the restart policy, and removes it. It publishes
+  # nothing, mounts nothing, and takes nothing from the env file; the dev-cpu dummy token reaches the operator CLI in
+  # it on standard input. Built from this file's own tree, as the gateway is.
+  breach-probe:
+    <<: *service
+    profiles: [breach]
+    build:
+      context: ..
+      dockerfile: evals/Dockerfile.probe
+      # Only the agents' engine builds through a proxy; on host stacks this is empty. Never a container variable.
+      args:
+        HTTP_PROXY: "${H4_BUILD_PROXY}"
+        HTTPS_PROXY: "${H4_BUILD_PROXY}"
+    networks: [internal]
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
 networks:
   # No route out: every service joins it (FR-040).
   internal:
@@ -197,3 +720,10 @@ networks:
 
 volumes:
   gateway-state-data: {}
+  prometheus-data: {}
+  loki-data: {}
+  grafana-data: {}
+  langfuse-db-data: {}
+  clickhouse-data: {}
+  valkey-data: {}
+  seaweedfs-data: {}

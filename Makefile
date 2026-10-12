@@ -4,10 +4,20 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
+# A command-line variable is make code: make expands its value wherever it's used, and again when it exports it to a
+# recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
+# the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
+# the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER
+CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
+$(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
+$(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
+from_cli = $(filter $(1),$(CLI_VARS))
+
 # The stack (plan §4): prod and dev on the 5090, dev-cpu on the agents' engine. Only the command line picks it
 # (make up ENV=dev): POSIX shells export ENV to name a startup file, and that must never choose a stack. A stack's
 # name in the environment is refused rather than ignored, so `ENV=dev make down` can't act on prod.
-ifneq ($(origin ENV),command line)
+ifeq ($(call from_cli,ENV),)
 ifneq ($(filter prod dev dev-cpu,$(ENV)),)
 $(error ENV=$(ENV) comes from the environment, which never picks a stack: run make $(MAKECMDGOALS) ENV=$(ENV))
 endif
@@ -36,7 +46,7 @@ endif
 COMPOSE = docker compose -p h4reet-$(ENV) -f $(TREE)/deploy/compose.yaml --env-file $(ENVFILE)$(if $(RUNFILE), --env-file $(RUNFILE))
 # REF picks the commit a host stack runs (make up REF=<sha> is the rollback), from the command line only, like ENV.
 # The shell reads it as "$REF", so make never splices it into a command line, and --ref= keeps it a value.
-REF_ARG = $(if $(filter command line,$(origin REF)), --ref="$$REF")
+REF_ARG = $(if $(call from_cli,REF), --ref="$$REF")
 
 # The agents' engine (plan §10). Inside the agent sandbox, a target that touches containers runs itself again
 # through deploy/agents-engine/docker-relay, which points DOCKER_HOST at the engine, and only for ENV=dev-cpu: the
@@ -114,8 +124,10 @@ PRE_COMMIT_PLANNED :=
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
 CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets@T091 evals redteam=redteam-suite matrix image
 
+# -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
+# file name before every line.
 help: ## List the targets
-	@grep -E '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z_-][a-zA-Z_ -]*:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
 
 setup: ## Install the workspace's dependencies, then the git hooks (the devcontainer runs this)
 	npm ci --ignore-scripts
@@ -247,10 +259,12 @@ matrix: ## The forbidden-action matrix alone (plan §13)
 #
 # A host stack with no run file wasn't started by make up: down, logs, and status say so and succeed (§12).
 NOT_STARTED = [ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "h4reet-$(ENV) wasn't started by make up (no $(RUNFILE)): nothing to $(1)"; exit 0; }
-# deploy/scripts/pull-models.sh (tasks.md T057) takes --stack S --env-file F [--all]; on the agents' engine it only
-# verifies the seeded model. $(1) is the tree it runs from: the export on a host stack.
+# deploy/scripts/pull-models.sh takes --stack S --env-file F [--all]: on a host stack it fetches and verifies the
+# stack's model (every model in deploy/models.lock with --all), and on the agents' engine it only verifies the seeded
+# one. $(1) is the tree it runs from: the export on a host stack. A commit older than the model server, which a
+# rollback can run, has neither the script nor a model to fetch.
 PULL_MODELS = if [ -f $(1)/deploy/scripts/pull-models.sh ]; then bash $(1)/deploy/scripts/pull-models.sh --stack $(ENV) --env-file $(ENVFILE) $(2); \
-  else echo "models: deploy/scripts/pull-models.sh arrives with tasks.md T057"; fi
+  else echo "models: the commit being run has no deploy/scripts/pull-models.sh, and no model server to fetch for"; fi
 
 ifeq ($(VIA_RELAY),1)
 # Inside the sandbox: the same target again, through the relay, on the agents' engine. MAKEFLAGS carries the rest of
@@ -261,7 +275,7 @@ up down logs status:
 	$(RELAY) make --no-print-directory $@ ENV=dev-cpu
 else
 up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, then every service, healthy
-	@$(if $(RUNFILE),:,[ "$(origin REF)" != "command line" ] || { echo "make up: dev-cpu runs the working tree; REF= is for prod and dev" >&2; exit 2; })
+	@$(if $(RUNFILE),:,[ -z "$(call from_cli,REF)" ] || { echo "make up: dev-cpu runs the working tree; REF= is for prod and dev" >&2; exit 2; })
 	$(PY_HOST) $(TREE)/deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR)$(REF_ARG)
 	@$(call PULL_MODELS,$(TREE),)
 	@# Every service healthy, or status names the one that isn't, with its health output and error lines, redacted;
@@ -276,7 +290,7 @@ down: ## Stop the stack: its volumes, meters, and journal stay, because it never
 # SERVICE= and TAIL= come from the command line, read by the shell, and checked before compose sees them.
 logs: ## The stack's logs, redacted: SERVICE=name TAIL=200; the model server shows warnings and errors only
 	@set -eo pipefail; $(call NOT_STARTED,show); \
-	tail="$(if $(filter command line,$(origin TAIL)),$$TAIL,200)"; service="$(if $(filter command line,$(origin SERVICE)),$$SERVICE)"; \
+	tail="$(if $(call from_cli,TAIL),$$TAIL,200)"; service="$(if $(call from_cli,SERVICE),$$SERVICE)"; \
 	case "$$tail" in ''|*[!0-9]*) echo "TAIL is a number of lines" >&2; exit 2 ;; esac; \
 	case "$$service" in *[!a-z0-9-]*) echo "SERVICE is one service's name" >&2; exit 2 ;; esac; \
 	redact=$(TREE)/deploy/scripts/redact.sh; \
@@ -314,16 +328,68 @@ else
 	@$(MAKE) --no-print-directory compose-images
 endif
 
-# Every image this tree builds (the gateway; the stand-ins and the probe once they exist), in every profile, on the
-# current engine, with dev-cpu's env file: the agents' engine builds through its proxy (H4_BUILD_PROXY).
+# Every image this tree builds (the gateway and the breach probe; the stand-ins once they exist), in every profile, with
+# dev-cpu's env file, on the agents' engine only: through the relay in a session (DOCKER_HOST is the relay's), or the
+# Author's gate on 198.18.0.1 (T092). It builds the live working tree, which agents write, so the host's rootful engine,
+# where nothing of the working tree's may be built or run (FR-039), never builds it (round 3's review). The agents'
+# engine builds through its proxy (H4_BUILD_PROXY).
 compose-images:
+	@case "$${DOCKER_HOST:-}" in \
+	  $(RELAY_HOST)) [ "$${SANDBOX_RUNTIME:-}" = 1 ] || { echo "make $@: $(RELAY_HOST) is the relay's only inside the sandbox; from here, set DOCKER_HOST=tcp://198.18.0.1:2376 (the agents' engine)" >&2; exit 2; } ;; \
+	  tcp://198.18.0.1:2376) ;; \
+	  *) echo "make $@ builds the working tree's images on the agents' engine only, never on this shell's engine (FR-039): through the relay in an agent session, or with DOCKER_HOST=tcp://198.18.0.1:2376" >&2; exit 2 ;; \
+	esac
 	docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars --profile '*' build
 
-isolation-check: ## (the Author) prod and dev can't reach each other, which arrives with feat/000-us1-local-stack
-	@echo "make isolation-check arrives with feat/000-us1-local-stack (tasks.md T061, plan §4)" >&2; exit 2
+# Both host stacks up on the host's engine; it runs from the working tree, like pull and pin-images (plan §4, FR-020).
+isolation-check: ## (the Author) With prod and dev up: neither reaches the other's names, addresses, ports, or volumes
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make isolation-check is the Author's: it inspects prod and dev on the host's engine, which agent sessions can't reach" >&2; exit 2; }
+	bash deploy/scripts/isolation-check.sh
 
 init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its template; SYNC=1 adds new keys
 	$(PY_HOST) deploy/scripts/init_env.py --stack $(ENV) $(if $(filter 1,$(SYNC)),--sync)
+
+# The operator CLI (contracts/operator-admin.md §6, §6.1): scripts/operator.py, by path through PY_HOST, because it
+# holds the operator token. prod and dev are the Author's, with ~/.config/h4reet-ai/operator/<stack>.token. dev-cpu's
+# token is the committed public dummy. The CLI reaches dev-cpu's admin listener at 127.0.0.1:18303 from your terminal,
+# and inside the sandbox with one hop, through the relay, in a breach-probe container on the agents' engine, so the
+# recipes are the same for every stack. Agent sessions run them for dev-cpu only (FR-008); bash-gate's rule for the
+# other stacks arrives with the closing patch (plan §13, §15).
+# Every value comes from the command line only and reaches the CLI as "$$NAME", read by the shell, so make never
+# splices it into a command line; the --name= form keeps a value that starts with - a value.
+OPERATOR = $(PY_HOST) scripts/operator.py --stack $(ENV)
+OPERATOR_AGENTS = @[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make $@ ENV=$(ENV): agent sessions reach dev-cpu's admin listener only; prod and dev are the Author's (FR-008)" >&2; exit 2; }
+# $(call OPERATOR_FLAG,RENEW,--renew): 1 adds the flag, unset or empty adds nothing, and anything else stops make
+# before the recipe runs.
+OPERATOR_FLAG = $(if $(call from_cli,$(1)),$(if $(filter-out 1,$($(1))),$(error $(1) is 1 or unset, not "$($(1))"),$(if $($(1)), $(2))))
+# $(call OPERATOR_VALUE,DAY_USD,--day-usd): the value as the shell reads it; the CLI checks its shape.
+OPERATOR_VALUE = $(if $(call from_cli,$(1)), $(2)="$$$(1)")
+
+operator-token: ## (the Author) Mint ENV's operator token (prod or dev); prints the SHA-256 for its env file
+	$(OPERATOR_AGENTS)
+	$(OPERATOR) mint
+
+operator-status: ## ENV's state, meters, and adapters, from its admin listener (agent sessions: dev-cpu only)
+	$(OPERATOR_AGENTS)
+	$(OPERATOR) status
+
+operator-init: ## Initialize ENV's empty store: REASON="..." [CONFIRM_ZERO=1] [RENEW=1] [DAY_USD= MONTH_USD= FALLBACK_TODAY_USD=]
+	$(OPERATOR_AGENTS)
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-init needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) init --reason="$$REASON"$(call OPERATOR_FLAG,RENEW,--renew)$(call OPERATOR_FLAG,CONFIRM_ZERO,--confirm-zero)$(call OPERATOR_VALUE,DAY_USD,--day-usd)$(call OPERATOR_VALUE,MONTH_USD,--month-usd)$(call OPERATOR_VALUE,FALLBACK_TODAY_USD,--fallback-today-usd)
+
+# hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
+# gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes
+# straight to the stack's api port on 127.0.0.1 (18000, 18100, or 18300); inside the sandbox, for dev-cpu only, the
+# script makes the operator CLI's hop, through the relay, in a breach-probe container that calls the gateway
+# in-network. Agent sessions are kept off prod and dev here and in the script, as the operator targets are. MESSAGE
+# comes from the command line only and reaches the script as "$$MESSAGE", read by the shell; without it the gateway
+# answers "Hello.".
+HELLO = $(PY_HOST) scripts/hello.py --stack $(ENV)
+
+hello: ## POST /hello to ENV's gateway, and print the status and body: [MESSAGE="..."] (agent sessions: dev-cpu only)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make $@ ENV=$(ENV): agent sessions send hello to dev-cpu only; prod and dev are the Author's (FR-008, FR-039)" >&2; exit 2; }
+	$(HELLO)$(if $(call from_cli,MESSAGE), --message="$$MESSAGE")
 
 # The Author's terminal: it reaches the registries. ONLY=svc,... limits it; TAG="svc=tag ..." pins a tag (an open
 # one, such as seaweedfs's, otherwise gets the newest release); DRY_RUN=1 prints the table and writes nothing.
@@ -340,4 +406,11 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
 	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
-	init-env isolation-check breach-test plan
+	init-env operator-token operator-status operator-init hello isolation-check breach-test plan
+
+# Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
+# GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
+# §11, Principle IV). An empty rule for every makefile read before this line, which stays the last, leaves make nothing
+# to remake them with, whatever path it read them by; and with no suffixes, no suffix rule is left for any target.
+$(MAKEFILE_LIST): ;
+.SUFFIXES:
