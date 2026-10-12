@@ -26,7 +26,11 @@ SECURITY.md
 .bash_profile
 .bashrc
 .gitconfig
+.gitleaksignore
 .gitmodules
+GNUmakefile
+makefile
+deploy/env
 .idea
 .mcp.json
 .profile
