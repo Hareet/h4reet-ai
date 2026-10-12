@@ -436,6 +436,48 @@ def test_spend_shows_its_warning_and_ceiling(meter: str) -> None:
         assert by_title()[title]["fieldConfig"]["defaults"]["unit"] == "currencyUSD"
 
 
+def test_bedrocks_cost_reads_beside_locals_zero() -> None:
+    # §7.2: "Bedrock's fallback and test cost beside local's zero" (FR-023, SC-005; tasks.md T106). One row per
+    # provider, model, and attribution over the dashboard's range, with the gateway's own values, as quickstart.md
+    # §4.2 reads them ("aws.bedrock with fallback"), in USD to the micro-dollar the meter keeps: one Bedrock call
+    # costs at most about $0.0026 (plan §5.4), which two decimals would show as 0.00.
+    panel = by_title()["Cost by provider and attribution"]
+    (target,) = panel["targets"]
+    assert target["instant"] is True and target["format"] == "table"
+    defaults = panel["fieldConfig"]["defaults"]
+    assert defaults["unit"] == "currencyUSD" and defaults["decimals"] == 6
+    (organize,) = [t for t in panel["transformations"] if t["id"] == "organize"]
+    assert organize["options"]["renameByName"] == {
+        "gen_ai_provider_name": "Provider",
+        "gen_ai_request_model": "Model",
+        "h4_meter_attribution": "Attribution",
+        "Value": "Cost",
+    }
+    assert panel["options"]["sortBy"] == [{"displayName": "Cost", "desc": True}]
+    # The description names what Bedrock's rows mean (provider-adapter.md §3.2; data-model.md §2.5).
+    for words in ("aws.bedrock", "fallback", "test", "local", "none"):
+        assert words in panel["description"], words
+
+
+RUNBOOKS = REPO / "docs" / "runbooks"
+
+
+def test_bedrocks_health_reads_on_its_own_tile() -> None:
+    # §7.4's B, `max by (h4_adapter) (h4_adapter_healthy)`: each configured adapter is its own tile, up or down, so
+    # prod shows bedrock beside local (tasks.md T106). Its description says what down means for Bedrock, and names
+    # the runbooks for each, which must exist.
+    panel = by_title()["Model-server health"]
+    adapters = [t for t in panel["targets"] if "h4_adapter_healthy" in t["expr"]]
+    (target,) = adapters
+    assert "{{h4_adapter}}" in target["legendFormat"]
+    description = panel["description"]
+    for words in ("bedrock", "credentials", "circuit"):
+        assert words in description, words
+    named = re.findall(r"docs/runbooks/([a-z0-9-]+\.md)", description)
+    assert {"model-server-down.md", "bedrock-unavailable.md"} <= set(named)
+    assert [n for n in named if not (RUNBOOKS / n).is_file()] == []
+
+
 def test_the_dashboards_folder_is_documented() -> None:
     readme = (REPO / "deploy/grafana/dashboards/README.md").read_text(encoding="utf-8")
     assert "deploy/scripts/test_dashboard.py" in readme

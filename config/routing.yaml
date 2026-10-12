@@ -2,9 +2,9 @@
 # reviewed in the merge-request note; its schema keeps every primary local, a paid adapter in prod's route only, and
 # synthetic spend in dev's only. The gateway selects the route by H4_ENV: prod for prod, dev for dev and dev-cpu.
 #
-# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the second
-# step: tasks.md T073 adds the synthetic adapter and dev's fallback. T102 adds bedrock with its placeholder model,
-# and the Author adds prod's fallback (T105).
+# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the third
+# step: tasks.md T073 added the synthetic adapter and dev's fallback, and T102 adds bedrock with its placeholder model.
+# The Author confirms the model and adds prod's fallback (T105); until then no route names bedrock, so it isn't built.
 schema: 1
 deadline_ms: 20000
 
@@ -17,6 +17,18 @@ adapters:
     model_env: LOCAL_MODEL_NAME # the stack's MODEL_ALIAS
     timeouts: { connect_ms: 1000, request_ms: 10000 }
     health: { path: /models, interval_ms: 1000, timeout_ms: 800, unhealthy_after: 1, healthy_after: 3 }
+
+  bedrock:
+    type: bedrock-converse
+    kind: paid
+    region: us-east-1
+    model: "<inference-profile ID the Author confirms>" # aws bedrock list-inference-profiles
+    additional_request_fields: {} # what keeps extended thinking off for that model, if anything
+    timeouts: { connect_ms: 1000, request_ms: 4000 }
+    retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
+    circuit: { failures: 3, open_s: 30 }
+    health: { interval_ms: 10000 }
+    credentials_warn_before_s: 7200
 
   synthetic:
     type: synthetic

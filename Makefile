@@ -349,6 +349,14 @@ isolation-check: ## (the Author) With prod and dev up: neither reaches the other
 init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its template; SYNC=1 adds new keys
 	$(PY_HOST) deploy/scripts/init_env.py --stack $(ENV) $(if $(filter 1,$(SYNC)),--sync)
 
+# prod's Bedrock session (plan §4 and §5.2; research.md R-17; tasks.md T104): aws sso login for the runtime identity's
+# profile, with HOME at ~/.config/h4reet-ai/aws-home, whose .aws prod's gateway mounts read-only. Only prod has one:
+# dev and dev-cpu mount deploy/aws-none. Agent sessions can't read that directory, and the script refuses them too.
+aws-login: ## (the Author) A new SSO session for prod's Bedrock identity: aws sso login --profile h4reet-bedrock
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make aws-login is the Author's: it writes prod's Bedrock session to ~/.config/h4reet-ai, which agent sessions can't read" >&2; exit 2; }
+	@[ "$(ENV)" = prod ] || { echo "make aws-login ENV=$(ENV): the session is prod's alone; dev and dev-cpu mount deploy/aws-none and route no paid adapter" >&2; exit 2; }
+	bash deploy/scripts/aws-login.sh
+
 # The operator CLI (contracts/operator-admin.md §6, §6.1): scripts/operator.py, by path through PY_HOST, because it
 # holds the operator token. prod and dev are the Author's, with ~/.config/h4reet-ai/operator/<stack>.token. dev-cpu's
 # token is the committed public dummy. The CLI reaches dev-cpu's admin listener at 127.0.0.1:18303 from your terminal,
@@ -401,6 +409,25 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 	$(OPERATOR) incidents --show$(call OPERATOR_VALUE,ID,--id)
 .PHONY: operator-incidents
 
+# The live contract run (contracts/provider-adapter.md §5.3; tasks.md T103), the Author's: operator.py records each case
+# of live-cases.json through ENV's POST /admin/adapters/ADAPTER/complete into a 0700 temporary directory, then the
+# replay runs in tools/gates/gate's container phase, the devcontainer image with --network none on an exported tree,
+# and the directory is deleted. Bedrock is prod's alone, and its calls are charged to prod's meters as test. Until the
+# gate exists (T092), the target stops before it calls anything, so no live call is made without its replay.
+contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock REASON="..." (provider-adapter.md §5.3)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make contract-live is the Author's: it calls a live adapter with ENV's operator token (provider-adapter.md §5.3)" >&2; exit 2; }
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make contract-live needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	@case "$(if $(call from_cli,ADAPTER),$$ADAPTER)" in \
+	  local) ;; \
+	  bedrock) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=bedrock: bedrock is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
+	  *) echo "make contract-live needs ADAPTER=local or ADAPTER=bedrock on the command line" >&2; exit 2 ;; \
+	esac
+	@[ -x tools/gates/gate ] || { echo "PLANNED (T092): make contract-live replays in tools/gates/gate's container phase, which T092 adds; nothing was called" >&2; exit 2; }
+	@dir=$$(mktemp -d) && chmod 700 "$$dir" && trap 'rm -rf "$$dir"' EXIT && \
+	  $(OPERATOR) contract-record --adapter "$$ADAPTER" --out "$$dir/recording.json" --reason="$$REASON" && \
+	  tools/gates/gate --contract-replay "$$dir/recording.json"
+.PHONY: contract-live
+
 # hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
 # gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes
 # straight to the stack's api port on 127.0.0.1 (18000, 18100, or 18300); inside the sandbox, for dev-cpu only, the
@@ -446,7 +473,6 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
 	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
-	init-env operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
@@ -454,3 +480,4 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 # to remake them with, whatever path it read them by; and with no suffixes, no suffix rule is left for any target.
 $(MAKEFILE_LIST): ;
 .SUFFIXES:
+	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan

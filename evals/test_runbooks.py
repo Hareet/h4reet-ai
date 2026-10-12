@@ -3,7 +3,9 @@
 Every page alerts.md §6 names exists once the task that writes it is done; each covers the alerts and causes its
 row names, in backticks; every runbook has plan §16's six sections in order (Symptoms · Impact · Act · Verify ·
 Undo · Record); and every make target a runbook's commands name is one the Makefile has, or one a later task adds.
-A later task's mark expires, as plan §11's do: once tasks.md marks the task done, what it adds is required.
+A later task's mark expires, as plan §11's do: once tasks.md marks the task done, what it adds is required. The two
+Bedrock pages also quote their alerts as alerts.md §3's examples give them, and hello's degraded detail as
+gateway-http.md §3 does, read from those files.
 """
 
 from __future__ import annotations
@@ -135,3 +137,64 @@ def test_every_make_target_a_runbook_names_exists() -> None:
         and not (target in LATER_TARGETS and not done(LATER_TARGETS[target]))
     }
     assert not unknown, unknown
+
+
+GATEWAY_HTTP = (SPEC / "contracts" / "gateway-http.md").read_text(encoding="utf-8")
+BEDROCK_PAGES = [
+    ("credentials_expiring", "bedrock-credentials-expiring.md"),
+    ("fallback_unavailable", "bedrock-unavailable.md"),
+]
+
+
+def example(kind: str) -> list[str]:
+    """alerts.md §3's example message for a kind: its lines, the stack's prefix taken off the first."""
+    start = ALERTS.index(f"\n**`{kind}`:**")
+    block = re.search(r"```text\n(.*?)```", ALERTS[start:], re.DOTALL)
+    assert block, kind
+    lines = block.group(1).splitlines()
+    lines[0] = lines[0].split("] ", 1)[1]
+    return lines
+
+
+def degraded_detail(cause: str) -> str:
+    """gateway-http.md §3's fixed `detail` text for a degraded cause: the table's last column."""
+    start = GATEWAY_HTTP.index("\n## 3. ")
+    for line in GATEWAY_HTTP[
+        start : GATEWAY_HTTP.index("\n## 4. ", start)
+    ].splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells[0] == f"`{cause}`":
+            return cells[-1]
+    raise AssertionError(f"gateway-http.md §3 has no cause {cause}")
+
+
+@pytest.mark.parametrize(("kind", "page"), BEDROCK_PAGES)
+def test_the_bedrock_pages_show_their_alert_as_it_arrives(kind: str, page: str) -> None:
+    # tasks.md T106: each page quotes its alert from alerts.md §3's example, which this reads, not a copy: the
+    # headline up to its variable part (the session's end, or the health reason), the kind's fixed sentence, and the
+    # alert's id with the stack and adapter filled in, as alerts.md §2's dedupe key gives it on prod.
+    if not required(page):
+        pytest.skip(f"{page} arrives with tasks.md {LATER_PAGES[page]}")
+    lines = example(kind)
+    assert lines[-1] == f"Runbook: docs/runbooks/{page}"
+    headline = re.split(r" (?=\d|\()", lines[0], maxsplit=1)[0]
+    text = (RUNBOOKS / page).read_text(encoding="utf-8")
+    assert headline in text
+    assert lines[-2] in text  # the kind's fixed sentence
+    assert f"`prod:{kind}:bedrock:" in text
+
+
+def test_the_bedrock_pages_point_at_each_other_and_the_fix() -> None:
+    # The expiring session's fix is make aws-login (alerts.md §3); an expired one shows as Bedrock unhealthy with
+    # `credentials`, and hello's degraded answer quotes gateway-http.md §3's detail for `fallback_unavailable`.
+    if not all(required(page) for _, page in BEDROCK_PAGES):
+        pytest.skip("the Bedrock pages arrive with tasks.md T106")
+    expiring = (RUNBOOKS / "bedrock-credentials-expiring.md").read_text(
+        encoding="utf-8"
+    )
+    unavailable = (RUNBOOKS / "bedrock-unavailable.md").read_text(encoding="utf-8")
+    assert "make aws-login" in code(expiring)
+    assert "bedrock-unavailable.md" in expiring
+    assert "bedrock-credentials-expiring.md" in unavailable
+    assert "`credentials`" in unavailable and "`circuit_open`" in unavailable
+    assert degraded_detail("fallback_unavailable") in unavailable

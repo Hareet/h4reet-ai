@@ -69,7 +69,8 @@ describe("loadFactories", () => {
   it("finds exactly the types this build registers, the ones validate-config checks rule R6 against", async () => {
     const factories = await loadFactories();
     expect([...factories.keys()].sort()).toEqual([...REGISTERED_ADAPTER_TYPES].sort());
-    expect([...REGISTERED_ADAPTER_TYPES].sort()).toEqual(["openai-compatible", "synthetic"]); // T073 adds synthetic
+    // T073 added synthetic, and T102 adds bedrock-converse.
+    expect([...REGISTERED_ADAPTER_TYPES].sort()).toEqual(["bedrock-converse", "openai-compatible", "synthetic"]);
     expect(factories.get("openai-compatible")).toBe(localFactory);
     expect(factories.get("synthetic")).toBe(syntheticFactory);
   });

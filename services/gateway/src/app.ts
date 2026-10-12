@@ -261,6 +261,8 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
   });
   // A paid fallback that turns unhealthy: the dispatcher queues its fallback_unavailable alert (data-model.md §7.7).
   gateway.onFallbackUnavailable = (adapter, reason) => void dispatcher.fallbackUnavailable(adapter, reason);
+  // A paid adapter whose SSO session ends soon: the dispatcher queues its credentials_expiring alert (alerts.md §2).
+  gateway.onCredentialsExpiring = (adapter, label, endsAt) => dispatcher.credentialsExpiring(adapter, label, endsAt);
   const drafts = new IncidentDrafts({
     stack,
     envClass,

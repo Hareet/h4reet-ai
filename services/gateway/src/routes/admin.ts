@@ -9,7 +9,8 @@
 // third queues one auth_failed alert. While the store is down a failure is only counted and logged.
 //
 // Routes: POST /admin/init (meter/init.ts), POST /admin/reset and /admin/renew (meter/operator.ts), the reads,
-// GET /admin/status, /admin/audit, and /admin/incidents, and the dev-only test machinery (routes/test.ts).
+// GET /admin/status, /admin/audit, and /admin/incidents, the live adapter calls (routes/adapters.ts), and the
+// dev-only test machinery (routes/test.ts).
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -29,6 +30,7 @@ import { renewFallback, resetKillSwitch, type OperatorDeps, type OperatorResult 
 import { toBigInt, type MeterRow, type Store } from "../meter/store.js";
 import type { AuthFailureClass, GatewayMetrics } from "../telemetry/metrics.js";
 import { noteErrorType } from "../telemetry/otel.js";
+import { registerAdapterCalls } from "./adapters.js";
 import { registerTestMachinery } from "./test.js";
 
 export interface AdminDeps {
@@ -414,6 +416,19 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
 
   admin.post("/admin/reset", reasonWrite(resetKillSwitch));
   admin.post("/admin/renew", reasonWrite(renewFallback));
+
+  // §5: the live adapter calls, behind the same authentication.
+  registerAdapterCalls(admin, {
+    stack: deps.stack,
+    gateway: deps.gateway,
+    store: deps.store,
+    clock: deps.clock,
+    budgets: deps.budgets,
+    metrics: deps.metrics,
+    logger: deps.logger,
+    realNow: deps.realNow,
+    operatorOf,
+  });
 
   // §3: the dev-only test machinery, behind the same authentication.
   registerTestMachinery(admin, {

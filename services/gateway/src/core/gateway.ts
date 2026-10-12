@@ -8,7 +8,8 @@
 //   `retry.max` times, and only if the backoff plus the adapter's request timeout fits before the deadline;
 // - each attempt's cost and cost basis, from the active price version (data-model.md §7.3, §7.4).
 //
-// AdapterHealth tracks each routed adapter's effective health from its probe, on the real clock (§6 items 4 and 6).
+// AdapterHealth tracks each routed adapter's effective health, on the real clock: its probe and, for a type with one,
+// its circuit breaker (§6 items 4 to 6).
 //
 // Gateway.complete decides in FR-022's order (gateway-http.md §2.4): the state read with no cache, then the kill
 // switch, then a healthy local adapter, whose calls are free and write their ledger rows without a reservation
@@ -30,7 +31,7 @@ import {
   type Tracer,
 } from "@opentelemetry/api";
 
-import type { HealthCadence } from "../adapters/_settings.js";
+import type { CircuitSettings, HealthCadence } from "../adapters/_settings.js";
 import type { BuiltAdapter } from "../adapters/registry.js";
 import {
   costMicro,
@@ -45,7 +46,7 @@ import {
   type StackName,
 } from "../config/validate.js";
 import type { MeterRow, StateRead, Store } from "../meter/store.js";
-import type { CallEnd, MeteredAttribution, MeterPort, RouteReason, Settlement } from "../meter/types.js";
+import type { Admitted, CallEnd, MeteredAttribution, MeterPort, RouteReason, Settlement } from "../meter/types.js";
 import type { GatewayMetrics, GaugeSnapshot } from "../telemetry/metrics.js";
 import { redactSecrets } from "../telemetry/redact.js";
 import { gatewayTime, periodKeys, toRfc3339, type GatewayClock } from "./clock.js";
@@ -94,9 +95,17 @@ export interface AttemptContext {
   onFailure?: (err: ProviderError) => void;
 }
 
+/** An attempt's client span as operator-admin.md §5 reports it: its name, its kind, and its attribute keys, no values. */
+export interface SpanShape {
+  name: string;
+  kind: "client";
+  attributeKeys: string[];
+}
+
 interface AttemptBase {
   costMicro: bigint;
   costBasis: CostBasis;
+  span: SpanShape;
   /** Real clock, epoch ms. */
   startedAt: number;
   endedAt: number;
@@ -136,6 +145,12 @@ function costOf(
   return { micro: 0n, basis: "none" };
 }
 
+/** A whole call's cost basis: `reservation` if any attempt was possibly billed, else `usage` if one answered. */
+export function basisOf(attempts: readonly AttemptRecord[]): CostBasis {
+  if (attempts.some((a) => a.costBasis === "reservation")) return "reservation";
+  return attempts.some((a) => a.costBasis === "usage") ? "usage" : "none";
+}
+
 async function oneAttempt(
   adapter: ProviderAdapter,
   req: CompletionRequest,
@@ -163,14 +178,20 @@ async function oneAttempt(
   if (ctx.payloadSampling) always["gen_ai.input.messages"] = redactSecrets(inputMessages(req.messages));
 
   const parent = context.active();
-  const span = ctx.tracer.startSpan(`chat ${adapter.model}`, { kind: SpanKind.CLIENT, attributes: always }, parent);
+  const name = `chat ${adapter.model}`;
+  const span = ctx.tracer.startSpan(name, { kind: SpanKind.CLIENT, attributes: always }, parent);
+  const keys = new Set(Object.keys(always));
+  const shape = (more: Attributes): SpanShape => {
+    for (const key of Object.keys(more)) keys.add(key);
+    return { name, kind: "client", attributeKeys: [...keys].sort() };
+  };
   const startedAt = now();
   const metricBase = { provider: adapter.provider, requestModel: adapter.model, server: adapter.server.address };
   try {
     const result = await context.with(trace.setSpan(parent, span), () => adapter.complete(req));
     const endedAt = now();
     const cost = costOf(adapter, ctx, { result });
-    span.setAttributes({
+    const answered: Attributes = {
       "gen_ai.response.model": result.responseModel,
       "gen_ai.usage.input_tokens": result.usage.inputTokens,
       "gen_ai.usage.output_tokens": result.usage.outputTokens,
@@ -178,8 +199,9 @@ async function oneAttempt(
       ...(result.responseId === undefined ? {} : { "gen_ai.response.id": result.responseId }),
       "h4.cost.usd": usd(cost.micro),
       "h4.cost.basis": cost.basis,
-    });
-    if (ctx.payloadSampling) span.setAttribute("gen_ai.output.messages", redactSecrets(outputMessages(result)));
+      ...(ctx.payloadSampling ? { "gen_ai.output.messages": redactSecrets(outputMessages(result)) } : {}),
+    };
+    span.setAttributes(answered);
     span.end();
     const seconds = (endedAt - startedAt) / 1_000;
     ctx.metrics?.operationDuration(seconds, { ...metricBase, responseModel: result.responseModel });
@@ -187,19 +209,36 @@ async function oneAttempt(
       const tokens = tokenType === "input" ? result.usage.inputTokens : result.usage.outputTokens;
       ctx.metrics?.tokenUsage(tokens, { ...metricBase, responseModel: result.responseModel, tokenType });
     }
-    return { outcome: "ok", result, costMicro: cost.micro, costBasis: cost.basis, startedAt, endedAt };
+    return {
+      outcome: "ok",
+      result,
+      costMicro: cost.micro,
+      costBasis: cost.basis,
+      span: shape(answered),
+      startedAt,
+      endedAt,
+    };
   } catch (thrown) {
     // An adapter rejects only with a ProviderError; anything else is a bug, and becomes one with nothing of it kept.
     const error = thrown instanceof ProviderError ? thrown : new ProviderError("provider_error", true, false);
     const endedAt = now();
     const cost = costOf(adapter, ctx, { error });
     const errorType = error.code ?? error.kind;
-    span.setAttributes({ "error.type": errorType, "h4.cost.usd": usd(cost.micro), "h4.cost.basis": cost.basis });
+    const failed: Attributes = { "error.type": errorType, "h4.cost.usd": usd(cost.micro), "h4.cost.basis": cost.basis };
+    span.setAttributes(failed);
     span.setStatus({ code: SpanStatusCode.ERROR, message: error.kind });
     span.end();
     ctx.metrics?.operationDuration((endedAt - startedAt) / 1_000, { ...metricBase, errorType });
     ctx.onFailure?.(error);
-    return { outcome: "error", error, costMicro: cost.micro, costBasis: cost.basis, startedAt, endedAt };
+    return {
+      outcome: "error",
+      error,
+      costMicro: cost.micro,
+      costBasis: cost.basis,
+      span: shape(failed),
+      startedAt,
+      endedAt,
+    };
   }
 }
 
@@ -243,21 +282,49 @@ export async function attemptCall(
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Health tracking (provider-adapter.md §6 items 4 and 6)
+// Health tracking (provider-adapter.md §6 items 4 to 6)
 // ---------------------------------------------------------------------------------------------------------------
 
+/** The failure kinds a circuit counts (provider-adapter.md §6 item 5); bad_request and content_filtered say nothing. */
+const CIRCUIT_KINDS: ReadonlySet<ProviderErrorKind> = new Set<ProviderErrorKind>([
+  "unavailable",
+  "timeout",
+  "rate_limited",
+  "auth",
+  "provider_error",
+]);
+
 /**
- * One adapter's effective health. It starts unhealthy (`not_ready`). A probe every `intervalMs`, on the real clock:
- * `healthyAfter` passes in a row make it healthy, `unhealthyAfter` failures in a row unhealthy, and a call that fails
- * as `unavailable` or `timeout` makes it unhealthy at once and resets the count. Probes never spend.
+ * One adapter's effective health: its probes, combined with its circuit (§6 items 4 to 6). It starts unhealthy
+ * (`not_ready`). A probe every `intervalMs`, on the real clock: `healthyAfter` passes in a row make it healthy,
+ * `unhealthyAfter` failures in a row unhealthy. A failed attempt of kind `unavailable` or `timeout` makes it unhealthy
+ * at once and resets the count, and so does `auth` on a paid adapter, as `credentials` (§2.5). Probes never spend.
+ *
+ * An adapter whose type has a circuit (Bedrock) also counts its calls' ends: `failures` counted failures in a row open
+ * the circuit for `openMs`, and while it's open the adapter is unhealthy with `circuit_open`, unless its probes give a
+ * reason of their own. Then it's half-open: the adapter reads as its probes do, and one fallback call at a time goes
+ * through as the trial. A success closes it, and a counted failure opens it for another `openMs`. Probes don't close
+ * it.
  */
 export class AdapterHealth {
+  /** The effective health, as status() reports it. */
   private healthy = false;
   private reason: HealthReason | undefined = "not_ready";
+  /** The probes' view, with the attempts that count as probes, before the circuit is combined in. */
+  private probedHealthy = false;
+  private probedReason: HealthReason | undefined = "not_ready";
   private checkedAt: string;
   private latencyMs: number | undefined;
+  /** The last probe's credentialsExpireAt: a paid adapter's SSO session end (provider-adapter.md §2.4). */
+  private credentialsExpireAt: string | undefined;
   private passes = 0;
   private failures = 0;
+  /** The circuit: counted failures in a row while it's closed, when it last opened (real ms), and a trial in flight. */
+  private circuitFailures = 0;
+  private openedAt: number | undefined;
+  private trialOut = false;
+  /** Fires when an open circuit turns half-open, so the gauge and the log see it without a read. */
+  private halfOpenTimer: NodeJS.Timeout | undefined;
   /** When the effective health last flipped, real ms; startup counts as turning unhealthy. */
   private changedAt: number;
   private timer: NodeJS.Timeout | undefined;
@@ -272,6 +339,8 @@ export class AdapterHealth {
       onChange: (health: AdapterHealth) => void;
       /** It entered an unhealthy reason: a flip, the first probe's own reason after not_ready, or a new reason. */
       onUnhealthy?: (health: AdapterHealth) => void;
+      /** The adapter type's circuit, for a type that has one (§6 item 5). */
+      circuit?: CircuitSettings;
     },
   ) {
     this.changedAt = opts.realNow();
@@ -279,16 +348,19 @@ export class AdapterHealth {
   }
 
   status(): HealthStatus {
+    this.update(); // an open circuit turns half-open with time, not with an event
     return {
       healthy: this.healthy,
       checkedAt: this.checkedAt,
       ...(this.reason === undefined ? {} : { reason: this.reason }),
       ...(this.latencyMs === undefined ? {} : { latencyMs: this.latencyMs }),
+      ...(this.credentialsExpireAt === undefined ? {} : { credentialsExpireAt: this.credentialsExpireAt }),
     };
   }
 
   /** When it last turned unhealthy (real ms), or undefined while healthy: the `since` of no_fallback_in_stack. */
   unhealthySince(): number | undefined {
+    this.update();
     return this.healthy ? undefined : this.changedAt;
   }
 
@@ -301,13 +373,104 @@ export class AdapterHealth {
   stop(): void {
     this.running = false;
     if (this.timer !== undefined) clearTimeout(this.timer);
+    if (this.halfOpenTimer !== undefined) clearTimeout(this.halfOpenTimer);
   }
 
-  /** A failed call: `unavailable` and `timeout` count as a failed probe, and mark the adapter unhealthy at once. */
+  /**
+   * A failed attempt (§6 item 4): `unavailable` and `timeout` count as a failed probe, and mark the adapter unhealthy
+   * at once; so does `auth` on a paid adapter, as `credentials` (§2.5's auth row). The circuit counts calls: callEnded.
+   */
   callFailed(err: ProviderError): void {
-    if (err.kind !== "unavailable" && err.kind !== "timeout") return;
+    const reason: HealthReason | undefined =
+      err.kind === "unavailable"
+        ? "unreachable"
+        : err.kind === "timeout"
+          ? "timeout"
+          : err.kind === "auth" && this.adapter.kind === "paid"
+            ? "credentials"
+            : undefined;
+    if (reason === undefined) return;
     this.passes = 0;
-    this.set(false, err.kind === "timeout" ? "timeout" : "unreachable");
+    this.setProbed(false, reason);
+  }
+
+  /**
+   * A fallback call's pass through the circuit (§6 item 5): always while it's closed, never while it's open, and while
+   * it's half-open, to one call at a time, the trial, while the probes say healthy. callEnded gives the trial back.
+   */
+  admitCall(): { allowed: boolean; trial: boolean } {
+    this.update();
+    const phase = this.phase();
+    if (phase === "closed") return { allowed: true, trial: false };
+    if (phase === "open" || this.trialOut || !this.probedHealthy) return { allowed: false, trial: false };
+    this.trialOut = true;
+    return { allowed: true, trial: true };
+  }
+
+  /** Whether admitCall would let a fallback call through now, taking nothing: GET /health's dry run. */
+  wouldAdmit(): boolean {
+    this.update();
+    const phase = this.phase();
+    return phase === "closed" || (phase === "half_open" && !this.trialOut && this.probedHealthy);
+  }
+
+  /**
+   * A call's end, for the circuit (§6 item 5). A success closes it and clears the count. A failure of a counted kind
+   * counts, and opens it at `failures` in a row; while it's open or half-open, one opens it for another `openMs`. Any
+   * other failure neither counts nor clears the count, and nor does a call that never reached the adapter (no outcome)
+   * or one whose caller went away. A trial gives its turn back whatever the end.
+   */
+  callEnded(outcome: AttemptOutcome | undefined, o: { trial: boolean; callerGone: boolean }): void {
+    if (o.trial) this.trialOut = false;
+    const circuit = this.opts.circuit;
+    if (circuit === undefined || outcome === undefined) return;
+    if (outcome.ok) {
+      this.circuitFailures = 0;
+      if (this.openedAt !== undefined) this.openCircuit(undefined);
+      return;
+    }
+    if (o.callerGone || !CIRCUIT_KINDS.has(outcome.error.kind)) return;
+    if (this.openedAt !== undefined) {
+      this.openCircuit(circuit);
+      return;
+    }
+    this.circuitFailures += 1;
+    if (this.circuitFailures < circuit.failures) return;
+    this.circuitFailures = 0;
+    this.openCircuit(circuit);
+  }
+
+  /** Opens the circuit for its open time, from now; with no settings, closes it. */
+  private openCircuit(circuit: CircuitSettings | undefined): void {
+    if (this.halfOpenTimer !== undefined) clearTimeout(this.halfOpenTimer);
+    this.halfOpenTimer = undefined;
+    this.openedAt = circuit === undefined ? undefined : this.opts.realNow();
+    if (circuit !== undefined) this.scheduleHalfOpen(circuit.openMs);
+    this.update();
+  }
+
+  /**
+   * The turn to half-open, for the gauge and the log. A timer can fire before the real clock says the time is up (its
+   * clock isn't Date.now's), so one that finds the circuit still open waits out the rest.
+   */
+  private scheduleHalfOpen(delayMs: number): void {
+    this.halfOpenTimer = setTimeout(() => {
+      this.halfOpenTimer = undefined;
+      const { openedAt } = this;
+      if (openedAt !== undefined && this.phase() === "open") {
+        this.scheduleHalfOpen(Math.max(1, (this.opts.circuit?.openMs ?? 0) - (this.opts.realNow() - openedAt)));
+        return;
+      }
+      this.update();
+    }, delayMs);
+    this.halfOpenTimer.unref();
+  }
+
+  /** Closed; open, for `openMs` after it opened; then half-open until a call's end closes or reopens it. */
+  private phase(): "closed" | "open" | "half_open" {
+    if (this.openedAt === undefined) return "closed";
+    const openMs = this.opts.circuit?.openMs ?? 0;
+    return this.opts.realNow() - this.openedAt < openMs ? "open" : "half_open";
   }
 
   /** One probe now, counted as the loop counts it. */
@@ -315,16 +478,17 @@ export class AdapterHealth {
     const status = await this.adapter.health(AbortSignal.timeout(this.cadence.timeoutMs));
     this.checkedAt = status.checkedAt;
     this.latencyMs = status.latencyMs;
+    this.credentialsExpireAt = status.credentialsExpireAt;
     if (status.healthy) {
       this.failures = 0;
       this.passes += 1;
-      if (!this.healthy && this.passes >= this.cadence.healthyAfter) this.set(true);
+      if (!this.probedHealthy && this.passes >= this.cadence.healthyAfter) this.setProbed(true);
       return;
     }
     this.passes = 0;
     this.failures += 1;
     const reason = status.reason ?? "unreachable";
-    if (!this.healthy || this.failures >= this.cadence.unhealthyAfter) this.set(false, reason);
+    if (!this.probedHealthy || this.failures >= this.cadence.unhealthyAfter) this.setProbed(false, reason);
   }
 
   private schedule(delayMs: number): void {
@@ -343,16 +507,25 @@ export class AdapterHealth {
     if (this.running) this.schedule(Math.max(0, this.cadence.intervalMs - (this.opts.realNow() - started)));
   }
 
-  private set(healthy: boolean, reason?: HealthReason): void {
+  private setProbed(healthy: boolean, reason?: HealthReason): void {
+    this.probedHealthy = healthy;
+    this.probedReason = healthy ? undefined : reason;
+    this.update();
+  }
+
+  /** The probes' view combined with the circuit (§6 item 6): the probes' reason first, then circuit_open while open. */
+  private update(): void {
+    const healthy = this.probedHealthy && this.phase() !== "open";
+    const reason = healthy ? undefined : this.probedHealthy ? "circuit_open" : this.probedReason;
     const flipped = healthy !== this.healthy;
     const was = this.reason;
     this.healthy = healthy;
-    this.reason = healthy ? undefined : reason;
+    this.reason = reason;
     if (flipped) {
       this.changedAt = this.opts.realNow();
       this.opts.onChange(this);
     }
-    if (!healthy && (flipped || this.reason !== was)) this.opts.onUnhealthy?.(this);
+    if (!healthy && (flipped || reason !== was)) this.opts.onUnhealthy?.(this);
   }
 }
 
@@ -377,6 +550,8 @@ export interface GatewayCall {
   arrivedAt: number;
   /** Aborts when the caller goes away. */
   signal: AbortSignal;
+  /** POST /admin/adapters/{id}/complete only (operator-admin.md §5): 0 to 1; hello never sends one. */
+  temperature?: number;
   /** X-H4-Client: the ledger keeps it, and nothing else does (§2.3). */
   clientLabel?: string;
   /** hello only: the client, which may have one metered call in flight (gateway-http.md §2.4 step 5.5). */
@@ -413,6 +588,25 @@ export type GatewayAnswer =
       traceId: string;
     }
   | { kind: "local_error"; errorKind: ProviderErrorKind; traceId: string };
+
+/** What POST /admin/adapters/{id}/complete gets back (operator-admin.md §5): a refusal before the call, or its outcome. */
+export type AdapterCallAnswer =
+  | Extract<GatewayAnswer, { kind: "degraded" }>
+  | Extract<GatewayAnswer, { kind: "refused" }>
+  | {
+      kind: "called";
+      adapter: string;
+      attribution: "test" | "none";
+      /** Every attempt, and how the call ended. */
+      outcome: AttemptOutcome;
+      /** What the call was charged: the meter's settlement, 0 for the local adapter. */
+      costMicro: bigint;
+      costBasis: CostBasis;
+      priceVersion: string;
+      traceId: string;
+      /** The key of the call's ledger rows: the metered call's reservation, or the local attempts' own IDs. */
+      ledgerRef: string | null;
+    };
 
 export type JournalStatus = "ok" | "unwritable" | "unknown";
 
@@ -482,9 +676,20 @@ interface Routed {
   built: BuiltAdapter;
   health: AdapterHealth;
   requestTimeoutMs: number;
+  /**
+   * The SSO session end the credentials check last found within its warning lead time, real ms; whether its alert row
+   * is settled, queued or found already there; and whether the dispatcher is still answering for it.
+   */
+  credentials?: { endsAt: number; settled: boolean; asking: boolean };
 }
 
 const STATE_LOG_EVERY_MS = 60_000;
+
+/** An adapter's circuit settings, for a type that has a circuit breaker (provider-adapter.md §6 item 5). */
+function circuitOf(built: BuiltAdapter): { circuit?: CircuitSettings } {
+  const circuit = built.config.spec.circuit?.(built.config.settings);
+  return circuit === undefined ? {} : { circuit };
+}
 
 /** The trace ID the ledger and the body record: the span's, or a fresh one when no tracer records spans. */
 function traceIdOf(span: Span): string {
@@ -502,6 +707,12 @@ const LOCAL_LEDGER_ROW = `INSERT INTO gateway.ledger (id, reservation_id, ts, st
 export class Gateway {
   /** Queues the fallback_unavailable alert (app.ts sets it to the dispatcher's): a paid fallback turned unhealthy. */
   onFallbackUnavailable: ((adapter: string, reason: "credentials" | "circuit_open") => void) | undefined;
+  /**
+   * Queues the credentials_expiring alert (app.ts sets it to the dispatcher's): a paid adapter's session ends soon. It
+   * answers whether the row is queued, already there, or to be asked for again at the next tick.
+   */
+  onCredentialsExpiring:
+    ((adapter: string, label: string, endsAt: number) => Promise<"queued" | "present" | "retry">) | undefined;
   private readonly primary: Routed;
   /** When the route was built: a switched-off adapter's checked_at. */
   private readonly disabledAt: number;
@@ -522,6 +733,7 @@ export class Gateway {
         realNow: this.realNow,
         onChange: (h) => this.healthChanged(built, h),
         onUnhealthy: (h) => this.turnedUnhealthy(built, h),
+        ...circuitOf(built),
       }),
       requestTimeoutMs: built.config.spec.timing(built.config.settings).requestMs,
     });
@@ -549,8 +761,32 @@ export class Gateway {
     for (const r of this.routed()) r.health.start();
     this.opts.meter?.start();
     if (this.gaugeTimer !== undefined) return;
-    this.gaugeTimer = setInterval(() => void this.refreshGauges().catch(() => {}), this.opts.gaugeIntervalMs ?? 10_000);
+    this.seedCostSeries();
+    this.gaugeTimer = setInterval(() => {
+      void this.refreshGauges().catch(() => {});
+      this.checkCredentials();
+    }, this.opts.gaugeIntervalMs ?? 10_000);
     this.gaugeTimer.unref();
+  }
+
+  /**
+   * A zero on each cost series a routed metered adapter can be charged under, at start (telemetry.md §4.1; tasks.md
+   * T191). A metered call's series is first written at its commit, with its cost, and Prometheus ingests no zero at a
+   * series' start, so `increase()` would miss the first call. The fallback is charged as `fallback`; a paid adapter
+   * also as `test` (operator-admin.md §5), and the synthetic one as `metered` (dev's synthetic spend).
+   */
+  private seedCostSeries(): void {
+    for (const r of this.routed()) {
+      const { adapter, role } = r.built;
+      if (adapter.kind === "local") continue;
+      const attributions: Attribution[] = [
+        ...(role === "fallback" ? (["fallback"] as const) : []),
+        adapter.kind === "paid" ? "test" : "metered",
+      ];
+      for (const attribution of attributions) {
+        this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution });
+      }
+    }
   }
 
   async close(): Promise<void> {
@@ -574,6 +810,43 @@ export class Gateway {
   /** The in-memory metered counters, for GET /admin/status. */
   meteredCounters(): { inFlight: number; lastMinute: number } {
     return this.opts.meter?.counters() ?? { inFlight: 0, lastMinute: 0 };
+  }
+
+  /**
+   * The 10 s ticker's credentials check (alerts.md §2): a routed paid adapter whose last probe reports an SSO session
+   * ending within its type's warning lead time, 2 h for Bedrock, logs credentials.expiring once (telemetry.md §5.2) and
+   * queues credentials_expiring. The dispatcher is asked at each tick until the row is queued or found already there,
+   * one question at a time; the outbox's dedupe key, to the minute of the end, holds it to one across restarts. A
+   * session that has already ended doesn't warn: its credentials fail, and fallback_unavailable says so.
+   */
+  checkCredentials(): void {
+    const now = this.realNow();
+    for (const r of this.routed()) {
+      const { config } = r.built;
+      const warnMs = config.spec.credentialsWarnMs?.(config.settings);
+      if (config.kind !== "paid" || warnMs === undefined) continue;
+      const endsAt = Date.parse(r.health.status().credentialsExpireAt ?? "");
+      if (!Number.isFinite(endsAt) || now < endsAt - warnMs || now >= endsAt) continue;
+      if (r.credentials?.endsAt !== endsAt) {
+        r.credentials = { endsAt, settled: false, asking: false };
+        this.opts.logger.warn(
+          { event: "credentials.expiring", adapter: config.id, expires_at: new Date(endsAt).toISOString() },
+          "A paid adapter's SSO session ends soon.",
+        );
+      }
+      const check = r.credentials;
+      const ask = this.onCredentialsExpiring;
+      if (check.settled || check.asking || ask === undefined) continue;
+      check.asking = true;
+      void ask(config.id, config.spec.label ?? config.id, endsAt)
+        .then((answer) => {
+          if (answer !== "retry") check.settled = true;
+        })
+        .catch(() => {})
+        .finally(() => {
+          check.asking = false;
+        });
+    }
   }
 
   /** One probe of every routed adapter now, counted as their loops count it. */
@@ -651,6 +924,97 @@ export class Gateway {
     });
   }
 
+  /**
+   * One named adapter, called directly (operator-admin.md §5): the state read first; then a paid adapter through the
+   * limits and admission as `test`, the ceilings only, with the journal, the call, and the commit; or the local
+   * adapter, free, with no admission. It never fails over. Undefined for an ID that isn't this route's local or paid
+   * adapter, a synthetic one included.
+   */
+  async adapterCall(call: GatewayCall, adapterId: string): Promise<AdapterCallAnswer | undefined> {
+    const routed = this.routed().find((r) => r.built.config.id === adapterId && r.built.adapter.kind !== "synthetic");
+    if (routed === undefined) return undefined;
+    return this.routeSpan<AdapterCallAnswer>(call, async (span, traceId) => {
+      const read = await this.readState();
+      span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
+      const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
+      if (early !== undefined)
+        return { kind: "degraded", decision: early, traceId: this.degrade(span, early, traceId).traceId };
+      if (routed.built.adapter.kind === "local") return this.localAdapterCall(span, call, traceId, routed);
+      const step = await this.meteredAttempt(span, call, traceId, routed, "test", null);
+      if ("early" in step) {
+        if (step.early.kind === "degraded" || step.early.kind === "refused") return step.early;
+        throw new Error("the metered path refused with an answer that isn't a refusal");
+      }
+      return {
+        kind: "called",
+        adapter: adapterId,
+        attribution: "test",
+        outcome: step.outcome,
+        costMicro: step.settlement.costMicro,
+        costBasis: basisOf(step.outcome.attempts),
+        priceVersion: step.admitted.price.id,
+        traceId,
+        ledgerRef: step.admitted.reservationId,
+      };
+    });
+  }
+
+  /**
+   * The live endpoint's local call: free, unmetered, and whatever the adapter's health, since the endpoint is how the
+   * Author checks it. Its spans carry `local` and `local_healthy`, the one reason telemetry.md gives a local call.
+   */
+  private async localAdapterCall(
+    span: Span,
+    call: GatewayCall,
+    traceId: string,
+    routed: Routed,
+  ): Promise<AdapterCallAnswer> {
+    const { built, health, requestTimeoutMs } = routed;
+    const version = this.opts.prices.active(this.opts.clock.now());
+    if (version === undefined) throw new Error("no active price version"); // startup refuses this (config-files.md §2.5)
+    span.setAttributes({ "h4.route.decision": "local", "h4.route.reason": "local_healthy" });
+    const req: CompletionRequest = {
+      requestId: call.requestId,
+      purpose: call.purpose,
+      messages: call.messages,
+      maxOutputTokens: call.maxOutputTokens,
+      ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
+      deadline: call.arrivedAt + this.opts.routing.deadlineMs,
+      signal: call.signal,
+    };
+    const outcome = await attemptCall(built.adapter, req, {
+      tracer: this.opts.tracer,
+      stack: this.opts.stack,
+      routingSha: this.opts.routing.sha256,
+      priceVersion: version,
+      decision: { kind: "local", reason: "local_healthy" },
+      attribution: "none",
+      payloadSampling: this.opts.payloadSampling,
+      requestTimeoutMs,
+      realNow: this.realNow,
+      metrics: this.opts.metrics,
+      onFailure: (err) => {
+        if (!call.signal.aborted) health.callFailed(err);
+      },
+    });
+    const ids: string[] = [];
+    for (const attempt of outcome.attempts) {
+      const id = await this.recordLocal(attempt, call, traceId, version);
+      if (id !== null) ids.push(id);
+    }
+    return {
+      kind: "called",
+      adapter: built.config.id,
+      attribution: "none",
+      outcome,
+      costMicro: 0n,
+      costBasis: "none",
+      priceVersion: version.id,
+      traceId,
+      ledgerRef: ids.length > 0 ? ids.join(",") : null,
+    };
+  }
+
   /** GET /health (gateway-http.md §5): it reports, it doesn't gate, and it never calls a provider. */
   async report(): Promise<HealthReport> {
     const read = await this.readState();
@@ -705,7 +1069,8 @@ export class Gateway {
         ? {}
         : {
             fallback: {
-              healthy: this.fallback.health.status().healthy,
+              // A trial in flight holds the next fallback call (§6 item 5).
+              healthy: this.fallback.health.status().healthy && this.fallback.health.wouldAdmit(),
               ceilings: { day: t.dayCeiling, month: t.monthCeiling },
               journalUnwritable: this.opts.journalStatus?.() === "unwritable",
               ...(meters === undefined ? {} : { meters }),
@@ -719,10 +1084,7 @@ export class Gateway {
   }
 
   /** The gateway.route span of one routing decision; a call of its own trace starts a root span, linked to its caller. */
-  private routeSpan(
-    call: GatewayCall,
-    fn: (span: Span, traceId: string) => Promise<GatewayAnswer>,
-  ): Promise<GatewayAnswer> {
+  private routeSpan<T>(call: GatewayCall, fn: (span: Span, traceId: string) => Promise<T>): Promise<T> {
     const attributes = { "h4.stack": this.opts.stack, "h4.routing.sha": this.opts.routing.sha256 };
     const caller = trace.getSpan(context.active())?.spanContext();
     const options =
@@ -765,6 +1127,41 @@ export class Gateway {
     attribution: MeteredAttribution,
     routeReason: RouteReason | null,
   ): Promise<GatewayAnswer> {
+    const step = await this.meteredAttempt(span, call, traceId, routed, attribution, routeReason);
+    if ("early" in step) return step.early;
+    if (!step.outcome.ok) return this.degrade(span, degraded("fallback_unavailable"), traceId);
+    return {
+      kind: "answered",
+      route: step.decision.kind,
+      routeReason: step.decision.kind === "fallback" ? step.decision.reason : null,
+      provider: routed.built.adapter.provider,
+      result: step.outcome.result,
+      costMicro: step.settlement.costMicro,
+      priceVersion: step.admitted.price.id,
+      traceId,
+    };
+  }
+
+  /**
+   * The metered path up to the commit: the limits and admission, which refuse with an early answer, then the attempts
+   * under the retry policy and their settlement. callMetered answers hello from it, and adapterCall the live endpoint.
+   */
+  private async meteredAttempt(
+    span: Span,
+    call: GatewayCall,
+    traceId: string,
+    routed: Routed,
+    attribution: MeteredAttribution,
+    routeReason: RouteReason | null,
+  ): Promise<
+    | { early: GatewayAnswer }
+    | {
+        outcome: AttemptOutcome;
+        settlement: Settlement;
+        admitted: Admitted;
+        decision: { kind: "fallback"; reason: RouteReason } | { kind: "metered"; reason: MeteredAttribution };
+      }
+  > {
     const meter = this.opts.meter;
     if (meter === undefined) throw new Error("a metered call needs the meter");
     const adapter = routed.built.adapter;
@@ -773,87 +1170,91 @@ export class Gateway {
         ? { kind: "fallback" as const, reason: routeReason ?? "local_unhealthy" }
         : { kind: "metered" as const, reason: attribution };
     span.setAttributes({ "h4.route.decision": decision.kind, "h4.route.reason": decision.reason });
-    const unhealthySince = routed.health.unhealthySince();
-    const admit = await meter.admit({
-      attribution,
-      adapter: {
-        id: routed.built.config.id,
-        provider: adapter.provider,
-        model: adapter.model,
-        ...(adapter.fixedUsage === undefined ? {} : { fixedUsage: adapter.fixedUsage }),
-      },
-      adapterHealthy: routed.health.status().healthy,
-      ...(unhealthySince === undefined ? {} : { adapterUnhealthySince: unhealthySince }),
-      maxOutputTokens: call.maxOutputTokens,
-      ...(attribution === "fallback" && call.clientKey !== undefined ? { clientKey: call.clientKey } : {}),
-      requestId: call.requestId,
-      traceId,
-      purpose: call.purpose,
-      routeReason: attribution === "fallback" ? routeReason : null,
-    });
-    if (!admit.ok) {
-      if (admit.refusal === "degraded") return this.degrade(span, admit.decision, traceId);
-      return {
-        kind: "refused",
-        route: decision.kind,
-        error: admit.error,
-        limit: admit.limit,
-        retryAfterS: admit.retryAfterS,
-        traceId,
-      };
-    }
-    const a = admit.admitted;
-    span.setAttribute("h4.meter.attribution", attribution);
-    const req: CompletionRequest = {
-      requestId: call.requestId,
-      purpose: call.purpose,
-      messages: call.messages,
-      maxOutputTokens: call.maxOutputTokens,
-      deadline: call.arrivedAt + this.opts.routing.deadlineMs,
-      signal: call.signal,
-    };
-    const label = call.clientLabel === undefined ? {} : { clientLabel: call.clientLabel };
-    // The call, then its settlement, on every way out: the meter prices it from how it ended (data-model.md §7.3), and
-    // gives its slots back. If the code around the call fails, nobody knows what the provider did, and the meter
-    // charges the call its maximum.
+    // A fallback call passes the circuit first (§6 item 5): while it's half-open, as the trial. Whatever follows, the
+    // call's end is the circuit's to count, and gives the trial back; a test call goes by the ceilings alone, as
+    // health doesn't hold it.
+    const pass = attribution === "fallback" ? routed.health.admitCall() : { allowed: true, trial: false };
+    const { trial } = pass;
     let outcome: AttemptOutcome | undefined;
-    let settlement: Settlement;
+    let callerGone = false;
     try {
-      outcome = await attemptCall(adapter, req, {
-        tracer: this.opts.tracer,
-        stack: this.opts.stack,
-        routingSha: this.opts.routing.sha256,
-        priceVersion: a.price,
-        decision,
+      const unhealthySince = routed.health.unhealthySince();
+      const admit = await meter.admit({
         attribution,
-        maxMicro: a.maxMicro,
-        payloadSampling: this.opts.payloadSampling,
-        requestTimeoutMs: routed.requestTimeoutMs,
-        realNow: this.realNow,
-        metrics: this.opts.metrics,
-        // A caller that went away ends the call with timeout too, and that says nothing about the adapter.
-        onFailure: (err) => {
-          if (!call.signal.aborted) routed.health.callFailed(err);
+        adapter: {
+          id: routed.built.config.id,
+          provider: adapter.provider,
+          model: adapter.model,
+          ...(adapter.fixedUsage === undefined ? {} : { fixedUsage: adapter.fixedUsage }),
         },
+        adapterHealthy: routed.health.status().healthy && pass.allowed,
+        ...(unhealthySince === undefined ? {} : { adapterUnhealthySince: unhealthySince }),
+        maxOutputTokens: call.maxOutputTokens,
+        ...(attribution === "fallback" && call.clientKey !== undefined ? { clientKey: call.clientKey } : {}),
+        requestId: call.requestId,
+        traceId,
+        purpose: call.purpose,
+        routeReason: attribution === "fallback" ? routeReason : null,
       });
+      if (!admit.ok) {
+        if (admit.refusal === "degraded") return { early: this.degrade(span, admit.decision, traceId) };
+        return {
+          early: {
+            kind: "refused",
+            route: decision.kind,
+            error: admit.error,
+            limit: admit.limit,
+            retryAfterS: admit.retryAfterS,
+            traceId,
+          },
+        };
+      }
+      const a = admit.admitted;
+      span.setAttribute("h4.meter.attribution", attribution);
+      const req: CompletionRequest = {
+        requestId: call.requestId,
+        purpose: call.purpose,
+        messages: call.messages,
+        maxOutputTokens: call.maxOutputTokens,
+        ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
+        deadline: call.arrivedAt + this.opts.routing.deadlineMs,
+        signal: call.signal,
+      };
+      const label = call.clientLabel === undefined ? {} : { clientLabel: call.clientLabel };
+      // The call, then its settlement, on every way out: the meter prices it from how it ended (data-model.md §7.3),
+      // and gives its slots back. If the code around the call fails, nobody knows what the provider did, and the meter
+      // charges the call its maximum.
+      let settlement: Settlement;
+      try {
+        outcome = await attemptCall(adapter, req, {
+          tracer: this.opts.tracer,
+          stack: this.opts.stack,
+          routingSha: this.opts.routing.sha256,
+          priceVersion: a.price,
+          decision,
+          attribution,
+          maxMicro: a.maxMicro,
+          payloadSampling: this.opts.payloadSampling,
+          requestTimeoutMs: routed.requestTimeoutMs,
+          realNow: this.realNow,
+          metrics: this.opts.metrics,
+          // A caller that went away ends the call with timeout too, and that says nothing about the adapter.
+          onFailure: (err) => {
+            if (!call.signal.aborted) routed.health.callFailed(err);
+          },
+        });
+        callerGone = call.signal.aborted;
+      } finally {
+        const end: CallEnd =
+          outcome === undefined ? { unknown: true, at: this.realNow() } : { attempts: outcome.attempts };
+        settlement = await meter.settle(a, end, label);
+      }
+      // The commit is retried in the background; the answer doesn't wait (gateway-http.md §2.4, notes).
+      if (!settlement.committed) span.setAttribute("h4.meter.commit", "pending");
+      return { outcome, settlement, admitted: a, decision };
     } finally {
-      const end: CallEnd =
-        outcome === undefined ? { unknown: true, at: this.realNow() } : { attempts: outcome.attempts };
-      settlement = await meter.settle(a, end, label);
+      routed.health.callEnded(outcome, { trial, callerGone });
     }
-    // The commit is retried in the background; the answer doesn't wait (gateway-http.md §2.4, notes).
-    if (!settlement.committed) span.setAttribute("h4.meter.commit", "pending");
-    if (!outcome.ok) return this.degrade(span, degraded("fallback_unavailable"), traceId);
-    return {
-      kind: "answered",
-      route: decision.kind,
-      routeReason: decision.kind === "fallback" ? decision.reason : null,
-      provider: adapter.provider,
-      result: outcome.result,
-      costMicro: settlement.costMicro,
-      priceVersion: a.price.id,
-      traceId,
-    };
   }
 
   /** The local call (§2.4 step 5.1): free, unmetered, within its own timeouts and the request's deadline. */
@@ -867,6 +1268,7 @@ export class Gateway {
       purpose: call.purpose,
       messages: call.messages,
       maxOutputTokens: call.maxOutputTokens,
+      ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
       deadline: call.arrivedAt + this.opts.routing.deadlineMs,
       signal: call.signal,
     };
@@ -913,9 +1315,11 @@ export class Gateway {
     call: GatewayCall,
     traceId: string,
     version: PriceVersion,
-  ): Promise<void> {
+  ): Promise<string | null> {
     const adapter = this.primary.built.adapter;
     const offset = this.opts.clock.offsetMs();
+    const id = randomUUID();
+    let written = false;
     const startedAt = gatewayTime(attempt.startedAt, offset);
     const periods = periodKeys(startedAt);
     const ok = attempt.outcome === "ok" ? attempt.result : undefined;
@@ -923,7 +1327,7 @@ export class Gateway {
     const latencyMs = ok?.latencyMs ?? Math.max(0, Math.round(attempt.endedAt - attempt.startedAt));
     try {
       await this.opts.store.query(LOCAL_LEDGER_ROW, [
-        randomUUID(),
+        id,
         toRfc3339(gatewayTime(attempt.endedAt, offset)),
         toRfc3339(startedAt),
         this.opts.stack,
@@ -948,6 +1352,7 @@ export class Gateway {
         call.clientLabel ?? null,
       ]);
       this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution: "none" });
+      written = true;
     } catch {
       // Logged by the store as state.unknown, at most once a minute (telemetry.md §5.2).
     }
@@ -972,6 +1377,7 @@ export class Gateway {
       },
       "A provider attempt completed.",
     );
+    return written ? id : null;
   }
 
   /**

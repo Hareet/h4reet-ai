@@ -503,8 +503,9 @@ describe("routing.yaml's startup refusals (§1.4)", () => {
       "budgets.yaml": parseYaml("config/budgets.yaml", fixture("budgets.yaml")),
       "alerts.yaml": parseYaml("config/alerts.yaml", fixture("alerts.yaml")),
     };
-    // openai-compatible and synthetic are registered (tasks.md T073); bedrock-converse arrives with T102.
-    const set = validateConfigFiles(parsed);
+    // The build before T102 registered openai-compatible and synthetic alone (tasks.md T073): that set makes the
+    // full file's bedrock adapter the §1.3 error here, now that this build registers bedrock-converse too.
+    const set = validateConfigFiles(parsed, { registeredTypes: new Set(["openai-compatible", "synthetic"]) });
     const refusals = startupRefusals(set, DEV_ENV, NOW);
     expect(refusals.map((r) => r.reason)).toEqual(["invalid_config"]);
     expect(refusals[0]?.message).toBe(

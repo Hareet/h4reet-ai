@@ -36,6 +36,14 @@ export interface HealthCadence {
   healthyAfter: number;
 }
 
+/** A circuit breaker's settings, on the real clock (provider-adapter.md §6 item 5). */
+export interface CircuitSettings {
+  /** Counted failures in a row that open it. */
+  failures: number;
+  /** How long it stays open before a trial call, ms. */
+  openMs: number;
+}
+
 export interface AdapterTypeSpec {
   readonly type: string;
   /** The kinds an adapter of this type may be declared as (rule R5). */
@@ -54,6 +62,12 @@ export interface AdapterTypeSpec {
   check(settings: Record<string, unknown>, kind: AdapterKind): SettingsFinding[];
   /** Startup refusals that need the environment. */
   checkEnv(settings: Record<string, unknown>, env: Env): SettingsRefusal[];
+  /** How an alert names an adapter of this type in a sentence: "Bedrock" (alerts.md §3). */
+  readonly label?: string;
+  /** A paid type with expiring credentials: how long before the session ends credentials_expiring fires (alerts.md §2). */
+  credentialsWarnMs?(settings: Record<string, unknown>): number;
+  /** A type with a circuit breaker, from its `circuit` settings (provider-adapter.md §6 item 5). */
+  circuit?(settings: Record<string, unknown>): CircuitSettings;
 }
 
 /** A value only the Author can supply, such as "<inference-profile ID the Author confirms>" (§0). */
@@ -208,7 +222,7 @@ const bedrockConverse: AdapterTypeSpec = {
     backoffMs: num(s, "retry", "backoff_ms"),
   }),
   // §3.2: every interval_ms; one failure makes it unhealthy and one pass healthy. The probe resolves credentials and
-  // never calls Bedrock; tasks.md T102 may tighten its timeout.
+  // never calls Bedrock, within 5 s or the interval, whichever is shorter.
   healthCadence: (s) => ({
     intervalMs: num(s, "health", "interval_ms"),
     timeoutMs: Math.min(5_000, num(s, "health", "interval_ms") - 1),
@@ -242,6 +256,9 @@ const bedrockConverse: AdapterTypeSpec = {
     return findings;
   },
   checkEnv: () => [],
+  label: "Bedrock",
+  credentialsWarnMs: (s) => num(s, "credentials_warn_before_s") * 1_000,
+  circuit: (s) => ({ failures: num(s, "circuit", "failures"), openMs: num(s, "circuit", "open_s") * 1_000 }),
 };
 
 const synthetic: AdapterTypeSpec = {
@@ -270,4 +287,8 @@ export const ADAPTER_TYPE_SPECS: ReadonlyMap<string, AdapterTypeSpec> = new Map(
  * so every adapter it defines is registered when it lands (config-files.md §1.2): the foundations branch registered
  * openai-compatible, T073 adds synthetic, and T102 adds bedrock-converse, each with its module.
  */
-export const REGISTERED_ADAPTER_TYPES: ReadonlySet<string> = new Set(["openai-compatible", "synthetic"]);
+export const REGISTERED_ADAPTER_TYPES: ReadonlySet<string> = new Set([
+  "openai-compatible",
+  "synthetic",
+  "bedrock-converse",
+]);

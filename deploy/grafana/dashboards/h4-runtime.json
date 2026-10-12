@@ -1099,7 +1099,7 @@
       "type": "table",
       "id": 34,
       "title": "Cost by provider and attribution",
-      "description": "Committed cost in the dashboard's time range, by provider, model, and attribution: Bedrock's fallback and test cost beside local's zero (FR-023, SC-005).",
+      "description": "Committed cost in the dashboard's time range, by provider, model, and attribution: Bedrock's fallback and test cost beside local's zero (FR-023, SC-005). On prod, provider aws.bedrock is the paid fallback: attribution fallback is hello's fallback calls, and test the Author's live contract test and Bedrock evals (POST /admin/adapters/bedrock/complete). Provider local is always 0, attributed none; dev's synthetic spend shows as provider synthetic. In USD to the micro-dollar, as the meter keeps it.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -1131,7 +1131,13 @@
         "overrides": []
       },
       "options": {
-        "showHeader": true
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Cost",
+            "desc": true
+          }
+        ]
       },
       "transformations": [
         {
@@ -1139,6 +1145,12 @@
           "options": {
             "excludeByName": {
               "Time": true
+            },
+            "renameByName": {
+              "gen_ai_provider_name": "Provider",
+              "gen_ai_request_model": "Model",
+              "h4_meter_attribution": "Attribution",
+              "Value": "Cost"
             }
           }
         }
@@ -1503,7 +1515,7 @@
       "type": "stat",
       "id": 9,
       "title": "Model-server health",
-      "description": "The model server answers its metrics once its model is loaded; and each adapter's health as the gateway sees it (FR-028).",
+      "description": "The model server answers its metrics once its model is loaded; and each adapter's health as the gateway sees it (FR-028): local, and on prod bedrock, the paid fallback. bedrock reads down while its credentials are missing, expired, or refused, or while its circuit is open after three failed calls (contracts/provider-adapter.md \u00a72.4 and \u00a76). Runbooks: docs/runbooks/model-server-down.md, docs/runbooks/bedrock-unavailable.md, and, before the SSO session ends, docs/runbooks/bedrock-credentials-expiring.md.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"

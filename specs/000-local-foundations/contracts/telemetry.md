@@ -88,7 +88,7 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 | `h4.stack` | always | `prod`, `dev`, `dev-cpu` |
 | `h4.outcome` | always | `ok` (200), `degraded` (503 with a degraded cause), `refused` (429: `client_cap_exceeded` or `metered_capacity_exceeded`; and an admin refusal, 403 or 409), `invalid` (400, 415, and another 4xx, such as 404 or 413), `error` (502 `local_error`, an admin 503 `store_unreachable`, or an unexpected 5xx), `unauthorized` (401 on the admin listener). The admin refusals and the other 4xx were added with tasks.md T055, so every admin answer has an outcome. |
 | `h4.degraded.cause` | when the response is degraded | the causes in [§4.1](#41-the-gateways-instruments) |
-| `error.type` | on an `error` outcome | `local_error`; `store_unreachable` for an admin 503; the class name of an unexpected error; or `http_<status>` for any other 5xx |
+| `error.type` | on an `error` outcome | `local_error`; `provider_error` for the live adapter endpoint's 502 ([operator-admin.md §5](operator-admin.md#5-live-adapter-calls-post-adminadaptersidcomplete)); `store_unreachable` for an admin 503; the class name of an unexpected error; or `http_<status>` for any other 5xx |
 
 **Routing span** (`gateway.route`; kind INTERNAL):
 
@@ -159,7 +159,7 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 |---|---|---|---|---|
 | `h4.gateway.requests` | counter, `{request}` | `h4.route.decision`: `local`, `fallback`, `metered`, `degraded`, or `none` (answered before routing: 400, 415, the per-client cap); `h4.outcome`: `ok`, `degraded`, `refused`, `invalid`, `error` | `h4_gateway_requests_total` | once per `POST /hello`, `POST /admin/test/synthetic` call, and `POST /admin/adapters/{id}/complete` call, when its response is sent |
 | `h4.gateway.request.duration` | histogram, `s` | `h4.route.decision` | `h4_gateway_request_duration_seconds` | with the counter, from arrival to response |
-| `h4.cost.usd` | counter, `{USD}` | `gen_ai.provider.name`; `gen_ai.request.model`; `h4.meter.attribution`: `none`, `fallback`, `metered`, `test` | `h4_cost_usd_total` | when a ledger row commits, by its cost (micro-USD ÷ 10⁶), including 0 for local calls and the settlement of an expired reservation ([data-model.md §2.4](../data-model.md#24-reservations-metered-calls-in-flight)) |
+| `h4.cost.usd` | counter, `{USD}` | `gen_ai.provider.name`; `gen_ai.request.model`; `h4.meter.attribution`: `none`, `fallback`, `metered`, `test` | `h4_cost_usd_total` | when a ledger row commits, by its cost (micro-USD ÷ 10⁶), including 0 for local calls and the settlement of an expired reservation ([data-model.md §2.4](../data-model.md#24-reservations-metered-calls-in-flight)); and 0 at the gateway's start on each series a routed metered adapter can be charged under (`fallback` for the fallback, `test` for a paid adapter, `metered` for the synthetic one), since Prometheus ingests no zero at a series' start and `increase()` would miss the first call (tasks.md T191) |
 | `h4.meter.spend_usd` | gauge, `{USD}` | `h4.meter`: `day`, `month`, `fallback_day` | `h4_meter_spend_usd` | the current period's committed spend (`spent_micro`) |
 | `h4.meter.ceiling_usd` | gauge, `{USD}` | `h4.meter` | `h4_meter_ceiling_usd` | 5.00 (`day`), 20.00 (`month`), and today's allowance (`fallback_day`) |
 | `h4.meter.warn_usd` | gauge, `{USD}` | `h4.meter` | `h4_meter_warn_usd` | 3.50 (`day`), 14.00 (`month`), and the allowance minus 0.60 (`fallback_day`) |

@@ -396,6 +396,13 @@ Request:
   `kind` is one of the `ProviderError` kinds ([provider-adapter.md §2.5](provider-adapter.md#25-provider-errors)). The message never carries a payload.
 - **Each call** writes an `adapter_call` audit row with the adapter, purpose, cost, and ledger ID. It sends no confirmation alert. Its spend crosses thresholds like any other: the warnings and trips alert.
 
+(Readings, tasks.md T103.)
+- **Costs** are decimal strings of micro-USD in both answers, as BigInt can't travel in JSON: the 502's `0` above is `"0"`.
+- **`response_id`** is null when the provider names none.
+- **The span** described is the call's last attempt's: a throttled call retried once describes the retry.
+- **The audit row's detail** holds the adapter, the purpose, the attribution, the outcome and its error kind, the number of attempts, the cost, and `ledger_ref`, the key of the call's ledger rows: the metered call's reservation, whose one ledger row has it as `reservation_id`, or the local attempts' own row IDs. A metered commit still pending when the answer leaves writes its row under that reservation later.
+- **The local call** happens whatever the adapter's health, since the endpoint is how the Author checks it. Its spans carry `h4.route.decision` `local` and `h4.route.reason` `local_healthy`, the one reason [telemetry.md](telemetry.md) gives a local call.
+
 ## 6. The operator CLI, `scripts/operator.py`
 
 **How it runs.**
