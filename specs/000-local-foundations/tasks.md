@@ -704,20 +704,29 @@ description: "Task list for spec 000, Local Foundations"
 
 **Independent test**: quickstart.md §5.1 and §5.2. The README's links, and every ADR within two clicks (SC-009).
 
-- [ ] T109 [P] [US6] Update `README.md`:
+- [X] T109 [P] [US6] Update `README.md`:
   - the status and a devcontainer quickstart;
   - links to the constitution, `intent/`, the spec index, the ADR index, `docs/how-we-build/`, `SECURITY.md`, the MIT license, `docs/data-flow-disclosure.md`, `docs/runbooks/`, and `docs/recordings/`, with the breach recording on the non-engineer path.
-- [ ] T110 [P] [US6] Complete `docs/data-flow-disclosure.md` with every row of §17, closing with "No visitor data flows in this spec.". Link it from `SECURITY.md`.
-- [ ] T111 [P] [US6] Create `docs/runbooks/README.md`, an index of every runbook, and the runbooks for the agents' engine and the local gate. Update `docs/how-we-build/lifecycle.md`'s enforcement table with the new layers.
-- [ ] T112 [P] [US6] Update `docs/START-HERE.md` per §16:
+
+  Done on 2026-10-10 (feat/000-us6-docs-wip, folded into this branch). `docs/recordings/README.md` is new, so the link resolves before T085's recording exists. The status relies on US1's T065 results. From US6's review: the quickstart gives SC-007's 30 minutes as its target, which T099 times, not as a fact, and the breach recording's line says hello degrades, since spec 000 has no site.
+- [X] T110 [P] [US6] Complete `docs/data-flow-disclosure.md` with every row of §17, closing with "No visitor data flows in this spec.". Link it from `SECURITY.md`.
+  Done on 2026-10-10: rows D1 to D3 add the development-time flows (Claude Code, the engine's proxied pulls, the devcontainer build and `make tools`). `evals/test_disclosure.py` holds every §17 flow to a row. D1 had left Claude Code's own default reporting as an open question; from US6's review (finding 4), D1 and plan §17 list it as a flow: its operational metrics and error reports, which its documentation says it sends unless `DISABLE_TELEMETRY` and `DISABLE_ERROR_REPORTING` are set (to confirm for the pinned version), and which the closing patch (T117) switches off by setting both. D2 names the gate's own `npm ci`, which reaches `registry.npmjs.org` on every run but `--host`'s.
+- [X] T111 [P] [US6] Create `docs/runbooks/README.md`, an index of every runbook, and the runbooks for the agents' engine and the local gate. Update `docs/how-we-build/lifecycle.md`'s enforcement table with the new layers.
+  Done on 2026-10-10, with `evals/test_runbooks.py` holding the index to the folder. The local-gate runbook was then matched to the gate US3 built (`--prove`, the eval history's WARN, the main-tree mask). US6's review corrected both pages from the code, with tests that read it: the local-gate page's `--host`, PENDING, publish-check's summary lines (make exits 2 for both of its failures), the eval history's posts (every entry the branch adds, on every run), and `--prove`'s reset of the engine; the engine's page on a missing image, which preflight doesn't check (P17 checks pins only; P18, the stand-in model). lifecycle.md counts the 13 behavioral cases and names the Claude Code pin among their triggers, and its row on what the Author runs takes CLAUDE.md's words.
+- [X] T112 [P] [US6] Update `docs/START-HERE.md` per §16:
   - §1: the NVIDIA runtime step, the disk check, `make tools` (Node 24 through nvm, the default Node left alone), and `deploy/agents-engine/engine.sh setup` with its `wsl --shutdown`;
   - a new "Before you merge" section;
   - §4's gotchas;
   - §6 step 1: `make publish-check`.
-- [ ] T113 [US6] Add the new human-only paths to `.github/CODEOWNERS` (FR-001): `tools/gates/**`, `evals/agent-config/**`, `.gitleaks.toml`, `deploy/agents-engine/**`, `.mcp.json`, and `config/prices*`.
-- [ ] T114 [US6] Add a docs-link check, `evals/docs_links.py`, run by `make evals` (outside `evals/agent-config/`, which is human-only by now): every relative link in `README.md`, `docs/**`, and `specs/**` resolves; the README links the ADR index; and the index links every ADR file (SC-009).
-- [ ] T115 [US6] **Author**: `tools/gates/gate` on the branch, and `make evals-agent-config` if the behavioral tier's trigger fired, committing its history entry. The summary goes into the note.
-- [ ] T116 [US6] Write the merge-request note `docs/merge-requests/<date>-feat-000-us6-docs.md`.
+
+  Done on 2026-10-10. "Before you merge" is a new §7, so §4 and §6 keep the numbers plan §12, FR-042, and T120 cite; it was then matched to the gate US3 built. Stale §4 lines were updated, one of which kept the Telegram token in a shell profile, which preflight's P5 now refuses. US6's review matched §7 to the code: the merge command the gate prints, `--host` in the gate's words, ADR 0017's list of what runs in the Author's terminal, what `make check` runs there, and PENDING as the behavioral tier decides it; §4 and §6 read publish-check's end from its summary line.
+- [X] T113 [US6] Add the new human-only paths to `.github/CODEOWNERS` (FR-001): `tools/gates/**`, `evals/agent-config/**`, `.gitleaks.toml`, `deploy/agents-engine/**`, `.mcp.json`, and `config/prices*`.
+  Done on 2026-10-10: the six paths. From US6's review (finding 5), CODEOWNERS also covers the other human-only paths spec 000 names, as plan §15, ADR 0017, and `protected-paths.sh` have them: `config/budgets*`, `config/alert*`, `config/kill-switch*`, `deploy/env/`, `GNUmakefile` and `makefile` at the root, and a `.gitleaksignore` wherever one sits (`**/.gitleaksignore`). `evals/test_repository_docs.py` holds CODEOWNERS to all thirteen patterns, and checks that each reaches a file in its path as GitHub matches, the last matching line deciding.
+- [X] T114 [US6] Add a docs-link check, `evals/docs_links.py`, run by `make evals` (outside `evals/agent-config/`, which is human-only by now): every relative link in `README.md`, `docs/**`, and `specs/**` resolves; the README links the ADR index; and the index links every ADR file (SC-009).
+  Done on 2026-10-10: it also checks each `#fragment` against the target's headings, and that ADRs 0001 to 0005 exist. `make evals` runs it through `PY_HOST`. 0 failed, of 791 links in 69 files. US6's review found four ways to fool it, each now closed with a test that fails without its fix: HTML's `<a href>` and `<img src>` went unread, and so did reference definitions in a block quote or a list item; a line of backticks indented four columns outside a list opened a fence that never closed, hiding the rest of its page; and the outside-the-repository check compared paths as text, so a symbolic link out passed. The repository's 69 files give the same links as before.
+- [ ] T115 [US6] **Author**: `tools/gates/gate` on the branch, from main's checkout; and, if the behavioral tier's trigger fired, `make evals-agent-config REF=feat/000-us6-docs` from main's checkout, committing its history entry on the branch. The summary goes into the note.
+- [X] T116 [US6] Write the merge-request note `docs/merge-requests/<date>-feat-000-us6-docs.md`.
+  Done on 2026-10-11: `docs/merge-requests/2026-10-11-feat-000-us6-docs.md`.
 
 ---
 

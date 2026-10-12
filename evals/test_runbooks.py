@@ -1,4 +1,4 @@
-"""docs/runbooks/ against contracts/alerts.md §6 and plan §16 (spec 000; tasks.md T062, T082, T106).
+"""docs/runbooks/ against contracts/alerts.md §6 and plan §16 (spec 000; tasks.md T062, T082, T106, T111).
 
 Every page alerts.md §6 names exists once the task that writes it is done; each covers the alerts and causes its
 row names, in backticks; every runbook has plan §16's six sections in order (Symptoms · Impact · Act · Verify ·
@@ -6,6 +6,11 @@ Undo · Record); and every make target a runbook's commands name is one the Make
 A later task's mark expires, as plan §11's do: once tasks.md marks the task done, what it adds is required. The two
 Bedrock pages also quote their alerts as alerts.md §3's examples give them, and hello's degraded detail as
 gateway-http.md §3 does, read from those files.
+
+From T111: the folder holds exactly the pages plan §16 lists; the index, docs/runbooks/README.md, links each and
+names the alerts and causes alerts.md §6 sends to it; the agents' engine's page quotes the messages the engine's code
+prints and names the Author's commands its code takes; and the local gate's page names what make check prints. From
+US6's review, it gives --host in the gate's own words, read from tools/gates/gate.
 """
 
 from __future__ import annotations
@@ -32,6 +37,10 @@ LATER_TARGETS = {
     "operator-renew": "T075",
     "operator-audit": "T075",
     "operator-incidents": "T075",
+    # US3's targets, which the local gate's page names (T111); US3's branch adds them.
+    "secrets": "T091",
+    "publish-check": "T093",
+    "evals-agent-config": "T094",
 }
 # tasks.md T082's nine.
 US2_PAGES = (
@@ -198,3 +207,221 @@ def test_the_bedrock_pages_point_at_each_other_and_the_fix() -> None:
     assert "bedrock-credentials-expiring.md" in unavailable
     assert "`credentials`" in unavailable and "`circuit_open`" in unavailable
     assert degraded_detail("fallback_unavailable") in unavailable
+
+
+PLAN = (SPEC / "plan.md").read_text(encoding="utf-8")
+INDEX = RUNBOOKS / "README.md"
+# plan §16's runbooks, each by the page that is it (tasks.md T111).
+PLAN_PAGES = {
+    "cost warning": "cost-warning.md",
+    "kill-switch trip": "kill-switch-trip.md",
+    "kill-switch reset": "kill-switch-reset.md",
+    "fallback renewal": "fallback-renewal.md",
+    "store initialization": "store-initialization.md",
+    "alert channel down": "alert-channel-down.md",
+    "Bedrock credentials expiring": "bedrock-credentials-expiring.md",
+    "Bedrock unavailable": "bedrock-unavailable.md",
+    "model server down": "model-server-down.md",
+    "store unreachable": "store-unreachable.md",
+    "journal unwritable": "journal-unwritable.md",
+    "gateway down": "gateway-down.md",
+    "operator authentication failures": "operator-auth-failures.md",
+    "rollback": "rollback.md",
+    "the agents' engine": "agents-engine.md",
+    "the local gate": "local-gate.md",
+}
+
+
+def plan_runbooks() -> list[str]:
+    """The runbooks plan §16 lists: the items of the sub-list under its "Runbooks" bullet."""
+    start = PLAN.index("\n## 16. ")
+    section = PLAN[start : PLAN.index("\n## 17. ", start)].splitlines()
+    first = next(
+        i for i, line in enumerate(section) if line.startswith("- **Runbooks**")
+    )
+    names = []
+    for line in section[first + 1 :]:
+        if not line.startswith("  - "):
+            break
+        for item in line[4:].rstrip(";.").split(", "):
+            names.append(item.removeprefix("and ").strip())
+    return names
+
+
+def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
+    names = plan_runbooks()
+    assert len(names) == 16  # not vacuous: the list parses
+    assert sorted(names) == sorted(PLAN_PAGES)
+    assert sorted(p.name for p in pages()) == sorted(PLAN_PAGES.values())
+
+
+def index_line(page: str) -> str:
+    """The index's line that links a page."""
+    lines = [
+        line
+        for line in INDEX.read_text(encoding="utf-8").splitlines()
+        if f"]({page})" in line
+    ]
+    assert len(lines) == 1, (page, lines)
+    return lines[0]
+
+
+def test_the_index_links_every_runbook() -> None:
+    assert INDEX.is_file()
+    text = INDEX.read_text(encoding="utf-8")
+    assert not text.startswith(
+        "# Runbook: "
+    )  # the index isn't a runbook, and pages() leaves it out
+    for page in pages():
+        index_line(page.name)
+    # And nothing in the folder that isn't there.
+    linked = set(re.findall(r"\]\(([a-z0-9-]+\.md)\)", text))
+    assert linked == {p.name for p in pages()}, linked ^ {p.name for p in pages()}
+
+
+@pytest.mark.parametrize(("names", "page"), section6(), ids=lambda v: str(v))
+def test_the_index_names_what_sends_you_to_each_page(
+    names: list[str], page: str
+) -> None:
+    # An alert, or hello's degraded cause, is what an operator holds: the index finds its page from either.
+    line = index_line(page)
+    assert [n for n in names if f"`{n}`" not in line] == [], page
+
+
+def engine_message(path: Path, pattern: str) -> str:
+    (found,) = re.findall(pattern, path.read_text(encoding="utf-8"))
+    return found
+
+
+def test_the_engines_page_quotes_what_the_engine_prints() -> None:
+    # Read from the code, not copied: a message that changes fails here until the page follows it.
+    engine_dir = REPO / "deploy" / "agents-engine"
+    messages = [
+        engine_message(
+            engine_dir / "docker-relay",
+            r'echo "(the engine\'s opening isn\'t reachable[^"]*)"',
+        ),
+        engine_message(
+            engine_dir / "engine.sh", r'echo "(engine: unreachable \([^"]*\))"'
+        ),
+        engine_message(
+            REPO / "Makefile",
+            r'echo "(image: the agents\' engine didn\'t build the images[^"]*)"',
+        ),
+        engine_message(
+            REPO / "deploy" / "scripts" / "preflight.py",
+            r'seed = "(ask the Author to run [^"]*)"',
+        ),
+    ]
+    text = (RUNBOOKS / "agents-engine.md").read_text(encoding="utf-8")
+    assert [m for m in messages if m not in text] == []
+
+
+def test_the_engines_page_names_the_authors_commands_directly() -> None:
+    # engine.sh's main() gives its Author subcommands; the page names each as the command the Author runs, directly,
+    # and the two make targets agents have.
+    engine = (REPO / "deploy" / "agents-engine" / "engine.sh").read_text(
+        encoding="utf-8"
+    )
+    (authors,) = re.findall(r"^\t(setup \| [a-z |]+)\)$", engine, re.MULTILINE)
+    subcommands = authors.split(" | ")
+    assert {"setup", "up", "down", "reset", "destroy", "seed", "prove"} <= set(
+        subcommands
+    )
+    text = (RUNBOOKS / "agents-engine.md").read_text(encoding="utf-8")
+    commands = code(text)
+    missing = [
+        s
+        for s in [*subcommands, "status"]
+        if f"deploy/agents-engine/engine.sh {s}" not in commands
+    ]
+    assert missing == []
+    assert "make engine-status" in commands and "make engine-smoke" in commands
+    assert "never through make" in text
+
+
+def test_the_gates_page_names_what_make_check_prints() -> None:
+    runner = (REPO / "tools" / "gates" / "run_checks.py").read_text(encoding="utf-8")
+    (order,) = re.findall(r"^ORDER = \[(.*)\]$", runner, re.MULTILINE)
+    statuses = re.findall(r'"([A-Z]+)"', order)
+    assert statuses == ["FAIL", "PENDING", "PLANNED", "SKIP", "PASS"]
+    assert 'f"make check: {parts}{tail}"' in runner
+    text = (RUNBOOKS / "local-gate.md").read_text(encoding="utf-8")
+    assert [s for s in statuses if f"**{s}" not in text and f"`{s}`" not in text] == []
+    assert "`make check: " in text  # the summary line, as it starts
+    commands = code(text)
+    for command in (
+        "tools/gates/gate <branch>",
+        "tools/gates/gate --host",
+        "make check",
+        "make evals-agent-config",
+    ):
+        assert command in commands, command
+    image_fail = engine_message(
+        REPO / "Makefile",
+        r'echo "(image: the agents\' engine didn\'t build the images[^"]*)"',
+    )
+    assert image_fail.split(": ", 1)[1] in text
+    assert "agents-engine.md" in text  # where an engine that's down sends you
+
+
+def test_the_gates_page_gives_the_host_gate_in_its_own_words() -> None:
+    # tools/gates/gate's docstring on what --host leaves out, and its summary line's DEGRADED mark, read from the gate,
+    # not the plan's "runs on host tools" (US6's review, finding 2).
+    gate = (REPO / "tools" / "gates" / "gate").read_text(encoding="utf-8")
+    (nowhere,) = re.findall(
+        r"Lint, [^.]*? run nowhere: [^.]*\.", " ".join(gate.split('"""')[1].split())
+    )
+    (degraded,) = re.findall(r'"; (DEGRADED \(--host\): [^"]*)"', gate)
+    text = " ".join((RUNBOOKS / "local-gate.md").read_text(encoding="utf-8").split())
+    assert nowhere in text and degraded in text
+    assert "host tools" not in text
+
+
+def test_the_gates_page_reads_publish_checks_end_from_its_summary_line() -> None:
+    # make exits 2 whenever a recipe fails, so publish-check's own 1 and 3 reach the Author as make's 2; the page
+    # quotes the summary lines tools/gates/publish_check.py prints, which say which (US6's review).
+    source = (REPO / "tools" / "gates" / "publish_check.py").read_text(encoding="utf-8")
+    (codes,) = re.findall(
+        r"^CLEAN, FINDINGS, CANNOT_CERTIFY = (\d+), (\d+), (\d+)$", source, re.MULTILINE
+    )
+    (verdicts,) = re.findall(
+        r'\{CLEAN: "([^"]+)", FINDINGS: "([^"]+)", CANNOT_CERTIFY: "([^"]+)"\}', source
+    )
+    assert 'f"publish-check: {verdict} (exit {code}) — "' in source
+    text = (RUNBOOKS / "local-gate.md").read_text(encoding="utf-8")
+    for verdict, exit_code in list(zip(verdicts, codes, strict=True))[1:]:
+        assert f"`publish-check: {verdict} (exit {exit_code})`" in text, verdict
+    assert "`make publish-check` exits" not in text
+    assert "exits 2" in text
+
+
+def test_the_gates_page_says_what_pending_and_the_eval_history_warn_mean() -> None:
+    # As the code has them (US6's review): the behavioral tier's two PENDING lines, which it prints whenever no
+    # attested entry has the tree's trigger hash (none at all, or only unattested ones), and the gate's eval-history
+    # WARN, for a post prod's collector didn't take. The gate posts every entry the branch adds on every run, not once.
+    tier = (REPO / "evals" / "agent-config" / "behavioral.py").read_text(
+        encoding="utf-8"
+    )
+    pending = re.findall(r'f"(PENDING \(behavioral tier\): [^{"]*)\{', tier)
+    gate = re.sub(
+        r'"\s*\n\s*f?"',
+        "",
+        (REPO / "tools" / "gates" / "gate").read_text(encoding="utf-8"),
+    )
+    (warn,) = re.findall(r"; (the dashboard misses them, [^\"]*)\"", gate)
+    text = " ".join((RUNBOOKS / "local-gate.md").read_text(encoding="utf-8").split())
+    assert len(pending) == 2 and all(line.strip() in text for line in pending)
+    assert "trigger hash" in text and "the branch changed `CLAUDE.md`" not in text
+    assert warn in text
+    assert "posted only once" not in text and "every entry the branch adds" in text
+
+
+def test_the_gates_page_says_prove_resets_the_engine() -> None:
+    # The gates change nothing they check, but --prove's engine.sh prove resets and reseeds the agents' engine, which
+    # can't be undone, by design: Impact and Undo both say so (US6's review).
+    text = (RUNBOOKS / "local-gate.md").read_text(encoding="utf-8")
+    for heading in ("## Impact", "## Undo"):
+        start = text.index(f"\n{heading}\n")
+        part = text[start : text.index("\n## ", start + 1)]
+        assert "`tools/gates/gate --prove`" in part, heading

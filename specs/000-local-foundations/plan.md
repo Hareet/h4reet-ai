@@ -1158,6 +1158,8 @@ The closing patch holds:
   - §6 step 1: `make publish-check`.
 - **`docs/how-we-build/lifecycle.md`:** the new enforcement layers in its table.
 
+**As built (tasks.md T109 to T114, 2026-10-10).** START-HERE's "Before you merge" is a new §7, so §4 and §6 keep the numbers §12, FR-042, and T120 cite. `docs/recordings/README.md` is new. `evals/docs_links.py` also checks each link's `#fragment` against the target's headings, and that ADRs 0001 to 0005 exist, and `make evals` runs it through `PY_HOST`. From US6's review, it also reads HTML's `<a href>` and `<img src>`, and reference definitions in block quotes and list items; a line indented four columns past its list item's content, or past the margin outside a list, never opens a fence; and a link that resolves outside the repository through a symbolic link fails.
+
 ## 17. Data flows that leave the local tier (FR-040)
 
 | Flow | Destination | Carries | When | Control |
@@ -1170,13 +1172,15 @@ The closing patch holds:
 | Image builds | `registry.npmjs.org` | the names and versions in `package-lock.json`; the IP address; npm's user agent | `make up` on a host stack (its `up --build`); `make build` and `make image` on the agents' engine, through the proxy | the lockfile and `--ignore-scripts`; npm's audit, funding, and update checks off; the build cache (disclosure row P2) |
 | Model downloads | `huggingface.co` and its download hosts | the repo, file, and revision; the IP address; curl's user agent; no token | `make pull`, a cold `make up` | revision and sha256 |
 | Third-party phone-homes | Langfuse, Grafana, Loki, ClickHouse, SeaweedFS, and Mailpit (dev-class stacks) endpoints | usage data, versions | never | switched off ([§6](#6-observability)), and the internal network |
-| Development time: Claude Code | Anthropic | repository content an agent reads, prompts, completions | agent sessions, on the Team plan (FR-037) | the sandbox, the deny lists |
+| Development time: Claude Code | Anthropic; for its default reporting, the hosts its documentation names | repository content an agent reads, prompts, completions; Claude Code's own operational metrics and error reports | agent sessions, on the Team plan (FR-037) | the sandbox, the deny lists; for its default reporting, `DISABLE_TELEMETRY` and `DISABLE_ERROR_REPORTING`, which the closing patch sets |
 | Development time: the engine's proxied pulls | npm, PyPI, ghcr.io | package and image names; the IP address | agent sessions on the engine | `egress-proxy.py` and the allowlist |
 | The Author's browser | whatever the Grafana and Langfuse pages fetch | the IP address, the user agent | while viewing | checked once in devtools, and listed |
 | The devcontainer build | Ubuntu's archive mirrors (apt), pypi.org and files.pythonhosted.org (the pinned tools), registry.npmjs.org (the lint toolchain), ECR Public and ghcr.io (the bases, Node's among them) | package and image names; the IP address | opening the devcontainer; the Author's gate | digests, checksums, and hashes |
 | `make tools` | nodejs.org (through nvm), pypi.org and files.pythonhosted.org (uv), ghcr.io (the gitleaks image), registry.npmjs.org (the lint toolchain) | package and image names; the IP address | the Author, once per pin change | the same pins as the devcontainer |
 
 The AWS SSO row's condition was corrected on 2026-10-10 by US5's review. It had said "while running unless T102 prevents the SDK's refresh", but T102 keeps the SDK's default, and the profile's kind decides: an `sso_session` profile refreshes through `oidc` while running, and a legacy profile doesn't (§5.2's corrections).
+
+The Claude Code row's default reporting, in its destination, carries, and control, was added on 2026-10-10 by US6's review. FR-040 covers "any telemetry or update checks that third-party services send by default, which the plan switches off or lists", and Claude Code's documentation says it sends its own operational metrics and error reports unless `DISABLE_TELEMETRY` and `DISABLE_ERROR_REPORTING` are set (to confirm for the pinned version, with the hosts they go to). The closing patch (tasks.md T117) sets both in `.claude/settings.json`'s `env`, beside the four OpenTelemetry variables of [§6](#6-observability), once it has checked that the export to x004 still works with them set. Until it lands, the flow is on whenever a session runs.
 
 No visitor data flows in this spec.
 
@@ -1223,7 +1227,7 @@ Total cloud spend for spec 000: the Bedrock line only, bounded by prod's ceiling
 | `evals/breach.py` can't reach its stack | It fails at its first step, naming the stack and the port, before asserting anything, so no step passes by default. |
 | Team plan unavailable | The behavioral tier stays PENDING, and the merge waits (FR-011). |
 | Denylist missing | `corpus-check` notes it, as today; publish-check exits 3. |
-| Devcontainer image won't build | `tools/gates/gate --host` runs on host tools, marked DEGRADED in its summary. |
+| Devcontainer image won't build | `tools/gates/gate --host` skips the container phase, and every summary line says DEGRADED. In the gate's words: "Lint, tests, the scaffolds, and stage H then run nowhere: never on the host." (Corrected on 2026-10-10 by US6's review: the row had said the host gate runs on host tools, which the gate as built never does.) |
 | Dummy interface lost after a WSL restart | `engine.sh up` fails and shows the unit's status. |
 
 ## 20. Requirement coverage

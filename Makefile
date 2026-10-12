@@ -242,13 +242,15 @@ corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local
 secrets: ## gitleaks over the unstaged and staged changes and every commit since main (plan §11)
 	bash tools/gates/secrets.sh
 
-evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, and the behavioral tier's status
+evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, the behavioral tier's status, and the docs' links
 	@case "$${ADAPTER:-fake}" in fake) ;; \
 	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
 	  *) echo "ADAPTER must be fake, local, or bedrock" >&2; exit 2 ;; esac
 	$(PY_HOST) evals/run.py --suite product --adapter $${ADAPTER:-fake} $$([ "$${ADAPTER:-}" = local ] && echo --stack $(ENV))
 	$(PY_HOST) evals/agent-config/static.py
 	$(PY_HOST) evals/agent-config/behavioral.py status
+	@# Every relative link in README.md, docs/, and specs/ resolves, and every ADR is two clicks from the README (SC-009).
+	$(PY_HOST) evals/docs_links.py
 
 # The behavioral agent-config evals (plan §14; FR-011, SC-008; tasks.md T094): real Claude Code sessions on the Team
 # plan, never the API, each in a scratch clone of the branch REF names, with the git hooks installed. The Author's,

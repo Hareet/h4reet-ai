@@ -2,10 +2,10 @@
 
 Until the repository is published (ADR 0013) there are no pull requests. Each change is a feature branch that the Author reviews and merges locally. The branch's last commit adds a note here named `YYYY-MM-DD-<branch name, slashes as dashes>.md`. After publication, pull requests take over, and these notes remain as the record of the local phase.
 
-The Author merges with:
+The Author runs the clean-room gate on the branch in their own terminal, from main's checkout, `tools/gates/gate <branch>`, and once nothing fails or waits, merges with the merge command it prints ([ADR 0017](../adr/0017-clean-room-gate-and-human-only-gate-paths.md); [START-HERE §7](../START-HERE.md#7-before-you-merge)): by SHA, with replace objects off, and with the gate's summary line in the merge commit's message. Its shape, as the gate's `finish()` prints it:
 
-```bash
-git switch main && git merge --no-ff <branch>
+```text
+merge: git --no-replace-objects merge --no-ff -m 'Merge <branch> (<the SHA's first 12>)' -m '<the gate's summary line>' <SHA>
 ```
 
 ## Template
