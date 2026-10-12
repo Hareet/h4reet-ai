@@ -11,9 +11,38 @@ trap 'echo "Blocked: error in $(basename "$0"); failing closed." >&2; exit 2' ER
 # shellcheck source=_audit.sh
 source "$(dirname "$0")/_audit.sh" || { echo "Blocked: $(basename "$0") cannot load _audit.sh; failing closed." >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "Blocked: .claude/hooks requires jq (install it); failing closed." >&2; exit 2; }
-cmd="$(jq -r '.tool_input.command // empty')"
+input="$(cat)"
+cmd="$(jq -r '.tool_input.command // empty' <<<"$input")"
 [ -z "$cmd" ] && exit 0
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
+# The calling subagent, from the hook input: its role's name in .claude/agents/, and its ID. Both are empty in the main
+# session (the closing patch, plan §15).
+agent_type="$(jq -r '.agent_type // empty' <<<"$input")"
+agent_id="$(jq -r '.agent_id // empty' <<<"$input")"
+
+# A git alias can stand in for any subcommand: git co main, with alias.co=checkout, switches to main. So each alias the
+# command calls, from git config --get-regexp as git itself would read it, adds a line to what the rules read: the
+# command with the alias's name replaced by its value, and a shell alias's value (!…) as the shell command it runs.
+# Builtins are skipped, since git runs a builtin before an alias of the same name (the closing patch, plan §13).
+alias_call="\\bgit[\"']?([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|-[^[:space:]]+))*[[:space:]]+[\"']?"
+builtins="$(git --list-cmds=builtins 2>/dev/null || true)"
+expanded=""
+while IFS= read -r -d '' entry; do
+  name="${entry%%$'\n'*}"
+  name="${name#alias.}"
+  value="${entry#*$'\n'}"
+  [ "$value" != "$entry" ] || continue # an alias with no value runs nothing
+  [[ "$name" =~ ^[A-Za-z][A-Za-z0-9-]*$ ]] || continue
+  grep -qixF -- "$name" <<<"$builtins" && continue
+  grep -Eiq "${alias_call}${name}([^[:alnum:]_-]|\$)" <<<"$cmd" || continue
+  value="${value#!}"
+  value="${value//\\/\\\\}"
+  value="${value//&/\\&}"
+  value="${value//\//\\/}"
+  value="${value//$'\n'/\\n}"
+  expanded+=$'\n'"$(sed -E "s/(^|[^[:alnum:]_-])${name}([^[:alnum:]_-]|\$)/\1${value}\2/gI" <<<"$cmd")"
+done < <(git -C "$root" config -z --get-regexp '^alias\.' 2>/dev/null || true)
+cmd+="$expanded"
 
 # The block still happens when the audit record cannot be written.
 block() { audit BLOCK bash "$1 :: $cmd" || true; echo "Blocked by .claude/hooks/bash-gate.sh — $1. Route: $2" >&2; exit 2; }
@@ -105,7 +134,15 @@ engine_name="e${eq}n${eq}g${eq}i${eq}n${eq}e${eq}\\.${eq}s${eq}h\\b"
 engine_start="(^|[;&|(\`{]|\\\$\\(|\\b(then|do|else|exec|sudo|doas|env|nohup|time|command|builtin|xargs|timeout|nice|ionice|stdbuf|setsid|watch|bash|sh|zsh|dash|ksh|source)\\b|-exec(dir)?\\b|(^|[[:space:];&|(\`{])\\.[[:space:]])"
 engine_skip="[[:space:]]*-[^[:space:]]*([[:space:]]+[^-[:space:]\"'][^[:space:]]*)?|[[:space:]]+[0-9][0-9.]*[smhd]?|[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*"
 engine_run="${engine_start}(${engine_skip})*[[:space:]]*[\"']?([^[:space:];&|]*/)?${engine_name}"
-if echo "$cmd" | grep -Eq "$engine_run" \
+# One simple command whose first word only reads, with no separator, substitution, redirection, or second line, passes:
+# cat, grep, rg, head, tail, wc, diff, shellcheck, ls, stat, file, sed -n with line addresses and p alone, and git's
+# diff, log, show, grep, and blame. None of them runs a file it names (tasks.md T170: the false positive on grep -c sudo
+# pushed a session to respell around the gate).
+engine_reads=0
+if [[ "$cmd" != *$'\n'* ]] && grep -Eq '^[[:space:]]*((cat|grep|egrep|fgrep|rg|head|tail|wc|diff|shellcheck|ls|stat|file)[[:space:]]|sed[[:space:]]+-n[[:space:]]+["'"'"']?[0-9]+(,[0-9$]+)?p["'"'"']?[[:space:]]|git[[:space:]]+(diff|log|show|grep|blame)[[:space:]])[^;&|`$<>()]*$' <<<"$cmd"; then
+  engine_reads=1
+fi
+if [ "$engine_reads" = 0 ] && echo "$cmd" | grep -Eq "$engine_run" \
   && ! echo "$cmd" | grep -Eq '^[[:space:]]*(\./)?deploy/agents-engine/engine\.sh[[:space:]]+(status|smoke)[[:space:]]*$'; then
   block "running the agents' engine's Author commands" "$engine_route"
 fi
@@ -182,6 +219,125 @@ if has "${nb}$(spelled aws)${ne}" \
     || { has "${nb}$(spelled sso)${ne}" \
       && has "${nb}($(spelled login)|$(spelled configure))${ne}"; }; }; then
   block "the AWS CLI's SSO sign-in" "$author_route"
+fi
+# The closing patch (spec 000 plan §13, §15; tasks.md T117).
+# - A stack is dev-cpu only when the command names it and no other: each ENV, for make, and each --stack, or an
+#   abbreviation argparse accepts, for evals/breach.py and scripts/operator.py, is dev-cpu, in every reading. ENV is prod
+#   when the command gives none, and both scripts need --stack, so a command naming none is refused too.
+# - The breach test inits, resets, and renews the stack it runs on, which outside the agents' own engine takes "a
+#   pre-execution hook with a reason and an audit record" (FR-008); make's and breach.py's own SANDBOX_RUNTIME checks are
+#   one unset away. The operator targets and CLI change or read the stack's state through its admin listener, whose
+#   ports for prod and dev, 18003 and 18103, are refused by name wherever they appear.
+# - The Author's other targets: make publish-check, make tools, make matrix-canary, and make evals-agent-config.
+# - git's --no-verify (and the prefixes git accepts), and git commit -n, skip the pre-commit scan.
+# - claude mcp add gives sessions a new tool server.
+# - terraform's global options (-chdir=infra) sit between terraform and its subcommand.
+# The engine's script read by a shell started in the same command (piped into a shell, a shell's -c over its text, a
+# shell reading it from stdin), unless the command only reads it (T170).
+if [ "$engine_reads" = 0 ] && has "${nb}${engine_name}" && has "$shell_start"; then
+  block "running the agents' engine's Author commands" "$engine_route"
+fi
+dev_cpu_route="agent sessions run it on dev-cpu only, with ENV=dev-cpu or --stack dev-cpu and no other stack (FR-008); the Author runs prod and dev"
+# only_dev_cpu <option, as a regular expression>: the option appears, and every time with the value dev-cpu.
+only_dev_cpu() {
+  local opt="$1" reading v seen
+  for reading in "$cmd" "$joined" "$uncommented"; do
+    seen=0
+    while IFS= read -r v; do
+      seen=1
+      v="$(sed -E "s/^${opt}([[:space:]]*[:+?!]*=[[:space:]]*|[[:space:]]+)?//" <<<"$v" | tr -d "\"'\\\\\$")"
+      [ "$v" = dev-cpu ] || return 1
+    done < <(grep -oE "${opt}(([[:space:]]*[:+?!]*=[[:space:]]*|[[:space:]]+)[^[:space:];&|()<>]*)?" <<<"$reading" || true)
+    [ "$seen" = 1 ] || return 1
+  done
+}
+env_opt="(^|[^[:alnum:]_.-])$(spelled ENV)"
+stack_opt="(^|[^[:alnum:]_.-])--${eq}s(${eq}t(${eq}a(${eq}c(${eq}k)?)?)?)?"
+python_word="${nb}((g${eq})?$(spelled python)[0-9.]*|$(spelled pypy)[0-9.]*|$(spelled uv)|$(spelled uvx)|$(spelled pipx)|$(spelled runpy))${ne}"
+runs_script() { # runs_script <name>: run by an interpreter, or from where a command starts, as aws-login.sh is
+  has "$python_word" && has "${nb}$1${ne}" && return 0
+  has "${engine_start}(${engine_skip})*[[:space:]]*[\"']?([^[:space:];&|]*/)?$1${ne}"
+}
+if has "$make_word" && has "${tb}$(spelled breach-test)${te}" && ! only_dev_cpu "$env_opt"; then
+  block "the breach test outside dev-cpu" "make breach-test: $dev_cpu_route"
+fi
+breach_script="($(spelled breach.py)|$(spelled evals.breach)|$(spelled evals)[[:space:]]+$(spelled import)[[:space:]]+$(spelled breach))"
+if runs_script "$breach_script" && ! only_dev_cpu "$stack_opt"; then
+  block "the breach test outside dev-cpu" "evals/breach.py: $dev_cpu_route"
+fi
+if has "$make_word" && has "${tb}$(spelled operator-)[[:alnum:]_\"'\\\$-]*${te}" && ! only_dev_cpu "$env_opt"; then
+  block "an operator target outside dev-cpu" "make operator-*: $dev_cpu_route"
+fi
+operator_script="($(spelled operator.py)|$(spelled scripts.operator)|$(spelled scripts)[[:space:]]+$(spelled import)[[:space:]]+$(spelled operator))"
+if runs_script "$operator_script" && ! only_dev_cpu "$stack_opt"; then
+  block "the operator CLI outside dev-cpu" "scripts/operator.py: $dev_cpu_route"
+fi
+if has "(^|[^0-9])($(spelled 18003)|$(spelled 18103))([^0-9]|\$)"; then
+  block "prod's or dev's admin listener" "its ports, 18003 and 18103, are the Author's (FR-008); agent sessions reach dev-cpu's, 18303, through make operator-* ENV=dev-cpu"
+fi
+if has "$make_word" && has "${tb}($(spelled publish-check)|$(spelled tools)|$(spelled matrix-canary)|$(spelled evals-agent-config))${te}"; then
+  block "an Author-only make target" "make publish-check, make tools, make matrix-canary, and make evals-agent-config: $author_route"
+fi
+git_word="${nb}$(spelled git)${ne}"
+no_verify="${nb}$(spelled --no-veri)(${eq}f(${eq}y)?)?(${eq}=|${ne})"
+if has "$git_word" && { has "$no_verify" \
+  || has "${git_word}([^;&|]*[[:space:]])?$(spelled commit)([^[:alnum:]_.-][^;&|]*)?[[:space:]][\"'\\]*-[[:alpha:]\"'\\]*n"; }; then
+  block "skipping git's hooks" "commit without --no-verify or -n; the pre-commit scan runs on every commit (FR-008)"
+fi
+# claude, or npx's claude-code, where a command starts, then mcp and add in the same command: naming the three in a
+# grep, a commit message, or a comment isn't running it (the closing patch's review).
+claude_run="${engine_start}(${engine_skip})*[[:space:]]*([\"']?([^[:space:];&|]*/)?($(spelled npx)|$(spelled bunx)|$(spelled pnpx))(${engine_skip})*[[:space:]]+)?[\"']?([^[:space:];&|]*/)?$(spelled claude)(${eq}-$(spelled code))?[\"']*"
+if has "${claude_run}([[:space:]][^;&|]*)?[[:space:]][\"']*$(spelled mcp)[\"']*[[:space:]]+([^;&|]*[[:space:]])?[\"']*$(spelled add)(${eq}-(${eq}json|$(spelled from-claude-desktop)))?${ne}"; then
+  block "adding an MCP server" "MCP servers change only by the Author's hand (.mcp.json is human-only)"
+fi
+tf_sub="($(spelled apply)|$(spelled destroy)|$(spelled import)|$(spelled state)[[:space:]]+[\"']*($(spelled rm)|$(spelled mv)|$(spelled push)))"
+# A global option, or a word a variable fills ($FLAGS, ${F}, $(…)), may sit between terraform and its subcommand.
+if has "${nb}$(spelled terraform)([[:space:]]+[\"']*[-\$][^[:space:]]*)*[[:space:]]+[\"']*${tf_sub}${ne}"; then
+  block "terraform mutation" "commit the change on your feature branch; apply runs in the protected environment after the Author approves"
+fi
+# The read-only roles (plan §13's role table): the reviewer's git diff and git log, and the red-teamer's make redteam
+# and make evals, may not write a file, run another makefile, or call a live adapter. Their grants are prefixes, so the
+# refusals are here: git's --output, a redirection to a file (2>&1, >&2, and >/dev/null aren't), tee, make's own
+# options that read another makefile or directory (-f with anything but the repository's Makefile, -C, -E, -I, and
+# MAKEFILES or MAKEFLAGS), and an ADAPTER= but fake. They hold for the reviewer and the red-teamer (plan §15), and for a
+# subagent with an agent_id but no agent_type, which fails closed; other types, the built-in agents among them, keep the
+# rules every session has (the closing patch's review: refusing them broke ordinary work).
+ro_role=0
+case "$agent_type" in
+  reviewer | red-teamer) ro_role=1 ;;
+  "") [ -z "$agent_id" ] || ro_role=1 ;;
+esac
+if [ "$ro_role" = 1 ]; then
+  role_route="${agent_type:-a subagent with no agent_type} is read-only in the shell (.claude/agents/ defines the roles; implementer writes code); report what you found instead"
+  if has "${nb}$(spelled --output)(${eq}=|${ne})"; then block "a read-only role writing a file" "git's --output: $role_route"; fi
+  for reading in "$cmd" "$joined" "$uncommented"; do
+    if sed -E -e 's/[0-9]*>&[0-9-]+//g' -e 's#(&|[0-9]*)>>?[[:space:]]*/dev/null([[:space:];&|)]|$)#\2#g' <<<"$reading" | grep -q '>'; then
+      block "a read-only role writing a file" "a redirection: $role_route"
+    fi
+  done
+  if has "${nb}$(spelled tee)${ne}"; then block "a read-only role writing a file" "tee: $role_route"; fi
+  # make's options count within make's own command, from the word make to the end of that simple command, so a grep -C3
+  # that names make isn't one. -f is allowed for the repository's Makefile, the spelling the main tree needs (T183).
+  make_opts="(^|[[:space:]])[\"']*(-[[:alnum:]]*[fCEI]|--${eq}(f${eq}i${eq}l${eq}e|m${eq}a${eq}k${eq}e${eq}f${eq}i${eq}l${eq}e|d${eq}i${eq}r${eq}e${eq}c${eq}t${eq}o${eq}r${eq}y|e${eq}v${eq}a${eq}l|i${eq}n${eq}c${eq}l${eq}u${eq}d${eq}e))"
+  for reading in "$cmd" "$joined" "$uncommented"; do
+    while IFS= read -r seg; do
+      seg="$(sed -E "s#(^|[[:space:]])(-f|--file|--makefile)(=|[[:space:]]+)(\./)?Makefile([[:space:]]|\$)# #g" <<<"$seg")"
+      if grep -Eq "$make_opts" <<<"$seg"; then
+        block "a read-only role running another makefile" "make -f (but the Makefile), -C, -E, or -I: $role_route"
+      fi
+    done < <(grep -oE "(${make_word})[^;&|]*" <<<"$reading" || true)
+  done
+  if has "(^|[^[:alnum:]_])($(spelled MAKEFILES)|$(spelled MAKEFLAGS))${eq}="; then
+    block "a read-only role running another makefile" "MAKEFILES or MAKEFLAGS: $role_route"
+  fi
+  adapter_opt="(^|[^[:alnum:]_.-])$(spelled ADAPTER)"
+  # Only an assignment sets it (make's ADAPTER=x, or the environment's): naming ADAPTER in a search isn't one.
+  if has "${adapter_opt}[[:space:]]*[:+?!]*="; then
+    while IFS= read -r v; do
+      v="$(sed -E "s/^.*$(spelled ADAPTER)[[:space:]]*[:+?!]*=[[:space:]]*//" <<<"$v" | tr -d "\"'\\\\\$")"
+      [ "$v" = fake ] || block "a read-only role calling a live adapter" "ADAPTER=$v: only ADAPTER=fake; $role_route"
+    done < <(for reading in "$cmd" "$joined" "$uncommented"; do grep -oE "${adapter_opt}[[:space:]]*[:+?!]*=[[:space:]]*[^[:space:];&|()<>]*" <<<"$reading" || true; done)
+  fi
 fi
 # Destructive filesystem operations outside the workspace.
 # The pattern matches a literal "$HOME" in the command text, so the single quotes are intended.

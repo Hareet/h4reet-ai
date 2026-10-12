@@ -9,9 +9,13 @@ trap 'echo "Blocked: error in $(basename "$0"); failing closed." >&2; exit 2' ER
 # shellcheck source=_audit.sh
 source "$(dirname "$0")/_audit.sh" || { echo "Blocked: $(basename "$0") cannot load _audit.sh; failing closed." >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "Blocked: .claude/hooks requires jq (install it); failing closed." >&2; exit 2; }
-path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty')"
+input="$(cat)"
+path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' <<<"$input")"
 [ -z "$path" ] && exit 0
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
+# The calling subagent, from the hook input; both are empty in the main session (the closing patch, plan §15).
+agent_type="$(jq -r '.agent_type // empty' <<<"$input")"
+agent_id="$(jq -r '.agent_id // empty' <<<"$input")"
 
 # The block still happens when the audit record cannot be written.
 block() { audit BLOCK edit "$1 :: $path" || true; echo "Blocked by .claude/hooks/protected-paths.sh — $1. These files change only through a human-authored change (agent-config evals run on it)." >&2; exit 2; }
@@ -50,6 +54,7 @@ check() {
     GNUmakefile | makefile) block "a makefile that make would run instead of the Makefile" ;;
     deploy/agents-engine | deploy/agents-engine/*) block "the agents' engine (the FR-039 boundary; parts of it run with sudo)" ;;
     .gitleaks* | */.gitleaksignore) block "the secret scanner's rules or an ignore list (research.md R-36)" ;;
+    .mcp.json | */.mcp.json) block "MCP server configuration (it gives every session new tools)" ;;
     tools/gates | tools/gates/* | evals/agent-config | evals/agent-config/*) block "the local gates or the agent-config evals (the gate runs in the Author's terminal, and the evals decide what merges; plan §15's governance patch)" ;;
     deploy/env/* | *.env) block "environment file (it holds secrets and selects what a stack runs; spec 000 FR-007)" ;;
   esac
@@ -61,6 +66,42 @@ check() {
 }
 check "$lexical_rel"
 check "$physical_rel"
+# A linked worktree of this repository holds its own copy of every path above, which a session can commit and the Author
+# can merge or start a session in. So a path inside one, by either resolution, is also checked relative to its root:
+# the worktree git lists for this repository whose root is the longest prefix of the path.
+tree_rel() {
+  local best="" t
+  while IFS= read -r -d '' t; do
+    case "$t" in "worktree "/*) t="${t#worktree }" ;; *) continue ;; esac
+    case "$1" in "$t" | "$t"/*) [ "${#t}" -le "${#best}" ] || best="$t" ;; esac
+  done < <(git -C "$root" worktree list --porcelain -z 2>/dev/null || true)
+  [ -z "$best" ] || realpath -m -s --relative-to="$best" -- "$1"
+}
+lexical_tree="$(tree_rel "$lexical")"
+physical_tree="$(tree_rel "$(realpath -m -- "$path")")"
+[ -z "$lexical_tree" ] || check "$lexical_tree"
+[ -z "$physical_tree" ] || check "$physical_tree"
+# Each role writes only where plan §13's role table says, from the hook input's agent_type: the path relative to the
+# worktree holding it, or to the project. implementer writes code anywhere the checks above allow; reviewer and
+# red-teamer write nothing; ops writes infrastructure, runbooks, and the intents its findings become (the constitution's
+# closing the loop); a type .claude/agents/ doesn't define, a built-in agent among them, has no role scope, so only the
+# checks above apply to it; and a subagent with an agent_id but no agent_type writes nothing.
+scope() {
+  case "$agent_type" in
+    implementer) ;;
+    spec-writer) case "$1" in specs/* | intent/*) ;; *) block "outside the spec-writer's write scope, specs/ and intent/" ;; esac ;;
+    docs) case "$1" in docs/* | README.md) ;; *) block "outside the docs role's write scope, docs/ and README.md" ;; esac ;;
+    ops) case "$1" in infra/* | deploy/* | docs/runbooks/* | intent/*) ;; *) block "outside the ops role's write scope, infra/, deploy/, docs/runbooks/, and intent/" ;; esac ;;
+    reviewer | red-teamer) block "a write by the $agent_type role, which is read-only" ;;
+    *) ;;
+  esac
+}
+if [ -n "$agent_type" ]; then
+  scope "${lexical_tree:-$lexical_rel}"
+  scope "${physical_tree:-$physical_rel}"
+elif [ -n "$agent_id" ]; then
+  block "a write by a subagent with an agent_id but no agent_type"
+fi
 
 audit ALLOW edit "$physical_rel"
 exit 0

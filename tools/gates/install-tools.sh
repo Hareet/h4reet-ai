@@ -4,7 +4,7 @@
 #   1. Node, through nvm, without changing the default Node your shells and Claude Code use.
 #   2. pytest with PyYAML, as a uv tool (~/.local/bin/pytest).
 #   3. gitleaks, copied out of its digest-pinned image into ~/.local/bin.
-#   4. The post-edit hook's lint toolchain, into ~/.local/share/h4reet/lint-node.
+#   4. The post-edit hook's lint toolchain, and the Node it runs on, into ~/.local/share/h4reet/lint-node.
 # Then run `make toolchain-check`.
 set -euo pipefail
 
@@ -71,5 +71,7 @@ for f in package.json package-lock.json eslint.config.mjs prettier.config.json; 
   install -m 0644 "$repo/tools/gates/lint-node/$f" "$lint/$f"
 done
 (cd "$lint" && PATH="$node_bin:$PATH" npm ci --ignore-scripts --no-audit --no-fund)
+# The post-edit hook runs this Node, outside the sandbox, by this name: the pinned one, never the one first on PATH.
+ln -sfn "$node_bin/node" "$lint/node"
 
 echo "make tools: done. Next: make toolchain-check"

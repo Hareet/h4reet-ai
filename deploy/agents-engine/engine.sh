@@ -397,6 +397,13 @@ seed_image_refs() {
 	}' "$images_lock" | sort -u
 }
 
+# seed_tag_clashes <ref>...: each repository:tag that the references, each given once as seed_image_refs gives them,
+# pin to more than one digest. The tag step names every image seed moves by its repository:tag, so a second digest
+# would take the tag from the first image, which would then no longer answer to its pin.
+seed_tag_clashes() {
+	printf '%s\n' "${@%@*}" | LC_ALL=C sort | uniq -d
+}
+
 seed_unpinned() {
 	# The entries the engine would run that have no digest yet ("-" until make pin-images resolves them).
 	awk '!/^#/ && NF >= 4 && !($4 ~ /^sha256:[0-9a-f]+$/ && length($4) == 71) && $1 != "model-server-gpu" && $1 != "probe:cuda" {
@@ -421,6 +428,41 @@ host_image_size() {
 	printf '%s\n' "$size"
 }
 
+# seed_why <step> <status>: the line under a failed image, from the failing side's output on stdin: the step, which
+# names its side, then that output's last line, printable characters only, so no ESC or CR of a tool's reaches the
+# terminal; or the step's exit status when that line is empty.
+seed_why() {
+	local line
+	line="$(tail -n 1 | LC_ALL=C tr -cd '\040-\176' | cut -c1-200)"
+	printf '%s: %s\n' "$1" "${line:-exit $2, no message}"
+}
+
+# seed_move <ref> <dir>: move one image to the engine by its pinned digest, as cmd_seed says, with the save's and the
+# load's errors kept apart in <dir>. On a failure it prints seed_why's line and returns 1. A save that fails cuts the
+# load's stream short, so the load fails too, with an error that says nothing of why; a load that fails stops reading,
+# so the save dies of SIGPIPE (141). So the save is named, unless the load failed and the save either finished or only
+# lost its reader.
+seed_move() {
+	local ref="$1" save_err="$2/save.err" load_err="$2/load.err" out
+	if ! host_docker save "$ref" 2>"$save_err" | engine_docker load >/dev/null 2>"$load_err"; then
+		local save_rc="${PIPESTATUS[0]}" load_rc="${PIPESTATUS[1]}"
+		if [ "$load_rc" -ne 0 ] && { [ "$save_rc" -eq 0 ] || [ "$save_rc" -eq 141 ]; }; then
+			seed_why "engine load" "$load_rc" <"$load_err"
+		else
+			seed_why "host save" "$save_rc" <"$save_err"
+		fi
+		return 1
+	fi
+	out="$(engine_docker tag "${ref#*@}" "${ref%@*}" 2>&1 >/dev/null)" || {
+		seed_why "engine tag" "$?" <<<"$out"
+		return 1
+	}
+	out="$(engine_docker image inspect "$ref" 2>&1 >/dev/null)" || {
+		seed_why "engine inspect" "$?" <<<"$out"
+		return 1
+	}
+}
+
 cmd_seed() {
 	[ -f "$images_lock" ] || die "missing $images_lock (tasks.md T035); run it on the foundations branch first"
 	host_uses_containerd_store ||
@@ -430,6 +472,10 @@ cmd_seed() {
 	local -a refs=()
 	mapfile -t refs < <(seed_image_refs)
 	[ "${#refs[@]}" -gt 0 ] || die "no seedable image references found in $images_lock (fail closed)"
+	local clashes
+	clashes="$(seed_tag_clashes "${refs[@]}" | paste -sd ' ' -)"
+	[ -z "$clashes" ] ||
+		die "$images_lock pins $clashes to more than one digest, and seed's tag step would move each such tag from one image to another; give each repository:tag one digest (fail closed)"
 	local unpinned
 	unpinned="$(seed_unpinned | paste -sd ' ' -)"
 	[ -z "$unpinned" ] || echo "note: not seeded, no digest yet: $unpinned (run make pin-images on the host, then seed again)"
@@ -475,21 +521,23 @@ cmd_seed() {
 	# - docker load names nothing that was saved by digest: the image arrives as its ID alone. Tagging the pinned
 	#   digest with its repository:tag names it, and works only when the engine holds exactly that digest, so a
 	#   changed image fails here rather than seeds.
-	# A failure prints the engine's or the host's own last line under its row.
-	local fails=0 err
+	# A failure prints under its row the step that failed, by its side (host save, engine load, engine tag, engine
+	# inspect), with that side's own last line (seed_move).
+	local fails=0 why
+	# Global, not local: the trap runs after this function's locals are gone.
+	seed_errs="$(mktemp -d)" || die "cannot make a temporary directory for the transfer's errors (fail closed)"
+	trap 'rm -rf -- "$seed_errs"' EXIT
 	printf '%-60s %-20s %s\n' "IMAGE" "DIGEST" "RESULT"
 	for ref in "${refs[@]}"; do
 		if engine_docker image inspect "$ref" >/dev/null 2>&1; then
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "present"
 			continue
 		fi
-		if err="$({ host_docker save "$ref" | engine_docker load >/dev/null; } 2>&1 &&
-			engine_docker tag "${ref#*@}" "${ref%@*}" 2>&1 &&
-			engine_docker image inspect "$ref" 2>&1 >/dev/null)"; then
+		if why="$(seed_move "$ref" "$seed_errs")"; then
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "seeded"
 		else
 			printf '%-60s %-20s %s\n' "${ref%@*}" "${ref##*@sha256:}" "FAILED"
-			printf '  %s\n' "$(printf '%s\n' "$err" | tail -n 1 | LC_ALL=C tr -cd '\040-\176' | cut -c1-200)"
+			printf '  %s\n' "$why"
 			fails=$((fails + 1))
 		fi
 	done

@@ -1,7 +1,13 @@
 {
   "env": {
     "DOCKER_CONFIG": "~/.config/h4reet/agents-engine/docker",
-    "DISABLE_AUTOUPDATER": "1"
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:18004"
   },
   "permissions": {
     "deny": [
@@ -54,7 +60,13 @@
       "Edit(/.gitleaks.toml)",
       "Edit(/.gitleaksignore)",
       "Edit(/tools/gates/**)",
-      "Edit(/evals/agent-config/**)"
+      "Edit(/evals/agent-config/**)",
+      "Edit(/.mcp.json)",
+      "Edit(/.git/info/**)",
+      "Edit(/.git/refs/heads/main)",
+      "Edit(/.git/refs/replace/**)",
+      "Edit(~/.aws/**)",
+      "Edit(~/.local/share/h4reet/**)"
     ],
     "allow": [
       "Bash(git status*)",
@@ -106,7 +118,13 @@
         "./.gitleaksignore",
         "./tools/gates",
         "./evals/agent-config",
+        "./.mcp.json",
+        "./.git/info",
+        "./.git/refs/heads/main",
+        "./.git/refs/replace",
+        "./.github/workflows",
         "~/.config/h4reet-ai",
+        "~/.aws",
         "~/.local/state/h4reet"
       ],
       "denyRead": [

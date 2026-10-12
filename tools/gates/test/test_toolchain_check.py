@@ -88,6 +88,7 @@ def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
         manifest.write_text(
             json.dumps({"name": package, "version": version}), encoding="utf-8"
         )
+    make_tool(lint, "node", "v24.21.0")  # the link make tools leaves for the post-edit hook
     monkeypatch.setenv("PATH", str(bin_dir))
     return bin_dir, lint
 
@@ -153,6 +154,17 @@ def test_a_missing_lint_toolchain_fails(
 ) -> None:
     rows = tc.check(PINS, tmp_path / "nowhere", in_devcontainer=False)
     assert status(rows, "lint: eslint") == "MISSING"
+
+
+def test_the_post_edit_hooks_node_is_required_on_the_host_at_its_pin(
+    host: tuple[Path, Path],
+) -> None:
+    _, lint = host
+    make_tool(lint, "node", "v22.18.0")
+    assert status(tc.check(PINS, lint, in_devcontainer=False), "lint: node") == "DRIFT"
+    (lint / "node").unlink()
+    assert status(tc.check(PINS, lint, in_devcontainer=False), "lint: node") == "MISSING"
+    assert status(tc.check(PINS, lint, in_devcontainer=True), "lint: node") == "SKIP"
 
 
 def test_main_exits_one_on_drift(

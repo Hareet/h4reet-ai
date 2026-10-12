@@ -956,7 +956,7 @@ A known gap: gitleaks doesn't see a change made inside a merge commit, so a secr
     |---|---|---|
     | spec-writer | `specs/**`, `intent/**` | everything else |
     | docs | `docs/**`, `README.md` | source |
-    | ops | `infra/**`, `deploy/**`, `docs/runbooks/**` | `deploy/env`, `deploy/agents-engine`, the budget, alert, IAM, edge, and kill-switch files; `make plan; terraform apply` |
+    | ops | `infra/**`, `deploy/**`, `docs/runbooks/**`, `intent/**` (its findings, the constitution's closing the loop) | `deploy/env`, `deploy/agents-engine`, the budget, alert, IAM, edge, and kill-switch files; `make plan; terraform apply` |
     | reviewer, red-teamer | nothing | any edit; `git diff --output=x`, `git log -p > x`, `… \| tee x`; `make redteam -f /tmp/x.mk`; `make evals ADAPTER=bedrock` |
 
     A subagent with an `agent_id` but no `agent_type` is denied every write.
@@ -1011,7 +1011,7 @@ A known gap: gitleaks doesn't see a change made inside a merge commit, so a secr
 - **Audit records for SC-003** come from three places: `hooks.log` (hook decisions), the egress proxy and `authz.py` logs (engine decisions), and the matrix report in the merge-request note (OS-level denials).
 
 **As built (tasks.md T087 to T090 and T095, 2026-10-10).**
-- **Row IDs:** `check()` registers each stage-H row as `H/<hook>/<label>`. Stage S and stage E register their own IDs, and always register `S/section` and `E/section`, so the list can require a block whose rows run only in some places. IDs are unique: a label that repeats gets `#2`, `#3`, and so on, in run order, so the first row keeps the bare ID, and a row at the end fails the run if any ID repeats (review B, N3). `tools/gates/matrix-required.txt` is a curated must-exist list: the governance-critical rows, and the markers of stages S and E. It is not every row ID, as T088 says, because `require_rows` runs before the file's tail, which US1 extends, so a full roster has to wait for a tree with every branch merged. This is a departure from T088, for the Author to accept or reject.
+- **Row IDs:** `check()` registers each stage-H row as `H/<hook>/<label>`. Stage S and stage E register their own IDs, and always register `S/section` and `E/section`, so the list can require a block whose rows run only in some places. IDs are unique: a label that repeats gets `#2`, `#3`, and so on, in run order, so the first row keeps the bare ID, and a row at the end fails the run if any ID repeats (review B, N3). `tools/gates/matrix-required.txt` is a curated must-exist list: the governance-critical rows, and the markers of stages S and E. It is not every row ID, as T088 says: `require_rows` ran before the file's tail, which US1 extends, so a full roster had to wait for a tree with every branch merged. The closing patch moves `require_rows` to the end (convergence T200), so the roster could now list every row; the curated list stays until the Author chooses between them, a departure from T088.
 - **The report:** the `TOTALS` line, planned rows and skipped stages with the reasons, prints just before the summary line, once every row has run. It sits above the blank line before that line, so the settings rows US1 adds there still merge cleanly.
 - **Role rows** are written out by hand, one per cell, with a check that the roles on disk are exactly the six the rows cover; they are not generated from the `tools:` lines. Each runs twice: once as a subagent's tool call carries it, `agent_type` with `agent_id`, and once as a session started with `claude --agent <role>` carries it, `agent_type` alone (ID and label suffix ` [--agent]`). Both payloads carry `tool_name`, Edit or Bash, and a row checks that every role sent both forms (review B, finding 6).
 - **Linked worktrees** (review B, finding 1): the governance patch (T098) protects `tools/gates` and `evals/agent-config` relative to `CLAUDE_PROJECT_DIR`, in `protected-paths.sh`, and in the main working tree, by the sandbox's `./` denyWrite. Agents work in linked worktrees under `$TMPDIR`, whose copies are under neither, and an index write (`git apply --cached`, `git update-index --add --cacheinfo`, `git read-tree --prefix`) reaches the next commit without touching a working tree. The matrix carries each as a gap row: an Edit and a shell write in a worktree registered outside the scratch project, and the three index writes. What holds them is the gate, which runs the main tree's `tools/gates` and `behavioral.py` and reads the branch as data, and the Author's reading of the branch's diff; `make evals-agent-config` still runs the branch's `behavioral.py`. T098 inherits T117's worktree point: path checks that cover each of the repository's worktrees may close the Edit rows. No planned rule reads a shell write's target directory or what an index write carries, so those rows stay gaps.
@@ -1110,16 +1110,18 @@ Agents never edit `.claude/**`, `CLAUDE.md`, `config/budgets*`, or `config/alert
 
 The closing patch holds:
 - **`.claude/settings.json`:**
-  - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)).
-  - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, `./.git/refs/heads/main`, and `./.git/refs/replace`, since a merge honors a replace ref (T183's fifth review). `permissions.deny` gets the matching `Edit(...)`.
+  - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)), and `DISABLE_TELEMETRY` and `DISABLE_ERROR_REPORTING`, which switch off Claude Code's own default reporting (FR-040; §17's Claude Code row). After applying it, the Author checks that the dev-time panel still gets Claude Code's metrics on x004.
+  - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, `./.git/refs/heads/main`, `./.git/refs/replace`, since a merge honors a replace ref (T183's fifth review), and `./.github/workflows` (convergence T195). `permissions.deny` gets the matching `Edit(...)`.
 - **`.claude/hooks/bash-gate.sh`:**
   - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the breach test on any stack but dev-cpu, the Author-only targets US5's patch leaves (`make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`), `--no-verify`, and `claude mcp add`;
-  - the read-only roles' rules, keyed on the hook input's `agent_type`. For `reviewer` and `red-teamer`, it refuses:
+  - the read-only roles' rules, keyed on the hook input's `agent_type`. For `reviewer` and `red-teamer`, and a subagent with an `agent_id` but no type, it refuses:
     - `git diff --output`;
-    - `git diff` or `git log` with a redirection;
+    - a redirection to a file (`2>&1`, `>&2`, and `>/dev/null` pass);
     - `tee`;
-    - `make -f`;
-    - any `ADAPTER=` but `fake`;
+    - make's own `-f` (but the repository's Makefile, the spelling the main tree needs), `-C`, `-E`, `-I`, and `MAKEFILES` or `MAKEFLAGS`;
+    - an `ADAPTER=` assignment but `fake`.
+
+    A built-in agent type keeps the rules every session has (the closing patch's review: refusing it broke ordinary work);
   - git-alias expansion;
   - the `terraform` global-flag pattern.
 - **`.claude/hooks/protected-paths.sh`:**

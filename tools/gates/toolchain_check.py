@@ -182,6 +182,14 @@ def check(pins: dict[str, str], lint_node: Path, in_devcontainer: bool) -> list[
     ):
         found, where = package_version(lint_node, package)
         add(tool, key, found, where)
+    # The post-edit hook runs the toolchain on its own Node, the link make tools leaves in it (tasks.md T117). Only the
+    # host's hook needs it; the devcontainer's toolchain runs on the image's Node.
+    lint_exe = lint_node / "node"
+    if lint_exe.exists():
+        found, where = run_version([str(lint_exe), "--version"])
+    else:
+        found, where = None, f"{lint_exe} missing"
+    add("lint: node", "NODE_VERSION", found, where, required=not in_devcontainer)
     return rows
 
 

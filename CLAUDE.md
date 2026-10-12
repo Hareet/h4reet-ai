@@ -13,9 +13,9 @@ Local until the Author publishes (ADR 0013): commit on a feature branch and end 
 - Build: `make build` — must end with `BUILD OK`
 - Test: `make check` runs every local gate (FR-041); `make test`, `make test-fast`, `make evals`, and `make redteam` run parts of it
 - Lint/format: `make lint` (zero warnings), `make fmt`
-- Local production stack: `make up` / `make down` (whole topology, local models)
+- Local production stack: `make up ENV=…` / `make down ENV=…` (whole topology, local models): `ENV` is `prod` (the default), `dev`, or `dev-cpu`, and agent sessions run `dev-cpu` only, on their engine
 - Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action in the protected CI environment.
-- Kill-switch rehearsal: `make breach-test` (dev only)
+- Kill-switch rehearsal: `make breach-test ENV=dev-cpu` (dev or dev-cpu, never prod; dev is the Author's)
 - Containers run on the agents' engine through `deploy/agents-engine/docker-relay` (make targets relay themselves); the GPU, Bedrock, and the host's stacks stay with the Author. Ask the Author for those, batched into one script that returns everything a diagnosis needs and nothing secret (`.claude/agents/ops.md` shows how).
 
 ## Conventions
@@ -23,7 +23,7 @@ Local until the Author publishes (ADR 0013): commit on a feature branch and end 
 - Model calls go through `services/gateway` only. Never call a provider SDK directly. Every call carries provider, model, tokens, cost.
 - Routing is configuration (`config/routing.yaml`): local-first, Bedrock fallback within sub-budget, then degraded. Check kill-switch state at request start; unknown state = degraded.
 - No payloads in telemetry unless `TELEMETRY_PAYLOAD_SAMPLING` is explicitly on. No secrets anywhere in the repo, context, or traces.
-- New endpoint or feature → also: telemetry span, dashboard panel, cost estimate in the spec, degraded-mode behavior, data-flow disclosure entry if a byte leaves the visitor's device.
+- New endpoint or feature → also: telemetry span, dashboard panel, cost estimate in the spec, degraded-mode behavior, data-flow disclosure entry (`docs/data-flow-disclosure.md`) if a byte leaves the visitor's device.
 
 ## Architecture
 - `apps/web` — static site + 3D room (Three.js), served from the edge.
@@ -40,7 +40,7 @@ spec-writer · implementer · reviewer (read-only) · red-teamer (read-only) · 
 The agent that implements never reviews. Agent teams are experimental here; use only for independent workstreams.
 
 ## Verifying your work
-Run `make lint`, `make test`, and `make evals` (until they can run, `make check`) before reporting any task complete, and paste the output.
+Run `make lint`, `make test`, and `make evals` (until they can run, `make check`) before reporting any task complete, and paste the output. Before merging, the Author runs `tools/gates/gate <branch>` from main's checkout, never `make check` in their own terminal.
 If a test fails, fix the code, not the test. Do not edit test files during a fix task (a hook blocks it).
 
 ## Things Claude gets wrong
@@ -55,3 +55,4 @@ If a test fails, fix the code, not the test. Do not edit test files during a fix
 - Paraphrasing a source: recorded answers, quotes, and anything about the Author's role, the agents' share of the work, or a privacy promise stay in the source's words; put your reading beside them, never in their place.
 - Deferring or dropping a control the constitution requires without naming the clause as a deviation in the spec's Assumptions, and an ADR when that reverses an accepted one.
 - Letting anything the Author runs execute what agents can write and git doesn't show (a cache, `.venv`, `uv.toml`, an ignored or excluded file): pin the interpreter and skip project config.
+- Running project code from a hook. Hooks run outside the sandbox, so they call only human-only tools with their own configs, never `npx`, `make`, or a repository config that can run code, and pass file names after `--`.

@@ -717,9 +717,22 @@ OVERLAY2 = (
 )
 
 # Stand-ins for the host's docker, the engine's, the disk check, and the model copy. Each call goes to
-# $CALLS; the image stores are directories of files named for the reference, holding its size.
+# $CALLS. The host's image store is a directory of files named for the reference, holding its size. The
+# engine's is the containerd image store's shape: images by ID (id-<digest>), and names (names: one
+# "repository:tag digest" line each), which a load never adds and a tag adds or moves.
 SEED_FAKES = r"""
 key() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
+# Is the image in this list of names?
+listed() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
+# A daemon's error on stderr, as docker prints it: ERR_TEXT when the test gives one, else this message.
+daemon_error() {
+	if [ -n "${ERR_TEXT:-}" ]; then
+		printf '%s' "$ERR_TEXT" >&2
+	else
+		printf 'Error response from daemon: %s\n' "$1" >&2
+	fi
+	return 1
+}
 docker() {
 	printf 'host %s\n' "$*" >>"$CALLS"
 	case "$1" in
@@ -730,7 +743,26 @@ docker() {
 		[ "$3" != --format ] || cat "$STATE/host/$(key "$ref")"
 		;;
 	pull) cp "$STATE/registry/$(key "$2")" "$STATE/host/$(key "$2")" 2>/dev/null ;;
-	save) printf 'tar-of %s\n' "${!#}" ;;
+	save)
+		# docker save [--platform <os/arch>] <image>: a tar of every platform the host holds, under the index the pin
+		# names, or with --platform of that platform's manifest alone (T063). The tar runs past a pipe's buffer, so a
+		# save whose reader stops early dies of SIGPIPE. SAVE_FAIL names images whose save fails before it writes.
+		local platform="" name
+		shift
+		while [ "$#" -gt 1 ]; do
+			case "$1" in
+			--platform) platform="$2"; shift 2 ;;
+			--platform=*) platform="${1#*=}"; shift ;;
+			-*) echo "unknown flag: $1" >&2; return 125 ;;
+			*) echo "the stand-in saves one image at a time" >&2; return 125 ;;
+			esac
+		done
+		name="${1#registry.example/}"
+		name="${name%%:*}"
+		if listed "${SAVE_FAIL:-}" "$name"; then daemon_error "content digest ${1##*@}: not found"; return 1; fi
+		printf 'tar-of %s%s\n' "$1" "${platform:+ platform=$platform}"
+		head -c 1048576 /dev/zero
+		;;
 	*) return 1 ;;
 	esac
 }
@@ -739,28 +771,51 @@ engine_docker() {
 	case "$1" in
 	version) [ "$ENGINE_UP" = 1 ] ;;
 	image)
-		[ -f "$STATE/engine/$(key "${!#}")" ] && return 0
-		echo "Error response from daemon: No such image: ${!#}" >&2
-		return 1
+		# docker image inspect <ref>, as the containerd image store resolves it: repository:tag by that name, and
+		# repository:tag@digest by the digest, among the names in that repository, whatever their tag.
+		local ref="${!#}" repo name target
+		repo="${ref%@*}"
+		repo="${repo%:*}"
+		while read -r name target; do
+			case "$ref" in
+			*@*) [ "${name%:*}" = "$repo" ] && [ "$target" = "${ref##*@}" ] && return 0 ;;
+			*) [ "$name" = "$ref" ] && return 0 ;;
+			esac
+		done <"$STATE/engine/names"
+		daemon_error "No such image: $ref"
 		;;
 	load)
-		# As the real engine does (T063): a load registers the image's ID alone, and names nothing. LOAD_FAIL names
-		# images whose load breaks; MISMATCH, images that arrive under another ID.
-		local line ref name id
-		read -r line
+		# As the real engine does (T063): a load adds the image under its ID alone, and names nothing. A tar of every
+		# platform brings the index, whose digest the pin names; a one-platform tar, that platform's manifest, under its
+		# own digest. LOAD_FAIL names images whose load breaks part-way and stops reading, so the save dies of SIGPIPE;
+		# LOAD_REFUSE, images the engine refuses once it has read the whole tar; LOAD_SHORT, images whose load stops
+		# reading part-way and still says it loaded; MISMATCH, images that arrive under another ID.
+		local line ref platform="" name id
+		read -r line || { daemon_error "unexpected EOF"; return 1; }
 		ref="${line#tar-of }"
+		case "$ref" in *" platform="*) platform="${ref#* platform=}" ;; esac
+		ref="${ref%% platform=*}"
 		name="${ref#registry.example/}"
 		name="${name%%:*}"
-		case " ${LOAD_FAIL:-} " in *" $name "*) echo "Error response from daemon: unexpected EOF" >&2; return 1 ;; esac
+		if listed "${LOAD_FAIL:-}" "$name"; then daemon_error "unexpected EOF"; return 1; fi
+		listed "${LOAD_SHORT:-}" "$name" || cat >/dev/null
+		if listed "${LOAD_REFUSE:-}" "$name"; then daemon_error "no space left on device"; return 1; fi
 		id="${ref#*@}"
-		case " ${MISMATCH:-} " in *" $name "*) id="sha256:$(printf '%064d' 0 | tr 0 f)" ;; esac
+		if [ -n "$platform" ]; then id="sha256:$(printf '%s %s' "$ref" "$platform" | sha256sum | cut -c1-64)"; fi
+		if listed "${MISMATCH:-}" "$name"; then id="sha256:$(printf '%064d' 0 | tr 0 f)"; fi
 		: >"$STATE/engine/id-$(key "$id")"
 		echo "Loaded image ID: $id"
 		;;
 	tag)
-		# docker tag <image ID> <repository:tag>: only an ID the engine holds, which then answers to tag@digest.
-		[ -f "$STATE/engine/id-$(key "$2")" ] || { echo "Error response from daemon: No such image: $2" >&2; return 1; }
-		: >"$STATE/engine/$(key "$3@$2")"
+		# docker tag <image ID> <repository:tag>: only an ID the engine holds. The name then points at that image; one
+		# that pointed at another image moves, and that image no longer answers to it. UNTAG names images another client
+		# untags right after, as an agent session could through the relay.
+		local name="${3#registry.example/}"
+		name="${name%%:*}"
+		[ -f "$STATE/engine/id-$(key "$2")" ] || { daemon_error "No such image: $2"; return 1; }
+		awk -v n="$3" '$1 != n' "$STATE/engine/names" >"$STATE/engine/names.new"
+		listed "${UNTAG:-}" "$name" || printf '%s %s\n' "$3" "$2" >>"$STATE/engine/names.new"
+		mv "$STATE/engine/names.new" "$STATE/engine/names"
 		;;
 	run)
 		[ "$CHOWN_OK" = 1 ] && return 0
@@ -793,22 +848,43 @@ def _store_key(ref: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in ref)
 
 
+# The digest an older lock pinned, which the engine may still hold under the same repository:tag.
+OLD_DIGEST = "sha256:" + "9" * 64
+
+
+def _hold(state: Path, ref: str) -> None:
+    """The stand-in engine holds `ref`'s image under its ID, named by its repository:tag."""
+    repo_tag, _, digest = ref.partition("@")
+    (state / "engine" / f"id-{_store_key(digest)}").write_text("", encoding="utf-8")
+    with (state / "engine" / "names").open("a", encoding="utf-8") as names:
+        names.write(f"{repo_tag} {digest}\n")
+
+
 def _seed(
     tmp_path: Path,
     *,
     host: dict[str, int | str],
     engine_has: tuple[str, ...] = (),
+    stale: tuple[str, ...] = (),
     registry: dict[str, int] | None = None,
     unpinned: tuple[str, ...] = (),
+    extra_lines: tuple[str, ...] = (),
     driver_status: str = CONTAINERD,
     disk_ok: bool = True,
     engine_up: bool = True,
     base_node: bool = True,
     chown_ok: bool = True,
+    save_fail: tuple[str, ...] = (),
     load_fail: tuple[str, ...] = (),
+    load_refuse: tuple[str, ...] = (),
+    load_short: tuple[str, ...] = (),
     mismatch: tuple[str, ...] = (),
+    untag: tuple[str, ...] = (),
+    err_text: str = "",
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
-    """Run cmd_seed with the stand-ins. `host` and `registry` map image names to their host-side size."""
+    """Run cmd_seed with the stand-ins. `host` and `registry` map image names to their host-side size.
+    `stale` names images the engine holds under their repository:tag at OLD_DIGEST. The fault lists name
+    the images whose step fails, as SEED_FAKES says; `err_text` replaces every daemon error's message."""
     names = sorted(set(host) | set(engine_has) | set(registry or {}))
     lock = tmp_path / "images.lock"
     lines = ["# service repository tag digest registry checked"]
@@ -817,12 +893,15 @@ def _seed(
         for n in names
     ]
     lines += [f"{n} registry.example/{n} 1.0 - example -" for n in unpinned]
+    lines += extra_lines
     if base_node:
         lines.append(BASE_NODE_LINE)
     lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
     state = tmp_path / "state"
     for store in ("host", "engine", "registry"):
         (state / store).mkdir(parents=True)
+    (state / "engine" / "names").write_text("", encoding="utf-8")
+    (tmp_path / "tmp").mkdir()
     key = "".join
 
     def path(store: str, name: str) -> Path:
@@ -833,9 +912,11 @@ def _seed(
     for name, size in host.items():
         path("host", name).write_text(f"{size}\n", encoding="utf-8")
     for name in engine_has:
-        path("engine", name).write_text("", encoding="utf-8")
+        _hold(state, _ref(name))
+    for name in stale:
+        _hold(state, f"registry.example/{name}:1.0@{OLD_DIGEST}")
     if base_node:
-        (state / "engine" / _store_key(BASE_NODE)).write_text("", encoding="utf-8")
+        _hold(state, BASE_NODE)
     for name, size in (registry or {}).items():
         path("registry", name).write_text(f"{size}\n", encoding="utf-8")
     calls = tmp_path / "calls.log"
@@ -846,12 +927,18 @@ def _seed(
         tmp_path,
         CALLS=str(calls),
         STATE=str(state),
+        TMPDIR=str(tmp_path / "tmp"),
         DRIVER_STATUS=driver_status,
         DISK_OK="1" if disk_ok else "0",
         ENGINE_UP="1" if engine_up else "0",
         CHOWN_OK="1" if chown_ok else "0",
+        SAVE_FAIL=" ".join(save_fail),
         LOAD_FAIL=" ".join(load_fail),
+        LOAD_REFUSE=" ".join(load_refuse),
+        LOAD_SHORT=" ".join(load_short),
         MISMATCH=" ".join(mismatch),
+        UNTAG=" ".join(untag),
+        ERR_TEXT=err_text,
     )
     return done, calls.read_text(encoding="utf-8").splitlines()
 
@@ -871,6 +958,7 @@ def test_seed_saves_every_platform_and_names_the_image_by_its_pinned_digest(
     tmp_path: Path,
 ) -> None:
     # T063, 2026-10-09: a --platform save lost the index digest, and the load named nothing, so all 19 failed.
+    # The stand-ins do both, so a --platform save would fail the row too, not only the call check.
     done, calls = _seed(tmp_path, host={"alpha": GIB})
     assert done.returncode == 0, done.stderr
     ref = _ref("alpha")
@@ -884,11 +972,12 @@ def test_seed_saves_every_platform_and_names_the_image_by_its_pinned_digest(
 
 
 def test_seed_says_why_an_image_failed(tmp_path: Path) -> None:
+    # The load breaks and stops reading, so the save dies of SIGPIPE: the load is the side that failed.
     done, _ = _seed(tmp_path, host={"alpha": GIB, "bravo": GIB}, load_fail=("bravo",))
     assert done.returncode != 0
     row, why = _row(done, "bravo")
     assert row.endswith("FAILED")
-    assert why == "Error response from daemon: unexpected EOF"
+    assert why == "engine load: Error response from daemon: unexpected EOF"
     assert _row(done, "alpha")[0].endswith("seeded")
     assert "1 image(s) failed to seed" in done.stderr
 
@@ -899,7 +988,208 @@ def test_seed_fails_an_image_whose_digest_changed_on_the_way(tmp_path: Path) -> 
     assert done.returncode != 0
     row, why = _row(done, "alpha")
     assert row.endswith("FAILED")
-    assert why == f"Error response from daemon: No such image: sha256:{'a' * 64}"
+    assert (
+        why
+        == f"engine tag: Error response from daemon: No such image: sha256:{'a' * 64}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("fault", "said"),
+    [
+        pytest.param(
+            "save_fail",
+            "host save: Error response from daemon: content digest "
+            f"sha256:{'b' * 64}: not found",
+            id="save-fails",
+        ),
+        pytest.param(
+            "load_refuse",
+            "engine load: Error response from daemon: no space left on device",
+            id="load-refused-at-the-end",
+        ),
+        pytest.param(
+            "load_short", "host save: exit 141, no message", id="load-stops-short"
+        ),
+        pytest.param(
+            "untag",
+            f"engine inspect: Error response from daemon: No such image: {_ref('bravo')}",
+            id="untagged-before-the-check",
+        ),
+    ],
+)
+def test_seed_names_the_side_that_failed(tmp_path: Path, fault: str, said: str) -> None:
+    # The save's errors are kept apart from the load's. A save that fails cuts the load's stream short, so the
+    # load fails too, with an error that says nothing of why: the save is named. A load that stops reading and
+    # still says it loaded leaves the save dead of SIGPIPE: that fails the image too, and names the save.
+    done, _ = _seed(tmp_path, host={"alpha": GIB, "bravo": GIB}, **{fault: ("bravo",)})
+    assert done.returncode != 0
+    row, why = _row(done, "bravo")
+    assert row.endswith("FAILED")
+    assert why == said
+    assert _row(done, "alpha")[0].endswith("seeded")
+    assert "1 image(s) failed to seed" in done.stderr
+
+
+@pytest.mark.parametrize("load_fail", [(), ("bravo",)], ids=["seeds", "dies"])
+def test_seed_leaves_no_temporary_files(
+    tmp_path: Path, load_fail: tuple[str, ...]
+) -> None:
+    # The transfer keeps each side's errors in a temporary directory, which goes when seed ends, either way.
+    done, _ = _seed(tmp_path, host={"alpha": GIB, "bravo": GIB}, load_fail=load_fail)
+    assert (done.returncode == 0) == (not load_fail), done.stderr
+    assert not list((tmp_path / "tmp").iterdir())
+
+
+# A daemon's error over three lines, with ESC (colours, a window title) and CR (a line end, an overwrite) on
+# each, and BEL ending the title.
+RAW_ERROR = (
+    "\x1b[31mfirst: in red\x1b[0m\r\n"
+    "second: \rover\x1b]0;a window title\x07written\r\n"
+    "\x1b[2K\rError response from daemon: the \x1b[1mlast\x1b[0m line\r\n"
+)
+# Its last line as seed prints it: printable characters only, so no ESC or CR reaches the terminal.
+CLEAN_LAST_LINE = "[2KError response from daemon: the [1mlast[0m line"
+
+
+@pytest.mark.parametrize(
+    ("fault", "side"),
+    [
+        ("save_fail", "host save"),
+        ("load_fail", "engine load"),
+        ("mismatch", "engine tag"),
+        ("untag", "engine inspect"),
+    ],
+)
+def test_a_failure_line_keeps_no_esc_or_cr_from_any_of_the_tools_lines(
+    tmp_path: Path, fault: str, side: str
+) -> None:
+    # Each side's output, through each way seed reads it: only the last line reaches the terminal, and only its
+    # printable characters, whatever the lines before it held.
+    done, _ = _seed(
+        tmp_path, host={"bravo": GIB}, err_text=RAW_ERROR, **{fault: ("bravo",)}
+    )
+    assert done.returncode != 0
+    _, why = _row(done, "bravo")
+    assert why == f"{side}: {CLEAN_LAST_LINE}"
+    for out in (done.stdout, done.stderr):
+        assert "\x1b" not in out
+        assert "\r" not in out
+        assert "\x07" not in out
+    assert "first:" not in done.stdout
+    assert "second:" not in done.stdout
+
+
+def test_seed_refuses_a_lock_that_gives_one_tag_two_digests(tmp_path: Path) -> None:
+    # The tag step names each image by its repository:tag, so the second digest would take the tag from the
+    # first, which would then no longer answer to its pin. Refused before anything is counted or moved.
+    other = f"alpha-next registry.example/alpha 1.0 {OLD_DIGEST} example 2026-10-08"
+    done, calls = _seed(
+        tmp_path, host={"alpha": GIB, "bravo": GIB}, extra_lines=(other,)
+    )
+    assert done.returncode != 0
+    assert "registry.example/alpha:1.0" in done.stderr
+    assert "more than one digest" in done.stderr
+    assert "registry.example/bravo" not in done.stderr
+    moved = ("disk", "host pull", "host save", "engine load", "engine tag")
+    assert not [c for c in calls if c.startswith(moved)]
+
+
+def test_seed_moves_one_image_once_when_two_lines_pin_it_alike(tmp_path: Path) -> None:
+    # Two services on one image, as gateway-state and langfuse-db share postgres: one pin, not a clash.
+    twin = f"alpha-db registry.example/alpha 1.0 sha256:{'a' * 64} example 2026-10-08"
+    done, calls = _seed(tmp_path, host={"alpha": GIB}, extra_lines=(twin,))
+    assert done.returncode == 0, done.stderr
+    assert [c for c in calls if c.startswith("host save")] == [
+        f"host save {_ref('alpha')}"
+    ]
+    assert _row(done, "alpha")[0].endswith("seeded")
+
+
+def test_the_repositorys_lock_gives_each_tag_one_digest(tmp_path: Path) -> None:
+    # The next seed must not refuse the lock as it stands, whose postgres serves two services at one digest.
+    script = f"""
+images_lock={q(REPO / "deploy" / "images.lock")}
+mapfile -t refs < <(seed_image_refs)
+echo "refs=${{#refs[@]}}"
+seed_tag_clashes "${{refs[@]}}"
+"""
+    done = engine(script, tmp_path)
+    assert done.returncode == 0, done.stderr
+    lines = done.stdout.splitlines()
+    assert int(lines[0].removeprefix("refs=")) > 1
+    assert lines[1:] == []
+
+
+def test_seed_moves_the_tag_of_an_image_the_engine_holds_at_an_older_pin(
+    tmp_path: Path,
+) -> None:
+    # A re-pin: the engine holds alpha:1.0 at the digest an older lock pinned. That image answers to the tag,
+    # not to the pin, so seed counts it as missing and moves the pinned one in, and the tag moves to it.
+    done, calls = _seed(tmp_path, host={"alpha": GIB}, stale=("alpha",))
+    assert done.returncode == 0, done.stderr
+    assert [c for c in calls if c.startswith("disk ")] == [f"disk {GIB + 20 * GIB}"]
+    assert _row(done, "alpha")[0].endswith("seeded")
+    names = tmp_path / "state" / "engine" / "names"
+    held = names.read_text(encoding="utf-8").splitlines()
+    assert f"registry.example/alpha:1.0 sha256:{'a' * 64}" in held
+    assert f"registry.example/alpha:1.0 {OLD_DIGEST}" not in held
+
+
+def _stand_ins(tmp_path: Path, script: str) -> subprocess.CompletedProcess[str]:
+    """`script` against the stand-ins alone, with an empty engine."""
+    state = tmp_path / "state"
+    (state / "engine").mkdir(parents=True)
+    (state / "engine" / "names").write_text("", encoding="utf-8")
+    calls = tmp_path / "calls.log"
+    return engine(SEED_FAKES + script, tmp_path, CALLS=str(calls), STATE=str(state))
+
+
+def test_the_stand_in_engine_gets_another_id_from_a_one_platform_save(
+    tmp_path: Path,
+) -> None:
+    # As the real engine did at T063: a --platform save brings that platform's manifest alone, under its own
+    # ID, so the pinned digest can't be tagged. A save of every platform keeps it.
+    ref = _ref("alpha")
+    repo_tag, _, digest = ref.partition("@")
+    script = f"""
+docker save --platform linux/amd64 {q(ref)} | engine_docker load
+engine_docker tag {q(digest)} {q(repo_tag)} || echo ONE-PLATFORM-UNTAGGED
+docker save {q(ref)} | engine_docker load
+engine_docker tag {q(digest)} {q(repo_tag)} && echo ALL-PLATFORMS-TAGGED
+"""
+    done = _stand_ins(tmp_path, script)
+    assert done.returncode == 0, done.stderr
+    loaded = [line for line in done.stdout.splitlines() if line.startswith("Loaded")]
+    assert len(loaded) == 2
+    assert loaded[0] != f"Loaded image ID: {digest}"
+    assert loaded[1] == f"Loaded image ID: {digest}"
+    assert "ONE-PLATFORM-UNTAGGED" in done.stdout
+    assert f"No such image: {digest}" in done.stderr
+    assert "ALL-PLATFORMS-TAGGED" in done.stdout
+
+
+def test_the_stand_in_engine_moves_a_tag_as_the_real_one_does(tmp_path: Path) -> None:
+    # A tag names one image: tagging another with it takes the name from the first, which then no longer
+    # answers to repository:tag@its digest.
+    first = _ref("alpha")
+    second = f"registry.example/alpha:1.0@{OLD_DIGEST}"
+    script = f"""
+for ref in {q(first)} {q(second)}; do docker save "$ref" | engine_docker load >/dev/null; done
+engine_docker tag {q(first.partition("@")[2])} registry.example/alpha:1.0
+engine_docker image inspect {q(first)} && echo FIRST-ANSWERS
+engine_docker tag {q(OLD_DIGEST)} registry.example/alpha:1.0
+engine_docker image inspect {q(second)} && echo SECOND-ANSWERS
+engine_docker image inspect {q(first)} || echo FIRST-NO-LONGER-ANSWERS
+"""
+    done = _stand_ins(tmp_path, script)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.split() == [
+        "FIRST-ANSWERS",
+        "SECOND-ANSWERS",
+        "FIRST-NO-LONGER-ANSWERS",
+    ]
+    assert f"No such image: {first}" in done.stderr
 
 
 def _first(calls: list[str], prefix: str) -> int:

@@ -36,6 +36,17 @@ holds_nothing "$main_tree/.gitleaksignore" ||
 empty="$(mktemp -d)" || fail "mktemp failed"
 { [ -n "$empty" ] && [ -d "$empty" ]; } || fail "mktemp gave no directory"
 trap 'rmdir -- "$empty" 2>/dev/null || true' EXIT
-gitleaks git --pre-commit --staged --no-banner --redact --config "$config" --gitleaks-ignore-path "$empty" \
-  --ignore-gitleaks-allow "$top" \
+# gitleaks' source is the fresh empty directory, so the only .gitleaksignore it can open is the one that isn't there;
+# GIT_DIR and GIT_WORK_TREE hold its git calls to this repository's staged changes. In the main tree, opening the work
+# tree's own path failed on the sandbox's mask ("permission denied"), which refused every commit from a session there
+# (tasks.md T173). The checks above still refuse what another scanner, make secrets or publish-check, would read.
+git_dir="$(git rev-parse --absolute-git-dir)" || fail "no git directory"
+# git may give a hook its index, a partial commit's temporary one among them, relative to the work tree; gitleaks runs
+# git from the empty directory, where a relative path names nothing and the staged changes would read as none.
+if [ -n "${GIT_INDEX_FILE:-}" ]; then
+  GIT_INDEX_FILE="$(realpath -m -- "$GIT_INDEX_FILE")" || fail "can't resolve the index"
+  export GIT_INDEX_FILE
+fi
+GIT_DIR="$git_dir" GIT_WORK_TREE="$top" gitleaks git --pre-commit --staged --no-banner --redact --config "$config" \
+  --gitleaks-ignore-path "$empty" --ignore-gitleaks-allow "$empty" \
   || fail "gitleaks found something shaped like a secret in the staged changes, or couldn't run"

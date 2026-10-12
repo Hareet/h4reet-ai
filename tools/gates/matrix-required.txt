@@ -122,3 +122,64 @@ H/role/ops/edit infra/modules/iam/main.tf
 H/role/ops/edit infra/modules/edge/main.tf
 H/role/ops/edit infra/modules/alerts/main.tf
 H/role/ops/edit config/kill-switch.yaml
+
+# --- the closing patch (T117; convergence T198, T200): rows for its new rules, and FR-007 per secret ---
+H/role/general-purpose/edit services/gateway/src/router.ts
+H/role/general-purpose/edit services/gateway/src/router.ts [--agent]
+H/role/general-purpose/git diff --output=/tmp/x.patch
+H/role/general-purpose/git diff --output=/tmp/x.patch [--agent]
+H/bash-gate.sh/terraform $TF_FLAGS apply
+H/bash-gate.sh/diff -u /tmp/a/engine.sh deploy/agents-engine/engine.sh
+H/pre-commit/a clean partial commit
+H/pre-commit/a partial commit holding a token
+H/subagent-report-check.sh/an internal agent's stop, with no type and nothing to read, is INFO
+H/subagent-report-check.sh/a clean handback is read and logged clean
+H/subagent-report-check.sh/a report that only names settings.json is data
+H/subagent-report-check.sh/an override in the handback is flagged
+H/settings/FR-007: H4_OPERATOR_TOKEN is denied by name
+H/settings/FR-007: ~/.config/h4reet-ai/operator/prod.token is denied
+H/settings/FR-007: TELEGRAM_BOT_TOKEN is denied by name
+H/settings/FR-007: ~/.config/h4reet-ai/env/prod.env is denied
+H/settings/FR-007: SMTP_PASSWORD is denied by name
+H/settings/FR-007: SMTP_USER is denied by name
+H/settings/FR-007: GATEWAY_DB_PASSWORD is denied by name
+H/settings/FR-007: GATEWAY_GRAFANA_RO_PASSWORD is denied by name
+H/settings/FR-007: LANGFUSE_SECRET_KEY is denied by name
+H/settings/FR-007: LANGFUSE_PUBLIC_KEY is denied by name
+H/settings/FR-007: LANGFUSE_SALT is denied by name
+H/settings/FR-007: LANGFUSE_ENCRYPTION_KEY is denied by name
+H/settings/FR-007: LANGFUSE_NEXTAUTH_SECRET is denied by name
+H/settings/FR-007: LANGFUSE_DB_PASSWORD is denied by name
+H/settings/FR-007: LANGFUSE_INIT_USER_PASSWORD is denied by name
+H/settings/FR-007: CLICKHOUSE_PASSWORD is denied by name
+H/settings/FR-007: VALKEY_PASSWORD is denied by name
+H/settings/FR-007: SEAWEEDFS_S3_SECRET_KEY is denied by name
+H/settings/FR-007: GF_SECURITY_ADMIN_PASSWORD is denied by name
+H/settings/FR-007: AWS_ACCESS_KEY_ID is denied by name
+H/settings/FR-007: AWS_SECRET_ACCESS_KEY is denied by name
+H/settings/FR-007: AWS_SESSION_TOKEN is denied by name
+H/settings/FR-007: AWS_PROFILE is denied by name
+H/settings/FR-007: AWS_CONFIG_FILE is denied by name
+H/settings/FR-007: AWS_SHARED_CREDENTIALS_FILE is denied by name
+H/settings/FR-007: AWS_WEB_IDENTITY_TOKEN_FILE is denied by name
+H/settings/FR-007: AWS_ROLE_ARN is denied by name
+H/settings/FR-007: AWS_CONTAINER_CREDENTIALS_FULL_URI is denied by name
+H/settings/FR-007: AWS_CONTAINER_AUTHORIZATION_TOKEN is denied by name
+H/settings/FR-007: ~/.config/h4reet-ai/aws-home/.aws/ is denied
+H/settings/FR-007: ~/.aws is denied
+H/settings/FR-007: ~/.config/h4reet-ai/agents-engine/ is denied
+H/settings/FR-007: /etc/h4agents/pki/ is denied
+H/role/Explore/find . -name '*.ts' 2>/dev/null
+H/role/reviewer/git log --oneline 2>/dev/null
+H/role/reviewer/grep -n -C3 'make check' CLAUDE.md
+H/role/reviewer/rg -n ADAPTER evals/
+H/role/red-teamer/make redteam -f Makefile
+H/role/red-teamer/make redteam 2>&1 | grep -E FAIL
+H/role/ops/edit intent/005-a-finding.md
+H/bash-gate.sh/grep -c sudo deploy/agents-engine/engine.sh
+H/role/red-teamer/make evals ADAPTER=local
+H/role/red-teamer/make -C . redteam
+H/role/red-teamer/MAKEFLAGS=-f/tmp/x.mk make redteam
+H/role/red-teamer/make redteam -f Makefile -f /tmp/x.mk
+H/role/reviewer/git log >/dev/null; git log -p > x
+H/role/id-no-type/git log -p > /tmp/x.log
