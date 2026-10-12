@@ -518,6 +518,8 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
+	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
+	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
@@ -525,5 +527,3 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 # to remake them with, whatever path it read them by; and with no suffixes, no suffix rule is left for any target.
 $(MAKEFILE_LIST): ;
 .SUFFIXES:
-	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
-	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
