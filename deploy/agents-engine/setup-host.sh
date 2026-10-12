@@ -172,6 +172,69 @@ ensure_gpu_group() {
 	fi
 }
 
+# --- H6: the NVIDIA hook's CLI, as a user /dev/dxg admits --------------------------------------
+# h4agents-dxg.service gives /dev/dxg to root:h4gpu, mode 0660, and the NVIDIA container hook's CLI runs its driver
+# step as an unprivileged user unless its config names one. That user isn't in h4gpu, so every GPU container of the
+# rootful engine failed: "nvidia-container-cli: initialization error: nvml error: not supported" (T065, 2026-10-09).
+# This sets the least privileged user NVML works as: nobody in h4gpu, or root in h4gpu (tasks.md T179). nobody is
+# tried only while the device has H6's mode. Before the first boot after setup it is 0666, open to every user, and
+# the try would prove nothing: setup sets root, and next_steps asks for one more run after the shutdown. A boot
+# whose H6 mode failed (h4agents-dxg.service ignores a failed chgrp or chmod) keeps a nobody a good boot proved,
+# rather than raising it to root. Each try names the user exactly as the config will.
+nvidia_config="/etc/nvidia-container-runtime/config.toml"
+dxg="/dev/dxg"
+nvidia_cli_retry="" # set when root was chosen only for want of H6's mode; next_steps reads it
+
+# The user = line under [nvidia-container-cli], without its quotes, or nothing.
+nvidia_cli_user() {
+	awk '/^\[/ { cli = ($0 == "[nvidia-container-cli]") }
+		cli && /^[[:space:]]*user[[:space:]]*=/ { sub(/^[^=]*=[[:space:]]*/, ""); gsub(/"/, ""); print; exit }' \
+		"$nvidia_config" 2>/dev/null || true
+}
+
+# nvidia_cli_reaches <user:group>: whether NVML answers the CLI's info as that user, named as the config names it.
+nvidia_cli_reaches() {
+	nvidia-container-cli --user="$1" info >/dev/null 2>&1
+}
+
+ensure_nvidia_cli_user() {
+	if [ ! -e "$dxg" ] || [ ! -f "$nvidia_config" ] ||
+		! command -v nvidia-container-cli >/dev/null || ! command -v nvidia-ctk >/dev/null; then
+		log "no GPU or no NVIDIA container toolkit here: the CLI's user is left alone"
+		return 0
+	fi
+	local nobody="nobody:$gpu_group" root="root:$gpu_group" have want
+	have="$(nvidia_cli_user)"
+	# The agents' engine runs CPU-only, so a GPU nobody reaches warns rather than stopping its setup.
+	if [ "$(stat -c '%G %a' -- "$dxg" 2>/dev/null)" = "$gpu_group 660" ]; then
+		if nvidia_cli_reaches "$nobody"; then
+			want="$nobody"
+		elif nvidia_cli_reaches "$root"; then
+			want="$root"
+		else
+			log "WARNING: nvidia-container-cli reaches the GPU neither as $nobody nor as $root;" \
+				"the CLI's user is left alone (contracts/agents-engine.md H6)"
+			return 0
+		fi
+	elif [ "$have" = "$nobody" ]; then
+		log "WARNING: $dxg isn't root:$gpu_group 0660 this boot, so $nobody can't be tried; the CLI keeps it." \
+			"See h4agents-dxg.service (H6)"
+		return 0
+	elif nvidia_cli_reaches "$root"; then
+		want="$root"
+		nvidia_cli_retry=1
+	else
+		log "WARNING: nvidia-container-cli doesn't reach the GPU as $root, and $nobody waits for $dxg's H6 mode;" \
+			"the CLI's user is left alone (contracts/agents-engine.md H6)"
+		return 0
+	fi
+	if [ "$have" = "$want" ]; then
+		return 0
+	fi
+	log "the NVIDIA container CLI runs its driver step as $want"
+	nvidia-ctk config --config-file "$nvidia_config" --in-place --set "nvidia-container-cli.user=$want"
+}
+
 # --- directories ---------------------------------------------------------------------------------
 ensure_dirs() {
 	install -d -o root -g root -m 0755 "$lib" "$etc" "$models_src"
@@ -448,6 +511,7 @@ main() {
 	ensure_subids
 	ensure_linger
 	ensure_gpu_group
+	ensure_nvidia_cli_user
 	ensure_dirs
 	install_files
 	write_env_file
@@ -485,17 +549,21 @@ pending_restart() {
 
 # The run's last words: the wsl --shutdown while a change that needs one still waits for it, whichever run made
 # the change, and otherwise the restart of h4agents' plugin and daemon, which up alone wouldn't give a daemon
-# already running.
+# already running. When the NVIDIA CLI got root only for want of H6's mode, one more setup run comes first (T179).
 next_steps() {
-	local why
+	local why again=""
 	why="$(pending_restart)"
+	if [ -n "$nvidia_cli_retry" ]; then
+		again="    deploy/agents-engine/engine.sh setup   (once more: with /dev/dxg in H6's mode, it tries nobody:$gpu_group)
+"
+	fi
 	if [ -n "$why" ]; then
 		cat <<EOF
 
 Host setup complete. Next, in PowerShell:
     wsl --shutdown
 Then open a new WSL shell and run:
-    deploy/agents-engine/engine.sh up
+${again}    deploy/agents-engine/engine.sh up
 The shutdown is needed for $why to take effect, and it ends every WSL
 session, agents' included.
 EOF
@@ -507,6 +575,12 @@ from what it installed:
     deploy/agents-engine/engine.sh down
     deploy/agents-engine/engine.sh up
 EOF
+		if [ -n "$nvidia_cli_retry" ]; then
+			cat <<EOF
+/dev/dxg isn't root:$gpu_group 0660 this boot, so the NVIDIA container CLI runs as root:$gpu_group. Check
+h4agents-dxg.service, then run setup once more: it tries nobody:$gpu_group with the device in H6's mode.
+EOF
+		fi
 	fi
 }
 

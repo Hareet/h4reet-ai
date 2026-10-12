@@ -561,3 +561,229 @@ echo "WHY [$(pending_restart)]"
     assert done.returncode == 0, done.stderr
     want = "" if held else f"{ME}'s membership of h4gpu"
     assert f"WHY [{want}]" in done.stdout
+
+
+# --------------------------------------------------------------------------------------------------
+# H6: the NVIDIA hook's CLI runs as the least privileged user NVML works as (tasks.md T179)
+# --------------------------------------------------------------------------------------------------
+# The stand-ins act as the real tools do; the review of the first ones found them answering whatever they were
+# asked. /dev/dxg is a real file whose group and mode the real stat reads, in the test user's own group, which
+# stands for h4gpu. nvidia-container-cli answers only "--user=<user:group> info", and reaches NVML only as the users
+# a test names. nvidia-ctk takes only the flags its help lists (config --config-file F --in-place --set K=V) and
+# writes the user line, so a next run reads what the last one wrote.
+GROUP = grp.getgrgid(os.getgid()).gr_name
+
+NVIDIA_FAKES = r"""
+nvidia-container-cli() {
+    [ "$#" -eq 2 ] && [ "$2" = info ] || { echo "nvidia-container-cli: unexpected: $*" >&2; return 2; }
+    case " $REACHES " in *" ${1#--user=} "*) return 0 ;; esac
+    echo "nvidia-container-cli: initialization error: nvml error: not supported" >&2
+    return 1
+}
+nvidia-ctk() {
+    [ "$#" -eq 6 ] && [ "$1" = config ] && [ "$2" = --config-file ] && [ "$4" = --in-place ] && [ "$5" = --set ] ||
+        { echo "nvidia-ctk: unexpected arguments: $*" >&2; return 2; }
+    case "$6" in nvidia-container-cli.user=*) ;; *) echo "nvidia-ctk: unexpected key: $6" >&2; return 2 ;; esac
+    awk -v v="${6#nvidia-container-cli.user=}" '
+        /^\[/ { cli = ($0 == "[nvidia-container-cli]"); print; if (cli) { print "user = \"" v "\""; done = 1 }; next }
+        cli && /^[[:space:]]*user[[:space:]]*=/ { next }
+        { print }
+        END { if (!done) { print "[nvidia-container-cli]"; print "user = \"" v "\"" } }
+    ' "$3" >"$3.new" && command mv -- "$3.new" "$3"
+    echo "CTK $6"
+}
+"""
+
+
+def _nvidia_user(
+    tmp_path: Path,
+    *,
+    mode: int = 0o660,
+    reaches: str = "nobody root",
+    config: str | None = '[nvidia-container-cli]\n#user = "root:video"\n',
+    device: bool = True,
+    steps: str = "ensure_nvidia_cli_user",
+) -> subprocess.CompletedProcess[str]:
+    """Run `steps` with the fakes above. `reaches` names who NVML answers; config=None keeps the file as it is."""
+    cfg = tmp_path / "config.toml"
+    if config is not None:
+        cfg.write_text(config, encoding="utf-8")
+    dxg = tmp_path / "dxg"
+    if device:
+        dxg.touch()
+        dxg.chmod(mode)
+    users = " ".join(f"{who}:{GROUP}" for who in reaches.split())
+    script = f"""
+gpu_group={q(GROUP)}
+nvidia_config={q(cfg)}
+dxg={q(dxg)}
+REACHES={q(users)}
+log() {{ echo "LOG $*"; }}
+{NVIDIA_FAKES}
+{steps}
+"""
+    return setup_host(script, tmp_path)
+
+
+def _cli_user(tmp_path: Path) -> str | None:
+    """The user line under [nvidia-container-cli] in the test's config file, unquoted."""
+    section = ""
+    for line in (tmp_path / "config.toml").read_text(encoding="utf-8").splitlines():
+        if line.startswith("["):
+            section = line
+        elif (
+            section == "[nvidia-container-cli]" and line.split("=")[0].strip() == "user"
+        ):
+            return line.split("=", 1)[1].strip().strip('"')
+    return None
+
+
+def test_nobody_when_nvml_works_as_it(tmp_path: Path) -> None:
+    done = _nvidia_user(tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert f"CTK nvidia-container-cli.user=nobody:{GROUP}" in done.stdout
+    assert _cli_user(tmp_path) == f"nobody:{GROUP}"
+
+
+def test_root_when_nvml_doesnt_answer_nobody(tmp_path: Path) -> None:
+    done = _nvidia_user(tmp_path, reaches="root")
+    assert done.returncode == 0, done.stderr
+    assert _cli_user(tmp_path) == f"root:{GROUP}"
+
+
+def _with_next_steps(tmp_path: Path) -> str:
+    (tmp_path / "boot_id").write_text("boot-a\n", encoding="utf-8")
+    return f"""
+restart_marker={q(tmp_path / "etc" / "wsl-restart-pending")}
+boot_id_file={q(tmp_path / "boot_id")}
+install() {{ command install -d -m 0755 "${{@: -1}}"; }}
+ensure_nvidia_cli_user
+note_restart "the Author's membership of h4gpu"
+echo "RETRY [$nvidia_cli_retry]"
+next_steps
+"""
+
+
+def test_before_h6s_mode_root_and_setup_asks_for_one_more_run(tmp_path: Path) -> None:
+    # Before the first boot after setup /dev/dxg is 0666, open to all: trying nobody would prove nothing.
+    done = _nvidia_user(tmp_path, mode=0o666, steps=_with_next_steps(tmp_path))
+    assert done.returncode == 0, done.stderr
+    assert _cli_user(tmp_path) == f"root:{GROUP}"
+    assert "RETRY [1]" in done.stdout
+    assert (
+        f"    deploy/agents-engine/engine.sh setup   (once more: with /dev/dxg in H6's mode, it tries nobody:{GROUP})\n"
+        "    deploy/agents-engine/engine.sh up\n"
+    ) in done.stdout
+
+
+def test_with_h6s_mode_no_second_run_is_asked(tmp_path: Path) -> None:
+    done = _nvidia_user(tmp_path, steps=_with_next_steps(tmp_path))
+    assert done.returncode == 0, done.stderr
+    assert "RETRY []" in done.stdout
+    assert "once more" not in done.stdout
+
+
+def test_a_nobody_a_good_boot_proved_stays_when_h6s_mode_is_missing(
+    tmp_path: Path,
+) -> None:
+    # h4agents-dxg.service ignores a failed chgrp or chmod: such a boot mustn't raise the CLI to root (Principle IV).
+    config = f'[nvidia-container-cli]\nuser = "nobody:{GROUP}"\n'
+    done = _nvidia_user(tmp_path, mode=0o666, config=config)
+    assert done.returncode == 0, done.stderr
+    assert "CTK" not in done.stdout
+    assert "the CLI keeps it" in done.stdout
+    assert _cli_user(tmp_path) == f"nobody:{GROUP}"
+
+
+def test_root_already_set_and_nobody_unreachable_change_nothing_and_say_nothing(
+    tmp_path: Path,
+) -> None:
+    config = f'[nvidia-container-cli]\nuser = "root:{GROUP}"\n'
+    done = _nvidia_user(tmp_path, reaches="root", config=config)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout == ""
+
+
+def test_a_user_under_another_section_isnt_the_clis(tmp_path: Path) -> None:
+    config = '[nvidia-container-runtime]\nuser = "x:y"\n[nvidia-container-cli]\nldconfig = "@/sbin/ldconfig"\n'
+    done = _nvidia_user(tmp_path, config=config)
+    assert done.returncode == 0, done.stderr
+    assert _cli_user(tmp_path) == f"nobody:{GROUP}"
+    assert 'user = "x:y"' in (tmp_path / "config.toml").read_text(encoding="utf-8")
+
+
+def test_neither_user_reaching_nvml_warns_and_changes_nothing(tmp_path: Path) -> None:
+    done = _nvidia_user(tmp_path, reaches="")
+    assert done.returncode == 0, done.stderr
+    assert (
+        f"reaches the GPU neither as nobody:{GROUP} nor as root:{GROUP}" in done.stdout
+    )
+    assert "CTK" not in done.stdout
+
+
+def test_root_unreachable_before_h6s_mode_doesnt_claim_nobody_was_tried(
+    tmp_path: Path,
+) -> None:
+    done = _nvidia_user(tmp_path, mode=0o666, reaches="")
+    assert done.returncode == 0, done.stderr
+    assert (
+        f"doesn't reach the GPU as root:{GROUP}, and nobody:{GROUP} waits for"
+        in done.stdout
+    )
+    assert "neither" not in done.stdout and "CTK" not in done.stdout
+
+
+@pytest.mark.parametrize(
+    ("case", "device", "config", "steps"),
+    [
+        ("no device", False, "[nvidia-container-cli]\n", "ensure_nvidia_cli_user"),
+        ("no config", True, None, "ensure_nvidia_cli_user"),
+        (
+            "no CLI",
+            True,
+            "[nvidia-container-cli]\n",
+            "unset -f nvidia-container-cli; PATH=/nonexistent; ensure_nvidia_cli_user",
+        ),
+        (
+            "no nvidia-ctk",
+            True,
+            "[nvidia-container-cli]\n",
+            "unset -f nvidia-ctk; PATH=/nonexistent; ensure_nvidia_cli_user",
+        ),
+    ],
+)
+def test_without_the_device_the_config_or_the_tools_it_does_nothing(
+    tmp_path: Path, case: str, device: bool, config: str | None, steps: str
+) -> None:
+    done = _nvidia_user(tmp_path, device=device, config=config, steps=steps)
+    assert done.returncode == 0, (case, done.stderr)
+    assert "the CLI's user is left alone" in done.stdout, case
+    assert "CTK" not in done.stdout, case
+
+
+def test_three_runs_from_a_fresh_host(tmp_path: Path) -> None:
+    # The documented sequence: setup before the first shutdown sets root, the run after it lowers to nobody, and a
+    # third run has nothing to change.
+    first = _nvidia_user(
+        tmp_path,
+        mode=0o666,
+        steps='ensure_nvidia_cli_user; echo "RETRY [$nvidia_cli_retry]"',
+    )
+    assert first.returncode == 0, first.stderr
+    assert _cli_user(tmp_path) == f"root:{GROUP}" and "RETRY [1]" in first.stdout
+    second = _nvidia_user(tmp_path, mode=0o660, config=None)
+    assert second.returncode == 0, second.stderr
+    assert _cli_user(tmp_path) == f"nobody:{GROUP}"
+    third = _nvidia_user(tmp_path, mode=0o660, config=None)
+    assert third.returncode == 0, third.stderr
+    assert third.stdout == "" and _cli_user(tmp_path) == f"nobody:{GROUP}"
+
+
+def test_setup_runs_the_cli_user_step_after_the_group(tmp_path: Path) -> None:
+    main = (
+        SETUP.read_text(encoding="utf-8")
+        .split("\nmain() {\n", 1)[1]
+        .split("\n}\n", 1)[0]
+    )
+    steps = [line.strip() for line in main.splitlines()]
+    assert steps.index("ensure_nvidia_cli_user") == steps.index("ensure_gpu_group") + 1

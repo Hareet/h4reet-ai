@@ -38,6 +38,8 @@ images_lock="$repo/deploy/images.lock"
 models_lock="$repo/deploy/models.lock"
 devcpu_vars="$repo/deploy/env.agents/dev-cpu.vars"
 system_units="h4agents-net.service h4agents-nft.service h4agents-dxg.service h4agents-tree.service"
+dxg="/dev/dxg"                                          # status reads it: H6
+nvidia_config="/etc/nvidia-container-runtime/config.toml" # status reads it: the NVIDIA hook's CLI user (T179)
 
 die() {
 	echo "engine.sh: $*" >&2
@@ -527,6 +529,11 @@ seed_model() {
 # status: read-only; both the Author and agents may run it
 # ------------------------------------------------------------------------------------------------
 cmd_status() {
+	# The host's GPU first: it is about the rootful engine, so it prints even with the agents' engine down (T179).
+	if ! in_sandbox; then
+		echo "-- the host's GPU (H6)"
+		status_gpu
+	fi
 	if ! engine_docker version >/dev/null 2>&1; then
 		echo "engine: unreachable (ask the Author: deploy/agents-engine/engine.sh up)"
 		return 1
@@ -567,6 +574,17 @@ status_units() {
 	done
 	state="$(systemctl --user is-active h4-egress-proxy.service 2>/dev/null)" || true
 	printf '  %-26s %s\n' h4-egress-proxy.service "${state:-unknown}"
+}
+
+# The host's side of H6: /dev/dxg's owner and mode, and the user the NVIDIA hook's CLI runs its driver step as, which
+# setup-host.sh's ensure_nvidia_cli_user sets (tasks.md T179). Read-only.
+status_gpu() {
+	local mode user
+	mode="$(stat -c '%U:%G %a' -- "$dxg" 2>/dev/null)" || mode="absent"
+	user="$(awk '/^\[/ { cli = ($0 == "[nvidia-container-cli]") }
+		cli && /^[[:space:]]*user[[:space:]]*=/ { sub(/^[^=]*=[[:space:]]*/, ""); gsub(/"/, ""); print; exit }' \
+		"$nvidia_config" 2>/dev/null)" || true
+	printf '  %-26s %s; the NVIDIA container CLI runs as %s\n' /dev/dxg "$mode" "${user:-its default, unset}"
 }
 
 # The plugin's last 20 refusals, read as h4agents and never as root: h4agents owns the log's directory, so a link

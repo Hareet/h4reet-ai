@@ -9,8 +9,11 @@ variables, its proxy's credentials among them, never reach it or a failure's rep
 
 from __future__ import annotations
 
+import getpass
+import grp
 import importlib.util
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -231,6 +234,7 @@ def test_the_authors_status_lists_the_units_by_name(tmp_path: Path) -> None:
 {ECHO_SYSTEMCTL}
 engine_docker() {{ :; }}
 images_lock={q(tmp_path / "no-images.lock")}
+status_gpu() {{ echo "GPU LINE"; }}
 status_list_hashes() {{ :; }}
 status_refusals() {{ :; }}
 cmd_status
@@ -241,6 +245,64 @@ cmd_status
     start = lines.index("-- the engine's system units, and the Author's proxy") + 1
     named = [line.split(maxsplit=1) for line in lines[start : start + len(NAMED_UNITS)]]
     assert named == NAMED_UNITS
+    assert lines[:2] == [
+        "-- the host's GPU (H6)",
+        "GPU LINE",
+    ]  # first, the GPU's line (T179)
+
+
+def test_the_gpu_line_prints_with_the_agents_engine_down(tmp_path: Path) -> None:
+    # The line is about the host's rootful engine, so the agents' engine being down mustn't hide it (T179's review).
+    script = """
+engine_docker() { return 1; }
+status_gpu() { echo "GPU LINE"; }
+cmd_status
+"""
+    done = engine(script, tmp_path)
+    assert done.returncode == 1
+    assert done.stdout.splitlines()[:3] == [
+        "-- the host's GPU (H6)",
+        "GPU LINE",
+        "engine: unreachable (ask the Author: deploy/agents-engine/engine.sh up)",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("config", "device", "said"),
+    [
+        ('[nvidia-container-cli]\nuser = "root:h4gpu"\n', True, "root:h4gpu"),
+        ('[nvidia-container-cli]\n#user = "root:video"\n', True, "its default, unset"),
+        (
+            '[nvidia-container-runtime]\nuser = "x"\n[nvidia-container-cli]\n',
+            True,
+            "its default, unset",
+        ),
+        ("", False, "its default, unset"),
+    ],
+)
+def test_status_names_the_gpu_device_and_the_clis_user(
+    tmp_path: Path, config: str, device: bool, said: str
+) -> None:
+    # The host's side of H6: the device's owner and mode, and the user setup-host.sh gave the NVIDIA CLI (T179).
+    (tmp_path / "config.toml").write_text(config, encoding="utf-8")
+    if device:
+        (tmp_path / "dxg").write_text("", encoding="utf-8")
+        (tmp_path / "dxg").chmod(0o660)
+    script = f"""
+dxg={q(tmp_path / "dxg")}
+nvidia_config={q(tmp_path / "config.toml")}
+status_gpu
+"""
+    done = engine(script, tmp_path)
+    assert done.returncode == 0, done.stderr
+    (line,) = done.stdout.splitlines()
+    owner = (
+        f"{getpass.getuser()}:{grp.getgrgid(os.getgid()).gr_name} 660"
+        if device
+        else "absent"
+    )
+    assert line.split()[0] == "/dev/dxg"
+    assert line.endswith(f" {owner}; the NVIDIA container CLI runs as {said}")
 
 
 def _running(pid: str) -> bool:
