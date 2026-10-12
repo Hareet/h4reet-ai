@@ -2193,3 +2193,102 @@ def test_contract_replay_takes_no_ref_and_no_other_mode(
     done = gate(fx, "--contract-replay", str(recording(fx)), *extra)
     assert done.returncode == 2
     assert fx.docker() == []
+
+
+# --------------------------------------------------------------------------------------------------
+# The gateway's image, outside compose, as make up builds it (tasks.md T184)
+# --------------------------------------------------------------------------------------------------
+GATEWAY_PROXY = "http://198.18.0.1:3128"  # the agents' engine's egress proxy
+
+
+def test_the_image_step_builds_the_gateway_as_make_up_does_then_the_compose_images(
+    fx: Fixture,
+) -> None:
+    sha = fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+    (devcontainer,) = by_kind(calls, "build")
+    export = devcontainer["argv"][-1]
+    (gateway,) = by_kind(calls, "buildx")
+    assert gateway["argv"] == [
+        "buildx",
+        "build",
+        "--load",
+        "--file",
+        f"{export}/services/gateway/Dockerfile",
+        "--tag",
+        f"h4reet-gateway:{sha}",
+        "--build-arg",
+        f"HTTP_PROXY={GATEWAY_PROXY}",
+        "--build-arg",
+        f"HTTPS_PROXY={GATEWAY_PROXY}",
+        export,
+    ]
+    # On the agents' engine, with the Author's certificate (and, as for every tool, nothing else of the Author's
+    # shell: test_the_authors_environment_never_reaches_a_tool).
+    assert gateway["docker_env"] == {
+        "DOCKER_HOST": ENGINE,
+        "DOCKER_TLS_VERIFY": "1",
+        "DOCKER_CERT_PATH": f"{fx.home}/.config/h4reet-ai/agents-engine/docker",
+    }
+    # The gateway first, then the compose images.
+    (compose,) = by_kind(calls, "compose")
+    assert calls.index(gateway) < calls.index(compose)
+    assert status_of(done, "image") == "PASS"
+
+
+def test_a_failing_policy_builds_no_gateway_image_either(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "compose_policy.control").write_text(
+        "1\ncompose policy: 1 refusal(s)", encoding="utf-8"
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "image") == "FAIL"
+    assert by_kind(fx.docker(), "buildx") == []
+
+
+def test_no_engine_certificate_builds_no_gateway_image(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    shutil.rmtree(fx.home / ".config/h4reet-ai/agents-engine")
+    done = gate(fx, "feature")
+    assert status_of(done, "image") == "FAIL"
+    assert by_kind(fx.docker(), "buildx") == []
+
+
+def test_host_mode_still_builds_the_gateway_image(fx: Fixture) -> None:
+    sha = fx.branch(CHANGE)
+    done = gate(fx, "--host", "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    (gateway,) = by_kind(fx.docker(), "buildx")
+    assert f"h4reet-gateway:{sha}" in gateway["argv"]
+
+
+BUILDX_FAILS = r"""#!/usr/bin/env python3
+import json, os, sys
+here = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+if args[:1] == ["buildx"]:
+    with open(os.path.join(here, "docker.calls"), "a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"argv": args, "env_keys": [], "docker_env": {}}) + "\n")
+    print("buildx: a step failed")
+    sys.exit(1)
+real = os.path.join(here, "docker.real")
+os.execv(real, [real, *args])
+"""
+
+
+def test_a_gateway_image_that_doesnt_build_fails_the_step_before_compose(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    (fx.stubs / "docker").write_text(BUILDX_FAILS, encoding="utf-8")
+    (fx.stubs / "docker").chmod(0o755)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "image") == "FAIL"
+    assert "didn't build the gateway's image" in done.stdout
+    assert "deploy/agents-engine/engine.sh up" in done.stdout
+    assert len(by_kind(fx.docker(), "buildx")) == 1
+    assert by_kind(fx.docker(), "compose") == []

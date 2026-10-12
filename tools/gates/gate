@@ -53,8 +53,10 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
      git log shows no diff for. Anything at the export's root named .gitleaksignore refuses it first, since dir mode
      obeys one at the folder it scans (R-36). Its log is read as the range scan's, and a "WRN skipping" line, a file
      it couldn't read, fails it too; it must say how many bytes it scanned, more than none of a tree with content;
-   - image: the compose images, built on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
-     only after the policy passed, because an unvetted build could read host files into the engine;
+   - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
+     only after the policy passed, because an unvetted build could read host files into the engine: first the
+     gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
+     proxy; then the compose images;
    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
    - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
@@ -140,6 +142,8 @@ IMAGE_ID_RE = re.compile(r"sha256:[0-9a-f]{64}")
 RUN_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:+-]{0,199}")
 HOST_ENGINE = "unix:///var/run/docker.sock"
 AGENTS_ENGINE = "tcp://198.18.0.1:2376"
+# The agents' engine's egress proxy, which its builds reach npm through (contracts/agents-engine.md §4).
+AGENTS_PROXY = "http://198.18.0.1:3128"
 OTLP_URL = "http://127.0.0.1:18004/v1/metrics"
 DEVCONTAINER = "h4reet-devcontainer"
 RECORDING = "/run/h4-contract/recording.json"
@@ -1094,8 +1098,8 @@ def gitleaks_tree(repo: Path, export_dir: Path, tmp: Path) -> Step:
     return scan_verdict(step, findings, problems)
 
 
-def image(export_dir: Path, policy_step: Step, tmp: Path) -> Step:
-    begin("image", "the compose images, built on the agents' engine")
+def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
+    begin("image", "the gateway's and the compose images, built on the agents' engine")
     step = Step("image")
     if policy_step.status not in ("PASS", "PLANNED"):
         return step.fail(
@@ -1110,7 +1114,37 @@ def image(export_dir: Path, policy_step: Step, tmp: Path) -> Step:
         return step.fail(
             f"no client certificate for the agents' engine in {certs}: deploy/agents-engine/engine.sh setup"
         )
+    engine = tool_env(
+        DOCKER_HOST=AGENTS_ENGINE,
+        DOCKER_TLS_VERIFY="1",
+        DOCKER_CERT_PATH=str(certs),
+    )
+    # The gateway's image is make up's own build, outside compose (deploy/scripts/gateway_image.py; tasks.md T184),
+    # built here as it builds it, from the export.
     rc, out = stream(
+        [
+            docker,
+            "buildx",
+            "build",
+            "--load",
+            "--file",
+            str(export_dir / "services" / "gateway" / "Dockerfile"),
+            "--tag",
+            f"h4reet-gateway:{sha}",
+            "--build-arg",
+            f"HTTP_PROXY={AGENTS_PROXY}",
+            "--build-arg",
+            f"HTTPS_PROXY={AGENTS_PROXY}",
+            str(export_dir),
+        ],
+        engine,
+        tmp,
+    )
+    if rc != 0:
+        return step.fail(
+            "the agents' engine didn't build the gateway's image; if it's down: deploy/agents-engine/engine.sh up"
+        )
+    rc, more = stream(
         [
             docker,
             "compose",
@@ -1124,18 +1158,14 @@ def image(export_dir: Path, policy_step: Step, tmp: Path) -> Step:
             "*",
             "build",
         ],
-        tool_env(
-            DOCKER_HOST=AGENTS_ENGINE,
-            DOCKER_TLS_VERIFY="1",
-            DOCKER_CERT_PATH=str(certs),
-        ),
+        engine,
         tmp,
     )
     if rc != 0:
         return step.fail(
             "the agents' engine didn't build the images; if it's down: deploy/agents-engine/engine.sh up"
         )
-    return classify(step, rc, out)
+    return classify(step, rc, out + more)
 
 
 def changed_paths(
@@ -1540,7 +1570,7 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
         report.add(corpus(repo, export_dir))
         report.add(gitleaks(repo, sha, base, tmp))
         report.add(gitleaks_tree(repo, export_dir, tmp))
-        report.add(image(export_dir, policy_step, tmp))
+        report.add(image(export_dir, policy_step, tmp, sha))
         report.add(stage_e(repo, paths, prove, ref))
         report.add(agent_config_evals(repo, export_dir, base, paths))
         pushed = eval_history(repo, export_dir, base, sha, url)

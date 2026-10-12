@@ -1108,3 +1108,76 @@ def test_an_open_pins_mark_expires_with_its_task(tmp_path: Path) -> None:
     }
     ref = "docker.io/chrislusf/seaweedfs:3.97@sha256:" + "a" * 64
     assert cp.check_image(where, "seaweedfs", ref, pinned, tmp_path) == []
+
+
+# --------------------------------------------------------------------------------------------------
+# The gateway's one image per commit (tasks.md T184): make up builds it outside compose, and compose names it, never
+# pulling it. That one name, on the gateway alone, with pull_policy: never, is the only image no lock line pins.
+# --------------------------------------------------------------------------------------------------
+SHARED = "h4reet-gateway:${H4_REF:-working-tree}"
+
+
+def with_shared_gateway(**fields: object) -> dict:
+    model = good_model()
+    gateway = model["services"]["gateway"]
+    del gateway["build"]
+    gateway.update({"image": SHARED, "pull_policy": "never", **fields})
+    return model
+
+
+def test_the_gateways_shared_build_passes(tmp_path: Path) -> None:
+    assert findings(with_shared_gateway(), tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "policy", [None, "missing", "always", "if_not_present", "build", "daily"]
+)
+def test_the_shared_build_is_never_pulled(tmp_path: Path, policy: str | None) -> None:
+    model = with_shared_gateway(pull_policy=policy)
+    if policy is None:
+        del model["services"]["gateway"]["pull_policy"]
+    assert rules(model, tmp_path) == {("gateway", "pull_policy")}
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "h4reet-gateway:latest",
+        "h4reet-gateway:${H4_REF}",
+        "h4reet-gateway:${H4_REF:-latest}",
+        "h4reet-gateway:${H4_REF:?set by make up}",
+        "h4reet-gateway",
+        "docker.io/library/h4reet-gateway:${H4_REF:-working-tree}",
+        "ghcr.io/someone/h4reet-gateway:${H4_REF:-working-tree}",
+        "h4reet-gateway:x@sha256:" + "9" * 64,
+    ],
+)
+def test_any_other_spelling_of_it_is_an_unpinned_image(
+    tmp_path: Path, image: str
+) -> None:
+    assert ("gateway", "image") in rules(with_shared_gateway(image=image), tmp_path)
+
+
+def test_the_shared_name_is_the_gateways_alone(tmp_path: Path) -> None:
+    model = with_shared_gateway()
+    model["services"]["gateway-state"]["image"] = SHARED
+    model["services"]["gateway-state"]["pull_policy"] = "never"
+    assert rules(model, tmp_path) == {("gateway-state", "image")}
+
+
+def test_the_shared_build_still_meets_every_other_rule(tmp_path: Path) -> None:
+    # The exception covers the image's name alone: the service's other rules still apply.
+    model = with_shared_gateway(
+        privileged=True, networks={"internal": None, "edge": None}
+    )
+    assert {("gateway", "privileged"), ("gateway", "networks")} <= rules(
+        model, tmp_path
+    )
+
+
+def test_the_real_gateway_is_the_shared_build() -> None:
+    """The committed compose file names make up's build, with no build of its own, and passes as written."""
+    gateway = real_model()["services"]["gateway"]
+    assert (gateway["image"], gateway["pull_policy"]) == (SHARED, "never")
+    assert "build" not in gateway
+    assert cp.SHARED_IMAGES == {"gateway": SHARED}

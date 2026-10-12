@@ -22,7 +22,9 @@ and refuses, in what compose rendered:
   - an image without a digest, or one that differs from deploy/images.lock. One exception, reported PLANNED rather
     than refused: a service of OPEN_PINS whose lock line is still open (tag and digest "-") and whose image is that
     line's bare repository, until make pin-images pins it. Once the lock holds a digest the ordinary check applies,
-    so the mark expires with the pin (plan §11);
+    so the mark expires with the pin (plan §11). And one name that is no registry's: the image of SHARED_IMAGES,
+    make up's own build of the gateway (tasks.md T184), on that service alone, as written there, with pull_policy:
+    never, so compose never pulls an image by that name;
   - a build context that is absolute, interpolated, or outside the compose file's tree; a built service that
     names an image; inline Dockerfiles, extra contexts, host networking, and entitlements in a build;
   - plan §1's rules for every service: no container_name, no env_file, no external resource, no extra_hosts or
@@ -174,6 +176,11 @@ DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 OPEN_PINS = {"seaweedfs": "T063"}
 TASKS_FILE = "specs/000-local-foundations/tasks.md"
 PLANNED_RULE = "planned"
+# The gateway's one image per commit (tasks.md T184): make up builds it outside compose (deploy/scripts/
+# gateway_image.py), h4reet-gateway:<commit> from a host stack's export, or h4reet-gateway:working-tree on dev-cpu, and
+# the compose file names it, exactly as written here, with pull_policy: never. No registry has it, so no lock line
+# pins it; never pulled, a missing one stops the stack instead of fetching another by the same name.
+SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
 
 
 @dataclass(frozen=True)
@@ -505,6 +512,13 @@ def check_service(
         found.extend(check_build(where, build, image, tree))
     elif not image:
         refuse("image", "neither an image nor a build")
+    elif SHARED_IMAGES.get(name) == image:
+        if service.get("pull_policy") != "never":
+            refuse(
+                "pull_policy",
+                f"{image} is make up's own build, which no registry has: pull_policy: never, so compose never "
+                "pulls an image by that name",
+            )
     else:
         found.extend(check_image(where, name, str(image), lock, tree))
 
