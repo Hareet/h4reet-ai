@@ -52,6 +52,13 @@ Round 2:
 3. `deploy/agents-engine/engine.sh status` (`up` if it's down), then `make -f Makefile evals-agent-config REF=fix/000-gate-on-main`, and paste the commands it prints.
 4. `tools/gates/gate fix/000-gate-on-main`, then the merge command it prints.
 
+Round 2 was done as 3c386ab, 4907f2b, 2d81243 on main, and the passing run 2ed064c. The gate at 2ed064c then failed lint alone (17 PASS, 1 SKIP, 1 WARN), so there is a round 3:
+
+1. In `/tmp/claude-1000/wt-ruff`, which holds this branch: commit `ruff.toml` and this note.
+2. `tools/gates/gate fix/000-gate-on-main`, then the merge command it prints. `ruff.toml` is outside the trigger paths, so 2ed064c's evals run still covers the branch.
+
+**Round 3, what failed:** in the devcontainer, `ruff check .` found EXE001 ("Shebang is present but file is not executable") in 24 scripts. Each starts `#!/usr/bin/env python3` and is mode 100644 in git. Ruff 0.16's defaults include EXE001 and EXE002, but ruff doesn't run them under WSL, even with `--select EXE001`. That's where agents and the host run it, so only the gate's container saw them. The failure was there in every gate run, behind other failures. `ruff.toml` now ignores those two. Every script runs as `python3 -I …` (`PY_HOST`), never through its shebang, so a script's mode means nothing here. The shebang-content checks (EXE004, EXE005) stay on. The other way, if you'd rather: drop the 24 shebangs, 14 of them in human-only paths, so as a patch. Making the scripts executable would invite running them without the pinned interpreter.
+
 ## What changed
 
 | Commit | Change |
@@ -59,7 +66,9 @@ Round 2:
 | ee90a31 | The pin in `toolchain.vars` and the Dockerfile; plan.md's line on the pin, updated in the same commit; ADR 0004's sentence; the patch file. |
 | d36fadb | This note. |
 | 43f0158, 85cbd46 | Yours: the lint patch, and the first evals run's entry (fail). |
-| round 2 | `.prettierignore`: the four newer sandbox stubs. plan §14: the 600 s limit and the 75% threshold, with why. The eval patch file. This note's round 2. |
+| 3c386ab | Round 2: `.prettierignore`: the four newer sandbox stubs. plan §14: the 600 s limit and the 75% threshold, with why. The eval patch file. This note's round 2. |
+| 4907f2b, 2ed064c | Yours: the eval patch, and the second run's entry (pass: enforcement 10 of 10 cases, conduct 8 of 9 runs). |
+| round 3 | `ruff.toml`: ignore EXE001 and EXE002. This note's round 3. |
 
 ## Verification
 
