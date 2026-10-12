@@ -593,3 +593,27 @@ def test_redact_is_ops_filter_verbatim() -> None:
 )
 def test_redact_masks_the_usual_shapes(given: str, shown: str) -> None:
     assert st.redact(given + "\n") == shown + "\n"
+
+
+def test_the_gateways_shared_build_shows_as_built(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # tasks.md T184: compose names make up's one build per commit, h4reet-gateway:<commit>, which no lock line pins
+    # and compose never pulls, so status says "built", as it did for compose's own build, and warns of nothing.
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    gateway = {
+        k: v for k, v in docker.raw["services"]["gateway"].items() if k != "build"
+    }
+    gateway.update(
+        {"image": "h4reet-gateway:${H4_REF:-working-tree}", "pull_policy": "never"}
+    )
+    docker.raw["services"]["gateway"] = gateway
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    row = next(ln.split() for ln in out.splitlines() if ln.startswith("gateway "))
+    assert row[1:] == ["running", "healthy", "built"]
+    assert "id-gateway" not in [
+        c[3] for c in docker.calls if c[:3] == ("inspect", "--format", "{{.Image}}")
+    ]
+    assert out.rstrip().endswith("status: healthy")

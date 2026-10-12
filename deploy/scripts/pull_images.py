@@ -5,7 +5,8 @@
         [--root DIR]
 
 It pulls, by digest, every image deploy/compose.yaml runs in any profile, and the bases the stack's own images
-build on (base:node, base:python in deploy/images.lock), one at a time. An image already present is skipped. A
+build on (base:node, base:python in deploy/images.lock), one at a time; not the gateway's, which make up builds and
+no registry has (tasks.md T184). An image already present is skipped. A
 Docker Hub image that answers HTTP 429, its anonymous rate limit, is retried after 5, 15, and 45 s, and then named
 as a 429; any other failure stops that image at once. Docker Hub stays anonymous (R-29).
 
@@ -26,6 +27,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BACKOFF_S = (5, 15, 45)
 BASES = ("base:node", "base:python")
+# The gateway's one image per commit, which make up builds and compose never pulls (tasks.md T184;
+# deploy/scripts/gateway_image.py): no registry has it, so it is neither pulled nor unpinned.
+SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
 DOCKER_ENV = (
     "PATH",
     "HOME",
@@ -71,6 +75,8 @@ def wanted(
     for name, service in sorted(services.items()):
         image = service.get("image")
         if service.get("build") is not None or not image:
+            continue
+        if SHARED_IMAGES.get(name) == image and service.get("pull_policy") == "never":
             continue
         (refs if "@sha256:" in str(image) else unpinned).append(
             str(image) if "@sha256:" in str(image) else name

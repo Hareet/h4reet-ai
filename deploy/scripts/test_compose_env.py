@@ -153,8 +153,10 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
     assert SERVICES["gateway-state"]["networks"] == ["internal"]
 
 
-# Built from this file's own tree, each from its Dockerfile on a pinned base; every other service runs a pinned image.
-BUILT = ("gateway", "telegram-standin", "breach-probe")
+# Built from this file's own tree, each from its Dockerfile on a pinned base; the gateway runs make up's one build per
+# commit, outside compose (tasks.md T184); every other service runs a pinned image.
+BUILT = ("telegram-standin", "breach-probe")
+SHARED = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
 
 
 def test_images_are_the_locked_pins() -> None:
@@ -162,6 +164,8 @@ def test_images_are_the_locked_pins() -> None:
     for name, service in SERVICES.items():
         if name in BUILT:
             assert "image" not in service  # built from this file's own tree
+        elif name in SHARED:
+            assert (service["image"], service["pull_policy"]) == (SHARED[name], "never")
         else:
             assert service["image"] == pins[name], name
     assert [n for n, s in SERVICES.items() if "build" in s] == list(BUILT)
@@ -225,12 +229,12 @@ def test_the_model_servers() -> None:
     assert cpu["image"].startswith("ghcr.io/ggml-org/llama.cpp:server-b11459@")
 
 
-def test_the_gateway_builds_from_this_files_own_tree() -> None:
-    assert SERVICES["gateway"]["build"] == {
-        "context": "..",
-        "dockerfile": "services/gateway/Dockerfile",
-        "args": {"HTTP_PROXY": "${H4_BUILD_PROXY}", "HTTPS_PROXY": "${H4_BUILD_PROXY}"},
-    }
+def test_the_gateway_runs_make_ups_one_build_per_commit() -> None:
+    # compose neither builds nor pulls it: deploy/scripts/gateway_image.py builds it, with the context and build
+    # arguments compose's own builds use (test_gateway_image.py holds them), and a missing image stops the stack.
+    gateway = SERVICES["gateway"]
+    assert "build" not in gateway
+    assert (gateway["image"], gateway["pull_policy"]) == (SHARED["gateway"], "never")
 
 
 # The breach probe (plan §2 and §8; tasks.md T144, T080): a one-off client on the stack's internal network, where the
@@ -238,8 +242,8 @@ def test_the_gateway_builds_from_this_files_own_tree() -> None:
 
 
 def test_the_breach_probe_builds_from_this_files_own_tree() -> None:
-    # The same context and build arguments as the gateway's: the agents' engine builds through its proxy, and host
-    # stacks pass an empty H4_BUILD_PROXY (contracts/env-files.md §2).
+    # The same context and build arguments as the gateway's build in deploy/scripts/gateway_image.py: the agents'
+    # engine builds through its proxy, and host stacks pass an empty H4_BUILD_PROXY (contracts/env-files.md §2).
     assert SERVICES["breach-probe"]["build"] == {
         "context": "..",
         "dockerfile": "evals/Dockerfile.probe",
@@ -964,7 +968,8 @@ def test_the_build_proxy_is_a_build_argument_never_a_variable() -> None:
 
 def test_every_variable_compose_reads_is_in_the_env_files() -> None:
     """A variable without a default is in every env file (H4_TREE comes from the run file on host stacks); one
-    with a default is in at least one, so a misspelled name can't silently take its default."""
+    with a default is in at least one, or is a run-file key (H4_REF, the gateway's tag on host stacks: tasks.md T184),
+    so a misspelled name can't silently take its default."""
     every = {stack: keys(path) for stack, path in ENV_FILES.items()}
     used: dict[str, bool] = {}
     for text in strings(COMPOSE["services"]):
@@ -975,7 +980,7 @@ def test_every_variable_compose_reads_is_in_the_env_files() -> None:
     for name, has_default in sorted(used.items()):
         holders = [stack for stack, found in every.items() if name in found]
         if has_default:
-            assert holders, f"{name}: in no env file"
+            assert holders or name in RUN_FILE_KEYS, f"{name}: in no env file"
         else:
             missing = [
                 s

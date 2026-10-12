@@ -57,6 +57,10 @@ KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*")
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 HEX64_RE = re.compile(r"[0-9a-f]{64}")
 DEVCPU_TOKEN_RE = re.compile(r"h4op_devcpu_[A-Za-z0-9_-]{43}")
+# The gateway's one image per commit (tasks.md T184): make up builds it outside compose, after preflight
+# (deploy/scripts/gateway_image.py), and compose names it, as written here, with pull_policy: never and no build. No
+# registry has it, so no lock line pins it, and it is no image to pull.
+SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
 PORT_KEYS = (
     "H4_API_PORT",
     "H4_LANGFUSE_PORT",
@@ -323,6 +327,14 @@ def split_reference(ref: str) -> tuple[str, str | None, str | None]:
 def active(service: dict, profiles: set[str]) -> bool:
     wanted = set(service.get("profiles") or [])
     return not wanted or bool(wanted & profiles)
+
+
+def shared_build(name: str, service: dict) -> bool:
+    """The service runs make up's own build of the gateway, which compose never pulls (SHARED_IMAGES)."""
+    return (
+        SHARED_IMAGES.get(name) == service.get("image")
+        and service.get("pull_policy") == "never"
+    )
 
 
 def fmt_gb(n: int) -> str:
@@ -1046,7 +1058,9 @@ def images_missing(ctx: Context) -> list[str]:
     lock = read_lock(ctx.root / "deploy/images.lock")
     profiles = ctx.profiles()
     refs = []
-    for service in ctx.services().values():
+    for name, service in ctx.services().items():
+        if shared_build(name, service):
+            continue  # built by make up after preflight; its cached layers fit the margin
         if service.get("image") and (ctx.mode == "pull" or active(service, profiles)):
             refs.append(str(service["image"]))
     for base in ("base:node", "base:python"):
@@ -1226,10 +1240,15 @@ def p17(ctx: Context) -> Result:
     problems = []
     for name, service in sorted((model.get("services") or {}).items()):
         image = service.get("image")
-        if service.get("build") is not None or not image:
+        if service.get("build") is not None or not image or shared_build(name, service):
             continue
         repository, tag, digest = split_reference(str(image))
-        if lock.get(name, ("", "", ""))[1:] == ("-", "-"):
+        if SHARED_IMAGES.get(name) == image:
+            problems.append(
+                f"{name}: {image.split(':', 1)[0]} is make up's own build, which no registry has: compose must never pull it "
+                "(pull_policy: never)"
+            )
+        elif lock.get(name, ("", "", ""))[1:] == ("-", "-"):
             # An open pin (research.md R-09): the compose policy reports it PLANNED, but nothing starts unpinned.
             problems.append(
                 f"{name}: its pin in deploy/images.lock is still open: make pin-images resolves it"
@@ -1239,7 +1258,7 @@ def p17(ctx: Context) -> Result:
         elif lock.get(name) != (repository, tag, digest):
             problems.append(f"{name}: differs from deploy/images.lock")
     return summarize(
-        "P17", problems, "every image is pinned, as deploy/images.lock pins it"
+        "P17", problems, "every pulled image is pinned, as deploy/images.lock pins it"
     )
 
 

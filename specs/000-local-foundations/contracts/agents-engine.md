@@ -217,7 +217,7 @@ The plugin's log, the egress proxy's log ([§4](#4-egress-the-proxy)), and the f
 - **Models.** Hugging Face isn't on the list; the stand-in is seeded.
 - **What works:** npm and PyPI, so `npm ci` runs in the engine's builds.
 
-**The devcontainer image isn't built here.** Its build downloads Node from nodejs.org and runs apt against Ubuntu's mirrors, and neither is on the list. Adding them would widen agents' egress too, which CLAUDE.md says to ask about rather than do. On the engine, the image gate builds the compose images only: the gateway, the Telegram stand-in, and the probe. Their bases are seeded, and their `npm ci` goes through the proxy. The Author's gate builds the devcontainer image on the host's engine ([plan.md §11](../plan.md#11-local-gates-fr-041)), and so does whoever opens the devcontainer.
+**The devcontainer image isn't built here.** Its build downloads Node from nodejs.org and runs apt against Ubuntu's mirrors, and neither is on the list. Adding them would widen agents' egress too, which CLAUDE.md says to ask about rather than do. On the engine, the image gate builds the stack's own images only: the gateway's, outside compose as `make up` builds it (tasks.md T184), then compose's Telegram stand-in and probe. Their bases are seeded, and their `npm ci` goes through the proxy. The Author's gate builds the devcontainer image on the host's engine ([plan.md §11](../plan.md#11-local-gates-fr-041)), and so does whoever opens the devcontainer.
 
 The proxied pulls are disclosed as the "Development time: the engine's proxied pulls" flow (plan §17).
 

@@ -1,0 +1,328 @@
+--- a/tools/gates/compose_policy.py
++++ b/tools/gates/compose_policy.py
+@@ -22,7 +22,9 @@
+   - an image without a digest, or one that differs from deploy/images.lock. One exception, reported PLANNED rather
+     than refused: a service of OPEN_PINS whose lock line is still open (tag and digest "-") and whose image is that
+     line's bare repository, until make pin-images pins it. Once the lock holds a digest the ordinary check applies,
+-    so the mark expires with the pin (plan §11);
++    so the mark expires with the pin (plan §11). And one name that is no registry's: the image of SHARED_IMAGES,
++    make up's own build of the gateway (tasks.md T184), on that service alone, as written there, with pull_policy:
++    never, so compose never pulls an image by that name;
+   - a build context that is absolute, interpolated, or outside the compose file's tree; a built service that
+     names an image; inline Dockerfiles, extra contexts, host networking, and entitlements in a build;
+   - plan §1's rules for every service: no container_name, no env_file, no external resource, no extra_hosts or
+@@ -174,6 +176,11 @@
+ OPEN_PINS = {"seaweedfs": "T063"}
+ TASKS_FILE = "specs/000-local-foundations/tasks.md"
+ PLANNED_RULE = "planned"
++# The gateway's one image per commit (tasks.md T184): make up builds it outside compose (deploy/scripts/
++# gateway_image.py), h4reet-gateway:<commit> from a host stack's export, or h4reet-gateway:working-tree on dev-cpu, and
++# the compose file names it, exactly as written here, with pull_policy: never. No registry has it, so no lock line
++# pins it; never pulled, a missing one stops the stack instead of fetching another by the same name.
++SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
+ 
+ 
+ @dataclass(frozen=True)
+@@ -505,6 +512,13 @@
+         found.extend(check_build(where, build, image, tree))
+     elif not image:
+         refuse("image", "neither an image nor a build")
++    elif SHARED_IMAGES.get(name) == image:
++        if service.get("pull_policy") != "never":
++            refuse(
++                "pull_policy",
++                f"{image} is make up's own build, which no registry has: pull_policy: never, so compose never "
++                "pulls an image by that name",
++            )
+     else:
+         found.extend(check_image(where, name, str(image), lock, tree))
+ 
+--- a/tools/gates/test/test_compose_policy.py
++++ b/tools/gates/test/test_compose_policy.py
+@@ -1108,3 +1108,76 @@
+     }
+     ref = "docker.io/chrislusf/seaweedfs:3.97@sha256:" + "a" * 64
+     assert cp.check_image(where, "seaweedfs", ref, pinned, tmp_path) == []
++
++
++# --------------------------------------------------------------------------------------------------
++# The gateway's one image per commit (tasks.md T184): make up builds it outside compose, and compose names it, never
++# pulling it. That one name, on the gateway alone, with pull_policy: never, is the only image no lock line pins.
++# --------------------------------------------------------------------------------------------------
++SHARED = "h4reet-gateway:${H4_REF:-working-tree}"
++
++
++def with_shared_gateway(**fields: object) -> dict:
++    model = good_model()
++    gateway = model["services"]["gateway"]
++    del gateway["build"]
++    gateway.update({"image": SHARED, "pull_policy": "never", **fields})
++    return model
++
++
++def test_the_gateways_shared_build_passes(tmp_path: Path) -> None:
++    assert findings(with_shared_gateway(), tmp_path) == []
++
++
++@pytest.mark.parametrize(
++    "policy", [None, "missing", "always", "if_not_present", "build", "daily"]
++)
++def test_the_shared_build_is_never_pulled(tmp_path: Path, policy: str | None) -> None:
++    model = with_shared_gateway(pull_policy=policy)
++    if policy is None:
++        del model["services"]["gateway"]["pull_policy"]
++    assert rules(model, tmp_path) == {("gateway", "pull_policy")}
++
++
++@pytest.mark.parametrize(
++    "image",
++    [
++        "h4reet-gateway:latest",
++        "h4reet-gateway:${H4_REF}",
++        "h4reet-gateway:${H4_REF:-latest}",
++        "h4reet-gateway:${H4_REF:?set by make up}",
++        "h4reet-gateway",
++        "docker.io/library/h4reet-gateway:${H4_REF:-working-tree}",
++        "ghcr.io/someone/h4reet-gateway:${H4_REF:-working-tree}",
++        "h4reet-gateway:x@sha256:" + "9" * 64,
++    ],
++)
++def test_any_other_spelling_of_it_is_an_unpinned_image(
++    tmp_path: Path, image: str
++) -> None:
++    assert ("gateway", "image") in rules(with_shared_gateway(image=image), tmp_path)
++
++
++def test_the_shared_name_is_the_gateways_alone(tmp_path: Path) -> None:
++    model = with_shared_gateway()
++    model["services"]["gateway-state"]["image"] = SHARED
++    model["services"]["gateway-state"]["pull_policy"] = "never"
++    assert rules(model, tmp_path) == {("gateway-state", "image")}
++
++
++def test_the_shared_build_still_meets_every_other_rule(tmp_path: Path) -> None:
++    # The exception covers the image's name alone: the service's other rules still apply.
++    model = with_shared_gateway(
++        privileged=True, networks={"internal": None, "edge": None}
++    )
++    assert {("gateway", "privileged"), ("gateway", "networks")} <= rules(
++        model, tmp_path
++    )
++
++
++def test_the_real_gateway_is_the_shared_build() -> None:
++    """The committed compose file names make up's build, with no build of its own, and passes as written."""
++    gateway = real_model()["services"]["gateway"]
++    assert (gateway["image"], gateway["pull_policy"]) == (SHARED, "never")
++    assert "build" not in gateway
++    assert cp.SHARED_IMAGES == {"gateway": SHARED}
+--- a/tools/gates/gate
++++ b/tools/gates/gate
+@@ -53,8 +53,10 @@
+      git log shows no diff for. Anything at the export's root named .gitleaksignore refuses it first, since dir mode
+      obeys one at the folder it scans (R-36). Its log is read as the range scan's, and a "WRN skipping" line, a file
+      it couldn't read, fails it too; it must say how many bytes it scanned, more than none of a tree with content;
+-   - image: the compose images, built on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
+-     only after the policy passed, because an unvetted build could read host files into the engine;
++   - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
++     only after the policy passed, because an unvetted build could read host files into the engine: first the
++     gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
++     proxy; then the compose images;
+    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
+      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
+    - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
+@@ -140,6 +142,8 @@
+ RUN_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:+-]{0,199}")
+ HOST_ENGINE = "unix:///var/run/docker.sock"
+ AGENTS_ENGINE = "tcp://198.18.0.1:2376"
++# The agents' engine's egress proxy, which its builds reach npm through (contracts/agents-engine.md §4).
++AGENTS_PROXY = "http://198.18.0.1:3128"
+ OTLP_URL = "http://127.0.0.1:18004/v1/metrics"
+ DEVCONTAINER = "h4reet-devcontainer"
+ RECORDING = "/run/h4-contract/recording.json"
+@@ -1094,8 +1098,8 @@
+     return scan_verdict(step, findings, problems)
+ 
+ 
+-def image(export_dir: Path, policy_step: Step, tmp: Path) -> Step:
+-    begin("image", "the compose images, built on the agents' engine")
++def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
++    begin("image", "the gateway's and the compose images, built on the agents' engine")
+     step = Step("image")
+     if policy_step.status not in ("PASS", "PLANNED"):
+         return step.fail(
+@@ -1110,9 +1114,39 @@
+         return step.fail(
+             f"no client certificate for the agents' engine in {certs}: deploy/agents-engine/engine.sh setup"
+         )
++    engine = tool_env(
++        DOCKER_HOST=AGENTS_ENGINE,
++        DOCKER_TLS_VERIFY="1",
++        DOCKER_CERT_PATH=str(certs),
++    )
++    # The gateway's image is make up's own build, outside compose (deploy/scripts/gateway_image.py; tasks.md T184),
++    # built here as it builds it, from the export.
+     rc, out = stream(
+         [
+             docker,
++            "buildx",
++            "build",
++            "--load",
++            "--file",
++            str(export_dir / "services" / "gateway" / "Dockerfile"),
++            "--tag",
++            f"h4reet-gateway:{sha}",
++            "--build-arg",
++            f"HTTP_PROXY={AGENTS_PROXY}",
++            "--build-arg",
++            f"HTTPS_PROXY={AGENTS_PROXY}",
++            str(export_dir),
++        ],
++        engine,
++        tmp,
++    )
++    if rc != 0:
++        return step.fail(
++            "the agents' engine didn't build the gateway's image; if it's down: deploy/agents-engine/engine.sh up"
++        )
++    rc, more = stream(
++        [
++            docker,
+             "compose",
+             "-p",
+             "h4reet-dev-cpu",
+@@ -1124,18 +1158,14 @@
+             "*",
+             "build",
+         ],
+-        tool_env(
+-            DOCKER_HOST=AGENTS_ENGINE,
+-            DOCKER_TLS_VERIFY="1",
+-            DOCKER_CERT_PATH=str(certs),
+-        ),
++        engine,
+         tmp,
+     )
+     if rc != 0:
+         return step.fail(
+             "the agents' engine didn't build the images; if it's down: deploy/agents-engine/engine.sh up"
+         )
+-    return classify(step, rc, out)
++    return classify(step, rc, out + more)
+ 
+ 
+ def changed_paths(
+@@ -1540,7 +1570,7 @@
+         report.add(corpus(repo, export_dir))
+         report.add(gitleaks(repo, sha, base, tmp))
+         report.add(gitleaks_tree(repo, export_dir, tmp))
+-        report.add(image(export_dir, policy_step, tmp))
++        report.add(image(export_dir, policy_step, tmp, sha))
+         report.add(stage_e(repo, paths, prove, ref))
+         report.add(agent_config_evals(repo, export_dir, base, paths))
+         pushed = eval_history(repo, export_dir, base, sha, url)
+--- a/tools/gates/test/test_gate.py
++++ b/tools/gates/test/test_gate.py
+@@ -2193,3 +2193,102 @@
+     done = gate(fx, "--contract-replay", str(recording(fx)), *extra)
+     assert done.returncode == 2
+     assert fx.docker() == []
++
++
++# --------------------------------------------------------------------------------------------------
++# The gateway's image, outside compose, as make up builds it (tasks.md T184)
++# --------------------------------------------------------------------------------------------------
++GATEWAY_PROXY = "http://198.18.0.1:3128"  # the agents' engine's egress proxy
++
++
++def test_the_image_step_builds_the_gateway_as_make_up_does_then_the_compose_images(
++    fx: Fixture,
++) -> None:
++    sha = fx.branch(CHANGE)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    calls = fx.docker()
++    (devcontainer,) = by_kind(calls, "build")
++    export = devcontainer["argv"][-1]
++    (gateway,) = by_kind(calls, "buildx")
++    assert gateway["argv"] == [
++        "buildx",
++        "build",
++        "--load",
++        "--file",
++        f"{export}/services/gateway/Dockerfile",
++        "--tag",
++        f"h4reet-gateway:{sha}",
++        "--build-arg",
++        f"HTTP_PROXY={GATEWAY_PROXY}",
++        "--build-arg",
++        f"HTTPS_PROXY={GATEWAY_PROXY}",
++        export,
++    ]
++    # On the agents' engine, with the Author's certificate (and, as for every tool, nothing else of the Author's
++    # shell: test_the_authors_environment_never_reaches_a_tool).
++    assert gateway["docker_env"] == {
++        "DOCKER_HOST": ENGINE,
++        "DOCKER_TLS_VERIFY": "1",
++        "DOCKER_CERT_PATH": f"{fx.home}/.config/h4reet-ai/agents-engine/docker",
++    }
++    # The gateway first, then the compose images.
++    (compose,) = by_kind(calls, "compose")
++    assert calls.index(gateway) < calls.index(compose)
++    assert status_of(done, "image") == "PASS"
++
++
++def test_a_failing_policy_builds_no_gateway_image_either(fx: Fixture) -> None:
++    fx.branch(CHANGE)
++    (fx.logs / "compose_policy.control").write_text(
++        "1\ncompose policy: 1 refusal(s)", encoding="utf-8"
++    )
++    done = gate(fx, "feature")
++    assert status_of(done, "image") == "FAIL"
++    assert by_kind(fx.docker(), "buildx") == []
++
++
++def test_no_engine_certificate_builds_no_gateway_image(fx: Fixture) -> None:
++    fx.branch(CHANGE)
++    shutil.rmtree(fx.home / ".config/h4reet-ai/agents-engine")
++    done = gate(fx, "feature")
++    assert status_of(done, "image") == "FAIL"
++    assert by_kind(fx.docker(), "buildx") == []
++
++
++def test_host_mode_still_builds_the_gateway_image(fx: Fixture) -> None:
++    sha = fx.branch(CHANGE)
++    done = gate(fx, "--host", "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    (gateway,) = by_kind(fx.docker(), "buildx")
++    assert f"h4reet-gateway:{sha}" in gateway["argv"]
++
++
++BUILDX_FAILS = r"""#!/usr/bin/env python3
++import json, os, sys
++here = os.path.dirname(os.path.abspath(__file__))
++args = sys.argv[1:]
++if args[:1] == ["buildx"]:
++    with open(os.path.join(here, "docker.calls"), "a", encoding="utf-8") as handle:
++        handle.write(json.dumps({"argv": args, "env_keys": [], "docker_env": {}}) + "\n")
++    print("buildx: a step failed")
++    sys.exit(1)
++real = os.path.join(here, "docker.real")
++os.execv(real, [real, *args])
++"""
++
++
++def test_a_gateway_image_that_doesnt_build_fails_the_step_before_compose(
++    fx: Fixture,
++) -> None:
++    fx.branch(CHANGE)
++    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
++    (fx.stubs / "docker").write_text(BUILDX_FAILS, encoding="utf-8")
++    (fx.stubs / "docker").chmod(0o755)
++    done = gate(fx, "feature")
++    assert done.returncode == 1
++    assert status_of(done, "image") == "FAIL"
++    assert "didn't build the gateway's image" in done.stdout
++    assert "deploy/agents-engine/engine.sh up" in done.stdout
++    assert len(by_kind(fx.docker(), "buildx")) == 1
++    assert by_kind(fx.docker(), "compose") == []

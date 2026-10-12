@@ -184,13 +184,13 @@ git-hooks: ## Install the git hooks that keep main the Author's, once per clone 
 	git config gc.packRefs false; \
 	echo "git hooks: installed in $$hooks"
 
-build: ## Build the workspaces, then the compose images on the agents' engine, where there is one; prints BUILD OK
+build: ## Build the workspaces, then the gateway's and the compose images on the agents' engine, where there is one; prints BUILD OK
 	$(CONTAINED)
 	$(call NPM_WS,run build)
 ifeq ($(ENGINE_MODE),relay)
-	@$(RELAY) make --no-print-directory compose-images ENV=dev-cpu || { echo "build: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
+	@$(RELAY) make --no-print-directory gateway-image compose-images ENV=dev-cpu || { echo "build: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
 else ifeq ($(ENGINE_MODE),direct)
-	@$(MAKE) --no-print-directory compose-images
+	@$(MAKE) --no-print-directory gateway-image compose-images
 else
 	@echo "compose images: $(if $(filter none-yet,$(ENGINE_MODE)),no agents' engine yet (tasks.md T046),no docker CLI here; the Author's gate builds them on the agents' engine)"
 endif
@@ -286,6 +286,13 @@ NOT_STARTED = [ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "h4reet-$(ENV
 # rollback can run, has neither the script nor a model to fetch.
 PULL_MODELS = if [ -f $(1)/deploy/scripts/pull-models.sh ]; then bash $(1)/deploy/scripts/pull-models.sh --stack $(ENV) --env-file $(ENVFILE) $(2); \
   else echo "models: the commit being run has no deploy/scripts/pull-models.sh, and no model server to fetch for"; fi
+# The gateway's one image per commit (tasks.md T184): deploy/scripts/gateway_image.py, from $(1), the tree being
+# started, builds h4reet-gateway:<commit> outside compose on a host stack's engine, once: prod and dev at one commit
+# share it, so they run one image ID. On dev-cpu it builds the working tree as h4reet-gateway:working-tree, every run.
+# compose names that image and never pulls it. A commit older than the script, which a rollback can run, builds its
+# gateway in compose, as its compose file says.
+GATEWAY_IMAGE = if [ -f $(1)/deploy/scripts/gateway_image.py ]; then $(PY_HOST) $(1)/deploy/scripts/gateway_image.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)); \
+  else echo "gateway image: the commit being run has no deploy/scripts/gateway_image.py, so its compose file builds the gateway"; fi
 
 ifeq ($(VIA_RELAY),1)
 # Inside the sandbox: the same target again, through the relay, on the agents' engine. MAKEFLAGS carries the rest of
@@ -295,10 +302,11 @@ up down logs status:
 	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make $@: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
 	$(RELAY) make --no-print-directory $@ ENV=dev-cpu
 else
-up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, then every service, healthy
+up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, the gateway's image, then every service, healthy
 	@$(if $(RUNFILE),:,[ -z "$(call from_cli,REF)" ] || { echo "make up: dev-cpu runs the working tree; REF= is for prod and dev" >&2; exit 2; })
 	$(PY_HOST) $(TREE)/deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR)$(REF_ARG)
 	@$(call PULL_MODELS,$(TREE),)
+	@$(call GATEWAY_IMAGE,$(TREE))
 	@# Every service healthy, or status names the one that isn't, with its health output and error lines, redacted;
 	@# the rest keep running, and hello answers degraded (plan §4). --remove-orphans retires a service the commit dropped.
 	@$(COMPOSE) up -d --build --remove-orphans --wait --wait-timeout 600; up=$$?; \
@@ -338,28 +346,35 @@ pull: ## (the Author) Pull every image by digest, Docker Hub's one at a time wit
 
 # The image gate (plan §11): SKIP before the agents' engine exists (tasks.md T046), and FAIL once it exists and
 # doesn't build them. The devcontainer has no docker CLI; the Author's gate builds the images on the engine.
-image: ## The image gate: the compose images built on the agents' engine (plan §11)
+image: ## The image gate: the gateway's and the compose images built on the agents' engine (plan §11)
 ifeq ($(ENGINE_MODE),relay)
-	@$(RELAY) make --no-print-directory compose-images ENV=dev-cpu || { echo "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
+	@$(RELAY) make --no-print-directory gateway-image compose-images ENV=dev-cpu || { echo "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
 else ifeq ($(ENGINE_MODE),none-yet)
 	@echo "SKIP: no agents' engine yet: tasks.md T046"
 else ifeq ($(ENGINE_MODE),no-cli)
 	@echo "SKIP: no docker CLI here (the devcontainer); the Author's gate builds the images on the agents' engine"
 else
-	@$(MAKE) --no-print-directory compose-images
+	@$(MAKE) --no-print-directory gateway-image compose-images
 endif
 
-# Every image this tree builds (the gateway and the breach probe; the stand-ins once they exist), in every profile, with
-# dev-cpu's env file, on the agents' engine only: through the relay in a session (DOCKER_HOST is the relay's), or the
-# Author's gate on 198.18.0.1 (T092). It builds the live working tree, which agents write, so the host's rootful engine,
-# where nothing of the working tree's may be built or run (FR-039), never builds it (round 3's review). The agents'
-# engine builds through its proxy (H4_BUILD_PROXY).
-compose-images:
-	@case "$${DOCKER_HOST:-}" in \
+# The images this tree builds, on the agents' engine only: through the relay in a session (DOCKER_HOST is the relay's),
+# or the Author's gate on 198.18.0.1 (T092). They are the live working tree's, which agents write, so the host's rootful
+# engine, where nothing of the working tree's may be built or run (FR-039), never builds them (round 3's review). The
+# agents' engine builds through its proxy (H4_BUILD_PROXY).
+AGENTS_ENGINE_ONLY = case "$${DOCKER_HOST:-}" in \
 	  $(RELAY_HOST)) [ "$${SANDBOX_RUNTIME:-}" = 1 ] || { echo "make $@: $(RELAY_HOST) is the relay's only inside the sandbox; from here, set DOCKER_HOST=tcp://198.18.0.1:2376 (the agents' engine)" >&2; exit 2; } ;; \
 	  tcp://198.18.0.1:2376) ;; \
 	  *) echo "make $@ builds the working tree's images on the agents' engine only, never on this shell's engine (FR-039): through the relay in an agent session, or with DOCKER_HOST=tcp://198.18.0.1:2376" >&2; exit 2 ;; \
 	esac
+
+# The gateway's image, h4reet-gateway:working-tree, outside compose, as make up ENV=dev-cpu builds it (tasks.md T184).
+gateway-image:
+	@$(AGENTS_ENGINE_ONLY)
+	$(PY_HOST) deploy/scripts/gateway_image.py --stack dev-cpu --env-file deploy/env.agents/dev-cpu.vars
+
+# compose's own images (the Telegram stand-in and the breach probe), in every profile, with dev-cpu's env file.
+compose-images:
+	@$(AGENTS_ENGINE_ONLY)
 	docker compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars --profile '*' build
 
 # Both host stacks up on the host's engine; it runs from the working tree, like pull and pin-images (plan §4, FR-020).
@@ -520,7 +535,7 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
+	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or

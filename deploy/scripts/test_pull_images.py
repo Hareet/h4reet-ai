@@ -175,3 +175,28 @@ def test_docker_hub_detection() -> None:
 def test_inside_the_sandbox_it_refuses(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     assert run(FakeDocker({}, set(), {}), []) == 2
+
+
+def test_make_ups_own_gateway_build_is_never_pulled(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # tasks.md T184: compose names h4reet-gateway:<commit>, which make up builds and compose never pulls
+    # (pull_policy: never). It is neither pulled nor reported as unpinned; any other unpinned image still is.
+    services = {
+        "gateway": {
+            "image": "h4reet-gateway:${H4_REF:-working-tree}",
+            "pull_policy": "never",
+        },
+        "edge": {"image": ref("edge")},
+    }
+    fake = FakeDocker(services, {ref("edge")}, {})
+    assert run(fake, []) == 0
+    assert not [c for c in fake.calls if "h4reet-gateway" in c[-1]]
+    assert "gateway" not in capsys.readouterr().err
+    services["edge"] = {
+        "image": "ghcr.io/nginx/nginx-unprivileged:latest",
+        "pull_policy": "never",
+    }
+    fake = FakeDocker(services, set(), {})
+    assert run(fake, []) == 1
+    assert "edge: its image isn't pinned by digest" in capsys.readouterr().err

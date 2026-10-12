@@ -1,14 +1,15 @@
-# The gateway's image (plan §2; tasks.md T028). Built from the repository root as its context: in
-# deploy/compose.yaml the gateway's build.context is `..`, relative to the compose file, so on a host stack it
-# resolves inside the run's export of the commit, and on dev-cpu inside the working tree. The compose policy
-# (tasks.md T037) refuses any other context. .dockerignore keeps .git, env files, node_modules, and dist out.
+# The gateway's image (plan §2 and §4; tasks.md T028, T184). Built once per commit, outside compose, by
+# deploy/scripts/gateway_image.py, with the repository root as its context: on a host stack the run's export of the
+# commit, as h4reet-gateway:<commit>, which prod and dev share; on dev-cpu the working tree, as
+# h4reet-gateway:working-tree. deploy/compose.yaml names that image and never builds or pulls it. .dockerignore keeps
+# .git, env files, node_modules, and dist out.
 #
 # Both stages use the same base, pinned by digest. There is no `# syntax=` line: it would pull an unpinned
 # frontend image.
 
 # ---- build: install with the lockfile, compile, then drop the dev dependencies ----
 FROM public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS build
-# On the agents' engine npm reaches the registry only through the egress proxy: compose passes H4_BUILD_PROXY as
+# On the agents' engine npm reaches the registry only through the egress proxy: the build passes H4_BUILD_PROXY as
 # the HTTP_PROXY and HTTPS_PROXY build arguments (contracts/env-files.md §2). Those are Docker's predefined proxy
 # arguments, which RUN sees without an ARG line, so they stay out of the image history; the runtime stage has no
 # RUN, and its environment never holds them. On host stacks they are empty.

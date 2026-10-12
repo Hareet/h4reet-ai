@@ -1164,3 +1164,68 @@ def test_env_parsing_matches_the_grammar() -> None:
     values, errors = pf.parse_env("A='p$ss #1'\nB=\n# c\n\nC=x\n")
     assert values == {"A": "p$ss #1", "B": "", "C": "x"} and errors == []
     assert os.path.basename(pf.__file__) == "preflight.py"
+
+
+# --------------------------------------------------------------------------------------------------
+# The gateway's one build per commit (tasks.md T184): make up builds h4reet-gateway:<commit> outside compose, and
+# compose names it with pull_policy: never and no build. P17 takes that one name on the gateway alone, and P13 never
+# counts it as an image to pull.
+# --------------------------------------------------------------------------------------------------
+SHARED_GATEWAY = "h4reet-gateway:${H4_REF:-working-tree}"
+
+
+def make_ups_gateway(stage: Stage, **fields: object) -> dict:
+    gateway = {
+        k: v for k, v in stage.host.raw["services"]["gateway"].items() if k != "build"
+    }
+    gateway.update({"image": SHARED_GATEWAY, "pull_policy": "never", **fields})
+    stage.host.raw["services"]["gateway"] = gateway
+    return gateway
+
+
+def test_p17_takes_the_gateways_shared_build(dev: Stage) -> None:
+    make_ups_gateway(dev)
+    assert dev.results()["P17"].status == "PASS"
+
+
+@pytest.mark.parametrize("policy", [None, "missing", "always", "build"])
+def test_p17_the_shared_build_is_never_pulled(dev: Stage, policy: str | None) -> None:
+    gateway = make_ups_gateway(dev, pull_policy=policy)
+    if policy is None:
+        del gateway["pull_policy"]
+    result = dev.results()["P17"]
+    assert result.status == "FAIL"
+    assert "gateway: h4reet-gateway is make up's own build" in result.reason
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "h4reet-gateway:latest",
+        "h4reet-gateway:${H4_REF}",
+        "ghcr.io/someone/h4reet-gateway:${H4_REF:-working-tree}",
+    ],
+)
+def test_p17_any_other_unpinned_gateway_image_is_refused(
+    dev: Stage, image: str
+) -> None:
+    make_ups_gateway(dev, image=image)
+    assert "gateway: not pinned by digest" in dev.results()["P17"].reason
+
+
+def test_p17_the_shared_name_is_the_gateways_alone(dev: Stage) -> None:
+    make_ups_gateway(dev)
+    dev.host.raw["services"]["edge"]["image"] = SHARED_GATEWAY
+    dev.host.raw["services"]["edge"]["pull_policy"] = "never"
+    result = dev.results()["P17"]
+    assert result.status == "FAIL" and "edge: not pinned by digest" in result.reason
+
+
+def test_p13_never_counts_the_shared_build_as_an_image_to_pull(prod: Stage) -> None:
+    # make up builds it after preflight, from layers mostly cached: the 20 GB margin covers it, as it covered the
+    # per-stack build before.
+    make_ups_gateway(prod)
+    result = prod.results()["P13"]
+    assert result.status == "PASS" and "0 image(s) missing locally" in result.reason
+    asked = [c[-1] for c in prod.host.docker_calls if c[:2] == ("image", "inspect")]
+    assert asked and not [r for r in asked if "h4reet-gateway" in r]
