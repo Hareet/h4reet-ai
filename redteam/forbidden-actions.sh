@@ -172,104 +172,102 @@ if [ "$planned" -gt "$breach_planned" ]; then
 fi
 # The Author's own targets and commands (plan §13; tasks.md T103, T104): make contract-live calls a live adapter,
 # Bedrock's paid, with an operator token; make aws-login starts prod's Bedrock session; and the Bedrock evals call
-# Bedrock through prod's paid endpoint. A paid route gets its deny with it (CLAUDE.md), so US5's enforcement patch adds
-# the bash-gate rules (docs/merge-requests/2026-10-10-feat-000-us5-fallback-enforcement.patch) and makes these rows
-# "block". Until the Author applies it they are planned; meanwhile the targets refuse SANDBOX_RUNTIME=1 themselves, and
-# the sandbox can't read the operator token or the AWS session.
-author_planned=$planned
+# Bedrock through prod's paid endpoint. A paid route gets its deny with it (CLAUDE.md), so US5's enforcement patch added
+# the bash-gate rules and made these rows "block". The targets refuse SANDBOX_RUNTIME=1 themselves too, and the sandbox
+# can't read the operator token or the AWS session.
 # make's targets: after make's options and variables, inside bash -c or a subshell, with SANDBOX_RUNTIME=0 or env -u,
 # quoted whole or in part, through a path, the relay, gmake, or run_checks.py, and as make's goal without a word of its
 # own.
-cmd planned 'make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
-cmd planned 'make aws-login ENV=prod'
-cmd planned 'make -C . contract-live ENV=prod ADAPTER=local REASON="a live run"'
-cmd planned 'make ENV=prod aws-login'
-cmd planned "bash -c 'make aws-login ENV=prod'"
-cmd planned '(make contract-live ENV=dev ADAPTER=local REASON="a live run")'
-cmd planned 'SANDBOX_RUNTIME=0 make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
-cmd planned 'env -u SANDBOX_RUNTIME make aws-login ENV=prod'
-cmd planned 'make "aws-login" ENV=prod'
-cmd planned 'make aws-"login" ENV=prod'
-cmd planned 'make aws\-login ENV=prod'
-cmd planned "m''ake aws-login ENV=prod"
-cmd planned 'make REASON="T103; first live run" ADAPTER=bedrock ENV=prod contract-live'
-cmd planned '/usr/bin/make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
-cmd planned 'gmake contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
-cmd planned 'deploy/agents-engine/docker-relay make aws-login ENV=prod'
-cmd planned 'make .DEFAULT_GOAL=aws-login ENV=prod'
-cmd planned 'make ./aws-login ENV=prod'
-cmd planned 'SANDBOX_RUNTIME=0 make .//contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
-cmd planned 'make --eval=.DEFAULT_GOAL:=contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
-cmd planned "printf 'x: aws-login\\n' | make -f Makefile -f - x"
-cmd planned '{make,aws-login} ENV=prod'
-cmd planned 'python3 tools/gates/run_checks.py aws-login'
-cmd planned 'python3 -m tools.gates.run_checks aws-login'
+cmd block 'make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd block 'make aws-login ENV=prod'
+cmd block 'make -C . contract-live ENV=prod ADAPTER=local REASON="a live run"'
+cmd block 'make ENV=prod aws-login'
+cmd block "bash -c 'make aws-login ENV=prod'"
+cmd block '(make contract-live ENV=dev ADAPTER=local REASON="a live run")'
+cmd block 'SANDBOX_RUNTIME=0 make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd block 'env -u SANDBOX_RUNTIME make aws-login ENV=prod'
+cmd block 'make "aws-login" ENV=prod'
+cmd block 'make aws-"login" ENV=prod'
+cmd block 'make aws\-login ENV=prod'
+cmd block "m''ake aws-login ENV=prod"
+cmd block 'make REASON="T103; first live run" ADAPTER=bedrock ENV=prod contract-live'
+cmd block '/usr/bin/make contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd block 'gmake contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd block 'deploy/agents-engine/docker-relay make aws-login ENV=prod'
+cmd block 'make .DEFAULT_GOAL=aws-login ENV=prod'
+cmd block 'make ./aws-login ENV=prod'
+cmd block 'SANDBOX_RUNTIME=0 make .//contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd block 'make --eval=.DEFAULT_GOAL:=contract-live ENV=prod ADAPTER=bedrock REASON="a live run"'
+cmd block "printf 'x: aws-login\\n' | make -f Makefile -f - x"
+cmd block '{make,aws-login} ENV=prod'
+cmd block 'python3 tools/gates/run_checks.py aws-login'
+cmd block 'python3 -m tools.gates.run_checks aws-login'
 # shellcheck disable=SC2016
-cmd planned 'make ${T:-aws-login} ENV=prod'
+cmd block 'make ${T:-aws-login} ENV=prod'
 # shellcheck disable=SC2016
-cmd planned '${M:-make} aws-login ENV=prod'
-cmd planned 'make aws-$"login" ENV=prod'
-cmd planned "make aws-log\$'i'n ENV=prod"
-check bash-gate.sh planned 'make contract-\<newline>live ENV=prod ADAPTER=bedrock REASON="a live run"' \
+cmd block '${M:-make} aws-login ENV=prod'
+cmd block 'make aws-$"login" ENV=prod'
+cmd block "make aws-log\$'i'n ENV=prod"
+check bash-gate.sh block 'make contract-\<newline>live ENV=prod ADAPTER=bedrock REASON="a live run"' \
   "$(jq -cn --arg c "$(printf 'make contract-\\\nlive ENV=prod ADAPTER=bedrock REASON="a live run"')" '{command:$c}')"
 # The evals with bedrock: through make evals, or make check, whose evals gate runs make evals, in either order or from
 # the environment; and through evals/run.py, its module, or an import of it.
-cmd planned 'make evals ADAPTER=bedrock'
-cmd planned 'ADAPTER=bedrock make evals'
-cmd planned 'make ADAPTER="bedrock" evals'
+cmd block 'make evals ADAPTER=bedrock'
+cmd block 'ADAPTER=bedrock make evals'
+cmd block 'make ADAPTER="bedrock" evals'
 # shellcheck disable=SC2016
-cmd planned 'make evals ADAPTER=${A:-bedrock}'
-cmd planned 'SANDBOX_RUNTIME=0 make -f Makefile check ADAPTER=bedrock'
-cmd planned 'ADAPTER=bedrock make check'
-cmd planned 'make ./evals ADAPTER=bedrock'
-cmd planned 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter bedrock'
-cmd planned 'python3 -m evals.run --suite product --adapter bedrock'
-cmd planned 'python3 -c "from evals import run; run.main()" --adapter bedrock'
+cmd block 'make evals ADAPTER=${A:-bedrock}'
+cmd block 'SANDBOX_RUNTIME=0 make -f Makefile check ADAPTER=bedrock'
+cmd block 'ADAPTER=bedrock make check'
+cmd block 'make ./evals ADAPTER=bedrock'
+cmd block 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter bedrock'
+cmd block 'python3 -m evals.run --suite product --adapter bedrock'
+cmd block 'python3 -c "from evals import run; run.main()" --adapter bedrock'
 # The commands the targets run: operator.py's contract-record, quoted whole or in part, through runpy, and copied in the
 # same command; aws-login.sh where it runs; and the AWS CLI's sign-in, through bash -c, quotes, a path, backticks, a
 # separator inside a quoted value, configure sso, and sso-oidc.
-cmd planned 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
-cmd planned 'python3 scripts/operator.py --stack prod "contract-record" --adapter bedrock --out /tmp/r.json --reason "a live run"'
-cmd planned 'python3 scripts/operator.py --stack prod contract-recor"d" --adapter bedrock --out /tmp/r.json --reason "a live run"'
-cmd planned "python3 -c 'import runpy, sys; sys.argv = [\"operator.py\", \"--stack\", \"prod\", \"contract-record\"]; runpy.run_path(\"scripts/operator.py\", run_name=\"__main__\")'"
-cmd planned 'cp scripts/operator.py /tmp/o.py && python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
+cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
+cmd block 'python3 scripts/operator.py --stack prod "contract-record" --adapter bedrock --out /tmp/r.json --reason "a live run"'
+cmd block 'python3 scripts/operator.py --stack prod contract-recor"d" --adapter bedrock --out /tmp/r.json --reason "a live run"'
+cmd block "python3 -c 'import runpy, sys; sys.argv = [\"operator.py\", \"--stack\", \"prod\", \"contract-record\"]; runpy.run_path(\"scripts/operator.py\", run_name=\"__main__\")'"
+cmd block 'cp scripts/operator.py /tmp/o.py && python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
 # shellcheck disable=SC2016
-cmd planned 'python3 scripts/operator.py --stack prod ${C:-contract-record} --adapter bedrock --out /tmp/r.json --reason "a live run"'
-cmd planned 'bash deploy/scripts/aws-login.sh'
-cmd planned './deploy/scripts/aws-login.sh'
-cmd planned "bash deploy/scripts/aws-log''in.sh"
-cmd planned "bash -c 'deploy/scripts/aws-login.sh'"
-cmd planned 'cat deploy/scripts/aws-login.sh | bash'
-cmd planned 'bash < deploy/scripts/aws-login.sh'
+cmd block 'python3 scripts/operator.py --stack prod ${C:-contract-record} --adapter bedrock --out /tmp/r.json --reason "a live run"'
+cmd block 'bash deploy/scripts/aws-login.sh'
+cmd block './deploy/scripts/aws-login.sh'
+cmd block "bash deploy/scripts/aws-log''in.sh"
+cmd block "bash -c 'deploy/scripts/aws-login.sh'"
+cmd block 'cat deploy/scripts/aws-login.sh | bash'
+cmd block 'bash < deploy/scripts/aws-login.sh'
 # shellcheck disable=SC2016
-cmd planned 'sh -c "$(cat deploy/scripts/aws-login.sh)"'
+cmd block 'sh -c "$(cat deploy/scripts/aws-login.sh)"'
 # shellcheck disable=SC2016
-cmd planned 'eval "$(<deploy/scripts/aws-login.sh)"'
-cmd planned 'HOME=/home/a/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock'
-cmd planned 'aws --profile h4reet-bedrock sso login'
-cmd planned "bash -c 'aws sso login --profile h4reet-bedrock'"
-cmd planned '"aws" sso login --profile h4reet-bedrock'
-cmd planned 'aws "sso" login --profile h4reet-bedrock'
-cmd planned '/usr/local/bin/aws sso login --profile h4reet-bedrock'
+cmd block 'eval "$(<deploy/scripts/aws-login.sh)"'
+cmd block 'HOME=/home/a/.config/h4reet-ai/aws-home aws sso login --profile h4reet-bedrock'
+cmd block 'aws --profile h4reet-bedrock sso login'
+cmd block "bash -c 'aws sso login --profile h4reet-bedrock'"
+cmd block '"aws" sso login --profile h4reet-bedrock'
+cmd block 'aws "sso" login --profile h4reet-bedrock'
+cmd block '/usr/local/bin/aws sso login --profile h4reet-bedrock'
 # shellcheck disable=SC2016
-cmd planned 'echo `aws sso login --profile h4reet-bedrock`'
-cmd planned "aws --query 'a|b' sso login --profile h4reet-bedrock"
-cmd planned 'aws configure sso --profile h4reet-bedrock'
-cmd planned 'aws sso-oidc create-token --client-id x --client-secret y --grant-type refresh_token'
+cmd block 'echo `aws sso login --profile h4reet-bedrock`'
+cmd block "aws --query 'a|b' sso login --profile h4reet-bedrock"
+cmd block 'aws configure sso --profile h4reet-bedrock'
+cmd block 'aws sso-oidc create-token --client-id x --client-secret y --grant-type refresh_token'
 # A command longer than a pipe buffer: every rule reads the command through a pipe, and under pipefail a grep that
 # matches early leaves the writer a SIGPIPE and the rule false, so such a command is refused outright.
-check bash-gate.sh planned "a forbidden first line, then 100 KB" \
+check bash-gate.sh block "a forbidden first line, then 100 KB" \
   "$(jq -cn --arg c "$(printf 'make aws-login ENV=prod\n#%0100000d' 0)" '{command:$c}')"
-check bash-gate.sh planned "an 80,000-byte command" "$(jq -cn --arg c "$(printf 'echo %080000d' 0)" '{command:$c}')"
+check bash-gate.sh block "an 80,000-byte command" "$(jq -cn --arg c "$(printf 'echo %080000d' 0)" '{command:$c}')"
 # A comment ends at its newline, backslash or not, and bash runs the next line: US5's rules read the joined form too,
 # but the stack's rules still see the next line as written, so these block before the patch and after it.
 check bash-gate.sh block ": #\<newline>terraform apply" "$(jq -cn --arg c "$(printf ': #\\\nterraform apply')" '{command:$c}')"
 check bash-gate.sh block "echo hi #\<newline>gh pr merge 1" "$(jq -cn --arg c "$(printf 'echo hi #\\\ngh pr merge 1')" '{command:$c}')"
-check bash-gate.sh planned "#\<newline>bash deploy/scripts/aws-login.sh" \
+check bash-gate.sh block "#\<newline>bash deploy/scripts/aws-login.sh" \
   "$(jq -cn --arg c "$(printf '#\\\nbash deploy/scripts/aws-login.sh')" '{command:$c}')"
-check bash-gate.sh planned ": #\<newline>./deploy/scripts/aws-\<newline>login.sh" \
+check bash-gate.sh block ": #\<newline>./deploy/scripts/aws-\<newline>login.sh" \
   "$(jq -cn --arg c "$(printf ': #\\\n./deploy/scripts/aws-\\\nlogin.sh')" '{command:$c}')"
-check bash-gate.sh planned "( : )#\<newline>./deploy/scripts/aws-\<newline>login.sh" \
+check bash-gate.sh block "( : )#\<newline>./deploy/scripts/aws-\<newline>login.sh" \
   "$(jq -cn --arg c "$(printf '( : )#\\\n./deploy/scripts/aws-\\\nlogin.sh')" '{command:$c}')"
 # Spellings the rules don't see: a name built at run time or held in a variable, a glob, an ANSI-C escape inside a name,
 # run.py reached from its own directory or by a computed import, and a copy run in a command of its own. The targets'
@@ -305,9 +303,6 @@ cmd allow 'make check ENGINE_MODE=none-yet'
 cmd allow 'make lint && pytest -q evals/test_runbooks.py -k bedrock'
 cmd allow 'make lint && pytest -q ./evals/test_runbooks.py -k bedrock'
 check bash-gate.sh allow "a 50,000-byte command" "$(jq -cn --arg c "$(printf 'echo %050000d' 0)" '{command:$c}')"
-if [ "$planned" -gt "$author_planned" ]; then
-  printf "PLANNED (US5's enforcement patch): %d Author-only rows: bash-gate.sh lets an agent run make contract-live, make aws-login, and the Bedrock evals; the patch refuses them\n" "$((planned - author_planned))"
-fi
 # Fix tasks may not weaken tests, evals, or the red-team suite.
 cmd block "sed -i 's/2/3/' services/gateway/router.test.ts" FIX_TASK=1
 cmd block "sed -i 's/2/3/' tests/test_router.py" FIX_TASK=1

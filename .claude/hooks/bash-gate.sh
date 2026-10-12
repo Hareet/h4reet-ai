@@ -17,6 +17,12 @@ root="${CLAUDE_PROJECT_DIR:-$PWD}"
 
 # The block still happens when the audit record cannot be written.
 block() { audit BLOCK bash "$1 :: $cmd" || true; echo "Blocked by .claude/hooks/bash-gate.sh — $1. Route: $2" >&2; exit 2; }
+# Every rule reads the command through a pipe or a here-string. Under pipefail, a rule's grep that matches early, with
+# more than a pipe buffer still to come, leaves the writer a SIGPIPE, the rule false, and the command allowed; so a
+# command that long is refused outright (US5's review).
+if [ "$(printf '%s' "$cmd" | wc -c)" -gt 60000 ]; then
+  block "a command over 60,000 bytes" "split it, or write long content with the Write tool"
+fi
 
 # Infrastructure mutation is a human action in the protected CI environment.
 echo "$cmd" | grep -Eq '(^|[;&| ])terraform +(apply|destroy|import|state +(rm|mv|push))' \
@@ -93,7 +99,8 @@ echo "$cmd" | grep -Eq '(^|[;&| ])aws +(iam|budgets|ce|wafv2|waf|cloudfront +upd
 # Naming the file as an argument (cat, git diff, shellcheck) still works. A variable or a glob standing in for the
 # name is a known gap: without sudo, and outside h4agents' user manager, such a run can't change the engine.
 engine_route="the Author runs deploy/agents-engine/engine.sh directly (contracts/agents-engine.md §8); agents use make engine-status or make engine-smoke"
-eq="[\"'\\\\]*"
+# Quotes, backslashes, and $ (as in $'…' and $"…") may sit inside a name; US5's enforcement patch added the $.
+eq="[\"'\\\\\$]*"
 engine_name="e${eq}n${eq}g${eq}i${eq}n${eq}e${eq}\\.${eq}s${eq}h\\b"
 engine_start="(^|[;&|(\`{]|\\\$\\(|\\b(then|do|else|exec|sudo|doas|env|nohup|time|command|builtin|xargs|timeout|nice|ionice|stdbuf|setsid|watch|bash|sh|zsh|dash|ksh|source)\\b|-exec(dir)?\\b|(^|[[:space:];&|(\`{])\\.[[:space:]])"
 engine_skip="[[:space:]]*-[^[:space:]]*([[:space:]]+[^-[:space:]\"'][^[:space:]]*)?|[[:space:]]+[0-9][0-9.]*[smhd]?|[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*"
@@ -101,6 +108,80 @@ engine_run="${engine_start}(${engine_skip})*[[:space:]]*[\"']?([^[:space:];&|]*/
 if echo "$cmd" | grep -Eq "$engine_run" \
   && ! echo "$cmd" | grep -Eq '^[[:space:]]*(\./)?deploy/agents-engine/engine\.sh[[:space:]]+(status|smoke)[[:space:]]*$'; then
   block "running the agents' engine's Author commands" "$engine_route"
+fi
+# The Author's own targets and commands (spec 000 plan §13; tasks.md T103, T104): make contract-live calls a live
+# adapter, Bedrock's paid, with an operator token; make aws-login starts prod's Bedrock session; and the Bedrock evals
+# call Bedrock through prod's paid endpoint. A paid route gets its deny with it (CLAUDE.md).
+# - A make target is two matches in one command: make (gmake, a path to either, or tools/gates/run_checks, which runs
+#   make, by path or as a module), and the target's name after any character a name or a path can't hold, so after an
+#   option or an assignment (.DEFAULT_GOAL=, --eval=), a quote, a brace, a parameter's default (${t:-…}), or a separator
+#   inside a quoted value. The evals need bedrock too, through make evals or make check, whose evals gate runs it.
+# - operator.py with contract-record, and evals/run.py, its module, or an import of it with bedrock, are the same two
+#   matches, so they hold through runpy, or a copy made in the same command.
+# - aws-login.sh matches where it runs, by the engine rule's starts and skips, and wherever a shell is started in the
+#   same command (| bash, bash <, sh -c "$(cat …)", eval), so git add, git diff, cat, and shellcheck naming it work.
+# - The AWS CLI matches as aws anywhere, with sso and login, configure and sso, or sso-oidc.
+# Quotes, backslashes, and $ inside a name don't hide it (eq), nor does a backslash-newline. A name built at
+# run time or held in a variable, a glob, an ANSI-C escape, a computed import, or a copy run in a command of its own
+# does (the matrix's gap rows); the targets' own SANDBOX_RUNTIME refusals and the token and session the sandbox can't
+# read still stop those. The match is on the command's text, so a command that only names them is refused too: a
+# make target and make (git log --grep='make contract-live'), bedrock and make evals or make check, contract-record and
+# operator.py, aws-login.sh and a shell started in the same command, or aws with sso login or configure sso (a grep of
+# T105's steps). Read with the Read and Grep tools, and commit with a message file.
+author_route="the Author runs it (spec 000 plan §13); ask the Author"
+# These rules read the command three ways: as written; with each backslash-newline joined (make contract-\<newline>live);
+# and as bash reads it, each comment ended at its newline first, backslash or not, and then the lines joined. The
+# rules above read it as written only, since joining alone would put the line after a comment's backslash onto the
+# comment, where they'd miss it.
+continued=$'\\\n'
+joined="${cmd//"$continued"/}"
+uncommented="$(printf '%s\n' "$cmd" | sed -E 's/(^|[[:space:];&|()])#.*$/\1/')"
+uncommented="${uncommented//"$continued"/}"
+has() { grep -Eq "$1" <<<"$cmd" || grep -Eq "$1" <<<"$joined" || grep -Eq "$1" <<<"$uncommented"; }
+# A name, with quotes, backslashes, or $ allowed between its characters, as an extended regular expression.
+spelled() {
+  local s="" c i
+  for ((i = 0; i < ${#1}; i++)); do
+    c="${1:i:1}"
+    if [ "$c" = . ]; then c='\.'; fi
+    s+="${c}${eq}"
+  done
+  printf '%s' "${s%"$eq"}"
+}
+# Before and after a name: a character a name can't hold, or a parameter's default (${v:-name}); for a make target,
+# not a path's / either, but a leading ./, which make strips from a goal (make ./aws-login runs aws-login).
+nb="(^|[^[:alnum:]_.-]|\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])"
+ne="([^[:alnum:]_.-]|\$)"
+tb="(^|[^[:alnum:]_./-]|\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])(\.${eq}(/${eq})+)*"
+te="([^[:alnum:]_./-]|\$)"
+bedrock_word="${nb}$(spelled bedrock)${ne}"
+make_word="${nb}(g${eq})?$(spelled make)${ne}|${nb}$(spelled run_checks)(${eq}$(spelled .py))?${ne}|$(spelled tools.gates.run_checks)${ne}"
+if has "$make_word"; then
+  if has "${tb}($(spelled contract-live)|$(spelled aws-login))${te}"; then
+    block "an Author-only make target" "make contract-live and make aws-login: $author_route"
+  fi
+  if has "${tb}($(spelled evals)|$(spelled check))${te}" && has "$bedrock_word"; then
+    block "the Bedrock evals" "make evals or make check with ADAPTER=bedrock: $author_route"
+  fi
+fi
+if has "${nb}$(spelled operator.py)${ne}" && has "${nb}$(spelled contract-record)${ne}"; then
+  block "operator.py's contract-record" "$author_route"
+fi
+evals_run="${nb}($(spelled evals/run.py)|$(spelled evals.run))${ne}|$(spelled from)[[:space:]]+$(spelled evals)[[:space:]]+$(spelled import)${ne}"
+if has "$evals_run" && has "$bedrock_word"; then
+  block "the Bedrock evals" "evals/run.py --adapter bedrock: $author_route"
+fi
+aws_login="${nb}$(spelled aws-login.sh)${ne}"
+shell_start="(^|[[:space:];&|(\`{]|\\\$\()(bash|sh|zsh|dash|ksh|source|eval|\.)([[:space:]]|\$)"
+if has "${engine_start}(${engine_skip})*[[:space:]]*[\"']?([^[:space:];&|]*/)?$(spelled aws-login.sh)${ne}" \
+  || { has "$aws_login" && has "$shell_start"; }; then
+  block "aws-login.sh" "$author_route"
+fi
+if has "${nb}$(spelled aws)${ne}" \
+  && { has "${nb}$(spelled sso-oidc)${ne}" \
+    || { has "${nb}$(spelled sso)${ne}" \
+      && has "${nb}($(spelled login)|$(spelled configure))${ne}"; }; }; then
+  block "the AWS CLI's SSO sign-in" "$author_route"
 fi
 # Destructive filesystem operations outside the workspace.
 # The pattern matches a literal "$HOME" in the command text, so the single quotes are intended.
