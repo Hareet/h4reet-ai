@@ -179,7 +179,7 @@ Request:
 
 | Status | `error` | When |
 |---|---|---|
-| 409 | `already_initialized` | a `stack_state` row exists |
+| 409 | `already_initialized` | a `stack_state` row exists. If it is the row of an init whose acknowledgement was lost, so the init answered 503 and never wrote its journal record, this answer appends that record first ([data-model.md §8](../data-model.md#8-initialization-fr-031) step 9; tasks.md T072) |
 | 409 | `confirm_zero_required` | no ledger rows this month, no `reserve` or `commit` record in the files read, nothing stated, and `confirm_zero` false. Nothing is zeroed silently. (This row first said "no journal records"; data-model.md §8 step 7, the procedure, counts only call records, and an `init` record's floor still applies when the operator confirms.) |
 | 409 | `journal_unreadable` | the journal directory exists but can't be read |
 | 400, 401, 503 | as in §1 | |
@@ -210,7 +210,7 @@ Request, with exactly one of `set` and `advance_s`:
 | `set` | an RFC 3339 time in UTC (`Z`), at or after the current gateway time |
 | `advance_s` | an integer from 1 to 31,622,400 (366 days) |
 
-200: `{"gateway_time": "2026-10-27T08:00:00.000Z", "real_time": "2026-10-08T16:20:31.204Z", "offset_ms": 1611568796, "audit_id": 3}`
+200: `{"gateway_time": "2026-10-27T08:00:00.000Z", "real_time": "2026-10-08T16:20:31.204Z", "offset_ms": 1611568796, "audit_id": 3}`, and `"journal": "ok"` or `"unwritable"`, as §1.3 reports every write's append (added by tasks.md T076). The audit row and the `clock` record are both stamped at the new gateway time, so the record goes into that month's journal file.
 
 | Status | `error` | When |
 |---|---|---|
@@ -260,7 +260,7 @@ The route stops at the first call that isn't answered. 200:
 ```
 
 - **`calls`** lists every answered call; the example shortens it to the first and the fifth. `stopped` is null when all were answered.
-- **When the route stops,** `stopped` names the 503 `cause` or the 429 `error`, with `retry_after_s` for a 429. `meters` has the same shape as in `GET /admin/status` (§4.1), shortened here.
+- **When the route stops,** `stopped` names the 503 `cause` or the 429 `error`, with `retry_after_s` for a 429. `meters` has the same shape as in `GET /admin/status` (§4.1), shortened here. (Added by tasks.md T076: a `fallback` call that local answered with a rejection stops with `{"n", "status": 502, "error": "local_error", "kind"}`, as hello's 502 does; `audit_id` is null if the audit row couldn't be written after the calls; and a call refused by the global limits stops the run, which doesn't wait for the minute to pass, so a caller paces itself.)
 
 | Status | `error` | When |
 |---|---|---|
@@ -306,7 +306,7 @@ It returns everything `GET /health` reports ([gateway-http.md §5](gateway-http.
 
 Query: `limit` (1 to 200, default 50), `before_id` (for paging), and `action` (one audit action).
 
-Response: `{"entries": [{"id", "ts", "recorded_at", "actor", "action", "reason", "before", "after", "detail"}], "next_before_id": 12}`, newest first. Grafana's audit panel reads the same table directly, through `grafana_ro`.
+Response: `{"entries": [{"id", "ts", "recorded_at", "actor", "action", "reason", "before", "after", "detail"}], "next_before_id": 12}`, newest first. Grafana's audit panel reads the same table directly, through `grafana_ro`. (Added by tasks.md T075.) `next_before_id` is null on the last page. A parameter out of its range, an action that isn't one, or a parameter other than these three answers 400 `invalid_request`, naming it in `field` (`query` for an unknown one); `ts` and `recorded_at` are RFC 3339 with milliseconds.
 
 ### 4.3 `GET /admin/incidents`
 
@@ -324,7 +324,7 @@ Response:
 }
 ```
 
-`content` is the draft's Markdown, read from the file. `sha256_matches` says whether the file is still what the gateway wrote. A `queued` draft has no content yet. Breach step 8 asserts the evidence fields in `content` ([alerts.md §7](alerts.md#7-incident-drafts-fr-035)).
+`content` is the draft's Markdown, read from the file. `sha256_matches` says whether the file is still what the gateway wrote. A `queued` draft has no content yet. Breach step 8 asserts the evidence fields in `content` ([alerts.md §7](alerts.md#7-incident-drafts-fr-035)). (Added by tasks.md T075.) A `queued` draft's `content` and `sha256_matches` are null; a written draft whose file is gone or unreadable has null `content` and `sha256_matches: false`. Both `limit` and `id`, a value out of range, or another parameter answers 400 `invalid_request`.
 
 ## 5. Live adapter calls: `POST /admin/adapters/{id}/complete`
 
@@ -431,10 +431,10 @@ Request:
     python3 -I /app/operator.py --stack dev-cpu --url http://gateway:8081 --token-stdin <command> <arguments>
   ```
 
-  `--build` rebuilds the probe's image from the tree first, a cached `COPY` when nothing changed, so the copy in the probe is the code being run, as `make up --build` keeps a stale image from certifying code (plan §4; round 3's review). The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`, and `scripts/hello.py`, which makes the same hop for `make hello` with no token ([gateway-http.md §9](gateway-http.md#9-the-hello-client-make-hello)), to `/app/hello.py`. It is the pinned `base:python` with a non-root user and nothing installed, and the `breach-probe` service runs it on `internal` alone, read-only, with no ports, binds, or variables ([plan.md §2](../plan.md#2-compose-services-and-pinned-images)).
+  `--build` rebuilds the probe's image from the tree first, a cached `COPY` when nothing changed, so the copy in the probe is the code being run, as `make up --build` keeps a stale image from certifying code (plan §4; round 3's review). The dummy token goes in on standard input. The probe image (`evals/Dockerfile.probe`) copies `scripts/operator.py` to `/app/operator.py`, and `scripts/hello.py`, which makes the same hop for `make hello` with no token ([gateway-http.md §9](gateway-http.md#9-the-hello-client-make-hello)), to `/app/hello.py`. It is the pinned `base:python` with a non-root user and nothing installed, and the `breach-probe` service runs it on `internal` alone, read-only, with no ports or binds. Its only variables are the stack's two Langfuse API keys, which the breach test's trace assertions read (tasks.md T080; [plan.md §2](../plan.md#2-compose-services-and-pinned-images), §8).
   - The hop's docker client keeps only the variables docker and the relay need, so no `COMPOSE_*`, `H4_*`, or template key in the shell can override `dev-cpu.vars` ([env-files.md §10](env-files.md#10-make-up-preflight), P5).
   - The CLI in the probe names its exit code on its last line, and the CLI outside passes that code on. A hop that fails before the CLI in the probe answers is exit 4.
-  - tasks.md T144 brought the probe's image and its service forward from T080, for T064. T080 adds the breach test's own parts: `evals/breach.py`, `evals/breach_probe.py` (in the same image), the steps of [plan.md §8](../plan.md#8-the-breach-test), `make breach-test`, and the delivery overlay. A tree without `evals/Dockerfile.probe` makes the hop exit 4 and say so; the Author's terminal reaches dev-cpu's listener directly.
+  - tasks.md T144 brought the probe's image and its service forward from T080, for T064. T080 adds the breach test's own parts: `evals/breach.py`, `evals/breach_probe.py` (in the same image), the steps of [plan.md §8](../plan.md#8-the-breach-test), `make breach-test`, and the delivery overlay. A tree without `evals/Dockerfile.probe` makes the hop exit 4 and say so; the Author's terminal reaches dev-cpu's listener directly. (Departure, tasks.md T080: the `breach-probe` service now takes two variables from the env file, Langfuse's `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`, which the breach test's trace assertions read Langfuse's public API with, as [env-files.md §5](env-files.md#5-langfuse-4540s-keys) names the probe their reader; so the service above has no ports or binds, and only those two variables. On dev-cpu they are public dummies; the hops never read them.)
 
 **Commands.** Every command takes `--stack prod|dev|dev-cpu`, and `--json` to print the response body instead of a summary.
 
@@ -446,7 +446,7 @@ Request:
 | `renew` | `--reason TEXT` | `POST /admin/renew` |
 | `init` | `--reason TEXT [--renew] [--confirm-zero] [--day-usd X] [--month-usd X] [--fallback-today-usd X]` | `POST /admin/init` |
 | `audit` | `[--limit N] [--action A]` | `GET /admin/audit` |
-| `incidents` | `[--limit N] [--id N] [--show]` | `GET /admin/incidents`; `--show` prints the newest draft's Markdown, ready to redirect into a file |
+| `incidents` | `[--limit N] [--id N] [--show]` | `GET /admin/incidents`; `--show` prints the newest draft's Markdown, ready to redirect into a file. (Added by tasks.md T075: with `--id`, that draft's; with no written draft, it prints nothing on standard output, says why, and exits 1, as for a 404.) |
 | `contract-record` | `--adapter ID --cases FILE --out FILE --reason TEXT` | `GET /admin/status`, then `POST /admin/adapters/{ID}/complete` for each case, then `GET /admin/status` again; writes the recording for the live contract run ([provider-adapter.md §5.3](provider-adapter.md#53-three-run-modes)) |
 
 **`mint`**, which `make operator-token ENV=<stack>` runs:

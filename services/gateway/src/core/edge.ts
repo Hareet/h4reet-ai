@@ -2,7 +2,9 @@
 // with its own view of the client, so the header is believed only when edge is the TCP peer. Any other container on
 // `internal` is itself the client: a header it sends is ignored, so it can't pick its own identity to slip the
 // per-client cap.
-import { lookup } from "node:dns/promises";
+import type { LookupAddress } from "node:dns";
+
+import { aresLookup } from "./resolve.js";
 
 /** Whether this TCP peer is edge, whose X-Forwarded-For names the client. */
 export type ForwardedBy = (peer: string) => Promise<boolean>;
@@ -18,15 +20,25 @@ export interface EdgePeerOptions {
 
 const bare = (address: string): string => (address.startsWith("::ffff:") ? address.slice(7) : address);
 
-const systemResolve = async (host: string): Promise<string[]> =>
-  (await lookup(host, { all: true })).map((found) => found.address);
+/**
+ * Edge's addresses, through c-ares (core/resolve.ts): hello awaits this before the kill-switch read whenever the TTL
+ * is due, so a lookup that doesn't answer gives up after c-ares's own tries, and holds neither of the two threads
+ * libuv gives lookups meanwhile (tasks.md T189).
+ */
+const aresResolve = (host: string): Promise<string[]> =>
+  new Promise((resolve, reject) => {
+    aresLookup(host, { all: true }, (err, addresses) => {
+      if (err !== null) reject(err);
+      else resolve((addresses as LookupAddress[]).map((found) => found.address));
+    });
+  });
 
 /** True when the peer is one of the edge service's addresses. A lookup that fails believes no one, for one TTL. */
 export function edgePeer(o: EdgePeerOptions = {}): ForwardedBy {
   const host = o.host ?? "edge";
   const ttlMs = o.ttlMs ?? 30_000;
   const now = o.now ?? Date.now;
-  const resolve = o.resolve ?? systemResolve;
+  const resolve = o.resolve ?? aresResolve;
   let cached: { at: number; addresses: Promise<Set<string>> } | undefined;
   return async (peer) => {
     if (cached === undefined || now() - cached.at > ttlMs) {

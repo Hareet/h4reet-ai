@@ -53,6 +53,33 @@ async function against(mode: "drop" | "answer"): Promise<{ server: FakePostgres;
   return { server, db };
 }
 
+describe("the LISTEN connection (data-model.md §2.1, §2.7)", () => {
+  it("calls onEnd once when its connection drops, so the caller can listen again, and never after its close", async () => {
+    const { server, db } = await against("answer");
+    let ended = 0;
+    const close = await db.listen(
+      "alert_outbox",
+      () => {},
+      () => void (ended += 1),
+    );
+    expect(server.queries).toContain("LISTEN alert_outbox");
+    server.drop(); // Postgres restarts
+    await vi.waitFor(() => expect(ended).toBe(1));
+    await close();
+    // A fresh LISTEN, closed by its owner: not an end the caller must answer.
+    const again = await db.listen(
+      "alert_outbox",
+      () => {},
+      () => void (ended += 1),
+    );
+    await again();
+    server.drop();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(ended).toBe(1);
+    expect(escaped).toEqual([]);
+  });
+});
+
 describe("a connection that drops under a call", () => {
   it("rejects a pooled session's query, and the pool connects afresh for the next session", async () => {
     const { server, db } = await against("drop");

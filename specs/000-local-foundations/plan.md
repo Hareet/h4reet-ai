@@ -200,6 +200,7 @@ services/gateway/                [A] new: the gateway (§5)
   src/core/{types,gateway,router,limits,clock}.ts
   src/adapters/{registry,local-openai,bedrock-converse,synthetic,_settings}.ts   (_settings: each type's routing.yaml settings and the registered types)
   src/meter/{store,admission,commit,rollover,init,journal}.ts
+  src/meter/{types,crossings,sweep,meter,operator}.ts   (Departure, tasks.md T072: the port and its types, the crossings and their effects, the sweep, the Meter that runs them, and the operator's transactions, each its own module)
   src/alerts/{outbox,dispatcher,telegram,smtp,format}.ts
   src/incidents/draft.ts
   src/config/{load,validate,validate-env,validate-config}.ts   (validate-config: the npm script's entry)
@@ -463,17 +464,17 @@ A request in flight when the state flips completes: the state is read at request
 One interface, `ProviderAdapter { id, provider, kind, model, complete(req), health(signal) }`. `kind` is `local`, `paid`, or `synthetic`. The full types and the error taxonomy are in [contracts/provider-adapter.md](contracts/provider-adapter.md). Adapters are built from `config/routing.yaml` by `src/adapters/registry.ts`, keyed by `type`; nothing else in the gateway names a provider (SC-006).
 
 - **`local-openai`** (`type: openai-compatible`):
-  - `POST {base}/chat/completions` over `node:http`, one connection per call. (A departure from `fetch` with an undici `Agent`, recorded in [contracts/provider-adapter.md §3.1](contracts/provider-adapter.md#31-local-openai-type-openai-compatible): built-in `fetch` has no connect timeout, and `undici` isn't a pinned dependency.)
+  - `POST {base}/chat/completions` over `node:http`, one connection per call. (A departure from `fetch` with an undici `Agent`, recorded in [contracts/provider-adapter.md §3.1](contracts/provider-adapter.md#31-local-openai-type-openai-compatible): built-in `fetch` has no connect timeout, and `undici` isn't a pinned dependency.) The host resolves through c-ares, not `getaddrinfo`, so a lookup the connect watchdog abandons holds no libuv thread (tasks.md T188).
   - Connect timeout 1 s, request timeout 10 s, and no retries: failing over is the retry.
   - Health: `GET {base}/models` every 1 s with an 800 ms timeout. One failure marks it unhealthy; three passes in a row mark it healthy again.
-  - So a stopped model server fails over at once on the call itself, and within 1.8 s at worst by health check (SC-005).
+  - So a stopped model server fails over on the call itself: at once when its name no longer resolves, or at the 1 s connect watchdog where the resolver doesn't answer for it (the agents' engine); and within 1.8 s at worst by health check (SC-005).
 - **`bedrock-converse`** (`type: bedrock-converse`):
-  - Client: `BedrockRuntimeClient` in us-east-1 with `maxAttempts: 1` and `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000})`, calling `ConverseCommand`, with no streaming.
+  - Client: `BedrockRuntimeClient` in us-east-1 with `maxAttempts: 1` and `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000, httpsAgent})`, its agent resolving through c-ares (tasks.md T189), calling `ConverseCommand`, with no streaming.
   - Retries: one, only on `ThrottlingException`, and only while the deadline allows. A timeout counts as `possiblyBilled`, so the meter charges the reserved maximum.
   - Health never spends: credentials resolve and expire more than 0 s from now, and a circuit breaker (3 failures, 30 s open) is closed.
   - Model: Claude Haiku 5.5 if Bedrock offers it in us-east-1, otherwise Claude Haiku 4.5's `us.` inference profile. The Author confirms the ID (`aws bedrock list-inference-profiles`) and writes it into `routing.yaml` and `prices.yaml`. `additional_request_fields` turns extended thinking off.
   - Credentials: the default chain, with `HOME=/home/node` and the container's `AWS_PROFILE` set from the env file's `GATEWAY_AWS_PROFILE` (`h4reet-bedrock`). The name differs so a shell's own `AWS_PROFILE` can never stand in for it. The Author's SSO session for the dedicated Identity Center user `h4reet-runtime` is mounted read-only from `~/.config/h4reet-ai/aws-home/.aws`. That user holds only a permission set allowing `bedrock:InvokeModel` on the one inference profile and the foundation models it routes to. The Author creates both: IAM is a human action, and they are not resources this spec creates.
-  - Because the mount is read-only, the SDK can't refresh the SSO token. When it nears expiry, the gateway raises `credentials_expiring` 2 h before the end, and the Author runs `make aws-login`.
+  - Because the mount is read-only, the SDK can't refresh the SSO token. When it nears expiry, the gateway raises `credentials_expiring` 2 h before the end, and the Author runs `make aws-login`. (Corrected 2026-10-10, US2's round 9: token-providers 3.1147.0 does refresh the SSO token in memory in its last 5 minutes, through SSO-OIDC's `CreateToken`, when the cached token holds a refresh token, and drops the failed write to the read-only mount. So prod's gateway would contact `oidc.us-east-1.amazonaws.com` while running, not only at login. T102 decides whether to allow it, and T106's disclosure row follows.)
   - Non-prod stacks mount `deploy/aws-none` (empty), so no Bedrock call is possible there even by mistake.
 - **`synthetic`** (`type: synthetic`): dev only. It returns a fixed text with 1,000 output tokens priced at $100 per million tokens in dev's price entry, so each call costs exactly $0.10. It declares that usage (`fixedUsage`), so it also reserves exactly $0.10. It is refused at startup outside `H4_ENV=dev` and needs `GATEWAY_TEST_SYNTHETIC_SPEND=1`.
 
@@ -505,7 +506,7 @@ The schema, the state machines, and both transactions in full are in [data-model
 
 - **Store:**
   - `gateway-state` (Postgres 17), schema `gateway`. Migrations live in `services/gateway/migrations/` and are applied at startup under an advisory lock.
-  - The pool runs `statement_timeout=250ms` and `connectionTimeoutMillis=500`, and any error or timeout is `store_unreachable` (fail closed, FR-031).
+  - The pool runs `statement_timeout=250ms` and `connectionTimeoutMillis=500`, and any error or timeout is `store_unreachable` (fail closed, FR-031). Its connections resolve `gateway-state` through c-ares (tasks.md T189).
   - The state is read on every request, never cached.
 - **Meters:** integer micro-USD per UTC period: `day`, `month`, and `fallback_day`. The `fallback_day` row carries `allowance_micro`, which starts at 2,000,000.
 - **Admission for a metered call** (one transaction, serialized by `SELECT … FOR UPDATE` on `stack_state`):
@@ -561,7 +562,7 @@ The full API is in [contracts/operator-admin.md](contracts/operator-admin.md).
 The full contract is in [contracts/alerts.md](contracts/alerts.md).
 
 - **The dispatcher** wakes on `LISTEN alert_outbox`, or every 2 s.
-  - Each channel is tried on its own: Telegram's Bot API `sendMessage` (plain text, 5 s timeout), and SMTP through nodemailer (implicit TLS on 465 or STARTTLS on 587, 10 s timeout).
+  - Each channel is tried on its own: Telegram's Bot API `sendMessage` (plain text, 5 s timeout, over `node:http(s)` with its host resolved through c-ares, tasks.md T188), and SMTP through nodemailer (implicit TLS on 465 or STARTTLS on 587, 10 s timeout, over a connection the gateway makes through c-ares, tasks.md T189).
   - Retries back off 5, 15, 30, 60, and 120 s, so every attempt falls within 300 s. After 300 s the channel is marked failed for that alert.
   - Delivery lag and failures are metrics with their own panel. The other channel keeps going, and enforcement is never affected.
 - **When the store is unreachable,** the outbox can't be written. The gateway sends one in-memory, deduplicated `store_unreachable` alert once the condition has lasted 60 s.
@@ -581,7 +582,7 @@ The full contract is in [contracts/alerts.md](contracts/alerts.md).
 ### 5.7 Telemetry
 
 The canonical names, attributes, and Prometheus forms are in [contracts/telemetry.md](contracts/telemetry.md).
-- **SDK setup:** `@opentelemetry/sdk-node` with OTLP/HTTP exporters to `http://otel-collector:4318`, metrics exported every 10 s with cumulative temporality, and explicit histogram buckets up to 120 s.
+- **SDK setup:** `@opentelemetry/sdk-node` with OTLP/HTTP exporters to `http://otel-collector:4318`, metrics exported every 10 s with cumulative temporality, and explicit histogram buckets up to 120 s. The exporters' agent is keep-alive and resolves the collector through c-ares (tasks.md T189).
 - **Spans:** the `POST /hello` server span (from `@fastify/otel`), an internal `gateway.route` span, and one client span per provider attempt, named `chat {gen_ai.request.model}`. The client span carries:
   - `gen_ai.operation.name`, `gen_ai.provider.name`, the request and response model, max tokens, input and output tokens, finish reasons, and the response ID;
   - `server.address` and `error.type`;
@@ -605,7 +606,6 @@ The gateway exits with code 78 (configuration error) and a named reason when:
 - a paid model has no price, or a price of 0;
 - the store's schema is newer than the gateway's migrations (`schema_newer_than_code`), so a rollback across a migration fails closed;
 - a config file fails validation;
-- until T074, the route `H4_ENV` selects names a fallback (`fallback_not_supported`). (Departure, tasks.md T148: a temporary refusal that the approved plan doesn't list. This build has no metered fallback path, because admission, commit, and the fallback branch arrive with T072–T074. So `createServices` in `services/gateway/src/app.ts` refuses a route with a fallback once the registry has built it, closes the adapters it built, and stops before the store's first attempt, and no fallback is ever called outside the meter. No committed route has a fallback yet ([config-files.md §1.2](contracts/config-files.md#12-example-the-committed-file), step 1), so no stack starts differently. Dev's `fallback: synthetic` arrives with T073, and T074 removes the refusal, so the two land together.)
 
 Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live)), and matrix rows cover the first three ([§13](#13-the-forbidden-action-matrix)).
 
@@ -670,6 +670,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
   - **Loki:** `reporting_enabled: false`.
   - **ClickHouse:** `send_crash_reports.enabled=false`.
   - **SeaweedFS:** its reporting switch, if the pinned version has one.
+  - **Mailpit** (dev and dev-cpu only): `MP_DISABLE_VERSION_CHECK=true`, so it never asks GitHub for its newest release. (Added by tasks.md T079, with the service.)
 
   The internal network blocks all of these anyway. The Author's browser on the Grafana and Langfuse pages is checked once in devtools, and anything left is listed in the disclosure.
 - **FR-037, dev-time usage:**
@@ -712,16 +713,16 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
 ## 8. The breach test
 
 `make breach-test ENV=dev|dev-cpu` runs `evals/breach.py` (stdlib), which is FR-036's only entry point. It refuses unless `ENV` is a dev-class stack. Its parts:
-- **The orchestrator** runs on the client: the Author's terminal for dev, an agent sandbox for dev-cpu. It drives lifecycle steps with `docker compose` on the current engine: stop and start `model-server`, restart `gateway`, stop `gateway-state` and remove its volume.
-- **The probe:** every HTTP assertion runs in a one-off `breach-probe` container (`docker compose --profile breach run --rm breach-probe python3 /app/breach_probe.py <step> …`) on the stack's `internal` network. The probe calls the gateway, the admin listener, the stand-ins, Prometheus, Loki, and Langfuse's public API, and prints JSON the orchestrator checks. So the sandbox never needs a stack port.
+- **The orchestrator** runs on the client: the Author's terminal for dev, an agent sandbox for dev-cpu. It drives lifecycle steps with `docker compose` on the current engine: stop and start `model-server`, restart `gateway`, stop `gateway-state` and remove its volume. (Departure, tasks.md T080: "the current engine" is the stack's own, and nothing else. dev runs on the host's engine, with dev's env file and the run file, and make runs `breach.py` from the export of the commit the stack runs, so the probe's image is built from it too, as `make up --build` builds the gateway's. `breach.py` itself refuses dev from any other tree: its own tree, the compose file and the probe's build context, must be the run file's `H4_TREE` (contracts/env-files.md §12), since make's path alone doesn't keep a run from the working tree off the host's engine. dev-cpu runs on the agents' engine only: inside the sandbox every docker call goes through `deploy/agents-engine/docker-relay`, and from the Author's terminal only with `DOCKER_HOST=tcp://198.18.0.1:2376`; anything else is refused, as `make compose-images` refuses it since round 3 of US1's review, because the working tree's images never build on the host's engine (FR-039). And dev-cpu runs from the main working tree only, as contracts/env-files.md §7.3 decides for `make breach-test ENV=dev-cpu`.)
+- **The probe:** every HTTP assertion runs in a one-off `breach-probe` container (`docker compose --profile breach run --build --rm -T breach-probe python3 -I /app/breach_probe.py <step> --stack <stack>`) on the stack's `internal` network. The probe calls the gateway, the admin listener, the stand-ins, Prometheus, Loki, and Langfuse's public API, and prints JSON the orchestrator checks. So the sandbox never needs a stack port. (Departure, tasks.md T080: `--build`, so the copy in the image is always the code being run, as the operator CLI's and hello's hops do since round 3 of US1's review; `-T` and `-I`, as theirs do. The orchestrator sends each step's operations, and the operator token's line before them, on standard input, and `breach-probe` takes Langfuse's two API keys from the env file for the T assertions, as contracts/env-files.md §5 names it their reader.)
 - **Preflight guard:** `/health` must report `H4_ENV=dev` with the test machinery enabled, or it exits.
 - **Dev-only machinery** (403 outside dev, counted in `h4.test_machinery.refused`):
   - `POST /admin/test/clock`: forward only, persisted as an offset;
   - `POST /admin/test/synthetic`: `attribution` fallback or metered, `count`, $0.10 each, through the real pipeline.
 - **The operator token:** the dev-cpu dummy from `dev-cpu.vars`, or, for dev, the Author's `dev.token` file.
 
-The steps, each asserted from a trace (T), a metric (M), or a log (L). Every metered and fallback call is synthetic, at $0.10. The figures are laid out so no ceiling trips before the step that tests it: the daily ceiling is $5, so the metered steps and the fallback steps fall on different days.
-1. **Clean start.** Stop `gateway-state`, remove its volume, and start it again (dev only). Then `init --confirm-zero --renew`. In dev, init restores the test clock from the journal's newest `clock` record, so the gateway's time carries on from the last run. Read the gateway's time from `/health`, and set the clock to the 20th of the following month, 08:00 UTC. That month's periods hold no records from any earlier run (data-model.md §8).
+The steps, each asserted from a trace (T), a metric (M), or a log (L). Every metered and fallback call is synthetic, at $0.10. The figures are laid out so no ceiling trips before the step that tests it: the daily ceiling is $5, so the metered steps and the fallback steps fall on different days. (Tasks.md T080's reading: each row of the table has one source. The M rows use the dashboard's own queries (contracts/telemetry.md §7), and a sample from before the step's action never passes. Every row's window is timed from the action it measures, from that action's end, and never from when its check gets its turn behind slower ones; a check that names no action is refused. A row that starts after its window has closed asks the sources what they held at the deadline, at Prometheus's evaluation time, Loki's end, and the receivers' own receipt times, 5 s after it for late arrivals, so a value that came too late never passes. After a restart, a row counts only samples from after the new process answers `/health` ready, since the old one's shutdown flush is stamped after the restart begins, on the same series. The receivers' own records that a step names beside its L assertion, the stand-ins' messages and the audit row, are checked as L rows of their own, since the plan groups them with the log assertions.)
+1. **Clean start.** Stop `gateway-state`, remove its volume, and start it again (dev only). Then `init --confirm-zero --renew`. (Departure, tasks.md T080: the wipe runs on dev-cpu too, which is a dev-class stack, since step 11 wipes the store there anyway and an initialized store would refuse the `init` with `already_initialized`.) The running gateway sees the empty store as `store_uninitialized`, with no restart (data-model.md §6.1, "the store's volume is lost"). In dev, init restores the test clock from the journal's newest `clock` record, so the gateway's time carries on from the last run. Read the gateway's time from `/health`, and set the clock to the 20th of the following month, 08:00 UTC. That month's periods hold no records from any earlier run (data-model.md §8).
 2. **US2-1** (the 20th): one metered call. T: `h4.cost.usd=0.10`. M: the daily meter shows 0.10 within 60 s.
 3. **US2-2:** metered calls to $3.50 today. L: `alert.delivered` on both channels, and both stand-ins show the warning within 300 s. M: the warning is on the dashboard.
 4. **Advance one day** (the 21st). The daily meter starts at zero, and the month carries $3.50. Stop `model-server`, then make fallback calls to $1.40 (the first grant's warning), and on to $1.50.
@@ -740,12 +741,13 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
     - Advance one day: the daily meter rolls over, but the state is still `degraded`.
     - Advance into the next month: the monthly meter rolls over, and the state is still `degraded`.
     - Reset: `normal`, and one metered call passes in the new month.
-11. **US2-7:** stop `gateway-state`: hello returns `store_unreachable`. Remove the store's container and volume and bring it back: `store_uninitialized`. Run `init` with no stated values. The test clock comes back from the journal, the meters equal their pre-wipe values for the current periods (rebuilt from the journal: $0.10 today and this month), and renewal is pending (M, L, and the audit row's candidates).
+    - (Tasks.md T080's reading: the step's 75 metered calls in a few minutes cross the gateway's 60 metered calls a minute (data-model.md §7.2). A 429 `metered_capacity_exceeded` in the synthetic route's `stopped` is a wait of its `retry_after_s` and a second, up to 150 s a spend, never a miss, and the next request asks only for the calls left. So every spend, in this step and the others, holds its reply's `meters` to this plan's figures, the store's own: $1.50 today and $14.00 this month, then $4.90 and $17.40, then $2.60 and $20.00. A refused call never made again, or one counted twice, stops the step there.)
+11. **US2-7:** stop `gateway-state`: hello returns `store_unreachable`. Remove the store's container and volume and bring it back: `store_uninitialized`. Run `init` with no stated values. The test clock comes back from the journal, the meters equal their pre-wipe values for the current periods (rebuilt from the journal: $0.10 today and this month), and renewal is pending (M, L, and the audit row's candidates). The gateway isn't restarted: one that never reports the wiped store as `store_uninitialized` fails the step (data-model.md §6.1).
 12. **US2-8:** print a table of every assertion with its source (T, M, or L), and exit non-zero on any miss.
 
 **Delivery:**
 - **On dev-cpu (agents) and on dev by default:** alerts go to the stand-ins: `telegram-standin`, a stdlib server mimicking `/bot<token>/sendMessage` with `GET /messages`, and Mailpit.
-- **`--delivery real`** (the Author's terminal, dev on the 5090): the run adds a second env file, setting `ALERT_DELIVERY=real`, to dev's gateway. It asserts Telegram's `message_id` and SMTP's 250 reply in the L records within 300 s, and the Author records the terminal with asciinema, the phone visible on camera, into `docs/recordings/` (SC-002).
+- **`--delivery real`** (the Author's terminal, dev on the 5090): the run adds a second env file, setting `ALERT_DELIVERY=real`, to dev's gateway. It asserts Telegram's `message_id` and SMTP's 250 reply in the L records within 300 s, and the Author records the terminal with asciinema, the phone visible on camera, into `docs/recordings/` (SC-002). (Departure, tasks.md T080: the overlay is the third env file, after dev's and the run file, which every compose call on a host stack passes (§4; contracts/env-files.md §7.2).) (Tasks.md T080's reading, from its review: the stand-in's numeric `message_id` and Mailpit's 250 have the providers' shapes, so the run also asserts that neither stand-in holds the alert, once its delivery records exist; a gateway still on the stand-ins fails the row.)
 
 ## 9. Development environment
 
@@ -938,6 +940,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
     - `claude mcp add`;
     - `deploy/agents-engine/engine.sh` with any subcommand but `smoke` and `status`, by any spelling;
     - `make operator-*` and admin URLs for any stack but dev-cpu;
+    - `make breach-test` and `evals/breach.py` for any stack but dev-cpu, by any spelling, `SANDBOX_RUNTIME=0` or `env -u SANDBOX_RUNTIME` in front included: the run inits, resets, and renews the stack it runs on, which FR-008 gives a pre-execution hook with a reason and an audit record, and make's and the script's own `SANDBOX_RUNTIME` checks are one unset away. (Added by tasks.md T080's review: planned rows until the closing patch, T117, switches them to block rows; `ENV=dev-cpu` stays an allow row.)
     - `make publish-check`, `make tools`, `make matrix-canary`, `make evals-agent-config`, `make aws-login`, and `make contract-live`.
   - **Secret content:** fake keys assembled at run time, so the matrix file itself contains none. Three rows prove gitleaks can't be talked out of a finding: a planted `.gitleaksignore` naming the fake finding's fingerprint, at the scan source's root, a `gitleaks:allow` comment on its line, and a `.gitleaks.toml` in the scanned directory.
   - **Settings rows:**
@@ -1046,7 +1049,7 @@ The closing patch holds:
   - `env` gets the four Claude Code telemetry variables ([§6](#6-observability)).
   - `sandbox.filesystem.denyWrite` gets `./.mcp.json`, `./.git/info`, `./.git/refs/heads/main`, and `./.git/refs/replace`, since a merge honors a replace ref (T183's fifth review). `permissions.deny` gets the matching `Edit(...)`.
 - **`.claude/hooks/bash-gate.sh`:**
-  - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the Author-only targets, `--no-verify`, and `claude mcp add`;
+  - the command rules in [§13](#13-the-forbidden-action-matrix): the `operator-*` targets and admin URLs, the breach test on any stack but dev-cpu, the Author-only targets, `--no-verify`, and `claude mcp add`;
   - the read-only roles' rules, keyed on the hook input's `agent_type`. For `reviewer` and `red-teamer`, it refuses:
     - `git diff --output`;
     - `git diff` or `git log` with a redirection;
@@ -1096,13 +1099,13 @@ The closing patch holds:
 | Flow | Destination | Carries | When | Control |
 |---|---|---|---|---|
 | Bedrock fallback | `bedrock-runtime.us-east-1.amazonaws.com` | the hello prompt and completion, the model ID, the runtime role's signature | prod only, when local is unhealthy and admission passes; the live contract test | the meter, the sub-budget, `egress` only on the gateway |
-| AWS SSO credential exchange | `portal.sso.us-east-1.amazonaws.com` (and `oidc.us-east-1.amazonaws.com` at login) | the runtime user's SSO token | prod's gateway, refreshing role credentials; `make aws-login` | the dedicated runtime identity |
+| AWS SSO credential exchange | `portal.sso.us-east-1.amazonaws.com` (and `oidc.us-east-1.amazonaws.com` at login, and while running unless T102 prevents the SDK's refresh; see §5.2's correction) | the runtime user's SSO token | prod's gateway, refreshing role credentials; `make aws-login` | the dedicated runtime identity |
 | Telegram alerts | `api.telegram.org` | the alert text (facts only), the bot token, the chat ID | prod; dev's `--delivery real` | `config/alerts.yaml`; FR-032's content rule |
 | Email alerts | the alerts mailbox's SMTP host | the alert text (facts only), the mailbox's credentials | same | the same |
 | Image pulls | ghcr.io (blobs from `pkg-containers.githubusercontent.com`), quay.io, `public.ecr.aws`, Docker Hub (`registry-1.docker.io`, `auth.docker.io`, its CDN) | image names; the IP address; Docker's user agent | `make pull`, a cold `make up`, `make pin-images` (digests, and a repository's tag list when a pin is open, with an anonymous token), `deploy/agents-engine/engine.sh seed` | digest pins |
 | Image builds | `registry.npmjs.org` | the names and versions in `package-lock.json`; the IP address; npm's user agent | `make up` on a host stack (its `up --build`); `make build` and `make image` on the agents' engine, through the proxy | the lockfile and `--ignore-scripts`; npm's audit, funding, and update checks off; the build cache (disclosure row P2) |
 | Model downloads | `huggingface.co` and its download hosts | the repo, file, and revision; the IP address; curl's user agent; no token | `make pull`, a cold `make up` | revision and sha256 |
-| Third-party phone-homes | Langfuse, Grafana, Loki, ClickHouse, SeaweedFS endpoints | usage data, versions | never | switched off ([§6](#6-observability)), and the internal network |
+| Third-party phone-homes | Langfuse, Grafana, Loki, ClickHouse, SeaweedFS, and Mailpit (dev-class stacks) endpoints | usage data, versions | never | switched off ([§6](#6-observability)), and the internal network |
 | Development time: Claude Code | Anthropic | repository content an agent reads, prompts, completions | agent sessions, on the Team plan (FR-037) | the sandbox, the deny lists |
 | Development time: the engine's proxied pulls | npm, PyPI, ghcr.io | package and image names; the IP address | agent sessions on the engine | `egress-proxy.py` and the allowlist |
 | The Author's browser | whatever the Grafana and Langfuse pages fetch | the IP address, the user agent | while viewing | checked once in devtools, and listed |

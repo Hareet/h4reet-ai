@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -378,6 +378,29 @@ operator-init: ## Initialize ENV's empty store: REASON="..." [CONFIRM_ZERO=1] [R
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-init needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
 	$(OPERATOR) init --reason="$$REASON"$(call OPERATOR_FLAG,RENEW,--renew)$(call OPERATOR_FLAG,CONFIRM_ZERO,--confirm-zero)$(call OPERATOR_VALUE,DAY_USD,--day-usd)$(call OPERATOR_VALUE,MONTH_USD,--month-usd)$(call OPERATOR_VALUE,FALLBACK_TODAY_USD,--fallback-today-usd)
 
+# The operator's other writes and reads (contracts/operator-admin.md §2.1, §2.2, §4.2, §4.3; tasks.md T075).
+operator-reset: ## Restore ENV's kill switch to normal after a trip: REASON="..." (metered calls stay refused at a ceiling)
+	$(OPERATOR_AGENTS)
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-reset needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) reset --reason="$$REASON"
+.PHONY: operator-reset
+
+operator-renew: ## Renew ENV's fallback sub-budget, two dollars more at once: REASON="..."
+	$(OPERATOR_AGENTS)
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-renew needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) renew --reason="$$REASON"
+.PHONY: operator-renew
+
+operator-audit: ## ENV's audit log, newest first: [LIMIT=50]
+	$(OPERATOR_AGENTS)
+	$(OPERATOR) audit$(call OPERATOR_VALUE,LIMIT,--limit)
+.PHONY: operator-audit
+
+operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by ID=: [ID=]
+	$(OPERATOR_AGENTS)
+	$(OPERATOR) incidents --show$(call OPERATOR_VALUE,ID,--id)
+.PHONY: operator-incidents
+
 # hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
 # gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes
 # straight to the stack's api port on 127.0.0.1 (18000, 18100, or 18300); inside the sandbox, for dev-cpu only, the
@@ -398,8 +421,25 @@ pin-images: ## (the Author) Resolve deploy/images.lock's tags to digests, and re
 	@set -f; set --; for tag in $${TAG:-}; do set -- "$$@" --tag "$$tag"; done; \
 	$(PY_HOST) deploy/scripts/pin_images.py $${ONLY:+--only "$$ONLY"} $${DRY_RUN:+--dry-run} "$$@"
 
-breach-test: ## The kill-switch rehearsal on dev or dev-cpu, which arrives with feat/000-us2-kill-switch
-	@echo "make breach-test arrives with feat/000-us2-kill-switch (tasks.md T080)" >&2; exit 2
+# The breach test (plan §8; contracts/env-files.md §7.2; FR-036's only entry point): evals/breach.py, by path through
+# PY_HOST, trips the kill switch on purpose and prints a table of every assertion. dev and dev-cpu only. dev is the
+# Author's, on the host's engine, from the export of the commit its make up started, so the probe it builds is that
+# commit's too; DELIVERY=real, dev only, is SC-002's recorded run with the real channels. dev-cpu is an agent
+# session's: inside the sandbox make runs itself again through the relay, so the run is on the agents' engine only,
+# and the script refuses any other engine (FR-039). DELIVERY comes from the command line only, read by the shell.
+breach-test: ## The kill-switch rehearsal on dev or dev-cpu (plan §8); DELIVERY=real is dev's recorded run, the Author's
+	@case "$(ENV)" in dev|dev-cpu) ;; *) echo "make breach-test runs on dev or dev-cpu, never $(ENV) (FR-036)" >&2; exit 2 ;; esac
+	@[ -z "$(call from_cli,DELIVERY)" ] || [ "$(ENV)" = dev ] || { echo "make breach-test DELIVERY=real is dev's recorded run, in the Author's terminal (contracts/env-files.md §7.2)" >&2; exit 2; }
+ifeq ($(VIA_RELAY),1)
+	@[ "$(ENV)" = dev-cpu ] || { echo "make breach-test ENV=$(ENV): agent sessions run dev-cpu only, on their own engine (FR-039); the Author runs dev" >&2; exit 2; }
+	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make breach-test: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
+	$(RELAY) make --no-print-directory breach-test ENV=dev-cpu
+else
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make breach-test ENV=$(ENV): agent sessions run dev-cpu only, on their own engine (FR-039); the Author runs dev" >&2; exit 2; }
+	@[ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "make breach-test ENV=$(ENV): h4reet-$(ENV) wasn't started by make up (no $(RUNFILE))" >&2; exit 2; }
+	@[ -f "$(TREE)/evals/breach.py" ] || { echo "make breach-test ENV=$(ENV): the commit being run has no evals/breach.py" >&2; exit 2; }
+	$(PY_HOST) $(TREE)/evals/breach.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE))$(if $(call from_cli,DELIVERY), --delivery="$$DELIVERY")
+endif
 
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan

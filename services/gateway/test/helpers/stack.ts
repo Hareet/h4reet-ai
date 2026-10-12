@@ -2,7 +2,7 @@
 // directory, the services, and both listeners, driven with inject(). The operator token is made at run time, so no
 // token-shaped value sits in a file (tasks.md: "tests build any token-shaped value at run time").
 import { createHash, randomBytes } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,17 @@ import { readMigrations, Store } from "../../src/meter/store.js";
 import { testDatabase, type TestDatabase } from "./pglite.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
+/** config-files.md §1.2's second step: dev's route falls back to the synthetic adapter (tasks.md T073). */
+const FALLBACK_ROUTING = fileURLToPath(new URL("../fixtures/config-fallback/routing.yaml", import.meta.url));
+
+/** The fixtures, with the fallback routing file in place of the local-only one, in a directory of their own. */
+export async function fallbackConfigDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "h4-config-"));
+  for (const file of ["prices.yaml", "budgets.yaml", "alerts.yaml"])
+    await copyFile(join(FIXTURES, file), join(dir, file));
+  await copyFile(FALLBACK_ROUTING, join(dir, "routing.yaml"));
+  return dir;
+}
 
 export type StackName = "prod" | "dev" | "dev-cpu";
 const SCOPE: Record<StackName, string> = { prod: "prod", dev: "dev", "dev-cpu": "devcpu" };
@@ -55,6 +66,8 @@ export async function testStack(
     realNow?: () => number;
     /** Leave the store unmigrated and not ready, as a store that is down. */
     storeDown?: boolean;
+    /** dev's route with the synthetic fallback (config-files.md §1.2, step 2), built when its switch is on. */
+    fallback?: boolean;
   } = {},
 ): Promise<TestStack> {
   const stack = o.stack ?? "dev";
@@ -62,6 +75,7 @@ export async function testStack(
   const token = makeToken(stack);
   const tokenSha256 = sha256(token);
   const stateDir = await mkdtemp(join(tmpdir(), "h4-stack-"));
+  const configDir = o.fallback === true ? await fallbackConfigDir() : undefined;
   const logged: Logged[] = [];
   const at = (level: string) => (record: object) =>
     void logged.push({ level, record: record as Record<string, unknown> });
@@ -92,7 +106,7 @@ export async function testStack(
       GATEWAY_STATE_DIR: stateDir,
       ...o.env,
     },
-    config: await loadConfig(FIXTURES, { allowPlanned: false }),
+    config: await loadConfig(configDir ?? FIXTURES, { allowPlanned: false }),
     store,
     logger,
     version: "0.1.0",
@@ -113,10 +127,13 @@ export async function testStack(
     logged,
     auth: (t = token) => ({ authorization: `Bearer ${t}` }),
     close: async () => {
+      await services.drafts.stop();
+      await services.dispatcher.stop();
       await services.gateway.close();
       await Promise.allSettled([api.close(), admin.close()]);
       await store.close();
       await rm(stateDir, { recursive: true, force: true });
+      if (configDir !== undefined) await rm(configDir, { recursive: true, force: true });
     },
   };
 }

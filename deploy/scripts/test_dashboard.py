@@ -1,9 +1,19 @@
-"""deploy/grafana/dashboards/h4-runtime.json against contracts/telemetry.md §7 and §8 (spec 000 FR-028).
+"""deploy/grafana/dashboards/h4-runtime.json against contracts/telemetry.md §7 and §8 (spec 000 FR-028, FR-032, FR-034).
 
 The expected panels and their exact queries are read from the contract's own tables, so a query changes in the
 contract first and here never. Each of §7's sections is all or nothing: US1's three (§7.3 requests, §7.4 the model
-server, §7.6 telemetry health) must be whole, and a later section is either absent or whole, so the task that adds
-it (the spend, state, and audit panels; the dev-time row) needs nothing changed here to be held to the contract.
+server, §7.6 telemetry health) and US2's three (§7.1 state, §7.2 spend, §7.5 audit and alerts) must be whole, and a
+later section (§7.7, the dev-time row) is either absent or whole.
+
+How a row of the contract becomes panels:
+  - a type that names two visualizations, "time series and stat" or "stat, and a state timeline", is two panels
+    with the same queries: the first under the row's title, the second under the title with the second
+    visualization in parentheses, as "Kill switch (state timeline)";
+  - "time series, and a stat over the range" with a "; stat:" query (§7.3's request count) is a time series and a
+    stat titled "... over the range", each with its own query;
+  - "the same three with `h4_meter="month"`" is the row above's three queries with that label;
+  - "table (SQL)" panels read the store through the `gateway` datasource, and their query is its SQL; "logs"
+    panels read Loki; every other panel is PromQL on `prom` (§7's opening paragraph).
 """
 
 from __future__ import annotations
@@ -22,18 +32,25 @@ DASHBOARD = json.loads(
     (REPO / "deploy/grafana/dashboards/h4-runtime.json").read_text(encoding="utf-8")
 )
 US1 = ("7.3", "7.4", "7.6")
+US2 = ("7.1", "7.2", "7.5")
+REQUIRED = US1 + US2
 SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7")
 DATASOURCES = {
     "prom": "prometheus",
     "loki": "loki",
     "gateway": "grafana-postgresql-datasource",
 }
+# A type cell that names two visualizations of the same queries.
+TWO_KINDS = re.compile(r"(.+?),? and (?:an? )?(.+)")
 
 
 def section(number: str) -> str:
+    """§7.n's text, up to the next heading of its level or above: §7.7 ends where "## 8." begins."""
     start = CONTRACT.index(f"\n### {number} ")
-    end = CONTRACT.find("\n### ", start + 1)
-    return CONTRACT[start : end if end > 0 else None]
+    ends = [
+        e for e in (CONTRACT.find(h, start + 1) for h in ("\n### ", "\n## ")) if e > 0
+    ]
+    return CONTRACT[start : min(ends) if ends else None]
 
 
 def cells(line: str) -> list[str]:
@@ -43,8 +60,8 @@ def cells(line: str) -> list[str]:
     ]
 
 
-def expand(cell: str) -> list[str]:
-    """A query cell's queries, with the contract's two shorthands spelled out."""
+def expand(cell: str, previous: list[str]) -> list[str]:
+    """A query cell's queries, with the contract's shorthands spelled out."""
     codes = re.findall(r"`([^`]+)`", cell)
     if "and the same with `0.95`" in cell:
         return [
@@ -59,26 +76,51 @@ def expand(cell: str) -> list[str]:
             re.sub(r"_spans\b", "_metric_points", base),
             re.sub(r"_spans\b", "_log_records", base),
         ]
-    return [c for c in codes if re.search(r"[({\[]", c)]
+    if cell.startswith("the same three with "):
+        (label,) = codes
+        name = label.split("=", 1)[0]
+        assert len(previous) == 3, cell
+        return [re.sub(rf'{name}="[^"]*"', label, query) for query in previous]
+    return [
+        c
+        for c in codes
+        if re.search(r"[({\[]", c) or c.lstrip().upper().startswith("SELECT ")
+    ]
 
 
 def contract_panels(number: str) -> dict[str, tuple[str, list[str]]]:
-    """Each panel of a section: its title (without the FR note), its type cell, and its queries."""
+    """Each panel of a section: its title (without the FR note), its type, and its queries."""
     out: dict[str, tuple[str, list[str]]] = {}
+    previous: list[str] = []
     for line in section(number).splitlines():
         if not line.startswith("| ") or line.startswith("| Panel"):
             continue
         title, kind, query = cells(line)[
             :3
         ]  # §7.1 and §7.2 add a fourth column, what the panel shows
-        title = re.sub(r"\s*\(FR-[^)]*\)$", "", title)
+        title = re.sub(r"\s*\((?:FR|SC)-[^)]*\)$", "", title)
         if "; stat: " in query:  # a time series, and a stat of the same over the range
             series, stat = query.split("; stat: ", 1)
-            out[title] = ("time series", expand(series))
-            out[f"{title} over the range"] = ("stat", expand(stat))
+            out[title] = ("time series", expand(series, previous))
+            out[f"{title} over the range"] = ("stat", expand(stat, previous))
             continue
-        out[title] = (kind, expand(query))
+        queries_ = expand(query, previous)
+        two = TWO_KINDS.fullmatch(kind)
+        if two:
+            first, second = two.groups()
+            out[title] = (first, queries_)
+            out[f"{title} ({second})"] = (second, queries_)
+        else:
+            out[title] = (kind, queries_)
+        previous = queries_
     return out
+
+
+def all_contract_panels() -> dict[str, tuple[str, list[str]]]:
+    expected: dict[str, tuple[str, list[str]]] = {}
+    for number in SECTIONS:
+        expected.update(contract_panels(number))
+    return expected
 
 
 def panels() -> list[dict]:
@@ -90,7 +132,39 @@ def by_title() -> dict[str, dict]:
 
 
 def queries(panel: dict) -> list[str]:
-    return [t["expr"] for t in panel["targets"]]
+    """Each target's query: SQL for the store's panels, PromQL or LogQL for the others."""
+    return [t["rawSql"] if "rawSql" in t else t["expr"] for t in panel["targets"]]
+
+
+def expected_uid(kind: str) -> str:
+    if "(SQL)" in kind:
+        return "gateway"
+    if kind == "logs":
+        return "loki"
+    return "prom"
+
+
+def test_the_contract_parses_as_this_file_reads_it() -> None:
+    # Not vacuous: the shorthands and the two-visualization rows come out as panels with their queries.
+    expected = all_contract_panels()
+    assert expected["Spend month-to-date"][1] == [
+        'max(h4_meter_spend_usd{h4_meter="month"})',
+        'max(h4_meter_warn_usd{h4_meter="month"})',
+        'max(h4_meter_ceiling_usd{h4_meter="month"})',
+    ]
+    assert expected["Kill switch"][0] == "stat"
+    assert expected["Kill switch (state timeline)"] == (
+        "state timeline",
+        expected["Kill switch"][1],
+    )
+    assert expected["Spend today (stat)"][0] == "stat"
+    assert expected["Fallback sub-budget remaining (time series)"][0] == "time series"
+    assert expected["Store state (authoritative)"][1][0].startswith("SELECT stack, env")
+    assert expected["Alert log"][1] == [
+        '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed)"'
+    ]
+    for _, found in expected.values():
+        assert found, "a panel parsed with no query"
 
 
 def test_the_dashboard_itself() -> None:
@@ -103,8 +177,8 @@ def test_the_dashboard_itself() -> None:
     assert DASHBOARD["editable"] is False
 
 
-@pytest.mark.parametrize("number", US1)
-def test_every_us1_panel_has_the_contracts_exact_queries(number: str) -> None:
+@pytest.mark.parametrize("number", REQUIRED)
+def test_every_required_panel_has_the_contracts_exact_queries(number: str) -> None:
     # The parse of the contract mustn't come back empty, or the comparison below proves nothing.
     assert contract_panels(number), f"no panels parsed from telemetry.md §{number}"
     found = by_title()
@@ -114,9 +188,7 @@ def test_every_us1_panel_has_the_contracts_exact_queries(number: str) -> None:
 
 
 def test_no_panel_outside_the_contract() -> None:
-    expected = {}
-    for number in SECTIONS:
-        expected.update(contract_panels(number))
+    expected = all_contract_panels()
     for panel in panels():
         assert panel["title"] in expected, panel["title"]
         assert queries(panel) == expected[panel["title"]][1], panel["title"]
@@ -129,22 +201,24 @@ def test_each_section_is_all_or_nothing(number: str) -> None:
     assert present in (set(), titles), (
         f"§{number} is partial: missing {sorted(titles - present)}"
     )
-    if number in US1:
+    if number in REQUIRED:
         assert present == titles
 
 
 def test_each_panels_type_is_the_contracts() -> None:
-    expected = {}
-    for number in SECTIONS:
-        expected.update(contract_panels(number))
+    expected = all_contract_panels()
     for panel in panels():
         kind = expected[panel["title"]][0]
-        if kind.startswith("time series"):
+        if kind == "state timeline":  # before "stat", which it starts with
+            assert panel["type"] == "state-timeline", panel["title"]
+        elif kind.startswith("time series"):
             assert panel["type"] == "timeseries", panel["title"]
         elif kind.startswith("stat"):
             assert panel["type"] == "stat", panel["title"]
         elif kind.startswith("table"):
             assert panel["type"] == "table", panel["title"]
+        elif kind == "logs":
+            assert panel["type"] == "logs", panel["title"]
         elif kind == "bar chart":
             bars = panel["fieldConfig"]["defaults"].get("custom", {}).get("drawStyle")
             assert panel["type"] == "barchart" or (
@@ -156,10 +230,12 @@ def test_each_panels_type_is_the_contracts() -> None:
 
 def test_every_metric_name_is_the_contracts() -> None:
     """telemetry.md §8: every metric name the dashboard queries appears in the contract, or is one of the "the same
-    for" names it spells with _metric_points or _log_records in place of _spans."""
+    for" names it spells with _metric_points or _log_records in place of _spans. The PromQL panels hold them all."""
     words = set(re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", CONTRACT))
     names = set()
     for panel in panels():
+        if panel["datasource"]["uid"] != "prom":
+            continue
         for expr in queries(panel):
             stripped = re.sub(r'"[^"]*"', '""', expr)  # label values
             stripped = re.sub(r"\[[^\]]*\]", "", stripped)  # ranges
@@ -191,7 +267,8 @@ FUNCTIONS = {
 }
 
 
-def test_every_datasource_is_one_of_the_three() -> None:
+def test_every_datasource_is_the_one_its_query_language_needs() -> None:
+    expected = all_contract_panels()
     for panel in panels():
         uids = {
             panel["datasource"]["uid"],
@@ -202,8 +279,21 @@ def test_every_datasource_is_one_of_the_three() -> None:
         assert uid in DATASOURCES and panel["datasource"]["type"] == DATASOURCES[uid], (
             panel["title"]
         )
-    # US1's panels are all PromQL.
-    assert {p["datasource"]["uid"] for p in panels()} == {"prom"}
+        assert uid == expected_uid(expected[panel["title"]][0]), panel["title"]
+    assert {p["datasource"]["uid"] for p in panels()} == set(DATASOURCES)
+
+
+def test_the_store_panels_read_their_sql_as_a_table() -> None:
+    # The audit panel and the store's state read gateway.audit_log and gateway.v_state through grafana_ro, so they
+    # still work when telemetry is down (telemetry.md §7.1, §7.5; research.md R-10).
+    sql = [p for p in panels() if p["datasource"]["uid"] == "gateway"]
+    assert {p["title"] for p in sql} == {"Store state (authoritative)", "Audit log"}
+    for panel in sql:
+        (target,) = panel["targets"]
+        assert target["format"] == "table" and target["rawQuery"] is True, panel[
+            "title"
+        ]
+        assert target["editorMode"] == "code", panel["title"]
 
 
 def test_the_panels_fit_the_grid_and_have_their_own_ids() -> None:
@@ -216,7 +306,43 @@ def test_the_panels_fit_the_grid_and_have_their_own_ids() -> None:
         ]
         assert grid["h"] > 0 and grid["y"] >= 0, panel["title"]
     rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
-    assert rows == ["Requests", "Model server", "Telemetry health"]
+    # §7's order: the state and spend first, next to the requests' latency and errors (Principle V).
+    assert rows == [
+        "State",
+        "Spend",
+        "Requests",
+        "Model server",
+        "Audit and alerts",
+        "Telemetry health",
+    ]
+
+
+def test_the_panels_follow_their_rows() -> None:
+    # Each panel sits below its row's header and above the next row's.
+    rows = sorted(
+        (p for p in DASHBOARD["panels"] if p["type"] == "row"),
+        key=lambda p: p["gridPos"]["y"],
+    )
+    sections = dict(
+        zip(
+            [
+                "State",
+                "Spend",
+                "Requests",
+                "Model server",
+                "Audit and alerts",
+                "Telemetry health",
+            ],
+            ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+            strict=True,
+        )
+    )
+    for i, row in enumerate(rows):
+        top = row["gridPos"]["y"]
+        bottom = rows[i + 1]["gridPos"]["y"] if i + 1 < len(rows) else float("inf")
+        for title in contract_panels(sections[row["title"]]):
+            y = by_title()[title]["gridPos"]["y"]
+            assert top < y < bottom, (row["title"], title)
 
 
 def test_spend_freshness_is_red_at_60_seconds_and_on_no_data() -> None:
@@ -243,6 +369,76 @@ def test_up_and_down_read_as_words(title: str) -> None:
     assert mapping["options"]["1"] == {"text": "up", "color": "green", "index": 1}
 
 
+def overrides(panel: dict) -> dict[str, dict]:
+    """Each override's matcher option, with its properties by id."""
+    return {
+        o["matcher"]["options"]: {p["id"]: p["value"] for p in o["properties"]}
+        for o in panel["fieldConfig"]["overrides"]
+    }
+
+
+@pytest.mark.parametrize("title", ["Kill switch", "Kill switch (state timeline)"])
+def test_the_kill_switch_is_green_when_normal_and_red_when_degraded(title: str) -> None:
+    # telemetry.md §7.1: "the stack and its state; `normal` green, `degraded` red".
+    panel = by_title()[title]
+    assert (
+        panel["targets"][0]["legendFormat"]
+        == "{{deployment_environment_name}} {{h4_state}}"
+    )
+    found = overrides(panel)
+    assert found[" normal$"]["color"] == {"mode": "fixed", "fixedColor": "green"}
+    assert found[" degraded$"]["color"] == {"mode": "fixed", "fixedColor": "red"}
+
+
+def test_the_degraded_cause_reads_none_in_green() -> None:
+    # §7.1: the cause a hello would get now; `none` green, and every cause red.
+    panel = by_title()["Why responses are degraded"]
+    assert panel["options"]["textMode"] == "name"
+    assert panel["fieldConfig"]["defaults"]["color"] == {
+        "mode": "fixed",
+        "fixedColor": "red",
+    }
+    assert overrides(panel)["none"]["color"] == {"mode": "fixed", "fixedColor": "green"}
+    assert (
+        panel["targets"][0]["instant"] is True
+    )  # the cause now, not every cause in the range
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Fallback sub-budget remaining", "Fallback sub-budget remaining (time series)"],
+)
+def test_awaiting_renewal_reads_in_red(title: str) -> None:
+    # §7.2: "B maps 1 to "awaiting renewal" in red".
+    panel = by_title()[title]
+    renewal = {
+        p["id"]: p["value"]
+        for o in panel["fieldConfig"]["overrides"]
+        if o["matcher"] == {"id": "byFrameRefID", "options": "B"}
+        for p in o["properties"]
+    }
+    (mapping,) = renewal["mappings"]
+    assert mapping["options"]["1"] == {
+        "text": "awaiting renewal",
+        "color": "red",
+        "index": 1,
+    }
+    assert mapping["options"]["0"]["text"] == "available"
+
+
+@pytest.mark.parametrize("meter", ["today", "month-to-date"])
+def test_spend_shows_its_warning_and_ceiling(meter: str) -> None:
+    # §7.2: today's spend against $3.50 and $5.00, the month's against $14.00 and $20.00, from the gateway's own
+    # gauges (B and C), so the lines follow config/budgets.yaml.
+    for title in (f"Spend {meter}", f"Spend {meter} (stat)"):
+        legends = [t["legendFormat"] for t in by_title()[title]["targets"]]
+        assert legends == ["spent", "warning", "ceiling"], title
+        assert by_title()[title]["fieldConfig"]["defaults"]["unit"] == "currencyUSD"
+
+
 def test_the_dashboards_folder_is_documented() -> None:
     readme = (REPO / "deploy/grafana/dashboards/README.md").read_text(encoding="utf-8")
     assert "deploy/scripts/test_dashboard.py" in readme
+    assert (
+        "(state timeline)" in readme
+    )  # how a two-visualization row becomes two panels

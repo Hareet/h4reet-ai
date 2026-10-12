@@ -3,6 +3,10 @@
 // - The pool runs statement_timeout=250ms, lock_timeout=250ms, idle_in_transaction_session_timeout=2s, and
 //   connectionTimeoutMillis=500, with at most 10 connections plus one for LISTEN. Any error or timeout on a
 //   request's path is store_unreachable: the stack fails closed (FR-031).
+// - Every connection resolves the store's host through c-ares (core/resolve.ts), not getaddrinfo (tasks.md T189).
+//   pg-pool drops a client idle for 10 s, so a quiet stack opens a connection for most requests. A getaddrinfo the
+//   resolver doesn't answer holds one of the two threads libuv gives lookups after pg has given up at 500 ms, and
+//   while the store is stopped, the pool's own lookups would fill both and queue every other lookup in the process.
 // - Migrations apply at startup, in file order, one transaction each, under a fixed advisory lock, each recorded
 //   with its SHA-256. A changed file stops the gateway (exit 1). A store that records a migration this build doesn't
 //   have, which is what a rollback across a migration looks like, exits 78 schema_newer_than_code.
@@ -15,6 +19,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 
 import type pg from "pg";
+
+import { aresSocket } from "../core/resolve.js";
 
 export const STORE_RETRY_MS = 5_000;
 /** The fixed advisory lock migrations run under: "h4ga". */
@@ -37,8 +43,12 @@ export interface Session extends Queryable {
 export interface Database extends Queryable {
   /** One connection for the length of `fn`: for an advisory lock or a transaction. */
   withSession<T>(fn: (session: Session) => Promise<T>, opts?: { purpose?: "migrate" }): Promise<T>;
-  /** The one LISTEN connection (the alert dispatcher's, tasks.md T077). Resolves to its close function. */
-  listen(channel: string, onNotify: () => void): Promise<() => Promise<void>>;
+  /**
+   * The one LISTEN connection (the alert dispatcher's, tasks.md T077). Resolves to its close function. `onEnd` is
+   * called once if the connection ends or fails on its own, as when Postgres restarts, so the caller can listen again;
+   * never after the close function ran.
+   */
+  listen(channel: string, onNotify: () => void, onEnd: () => void): Promise<() => Promise<void>>;
   close(): Promise<void>;
 }
 
@@ -74,6 +84,7 @@ export function buildPoolConfig(s: PgSettings): pg.PoolConfig {
     lock_timeout: 250,
     idle_in_transaction_session_timeout: 2_000,
     connectionTimeoutMillis: 500,
+    stream: aresSocket,
   };
 }
 
@@ -129,16 +140,30 @@ export function pgDatabase(s: PgSettings): Database {
         client.release(failure);
       }
     },
-    async listen(channel, onNotify) {
+    async listen(channel, onNotify, onEnd) {
       if (!/^[a-z_]+$/.test(channel)) throw new Error("a channel name is lower-case letters and underscores");
       const client = new Client(config);
-      client.on("error", () => {}); // the caller reconnects; an error here must not crash the process
+      let closed = false;
+      let ended = false;
+      // A dropped connection emits 'error', then 'end'. Either one ends this LISTEN: the client goes, and the caller
+      // listens again on a fresh one. An error here must not crash the process, and none is thrown from here.
+      const end = (): void => {
+        if (ended) return;
+        ended = true;
+        void client.end().catch(() => {});
+        if (!closed) onEnd();
+      };
+      client.on("error", end);
+      client.on("end", end);
       await client.connect();
       client.on("notification", (msg) => {
         if (msg.channel === channel) onNotify();
       });
       await client.query(`LISTEN ${channel}`);
-      return async () => void (await client.end().catch(() => {}));
+      return async () => {
+        closed = true;
+        await client.end().catch(() => {});
+      };
     },
     close: () => pool.end(),
   };
@@ -378,7 +403,87 @@ export function errorClass(err: unknown): string {
   return typeof code === "string" && /^[A-Z0-9_]{1,32}$/.test(code) ? code : "unknown";
 }
 
+/**
+ * The SQLSTATE the server answered with, when it answered: five digits or capitals with a digit among them, such as
+ * 23514 or 42P01. A Node error code of five letters, such as EPIPE, has none.
+ */
+export function sqlStateOf(err: unknown): string | undefined {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === "string" && /^[0-9A-Z]{5}$/.test(code) && /[0-9]/.test(code) ? code : undefined;
+}
+
+/**
+ * The SQLSTATE classes of a statement the store refused while working: a bad value, a constraint, a syntax error, a
+ * missing object, a privilege, a trigger's RAISE. The store answered, so it isn't down: the statement was wrong.
+ */
+const STATEMENT_CLASSES: ReadonlySet<string> = new Set([
+  "0A", // feature not supported
+  "21", // cardinality violation
+  "22", // data exception
+  "23", // integrity constraint violation: CHECK, UNIQUE, NOT NULL
+  "26", // invalid SQL statement name
+  "27", // triggered data change violation
+  "2B", // dependent privilege descriptors still exist
+  "2D", // invalid transaction termination
+  "2F", // SQL routine exception
+  "34", // invalid cursor name
+  "3D", // invalid catalog name
+  "3F", // invalid schema name
+  "42", // syntax error or access rule violation
+  "44", // WITH CHECK OPTION violation
+  "P0", // PL/pgSQL: the audit log's append-only trigger raises here
+]);
+
+/** The JavaScript classes a bug in the gateway's own code raises. */
+const BUGS = [TypeError, RangeError, ReferenceError, SyntaxError] as const;
+
+/**
+ * A failure of the store itself, which is store_unreachable (data-model.md §2.1): no connection, a dropped one, a
+ * statement or lock timeout, the server going away, or a store that isn't ready. A statement the store refused, such as
+ * a CHECK violation, is a bug in the gateway, not an outage, and a request answers 500 for it (tasks.md T072).
+ */
+export function isStoreFailure(err: unknown): boolean {
+  if (err instanceof StoreUnavailableError || err instanceof CommitUnknownError) return true;
+  if (!(err instanceof Error) || BUGS.some((cls) => err instanceof cls)) return false;
+  const sqlstate = sqlStateOf(err);
+  return sqlstate === undefined || !STATEMENT_CLASSES.has(sqlstate.slice(0, 2));
+}
+
+/**
+ * COMMIT was sent, and its answer was lost: the connection dropped, or the server went away, before the
+ * acknowledgement came back. The transaction may have committed or not. It carries what the transaction computed, so
+ * a caller that re-reads the store and finds its own write can finish as if the acknowledgement had arrived
+ * (tasks.md T072).
+ */
+export class CommitUnknownError<T = unknown> extends Error {
+  readonly code = "COMMIT_UNKNOWN";
+  /** The failure's class, never its message. */
+  readonly failure: string;
+
+  constructor(
+    readonly value: T,
+    failure: unknown,
+  ) {
+    super("COMMIT's acknowledgement was lost");
+    this.name = "CommitUnknownError";
+    this.failure = errorClass(failure);
+  }
+}
+
+/** A COMMIT that failed with no answer, or with the server going away, may have landed; one the server refused didn't. */
+function commitOutcomeUnknown(err: unknown): boolean {
+  if (!isStoreFailure(err)) return false;
+  const sqlstate = sqlStateOf(err);
+  return sqlstate === undefined || ["08", "57", "58", "XX"].includes(sqlstate.slice(0, 2));
+}
+
 const OUTAGE_LOG_EVERY_MS = 60_000;
+
+/**
+ * The SQLSTATEs of a state read whose schema is gone: undefined_table and invalid_schema_name. The store answers but
+ * holds nothing, so it was wiped and brought back empty while the gateway ran (plan §8 step 11).
+ */
+const SCHEMA_GONE: ReadonlySet<string> = new Set(["42P01", "3F000"]);
 
 export class Store {
   status: StoreStatus = "starting";
@@ -386,6 +491,10 @@ export class Store {
   private closed = false;
   private outageSince: number | undefined;
   private outageLoggedAt: number | undefined;
+  /** When the migrations last ran again for a schema found gone, real ms: at most once per retry interval. */
+  private remigratedAt: number | undefined;
+  /** That run, while it lasts: reads wait for it. */
+  private remigration: Promise<void> | undefined;
 
   constructor(private readonly opts: StoreOptions) {}
 
@@ -465,7 +574,7 @@ export class Store {
           event: "state.unknown",
           condition: "store_unreachable",
           since: new Date(this.outageSince).toISOString(),
-          error_class: errorClass(err),
+          error_class: err instanceof CommitUnknownError ? err.failure : errorClass(err),
         },
         "The kill-switch store can't be read, so the stack fails closed.",
       );
@@ -486,40 +595,50 @@ export class Store {
   }
 
   /**
-   * A query on a request's path. It is refused while the store isn't ready, and any failure is noted as an outage,
-   * since any error or timeout on a request's path means store_unreachable (data-model.md §2.1).
+   * A query on a request's path. It is refused while the store isn't ready. A failure of the store itself is noted as
+   * an outage, since any error or timeout on a request's path means store_unreachable (data-model.md §2.1); a
+   * statement the store refused isn't one (isStoreFailure).
    */
   async query<R = Record<string, unknown>>(text: string, params?: unknown[]): Promise<{ rows: R[] }> {
     if (this.status !== "ready") throw new StoreUnavailableError();
     try {
       return await this.opts.db.query<R>(text, params);
     } catch (err) {
-      this.noteOutage(err);
+      if (isStoreFailure(err)) this.noteOutage(err);
       throw err;
     }
   }
 
   /**
    * One transaction on one connection: BEGIN, `fn`, then COMMIT, or ROLLBACK on any error. `fn` throws a Rollback to
-   * roll back and resolve with its value: a refusal, such as a 409, and no outage. Any other failure is noted as one.
+   * roll back and resolve with its value: a refusal, such as a 409, and no outage. A failure of the store is noted as
+   * an outage. A COMMIT whose answer was lost rejects with a CommitUnknownError carrying `fn`'s value, so the caller
+   * can re-read the store and find out whether it landed.
    */
   async transaction<T>(fn: (q: Queryable) => Promise<T>): Promise<T> {
     if (this.status !== "ready") throw new StoreUnavailableError();
     try {
       return await this.opts.db.withSession(async (session) => {
         await session.query("BEGIN");
+        let value: T;
         try {
-          const value = await fn(session);
-          await session.query("COMMIT");
-          return value;
+          value = await fn(session);
         } catch (err) {
           await session.query("ROLLBACK").catch(() => {});
           if (err instanceof Rollback) return err.value as T;
           throw err;
         }
+        try {
+          await session.query("COMMIT");
+        } catch (err) {
+          await session.query("ROLLBACK").catch(() => {});
+          if (commitOutcomeUnknown(err)) throw new CommitUnknownError(value, err);
+          throw err;
+        }
+        return value;
       });
     } catch (err) {
-      this.noteOutage(err);
+      if (isStoreFailure(err)) this.noteOutage(err);
       throw err;
     }
   }
@@ -549,8 +668,26 @@ export class Store {
     }));
   }
 
-  /** The state read at request start (data-model.md §7.1): no cache, and any failure is store_unreachable. */
+  /**
+   * The state read at request start (data-model.md §7.1): no cache, and any failure is store_unreachable, but one. A
+   * store that answers without its schema was wiped and brought back empty under the running gateway: the migrations
+   * run again, as at startup, and the read follows them, so the empty store answers store_uninitialized (§6.1). Reads
+   * that arrive meanwhile wait for the same run. store_unreachable stays for a store that can't be reached, or whose
+   * migrations fail, which are then retried every 5 s.
+   */
   async readStackState(): Promise<StateRead> {
+    if (this.remigration !== undefined) await this.remigration;
+    let read = await this.readOnce();
+    if (read.kind === "schema_gone" && (this.remigration !== undefined || this.migrateAgain())) {
+      await this.remigration;
+      read = await this.readOnce();
+    }
+    if (read.kind !== "schema_gone") return read;
+    this.noteOutage(read.err);
+    return { kind: "unreachable" };
+  }
+
+  private async readOnce(): Promise<StateRead | { kind: "schema_gone"; err: unknown }> {
     if (this.status !== "ready") return { kind: "unreachable" };
     try {
       const { rows } = await this.opts.db.query<{
@@ -577,9 +714,36 @@ export class Store {
         testClockOffsetMs: row.test_clock_offset_ms === null ? null : Number(row.test_clock_offset_ms),
       };
     } catch (err) {
+      const sqlstate = sqlStateOf(err);
+      if (sqlstate !== undefined && SCHEMA_GONE.has(sqlstate)) return { kind: "schema_gone", err };
       this.noteOutage(err);
       return { kind: "unreachable" };
     }
+  }
+
+  /**
+   * Starts the migrations again for a schema found gone (data-model.md §2.1): the same run as at startup, under the
+   * same advisory lock and the same checks, and retried every 5 s if it fails. While it runs the store isn't ready, so
+   * queries answer as store_unreachable, and reads wait for it. At most once per retry interval: a schema the
+   * migrations can't bring back, such as one with a table dropped by hand, stays store_unreachable without a run on
+   * every request. Says whether it started one.
+   */
+  private migrateAgain(): boolean {
+    const now = this.now();
+    if (this.closed || this.status !== "ready") return false;
+    if (this.remigratedAt !== undefined && now - this.remigratedAt < (this.opts.retryMs ?? STORE_RETRY_MS))
+      return false;
+    this.remigratedAt = now;
+    this.status = "unreachable";
+    this.remigration = this.attempt(false).finally(() => {
+      this.remigration = undefined;
+    });
+    return true;
+  }
+
+  /** The dedicated LISTEN connection: the alert dispatcher's wake-up (data-model.md §2.7). Resolves to its close. */
+  listen(channel: string, onNotify: () => void, onEnd: () => void): Promise<() => Promise<void>> {
+    return this.opts.db.listen(channel, onNotify, onEnd);
   }
 
   async close(): Promise<void> {

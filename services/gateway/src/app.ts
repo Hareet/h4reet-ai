@@ -5,15 +5,17 @@
 //   and until it exists (tasks.md T055) every request there is unauthenticated, so every answer is 401.
 // - Startup: validate the environment and the configuration (exit 78 on failure), build the route's adapters
 //   (registry.ts: exit 78 for a configuration it refuses, 1 for a broken build), connect the store (retrying in the
-//   background while it is down), then start the listeners and the background work: the adapters' health probes and
-//   the gauges' refresh.
+//   background while it is down), then start the listeners and the background work: the adapters' health probes, the
+//   meter's sweep, the gauges' refresh, the alert dispatcher with its daily reminder, and the incident drafts.
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
 import { metrics as otelMetrics, trace, type Tracer } from "@opentelemetry/api";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
-import { buildRoute, loadFactories, RegistryError, type AdapterFactory } from "./adapters/registry.js";
+import { buildRoute, loadFactories, RegistryError, switchedOff, type AdapterFactory } from "./adapters/registry.js";
+import { channelsFrom, Dispatcher } from "./alerts/dispatcher.js";
+import { IncidentDrafts } from "./incidents/draft.js";
 import {
   ENV_CLASSES,
   routeFor,
@@ -32,6 +34,7 @@ import { GatewayClock } from "./core/clock.js";
 import { Gateway } from "./core/gateway.js";
 import { ClientCap } from "./core/limits.js";
 import { Journal } from "./meter/journal.js";
+import { Meter } from "./meter/meter.js";
 import {
   FatalStoreError,
   Store,
@@ -146,11 +149,20 @@ export interface GatewayServices {
   clock: GatewayClock;
   store: Store;
   journal: Journal;
+  meter: Meter;
   gateway: Gateway;
+  /** The alert outbox's delivery, the in-memory store_unreachable alert, and the daily reminder. */
+  dispatcher: Dispatcher;
+  /** The incident drafts a trip queues (FR-035), written every 10 s. */
+  drafts: IncidentDrafts;
+  /** The route's fallback adapter as built, or null: none configured, or its switch off (the synthetic one). */
+  fallbackId: string | null;
   clientCap: ClientCap;
   realNow: () => number;
   /** Whether a peer is edge (core/edge.ts). */
   forwardedBy: ForwardedBy;
+  /** GATEWAY_STATE_DIR: the journal and the incident drafts. */
+  stateDir: string;
 }
 
 /** GATEWAY_STATE_DIR, which compose sets (env-files.md §4): the journal and the incident drafts live under it. */
@@ -175,9 +187,8 @@ export interface ServiceOptions {
 
 /**
  * Everything the routes use, for a validated configuration. It builds the route's adapters, and throws a
- * RegistryError when the registry refuses them: exit 78 for a configuration error, exit 1 for a broken build. Until
- * tasks.md T074 builds the metered fallback path, a route with a fallback is refused too: exit 78
- * fallback_not_supported, a temporary refusal (plan §5.8, contracts/config-files.md §1.4).
+ * RegistryError when the registry refuses them: exit 78 for a configuration error, exit 1 for a broken build. A
+ * route with a fallback gets the meter, through which every fallback call is admitted and committed (FR-022).
  */
 export async function createServices(opts: ServiceOptions): Promise<GatewayServices> {
   const { env, config, logger } = opts;
@@ -194,17 +205,25 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     logger,
     realNow,
   });
-  if (adapters.some((a) => a.role === "fallback")) {
-    await Promise.allSettled(adapters.map((a) => a.adapter.close?.()));
-    throw new RegistryError(
-      78,
-      "fallback_not_supported",
-      `config/routing.yaml: envs.${envClass}.fallback: this build has no metered fallback path (tasks.md T072–T074)`,
-    );
-  }
   const clock = new GatewayClock(realNow);
   const metrics = opts.metrics ?? new GatewayMetrics(otelMetrics.getMeter("h4-gateway"));
-  const journal = new Journal({ stateDir: env.GATEWAY_STATE_DIR || DEFAULT_STATE_DIR, stack });
+  const stateDir = env.GATEWAY_STATE_DIR || DEFAULT_STATE_DIR;
+  const journal = new Journal({ stateDir, stack, realNow });
+  const meter = new Meter({
+    stack,
+    envClass,
+    budgets,
+    alerts,
+    prices,
+    routingSha: routing.sha256,
+    store: opts.store,
+    journal,
+    clock,
+    metrics,
+    logger,
+    realNow,
+    hasFallback: adapters.some((a) => a.role === "fallback"),
+  });
   const gateway = new Gateway({
     stack,
     envClass,
@@ -213,6 +232,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     prices,
     budgets,
     adapters,
+    disabled: switchedOff({ routing, envClass, env }),
     store: opts.store,
     clock,
     tracer: opts.tracer ?? trace.getTracer("h4-gateway"),
@@ -221,6 +241,37 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     payloadSampling: env.TELEMETRY_PAYLOAD_SAMPLING === "on",
     testMachinery: { clock: env.GATEWAY_TEST_CLOCK === "1", synthetic: env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
     journalStatus: () => journal.status(),
+    meter,
+    realNow,
+  });
+  // A committed change to a meter or the state replaces the gauges' snapshot at once (telemetry.md §4.1).
+  meter.onChange = () => void gateway.refreshGauges().catch(() => {});
+  const dispatcher = new Dispatcher({
+    stack,
+    envClass,
+    store: opts.store,
+    alerts,
+    budgets,
+    channels: channelsFrom(env, alerts),
+    hasFallback: gateway.fallbackId() !== null,
+    clock,
+    metrics,
+    logger,
+    realNow,
+  });
+  // A paid fallback that turns unhealthy: the dispatcher queues its fallback_unavailable alert (data-model.md §7.7).
+  gateway.onFallbackUnavailable = (adapter, reason) => void dispatcher.fallbackUnavailable(adapter, reason);
+  const drafts = new IncidentDrafts({
+    stack,
+    envClass,
+    store: opts.store,
+    stateDir,
+    budgets,
+    prices,
+    fallbackId: gateway.fallbackId(),
+    env,
+    clock,
+    logger,
     realNow,
   });
   return {
@@ -237,10 +288,15 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     clock,
     store: opts.store,
     journal,
+    meter,
     gateway,
+    dispatcher,
+    drafts,
+    fallbackId: gateway.fallbackId(),
     clientCap: new ClientCap(budgets.limits.perClient),
     realNow,
     forwardedBy: opts.forwardedBy ?? edgePeer(),
+    stateDir,
   };
 }
 
@@ -285,10 +341,14 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       clock: s.clock,
       budgets: s.budgets,
       alerts: s.alerts,
-      fallbackId: s.routing.envs[s.envClass].fallback ?? null,
+      fallbackId: s.fallbackId,
       metrics: s.metrics,
       logger: s.logger,
       realNow: s.realNow,
+      meter: s.meter,
+      stateDir: s.stateDir,
+      testMachinery: { clock: s.env.GATEWAY_TEST_CLOCK === "1", synthetic: s.env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
+      onChange: () => void s.gateway.refreshGauges().catch(() => {}),
     });
   } else {
     // Bare listeners have no operator credential, so no request is authenticated. onRequest runs before the body is
@@ -430,6 +490,8 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     throw err;
   }
   services.gateway.start();
+  services.dispatcher.start();
+  services.drafts.start();
   const port = (app: FastifyInstance): number => {
     const address = app.server.address();
     return typeof address === "object" && address !== null ? address.port : 0;
@@ -456,6 +518,8 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     close: () =>
       (closing ??= (async () => {
         await Promise.allSettled([api.close(), admin.close()]);
+        await services.drafts.stop();
+        await services.dispatcher.stop();
         await services.gateway.close();
         await store.close();
       })()),

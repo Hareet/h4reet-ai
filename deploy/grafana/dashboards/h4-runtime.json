@@ -1,7 +1,7 @@
 {
   "uid": "h4-runtime",
   "title": "h4reet.ai runtime",
-  "description": "The stack's runtime: requests, the model server, and telemetry health (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
+  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, and telemetry health (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
   "tags": ["h4reet", "spec-000"],
   "timezone": "utc",
   "refresh": "10s",
@@ -23,12 +23,1135 @@
   "panels": [
     {
       "type": "row",
+      "id": 21,
+      "title": "State",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 22,
+      "title": "Kill switch",
+      "description": "The stack's kill switch now: normal in green, degraded in red. An unreachable or empty store reads degraded, because an unknown state counts as degraded (FR-028, FR-031).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 5,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (deployment_environment_name, h4_state) (h4_kill_switch_state) == 1",
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{deployment_environment_name}} {{h4_state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [],
+          "noValue": "no data"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": " normal$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": " degraded$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "state-timeline",
+      "id": 23,
+      "title": "Kill switch (state timeline)",
+      "description": "When the kill switch was normal and when degraded, in the dashboard's time range (FR-028, FR-033). Only a reset brings it back to normal.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 5,
+        "y": 1,
+        "w": 9,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (deployment_environment_name, h4_state) (h4_kill_switch_state) == 1",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{deployment_environment_name}} {{h4_state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "on",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": " normal$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": " degraded$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.9,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 24,
+      "title": "Why responses are degraded",
+      "description": "The cause a hello arriving now would get, in FR-022's order: none in green, any cause in red (FR-022, FR-028; contracts/gateway-http.md \u00a73).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 1,
+        "w": 5,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (h4_cause) (h4_degraded_cause) == 1",
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{h4_cause}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "mappings": [],
+          "noValue": "no data"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "none"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 25,
+      "title": "Degraded responses by cause",
+      "description": "Which degraded causes answered, and when.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 19,
+        "y": 1,
+        "w": 5,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_cause) (increase(h4_degraded_responses_total[$__rate_interval]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_cause}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 26,
+      "title": "Store state (authoritative)",
+      "description": "The kill switch, the renewal flag, and today's meters, straight from the store through grafana_ro, so it still answers when telemetry is down (data-model.md \u00a72.9).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "gateway"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "gateway"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT stack, env, state, since, crossed, fallback_awaiting_renewal, fallback_awaiting_since, day_key, month_key, day_spent_micro / 1e6 AS day_usd, month_spent_micro / 1e6 AS month_usd, fallback_spent_micro / 1e6 AS fallback_usd, fallback_allowance_micro / 1e6 AS fallback_allowance_usd, fallback_grant_no FROM gateway.v_state"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "row",
+      "id": 27,
+      "title": "Spend",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 28,
+      "title": "Spend today",
+      "description": "Today's metered spend (UTC) against its warning and its ceiling, from the gateway's own meter (FR-028).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_spend_usd{h4_meter=\"day\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "spent"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_warn_usd{h4_meter=\"day\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "warning"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_ceiling_usd{h4_meter=\"day\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "ceiling"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [10, 10]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [10, 10]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 29,
+      "title": "Spend today (stat)",
+      "description": "Today's spend now, beside its warning and its ceiling.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 12,
+        "w": 4,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_spend_usd{h4_meter=\"day\"})",
+          "range": false,
+          "instant": true,
+          "legendFormat": "spent"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_warn_usd{h4_meter=\"day\"})",
+          "range": false,
+          "instant": true,
+          "legendFormat": "warning"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_ceiling_usd{h4_meter=\"day\"})",
+          "range": false,
+          "instant": true,
+          "legendFormat": "ceiling"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [],
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "no data"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 30,
+      "title": "Spend month-to-date",
+      "description": "This month's metered spend (UTC) against its warning and its ceiling (FR-028).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_spend_usd{h4_meter=\"month\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "spent"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_warn_usd{h4_meter=\"month\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "warning"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_ceiling_usd{h4_meter=\"month\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "ceiling"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [10, 10]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [10, 10]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 31,
+      "title": "Spend month-to-date (stat)",
+      "description": "This month's spend now, beside its warning and its ceiling.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 12,
+        "w": 4,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_spend_usd{h4_meter=\"month\"})",
+          "range": false,
+          "instant": true,
+          "legendFormat": "spent"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_warn_usd{h4_meter=\"month\"})",
+          "range": false,
+          "instant": true,
+          "legendFormat": "warning"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_ceiling_usd{h4_meter=\"month\"})",
+          "range": false,
+          "instant": true,
+          "legendFormat": "ceiling"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [],
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "no data"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 32,
+      "title": "Fallback sub-budget remaining",
+      "description": "What fallback can still spend today: the allowance minus committed fallback spend; whether it awaits the operator's renewal, in red; and the current grant's warning (FR-028, FR-030).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "h4_fallback_allowance_usd - ignoring (h4_meter) h4_meter_spend_usd{h4_meter=\"fallback_day\"}",
+          "range": false,
+          "instant": true,
+          "legendFormat": "remaining"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_fallback_awaiting_renewal)",
+          "range": false,
+          "instant": true,
+          "legendFormat": "renewal"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_warn_usd{h4_meter=\"fallback_day\"})",
+          "range": false,
+          "instant": true,
+          "legendFormat": "warning at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [],
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "no data"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "available",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "awaiting renewal",
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 33,
+      "title": "Fallback sub-budget remaining (time series)",
+      "description": "Fallback's room through the day, with the renewal flag on the right axis.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 20,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "h4_fallback_allowance_usd - ignoring (h4_meter) h4_meter_spend_usd{h4_meter=\"fallback_day\"}",
+          "range": true,
+          "instant": false,
+          "legendFormat": "remaining"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_fallback_awaiting_renewal)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "renewal"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_meter_warn_usd{h4_meter=\"fallback_day\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "warning at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "available",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "awaiting renewal",
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [10, 10]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 34,
+      "title": "Cost by provider and attribution",
+      "description": "Committed cost in the dashboard's time range, by provider, model, and attribution: Bedrock's fallback and test cost beside local's zero (FR-023, SC-005).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 20,
+        "w": 10,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (gen_ai_provider_name, gen_ai_request_model, h4_meter_attribution) (increase(h4_cost_usd_total[$__range]))",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 6
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
       "id": 1,
       "title": "Requests",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 27,
         "w": 24,
         "h": 1
       },
@@ -45,7 +1168,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 1,
+        "y": 28,
         "w": 10,
         "h": 8
       },
@@ -97,7 +1220,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 1,
+        "y": 28,
         "w": 4,
         "h": 8
       },
@@ -153,7 +1276,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 1,
+        "y": 28,
         "w": 10,
         "h": 8
       },
@@ -205,7 +1328,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 36,
         "w": 8,
         "h": 8
       },
@@ -268,7 +1391,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 9,
+        "y": 36,
         "w": 8,
         "h": 8
       },
@@ -320,7 +1443,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 9,
+        "y": 36,
         "w": 8,
         "h": 8
       },
@@ -370,7 +1493,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 44,
         "w": 24,
         "h": 1
       },
@@ -387,7 +1510,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 45,
         "w": 8,
         "h": 7
       },
@@ -474,7 +1597,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 18,
+        "y": 45,
         "w": 8,
         "h": 7
       },
@@ -537,7 +1660,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 18,
+        "y": 45,
         "w": 8,
         "h": 7
       },
@@ -600,7 +1723,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 52,
         "w": 24,
         "h": 6
       },
@@ -637,12 +1760,310 @@
     },
     {
       "type": "row",
+      "id": 35,
+      "title": "Audit and alerts",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 36,
+      "title": "Audit log",
+      "description": "Every operator action and every automatic trip, with who, when, and why, straight from the store's append-only audit log through grafana_ro (FR-034). Filtered on the real time it was recorded, so dev's test-clock jumps stay in range; the gateway's own time is beside it.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "gateway"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "gateway"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT recorded_at AS \"time\", ts AS gateway_time, actor, action, reason, before::text AS before, after::text AS after FROM gateway.audit_log WHERE $__timeFilter(recorded_at) ORDER BY recorded_at DESC LIMIT 200"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "table",
+      "id": 37,
+      "title": "Alerts by channel and outcome",
+      "description": "Delivery attempts in the dashboard's time range, by channel, kind, and outcome: delivered, retry, or failed (FR-032). A failed channel is the runbook alert-channel-down.md.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 67,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_channel, h4_alert_kind, h4_outcome) (increase(h4_alerts_total[$__range]))",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 38,
+      "title": "Alert delivery lag p95",
+      "description": "From an alert's commit to its delivery; FR-032 allows 5 minutes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 67,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(h4_alert_delivery_lag_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "id": 39,
+      "title": "Operator actions",
+      "description": "Accepted operator writes in the dashboard's time range, by action, and the dev-only test endpoints refused outside dev.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 67,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_action) (increase(h4_operator_actions_total[$__range]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{h4_action}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(increase(h4_test_machinery_refused_total[$__range]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "test machinery refused"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "gradientMode": "none"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Field",
+        "showValue": "auto",
+        "barWidth": 0.8,
+        "groupWidth": 0.7,
+        "stacking": "none",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "seriesToRows",
+            "reducers": ["lastNotNull"]
+          }
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "id": 40,
+      "title": "Alert log",
+      "description": "The alert outbox's events from the gateway's log: queued, delivered, retry, failed. Empty while telemetry is down; the store keeps the outbox (contracts/alerts.md \u00a74.4).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 74,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=\"gateway\"} | event=~\"alert\\\\.(queued|delivered|retry|failed)\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      }
+    },
+    {
+      "type": "logs",
+      "id": 41,
+      "title": "Audit events, from the logs",
+      "description": "The audit records the gateway logs (event.name h4.audit). The Audit log table above reads the store itself and outlasts a telemetry outage.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 74,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=\"gateway\"} | event_name=\"h4.audit\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      }
+    },
+    {
+      "type": "row",
       "id": 13,
       "title": "Telemetry health",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 82,
         "w": 24,
         "h": 1
       },
@@ -659,7 +2080,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 83,
         "w": 12,
         "h": 6
       },
@@ -735,7 +2156,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 32,
+        "y": 83,
         "w": 4,
         "h": 6
       },
@@ -812,7 +2233,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 32,
+        "y": 83,
         "w": 8,
         "h": 6
       },
@@ -886,7 +2307,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 38,
+        "y": 89,
         "w": 8,
         "h": 6
       },
@@ -960,7 +2381,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 38,
+        "y": 89,
         "w": 8,
         "h": 6
       },
@@ -1012,7 +2433,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 38,
+        "y": 89,
         "w": 8,
         "h": 6
       },
@@ -1064,7 +2485,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 95,
         "w": 24,
         "h": 6
       },

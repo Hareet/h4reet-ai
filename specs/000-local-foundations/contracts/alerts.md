@@ -25,13 +25,14 @@ A dedupe key has the form `<stack>:<kind>:<meter or subject>:<period>`, with `:g
 | `fallback_unavailable` | the paid fallback adapter's effective health turns unhealthy: credentials missing or expired, or the circuit opened | the 10 s ticker | `<stack>:fallback_unavailable:<adapter>:<YYYY-MM-DDTHHZ>` (at most one an hour) | `prod:fallback_unavailable:bedrock:2026-10-29T16Z` |
 | `auth_failed` | the third failed authentication in a 10-minute window, counted in memory ([operator-admin.md §1.1](operator-admin.md#11-authentication)) | the admin listener | `<stack>:auth_failed:admin:<start of the 10-minute window, YYYY-MM-DDTHH:M0Z>` | `prod:auth_failed:admin:2026-10-29T16:00Z` |
 | `store_unreachable` | the store has been unreachable for 60 s straight | in memory: the outbox is in the unreachable store | `<stack>:store_unreachable:store:<outage start, to the second>`, deduplicated in memory | `prod:store_unreachable:store:2026-10-29T16:01:00Z` |
-| `reminder` | 09:00 UTC by the gateway clock, while the stack is degraded or awaiting renewal | the 10 s ticker | `<stack>:reminder:daily:<YYYY-MM-DD>` | `prod:reminder:daily:2026-10-30` |
+| `reminder` | 09:00 UTC by the gateway clock, while the stack is degraded or awaiting renewal (from a condition that began before that day's 09:00: a trip later in the day is reminded of the next morning, as §3's example shows; tasks.md T077) | the 10 s ticker | `<stack>:reminder:daily:<YYYY-MM-DD>` | `prod:reminder:daily:2026-10-30` |
 
 Notes:
 - **Grants.** The grant number `<n>` is the `fallback_day` row's `grant_no`: 1 for the day's own $2, plus one for each renewal that day. Warnings and exhaustion therefore alert once per grant (ADR 0001).
 - **Periods** are the ones the call was charged to: its reservation's.
 - **No alert of their own:** the test endpoints, the live adapter endpoint, and alert-delivery failures. Delivery failures are a metric and a dashboard panel (§4.4).
 - **Outside prod.** `credentials_expiring` and `fallback_unavailable` can only fire in prod, because only prod routes a paid adapter.
+- **When `fallback_unavailable` fires** (tasks.md T152). The paid fallback's effective health enters one of the two reasons: `credentials`, or `circuit_open`. That happens on a flip to unhealthy, at the first probe that finds it so after startup's `not_ready`, or on a change to one of them while unhealthy. A timeout or a refused connection alerts through the circuit, once it opens. The row isn't queued while the store is empty or down, since the store's own state answers for the stack then. The hourly dedupe key, on the gateway clock, holds it to one an hour per adapter.
 
 ## 3. Message format
 
@@ -171,6 +172,8 @@ Runbook: docs/runbooks/kill-switch-trip.md
 
 While renewal is pending, the sentence adds "Only a renewal restores fallback." One reminder covers both conditions.
 
+(Added by tasks.md T069, which needed the cases the example leaves out.) Several crossed ceilings are listed in `crossed`'s order, separated by `; `: `(daily ceiling, 2026-10-29; monthly ceiling, 2026-10)`. While the stack is normal and only renewal is pending, the headline is `REMINDER: fallback still awaiting renewal since <time>`, the sentence is "Only a renewal restores fallback.", and the runbook is `fallback-renewal.md` (§6). A reset's sentence names both meters as `day and month` when both are at their ceiling.
+
 **A dev example** (the breach test, on the test clock):
 
 ```text
@@ -185,15 +188,26 @@ Runbook: docs/runbooks/cost-warning.md
 ### 4.1 The dispatcher
 
 - **Where it runs:** in the gateway process, so no second service needs egress ([plan.md §1](../plan.md#1-topology)).
-- **When it wakes:** on `LISTEN alert_outbox`, or every 2 s. It claims due rows with `SELECT … FOR UPDATE SKIP LOCKED`.
+- **When it wakes:** on `LISTEN alert_outbox`, or every 2 s. It claims due rows with `SELECT … FOR UPDATE SKIP LOCKED`. When the LISTEN connection ends on its own, as when Postgres restarts under the running gateway, the next pass listens again on a fresh connection, and the 2 s poll covers the gap (tasks.md T077, review).
 - **Independent channels.** One channel's failure never delays or stops the other.
 
 | Channel | Request | Timeout | Success | Recorded reference |
 |---|---|---|---|---|
-| Telegram | `POST {base}/bot<TELEGRAM_BOT_TOKEN>/sendMessage`, JSON `{chat_id, text, disable_web_page_preview: true}`, with no `parse_mode` (plain text). `base` is `TELEGRAM_API_BASE`, which prod requires to be `https://api.telegram.org`. | 5 s | HTTP 200 with `"ok": true` | `result.message_id` |
-| Email | nodemailer 10.0.16 to `SMTP_HOST:SMTP_PORT`: implicit TLS on 465 (`secure: true`) or STARTTLS on 587 (`requireTLS: true`), certificates verified, AUTH with `SMTP_USER` and `SMTP_PASSWORD`. From `ALERT_EMAIL_FROM` to `ALERT_EMAIL_TO`, `text/plain` only, with the headers `Auto-Submitted: auto-generated` and `X-H4-Alert-Id: <dedupe key>`. | 10 s | a 250 reply to the message | the reply code and the server's queue ID |
+| Telegram | `POST {base}/bot<TELEGRAM_BOT_TOKEN>/sendMessage` over `node:http(s)`, its host resolved through c-ares, JSON `{chat_id, text, disable_web_page_preview: true}`, with no `parse_mode` (plain text). `base` is `TELEGRAM_API_BASE`, which prod requires to be `https://api.telegram.org`. No redirect is followed. | 5 s, from the lookup to the answer's last byte | HTTP 200 with `"ok": true` | `result.message_id` |
+| Email | nodemailer 10.0.16 to `SMTP_HOST:SMTP_PORT`, over a connection the gateway makes through c-ares: implicit TLS on 465 (`secure: true`) or STARTTLS on 587 (`requireTLS: true`), certificates verified, AUTH with `SMTP_USER` and `SMTP_PASSWORD`. From `ALERT_EMAIL_FROM` to `ALERT_EMAIL_TO`, `text/plain` only, with the headers `Auto-Submitted: auto-generated` and `X-H4-Alert-Id: <dedupe key>`. | 10 s | a 250 reply to the message | the reply code and the server's queue ID |
 
 **The Telegram URL contains the bot token.** The dispatcher never logs a request URL, never stores one, and records only an error class: `timeout`, `connect`, `tls`, `http_<status>`, `telegram_<error_code>`, `smtp_<reply code>`, `smtp_<nodemailer code>`.
+
+(Tasks.md T156.) The email reference comes from the server's own reply line: its 2xx code and, when the reply names one, its queue ID. A message nodemailer reports accepted with a reply that can't be read is delivered with no reference: `email_ref` and `alert.delivered`'s `provider_ref` are null, never an assumed `250`.
+
+(Tasks.md T188.) The Telegram channel sends over `node:http(s)`, as the local adapter does, not `fetch`, with its host resolved through c-ares (provider-adapter.md §3.1's departure). At T084's pre-run, while the model server was stopped, the gateway's lookups of it held the two threads libuv gives lookups, and every Telegram send timed out waiting for its own lookup in the queue behind them. A redirect is `http_<status>`, since nothing follows it; at most 64 KiB of an answer is kept. A host that doesn't resolve is `connect`, as a refused connection is, and a peer that doesn't speak TLS on an `https` base is `tls` (`EPROTO`).
+
+(Tasks.md T189.) nodemailer resolves a host name through c-ares, but falls back to `getaddrinfo` whenever c-ares finds no address, a SERVFAIL or a timeout included, and a `getaddrinfo` the resolver doesn't answer holds one of the two threads libuv gives lookups. So the email channel connects to `SMTP_HOST` itself, through c-ares alone (`core/resolve.ts`), and hands nodemailer the connected socket through its `getSocket` hook. nodemailer resolves nothing, and speaks SMTP and TLS over that socket. TLS asks for the host's name and checks the certificate against it, on 465 and after STARTTLS alike. Against nodemailer's own resolving:
+- **Kept:** every address the host has is tried, within the same attempt. The addresses c-ares last found for the host are used when a lookup fails, as nodemailer's cache was through a resolver outage. A host with no address, now or before, is `connect`, as nodemailer's own `EDNS` was.
+- **Changed:** the addresses are tried in the resolver's order, each for 250 ms before the next but the last, as net does for the Telegram channel. nodemailer picked one at random first, and moved to the next only after a failed connect. On 465 that included a failed TLS handshake, since nodemailer connected with TLS from the start; now only a failed TCP connect moves to the next address, and a TLS failure ends the attempt. The host is looked up at every attempt, where nodemailer reused an answer for 5 minutes. The connection timeout now bounds the lookup and the connect together; nodemailer started it after the lookup, which ran under its own 30 s DNS timeout. When every address fails, the class is `connect`, as nodemailer reported its last address's failure.
+- **Lost:** `/etc/hosts` and resolv.conf's search domains. c-ares asks for the name as given. In stand-in mode `SMTP_HOST` is Mailpit's compose name, which the engine's DNS answers. In real mode it is assumed to be a full name; config validation checks only that it is set. A short name that resolved only through the search domains now gives `connect` (the runbook says so). Compose gives the gateway no `extra_hosts`, so `/etc/hosts` holds nothing it needs.
+
+(Departures and readings, tasks.md T077.) nodemailer writes the header's name as `X-H4-Alert-ID`, normalizing the case of every header it sends; header names are case-insensitive, so it is the same header. `telegram_<error_code>` is for an HTTP 200 whose body says `"ok": false`; any other status is `http_<status>`. A claimed row's due time moves past its attempt's timeout before the attempt (a lease), so a stalled process can't send it twice; an outcome the store can't take while it is down is kept in memory and written once it answers, without sending again.
 
 ### 4.2 The retry schedule
 
@@ -211,7 +225,7 @@ Runbook: docs/runbooks/cost-warning.md
 | dev, `--delivery real` | `[dev]` | `real`, set by the second env file the Author's recorded run adds ([plan.md §8](../plan.md#8-the-breach-test)) | the same bot and chat as prod, with the `[dev]` prefix. The run asserts Telegram's `message_id` and SMTP's 250 in the `alert.delivered` log records within 300 s (SC-002). |
 | dev-cpu | `[dev-cpu]` | `standin` | the stand-ins inside the agents' engine. The engine has no route to Telegram or SMTP. |
 
-In stand-in mode, the gateway sends the stand-in a fixed dummy token (`standin`) and chat ID `0`, never the real bot token.
+In stand-in mode, the gateway sends the stand-in a fixed dummy token (`standin`) and chat ID `0`, never the real bot token. (Added by tasks.md T077, since this table gives no stand-in addresses.) Email in stand-in mode goes from `alerts@h4reet.local` to `operator@h4reet.local`, dev-cpu.vars' own dummies, with no SMTP AUTH and no TLS, to Mailpit inside the stack.
 
 ### 4.4 Outcomes and when something is down
 
@@ -365,6 +379,14 @@ None. This draft was generated inside the stack. It holds no payloads, client id
 - the alert outcomes, and the Grafana link.
 
 The gateway reads `H4_GRAFANA_PORT` and `H4_LANGFUSE_PORT` from its environment for the links ([env-files.md](env-files.md)).
+
+(Departures and readings, tasks.md T078.)
+- **Determinism.** `Created` is the crossing's UTC date on the gateway clock, as in the file name, so the same evidence gives the same bytes and the row's SHA-256 identifies the draft.
+- **Departures from the template's text.** The daily totals' heading is `### Daily totals this month`, on a monthly draft only; a daily draft has no such section. A ceiling crossed on a stack that was degraded already says "`degraded` was set already, at {since}, by an earlier crossing." in place of "was set at {degraded_at}, in the same transaction", which would be false there; the Problem's `{degraded_at}` is that `since`.
+- **What each table holds.** The last 10 metered calls (attribution other than `none`) at or before the crossing, newest first. The hourly totals cover every route, local included, in the 24 hours up to and including the crossing; the daily totals count every call of the month up to the crossing. The audit trail is the period's rows up to the crossing. The Model columns are the request model, which a failed call has too. The Alerts rows are the trip's, then the period's warnings: the crossed meter's, and on a daily draft that day's fallback grant warnings.
+- **Clocks.** Every time is the gateway clock's, except the alert outcomes' delivery times, which are the outbox's real time, and the Grafana window, 2 h before to 30 min after the trip audit row's `recorded_at`, since Grafana's series are on the real clock. A draft is due 300 s after the trip alert's `enqueued_at` (real time).
+- **The file.** The temporary name is `incidents/.draft-<uuid>.tmp`. The first free name of `…-N.intent.md` is taken at the rename. If the row can't be updated afterwards, the file is removed, so the retry writes the same name again. A write failure logs `incident.draft_failed` when it starts or its class changes. A trip whose own audit row or ledger row is missing, which its transaction rules out, leaves the row `failed` with `no_trip_audit` or `no_crossing_call`.
+- **The links' ports.** When the environment doesn't carry them, the stack's fixed values in env-files.md stand in.
 
 **What never goes into a draft:**
 - payloads;

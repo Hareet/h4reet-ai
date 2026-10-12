@@ -70,23 +70,49 @@ export function stateDecision(read: StateRead, opts: { outageSince?: number | un
   return undefined;
 }
 
+/** The current periods' meters, as levels: spend plus reservations, which is what admission counts (§7.2 step 5). */
+export interface MeterView {
+  dayLevel: bigint;
+  monthLevel: bigint;
+  fallbackLevel: bigint;
+  /** Today's fallback_day allowance: the full grant until a renewal changes it. */
+  allowance: bigint;
+}
+
 export interface RouteView {
   read: StateRead;
   local: { healthy: boolean };
-  /** Whether this stack's route has a fallback adapter (none until tasks.md T073 and T102 register one). */
+  /** Whether this stack routes a fallback adapter, as built. */
   hasFallback: boolean;
+  /** The fallback branch's view: its adapter's health, the meters when they could be read, the ceilings, the journal. */
+  fallback?: {
+    healthy: boolean;
+    meters?: MeterView;
+    ceilings: { day: bigint; month: bigint };
+    /** The journal's last append failed: the next reserve record most likely will too. */
+    journalUnwritable: boolean;
+  };
 }
 
 /**
  * The cause a hello arriving now would get, from a dry run of §2.4 step 4 onward with no reservation and no provider
- * call; null when it would be answered (gateway-http.md §5; the h4.degraded.cause gauge, telemetry.md §4.1).
+ * call; null when it would be answered (gateway-http.md §5; the h4.degraded.cause gauge, telemetry.md §4.1). The
+ * fallback branch's causes come in admission's precedence: the ceilings, the renewal flag, today's allowance, the
+ * adapter's health, then the journal. Meters that couldn't be read leave their two checks out.
  */
 export function wouldDegrade(view: RouteView): DegradedCause | null {
   const early = stateDecision(view.read, {});
   if (early !== undefined) return early.cause;
   if (view.local.healthy) return null;
   if (!view.hasFallback) return "no_fallback_in_stack";
-  // The fallback branch's admission causes (meter_at_ceiling and the rest) arrive with tasks.md T074; until a fallback
-  // adapter is registered, no route can reach here.
-  return "fallback_unavailable";
+  const f = view.fallback;
+  const m = f?.meters;
+  if (f !== undefined && m !== undefined && (m.dayLevel >= f.ceilings.day || m.monthLevel >= f.ceilings.month)) {
+    return "meter_at_ceiling";
+  }
+  if (view.read.kind === "ok" && view.read.fallbackAwaitingRenewal) return "fallback_awaiting_renewal";
+  if (m !== undefined && m.fallbackLevel >= m.allowance) return "fallback_spent_today";
+  if (f !== undefined && !f.healthy) return "fallback_unavailable";
+  if (f?.journalUnwritable === true) return "journal_unwritable";
+  return null;
 }

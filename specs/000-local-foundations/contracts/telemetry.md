@@ -52,10 +52,10 @@ The gateway configures `@opentelemetry/sdk-node` in `src/telemetry/otel.ts`. Com
 | `OTEL_TRACES_SAMPLER` | `parentbased_always_on` |
 
 - Spans go through a batch span processor (queue 2,048, export every 1 s). A full queue drops spans; it never blocks a request.
-- Telemetry failures never touch enforcement: the meter and the kill switch live in the store, and nothing in the request path waits on an export.
+- Telemetry failures never touch enforcement: the meter and the kill switch live in the store, and nothing in the request path waits on an export. The exporters resolve the collector through c-ares, keep-alive as before (`EXPORT_AGENT`, tasks.md T189), so exports to a stopped collector hold neither of the two threads libuv gives lookups. Unlike the default agent, it reads no `/etc/hosts`, a c-ares `ETIMEOUT` or `ESERVFAIL` isn't one of the exporter's retryable codes, and on https it would ignore the environment's `OTEL_EXPORTER_OTLP_*CERTIFICATE`; the collector is plain http inside the stack. The store's connections resolve through c-ares too ([data-model.md §2.1](../data-model.md#21-migrations-roles-and-connections)).
 - Health probes produce no spans: the HTTP instrumentation ignores `/health/live` and `/health` (`ignoreIncomingRequestHook`), and the collector's filter drops any that get through ([§6.3](#63-processors)).
 - The gateway removes `client.address`, `client.port`, `network.peer.address`, `network.peer.port`, `user_agent.original`, `url.query`, and `url.full` from its spans, and any query string from `url.path`, in a span processor before export. The collector deletes them again, and strips the query string from any `url.full` that reaches it ([§6.3](#63-processors)).
-- **Outbound HTTP.** `instrumentation-undici`'s `ignoreRequestHook` skips the Telegram API host and the stand-in, because that URL's path carries the bot token ([alerts.md §4.1](alerts.md#41-the-dispatcher)), so no client span records it. The collector's redaction (§6.3) stays the second layer.
+- **Outbound HTTP.** The Telegram channel sends over `node:http(s)` (alerts.md §4.1, tasks.md T188). `instrumentation-http`'s `ignoreOutgoingRequestHook` skips the Telegram API host and the stand-in, as `instrumentation-undici`'s `ignoreRequestHook` does for any `fetch` to them, because that URL's path carries the bot token ([alerts.md §4.1](alerts.md#41-the-dispatcher)), so no client span records it. The collector's redaction (§6.3) stays the second layer.
 - **No trace context leaves the stack.** Both client instrumentations' ignore hooks (`ignoreOutgoingRequestHook` for `node:http` and `node:https`, `ignoreRequestHook` for `fetch`) instrument a request only when its host is an in-stack service (one letter-first DNS label, [provider-adapter.md §3.1](provider-adapter.md)) and not a Telegram host. An ignored request gets neither a client span nor a `traceparent` header, and both hooks return before the instrumentation injects any header. So the Bedrock adapter's calls through the AWS SDK, and its SSO credential refresh, carry no trace ID to AWS, and the gateway's own `chat {model}` span is their client span (§3.2). The SDK test checks the wire for `traceparent`, `tracestate`, and `baggage`.
 - **Outgoing spans need a parent.** The HTTP, undici, and pg instrumentations make spans only inside a request's trace (`requireParentforOutgoingSpans`, `requireParentforSpans`, `requireParentSpan`), so the model server's 1 s health probe, the store's background queries, and startup make no traces of their own. pg spans carry statements with placeholders, never values, and the statement that sets `grafana_ro`'s password is scrubbed from its span, because the verifier is as sensitive as a password hash.
 
@@ -70,6 +70,8 @@ POST /hello                      SERVER    one per request (also POST /admin/tes
 ```
 
 A request refused before routing (the per-client cap, a validation error) has a server span and no `gateway.route` span. A degraded request decided from the state alone (`store_unreachable`, `store_uninitialized`, `kill_switch_tripped`) has a `gateway.route` span and no client span.
+
+(Departure, tasks.md T074.) `POST /admin/test/synthetic` makes its calls one after another in one request, and gives each its own trace, as operator-admin.md §3.2's answer shows a trace ID per call: each call's `gateway.route` span is a root span, linked to the request's server span. So the breach test's T assertions, and an incident draft's list of the last metered calls, can name each call by its trace.
 
 Langfuse shows the tree as one trace: the server span is the trace's root, and the client spans are generations ([§3.5](#35-what-langfuse-reads)). The other `@fastify/otel` hook spans, if the instrumentation emits them, carry no attributes beyond Fastify's own and no payloads.
 
@@ -99,6 +101,7 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 | `h4.route.reason` | always | `local_healthy` (local); `local_unhealthy` or `local_failed` (fallback); the attribution, `metered` or `test` (metered); the degraded cause (degraded). The ledger keeps only the fallback reasons ([data-model.md §2.5](../data-model.md#25-ledger-the-model-call-record-fr-023)). |
 | `h4.degraded.cause` | when the decision is `degraded` | the causes in [§4.1](#41-the-gateways-instruments) |
 | `h4.meter.attribution` | when a metered call is admitted | `fallback`, `metered`, `test` |
+| `h4.meter.commit` | when a metered call's commit didn't land at once and is retried in the background ([data-model.md §7.3](../data-model.md#73-commit-of-a-metered-call): "the span and the log record the pending commit"; added by tasks.md T074) | `pending` |
 
 **Client span** (`chat {gen_ai.request.model}`; kind CLIENT; one per provider attempt):
 
@@ -240,9 +243,12 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `call.degraded` | warn | each degraded response | `cause`, `route_decision` |
 | `call.refused` | info | each 429 | `error` (`client_cap_exceeded`, `metered_capacity_exceeded`), `limit` |
 | `meter.threshold_crossed` | warn | a commit crosses a warning, a ceiling, or a fallback allowance | `meter`, `period`, `threshold` (`warn`, `ceiling`, `allowance`), `spent_micro`, `threshold_micro`, `grant_no` (fallback only) |
-| `killswitch.tripped` | error | the commit that sets `degraded` | `ceilings`, `day_micro`, `month_micro` |
+| `killswitch.tripped` | error | the commit that sets `degraded`: one record per transaction that moves the state from `normal` to `degraded`, naming every ceiling crossed in it, with the day's and the month's spend as it leaves them. A ceiling crossed on a stack that is degraded already sets nothing and has no record of its own; its trip alert, incident, and audit row still follow (tasks.md T068) | `ceilings`, `day_micro`, `month_micro` |
 | `fallback.exhausted` | warn | committed fallback spend reaches the allowance | `grant_no`, `allowance_micro`, `spent_micro` |
 | `reservation.expired` | warn | the sweep settles a reservation ([data-model.md §2.4](../data-model.md#24-reservations-metered-calls-in-flight)) | `reservation_id`, `attribution`, `max_micro` |
+| `meter.commit_pending` | warn | a metered call's commit failed on the store, and is kept for retries every 2 s until its reservation expires ([data-model.md §7.3](../data-model.md#73-commit-of-a-metered-call): "the log records the pending commit"; added by tasks.md T072) | `reservation_id`, `attribution`, `error_class` |
+| `meter.commit_gave_up` | error | a metered call's commit won't land, and the sweep settles its reservation at its maximum: the retries of a pending commit reached the reservation's expires_at; the store refused the commit's statement (a bug, 500-class, never retried); the gateway is stopping; or the call never settled at all and its reservation has expired, so the 10 s upkeep gives its slots back (added by tasks.md T072) | `reservation_id`, `attribution` |
+| `meter.sweep_failed` | error | the 10 s reservation sweep failed; it runs again at the next tick (tasks.md T068) | `error_class` (a SQLSTATE or Node error code, never a message) |
 | `operator.init`, `operator.reset`, `operator.renew`, `operator.test_clock`, `operator.test_synthetic`, `operator.adapter_call` | info, with `event.name=h4.audit` | an accepted admin write | `audit_id`, `actor` (`operator:<stack>#<8 hex>`), `action`, `reason`, and `before` and `after` summaries in micro-USD as the audit row has them |
 | `operator.auth_failed` | warn, with `event.name=h4.audit` | a failed authentication | `class` (`missing`, `malformed`, `wrong_prefix`, `mismatch`), `route` (the route template, or `other`) |
 | `alert.queued` | info | an outbox row commits | `dedupe_key`, `kind` |
@@ -250,6 +256,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s` |
 | `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class` |
 | `incident.drafted` | info | a draft is written | `incident_id`, `path` (relative to the state directory), `sha256` |
+| `incident.draft_failed` | warn | a draft's write fails, when the failure starts or its class changes; it is retried every 10 s. At error, a draft that can never be written: its trip's audit row or ledger row is missing (tasks.md T078) | `incident_id`, `error_class` |
 | `state.unknown` | error | the store is unreachable or empty: once when it starts, then once a minute | `condition` (`store_unreachable`, `store_uninitialized`), `since`, `error_class` (a SQLSTATE or Node error code, never a message) |
 | `state.recovered` | info | the store answers again | `outage_s` |
 | `journal.unwritable` | error | a `reserve` append fails | `error_class` |

@@ -411,7 +411,7 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Tests for User Story 2
 
-- [ ] T067 [P] [US2] Create `services/gateway/test/unit/meter.test.ts`. It covers:
+- [X] T067 [P] [US2] Create `services/gateway/test/unit/meter.test.ts`. It covers:
   - `max_micro`, including `fixedUsage`;
   - cost rounded up once, on the sum (data-model.md §7.2);
   - crossings fired only when old < threshold ≤ new;
@@ -419,31 +419,31 @@ description: "Task list for spec 000, Local Foundations"
   - reset semantics;
   - every worked case of the renewal allowance in data-model.md §6.2;
   - the sweep settling an expired reservation at its maximum, with `cost_basis` `expired` and `outcome` `unknown`.
-- [ ] T068 [P] [US2] Create `services/gateway/test/integration/meter.test.ts` (PGlite). It follows the admission and commit transactions step by step (data-model.md §7.2–§7.3): the locking order, the refusal precedence, outbox rows in the same transaction as each crossing, an idempotent commit retry, the sweep, and the reserved-micro invariant (§2.3).
-- [ ] T069 [P] [US2] Create `services/gateway/test/unit/alerts.test.ts`. It covers:
+- [X] T068 [P] [US2] Create `services/gateway/test/integration/meter.test.ts` (PGlite). It follows the admission and commit transactions step by step (data-model.md §7.2–§7.3): the locking order, the refusal precedence, outbox rows in the same transaction as each crossing, an idempotent commit retry, the sweep, and the reserved-micro invariant (§2.3).
+- [X] T069 [P] [US2] Create `services/gateway/test/unit/alerts.test.ts`. It covers:
   - every message in contracts/alerts.md §3, rendered with no payloads, client labels, or secrets (§5);
   - dedupe keys, including `:g<n>`;
   - retries at 5, 15, 30, 60, and 120 s, all within 300 s;
   - the 09:00 UTC reminder;
   - the `[dev]` and `[dev-cpu]` prefixes.
-- [ ] T070 [P] [US2] Create `services/gateway/test/integration/operator.test.ts`. It covers reset (409 `not_degraded`), renew (409 `not_awaiting_renewal`, and the allowance rule), the reason rule (10–500 characters), the audit rows, the confirmation alerts, and the dev-only test endpoints refused outside dev (403, with `h4.test_machinery.refused`).
-- [ ] T071 [P] [US2] Create `evals/test_breach_helpers.py` for the probe's assertion helpers: the T, M, and L sources, and the timing windows.
+- [X] T070 [P] [US2] Create `services/gateway/test/integration/operator.test.ts`. It covers reset (409 `not_degraded`), renew (409 `not_awaiting_renewal`, and the allowance rule), the reason rule (10–500 characters), the audit rows, the confirmation alerts, and the dev-only test endpoints refused outside dev (403, with `h4.test_machinery.refused`).
+- [X] T071 [P] [US2] Create `evals/test_breach_helpers.py` for the probe's assertion helpers: the T, M, and L sources, and the timing windows.
 
 ### Implementation for User Story 2
 
-- [ ] T072 [US2] Implement metered admission and its upkeep in `services/gateway/src/meter/`:
+- [X] T072 [US2] Implement metered admission and its upkeep in `services/gateway/src/meter/`:
   - `services/gateway/src/meter/admission.ts`, per data-model.md §7.2: the in-memory slots with 429 `metered_capacity_exceeded` (4 in flight, 60 a minute), the transaction, and the `reserve` journal append, compensated with `journal_unwritable`;
   - `src/meter/commit.ts`, per §7.3 and its crossings table. The slots are released in a `finally` on every way out of a call, and `h4.cost.usd` grows only when this transaction inserted the ledger row;
   - `src/meter/rollover.ts`, per §7.6;
   - the sweep (§2.4) and the 10 s background tasks (§7.7).
   - init's lost acknowledgement (US1's review, deferred here): if COMMIT succeeds on the server but the connection drops before its acknowledgement, `meter/init.ts` answers 503 `store_unreachable` and never appends the journal's `init` record, so a later rebuild loses this init's floor. On a failed COMMIT, re-read `stack_state`; if this actor wrote it, append the record and return the result. `isStoreFailure` also counts a CHECK violation inside the transaction as an outage: count only connection failures. It must land with the first reservation.
-- [ ] T073 [US2] Implement `services/gateway/src/adapters/synthetic.ts` (dev only, `fixedUsage` of 1,000 output tokens, requires `GATEWAY_TEST_SYNTHETIC_SPEND=1`) and `test/contract/synthetic.contract.test.ts`, which runs the same contract suite (provider-adapter.md §3.3). Add the `synthetic` adapter and dev's `fallback: synthetic` to `config/routing.yaml` (contracts/config-files.md §1.2, step 2). Dev's `fallback: synthetic` arrives with this task, and T074 removes `createServices`' `fallback_not_supported` refusal (plan §5.8, T148), so T073 and T074 land together: until T074, a route with a fallback stops the gateway with exit 78.
-- [ ] T074 [US2] Complete FR-022 in `services/gateway/src/core/gateway.ts`: the fallback branch with every admission cause (`meter_at_ceiling`, `fallback_awaiting_renewal`, `fallback_spent_today`, `fallback_unavailable`, `journal_unwritable`), in data-model.md §7.2's precedence, and the degraded counter and log (contracts/gateway-http.md §3). It removes `createServices`' temporary `fallback_not_supported` refusal, with its plan §5.8 bullet and its contracts/config-files.md §1.4 row, and lands with T073 (T148).
-- [ ] T075 [US2] Implement the operator writes and reads in `services/gateway/src/routes/admin.ts`, per contracts/operator-admin.md §2.1, §2.2, §4.2, and §4.3, and data-model.md §7.5: `POST /admin/reset`, `POST /admin/renew`, `GET /admin/audit`, and `GET /admin/incidents`. A journal append that fails after the commit writes a `journal_failed` audit row carrying the action's `audit_id` (data-model.md §7.5). Extend `scripts/operator.py` with `reset`, `renew`, `audit`, and `incidents`, and add the Makefile targets `operator-reset`, `operator-renew`, `operator-audit`, and `operator-incidents`.
-- [ ] T076 [US2] Implement `services/gateway/src/routes/test.ts` per contracts/operator-admin.md §3 (dev only):
+- [X] T073 [US2] Implement `services/gateway/src/adapters/synthetic.ts` (dev only, `fixedUsage` of 1,000 output tokens, requires `GATEWAY_TEST_SYNTHETIC_SPEND=1`) and `test/contract/synthetic.contract.test.ts`, which runs the same contract suite (provider-adapter.md §3.3). Add the `synthetic` adapter and dev's `fallback: synthetic` to `config/routing.yaml` (contracts/config-files.md §1.2, step 2). Dev's `fallback: synthetic` arrives with this task, and T074 removes `createServices`' `fallback_not_supported` refusal (plan §5.8, T148), so T073 and T074 land together: until T074, a route with a fallback stops the gateway with exit 78.
+- [X] T074 [US2] Complete FR-022 in `services/gateway/src/core/gateway.ts`: the fallback branch with every admission cause (`meter_at_ceiling`, `fallback_awaiting_renewal`, `fallback_spent_today`, `fallback_unavailable`, `journal_unwritable`), in data-model.md §7.2's precedence, and the degraded counter and log (contracts/gateway-http.md §3). It removes `createServices`' temporary `fallback_not_supported` refusal, with its plan §5.8 bullet and its contracts/config-files.md §1.4 row, and lands with T073 (T148).
+- [X] T075 [US2] Implement the operator writes and reads in `services/gateway/src/routes/admin.ts`, per contracts/operator-admin.md §2.1, §2.2, §4.2, and §4.3, and data-model.md §7.5: `POST /admin/reset`, `POST /admin/renew`, `GET /admin/audit`, and `GET /admin/incidents`. A journal append that fails after the commit writes a `journal_failed` audit row carrying the action's `audit_id` (data-model.md §7.5). Extend `scripts/operator.py` with `reset`, `renew`, `audit`, and `incidents`, and add the Makefile targets `operator-reset`, `operator-renew`, `operator-audit`, and `operator-incidents`.
+- [X] T076 [US2] Implement `services/gateway/src/routes/test.ts` per contracts/operator-admin.md §3 (dev only):
   - `POST /admin/test/clock`: forward only, 409 `clock_backwards`, and a `clock` journal record;
   - `POST /admin/test/synthetic`: attribution `fallback` or `metered`, a count, $0.10 per call, through the real pipeline.
-- [ ] T077 [US2] Implement `services/gateway/src/alerts/outbox.ts`, `dispatcher.ts`, `telegram.ts`, `smtp.ts`, and `format.ts`, per contracts/alerts.md §2–§4:
+- [X] T077 [US2] Implement `services/gateway/src/alerts/outbox.ts`, `dispatcher.ts`, `telegram.ts`, `smtp.ts`, and `format.ts`, per contracts/alerts.md §2–§4:
   - the dispatcher wakes on `LISTEN alert_outbox` or every 2 s, and treats each channel independently;
   - Telegram: the Bot API `sendMessage` in plain text, with a 5 s timeout;
   - email: nodemailer, implicit TLS on 465 or STARTTLS on 587, with a 10 s timeout;
@@ -451,18 +451,19 @@ description: "Task list for spec 000, Local Foundations"
   - the in-memory `store_unreachable` alert after 60 s;
   - the daily reminder;
   - `ALERT_DELIVERY` selects real or stand-in endpoints.
-- [ ] T078 [US2] Implement the incident drafts in `services/gateway/src/incidents/draft.ts` per contracts/alerts.md §7: a deterministic template, no model call, the evidence fields, no client identifiers, written under `${GATEWAY_STATE_DIR}/incidents/`, with the `incidents` row updated.
-- [ ] T079 [US2] Create the stand-ins in `evals/standins/` and `deploy/compose.yaml`:
+- [X] T078 [US2] Implement the incident drafts in `services/gateway/src/incidents/draft.ts` per contracts/alerts.md §7: a deterministic template, no model call, the evidence fields, no client identifiers, written under `${GATEWAY_STATE_DIR}/incidents/`, with the `incidents` row updated.
+- [X] T079 [US2] Create the stand-ins in `evals/standins/` and `deploy/compose.yaml`:
   - `evals/standins/telegram_standin.py` (stdlib; `/bot<token>/sendMessage`, `GET /messages`, `/healthz`) and `evals/standins/Dockerfile`, on the pinned Python base;
   - the `telegram-standin` and `mailpit` services in `deploy/compose.yaml`, under the `dev-receivers` profile.
-- [ ] T080 [US2] Create the breach test in `evals/breach.py` and `evals/breach_probe.py`, steps 1–12 of §8, each assertion tagged T, M, or L, with a summary table and a non-zero exit on any miss. T144 brought the probe's image (`evals/Dockerfile.probe`, with `scripts/operator.py` in it) and the `breach-probe` service under the `breach` profile forward for T064; what is left is the breach test's own:
+- [X] T080 [US2] Create the breach test in `evals/breach.py` and `evals/breach_probe.py`, steps 1–12 of §8, each assertion tagged T, M, or L, with a summary table and a non-zero exit on any miss. T144 brought the probe's image (`evals/Dockerfile.probe`, with `scripts/operator.py` in it) and the `breach-probe` service under the `breach` profile forward for T064; what is left is the breach test's own:
   - `evals/breach.py`, the client-side orchestrator, run through `PY_HOST` in the Author's terminal;
   - `evals/breach_probe.py`, copied into the probe image beside `scripts/operator.py`;
   - `make breach-test ENV=dev|dev-cpu [DELIVERY=real]`, refusing any other stack, and applying the delivery overlay of contracts/env-files.md §7.2 for `DELIVERY=real`.
-- [ ] T081 [US2] Add the US2 panels to `deploy/grafana/dashboards/h4-runtime.json`, with the exact queries of contracts/telemetry.md §7.1, §7.2, and §7.5: spend today and month-to-date with thresholds, fallback remaining, the kill-switch state timeline, the degraded cause, the audit log (through `grafana_ro`), and alerts.
-- [ ] T082 [P] [US2] Create the runbooks in `docs/runbooks/`, each with Symptoms · Impact · Act · Verify · Undo · Record: `cost-warning.md`, `kill-switch-trip.md`, `kill-switch-reset.md`, `fallback-renewal.md`, `alert-channel-down.md`, `store-unreachable.md`, `journal-unwritable.md`, `operator-auth-failures.md`, and `gateway-down.md`.
-- [ ] T083 [P] [US2] Add the Telegram and SMTP rows to `docs/data-flow-disclosure.md` (§17).
-- [ ] T084 [US2] Agent session, on the engine: `make breach-test ENV=dev-cpu` passes all 12 steps. Paste the summary table into `docs/merge-requests/<date>-feat-000-us2-kill-switch.md`.
+- [X] T081 [US2] Add the US2 panels to `deploy/grafana/dashboards/h4-runtime.json`, with the exact queries of contracts/telemetry.md §7.1, §7.2, and §7.5: spend today and month-to-date with thresholds, fallback remaining, the kill-switch state timeline, the degraded cause, the audit log (through `grafana_ro`), and alerts.
+- [X] T082 [P] [US2] Create the runbooks in `docs/runbooks/`, each with Symptoms · Impact · Act · Verify · Undo · Record: `cost-warning.md`, `kill-switch-trip.md`, `kill-switch-reset.md`, `fallback-renewal.md`, `alert-channel-down.md`, `store-unreachable.md`, `journal-unwritable.md`, `operator-auth-failures.md`, and `gateway-down.md`.
+- [X] T083 [P] [US2] Add the Telegram and SMTP rows to `docs/data-flow-disclosure.md` (§17).
+- [X] T084 [US2] Agent session, on the engine: `make breach-test ENV=dev-cpu` passes all 12 steps. Paste the summary table into `docs/merge-requests/<date>-feat-000-us2-kill-switch.md`.
+  Done on 2026-10-10, on `sim/000-us2-on-us1-stack` at 3f276e5: this branch at 5fc31f2 merged with the us1 stack at 903439e by the us1 note's recipe, the tree this branch becomes once it merges main. 52 assertions, 52 passed, 0 missed, in 375 s; the note has the table and the whole output. A first run at 56c76be (round 7's commit) also passed 52 of 52; round 8 changed code after it. After the merge, `git diff --stat 3f276e5 HEAD -- . ':!docs' ':!specs'` printing nothing shows the run holds, since nothing the stack builds or the breach test reads lives under `docs/` or `specs/`; otherwise T084 runs again on the branch.
 - [ ] T085 [US2] **Author** (Heavy): `make breach-test ENV=dev DELIVERY=real`, recorded with asciinema into `docs/recordings/` (scanned with gitleaks before commit), with the phone on camera (SC-002, quickstart.md §2.2).
 - [ ] T086 [US2] Write the merge-request note `docs/merge-requests/<date>-feat-000-us2-kill-switch.md`.
 
@@ -557,8 +558,8 @@ description: "Task list for spec 000, Local Foundations"
 
 ### Implementation for User Story 5
 
-- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2:
-  - `ConverseCommand` in us-east-1, `maxAttempts: 1`, `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000})`;
+- [ ] T102 [US5] Implement `services/gateway/src/adapters/bedrock-converse.ts` per contracts/provider-adapter.md §3.2: Its circuit breaker sets `circuit_open` through `AdapterHealth.set`, so T152's `fallback_unavailable` alert fires when the circuit opens (Phase 4's last review). Its name lookups, the SSO refresh's included, go through c-ares: the credential chain gets the same handler as `clientConfig.requestHandler` (§3.2's name-lookup row, from T189). It decides whether the SDK may refresh the SSO token in memory, which token-providers 3.1147.0 does in the token's last 5 minutes, contacting `oidc.us-east-1.amazonaws.com` while running (plan.md's correction, US2's round 9).
+  - `ConverseCommand` in us-east-1, `maxAttempts: 1`, `NodeHttpHandler({connectionTimeout: 1000, requestTimeout: 4000, httpsAgent})`, with `httpsAgent` keeping the SDK default's `keepAlive: true` and `maxSockets: 50` and adding `lookup: aresLookup`;
   - one retry, only on `ThrottlingException`;
   - a timeout counts as `possiblyBilled`;
   - health never spends: credential expiry plus a circuit breaker (3 failures, 30 s open);
@@ -573,7 +574,7 @@ description: "Task list for spec 000, Local Foundations"
   - append a new version to `config/prices.yaml` with its entry from the Bedrock pricing page, repeating the local and synthetic entries (P5: a published version never changes);
   - set its ID in `config/routing.yaml`, and add `fallback: bedrock` to the prod route;
   - commit both, then `make up ENV=prod`; preflight P19 now checks the AWS profile.
-- [ ] T106 [US5] Add the Bedrock panels (cost by provider, adapter health) to `deploy/grafana/dashboards/h4-runtime.json` (contracts/telemetry.md §7.2 and §7.4); the Bedrock and AWS SSO rows to `docs/data-flow-disclosure.md`; and the runbooks `docs/runbooks/bedrock-credentials-expiring.md` and `docs/runbooks/bedrock-unavailable.md`.
+- [ ] T106 [US5] Add the Bedrock panels (cost by provider, adapter health) to `deploy/grafana/dashboards/h4-runtime.json` (contracts/telemetry.md §7.2 and §7.4); the Bedrock and AWS SSO rows to `docs/data-flow-disclosure.md`, naming `oidc.us-east-1.amazonaws.com` while running if T102 allows the SDK's token refresh; and the runbooks `docs/runbooks/bedrock-credentials-expiring.md` and `docs/runbooks/bedrock-unavailable.md`.
 - [ ] T107 [US5] **Author** (Heavy): run `quickstart.md` §4 and §6.1:
   - a local answer;
   - stop the model server, and Bedrock answers within 5 s, with the fallback cost on the dashboard within 60 s (SC-005);
@@ -616,7 +617,7 @@ description: "Task list for spec 000, Local Foundations"
 
 - [ ] T117 **Patch**: write the closing enforcement patch, `docs/merge-requests/<date>-feat-000-enforcement-enforcement.patch`, per §15:
   - `.claude/settings.json`: `denyWrite` on `./.mcp.json`, `./.git/info`, `./.git/refs/heads/main`, and `./.git/refs/replace` (T183's fifth review: a merge honors a replace ref), their `Edit(...)` denies, and the Claude Code telemetry `env` entries. Every credential deny, and the denies on the files prod reads and the code the Author runs, came with T045; the gate's came with T098;
-  - `.claude/hooks/bash-gate.sh`: `operator-*` and admin URLs outside dev-cpu, the Author-only targets, `--no-verify`, `claude mcp add`, git-alias expansion, and the `terraform` global-flag pattern; and, keyed on `agent_type`, the reviewer's and red-teamer's refusals: `git diff --output`, `git diff` or `git log` with a redirection, `tee`, `make -f`, and any `ADAPTER=` but `fake`;
+  - `.claude/hooks/bash-gate.sh`: `operator-*` and admin URLs outside dev-cpu, `make breach-test` and `evals/breach.py` on any stack but dev-cpu, in every spelling, with `SANDBOX_RUNTIME=0` or `env -u SANDBOX_RUNTIME` in front (FR-008; plan §13 and §15, the nine planned rows from T080's review), the Author-only targets, `--no-verify`, `claude mcp add`, git-alias expansion, and the `terraform` global-flag pattern; and, keyed on `agent_type`, the reviewer's and red-teamer's refusals: `git diff --output`, `git diff` or `git log` with a redirection, `tee`, `make -f`, and any `ADAPTER=` but `fake`;
   - `.claude/hooks/protected-paths.sh`: `.mcp.json`, role write scopes from `agent_type`, and writes denied when `agent_id` comes without `agent_type`;
   - `.claude/hooks/post-edit-check.sh`: TypeScript, JSON, YAML, and Markdown through `~/.local/share/h4reet/lint-node` with its own configs;
   - `.claude/hooks/subagent-report-check.sh` (FR-010): the payload's `last_assistant_message` checked first, every result logged with the `agent_type`, and instruction-shaped text flagged rather than any mention of `settings.json`;
@@ -759,3 +760,79 @@ Task: "Add Telegram and SMTP rows to docs/data-flow-disclosure.md (T083)"
   - **The gateway's image:** four builds of one tree gave four IDs over one list of layers. Compose labels each image with its project, and each build has its own provenance attestation; Compose 2.39 ignored `provenance: false`. Quickstart §1.9 now compares the layers, and T184 asks the Author whether US1-5 wants one shared build.
 - [X] T150 Give the listeners' 400 for a body that doesn't parse `field: "body"`, as gateway-http.md §2.5.4's body has, and test it exactly, per contracts/gateway-http.md §1 (partial)
 - [X] T151 Test the local adapter's mappings of 404, 413, 422, 502, and 504, a DNS failure, and the 1 s connect watchdog, per T051 and contracts/provider-adapter.md §2.5 and §3.1 (partial)
+
+## Phase 12: Convergence
+
+- [X] T152 Queue a `fallback_unavailable` outbox row, at most one an hour per adapter, when a paid fallback adapter's health turns unhealthy (`core/gateway.ts`'s `healthChanged`; the text and dedupe key already exist in `alerts/format.ts` and `alerts/outbox.ts`), tested with a fake paid adapter, per alerts.md §2 and data-model.md §7.7 (missing)
+- [X] T153 Add planned rows to `redteam/forbidden-actions.sh` for the breach test's dev route in the spellings the nine rows miss: `make ENV=dev breach-test`, `(make breach-test ENV=dev)`, `make breach-test ENV="dev"`, and `env -u SANDBOX_RUNTIME python3 -m evals.breach --stack dev`, so T117's rule is tested against every spelling, per plan §13 ("by any spelling") and FR-008 (partial)
+- [X] T154 Report dev's synthetic adapter as `disabled` in `/health` and `h4.adapter.healthy` while `GATEWAY_TEST_SYNTHETIC_SPEND` is off, instead of leaving it out (`adapters/registry.ts`), or drop `disabled` from provider-adapter.md §2.4 and §3.3 and `HealthReason`, per provider-adapter.md §2.4 and §3.3 (partial)
+- [X] T155 Count a synthetic run that a limit stops under its own route decision, `metered` for metered spend, in `h4.gateway.requests` (`routes/test.ts`), and test it, per telemetry.md §4.1 (contradicts)
+- [X] T156 Record the email delivery's reference only from the SMTP server's own reply, never an assumed `250` (`alerts/smtp.ts`), and test an unreadable reply, per alerts.md §4.1 and SC-002's evidence (contradicts)
+- [X] T157 Make the contract suite's C10 timing check robust to a loaded host. Its stub case failed once at 1,093 ms against a 100 ms limit, while the call still ended as `timeout`, so `make check` can fail at random. Use the approach round 3 took for C3: keep what the check proves, widen only the margin, per T051 and provider-adapter.md §5.3 (partial)
+
+## Phase 13: Convergence
+
+From T084's pre-run (2026-10-10): `make breach-test ENV=dev-cpu` on the agents' engine, from the main tree detached at `sim/000-us2-on-us1-stack` (222a58c), a squashed simulation of this branch merged with the us1 stack's tip. 52 assertions: 45 passed, 7 missed (T 0/2, M 25/25, L 20/25), in 1,405 s. This branch's merge-request note has the run.
+
+- [X] T187 [US2] Read traces in `evals/breach_probe.py` through Langfuse v4's `/api/public/v2/observations?traceId=<id>&fields=…`. Langfuse v4 runs in events_only mode, where `/api/public/traces/{id}` and `/api/public/observations` answer 404 (research.md, from T149). So the pre-run missed both trace assertions:
+  - 2a: "the metered call's trace carries h4.cost.usd = 0.10 (observed None, in 57.253 s)";
+  - 9c: hello's trace as a local call at 0 USD.
+
+  On the pre-run's stack, `fields=core,basic,usage,cost` answered 200 with the trace's observations. Its GENERATION carried `totalCost` 0.1 and `costDetails` `{"total":0.1}`, which `COST_FIELDS` reads; without `fields=`, no cost comes back. 9c also reads `gen_ai.provider.name` from the observation's metadata, which those fields didn't return: find, on a dev-cpu run, the field group that does. Model the probe's fake on one real v2 response, per FR-036, plan §8, and research.md (contradicts)
+
+  Done on 2026-10-10.
+  - **The query:** the probe reads `/api/public/v2/observations` with `traceId`, `fields=core,basic,usage,cost,metadata`, `expandMetadata=attributes`, and `limit=1000`, and follows the list's cursor for at most 10 pages. Langfuse's docs give the groups: cost is in `usage`, and the span's metadata in its own `metadata` group. `cost` stays because the only v2 query a stack has answered named it (research.md R-08); the review's N4.
+  - **Two choices the docs led to:** the metadata group cuts any value over 200 characters unless `expandMetadata` names the key, and with OTel ingestion the span's attributes are one key. So the probe asks for `attributes` whole, and reads metadata, or its attributes, given as JSON text.
+  - **What a check sees:** until the trace is ingested the list is empty, so the check polls as before. Any status but 200 is a source error, and a miss that names the status.
+  - **Tests:** `evals/test_breach_helpers.py`'s fake answers in the v2 list's shape, with the keys of the real answer above. There are four new tests: the cursor, metadata as JSON text, a 500, and a trace too long to page through. With the old probe, seven of the trace tests fail.
+  - **Not verified yet:** these come from Langfuse's docs, and no stack has answered them: the metadata group and its shape, `expandMetadata`, `limit=1000`, and `meta.cursor`. The fake's keys are those of the real answer above, whose values weren't saved. T084's run on the engine checks them.
+  - **For the Author's acceptance:** this task edited `evals/test_breach_helpers.py`, a test file, during a fix. The note's round 5 lists every test-file edit these fixes made.
+- [X] T188 [US2] Keep alert delivery from waiting on another service's DNS lookups (`services/gateway/src/alerts/telegram.ts`, and the local adapter's probes).
+  - **What failed:** every Telegram attempt timed out from 07:39:04 to 07:57:00 UTC, exactly while steps 4 to 7 kept `model-server-cpu` stopped: 32 `alert.retry` and 8 `alert.failed`, all with error class `timeout`. The fallback alerts reached email only, so 4b, 4c, 5c, 5d, and 6c missed. The stand-in logged no failed request.
+  - **Reproduced** in the gateway container, with the model server stopped. `dns.lookup("model-server")` failed with `EAI_AGAIN` after 8,007 ms. `dns.lookup("telegram-standin")` took 2 ms alone, and 17,409 ms behind five of them.
+  - **The cause:** Node runs `getaddrinfo` on libuv's threadpool, which gives lookups at most half its threads, two of the default four (corrected by round 4's confirming review: this line said four). The local adapter's lookups fill both, so Telegram's `AbortSignal.timeout` fires before its own lookup runs. The reproduction fits two slots: 17,409 ms behind five 8,007 ms lookups is two batches ahead. Email's longer timeouts ride it out; one email took 41 s.
+  - **The options:**
+    - resolve alert channels' hosts without the threadpool: an undici `Agent` whose `connect.lookup` uses `dns.promises`, which is c-ares;
+    - keep the local adapter's probes single-flight while it's unhealthy;
+    - raise `UV_THREADPOOL_SIZE`.
+
+  Test that a held lookup doesn't delay a delivery. Whether the host's engine hangs the same way is unverified. Per FR-032 ("Telegram (primary) and email (secondary) within 5 minutes") and contracts/alerts.md §4 (contradicts)
+
+  Done on 2026-10-10. The same run's gateway log showed the starvation reached the store too: 73 of its 77 `state.unknown` (`store_unreachable`) records fell while the model server was stopped, so the kill switch failed closed every 10 to 20 s. The other four were steps 1 and 11, which stop the store on purpose. The fix removes the cause and frees the alerts:
+  - **`services/gateway/src/core/resolve.ts`,** new: a lookup with `dns.lookup`'s contract, answered through c-ares, which holds no thread (1 s a try, two tries). It answers IP literals and `localhost` itself. Like `getaddrinfo`, it honors `ADDRCONFIG`, which net passes for a connect that names no family, so a container without IPv6 is never handed an AAAA address (the review's S1). After a failed A query it asks for AAAA only after `ENODATA`, and reports the error that says more.
+  - **The local adapter** resolves its host through it, so the probe's lookups of a stopped server hold no thread.
+  - **The Telegram channel** sends over `node:http(s)` with the same lookup, not `fetch`. One deadline covers the whole send, no redirect is followed, and at most 64 KiB of an answer is kept. A peer that doesn't speak TLS on an `https` base is `tls` (`EPROTO`).
+  - **Tests:** `test/unit/resolve.test.ts` (the lookup) and `test/unit/telegram.test.ts` (the transport) are new. Among them is this task's own criterion: with all four of libuv's threads held by four opens of a FIFO with no writer, more than hung lookups can hold, `dns.lookup` waits and a Telegram delivery still arrives. Without `ADDRCONFIG`, three tests fail.
+  - **The T151 tests changed in one respect:** `test/contract/local-openai.errors.test.ts` faked `dns.lookup`, which the adapter no longer calls. They now fake c-ares's A and AAAA answers, with its codes (`ENOTFOUND`, `ETIMEOUT`, `ENODATA`), in an IPv4-only container. Their assertions about the adapter's behavior are unchanged, and each names every query the adapter made. All four fail without the adapter's new lookup. The constitution counts a test edit during a fix as the Author's to accept. The note's round 5 lists every one these fixes made: this file, `test/unit/telegram.test.ts`, `test/unit/resolve.test.ts`, and the probe's `evals/test_breach_helpers.py`.
+  - **Contracts:** provider-adapter.md §3.1 records the departure, alerts.md §4.1 the Telegram transport, and telemetry.md §3.1 the HTTP instrumentation's skip of the Telegram hosts.
+
+  The other two options weren't needed for this cause: with the probe's lookups off the threadpool, their overlap and its size don't matter. Other `getaddrinfo` users can still fill it, so this task frees the model server's lookups and the alert channel, not the threadpool: T189 takes the rest (the review's S2). T084's run on the engine checks the fix end to end.
+- [X] T189 [US2] Keep the gateway's other `getaddrinfo` users from starving the store, as T188 did for the local adapter's (T188's review, S2). These still resolve through `getaddrinfo`, on the two threads libuv gives lookups:
+  - **pg:** `gateway-state`, on every new connection, with `connectionTimeoutMillis: 500` (`services/gateway/src/meter/store.ts`). It is the first victim, and itself a source while the store is stopped (steps 1 and 11);
+  - **the three OTLP exporters** (`src/telemetry/otel.ts`): a keep-alive agent with the default lookup, retrying on `ENOTFOUND`, `EAI_AGAIN`, and `ETIMEDOUT`;
+  - **`src/core/edge.ts`:** `dns/promises.lookup("edge")` with no timeout, which hello's onRequest awaits before the kill-switch read whenever the 30 s cache is due;
+  - **nodemailer 10.0.16:** its fallback to `dns.lookup` when c-ares finds no address;
+  - **later,** T102's Bedrock calls and their SSO refresh.
+
+  The reviewer's estimate, not measured: with the collector stopped on the agents' engine, each export holds a thread for the 8 s lookup, the exporters keep about three of the four busy, and a burst of pg reconnects queues past 500 ms. The kill switch then fails closed because of a telemetry outage, against telemetry.md's "Telemetry failures never touch enforcement: the meter and the kill switch live in the store, and nothing in the request path waits on an export." Round 4's confirming review corrected the mechanism: libuv runs at most half its threads on lookups, two of the default four, so two hung exports already queue every other lookup, pg's included. The risk is larger than the estimate says, and a `UV_THREADPOOL_SIZE` of N buys (N + 1) / 2 lookup slots, not N. The options:
+  - `UV_THREADPOOL_SIZE` in the gateway's environment (T188's third option);
+  - `httpAgentOptions: { keepAlive: true, lookup: aresLookup }` for the exporters;
+  - c-ares, or a timeout, in `edge.ts`.
+
+  Prove it on the engine with the collector stopped. Whether the host's engine hangs on stopped names the same way is unverified. Per contracts/telemetry.md §3 ("Telemetry failures never touch enforcement") and FR-031 ("A store that is unreachable counts as unknown, which is `degraded` (fail closed)") (partial)
+
+  Done on 2026-10-10, in two parts and an engine test. The first part, the exporters and edge:
+  - **The three OTLP exporters** use `EXPORT_AGENT`: keep-alive, as their default is, with the collector's name resolved through c-ares. It also reads no `/etc/hosts`, makes a c-ares `ETIMEOUT` or `ESERVFAIL` non-retryable for the exporter, and would ignore the environment's certificate settings on https (the collector is plain http). `test/unit/otel-export.test.ts` sends a span, a metric export, and a log record through `buildSdkConfiguration`'s own processors to a collector only c-ares can name. Its wiring test fails when any one exporter loses the agent (the review's S1).
+  - **`edge.ts`'s default resolver** is c-ares. A lookup that doesn't answer now gives up after c-ares's own tries, about 3 s at most, instead of waiting in libuv's queue. `test/unit/edge.test.ts` shows the path and its exact queries, and that a name c-ares can't resolve believes no one; gateway-http.md §7 has the row.
+
+  The second part, pg and nodemailer:
+  - **pg:** `buildPoolConfig` gives pg a `stream`, `aresSocket` (`core/resolve.ts`), a socket whose connect passes `lookup: aresLookup`. pg calls connect(port, host) on it, so the pool's connections, the LISTEN connection, and the migrations' connection resolve `gateway-state` through c-ares. pg-pool drops an idle client after 10 s and `store.ts` sets no `idleTimeoutMillis`, so in a quiet stack most requests open a connection; while the store is stopped (steps 1 and 11), those lookups no longer hold a thread. `test/integration/ares-lookups.test.ts` connects `pgDatabase` to a store only c-ares can name, and shows that a name c-ares can't resolve fails with c-ares's error and no call to `dns.lookup`. data-model.md §2.1 records it.
+  - **nodemailer 10.0.16:** it falls back to `dns.lookup` whenever c-ares finds no address for the SMTP host, a SERVFAIL or a timeout included. The email channel's default transport now connects to the host itself, through c-ares alone, and hands nodemailer the socket through its `getSocket` hook, so nodemailer resolves nothing. Every address the host has is tried within the attempt, and the addresses c-ares last found are used when a lookup fails, as nodemailer did. alerts.md §4.1 lists what's kept, what's changed, and what's lost. The same test file delivers to a host only c-ares can name over a connection made by that name, shows that a SERVFAIL is `connect` with no call to `dns.lookup`, that a refusing address gives way to the next, that the last addresses found carry a failed lookup, and that the name reaches TLS as its SNI on 465 and after STARTTLS. Round 8 added three more: the connection timeout is `timeout` and leaves no socket connecting, a failure across several addresses is `connect` though the first attempt timed out, and a fresh answer wins over the addresses kept.
+
+  Beside the code:
+  - **Still on `getaddrinfo` until T102 lands:** Bedrock's calls and their SSO refresh. T102 now carries them.
+  - **`UV_THREADPOOL_SIZE` stays at libuv's default,** the Author's call on 2026-10-10: "Okay, i agree with you for the default adn we can look at it later". N threads would give (N + 1) / 2 lookup slots.
+  - **The test files:** the first part added `test/unit/otel-export.test.ts` and edited `test/unit/edge.test.ts`; the second added `test/integration/ares-lookups.test.ts`. They are test files, added or edited during a fix; all three only add tests, and no assertion was weakened. The Author accepted them on 2026-10-10, at c904034: "Yes, accepted." Rounds 7 and 8 of the note's reviews then changed `ares-lookups.test.ts` again, which the note puts to the Author.
+
+  The engine test passed on the simulated merge at 56c76be. With `otel-collector` stopped, every `/health` read over two minutes answered "store ok" in 3 to 62 ms. The store's session counter rose from 40 to 69 meanwhile, and the gateway logged no `store_unreachable`. On that engine, `getaddrinfo` for the stopped collector failed after 8,006 ms, and c-ares after 3,003 ms. Whether the host's engine hangs on stopped names the same way is still unverified. Bedrock's calls and their SSO refresh go to T102, which provider-adapter.md §3.2's name-lookup row now binds.
+- [ ] T190 [US2] Class a TLS certificate failure on the email channel as `tls`, not `smtp_ESOCKET` (round 8's review, outside its diff). Two causes: nodemailer 10.0.16 sends a TLS socket's error through `_onSocketError`, whose `_formatError` overwrites the error's code with `ESOCKET` on the error object itself; and `smtpErrorClass` tests for `ERR_TLS_`, `CERT_`, and the rest only in `cause.code`, which nodemailer never sets. So no change to `smtpErrorClass` alone can fix it: the TLS failure has to be caught before nodemailer formats it. Only a refused STARTTLS, or a connection closed during the upgrade, gives `ETLS`, and so `tls`. docs/runbooks/alert-channel-down.md's `tls` guidance then never fires for the most common TLS failure. Prove it with a certificate that fails to verify, on 465 and after STARTTLS, and keep the class to `tls` with no certificate detail. Per contracts/alerts.md §4.1's error classes.

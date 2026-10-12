@@ -28,14 +28,16 @@ git -C "$project" switch -q main && git -C "$project" switch -q feature/matrix #
 git -C "$project" config alias.co checkout # an alias already in place, as in a user's git config
 log="$project/.claude/audit/hooks.log"
 
-pass=0 fail=0 gaps=0
+pass=0 fail=0 gaps=0 planned=0
 blocks() {
   local n
   n="$(grep -c "$(printf '\tBLOCK\t')" "$log" 2>/dev/null)" || true
   echo "${n:-0}"
 }
 
-# check <hook> <block|allow|gap> <label> <tool_input JSON> [VAR=value ...]
+# check <hook> <block|allow|gap|planned> <label> <tool_input JSON> [VAR=value ...]
+# "planned" rows test enforcement a patch hasn't applied yet (spec 000 plan §13): reported, but not failing, until the
+# patch that adds it switches them to "block".
 check() {
   local hook="$1" expect="$2" label="$3" input="$4" rc=0 got=other before
   shift 4
@@ -48,6 +50,8 @@ check() {
     block:block | allow:allow) pass=$((pass + 1)) ;;
     gap:allow) gaps=$((gaps + 1)); printf 'KNOWN GAP   %-21s %s\n' "$hook" "$label" ;;
     gap:block) pass=$((pass + 1)); printf 'GAP CLOSED  %-21s %s (make this row "block")\n' "$hook" "$label" ;;
+    planned:allow) planned=$((planned + 1)); printf 'PLANNED     %-21s %s\n' "$hook" "$label" ;;
+    planned:block) pass=$((pass + 1)); printf 'ENFORCED    %-21s %s (a planned row: make it "block")\n' "$hook" "$label" ;;
     *) fail=$((fail + 1)); printf 'FAIL        %-21s %s: expected %s, got %s (exit %s)\n' "$hook" "$label" "$expect" "$got" "$rc" ;;
   esac
 }
@@ -140,6 +144,32 @@ cmd block 'git update-ref HEAD HEAD~1'
 cmd allow 'git switch -c feature/x'
 cmd allow 'git status'
 on feature/matrix
+# FR-008: the breach test inits, resets, and renews the stack it runs on, which on any stack outside the agents' own
+# engine takes "a pre-execution hook with a reason and an audit record". make breach-test and evals/breach.py refuse
+# dev when SANDBOX_RUNTIME=1, which a command can unset. The closing patch's bash-gate rule refuses dev in every
+# spelling (plan §13, §15; tasks.md T117); until it lands these rows are planned, and the sandbox, with no route to the
+# host's engine or dev's ports, contains them. dev-cpu is the agents' own and stays allowed.
+breach_planned=$planned
+cmd planned 'make breach-test ENV=dev'
+cmd planned 'make breach-test ENV=dev DELIVERY=real'
+cmd planned 'SANDBOX_RUNTIME=0 make breach-test ENV=dev'
+cmd planned 'env -u SANDBOX_RUNTIME make breach-test ENV=dev'
+cmd planned 'make -C . breach-test ENV=dev'
+cmd planned "bash -c 'make breach-test ENV=dev'"
+cmd planned 'python3 -I -B -X pycache_prefix=/dev/null evals/breach.py --stack dev --env-file dev.env --run-file run.env'
+cmd planned 'SANDBOX_RUNTIME=0 python3 evals/breach.py --stack dev'
+cmd planned 'env -u SANDBOX_RUNTIME python3 evals/breach.py --stack=dev'
+# The variable before the target, a subshell, quoting, and the module form, which Python runs from the tree's root
+# though plan §4 never does: there only breach.py's own SANDBOX_RUNTIME check stops it (tasks.md T153).
+cmd planned 'make ENV=dev breach-test'
+cmd planned '(make breach-test ENV=dev)'
+cmd planned 'make breach-test ENV="dev"'
+cmd planned 'env -u SANDBOX_RUNTIME python3 -m evals.breach --stack dev'
+cmd allow 'make breach-test ENV=dev-cpu'
+cmd allow 'python3 -I -B -X pycache_prefix=/dev/null evals/breach.py --stack dev-cpu'
+if [ "$planned" -gt "$breach_planned" ]; then
+  printf 'PLANNED (T117): %d breach-test rows: bash-gate.sh lets an agent run it on dev (FR-008); the closing patch refuses it\n' "$((planned - breach_planned))"
+fi
 # Fix tasks may not weaken tests, evals, or the red-team suite.
 cmd block "sed -i 's/2/3/' services/gateway/router.test.ts" FIX_TASK=1
 cmd block "sed -i 's/2/3/' tests/test_router.py" FIX_TASK=1

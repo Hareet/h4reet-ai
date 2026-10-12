@@ -49,7 +49,7 @@ You are the hello endpoint of the h4reet.ai stack, a test of its model gateway. 
 ### 2.3 Client identity and the per-client cap (FR-025)
 
 - **The client** is the pair (source address, label):
-  - **The source address** is the value edge puts in `X-Forwarded-For`. Edge drops whatever the client sent and sets exactly its own `$remote_addr`, so the header always has one value. The gateway believes the header only when its TCP peer is edge, one of the `edge` service's addresses on the stack's network, looked up and cached for 30 s (`src/core/edge.ts`). Any other in-network caller is identified by its TCP peer address, with or without the header, so it can't choose its own identity to slip the cap. A failed lookup believes no one.
+  - **The source address** is the value edge puts in `X-Forwarded-For`. Edge drops whatever the client sent and sets exactly its own `$remote_addr`, so the header always has one value. The gateway believes the header only when its TCP peer is edge, one of the `edge` service's addresses on the stack's network, looked up through c-ares and cached for 30 s (`src/core/edge.ts`). A lookup that doesn't answer gives up after c-ares's own tries, and holds no libuv thread meanwhile (tasks.md T189). Any other in-network caller is identified by its TCP peer address, with or without the header, so it can't choose its own identity to slip the cap. A failed lookup believes no one.
   - **The label** is the `X-H4-Client` value, or none.
 - **The cap**, from `config/budgets.yaml` `limits.per_client`, is counted in memory per client:
   - a token bucket of capacity `burst` (5), refilled at `requests_per_minute` (20 a minute, one token every 3 s);
@@ -267,7 +267,7 @@ The process is live even while the stack is degraded. Liveness never depends on 
 | `state`, `since`, `crossed` | from `stack_state` | null unless `store` is `ok` |
 | `degraded_cause` | string, or null | the cause a hello would get now. It comes from a dry run of §2.4 step 4 onward, with no reservation and no provider call. |
 | `fallback` | object | the fallback adapter's ID (or null), and the renewal flag and its time (null unless `store` is `ok`) |
-| `adapters` | array | each routed adapter: `id`, `role` (`primary` or `fallback`), `provider`, `kind`, `model`, `healthy`, `reason` (a `HealthStatus` reason, [provider-adapter.md §2.4](provider-adapter.md#24-health)), and `checked_at`. A paid adapter adds `credentials_expire_at`: the SSO session's end, not a secret. |
+| `adapters` | array | each routed adapter: `id`, `role` (`primary` or `fallback`), `provider`, `kind`, `model`, `healthy`, `reason` (a `HealthStatus` reason, [provider-adapter.md §2.4](provider-adapter.md#24-health)), and `checked_at`. A paid adapter adds `credentials_expire_at`: the SSO session's end, not a secret. An adapter the route configures but leaves switched off, dev's synthetic one without `GATEWAY_TEST_SYNTHETIC_SPEND=1`, is listed too, with `healthy: false`, `reason: "disabled"`, and `checked_at` the time the route was built. It is never routed, probed, or called, and `fallback.adapter` stays null for it (tasks.md T154). |
 | `journal` | `"ok"`, `"unwritable"`, or `"unknown"` | the result of the last append; `unknown` before the first one |
 | `config` | object | `routing_sha` (SHA-256 of `config/routing.yaml`) and the active `price_version` |
 | `test_machinery` | object | whether `GATEWAY_TEST_CLOCK` and `GATEWAY_TEST_SYNTHETIC_SPEND` are on, and the clock offset. In prod these are always `false`, `false`, null. |
@@ -308,8 +308,9 @@ Edge, nginx in `deploy/edge/nginx.conf`, serves this body itself, at once, when 
 | Local health | every 1 s, 800 ms timeout; unhealthy after 1 failure, healthy after 3 passes | `config/routing.yaml` `adapters.local.health` | failover within 1.8 s at worst (SC-005) |
 | Bedrock | connect 1 s, request 4 s; one retry, on throttling only, while the deadline allows | `config/routing.yaml` `adapters.bedrock` | `fallback_unavailable` |
 | Bedrock circuit | opens after 3 failures, for 30 s | `config/routing.yaml` `adapters.bedrock.circuit` | `fallback_unavailable` |
-| Store | 250 ms per statement and per lock wait, 500 ms to connect | the gateway's pool (code) | `store_unreachable` |
+| Store | 250 ms per statement and per lock wait, 500 ms to connect, the host through c-ares | the gateway's pool, `src/core/resolve.ts` (code, tasks.md T189) | `store_unreachable` |
 | Edge to gateway | 2 s connect, 30 s read | `deploy/edge/nginx.conf` | 503 `api_unavailable` |
+| Edge's address (§2.3) | through c-ares, 1 s a try, two tries; at most once per 30 s | `src/core/edge.ts`, `src/core/resolve.ts` (code, tasks.md T189) | a failed lookup believes no one for 30 s |
 
 ## 8. Examples
 

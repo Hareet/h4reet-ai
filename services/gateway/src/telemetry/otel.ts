@@ -8,13 +8,15 @@
 //   detector runs, since the cloud ones would call instance-metadata endpoints, an undisclosed data flow.
 // - Health probes make no spans; nor do outgoing calls outside a request, such as the model server's 1 s health
 //   probe or the store's background queries, which would otherwise each be a trace of their own.
-// - A span processor drops the client attributes and the query string before export, and the undici instrumentation
-//   skips the Telegram API host, whose URL path carries the bot token. The collector repeats both as a second layer
-//   (§6.3).
+// - A span processor drops the client attributes and the query string before export, and the http and undici
+//   instrumentations skip the Telegram API host, whose URL path carries the bot token: the channel sends over
+//   node:https since T188, and any fetch to it is skipped too. The collector repeats both as a second layer (§6.3).
 //
 // Instrumentations are built switched off, so building this configuration patches nothing; NodeSDK.start() enables
 // them, and startTelemetry switches on the undici instrumentation's own flag, which it reads on every request.
 // server.ts starts the SDK before it loads Fastify, pg, or pino, so their instrumentations can wrap them.
+import type { AgentOptions } from "node:http";
+
 import { FastifyOtelInstrumentation } from "@fastify/otel";
 import type { Context, Span as ApiSpan } from "@opentelemetry/api";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
@@ -43,6 +45,7 @@ import { NodeSDK, tracing, type NodeSDKConfiguration } from "@opentelemetry/sdk-
 import { ATTR_DB_QUERY_TEXT } from "@opentelemetry/semantic-conventions";
 
 import { isServiceHost } from "../adapters/_settings.js";
+import { aresLookup } from "../core/resolve.js";
 import { SECONDS_BUCKETS } from "./metrics.js";
 
 export const METRIC_EXPORT_INTERVAL_MS = 10_000;
@@ -237,9 +240,21 @@ function stripped(span: tracing.ReadableSpan): tracing.ReadableSpan {
     : span;
 }
 
+/**
+ * The OTLP exporters' connections: keep-alive, as the exporters' own default is, with the collector's name resolved
+ * through c-ares (core/resolve.ts). An export to a stopped collector then holds neither of the two threads libuv gives
+ * lookups, which the store's connections need (tasks.md T189). Unlike the default agent, it reads no /etc/hosts, a
+ * c-ares ETIMEOUT or ESERVFAIL isn't one of the exporter's retryable codes, and on https it would ignore the
+ * environment's OTEL_EXPORTER_OTLP_*CERTIFICATE; the collector is plain http inside the stack.
+ */
+export const EXPORT_AGENT: Readonly<AgentOptions> = Object.freeze({ keepAlive: true, lookup: aresLookup });
+
 /** OTLP/HTTP metrics, cumulative for every instrument type: Prometheus accepts only cumulative. */
 export function metricExporter(): OTLPMetricExporter {
-  return new OTLPMetricExporter({ temporalityPreference: AggregationTemporality.CUMULATIVE });
+  return new OTLPMetricExporter({
+    temporalityPreference: AggregationTemporality.CUMULATIVE,
+    httpAgentOptions: EXPORT_AGENT,
+  });
 }
 
 /** The environment's resource (OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES) and the package's version. */
@@ -264,9 +279,9 @@ const secondsView = (instrumentName: string): ViewOptions => ({
 });
 
 export function buildSdkConfiguration(opts: TelemetryOptions): Partial<NodeSDKConfiguration> {
-  const traces = opts.exporters?.traces ?? new OTLPTraceExporter();
+  const traces = opts.exporters?.traces ?? new OTLPTraceExporter({ httpAgentOptions: EXPORT_AGENT });
   const metrics = opts.exporters?.metrics ?? metricExporter();
-  const logs = opts.exporters?.logs ?? new OTLPLogExporter();
+  const logs = opts.exporters?.logs ?? new OTLPLogExporter({ httpAgentOptions: EXPORT_AGENT });
   return {
     resource: buildResource(opts.version),
     autoDetectResources: false,
