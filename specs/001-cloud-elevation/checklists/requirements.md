@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain. Four remain by design, for `/speckit-clarify`: the group FR-014 to FR-016 (GitHub-side requirements and ADRs 0013 and 0014), FR-017 (production's meter of record), FR-020 (infrastructure cost and the ceiling), and FR-033 (the public request cap). The brief asked for about three to five markers; the specify skill's own default is at most three.
+- [x] No [NEEDS CLARIFICATION] markers remain. Four remain by design, for `/speckit-clarify`: the group FR-014 to FR-016 (GitHub-side requirements and ADRs 0013 and 0014), FR-017 (production's meter of record), FR-020 (infrastructure cost and the ceiling), and FR-033 (the public request cap). The brief asked for about three to five markers; the specify skill's own default is at most three.
 - [x] Requirements are testable and unambiguous. All 62 functional requirements use an EARS keyword (WHEN, WHILE, IF … THEN, WHERE, or a plain SHALL). Each names something a test, a scan, the matrix, or an audit can check.
 - [x] Success criteria are measurable. There are 15, and each has a count, a time, a percentage, or a pass condition from a scan.
 - [x] Success criteria are technology-agnostic. Mostly: SC-005 (image digests), SC-012 (merge-request notes and apply records), and SC-015 (pull requests) name the project's own process objects.
