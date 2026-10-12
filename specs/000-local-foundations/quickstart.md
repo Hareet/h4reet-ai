@@ -362,7 +362,7 @@ make matrix
 
 ### 3.2 Stage S, inside the sandbox (US3-1, FR-007)
 
-**Where:** an agent session, after the early patch; the rows that need the closing patch show as planned until it lands. The same `make matrix` runs stage S when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable. **Expected:** every unwritable, unreadable, and refused-connection row passes, including the FR-007 file of each secret ([env-files.md §8](contracts/env-files.md#8-the-fr-007-deny-list)), and the opening's half of row E9: `198.18.0.1:2376` answers with the agents' certificate, and `198.18.0.1:3128` and the stack ports are refused.
+**Where:** an agent session, after the early patch; the rows that need the closing patch show as planned until it lands. The same `make matrix` runs stage S when `SANDBOX_RUNTIME=1` is set and `.git/hooks` isn't writable. Give the session the alert channel's SMTP host, deploy/env's `SMTP_HOST`, which the sandbox can't read: it runs `H4_STAGE_S_SMTP_HOST=<host> make matrix`, adding `H4_STAGE_S_SMTP_PORT=<port>` if the port is neither 465 nor 587. Without it, the SMTP row is SKIP. **Expected:** every unwritable, unreadable, and refused-connection row passes. The FR-007 files are proved through the folders that hold them, `deploy/env` and `~/.config/h4reet-ai`, each unreadable and unwritable ([env-files.md §8](contracts/env-files.md#8-the-fr-007-deny-list)). The refused connections are hosts off the allowlist, the SMTP host, the egress proxy `198.18.0.1:3128`, and every stack's five ports on loopback, beside a loopback listener the row opens itself as the control. The allowed engine path, `198.18.0.1:2376` with the agents' certificate, is stage E's (E9, E14) and `make engine-smoke`'s, since it needs the proxy and the engine. An unwritable row passes on the sandbox's mount at that very path, not on a file that merely can't be written, and Windows interop is refused.
 
 ### 3.3 Stage E, the engine's limits from the host (US3-9, FR-039)
 
@@ -372,7 +372,7 @@ make matrix
 deploy/agents-engine/engine.sh prove
 ```
 
-**Expected:** rows E1 to E16 pass ([agents-engine.md §7](contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs)), with excerpts from the admission plugin's log, the egress proxy's log, and the firewall's drop counter. Row E14 carries an open question about its mechanism; record what it finds.
+**Expected:** rows E1 to E16 pass ([agents-engine.md §7](contracts/agents-engine.md#7-the-fr-039-limits-and-their-proofs)), with excerpts from the admission plugin's log, the egress proxy's log, and the firewall's drop counter. Row E14 carries an open question about its mechanism; record what it finds. `prove` also writes its report to `~/.local/state/h4reet/agents-engine/prove-report.txt`, headed `H4-PROVE-REPORT commit=… engine-tree=… utc=…`. `make matrix` (§3.1, §3.2) folds rows E1 to E16 from it while `git rev-parse HEAD:deploy/agents-engine` matches the header's tree, and shows stage E as SKIP, with the reason, for a report with no header, from a tree with uncommitted changes, or from another engine tree. The header comes with the engine change review B asked for, the Author's to apply; until then stage E stays SKIP.
 
 ### 3.4 The engine's positive half (US3-9)
 
@@ -525,14 +525,20 @@ time npx @devcontainers/cli@0.89.0 exec --workspace-folder . make test
 ### 6.3 The local gate (FR-041, SC-008)
 
 1. **`make check`,** in an agent session. The Author doesn't run it: in the Author's terminal the gate is step 3 (plan §11). Expected: one line per gate, PASS, FAIL, SKIP (with its reason), PENDING, or PLANNED (naming the patch's task), then a summary. It exits non-zero on any FAIL or PENDING; a PLANNED line doesn't fail it (plan [§11](plan.md#11-local-gates-fr-041)). The whole output goes into every merge-request note.
-2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, or `evals/agent-config/**`): the Author runs `make evals-agent-config`, commits the new `evals/agent-config/history/` entry (SC-008), and runs the gate again.
+2. **When the agent-config evals show PENDING** (a branch changed CLAUDE.md, REVIEW.md, `.claude/**`, `evals/agent-config/**`, or the Claude Code pin): from main's checkout, on main with its tracked files clean and nothing untracked or ignored in `evals/agent-config/` but earlier entries and Python's `__pycache__/*.pyc` (untracked files elsewhere, like `.idea/`, don't matter), the Author runs
+
+   ```bash
+   make evals-agent-config REF=<branch>
+   ```
+
+   It runs main's `behavioral.py`, never the branch's: it clones the branch and reads its cases and thresholds as data. Each session runs the branch's `.claude/` hooks unsandboxed, so before any starts it prints the branch's diff against main under `.claude/`, CLAUDE.md, REVIEW.md, and every other human-only path (plan §15), and waits for the Author to type `yes`. It writes the entry, untracked, into main's checkout's `evals/agent-config/history/`, and attests its exact bytes in `~/.local/state/h4reet/evals/attested/`, where agents can't write; only an attested entry counts. The Author commits the entry on the branch as written (SC-008) by pasting the commands the run prints after it, and never by switching main's checkout to the branch, where the gate and the hooks would then run the branch's code as the Author (review D1, 1). From main's repository, and checking the branch out nowhere, they build the commit with git's plumbing in a temporary index from the branch's tip, with the entry's exact bytes; move the branch with `git update-ref` only if its tip is still the one they read; and remove the copy from main's checkout, which a merge of the branch would refuse to overwrite. They work while an agent's worktree holds the branch, which `git worktree add` refuses: that worktree's index then lags its HEAD, and the note after the commands gives the `git restore` that brings the entry in before its next commit. Then the Author runs the gate again. Since main's tier is what runs, the first run follows the merge that brings it: T099 runs against a branch holding the tree main will have, with US5's patch and the governance patch applied, commits the entry there, and merges that branch, so main's trigger hash is the run's (plan §14).
 3. **The Author's gate,** run directly and not through make, because a planted `GNUmakefile` would shadow the Makefile:
 
    ```bash
    tools/gates/gate <branch>
    ```
 
-   Expected: its container phase, run on an exported tree with `--network none`, and its host phase both pass. Its summary line goes into the merge commit's message.
+   Run it from main's checkout. It refuses (exit 2), and runs nothing, unless HEAD is `main` itself, the tracked files are clean with no change hidden by assume-unchanged or skip-worktree, and nothing git doesn't track, ignored or not, sits in `tools/gates/`, `corpus/tools/`, `evals/agent-config/` (its `history/` aside), or `deploy/agents-engine/`, Python's `__pycache__/*.pyc` aside; untracked files elsewhere don't matter (plan §11). Expected: its container phase, run on an exported tree with `--network none`, and its host phase both pass. Its summary line goes into the merge commit's message, and the merge command it prints runs where the gate ran.
 
 ### 6.4 The history scan before publication (FR-042)
 

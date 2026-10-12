@@ -1,0 +1,1703 @@
+#!/usr/bin/env -S python3 -I -B -X pycache_prefix=/dev/null
+"""The Author's clean-room gate (spec 000 FR-041; plan §11, §19; ADR 0017; research.md R-23, R-35, R-36).
+
+    tools/gates/gate [--host] [--prove] [--otlp-url URL] REF
+    tools/gates/gate --contract-replay FILE
+
+Run it directly from main's checkout, never through make: a planted GNUmakefile would shadow the Makefile.
+The branch's code never runs outside a container in the Author's terminal. On the host the gate runs only git, docker,
+gitleaks, and the main working tree's own code: this file, tools/gates/*.py, and deploy/agents-engine/engine.sh, each
+with an environment it builds itself; and, loaded into this process, so in its environment, corpus/tools/
+check_corpus.py, evals/agent-config/behavioral.py, the static.py it loads beside it, and the PyYAML both import, from
+the host's own Python. The commit under test is data there.
+
+That code is main's only in main's checkout, so the gate refuses to start (exit 2) unless HEAD is refs/heads/main, the
+tracked files match it in the index and the working tree, git is told to hide no change (assume-unchanged,
+skip-worktree), and no file git doesn't track, ignored or not, sits in tools/gates/, corpus/tools/, evals/agent-config/
+(its history/ aside), or deploy/agents-engine/, but Python's bytecode caches, which PY_HOST never reads. With a branch
+checked out, the branch's code would grade the branch. A branch that changes this file runs its own copy, which no
+check in it can stop, so the Author runs main's. --contract-replay is held to the main working tree alone: make
+contract-live reaches it through the checkout's own Makefile and operator.py, which have run by then.
+
+1. Export. REF resolves once to a commit SHA, which every later step and the merge use. Every git call runs with
+   GIT_NO_REPLACE_OBJECTS=1. A ref under refs/replace stops the gate, since the Author's merge would honor it. So do
+   .git/info/attributes and submodules, which git archive would apply or skip, and any path git takes for its own
+   directory (.git in any case, or as NTFS spells it: a file, a folder, or a link, anywhere in the tree), which git
+   would read as a repository if anything ran it in the export. `git archive` exports the commit, tarfile's data
+   filter extracts it, and the export must hash to the tree its commit object names, the object rehashed against
+   its SHA. Anything short of that proof stops the gate. The export is read-only from then on.
+2. Makefiles. The container phase's make would read a GNUmakefile or makefile before the Makefile, so the export may
+   hold neither, or exactly main's GNUmakefile and no makefile. Anything else stops the container phase.
+3. Container phase, on this machine's engine (plan §11: the devcontainer build needs Ubuntu's mirrors). The
+   devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
+   the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
+   validate-config, test, evals, redteam-suite, and matrix (stage H). Every container drops all capabilities, sets
+   no-new-privileges, and runs as the Author's uid on that copy.
+4. Host phase:
+   - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
+     gc.packRefs is false, and main is a loose ref, as `make githooks-check` has it;
+   - toolchain: tools/gates/toolchain_check.py against the export's pins;
+   - policy: tools/gates/compose_policy.py --root <export>;
+   - corpus: corpus/tools/check_corpus.py over the export's corpus, with the Author's denylist, which must exist;
+     loaded into this process, which runs with PY_HOST's flags, since the script reads only its own tree;
+   - gitleaks over $(git merge-base main SHA)..SHA, with the main tree's .gitleaks.toml (--config), a fresh empty
+     --gitleaks-ignore-path, and --ignore-gitleaks-allow, and git log's --text, without which git shows no diff for
+     what it takes for binary: a NUL byte, or a -diff attribute in any .gitattributes in the work tree. It refuses
+     while a .gitleaksignore at the main tree could hold an entry (research.md R-36). gitleaks exits 0 when git
+     fails beneath it, and only logs the error, so findings exit 99 (--exit-code) and a scan passes only when
+     gitleaks exits 0, its log holds no line at a level but TRC, DBG, INF, or WRN, its report reads as an empty
+     list, and it says how many commits it scanned: more than none whenever the branch adds a line (counted in
+     git log -p --text), since it counts only commits whose diff has one;
+   - gitleaks-tree: gitleaks dir over the export, the tree the merge writes, with the same flags, from inside it,
+     so the config's ^-anchored allowlists match the paths it walks. It reads what a merge's resolution added, which
+     git log shows no diff for. Anything at the export's root named .gitleaksignore refuses it first, since dir mode
+     obeys one at the folder it scans (R-36). Its log is read as the range scan's, and a "WRN skipping" line, a file
+     it couldn't read, fails it too; it must say how many bytes it scanned, more than none of a tree with content;
+   - image: the compose images, built on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
+     only after the policy passed, because an unvetted build could read host files into the engine;
+   - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
+     waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
+   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
+     evals/agent-config/ (its history aside), or the Claude Code pin: the main tree's evals/agent-config/behavioral.py,
+     loaded into this process like check_corpus, whose status reads the export's cases, thresholds, history, and
+     trigger files as data and starts nothing; in export mode it walks the tree and never runs git. An entry counts
+     only when this machine attests its exact bytes (make evals-agent-config writes the SHA-256 under
+     ~/.local/state/h4reet, which agent sessions can't write), and the newest attested run for the export's trigger
+     hash decides: PASS, FAIL, or PENDING when none has run (the Author runs make evals-agent-config REF=<branch> from
+     main's checkout and commits the entry). A file that doesn't load fails. Before main has the tier (T094), this
+     step is SKIP naming it.
+5. eval-history: each history entry the branch adds is posted once to prod's x004 as the h4.devtime.eval.* gauges
+   (contracts/telemetry.md §4.4): OTLP/JSON, stdlib, no proxy, timestamped at the post. An entry needs "verdict"
+   ("pass" or "fail"), "cost_usd" (a number), and "tokens" with "input", "output", "cache_read", and
+   "cache_creation" (integers), and a "run" that is its file's name. Only an entry this machine attests is posted;
+   the rest wait (PENDING). The history is append-only: a branch that changes or removes an entry fails, and so does
+   a malformed entry or a link. A collector that doesn't answer is a WARN.
+6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off.
+
+--host skips the container phase (plan §19: the devcontainer image won't build), and every summary line says
+DEGRADED. Lint, tests, the scaffolds, and stage H then run nowhere: never on the host.
+
+--contract-replay FILE is make contract-live's replay (contracts/provider-adapter.md §5.3): the container phase over
+`git archive HEAD`, with FILE mounted read-only, running `vitest run test/contract/replay.test.ts` in the gateway
+with H4_CONTRACT_RECORDING set and --network none. It passes only when the replay passed tests under the
+recording's own name ("recorded live: <adapter>"), so a replay that never read FILE can't pass.
+
+Statuses are make check's (PASS, SKIP, PLANNED, PENDING, FAIL), plus WARN for telemetry that didn't arrive.
+Exit 0 with no FAIL or PENDING; 1 otherwise, or when the export's proof fails; 2 when the gate refuses to start.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+
+# PY_HOST's flags (plan §4; research.md R-35), before anything else is imported. The first line sets them; a bare
+# `python3 tools/gates/gate` starts again with them, so neither PYTHONPATH nor a planted __pycache__ reaches it.
+# Imported (its tests), it runs nothing.
+if __name__ == "__main__" and not (
+    sys.flags.isolated
+    and sys.flags.dont_write_bytecode
+    and sys.pycache_prefix == "/dev/null"
+):
+    os.execv(
+        sys.executable,
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            "-X",
+            "pycache_prefix=/dev/null",
+            os.path.abspath(__file__),
+            *sys.argv[1:],
+        ],
+    )
+
+import argparse
+import contextlib
+import hashlib
+import importlib.util
+import io
+import json
+import math
+import re
+import shlex
+import shutil
+import stat
+import subprocess
+import tarfile
+import tempfile
+import time
+import unicodedata
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass, field
+from pathlib import Path
+
+REF_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/~^@{}-]{0,200}")
+SHA_RE = re.compile(r"[0-9a-f]{40}")
+IMAGE_ID_RE = re.compile(r"sha256:[0-9a-f]{64}")
+RUN_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:+-]{0,199}")
+HOST_ENGINE = "unix:///var/run/docker.sock"
+AGENTS_ENGINE = "tcp://198.18.0.1:2376"
+OTLP_URL = "http://127.0.0.1:18004/v1/metrics"
+DEVCONTAINER = "h4reet-devcontainer"
+RECORDING = "/run/h4-contract/recording.json"
+# make targets the container phase runs, each under its step's name.
+CONTAINER_TARGETS = (
+    ("lint", "lint"),
+    ("validate-config", "validate-config"),
+    ("test", "test"),
+    ("evals", "evals"),
+    ("redteam", "redteam-suite"),
+    ("matrix-h", "matrix"),
+)
+STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
+# gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
+# exit code of their own, and its log is read: a line at any level but these means the scan may be partial.
+LEAKS = 99
+GITLEAKS_FINE = re.compile(r"^\S+ (?:TRC|DBG|INF|WRN) ")
+GITLEAKS_COMMITS = re.compile(r"^\S+ INF (\d+) commits scanned\b", re.MULTILINE)
+# dir mode's count, and the warning it logs, exit code 0, for a file it couldn't read or a path that isn't there.
+GITLEAKS_BYTES = re.compile(r"^\S+ INF scanned ~(\d+) bytes\b", re.MULTILINE)
+GITLEAKS_SKIPPED = re.compile(r"^\S+ WRN skipping\b.*$", re.MULTILINE)
+HISTORY = "evals/agent-config/history/"
+# Where the gate's own code is in main's checkout (the docstring's list): this file and tools/gates/*.py, which it runs;
+# check_corpus.py, and behavioral.py with the static.py beside it, which it loads; and engine.sh, which --prove runs, with
+# the scripts beside it. A file git doesn't track there could be picked up by a glob, a copy, or an import from its
+# folder. HISTORY is data the gate reads from the export alone, and make evals-agent-config leaves its new entry there,
+# untracked, for the Author to commit.
+CODE_PATHS = (
+    "tools/gates/",
+    "corpus/tools/",
+    "evals/agent-config/",
+    "deploy/agents-engine/",
+)
+TOKEN_TYPES = ("input", "output", "cache_read", "cache_creation")
+COUNTED = ("PASS", "SKIP", "WARN", "PLANNED", "PENDING", "FAIL")
+
+
+class Refusal(Exception):
+    """The gate won't start: a usage error, the sandbox, the wrong copy or checkout, or a file that isn't a recording.
+    Exit 2."""
+
+
+class Stop(Exception):
+    """The export's proof failed, so nothing after it may run. Exit 1."""
+
+
+@dataclass
+class Step:
+    name: str
+    status: str = "PASS"
+    notes: list[str] = field(default_factory=list)
+
+    def set(self, status: str, note: str) -> Step:
+        self.status = status
+        self.notes.append(note)
+        return self
+
+    def fail(self, note: str) -> Step:
+        return self.set("FAIL", note)
+
+
+@dataclass
+class Report:
+    steps: list[Step] = field(default_factory=list)
+
+    def add(self, step: Step) -> Step:
+        self.steps.append(step)
+        note = f" ({'; '.join(step.notes)})" if step.notes else ""
+        say(f"-> {step.status} {step.name}{note}")
+        return step
+
+    def status(self, name: str) -> str:
+        return next((s.status for s in self.steps if s.name == name), "")
+
+    def failing(self) -> list[Step]:
+        return [s for s in self.steps if s.status in ("FAIL", "PENDING")]
+
+
+# --------------------------------------------------------------------------------------------------
+# Output and processes
+# --------------------------------------------------------------------------------------------------
+def clean(text: str) -> str:
+    """Every control character but a newline and a tab as ?, as the breach test and operator.py have it, so nothing a
+    container, a tool, or a file prints can drive the Author's terminal."""
+    return "".join(
+        ch if ch in "\n\t" or unicodedata.category(ch) != "Cc" else "?" for ch in text
+    )
+
+
+def say(text: str = "", *, err: bool = False) -> None:
+    with contextlib.suppress(OSError, ValueError):
+        print(clean(text), file=sys.stderr if err else sys.stdout, flush=True)
+
+
+def begin(name: str, what: str = "") -> None:
+    say(f"== {name}{': ' + what if what else ''}")
+
+
+def tool_env(**extra: str) -> dict[str, str]:
+    """The only environment a tool gets: PATH, HOME, the C locale, and what the step adds. Nothing else of the
+    Author's shell (DOCKER_CONTEXT, proxies, GIT_DIR, tokens) reaches a tool."""
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "HOME": str(Path.home()),
+        "LC_ALL": "C",
+    }
+    env.update(extra)
+    return env
+
+
+def stream(argv: list[str], env: dict[str, str], cwd: Path) -> tuple[int, str]:
+    """Run a command, print its output cleaned as it arrives, and return its exit code and output."""
+    try:
+        proc = subprocess.Popen(
+            argv,
+            env=env,
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as exc:
+        say(f"can't run {argv[0]}: {exc.strerror or exc}")
+        return 127, ""
+    lines = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        lines.append(line)
+        say(line.rstrip("\n"))
+    return proc.wait(), "".join(lines)
+
+
+def classify(step: Step, rc: int, output: str) -> Step:
+    """make check's rules (tools/gates/run_checks.py): non-zero is FAIL; then a PENDING line, a "PLANNED (" line, or
+    a "SKIP:" line sets that status; otherwise PASS."""
+    lines = output.splitlines()
+    if rc != 0:
+        return step.fail(f"exited {rc}")
+    pending = [ln for ln in lines if ln.startswith("PENDING")]
+    planned = [ln for ln in lines if ln.startswith("PLANNED (")]
+    skipped = [ln[len("SKIP:") :].strip() for ln in lines if ln.startswith("SKIP:")]
+    if pending:
+        step.status, step.notes = "PENDING", pending
+    elif planned:
+        step.status, step.notes = "PLANNED", planned
+    elif skipped:
+        step.status, step.notes = "SKIP", skipped
+    return step
+
+
+def py_host(script: Path, *args: str) -> list[str]:
+    return [
+        sys.executable,
+        "-I",
+        "-B",
+        "-X",
+        "pycache_prefix=/dev/null",
+        str(script),
+        *args,
+    ]
+
+
+# --------------------------------------------------------------------------------------------------
+# git, the main tree, and the export
+# --------------------------------------------------------------------------------------------------
+def git(repo: Path, *args: str, binary: bool = False) -> subprocess.CompletedProcess:
+    # Replace refs live under .git/refs/replace, which git status doesn't show; with this, git reads each
+    # commit's own objects.
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        env=tool_env(GIT_NO_REPLACE_OBJECTS="1"),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=not binary,
+        check=False,
+        timeout=600,
+    )
+
+
+def main_tree() -> Path:
+    """The main working tree, which must be where this file lives: a linked worktree's copy is a branch's."""
+    gate = Path(__file__).resolve()
+    top = git(gate.parent, "rev-parse", "--show-toplevel")
+    common = git(gate.parent, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if top.returncode or common.returncode:
+        raise Refusal(f"{gate} isn't inside a git work tree")
+    common_dir = Path(common.stdout.strip()).resolve()
+    main = common_dir.parent
+    if (
+        common_dir.name != ".git"
+        or Path(top.stdout.strip()).resolve() != main
+        or gate != main / "tools" / "gates" / "gate"
+    ):
+        raise Refusal(
+            f"run the main working tree's gate, {main}/tools/gates/gate: {gate} is a linked worktree's copy, "
+            "which a branch can change"
+        )
+    return main
+
+
+def some(items: list[str]) -> str:
+    return ", ".join(items[:3]) + (
+        f", and {len(items) - 3} more" if len(items) > 3 else ""
+    )
+
+
+def bytecode_cache(path: str) -> bool:
+    """Whether a path is Python's bytecode cache, __pycache__/<module>.<tag>.pyc: PY_HOST's pycache_prefix=/dev/null
+    keeps Python from reading one (the matrix's H/pyhost rows), and Python never imports one without its source."""
+    folder, _, name = path.rpartition("/")
+    return folder.rpartition("/")[2] == "__pycache__" and name.endswith(".pyc")
+
+
+def checkout_problem(repo: Path) -> str | None:
+    """Why main's checkout isn't one whose code the gate may run, or None (US3 review D, finding 1). The gate runs and
+    loads the working tree's files, so they must be main's: HEAD is refs/heads/main itself; the tracked files match it,
+    in the index and the working tree; git is told to hide no change; and no file git doesn't track, ignored or not,
+    sits where the gate's code is (CODE_PATHS), but Python's bytecode caches. Untracked files elsewhere don't matter:
+    the gate reads nothing else of the working tree but tracked .gitleaks.toml and what its steps check by name."""
+    head = git(repo, "symbolic-ref", "--quiet", "HEAD")
+    ref = head.stdout.strip()
+    if head.returncode or ref != "refs/heads/main":
+        return (
+            f"run the gate from main's checkout: HEAD is {ref or 'detached'} here, not refs/heads/main, so the code "
+            "it would run and load from this working tree is that commit's, and a branch would grade itself: switch "
+            "to main, then run tools/gates/gate <branch>"
+        )
+    listed = git(repo, "ls-files", "-v", "-z", binary=True)
+    if listed.returncode:
+        return "git ls-files couldn't list main's checkout"
+    # -v tags a file marked assume-unchanged in lower case, and one marked skip-worktree S.
+    hidden = [
+        entry[2:].decode("utf-8", "surrogateescape")
+        for entry in listed.stdout.split(b"\0")
+        if entry[:1].islower() or entry[:1] == b"S"
+    ]
+    if hidden:
+        return (
+            f"git is told to hide changes to {some(hidden)} (assume-unchanged or skip-worktree), so main's checkout "
+            "can't be shown to match main: git update-index --no-assume-unchanged --no-skip-worktree -- <path>"
+        )
+    # No optional locks: the Author's index isn't rewritten. No fsmonitor: nothing but git's own reading says what
+    # changed.
+    status = git(
+        repo, "--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z", "--no-renames",
+        "--untracked-files=no", "--ignore-submodules=none", binary=True,
+    )  # fmt: skip
+    if status.returncode:
+        return "git status couldn't read main's checkout"
+    changed = [
+        e.decode("utf-8", "surrogateescape") for e in status.stdout.split(b"\0") if e
+    ]
+    if changed:
+        return (
+            f"main's checkout has tracked files that don't match HEAD, so the code the gate would run might not be "
+            f"main's: {some(changed)}; stash or restore them"
+        )
+    # --others without --exclude-standard: ignored files too.
+    others = git(repo, "ls-files", "-z", "--others", "--", *CODE_PATHS, binary=True)
+    if others.returncode:
+        return "git ls-files couldn't list main's checkout"
+    planted = [
+        path
+        for path in (
+            e.decode("utf-8", "surrogateescape")
+            for e in others.stdout.split(b"\0")
+            if e
+        )
+        if not path.startswith(HISTORY) and not bytecode_cache(path)
+    ]
+    if planted:
+        return (
+            f"main's checkout has files git doesn't track where the gate's code is ({', '.join(CODE_PATHS)}; "
+            f"{HISTORY} aside), which a glob, a copy, or an import from their folder would pick up: {some(planted)}; "
+            "move them out of the tree"
+        )
+    return None
+
+
+def object_id(kind: bytes, data: bytes) -> str:
+    """The ID git gives an object of this kind and content (SHA-1 object format)."""
+    return hashlib.sha1(b"%s %d\0" % (kind, len(data)) + data).hexdigest()
+
+
+def tree_id(directory: Path) -> str | None:
+    """The tree ID git would give a directory's contents, or None for an empty one, which a tree can't hold."""
+    entries = []
+    with os.scandir(directory) as found:
+        for entry in found:
+            name = os.fsencode(entry.name)
+            if entry.is_symlink():
+                target = os.fsencode(os.readlink(entry.path))
+                entries.append((name, b"120000", object_id(b"blob", target)))
+            elif entry.is_dir(follow_symlinks=False):
+                sub = tree_id(Path(entry.path))
+                if sub is not None:
+                    entries.append(
+                        (name + b"/", b"40000", sub)
+                    )  # git orders a tree as if it ended in /
+            elif entry.is_file(follow_symlinks=False):
+                executable = entry.stat(follow_symlinks=False).st_mode & 0o100
+                data = Path(entry.path).read_bytes()
+                mode = b"100755" if executable else b"100644"
+                entries.append((name, mode, object_id(b"blob", data)))
+            else:
+                raise Stop(f"{entry.path} is not a file, a link, or a directory")
+    if not entries:
+        return None
+    entries.sort()
+    body = b"".join(
+        mode + b" " + key.removesuffix(b"/") + b"\0" + bytes.fromhex(oid)
+        for key, mode, oid in entries
+    )
+    return object_id(b"tree", body)
+
+
+def names_git(name: bytes) -> bool:
+    """Whether a path component is a name git takes for its own directory, as its verify_path reads one with
+    core.protectNTFS on, git's default everywhere: .git, or NTFS's short name git~1, in any case, followed by nothing
+    but dots and spaces (which NTFS drops) or by a colon (an NTFS stream); a backslash separates on NTFS."""
+    for part in name.split(b"\\"):
+        if part.split(b":", 1)[0].rstrip(b". ").lower() in (b".git", b"git~1"):
+            return True
+    return False
+
+
+def resolve(repo: Path, ref: str) -> str:
+    done = git(repo, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+    sha = done.stdout.strip()
+    if done.returncode or not SHA_RE.fullmatch(sha):
+        raise Stop(f"{ref} isn't a commit in {repo}")
+    return sha
+
+
+def commit_tree(repo: Path, sha: str) -> str:
+    """The tree a commit names, read from the commit object, after rehashing the object against its SHA: git
+    cat-file doesn't, and so the export's tree check proves the export whatever .git holds."""
+    done = git(repo, "cat-file", "commit", sha, binary=True)
+    if done.returncode or object_id(b"commit", done.stdout) != sha:
+        raise Stop(f"the object store's copy of {sha} isn't that commit; run git fsck")
+    tree = re.fullmatch(rb"tree ([0-9a-f]{40})", done.stdout.split(b"\n", 1)[0])
+    if not tree:
+        raise Stop(f"commit {sha} names no tree")
+    return tree.group(1).decode()
+
+
+def extract(data: bytes, dest: Path) -> None:
+    dest.mkdir(mode=0o700)
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as tar:
+        tar.extractall(
+            dest, filter="data"
+        )  # no absolute paths, no "..", no devices, no links out
+
+
+def make_read_only(top: Path) -> None:
+    for dirpath, _, filenames in os.walk(top):
+        for name in filenames:
+            path = Path(dirpath, name)
+            if not path.is_symlink():
+                mode = stat.S_IMODE(path.lstat().st_mode)
+                path.chmod(0o555 if mode & 0o111 else 0o444)
+        Path(dirpath).chmod(0o555)
+
+
+def remove(top: Path) -> None:
+    """Delete a tree the gate made, whatever modes a container left in it; links are removed, never followed."""
+    if not top.exists():
+        return
+    for dirpath, dirnames, _ in os.walk(top):
+        for name in dirnames:
+            path = Path(dirpath, name)
+            if not path.is_symlink():
+                path.chmod(0o700)
+        Path(dirpath).chmod(0o700)
+    shutil.rmtree(top, ignore_errors=True)
+
+
+def export(repo: Path, ref: str, tmp: Path) -> tuple[str, Path, bytes]:
+    """Resolve REF once, export that commit, and prove the export is the commit's own tree (plan §11)."""
+    replaced = git(repo, "for-each-ref", "--format=%(refname)", "refs/replace/")
+    if replaced.returncode:
+        raise Stop("git for-each-ref couldn't list refs/replace")
+    if replaced.stdout.strip():
+        raise Stop(
+            f"refs/replace holds {len(replaced.stdout.split())} ref(s). The merge and every checkout honor a "
+            "replace ref, so the gate would vouch for a commit other than the one the merge writes: remove them "
+            "(git replace -l, git replace -d) and run the gate again"
+        )
+    sha = resolve(repo, ref)
+    expected = commit_tree(repo, sha)
+    attributes = git(
+        repo, "rev-parse", "--path-format=absolute", "--git-path", "info/attributes"
+    )
+    if attributes.returncode or Path(attributes.stdout.strip()).exists():
+        raise Stop(
+            f"{attributes.stdout.strip() or 'info/attributes'} exists, and git archive would apply its "
+            "export-ignore and export-subst rules; move it aside first"
+        )
+    # -t lists each folder as well as what it holds, so an empty one is in the listing too.
+    listing = git(repo, "ls-tree", "-r", "-t", "-z", sha, binary=True)
+    if listing.returncode:
+        raise Stop(f"git ls-tree {sha} failed")
+    records = [line for line in listing.stdout.split(b"\0") if line]
+    if any(line.startswith(b"160000 ") for line in records):
+        raise Stop(
+            f"commit {sha} holds a submodule, which git archive exports as an empty directory"
+        )
+    # A file, a folder, or a link the export would hold as .git: git reads a tree that holds .git as a repository,
+    # its config and index included, and the behavioral step's status runs git in the export when it holds one.
+    # git archive refuses these names too, but only as git's version and core.protectNTFS have it.
+    dotgit = sorted(
+        {
+            path
+            for path in (line.partition(b"\t")[2] for line in records)
+            if any(names_git(part) for part in path.split(b"/"))
+        }
+    )
+    if dotgit:
+        shown = ", ".join(p.decode("utf-8", "replace") for p in dotgit[:3])
+        raise Stop(
+            f"commit {sha} holds {shown}{', ...' if len(dotgit) > 3 else ''}: a path git takes for its own "
+            "directory (.git in any case, or as NTFS spells it), which git would read as a repository if anything "
+            "ran it in the export"
+        )
+    archive = git(repo, "archive", "--format=tar", sha, binary=True)
+    if archive.returncode:
+        raise Stop(
+            f"git archive {sha} failed: {archive.stderr.decode(errors='replace').strip()[-300:]}"
+        )
+    target = tmp / "export"
+    try:
+        extract(archive.stdout, target)
+    except (tarfile.TarError, OSError) as exc:
+        raise Stop(f"the export of {sha} couldn't be extracted safely: {exc}") from exc
+    # The checks above name what is known to steer git archive. This one doesn't depend on that list.
+    if tree_id(target) != expected:
+        raise Stop(
+            f"the export of {sha} doesn't match the commit's own tree, so something changed what git archive "
+            "wrote: a .gitattributes export rule in the commit, or something in .git (git fsck)"
+        )
+    make_read_only(target)
+    return sha, target, archive.stdout
+
+
+def makefiles(repo: Path, export_dir: Path) -> Step:
+    """The container phase's make reads a GNUmakefile or makefile first, so only main's GNUmakefile may be there."""
+    step = Step("makefiles")
+    if os.path.lexists(export_dir / "makefile"):
+        return step.fail(
+            "the commit has a makefile, which make would read instead of the Makefile"
+        )
+    gnu = export_dir / "GNUmakefile"
+    if not os.path.lexists(gnu):
+        return step.set("PASS", "no GNUmakefile and no makefile")
+    mains = git(repo, "cat-file", "blob", "main:GNUmakefile", binary=True)
+    if mains.returncode:
+        return step.fail("the commit has a GNUmakefile, and main has none")
+    if gnu.is_symlink() or not gnu.is_file() or gnu.read_bytes() != mains.stdout:
+        return step.fail("the commit's GNUmakefile isn't main's")
+    return step.set("PASS", "main's GNUmakefile and no makefile")
+
+
+# --------------------------------------------------------------------------------------------------
+# The container phase
+# --------------------------------------------------------------------------------------------------
+def host_engine_env() -> dict[str, str]:
+    return tool_env(DOCKER_HOST=HOST_ENGINE)
+
+
+def build_devcontainer(
+    report: Report, docker: str, export_dir: Path, tmp: Path
+) -> str | None:
+    step = Step("devcontainer")
+    if not (export_dir / ".devcontainer" / "Dockerfile").is_file():
+        report.add(step.fail("the commit has no .devcontainer/Dockerfile"))
+        return None
+    tag = f"{DEVCONTAINER}:{tree_id(export_dir / '.devcontainer')}"
+    iid = tmp / "devcontainer.iid"
+    begin("devcontainer", f"{tag}, from the export, on this machine's engine")
+    rc, _ = stream(
+        [
+            docker,
+            "build",
+            "--file",
+            str(export_dir / ".devcontainer" / "Dockerfile"),
+            "--tag",
+            tag,
+            "--iidfile",
+            str(iid),
+            str(export_dir),
+        ],
+        host_engine_env(),
+        tmp,
+    )
+    image = iid.read_text(encoding="utf-8").strip() if iid.is_file() else ""
+    if rc != 0 or not IMAGE_ID_RE.fullmatch(image):
+        report.add(step.fail("the image didn't build"))
+        return None
+    report.add(step.set("PASS", image[:19]))
+    return image
+
+
+def container(
+    docker: str,
+    image: str,
+    work: Path,
+    command: list[str],
+    *,
+    network: bool,
+    workdir: str = "/work",
+    extra: tuple[str, ...] = (),
+) -> list[str]:
+    argv = [
+        docker,
+        "run",
+        "--rm",
+        "--init",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        f"{os.getuid()}:{os.getgid()}",
+        "--mount",
+        f"type=bind,source={work},target=/work",
+        "--workdir",
+        workdir,
+        "--env",
+        "HOME=/tmp",
+        "--env",
+        "npm_config_cache=/tmp/npm-cache",
+    ]
+    if not network:
+        argv += ["--network", "none"]
+    return [*argv, *extra, image, *command]
+
+
+def prepare(
+    report: Report, data: bytes, export_dir: Path, tmp: Path, names: list[str]
+) -> tuple[str, str, Path] | None:
+    """The devcontainer image and an installed copy of the export, or None after reporting why each step that
+    didn't run, from the image on through names, didn't."""
+
+    def rest(reason: str, *steps: str) -> None:
+        for name in [*steps, *names]:
+            report.add(Step(name).fail(f"not run: {reason}"))
+
+    docker = shutil.which("docker")
+    if docker is None:
+        rest("docker isn't installed", "devcontainer", "npm-ci")
+        return None
+    image = build_devcontainer(report, docker, export_dir, tmp)
+    if image is None:
+        rest(
+            "no devcontainer image; while it won't build, tools/gates/gate --host runs the host phase alone, "
+            "marked DEGRADED (plan §19)",
+            "npm-ci",
+        )
+        return None
+    work = tmp / "work"
+    if "," in str(work):
+        rest(
+            f"the temporary path {work} holds a comma, which a --mount can't take",
+            "npm-ci",
+        )
+        return None
+    try:
+        extract(data, work)
+    except (tarfile.TarError, OSError) as exc:
+        rest(f"the export's working copy couldn't be made: {exc}", "npm-ci")
+        return None
+    begin("npm-ci", "npm ci --ignore-scripts, the one step with the network")
+    rc, _ = stream(
+        container(
+            docker,
+            image,
+            work,
+            ["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+            network=True,
+        ),
+        host_engine_env(),
+        tmp,
+    )
+    if report.add(classify(Step("npm-ci"), rc, "")).status != "PASS":
+        rest("npm ci failed")
+        return None
+    return docker, image, work
+
+
+def container_phase(report: Report, data: bytes, export_dir: Path, tmp: Path) -> None:
+    names = [name for name, _ in CONTAINER_TARGETS]
+    if report.status("makefiles") != "PASS":
+        for name in ["devcontainer", "npm-ci", *names]:
+            report.add(
+                Step(name).fail(
+                    "not run: the export's makefiles aren't what main allows"
+                )
+            )
+        return
+    ready = prepare(report, data, export_dir, tmp, names)
+    if ready is None:
+        return
+    docker, image, work = ready
+    for name, target in CONTAINER_TARGETS:
+        begin(name, f"make {target}, --network none")
+        rc, out = stream(
+            container(
+                docker,
+                image,
+                work,
+                ["make", "-f", "Makefile", "--no-print-directory", target],
+                network=False,
+            ),
+            host_engine_env(),
+            tmp,
+        )
+        report.add(classify(Step(name), rc, out))
+
+
+# --------------------------------------------------------------------------------------------------
+# The host phase
+# --------------------------------------------------------------------------------------------------
+def githooks(repo: Path) -> Step:
+    """make githooks-check's checks, in this file, since the gate never runs make on the host."""
+    begin("githooks")
+    step = Step("githooks")
+    found = git(repo, "rev-parse", "--path-format=absolute", "--git-path", "hooks")
+    hooks = Path(found.stdout.strip())
+    if found.returncode or not hooks.is_absolute():
+        return step.fail("git didn't name the hooks directory")
+    problems = []
+    for name in ("reference-transaction", "pre-commit"):
+        source = repo / ".claude" / "git-hooks" / name
+        installed = hooks / name
+        if not source.is_file():
+            problems.append(
+                f"{name}: .claude/git-hooks/{name} is missing from the main working tree"
+            )
+        elif (
+            not installed.is_file()
+            or installed.read_bytes() != source.read_bytes()
+            or not os.access(installed, os.X_OK)
+        ):
+            problems.append(
+                f"{name}: missing, modified, or not executable in {hooks}: run make git-hooks"
+            )
+        else:
+            say(f"{name}: installed")
+    if git(repo, "config", "--get", "core.hooksPath").stdout.strip():
+        problems.append("core.hooksPath is set, so git runs other hooks")
+    if git(repo, "config", "--get", "gc.packRefs").stdout.strip() != "false":
+        problems.append(
+            "gc.packRefs isn't false, so gc may pack main out of the hook's reach"
+        )
+    ref = git(
+        repo, "rev-parse", "--path-format=absolute", "--git-path", "refs/heads/main"
+    )
+    if Path(ref.stdout.strip()).is_file():
+        say("main: a loose ref, which the git hook guards")
+    elif (
+        git(repo, "show-ref", "--verify", "--quiet", "refs/heads/main").returncode == 0
+    ):
+        problems.append("main is packed, out of the git hook's reach")
+    else:
+        say("main: no such branch in this clone")
+    for problem in problems:
+        say(problem)
+    return step.fail("; ".join(problems)) if problems else step
+
+
+def node_bin(export_dir: Path) -> str | None:
+    """The pinned Node from nvm, which the Makefile puts first on PATH for its own recipes (plan §9)."""
+    try:
+        pins = (export_dir / ".devcontainer" / "toolchain.vars").read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        return None
+    pin = re.search(r"^NODE_VERSION=(\d+\.\d+\.\d+)$", pins, re.MULTILINE)
+    nvm = Path(os.environ.get("NVM_DIR") or Path.home() / ".nvm")
+    found = nvm / "versions" / "node" / f"v{pin.group(1)}" / "bin" if pin else None
+    return str(found) if found and found.is_dir() else None
+
+
+def toolchain(repo: Path, export_dir: Path, tmp: Path) -> Step:
+    begin("toolchain", "the host's tools against the export's pins")
+    env = tool_env()
+    pinned = node_bin(export_dir)
+    if pinned:
+        env["PATH"] = f"{pinned}:{env['PATH']}"
+    rc, out = stream(
+        py_host(
+            repo / "tools" / "gates" / "toolchain_check.py",
+            str(export_dir / ".devcontainer" / "toolchain.vars"),
+        ),
+        env,
+        tmp,
+    )
+    return classify(Step("toolchain"), rc, out)
+
+
+def policy(repo: Path, export_dir: Path, tmp: Path) -> Step:
+    begin("policy", "the compose and file policy over the export")
+    rc, out = stream(
+        py_host(
+            repo / "tools" / "gates" / "compose_policy.py", "--root", str(export_dir)
+        ),
+        tool_env(),
+        tmp,
+    )
+    return classify(Step("policy"), rc, out)
+
+
+def corpus(repo: Path, export_dir: Path) -> Step:
+    """The main tree's check_corpus, pointed at the export's corpus and the Author's denylist, in this process."""
+    begin("corpus", "the export's corpus, with the Author's denylist")
+    step = Step("corpus")
+    checker = repo / "corpus" / "tools" / "check_corpus.py"
+    private = repo / "corpus" / "intake" / "private"
+    if not checker.is_file():
+        return step.fail(f"{checker} is missing")
+    if not (private / "denylist.txt").is_file():
+        return step.fail(
+            f"the Author's denylist, {private / 'denylist.txt'}, is missing, so the corpus can't be checked against it"
+        )
+    spec = importlib.util.spec_from_file_location("h4gate_check_corpus", checker)
+    if spec is None or spec.loader is None:
+        return step.fail(f"can't load {checker}")
+    out = io.StringIO()
+    try:
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.ROOT = export_dir / "corpus"
+        # Where the denylist is. None of the export's files is under it, so none is skipped as private.
+        module.PRIVATE = private
+        with contextlib.redirect_stdout(out):
+            rc = module.main()
+    except Exception as exc:  # noqa: BLE001 (the export's files are data: a bad one fails the step, not the gate)
+        return step.fail(f"check_corpus stopped: {type(exc).__name__}: {exc}")
+    text = out.getvalue()
+    for line in text.splitlines():
+        say(line)
+    if "denylist applied" not in text:
+        return step.fail("the denylist wasn't applied")
+    return classify(step, rc, text)
+
+
+def holds_nothing(path: Path) -> bool:
+    """Nothing, the empty file a killed sandbox session leaves, or the sandbox's /dev/null mask: no entry."""
+    if not os.path.lexists(path):
+        return True
+    info = os.lstat(path)
+    if stat.S_ISREG(info.st_mode):
+        return info.st_size == 0
+    if stat.S_ISCHR(info.st_mode):
+        return (os.major(info.st_rdev), os.minor(info.st_rdev)) == (1, 3)
+    return False  # a link, a FIFO, a directory
+
+
+def fresh_dir(parent: Path) -> Path:
+    """A fresh, empty directory, or an exception: never an empty or reused path (research.md R-35)."""
+    path = Path(tempfile.mkdtemp(dir=parent))
+    if (
+        not path.is_absolute()
+        or path.is_symlink()
+        or not path.is_dir()
+        or any(path.iterdir())
+    ):
+        raise OSError(f"mkdtemp gave {path}, not a fresh empty directory")
+    return path
+
+
+def run_gitleaks(
+    binary: str, scan: list[str], config: Path, source: str, cwd: Path | None, tmp: Path
+) -> tuple[list[dict], str, list[str]]:
+    """One gitleaks run with plan §11's flags: its findings, its log, and every reason its scan may be partial, read
+    as publish_check.py reads them. The ignore path is a fresh empty directory, which is the working directory too
+    unless cwd names one. Raises OSError when there is no fresh directory."""
+    empty, reports = fresh_dir(tmp), fresh_dir(tmp)
+    report_file = reports / "gitleaks.json"
+    rc, log = stream(
+        [
+            binary, *scan, "--no-banner", "--no-color", "--redact", "--config", str(config),
+            "--gitleaks-ignore-path", str(empty), "--ignore-gitleaks-allow", "--report-format", "json",
+            "--report-path", str(report_file), "--exit-code", str(LEAKS), source,
+        ],
+        tool_env(GIT_NO_REPLACE_OBJECTS="1"),
+        cwd or empty,
+    )  # fmt: skip
+    problems = []
+    errors = [
+        ln for ln in log.splitlines() if ln.strip() and not GITLEAKS_FINE.match(ln)
+    ]
+    if errors:
+        problems.append(
+            f"gitleaks logged an error, so its scan may be partial: {errors[0].strip()[:200]}"
+        )
+    if rc not in (0, LEAKS):
+        problems.append(f"gitleaks exited {rc}")
+    try:
+        findings = json.loads(report_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [], log, [*problems, "gitleaks' report is missing or unreadable"]
+    if not isinstance(findings, list) or not all(isinstance(f, dict) for f in findings):
+        return [], log, [*problems, "gitleaks' report isn't a list of findings"]
+    if rc in (0, LEAKS) and (rc == LEAKS) != bool(findings):
+        problems.append(
+            f"gitleaks exited {rc} with {len(findings)} finding(s) in its report"
+        )
+    return findings, log, problems
+
+
+def scan_verdict(step: Step, findings: list[dict], problems: list[str]) -> Step:
+    """Each finding named by its rule, file, line, and commit, never its match; then the step's status."""
+    for found in findings:
+        commit = str(found.get("Commit") or "")[:12]
+        say(
+            f"  {found.get('RuleID')} in {found.get('File')}:{found.get('StartLine')}"
+            + (f" (commit {commit})" if commit else "")
+        )
+    if findings:
+        problems = [
+            f"{len(findings)} finding(s), named above without their match",
+            *problems,
+        ]
+    return step.fail("; ".join(problems)) if problems else step
+
+
+def added_lines(repo: Path, base: str, sha: str) -> int | None:
+    """The lines the branch's commits add, counted in the patch gitleaks reads (git log -p --text), or None when git
+    can't say. gitleaks counts a commit as scanned only when its diff has a hunk, so a branch that adds no line
+    (deletions, renames, mode changes, merges, or empty commits) honestly scans none. --numstat counts no line in what
+    git takes for binary, even with --text."""
+    done = git(
+        repo, "log", "-p", "-U0", "--text", "--no-textconv", "--no-ext-diff", "--no-color", "--format=",
+        f"{base}..{sha}", binary=True,
+    )  # fmt: skip
+    if done.returncode:
+        return None
+    added, in_hunk = 0, False
+    for line in done.stdout.split(b"\n"):
+        if line.startswith(b"diff --git "):
+            in_hunk = False
+        elif line.startswith(b"@@ "):
+            in_hunk = True
+        elif in_hunk and line.startswith(b"+"):
+            added += 1
+    return added
+
+
+def holds_content(top: Path) -> bool:
+    """Whether a tree holds a regular file with a byte in it."""
+    for folder, _, names in os.walk(top):
+        for name in names:
+            info = os.lstat(os.path.join(folder, name))
+            if stat.S_ISREG(info.st_mode) and info.st_size:
+                return True
+    return False
+
+
+def gitleaks(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
+    begin("gitleaks", f"the commits since main, with {repo / '.gitleaks.toml'}")
+    step = Step("gitleaks")
+    binary = shutil.which("gitleaks")
+    if binary is None:
+        return step.fail(
+            "gitleaks isn't installed, so nothing was scanned (make tools)"
+        )
+    config = repo / ".gitleaks.toml"
+    if not config.is_file():
+        return step.fail(f"no .gitleaks.toml in {repo}, so nothing was scanned")
+    if not holds_nothing(repo / ".gitleaksignore"):
+        return step.fail(
+            f"a .gitleaksignore in {repo} would switch findings off (research.md R-36); nothing was scanned"
+        )
+    if base is None:
+        return step.fail(
+            "no merge base with main, so the branch's commits can't be scanned"
+        )
+    added = added_lines(repo, base, sha)
+    if added is None:
+        return step.fail(
+            "git log couldn't count the lines the branch adds, so nothing was scanned"
+        )
+    # git log's --text: without it git shows no diff for what it takes for binary, a NUL byte or a -diff attribute in
+    # any .gitattributes in the work tree, even an untracked one, and gitleaks reads only what git shows.
+    try:
+        findings, log, problems = run_gitleaks(
+            binary,
+            ["git", f"--log-opts=--text {base}..{sha}"],
+            config,
+            str(repo),
+            None,
+            tmp,
+        )
+    except OSError as exc:
+        return step.fail(f"no fresh directory for gitleaks: {exc}")
+    scanned = GITLEAKS_COMMITS.search(log)
+    if scanned is None:
+        problems.append("gitleaks didn't say how many commits it scanned")
+    elif added and int(scanned.group(1)) == 0:
+        problems.append(
+            f"gitleaks scanned 0 commits, though the branch adds {added} line(s)"
+        )
+    return scan_verdict(step, findings, problems)
+
+
+def gitleaks_tree(repo: Path, export_dir: Path, tmp: Path) -> Step:
+    """gitleaks dir over the export, the tree the merge writes: it reads files as they are, whatever git takes for
+    binary, and what a merge's resolution added, which git log shows no diff for."""
+    begin("gitleaks-tree", "the export, the tree the merge writes, in dir mode")
+    step = Step("gitleaks-tree")
+    binary = shutil.which("gitleaks")
+    if binary is None:
+        return step.fail(
+            "gitleaks isn't installed, so nothing was scanned (make tools)"
+        )
+    config = repo / ".gitleaks.toml"
+    if not config.is_file():
+        return step.fail(f"no .gitleaks.toml in {repo}, so nothing was scanned")
+    # dir mode obeys a .gitleaksignore at the folder it scans whatever its flags (research.md R-36), and the branch
+    # wrote any there, so anything at all refuses.
+    planted = sorted(
+        name for name in os.listdir(export_dir) if name.lower() == ".gitleaksignore"
+    )
+    if planted:
+        return step.fail(
+            f"the commit has {planted[0]} at its root, which gitleaks dir would obey whatever its flags "
+            "(research.md R-36); nothing was scanned"
+        )
+    # From inside the export, so dir mode walks paths relative to the tree: the config's ^-anchored allowlists match
+    # them, and findings are named by them.
+    try:
+        findings, log, problems = run_gitleaks(
+            binary, ["dir"], config, ".", export_dir, tmp
+        )
+    except OSError as exc:
+        return step.fail(f"no fresh directory for gitleaks: {exc}")
+    skipped = GITLEAKS_SKIPPED.search(log)
+    if skipped:
+        problems.append(
+            f"gitleaks skipped what it couldn't read: {skipped.group(0).strip()[:200]}"
+        )
+    scanned = GITLEAKS_BYTES.search(log)
+    if scanned is None:
+        problems.append("gitleaks didn't say how much it scanned")
+    elif int(scanned.group(1)) == 0 and holds_content(export_dir):
+        problems.append("gitleaks scanned 0 bytes of a tree that holds some")
+    return scan_verdict(step, findings, problems)
+
+
+def image(export_dir: Path, policy_step: Step, tmp: Path) -> Step:
+    begin("image", "the compose images, built on the agents' engine")
+    step = Step("image")
+    if policy_step.status not in ("PASS", "PLANNED"):
+        return step.fail(
+            "not built: the compose policy didn't pass, and a build it hasn't vetted could read host files "
+            "(build secrets, ssh) into the engine"
+        )
+    docker = shutil.which("docker")
+    if docker is None:
+        return step.fail("docker isn't installed")
+    certs = Path.home() / ".config" / "h4reet-ai" / "agents-engine" / "docker"
+    if not (certs / "cert.pem").is_file():
+        return step.fail(
+            f"no client certificate for the agents' engine in {certs}: deploy/agents-engine/engine.sh setup"
+        )
+    rc, out = stream(
+        [
+            docker,
+            "compose",
+            "-p",
+            "h4reet-dev-cpu",
+            "-f",
+            str(export_dir / "deploy" / "compose.yaml"),
+            "--env-file",
+            str(export_dir / "deploy" / "env.agents" / "dev-cpu.vars"),
+            "--profile",
+            "*",
+            "build",
+        ],
+        tool_env(
+            DOCKER_HOST=AGENTS_ENGINE,
+            DOCKER_TLS_VERIFY="1",
+            DOCKER_CERT_PATH=str(certs),
+        ),
+        tmp,
+    )
+    if rc != 0:
+        return step.fail(
+            "the agents' engine didn't build the images; if it's down: deploy/agents-engine/engine.sh up"
+        )
+    return classify(step, rc, out)
+
+
+def changed_paths(
+    repo: Path, base: str, sha: str, *options: str, under: str = ""
+) -> list[str] | None:
+    """The paths the branch changes, both sides of a rename, or None when git can't say."""
+    done = git(
+        repo,
+        "diff",
+        "--no-renames",
+        "--name-only",
+        "-z",
+        *options,
+        base,
+        sha,
+        *(["--", under] if under else []),
+        binary=True,
+    )
+    if done.returncode:
+        return None
+    return [p.decode("utf-8", "surrogateescape") for p in done.stdout.split(b"\0") if p]
+
+
+def stage_e(repo: Path, paths: list[str] | None, prove: bool, ref: str) -> Step:
+    begin("matrix-e", "stage E, from the host")
+    step = Step("matrix-e")
+    if paths is None and not prove:
+        return step.fail(
+            "no merge base with main, so the branch's changes can't be read"
+        )
+    touched = sorted(
+        p
+        for p in paths or []
+        if p == STAGE_E_PATHS[1] or p.startswith(STAGE_E_PATHS[0])
+    )
+    if not touched and not prove:
+        return step.set(
+            "SKIP",
+            "the branch touches neither deploy/agents-engine/ nor .claude/settings.json",
+        )
+    if not prove:
+        shown = ", ".join(touched[:3]) + (", ..." if len(touched) > 3 else "")
+        return step.set(
+            "PENDING",
+            f"the branch changes {shown}: run tools/gates/gate --prove {ref} with no agent session using the "
+            "engine (Heavy: deploy/agents-engine/engine.sh prove resets and reseeds it)",
+        )
+    engine = repo / "deploy" / "agents-engine" / "engine.sh"
+    if not os.access(engine, os.X_OK):
+        return step.fail(f"{engine} isn't there to run")
+    # The Author's own human-only script, run as the Author would run it directly: it needs sudo.
+    rc, out = stream([str(engine), "prove"], dict(os.environ), repo)
+    return classify(step, rc, out)
+
+
+def pin(text: str) -> str | None:
+    found = re.search(r"^CLAUDE_CODE_VERSION=(.*)$", text, re.MULTILINE)
+    return found.group(1).strip() if found else None
+
+
+def agent_config_evals(
+    repo: Path, export_dir: Path, base: str | None, paths: list[str] | None
+) -> Step:
+    begin("agent-config-evals", "the behavioral tier, when triggered (plan §14)")
+    step = Step("agent-config-evals")
+    if paths is None or base is None:
+        return step.fail(
+            "no merge base with main, so the branch's changes can't be read"
+        )
+    touched = sorted(
+        p
+        for p in paths
+        if (
+            p in ("CLAUDE.md", "REVIEW.md")
+            or p.startswith((".claude/", "evals/agent-config/"))
+        )
+        and not p.startswith(HISTORY)
+    )
+    if ".devcontainer/toolchain.vars" in paths:
+        before = git(repo, "cat-file", "blob", f"{base}:.devcontainer/toolchain.vars")
+        vars_file = export_dir / ".devcontainer" / "toolchain.vars"
+        after = vars_file.read_text(encoding="utf-8") if vars_file.is_file() else ""
+        if pin(before.stdout if before.returncode == 0 else "") != pin(after):
+            touched.append("the Claude Code pin")
+    if not touched:
+        return step.set(
+            "SKIP",
+            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, evals/agent-config/, "
+            "the Claude Code pin",
+        )
+    shown = ", ".join(touched[:3]) + (", ..." if len(touched) > 3 else "")
+    tier = repo / "evals" / "agent-config" / "behavioral.py"
+    if not tier.is_file():
+        return step.set(
+            "SKIP",
+            f"triggered by {shown}, and added by T094 (quickstart §6.3 step 2: make evals-agent-config, then commit "
+            "its history entry)",
+        )
+    # The main tree's own behavioral.py, in this process, as the corpus step loads check_corpus: its status reads the
+    # export's cases, thresholds, history, and trigger files as data, and starts nothing (plan §14). In export mode
+    # it walks the tree and never runs git, so a .git folder or file the branch carries is data too (review A, 1b).
+    spec = importlib.util.spec_from_file_location("h4gate_behavioral", tier)
+    if spec is None or spec.loader is None:
+        return step.fail(f"can't load {tier}")
+    out = io.StringIO()
+    try:
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module  # its dataclasses look their module up there
+        spec.loader.exec_module(module)
+        with contextlib.redirect_stdout(out):
+            rc = module.status(
+                export_dir, export_dir / "evals" / "agent-config", export=True
+            )
+    except Exception as exc:  # noqa: BLE001 (the export's files are data: a bad one fails the step, not the gate)
+        return step.fail(f"behavioral.py stopped: {type(exc).__name__}: {exc}")
+    text = out.getvalue()
+    for line in text.splitlines():
+        say(line)
+    lines = text.splitlines()
+    if rc != 0:
+        failed = [ln for ln in lines if ln.startswith("FAIL")]
+        return step.fail(failed[0] if failed else f"behavioral.py's status exited {rc}")
+    if not any(
+        ln.startswith(("PASS  behavioral tier", "PENDING (behavioral tier)"))
+        for ln in lines
+    ):
+        return step.fail("behavioral.py's status said neither PASS nor PENDING")
+    step.notes.append(f"triggered by {shown}")
+    return classify(step, rc, text)
+
+
+# --------------------------------------------------------------------------------------------------
+# The eval history's push (contracts/telemetry.md §4.4)
+# --------------------------------------------------------------------------------------------------
+def check_url(url: str) -> str:
+    parts = urllib.parse.urlsplit(url)
+    if (
+        parts.scheme != "http"
+        or parts.hostname not in ("127.0.0.1", "localhost", "::1")
+        or parts.path != "/v1/metrics"
+        or parts.query
+        or parts.username
+    ):
+        raise argparse.ArgumentTypeError(
+            f"{url!r}: the push goes to a loopback http://.../v1/metrics only, prod's x004 (telemetry.md §4.4)"
+        )
+    return url
+
+
+def history_problems(entry: object) -> list[str]:
+    if not isinstance(entry, dict):
+        return ["not a JSON object"]
+    problems = []
+    if entry.get("verdict") not in ("pass", "fail"):
+        problems.append('"verdict" isn\'t "pass" or "fail"')
+    cost = entry.get("cost_usd")
+    if (
+        isinstance(cost, bool)
+        or not isinstance(cost, (int, float))
+        or not math.isfinite(cost)
+        or cost < 0
+    ):
+        problems.append('"cost_usd" isn\'t a non-negative number')
+    tokens = entry.get("tokens")
+    if not isinstance(tokens, dict):
+        problems.append('"tokens" isn\'t an object')
+    else:
+        for kind in TOKEN_TYPES:
+            value = tokens.get(kind)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                problems.append(f'"tokens.{kind}" isn\'t a non-negative integer')
+    return problems
+
+
+def otlp_body(run: str, entry: dict, now_ns: int) -> bytes:
+    def attr(key: str, value: str) -> dict:
+        return {"key": key, "value": {"stringValue": value}}
+
+    run_attr = attr("h4.eval.run", run)
+    cost = {
+        "name": "h4.devtime.eval.cost_usd",
+        "unit": "{USD}",
+        "gauge": {
+            "dataPoints": [
+                {
+                    "timeUnixNano": str(now_ns),
+                    "asDouble": float(entry["cost_usd"]),
+                    "attributes": [run_attr, attr("h4.eval.verdict", entry["verdict"])],
+                }
+            ]
+        },
+    }
+    tokens = {
+        "name": "h4.devtime.eval.tokens",
+        "unit": "{token}",
+        "gauge": {
+            "dataPoints": [
+                {
+                    "timeUnixNano": str(now_ns),
+                    "asInt": str(entry["tokens"][kind]),
+                    "attributes": [run_attr, attr("gen_ai.token.type", kind)],
+                }
+                for kind in TOKEN_TYPES
+            ]
+        },
+    }
+    resource = {
+        "attributes": [
+            attr("service.name", "h4-gate"),
+            attr("service.namespace", "h4reet"),
+        ]
+    }
+    body = {
+        "resourceMetrics": [
+            {
+                "resource": resource,
+                "scopeMetrics": [
+                    {"scope": {"name": "tools/gates/gate"}, "metrics": [cost, tokens]}
+                ],
+            }
+        ]
+    }
+    return json.dumps(body).encode("utf-8")
+
+
+def post(url: str, body: bytes) -> str | None:
+    """None when the collector took it, or why not. No proxy: the push goes to this machine's loopback only."""
+    request = urllib.request.Request(
+        url, data=body, method="POST", headers={"Content-Type": "application/json"}
+    )
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=5) as answer:
+            return None if 200 <= answer.status < 300 else f"HTTP {answer.status}"
+    except urllib.error.HTTPError as exc:
+        return f"HTTP {exc.code}"
+    except (urllib.error.URLError, OSError) as exc:
+        return str(getattr(exc, "reason", exc))
+
+
+def eval_history(
+    repo: Path, export_dir: Path, base: str | None, sha: str, url: str
+) -> Step | None:
+    """Post each history entry the branch adds, on every gate run, as the h4.devtime.eval.* gauges, when this machine attests its
+    exact bytes: make evals-agent-config writes the SHA-256 of each entry it writes under ~/.local/state/h4reet, which
+    agent sessions can't write (review A, 4). An unattested entry isn't posted, and the merge waits (PENDING). The
+    history is append-only: the newest attested run decides, so a branch that changes or removes an entry fails."""
+    if base is None:
+        return None
+    added = changed_paths(repo, base, sha, "--diff-filter=A", under=HISTORY)
+    entries = [p for p in added or [] if p.endswith(".json")]
+    altered = [
+        p
+        for p in changed_paths(repo, base, sha, under=HISTORY) or []
+        if p.endswith(".json") and p not in entries
+    ]
+    if not entries and not altered:
+        return None
+    begin(
+        "eval-history",
+        f"{len(entries)} entr{'y' if len(entries) == 1 else 'ies'} to prod's x004",
+    )
+    step = Step("eval-history")
+    store = Path.home() / ".local" / "state" / "h4reet" / "evals" / "attested"
+    problems, skipped, unsent = [], [], []
+    for rel in entries:
+        run = Path(rel).stem
+        path = export_dir / rel
+        try:
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("a link, or not a file")
+            data = path.read_bytes()
+            entry = json.loads(data.decode("utf-8"))
+        except (OSError, ValueError) as exc:
+            problems.append(f"{rel}: {exc}")
+            continue
+        found = history_problems(entry)
+        if not RUN_NAME_RE.fullmatch(run):
+            found.append("its name isn't <UTC>-<branch>-<sha>")
+        elif isinstance(entry, dict) and entry.get("run") != run:
+            found.append("its \"run\" isn't its file's name")
+        if found:
+            problems.append(f"{rel}: {'; '.join(found)}")
+            continue
+        try:
+            stamp = (store / hashlib.sha256(data).hexdigest()).lstat()
+            attested = stat.S_ISREG(stamp.st_mode)
+        except OSError:
+            attested = False
+        if not attested:
+            skipped.append(run)
+            continue
+        why = post(url, otlp_body(run, entry, time.time_ns()))
+        if why:
+            unsent.append(f"{run}: {why}")
+        else:
+            say(f"posted {run}")
+    waits = (
+        f"not attested on this machine, so not posted: {', '.join(skipped)} (make evals-agent-config attests each "
+        f"entry it writes, in {store}/; an entry no run here wrote decides nothing)"
+    )
+    failures = []
+    if altered:
+        failures.append(
+            f"history is append-only, and the branch changes or removes {', '.join(altered)}"
+        )
+    if problems:
+        failures.append("malformed, not posted: " + " | ".join(problems))
+    if failures:
+        return step.fail("; ".join([*failures, *([waits] if skipped else [])]))
+    if skipped:
+        return step.set("PENDING", waits)
+    if unsent:
+        return step.set(
+            "WARN",
+            f"prod's collector at {url} didn't take {len(unsent)}: {' | '.join(unsent)}; the dashboard misses "
+            "them, and Prometheus takes no back-fill",
+        )
+    return step.set("PASS", f"posted {len(entries)}")
+
+
+# --------------------------------------------------------------------------------------------------
+# The modes
+# --------------------------------------------------------------------------------------------------
+def summary_line(
+    report: Report, sha: str, ref: str, gate_sha: str, degraded: bool
+) -> str:
+    counts = ", ".join(
+        f"{sum(s.status == status for s in report.steps)} {status}"
+        for status in COUNTED
+    )
+    line = f"gate: {sha} ({ref}) by tools/gates/gate at {gate_sha[:12]}: {counts}"
+    failing = report.failing()
+    if failing:
+        line += "; failing: " + ", ".join(f"{s.name} {s.status}" for s in failing)
+    if degraded:
+        line += "; DEGRADED (--host): no container phase, so lint, tests, the scaffolds, and stage H didn't run"
+    return line
+
+
+def finish(report: Report, repo: Path, sha: str, ref: str, degraded: bool) -> int:
+    say()
+    for step in report.steps:
+        note = f"  {'; '.join(step.notes)}" if step.notes else ""
+        say(f"{step.status:<8} {step.name}{note}")
+    gate_sha = git(repo, "rev-parse", "HEAD").stdout.strip() or "unknown"
+    line = summary_line(report, sha, ref, gate_sha, degraded)
+    say(line)
+    if report.failing():
+        say("Not ready to merge: the summary names what failed or waits.")
+        return 1
+    # The gate ran from main's checkout, so the merge is this one command.
+    merge = (
+        f"git --no-replace-objects merge --no-ff -m {shlex.quote(f'Merge {ref} ({sha[:12]})')} "
+        f"-m {shlex.quote(line)} {sha}"
+    )
+    say(f"merge: {merge}")
+    if git(repo, "merge-base", "--is-ancestor", "main", sha).returncode != 0:
+        say(
+            f"note: main has commits {ref} doesn't, so the merge writes a tree this run didn't check; to merge "
+            "exactly what it checked, merge main into the branch and run the gate again"
+        )
+    return 0
+
+
+def private_tmp() -> Path:
+    tmp = Path(tempfile.mkdtemp(prefix="h4gate-"))
+    tmp.chmod(0o700)
+    return tmp
+
+
+def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> int:
+    report = Report()
+    tmp = private_tmp()
+    try:
+        say(
+            f"tools/gates/gate {ref}, from {repo}{' (DEGRADED: --host)' if host_only else ''}"
+        )
+        begin("export", f"git archive {ref}")
+        try:
+            sha, export_dir, data = export(repo, ref, tmp)
+        except Stop as exc:
+            report.add(Step("export").fail(str(exc)))
+            say(
+                f"tools/gates/gate {ref}: the export's proof failed, so nothing else ran"
+            )
+            return 1
+        report.add(Step("export").set("PASS", f"{sha}, the commit's own tree"))
+        report.add(makefiles(repo, export_dir))
+        if not host_only:
+            container_phase(report, data, export_dir, tmp)
+        found = git(repo, "merge-base", "main", sha)
+        base = (
+            found.stdout.strip()
+            if found.returncode == 0 and SHA_RE.fullmatch(found.stdout.strip())
+            else None
+        )
+        paths = changed_paths(repo, base, sha) if base else None
+        report.add(githooks(repo))
+        report.add(toolchain(repo, export_dir, tmp))
+        policy_step = report.add(policy(repo, export_dir, tmp))
+        report.add(corpus(repo, export_dir))
+        report.add(gitleaks(repo, sha, base, tmp))
+        report.add(gitleaks_tree(repo, export_dir, tmp))
+        report.add(image(export_dir, policy_step, tmp))
+        report.add(stage_e(repo, paths, prove, ref))
+        report.add(agent_config_evals(repo, export_dir, base, paths))
+        pushed = eval_history(repo, export_dir, base, sha, url)
+        if pushed is not None:
+            report.add(pushed)
+        return finish(report, repo, sha, ref, host_only)
+    finally:
+        remove(tmp)
+
+
+def read_recording(file: Path) -> str:
+    """The recording's adapter name, whole, after refusing anything that isn't a recording file."""
+    if file.is_symlink() or not file.is_file():
+        raise Refusal(f"{file} isn't a regular file (a link isn't followed)")
+    if "," in str(file.resolve()):
+        raise Refusal(f"{file}'s path holds a comma, which a --mount can't take")
+    try:
+        recording = json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise Refusal(f"{file} isn't readable JSON: {exc}") from exc
+    if (
+        not isinstance(recording, dict)
+        or not isinstance(recording.get("adapter"), str)
+        or not isinstance(recording.get("cases"), list)
+    ):
+        raise Refusal(
+            f"{file} isn't a recording: no adapter and cases (provider-adapter.md §5.1, LiveRecording)"
+        )
+    return recording["adapter"]
+
+
+def run_replay(repo: Path, file: Path) -> int:
+    adapter = read_recording(file)
+    shown = adapter[:40]
+    file = file.resolve()
+    report = Report()
+    tmp = private_tmp()
+    try:
+        say(f"gate --contract-replay: the {shown} recording, on HEAD's export")
+        begin("export", "git archive HEAD")
+        try:
+            sha, export_dir, data = export(repo, "HEAD", tmp)
+        except Stop as exc:
+            report.add(Step("export").fail(str(exc)))
+            say(
+                "gate --contract-replay: the export's proof failed, so nothing replayed"
+            )
+            return 1
+        report.add(Step("export").set("PASS", f"{sha}, the commit's own tree"))
+        ready = prepare(report, data, export_dir, tmp, ["replay"])
+        if ready is not None:
+            docker, image_id, work = ready
+            begin("replay", "vitest run test/contract/replay.test.ts, --network none")
+            rc, out = stream(
+                container(
+                    docker,
+                    image_id,
+                    work,
+                    [
+                        "/work/node_modules/.bin/vitest",
+                        "run",
+                        "test/contract/replay.test.ts",
+                        "--reporter=verbose",
+                    ],
+                    network=False,
+                    workdir="/work/services/gateway",
+                    extra=(
+                        "--mount",
+                        f"type=bind,source={file},target={RECORDING},readonly",
+                        "--env",
+                        f"H4_CONTRACT_RECORDING={RECORDING}",
+                    ),
+                ),
+                host_engine_env(),
+                tmp,
+            )
+            step = classify(Step("replay"), rc, out)
+            # replay.test.ts names the suite "recorded live: <adapter>", and the contract adds " (<mode>)": a test
+            # passed under the recording's own adapter, not another or one it only begins, read the recording.
+            suite = f"recorded live: {adapter} ("
+            replayed = [
+                ln
+                for ln in out.splitlines()
+                if ln.lstrip().startswith("✓") and suite in ln
+            ]
+            if step.status == "PASS" and not replayed:
+                step.fail(
+                    f"no test passed under recorded live: {shown}, the recording's own adapter, so the replay never "
+                    "read the recording"
+                )
+            report.add(step)
+        verdict = "FAIL" if report.failing() else "PASS"
+        say(
+            f"gate --contract-replay: the {shown} recording, replayed at HEAD {sha[:12]}: {verdict}"
+        )
+        return 1 if report.failing() else 0
+    finally:
+        remove(tmp)
+
+
+def parse(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="tools/gates/gate",
+        description="The Author's clean-room gate (plan §11). Run it directly, from the main working tree.",
+    )
+    parser.add_argument("ref", nargs="?", help="the branch or commit to check")
+    parser.add_argument(
+        "--host",
+        action="store_true",
+        help="DEGRADED: the host phase alone, for when the devcontainer image won't build (plan §19)",
+    )
+    parser.add_argument(
+        "--prove",
+        action="store_true",
+        help="run matrix stage E (deploy/agents-engine/engine.sh prove; Heavy, no agent session on the engine)",
+    )
+    parser.add_argument(
+        "--otlp-url",
+        type=check_url,
+        default=OTLP_URL,
+        help=f"where the eval history goes (default {OTLP_URL}, prod's x004)",
+    )
+    parser.add_argument(
+        "--contract-replay",
+        metavar="FILE",
+        type=Path,
+        help="make contract-live's replay of a recording, on HEAD's export (provider-adapter.md §5.3)",
+    )
+    args = parser.parse_args(argv)
+    if args.contract_replay is not None:
+        if args.ref is not None or args.host or args.prove:
+            parser.error("--contract-replay takes a recording and nothing else")
+    elif args.ref is None:
+        parser.error("name the branch or commit to check")
+    elif not REF_RE.fullmatch(args.ref) or ".." in args.ref:
+        parser.error(f"{args.ref!r} isn't a branch, a tag, or a commit")
+    return args
+
+
+def main(argv: list[str]) -> int:
+    args = parse(argv)
+    try:
+        if os.environ.get("SANDBOX_RUNTIME") == "1":
+            raise Refusal(
+                "tools/gates/gate is the Author's: run it in your own terminal, not an agent session"
+            )
+        repo = main_tree()
+        if args.contract_replay is not None:
+            return run_replay(repo, args.contract_replay)
+        problem = checkout_problem(repo)
+        if problem:
+            raise Refusal(problem)
+        return run_gate(repo, args.ref, args.host, args.prove, args.otlp_url)
+    except Refusal as exc:
+        say(f"gate: {exc}", err=True)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -122,7 +122,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets@T091 evals redteam=redteam-suite matrix image
+CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -237,12 +237,31 @@ test-fast: ## The quick subset
 corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local denylist
 	$(PY_HOST) corpus/tools/check_corpus.py
 
-evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's) and the agent-config static tier
+# gitleaks with only the main working tree's .gitleaks.toml, a fresh empty ignore directory, and
+# --ignore-gitleaks-allow, refusing while a .gitleaksignore could hold an entry at its source (research.md R-36).
+secrets: ## gitleaks over the unstaged and staged changes and every commit since main (plan §11)
+	bash tools/gates/secrets.sh
+
+evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, and the behavioral tier's status
 	@case "$${ADAPTER:-fake}" in fake) ;; \
 	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
 	  *) echo "ADAPTER must be fake, local, or bedrock" >&2; exit 2 ;; esac
 	$(PY_HOST) evals/run.py --suite product --adapter $${ADAPTER:-fake} $$([ "$${ADAPTER:-}" = local ] && echo --stack $(ENV))
 	$(PY_HOST) evals/agent-config/static.py
+	$(PY_HOST) evals/agent-config/behavioral.py status
+
+# The behavioral agent-config evals (plan §14; FR-011, SC-008; tasks.md T094): real Claude Code sessions on the Team
+# plan, never the API, each in a scratch clone of the branch REF names, with the git hooks installed. The Author's,
+# from main's checkout, on main with its tracked files clean and nothing untracked or ignored in evals/agent-config/
+# but earlier entries and __pycache__/*.pyc (untracked files elsewhere don't matter): main's behavioral.py reads the branch's cases and thresholds as
+# data, shows its diff under the human-only paths, and starts nothing until the Author types yes. It ends with the
+# commands that commit the entry on the branch from main's checkout, never switching it to the branch (review D1, 1).
+# make evals shows PENDING with this command until a passing run's entry, attested and committed, has the trigger
+# hash. ONLY= names cases to try alone, and writes no history. The closing patch's bash-gate rule refuses it to agents
+# too (§15).
+evals-agent-config: ## (the Author) The behavioral agent-config evals of a branch, from main's checkout, on the Team plan; paste the commands it prints to commit the entry on the branch: REF=<branch> [ONLY=id,...]
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make evals-agent-config is the Author's: it starts real Claude Code sessions on the Team plan, which an agent session can't (plan §14)" >&2; exit 2; }
+	$(PY_HOST) evals/agent-config/behavioral.py run$(if $(call from_cli,REF), --ref="$$REF")$(if $(call from_cli,ONLY), --only="$$ONLY")
 
 redteam: redteam-suite matrix ## The red-team suite and the forbidden-action matrix (plan §13, §14)
 
@@ -412,8 +431,10 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 # The live contract run (contracts/provider-adapter.md §5.3; tasks.md T103), the Author's: operator.py records each case
 # of live-cases.json through ENV's POST /admin/adapters/ADAPTER/complete into a 0700 temporary directory, then the
 # replay runs in tools/gates/gate's container phase, the devcontainer image with --network none on an exported tree,
-# and the directory is deleted. Bedrock is prod's alone, and its calls are charged to prod's meters as test. Until the
-# gate exists (T092), the target stops before it calls anything, so no live call is made without its replay.
+# and the directory is deleted. Bedrock is prod's alone, and its calls are charged to prod's meters as test. The
+# recorder reads the working tree's live-cases.json and the replay HEAD's, so the target refuses, before it records, a
+# case file that differs from HEAD's (provider-adapter.md §5.4; T092). Without the gate it calls nothing, so no live
+# call is made without its replay. The gate refuses to run from a linked worktree, so this runs in the main tree.
 contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock REASON="..." (provider-adapter.md §5.3)
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make contract-live is the Author's: it calls a live adapter with ENV's operator token (provider-adapter.md §5.3)" >&2; exit 2; }
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make contract-live needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
@@ -422,11 +443,36 @@ contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock
 	  bedrock) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=bedrock: bedrock is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
 	  *) echo "make contract-live needs ADAPTER=local or ADAPTER=bedrock on the command line" >&2; exit 2 ;; \
 	esac
-	@[ -x tools/gates/gate ] || { echo "PLANNED (T092): make contract-live replays in tools/gates/gate's container phase, which T092 adds; nothing was called" >&2; exit 2; }
+	@[ -x tools/gates/gate ] || { echo "make contract-live replays in tools/gates/gate's container phase, and there is no gate here; nothing was called" >&2; exit 2; }
+	@cases=services/gateway/test/contract/live-cases.json; \
+	if ! GIT_NO_REPLACE_OBJECTS=1 git cat-file -e "HEAD:$$cases" 2>/dev/null \
+	  || ! GIT_NO_REPLACE_OBJECTS=1 git cat-file blob "HEAD:$$cases" | cmp -s - "$$cases"; then \
+	  echo "make contract-live: $$cases differs from HEAD's, and the replay reads HEAD's (provider-adapter.md §5.4): commit or restore it; nothing was called" >&2; exit 2; \
+	fi
 	@dir=$$(mktemp -d) && chmod 700 "$$dir" && trap 'rm -rf "$$dir"' EXIT && \
 	  $(OPERATOR) contract-record --adapter "$$ADAPTER" --out "$$dir/recording.json" --reason="$$REASON" && \
 	  tools/gates/gate --contract-replay "$$dir/recording.json"
 .PHONY: contract-live
+
+# The history scan before the first push (spec 000 FR-042; plan §12; tasks.md T093), the Author's, in a full clone:
+# tools/gates/publish_check.py, through PY_HOST, runs gitleaks over every commit, and the denylist and corpus-check's
+# currency rule over every blob, path, and message. It exits 0 clean, 1 with findings, and 3 when it can't certify,
+# and make shows any of those as error 2, so its summary line says which. It names commits, paths, lines, and rules,
+# never a phrase or a matching line.
+publish-check: ## (the Author) Every commit's secrets, denylisted phrases, and corpus amounts, before the first push (FR-042)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make publish-check is the Author's: an agent session can't certify the history for publication (plan §12)" >&2; exit 2; }
+	$(PY_HOST) tools/gates/publish_check.py
+.PHONY: publish-check
+
+# FR-007's canary (plan §13; contracts/env-files.md §8; tasks.md T095), the Author's: tools/gates/matrix_canary.py,
+# through PY_HOST, starts one claude -p session with the project's settings alone and a fake value, made at run time,
+# for every FR-007 variable, and checks that none reaches the session's environment or its transcript. It runs on the
+# Team plan: ANTHROPIC_API_KEY is unset for the session, and API-key auth stops it at its init event. It exits 0
+# passed, 1 leaked, and 3 when it can't tell, and prints names, never values.
+matrix-canary: ## (the Author) FR-007's canary: a claude -p session with a fake value for every FR-007 variable (plan §13)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make matrix-canary is the Author's: it starts a Claude Code session with the project's settings, from your own terminal (plan §13)" >&2; exit 2; }
+	$(PY_HOST) tools/gates/matrix_canary.py
+.PHONY: matrix-canary
 
 # hello (contracts/gateway-http.md §2 and §9): scripts/hello.py, by path through PY_HOST, sends POST /hello to ENV's
 # gateway and prints the status and the body. It sends no token, since hello needs none. From your terminal it goes
@@ -472,7 +518,6 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check validate-config engine-status engine-smoke evals redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
@@ -480,4 +525,5 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 # to remake them with, whatever path it read them by; and with no suffixes, no suffix rule is left for any target.
 $(MAKEFILE_LIST): ;
 .SUFFIXES:
+	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan

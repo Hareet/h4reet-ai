@@ -6,6 +6,7 @@ dist/
 coverage/
 package-lock.json
 **/package-lock.json
+evals/agent-config/history/
 .specify/
 .claude/
 .github/

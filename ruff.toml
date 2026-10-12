@@ -1,3 +1,5 @@
 # Ruff settings for this repository's own Python (ML, evals, corpus tools).
 # .specify/ holds Spec Kit's vendored scripts, which `specify` refreshes from upstream; lint them there.
 extend-exclude = [".specify"]
+# The Author's gate runs by name, without .py, so ruff wouldn't find it on its own (plan §11).
+extend-include = ["tools/gates/gate"]

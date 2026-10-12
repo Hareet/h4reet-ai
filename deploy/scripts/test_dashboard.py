@@ -1,9 +1,10 @@
-"""deploy/grafana/dashboards/h4-runtime.json against contracts/telemetry.md §7 and §8 (spec 000 FR-028, FR-032, FR-034).
+"""deploy/grafana/dashboards/h4-runtime.json against contracts/telemetry.md §7 and §8 (spec 000 FR-028, FR-032, FR-034,
+FR-037).
 
 The expected panels and their exact queries are read from the contract's own tables, so a query changes in the
-contract first and here never. Each of §7's sections is all or nothing: US1's three (§7.3 requests, §7.4 the model
-server, §7.6 telemetry health) and US2's three (§7.1 state, §7.2 spend, §7.5 audit and alerts) must be whole, and a
-later section (§7.7, the dev-time row) is either absent or whole.
+contract first and here never. Each of §7's sections is all or nothing, and every one must be whole: US1's three
+(§7.3 requests, §7.4 the model server, §7.6 telemetry health), US2's three (§7.1 state, §7.2 spend, §7.5 audit and
+alerts), and US3's dev-time row (§7.7, tasks.md T094).
 
 How a row of the contract becomes panels:
   - a type that names two visualizations, "time series and stat" or "stat, and a state timeline", is two panels
@@ -33,7 +34,8 @@ DASHBOARD = json.loads(
 )
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
-REQUIRED = US1 + US2
+US3 = ("7.7",)
+REQUIRED = US1 + US2 + US3
 SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7")
 DATASOURCES = {
     "prom": "prometheus",
@@ -296,6 +298,26 @@ def test_the_store_panels_read_their_sql_as_a_table() -> None:
         assert target["editorMode"] == "code", panel["title"]
 
 
+def dev_time_row() -> str:
+    """§7.7's row title, as the contract quotes it: what the row is, said where the panels are (FR-037)."""
+    found = re.search(r'The row\'s title says what it is: "([^"]+)"', section("7.7"))
+    assert found, "telemetry.md §7.7 quotes the row's title"
+    return found.group(1)
+
+
+# Each row's title and its section of §7, in §7's order: the state and spend first, next to the requests' latency and
+# errors (Principle V), and the dev-time row last, apart from the production meter (FR-037).
+ROWS = {
+    "State": "7.1",
+    "Spend": "7.2",
+    "Requests": "7.3",
+    "Model server": "7.4",
+    "Audit and alerts": "7.5",
+    "Telemetry health": "7.6",
+    dev_time_row(): "7.7",
+}
+
+
 def test_the_panels_fit_the_grid_and_have_their_own_ids() -> None:
     ids = [p["id"] for p in DASHBOARD["panels"]]
     assert len(ids) == len(set(ids))
@@ -306,15 +328,10 @@ def test_the_panels_fit_the_grid_and_have_their_own_ids() -> None:
         ]
         assert grid["h"] > 0 and grid["y"] >= 0, panel["title"]
     rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
-    # §7's order: the state and spend first, next to the requests' latency and errors (Principle V).
-    assert rows == [
-        "State",
-        "Spend",
-        "Requests",
-        "Model server",
-        "Audit and alerts",
-        "Telemetry health",
-    ]
+    assert rows == list(ROWS)
+    assert dev_time_row() == (
+        "Development time on the Team plan: notional cost, outside the production meter"
+    )
 
 
 def test_the_panels_follow_their_rows() -> None:
@@ -323,24 +340,10 @@ def test_the_panels_follow_their_rows() -> None:
         (p for p in DASHBOARD["panels"] if p["type"] == "row"),
         key=lambda p: p["gridPos"]["y"],
     )
-    sections = dict(
-        zip(
-            [
-                "State",
-                "Spend",
-                "Requests",
-                "Model server",
-                "Audit and alerts",
-                "Telemetry health",
-            ],
-            ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
-            strict=True,
-        )
-    )
     for i, row in enumerate(rows):
         top = row["gridPos"]["y"]
         bottom = rows[i + 1]["gridPos"]["y"] if i + 1 < len(rows) else float("inf")
-        for title in contract_panels(sections[row["title"]]):
+        for title in contract_panels(ROWS[row["title"]]):
             y = by_title()[title]["gridPos"]["y"]
             assert top < y < bottom, (row["title"], title)
 
@@ -478,9 +481,39 @@ def test_bedrocks_health_reads_on_its_own_tile() -> None:
     assert [n for n in named if not (RUNBOOKS / n).is_file()] == []
 
 
+def test_every_dev_time_panel_says_its_cost_is_notional() -> None:
+    # §7.7 and plan §6: dev-time usage is labelled as the Team plan's notional cost, outside the production meter
+    # (FR-037; research.md R-28), on each panel of the row, not only its title; and a cost reads in dollars.
+    titles = contract_panels("7.7")
+    assert len(titles) == 6  # five rows of the contract, one of them a table and a stat
+    for title in titles:
+        panel = by_title()[title]
+        assert "notional" in panel["description"], title
+        assert "outside the production meter" in panel["description"], title
+        if "cost" in title:
+            assert panel["fieldConfig"]["defaults"]["unit"] == "currencyUSD", title
+
+
+def test_each_eval_run_reads_with_its_verdict() -> None:
+    # §7.7's last row: a line per history entry the gate posted (telemetry.md §4.4), named by the entry's file and
+    # showing its verdict beside its cost, over the dashboard's range.
+    panel = by_title()["Agent-config eval runs"]
+    (target,) = panel["targets"]
+    assert target["instant"] is True and target["format"] == "table"
+    (organize,) = [t for t in panel["transformations"] if t["id"] == "organize"]
+    assert organize["options"]["renameByName"] == {
+        "h4_eval_run": "Run",
+        "h4_eval_verdict": "Verdict",
+        "Value": "Notional cost",
+    }
+    assert panel["options"]["sortBy"] == [{"displayName": "Run", "desc": True}]
+    assert "evals/agent-config/history/" in panel["description"]
+
+
 def test_the_dashboards_folder_is_documented() -> None:
     readme = (REPO / "deploy/grafana/dashboards/README.md").read_text(encoding="utf-8")
     assert "deploy/scripts/test_dashboard.py" in readme
     assert (
         "(state timeline)" in readme
     )  # how a two-visualization row becomes two panels
+    assert "§7.7" in readme  # US3's dev-time row is required too
