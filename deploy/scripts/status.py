@@ -48,6 +48,9 @@ DOCKER_ENV = (
 )
 ERROR_LINE = re.compile(r"error|warn|fail|refused|timeout|exception", re.IGNORECASE)
 HOST_STACKS = ("prod", "dev")
+# The gateway's one image per commit, which make up builds and compose never pulls (tasks.md T184;
+# deploy/scripts/gateway_image.py): built here, so no lock line pins it.
+SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
 
 
 class Docker:
@@ -243,7 +246,10 @@ class Status:
         container: dict,
         pins: dict[str, tuple[str, str]],
     ) -> str:
-        if service.get("build") is not None:
+        if service.get("build") is not None or (
+            SHARED_IMAGES.get(name) == service.get("image")
+            and service.get("pull_policy") == "never"
+        ):
             return "built"
         pin = pins.get(name)
         if not pin:

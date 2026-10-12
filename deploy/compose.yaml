@@ -7,7 +7,8 @@
 # Rules the compose policy holds every service to (tools/gates/compose_policy.py, plan §11):
 #   - every service joins `internal`, which has no route out; only `edge` joins `edge` and publishes ports, on the
 #     literal 127.0.0.1; only `gateway` joins `egress`, the one route to the internet (FR-040);
-#   - every image is pinned by digest and matches deploy/images.lock; built images come from this file's own tree;
+#   - every image is pinned by digest and matches deploy/images.lock, but the gateway's, which make up builds once per
+#     commit, outside compose, and compose never pulls; compose's own builds come from this file's own tree;
 #   - binds come only from ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR};
 #   - no container_name, no external resource, no host network, no privileged mode, no Docker socket;
 #   - every service has a row in docs/data-flow-disclosure.md.
@@ -106,17 +107,16 @@ services:
           memory: 64M
 
   # The model gateway (services/gateway): routing, the meter, the kill switch, and alerts. The only service with a
-  # route out (egress): Bedrock from prod only, Telegram, and SMTP. Built from this file's own tree: on a host stack
-  # the export of the commit make up started, on dev-cpu the working tree (plan §4).
+  # route out (egress): Bedrock from prod only, Telegram, and SMTP. Its image is make up's own build, outside compose
+  # (deploy/scripts/gateway_image.py; plan §4; tasks.md T184): on a host stack h4reet-gateway:<commit>, the run file's
+  # H4_REF, from the export of that commit, built once and shared by every stack at that commit, so prod and dev run
+  # one image ID (US1-5); on dev-cpu, which has no run file, the default, h4reet-gateway:working-tree, built from the
+  # working tree on every make up. A host stack's compose call without its run file stops at H4_TREE before the default
+  # could apply. compose never builds or pulls it: a missing image stops the stack rather than fetch one by name.
   gateway:
     <<: *service
-    build:
-      context: ..
-      dockerfile: services/gateway/Dockerfile
-      # Only the agents' engine builds through a proxy; on host stacks this is empty. Never a container variable.
-      args:
-        HTTP_PROXY: "${H4_BUILD_PROXY}"
-        HTTPS_PROXY: "${H4_BUILD_PROXY}"
+    image: "h4reet-gateway:${H4_REF:-working-tree}"
+    pull_policy: never
     networks: [internal, egress]
     environment:
       H4_STACK: "${H4_STACK}"

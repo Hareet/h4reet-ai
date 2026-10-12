@@ -155,7 +155,7 @@ make operator-status ENV=prod
 ```
 
 **Expected:**
-- `make up` prints the commit it runs, runs preflight, fetches what is missing, builds the images from that commit, waits for every health check, and exits 0 with a WARN: the store is uninitialized, and it prints the `make operator-init` command. It never initializes anything itself (plan §4).
+- `make up` prints the commit it runs, runs preflight, fetches what is missing, builds the images from that commit (the gateway's once per commit, as `h4reet-gateway:<commit>`, plan §4), waits for every health check, and exits 0 with a WARN: the store is uninitialized, and it prints the `make operator-init` command. It never initializes anything itself (plan §4).
 - Until the init, hello answers 503 `store_uninitialized` ([gateway-http.md §3](contracts/gateway-http.md#3-degraded-causes)).
 - After it, `operator-status` shows `state normal`, every meter at 0.00, and fallback not awaiting renewal ([operator-admin.md §6](contracts/operator-admin.md#6-the-operator-cli-scriptsoperatorpy)).
 
@@ -268,10 +268,12 @@ make isolation-check
 
 ### 1.9 One compose definition; only configuration differs (US1-5, FR-017)
 
+With prod and dev up at one commit (`make up ENV=prod`, then `make up ENV=dev`, from the same `HEAD`):
+
 - `make policy` passes for all three env files ([plan §11](plan.md#11-local-gates-fr-041)).
-- With prod and dev up at one commit, each pulled service runs the same image ID in both stacks: `docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}} {{.Image}}' $(docker ps -q --filter label=com.docker.compose.project=h4reet-prod)`, and the same for dev.
-- The gateway's layers are the same in both, and both images exist: `p=$(docker image inspect --format '{{json .RootFS.Layers}}' h4reet-prod-gateway) && d=$(docker image inspect --format '{{json .RootFS.Layers}}' h4reet-dev-gateway) && [ -n "$p" ] && [ "$p" = "$d" ] && echo same` prints `same`. A missing image fails the first or the second inspect, and prints nothing. Nothing was built differently for an environment, on the reading spec.md's Assumptions record as pending (T184). Only the model server's variant (the profile) and the env file differ.
-- The two gateway image IDs differ even so. Each stack's `make up` builds its own, compose labels each image it builds with its project (`com.docker.compose.project`), and each build carries its own provenance attestation. T149 found four builds of one tree on the agents' engine with four IDs over one list of layers. Whether US1-5's "no code is changed or rebuilt per environment" also asks for one build that both stacks share is the Author's call (tasks.md T184). T065 compared the IDs, with dev rolled back to an older commit, and found them different.
+- Each service both stacks run has the same image ID in both, the gateway's included: `docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}} {{.Image}}' $(docker ps -q --filter label=com.docker.compose.project=h4reet-prod) | sort`, and the same for dev. The lists match line for line, but for dev's stand-ins, which only dev's profile runs.
+- The gateway's, on its own: `p=$(docker inspect --format '{{.Image}}' h4reet-prod-gateway-1) && d=$(docker inspect --format '{{.Image}}' h4reet-dev-gateway-1) && [ -n "$p" ] && [ "$p" = "$d" ] && echo same` prints `same`. A stack whose gateway isn't there fails its inspect, and nothing is printed. Both containers name one image, `h4reet-gateway:<the commit>` (`docker inspect --format '{{.Config.Image}}' h4reet-prod-gateway-1 h4reet-dev-gateway-1`), and dev's `make up` printed `gateway image: h4reet-gateway:<the commit>, reused`: `make up` builds it once per commit, outside compose, and every stack at that commit runs that one build (plan §4; tasks.md T184).
+- So nothing was built for an environment. Only the model server's variant (the profile) and the env file differ.
 
 ### 1.10 The browser's own requests (FR-040)
 
@@ -303,7 +305,7 @@ make operator-status ENV=dev
 curl -sS -X POST http://127.0.0.1:18100/hello -H 'Content-Type: application/json' -d '{"message":"Say hello."}'
 ```
 
-**Expected:** each `make up` exits 0; `make status` names the running commit and the one before it; hello answers after the rollback; and the two `operator-status` summaries match, because the store and the journal stay as they are. If B added a migration that A lacks, B's start applied it, and the rollback refuses with exit 78 `schema_newer_than_code`, naming the migration. That is the designed failure: record it, and roll forward instead (`make up ENV=dev`). The runbook is `docs/runbooks/rollback.md`.
+**Expected:** each `make up` exits 0; `make status` names the running commit and the one before it; the rollback builds no gateway: when A has `deploy/scripts/gateway_image.py`, its `make up` prints `gateway image: h4reet-gateway:<A>, reused`; hello answers after the rollback; and the two `operator-status` summaries match, because the store and the journal stay as they are. If B added a migration that A lacks, B's start applied it, and the rollback refuses with exit 78 `schema_newer_than_code`, naming the migration. That is the designed failure: record it, and roll forward instead (`make up ENV=dev`). The runbook is `docs/runbooks/rollback.md`.
 
 **Record:** the three commits, the exit codes, and the two status summaries.
 

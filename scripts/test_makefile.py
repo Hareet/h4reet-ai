@@ -296,3 +296,134 @@ def test_make_never_remakes_a_makefile_from_a_planted_file(
     # And the guard leaves make working: it ran the Makefile's own help.
     assert done.returncode == 0, done.stderr
     assert "  help " in done.stdout
+
+
+# --------------------------------------------------------------------------------------------------
+# The gateway's one image per commit (tasks.md T184): make up builds it outside compose, and make build and make
+# image build the working tree's on the agents' engine only, as compose-images builds compose's
+# --------------------------------------------------------------------------------------------------
+ENGINE_PROXY = "http://198.18.0.1:3128"  # dev-cpu.vars' H4_BUILD_PROXY
+GATEWAY_BUILD = (
+    f"buildx build --load --file {ROOT}/services/gateway/Dockerfile --tag h4reet-gateway:working-tree "
+    f"--build-arg HTTP_PROXY={ENGINE_PROXY} --build-arg HTTPS_PROXY={ENGINE_PROXY} {ROOT}"
+)
+COMPOSE_BUILD = (
+    "compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars "
+    "--profile * build"
+)
+# deploy/scripts/gateway_image.py hands docker only Docker's own variables, so this stand-in records beside itself
+# rather than at $DOCKER_CALLS.
+FAKE_DOCKER_HERE = '#!/bin/sh\nprintf \'%s\\n\' "$*" >>"$(dirname "$0")/../calls.log"\n'
+
+
+def _make_here(
+    target: str, tmp_path: Path, **env: str
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """_make, with the stand-in docker that records beside itself."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    fake = bindir / "docker"
+    fake.write_text(FAKE_DOCKER_HERE, encoding="utf-8")
+    fake.chmod(0o755)
+    calls = tmp_path / "calls.log"
+    calls.write_text("", encoding="utf-8")
+    done = subprocess.run(
+        ["make", "--no-print-directory", "-C", str(ROOT), target],
+        env={
+            "PATH": f"{bindir}:/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+            "LC_ALL": "C",
+            **env,
+        },
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    return done, calls.read_text(encoding="utf-8").splitlines()
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize(
+    "env",
+    [
+        {},  # the Author's terminal, the host's engine
+        {"DOCKER_HOST": "unix:///var/run/docker.sock"},
+        {
+            "DOCKER_HOST": "tcp://127.0.0.1:2376"
+        },  # the relay's address, outside the sandbox
+        {"DOCKER_HOST": "tcp://198.18.0.1:2377"},
+    ],
+)
+def test_the_working_trees_gateway_image_never_builds_on_another_engine(
+    tmp_path: Path, env: dict[str, str]
+) -> None:
+    done, calls = _make_here("gateway-image", tmp_path, **env)
+    assert done.returncode == 2, done.stderr
+    assert "agents' engine" in done.stderr
+    assert not [c for c in calls if " build" in c]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"DOCKER_HOST": "tcp://198.18.0.1:2376"},  # the Author's gate (T092)
+        {
+            "DOCKER_HOST": "tcp://127.0.0.1:2376",
+            "SANDBOX_RUNTIME": "1",
+        },  # inside the relay
+    ],
+)
+def test_the_agents_engine_builds_the_gateway_image_outside_compose(
+    tmp_path: Path, env: dict[str, str]
+) -> None:
+    done, calls = _make_here("gateway-image", tmp_path, **env)
+    assert done.returncode == 0, done.stderr
+    assert calls == [GATEWAY_BUILD]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+def test_the_image_gate_builds_the_gateway_then_compose_images(tmp_path: Path) -> None:
+    # make image and make build: every image the tree builds, the gateway's first.
+    done, calls = _make_here("image", tmp_path, DOCKER_HOST="tcp://198.18.0.1:2376")
+    assert done.returncode == 0, done.stderr
+    assert calls == [GATEWAY_BUILD, COMPOSE_BUILD]
+
+
+def _dry_run_up(tmp_path: Path, stack: str) -> list[str]:
+    """make -n up ENV=<stack>: the commands up would run, in order, none of them run."""
+    done = subprocess.run(
+        ["make", "--no-print-directory", "-n", "-C", str(ROOT), "up", f"ENV={stack}"],
+        env={
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+            "LC_ALL": "C",
+        },
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    return done.stdout.splitlines()
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize("stack", ["prod", "dev", "dev-cpu"])
+def test_make_up_builds_the_gateway_image_after_preflight_and_before_compose(
+    tmp_path: Path, stack: str
+) -> None:
+    lines = _dry_run_up(tmp_path, stack)
+
+    def first(text: str) -> int:
+        return next(i for i, line in enumerate(lines) if text in line)
+
+    build = first("deploy/scripts/gateway_image.py")
+    assert first("deploy/scripts/preflight.py") < build < first(" up -d ")
+    # From the tree being started (the export on a host stack), with the run file that names its commit.
+    line = lines[build]
+    assert f"--stack {stack} " in line
+    assert ("--run-file " in line) == (stack != "dev-cpu")
+    # A commit from before T184, which a rollback can run, has no script: its compose file builds the gateway.
+    assert "has no deploy/scripts/gateway_image.py" in line
