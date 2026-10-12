@@ -11,9 +11,11 @@
 // ID, read from the server's own reply line: a reply that can't be read keeps none, never an assumed 250 (tasks.md
 // T156). A failure is recorded as its class only: timeout, connect, tls, smtp_<reply code>, smtp_<nodemailer code>.
 // The gateway connects to the host itself, through c-ares, and hands nodemailer the socket (aresTransport below,
-// tasks.md T189).
+// tasks.md T189). A TLS handshake that fails, a certificate that doesn't verify included, is tls (failedHandshake
+// below, tasks.md T190).
 import type { LookupAddress } from "node:dns";
 import { connect, type LookupFunction, type Socket } from "node:net";
+import { checkServerIdentity, type ConnectionOptions, type PeerCertificate } from "node:tls";
 
 import { createTransport } from "nodemailer";
 
@@ -114,18 +116,50 @@ const smtpLookup: LookupFunction = (hostname, options, callback) => {
 };
 
 /**
+ * One connection's TLS, as far as the gateway can see it: whether the server's certificate passed, and the TCP socket,
+ * whose bytesRead keeps counting what the server sent once TLS is over it.
+ */
+interface Attempt {
+  verified: boolean;
+  socket?: Socket;
+}
+
+/** The errors the email channel's TCP sockets raised themselves, as each raised it (connectThroughAres). */
+const raisedByTcp = new WeakSet<object>();
+
+/**
+ * Node's own check of the server's identity, which notes whether the certificate passed. Node runs it only once the
+ * certificate's chain has verified, and the handshake ends as soon as it passes.
+ */
+const identityCheck =
+  (attempt: Attempt) =>
+  (host: string, cert: PeerCertificate): Error | undefined => {
+    const mismatch = checkServerIdentity(host, cert);
+    attempt.verified = mismatch === undefined;
+    return mismatch;
+  };
+
+/**
  * nodemailer's getSocket (tasks.md T189): a socket connected to the host through smtpLookup, which nodemailer then
  * speaks SMTP, and TLS, over. net tries each address in turn, 250 ms apiece but the last, as for the Telegram channel,
  * and the connection timeout bounds the lookup and the connect together. A failure takes nodemailer's own codes: the
  * connection timeout is ETIMEDOUT, a host with no address EDNS, and any other failure to connect ECONNECTION. net's
  * own ETIMEDOUT is one address's 250 ms attempt: when every address fails, its error takes the first attempt's code,
  * so it is ECONNECTION here, as nodemailer reported its last address's failure.
+ *
+ * For failedHandshake (tasks.md T190), the socket marks each error it raises before nodemailer's listeners see it,
+ * and nodemailer is handed TLS options of the connection's own: nodemailer merges what getSocket gives into the
+ * connection's options, and its TLS, on 465 or after STARTTLS, takes them. They are the transport's, with
+ * identityCheck noting in `attempt` whether the server's certificate passed.
  */
 function connectThroughAres(
   options: ReturnType<typeof transportOptions>,
-  callback: (err: Error | null, socketOptions?: { connection: Socket }) => void,
+  attempt: Attempt,
+  callback: (err: Error | null, socketOptions?: { connection: Socket; tls: ConnectionOptions }) => void,
 ): void {
+  attempt.verified = false;
   const socket = connect({ host: options.host, port: options.port, lookup: smtpLookup });
+  attempt.socket = socket;
   const timedOut = Object.assign(new Error("Connection timeout"), { code: "ETIMEDOUT" });
   const timer = setTimeout(() => socket.destroy(timedOut), options.connectionTimeout);
   const fail = (err: NodeJS.ErrnoException): void => {
@@ -137,19 +171,54 @@ function connectThroughAres(
   socket.once("connect", () => {
     clearTimeout(timer);
     socket.off("error", fail);
-    callback(null, { connection: socket });
+    socket.on("error", (err) => raisedByTcp.add(err));
+    callback(null, { connection: socket, tls: { ...options.tls, checkServerIdentity: identityCheck(attempt) } });
   });
 }
+
+/**
+ * Whether a send failed in its TLS handshake (tasks.md T190). nodemailer 10.0.16 gives the TLS socket's error the
+ * code ESOCKET, overwriting the error's own code (a certificate's, or OpenSSL's) on the error itself, and gives no
+ * way to listen on the TLS socket it puts over the connection, on 465 or after STARTTLS. Its ESOCKET is always a
+ * socket's error event, though, and the TCP socket marks its own as it raises them: an ESOCKET the TCP socket didn't
+ * raise came from the TLS socket over it. Once TLS is over it, the TCP socket raises none of its own: a reset comes
+ * through the TLS socket too. So before the server's certificate passed, such an error is a failed handshake; after,
+ * it keeps its class. A failure before STARTTLS was the TCP socket's, and a timeout or a reply is not ESOCKET. A
+ * connection the server dropped before sending a byte had no handshake to fail, on 465 a load balancer with no backend
+ * or a rate limiter (T190's review): it keeps its class too, rather than send the operator to the certificate.
+ */
+function failedHandshake(err: unknown, attempt: Attempt): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const serverSpoke = (attempt.socket?.bytesRead ?? 0) > 0;
+  return (err as { code?: unknown }).code === "ESOCKET" && !raisedByTcp.has(err) && !attempt.verified && serverSpoke;
+}
+
+/** A failed handshake's error: the class tls, and nothing of the certificate, or of what Node said about it. */
+const handshakeFailed = (): Error => Object.assign(new Error("the TLS handshake failed"), { code: "ETLS" });
 
 /**
  * The transport sendEmail uses unless it is handed one (tasks.md T189). nodemailer resolves a host name through
  * c-ares, but falls back to getaddrinfo whenever c-ares finds no address, a SERVFAIL or a timeout included, and a
  * getaddrinfo the resolver doesn't answer holds one of the two threads libuv gives lookups until the resolver gives up.
  * So the gateway connects itself and hands nodemailer the socket: nodemailer resolves nothing, and its TLS, on 465 or
- * after STARTTLS, still asks for the host's name and checks the certificate against it.
+ * after STARTTLS, still asks for the host's name and checks the certificate against it. A failed handshake is
+ * reported as handshakeFailed's error (tasks.md T190). sendEmail makes a transport for each send, so each transport
+ * makes one connection, and `attempt` is that connection's.
  */
-const aresTransport: TransportFactory = (options) =>
-  createTransport({ ...options, getSocket: (_options, callback) => connectThroughAres(options, callback) });
+const aresTransport: TransportFactory = (options) => {
+  const attempt: Attempt = { verified: false };
+  const transport = createTransport({
+    ...options,
+    getSocket: (_options, callback) => connectThroughAres(options, attempt, callback),
+  });
+  return {
+    sendMail: (mail) =>
+      transport.sendMail(mail).catch((err: unknown) => {
+        throw failedHandshake(err, attempt) ? handshakeFailed() : err;
+      }),
+    close: () => transport.close(),
+  };
+};
 
 export async function sendEmail(
   channel: EmailChannel,
