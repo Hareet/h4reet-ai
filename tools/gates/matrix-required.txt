@@ -62,6 +62,17 @@ H/bash-gate.sh/make publish-check
 H/bash-gate.sh/make matrix-canary
 H/bash-gate.sh/make evals-agent-config
 
+# --- the governance patch (T098): the rest of its paths, their forms, and the neighbours it must not catch ---
+H/protected-paths.sh/tools/gates
+H/protected-paths.sh/tools/gates/matrix-required.txt
+H/protected-paths.sh/evals/agent-config
+H/protected-paths.sh/evals/agent-config/cases/reviewer-edits-source.yaml
+H/protected-paths.sh/evals/agent-config/history/2026-10-10T00-00-00Z-main-000000000000.json
+H/protected-paths.sh/specs/../tools/gates/gate
+H/protected-paths.sh/./evals/agent-config/thresholds.yaml
+H/protected-paths.sh/tools/gates-notes.md
+H/protected-paths.sh/evals/agent-configs/notes.md
+
 # --- T087: human-only paths the later patches add ---
 H/protected-paths.sh/.mcp.json
 H/protected-paths.sh/tools/gates/gate

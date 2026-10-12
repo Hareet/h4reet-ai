@@ -52,7 +52,9 @@
       "Edit(/makefile)",
       "Edit(/deploy/agents-engine/**)",
       "Edit(/.gitleaks.toml)",
-      "Edit(/.gitleaksignore)"
+      "Edit(/.gitleaksignore)",
+      "Edit(/tools/gates/**)",
+      "Edit(/evals/agent-config/**)"
     ],
     "allow": [
       "Bash(git status*)",
@@ -102,6 +104,8 @@
         "./deploy/agents-engine",
         "./.gitleaks.toml",
         "./.gitleaksignore",
+        "./tools/gates",
+        "./evals/agent-config",
         "~/.config/h4reet-ai",
         "~/.local/state/h4reet"
       ],

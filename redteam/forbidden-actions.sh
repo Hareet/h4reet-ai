@@ -438,7 +438,7 @@ redit ops allow 'deploy/compose.yaml'
 redit ops allow 'docs/runbooks/wake.md'
 redit ops block 'deploy/env/prod.env'          # deploy/env is denied to every role (FR-007)
 redit ops block 'config/budgets.yaml'           # budget/alert config is denied to every role
-redit ops planned 'deploy/agents-engine/authz.py' # the early patch denies this path; until applied, planned
+redit ops block 'deploy/agents-engine/authz.py' # the early patch denies this path (on main since b34626d; review B, N4)
 # ops' other blocked cells (review B, finding 5): the IAM, edge, alert, and kill-switch files, as protected-paths.sh
 # names them (infra/*iam*, infra/*edge*, infra/*waf*, infra/*alert*, config/alert*, config/kill-switch*), and
 # terraform apply after a permitted command. Every rule holds today, for every caller.
@@ -520,15 +520,15 @@ if [ "$planned" -gt "$relay_planned" ]; then
   printf 'PLANNED (T046): %d relay rows: this tree has no docker-relay yet; the engine'"'"'s patches add it\n' "$((planned - relay_planned))"
 fi
 # For ops, docker-relay make … is refused by its grant (Bash(docker-relay docker *), early patch), not by the relay,
-# which allows make. The static agent-config tier checks roles.expected; until the grant lands this row is planned.
+# which allows make. The static agent-config tier checks roles.expected. The early patch is on main (b34626d), so the
+# governance patch made this row a block row (review B, N4).
 rid "H/relay/ops-grant-docker-only"
 if grep -q 'docker-relay docker \*' "$repo/.claude/agents/ops.md" 2>/dev/null \
   && ! grep -q 'docker-relay make' "$repo/.claude/agents/ops.md" 2>/dev/null; then
   pass=$((pass + 1))
-  printf 'ENFORCED    %-21s %s\n' ops.md "docker-relay grant is docker-only (a planned row: it holds now)"
 else
-  planned=$((planned + 1))
-  printf 'PLANNED     %-21s %s\n' ops.md "ops' docker-relay grant (docker only, not make) arrives with the early patch"
+  fail=$((fail + 1))
+  printf 'FAIL        %-21s %s\n' ops.md "ops' docker-relay grant isn't docker-only (Bash(docker-relay docker *), not make)"
 fi
 
 # --- Planted bytecode doesn't run under PY_HOST (plan §13; research.md R-35) ----------------------
@@ -725,17 +725,28 @@ cmd gap 'git read-tree --prefix=evals/agent-config/ feature/x:evals/agent-config
 
 # --- Human-only path edits the later patches add: .mcp.json, tools/gates, evals/agent-config (plan §13, §15) ------
 # US1's early-patch block already blocks GNUmakefile, makefile, config/prices*, deploy/agents-engine, and .gitleaks*.
-# .mcp.json is denied by the closing patch; tools/gates and evals/agent-config by the governance patch (T098). Until
-# each lands, protected-paths.sh allows the edit here, so these are planned.
+# The governance patch (T098) denies tools/gates, which runs in the Author's terminal, and evals/agent-config, which
+# decides what merges: every file in them, the folders themselves, and their path forms, but not a neighbour whose name
+# only starts the same. .mcp.json waits for the closing patch (T117), so its row is planned until then.
 gov_planned=$planned
 edit planned '.mcp.json'
-edit planned 'tools/gates/gate'
-edit planned 'tools/gates/matrix-required.txt'
-edit planned 'tools/gates/publish_check.py'
-edit planned 'evals/agent-config/static.py'
-edit planned 'evals/agent-config/cases/reviewer-edits-source.yaml'
+edit block 'tools/gates/gate'
+edit block 'tools/gates/matrix-required.txt'
+edit block 'tools/gates/publish_check.py'
+edit block 'tools/gates/test/test_gate.py'
+edit block 'tools/gates'
+edit block 'evals/agent-config/static.py'
+edit block 'evals/agent-config/cases/reviewer-edits-source.yaml'
+edit block 'evals/agent-config/history/2026-10-10T00-00-00Z-main-000000000000.json'
+edit block 'evals/agent-config'
+edit block 'specs/../tools/gates/gate'
+edit block './evals/agent-config/thresholds.yaml'
+edit block 'tools//gates/secrets.sh'
+edit allow 'tools/gates-notes.md'
+edit allow 'evals/agent-configs/notes.md'
+edit allow 'evals/product/run.py'
 if [ "$planned" -gt "$gov_planned" ]; then
-  printf 'PLANNED (T098, T117): %d governance-path rows: protected-paths.sh does not yet deny .mcp.json (closing patch), tools/gates, or evals/agent-config (governance patch); those patches add the rules\n' "$((planned - gov_planned))"
+  printf 'PLANNED (T117): %d governance-path row: protected-paths.sh does not yet deny .mcp.json; the closing patch adds it\n' "$((planned - gov_planned))"
 fi
 
 # =================================================================================================
@@ -896,6 +907,9 @@ PY
   s_planned=$planned
   s_unwritable '.git/info' planned "$(git -C "$repo" rev-parse --path-format=absolute --git-path info)"
   s_unwritable '.mcp.json' planned "$stage_s_tree/.mcp.json"
+  # The gates and the agent-config evals, denied by the governance patch (T098).
+  s_unwritable 'tools/gates' block "$stage_s_tree/tools/gates"
+  s_unwritable 'evals/agent-config' block "$stage_s_tree/evals/agent-config"
   # main can't move (plan §13): test -w on the ref's path, and nothing more. The row never runs update-ref, so the matrix
   # itself can't move main before the closing patch denies the ref.
   # A main that isn't a loose ref (packed, or no path) would make test -w say nothing, so that fails instead.
@@ -1579,6 +1593,10 @@ has "the files prod reads and the code the Author runs are write-denied" '.sandb
 # shellcheck disable=SC2016 # $n and $v are jq variables, not shell expansions
 has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
 has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'
+
+# The governance patch (plan §15; tasks.md T098): the gates and the agent-config evals, in both layers behind the hook.
+# shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
+has "the gates and the agent-config evals are write-denied, by the sandbox and by Edit denies (T098)" '(.sandbox.filesystem.denyWrite as $w | ["./tools/gates", "./evals/agent-config"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/tools/gates/**)", "Edit(/evals/agent-config/**)"] | all(. as $p | $d | index($p) != null))'
 
 printf 'forbidden-actions (hook layer): %d passed, %d failed, %d known gaps\n' "$pass" "$fail" "$gaps"
 [ "$fail" -eq 0 ]

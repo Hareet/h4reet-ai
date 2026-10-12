@@ -1311,3 +1311,86 @@ def test_a_sessions_client_is_the_relays(tmp_path: Path) -> None:
     )
     assert seen["DOCKER_HOST"] == "tcp://relay.example:2375"
     assert seen["DOCKER_CERT_PATH"] == str(tmp_path / "agents")
+
+
+# --------------------------------------------------------------------------------------------------
+# prove writes the report matrix stage E folds, headed with what it proved
+# --------------------------------------------------------------------------------------------------
+STAND_IN_GIT = """
+git() {
+  case "$*" in
+    *"rev-parse -q --verify HEAD") [ -z "${NO_GIT:-}" ] && echo "$COMMIT" ;;
+    *"rev-parse -q --verify HEAD:./") echo "$TREE" ;;
+    *"diff --no-ext-diff --no-textconv --quiet HEAD -- .") return "${DIRTY:-0}" ;;
+    *) return 9 ;;
+  esac
+}
+"""
+COMMIT = "1" * 40
+TREE = "2" * 40
+ROWS = "ROW   RES  DETAIL\nE1    PASS one\nE2    FAIL two\n"
+
+
+def _prove(
+    tmp_path: Path, *, rc: int = 0, **env: str
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    """cmd_prove with stand-ins for git and prove-limits.sh, in a scratch HOME."""
+    script = (
+        STAND_IN_GIT
+        + f"run_prove_limits() {{ printf '%s' {q(ROWS)}; return {rc}; }}\n"
+        + 'cmd_prove || echo "rc=$?"'
+    )
+    done = engine(script, tmp_path, COMMIT=COMMIT, TREE=TREE, **env)
+    return done, tmp_path / ".local/state/h4reet/agents-engine/prove-report.txt"
+
+
+def _header(line: str) -> dict[str, str]:
+    tag, *fields = line.split(" ")
+    assert tag == "H4-PROVE-REPORT", line
+    return dict(field.split("=", 1) for field in fields)
+
+
+def test_prove_writes_its_report_headed_with_the_commit_and_the_engine_tree(
+    tmp_path: Path,
+) -> None:
+    done, report = _prove(tmp_path, rc=1)
+    assert done.returncode == 0, done.stderr
+    assert "rc=1" in done.stdout  # prove-limits.sh's status, through tee
+    assert ROWS in done.stdout  # the terminal still gets every row
+    header, _, body = report.read_text(encoding="utf-8").partition("\n")
+    fields = _header(header)
+    assert fields["commit"] == COMMIT
+    assert fields["engine-tree"] == TREE
+    time.strptime(fields["utc"], "%Y-%m-%dT%H:%M:%SZ")
+    assert body == ROWS
+    assert sorted(p.name for p in report.parent.iterdir()) == [report.name]
+
+
+def test_prove_marks_an_engine_tree_with_changes_dirty(tmp_path: Path) -> None:
+    done, report = _prove(tmp_path, DIRTY="1")
+    assert "rc=" not in done.stdout, done.stderr
+    fields = _header(report.read_text(encoding="utf-8").splitlines()[0])
+    assert fields["engine-tree"] == TREE + "+dirty"
+
+
+def test_prove_replaces_the_last_report(tmp_path: Path) -> None:
+    report = tmp_path / ".local/state/h4reet/agents-engine/prove-report.txt"
+    report.parent.mkdir(parents=True)
+    report.write_text("an older report\n", encoding="utf-8")
+    done, _ = _prove(tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert "an older report" not in report.read_text(encoding="utf-8")
+
+
+def test_prove_without_the_commit_writes_no_report(tmp_path: Path) -> None:
+    done, report = _prove(tmp_path, NO_GIT="1")
+    assert done.returncode == 1
+    assert "can't read the commit" in done.stderr
+    assert not report.exists()
+    assert "PASS" not in done.stdout  # no probe ran
+
+
+def test_run_prove_limits_runs_the_script_beside_this_one(tmp_path: Path) -> None:
+    done = engine("declare -f run_prove_limits", tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert '"$here/prove-limits.sh"' in done.stdout

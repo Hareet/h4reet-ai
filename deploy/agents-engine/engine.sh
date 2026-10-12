@@ -658,8 +658,45 @@ status_list_hashes() {
 # ------------------------------------------------------------------------------------------------
 # prove: prove-limits.sh (Author; Heavy)
 # ------------------------------------------------------------------------------------------------
+# prove's report, which matrix stage E folds (redteam/forbidden-actions.sh), goes in the state directory, which the
+# sandbox denies agents writing: a session reads the report but can't make one. Its first line says what was proved:
+#   H4-PROVE-REPORT commit=<sha> engine-tree=<tree>[+dirty] utc=<YYYY-MM-DDTHH:MM:SSZ>
+# <tree> is this directory's tree at <commit>, the one the matrix compares with its checkout's
+# HEAD:deploy/agents-engine; +dirty marks tracked files here that differ from it, a report the matrix won't fold. The
+# rows follow as prove-limits.sh prints them, and the terminal still gets them all.
+prove_report="$HOME/.local/state/h4reet/agents-engine/prove-report.txt"
+prove_tmp=""
+
+prove_header() {
+	local commit tree dirty=""
+	commit="$(git -C "$here" rev-parse -q --verify HEAD)" ||
+		die "can't read the commit $here is at, so the report couldn't say what it proved"
+	tree="$(git -C "$here" rev-parse -q --verify HEAD:./)" ||
+		die "can't read deploy/agents-engine's tree at $commit, so the report couldn't say what it proved"
+	git -C "$here" diff --no-ext-diff --no-textconv --quiet HEAD -- . || dirty="+dirty"
+	printf 'H4-PROVE-REPORT commit=%s engine-tree=%s%s utc=%s\n' "$commit" "$tree" "$dirty" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+
+# The probes. The tests stand a function in for it.
+run_prove_limits() {
+	"$here/prove-limits.sh"
+}
+
 cmd_prove() {
-	exec "$here/prove-limits.sh"
+	local header dir rc=0
+	header="$(prove_header)" || exit 1
+	dir="${prove_report%/*}"
+	mkdir -p -- "$dir" || die "can't make $dir for the report"
+	prove_tmp="$(mktemp "$dir/.prove-report.XXXXXX")" || die "can't write a report in $dir"
+	trap '[ -z "$prove_tmp" ] || rm -f -- "$prove_tmp"' EXIT
+	printf '%s\n' "$header" >"$prove_tmp"
+	# The exit status stays prove-limits.sh's (pipefail); a run that stops early still leaves its report, whose missing
+	# rows the matrix fails.
+	run_prove_limits | tee -a -- "$prove_tmp" || rc=$?
+	mv -f -- "$prove_tmp" "$prove_report"
+	prove_tmp=""
+	echo "== the report, for matrix stage E: $prove_report" >&2
+	return "$rc"
 }
 
 # ------------------------------------------------------------------------------------------------

@@ -50,6 +50,7 @@ check() {
     GNUmakefile | makefile) block "a makefile that make would run instead of the Makefile" ;;
     deploy/agents-engine | deploy/agents-engine/*) block "the agents' engine (the FR-039 boundary; parts of it run with sudo)" ;;
     .gitleaks* | */.gitleaksignore) block "the secret scanner's rules or an ignore list (research.md R-36)" ;;
+    tools/gates | tools/gates/* | evals/agent-config | evals/agent-config/*) block "the local gates or the agent-config evals (the gate runs in the Author's terminal, and the evals decide what merges; plan §15's governance patch)" ;;
     deploy/env/* | *.env) block "environment file (it holds secrets and selects what a stack runs; spec 000 FR-007)" ;;
   esac
   if [ "${FIX_TASK:-0}" = "1" ]; then
