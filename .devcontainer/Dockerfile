@@ -21,7 +21,7 @@ FROM public.ecr.aws/docker/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8d
 # Off by default: agent sessions run on the host (ADR 0018), and Terraform's pin arrives with spec 001.
 ARG WITH_CLAUDE=0
 ARG WITH_TERRAFORM=0
-ARG CLAUDE_CODE_VERSION=2.1.295
+ARG CLAUDE_CODE_VERSION=2.1.296
 
 # The host's distribution, so apt gives the versions the host has: shellcheck, jq, Python 3.12, git, make.
 RUN apt-get update \

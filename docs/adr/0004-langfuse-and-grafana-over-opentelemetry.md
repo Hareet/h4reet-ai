@@ -33,7 +33,7 @@ The constitution names Langfuse "for LLM traces and evaluation records" and Graf
 - Cost: $0 cloud. The resource cost sits on the 5090 host: Langfuse's services, Prometheus, Loki, Grafana, and the collector. ClickHouse is capped at 4 GiB, and the Langfuse web and worker have heap caps (plan.md).
 - Degraded mode: a failed collector, Langfuse, Loki, Prometheus, or Grafana costs telemetry or a panel, and nothing else. Enforcement never reads telemetry (FR-031, FR-033). The dashboard shows the age of the last spend sample, so a stale panel is visible as stale.
 - The audit panel reads Postgres through a read-only role (ADR 0020), not Loki. Spend, state, and request panels read Prometheus.
-- Trade-off: Langfuse v4 has more moving parts (ClickHouse, Valkey, S3-compatible storage) than a single-store setup. Those parts are the price of a supported major version.
+- Trade-off: Langfuse v4 has more moving parts (ClickHouse, Valkey, and S3-compatible storage) than a single-store setup. Those parts are the price of a supported major version.
 
 ## Links
 

@@ -759,7 +759,7 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
     - gitleaks 8.30.1, from its pinned image;
     - pytest 9.1.1 and pyyaml 6.0.3, from `requirements-tools.txt` with hashes, into `/opt/tools`;
     - the lint toolchain in `/opt/h4reet/lint-node`.
-  - **Behind build arguments that default to off:** Claude Code 2.1.295, the host's version (`WITH_CLAUDE=0`). It updated itself from 2.1.294 during Phase 1, so its pin moved as T013 says; the early patch's `DISABLE_AUTOUPDATER` stops that, and Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
+  - **Behind build arguments that default to off:** Claude Code 2.1.296, the host's version (`WITH_CLAUDE=0`). It updated itself from 2.1.294 during Phase 1, so its pin moved as T013 says. The early patch's `DISABLE_AUTOUPDATER` reaches only this project's sessions, and the host's copy moved again, to 2.1.296, before the gate's first run on main (2026-10-11), so the pin followed. And Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
   - **`devcontainer.json`:**
     - no features (they are fetched unpinned), no `initializeCommand`, no Docker socket, no home mounts;
     - `runArgs: ["--cap-drop=ALL", "--security-opt=no-new-privileges"]`;
