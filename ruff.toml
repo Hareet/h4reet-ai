@@ -3,3 +3,10 @@
 extend-exclude = [".specify"]
 # The Author's gate runs by name, without .py, so ruff wouldn't find it on its own (plan §11).
 extend-include = ["tools/gates/gate"]
+
+[lint]
+# The executable-bit checks. Every script here runs as `python3 -I ...` (the Makefile's PY_HOST), never through its
+# shebang, so a script's mode means nothing. And ruff skips these two under WSL, where agents and the host run it,
+# but not in the devcontainer, where the gate does: the gate's lint failed on 24 shebanged scripts that are mode
+# 100644 in git (2026-10-12). The shebang-content checks (EXE004, EXE005) stay on.
+ignore = ["EXE001", "EXE002"]

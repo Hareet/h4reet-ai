@@ -1,0 +1,24 @@
+--- a/tools/gates/test/test_toolchain_check.py
++++ b/tools/gates/test/test_toolchain_check.py
+@@ -88,7 +88,9 @@
+         manifest.write_text(
+             json.dumps({"name": package, "version": version}), encoding="utf-8"
+         )
+-    make_tool(lint, "node", "v24.21.0")  # the link make tools leaves for the post-edit hook
++    make_tool(
++        lint, "node", "v24.21.0"
++    )  # the link make tools leaves for the post-edit hook
+     monkeypatch.setenv("PATH", str(bin_dir))
+     return bin_dir, lint
+ 
+@@ -163,7 +165,9 @@
+     make_tool(lint, "node", "v22.18.0")
+     assert status(tc.check(PINS, lint, in_devcontainer=False), "lint: node") == "DRIFT"
+     (lint / "node").unlink()
+-    assert status(tc.check(PINS, lint, in_devcontainer=False), "lint: node") == "MISSING"
++    assert (
++        status(tc.check(PINS, lint, in_devcontainer=False), "lint: node") == "MISSING"
++    )
+     assert status(tc.check(PINS, lint, in_devcontainer=True), "lint: node") == "SKIP"
+ 
+ 
