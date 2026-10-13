@@ -2,9 +2,9 @@
 # reviewed in the merge-request note; its schema keeps every primary local, a paid adapter in prod's route only, and
 # synthetic spend in dev's only. The gateway selects the route by H4_ENV: prod for prod, dev for dev and dev-cpu.
 #
-# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the third
-# step: tasks.md T073 added the synthetic adapter and dev's fallback, and T102 adds bedrock with its placeholder model.
-# The Author confirms the model and adds prod's fallback (T105); until then no route names bedrock, so it isn't built.
+# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the fourth
+# step: tasks.md T073 added the synthetic adapter and dev's fallback, T102 added bedrock with a placeholder model, and
+# T105 sets the model the Author confirmed, Claude Haiku 5.5's US inference profile, and adds prod's fallback.
 schema: 1
 deadline_ms: 20000
 
@@ -22,8 +22,12 @@ adapters:
     type: bedrock-converse
     kind: paid
     region: us-east-1
-    model: "<inference-profile ID the Author confirms>" # aws bedrock list-inference-profiles
-    additional_request_fields: {} # what keeps extended thinking off for that model, if anything
+    # The Author's choice (2026-10-12, aws bedrock list-inference-profiles): it routes to us-east-1, us-east-2, and
+    # us-west-2 only, as docs/data-flow-disclosure.md's F1 says.
+    model: us.anthropic.claude-haiku-5-5
+    # Haiku 5.5 thinks by default, and its thinking counts against the cap: hello's 128 tokens could end in thinking
+    # with no text. Off, which this model accepts at its default effort, medium.
+    additional_request_fields: { thinking: { type: disabled } }
     timeouts: { connect_ms: 1000, request_ms: 4000 }
     retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
     circuit: { failures: 3, open_s: 30 }
@@ -37,5 +41,5 @@ adapters:
     output_tokens: 1000 # 1,000 tokens at dev's $100 per million = $0.10 a call
 
 envs:
-  prod: { primary: local }
+  prod: { primary: local, fallback: bedrock } # the paid fallback, inside the $2 a day sub-budget (FR-030)
   dev: { primary: local, fallback: synthetic } # synthetic only with GATEWAY_TEST_SYNTHETIC_SPEND=1
