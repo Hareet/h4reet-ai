@@ -1,0 +1,53 @@
+--- a/tools/gates/gate
++++ b/tools/gates/gate
+@@ -165,6 +165,8 @@
+ # dir mode's count, and the warning it logs, exit code 0, for a file it couldn't read or a path that isn't there.
+ GITLEAKS_BYTES = re.compile(r"^\S+ INF scanned ~(\d+) bytes\b", re.MULTILINE)
+ GITLEAKS_SKIPPED = re.compile(r"^\S+ WRN skipping\b.*$", re.MULTILINE)
++# A terminal's escape sequences (CSI), which vitest writes around its marks and separators in the container.
++ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+ HISTORY = "evals/agent-config/history/"
+ # Where the gate's own code is in main's checkout (the docstring's list): this file and tools/gates/*.py, which it runs;
+ # check_corpus.py, and behavioral.py with the static.py beside it, which it loads; and engine.sh, which --prove runs, with
+@@ -1650,10 +1652,11 @@
+             step = classify(Step("replay"), rc, out)
+             # replay.test.ts names the suite "recorded live: <adapter>", and the contract adds " (<mode>)": a test
+             # passed under the recording's own adapter, not another or one it only begins, read the recording.
++            # vitest colours its lines in the container, so their escape sequences go first.
+             suite = f"recorded live: {adapter} ("
+             replayed = [
+                 ln
+-                for ln in out.splitlines()
++                for ln in ANSI_ESCAPE.sub("", out).splitlines()
+                 if ln.lstrip().startswith("✓") and suite in ln
+             ]
+             if step.status == "PASS" and not replayed:
+--- a/tools/gates/test/test_gate.py
++++ b/tools/gates/test/test_gate.py
+@@ -2161,6 +2161,26 @@
+     assert "no test passed under recorded live: local" in done.stdout
+ 
+ 
++# vitest colours its lines in the container: an escape sequence before the tick, and around each separator.
++COLOURED = (
++    "\x1b[32m\u2713\x1b[39m test/contract/replay.test.ts\x1b[2m > \x1b[22mthe adapter contract: "
++    "recorded live: {adapter} (live)\x1b[2m > \x1b[22mC1: every recorded answer is a normalized result"
++)
++
++
++def test_a_coloured_replay_that_read_the_recording_passes(fx: Fixture) -> None:
++    fx.control(vitest_output=COLOURED.format(adapter="local"))
++    done = gate(fx, "--contract-replay", str(recording(fx)))
++    assert done.returncode == 0, done.stdout + done.stderr
++
++
++def test_a_coloured_replay_under_another_adapters_name_still_fails(fx: Fixture) -> None:
++    fx.control(vitest_output=COLOURED.format(adapter="bedrock"))
++    done = gate(fx, "--contract-replay", str(recording(fx)))
++    assert done.returncode == 1
++    assert "no test passed under recorded live: local" in done.stdout
++
++
+ def test_a_failing_replay_fails(fx: Fixture) -> None:
+     fx.control(vitest_rc=1)
+     assert gate(fx, "--contract-replay", str(recording(fx))).returncode == 1

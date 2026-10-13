@@ -36,7 +36,7 @@ const NAMES = [
   "short-stop",
   "multi-turn",
   "non-ascii",
-  "temperature-zero",
+  "temperature-one",
   "system-only-once",
   "repeat-cost",
 ];

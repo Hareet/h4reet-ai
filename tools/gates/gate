@@ -165,6 +165,8 @@ GITLEAKS_COMMITS = re.compile(r"^\S+ INF (\d+) commits scanned\b", re.MULTILINE)
 # dir mode's count, and the warning it logs, exit code 0, for a file it couldn't read or a path that isn't there.
 GITLEAKS_BYTES = re.compile(r"^\S+ INF scanned ~(\d+) bytes\b", re.MULTILINE)
 GITLEAKS_SKIPPED = re.compile(r"^\S+ WRN skipping\b.*$", re.MULTILINE)
+# A terminal's escape sequences (CSI), which vitest writes around its marks and separators in the container.
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 HISTORY = "evals/agent-config/history/"
 # Where the gate's own code is in main's checkout (the docstring's list): this file and tools/gates/*.py, which it runs;
 # check_corpus.py, and behavioral.py with the static.py beside it, which it loads; and engine.sh, which --prove runs, with
@@ -1650,10 +1652,11 @@ def run_replay(repo: Path, file: Path) -> int:
             step = classify(Step("replay"), rc, out)
             # replay.test.ts names the suite "recorded live: <adapter>", and the contract adds " (<mode>)": a test
             # passed under the recording's own adapter, not another or one it only begins, read the recording.
+            # vitest colours its lines in the container, so their escape sequences go first.
             suite = f"recorded live: {adapter} ("
             replayed = [
                 ln
-                for ln in out.splitlines()
+                for ln in ANSI_ESCAPE.sub("", out).splitlines()
                 if ln.lstrip().startswith("✓") and suite in ln
             ]
             if step.status == "PASS" and not replayed:

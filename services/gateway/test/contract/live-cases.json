@@ -68,7 +68,7 @@
       "max_output_tokens": 32
     },
     {
-      "name": "temperature-zero",
+      "name": "temperature-one",
       "messages": [
         {
           "role": "user",
@@ -76,7 +76,7 @@
         }
       ],
       "max_output_tokens": 16,
-      "temperature": 0
+      "temperature": 1
     },
     {
       "name": "system-only-once",
