@@ -383,7 +383,7 @@ This keeps the operator token inside the stdlib CLI, out of `node_modules` and `
 | `short-stop` | system "Answer in one word.", then "Name a colour." | 16 | C1, C2 |
 | `multi-turn` | user, assistant, user | 32 | C1 |
 | `non-ascii` | a short message in Hindi and Japanese | 32 | C1, C7 |
-| `temperature-zero` | "Say hello." at temperature 0 | 16 | C1 |
+| `temperature-one` | "Say hello." at temperature 1. It was 0, which Claude Haiku 5.5 refuses with a 400: it takes no temperature but its default, 1. The Author's decision of 2026-10-13. The stub suite's C9 still sends 0 to both adapters | 16 | C1 |
 | `system-only-once` | a system message plus a long user message near the 2,000-character cap | 16 | C1, C7 (input tokens priced) |
 | `repeat-cost` | `hello-shape`, sent again | 128 | C7 |
 | `health-before`, `health-after` | the recorded `/admin/status` adapter entries | – | C3 |

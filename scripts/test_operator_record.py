@@ -345,7 +345,7 @@ def test_the_committed_cases_file_reads_as_cases() -> None:
         "short-stop",
         "multi-turn",
         "non-ascii",
-        "temperature-zero",
+        "temperature-one",
         "system-only-once",
         "repeat-cost",
     ]
