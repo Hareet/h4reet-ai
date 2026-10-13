@@ -2161,6 +2161,26 @@ def test_a_replay_that_passed_under_another_adapters_name_fails(
     assert "no test passed under recorded live: local" in done.stdout
 
 
+# vitest colours its lines in the container: an escape sequence before the tick, and around each separator.
+COLOURED = (
+    "\x1b[32m\u2713\x1b[39m test/contract/replay.test.ts\x1b[2m > \x1b[22mthe adapter contract: "
+    "recorded live: {adapter} (live)\x1b[2m > \x1b[22mC1: every recorded answer is a normalized result"
+)
+
+
+def test_a_coloured_replay_that_read_the_recording_passes(fx: Fixture) -> None:
+    fx.control(vitest_output=COLOURED.format(adapter="local"))
+    done = gate(fx, "--contract-replay", str(recording(fx)))
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_a_coloured_replay_under_another_adapters_name_still_fails(fx: Fixture) -> None:
+    fx.control(vitest_output=COLOURED.format(adapter="bedrock"))
+    done = gate(fx, "--contract-replay", str(recording(fx)))
+    assert done.returncode == 1
+    assert "no test passed under recorded live: local" in done.stdout
+
+
 def test_a_failing_replay_fails(fx: Fixture) -> None:
     fx.control(vitest_rc=1)
     assert gate(fx, "--contract-replay", str(recording(fx))).returncode == 1
