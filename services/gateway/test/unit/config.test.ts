@@ -1138,7 +1138,11 @@ describe("the config directory", () => {
     }
     const set = await loadConfig(dir, { allowPlanned: false });
     expect(errorLines(set.issues)).toEqual([]);
-    expect(startupRefusals(set, PROD_ENV, NOW)).toEqual([]);
-    expect(startupRefusals(set, DEV_ENV, NOW)).toEqual([]);
+    // A gateway starts on the active price version, the newest whose effective_from has passed. Check from the newest
+    // committed version's effective_from, or NOW if that is later: before it, an older version is active, and a route
+    // added with the newest version's price (T105's Bedrock fallback) is rightly refused there.
+    const newest = Math.max(NOW, ...(set.prices?.versions ?? []).map((v) => v.effectiveFrom));
+    expect(startupRefusals(set, PROD_ENV, newest)).toEqual([]);
+    expect(startupRefusals(set, DEV_ENV, newest)).toEqual([]);
   });
 });
