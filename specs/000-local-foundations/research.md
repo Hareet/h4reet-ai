@@ -289,7 +289,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 
 - **Decision**:
   - The AWS SDK v3 `ConverseCommand` in us-east-1, with no streaming.
-  - The model is Claude Haiku 5.5 if Bedrock offers it there; otherwise Claude Haiku 4.5's `us.` inference profile.
+  - The model is Claude Haiku 5.5 if Bedrock offers it there; otherwise Claude Haiku 4.5's `us.` inference profile. Bedrock offers it: the Author confirmed Haiku 5.5's US profile, `us.anthropic.claude-haiku-5-5` (us-east-1, us-east-2, us-west-2), on 2026-10-12 (tasks.md T105). Its global profile was listed too, and not chosen, because it may serve a call outside the US.
   - The Author confirms the ID with `aws bedrock list-inference-profiles` and copies its prices into the human-only `config/prices.yaml`.
 - **Rationale**:
   - One request and response shape across model families, so changing the model is configuration (SC-006).

@@ -20,3 +20,20 @@ versions:
         model: metered-test # dev's synthetic spend: $0.10 a call
         input: 0
         output: 100
+  - id: "2026-10-12.1"
+    effective_from: "2026-10-12T00:00:00Z"
+    source: "Bedrock pricing page, Claude Haiku 5.5, US cross-region inference, on-demand, read 2026-10-12"
+    entries:
+      - provider: aws.bedrock
+        model: us.anthropic.claude-haiku-5-5
+        input: 0.1
+        output: 0.5
+        cache_read_input: 0.01
+      - provider: local
+        model: "*"
+        input: 0
+        output: 0
+      - provider: synthetic
+        model: metered-test
+        input: 0
+        output: 100
