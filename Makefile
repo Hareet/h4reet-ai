@@ -122,7 +122,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := githooks-check toolchain-check policy validate-config lint test secrets evals redteam=redteam-suite matrix image
+CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test secrets evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -138,6 +138,9 @@ tools: ## (the Author) Install the pinned host tools where agents can't write: N
 
 toolchain-check: ## Compare the installed tools with .devcontainer/toolchain.vars (ADR 0018)
 	$(PY_HOST) tools/gates/toolchain_check.py
+
+makefiles-check: ## GNUmakefile holds only its include, and there is no makefile (T183; the gate runs it directly)
+	$(PY_HOST) tools/gates/makefiles_check.py
 
 check: ## Every local gate (FR-041): PASS, FAIL, SKIP, PENDING, or PLANNED for each, then a summary
 	@$(PY_HOST) tools/gates/run_checks.py $(CHECK_GATES)
@@ -534,7 +537,7 @@ endif
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
-.PHONY: help setup tools toolchain-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
+.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
 	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 

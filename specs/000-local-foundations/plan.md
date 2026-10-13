@@ -182,9 +182,13 @@ tsconfig.base.json, eslint.config.js, .prettierrc.json, .prettierignore    [A] n
 .dockerignore                    [A] new: excludes .git, deploy/env, *.env, node_modules, __pycache__, corpus/intake/private
 .gitleaks.toml                   [P] new, in the early patch: default rules plus h4op_prod_, h4op_dev_, and sk-lf- keys;
                                      allowlists deploy/env.agents/dev-cpu.vars, and ADR 0004 at 8c15b95
-GNUmakefile, makefile            never exist, apart from the empty placeholders a session's sandbox puts there: denied
-                                     at the OS level in the main tree from the early patch on. A branch from a worktree
-                                     could add one; the gate refuses it from T092 (§11)
+GNUmakefile                      [H] new, by the Author's patch (T183): only `include`s the Makefile. In the main tree
+                                     the sandbox binds it read-only, so make reads it there too. A worktree branch could
+                                     change it, so the gate holds it to main's exact bytes (§11), and make check to its
+                                     exact text (tools/gates/makefiles_check.py)
+makefile                         never exists, apart from the empty placeholders a session's sandbox puts there: denied
+                                     at the OS level in the main tree from the early patch on. make never looks for it
+                                     while GNUmakefile exists; makefiles_check.py fails on anything else there
 .devcontainer/                   [A] new: devcontainer.json, Dockerfile, toolchain.vars, requirements-tools.in and its
                                      hashed requirements-tools.txt
 config/
@@ -230,7 +234,7 @@ deploy/
 scripts/operator.py              [A] new: stdlib operator CLI (§5.5)
 tools/gates/                     [H] new: gate, compose_policy.py, publish_check.py, toolchain_check.py,
                                      run_checks.py (make check's runner), install-tools.sh (make tools),
-                                     matrix-required.txt, roles.expected, test/*.py,
+                                     makefiles_check.py (T183), matrix-required.txt, roles.expected, test/*.py,
                                      lint-node/ (the post-edit hook's lint toolchain, installed by make tools)
 evals/                           [A] new: __init__.py, run.py, breach.py, breach_probe.py, Dockerfile.probe, docs_links.py,
                                      standins/{telegram_standin.py,Dockerfile}, product/cases/*.yaml, test_*.py
@@ -844,6 +848,7 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 
 | Gate | Target | What it runs | In the sandbox |
 |---|---|---|---|
+| Makefiles | `makefiles-check` | `tools/gates/makefiles_check.py`: `GNUmakefile` holds exactly its include, and there is no `makefile` but the sandbox's placeholders, which hold nothing (T183). Through make it reports only an accidental edit: a hostile `GNUmakefile` has already run, and can skip or fake it | runs |
 | Git hooks installed | `githooks-check` | `reference-transaction` and `pre-commit` match `.claude/git-hooks/` (`pre-commit` is PLANNED until the early patch adds it); `core.hooksPath` is unset; `gc.packRefs=false`; `main` is a loose ref | runs |
 | Toolchain pins | `toolchain-check` | `toolchain_check.py` against `.devcontainer/toolchain.vars` | runs |
 | Compose and file policy | `policy` | `tools/gates/compose_policy.py` (below) | runs (no daemon needed) |

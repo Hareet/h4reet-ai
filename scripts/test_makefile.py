@@ -185,7 +185,8 @@ def test_the_agents_engine_builds_them(tmp_path: Path, env: dict[str, str]) -> N
 # --------------------------------------------------------------------------------------------------
 # A GNUmakefile that only includes the Makefile (tasks.md T183), and makefiles make never remakes
 # --------------------------------------------------------------------------------------------------
-INCLUDE_LINE = "include $(dir $(lastword $(MAKEFILE_LIST)))Makefile"  # T183's patch's GNUmakefile, word for word
+# The committed GNUmakefile's include (tasks.md T183).
+INCLUDE_LINE = (ROOT / "GNUmakefile").read_text(encoding="utf-8").splitlines()[-1]
 GUARD = "$(MAKEFILE_LIST): ;\n.SUFFIXES:\n"
 PLANTED = "help:\n\t@touch PWNED\n"
 MAKE_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "LC_ALL": "C"}
