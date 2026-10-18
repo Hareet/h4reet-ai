@@ -561,10 +561,16 @@ def test_the_content_check_builds_without_drafts_then_runs_mains_check(
     )
     assert done.returncode == 0, done.stderr
     recipe = done.stdout
-    assert 'echo "PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch"' in recipe
+    assert (
+        'echo "PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch"'
+        in recipe
+    )
     build = recipe.index("ROOM_DRAFTS= npm run build -w apps/web")
     check = recipe.index(
         "tools/gates/content_check.py --tree . --room-data apps/web/dist/room-data.json --repo ."
     )
     assert build < check
-    assert "python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py" in recipe
+    assert (
+        "python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py"
+        in recipe
+    )
