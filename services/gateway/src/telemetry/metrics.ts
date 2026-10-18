@@ -43,6 +43,8 @@ export type AlertKind =
 export type AlertOutcome = "delivered" | "retry" | "failed";
 export type OperatorAction = "init" | "reset" | "renew" | "test_clock" | "test_synthetic" | "adapter_call";
 export type AuthFailureClass = "missing" | "malformed" | "wrong_prefix" | "mismatch";
+/** Why POST /room/events refused an event (spec 002, contracts/room-events.md §3). */
+export type RoomEventRefusal = "content_type" | "shape" | "kind" | "id";
 
 export interface MeterGauge {
   spentMicro: bigint;
@@ -93,6 +95,8 @@ export class GatewayMetrics {
   private readonly testMachineryRefusals;
   private readonly tokens;
   private readonly operationDurations;
+  private readonly roomEvents;
+  private readonly roomEventsRefused;
 
   constructor(meter: Meter) {
     const seconds = { unit: "s", advice: { explicitBucketBoundaries: [...SECONDS_BUCKETS] } };
@@ -114,6 +118,8 @@ export class GatewayMetrics {
       advice: { explicitBucketBoundaries: [...TOKEN_BUCKETS] },
     });
     this.operationDurations = meter.createHistogram("gen_ai.client.operation.duration", seconds);
+    this.roomEvents = meter.createCounter("h4.room.events", { unit: "{event}" });
+    this.roomEventsRefused = meter.createCounter("h4.room.events.refused", { unit: "{event}" });
 
     const gauge = (name: string, unit: string, observe: (result: ObservableResult, s: GaugeSnapshot) => void) =>
       meter.createObservableGauge(name, { unit }).addCallback((result) => observe(result, this.snapshot));
@@ -195,6 +201,19 @@ export class GatewayMetrics {
 
   testMachineryRefused(): void {
     this.testMachineryRefusals.add(1);
+  }
+
+  /**
+   * Once per usage event POST /room/events accepts (spec 002, FR-054). The kind and the ID are the event's own, after
+   * the route has found both in config/room-events.yaml, which bounds them; `-` for a kind that takes no ID.
+   */
+  roomEvent(kind: string, id: string): void {
+    this.roomEvents.add(1, { kind, id });
+  }
+
+  /** Once per usage event POST /room/events refuses, by its reason. */
+  roomEventRefused(reason: RoomEventRefusal): void {
+    this.roomEventsRefused.add(1, { reason });
   }
 
   /** Once per token type, per successful attempt. */

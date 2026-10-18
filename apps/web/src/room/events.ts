@@ -1,7 +1,6 @@
 // The room's usage events (spec 002, FR-054; contracts/room-events.md §1; data-model.md §8): a kind, and an object's
 // or item's ID where there is one. Nothing else: no text, path, avatar, visit ID, or time. The room hands each to an
-// EventSink. Phase 6 (tasks.md T060, src/events.ts) supplies the one that sends the beacon; until then the page's sink
-// drops them, so no request leaves.
+// EventSink: the page's is src/events.ts's beacon (tasks.md T060); the room's default, and the tests', sends nothing.
 //
 // The kinds are the source of room-manifest.json's event_kinds and config/room-events.yaml's kinds (build/manifest.ts).
 export const EVENT_KINDS = [

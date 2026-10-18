@@ -284,6 +284,7 @@ docs/adr/                         [A] the room's stack; approvals by hash; the r
 - **The dashboard's "Room" row** shows:
   - **built now:** use per object and per item per day, PDF downloads, the 2D share, and turns sent;
   - **when conversations exist:** cost per room feature, latency, and degraded responses by cause (FR-056's other panels), from the gateway's existing `h4.cost.usd` and degraded-cause series, labeled by a `h4.room.feature` attribute the turn endpoint adds.
+- **As built (Phase 6),** where it refines the above: the beacon (`src/events.ts`) sends its body as a string, so as `text/plain;charset=UTF-8`, and never sends an event the gateway would refuse. The route (`services/gateway/src/routes/room-events.ts`) sits in a Fastify scope of its own, whose catch-all parser reads any body as text for the route to check, so the listener's other routes still refuse anything but JSON. `src/config/room-events.ts` reads `config/room-events.yaml`; a missing or invalid file logs `room_events.unavailable` at start. The counters' attribute keys are the contract's bare `kind`, `id`, and `reason`, not spec 000's `h4.` prefix, so their Prometheus labels are the ones quickstart §6 reads. The row's queries are spec 000's telemetry.md §7.8, read by `deploy/scripts/test_dashboard.py` like the rest of §7; it adds the talk button's presses beside turns sent, and the refusals by reason, and sits above the development-time row.
 
 ## 7. Conversations and push-to-talk (User Stories 4 and 7; FR-020 to FR-031, FR-033 to FR-037): interfaces now, behavior later
 

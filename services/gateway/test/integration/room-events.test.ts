@@ -146,11 +146,11 @@ async function stackWith(o: { list?: RoomEventsConfig | null; storeDown?: boolea
 
 const BEACON = "text/plain;charset=UTF-8"; // what navigator.sendBeacon sends with a string body
 
-function post(stack: TestStack, body: string | undefined, contentType: string | undefined = BEACON) {
+function post(stack: TestStack, body: string | undefined, contentType: string | null = BEACON) {
   return stack.api.inject({
     method: "POST",
     url: "/room/events",
-    headers: contentType === undefined ? {} : { "content-type": contentType },
+    headers: contentType === null ? {} : { "content-type": contentType },
     ...(body === undefined ? {} : { payload: body }),
   });
 }
@@ -211,8 +211,8 @@ describe("POST /room/events refuses, and counts each refusal by its reason", () 
       expect(res.statusCode, type).toBe(415);
       expect(res.json(), type).toEqual({ error: "unsupported_media_type", request_id: res.headers["x-request-id"] });
     }
-    expect((await post(stack, body, undefined)).statusCode).toBe(415);
-    expect((await post(stack, undefined, undefined)).statusCode).toBe(415);
+    expect((await post(stack, body, null)).statusCode).toBe(415);
+    expect((await post(stack, undefined, null)).statusCode).toBe(415);
     expect(await meter.points("h4.room.events.refused")).toEqual([[{ reason: "content_type" }, 6]]);
     expect(await meter.points("h4.room.events")).toEqual([]);
   });

@@ -14,6 +14,7 @@ This contract covers the api listener of `services/gateway`: the hello endpoint 
 - **Unknown routes and methods** get 404 `{"error":"not_found","request_id":"…"}`.
 - **Unexpected failures** get 500 `{"error":"internal_error","request_id":"…"}`, and the log names the error's class (`request.failed`), never its message. A body that isn't JSON gets 415, malformed JSON 400 `invalid_request`, and one over the gateway's own limit 413 `body_too_large`; each body carries the `request_id`.
 - **Health probes** (`/health/live`, `/health`) produce no spans ([plan.md §5.7](../plan.md#57-telemetry)).
+- **Spec 002's usage events,** `POST /room/events`, share this listener and its rules but two: they take `text/plain` as well as JSON, since a browser's beacon may send either, and an accepted event is 204 with no body. Their contract is spec 002's [room-events.md §3](../../002-the-room/contracts/room-events.md#3-the-gateways-route).
 
 ## 2. `POST /hello`
 
