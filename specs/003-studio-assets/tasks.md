@@ -116,7 +116,7 @@ description: "Task list for spec 003, Studio Assets"
 - [X] T036 [P] [US6] The dashboard's annotation and the "Fallback spend in studio windows" panel in `deploy/grafana/dashboards/h4-runtime.json`, with `deploy/scripts/test_dashboard.py`'s cases, per contracts/gpu-window.md §3
 - [X] T037 [P] [US6] `docs/runbooks/studio-gpu-window.md`, per FR-035
 - [ ] T038 [US6] **Author** (Heavy): the rehearsal, per quickstart §4 (SC-011)
-- [ ] T039 [US6] Merge-request note `docs/merge-requests/<date>-feat-003-us6-gpu-window.md`, with `make check`, the rehearsal's record, and the reviewer's passes
+- [X] T039 [US6] Merge-request note `docs/merge-requests/<date>-feat-003-us6-gpu-window.md`, with `make check`, the rehearsal's record, and the reviewer's passes
 
 ---
 
