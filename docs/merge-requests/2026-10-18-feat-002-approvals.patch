@@ -37,7 +37,7 @@
 +# --- spec 002's approvals patch (T015, T016; contracts/resume-source.md §5): the room's content policy, human-only ---
 +H/protected-paths.sh/assets/policy/content-approvals.json
 +H/protected-paths.sh/assets/policy/resume-header.json
-+H/protected-paths.sh/apps/web/../assets/policy/content-approvals.json
++H/protected-paths.sh/apps/../assets/policy/content-approvals.json
 +H/protected-paths.sh/./assets//policy/resume-header.json
 +H/protected-paths.sh/Edit in a linked worktree: assets/policy/content-approvals.json
 +H/protected-paths.sh/apps/web/content/resume.yaml
@@ -327,13 +327,13 @@
 -content_policy_planned=$planned
 -edit planned 'assets/policy/content-approvals.json'
 -edit planned 'assets/policy/resume-header.json'
--edit planned 'apps/web/../assets/policy/content-approvals.json'
+-edit planned 'apps/../assets/policy/content-approvals.json'
 -edit planned './assets//policy/resume-header.json'
 +# tree or a linked worktree. The content itself stays agent-editable. The patch switched these rows, stage S's, and the
 +# settings row below from "planned" to "block".
 +edit block 'assets/policy/content-approvals.json'
 +edit block 'assets/policy/resume-header.json'
-+edit block 'apps/web/../assets/policy/content-approvals.json'
++edit block 'apps/../assets/policy/content-approvals.json'
 +edit block './assets//policy/resume-header.json'
  edit allow 'apps/web/content/resume.yaml'
  edit allow 'apps/web/build/approvals.ts'

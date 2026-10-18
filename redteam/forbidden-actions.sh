@@ -776,7 +776,7 @@ edit allow 'evals/product/run.py'
 content_policy_planned=$planned
 edit planned 'assets/policy/content-approvals.json'
 edit planned 'assets/policy/resume-header.json'
-edit planned 'apps/web/../assets/policy/content-approvals.json'
+edit planned 'apps/../assets/policy/content-approvals.json'
 edit planned './assets//policy/resume-header.json'
 edit allow 'apps/web/content/resume.yaml'
 edit allow 'apps/web/build/approvals.ts'
