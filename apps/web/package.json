@@ -16,7 +16,8 @@
     "content:lock": "node --import tsx build/content.ts --lock",
     "content:check": "node --import tsx build/content.ts",
     "typecheck": "tsc --noEmit -p .",
-    "lint": "eslint --max-warnings 0 . && tsc --noEmit -p ."
+    "lint": "eslint --max-warnings 0 . && tsc --noEmit -p .",
+    "manifest": "node --import tsx build/manifest.ts"
   },
   "devDependencies": {
     "@types/jsdom": "30.0.0",

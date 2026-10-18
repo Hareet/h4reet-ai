@@ -8,6 +8,7 @@ import { defineConfig } from "vite";
 import { roomDataFile } from "./build/approvals";
 import { resumePart } from "./build/content";
 import { disclosurePage } from "./build/disclosure";
+import { roomContentModule } from "./build/manifest";
 import { DEFAULT_POLICY_DIR } from "./build/policy";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -34,5 +35,7 @@ export default defineConfig({
       policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR,
       parts: [resumePart],
     }),
+    // The room's fixed messages and manifest, bundled into the page, and dist/room-manifest.json (T045, T046).
+    roomContentModule({ root: here("../.."), messages: here("content/messages.yaml") }),
   ],
 });
