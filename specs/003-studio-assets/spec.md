@@ -4,9 +4,26 @@
 
 **Created**: 2026-10-17
 
-**Status**: Draft (two open clarification markers, in FR-015 and FR-034, for `/speckit-clarify`)
+**Status**: Draft, clarified on 2026-10-18 by the Author's direction to take each recommended option (Clarifications). No needs-clarification marker remains.
 
 **Input**: [`intent.md`](intent.md) in this folder (moved from `intent/003-studio-assets.md`, as `intent/README.md` step 2 asks), accepted on 2026-10-17. Also read: [intent 000](../../intent/000-ai-twin-portfolio.md); intent 002 as accepted on 2026-10-17, whose answer 10 is on its own branch (this branch holds an earlier draft, [`intent/002-the-room.md`](../../intent/002-the-room.md)); the [image-model evaluation plan](../../docs/research/2026-10-12-image-model-evaluation.md) and the intent's [merge-request note](../../docs/merge-requests/2026-10-12-intent-003-studio-assets.md); the [constitution](../../.specify/memory/constitution.md); `CLAUDE.md`; the [data-flow disclosure](../../docs/data-flow-disclosure.md). Summary: the studio's pipeline stays outside this repository, and only its outputs come in: the twin's avatar, the four visitor avatars, their animations, and, in Phase 3, the room's assets. Each output passes an arrival check before it enters any commit: no metadata, a public record of the models that made it with their versions and licenses, a media license stricter than the code's MIT, and the Author's approval where it shows the Author's likeness or room. The site loads the assets as static files, on desktop and phone, and defines what a visitor sees when one fails to load or a phone can't hold the scene.
+
+## Clarifications
+
+### Session 2026-10-18
+
+The Author answered by direction rather than question by question. On 2026-10-17, after the specify pass, they wrote: "Let's relax some of the overnight rules so that you can continue with intent 002 and intent 003? I think you can create the tasks and implement them and we can always go back later and re-do a task or requirement if we highlight a needed change". Earlier that evening they had written: "trust the recommendations and keep going as far as we can!" So each question below takes its recommended option, quoted as this spec's Open Questions worded it. Any of them can be reopened.
+
+- Q: Which license do the assets and published images carry? (FR-015) → A: "A (recommended)", which read: "All rights reserved, with a plain notice that viewing and linking are welcome". Reading: the evaluation note's interim "all rights reserved" notice is this license's notice, so its images need no second notice.
+- Q: How is the likeness disclosed to people, and to machines? (FR-034) → A: "A (recommended)", which read: "Both: a visible line in the twin's disclosure that the avatar is an AI-made, stylized likeness of the Author, published by the Author's choice; and one machine-readable mark in every published image and model file (the IPTC digital source type for AI-generated media), with nothing else in the file". Reading: the option's own caveat stands, "The disclosure's exact wording is the Author's to approve", so the plan drafts the line and the Author approves it before the first likeness file is published.
+- Q: Confirmation 1, scope and phasing → A: yes, as worded: "the intake covers every studio file. Phase 2 brings the avatars, Phase 3 brings the room's assets through the same intake, and the voice's marking stays with ADR 0011's spec."
+- Q: Confirmation 2, ADR 0010 first → A: yes, as worded: "before the studio builds its workflow, leaning toward the survey's convention for the twin."
+- Q: Confirmation 3, storage → A: yes, as worded: "final files in plain git, served from the edge under content-derived names; no LFS or object store; a 500 MB history cap."
+- Q: Confirmation 4, only the chosen avatar is fetched → A: yes, as worded: "so the edge learns the choice, and the disclosure says so (a reading beside "no new byte leaves a visitor's device")."
+- Q: Confirmation 5, asset events → A: yes, as worded: "Payload-free asset events from the browser, disclosed."
+- Q: Confirmation 6, the budget and load-time defaults → A: yes, as worded: "in Assumptions, and the reference phone the plan names."
+- Q: Confirmation 7, pre-publication cleanup for assets → A: yes, as worded: "extend ADR 0013's cleanup to a file that locates the Author or breaks a license, with an ADR."
+- Q: Confirmation 8, the reading on Principle V → A: yes, as worded: "the studio's model runs are outside the system, so they aren't a deviation."
 
 ## Source: The Author's Words
 
@@ -21,7 +38,7 @@ Quoted as written in the intent, with this spec's reading beside each, never in 
   Reading: the intent's own reading, which this spec keeps: "The studio's pipeline, with its workflows, models, tools, and code, stays outside this repository. This repository receives what it makes" (FR-001).
 
 - **The record:** "Models, versions, licenses". "Each asset's record names the models that made it, their versions and licenses, and its source (a photo or a prompt)." Reading: one public record per file, listing every model a step loaded, auxiliary ones included (FR-010).
-- **The license:** "Separate media license". "Code stays MIT. Assets get their own, stricter license (for example, all rights reserved or CC BY-NC-ND), chosen in the spec." Reading: the choice is the Author's, and is the first question for `/speckit-clarify` (FR-015).
+- **The license:** "Separate media license". "Code stays MIT. Assets get their own, stricter license (for example, all rights reserved or CC BY-NC-ND), chosen in the spec." Reading: the choice is the Author's. It was the first question for `/speckit-clarify`, answered on 2026-10-18 with all rights reserved (Clarifications; FR-015).
 - **The twin's look:** "A stylized likeness". "Made from photos of me. My face becomes a public asset by my choice, like the cloned voice." Reading: the Author approves each likeness file before it merges (FR-016).
 - **The comparison:** "Okay, your evaluation scenario and published comparison write-up sounds like a great alternative!" Then, on where it lives: "I think it could live in this repo as a note, and that's fine with the likeness too." Reading: the evaluation note's images come in under the same checks as assets (User Story 5).
 - **The privacy promise** (the intent's Constraints): "My photos stay on my machine, where the pipeline runs. Their EXIF and location data are stripped, nothing in an output locates me, and what's published is the pipeline's recreation, not the photo (intent 002). Visitors still choose pre-generated avatars, with no visitor biometrics." Reading: agent sessions run on the same machine, so the sandbox has to keep them from reading the photos too (FR-003).
@@ -130,7 +147,7 @@ As the Author, I want the image-model comparison's grids, its style anchor, and 
 
 1. **Given** a comparison grid or the style anchor, **When** it is committed, **Then** it passes the metadata, record, license-notice, and approval checks (the approval covers the T3 grids for the likeness, and the T1 grids for anything that locates the Author or shows a screen, a logo, or someone else's art).
 2. **Given** an image from arm B or arm D, **When** it is published, **Then** its caption reads "Evaluation output; not used in the site's assets.", and no asset's record names that arm's model without a commercial license (FR-014).
-3. **Given** the media license isn't chosen yet, **When** the note's images come in, **Then** they come under the interim "all rights reserved" notice the note sets.
+3. **Given** the note's images come in, **When** their folder's notice is read, **Then** it is the media license's, all rights reserved, which is also the interim notice the note set (Clarifications, 2026-10-18).
 
 ---
 
@@ -185,7 +202,7 @@ As the Author, I want the room's assets, made from my photos of my desk, window,
 - **A phone that passes the capability check but throttles when hot:** a sustained low frame rate steps the scene down (FR-024).
 - **A studio job runs while visitors are on the site** (after publication): the conversation falls back or degrades, and the assets are unaffected.
 - **The edge itself is unreachable:** the whole site is down. That is spec 001's concern.
-- **The first site asset is ready before the media license is chosen:** it waits (FR-015).
+- **The media license changes later:** a looser license applies only to the files it names, from the change on; a file already published keeps the terms it was published under unless the Author relicenses it (FR-015).
 - **A step used a hosted service:** allowed, by the Author's choice. The record names the service, and the disclosure lists the flow (FR-040).
 - **One file used by several assets** (a shared texture): it has one record entry, and the others refer to it.
 
@@ -231,7 +248,7 @@ Terms used below. **Asset**: any file the studio makes that comes into this repo
 
 - **FR-013**: THE REPOSITORY SHALL hold a license allowlist. Each entry names a license and its version, with the Author's reading of three terms: outputs may be displayed on a public website that also promotes the studio; everywhere, with no territorial exclusion; and the output files may be distributed publicly, in this repository and from the edge. WHEN a record names a model, tool, library, or service whose license and version aren't on the allowlist, THE ARRIVAL CHECK SHALL refuse the asset. A missing or unknown license counts as not allowed.
 - **FR-014**: IF a record names a model held only under an evaluation, research, or non-commercial license, or a model trained on such a model's weights or outputs, THEN THE ARRIVAL CHECK SHALL refuse the asset unless the record cites the studio's commercial license for that model. Today this covers Qwen-Image-2.1 under its research license and FLUX.2 [dev] under its non-commercial license (the evaluation note's arms B and D).
-- **FR-015**: THE ASSETS AND PUBLISHED IMAGES SHALL carry the media license [NEEDS CLARIFICATION: which media license? A: all rights reserved, with a plain notice that viewing and linking are welcome (recommended); B: CC BY-NC-ND 4.0; C: all rights reserved for the Author's likeness and CC BY-NC-ND 4.0 for everything else. See Open Questions, Q1]. Each asset directory, and the published images' folder, SHALL carry a notice naming the license, and THE README's license line SHALL name MIT for code and the media license for those directories. IF an asset sits in a directory without the notice, THEN THE ARRIVAL CHECK SHALL refuse it. WHILE the media license is unchosen, no site asset SHALL merge; the evaluation note's images MAY come in under its interim "all rights reserved" notice.
+- **FR-015**: THE ASSETS AND PUBLISHED IMAGES SHALL carry the media license: all rights reserved, with a plain notice that viewing and linking are welcome (Clarifications, 2026-10-18). Each asset directory, and the published images' folder, SHALL carry a notice naming the license, and THE README's license line SHALL name MIT for code and the media license for those directories. IF an asset sits in a directory without the notice, THEN THE ARRIVAL CHECK SHALL refuse it. The evaluation note's interim "all rights reserved" notice is this license's notice.
 
 **Likeness, originality, and the Author's approval**
 
@@ -270,7 +287,9 @@ Terms used below. **Asset**: any file the studio makes that comes into this repo
 **Provenance and disclosure**
 
 - **FR-033**: WHEN an asset is shown on the site, THE SITE SHALL offer a credits link that reaches that asset's record in at most two clicks.
-- **FR-034**: WHEN the twin's avatar is shown, and WHEN any asset or published image is published, THE SYSTEM SHALL disclose that the likeness is AI-made [NEEDS CLARIFICATION: how? A: both a visible line in the twin's disclosure that the avatar is an AI-made, stylized likeness of the Author, published by the Author's choice, and one machine-readable mark in every published image and model file (the IPTC digital source type for AI-generated media), with nothing else in the file (recommended); B: the visible line only, with files carrying no metadata at all; C: the machine-readable mark only, leaving the twin's AI disclosure unchanged. See Open Questions, Q2].
+- **FR-034**: WHEN the twin's avatar is shown, and WHEN any asset or published image is published, THE SYSTEM SHALL disclose that the likeness is AI-made, both ways (Clarifications, 2026-10-18):
+  - **to people:** a visible line in the twin's disclosure that the avatar is an AI-made, stylized likeness of the Author, published by the Author's choice, in wording the Author approves before the first likeness file is published;
+  - **to machines:** one machine-readable mark in every published image and model file, the IPTC digital source type for AI-generated media, and nothing else in the file (FR-006 allows exactly this mark).
 
 **The studio's GPU**
 
@@ -348,7 +367,7 @@ Terms used below. **Asset**: any file the studio makes that comes into this repo
 
 ## Assumptions
 
-Each recommended default below was chosen because the Author said to trust the recommendations; `/speckit-clarify` can confirm or change any of them (Open Questions, the confirmations).
+Each recommended default below was chosen because the Author said to trust the recommendations, and the clarify session of 2026-10-18 confirmed each one by the Author's direction (Clarifications). Any can be reopened.
 
 - **Scope** (intent 003, open question 7, Claude's recommendation taken). This spec defines the intake for every studio file, and its first arrivals are the evaluation note's images and Phase 2's avatars and animations. The room's assets come through the same intake in Phase 3 (User Story 7), and the room's own spec covers their behavior. Out of scope:
   - the studio's workflow, which runs on the Author's schedule, outside this repository's lifecycle;
@@ -388,7 +407,7 @@ Each recommended default below was chosen because the Author said to trust the r
 - **Local until publication** (ADR 0013, carried from spec 000). Until publication, the gate is `make check` and the Author's `tools/gates/gate`, and nothing is served to visitors. The edge (spec 001) serves the assets once it exists. Spec 000's Assumptions already record this deviation from Principles III and VI.
 - **The studio** is Artificial Indian Games (intents 000 and 003). Its pipeline runs on the Author's machine, and the photos never leave it unless a step uses a hosted service, by the Author's choice.
 - **The likeness in agent sessions.** Committed assets aren't denied to agent sessions, so the reviewer can check them. D1 discloses that they reach Anthropic when read (FR-040d). The Author's photos and the unstripped outputs are denied (FR-003).
-- **The intent's move.** Per `intent/README.md`, the intent moves into this folder as `intent.md` when the Author commits the spec. This spec links it at its current path, and the move updates that link, intent 002's link to it, and the evaluation note's path.
+- **The intent's move.** Per `intent/README.md`, the intent moved into this folder as `intent.md` on 2026-10-18, with this spec's link to it and the evaluation note's path; intent 002's link to it moves with spec 002's branch.
 
 ## Expected Cost Impact
 
@@ -410,9 +429,15 @@ Each recommended default below was chosen because the Author said to trust the r
 | V. Cost is a first-class signal | Yes | No new model call or metered spend from this repository. While the studio holds the GPU, the twin stays inside its $2/day sub-budget, or degrades. Edge transfer is estimated and measured (FR-038). The studio's own model runs are a reading, not a deviation (Assumptions). |
 | VI. Build in public, including failures | Yes | The records, the license allowlist, the comparison, and its likeness grids are public. The studio's workflows, photos, and blinding key stay in the studio, outside the repository (Assumptions). A published mistake gets an incident note (FR-041). |
 | VII. Own the whole product | Yes | The records say which steps a model did and which the Author did by hand, so the credits never overstate either (FR-010). The studio's full-loop ownership is shown, not claimed. |
-| VIII. Honest AI | Yes | The twin is disclosed as an AI wherever its avatar shows, in every mode (FR-026, FR-032). How the AI-made likeness is disclosed and marked is the second open question (FR-034). |
+| VIII. Honest AI | Yes | The twin is disclosed as an AI wherever its avatar shows, in every mode (FR-026, FR-032). The AI-made likeness is disclosed both ways: a visible line, and one machine-readable mark per file (FR-034, Clarifications 2026-10-18). |
 
 ## Open Questions for `/speckit-clarify`
+
+Both questions and all eight confirmations were answered on 2026-10-18, each with its recommended option, by the Author's direction (Clarifications). The text below stays because the Clarifications quote it.
+
+1. **The media license** (FR-015). Answered: A, all rights reserved, with a notice that viewing and linking are welcome.
+2. **Disclosing and marking the AI-made likeness** (FR-034). Answered: A, a visible line and one IPTC mark per file.
+3. **The confirmations.** All eight: yes, as worded.
 
 ### Question 1: The media license (FR-015)
 

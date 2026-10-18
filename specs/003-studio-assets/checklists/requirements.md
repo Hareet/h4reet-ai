@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -46,3 +46,4 @@
   4. The Status line contained the literal marker text, which a marker scan would count as a third marker. Reworded.
   5. Q2's recommended option claimed Article 50 compliance. Softened to what a metadata mark can do, with the plan's research to confirm.
 - **Iteration 2:** every item passes except the two markers, which are left for `/speckit-clarify`.
+- **Clarify, 2026-10-18:** both markers resolved by the Author's direction to take each recommended option (spec.md, Clarifications). Every item passes.
