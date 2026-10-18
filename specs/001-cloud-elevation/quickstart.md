@@ -16,7 +16,7 @@ Spec 000's conventions hold (its [quickstart.md](../000-local-foundations/quicks
 
 | Step | Where | Check |
 |---|---|---|
-| Spec 000's open criteria: SC-001's re-run and SC-002 (interview question 1) | the Author's terminal; spec 000's quickstart §1.2 and §2.2 | their results are in spec 000's T119 table |
+| Spec 000's open criteria: SC-001's re-run and SC-002 (interview question 1). They hold back group 4 only, the first group that needs a stack; groups 1 to 3 can go first (plan §14) | the Author's terminal; spec 000's quickstart §1.2 and §2.2 | their results are in spec 000's T119 table before group 4 starts |
 | An administrator permission set for the Author in IAM Identity Center, and `aws sso login` with it | the console, then the Author's terminal | `aws sts get-caller-identity` names the Author's role. Record the role's name, not the account |
 | The plan interview's nine answers ([research.md](research.md#the-plan-interview-to-ask)) | the Author | recorded in the plan's approval commit |
 
@@ -49,7 +49,7 @@ Spec 000's conventions hold (its [quickstart.md](../000-local-foundations/quicks
    - `/h4reet/cloud/TELEGRAM_BOT_TOKEN`;
    - `/h4reet/cloud/TELEGRAM_CHAT_ID`.
 
-   Never paste either into a note.
+   Never paste either into a note. Terraform never creates or reads these: it only grants the bridge read access to their path (FR-009; research R-26). `make secrets-check` then lists them as present, by name only.
 2. **Apply the config patch:** `config/budgets.yaml` gains `infra.month_estimate_usd` and the `public` section, by the Author's patch, with its ADR.
 3. **Apply `account`** with `rehearsal = true`.
 4. **The rehearsal (SC-009):** wait for AWS to evaluate `h4-rehearsal`; AWS updates budgets up to three times a day, so this can take hours. Then record, from AWS's own timestamps ([aws-alerts.md §3.4](contracts/aws-alerts.md#34-the-rehearsals-record-sc-009)):
@@ -72,16 +72,19 @@ docker run --privileged --rm tonistiigi/binfmt@sha256:<the digest the task pins>
 
 ### 4.2 The apply, the secrets, the first release
 
-1. Apply `prod` (network, VM, volumes, roles, parameters; no edge yet).
-2. Set each `/h4reet/cloud/*` parameter that `write-env.py` names as `__SET_BY_AUTHOR__` ([env-cloud.md §1](contracts/env-cloud.md#1-the-files)). Generate the passwords as `make init-env` does; mint the operator token with `make operator-token ENV=cloud`, and put its hash, not the token, in the parameter.
-3. `make release`. **Expected:** `release.json` printed, the images in ECR with both platforms, and the VM's deployer starting the stack within two minutes. Check through `make cloud-session` and `make status ENV=cloud`, which shows `store: uninitialized` until §4.3.
+1. Apply `prod` (network, VM, volumes, roles, the two bucket-name parameters; no edge yet).
+2. Create each secret parameter [env-cloud.md §2](contracts/env-cloud.md#2-the-cloud-stacks-keys) lists, with `aws ssm put-parameter --type SecureString` from your terminal, and the two non-secret ones you set (the operator token's hash and the tunnel client's public key) as `String`. Terraform never creates or reads any of them ([env-cloud.md §1](contracts/env-cloud.md#1-the-files)). Generate the passwords as `make init-env` does; mint the operator token with `make operator-token ENV=cloud`, and put its hash, not the token, in the parameter. Then `make secrets-check`. **Expected:** no expected name missing. `write-env.py` on the VM refuses to start the stack until then.
+3. **The VM's firewall** (contracts/tunnel.md §8), through `make cloud-session`'s shell on the VM. **Expected:**
+   - a throwaway container on the cloud stack's network can't open a connection to a public address directly, and can through `host.docker.internal:3128` to an allowlisted host;
+   - the credential timer has written both credentials files in the last 30 minutes, and the Systems Manager agent is online, so the `output` chain's metadata rule works.
+4. `make release`. **Expected:** `release.json` printed, the images in ECR with both platforms, and the VM's deployer starting the stack within two minutes. Check through `make cloud-session` and `make status ENV=cloud`, which shows `store: uninitialized` until §4.3.
 
 ### 4.3 The meter of record moves (FR-017, FR-019)
 
-1. `make operator-status ENV=prod`. Record the month's spend, today's spend, today's fallback spend, the crossed ceilings, and the renewal flag.
-2. With `make cloud-session` open: `make operator-init ENV=cloud REASON="move the meter of record from prod (spec 001 FR-019)" MONTH_USD=… DAY_USD=… FALLBACK_TODAY_USD=…`, plus `RENEW=1` if prod's flag was clear.
-3. **Expected:** `make operator-status ENV=cloud` shows the carried values and `normal`, and its audit log holds the `init`. Then `make hello ENV=cloud`, with the local path not yet built, answers `X-H4-Path: fallback` with `route_reason: "local_path_unhealthy"`: one Bedrock call, on the meter of record.
-4. Local prod's route loses its fallback in this group's commit. `make up ENV=prod`, then `make hello ENV=prod`. **Expected:** `route: "local"`. With the model server stopped: 503 `no_fallback_in_stack`, and no Bedrock call from the local tier.
+1. **First, local prod loses its paid route,** so no fallback spend can land on its meter between the reading and the move. This group's commit takes the fallback out of `prod`'s route. `make up ENV=prod`, then `make hello ENV=prod`. **Expected:** `route: "local"`. With the model server stopped: 503 `no_fallback_in_stack`, and no Bedrock call from the local tier.
+2. `make operator-status ENV=prod`. Record the month's spend, today's spend, today's fallback spend, the crossed ceilings, and the renewal flag.
+3. With `make cloud-session` open: `make operator-init ENV=cloud REASON="move the meter of record from prod (spec 001 FR-019)" MONTH_USD=… DAY_USD=… FALLBACK_TODAY_USD=…`, plus `RENEW=1` if prod's flag was clear.
+4. **Expected:** `make operator-status ENV=cloud` shows the carried values and `normal`, and its audit log holds the `init`. Then `make hello ENV=cloud`, with the local path not yet built, answers `X-H4-Path: fallback` with `route_reason: "local_path_unhealthy"`: one Bedrock call, on the meter of record. It reaches the relay's internal listener, so the relay gives it the fixed test identity `192.0.2.10`.
 5. Delete spec 000's hand-made runtime identity in IAM Identity Center: the user, the permission set, and the assignment. Record it; the next `make infra-audit` checks it (FR-013).
 
 ### 4.4 The breach test on dev-cpu (FR-025; SC-008)
@@ -136,7 +139,14 @@ In a private browser window with the network log open, load every page, call hel
 
 Record the host list and the counts. The site's static scan in `make check` is the other half.
 
-### 6.5 SC-011: nothing kept
+### 6.5 The edge's two measurements (FR-032)
+
+1. **CloudFront replaces a forged viewer address.** Send `curl -s -H 'CloudFront-Viewer-Address: 192.0.2.99:1234' https://h4reet.ai/api/status` (an address from the documentation range), while the relay runs a one-off check that counts, never logs, how many requests arrived with an address in `192.0.2.0/24` on the edge listener. **Expected:** zero: CloudFront set the header from the real connection.
+2. **The prefix list admits the VPC origin's traffic.** With the edge live, `make hello` against the public URL answers, and the relay's edge listener counts no `not_through_edge` refusals for it. **Expected:** the security group's `com.amazonaws.global.cloudfront.origin-facing` rule is what lets CloudFront in, and the relay's peer rule (contracts/relay-http.md §1) refuses none of CloudFront's addresses. If the VPC origin's traffic arrives from an address the peer rule refuses, the rule is wrong, and the group stops until it's fixed.
+
+Record both counts, not addresses.
+
+### 6.6 SC-011: nothing kept
 
 1. **A scripted visit:** `evals/visitor_scan.py visit` sends hellos with a marker message through the public edge.
 2. **The scan:** an hour later, `evals/visitor_scan.py scan ENV=prod` and `ENV=cloud`, through the operator's session. It searches every store on both stacks for the marker message, its answers, and the Author's own public address (the test visitor's):

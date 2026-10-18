@@ -158,17 +158,18 @@ Writing the contracts changed twelve details of the first plan commit, each carr
 The plan assumes each recommended answer until you give yours. research.md argues each one.
 1. **Approve now, or after spec 000's open runs?** The spec's Assumptions say spec 000 passes "before this spec is planned", and SC-001's re-run, SC-002, SC-005's dashboard timing, and SC-007 are open. Recommended: approve the plan now; task group 4, the first that needs a stack, waits for SC-001's re-run and SC-002.
 2. **How CloudFront reaches the relay.** Recommended: a VPC origin on a second, private network interface, so only this distribution can reach the relay, and no secret sits in Terraform's state. The trade: from CloudFront to the VM, a request travels as HTTP inside AWS's network. The alternative is TLS end to end, with a certificate on the VM and a shared secret header.
-3. **The instance.** Recommended: a t4g.micro spot instance, about $8 a month idle in all (research R-05). If the thin services don't fit in 1 GiB, a t4g.small, about $10.90, just over the $10 target.
+3. **The instance.** Recommended: a t4g.micro spot instance, about $8.10 a month idle in all (research R-05). If the thin services don't fit in 1 GiB, a t4g.small, about $11.00, just over the $10 target.
 4. **The DNS zone.** Which registrar and DNS provider hold h4reet.ai today? Recommended: the zone in Route 53, with the registrar's name servers pointed at it.
 5. **Apply records.** Recommended: `make infra-record` commits each one on an `ops/apply-*` branch for you to merge.
 6. **FR-013: import or replace spec 000's hand-made Bedrock identity?** Recommended: replace it with a Terraform role the fallback gateway assumes on the VM, then delete the Identity Center user, its permission set, and the old IAM user.
-7. **The local tier's release source.** Recommended: your own release directory, written by `make release`, so the local tier holds no AWS credential.
+7. **The local tier's release source.** Your clarify answer was "both deployers pull it by digest". The plan reads it as the local deployer taking each release by digest from a local source: the images your release build already left in your engine. Recommended: your own release directory, written by `make release`, so the local tier holds no AWS credential. The other reading, the local tier pulling from the registry itself, needs an AWS credential on the local tier.
 8. **A last-resort breaker that switches the site off past a hard stop?** Recommended: not in this spec; the risk is named.
 9. **Telemetry and the public snapshot through the tunnel?** Recommended: yes, so the local tier never holds an AWS credential.
 
 ### Worth knowing
 
-- **No `make apply`.** The plan keeps CLAUDE.md's "There is no `make apply` on purpose". You apply with Terraform yourself, between `make infra-verify`, which matches your saved plan to the reviewed note, and `make infra-record`. CLAUDE.md's infra line still says apply happens "in the protected CI environment"; the guard patch (task group 1) proposes the local-phase wording.
+- **No `make apply`.** The plan keeps CLAUDE.md's "There is no `make apply` on purpose", word for word. You apply with Terraform yourself, between `make infra-verify`, which matches your saved plan to the reviewed note, and `make infra-record`. CLAUDE.md's infra line still says apply happens "in the protected CI environment"; the guard patch (task group 1) keeps that sentence and adds the local-phase wording after it (plan §2).
+- **No secret ever passes through Terraform.** You create each secret parameter yourself with `aws ssm put-parameter`; Terraform only grants read access to their path. That's a named exception to FR-001, for FR-009 (plan Complexity Tracking, research R-26).
 - **The guard rule already exists in part.** Spec 000's bash gate already refuses Terraform's apply, destroy, import, and three state writes; FR-006 grows the list and its spellings.
 - **The new ADRs start at 0024,** since the pin-rule proposal (docs/000-claude-pin-rule) took 0023. They're written in the commit that records your approval (plan §13), from their research entries.
 - **Prices** come from AWS's pricing pages for everything but spot, which AWS publishes only through its API; the spot figures are from trackers that sample it. Two of research.md's AWS sentences come from tonight's web-search summaries of AWS's pages, not the pages themselves: the Budgets free-tier sentence and the VPC origins' private-subnet sentence. The first infra task re-prices the table, and re-reads both, from your terminal.
@@ -183,4 +184,46 @@ The plan assumes each recommended answer until you give yours. research.md argue
 
 ### Review
 
-Pending: one `REVIEW.md` pass by an agent that wrote neither the spec nor the plan, covering both, since the spec's own pass was owed after clarify.
+One `REVIEW.md` pass, by the reviewer agent, which wrote neither the spec nor the plan, over `git diff main...spec/001-cloud-elevation` at 7fb4032: the clarified spec (its pass was owed after clarify) and the draft plan with its companions. **Verdict: BLOCK, one blocker, fixed in this branch's next commit.**
+
+**The blocker (FR-009).** The plan put secret values in Terraform's state. Terraform created each `/h4reet/cloud/*` SecureString with a placeholder and `ignore_changes = [value]`, which only hides the diff. Every refresh reads each value back, decrypted, into `prod.tfstate` and every saved plan: the Telegram token, the SMTP credentials, the database passwords, the tunnel's host key, and the tunnel tokens. **Fixed:** Terraform never creates or reads a secret. You create and update each one with `aws ssm put-parameter --type SecureString`, and Terraform names the path only in IAM policies. `make secrets-check` lists the expected names by name only. The policy's rule T9 now refuses a Terraform SecureString or any data source that reads one. It's recorded as a named exception to FR-001, on FR-009's "Terraform refers to the secret without reading its value" (plan §1.4 and Complexity Tracking; research R-26; contracts/env-cloud.md §1; contracts/infra-records.md §5; quickstart §3 and §4.2; tasks T008, T021, T062, T067).
+
+**What the review found sound:**
+- the guard patch lands before any `infra/` file, and there's no `make apply` target;
+- FR-010's values are supplied at run time and redacted;
+- the meter moves by `operator-init`, so nothing restarts at zero; local prod is refused a paid route; infrastructure cost is booked on the meter;
+- CloudFront's access logs are off, and nginx's log format holds no address;
+- R-05 adds up (8.01 and 10.92, before this commit's ECR change), and plan.md agrees with it;
+- every FR and SC is covered, and `publication-carryover.md` is word for word;
+- the interview questions are real open decisions.
+
+**Its backlog, and what was done:**
+1. **The CLAUDE.md line.** The proposed line had dropped "There is no `make apply` on purpose", though this note said the plan keeps it. Fixed: plan §2 keeps the sentence word for word and adds the local-phase wording after it.
+2. **T4g's unlimited CPU credits.** Surplus credits could bill up to about $50 a month at full CPU, which the meter sees only in the next day's correction. Fixed: the launch template sets standard credits (plan §6.1, research R-04, T062).
+3. **Costs.**
+   - The release contract copied every `images.lock` image (the CUDA model server, Langfuse, ClickHouse) into the registry. Fixed: it copies only the upstream images the cloud stack runs, and the registry keeps the last 3 releases' images. Re-checked against those images' full indexes, R-05's ECR line is now about 3 GiB, $0.30, and the idle totals are about $8.10 and $11.00.
+   - On-demand's extra cost was the price, not the difference; it now reads about $4–7 more.
+   - CloudWatch Synthetics at one run a minute is about $52 a month, not $10. Fixed.
+4. **The web-search sentences.** research.md presented the Budgets and VPC-origin sentences as checked AWS text, and only this note said otherwise. Fixed: the Prices note, R-05, and R-07 say so, and plan §13 carries the caveat into the ADRs written from them.
+5. **The relay's reachability.** Any cloud-stack container could reach `relay:8080` and set `CloudFront-Viewer-Address` to anything, the sink called `/api/status` on a listener that refuses it, and the Author's Systems Manager path reached the relay without the edge. Fixed:
+   - the edge listener refuses peers on the VM itself: loopback, the Docker pool the VM's `daemon.json` fixes, and the VM's own addresses. The daemon runs without the userland proxy, so outside callers keep their source address;
+   - a separate internal listener serves the sink, and the Author's test client at the fixed documentation-range identity `192.0.2.10`, named as FR-032's one exception (contracts/relay-http.md §1–§2, env-cloud.md §7, plan §4.2, §6.2, and Complexity Tracking);
+   - group 6 now measures that CloudFront replaces a forged `CloudFront-Viewer-Address`, and that the prefix list admits the VPC origin's traffic (quickstart §6.5, T092).
+6. **The policy's order in your terminal.** `terraform init` and `plan` ran agent-written HCL with an admin session before the policy saw it. Fixed: `make plan ROOT=…` runs `infra_policy.py` on the HCL first and refuses on a finding, and the plan's JSON is the second pass (contracts/infra-records.md §1 and §5, research R-13 and R-14, plan §1.3, T014).
+7. **The VM's firewall.** It didn't allow instance metadata, so the host services and the Systems Manager agent would get no credentials, and the owner match didn't cover containers. Fixed: the `output` chain allows the link-local endpoints for the users that need them, and a `forward` chain drops containers' traffic outside the pool except to the proxy. Group 4 checks both (contracts/tunnel.md §8, plan §6.3, quickstart §4.2, T061).
+8. **The edge's 502.** Turning every origin 502 into the edge's body hid a real `local_error`. Fixed: the relay never answers 502 or 504. A gateway's 502 becomes a degraded 503 with its cause kept (`local_error`, `upstream_error`), so the edge's 502 and 504 mean only "not reached" (contracts/relay-http.md §6.2 and §7, edge.md §5, research R-08).
+9. **The meter's move.** Quickstart read local prod's meters before removing its Bedrock route. Fixed: the route goes first, then the reading, then the cloud store's initialization (quickstart §4.3, research R-20, T067).
+10. **Consistency.**
+    - The local path's timeout is 12 s everywhere.
+    - The relay reads `v_state` as `relay_ro`.
+    - The estimate's key is `infra.month_estimate_usd` everywhere.
+    - Only group 4 waits for spec 000's runs (quickstart §0).
+    - The spec's Assumptions no longer quote the routing comment T105 replaced; they cite 6c6b23e and main's current comment.
+    - Plan §13 schedules ADR 0013's Consequence update, as the Clarifications require.
+    - Interview question 7 states its reading of your answer and asks.
+    - The plan says local prod's `make up` starts the local tier's whole topology, everything but the cloud-only services, which is how FR-045 is read.
+
+**Still open:**
+- Group 6's two measurements: the forged-header replacement and the prefix list.
+
+The reviewer couldn't re-check the spec's quote of the operator CLI's ports, because the bash gate refuses commands that contain those port numbers. The fix's session read contracts/operator-admin.md §6 on main with the Read tool instead: the quote ("`127.0.0.1` or `localhost`, at the stack's own port (18003, 18103, or 18303) and no other") is word for word.

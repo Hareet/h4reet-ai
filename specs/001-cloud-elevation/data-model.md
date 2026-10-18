@@ -34,7 +34,7 @@ Telemetry's `h4.meter.attribution` takes the new value too.
 | `docs/merge-requests/*.md` | plan blocks (§6.4) | git | FR-005's reviewed plan |
 | `docs/infra/applies/*.md` | apply records (§6.5) | git | FR-007's record |
 | `s3://<site bucket>/site/status/latest.json` | the public view's document (§6.7) | the account | FR-057's last-known values |
-| `~/.config/h4reet-ai/tunnel/`; Parameter Store `/h4reet/cloud/*` | the tunnel's keys and tokens (§6.8), and the cloud stack's secrets | the Author's machine; the account | the tunnel's credentials (FR-055) |
+| `~/.config/h4reet-ai/tunnel/`; Parameter Store `/h4reet/cloud/*` | the tunnel's keys and tokens (§6.8), and the cloud stack's secrets, which the Author creates outside Terraform (research.md R-26) | the Author's machine; the account | the tunnel's credentials (FR-055) |
 | Terraform's state, `s3://h4reet-ai-tfstate-<suffix>/<root>.tfstate` | every cloud resource's state | versioned | the infrastructure's truth (FR-001). Agents never read it (FR-011) |
 
 ## 2. The gateway's schema: migration `0003_infra.sql`

@@ -178,9 +178,14 @@ A VM that is destroyed and recreated reads the same host key from Parameter Stor
 
 The account's registry host is matched by its pattern, `^[0-9]{12}\.dkr\.ecr\.us-east-1\.amazonaws\.com$`. The literal is never committed (FR-010).
 
-nftables on the VM lets only the proxy's user (`h4proxy`) open connections to addresses outside the VPC, except:
-- `tunnel-end`'s replies on 2222;
-- the VPC's own resolver;
-- Amazon Time Sync at 169.254.169.123.
+**nftables on the VM** (`deploy/vm/nftables.conf`) has two chains that matter, because an owner match sees only the host's own processes, never a container's forwarded traffic:
+- **`output` (host processes):** only the proxy's user (`h4proxy`) may open connections to addresses outside the VPC's CIDR. These link-local and VPC endpoints are allowed besides:
+  - the instance metadata service, `169.254.169.254`, for root (cloud-init, `write-env.py`), the Systems Manager agent's user, and the credential timer's user, which need the instance role's credentials;
+  - Amazon Time Sync, `169.254.169.123`;
+  - the VPC's resolver (the VPC base address plus two, and `169.254.169.253`);
+  - replies on established connections, which covers `tunnel-end`'s on 2222.
+- **`forward` (containers):** traffic from the Docker address pool (`172.30.0.0/16`) to anything outside the pool is dropped, except to the proxy on the bridge gateway's address, port 3128. So a container that ignores `HTTPS_PROXY` gets nowhere. Published ports' inbound traffic and its replies stay allowed (established and related).
 
-The security group's egress admits TCP 443 and the SMTP port, as a second layer.
+The instance's metadata hop limit of 1 keeps containers off `169.254.169.254` as well; the `forward` rule is the second layer. Group 4's tests and quickstart check both chains: a container's direct connection to a public address fails, the proxy path works, and the credential timer and the Systems Manager agent still get credentials.
+
+The security group's egress admits TCP 443 and the SMTP port, as a third layer.

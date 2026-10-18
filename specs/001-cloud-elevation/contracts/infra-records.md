@@ -15,14 +15,15 @@ It also fixes the credential audit (FR-008).
 | Command | Who | Needs |
 |---|---|---|
 | `make plan` with no `ROOT` | anyone; in an agent session it's the offline checks only (§5) | the provider mirror |
-| `make plan ROOT=<root>` | the Author's terminal | the Author's SSO session, and `~/.config/h4reet-ai/infra/<root>.env` |
+| `make plan ROOT=<root>` | the Author's terminal; the policy on the HCL first, before `init` (§5) | the Author's SSO session, and `~/.config/h4reet-ai/infra/<root>.env` |
+| `make secrets-check` | the Author's terminal | `ssm:DescribeParameters` only: it lists which of the expected `/h4reet/cloud/*` names exist, and their types, and never reads a value ([env-cloud.md §1](env-cloud.md#1-the-files)) |
 | `make infra-verify ROOT=<root>` | the Author's terminal; refused to agents | the same, plus the saved plan |
 | `terraform -chdir=infra/<root> apply <saved plan>` | the Author's terminal; refused to agents in every spelling (R-16) | the same |
 | `make infra-record ROOT=<root> OUTCOME=<ok\|failed>` | the Author's terminal; refused to agents | the applied plan, and `terraform show -json` of the state after |
 | `make infra-audit` | the Author's terminal | read-only IAM calls |
 | `make infra-mirror` | the Author's terminal | registry access |
 
-`~/.config/h4reet-ai/infra/<root>.env` holds the root's run-time values as `TF_VAR_…` lines: the alert email address, the Telegram chat ID, and the state bucket's suffix. Its mode is 0600, it sits under spec 000's deny of `~/.config/h4reet-ai`, and `make plan` reads it as data, never by `source`.
+`~/.config/h4reet-ai/infra/<root>.env` holds the root's run-time values as `TF_VAR_…` lines: the alert email address and the state bucket's suffix. No secret is ever a Terraform variable: the secrets go straight to Parameter Store from the Author's terminal ([env-cloud.md §1](env-cloud.md#1-the-files)). Its mode is 0600, it sits under spec 000's deny of `~/.config/h4reet-ai`, and `make plan` reads it as data, never by `source`.
 
 ## 2. The plan block (FR-005)
 
@@ -58,7 +59,7 @@ Plan: 1 to add, 0 to change, 0 to destroy.
 **The text** is `terraform show -no-color <saved plan>`, through `tools/gates/infra_redact.py`, which:
 - replaces every run of exactly 12 digits with `<account>` (ARNs, registry hosts, and principals included);
 - replaces every email address with `<email>`;
-- replaces every value Terraform marks `(sensitive value)`, and every attribute named in the root's `redact.txt` (for example the Telegram chat ID's variable), with `<redacted>`;
+- replaces every value Terraform marks `(sensitive value)`, and every attribute named in the root's `redact.txt` (for example the alert email address's variable), with `<redacted>`;
 - refuses, so prints no block, if after those rules the text still matches the gate's secret patterns: gitleaks' rules, `h4op_`, and private-key headers.
 
 ## 3. The gate's check: `infra-plan-note`
@@ -111,10 +112,10 @@ Run by `make check`, PLANNED until the provider mirror exists:
 | T6 | every S3 bucket has a `aws_s3_bucket_public_access_block` with all four settings on, and no bucket policy grants `"Principal": "*"` without an `aws:SourceArn` condition naming this account's distribution |
 | T7 | no security group ingress from `0.0.0.0/0` or `::/0`, except the tunnel's port 2222 on the public interface's group |
 | T8 | no literal 12-digit number, email address, or key-shaped string in any `.tf` file (FR-009, FR-010) |
-| T9 | every `aws_ssm_parameter` of type `SecureString` has `value = "__SET_BY_AUTHOR__"` and `ignore_changes = [value]` (FR-009) |
+| T9 | no `aws_ssm_parameter` resource of type `SecureString`, and no `aws_ssm_parameter` or `aws_secretsmanager_secret_version` data source anywhere: Terraform never creates or reads a secret (FR-009: "Terraform refers to the secret without reading its value"). The secret parameters' path, `/h4reet/cloud/*`, appears only in IAM policies ([env-cloud.md §1](env-cloud.md#1-the-files)) |
 | T10 | `.terraform.lock.hcl` exists in each root, and its `hashicorp/aws` version is the one `.devcontainer/toolchain.vars` pins |
 
-**In the Author's terminal,** `make plan ROOT=<root>` runs the same rules on `terraform show -json <saved plan>`, which also covers what a module computes. T2 then reads the planned `tags_all`.
+**In the Author's terminal, the policy runs twice, and first on the HCL.** `terraform init` and `terraform plan` run agent-written configuration with the Author's administrator session, so `make plan ROOT=<root>` runs `infra_policy.py` on the root's HCL, and the modules it uses, **before** `init`, and refuses on any finding. T4 and T3 matter most there: a provisioner, an `external` data source, or an unpinned provider is refused before Terraform can run it. Only then does it run `init` and `plan`, and then the same rules a second time on `terraform show -json <saved plan>`, which also covers what a module computes. T2 then reads the planned `tags_all`.
 
 ## 6. The apply record
 

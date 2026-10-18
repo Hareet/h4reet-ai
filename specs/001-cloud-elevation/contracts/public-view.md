@@ -34,7 +34,7 @@ If it passes, the sink keeps the local part in memory, replacing the last one, a
 
 **Every 120 s, and after each accepted local part,** the sink:
 1. **Reads the cloud part** from the cloud stack's store as `grafana_ro`: `gateway.v_state` (the kill switch, the meters, the fallback's allowance) and the month's `infra` total ([data-model.md §2.3](../data-model.md#23-the-view-v_state-grows-two-columns)).
-2. **Reads** the relay's `GET /api/status`, for the local tier's status and the tunnel.
+2. **Reads** the relay's `GET /api/status` on its internal listener, `http://relay:8081/api/status`, for the local tier's status and the tunnel. The edge listener would refuse it, as a caller on the VM itself ([relay-http.md §1](relay-http.md#1-listener-reachability-and-common-rules)).
 3. **Merges** the last local part, with its own `taken_at`, and the cloud part, with its own, into the document (§3).
 4. **Writes** it to `s3://<site bucket>/site/status/latest.json` with `Content-Type: application/json` and `Cache-Control: max-age=60`, as its role `h4-prod-public-view-writer` ([env-cloud.md §7](env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy)), through the egress proxy.
 

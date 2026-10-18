@@ -25,7 +25,7 @@ The edge is one CloudFront distribution in `infra/prod/edge.tf`. Its cache and o
 | ID | What | Protocol | Access |
 |---|---|---|---|
 | `site` | the site's S3 bucket (`h4reet-ai-site-<suffix>`), prefix `site/` | HTTPS | origin access control (SigV4). The bucket's policy admits only this distribution's ARN, and Block Public Access is on (FR-028) |
-| `relay` | a VPC origin: the VM's `eth0`, `10.42.1.10`, port 8080 | HTTP, inside AWS's network (research R-07) | the security group admits only `com.amazonaws.global.cloudfront.origin-facing` on 8080 (FR-032) |
+| `relay` | a VPC origin: the VM's `eth0`, `10.42.1.10`, port 8080 | HTTP, inside AWS's network (research R-07) | the security group admits only `com.amazonaws.global.cloudfront.origin-facing` on 8080 (FR-032), and the relay refuses peers on the VM itself ([relay-http.md §1](relay-http.md#1-listener-reachability-and-common-rules)). Group 6 measures that the prefix list admits the VPC origin's traffic (quickstart §6.5) |
 
 - **The relay origin's timeouts:** connect 5 s, one connection attempt, read (response) 30 s, keep-alive 5 s. The read timeout is longer than the relay's 28 s deadline ([relay-http.md §3](relay-http.md#3-post-apihello-processing-order)).
 - **No custom origin headers:** nothing secret is configured on the distribution or held in Terraform's state (FR-009).
@@ -67,6 +67,7 @@ FR-034. **Custom error responses,** distribution-wide:
 | 403, 404 (from the site's bucket) | 404 | `/404.html` | 60 |
 
 - **503 is not in the list, on purpose.** A custom error response replaces the origin's body, and the relay's own 503s are degraded bodies whose causes the visitor and the site need, so they pass through unchanged. A relay that is down gives CloudFront a 502 (connection refused) or a 504 (a timeout), and only those become the edge's degraded body.
+- **The relay never answers 502 or 504 itself.** A gateway's 502, such as spec 000's `local_error`, becomes a degraded 503 at the relay, with its cause kept ([relay-http.md §6.2](relay-http.md#62-choosing-and-falling-back-once)). So a 502 or 504 here can only mean the relay wasn't reached, and replacing it hides nothing.
 - **`/_degraded/api.json`** is spec 000's degraded body with cause `edge_origin_unreachable` ([relay-http.md §7](relay-http.md#7-causes-the-relay-adds)):
 
   ```json

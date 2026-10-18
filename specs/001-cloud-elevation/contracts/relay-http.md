@@ -13,9 +13,15 @@ The gateway's own answers, which the relay passes on, are spec 000's [gateway-ht
 
 ## 1. Listener, reachability, and common rules
 
-- **Where it listens.** Port 8080 in its container.
-  - **On the cloud stack:** compose publishes it at the literal `10.42.1.10:8080`, the VM's private interface, which is CloudFront's VPC origin ([edge.md §2](edge.md#2-origins)). Nothing else reaches that address: its security group admits only CloudFront's origin-facing prefix list (FR-032).
-  - **On dev and dev-cpu (the `dev-relay` profile):** it isn't published. The breach probe calls `http://relay:8080` on the stack's network.
+- **Where it listens.** Two listeners in its container:
+  - **8080, the edge listener.** On the cloud stack, compose publishes it at the literal `10.42.1.10:8080`, the VM's private interface, which is CloudFront's VPC origin ([edge.md §2](edge.md#2-origins)). Its security group admits only CloudFront's origin-facing prefix list. That keeps the internet out, but not the VM's own containers and host processes, which reach `relay:8080` directly. So, on the cloud stack, the edge listener refuses with 403 `not_through_edge` any request whose TCP peer is:
+    - a loopback address;
+    - an address in the Docker address pool the VM's `daemon.json` fixes (`default-address-pools`, `172.30.0.0/16`), which every compose network on the VM is cut from;
+    - one of the VM's own interface addresses (`10.42.1.10`, `10.42.0.10`).
+
+    Traffic from outside the VM keeps its source address through Docker's published-port NAT, because the VM's daemon runs with `"userland-proxy": false`, so no proxy rewrites it. Whether CloudFront's VPC-origin traffic arrives from the origin-facing ranges or from its service interface in the private subnet, it's in none of those three, and is admitted (measured in group 6, quickstart §6.5).
+  - **8081, the internal listener,** on the `internal` network only, and published at the VM's `127.0.0.1:18505` for the operator's session. It serves `GET /api/status` to other services (the snapshot sink), and `POST /api/hello` for the Author's test client only (§2). It never serves a visitor.
+  - **On dev and dev-cpu (the `dev-relay` profile):** neither listener is published, and the edge listener's peer rule is off, since there the peer is the caller (§2). The breach probe calls `http://relay:8080` on the stack's network.
 - **Its paths:**
   - CloudFront forwards `/api/hello` and `/api/status` with the `/api` prefix, and the relay serves them as written.
   - `GET /health/live` is for the container's own check, answers `{"status":"live"}`, and produces no span.
@@ -30,11 +36,8 @@ The gateway's own answers, which the relay passes on, are spec 000's [gateway-ht
 
 - **Where it comes from:** CloudFront sets `CloudFront-Viewer-Address` to the visitor's address and port, as `<ip>:<port>` (an IPv6 address is in brackets). The relay keeps the address and drops the port.
 - **Without that header,** the request didn't come through the edge: 403 `{"error":"not_through_edge","request_id":"…"}`, counted, with no address logged. On dev and dev-cpu, where no edge exists, the relay takes the address from its TCP peer instead. That is `H4_STACK`-dependent, never a header a caller chooses.
-- **What makes the header trustworthy** is the network, not the header. Only two things reach `10.42.1.10:8080`:
-  - CloudFront's VPC origin, which sets the header itself;
-  - the Author's Systems Manager session ([env-cloud.md §7](env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy)), whose test client sends a documentation-range address.
-
-  No other caller has a route to it (FR-032).
+- **What makes the header trustworthy** is the path, not the header. On the edge listener, the security group lets in only CloudFront's origin-facing ranges, and §1's peer rule refuses everything on the VM itself, so only CloudFront's VPC origin, which sets the header, reaches it (FR-032). CloudFront replaces a `CloudFront-Viewer-Address` a visitor sends with its own; group 6 measures that by sending a forged one (quickstart §6.5).
+- **The one exception, named (FR-032):** the Author's test client. `make hello ENV=cloud` reaches the internal listener through the Author's Systems Manager session ([env-cloud.md §7](env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy)), an identity-based, short-lived session on the Author's own SSO login, before the edge exists and for tests after. The internal listener ignores any `CloudFront-Viewer-Address` and always uses the fixed address `192.0.2.10`, from the documentation range, as the client's identity, with the same cap, kill switch, and path as a visitor. So a caller on the internal network can't choose an identity either, and the relay tells the test client from a visitor by the listener it arrived on, never by a header.
 - **What the relay sends on:**
   - to the fallback gateway, as the one value of `X-Forwarded-For`. The gateway believes it because the relay is a trusted peer on the cloud stack ([data-model.md §3](../data-model.md#3-routing-the-cloud-stacks-class));
   - to the local path, as `X-H4-Viewer`. The local `edge`'s tunnel block moves it into `X-Forwarded-For` after its token check ([tunnel.md §5](tunnel.md#5-the-local-edges-tunnel-blocks)).
@@ -50,7 +53,7 @@ Each step passes or answers.
 4. **Validation,** spec 000's rules for hello's body (`Content-Type: application/json`, at most one field, `message`, 1 to 500 code points). The relay checks them itself, so an invalid body never crosses the tunnel. The answers are spec 000's 415 and 400 shapes.
 5. **The kill switch of record** (§5). Unknown or tripped: 503, spec 000's degraded body, with no forwarding.
 6. **The path** (§6). The relay forwards to the local path while it's healthy, else to the fallback gateway. A failed or degraded local answer goes to the fallback gateway once.
-7. **The answer.** The gateway's 200, 429, 502, or 503 passes through with its body unchanged, plus `X-H4-Path` and the relay's own `X-Request-Id`, which is the same ID.
+7. **The answer.** The gateway's 200, 429, or 503 passes through with its body unchanged, plus `X-H4-Path` and the relay's own `X-Request-Id`, which is the same ID. A 502 never does: the relay turns it into a degraded 503 that keeps its cause (§6.2), so at the edge a 502 or 504 always means the relay wasn't reached ([edge.md §5](edge.md#5-the-edges-own-degraded-body)).
 
 **The deadline** is 28 s from arrival: the local path gets at most 12 s, and the fallback what remains. CloudFront's origin read timeout is 30 s ([edge.md §2](edge.md#2-origins)), so the edge never cuts an answer the relay would still give. If the fallback gateway gets less than 5 s, the relay answers degraded, `no_path_available`, instead of starting a call it can't finish.
 
@@ -118,11 +121,11 @@ Counted in memory, per address, in the relay process.
 | healthy | `POST http://tunnel-end:2201/hello`, the visitor's body unchanged, with `Authorization`, `X-H4-Viewer`, `X-Request-Id`, and `Content-Type`; at most 12 s | – |
 | healthy, but the call fails: refused, reset, or over 12 s | marks the path unhealthy, then calls the fallback gateway | `failed` |
 | healthy, but it answers 503 with `X-H4-Degraded-Cause` | the path stays as its checks say; calls the fallback gateway | `degraded` |
-| healthy, but it answers 502 `local_error` | passes the 502 through: the local model rejected the request, and retrying elsewhere would spend for nothing (spec 000's rule) | – |
+| healthy, but it answers 502 `local_error` | doesn't fall back: the local model rejected the request, and retrying elsewhere would spend for nothing (spec 000's rule). It answers 503 with spec 000's degraded body and the cause `local_error` (§7), so the edge never sees a 502 from the relay | – |
 | unhealthy | calls the fallback gateway at once | `unhealthy` |
 
 - **The fallback call** is `POST http://gateway:8080/hello` on the cloud stack, with `X-Forwarded-For`, `X-Request-Id`, and `X-H4-Local-Path`.
-- **The fallback gateway's answer** passes through as it is: a 200 with `route: "fallback"`, or a degraded body naming its own cause (`fallback_awaiting_renewal`, `meter_at_ceiling`, and so on).
+- **The fallback gateway's answer** passes through as it is: a 200 with `route: "fallback"`, or a degraded body naming its own cause (`fallback_awaiting_renewal`, `meter_at_ceiling`, and so on). A 502 from it (no route in `prod-cloud` produces one, but a fault could) becomes a degraded 503 with the cause `upstream_error`.
 - **Once only.** The relay never retries the fallback gateway, and never goes back to the local path within one request.
 - **If the relay can't reach the fallback gateway** (a refused connection or a timeout), the answer is 503 `no_path_available` (§7).
 
@@ -137,11 +140,15 @@ Spec 000's degraded body, with `stack` set to `"cloud"` and `trace_id` set to th
 | Cause | Meaning | `since` | `detail` (fixed text) |
 |---|---|---|---|
 | `no_path_available` | the local path is unhealthy, failed, or degraded, and the fallback gateway didn't answer, or too little of the deadline was left for it (FR-034) | when the fallback gateway was last unreachable; null for the deadline case | Neither the Author's machine nor the cloud fallback can answer right now. |
+| `local_error` | the local path answered spec 000's 502 `local_error`: the local model rejected this request. The relay doesn't fall back (§6.2) | null | The Author's machine couldn't answer this message. |
+| `upstream_error` | the fallback gateway answered 502, which no `prod-cloud` route should produce | null | The cloud fallback couldn't answer this message. |
 | `edge_origin_unreachable` | the edge couldn't reach the relay. CloudFront serves this body itself, never the relay ([edge.md §5](edge.md#5-the-edges-own-degraded-body)) | null | The site's API is not answering. The edge answered instead. |
 
 The relay also answers with three of spec 000's causes from its own read (§5): `store_unreachable`, `store_uninitialized`, and `kill_switch_tripped`, with spec 000's fixed texts.
 
 **Refusals, not degraded states:** `not_through_edge` (403), `probe_not_allowed` (400), and `relay_cap_exceeded` (429).
+
+**The relay never answers 502 or 504.** Its own failures are 503s with a cause, so CloudFront's custom 502 and 504 responses mean only that the relay wasn't reached.
 
 ## 8. `GET /api/status` (FR-037)
 
@@ -207,4 +214,4 @@ The vitest suite in `services/relay/test/` uses:
 - a PGlite store with the `v_state` view;
 - a stub fallback gateway, and a stub local path that can be healthy, slow, refusing, degraded, or 502.
 
-Each row of §3, §4, §5, §6.2, and §7 is a case. The suite also asserts that no log line holds the test's marker message or the test's address.
+Each row of §3, §4, §5, §6.2, and §7 is a case, and so are §1's peer rule (a loopback, a pool, and an own-interface peer refused on the edge listener with `H4_STACK=cloud`; an outside peer admitted) and §2's exception (the internal listener ignoring a sent `CloudFront-Viewer-Address`). The suite also asserts that no log line holds the test's marker message or the test's address, and that no answer is a 502 or 504.

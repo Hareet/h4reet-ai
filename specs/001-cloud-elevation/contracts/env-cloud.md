@@ -15,10 +15,15 @@ This contract extends spec 000's [env-files.md](../../000-local-foundations/cont
 
 **`__SSM__` is a fifth source** beside spec 000's fixed, filled, generated, asked, and dummy. `deploy/vm/write-env.py`, which cloud-init runs, writes the file:
 - **Reading:** it reads `/h4reet/cloud/*` with the instance role and `WithDecryption`, then copies the template, replacing each `__SSM__` with its parameter's value.
-- **Refusals:** it refuses to write the file while any parameter still holds Terraform's placeholder `__SET_BY_AUTHOR__`, naming the keys, so the stack never starts on a placeholder.
+- **Refusals:** it refuses to write the file while any `__SSM__` key's parameter is missing, naming the missing keys, so the stack never starts without one.
 - **Logging:** it logs key names only.
 
-**Placeholders in Terraform's state.** Terraform creates every `/h4reet/cloud/<KEY>` parameter as a SecureString holding `__SET_BY_AUTHOR__`, with `lifecycle { ignore_changes = [value] }`. The state never holds a value (FR-009). The Author sets each one with `aws ssm put-parameter --overwrite`, from the Author's terminal (quickstart §4.2).
+**Terraform never holds a secret parameter (FR-009).** The spec asks that "Terraform refers to the secret without reading its value" (FR-009). A Terraform-managed `aws_ssm_parameter` can't meet that: even with a placeholder and `lifecycle { ignore_changes = [value] }`, every refresh reads the SecureString back, decrypted, into the state and into every saved plan. So:
+- **The secret parameters** (every row of §2 marked "yes" under Secret) are created and updated only by the Author, with `aws ssm put-parameter --type SecureString --overwrite`, from the Author's terminal (quickstart §4.2). Terraform names their path, `/h4reet/cloud/*`, only in IAM policies: the instance role's read grant and the alert bridge's (`/h4reet/cloud/TELEGRAM_*`). No `aws_ssm_parameter` resource and no `aws_ssm_parameter` data source names one.
+- **The non-secret parameters** whose values Terraform already knows, the two bucket names (`H4_SITE_BUCKET`, `H4_RELEASE_BUCKET`), are `String` parameters Terraform writes. The other non-secret ones the Author sets (`OPERATOR_TOKEN_SHA256`, `H4_TUNNEL_AUTHORIZED_KEY`) are `String` parameters the Author writes the same way as the secrets.
+- **`make secrets-check`** (the Author's terminal) lists which expected names exist under `/h4reet/cloud/`, by name and type only, with `aws ssm describe-parameters`: it never reads a value. `write-env.py`'s refusal is the same check at boot.
+
+This is a named exception to FR-001 ("THE SYSTEM SHALL define every cloud resource in Terraform"): the secret parameters are cloud resources Terraform doesn't define (plan Complexity Tracking; research.md R-26).
 
 ## 2. The cloud stack's keys
 
@@ -137,10 +142,12 @@ h4_expires_at = 2026-11-02T14:31:07Z
 | Local port | Document | Reaches | For |
 |---|---|---|---|
 | `127.0.0.1:18503` | `AWS-StartPortForwardingSession` | the VM's `127.0.0.1:18503`, the admin listener | `make operator-* ENV=cloud` |
-| `127.0.0.1:18505` | `AWS-StartPortForwardingSessionToRemoteHost`, host `10.42.1.10`, port 8080 | the relay | `make hello ENV=cloud`, before the edge exists and for tests after |
+| `127.0.0.1:18505` | `AWS-StartPortForwardingSession` | the VM's `127.0.0.1:18505`, the relay's internal listener ([relay-http.md §1](relay-http.md#1-listener-reachability-and-common-rules)) | `make hello ENV=cloud`, before the edge exists and for tests after |
 
 - **The operator CLI:** `scripts/operator.py`'s `--url` rule widens by one stack: `127.0.0.1` or `localhost`, at the stack's own port, and for `ENV=cloud` that is 18503. The token file is `~/.config/h4reet-ai/operator/cloud.token`.
-- **The hello client:** for `ENV=cloud`, `scripts/hello.py` calls `http://127.0.0.1:18505/api/hello` and sends `CloudFront-Viewer-Address: 192.0.2.10:443`, an address from the documentation range. That's the Author's test identity; it never stands for a visitor.
+- **The hello client:** for `ENV=cloud`, `scripts/hello.py` calls `http://127.0.0.1:18505/api/hello`. The internal listener gives every request the fixed identity `192.0.2.10`, an address from the documentation range, whatever the client sends: that's the Author's test identity, it never stands for a visitor, and it's FR-032's one named exception ([relay-http.md §2](relay-http.md#2-the-clients-address-fr-032)).
+
+**The VM's Docker daemon** (`deploy/vm/daemon.json`): `"userland-proxy": false`, so traffic to a published port keeps its source address, and `"default-address-pools": [{"base": "172.30.0.0/16", "size": 24}]`, so every compose network on the VM comes from one range the relay's peer rule refuses ([relay-http.md §1](relay-http.md#1-listener-reachability-and-common-rules)).
 
 **The egress proxy** (R-10) listens on the host's `127.0.0.1:3128` and on the Docker bridge gateway's address, so containers reach it as `host.docker.internal:3128` through compose's `extra_hosts: host.docker.internal:host-gateway`. On cloud, the compose policy allows that entry on the gateway and `snapshot-sink` only. Its allowlist is in [tunnel.md §8](tunnel.md#8-the-vms-egress-allowlist).
 

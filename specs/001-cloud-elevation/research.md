@@ -4,6 +4,8 @@ Phase 0 output of `/speckit-plan`, **drafted on 2026-10-18 for the Author's appr
 
 **Prices.** FR-021 asks the plan to estimate each idle line "from published prices". The figures below were checked on 2026-10-18 against AWS's pricing pages and, for spot prices, which AWS publishes only through its API and console, against third-party trackers that sample them. They are list prices in us-east-1, without the free tier unless a line says so. [R-05](#r-05-the-idle-budget-line-by-line) gives the table, and tasks.md re-prices it from the pages in the Author's terminal before the first apply, since spot prices move hourly.
 
+**Two sentences quoted below came from web-search summaries of AWS's pages, not from the pages themselves:** the AWS Budgets free-tier sentence (R-05) and the VPC origins' private-subnet sentence (R-07). They are AWS's wording as the summaries gave it, unchecked against the live pages, which agent sessions can't fetch. The first infra task re-reads both pages from the Author's terminal, and the ADRs written from these entries carry the same caveat until then.
+
 **No `NEEDS CLARIFICATION` remains** in the plan's Technical Context. What stays open is the Author's to answer (the interview below), or measured in a named task (R-04's memory fit, R-08's error-page header).
 
 ## The plan interview, to ask
@@ -14,11 +16,11 @@ Each row is a question for the Author, the recommended option, and the entry tha
 |---|---|---|---|
 | 1 | Spec 000 isn't finished: SC-001's re-run, SC-002, SC-005's dashboard timing, and SC-007 are open, and the spec's Assumptions say spec 000 passes "before this spec is planned". Approve this plan now, with tasks starting only after those runs, or wait? | Approve the plan now; the first task group that needs a stack (group 4, the cloud VM) waits for SC-001's re-run and SC-002 | plan Summary |
 | 2 | How should CloudFront reach the relay on the cloud VM? | A VPC origin, through a second network interface in a private subnet: only this distribution can reach the relay, and no secret sits in Terraform's state. CloudFront to the VM runs over HTTP inside AWS's network | R-07 |
-| 3 | Which instance? | A t4g.micro (Graviton, 1 GiB) as spot, about $8.00 a month idle in all; a t4g.small, about $10.90 and so just over the target, if the memory doesn't fit | R-04, R-05 |
+| 3 | Which instance? | A t4g.micro (Graviton, 1 GiB) as spot, about $8.10 a month idle in all; a t4g.small, about $11.00 and so just over the target, if the memory doesn't fit | R-04, R-05 |
 | 4 | Where does the h4reet.ai zone live? Which registrar and DNS provider hold it today? | Route 53 in the project's account, with the registrar's name servers pointed at it by you | R-09 |
 | 5 | How does an apply record reach `main`? | `make infra-record` writes it on a branch `ops/apply-<root>-<date>` that you merge, like any note | R-13 |
 | 6 | Spec 000's hand-made Bedrock runtime identity: import it, or replace it (FR-013)? | Replace it with a Terraform role the fallback gateway assumes on the VM, then delete the Identity Center user, its permission set, and the old IAM user | R-15 |
-| 7 | The local tier's release source before publication | Your own release directory, which `make release` writes as it pushes to the registry; no AWS credential on the local tier | R-17 |
+| 7 | The local tier's release source before publication. Your clarify answer was "the Author's terminal builds each release once and publishes it to a private registry in the account, and both deployers pull it by digest". The plan reads "both deployers pull it by digest" as: the local deployer takes the release by digest from a local source, the images your release build already left in your engine, checked by index digest. Is that right, or should the local tier pull from the registry itself, which needs an AWS credential on the local tier? | Your own release directory, which `make release` writes as it pushes to the registry; no AWS credential on the local tier | R-17 |
 | 8 | A last-resort breaker that switches the edge off if the account's bill passes a hard stop? | Not in this spec. The budgets alert, the meter bounds model spend, and the risk is named. Say if you want one, and at what amount | R-06 |
 | 9 | Telemetry from the cloud, and the public snapshot, both through the tunnel? | Yes: the cloud collector exports through the tunnel, and the local tier's snapshot goes up through it, so the local tier never holds an AWS credential | R-11, R-19 |
 
@@ -38,7 +40,7 @@ Each row is a question for the Author, the recommended option, and the entry tha
 
 **Decision.**
 - **Tool:** Terraform (HashiCorp), the version and the `hashicorp/aws` provider pinned in `.devcontainer/toolchain.vars` and in each root's `required_version` and `.terraform.lock.hcl`, which `.gitignore` already commits ("pins the providers (lockfile pinning, spec 000 FR-014; Terraform arrives with spec 001)"). The exact versions are chosen in the first infra task from the Author's terminal, the only place with registry access, and recorded there. No other provider: `random`, `null`, `external`, `local`, and `http` are refused by the policy check (R-14), as are `local-exec` and `remote-exec` provisioners.
-- **Roots,** each with its own state key: `infra/bootstrap` (the state bucket, the budgets, the anomaly monitor, the alert topic, and the email route; FR-003, FR-022), `infra/account` (the budget action and its rehearsal, the alert bridge, the uptime probe, the registry, the release bucket, the deny policy; FR-023, FR-026, FR-061), and `infra/prod` (the network, the VM and its volumes, its roles, the DNS zone, the certificate, the edge, the site's bucket, the secrets' entries). Shared code in `infra/modules/`.
+- **Roots,** each with its own state key: `infra/bootstrap` (the state bucket, the budgets, the anomaly monitor, the alert topic, and the email route; FR-003, FR-022), `infra/account` (the budget action and its rehearsal, the alert bridge, the uptime probe, the registry, the release bucket, the deny policy; FR-023, FR-026, FR-061), and `infra/prod` (the network, the VM and its volumes, its roles and their read grant on the secrets' path, the two non-secret bucket-name parameters, the DNS zone, the certificate, the edge, the site's bucket). The secret parameters themselves are the Author's, outside Terraform (R-26). Shared code in `infra/modules/`.
 - **Environments by root, not by workspace.** FR-006 refuses agents `workspace new` and `workspace delete`, and a root per environment keeps a plan's blast radius on its name. An ephemeral cloud dev VM, if the Author ever wants one, is a fourth root with its own tag and budget (spec Assumptions: "Each ephemeral VM gets its own role, tag, and budget").
 - **Tags** come from each root's `provider "aws" { default_tags { ... } }`: `project = "h4reet-ai"`, `environment = "prod" | "account"`, plus a `component` tag on every resource. FR-002's check reads them (R-14).
 
@@ -62,7 +64,7 @@ Each row is a question for the Author, the recommended option, and the entry tha
 ### R-13: The plan in the note, and the apply record (FR-005, FR-007)
 
 **Decision.**
-- **`make plan ROOT=<root>`** (the Author's terminal, CLAUDE.md's existing command) runs `terraform init` and `plan -out` into `~/.config/h4reet-ai/infra/plans/<root>-<tree>.tfplan`, where `<tree>` is the git tree hash of `infra/` at HEAD. It then prints the plan through `tools/gates/infra_redact.py`, which removes account IDs (12-digit runs, and ARNs' account fields), email addresses, the Telegram chat ID, and any value Terraform marks sensitive. Its output is a fenced block that names the root and the tree hash, ready to paste into the merge-request note. In an agent session, with no AWS credentials, `make plan` runs the offline checks instead (R-14) and says so.
+- **`make plan ROOT=<root>`** (the Author's terminal, CLAUDE.md's existing command) first runs `tools/gates/infra_policy.py` on the root's HCL and refuses on any finding, because `init` and `plan` run agent-written configuration with the Author's administrator session (R-14). Then it runs `terraform init` and `plan -out` into `~/.config/h4reet-ai/infra/plans/<root>-<tree>.tfplan`, where `<tree>` is the git tree hash of `infra/` at HEAD. It then prints the plan through `tools/gates/infra_redact.py`, which removes account IDs (12-digit runs, and ARNs' account fields), email addresses, and any value Terraform marks sensitive. No secret is a Terraform value to begin with (R-26). Its output is a fenced block that names the root and the tree hash, ready to paste into the merge-request note. In an agent session, with no AWS credentials, `make plan` runs the offline checks instead (R-14) and says so.
 - **FR-005's gate step**, `infra-plan-note`, in `make check` and the Author's gate: for a branch whose diff touches `infra/<root>/` or `infra/modules/`, the note must hold a block for each affected root whose tree hash equals `git rev-parse HEAD:infra`, and the block must pass the redaction check. A later `infra/` commit makes the block stale, and the gate fails until a new plan is pasted.
 - **No `make apply`.** CLAUDE.md: "There is no `make apply` on purpose". The Author applies with Terraform directly, between two make targets:
   1. `make infra-verify ROOT=<root>` checks that the checkout is `main`, clean, at the merge that carried the note; that the saved plan's tree hash is `main`'s; and that `terraform show -json` of the saved plan, redacted, matches the note's block. It prints the one apply command to run.
@@ -78,12 +80,13 @@ Each row is a question for the Author, the recommended option, and the entry tha
 
 **Decision.**
 - **A provider mirror the Author seeds.** `make infra-mirror` (the Author's terminal) runs `terraform providers mirror` for the pinned versions into `~/.local/share/h4reet/terraform-providers`, as the agents' engine's images are seeded. That's where spec 000's lint toolchain lives too: readable by agents, and outside every sandbox write root. Agent sessions run `terraform init -backend=false` against it with a CLI configuration that names only that mirror, then `fmt -check` and `validate`. The sandbox gets no new domain (spec Assumptions: "Opening the sandbox would be the Author's decision").
-- **`tools/gates/infra_policy.py`** (human-only, like the other gates), on the HCL parsed by `python-hcl2` (pinned and hashed in the tools' requirements), and in the Author's terminal also on `terraform show -json` of each plan:
+- **`tools/gates/infra_policy.py`** (human-only, like the other gates), on the HCL parsed by `python-hcl2` (pinned and hashed in the tools' requirements). In the Author's terminal it runs twice: on the HCL **before** `terraform init`, refusing on any finding, since `init` and `plan` run agent-written configuration with the Author's administrator session; and again on `terraform show -json` of the saved plan, which also covers what a module computes. Its rules:
   - every root sets `default_tags` with the three keys, and every resource type that takes tags carries `component` (FR-002);
   - IAM resources, budgets and budget actions, SNS topics and subscriptions, CloudWatch alarms, EventBridge rules, and CloudFront's cache and origin-request policies live only in the protected files (below), so an agent can't add an IAM grant in `main.tf` (FR-012);
   - no public S3 bucket, no bucket without Block Public Access, no security group rule open to the world except the tunnel's port (R-11);
   - no provisioner, no `external` or `http` data source, and no provider outside the pinned list; every `required_providers` entry is pinned to an exact version (FR-004);
-  - no literal that looks like an account ID, an email address, or a key (FR-009, FR-010).
+  - no literal that looks like an account ID, an email address, or a key (FR-009, FR-010);
+  - no Terraform-managed secret parameter, and no data source that reads one (FR-009, R-26).
 - **Protected files (FR-012):** in every root and module, `iam*.tf`, `budgets*.tf`, `alerts*.tf`, `killswitch*.tf`, and `edge-limits*.tf`, plus `infra/policy/**`. They change only through the Author's patches, with an ADR. Their names are what `protected-paths.sh` matches, and the policy keeps the resource types inside them.
 
 **Rationale.** FR-012 names the Terraform "that defines IAM, budgets, alert routing, edge rate limits, and the kill switch". A path rule alone can be evaded by putting a resource in another file; the type check closes that, and the plan's JSON check closes it again in the Author's terminal.
@@ -116,7 +119,8 @@ Every rule gets matrix rows in stage H, and a gap row for any spelling that gets
 **Decision.** One EC2 instance, `t4g.micro` (2 vCPUs burstable, 1 GiB) **(to ask, question 3)**, as a **persistent spot request that stops on interruption**, in one availability zone, running Amazon Linux 2023 (arm64), with:
 - a 1 GiB swap file on the root volume, as a buffer, not a working set;
 - memory limits that sum under 800 MiB: the fallback gateway 256 MiB (spec 000's 512 MiB is its ceiling, not its use), `gateway-state` 128 MiB (Postgres tuned to `shared_buffers=32MB`), the relay 96 MiB, the collector 96 MiB with its memory limiter, `tunnel-end` 32 MiB, and `edge` 32 MiB;
-- the egress proxy and the deployer as host services (R-10, R-17).
+- the egress proxy and the deployer as host services (R-10, R-17);
+- **standard CPU credits** (`credit_specification { cpu_credits = "standard" }` on the launch template). T4g instances start in unlimited mode, where sustained load above the baseline bills surplus credits: up to about $50 a month at full CPU on a t4g.small, which the meter of record would see only in the next day's correction (R-21). In standard mode, a busy instance slows down instead of billing.
 
 The first VM task measures the stack's resident memory under the breach test's load. If it doesn't fit in 1 GiB with less than 100 MiB of swap in use, the instance becomes a `t4g.small` (2 GiB), a configuration change.
 
@@ -134,7 +138,7 @@ On demand, even a t4g.micro leaves no room under the target once the public addr
 
 **Alternatives.**
 - `t3a.small`, x86 like the local tier: one architecture, and two to three times the trackers' interruption rate, at the same price.
-- On demand: about $6–12 more a month, over the target.
+- On demand: about $4–7 more a month (a t4g.micro at $6.13 against about $2.20 on spot; a t4g.small at $12.26 against about $5), over the target.
 - A Savings Plan or reserved instance: a one-year commitment for about $8 a month on a `t4g.small`, still over the target with the address.
 - Fargate: per-task pricing above an always-on t4g.micro, and no place for the meter's volume.
 - Lightsail: a cheaper bundle with an address included, but outside the account's VPC, so no VPC origin (R-07), and its own networking model for the tunnel's port.
@@ -153,18 +157,18 @@ On demand, even a t4g.micro leaves no room under the target once the public addr
 | The Route 53 hosted zone | one zone, plus queries | 0.51 |
 | CloudFront | inside the always-free tier: 1 TB out, 10 million requests, 2 million function invocations a month | 0.00 |
 | S3: the state, the site, the public view, the release records | under 1 GiB stored; the public view written every 2 minutes, about 21,900 PUTs | 0.15 |
-| ECR: the project's images and their upstream copies, the last three releases kept | about 2 GiB at $0.10 | 0.20 |
+| ECR: the project's images (two platforms) for the last three releases, the Lambda images, and copies of the upstream images the cloud stack runs (Postgres, nginx-unprivileged, the collector), whose full indexes keep every platform's layers so their digests stay the lock's | about 3 GiB at $0.10 | 0.30 |
 | CloudWatch: one alarm for the probe, and the edge's default metrics read every 5 minutes (plan §9) | $0.10 an alarm; `GetMetricData` at $0.01 per 1,000 metrics, 4 metrics × 8,760 reads a month | 0.45 |
 | Lambda (the alert bridge, the probe), SNS, Session Manager, Parameter Store's standard tier, AWS-managed KMS keys | inside the always-free tier, or free | 0.00 |
 | AWS Budgets and Cost Anomaly Detection | monitoring is free; the first two action-enabled budgets are free | 0.00 |
-| **Idle total** | | **about 8.00** |
-| The same with a t4g.small spot instead (R-04) | about $0.0070 an hour | about 10.90 |
+| **Idle total** | | **about 8.10** |
+| The same with a t4g.small spot instead (R-04) | about $0.0070 an hour | about 11.00 |
 
-**What it leaves (FR-020).** The meter of record books the idle estimate as a daily share: about $0.27 a day for the t4g.micro, against the $5 daily ceiling, and about $8.00 of the $20 month. That leaves about $4.73 a day and $12.00 a month for metered calls, the fallback sub-budget's $2 a day inside them. Thirty days at the full sub-budget would be $60, so the month's ceiling binds first, as in spec 000.
+**What it leaves (FR-020).** The meter of record books the idle estimate as a daily share: about $0.27 a day for the t4g.micro, against the $5 daily ceiling, and about $8.10 of the $20 month. That leaves about $4.73 a day and $11.90 a month for metered calls, the fallback sub-budget's $2 a day inside them. Thirty days at the full sub-budget would be $60, so the month's ceiling binds first, as in spec 000.
 
 **Rationale.** The spec's Expected Cost Impact: "Before the first apply, the plan prices every line from the published pricing pages and sums the idle lines against "≤ $10/month" (FR-021). It also states how much of each ceiling FR-020's booking of infrastructure cost leaves for fallback and burst." The public address is the largest fixed line after the instance, and no design removes it: the tunnel's end needs a public address the local tier can reach (R-11), and the VM's outbound calls need IPv4.
 
-**Sources.** AWS Budgets pricing ("Your first two action-enabled budgets are free (regardless of the number of actions you configure per budget) per month"), AWS's public IPv4 charge ($0.005 per address-hour since 2024-02-01), EC2 on-demand pricing; spot prices from Holori's, Spare Cores', Vantage's, and DoiT's trackers on 2026-10-18 (AWS publishes them only through `describe-spot-price-history`). The re-pricing task runs `aws ec2 describe-spot-price-history` in the Author's terminal.
+**Sources.** AWS Budgets pricing ("Your first two action-enabled budgets are free (regardless of the number of actions you configure per budget) per month", as a web-search summary of the pricing page gave it on 2026-10-18; to re-read from the page itself, as the Prices note above says), AWS's public IPv4 charge ($0.005 per address-hour since 2024-02-01), EC2 on-demand pricing; spot prices from Holori's, Spare Cores', Vantage's, and DoiT's trackers on 2026-10-18 (AWS publishes them only through `describe-spot-price-history`). The re-pricing task runs `aws ec2 describe-spot-price-history` in the Author's terminal.
 
 ### R-06: The worst case outside the meter, and a breaker left out **(to ask, question 8)**
 
@@ -190,7 +194,7 @@ On demand, even a t4g.micro leaves no room under the target once the public addr
 **Rationale.**
 - FR-032: "IF a request reaches the cloud stack other than through the edge, THEN THE SYSTEM SHALL refuse it." With a VPC origin, the relay's address is private, and only a distribution in this account can reach it. Requests that don't come through this distribution have no route at all.
 - The alternative needs a shared secret header to tell this distribution from anyone else's, since CloudFront's origin-facing prefix list admits every distribution. That secret would sit in the distribution's configuration and so in Terraform's state, which FR-009 forbids, or in a CloudFront Function's key-value store, which adds a moving part.
-- AWS's guide puts VPC origins in private subnets: "In the private subnet, launch an Application Load Balancer, a Network Load Balancer, or an EC2 instance to use as your origin." The VM still needs a public address for its outbound calls and the tunnel, hence the second interface. Amazon Linux 2023 sets up per-interface routing for a second interface on its own; the default route goes through `eth1`.
+- AWS's guide puts VPC origins in private subnets: "In the private subnet, launch an Application Load Balancer, a Network Load Balancer, or an EC2 instance to use as your origin." (That sentence is as a web-search summary of the guide's "Restrict access with VPC origins" page gave it on 2026-10-18, not read from the page itself; the first infra task re-reads it.) The VM still needs a public address for its outbound calls and the tunnel, hence the second interface. Amazon Linux 2023 sets up per-interface routing for a second interface on its own; the default route goes through `eth1`.
 
 **The trade, stated for the Author.** From CloudFront to the relay, the request travels inside AWS's network, between CloudFront and an interface in the account's VPC, as HTTP. The visitor's connection to CloudFront is TLS. The data-flow disclosure's row V2 says so.
 
@@ -201,7 +205,7 @@ On demand, even a t4g.micro leaves no room under the target once the public addr
 
 ### R-08: The edge's own degraded answer (FR-034)
 
-**Decision.** When the relay can't be reached, CloudFront answers `/api/*` from custom error responses: 502 and 504 from the origin become a 503 carrying spec 000's degraded JSON body, with the cause `edge_origin_unreachable`, served from the site's bucket (`/_degraded/api.json`). The minimum error-caching TTL is 0, so the edge asks again on the next request. A 503 isn't replaced: the relay's own degraded answers are 503s, and their causes must reach the visitor.
+**Decision.** When the relay can't be reached, CloudFront answers `/api/*` from custom error responses: 502 and 504 from the origin become a 503 carrying spec 000's degraded JSON body, with the cause `edge_origin_unreachable`, served from the site's bucket (`/_degraded/api.json`). The minimum error-caching TTL is 0, so the edge asks again on the next request. A 503 isn't replaced: the relay's own degraded answers are 503s, and their causes must reach the visitor. The relay never answers 502 or 504 itself: a gateway's 502, such as spec 000's `local_error`, becomes a degraded 503 at the relay with its cause kept (R-18), so a 502 or 504 at the edge always means the relay wasn't reached, and replacing it hides nothing.
 
 **Open, measured in the edge task.** Spec 000's body comes with the header `X-H4-Degraded-Cause`. A custom error response can't add a header, and whether a viewer-response CloudFront Function runs on a CloudFront-generated error response is to be measured. If it doesn't, the cause travels in the body only for this one case, and the relay contract says so.
 
@@ -211,16 +215,17 @@ On demand, even a t4g.micro leaves no room under the target once the public addr
 
 ### R-18: The relay: a thin TypeScript service
 
-**Decision.** `services/relay`: Fastify 5 on Node 24, a second npm workspace beside the gateway, with the same lint, test, and telemetry setup (spec 000 plan §5). Its routes:
-- `POST /api/hello` and `GET /api/status`, from the edge only (R-07);
+**Decision.** `services/relay`: Fastify 5 on Node 24, a second npm workspace beside the gateway, with the same lint, test, and telemetry setup (spec 000 plan §5). Its listeners and routes:
+- **8080, the edge listener:** `POST /api/hello` and `GET /api/status`, from the edge only (R-07). On the cloud stack it refuses any request whose TCP peer is on the VM itself: loopback, the Docker address pool the VM's daemon fixes, or the VM's own interface addresses. The security group keeps the internet out, but the VM's own containers and host processes would otherwise reach `relay:8080` and could set `CloudFront-Viewer-Address` to anything. Published-port traffic keeps its source address, since the VM's daemon runs without the userland proxy (contracts/relay-http.md §1).
+- **8081, the internal listener,** on the `internal` network, published only at the VM's loopback for the Author's Systems Manager session: `GET /api/status` for the snapshot sink, and `POST /api/hello` for the Author's test client, which always gets the fixed documentation-range identity `192.0.2.10`, whatever it sends. That's FR-032's one named exception: the operator's own authenticated session, told apart by the listener, never by a header (contracts/relay-http.md §2).
 - `GET /health/live` for the container's own check.
 
 At each request, in order:
 1. **The probe mark.** A request carrying `X-H4-Probe: 1` gets `h4.probe=true` on its spans, so the collector drops them (spec 000's `filter/probes`). On hello it's refused with 400 before any model is called: probes call status only (spec FR-061, "SHALL cause no metered call").
-2. **The client's address** from `CloudFront-Viewer-Address` (the address, without the port). A request without it is refused, as it didn't come through the edge (FR-032).
+2. **The client's address** from `CloudFront-Viewer-Address` (the address, without the port), on the edge listener only. A request without it is refused, as it didn't come through the edge (FR-032).
 3. **The public cap** (FR-033): per address, a token bucket and a UTC-day count, in memory only, sized by a new `public` section of `config/budgets.yaml` (human-only: the Author's patch, with an ADR). Over the cap: spec 000's 429 shape, counted by a metric with no address on it.
-4. **The kill switch of record** (FR-030): `SELECT state FROM gateway.stack_state` on the fallback gateway's store, through a read-only role like Grafana's `grafana_ro`, with `statement_timeout=250ms`. Degraded, unknown, unreadable, or not read successfully within the last 10 s: spec 000's degraded response, without forwarding.
-5. **The path** (FR-017, FR-035): the local path while it's healthy (R-12), else the fallback gateway. A degraded or failed answer on the local path counts as a failed local path, and the request goes to the fallback gateway once, with `X-H4-Local-Path` naming why (`unhealthy`, `failed`, `degraded`). The fallback gateway records it as its route reason, so its trace and the dashboard show it (spec FR-035, scenario 3: "the reason is visible on the dashboard").
+4. **The kill switch of record** (FR-030): `SELECT state, since, crossed FROM gateway.v_state` on the fallback gateway's store, as the read-only role `relay_ro`, which is granted that view and nothing else (data-model.md §2.4), with `statement_timeout=250ms`. Degraded, unknown, unreadable, or not read successfully within the last 10 s: spec 000's degraded response, without forwarding.
+5. **The path** (FR-017, FR-035): the local path while it's healthy (R-12), else the fallback gateway. A degraded or failed answer on the local path counts as a failed local path, and the request goes to the fallback gateway once, with `X-H4-Local-Path` naming why (`unhealthy`, `failed`, `degraded`). A local 502 `local_error` doesn't fall back, and the relay answers it as a degraded 503 with that cause, so the relay never gives the edge a 502 (R-08). The fallback gateway records it as its route reason, so its trace and the dashboard show it (spec FR-035, scenario 3: "the reason is visible on the dashboard").
 6. **The client identity** goes on to whichever gateway answers as `X-Forwarded-For`, one value, from a hop that gateway trusts: on the cloud stack, the relay itself; on the local path, the local `edge`'s tunnel block (R-12). Spec 000's gateway believes the header "only when its TCP peer is edge", so its trusted-peer list gains the relay, on the cloud stack only.
 
 The relay keeps no body after it answers and logs neither the message nor the answer (FR-031). It holds the address in memory for the caps, at most one UTC day (FR-042).
@@ -254,7 +259,7 @@ The relay keeps no body after it answers and logs neither the message nor the an
   - `MaxSessions 0`, so no shell, command, or subsystem can open;
   - `PermitListen` for the two remote ports and `PermitOpen` for the one local forward, so the connection can carry nothing else (FR-052: "SHALL carry only the flows the disclosure lists").
   Its port is published on `eth1`'s address, and its security group admits that one port from anywhere, because the local tier's home address changes.
-- **Credentials (FR-055).** `make tunnel-keys` (the Author's terminal) makes the local tier's key pair and the server's host key. The private client key and the pinned host key stay in `~/.config/h4reet-ai/tunnel/` (denied to agents, R-16). The server's host key goes to Parameter Store as a SecureString, and the client's public key goes there too. Revoking is one action: `make tunnel-revoke` empties the authorized key and restarts `tunnel-end` through Systems Manager.
+- **Credentials (FR-055).** `make tunnel-keys` (the Author's terminal) makes the local tier's key pair and the server's host key. The private client key and the pinned host key stay in `~/.config/h4reet-ai/tunnel/` (denied to agents, R-16). The server's host key goes to Parameter Store as a SecureString, and the client's public key goes there too, both written by `make tunnel-keys` from the Author's terminal, never by Terraform (R-26). Revoking is one action: `make tunnel-revoke` empties the authorized key and restarts `tunnel-end` through Systems Manager.
 
 **Rationale.**
 - **No capabilities.** OpenSSH's forwards run in user space. WireGuard, the usual alternative, needs `NET_ADMIN` and `/dev/net/tun` in the local container, an exception to spec 000's rule that every service drops all capabilities.
@@ -270,7 +275,9 @@ The relay keeps no body after it answers and logs neither the message nor the an
 
 **Decision.**
 - **A host service, `h4-egress-proxy`,** a stdlib Python CONNECT proxy on the VM, on the agents' engine's proxy's design (spec 000 plan §10), runs as its own user. It allows CONNECT only to the hostnames the disclosure's cloud rows name: Bedrock's runtime endpoint, `api.telegram.org`, the SMTP host, and the AWS endpoints the VM uses (ECR, S3, Systems Manager, STS, and the Budgets API). The list is generated from the disclosure's rows, so the two can't differ.
-- **nftables** on the VM lets only that user's sockets leave for addresses outside the VPC. Docker's pulls, the Systems Manager agent, and the deployer all use it through `HTTPS_PROXY`. Inside compose, only the proxy is on the `egress` network; containers use `HTTPS_PROXY` too.
+- **nftables** on the VM, in two chains, because an owner match sees only the host's own processes, never a container's forwarded traffic (contracts/tunnel.md §8):
+  - **`output`, host processes:** only the proxy's user may leave for addresses outside the VPC, besides the link-local endpoints host services need: the instance metadata service for root, the Systems Manager agent, and the credential timer; Amazon Time Sync; and the VPC resolver. Docker's pulls, the Systems Manager agent, and the deployer use the proxy through `HTTPS_PROXY`.
+  - **`forward`, containers:** traffic from the Docker address pool to anything outside it is dropped, except to the proxy on the bridge gateway's address. Containers use `HTTPS_PROXY` too, and one that ignores it gets nowhere.
 - **The security group's egress** admits TCP 443 and the SMTP port, as a second layer.
 
 **Rationale.** FR-051: "limit the cloud VM's outbound traffic to the destinations the disclosure lists, and refuse all others". Security groups filter by address, and none of these services has a fixed one. A DNS firewall (Route 53 Resolver's) filters by name but costs about $1.20 a month, and it doesn't stop a connection to a bare address.
@@ -295,7 +302,7 @@ The relay keeps no body after it answers and logs neither the message nor the an
 - **The cloud stack** is a fourth stack, `cloud`, with `H4_ENV=prod`: the gateway checks that `H4_STACK` is "one of the three, and agrees with `H4_ENV`", and that list grows to four. Its routing class is new, `prod-cloud: { fallback: bedrock }`, with no primary, and the router goes straight to the fallback's admission, recording `route.reason` from the relay's `X-H4-Local-Path`. The schema's rule ("keeps every primary local") is restated: every route with a primary keeps it local, and only `prod-cloud` has none.
 - **The local tier's production** routes `prod: { primary: local }` with no fallback. Preflight and the gateway refuse a paid adapter in any route outside the cloud stack (FR-018: "IF a production-class stack with a paid route would spend outside the meter of record, THEN THE SYSTEM SHALL refuse to start it"). The Bedrock route that T105 added to `prod` moves to `prod-cloud` in the same patch.
 - **The store survives the VM** (FR-019): `gateway-state`'s data and the journal live on their own 2 GiB gp3 volume, which Terraform guards with `prevent_destroy` and snapshots daily. The VM attaches it at boot, in the same availability zone.
-- **The move** follows spec 000's initialization. The cloud store starts `uninitialized`, so degraded. The Author reads local prod's meters (`make operator-status ENV=prod`), then runs `make operator-init ENV=cloud` with `DAY_USD=`, `MONTH_USD=`, `FALLBACK_TODAY_USD=`, and the renewal flag, through the operator session (R-15). Nothing starts at zero.
+- **The move** follows spec 000's initialization. The cloud store starts `uninitialized`, so degraded. First local prod loses its paid route, so no fallback spend can land on its meter after the reading. Then the Author reads local prod's meters (`make operator-status ENV=prod`), and runs `make operator-init ENV=cloud` with `DAY_USD=`, `MONTH_USD=`, `FALLBACK_TODAY_USD=`, and the renewal flag, through the operator session (R-15). Nothing starts at zero.
 - **The operator CLI** keeps its rule that `--url` is loopback only. The cloud stack's ports are 18500–18504. The Author's Systems Manager port-forwarding session puts the VM's admin listener on the Author's own `127.0.0.1:18503` (FR-050), so the CLI's check grows by one stack and nothing else.
 
 **Rationale.** The spec's answer to question 2, and its list of spec 000 pieces "this spec has to change". Each change keeps spec 000's fail-closed rules: an unknown stack name, a paid route on the wrong stack, or an empty store all stop the stack or keep it degraded.
@@ -304,7 +311,7 @@ The relay keeps no body after it answers and logs neither the message nor the an
 
 **Decision.**
 - **A new attribution, `infra`,** in the ledger's checks (migration `0003_infra.sql`, data-model.md §2); an infra booking never reserves. The estimate counts against the day and month meters, the correction against the month only, and neither against `fallback_day`.
-- **The daily share.** At the first admission or background sweep of each UTC day, the meter of record books one ledger row: `infra_month_estimate_usd` ÷ the days in the month, `cost_basis = estimate`. The estimate is a new key in `config/budgets.yaml` (human-only; the Author's patch, with an ADR), set from R-05.
+- **The daily share.** At the first admission or background sweep of each UTC day, the meter of record books one ledger row: `infra.month_estimate_usd` ÷ the days in the month, `cost_basis = estimate`. The estimate is a new key in `config/budgets.yaml` (human-only; the Author's patch, with an ADR), set from R-05.
 - **The correction.** Once a day, the fallback gateway reads the month-to-date actual of a budget that excludes Amazon Bedrock (`h4-infra-actual`, a monitoring-only budget, which is free) through `budgets:DescribeBudget`. When AWS's actual for the month so far is above what the meter has booked as infrastructure, it books the difference with `cost_basis = billing_correction`, against the month only, since it is for past days. It never books a negative row: the meter never counts less than was spent (spec 000's rule for expired reservations).
 - **Admission** then refuses metered calls when metered spend plus infrastructure reaches $5 for the day or $20 for the month, as FR-020 asks, with no other change to spec 000's transaction.
 
@@ -349,7 +356,7 @@ The topic also takes ACM's certificate-expiry events (through an EventBridge rul
 
 **Rationale.** It runs outside the VM, as FR-061 asks, for about $0.10 a month (the alarm), inside Lambda's free tier.
 
-**Alternatives.** Route 53 health checks: they can't send the probe's header. CloudWatch Synthetics: about $10 a month at one run a minute.
+**Alternatives.** Route 53 health checks: they can't send the probe's header. CloudWatch Synthetics: about $52 a month at one run a minute ($0.0012 a run, 43,800 runs).
 
 ---
 
@@ -358,12 +365,12 @@ The topic also takes ACM's certificate-expiry events (through an EventBridge rul
 ### R-17: Releases from the Author's terminal; deployers that pull **(to ask, question 7)**
 
 **Decision.**
-- **`make release`** (the Author's terminal, on a clean `main`) builds each of the project's images once, for `linux/amd64` and `linux/arm64`, and pushes them to the account's private registry (ECR, one repository per service, tag = the commit). It copies every upstream image the stacks run into the same registry by digest (`docker buildx imagetools create`, which keeps the index digest), so the VM pulls from one registry. It writes the release record, `release.json` (the commit, every service's index digest, the time, and who built it), to the release bucket and to `~/.local/state/h4reet/releases/`.
+- **`make release`** (the Author's terminal, on a clean `main`) builds each of the project's images once, for `linux/amd64` and `linux/arm64`, and pushes them to the account's private registry (ECR, one repository per service, tag = the commit). It copies the upstream images the cloud stack runs (Postgres, nginx-unprivileged, the collector), and no others, into the same registry by digest (`docker buildx imagetools create`, which keeps the index digest), so the VM pulls from one registry. The registry keeps each repository's last three releases' images (R-05). It writes the release record, `release.json` (the commit, every service's index digest, the time, and who built it), to the release bucket and to `~/.local/state/h4reet/releases/`.
 - **The deployer,** `deploy/scripts/deployer.py` (stdlib, run through `PY_HOST`), runs every minute from a systemd timer on each host, outside compose: on the VM as a host service, and on the local tier in the Author's user session. It reads the newest release from its source (the bucket on the VM, the Author's release directory on the local tier). For a release it hasn't run, it verifies each image's digest, exports the commit's tree as `make up` does (spec 000 plan §4), and restarts only the services whose image or configuration changed (FR-047). It waits for health, returns to the previous release if a check fails, and alerts. It records each deployment as a JSON line in the stack's state directory and as a log event the dashboard shows (FR-046).
 - **A hand-started stack** (FR-049): `make up ENV=… REF=…` writes `started_by=author` into the run file, and the deployer leaves that stack alone until `make deployer-resume`. The dashboard's release panel shows the commit and who started it.
 - **The local tier holds no AWS credential.** The release's images are already in the Author's engine, since the Author built them there. `make release` checks each index digest against the local store before writing the record.
 
-**Rationale.** The spec's answer to question 9: "the Author's terminal builds each release once and publishes it to a private registry in the account, and both deployers pull it by digest." The deployer is a host service because the compose policy refuses `docker.sock` in any service (spec 000 plan §11), and a deployer in a container would need it.
+**Rationale.** The spec's answer to question 9: "the Author's terminal builds each release once and publishes it to a private registry in the account, and both deployers pull it by digest." The plan reads "both deployers pull it by digest" as each deployer taking the release by digest from its own source: the VM from the registry, and the local tier from the images the release build already left in the Author's engine, checked by index digest. Interview question 7 asks whether that reading is right. The deployer is a host service because the compose policy refuses `docker.sock` in any service (spec 000 plan §11), and a deployer in a container would need it.
 
 **Alternatives.** The local tier pulling from ECR: it would need AWS credentials, through IAM Roles Anywhere or a long-lived key, against FR-008. The local tier pulling through the tunnel from the VM: a registry proxy on the VM, for images the local tier already holds.
 
@@ -403,6 +410,17 @@ The topic also takes ACM's certificate-expiry events (through an EventBridge rul
 **Rationale.** FR-060: "IF the local tier's telemetry backends are unreachable, THEN the cloud stack SHALL keep answering, and the dashboard SHALL show how much telemetry was delayed or lost." Nothing in the answer path waits on the collector, as in spec 000.
 
 **Alternatives.** CloudWatch for the cloud stack's telemetry: a second backend, and payload-free only by policy rather than by spec 000's collector redaction.
+
+### R-26: Secrets stay outside Terraform: a named exception to FR-001 (FR-009)
+
+**Decision.** Terraform never creates or reads a secret. The Author creates and updates each secret parameter under `/h4reet/cloud/` with `aws ssm put-parameter --type SecureString --overwrite`, from the Author's terminal, by hand or through `make tunnel-keys`. Terraform names the path only in IAM policies: the instance role's read grant, and the alert bridge's on `/h4reet/cloud/TELEGRAM_*`. The policy refuses an `aws_ssm_parameter` resource of type `SecureString` and any data source that reads a secret (contracts/infra-records.md §5, T9). `make secrets-check` lists which expected names exist, by name and type only, with `ssm:DescribeParameters`, and never reads a value. On the VM, `write-env.py` refuses to start the stack while a name is missing (contracts/env-cloud.md §1). The non-secret parameters Terraform already knows, the two bucket names, stay Terraform's, as `String` parameters.
+
+**Rationale.** FR-009: "Terraform refers to the secret without reading its value". A Terraform-managed parameter can't meet that. Even with a placeholder value and `lifecycle { ignore_changes = [value] }`, every refresh reads the SecureString back, decrypted, into the state and every saved plan: the Telegram token, the SMTP credentials, the database passwords, the tunnel's host key, and the tunnel tokens (the review of 2026-10-18 found it). Keeping the secrets out of Terraform departs from FR-001 ("THE SYSTEM SHALL define every cloud resource in Terraform"), so it is named as an exception (plan Complexity Tracking): the secret parameters are cloud resources Terraform doesn't define. FR-009 is the narrower and later rule, about the values themselves.
+
+**Alternatives.**
+- **Write-only arguments** in the AWS provider, which keep a value out of the state: unverified for the provider version the first task pins, and the value still has to reach Terraform at apply time, through a variable in the Author's terminal.
+- **Secrets Manager,** with Terraform holding only the secrets' names: about $0.40 a secret a month, roughly $4–5 for the dozen or so secrets of contracts/env-cloud.md §2, over half of R-05's idle budget.
+- **A Terraform-managed placeholder with `ignore_changes`:** the first design, rejected because the state then holds every value after its first refresh.
 
 ---
 

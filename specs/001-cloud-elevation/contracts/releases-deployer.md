@@ -38,7 +38,7 @@ The Author's terminal only (the bash gate refuses it to agents), on a clean chec
    - HEAD is `main`, the tree is clean, and HEAD is the merge the gate approved, by the gate's summary line in the merge commit's message;
    - from group 6 on, `redteam/history/` has a passing hello run for this commit.
 2. **Builds** `gateway`, `relay`, `tunnel`, and `snapshot` once each, with `docker buildx build --platform linux/amd64,linux/arm64 --push`, to `<account registry>/h4reet/<service>:<commit>`. The Node images compile on the build platform and copy the result into the target stage. `tunnel`'s package install runs under QEMU's arm64 emulation, which the Author installs once (quickstart §4.1).
-3. **Copies** every upstream image in `deploy/images.lock` to `<account registry>/h4reet/upstream/<name>`, by digest, with `docker buildx imagetools create`, which keeps the index digest. It refuses if a copied digest differs from the lock's.
+3. **Copies** the upstream images the cloud stack runs, and no others, to `<account registry>/h4reet/upstream/<name>`, by digest, with `docker buildx imagetools create`, which keeps the index digest. Those are the images of the services the cloud env file's profiles start ([env-cloud.md §3](env-cloud.md#3-profiles-and-services-by-stack)): Postgres, nginx-unprivileged, and the collector today. The local tier's heavy images (the CUDA model server, Langfuse, ClickHouse, and the rest) never go to the registry. It refuses if a copied digest differs from the lock's.
 4. **Checks the local engine** holds each image at the same index digest, pulling it from the registry with the Author's session if it doesn't, so the local deployer never needs AWS (R-17).
 5. **Writes the site:** builds `apps/web/dist/`, syncs it to the site bucket's `site/` (excluding `status/latest.json`), copies it to `releases/<commit>/`, and invalidates `/*` ([edge.md §4](edge.md#4-releases-of-the-site-and-the-public-views-path)).
 6. **Writes the records:**
@@ -51,7 +51,7 @@ The Author's terminal only (the bash gate refuses it to agents), on a clean chec
 
 It records nothing secret, and prints no registry host with the account in it: the account part is shown as `<account>` (FR-010).
 
-**The registry's lifecycle rule** keeps the last 5 images of each repository, and every image a release in the last 90 days names.
+**The registry's lifecycle rule** keeps each repository's images for the last 3 releases and expires the rest, so the registry stays near research R-05's 3 GiB. A rollback further back than three releases rebuilds from its commit.
 
 ## 3. The deployer
 
