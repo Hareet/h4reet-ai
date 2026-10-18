@@ -123,7 +123,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test secrets evals redteam=redteam-suite matrix image
+CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -237,6 +237,18 @@ test-fast: ## The quick subset
 	$(CONTAINED)
 	$(call NPM_WS,run test:unit)
 	$(PYTEST) $(PYTEST_ARGS) -m "not slow" $(PYTEST_DIRS)
+
+# The published-content check (spec 002, T080; contracts/resume-source.md §5): the room built without drafts, whatever
+# the shell's ROOM_DRAFTS, its prebuild reading main's policy; then tools/gates/content_check.py, human-only, which
+# reads main's approvals itself and fails when room-data.json publishes a content file main doesn't approve. The
+# build's approvals code is agent-editable; the check isn't. PLANNED until the approvals patch adds the script. The
+# Author's gate runs the same check from main's tree, over a build in its container phase.
+content-check: ## The room's published content against main's approvals, after a build without drafts (spec 002, T080)
+	$(CONTAINED)
+	@# One shell: the PLANNED exit must end the recipe, not only its own line.
+	@if [ ! -f tools/gates/content_check.py ]; then echo "PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch"; exit 0; fi; \
+	set -x; ROOM_DRAFTS= npm run build -w apps/web && \
+	$(PY_HOST) tools/gates/content_check.py --tree . --room-data apps/web/dist/room-data.json --repo .
 
 corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local denylist
 	$(PY_HOST) corpus/tools/check_corpus.py
@@ -551,7 +563,7 @@ endif
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
-.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
+.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 

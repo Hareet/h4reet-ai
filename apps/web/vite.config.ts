@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
 
+import { roomDataFile } from "./build/approvals";
 import { disclosurePage } from "./build/disclosure";
+import { DEFAULT_POLICY_DIR } from "./build/policy";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 
@@ -22,5 +24,9 @@ export default defineConfig({
     modulePreload: { polyfill: false },
     assetsInlineLimit: 0,
   },
-  plugins: [disclosurePage({ source: here("../../docs/data-flow-disclosure.md") })],
+  plugins: [
+    disclosurePage({ source: here("../../docs/data-flow-disclosure.md") }),
+    // main's policy: the image's named context (ROOM_POLICY_DIR), or what a checkout's prebuild read from main.
+    roomDataFile({ root: here("../.."), policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR }),
+  ],
 });

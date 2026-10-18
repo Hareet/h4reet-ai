@@ -14,6 +14,9 @@ corpus/
 # Human-only configuration, kept exactly as contracts/config-files.md gives it (tasks.md T022).
 config/budgets.yaml
 config/alerts.yaml
+# Human-only policy files, kept as the Author writes them: spec 002's content approvals and PDF header, and spec
+# 003's asset policy beside them.
+assets/policy/
 docs/
 intent/
 specs/

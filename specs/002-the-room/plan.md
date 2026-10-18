@@ -205,6 +205,13 @@ docs/adr/                         [A] the room's stack; approvals by hash; the r
 - **The build** marks every unapproved file as a draft in `room-data.json`. The room shows drafts only when built with `ROOM_DRAFTS=1`, which `web_image.py` sets only for the `-drafts` images of dev and dev-cpu, never for prod's. Drafts show a "Draft, not approved" banner.
 - **The gate's check** (human-only): `tools/gates/content_check.py`, a step in the Author's gate and in `make check`, recomputes each content file's digest and reads `main`'s approvals itself, then fails when `room-data.json` publishes anything `main` doesn't approve. `apps/web/build/approvals.ts` is agent-editable, so this check, not it, is the enforcement, as spec 003 enforces its intake from human-only gate code.
 - **The release:** spec 001's `make release` must refuse a build with a draft or with `placeholders: true`. That's a line for spec 001's plan, recorded in the note.
+- **What group 2 found** (2026-10-18, in the same commit as the code; the contract holds):
+  - **The checkout's policy directory** is `node_modules/.cache/h4reet-web/policy/`, which nothing commits, lints, or copies into an image. The prebuild runs as `node --import tsx build/policy.ts`: tsx's own command opens a Unix socket for its watcher, which the agent sandbox refuses, as the gateway's `validate-config` found.
+  - **`room-data.json` holds `built_from.policy` and `drafts` for now.** The commit and the lock's digest join `built_from` with the resume (group 3), when there is content to trace.
+  - **The gate's steps:** `content-build` runs the room's build last in the container phase, without drafts, with `--ignore-scripts`, and with `main`'s two files mounted read-only at `/policy`. `content` then runs `main`'s `content_check.py` on the host, over the export's content files and that build's `room-data.json`. A commit without `apps/web` has neither step. In `make check`, `content-check` follows `test` and says PLANNED until the patch adds the script.
+  - **The matrix's rows are `planned` on the branch.** The patch switches them to `block`, so it carries `redteam/forbidden-actions.sh` beside the human-only files.
+  - **`.prettierignore` excludes `assets/policy/`,** so the Author's hand-written entries never fail `make lint`, as `config/budgets.yaml` is excluded.
+  - **The protection is by file name.** Spec 003's guard patch protects the whole `assets/policy/` directory; with both applied, the rules overlap and agree, and each patch applies with the other in place.
 
 ## 4. The room (User Story 2, User Story 5; FR-001 to FR-009, FR-042 to FR-048; R-03, R-04, R-11, R-13)
 

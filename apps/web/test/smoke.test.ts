@@ -2,6 +2,7 @@
 // every script and stylesheet comes from a relative path on the site's own origin (FR-057, the CSP's 'self'), no
 // inline script or style the CSP would refuse, the AI disclosure and the PDF link on the first screen (FR-004,
 // FR-018), the data-flow disclosure page beside it (FR-058), and 0 axe violations on both pages.
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -10,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import axe from "axe-core";
 import { JSDOM } from "jsdom";
 import { build } from "vite";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { renderDisclosure } from "../build/disclosure";
 
@@ -19,9 +20,14 @@ const DISCLOSURE_MD = resolve(WEB, "../../docs/data-flow-disclosure.md");
 const AI_DISCLOSURE = "You're talking with an AI representation of the Author, not the Author.";
 
 let out = "";
+let policy = "";
 
 beforeAll(async () => {
   out = mkdtempSync(join(tmpdir(), "h4-web-build-"));
+  // An empty policy directory and no drafts: the build a checkout with nothing approved on main makes.
+  policy = mkdtempSync(join(tmpdir(), "h4-web-policy-"));
+  vi.stubEnv("ROOM_POLICY_DIR", policy);
+  vi.stubEnv("ROOM_DRAFTS", "");
   await build({
     root: WEB,
     configFile: join(WEB, "vite.config.ts"),
@@ -31,7 +37,8 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(() => {
-  if (out) rmSync(out, { recursive: true, force: true });
+  vi.unstubAllEnvs();
+  for (const dir of [out, policy]) if (dir) rmSync(dir, { recursive: true, force: true });
 });
 
 function page(rel: string): JSDOM {
@@ -103,5 +110,16 @@ describe("the built disclosure page", () => {
 
   it("has no axe violations", async () => {
     expect(await axeViolations(page("disclosure/index.html"))).toEqual([]);
+  });
+});
+
+describe("the built room-data.json", () => {
+  it("names the policy it was built with, and lists the drafts it left out", () => {
+    // Phase 2 (T017): no content file exists yet, so nothing is a draft; the policy is the empty one.
+    const data = JSON.parse(readFileSync(join(out, "room-data.json"), "utf8")) as unknown;
+    const absent = createHash("sha256")
+      .update("content-approvals.json:absent\nresume-header.json:absent\n")
+      .digest("hex");
+    expect(data).toEqual({ built_from: { policy: absent }, drafts: [] });
   });
 });

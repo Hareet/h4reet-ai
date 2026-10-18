@@ -1,0 +1,1036 @@
+--- a/.claude/hooks/protected-paths.sh
++++ b/.claude/hooks/protected-paths.sh
+@@ -51,6 +51,7 @@
+     corpus/*) block "the corpus (claims about the Author are human-authored; write a proposal under corpus/proposals/)" ;;
+     .github/workflows/*) block "CI workflow (a gate must not be edited by what it gates)" ;;
+     config/prices*) block "the price table (human-only, versioned, append-only; spec 000 FR-008)" ;;
++    assets/policy/content-approvals.json | assets/policy/resume-header.json) block "the room's content approvals or the PDF's header, which only the Author changes, on main (spec 002, contracts/resume-source.md §5)" ;;
+     GNUmakefile | makefile) block "a makefile that make would run instead of the Makefile" ;;
+     deploy/agents-engine | deploy/agents-engine/*) block "the agents' engine (the FR-039 boundary; parts of it run with sudo)" ;;
+     .gitleaks* | */.gitleaksignore) block "the secret scanner's rules or an ignore list (research.md R-36)" ;;
+--- a/.claude/settings.json
++++ b/.claude/settings.json
+@@ -61,6 +61,8 @@
+       "Edit(/.gitleaksignore)",
+       "Edit(/tools/gates/**)",
+       "Edit(/evals/agent-config/**)",
++      "Edit(/assets/policy/content-approvals.json)",
++      "Edit(/assets/policy/resume-header.json)",
+       "Edit(/.mcp.json)",
+       "Edit(/.git/info/**)",
+       "Edit(/.git/refs/heads/main)",
+@@ -118,6 +120,8 @@
+         "./.gitleaksignore",
+         "./tools/gates",
+         "./evals/agent-config",
++        "./assets/policy/content-approvals.json",
++        "./assets/policy/resume-header.json",
+         "./.mcp.json",
+         "./.git/info",
+         "./.git/refs/heads/main",
+--- a/tools/gates/matrix-required.txt
++++ b/tools/gates/matrix-required.txt
+@@ -78,6 +78,15 @@
+ H/protected-paths.sh/tools/gates/gate
+ H/protected-paths.sh/evals/agent-config/static.py
+ 
++# --- spec 002's approvals patch (T015, T016; contracts/resume-source.md §5): the room's content policy, human-only ---
++H/protected-paths.sh/assets/policy/content-approvals.json
++H/protected-paths.sh/assets/policy/resume-header.json
++H/protected-paths.sh/apps/web/../assets/policy/content-approvals.json
++H/protected-paths.sh/./assets//policy/resume-header.json
++H/protected-paths.sh/Edit in a linked worktree: assets/policy/content-approvals.json
++H/protected-paths.sh/apps/web/content/resume.yaml
++H/settings/the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)
++
+ # --- review B, finding 6: both payload forms, and the blocked role rows as `claude --agent <role>` sends them ---
+ H/role/both-forms
+ H/role/ops/edit deploy/env/prod.env [--agent]
+--- a/tools/gates/gate
++++ b/tools/gates/gate
+@@ -32,7 +32,10 @@
+    devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
+    the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
+    validate-config, test, evals, redteam-suite, and matrix (stage H). Every container drops all capabilities, sets
+-   no-new-privileges, and runs as the Author's uid on that copy.
++   no-new-privileges, and runs as the Author's uid on that copy. When the export has the room (apps/web), the room is
++   built last, without drafts, its scripts off, with main's two policy files mounted read-only at /policy
++   (content-build; spec 002, T080), and the host then runs main's content_check.py over the export and that build's
++   room-data.json (content): it fails when the build publishes a content file main doesn't approve.
+ 4. Host phase:
+    - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
+      gc.packRefs is false, and main is a loose ref, as `make githooks-check` has it;
+@@ -158,6 +161,13 @@
+     ("matrix-h", "matrix"),
+ )
+ STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
++# The room's content policy on main (spec 002, contracts/resume-source.md §5): each file's path there, and its name in
++# the directory the room's build reads; and that build, without drafts, with no pre- or post-scripts (T080).
++POLICY_FILES = (
++    ("assets/policy/content-approvals.json", "content-approvals.json"),
++    ("assets/policy/resume-header.json", "resume-header.json"),
++)
++WEB_BUILD = ["npm", "run", "--ignore-scripts", "build", "-w", "apps/web"]
+ # gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
+ # exit code of their own, and its log is read: a line at any level but these means the scan may be partial.
+ LEAKS = 99
+@@ -739,7 +749,89 @@
+     return docker, image, work
+ 
+ 
+-def container_phase(report: Report, data: bytes, export_dir: Path, tmp: Path) -> None:
++def content(
++    report: Report,
++    repo: Path,
++    docker: str,
++    image: str,
++    work: Path,
++    export_dir: Path,
++    tmp: Path,
++) -> None:
++    """The room's published content (spec 002, T080; contracts/resume-source.md §5), when the export has the room.
++
++    The build runs in the container, as a release builds it: no drafts, no pre- or post-scripts (a checkout's prebuild
++    reads main with git, and there is none here), and main's policy, read here from the main tree with git show, in a
++    fresh directory mounted read-only. Then main's content_check.py, on the host, recomputes each content file's digest
++    from the export, the commit's own read-only tree, and fails when the build's room-data.json publishes one main
++    doesn't approve. The build's approvals code is the branch's; the check is main's.
++    """
++    if not (export_dir / "apps" / "web" / "package.json").is_file():
++        return  # a commit from before spec 002: no room, nothing published
++    try:
++        policy_dir = fresh_dir(tmp)
++        for path, name in POLICY_FILES:
++            shown = git(repo, "show", f"main:{path}", binary=True)
++            if shown.returncode == 0:
++                (policy_dir / name).write_bytes(shown.stdout)
++    except OSError as exc:
++        report.add(
++            Step("content-build").fail(f"main's policy couldn't be written: {exc}")
++        )
++        report.add(Step("content").fail("not run: no policy directory"))
++        return
++    begin(
++        "content-build",
++        "npm run build -w apps/web without drafts, main's policy at /policy, --network none",
++    )
++    rc, out = stream(
++        container(
++            docker,
++            image,
++            work,
++            WEB_BUILD,
++            network=False,
++            extra=(
++                "--mount",
++                f"type=bind,source={policy_dir},target=/policy,readonly",
++                "--env",
++                "ROOM_DRAFTS=",
++                "--env",
++                "ROOM_POLICY_DIR=/policy",
++            ),
++        ),
++        host_engine_env(),
++        tmp,
++    )
++    build = report.add(classify(Step("content-build"), rc, out))
++    begin(
++        "content",
++        "main's content check over the export and that build's room-data.json",
++    )
++    if build.status != "PASS":
++        report.add(
++            Step("content").fail("not run: the build without drafts didn't pass")
++        )
++        return
++    rc, out = stream(
++        py_host(
++            repo / "tools" / "gates" / "content_check.py",
++            "--tree",
++            str(export_dir),
++            "--room-data",
++            str(work / "apps" / "web" / "dist" / "room-data.json"),
++            "--policy-dir",
++            str(policy_dir),
++        ),
++        tool_env(),
++        tmp,
++    )
++    report.add(classify(Step("content"), rc, out))
++
++
++def container_phase(
++    report: Report, repo: Path, data: bytes, export_dir: Path, tmp: Path
++) -> None:
+     names = [name for name, _ in CONTAINER_TARGETS]
+     if report.status("makefiles") != "PASS":
+         for name in ["devcontainer", "npm-ci", *names]:
+@@ -767,6 +859,7 @@
+             tmp,
+         )
+         report.add(classify(Step(name), rc, out))
++    content(report, repo, docker, image, work, export_dir, tmp)
+ 
+ 
+ # --------------------------------------------------------------------------------------------------
+@@ -1594,7 +1687,7 @@
+         report.add(Step("export").set("PASS", f"{sha}, the commit's own tree"))
+         report.add(makefiles(repo, export_dir))
+         if not host_only:
+-            container_phase(report, data, export_dir, tmp)
++            container_phase(report, repo, data, export_dir, tmp)
+         found = git(repo, "merge-base", "main", sha)
+         base = (
+             found.stdout.strip()
+--- a/tools/gates/test/test_gate.py
++++ b/tools/gates/test/test_gate.py
+@@ -118,8 +118,15 @@
+             entry["work_has_node_modules_dir"] = os.path.isdir(fields["source"])
+         if fields.get("target") == "/run/h4-contract/recording.json":
+             entry["recording_readable"] = os.access(fields["source"], os.R_OK)
++        if fields.get("target") == "/policy":
++            entry["policy"] = {
++                name: open(os.path.join(fields["source"], name), encoding="utf-8").read()
++                for name in sorted(os.listdir(fields["source"]))
++            }
++            entry["policy_readonly"] = "readonly" in spec.split(",")
+     if command[:1] == ["npm"]:
+-        rc = 1 if control.get("npm_fails") else 0
++        building = command[1:2] == ["run"] and "build" in command
++        rc = 1 if control.get("npm_fails") or (building and control.get("web_build_fails")) else 0
+     elif command[:1] == ["make"]:
+         target = command[-1]
+         print(control.get("print", {}).get(target, f"{target}: ok"))
+@@ -406,6 +413,7 @@
+     for name, ok in (
+         ("compose_policy", "compose policy: PASS"),
+         ("toolchain_check", "toolchain-check: all match their pins"),
++        ("content_check", "content check: PASS (no content files yet)"),
+     ):
+         write(
+             main / f"tools/gates/{name}.py",
+@@ -2393,3 +2401,106 @@
+     assert "didn't build the room's image" in done.stdout
+     assert len(by_kind(fx.docker(), "buildx")) == 2
+     assert by_kind(fx.docker(), "compose") == []
++
++
++# --------------------------------------------------------------------------------------------------
++# The room's published content (spec 002, T080; contracts/resume-source.md §5): in the container phase, the room built
++# without drafts, with main's policy mounted; then main's tools/gates/content_check.py, on the host, over the export
++# and that build's room-data.json
++# --------------------------------------------------------------------------------------------------
++ROOM_BRANCH = {**CHANGE, "apps/web/package.json": "{}\n"}
++WEB_BUILD = ["npm", "run", "--ignore-scripts", "build", "-w", "apps/web"]
++MAIN_APPROVALS = '{"schema": 1, "approvals": []}\n'
++
++
++def web_builds(calls: list[dict]) -> list[dict]:
++    return [c for c in by_kind(calls, "run") if c["command"] == WEB_BUILD]
++
++
++def on_main(fx: Fixture, files: dict[str, str]) -> None:
++    git(fx.main, "switch", "-q", "main")
++    for rel, text in files.items():
++        write(fx.main / rel, text)
++    git(fx.main, "add", "-f", "--", *files)
++    git(fx.main, "commit", "-qm", "main's policy")
++
++
++def test_the_room_is_built_without_drafts_and_its_content_checked_from_main(
++    fx: Fixture,
++) -> None:
++    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
++    fx.branch(ROOM_BRANCH)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    calls = fx.docker()
++    (build,) = web_builds(calls)
++    argv = build["argv"]
++    # --network none, and the scripts off, so a checkout's prebuild (which runs git) never runs here.
++    assert has(argv, "--network", "none")
++    assert has(argv, "--env", "ROOM_DRAFTS=")
++    assert has(argv, "--env", "ROOM_POLICY_DIR=/policy")
++    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
++    assert build["policy_readonly"] is True
++    # After the container's other steps.
++    assert calls.index(build) > calls.index(make_runs(calls)[-1])
++    (check,) = fx.logged("content_check")
++    assert check["isolated"] and check["no_bytecode"]
++    flags = dict(zip(check["argv"][::2], check["argv"][1::2]))
++    assert set(flags) == {"--tree", "--room-data", "--policy-dir"}
++    assert flags["--room-data"].endswith("/work/apps/web/dist/room-data.json")
++    # The digests come from the export, the commit's own read-only tree, not the build's working copy.
++    assert Path(flags["--tree"]).name == "export"
++    assert status_of(done, "content-build") == "PASS"
++    assert status_of(done, "content") == "PASS"
++
++
++def test_the_build_gets_mains_policy_never_the_branchs(fx: Fixture) -> None:
++    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
++    fx.branch(
++        {
++            **ROOM_BRANCH,
++            "assets/policy/content-approvals.json": '{"schema": 1, "approvals": ["the branch approving itself"]}\n',
++        }
++    )
++    done = gate(fx, "feature")
++    (build,) = web_builds(fx.docker())
++    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
++    assert status_of(done, "content") == "PASS"
++
++
++def test_with_no_policy_on_main_the_build_gets_an_empty_one(fx: Fixture) -> None:
++    fx.branch(ROOM_BRANCH)
++    gate(fx, "feature")
++    (build,) = web_builds(fx.docker())
++    assert build["policy"] == {}
++
++
++def test_a_build_that_publishes_a_draft_fails_the_gate(fx: Fixture) -> None:
++    fx.branch(ROOM_BRANCH)
++    (fx.logs / "content_check.control").write_text(
++        "1\nFAIL apps/web/content/resume.yaml: published, and main doesn't approve its SHA-256",
++        encoding="utf-8",
++    )
++    done = gate(fx, "feature")
++    assert done.returncode == 1
++    assert status_of(done, "content") == "FAIL"
++
++
++def test_a_build_that_fails_runs_no_content_check(fx: Fixture) -> None:
++    fx.branch(ROOM_BRANCH)
++    fx.control(web_build_fails=True)
++    done = gate(fx, "feature")
++    assert done.returncode == 1
++    assert status_of(done, "content-build") == "FAIL"
++    assert status_of(done, "content") == "FAIL"
++    assert fx.logged("content_check") == []
++
++
++def test_a_commit_without_the_room_has_no_content_steps(fx: Fixture) -> None:
++    fx.branch(CHANGE)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert web_builds(fx.docker()) == []
++    assert fx.logged("content_check") == []
++    with pytest.raises(AssertionError):
++        status_of(done, "content")
+--- a/redteam/forbidden-actions.sh
++++ b/redteam/forbidden-actions.sh
+@@ -771,20 +771,19 @@
+ # --- Spec 002's content policy (T015; contracts/resume-source.md §5): the approvals and the PDF's header -----------
+ # Human-only from the approvals patch on (T016): the Author approves a content file by putting its SHA-256 on main,
+ # and fills the PDF's header there, so no agent may write either file, by Edit or Write, in any path form, in the main
+-# tree or a linked worktree. The content itself stays agent-editable. Each row is "planned" until that patch is
+-# applied, and the patch switches it to "block"; stage S and the settings row below follow the same rule.
+-content_policy_planned=$planned
+-edit planned 'assets/policy/content-approvals.json'
+-edit planned 'assets/policy/resume-header.json'
+-edit planned 'apps/web/../assets/policy/content-approvals.json'
+-edit planned './assets//policy/resume-header.json'
++# tree or a linked worktree. The content itself stays agent-editable. The patch switched these rows, stage S's, and the
++# settings row below from "planned" to "block".
++edit block 'assets/policy/content-approvals.json'
++edit block 'assets/policy/resume-header.json'
++edit block 'apps/web/../assets/policy/content-approvals.json'
++edit block './assets//policy/resume-header.json'
+ edit allow 'apps/web/content/resume.yaml'
+ edit allow 'apps/web/build/approvals.ts'
+ # In a linked worktree (the governance worktree above): its Edit is the hook's to refuse; its shell write is a gap,
+ # as tools/gates' is, held by the gate, which reads approvals from main, never the branch.
+ mkdir -p "$gov_wt/assets/policy"
+ : >"$gov_wt/assets/policy/content-approvals.json"
+-check protected-paths.sh planned "Edit in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg f "$gov_wt/assets/policy/content-approvals.json" '{file_path:$f}')"
++check protected-paths.sh block "Edit in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg f "$gov_wt/assets/policy/content-approvals.json" '{file_path:$f}')"
+ check bash-gate.sh gap "a shell write in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg c "cp /tmp/new $gov_wt/assets/policy/content-approvals.json" '{command:$c}')"
+ 
+ # =================================================================================================
+@@ -947,9 +946,9 @@
+   # The gates and the agent-config evals, denied by the governance patch (T098).
+   s_unwritable 'tools/gates' block "$stage_s_tree/tools/gates"
+   s_unwritable 'evals/agent-config' block "$stage_s_tree/evals/agent-config"
+-  # Spec 002's content policy (T015, T016): planned until the approvals patch creates and denies both files.
+-  s_unwritable 'assets/policy/content-approvals.json' planned "$stage_s_tree/assets/policy/content-approvals.json"
+-  s_unwritable 'assets/policy/resume-header.json' planned "$stage_s_tree/assets/policy/resume-header.json"
++  # Spec 002's content policy (T015, T016): the approvals patch creates and denies both files.
++  s_unwritable 'assets/policy/content-approvals.json' block "$stage_s_tree/assets/policy/content-approvals.json"
++  s_unwritable 'assets/policy/resume-header.json' block "$stage_s_tree/assets/policy/resume-header.json"
+   # main can't move (plan §13): test -w on the ref's path, and nothing more. The row never runs update-ref, so the matrix
+   # itself can't move main before the closing patch denies the ref.
+   # A main that isn't a loose ref (packed, or no path) would make test -w say nothing, so that fails instead.
+@@ -1660,22 +1659,9 @@
+ else
+   pass=$((pass + 1))
+ fi
+-# Spec 002's content policy (T016): both files, in both layers behind the hook. Planned until the approvals patch, which
+-# switches this row to set_has; it sits above the recap, which counts it, with the content-policy rows above.
+-content_policy_label="the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)"
++# Spec 002's content policy (T016): both files, in both layers behind the hook, since the approvals patch.
+ # shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
+-content_policy_filter='(.sandbox.filesystem.denyWrite as $w | ["./assets/policy/content-approvals.json", "./assets/policy/resume-header.json"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/assets/policy/content-approvals.json)", "Edit(/assets/policy/resume-header.json)"] | all(. as $p | $d | index($p) != null))'
+-rid "H/settings/$content_policy_label"
+-if jq -e "$content_policy_filter" "$settings" >/dev/null 2>&1; then
+-  pass=$((pass + 1))
+-  printf 'ENFORCED    %-21s %s (a planned row: make it set_has)\n' settings.json "$content_policy_label"
+-else
+-  planned=$((planned + 1))
+-  printf 'PLANNED     %-21s %s\n' settings.json "$content_policy_label"
+-fi
+-if [ "$planned" -gt "$content_policy_planned" ]; then
+-  printf 'PLANNED (T016): %d content-policy rows wait for the approvals patch, which protects assets/policy/content-approvals.json and resume-header.json\n' "$((planned - content_policy_planned))"
+-fi
++set_has "the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)" '(.sandbox.filesystem.denyWrite as $w | ["./assets/policy/content-approvals.json", "./assets/policy/resume-header.json"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/assets/policy/content-approvals.json)", "Edit(/assets/policy/resume-header.json)"] | all(. as $p | $d | index($p) != null))'
+ # The planned/skipped recap (plan §13's report), beside the summary line. It sits above the blank line, so the settings
+ # rows other branches add before the summary line still merge cleanly; those print nothing when they pass, and add no
+ # planned or skipped row.
+diff --git a/tools/gates/content_check.py b/tools/gates/content_check.py
+new file mode 100644
+index 0000000..56a66ce
+--- /dev/null
++++ b/tools/gates/content_check.py
+@@ -0,0 +1,219 @@
++#!/usr/bin/env python3
++"""The published-content check (spec 002, T080; FR-012; contracts/resume-source.md §5; research.md R-08).
++
++    python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py --tree DIR --room-data FILE
++        (--repo DIR | --policy-dir DIR)
++
++The room publishes a content file, the resume's source or a narration script, only when main's
++assets/policy/content-approvals.json lists the SHA-256 of its bytes. The build marks the rest drafts and lists them in
++room-data.json's `drafts`; a build without drafts (ROOM_DRAFTS unset) then leaves them out. The build's code that
++decides this, apps/web/build/approvals.ts, is agent-editable, so a branch could change it to call a draft approved.
++This check is the enforcement, in human-only code, run by make check (make content-check) and by the Author's gate
++after a build without drafts:
++  - main's approvals, from --repo (it runs `git -C DIR show main:assets/policy/content-approvals.json` itself, never
++    reading the branch's copy) or from --policy-dir (a directory the gate filled from main); absent means nothing is
++    approved;
++  - each content file's SHA-256, recomputed from --tree: apps/web/content/resume.yaml and
++    apps/web/content/narration/*.md, each a regular file, never a link;
++  - a FAIL for each file whose digest main doesn't approve and that room-data.json doesn't list in `drafts`: the
++    build published it.
++An approved file listed as a draft is only held back, which passes. It prints paths and counts, never a file's content.
++
++Exit codes: 0 every unapproved file is a draft; 1 a file is published that main doesn't approve, or room-data.json
++isn't a build's; 2 usage, or main's approvals can't be read as the contract's shape.
++"""
++
++from __future__ import annotations
++
++import argparse
++import hashlib
++import json
++import os
++import re
++import subprocess
++import sys
++from pathlib import Path
++
++APPROVALS = "assets/policy/content-approvals.json"
++CONTENT = Path("apps/web/content")
++SHA256_RE = re.compile(r"[0-9a-f]{64}")
++ID_RE = re.compile(r"C-\d{4}")
++DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
++KINDS = ("resume", "narration")
++
++
++class CantCheck(Exception):
++    """Exit 2: main's approvals can't be read as the contract's shape."""
++
++
++def git_env() -> dict[str, str]:
++    """git's minimum: no GIT_DIR or other GIT_* of the caller's, no replace objects, no system or global config."""
++    return {
++        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
++        "HOME": os.environ.get("HOME", "/nonexistent"),
++        "LC_ALL": "C",
++        "GIT_NO_REPLACE_OBJECTS": "1",
++        "GIT_CONFIG_NOSYSTEM": "1",
++        "GIT_CONFIG_GLOBAL": "/dev/null",
++        "GIT_TERMINAL_PROMPT": "0",
++    }
++
++
++def mains_approvals(repo: Path) -> bytes | None:
++    """main's copy of the approvals file, or None: no main, or no file on it."""
++    try:
++        done = subprocess.run(
++            ["git", "-C", str(repo), "show", f"main:{APPROVALS}"],
++            capture_output=True,
++            check=False,
++            timeout=60,
++            env=git_env(),
++            stdin=subprocess.DEVNULL,
++        )
++    except (OSError, subprocess.TimeoutExpired):
++        return None
++    return done.stdout if done.returncode == 0 else None
++
++
++def approved_digests(data: bytes | None) -> set[str]:
++    """The digests main approves, from data-model.md §4's shape, which every entry must have."""
++    if data is None:
++        return set()
++    try:
++        doc = json.loads(data.decode("utf-8"))
++    except (UnicodeDecodeError, json.JSONDecodeError):
++        raise CantCheck("not JSON") from None
++    if not isinstance(doc, dict) or doc.get("schema") != 1:
++        raise CantCheck("schema isn't 1")
++    entries = doc.get("approvals")
++    if not isinstance(entries, list):
++        raise CantCheck("approvals isn't a list")
++    found = set()
++    for i, entry in enumerate(entries):
++        at = f"approvals[{i}]"
++        if not isinstance(entry, dict):
++            raise CantCheck(f"{at} isn't an object")
++        checks = (
++            ("id", lambda v: isinstance(v, str) and ID_RE.fullmatch(v), "isn't C-nnnn"),
++            ("path_when_approved", lambda v: isinstance(v, str) and v, "is missing"),
++            ("kind", lambda v: v in KINDS, "isn't resume or narration"),
++            (
++                "sha256",
++                lambda v: isinstance(v, str) and SHA256_RE.fullmatch(v),
++                "isn't 64 lowercase hex",
++            ),
++            (
++                "date",
++                lambda v: isinstance(v, str) and DATE_RE.fullmatch(v),
++                "isn't YYYY-MM-DD",
++            ),
++            ("reason", lambda v: isinstance(v, str), "is missing"),
++        )
++        for key, ok, why in checks:
++            if not ok(entry.get(key)):
++                raise CantCheck(f"{at}.{key} {why}")
++        found.add(entry["sha256"])
++    return found
++
++
++def content_files(tree: Path) -> list[str]:
++    """The resume's source, then the narration scripts in name order, as paths from the tree's root."""
++    paths = []
++    resume = CONTENT / "resume.yaml"
++    if (tree / resume).exists() or (tree / resume).is_symlink():
++        paths.append(resume.as_posix())
++    narration = tree / CONTENT / "narration"
++    if narration.is_dir():
++        paths += [
++            (CONTENT / "narration" / p.name).as_posix()
++            for p in sorted(narration.iterdir())
++            if p.name.endswith(".md")
++        ]
++    return paths
++
++
++def drafts_of(room_data: Path) -> tuple[set[str] | None, str]:
++    """room-data.json's drafts, or None with the reason it isn't a build's."""
++    try:
++        doc = json.loads(room_data.read_text(encoding="utf-8"))
++    except FileNotFoundError:
++        return (
++            None,
++            f"{room_data} doesn't exist: the build without drafts didn't run, or wrote none",
++        )
++    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
++        return None, f"{room_data} can't be read as JSON ({type(error).__name__})"
++    if not isinstance(doc, dict):
++        return None, f"{room_data} isn't an object"
++    drafts = doc.get("drafts")
++    if not isinstance(drafts, list) or not all(isinstance(d, str) for d in drafts):
++        return None, f"{room_data}'s drafts isn't a list of paths"
++    return set(drafts), ""
++
++
++def main(argv: list[str]) -> int:
++    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
++    parser.add_argument("--tree", type=Path, required=True)
++    parser.add_argument("--room-data", type=Path, required=True)
++    source = parser.add_mutually_exclusive_group(required=True)
++    source.add_argument("--repo", type=Path)
++    source.add_argument("--policy-dir", type=Path)
++    args = parser.parse_args(argv)
++
++    if args.repo is not None:
++        data = mains_approvals(args.repo)
++    else:
++        path = args.policy_dir / Path(APPROVALS).name
++        data = path.read_bytes() if path.is_file() and not path.is_symlink() else None
++    try:
++        approved = approved_digests(data)
++    except CantCheck as error:
++        print(
++            f"content check: can't check: main's content-approvals.json: {error}",
++            file=sys.stderr,
++        )
++        return 2
++
++    drafts, why = drafts_of(args.room_data)
++    if drafts is None:
++        print(f"FAIL room-data.json: {why}")
++        print("content check: 1 problem (room-data.json isn't a build's)")
++        return 1
++
++    paths = content_files(args.tree)
++    problems = []
++    held = approved_count = 0
++    for rel in paths:
++        full = args.tree / rel
++        if full.is_symlink() or not full.is_file():
++            problems.append(
++                f"FAIL {rel}: not a regular file: a content file is never a link"
++            )
++            continue
++        digest = hashlib.sha256(full.read_bytes()).hexdigest()
++        if digest in approved:
++            approved_count += 1
++            continue
++        if rel in drafts:
++            held += 1
++            continue
++        problems.append(f"FAIL {rel}: published, and main doesn't approve its SHA-256")
++    for line in problems:
++        print(line)
++    if problems:
++        print(
++            f"content check: {len(problems)} problem(s) in {len(paths)} content files"
++        )
++        return 1
++    if not paths:
++        print("content check: PASS (no content files yet)")
++    else:
++        print(
++            f"content check: PASS ({len(paths)} content files: {approved_count} approved by main, "
++            f"{held} drafts, all listed in room-data.json's drafts)"
++        )
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main(sys.argv[1:]))
+diff --git a/tools/gates/test/test_content_check.py b/tools/gates/test/test_content_check.py
+new file mode 100644
+index 0000000..c60c146
+--- /dev/null
++++ b/tools/gates/test/test_content_check.py
+@@ -0,0 +1,398 @@
++"""Tests for tools/gates/content_check.py: the published-content check (spec 002, T080; contracts/resume-source.md §5).
++
++The build's own approvals code (apps/web/build/approvals.ts) is agent-editable, so a branch could make it call a
++draft approved. This check is the enforcement, in human-only code: it reads main's approvals itself, recomputes each
++content file's SHA-256 from the tree, and fails when room-data.json leaves a file main doesn't approve out of its
++drafts, which is to say publishes it. The fixtures below are builds of that kind: room-data.json files as a build
++would write them, honest or not. Every digest is made at run time.
++"""
++
++from __future__ import annotations
++
++import hashlib
++import importlib.util
++import json
++import os
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++
++REPO = Path(__file__).resolve().parents[3]
++SCRIPT = REPO / "tools" / "gates" / "content_check.py"
++SPEC = importlib.util.spec_from_file_location("content_check", SCRIPT)
++assert SPEC and SPEC.loader
++cc = importlib.util.module_from_spec(SPEC)
++sys.modules[SPEC.name] = cc
++SPEC.loader.exec_module(cc)
++
++RESUME = "apps/web/content/resume.yaml"
++NARRATION = "apps/web/content/narration/x.engineer.md"
++RESUME_TEXT = "version: 1\nsections: []\n"
++NARRATION_TEXT = "---\nitem: x\npath: engineer\n---\nWords the room would say.\n"
++
++
++def sha(text: str) -> str:
++    return hashlib.sha256(text.encode()).hexdigest()
++
++
++def approvals(*digests: str) -> str:
++    return json.dumps(
++        {
++            "schema": 1,
++            "approvals": [
++                {
++                    "id": f"C-{i:04d}",
++                    "path_when_approved": RESUME,
++                    "kind": "resume",
++                    "sha256": digest,
++                    "date": "2026-10-18",
++                    "reason": "a stand-in approval, made by the test",
++                }
++                for i, digest in enumerate(digests, 1)
++            ],
++        }
++    )
++
++
++def make_tree(root: Path, files: dict[str, str] | None = None) -> Path:
++    files = {RESUME: RESUME_TEXT, NARRATION: NARRATION_TEXT} if files is None else files
++    for rel, text in files.items():
++        (root / rel).parent.mkdir(parents=True, exist_ok=True)
++        (root / rel).write_text(text, encoding="utf-8")
++    return root
++
++
++def room_data(path: Path, drafts: object, **extra: object) -> Path:
++    """What a build writes: room-data.json, with the drafts it says it left out."""
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(
++        json.dumps({"built_from": {"policy": "x"}, "drafts": drafts, **extra}),
++        encoding="utf-8",
++    )
++    return path
++
++
++def policy_dir(root: Path, approvals_text: str | None) -> Path:
++    folder = root / "policy"
++    folder.mkdir(parents=True, exist_ok=True)
++    if approvals_text is not None:
++        (folder / "content-approvals.json").write_text(approvals_text, encoding="utf-8")
++    return folder
++
++
++def run(tree: Path, data: Path, *source: str) -> int:
++    return cc.main(["--tree", str(tree), "--room-data", str(data), *source])
++
++
++@pytest.fixture
++def tree(tmp_path: Path) -> Path:
++    return make_tree(tmp_path / "tree")
++
++
++# --------------------------------------------------------------------------------------------------
++# What a build may publish
++# --------------------------------------------------------------------------------------------------
++def test_a_build_that_lists_every_draft_passes(
++    tmp_path: Path, tree: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    data = room_data(tmp_path / "dist/room-data.json", [NARRATION])
++    assert run(tree, data, "--policy-dir", str(folder)) == 0
++    out = capsys.readouterr().out
++    assert (
++        "content check: PASS" in out
++        and "2 content files" in out
++        and "1 approved by main" in out
++    )
++
++
++def test_a_build_whose_code_marks_a_draft_approved_fails(
++    tmp_path: Path, tree: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    # The build's approvals code said the script was approved and left it out of drafts; main never approved it.
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    data = room_data(tmp_path / "dist/room-data.json", [])
++    assert run(tree, data, "--policy-dir", str(folder)) == 1
++    out = capsys.readouterr().out
++    assert f"FAIL {NARRATION}: published, and main doesn't approve its SHA-256" in out
++    assert RESUME not in out.replace(
++        "content check", ""
++    )  # the approved one isn't named
++
++
++def test_an_edit_after_approval_makes_a_draft_again(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    tree = make_tree(tmp_path / "tree", {RESUME: RESUME_TEXT + "edited: true\n"})
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    data = room_data(tmp_path / "dist/room-data.json", [])
++    assert run(tree, data, "--policy-dir", str(folder)) == 1
++    assert f"FAIL {RESUME}: published" in capsys.readouterr().out
++
++
++def test_with_no_approvals_on_main_every_file_is_a_draft(
++    tmp_path: Path, tree: Path
++) -> None:
++    folder = policy_dir(tmp_path, None)
++    assert (
++        run(tree, room_data(tmp_path / "a.json", [RESUME]), "--policy-dir", str(folder))
++        == 1
++    )
++    assert (
++        run(
++            tree,
++            room_data(tmp_path / "b.json", [RESUME, NARRATION]),
++            "--policy-dir",
++            str(folder),
++        )
++        == 0
++    )
++
++
++def test_an_approved_file_listed_as_a_draft_is_only_held_back(
++    tmp_path: Path, tree: Path
++) -> None:
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT), sha(NARRATION_TEXT)))
++    data = room_data(tmp_path / "dist/room-data.json", [RESUME, NARRATION])
++    assert run(tree, data, "--policy-dir", str(folder)) == 0
++
++
++def test_only_the_resume_and_the_scripts_are_content(tmp_path: Path) -> None:
++    # The fixed messages are reviewed in the branch, not approved by hash (data-model.md §1 and §7).
++    tree = make_tree(
++        tmp_path / "tree",
++        {
++            "apps/web/content/messages.yaml": "- {id: x, text: y}\n",
++            "apps/web/src/main.ts": "x\n",
++        },
++    )
++    folder = policy_dir(tmp_path, None)
++    assert (
++        run(tree, room_data(tmp_path / "d.json", []), "--policy-dir", str(folder)) == 0
++    )
++
++
++def test_no_content_files_yet_passes_and_says_so(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    tree = make_tree(tmp_path / "tree", {})
++    folder = policy_dir(tmp_path, None)
++    assert (
++        run(tree, room_data(tmp_path / "d.json", []), "--policy-dir", str(folder)) == 0
++    )
++    assert "no content files yet" in capsys.readouterr().out
++
++
++def test_a_content_file_that_is_a_link_fails(tmp_path: Path) -> None:
++    tree = make_tree(tmp_path / "tree", {})
++    (tree / "apps/web/content").mkdir(parents=True)
++    (tmp_path / "elsewhere.yaml").write_text(RESUME_TEXT, encoding="utf-8")
++    (tree / RESUME).symlink_to(tmp_path / "elsewhere.yaml")
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    assert (
++        run(tree, room_data(tmp_path / "d.json", []), "--policy-dir", str(folder)) == 1
++    )
++
++
++def test_the_output_names_paths_and_never_content(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    phrase = "a sentence only the content holds"
++    tree = make_tree(tmp_path / "tree", {NARRATION: f"---\nitem: x\n---\n{phrase}\n"})
++    folder = policy_dir(tmp_path, None)
++    assert (
++        run(tree, room_data(tmp_path / "d.json", []), "--policy-dir", str(folder)) == 1
++    )
++    captured = capsys.readouterr()
++    assert phrase not in captured.out + captured.err
++
++
++# --------------------------------------------------------------------------------------------------
++# room-data.json, as the build wrote it
++# --------------------------------------------------------------------------------------------------
++@pytest.mark.parametrize(
++    "text",
++    [
++        None,  # no room-data.json: the build didn't run, or wrote none
++        "{",
++        json.dumps([]),
++        json.dumps({"built_from": {}}),
++        json.dumps({"drafts": RESUME}),
++        json.dumps({"drafts": [RESUME, 3]}),
++    ],
++)
++def test_a_room_data_file_that_isnt_a_builds_fails(
++    tmp_path: Path, tree: Path, text: str | None
++) -> None:
++    data = tmp_path / "dist/room-data.json"
++    if text is not None:
++        data.parent.mkdir(parents=True)
++        data.write_text(text, encoding="utf-8")
++    folder = policy_dir(tmp_path, None)
++    assert run(tree, data, "--policy-dir", str(folder)) == 1
++
++
++# --------------------------------------------------------------------------------------------------
++# main's approvals: from a policy directory the gate filled, or read from main by this script itself
++# --------------------------------------------------------------------------------------------------
++@pytest.mark.parametrize(
++    "text",
++    [
++        "{",
++        json.dumps({"schema": 2, "approvals": []}),
++        json.dumps({"schema": 1}),
++        json.dumps({"schema": 1, "approvals": {}}),
++        json.dumps({"schema": 1, "approvals": [{"sha256": "abc"}]}),
++        approvals("A" * 64),
++        approvals(sha("x")).replace('"kind": "resume"', '"kind": "poem"'),
++        approvals(sha("x")).replace('"id": "C-0001"', '"id": "C-1"'),
++        approvals(sha("x")).replace('"date": "2026-10-18"', '"date": "18 October"'),
++    ],
++)
++def test_approvals_that_arent_the_contracts_shape_stop_the_check(
++    tmp_path: Path, tree: Path, text: str, capsys: pytest.CaptureFixture[str]
++) -> None:
++    folder = policy_dir(tmp_path, text)
++    data = room_data(tmp_path / "dist/room-data.json", [RESUME, NARRATION])
++    assert run(tree, data, "--policy-dir", str(folder)) == 2
++    assert "content-approvals.json" in capsys.readouterr().err
++
++
++def git(repo: Path, *args: str) -> str:
++    done = subprocess.run(
++        ["git", "-C", str(repo), *args],
++        capture_output=True,
++        text=True,
++        check=True,
++        env={
++            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
++            "HOME": str(repo),
++            "GIT_CONFIG_NOSYSTEM": "1",
++            "GIT_AUTHOR_NAME": "t",
++            "GIT_AUTHOR_EMAIL": "t@example.invalid",
++            "GIT_COMMITTER_NAME": "t",
++            "GIT_COMMITTER_EMAIL": "t@example.invalid",
++        },
++    )
++    return done.stdout.strip()
++
++
++def make_repo(
++    root: Path, main_approvals: str | None, branch_approvals: str | None = None
++) -> Path:
++    """A checkout on a branch, with main's approvals (None: no main at all) and the branch's own copy."""
++    root.mkdir(parents=True)
++    git(root, "init", "-q", "-b", "main" if main_approvals is not None else "other")
++    make_tree(root)
++    if main_approvals is not None:
++        (root / "assets/policy").mkdir(parents=True)
++        (root / "assets/policy/content-approvals.json").write_text(
++            main_approvals, encoding="utf-8"
++        )
++    git(root, "add", "-A")
++    git(root, "commit", "-qm", "base")
++    git(root, "switch", "-qc", "feature")
++    if branch_approvals is not None:
++        (root / "assets/policy").mkdir(parents=True, exist_ok=True)
++        (root / "assets/policy/content-approvals.json").write_text(
++            branch_approvals, encoding="utf-8"
++        )
++        git(root, "add", "-A")
++        git(root, "commit", "-qm", "the branch approves itself")
++    return root
++
++
++def test_the_branchs_own_approvals_are_never_read(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    repo = make_repo(
++        tmp_path / "repo",
++        approvals(sha(RESUME_TEXT)),
++        branch_approvals=approvals(sha(RESUME_TEXT), sha(NARRATION_TEXT)),
++    )
++    data = room_data(tmp_path / "dist/room-data.json", [])
++    assert run(repo, data, "--repo", str(repo)) == 1
++    assert f"FAIL {NARRATION}: published" in capsys.readouterr().out
++    assert (
++        run(repo, room_data(tmp_path / "ok.json", [NARRATION]), "--repo", str(repo))
++        == 0
++    )
++
++
++def test_no_main_approves_nothing(tmp_path: Path) -> None:
++    repo = make_repo(
++        tmp_path / "repo", None, branch_approvals=approvals(sha(RESUME_TEXT))
++    )
++    assert (
++        run(repo, room_data(tmp_path / "a.json", [NARRATION]), "--repo", str(repo)) == 1
++    )
++    assert (
++        run(
++            repo,
++            room_data(tmp_path / "b.json", [RESUME, NARRATION]),
++            "--repo",
++            str(repo),
++        )
++        == 0
++    )
++
++
++def test_git_reads_main_without_replace_objects_or_the_callers_settings(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = make_repo(tmp_path / "repo", approvals(sha(RESUME_TEXT)))
++    seen: list[tuple[list[str], dict[str, str]]] = []
++    real = subprocess.run
++
++    def spy(argv, *args, **kwargs):  # type: ignore[no-untyped-def]
++        seen.append((list(argv), dict(kwargs.get("env") or {})))
++        return real(argv, *args, **kwargs)
++
++    monkeypatch.setattr(cc.subprocess, "run", spy)
++    monkeypatch.setenv("GIT_DIR", str(tmp_path / "elsewhere"))
++    assert (
++        run(repo, room_data(tmp_path / "d.json", [NARRATION]), "--repo", str(repo)) == 0
++    )
++    assert [a for a, _ in seen] == [
++        ["git", "-C", str(repo), "show", "main:assets/policy/content-approvals.json"]
++    ]
++    (env,) = [e for _, e in seen]
++    assert env["GIT_NO_REPLACE_OBJECTS"] == "1" and "GIT_DIR" not in env
++
++
++def test_it_runs_isolated_by_path(tmp_path: Path, tree: Path) -> None:
++    # As make check and the gate run it: python3 -I -B -X pycache_prefix=/dev/null, by path, never -m.
++    folder = policy_dir(tmp_path, None)
++    data = room_data(tmp_path / "d.json", [RESUME, NARRATION])
++    done = subprocess.run(
++        [
++            sys.executable,
++            "-I",
++            "-B",
++            "-X",
++            "pycache_prefix=/dev/null",
++            str(SCRIPT),
++            "--tree",
++            str(tree),
++            "--room-data",
++            str(data),
++            "--policy-dir",
++            str(folder),
++        ],
++        capture_output=True,
++        text=True,
++        check=False,
++        timeout=60,
++    )
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert done.stdout.strip().splitlines()[-1].startswith("content check: PASS")
++
++
++def test_it_takes_one_source_of_main_approvals(tmp_path: Path, tree: Path) -> None:
++    data = room_data(tmp_path / "d.json", [])
++    with pytest.raises(SystemExit):
++        run(tree, data)
++    with pytest.raises(SystemExit):
++        run(tree, data, "--repo", str(tree), "--policy-dir", str(tmp_path))
+diff --git a/assets/policy/content-approvals.json b/assets/policy/content-approvals.json
+new file mode 100644
+index 0000000..919018a
+--- /dev/null
++++ b/assets/policy/content-approvals.json
+@@ -0,0 +1,4 @@
++{
++  "schema": 1,
++  "approvals": []
++}
+diff --git a/assets/policy/resume-header.json b/assets/policy/resume-header.json
+new file mode 100644
+index 0000000..c1cc625
+--- /dev/null
++++ b/assets/policy/resume-header.json
+@@ -0,0 +1,5 @@
++{
++  "schema": 1,
++  "full_name": null,
++  "contact": null
++}
