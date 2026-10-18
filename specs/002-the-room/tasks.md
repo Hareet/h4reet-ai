@@ -55,7 +55,7 @@ description: "Task list for spec 002, The Room"
 - [X] T010 `apps/web/build/disclosure.ts`: render `docs/data-flow-disclosure.md` into `dist/disclosure/index.html` at build, linked from the choice screen and the room's toolbar, with a test that the page's rows equal the Markdown's (this is spec 001's planned disclosure page, built here first), per FR-004 and FR-058
 - [X] T011 [P] ADR 0033, "The room's stack: `apps/web`, Vite, Three.js, no framework", with its index line in `docs/adr/README.md`, per research.md R-15
 - [X] T012 [P] `apps/web/README.md`: the workspace, the build, the content files, drafts and approvals, the local URL per stack
-- [ ] T013 Merge-request note `docs/merge-requests/<date>-feat-002-web.md`, with the compose policy patch's verification, `make check`, and the reviewer's passes
+- [X] T013 Merge-request note `docs/merge-requests/<date>-feat-002-web.md`, with the compose policy patch's verification, `make check`, and the reviewer's passes
 
 ---
 

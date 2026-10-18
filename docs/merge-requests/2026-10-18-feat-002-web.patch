@@ -33,7 +33,7 @@
  @dataclass(frozen=True)
 --- a/tools/gates/test/test_compose_policy.py
 +++ b/tools/gates/test/test_compose_policy.py
-@@ -1180,4 +1180,74 @@
+@@ -1180,4 +1180,83 @@
      gateway = real_model()["services"]["gateway"]
      assert (gateway["image"], gateway["pull_policy"]) == (SHARED, "never")
      assert "build" not in gateway
@@ -51,9 +51,9 @@
 +
 +def with_web(**fields: object) -> dict:
 +    model = good_model()
-+    model["services"]["web"] = service(
-+        image=SHARED_WEB, pull_policy="never", read_only=True, tmpfs=["/tmp"], **fields
-+    )
++    web = service(image=SHARED_WEB, pull_policy="never", read_only=True, tmpfs=["/tmp"])
++    web.update(fields)
++    model["services"]["web"] = web
 +    return model
 +
 +
@@ -81,8 +81,12 @@
 +        SHARED,  # the gateway's name is the gateway's alone
 +    ],
 +)
-+def test_any_other_spelling_of_the_web_image_is_an_unpinned_image(tmp_path: Path, image: str) -> None:
-+    assert ("web", "image") in rules(with_web(image=image), tmp_path, DISCLOSED | {"web"})
++def test_any_other_spelling_of_the_web_image_is_an_unpinned_image(
++    tmp_path: Path, image: str
++) -> None:
++    assert ("web", "image") in rules(
++        with_web(image=image), tmp_path, DISCLOSED | {"web"}
++    )
 +
 +
 +def test_the_web_name_is_the_web_services_alone(tmp_path: Path) -> None:
@@ -93,8 +97,13 @@
 +
 +
 +def test_the_web_service_still_meets_every_other_rule(tmp_path: Path) -> None:
-+    model = with_web(networks={"internal": None, "edge": None}, ports=["127.0.0.1:${H4_SITE_PORT}:8080"])
-+    assert {("web", "networks"), ("web", "ports")} <= rules(model, tmp_path, DISCLOSED | {"web"})
++    model = with_web(
++        networks={"internal": None, "edge": None},
++        ports=["127.0.0.1:${H4_SITE_PORT}:8080"],
++    )
++    assert {("web", "networks"), ("web", "ports")} <= rules(
++        model, tmp_path, DISCLOSED | {"web"}
++    )
 +    # And it needs its disclosure row, as every service does.
 +    assert ("web", "disclosure") in rules(with_web(), tmp_path)
 +
@@ -121,16 +130,19 @@
     - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
       waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
     - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
-@@ -1101,7 +1102,7 @@
+@@ -1101,7 +1102,10 @@
  
  
  def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
 -    begin("image", "the gateway's and the compose images, built on the agents' engine")
-+    begin("image", "the gateway's, the room's, and the compose images, built on the agents' engine")
++    begin(
++        "image",
++        "the gateway's, the room's, and the compose images, built on the agents' engine",
++    )
      step = Step("image")
      if policy_step.status not in ("PASS", "PLANNED"):
          return step.fail(
-@@ -1146,6 +1147,38 @@
+@@ -1146,6 +1150,38 @@
          return step.fail(
              "the agents' engine didn't build the gateway's image; if it's down: deploy/agents-engine/engine.sh up"
          )
@@ -275,16 +287,17 @@
  def _publish_port_ok(value: object) -> bool:
 --- a/deploy/agents-engine/test/test_authz.py
 +++ b/deploy/agents-engine/test/test_authz.py
-@@ -392,7 +392,7 @@
+@@ -392,7 +392,8 @@
  
  
  @pytest.mark.parametrize("address", ["127.0.0.1", "::1"])
 -@pytest.mark.parametrize("port", [*range(18300, 18305), 18999])
-+@pytest.mark.parametrize("port", [*range(18300, 18306), 18999])  # x000-x005: x005 is the room's site
++# dev-cpu's x000 to x005 (x005, the room's site, since spec 002), and row E15's port.
++@pytest.mark.parametrize("port", [*range(18300, 18306), 18999])
  def test_a21_dev_cpus_ports_and_the_proofs_allowed(address: str, port: int) -> None:
      host = {"PortBindings": {"80/tcp": [{"HostIp": address, "HostPort": str(port)}]}}
      assert create(host).allow
-@@ -403,12 +403,12 @@
+@@ -403,12 +404,12 @@
      "port",
      [
          *(
