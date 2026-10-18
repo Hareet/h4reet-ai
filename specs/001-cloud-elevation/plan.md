@@ -496,6 +496,11 @@ It leaves a hand-started stack alone (FR-049). [contracts/releases-deployer.md](
 
 Every page links the disclosure. The CSP (`default-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`) makes the browser refuse any other host. A static scan of the built site in `make check` fails on any absolute URL to another host (SC-010's machine half).
 
+**Spec 002's room, planned on 2026-10-18 after this draft** (on branch `spec/002-the-room`; its merge-request note lists what it asks of this spec). If it merges before task group 6 starts, group 6 changes in three places, and its tasks T087 and T089 are rewritten when the group starts:
+- **The site:** spec 002 creates `apps/web` as a Vite workspace, with the disclosure page rendered from `docs/data-flow-disclosure.md` at build. This spec then serves that build from the edge instead of building its own placeholder, and keeps its own additions (the hello form, the status line, `/status/`) as pages of that workspace.
+- **Releases:** `make release` refuses a build that contains drafts or placeholders (spec 002's `-drafts` image builds and its placeholder assets), so nothing unapproved reaches the edge.
+- **The tunnel:** the local `edge`'s 8085 block also accepts spec 002's `POST /api/room/events`, to the gateway, carrying no address, beside `POST /hello` and `GET /health` ([contracts/tunnel.md §5](contracts/tunnel.md#5-the-local-edges-tunnel-blocks)).
+
 ### 8.2 The disclosure's new rows (FR-040)
 
 - **The spec's flows** become rows with spec 000's columns: V1–V5 and C1–C11, the numbering kept and C12 not reused.
