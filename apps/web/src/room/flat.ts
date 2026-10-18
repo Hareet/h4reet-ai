@@ -126,6 +126,8 @@ export function renderFlat(doc: Document, options: { avatar: AvatarId; select(id
       "button",
       { type: "button", tabindex: -1, class: `flat-hit flat-hit--${object.id}`, "data-object-id": object.id },
       h(doc, "span", {}, object.name),
+      " ",
+      h(doc, "span", {}, "(placeholder)"),
     );
     // A press on the drawing selects; it doesn't move focus into the hidden drawing.
     button.addEventListener("mousedown", (e) => e.preventDefault());

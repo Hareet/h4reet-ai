@@ -31,7 +31,7 @@ import { renderRoom } from "./layout";
 import type { RoomLayout } from "./layout";
 import { objectById } from "./objects";
 import type { ObjectId } from "./objects";
-import { createQualityController, hasWebGL2, targetFps, watchContext } from "./quality";
+import { SCENE_WAIT_MS, createQualityController, hasWebGL2, targetFps, watchContext } from "./quality";
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
 import type { SceneModule, Stage, Stage3D } from "./stage";
@@ -88,6 +88,24 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   const loadScene = deps.loadScene ?? ((): Promise<SceneModule> => import("./scene"));
   const scene: Promise<SceneModule | null> = webgl ? loadScene().catch(() => null) : Promise.resolve(null);
 
+  /** The 3D chunk, or "late" once SCENE_WAIT_MS have passed since "Enter" without it (null: no WebGL 2, or it failed). */
+  function sceneOrLate(): Promise<SceneModule | null | "late"> {
+    return new Promise((resolve) => {
+      const timer = clock.setTimeout(() => resolve("late"), SCENE_WAIT_MS);
+      void scene.then((module) => {
+        clock.clearTimeout(timer);
+        resolve(module);
+      });
+    });
+  }
+
+  // A hidden page draws no frames; when it shows again, the quality controller starts a new window (R-04).
+  doc.addEventListener("visibilitychange", () => controller?.restart());
+  const onFrame = (time: number): void => {
+    if (doc.visibilityState === "hidden") controller?.restart();
+    else controller?.frame(time);
+  };
+
   function enter(choice: Choice): void {
     if (visit.stage !== "choosing") return;
     visit.path = choice.path;
@@ -117,10 +135,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     doc.body.classList.add("in-room");
     layout.heading.focus();
 
-    const module = await scene;
+    const loaded = await sceneOrLate();
+    const module = loaded === "late" ? null : loaded;
     const reducedMotion = media("(prefers-reduced-motion: reduce)");
     if (module) mount3d(module, choice, reducedMotion);
-    if (!module || !stage) toFlat(webgl ? "load_failed" : "no_webgl2");
+    if (!module || !stage) toFlat(!webgl ? "no_webgl2" : loaded === "late" ? "load_timeout" : "load_failed");
     handoff = runHandoff({
       clock,
       durationMs: handoffDuration(visit.mode === "2d" ? "2d" : "3d", reducedMotion),
@@ -140,7 +159,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         avatar: choice.avatar,
         reducedMotion,
         select: selectObject,
-        onFrame: (time) => controller?.frame(time),
+        onFrame,
       });
     } catch {
       return;

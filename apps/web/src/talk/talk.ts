@@ -17,8 +17,6 @@ import type { MessageId, Messages } from "./messages";
 
 /** The log keeps the last few messages; older ones leave the page. */
 const LOG_LIMIT = 20;
-/** One press of the talk button fires pointerdown or keydown, then click: within this, they are one press. */
-const PRESS_MS = 1000;
 
 export interface TalkPanel {
   readonly element: HTMLElement;
@@ -92,27 +90,49 @@ export function renderTalk(
     show("cannot_talk.unavailable");
   });
 
-  let lastPress = -Infinity;
+  // One press is one gesture, however long it's held. A pointer press ends in the click it fires, which belongs to
+  // it; a keyboard press fires none (Enter's is prevented, and Space's keyup lands on the text box, where focus went);
+  // a click alone, as a screen reader sends it, is a press of its own.
+  let pointerPress = false;
   const press = (): void => {
     if (!options.enabled()) return;
-    const now = options.clock.now();
-    if (now - lastPress < PRESS_MS) return;
-    lastPress = now;
     options.emit({ kind: "voice_pressed" });
     show("voice_unavailable");
     textBox.focus();
   };
   voice.addEventListener("pointerdown", (event) => {
-    if (event.button === 0) press();
+    if (event.button !== 0) return;
+    pointerPress = true;
+    press();
   });
+  voice.addEventListener("pointercancel", () => {
+    pointerPress = false;
+  });
+  // A release anywhere ends the gesture: the click it fires on the button, if any, comes before this timer runs.
+  doc.addEventListener(
+    "pointerup",
+    () => {
+      if (pointerPress) {
+        options.clock.setTimeout(() => {
+          pointerPress = false;
+        }, 0);
+      }
+    },
+    true,
+  );
   voice.addEventListener("keydown", (event) => {
     if ((event.key === " " || event.key === "Enter") && !event.repeat) {
       event.preventDefault();
       press();
     }
   });
-  // A screen reader activates a button with a click alone.
-  voice.addEventListener("click", press);
+  voice.addEventListener("click", () => {
+    if (pointerPress) {
+      pointerPress = false;
+      return;
+    }
+    press();
+  });
 
   return {
     element,

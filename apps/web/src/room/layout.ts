@@ -37,7 +37,8 @@ export function renderRoom(doc: Document, parts: { list: HTMLElement; talk: HTML
     flatButton,
     h(doc, "a", { href: "./disclosure/" }, "How data flows"),
   );
-  const view = h(doc, "div", { class: "room-stage-view" });
+  // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
+  const view = h(doc, "div", { class: "room-stage-view" }, h(doc, "p", { class: "room-loading" }, "Loading the room…"));
   const stage = h(
     doc,
     "div",

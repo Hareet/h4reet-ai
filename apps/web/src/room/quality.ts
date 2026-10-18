@@ -18,12 +18,15 @@ export const MAX_QUALITY = 3;
  * (plan.md §4, "What group 4 found").
  */
 export const TARGET_TOLERANCE = 0.9;
-/** A gap between frames longer than this is a pause (a hidden tab, a locked phone), not a slow frame. */
-export const PAUSE_MS = 1000;
+/**
+ * How long the room waits, after "Enter", for the 3D chunk it began importing behind the choice: then it goes to 2D,
+ * so a stalled download can't hold the hand-off back (SC-005). A late chunk is ignored: the mode never moves back up.
+ */
+export const SCENE_WAIT_MS = 4000;
 /** How long a lost WebGL context has to come back before the room switches to 2D. */
 export const CONTEXT_RESTORE_MS = 3000;
 
-export type FlatReason = "no_webgl2" | "load_failed" | "frame_floor" | "context_lost" | "visitor";
+export type FlatReason = "no_webgl2" | "load_failed" | "load_timeout" | "frame_floor" | "context_lost" | "visitor";
 
 export function targetFps(touchPrimary: boolean): 30 | 60 {
   return touchPrimary ? 30 : 60;
@@ -34,6 +37,11 @@ export interface QualityController {
   frame(time: number): void;
   /** Switches to 2D for the reason given, once; frames after that are ignored. */
   toFlat(reason: FlatReason): void;
+  /**
+   * The page was hidden (a background tab, a locked phone): the next frame starts a new window, so the time away
+   * isn't counted as one slow frame. A long gap on a visible page is a slow frame, and counts.
+   */
+  restart(): void;
   readonly quality: number;
   readonly mode: Mode;
 }
@@ -64,7 +72,7 @@ export function createQualityController(options: {
   return {
     frame(time) {
       if (flat) return;
-      if (last === null || time - last > PAUSE_MS) {
+      if (last === null) {
         last = time;
         windowStart = time;
         intervals = [];
@@ -86,6 +94,9 @@ export function createQualityController(options: {
       }
     },
     toFlat,
+    restart() {
+      last = null;
+    },
     get quality() {
       return quality;
     },

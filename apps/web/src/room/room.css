@@ -52,6 +52,20 @@
   cursor: default;
 }
 
+/* The AI disclosure, index.html's header, stays in view on every screen, from the choice to the end of the visit
+   (FR-004; contracts/room-scene.md §1): sticky and opaque. The scroll padding keeps a focused control from scrolling
+   under it (WCAG 2.4.11). */
+html {
+  scroll-padding-top: 5rem;
+}
+
+.disclosure {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #ffffff;
+}
+
 /* In the room, the page uses the screen's height: the AI disclosure stays on top, smaller. */
 body.in-room {
   max-width: 72rem;
@@ -106,6 +120,11 @@ body.in-room .disclosure p {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.room-loading {
+  margin: 0;
+  color: #ffffff;
 }
 
 .room-canvas {
@@ -194,8 +213,9 @@ body.in-room .disclosure p {
   position: absolute;
   transform: translate(-50%, -50%);
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
   padding: 0 0 2px;
   background: transparent;
   border: 2px dashed #0b4f9c;

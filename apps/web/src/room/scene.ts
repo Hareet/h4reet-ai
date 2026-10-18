@@ -438,46 +438,94 @@ export function qualitySettings(level: number): QualitySettings {
   return LEVELS[Math.min(LEVELS.length - 1, Math.max(0, Math.round(level)))] as QualitySettings;
 }
 
-/**
- * Labels drawn on a 2D canvas, the name above "placeholder", and shown as sprites of one size on screen, readable
- * at any camera distance. The node keeps the whole text as its name.
- */
-function spriteLabels(doc: Document, scale: () => number): LabelFactory {
-  return (text) => {
-    const node = namedLabel(text);
-    const canvas = doc.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return node;
-    const placeholder = text.endsWith(" (placeholder)");
-    const lines = placeholder ? [text.slice(0, -" (placeholder)".length), "placeholder"] : [text];
-    const px = Math.round(28 * scale());
-    const fonts = [`600 ${px}px system-ui, sans-serif`, `400 ${Math.round(px * 0.75)}px system-ui, sans-serif`];
-    const width = Math.max(
-      ...lines.map((line, i) => {
-        ctx.font = fonts[i] ?? fonts[0] ?? "";
-        return ctx.measureText(line).width;
-      }),
-    );
-    const lineHeight = Math.round(px * 1.25);
-    canvas.width = Math.ceil(width) + px;
-    canvas.height = lineHeight * lines.length + Math.round(px / 2);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.textBaseline = "top";
-    lines.forEach((line, i) => {
+const PLACEHOLDER = " (placeholder)";
+
+/** A label's lines: its name above "placeholder", or its text on one line. */
+function labelLines(text: string): string[] {
+  return text.endsWith(PLACEHOLDER) ? [text.slice(0, -PLACEHOLDER.length), "placeholder"] : [text];
+}
+
+/** Draws a label on a fresh canvas, its font 28 pixels at scale 1; null where the page has no 2D canvas. */
+function drawLabel(doc: Document, text: string, scale: number): HTMLCanvasElement | null {
+  const canvas = doc.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const lines = labelLines(text);
+  const px = Math.max(8, Math.round(28 * scale));
+  const fonts = [`600 ${px}px system-ui, sans-serif`, `400 ${Math.round(px * 0.75)}px system-ui, sans-serif`];
+  const width = Math.max(
+    ...lines.map((line, i) => {
       ctx.font = fonts[i] ?? fonts[0] ?? "";
-      ctx.fillStyle = i === 0 ? "#1a1a1a" : "#3a3a3a";
-      ctx.fillText(line, px / 2, Math.round(px / 4) + i * lineHeight);
-    });
-    const texture = new CanvasTexture(canvas);
-    texture.colorSpace = SRGBColorSpace;
-    const sprite = new Sprite(new SpriteMaterial({ map: texture, depthTest: false, sizeAttenuation: false }));
-    // About 4% of the view's height a line.
-    const height = 0.033 * lines.length;
-    sprite.scale.set((height * canvas.width) / canvas.height, height, 1);
-    sprite.renderOrder = 10;
-    node.add(sprite);
-    return node;
+      return ctx.measureText(line).width;
+    }),
+  );
+  const lineHeight = Math.round(px * 1.25);
+  canvas.width = Math.ceil(width) + px;
+  canvas.height = lineHeight * lines.length + Math.round(px / 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textBaseline = "top";
+  lines.forEach((line, i) => {
+    ctx.font = fonts[i] ?? fonts[0] ?? "";
+    ctx.fillStyle = i === 0 ? "#1a1a1a" : "#3a3a3a";
+    ctx.fillText(line, px / 2, Math.round(px / 4) + i * lineHeight);
+  });
+  return canvas;
+}
+
+function labelTexture(canvas: HTMLCanvasElement): CanvasTexture {
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
+
+/** A sprite's size on screen: about 4% of the view's height a line, whatever its texture's resolution. */
+function fitLabel(sprite: Sprite, canvas: HTMLCanvasElement, lines: number): void {
+  const height = 0.033 * lines;
+  sprite.scale.set((height * canvas.width) / canvas.height, height, 1);
+}
+
+export interface Labels {
+  /** Makes a label: a node named `label:<text>`, holding its sprite where the page has a 2D canvas. */
+  factory: LabelFactory;
+  /**
+   * Redraws every label at a texture scale (quality's textureScale), releasing the old textures, at the same size on
+   * screen. The placeholders' labels are their only textures, so this is quality 3's "smaller textures" (R-04).
+   */
+  setScale(scale: number): void;
+}
+
+/** The scene's labels, drawn on 2D canvases and shown as sprites of one size on screen at any camera distance. */
+export function createLabels(doc: Document): Labels {
+  let scale = 1;
+  const drawn: { text: string; sprite: Sprite }[] = [];
+  return {
+    factory(text) {
+      const node = namedLabel(text);
+      const canvas = drawLabel(doc, text, scale);
+      if (!canvas) return node;
+      const sprite = new Sprite(
+        new SpriteMaterial({ map: labelTexture(canvas), depthTest: false, sizeAttenuation: false }),
+      );
+      fitLabel(sprite, canvas, labelLines(text).length);
+      sprite.renderOrder = 10;
+      node.add(sprite);
+      drawn.push({ text, sprite });
+      return node;
+    },
+    setScale(next) {
+      if (next === scale) return;
+      scale = next;
+      for (const { text, sprite } of drawn) {
+        const canvas = drawLabel(doc, text, scale);
+        if (!canvas) continue;
+        const old = sprite.material.map;
+        sprite.material.map = labelTexture(canvas);
+        sprite.material.needsUpdate = true;
+        old?.dispose();
+        fitLabel(sprite, canvas, labelLines(text).length);
+      }
+    },
   };
 }
 
@@ -507,7 +555,8 @@ export function createScene(options: SceneOptions): Stage3D {
   renderer.shadowMap.enabled = true;
 
   let settings = qualitySettings(0);
-  const area = buildWorkArea({ avatar: options.avatar, label: spriteLabels(doc, () => settings.textureScale) });
+  const labels = createLabels(doc);
+  const area = buildWorkArea({ avatar: options.avatar, label: labels.factory });
   const camera = new PerspectiveCamera();
   fitCamera(camera, 16 / 9);
   const unbind = bindPointerSelection(canvas, createPicker(camera, area), options.select);
@@ -550,6 +599,7 @@ export function createScene(options: SceneOptions): Stage3D {
       const before = settings.shadows;
       settings = qualitySettings(level);
       renderer.shadowMap.enabled = settings.shadows;
+      labels.setScale(settings.textureScale);
       if (before !== settings.shadows) {
         area.scene.traverse((node) => {
           const material = (node as Partial<Mesh>).material;
