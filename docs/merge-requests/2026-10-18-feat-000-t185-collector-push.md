@@ -3,7 +3,7 @@ Spec: specs/000-local-foundations/ (T185 [US1]; FR-026, FR-028; contracts/teleme
 Session: worked in `/tmp/claude-1000/wt-t185`, launched from `~/h4reet-ai/h4reet-ai` · Repo hooks active: yes. The command guard refused two commands: a `git config` read of the hooks path, and a `docker exec` into dev-cpu's Prometheus whose text named the fetch tool. Neither was respelled. The read was dropped, and the queries went through `evals/breach_probe.py` in a breach-probe container, as the breach test's do. The auto-mode classifier also refused a `tail` of a scratch log, which was then read with the Read tool.
 Authorized by: tasks.md T185, given to this session by the integrating session on 2026-10-17.
 
-**Status: ready for your review.** Branched from 58bd232, main's tip. No human-only path changed, so there is no patch: the gate, then the merge.
+**Status: reviewed, APPROVE; ready for your gate and merge.** Branched from 58bd232, main's tip. No human-only path changed, so there is no patch: the gate, then the merge.
 
 ## Runs in the Author's terminal
 
@@ -63,7 +63,9 @@ Also seen:
 
 ## Acceptance criteria
 
-T185. FR-028's telemetry-health row: Spans to Langfuse counts a fresh collector's first batch, and Backends up keeps the collector. FR-026: the collector's metrics carry the stack's labels.
+- **T185:** "Push the collector's own metrics to Prometheus over OTLP, so they carry a start time and a fresh collector's first batch counts", and "Keep `up{job="otel-collector"}` for the backends panel without counting a series twice". Met by the collector's periodic reader and the scrape's drop rule (the live check above).
+- **FR-028:** "Grafana MUST run in the stack with a dashboard showing request count, latency p50/p95, error rate, …". The telemetry-health row that reads these counters is contracts/telemetry.md §7.6's, not FR-028's own words: Spans to Langfuse now counts a fresh collector's first batch, and Backends up keeps the collector.
+- **FR-026:** "Services MUST emit OpenTelemetry traces, metrics, and logs". The stack's labels on the collector's metrics are contracts/telemetry.md §2's rule, not FR-026's.
 
 ## Constitution check
 
@@ -80,7 +82,20 @@ T185. FR-028's telemetry-health row: Spans to Langfuse counts a fresh collector'
 
 ## Review
 
-None yet. REVIEW.md asks for a review by an agent that didn't write the change, and no reviewer has read this branch.
+One pass by the reviewer agent, which didn't write the change, against REVIEW.md, spec 000, plan §6, T185, contracts/telemetry.md, and the constitution: **APPROVE, no blockers.** It re-ran test_observability.py and test_dashboard.py: 94 passed. Its checks:
+1. **Commit 2ceb333 corrects two tests; it doesn't weaken them.** The exporters test still compares exactly, and the name and alias patterns now accept only the `_total` forms, which is stricter. One looseness stays: the metric-name test accepts any word in telemetry.md, whose history prose still names the old counter, but the exact-query test and the new `_total` test would both catch a revert.
+2. **The dashboard:** 11 `otelcol_` expressions; the ten counters end in `_total`, the two queue gauges keep their names, `up` stays, and no series is stored twice.
+3. **No new flow:** the push stays on `internal`, and disclosure row S6 already lists "the collector's OTLP pushes".
+4. **The config matches** telemetry.md §2, §4.3, §6.4, §6.6, and plan §6: the names, the 10 s interval, the labels, and the relabel rule.
+5. **The push's route** is stated with its reason in the note, `collector.yaml`, and §6.4.
+6. **No human-only path changed.**
+
+Fixed from its nits, in a fifth commit by the integrating session: plan §6 now gives the reason for pushing straight to Prometheus and says the scrape keeps `up` and its `scrape_*` series, not `up` alone; contracts/telemetry.md §4.3 says the same (its heading stays, so its links hold); and the acceptance criteria above quote T185, FR-026, and FR-028 instead of paraphrasing them.
+
+**Backlog from the review:**
+- **Important, not blocking:** the live check covered only the sent-spans counter. A failure or drop counter often first counts hours after the collector starts, and Prometheus may refuse the 0 at the old start time as out of bounds (`out_of_order_time_window` is 30m), so a first failure still might not count. Unverified, and not a regression, but it's what that panel row exists for. The check: force a Langfuse refusal after more than an hour of uptime, then read `increase()`.
+- ADR 0021 says "Prometheus also scrapes … the collector", still true, but no longer where the collector's metrics come from: worth an amendment line.
+- Disclosure row S5's "what" column doesn't list the collector's own metrics. No byte leaves the stack, so it's optional.
 
 ## Verification
 

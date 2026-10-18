@@ -631,7 +631,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
     - query strings, which are stripped from `url.full`.
 
     The `authorization` and `cookie` attributes are deleted.
-  - The collector's own metrics are pushed every 10 s to Prometheus's OTLP receiver, where the gateway's arrive, with the stack's labels from the collector's telemetry resource, so they carry a start time and a fresh collector's first batch counts (tasks.md T185). They go straight there, not through the collector's own receiver. 8888 still serves them, and Prometheus scrapes it for `up` alone ([contracts/telemetry.md](contracts/telemetry.md) §4.3, §6.4, §6.6).
+  - The collector's own metrics are pushed every 10 s to Prometheus's OTLP receiver, where the gateway's arrive, with the stack's labels from the collector's telemetry resource, so they carry a start time and a fresh collector's first batch counts (tasks.md T185). They go straight there, not through the collector's own receiver, because the counters that report a refusing receiver or a full queue mustn't wait in that same pipeline. 8888 still serves them, and Prometheus scrapes it for `up` and its own `scrape_*` series, keeping none of the collector's samples ([contracts/telemetry.md](contracts/telemetry.md) §4.3, §6.4, §6.6).
 - **Langfuse v4** (ADR 0004), web and worker on one tag:
   - **Postgres:** `DATABASE_URL` to `langfuse-db`.
   - **ClickHouse:** `CLICKHOUSE_URL` (HTTP 8123), `CLICKHOUSE_MIGRATION_URL` (native 9000), user and password, `CLICKHOUSE_CLUSTER_ENABLED=false`.

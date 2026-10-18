@@ -195,7 +195,7 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 
 ### 4.3 Metrics scraped by Prometheus
 
-These don't pass through the collector's pipelines. Prometheus scrapes the targets ([§6.6](#66-prometheus-loki-and-grafana)), and their names are as the targets expose them. The exception is the collector's own telemetry: it pushes that to Prometheus's OTLP receiver ([§6.4](#64-exporters-and-extensions)), and its scrape keeps only `up` (tasks.md T185).
+These don't pass through the collector's pipelines. Prometheus scrapes the targets ([§6.6](#66-prometheus-loki-and-grafana)), and their names are as the targets expose them. The exception is the collector's own telemetry: it pushes that to Prometheus's OTLP receiver ([§6.4](#64-exporters-and-extensions)), and its scrape keeps only `up` and the `scrape_*` series Prometheus writes for every scrape (tasks.md T185).
 
 | Job (target) | Metrics the dashboard uses | Meaning |
 |---|---|---|
