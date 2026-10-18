@@ -3,11 +3,17 @@ Spec: specs/002-the-room/ (Phase 2: T014–T020 and T080; FR-012, FR-017, FR-052
 Session: worked in `/tmp/claude-1000/wt-002-approvals`, launched from `~/h4reet-ai/h4reet-ai` · Repo hooks active: yes. Two refusals, neither respelled, both "an Author-only make target" matched in a Python heredoc's text: one edited the gate's scratch copy, and one edited this note, which names the behavioral evals' target. The same edits went in with the Edit tool.
 Authorized by: the Author's direction of 2026-10-17, "Let's relax some of the overnight rules so that you can continue with intent 002 and intent 003? I think you can create the tasks and implement them and we can always go back later and re-do a task or requirement if we highlight a needed change"; tasks.md T014–T020 and T080, against plan §3, research.md R-08 and R-16, and contracts/resume-source.md §5 as fixed in 23731e1.
 
-**Status: ready for review. Review: pending (the integrating session runs it).**
+**Status: reviewed, BLOCK on one blocker, which 3e051cf fixes, with the review's backlog item on the content check fixed too; ready for the re-review.**
 
-**Merge order:** stacked on `feat/002-web` (1946d37), which stacks on `spec/002-the-room` and `spec/003-studio-assets`. Merge those first, in order, and apply `feat/002-web`'s patch with its own steps. Then merge this branch and apply this patch right after: it edits the gate as `feat/002-web`'s patch leaves it.
+**Merge order:** stacked on `feat/002-web` (ac0d91f), which stacks on `spec/002-the-room` and `spec/003-studio-assets`. Merge those first, in order, and apply `feat/002-web`'s patch with its own steps. Then merge this branch and apply this patch right after: it edits the gate as `feat/002-web`'s patch leaves it.
 
-Commits: 92ca898 (the code, the tests, the patch file), 402a3ea (a wrong path form in one matrix row, found by the verification below), 11f8cec (`docs/START-HERE.md` §7 names the new gate, which `evals/test_repository_docs.py` requires, and a test formatted, both found by `make check` on the patched tree), and this note's commit.
+Commits, after the rebase onto `feat/002-web`'s fix:
+- f9697b8: the code, the tests, the patch file;
+- f2a8560: a wrong path form in one matrix row, found by the verification below;
+- 1d789e3: `docs/START-HERE.md` §7 names the new gate, which `evals/test_repository_docs.py` requires, and a test formatted, both found by `make check` on the patched tree;
+- f7784e6: this note;
+- 3e051cf: the review's blocker, and its backlog item on the content check;
+- this note's update.
 
 ## Runs in the Author's terminal
 
@@ -16,8 +22,8 @@ ADR 0017 puts this section first.
 | What | How it runs | Check before you apply it |
 |---|---|---|
 | `docs/merge-requests/2026-10-18-feat-002-approvals.patch` | `git apply --index` on main, right after the merge, and after `feat/002-web`'s patch | Ten files. **New:** `assets/policy/content-approvals.json` (`schema: 1`, no approvals) and `assets/policy/resume-header.json` (`schema: 1`, both slots `null`), the two files you'll write; `tools/gates/content_check.py` and its tests. **Protection, by file name:** a case in `.claude/hooks/protected-paths.sh`, two `Edit(...)` denies and two `denyWrite` entries in `.claude/settings.json`, and seven required row IDs in `tools/gates/matrix-required.txt`. **The gate:** `content-build` and `content`, below. **`redteam/forbidden-actions.sh`,** which agents may edit: it switches this branch's eight content-policy rows from `planned` to `block` (the settings row becomes a `set_has`), as a patch that adds enforcement does. Nothing else changes. |
-| `tools/gates/content_check.py` (new, human-only) | `make check` (`make content-check`) and the gate, after a build without drafts | It reads `main`'s `content-approvals.json`, with `git show main:` itself (`--repo`) or from a directory the gate filled from main (`--policy-dir`). It recomputes each content file's SHA-256 from the tree: `apps/web/content/resume.yaml` and `narration/*.md`, each a regular file, never a link. It fails when `room-data.json`'s `drafts` leaves out a file `main` doesn't approve. It prints paths and counts, never content. A policy file that isn't the contract's shape stops it (exit 2). |
-| The gate's two new steps | `tools/gates/gate`, when the export has `apps/web/package.json` | **`content-build`**, in the container phase, after its other steps: `npm run --ignore-scripts build -w apps/web` with `--network none`, `ROOM_DRAFTS=` empty, and `main`'s two policy files, read from the main tree with `git show`, in a fresh directory mounted read-only at `/policy`. **`content`**, on the host: main's `content_check.py --tree <export> --room-data <the build's room-data.json> --policy-dir <that directory>`. A failed build fails both, and runs no check. A commit without the room has neither step. |
+| `tools/gates/content_check.py` (new, human-only) | `make check` (`make content-check`) and the gate, after a build without drafts | It reads `main`'s `content-approvals.json` itself with `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:<path>` (`--repo`), or from a directory the gate filled the same way (`--policy-dir`). It recomputes each content file's SHA-256 from the tree: `apps/web/content/resume.yaml` and `narration/*.md`, each a regular file, never a link. It trusts none of the build's bookkeeping, and fails on either of two things. First, an entry of `dist/room-data.json`'s `published` that isn't a content file, isn't at the file's current digest, or isn't approved by `main`. Second, whatever `room-data.json` says, any unapproved file's text in any file under `dist/`. "Text" means the resume's displayed values and a script's body, in fragments of 24 characters or more, read through JSON, HTML entities, and a bundle's escapes. It prints paths and counts, never content. A policy file that isn't the contract's shape stops it (exit 2). |
+| The gate's two new steps | `tools/gates/gate`, when the export has `apps/web/package.json` | **`content-build`**, in the container phase, after its other steps: `npm run --ignore-scripts build -w apps/web` with `--network none`, `ROOM_DRAFTS=` empty, and `main`'s two policy files, read from the main tree by `refs/heads/main`, in a fresh directory mounted read-only at `/policy`. **`content`**, on the host: main's `content_check.py --tree <export> --dist <the build's dist/> --policy-dir <that directory>`. A failed build fails both, and runs no check. A commit without the room has neither step. |
 | `claude doctor` and `make git-hooks` | after the patch (T019; quickstart §2) | The settings gained two denies in each list; the git hooks don't change. |
 | `make evals-agent-config` | after the patch, from main's checkout (START-HERE §7, step 3) | The patch changes `.claude/`, so the behavioral tier's trigger hash moves, and `make evals` shows PENDING until a run for it is attested and committed: the verification below shows it, for hash `cf3f7ab07942` on this tree. |
 
@@ -29,10 +35,10 @@ FR-012: "THE SYSTEM SHALL prepare each resume item's narration ahead of time, on
    - A content file is approved only when `main`'s `content-approvals.json`, in the policy directory, lists the SHA-256 of its bytes. Any edit makes it a draft again, whatever its path.
    - Drafts are left out of a build without `ROOM_DRAFTS=1` and bannered in one with it.
    - The PDF's full header applies only when `main`'s `resume-header.json` fills both slots. Otherwise the PDF gets the room's header (FR-017).
-   - The build writes `dist/room-data.json`, holding `built_from.policy` (the policy's digest, the same one `web_image.py` puts on the image as `org.h4reet.web.policy`) and `drafts`, every draft's path.
+   - The build writes `dist/room-data.json`, holding `built_from.policy` (the policy's digest, the same one `web_image.py` puts on the image as `org.h4reet.web.policy`), `published` (each content file the build published, with its digest, and `draft: true` on a draft a drafts build shows), and `drafts`, every draft's path.
    - A policy file that isn't the contract's shape stops the build, naming the file.
 2. **The checkout's prebuild (T017),** `apps/web/build/policy.ts`, run as `node --import tsx build/policy.ts`:
-   - It reads `main`'s two files with `git show main:` into `node_modules/.cache/h4reet-web/policy/`. It never reads the branch's copies, and it gives git only git's own settings.
+   - It reads `main`'s two files with `git cat-file blob refs/heads/main:<path>` into `node_modules/.cache/h4reet-web/policy/`. It never reads the branch's copies or a tag named `main`, and it gives git only git's own settings.
    - With no `main`, or none of the files on it, the directory is empty, and every content file is a draft.
    - It does nothing when `ROOM_POLICY_DIR` names the directory. That's the image's case, and the image's build now runs `--ignore-scripts`, so no git runs there either way.
    - `tsx` 4.23.15, the gateway's pin, is now a dev dependency of `apps/web` too; nothing new came from the registry. tsx's own command opens a Unix socket the agent sandbox refuses, so the prebuild uses its loader, as the gateway's `validate-config` does.
@@ -50,9 +56,9 @@ FR-012: "THE SYSTEM SHALL prepare each resume item's narration ahead of time, on
 5. **ADR 0034 (T018)** and its index line. The workspace README's section on drafts and approvals.
 6. **`.prettierignore` excludes `assets/policy/`,** so your hand-written entries never fail `make lint`, as `config/budgets.yaml` is excluded. Spec 003's policy files there are covered too.
 
-**Where the build went past the plan**, recorded in plan.md §3 ("What group 2 found") in 92ca898:
+**Where the build went past the plan**, recorded in plan.md §3 ("What group 2 found") in f9697b8:
 - the policy directory's place, and the tsx loader;
-- `room-data.json` holds only `built_from.policy` and `drafts` until the resume (Phase 3) gives the commit and the lock something to trace;
+- `room-data.json` holds only `built_from.policy`, `published`, and `drafts` until the resume (Phase 3) gives the commit and the lock something to trace;
 - the gate's two steps;
 - the matrix rows switched by the patch;
 - `.prettierignore`.
@@ -94,14 +100,47 @@ Quoted from spec.md:
 - **The matrix:**
   - **On this branch:** 663 passed, 0 failed, and 8 planned.
   - **On the patched tree:** 669 passed and 2 failed. The two are stage S's masks, because stage S checks the sandbox of the session that runs it, whose settings came from the main tree before the patch. A session started after you apply it gets them. The gate runs no stage S.
-  - **What it caught:** on its first patched run, one row failed. It was my path form `apps/web/../assets/…`, which resolves to `apps/assets/…`, so the hook was right to allow it. 402a3ea fixes the row, the patch, and the required ID.
+  - **What it caught:** on its first patched run, one row failed. It was my path form `apps/web/../assets/…`, which resolves to `apps/assets/…`, so the hook was right to allow it. f2a8560 fixes the row, the patch, and the required ID.
 - **Applies with spec 003's guard patch, in either order** (`feat/003-guards`' `2026-10-18-feat-003-guards.patch`, on an export of this branch with `feat/002-web`'s patch applied):
   - it applies after spec 003's, which creates `assets/policy/` and protects the whole directory, and spec 003's applies after it;
-  - with both, the hook, the settings, and the required rows hold both specs' rules, overlapping and agreeing.
+  - with both, the hook, the settings, and the required rows hold both specs' rules, overlapping and agreeing;
+  - checked again after the review's fix (3e051cf), in both orders.
+- **The review's fixes (3e051cf), tests first.** RED, on a tree with both patches as they stood and the new tests over them:
+  - the workspace: 4 failed, 26 passed (the tag case for `policy.ts`, `published` twice, and the smoke test's `room-data.json`);
+  - the patch's tests and `scripts/test_makefile.py`: 43 failed, 221 passed. Most fail because the check now takes `--dist`. The review's cases fail on their merits: the tag named `main` in the gate and in the check, and the build that lists a draft but renders it, in a page, `room-data.json`, a bundle (two escape forms), HTML entities, or an uncompressed PDF.
+- **GREEN after the fixes:**
+  - vitest: 30 passed;
+  - `scripts/test_makefile.py`, `test_web_image.py`, and `evals/test_repository_docs.py`: 109 passed;
+  - with both patches: `test_content_check.py` (41), `test_gate.py`, `test_compose_policy.py`, and `test_authz.py`: 571 passed.
 
 ## Review
 
-Review: pending (the integrating session runs it).
+One pass by the reviewer agent, which didn't write the change, over both of this spec's implementation branches: **BLOCK, on one blocker, the same on both.** Its findings reached this session through the coordinator, and this section summarizes them. The review itself is the integrating session's.
+
+**The blocker:**
+- **What was wrong:** `main`'s approvals were read as `main:<path>`: by `build/policy.ts`, by the gate's `content` step, and by `content_check.py --repo`. git resolves a bare `main` as `refs/main`, then `refs/tags/main`, then `refs/heads/main`, so a tag named `main` answers before the branch.
+- **Why it mattered:** an agent session can create that tag. The tags directory under `.git/refs` is writable, and neither the command guard nor the reference-transaction hook refuses `git tag main`. A branch could have approved its own content.
+
+**Its fix (3e051cf):**
+- All three now read as spec 003 reads its policy: `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:<path>`. A missing blob means no approvals, so every file is a draft.
+- Tests for each: a tag named `main` pointing at a branch that approves itself changes nothing, and with no branch `main`, a tag approves nothing.
+- `feat/002-web` has the same fix for `web_image.py`, in fc9fe49.
+
+**The backlog item it asked fixed now, before Phase 3 commits the first draft:**
+- **What was wrong:** `content_check.py` trusted `room-data.json`'s `drafts`, so a build that listed a draft and rendered it anyway passed.
+- **What it does now (3e051cf):** it trusts none of the build's bookkeeping.
+  - Each entry of the new `published`, `{path, sha256}`, must be a content file at its current digest, approved by `main`.
+  - Whatever `room-data.json` says, no text of an unapproved file may appear in any file under `dist/`. "Text" is the resume's `text`, `title`, and `name` values and a script's body. It's cut at slots and sentence ends into fragments of 24 characters or more, and read through JSON strings, HTML entities, and a bundle's escapes.
+  - A fragment an approved file also shows doesn't count, so a draft quoting an approved item is no false alarm. A section title or an ID is too short to count.
+- **Its limit:** a PDF with an embedded font holds glyph codes, not text, so the scan can't read the PDF. It's held by `published`, and by Phase 3's PDF test, which extracts its text. The backlog below asks the check to read that extracted text too.
+
+**Two nits on `feat/002-web`:** edge's 503 page headers, and the package description's `§`. They're fixed there (fc9fe49). Phase 2's copy of the description held `§`, written by a JSON dump; the rebase took `feat/002-web`'s ASCII text.
+
+**What it found fine:** the coordinator's message named no other blocker on this branch. The review's own account of what holds is in the review.
+
+**Its backlog, not fixed here:**
+- **The gate grades `npm run build`** in the devcontainer, not the image's own build. The content check reads that build's `dist/`, while what ships is the image's. Both run the same build script with `main`'s policy, but the gate doesn't prove the image's output.
+- **The gate's own reads of `main` by its bare name,** `main:GNUmakefile` and `merge-base main`, have the same weakness as the blocker. They're human-only code outside these branches: a fix for you, or for a later patch.
 
 ## Backlog
 
@@ -110,6 +149,8 @@ Review: pending (the integrating session runs it).
 - **`make check`'s `content-check` rebuilds `apps/web/dist/`** in the working tree each run, which takes about a second.
 - **`room-data.json`'s `built_from`** lacks the commit and the lock's digest until Phase 3. In the image the commit isn't known without git, so `web_image.py` would have to pass it.
 - **Stage S's two rows** fail in a session that predates the patch, as described above.
+- **The PDF's text, for the content check:** Phase 3 should extract it with its pinned pdf.js, in the gate's container build, and hand it to `content_check.py` beside `dist/`, so a draft rendered only into the PDF is caught too.
+- **The scan's fragment length,** 24 characters, trades a draft's shortest phrases for no false alarms on shared words. The resume's items, and any script, are longer.
 
 ## For the Author
 
@@ -123,21 +164,21 @@ After `feat/002-web` has merged and its patch is applied:
 6. Quickstart §2:
    - from an agent session started after step 3, an Edit of `assets/policy/content-approvals.json` is refused, and the matrix's content-policy rows pass, stage S's included;
    - `npm run build -w apps/web` marks every content file a draft;
-   - the gate's `content` step passes on that build, and fails on a scratch build whose `room-data.json` was edited to publish a draft.
+   - the gate's `content` step passes on that build, and fails on a scratch build whose `room-data.json` claims a draft as published, or whose `dist/` carries a draft's text.
 7. When the resume arrives (Phase 3) and you're satisfied with it: `sha256sum apps/web/content/resume.yaml`, then an entry in `assets/policy/content-approvals.json`, committed on `main` (contracts/resume-source.md §5).
 
 ## Verification
 
-`make check ENGINE_MODE=none-yet` on 11f8cec with both patches applied and this note in place, in the detached scratch worktree `/tmp/claude-1000/wt-002-verify2`, pasted whole below: 9 PASS, 1 SKIP, 1 PENDING, 2 FAIL.
+`make check ENGINE_MODE=none-yet` on 3e051cf with both patches applied and this note in place, in the detached scratch worktree `/tmp/claude-1000/wt-002-verify2`, pasted whole below: 9 PASS, 1 SKIP, 1 PENDING, 2 FAIL.
 - `ENGINE_MODE=none-yet` is a make argument, so `image` SKIPs.
 - `toolchain-check` fails on the known drift: Claude Code 2.1.301 against the pin 2.1.296.
 - `matrix` fails on stage S's two content-policy rows, for the reason above. Its other 669 rows pass.
 - `evals` is PENDING on the behavioral tier, whose trigger hash the patch's `.claude/` changes move (the table above).
 - `make lint`, `make test`, and `make evals` run inside it as the `lint`, `test`, and `evals` gates, and `content-check` runs the patched script: "content check: PASS (no content files yet)".
 
-`gitleaks dir` over the same tree, as the gate scans it (a `git archive` export of 11f8cec with both patches and this note), with main's `.gitleaks.toml`: "scanned ~7964954 bytes (7.96 MB)", "no leaks found".
+`gitleaks dir` over the same tree, as the gate scans it (a `git archive` export of 3e051cf with both patches and this note), with main's `.gitleaks.toml`: "scanned ~8030361 bytes (8.03 MB)", "no leaks found".
 
-On the branch alone, with neither patch, `make check ENGINE_MODE=none-yet` on 11f8cec ends: "make check: 7 PASS, 1 SKIP, 2 PLANNED, 0 PENDING, 3 FAIL; failing: toolchain-check FAIL, policy FAIL, test FAIL". `policy` and four tests of `tools/gates/test/test_compose_policy.py` fail on the `web` image until `feat/002-web`'s patch, as that note says, and `content-check` and `matrix` are PLANNED until this one.
+On the branch alone, with neither patch, `make check ENGINE_MODE=none-yet` on 3e051cf ends: "make check: 7 PASS, 1 SKIP, 2 PLANNED, 0 PENDING, 3 FAIL; failing: toolchain-check FAIL, policy FAIL, test FAIL". `policy` and four tests of `tools/gates/test/test_compose_policy.py` fail on the `web` image until `feat/002-web`'s patch, as that note says, and `content-check` and `matrix` are PLANNED until this one.
 
 The patched run:
 
@@ -207,8 +248,8 @@ npm test --workspaces --if-present
 
  Test Files  49 passed (49)
       Tests  747 passed | 12 skipped (759)
-   Start at  22:00:33
-   Duration  58.04s (tests 95%, import 4%, transform 2%)
+   Start at  22:46:04
+   Duration  86.45s (tests 91%, import 5%, transform 4%)
 
 
 > @h4reet/web@0.1.0 test
@@ -219,49 +260,49 @@ npm test --workspaces --if-present
 
 
  Test Files  3 passed (3)
-      Tests  28 passed (28)
-   Start at  22:01:31
-   Duration  1.06s (tests 54%, import 40%, transform 6%)
+      Tests  30 passed (30)
+   Start at  22:47:31
+   Duration  1.47s (tests 50%, import 37%, transform 12%, worker 1%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  2%]
 ........................................................................ [  5%]
 ........................................................................ [  8%]
-........................................................................ [ 11%]
+........................................................................ [ 10%]
 ........................................................................ [ 13%]
 ........................................................................ [ 16%]
 ........................................................................ [ 19%]
-........................................................................ [ 22%]
+........................................................................ [ 21%]
 ........................................................................ [ 24%]
 ........................................................................ [ 27%]
 ........................................................................ [ 30%]
-........................................................................ [ 33%]
+........................................................................ [ 32%]
 ........................................................................ [ 35%]
 ........................................................................ [ 38%]
 ........................................................................ [ 41%]
-........................................................................ [ 44%]
+........................................................................ [ 43%]
 ........................................................................ [ 46%]
 ........................................................................ [ 49%]
-........................................................................ [ 52%]
-........................................................................ [ 55%]
+........................................................................ [ 51%]
+........................................................................ [ 54%]
 ........................................................................ [ 57%]
 ........................................................................ [ 60%]
-........................................................................ [ 63%]
-........................................................................ [ 66%]
+........................................................................ [ 62%]
+........................................................................ [ 65%]
 ........................................................................ [ 68%]
 ........................................................................ [ 71%]
-........................................................................ [ 74%]
-........................................................................ [ 77%]
+........................................................................ [ 73%]
+........................................................................ [ 76%]
 ........................................................................ [ 79%]
 ........................................................................ [ 82%]
-........................................................................ [ 85%]
-........................................................................ [ 88%]
+........................................................................ [ 84%]
+........................................................................ [ 87%]
 ........................................................................ [ 90%]
 ........................................................................ [ 93%]
-........................................................................ [ 96%]
-........................................................................ [ 99%]
-.........................                                                [100%]
-2617 passed in 178.59s (0:02:58)
+........................................................................ [ 95%]
+........................................................................ [ 98%]
+........................................                                 [100%]
+2632 passed in 172.69s (0:02:52)
 -> PASS test
 == content-check
 + ROOM_DRAFTS=
@@ -285,35 +326,35 @@ transforming...
 ✓ 4 modules transformed.
 rendering chunks...
 computing gzip size...
-dist/room-data.json              0.12 kB │ gzip:  0.12 kB
+dist/room-data.json              0.14 kB │ gzip:  0.13 kB
 dist/index.html                  0.75 kB │ gzip:  0.42 kB
 dist/disclosure/index.html      46.83 kB │ gzip: 14.36 kB
 dist/assets/index-DdV8DCND.css   0.37 kB │ gzip:  0.25 kB
 dist/disclosure/style.css        0.49 kB │ gzip:  0.29 kB
 
-✓ built in 32ms
-+ python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py --tree . --room-data apps/web/dist/room-data.json --repo .
+✓ built in 34ms
++ python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py --tree . --dist apps/web/dist --repo .
 content check: PASS (no content files yet)
 -> PASS content-check
 == secrets
 bash tools/gates/secrets.sh
 secrets: gitleaks with /home/h4reet/h4reet-ai/h4reet-ai/.gitleaks.toml, over /tmp/claude-1000/wt-002-verify2
 == gitleaks: unstaged changes
-10:04PM INF 0 commits scanned.
-10:04PM INF scanned ~21202 bytes (21.20 KB) in 71.1ms
-10:04PM INF no leaks found
+10:50PM INF 0 commits scanned.
+10:50PM INF scanned ~30661 bytes (30.66 KB) in 77.7ms
+10:50PM INF no leaks found
 -> PASS unstaged changes
 == gitleaks: staged changes
-10:04PM INF 0 commits scanned.
-10:04PM INF scanned ~0 bytes (0) in 19.7ms
-10:04PM INF no leaks found
+10:50PM INF 0 commits scanned.
+10:50PM INF scanned ~0 bytes (0) in 23.7ms
+10:50PM INF no leaks found
 -> PASS staged changes
-== gitleaks: 21 commits since main (58bd2327212e..HEAD)
-10:04PM INF 21 commits scanned.
-10:04PM INF scanned ~843213 bytes (843.21 KB) in 79.3ms
-10:04PM INF no leaks found
--> PASS 21 commits since main (58bd2327212e..HEAD)
-secrets: PASS (unstaged changes, staged changes, 21 commits since main)
+== gitleaks: 25 commits since main (58bd2327212e..HEAD)
+10:50PM INF 25 commits scanned.
+10:50PM INF scanned ~928315 bytes (928.32 KB) in 93.4ms
+10:50PM INF no leaks found
+-> PASS 25 commits since main (58bd2327212e..HEAD)
+secrets: PASS (unstaged changes, staged changes, 25 commits since main)
 -> PASS secrets
 == evals
 python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER:-}" = local ] && echo --stack prod)
@@ -422,7 +463,7 @@ KNOWN GAP   bash-gate.sh          e=engine; deploy/agents-engine/$e.sh up
 TOTALS      matrix                0 planned (reported, not failing), 1 skipped: stage S's SMTP row has no usable host
 REQUIRED    matrix-required       every listed row ran
 forbidden-actions (hook layer): 669 passed, 2 failed, 41 known gaps
-make[1]: *** [Makefile:290: matrix] Error 1
+make[1]: *** [Makefile:291: matrix] Error 1
 -> FAIL matrix
 == image
 SKIP: no agents' engine yet: tasks.md T046
