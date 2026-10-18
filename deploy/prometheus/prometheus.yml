@@ -1,7 +1,7 @@
 # The stack's Prometheus 3 (spec 000 FR-026, FR-028; plan §6; contracts/telemetry.md §4.3 and §6.6; ADR 0021).
-# Mounted read-only. The gateway's metrics arrive over OTLP (--web.enable-otlp-receiver, from the collector); the
-# targets below are scraped. Retention, 30 days or 2 GB, is a command-line flag in deploy/compose.yaml, and neither
-# the admin nor the lifecycle API is enabled.
+# Mounted read-only. The gateway's metrics arrive over OTLP (--web.enable-otlp-receiver, from the collector), and so
+# do the collector's own; the targets below are scraped. Retention, 30 days or 2 GB, is a command-line flag in
+# deploy/compose.yaml, and neither the admin nor the lifecycle API is enabled.
 
 global:
   scrape_interval: 15s
@@ -23,9 +23,16 @@ scrape_configs:
     scrape_interval: 5s
     static_configs:
       - targets: ["model-server:8080"]
+  # The collector pushes its own metrics over OTLP (deploy/otel/collector.yaml), so they carry a start time (T185).
+  # This scrape stays for up, which Prometheus writes itself and metric relabelling never touches; every sample the
+  # target serves is dropped, so no otelcol_ series is stored twice.
   - job_name: otel-collector
     static_configs:
       - targets: ["otel-collector:8888"]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: ".+"
+        action: drop
   - job_name: loki
     static_configs:
       - targets: ["loki:3100"]

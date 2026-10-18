@@ -631,7 +631,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
     - query strings, which are stripped from `url.full`.
 
     The `authorization` and `cookie` attributes are deleted.
-  - The collector's own metrics are on 8888, and Prometheus scrapes them.
+  - The collector's own metrics are pushed every 10 s to Prometheus's OTLP receiver, where the gateway's arrive, with the stack's labels from the collector's telemetry resource, so they carry a start time and a fresh collector's first batch counts (tasks.md T185). They go straight there, not through the collector's own receiver. 8888 still serves them, and Prometheus scrapes it for `up` alone ([contracts/telemetry.md](contracts/telemetry.md) §4.3, §6.4, §6.6).
 - **Langfuse v4** (ADR 0004), web and worker on one tag:
   - **Postgres:** `DATABASE_URL` to `langfuse-db`.
   - **ClickHouse:** `CLICKHOUSE_URL` (HTTP 8123), `CLICKHOUSE_MIGRATION_URL` (native 9000), user and password, `CLICKHOUSE_CLUSTER_ENABLED=false`.
@@ -653,8 +653,8 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
 - **SeaweedFS** (ADR 0022): `weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json`. `deploy/seaweedfs/entrypoint.sh` renders `s3.json` from `SEAWEEDFS_S3_ACCESS_KEY` and `SEAWEEDFS_S3_SECRET_KEY`, starts the server, waits for the master, creates the `langfuse` bucket idempotently with `weed shell`, and waits. Usage reporting is off where the pinned version has a switch for it.
 - **Prometheus 3:**
   - `--web.enable-otlp-receiver`, with `otlp.promote_resource_attributes: [service.name, service.namespace, deployment.environment.name]` and `out_of_order_time_window: 30m`.
-  - `--enable-feature=created-timestamp-zero-ingestion` (experimental in 3.15): a 0 at each series' start time, so a new counter's first increment and a histogram's first observation count in `rate()` and `increase()`. T065's §1.5 found one hello after a start invisible without it (tasks.md T149). It covers what is pushed over OTLP, not the collector's scraped counters (T185).
-  - Scrapes every 15 s (the model server every 5 s): the model server, the collector, Loki, Grafana, ClickHouse (its Prometheus endpoint turned on), and itself.
+  - `--enable-feature=created-timestamp-zero-ingestion` (experimental in 3.15): a 0 at each series' start time, so a new counter's first increment and a histogram's first observation count in `rate()` and `increase()`. T065's §1.5 found one hello after a start invisible without it (tasks.md T149). It covers what is pushed over OTLP, not scraped series, which carry no start time; so the collector pushes its own metrics too (T185).
+  - Scrapes every 15 s (the model server every 5 s): the model server, the collector (keeping only `up`, since the collector pushes its metrics), Loki, Grafana, ClickHouse (its Prometheus endpoint turned on), and itself.
   - Retention 30 days or 2 GB. No admin or lifecycle API.
 - **Loki 3:** single binary on the filesystem, TSDB schema v13, structured metadata on, 30-day retention through the compactor, `analytics.reporting_enabled: false`. Third-party services' logs stay in Docker's `local` driver (`make logs`): shipping them would mount the host's container-log directory into the collector, which crosses stacks (FR-020).
 - **Grafana** (ADR 0004):
