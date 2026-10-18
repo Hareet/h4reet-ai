@@ -56,7 +56,8 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 | Front matter: `path` | `engineer` or `non-engineer`, matching the file name |
 | Front matter: `claims[]` | as an item's |
 | Front matter: `slots[]` | as an item's |
-| Body | plain text, at most 900 characters (about 45 seconds at 160 words a minute), in the twin's first person about the Author in the third person, as the corpus's Golden Q&A does; any digit inside a slot |
+| (its verb) | none of its own: the item's `verb` holds for both its scripts (N1) |
+| Body | plain text after a blank line, at most 900 characters as written (about 45 seconds at 160 words a minute), in the twin's first person about the Author in the third person, as the corpus's Golden Q&A does; any digit inside a slot |
 
 **Required:** one script for every item on each path (FR-016). **The forbidden-claim check** fails a script that contains any phrase from the forbidden list ([contracts/narration.md](contracts/narration.md) §2), which the build assembles from each corpus file's "Do not claim" section, the surname rule, and the private denylist when it can read it. Private phrases are never written into a committed file.
 
@@ -94,7 +95,7 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | `drafts` | the paths of draft files, empty for a release |
 | `resume_state` | what the build published from the resume's source: `approved`; `draft`, a drafts build's, under the banner; `withheld`, a draft in a build without drafts, so no header and no items; or `absent` |
 | `header` | the room's header, `{name, lines[]}` with slots filled, and its `source` file and that file's `sha256`; `null` when withheld |
-| `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), with its `source` file and that file's `sha256`, and per path `{words, approved}` (Phase 5); no sections when withheld |
+| `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), with its `source` file and that file's `sha256`, and `narration: {engineer, non-engineer}`, each `{words, approved, source, sha256}` with its slots filled, or `null` where a build without drafts left a draft out (Phase 5); no sections when withheld, so no narration |
 | `messages` | not written: the fixed messages (§7) are bundled into the page at build instead, so showing one makes no request (plan §4, group 4) |
 
 **`room-manifest.json`:**
