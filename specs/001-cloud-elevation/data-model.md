@@ -37,7 +37,9 @@ Telemetry's `h4.meter.attribution` takes the new value too.
 | `~/.config/h4reet-ai/tunnel/`; Parameter Store `/h4reet/cloud/*` | the tunnel's keys and tokens (§6.8), and the cloud stack's secrets, which the Author creates outside Terraform (research.md R-26) | the Author's machine; the account | the tunnel's credentials (FR-055) |
 | Terraform's state, `s3://h4reet-ai-tfstate-<suffix>/<root>.tfstate` | every cloud resource's state | versioned | the infrastructure's truth (FR-001). Agents never read it (FR-011) |
 
-## 2. The gateway's schema: migration `0003_infra.sql`
+## 2. The gateway's schema: migration `0004_infra.sql`
+
+It is numbered after spec 003's `0003_studio_window.sql` (the studio's GPU window, implemented on 2026-10-18 on `feat/003-us6-gpu-window`), and takes the next free number when task group 3 starts.
 
 Append-only, as spec 000's migrations. One transaction, under the same advisory lock, recorded in `gateway.schema_migrations` as version 3. Each widened `CHECK` is dropped and added again by the name `0001_state.sql` gave it. A gateway at a commit before this migration refuses a store that has it (spec 000's `schema_newer_than_code`, exit 78).
 
@@ -98,7 +100,7 @@ Both are 0 on stacks that book none. `grafana_ro`'s grant is unchanged, since th
 
 ### 2.4 The role `relay_ro`
 
-`0003_infra.sql` also creates `relay_ro`, on spec 000's `grafana_ro` pattern:
+`0004_infra.sql` also creates `relay_ro`, on spec 000's `grafana_ro` pattern:
 - `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`;
 - `default_transaction_read_only = on`, and `statement_timeout = '1s'` on the role. The relay sets 250 ms per session;
 - `CONNECT`, `USAGE` on schema `gateway`, and `SELECT` on `gateway.v_state` only. It can't read `audit_log`.

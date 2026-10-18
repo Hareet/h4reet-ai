@@ -310,7 +310,7 @@ The relay keeps no body after it answers and logs neither the message nor the an
 ### R-21: Infrastructure cost on the meter (FR-020)
 
 **Decision.**
-- **A new attribution, `infra`,** in the ledger's checks (migration `0003_infra.sql`, data-model.md §2); an infra booking never reserves. The estimate counts against the day and month meters, the correction against the month only, and neither against `fallback_day`.
+- **A new attribution, `infra`,** in the ledger's checks (migration `0004_infra.sql`, data-model.md §2); an infra booking never reserves. The estimate counts against the day and month meters, the correction against the month only, and neither against `fallback_day`.
 - **The daily share.** At the first admission or background sweep of each UTC day, the meter of record books one ledger row: `infra.month_estimate_usd` ÷ the days in the month, `cost_basis = estimate`. The estimate is a new key in `config/budgets.yaml` (human-only; the Author's patch, with an ADR), set from R-05.
 - **The correction.** Once a day, the fallback gateway reads the month-to-date actual of a budget that excludes Amazon Bedrock (`h4-infra-actual`, a monitoring-only budget, which is free) through `budgets:DescribeBudget`. When AWS's actual for the month so far is above what the meter has booked as infrastructure, it books the difference with `cost_basis = billing_correction`, against the month only, since it is for past days. It never books a negative row: the meter never counts less than was spent (spec 000's rule for expired reservations).
 - **Admission** then refuses metered calls when metered spend plus infrastructure reaches $5 for the day or $20 for the month, as FR-020 asks, with no other change to spec 000's transaction.

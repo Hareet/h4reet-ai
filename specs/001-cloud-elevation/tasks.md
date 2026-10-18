@@ -109,7 +109,7 @@ description: "Task list for spec 001, Cloud Elevation (a draft, with the plan, f
 
 ### Implementation for User Story 2
 
-- [ ] T033 [US2] `services/gateway/migrations/0003_infra.sql`: the `infra` attribution, the `estimate` and `billing_correction` cost bases, and the view's two columns, per data-model.md §2.1–§2.3
+- [ ] T033 [US2] `services/gateway/migrations/0004_infra.sql`: the `infra` attribution, the `estimate` and `billing_correction` cost bases, and the view's two columns, per data-model.md §2.1–§2.3
 - [ ] T034 [US2] The daily booking and the correction in `services/gateway/src/meter/` (the sweep, admission, and a new `infra.ts`), reading `h4-infra-actual` through `budgets:DescribeBudget` with the SDK's default credential chain, per data-model.md §4 and research.md R-21
 - [ ] T035 [US2] **Patch** `config/budgets.yaml`: `infra.month_estimate_usd` (from research.md R-05, [Q3]) and the relay's `public` section (contracts/relay-http.md §4's defaults); the schema version and the gateway's validator change in this branch, per data-model.md §4
 - [ ] T036 [P] [US2] `infra/account/killswitch.tf` (protected): `h4-deny-paid-models`, the budget action on `h4-account-month`, its execution role, the rehearsal budget and target behind `rehearsal`, per contracts/aws-alerts.md §3 and FR-023, FR-026
@@ -148,7 +148,7 @@ description: "Task list for spec 001, Cloud Elevation (a draft, with the plan, f
 - [ ] T051 [US5] The gateway's `cloud` stack, `prod-cloud`, and the trusted relay peer (`services/gateway/src/config/`, `src/core/router.ts`, `src/routes/hello.ts`), per data-model.md §3
 - [ ] T052 [US5] `config/routing.yaml`: `prod-cloud: { fallback: bedrock }`; `prod` keeps `primary: local` with no fallback; the schema's comment restated, per research.md R-20 and FR-017
 - [ ] T053 [US5] `services/relay/`: the workspace, `src/` per contracts/relay-http.md §1–§10 (the two listeners, the edge listener's peer rule, the internal listener's fixed test identity, the address from `CloudFront-Viewer-Address`, the cap, the kill switch through `relay_ro`, the path and its health state machine of data-model.md §7.1, the status document, telemetry), the `Dockerfile` building on the build platform, per research.md R-18
-- [ ] T054 [US5] The role `relay_ro` and its grant (`services/gateway/migrations/0003_infra.sql` or a `0004`), per data-model.md §2.4
+- [ ] T054 [US5] The role `relay_ro` and its grant (`services/gateway/migrations/0004_infra.sql` or a `0005`), per data-model.md §2.4
 - [ ] T055 [US5] `deploy/compose.yaml`: the `relay` (profiles `cloud`, `dev-relay`), `tunnel-end` and `snapshot-sink` (profile `cloud`) services; the heavy services into the `local` profile; the cloud literal bindings; the cloud `edge` config (admin only), per contracts/env-cloud.md §3 and §6.2
 - [ ] T056 [US5] `deploy/env.example/cloud.env.example`, and each local template's `COMPOSE_PROFILES` gaining `local`, per contracts/env-cloud.md §1–§3
 - [ ] T057 [US5] `deploy/scripts/preflight.py`: the cloud class (P6 and the bindings), and FR-018's refusal; **Patch** for `tools/gates/compose_policy.py`'s cloud rules, per contracts/env-cloud.md §5

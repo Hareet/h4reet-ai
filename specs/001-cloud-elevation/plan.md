@@ -183,7 +183,7 @@ infra/                              [A] new, except the protected files
   lambdas/    alert_bridge/, probe/, credential_audit/   (stdlib Python, Dockerfile, tests)
   policy/     [P] the policy's rule list and fixtures, read by tools/gates/infra_policy.py
 services/relay/                     [A] new: the relay (§4), a second npm workspace
-services/gateway/                   [A] changed: migrations/0003_infra.sql, the cloud stack and route class,
+services/gateway/                   [A] changed: migrations/0004_infra.sql, the cloud stack and route class,
                                         the relay as a trusted peer on the cloud stack, the infra booking (§3.3)
 config/
   routing.yaml                      [A] changed: prod-cloud: { fallback: bedrock }; prod loses its fallback
