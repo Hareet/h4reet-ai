@@ -71,10 +71,12 @@ Phase 1 output of `/speckit-plan`. Every file below is JSON, read with Python's 
 ```json
 { "schema": 1, "licenses": [ { "id": "apache-2.0", "name": "Apache License", "version": "2.0", "url": "…",
   "display_on_site_that_promotes_the_studio": "yes", "everywhere": "yes", "public_distribution": "yes",
-  "evaluation_only": false, "read_by_the_author": "2026-10-18" } ] }
+  "research_display": "yes", "evaluation_only": false, "read_by_the_author": "2026-10-18" } ] }
 ```
 
-A license is **allowed** when its three terms read `yes` and `evaluation_only` is false. An `evaluation_only` license is allowed only for a published image, or with a model entry's `commercial_license` (FR-014). An ID not in the file is **unknown**, and refused (FR-013). It starts empty.
+- **In an asset directory,** a license is **allowed** when FR-013's three terms read `yes` and `evaluation_only` is false. An `evaluation_only` license is allowed there only with a model entry's `commercial_license` (FR-014).
+- **In a published-image folder,** a license is allowed when `research_display` reads `yes`: the Author's reading of whether the license lets its outputs be shown publicly as evaluation results, not used in the site (FR-036, as the spec's Clarifications settle it on 2026-10-18). FR-013's three terms and FR-014 don't apply there.
+- An ID not in the file is **unknown**, and refused (FR-013). It starts empty.
 
 ## 4. `approvals.json`
 
@@ -101,7 +103,7 @@ While `adr_0010` isn't `accepted`, every avatar and animation is refused (FR-018
 
 ## 6. The arrival check's result
 
-**Exit code:** 0 when nothing was refused, 1 on any finding, 2 when it can't check (a file that needs the policy while `main` has none, an unreadable git range), so a check that couldn't run never passes.
+**Exit code:** 0 when nothing was refused, 1 on any finding, 2 when it can't check (a file that needs the policy while `refs/heads/main` has none, an unreadable git range), so a check that couldn't run never passes.
 
 **A finding:** `{ "rule": "M3", "path": "assets/twin/idle.glb", "commit": "abc123…" | null, "reason": "…" }`, printed as one line. The size table follows, per file: `bytes`, `gzip_bytes`, and for GLB `vertices`, `triangles`, `texture_bytes`; then the first-visit totals and the history total.
 
@@ -126,4 +128,5 @@ There is no way back to `full` in the same visit, so a phone on the edge doesn't
 
 - **Audit row** (spec 000's `audit_log`): `action = studio_window`, `state = start | end`, the reason, the time.
 - **Gauge:** `h4_studio_window{stack="prod"}`, 1 while a window is open, 0 otherwise.
+- **Span:** the server span spec 000's contracts/telemetry.md gives "`POST /hello` and the admin routes", with `http.route` `/admin/studio-window`, `h4.outcome`, and the state, never the reason's text.
 - **States:** closed → open (`start`) → closed (`end`). A second `start` while open is refused with 409 `already_open`, and an `end` while closed with 409 `not_open`.

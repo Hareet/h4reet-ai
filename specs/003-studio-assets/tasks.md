@@ -12,7 +12,7 @@ description: "Task list for spec 003, Studio Assets"
 **Tests**: required. In each phase, the test tasks come first and must fail before the code that makes them pass; each merge-request note records that RED run.
 
 **Organization**:
-- One phase per task group of plan §9, each one feature branch, stacked on the one before (the first on `spec/002-the-room`'s tip), merged by the Author in order.
+- One phase per task group of plan §9, each one feature branch, merged by the Author in order, after `spec/002-the-room`. They branch from `spec/003-studio-assets`, not from `spec/002-the-room`, so the work could start while spec 002's plan was being written: Phases 1 and 2 stack on each other from this spec's tip, and Phase 4 starts from the same tip, since it touches nothing Phases 1 to 3 change. Nothing in them depends on spec 002.
 - The stories map onto them: US1 and US4's repository half in Phase 2, US5 in Phase 3, US6 in Phase 4, US2 and US3 in Phase 5, US7 in Phase 6. Phase 1 serves US1's controls.
 - Each phase's last task is its merge-request note, with `make check`'s whole output and a reviewer agent's REVIEW.md passes.
 
@@ -56,14 +56,14 @@ description: "Task list for spec 003, Studio Assets"
 
 ### Tests for User Story 1 (first)
 
-- [ ] T007 [US1] **Patch** `tools/gates/test/arrival_fixtures.py`: build at run time one passing PNG, JPEG, WebP, and GLB (with its embedded image), each with its record, notice, and mark, and one failing file for every rule in contracts/arrival-check.md §3; a policy directory standing in for the main tree's `assets/policy/`; and a three-commit repository whose second commit adds a failing file and third fixes it
-- [ ] T008 [US1] **Patch** `tools/gates/test/test_arrival_check.py`: each rule refuses its fixture with its ID (SC-001); every passing fixture passes; `--range` fails on the fixed-later branch (FR-004); the policy is read from the `main` ref, with a branch's own `assets/policy/` ignored and failing A9, and the main working tree's checked-out copy ignored; exit 2 when a studio file needs the policy and `main` has none; exit 0 for a commit with no studio file while `main` has no policy; no matched bytes in the output (FR-007)
-- [ ] T009 [P] [US1] `scripts/assets/test_scrub.py`: a PNG with `tEXt`, `iTXt`, and `eXIf`; a JPEG with EXIF, XMP, and a comment; a WebP with `EXIF` and `XMP `; a GLB with `extras`, `asset.generator`, and an unlisted extension. Each comes out passing rules M1 to M6 with its pixel data unchanged, byte for byte
+- [ ] T007 [US1] **Patch** `tools/gates/test/arrival_fixtures.py`: build at run time one passing PNG, JPEG, WebP, and GLB (with its embedded image), each with its record, notice, and mark, and one failing file for every rule in contracts/arrival-check.md §3; the §5 fixtures there (outside the roots, a HEIC, AVIF, TIFF, DNG, and MOV with EXIF and a GPS directory, and a binary file of no listed format with an EXIF header; GLBs with a photo's file name in `images[].name`, with a `uri`, keeping `mesh.extras.targetNames`, with an embedded texture carrying metadata or a mark, and with uncovered `BIN` bytes; a PNG whose pixel data holds `C:\` by chance, and one with bytes after `IEND`); a policy directory standing in for the `main` branch's `assets/policy/`; a three-commit repository whose second commit adds a failing file and third fixes it; a merge commit whose resolution adds a failing file; and a branch that deletes a directory's `LICENSE.md`
+- [ ] T008 [US1] **Patch** `tools/gates/test/test_arrival_check.py`: each rule refuses its fixture with its ID (SC-001); every passing fixture passes; `--range` fails on the fixed-later branch, on the merge whose resolution adds a failing file, and on the tip that deleted a `LICENSE.md` (FR-004); the policy is read from `refs/heads/main` with replace objects off, with a branch's own `assets/policy/` ignored and failing A9, and the main working tree's checked-out copy, a tag named `main`, and a `refs/replace` entry all ignored; the Author's own policy commit on `main` passes under `--staged` (A9 doesn't apply); the pixel data that holds `C:\` by chance passes (the B rules' scope); exit 2 when a studio file needs the policy and `main` has none; exit 0 for a commit with no studio file while `main` has no policy; no matched bytes in the output (FR-007)
+- [ ] T009 [P] [US1] `scripts/assets/test_scrub.py`: a PNG with `tEXt`, `iTXt`, and `eXIf`; a JPEG with EXIF, XMP, and a comment; a WebP with `EXIF` and `XMP `; a GLB with `extras` (and `mesh.extras.targetNames`, which must survive), `asset.generator`, an unlisted extension, a source image's file name in `images[].name` and in a material's `name`, and an embedded texture carrying EXIF and its own XMP packet. Each comes out passing rules M1 to M9, with one mark on the GLB and none on its embedded texture, the image and material names replaced by neutral IDs, the morph targets' names kept, and its pixel data unchanged, byte for byte
 - [ ] T010 [P] [US4] `scripts/assets/test_credits.py`: rendering from fixture records, `--check` failing on a stale or hand-edited `CREDITS.md`, and no source ID's meaning or path in the output, per contracts/asset-record.md §4
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] **Patch** `tools/gates/arrival_check.py`: the four invocations, the main-tree policy, the rules and their IDs, the size table, the history total, and the exit codes, per contracts/arrival-check.md and research R-03 to R-09
+- [ ] T011 [US1] **Patch** `tools/gates/arrival_check.py`: the four invocations (range mode with merges against each parent and the tip's whole tree), the `main` branch's policy read with `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:<path>`, the files checked by format and by content (camera metadata in any binary file), the rules and their IDs (A4, M8, and M9 among them, and the B rules' scope), the size table, the history total, and the exit codes, per contracts/arrival-check.md and research R-02 to R-09
 - [ ] T012 [US1] **Patch** `.claude/git-hooks/pre-commit`: run the main tree's `arrival_check.py --staged` after gitleaks, failing closed when it can't run, per research R-06
 - [ ] T013 [US1] **Patch** `tools/gates/gate` (a step `arrival` over `main..HEAD`), `tools/gates/run_checks.py`'s gate list, and `tools/gates/publish_check.py` (`--history`, per FR-004 and spec 000's FR-042), with their tests
 - [ ] T014 [US1] **Patch** `REVIEW.md`: an "Arriving assets" pass: the records against the files, the art direction and intent 000's "Inspired-by only" rule, third-party content, and an approval on `main` for each file rule P names, per FR-017 and FR-037
@@ -90,10 +90,10 @@ description: "Task list for spec 003, Studio Assets"
 
 **Independent test**: quickstart §3, after the evaluation's runs.
 
-- [ ] T027 [US5] **Patch** for `tools/gates/test/test_arrival_check.py`: rule C1, an arm-B grid with and without its caption on the line after its link, per research R-09
+- [ ] T027 [US5] **Patch** for `tools/gates/test/test_arrival_check.py`: rule C1, an arm-B grid with and without its caption on the line after its link; and L1 in a published-image folder, a grid whose license reads `no` on research display refused and one reading `yes` passing without FR-013's three terms, while the same license in an asset directory is still refused, per research R-09 and FR-036 as clarified
 - [ ] T028 [US5] `docs/research/images/2026-10-12-image-model-evaluation/`, with its `LICENSE.md` and an empty `records.json`; `docs/research/images/CREDITS.md` rendered, per plan §5
-- [ ] T029 [US5] Update `docs/research/2026-10-12-image-model-evaluation.md` where the clarification settled what it left open: the license chosen, the mark settled, the record table's rows as `records.json` entries with the arm, and `make assets-scrub` in "Making a grid", per FR-036
-- [ ] T030 [US5] **Author**: after the evaluation's runs, scrub, record, add licenses and approvals on `main`, and commit the grids, per quickstart §3
+- [ ] T029 [US5] Update `docs/research/2026-10-12-image-model-evaluation.md` where the clarification settled what it left open: the license chosen, the mark settled, the record table's rows as `records.json` entries with the arm, each license's research-display reading, and `make assets-scrub` in "Making a grid", per FR-036. (Its preconditions, the guard patch before any photo and the arrival check before any commit, came in with the plan's review on 2026-10-18.)
+- [ ] T030 [US5] **Author**: after the evaluation's runs, scrub, record, add each license with its research-display reading and the approvals on `main`, and commit the grids, per quickstart §3
 - [ ] T031 [US5] Merge-request note `docs/merge-requests/<date>-feat-003-us5-comparison.md`, with `make check` and the reviewer's passes
 
 ---
@@ -106,13 +106,13 @@ description: "Task list for spec 003, Studio Assets"
 
 ### Tests for User Story 6 (first)
 
-- [ ] T032 [P] [US6] `services/gateway/test/integration/studio-window.test.ts`: start, end, `already_open`, `not_open`, the audit row, the gauge, and no meter or budget changed, per contracts/gpu-window.md §1
+- [ ] T032 [P] [US6] `services/gateway/test/integration/studio-window.test.ts`: start, end, `already_open`, `not_open`, the audit row, the gauge, the span's attributes with no reason text, and no meter or budget changed, per contracts/gpu-window.md §1
 - [ ] T033 [P] [US6] The operator CLI's tests for the `studio-window` command: arguments, the reason's length, and the stack refusals, per contracts/gpu-window.md §2
 
 ### Implementation for User Story 6
 
-- [ ] T034 [US6] `POST /admin/studio-window` in `services/gateway/src/routes/admin.ts`, the gauge in the gateway's metrics, and the operator CLI's command, per contracts/gpu-window.md
-- [ ] T035 [US6] `make studio-window ENV=… STATE=… REASON=…`, and **Patch** the bash gate's operator rule to cover it for every stack but dev-cpu, per contracts/gpu-window.md §2
+- [ ] T034 [US6] `POST /admin/studio-window` in `services/gateway/src/routes/admin.ts`, its server span's attributes (the state and the outcome, never the reason's text), the gauge in the gateway's metrics, and the operator CLI's command, per contracts/gpu-window.md §1
+- [ ] T035 [US6] `make studio-window ENV=… STATE=… REASON=…`, and **Patch** the bash gate's operator rule to cover it for every stack but dev-cpu, with matrix rows in `redteam/forbidden-actions.sh` for its plain spelling and others (`make -C . studio-window ENV=prod …`, `bash -c 'make studio-window ENV=dev …'`, a variable carrying the stack, the operator CLI's command called directly) and a gap row for any spelling the rule can't catch, per contracts/gpu-window.md §2 and §4
 - [ ] T036 [P] [US6] The dashboard's annotation and the "Fallback spend in studio windows" panel in `deploy/grafana/dashboards/h4-runtime.json`, with `deploy/scripts/test_dashboard.py`'s cases, per contracts/gpu-window.md §3
 - [ ] T037 [P] [US6] `docs/runbooks/studio-gpu-window.md`, per FR-035
 - [ ] T038 [US6] **Author** (Heavy): the rehearsal, per quickstart §4 (SC-011)

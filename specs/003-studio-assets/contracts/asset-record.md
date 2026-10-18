@@ -23,12 +23,14 @@ One per asset or published-image directory. The fields are in [data-model.md §2
 `license` and each entry's `media_license` are `all-rights-reserved-2026`, the clarified license (spec FR-015). The directory's `LICENSE.md` reads:
 
 ```text
-Copyright the Author. All rights reserved.
+Copyright (c) <YEAR> <HOLDER>. All rights reserved.
 
-The files in this directory are not covered by this repository's MIT license. You are welcome to view them and to link to them. Any other use needs the Author's written permission.
+The files in this directory are not covered by this repository's MIT license. You are welcome to view them and to link to them. Any other use needs the copyright holder's written permission.
 
 Each file's provenance is in records.json, and in CREDITS.md at the root of its tree.
 ```
+
+**The copyright line is the Author's to fill.** The notices are committed with `<YEAR>` and `<HOLDER>` as placeholders, and the Author writes the holder's name and the year in each directory's `LICENSE.md` before its first file arrives: a name the Author chooses, such as the site's name or the studio's. The Author's surname goes in only if the Author decides it should, since the corpus keeps it out of what the twin says ("Surname: the twin never gives or confirms it in conversation") and the site is public. Rule N1 refuses a file in a directory whose notice still holds a placeholder, so the line can't be forgotten; an empty directory's notice may keep its placeholders.
 
 ## 4. The credits
 

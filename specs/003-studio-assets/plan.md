@@ -103,7 +103,7 @@ services/gateway/src/routes/admin.ts  [A] changed: POST /admin/studio-window (§
 scripts/operator.py                   [A] changed: the studio-window command
 deploy/grafana/dashboards/h4-runtime.json   [A] changed: the studio-window annotation and its spend panel
 docs/runbooks/asset-withdrawal.md, studio-gpu-window.md   [A] new
-docs/adr/0010, 0030, 0031, 0032       [A] new: 0010 proposed; the others with the plan's approval
+docs/adr/0010, 0030, 0031, 0032       [A] new, in task group 2: 0010 proposed; 0030 to 0032 recording this plan's decisions
 docs/data-flow-disclosure.md          [A] changed: row D1 (FR-040d); later V6 and the asset requests (FR-040a, b)
 README.md                             [A] changed: the license line (FR-015)
 ```
@@ -133,12 +133,12 @@ README.md                             [A] changed: the license line (FR-015)
 ## 3. The arrival check (FR-001, FR-002, FR-004, FR-006 to FR-020)
 
 [contracts/arrival-check.md](contracts/arrival-check.md) holds the command, the rules with their IDs, and the output. In brief:
-- **Inputs:** a list of files, or a commit range (`--range main..HEAD`, checking each commit's added and changed files as that commit had them), or `--staged`, or `--history`.
-- **The check's own code comes from the main working tree, and the policy and the caps from the `main` ref** (R-05, R-06). A run that meets no studio file needs no policy.
+- **Inputs:** a list of files, or a commit range (`--range main..HEAD`, checking each commit's added and changed files as that commit had them, what each merge commit adds against each parent, and the tip's whole tree), or `--staged`, or `--history`.
+- **The check's own code comes from the main working tree, and the policy and the caps from `refs/heads/main`**, read as the gate reads it, `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:<path>` (R-05, R-06). A run that meets no studio file needs no policy.
 - **The rules,** each with an ID that every refusal names:
-  - **A:** where a file may be (R-01, R-02; FR-001), and model weights anywhere;
-  - **M:** metadata, by container (R-03; FR-002, FR-006), and the mark's exact packet (FR-034);
-  - **B:** forbidden bytes anywhere in a file (R-03; FR-007);
+  - **A:** where a file may be (R-01, R-02; FR-001), model weights anywhere, and camera metadata in any binary file anywhere, HEIC, TIFF, DNG, AVIF, and video included (FR-002);
+  - **M:** metadata, by container (R-03; FR-002, FR-006), the mark's exact packet (FR-034), names and paths inside a GLB (FR-007), and bytes a container doesn't account for;
+  - **B:** forbidden text in the parts of a file that hold text, never in compressed pixel data (R-03; FR-007);
   - **R:** the record: present, matching, complete, with no photo's metadata or path (R-04; FR-008, FR-010 to FR-012);
   - **L:** licenses on the allowlist, and evaluation-only models refused in asset directories (R-05; FR-013, FR-014);
   - **N:** the license notice in each directory (FR-015);
@@ -192,7 +192,7 @@ Until then, nothing in this spec is served to a visitor.
 
 ## 9. Order of work, risks, and proof
 
-**Task groups.** Each is a feature branch, stacked on the one before it (the first on the spec stack's tip, `spec/002-the-room`, which sits on this branch), and merged by the Author in order.
+**Task groups.** Each is a feature branch, merged by the Author in order, after `spec/002-the-room`. They branch from this spec's branch rather than from `spec/002-the-room`, so the work could start while spec 002's plan was still being written: groups 1 and 2 stack on each other from this branch's tip, and group 4 starts from the same tip, since nothing it touches is in groups 1 to 3. Nothing in them depends on spec 002.
 
 | # | Branch | What | Can it be built now? |
 |---|---|---|---|
@@ -210,6 +210,9 @@ Until then, nothing in this spec is served to a visitor.
 |---|---|
 | The studio's folders aren't where the patch's placeholders guess | The Author fills them in before applying; the matrix rows fail while a placeholder stays (R-07) |
 | A container field the parsers don't know | Refused: the check admits only the listed chunks and properties (R-03) |
+| A photo arrives in a format the check doesn't admit, outside the roots (an iPhone's HEIC with its position) | Recognized by its signature and refused (A1), and any binary file with camera metadata is refused wherever it sits (A4) |
+| A short pattern turns up by chance in compressed pixels, refusing a good file nothing can fix | The B rules scan only the parts that hold text; M9 refuses the bytes a container doesn't account for, so text can't hide beside the pixels (R-03) |
+| A tag named `main`, or a replace ref, shows the check another policy | It reads `refs/heads/main` with replace objects off, as the gate reads `main` (R-05) |
 | The scrubber damages a file | It never re-encodes pixels, and the check reads its output; the tests round-trip each format |
 | ADR 0010 changes the formats | The check grows with it; until it's accepted, avatars and animations are refused (FR-018) |
 | A large GLB slows the pre-commit hook | The parser reads the JSON and walks chunks without decoding images' pixels; one measured in the tests |
@@ -253,7 +256,8 @@ Until then, nothing in this spec is served to a visitor.
 ## Constitution Check (post-design)
 
 - **No new violation.**
-- **Principle IV is stronger than the spec asked in one place:** the check reads its policy from the `main` ref and runs its code from the main working tree, so a branch can neither approve its own files nor carry a weakened check.
+- **Principle IV is stronger than the spec asked in one place:** the check reads its policy from `refs/heads/main`, with replace objects off, and runs its code from the main working tree, so a branch can neither approve its own files nor carry a weakened check.
+- **The plan's review (2026-10-18)** found two places where the design let through what the spec refuses, both fixed: a photo in a format the check didn't parse, outside the roots, and a source image's file name inside a GLB. It also found the evaluation note reaching photographs and commits without naming the guard patch and the arrival check; the note now names both as preconditions.
 - **Principle I's degraded modes** are designed now and built with the site, so the happy path can't ship first: the site's group (5) carries both.
 
 Verdict: **PASS**.

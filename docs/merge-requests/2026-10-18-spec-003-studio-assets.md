@@ -3,7 +3,7 @@ Spec: specs/003-studio-assets/ · Intent: specs/003-studio-assets/intent.md (acc
 Session: the spec-writer worked in `/tmp/claude-1000/wt-spec003` with no shell, writing under `specs/003-studio-assets/` only; the lead session committed · Repo hooks active: yes. The spec-writer's one refused write was `.specify/feature.json`, which is outside its scope and which git ignores.
 Authorized by: the Author's acceptance of intents 002 and 003 on 2026-10-17 ("Yeah, they are accepted. We can always revise them later, but I am liking what you are putting out so trust the recommendations and keep going as far as we can!"), and the overnight plan agreed that evening: `/speckit-specify` for both, stopping at the clarify questions.
 
-**Status: clarified, planned, tasked, and analyzed on 2026-10-18,** by the Author's direction of 2026-10-17 to continue with the recommended options (see "Clarify, 2026-10-18" below). No code yet: Phases 1 to 4 of tasks.md can be implemented now. The first draft's status, kept for the record: "a draft for `/speckit-clarify`. No plan and no code. Two `[NEEDS CLARIFICATION]` markers stay open on purpose, and eight recommended defaults wait for a yes."
+**Status: clarified, planned, tasked, analyzed, and reviewed on 2026-10-18,** by the Author's direction of 2026-10-17 to continue with the recommended options (see "Clarify, 2026-10-18" below). The review's two blockers are fixed ("Review", below). No code on this branch: Phases 1 to 4 of tasks.md are being implemented on their own branches. The first draft's status, kept for the record: "a draft for `/speckit-clarify`. No plan and no code. Two `[NEEDS CLARIFICATION]` markers stay open on purpose, and eight recommended defaults wait for a yes."
 
 ## What's on this branch
 
@@ -26,15 +26,16 @@ It carries `intent/003-studio-assets`'s three commits, rebased onto main at 58bd
 | 6 | The studio borrows the GPU without surprising production | P3 |
 | 7 | The room's assets come through the same intake | P3, Phase 3 |
 
-## For the Author: `/speckit-clarify`
+## The clarify questions, answered on 2026-10-18
 
-Two questions, each with a recommended option (the spec's "Open Questions for `/speckit-clarify`"):
-1. **The media license (FR-015).** A (recommended): all rights reserved, with a notice that viewing and linking are welcome; it can be loosened later, while a Creative Commons grant can't be taken back. B: CC BY-NC-ND 4.0. C: all rights reserved for the likeness, CC BY-NC-ND 4.0 for the rest.
-2. **Disclosing and marking the AI-made likeness (FR-034).** A (recommended): both a visible line in the twin's disclosure and one machine-readable mark per file (the IPTC digital source type for AI-generated media). B: the visible line only. C: the mark only. The evaluation plan needs this settled before its first run.
+The specify pass left two questions and eight confirmations for `/speckit-clarify`. Each took its recommended option by your direction of 2026-10-17 ("Clarify, 2026-10-18", below):
+1. **The media license (FR-015):** A, all rights reserved, with a notice that viewing and linking are welcome. The alternatives were CC BY-NC-ND 4.0, or a split between the likeness and the rest.
+2. **Disclosing and marking the AI-made likeness (FR-034):** A, both a visible line in the twin's disclosure and one machine-readable mark per file (the IPTC digital source type for AI-generated media). This also settles the evaluation plan's question 6.
+3. **The eight confirmations:** yes, as worded: the intake's scope and phasing; ADR 0010 before the studio's workflow; plain git with a 500 MB history cap; fetching only the chosen avatar, disclosed; payload-free asset events, disclosed; the budget and load-time defaults; extending ADR 0013's pre-publication cleanup to assets; and reading the studio's model runs as outside Principle V.
 
-Eight confirmations, each a recommended default (a yes keeps it): the intake's scope and phasing; ADR 0010 before the studio's workflow; plain git with a 500 MB history cap; fetching only the chosen avatar, disclosed; payload-free asset events, disclosed; the budget and load-time defaults; extending ADR 0013's pre-publication cleanup to assets; and reading the studio's model runs as outside Principle V.
+The plan's review added one more, also by recommendation: published comparison images need a research-display reading of their license, not FR-013's three terms (spec Clarifications; "Review", below).
 
-## Checks
+## Checks, the specify pass
 
 - **Quotes:** each of the spec's 40 quoted passages of 25 characters or more was matched against the repository and the accepted intent 002. All 40 are word for word; one drops the source's bold markup ("Object and resume clicks are telemetry events, with no payloads.", intent 002's line 71).
 - **Links:** `evals/docs_links.py`: 0 failed, 829 relative links in 88 files.
@@ -44,7 +45,33 @@ Eight confirmations, each a recommended default (a yes keeps it): the intake's s
 
 ## Review
 
-A `REVIEW.md` pass by an agent that didn't write the spec belongs after `/speckit-clarify`, once your answers settle the markers, as with spec 001.
+One `REVIEW.md` pass, after clarify, over the spec, the plan, and the tasks, by a reviewer agent that wrote none of them: **BLOCK, two blockers, both fixed in the commit after the plan's** (a forked helper of the lead session, in `/tmp/claude-1000/wt-spec003`).
+
+**Blocker 1: the arrival check let through files FR-002 and FR-007 refuse.**
+- A photo in a format the check didn't list, outside `assets/`: an iPhone's HEIC, or a TIFF, DNG, AVIF, or MOV, carrying EXIF and its GPS position, met no rule. FR-002: "IF a file carries camera metadata, THEN THE ARRIVAL CHECK SHALL refuse it."
+- No rule covered FR-007's "an input file's name": M4 allowed `name` and `uri` in a GLB, and Blender's exporter writes each texture's source image name into `images[].name`.
+- **Fixed** (contracts/arrival-check.md §2 and §3, research R-02 and R-03, the tasks, the quickstart): those formats are recognized by signature and refused outside the roots (A1); any binary file anywhere with an EXIF header, an XMP packet, or a GPS directory is refused (A4, new); a GLB's `uri`s and any `name` or morph-target name holding a file name, a path, or a camera's file stem are refused (M8, new), and `scrub.py` replaces image, texture, sampler, and material names with neutral IDs.
+
+**Blocker 2: a protection came after the risk it guards.** The evaluation note's last gate, "Settle intent 003's question 6 before the first image is committed", is met by this clarify, and the note then had the reader photograph you, write the blinding key, and commit grids, without naming the guard patch (FR-003) or the arrival check (FR-004). That order lived only in tasks.md and analyze's A5.
+- **Fixed** in `docs/research/2026-10-12-image-model-evaluation.md`: two preconditions at the top of "Before the runs" (the guard patch before any photo is taken or staged; the arrival check before any image is committed), repeated where it photographs, blinds, and commits, and `out/`, `blind/`, and `key.csv` kept inside the denied folders. Quickstart §1 says the same.
+
+**What held:** the policy read from the `main` ref and never from the branch or the main working tree (T008 tests both); a run that touches no studio file needs no policy and exits 0; the pre-commit hook fails closed (T012); `--history` covers every commit reachable from any ref; `scrub.py` never re-encodes pixels (T009 checks them byte for byte); ADR numbers 0030 to 0032 clear of the other branches' 0023, 0024 to 0029, and 0033 to 0035; all ten clarify answers word for word against the options; the quotes match their sources; and every FR and SC has a task.
+
+**Backlog, each item done in the same commit:**
+1. **The policy's ref.** A tag named `main` would answer `main:` ahead of the branch, and `git show` follows `refs/replace`, while spec 000's reference-transaction hook guards `refs/heads/main` only. The check now reads `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:<path>`, as the gate does; "the main tree's" policy reads "the `main` branch's".
+2. **Merges and deletions.** Range mode checks each merge commit against each parent, what a resolution adds, and the tip's whole tree, so a removed `LICENSE.md` counts.
+3. **Pixel data.** The B rules scanned compressed pixels, where `C:\` turns up by chance in about 46% of random 10 MB streams and the scrubber can't help. They now scan only the parts that hold text, and a new rule, M9, refuses bytes a container doesn't account for, so text can't hide beside the pixels.
+4. **Morph targets.** M4 and `scrub.py` stripped every `extras`, and `mesh.extras.targetNames` holds the names FR-018's lip-sync needs: now allowlisted, and checked as names.
+5. **Embedded textures.** M6 applied the mark rule to each embedded image. The clarified option reads "one machine-readable mark in every published image and model file", so the GLB carries the one mark and an embedded image carries none; T009 tests an embedded texture.
+6. **Your policy commits.** Under `--staged`, A9 would refuse your own commits to `assets/policy/` on `main`; it now applies only on a branch, and in range mode.
+7. **The comparison's licenses.** FR-036 applied FR-013 and FR-014 to published images, which would refuse arms B and D, and a research license can't honestly read `yes` on FR-013's three terms. Settled in the spec's Clarifications, by recommendation under your direction: a published comparison image needs a fourth reading, research display, which you give per license; FR-013's terms and FR-014 hold for asset directories. FR-036, `licenses.json`'s schema, rule L1, research R-09, and the tasks follow.
+8. **The notice's holder.** `LICENSE.md` read "Copyright the Author." Its copyright line now carries `<YEAR>` and `<HOLDER>`, which you fill per directory before its first file (a name you choose; your surname only if you decide so), and N1 refuses a file under an unfilled line.
+9. **Two disagreements in research.md:** R-03 now matches B1 and B3 (`class_type` and `inputs`; `/tmp/` in the paths), and R-15 says the ADRs are written in task group 2, as T021 does.
+10. **This note's clarify section** read as if clarify hadn't happened: rewritten above. T035 now carries rows for other spellings of `make studio-window` and a gap row.
+
+**Two more, also done:** tasks.md's Organization line and plan §9 say the implementation branches start from this spec's tip, not spec 002's, so the work could start in parallel; and the GPU window's endpoint gets the server span spec 000 gives every admin route, with the state and never the reason (contracts/gpu-window.md, data-model §8, T032, T034).
+
+**For the implementers** (the open branches `feat/003-guards`, `feat/003-us1-arrival-check`, and `feat/003-us6-gpu-window`): rebase onto this commit; the arrival check's contract and the GPU window's contract changed.
 
 ## Cost and data-flow impact
 

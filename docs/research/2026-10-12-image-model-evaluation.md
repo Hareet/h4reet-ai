@@ -53,7 +53,11 @@ So re-read the license before running arm D, and again before committing any arm
 
 ## Before the runs
 
-1. **Freeze this plan.** The tasks, prompts, seeds, precisions, criteria, and decision rule stay fixed once a run starts. Before then, the Author confirms the decision rule and settles intent 003's question 6, on machine-readable marking. A change after the first run restarts the evaluation, and "Deviations" records it.
+**Two preconditions, before anything else** (spec 003's [plan](../../specs/003-studio-assets/plan.md); added on 2026-10-18 by that plan's review):
+- **Before any photo is taken or staged on this machine,** spec 003's guard patch (its task group 1, FR-003) is applied, with the studio's folders filled in. From then on, agent sessions can't read the photos, the outputs, the workflows, or the blinding key. Every file this note makes before publishing, the photos, `out/`, `blind/`, and `key.csv` among them, stays inside those denied folders.
+- **Before any image is committed,** spec 003's arrival check (its task group 2, FR-004) is applied. From then on, the pre-commit hook and the gate refuse a grid with metadata, a missing record, a missing approval, or a missing caption, whatever this note's own checks miss.
+
+1. **Freeze this plan.** The tasks, prompts, seeds, precisions, criteria, and decision rule stay fixed once a run starts. Before then, the Author confirms the decision rule. Intent 003's question 6, on machine-readable marking, is settled: spec 003's clarification of 2026-10-18 chose the IPTC mark, which `scripts/assets/scrub.py` adds. A change after the first run restarts the evaluation, and "Deviations" records it.
 2. **Make room.**
    - Take each model's download size from its card.
    - Check free space the way [spec 000's research, R-32](../../specs/000-local-foundations/research.md#r-32-host-disk-space-is-the-windows-drives) does: on the Windows drive that holds WSL's disk and inside WSL, for the downloads plus a 20 GB margin.
@@ -71,7 +75,7 @@ So re-read the license before running arm D, and again before committing any arm
 
    Choose each arm's precision before the runs. A model that doesn't fit at its chosen precision is recorded as a failure, not rerun another way.
 5. **Prepare the inputs.**
-   - **Before photographing:** turn the screens off; cover or crop out logos and the snowboard's graphic; cover the artwork above the window, or leave it out of frame.
+   - **Before photographing:** the guard patch is applied (the first precondition above), and the photos go straight into the denied photos folder. Turn the screens off; cover or crop out logos and the snowboard's graphic; cover the artwork above the window, or leave it out of frame.
    - **Room photos (3):** the desk with the laptop and monitor; the snowboard's wall; the bicycle's wall. One of them shows the window.
    - **Photos of the Author (5):** front, two three-quarter views, and two profiles, in even light.
    - **Stripping:** strip each photo's metadata (`exiftool -all= -overwrite_original`), re-encode it, and give it an opaque ID. The photos never come into this repository.
@@ -130,7 +134,7 @@ Words in capitals are placeholders, filled from the list after each prompt.
 
 ## Scoring
 
-**Blinding.** Before anyone scores, give every output a random ID and strip the copies. ComfyUI writes the prompt and the workflow into each PNG, and the workflow names the arm's model files. Keep the key in the studio until scoring ends. For example:
+**Blinding.** Before anyone scores, give every output a random ID and strip the copies. ComfyUI writes the prompt and the workflow into each PNG, and the workflow names the arm's model files. Keep the key in the studio until scoring ends. Run this inside the studio's denied folders (the first precondition above): `out/`, `blind/`, and `key.csv` never leave them, and `key.csv` goes in the blinding key's folder. For example:
 
 ```bash
 # out/ holds one folder per arm, named by the save node's ARM-TASK-SEED prefix.
@@ -185,7 +189,7 @@ Set before the runs. The Author confirms or changes it before the first run.
   - the scores, the measurements, and a record table.
 - **What stays in the studio:** the full-resolution outputs, every input photo, the blinding key, and the studio's workflows. Only the workflows' hashes come in.
 - **Making a grid:** build it with ImageMagick, stripping as it writes (`montage … -strip grid.jpg`). Then run `exiftool -all= -overwrite_original grid.jpg`. Without `-overwrite_original`, exiftool keeps an unstripped copy beside the file, named `grid.jpg_original`.
-- **Checking:** before each commit:
+- **Checking:** the arrival check is applied before the first image is committed (the second precondition above), and its pre-commit hook and the gate check every grid. The checks below stay as the Author's own look before each commit:
   - `exiftool -a -G1 -s` on each image shows no EXIF, XMP, IPTC, or GPS tags and no comment, apart from any marking that question 6 settles;
   - `strings` on each image, piped to `grep -i -E 'prompt|workflow|safetensors|/home/'`, prints nothing;
   - `git status --porcelain` lists only the files meant to come in.
@@ -197,7 +201,7 @@ Set before the runs. The Author confirms or changes it before the first run.
   - They come in under the media license that intent 003 calls for.
   - Until that license is chosen, they come in under an "all rights reserved" notice in their folder.
   - That notice can be loosened later, while an MIT grant, once published, can't be taken back.
-- **Machine-readable marking.** Settle intent 003's question 6 before the first image is committed. One option that leaks nothing: after stripping, add the IPTC digital source type for AI-generated media (`trainedAlgorithmicMedia`) to each image.
+- **Machine-readable marking.** Settled by spec 003's clarification (2026-10-18): after stripping, each image carries the IPTC digital source type for AI-generated media (`trainedAlgorithmicMedia`) and nothing else, which `scripts/assets/scrub.py` adds. This settles the gate this note set ("Settle intent 003's question 6 before the first image is committed"), but the two preconditions at the top of "Before the runs" still come first.
 - **The likeness.** The Author chose this on 2026-10-12: "that's fine with the likeness too." Git keeps every published image for good, since [ADR 0013](../adr/0013-local-until-publication.md) publishes the history from its first commit. So the T3 grids are committed only after the Author has approved them.
 - **Captions.** Every arm B and arm D image says "Evaluation output; not used in the site's assets."
 

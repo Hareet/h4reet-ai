@@ -24,6 +24,7 @@ The Author answered by direction rather than question by question. On 2026-10-17
 - Q: Confirmation 6, the budget and load-time defaults → A: yes, as worded: "in Assumptions, and the reference phone the plan names."
 - Q: Confirmation 7, pre-publication cleanup for assets → A: yes, as worded: "extend ADR 0013's cleanup to a file that locates the Author or breaks a license, with an ADR."
 - Q: Confirmation 8, the reading on Principle V → A: yes, as worded: "the studio's model runs are outside the system, so they aren't a deviation."
+- Q: Do FR-013's three terms and FR-014 apply to the evaluation's published images? (FR-036; raised by the plan's review on 2026-10-18, after the questions above) → A: decided by recommendation, under the same direction of the Author's quoted above: no. FR-036 applied "FR-006 to FR-016" to published images, which would refuse arms B and D, the very images it publishes, and a research or non-commercial license can't honestly read `yes` on FR-013's three terms. So a published comparison image needs its license to read `yes` on a fourth term instead, research display: the Author's reading, per license, of whether its outputs may be shown publicly as evaluation results, not used in the site. A license that reads `no` keeps its grids out, and the note describes them in words. FR-013's three terms and FR-014 stay in full for every asset directory. Reading: the published images still meet FR-006 to FR-012, FR-015, and FR-016 (no metadata, a complete record, the media license, the Author's approval), and arms B and D still carry their caption.
 
 ## Source: The Author's Words
 
@@ -303,7 +304,7 @@ Terms used below. **Asset**: any file the studio makes that comes into this repo
 
 **The comparison note**
 
-- **FR-036**: WHEN the evaluation note's grids, its style anchor, or other published images are committed, THE ARRIVAL CHECK SHALL apply FR-006 to FR-016 to them. THE IMAGES FROM ARMS B AND D SHALL carry the caption "Evaluation output; not used in the site's assets."
+- **FR-036**: WHEN the evaluation note's grids, its style anchor, or other published images are committed, THE ARRIVAL CHECK SHALL apply FR-006 to FR-012, FR-015, and FR-016 to them, and SHALL refuse an image whose model's license doesn't read `yes` on research display in the allowlist: the Author's reading of whether the license lets its outputs be shown publicly as evaluation results, not used in the site (Clarifications, 2026-10-18). FR-013's three terms and FR-014 apply to asset directories, not to published images. THE IMAGES FROM ARMS B AND D SHALL carry the caption "Evaluation output; not used in the site's assets."
 
 **The room (Phase 3)**
 
@@ -342,7 +343,7 @@ Terms used below. **Asset**: any file the studio makes that comes into this repo
 - **Step**: one stage of the studio's work on a file, with the models it loaded or the tools used by hand, its hosted service if any, and its model-refresh date.
 - **Model entry**: a model's name, its repository and revision or version, its license and that license's version, and its role in the step (primary or auxiliary).
 - **Source**: a photo or a prompt, by opaque ID, or another asset, by its record. Never a file name, a path, or a location.
-- **License allowlist entry**: a license name and version, with the Author's reading of its three terms (FR-013). Changed only by the Author.
+- **License allowlist entry**: a license name and version, with the Author's reading of its three terms (FR-013) and, for published comparison images, of research display (FR-036, Clarifications, 2026-10-18). Changed only by the Author.
 - **Likeness approval**: the Author's approval of one file hash, with what it confirms (FR-016). Recorded only by the Author.
 - **Display mode**: full, reduced, or 2D, as the site chooses it (FR-021 to FR-024) or the visitor does.
 - **Asset event**: one load outcome or mode change (FR-039).
