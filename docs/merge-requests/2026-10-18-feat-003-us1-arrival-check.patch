@@ -39,7 +39,7 @@
 +  - the record matches the file: its kind, its source's type, and every step, model, and hand tool. An auxiliary model the file shows signs of, such as a face model or an upscaler, missing from its step is Important;
 +  - the file follows ADR 0010's art direction and intent 000's rule, "Inspired-by only — no Rockstar assets, logos, typefaces, or character likenesses; everything is original", and a visitor avatar resembles no real person;
 +  - no third-party content remains: no logo, trademark, readable text, screen content, or someone else's art. For a room file, the window's view is the studio's recreation and screens show a plain glow;
-+  - for each file the check's rule P names (a likeness, a photo source, or a room file), the Author's approval of its hash is already on `main`, in `assets/policy/approvals.json`. A branch never carries its own approval.
++  - for each file the check's rule P names (a likeness, a photo source, a room file, or any file under `assets/twin/`), the Author's approval of its hash is already on `main`, in `assets/policy/approvals.json`. A branch never carries its own approval.
 +
 +  Anything in a file that could locate the Author, such as a reflection, a sign, an address, or a view that identifies the place, is Important, whatever the approval says.
  
@@ -47,7 +47,7 @@
  
 --- /dev/null
 +++ b/tools/gates/arrival_check.py
-@@ -0,0 +1,2901 @@
+@@ -0,0 +1,2920 @@
 +#!/usr/bin/env python3
 +"""The arrival check (spec 003 FR-001, FR-002, FR-004, FR-006 to FR-020; plan §3; contracts/arrival-check.md).
 +
@@ -211,8 +211,11 @@
 +
 +# M8: a name that looks like a file name or a path. Blender's side suffixes, .L and .R, aren't extensions.
 +NAME_EXTENSION = re.compile(r"\.(?![LRlr](?![A-Za-z]))[A-Za-z]{1,5}(?![A-Za-z0-9])")
++# A camera's or a phone's file stem: IMG_, PXL_, MVIMG_, DSC and DSCN, Screenshot, WhatsApp's IMG-YYYYMMDD-WA, and
++# Samsung's YYYYMMDD_HHMMSS.
 +CAMERA_STEM = re.compile(
-+    r"(?i)(?<![a-z0-9])(?:img_|pxl_|mvimg_|dscn?(?=[_\d])|screenshot)"
++    r"(?i)(?<![a-z0-9])(?:img_|img-\d{8}-wa|pxl_|mvimg_|dscn?(?=[_\d])|screenshot)"
++    r"|(?<!\d)(?:19|20)\d{6}_\d{6}(?!\d)"
 +)
 +
 +# R5: what a record field may not hold.
@@ -1908,6 +1911,8 @@
 +                and item["source"].get("type") == "photo"
 +            )
 +            or item.get("kind") == "room"
++            or self.directory == "assets/twin"
++            or self.directory.startswith("assets/twin/")
 +        ):
 +            required.append("approval")
 +        if self.published:
@@ -2188,6 +2193,11 @@
 +        ext = ext_of(path)
 +        name = path.rsplit("/", 1)[-1]
 +        found = sniff(data)
++        if ext == ".xmp":
++            # An XMP sidecar is metadata alone, a camera's or an editor's, text or not, wherever it is (FR-002).
++            self.add(
++                "A4", path, "an XMP sidecar file: camera or editor metadata", commit
++            )
 +        weights = (
 +            ext in WEIGHT_EXT
 +            or found in ("safetensors", "gguf")
@@ -2443,10 +2453,13 @@
 +        kind = entry.get("kind")
 +        source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
 +        approval = None
++        # Every file of the twin needs its own approval, whatever its record says: the record is the branch's, and a
++        # record calling a twin's still no likeness, from a prompt, mustn't skip the Author.
 +        if (
 +            entry.get("likeness") is True
 +            or source.get("type") == "photo"
 +            or kind == "room"
++            or path.startswith("assets/twin/")
 +        ):
 +            matches = [a for a in policy.approvals if a.get("sha256") == actual]
 +            good = [
@@ -2454,19 +2467,25 @@
 +                for a in matches
 +                if all(a["confirms"].get(c) is True for c in CONFIRMS)
 +            ]
-+            approval = next(
-+                (a for a in good if a.get("id") == entry.get("approval")), None
-+            )
++            approval = good[0] if good else None
 +            if approval is None:
 +                why = (
-+                    "one with a confirmation that isn't true"
++                    "the approval naming this file's hash has a confirmation that isn't true"
 +                    if matches
-+                    else "none names this file's hash"
++                    else "no approval names this file's hash"
 +                )
 +                self.add(
 +                    "P1",
 +                    path,
-+                    f"it needs the Author's approval on the main branch, and {why} under the record's approval ID",
++                    f"it needs the Author's approval on the main branch, and {why}",
++                    commit,
++                )
++            elif "approval" in entry and entry["approval"] != approval.get("id"):
++                approval = None
++                self.add(
++                    "P1",
++                    path,
++                    "its record's approval ID isn't the one the main branch's approval of this hash carries",
 +                    commit,
 +                )
 +            elif kind == "room" and not (
@@ -2951,76 +2970,95 @@
 +    sys.exit(main())
 --- a/tools/gates/gate
 +++ b/tools/gates/gate
-@@ -6,8 +6,8 @@
- 
- Run it directly from main's checkout, never through make: a planted GNUmakefile would shadow the Makefile.
- The branch's code never runs outside a container in the Author's terminal. On the host the gate runs only git, docker,
--gitleaks, and the main working tree's own code: this file, tools/gates/*.py, and deploy/agents-engine/engine.sh, each
--with an environment it builds itself; and, loaded into this process, so in its environment, corpus/tools/
-+gitleaks, and the main working tree's own code: this file, tools/gates/*.py, scripts/assets/credits.py, and
-+deploy/agents-engine/engine.sh, each with an environment it builds itself; and, loaded into this process, so in its environment, corpus/tools/
- check_corpus.py, evals/agent-config/behavioral.py, the static.py it loads beside it, and the PyYAML both import, from
- the host's own Python. The commit under test is data there.
- 
-@@ -53,6 +53,11 @@
+@@ -31,7 +31,8 @@
+ 3. Container phase, on this machine's engine (plan §11: the devcontainer build needs Ubuntu's mirrors). The
+    devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
+    the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
+-   validate-config, test, evals, redteam-suite, and matrix (stage H). Every container drops all capabilities, sets
++   validate-config, test, evals, redteam-suite, matrix (stage H), and credits-check (spec 003's credits and records,
++   SKIP for a branch from before them). Every container drops all capabilities, sets
+    no-new-privileges, and runs as the Author's uid on that copy.
+ 4. Host phase:
+    - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
+@@ -53,6 +54,11 @@
       git log shows no diff for. Anything at the export's root named .gitleaksignore refuses it first, since dir mode
       obeys one at the folder it scans (R-36). Its log is read as the range scan's, and a "WRN skipping" line, a file
       it couldn't read, fails it too; it must say how many bytes it scanned, more than none of a tree with content;
 +   - arrival: spec 003's arrival check, the main tree's tools/gates/arrival_check.py, over $(git merge-base main
 +     SHA)..SHA: each commit's added and changed files as it had them, what each merge's resolution adds, and SHA's
 +     whole tree, read as git data, with the license allowlist, the approvals, and the caps read from refs/heads/main
-+     (contracts/arrival-check.md); then the main tree's scripts/assets/credits.py --check over the export, whose
-+     CREDITS.md and records.json must match their rendering;
++     (contracts/arrival-check.md). The branch's credits renderer is agent-editable, so its check, make credits-check,
++     runs in the container phase;
     - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
       only after the policy passed, because an unvetted build could read host files into the engine: first the
       gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
-@@ -1100,6 +1105,41 @@
+@@ -155,6 +161,9 @@
+     ("evals", "evals"),
+     ("redteam", "redteam-suite"),
+     ("matrix-h", "matrix"),
++    # Spec 003: the branch's own credits renderer, scripts/assets/credits.py --check, which is agent-editable, so it
++    # runs here and never on the host. SKIP for a branch from before spec 003, with neither the script nor assets/.
++    ("credits", "credits-check"),
+ )
+ STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
+ # gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
+@@ -753,6 +762,17 @@
+         return
+     docker, image, work = ready
+     for name, target in CONTAINER_TARGETS:
++        if target == "credits-check" and not (
++            (export_dir / "scripts" / "assets" / "credits.py").is_file()
++            or (export_dir / "assets").is_dir()
++        ):
++            report.add(
++                Step(name).set(
++                    "SKIP",
++                    "the branch has neither scripts/assets/credits.py nor assets/ (spec 003)",
++                )
++            )
++            continue
+         begin(name, f"make {target}, --network none")
+         rc, out = stream(
+             container(
+@@ -1100,6 +1120,33 @@
      return scan_verdict(step, findings, problems)
  
  
-+def arrival(
-+    repo: Path, sha: str, base: str | None, export_dir: Path, tmp: Path
-+) -> Step:
-+    """Spec 003's arrival check over the branch's commits, then the credits' check over the export: both the main
-+    tree's own code, the commits and the export read as data (contracts/arrival-check.md §1)."""
++def arrival(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
++    """Spec 003's arrival check over the branch's commits: the main tree's own code, the commits read as git data
++    (contracts/arrival-check.md §1). The branch's credits renderer runs in the container phase, never here."""
 +    begin(
 +        "arrival",
 +        "the studio's files in every commit since main, against the main branch's policy",
 +    )
 +    step = Step("arrival")
 +    checker = repo / "tools" / "gates" / "arrival_check.py"
-+    credits = repo / "scripts" / "assets" / "credits.py"
-+    for script in (checker, credits):
-+        if not script.is_file():
-+            return step.fail(f"{script} is missing (spec 003, Phase 2)")
++    if not checker.is_file():
++        return step.fail(f"{checker} is missing (spec 003, Phase 2)")
 +    if base is None:
 +        return step.fail(
 +            "no merge base with main, so the commits since main can't be named"
 +        )
-+    rc, _ = stream(
++    rc, out = stream(
 +        py_host(checker, "--repo", str(repo), "--range", f"{base}..{sha}"),
 +        tool_env(GIT_NO_REPLACE_OBJECTS="1"),
 +        tmp,
 +    )
-+    if rc != 0:
++    if rc not in (0, 1):
 +        return step.fail(
-+            f"the arrival check exited {rc}"
-+            + ("" if rc == 1 else ": it couldn't check, which counts as a failure")
++            f"the arrival check exited {rc}: it couldn't check, which counts as a failure"
 +        )
-+    rc, out = stream(
-+        py_host(credits, "--root", str(export_dir), "--check"), tool_env(), tmp
-+    )
 +    return classify(step, rc, out)
 +
 +
  def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
      begin("image", "the gateway's and the compose images, built on the agents' engine")
      step = Step("image")
-@@ -1572,6 +1612,7 @@
+@@ -1572,6 +1619,7 @@
          report.add(corpus(repo, export_dir))
          report.add(gitleaks(repo, sha, base, tmp))
          report.add(gitleaks_tree(repo, export_dir, tmp))
-+        report.add(arrival(repo, sha, base, export_dir, tmp))
++        report.add(arrival(repo, sha, base, tmp))
          report.add(image(export_dir, policy_step, tmp, sha))
          report.add(stage_e(repo, paths, prove, ref))
          report.add(agent_config_evals(repo, export_dir, base, paths))
@@ -3836,7 +3874,7 @@
 +    return repo
 --- /dev/null
 +++ b/tools/gates/test/test_arrival_check.py
-@@ -0,0 +1,1142 @@
+@@ -0,0 +1,1211 @@
 +"""Tests for tools/gates/arrival_check.py (spec 003 FR-001, FR-002, FR-004, FR-006 to FR-020; SC-001; tasks.md T008;
 +contracts/arrival-check.md §5).
 +
@@ -4143,6 +4181,12 @@
 +    assert run.has("A4", "docs/blob2.dat"), run.out
 +
 +
++@pytest.mark.parametrize("name", ["docs/IMG_0004.xmp", f"{DOG}/still.xmp"])
++def test_a4_an_xmp_sidecar_anywhere(repo: fx.Repo, name: str) -> None:
++    run = outside(repo, name, fx.xmp(extra=' dc:creator="a camera"'))
++    assert run.code == 1 and run.has("A4", name), run.out
++
++
 +def test_a4_spares_a_text_file(repo: fx.Repo) -> None:
 +    run = outside(
 +        repo,
@@ -4326,6 +4370,8 @@
 +        {"image_name": "IMG_1234.jpg"},
 +        {"image_name": "C:\\Users\\me\\face"},
 +        {"image_name": "PXL_20261012"},
++        {"image_name": "IMG-20261012-WA0003"},  # WhatsApp's
++        {"material_name": "20261012_094101"},  # Samsung's
 +        {"material_name": "skin_diffuse.png"},
 +        {"node_name": "textures/face"},
 +        {"target_names": ["DSC01234"]},
@@ -4671,6 +4717,67 @@
 +    ), run.out
 +
 +
++def test_p1_every_file_of_the_twin_needs_its_own_approval_whatever_its_record_says(
++    tmp_path: Path,
++) -> None:
++    # A record the branch wrote calls the twin's still no likeness, from a prompt: it still needs the Author's
++    # approval of its own hash. Another twin file's approval, the one carrying the disclosure line, doesn't cover it.
++    twin, still = fx.glb(), fx.png()
++    approvals = twin_policy(glb_data=twin)
++    repo = fx.repository(tmp_path, approvals=approvals)
++    records = [
++        fx.entry("twin.glb", twin, kind="avatar", likeness=True, approval="A-0001"),
++        fx.entry(
++            "still.png",
++            still,
++            kind="still",
++            likeness=False,
++            source=("prompt", "P-0003"),
++        ),
++    ]
++    repo.directory(TWIN, {"twin.glb": twin, "still.png": still}, records)
++    run = check(repo, *paths(repo, f"{TWIN}/still.png"))
++    assert run.code == 1 and run.has("P1", f"{TWIN}/still.png"), run.out
++    assert run.has(
++        "R4", f"{TWIN}/records.json"
++    )  # and its record must name the approval
++    assert not run.has("P1", f"{TWIN}/twin.glb")
++    # With its own approval on main, and the record naming it, it passes.
++    repo.git("switch", "-q", "main")
++    repo.write(
++        "assets/policy/approvals.json",
++        fx.dumps(
++            {
++                "schema": 1,
++                "approvals": [
++                    *approvals,
++                    fx.approval("A-0002", still, f"{TWIN}/still.png", kind="still"),
++                ],
++            }
++        ),
++    )
++    repo.git(
++        "add", "assets/policy/approvals.json"
++    )  # the policy alone: the twin's files stay untracked
++    repo.git("commit", "-q", "-m", "main: the still's approval")
++    repo.git("switch", "-q", "feature")
++    records[1]["approval"] = "A-0002"
++    repo.directory(TWIN, {"twin.glb": twin, "still.png": still}, records)
++    run = check(repo, *paths(repo, f"{TWIN}/still.png"))
++    assert run.code == 0, run.out
++
++
++def test_p1_a_record_naming_another_approval(tmp_path: Path) -> None:
++    data = fx.png()
++    repo = fx.repository(
++        tmp_path,
++        approvals=[fx.approval("A-0006", data, f"{DOG}/still.png", kind="still")],
++    )
++    record = fx.entry("still.png", data, likeness=True, approval="A-0007")
++    run = in_dog(repo, "still.png", data, [record])
++    assert run.has("P1", f"{DOG}/still.png") and "approval ID" in run.out, run.out
++
++
 +def test_p3_the_twin_before_an_approval_carries_the_disclosure_line(
 +    tmp_path: Path,
 +) -> None:
@@ -4981,7 +5088,33 @@
 +    assert "private-name" not in run.out and "elsewhere" not in run.out
 --- a/tools/gates/test/test_gate.py
 +++ b/tools/gates/test/test_gate.py
-@@ -416,6 +416,21 @@
+@@ -46,7 +46,15 @@
+ _LOADER.exec_module(gm)
+ CHECK_CORPUS = REPO / "corpus" / "tools" / "check_corpus.py"
+ SYSTEM_PATH = "/usr/local/bin:/usr/bin:/bin"
+-TARGETS = ["lint", "validate-config", "test", "evals", "redteam-suite", "matrix"]
++TARGETS = [
++    "lint",
++    "validate-config",
++    "test",
++    "evals",
++    "redteam-suite",
++    "matrix",
++    "credits-check",
++]
+ ENGINE = "tcp://198.18.0.1:2376"
+ RECORDING = "/run/h4-contract/recording.json"
+ PHRASE = "zebra quartz lantern"  # the fixture denylist's one phrase
+@@ -392,7 +400,7 @@
+         ".devcontainer/Dockerfile": "FROM scratch\n",
+         ".devcontainer/toolchain.vars": "NODE_VERSION=24.21.0\nCLAUDE_CODE_VERSION=2.1.295\n",
+         "CLAUDE.md": "# fixture\n",
+-        "Makefile": f"lint test evals redteam-suite matrix validate-config:\n\t@touch {logs}/EXPORT-make\n",
++        "Makefile": f"lint test evals redteam-suite matrix validate-config credits-check:\n\t@touch {logs}/EXPORT-make\n",
+         "corpus/00-profile.md": "A public corpus file.\n",
+         "deploy/compose.yaml": "services: {}\n",
+         "deploy/env.agents/dev-cpu.vars": "H4_STACK=dev-cpu\n",
+@@ -416,6 +424,21 @@
          STUB_SCRIPT.format(depth=3, name="engine", ok="E1-E16: PASS"),
          0o755,
      )
@@ -5003,27 +5136,27 @@
      git(main, "add", "-A")
      git(main, "commit", "-qm", "init")
      # Not committed: the Author's denylist, an untracked file, and an ignored .venv, none of which an export holds.
-@@ -597,6 +612,19 @@
+@@ -597,6 +620,19 @@
          != (tree_argv[tree_argv.index("--gitleaks-ignore-path") + 1])
      )
  
-+    # Spec 003's arrival check over the commits since main, then the credits' check over the export: the main tree's.
++    # Spec 003's arrival check over the commits since main: the main tree's, through PY_HOST's flags. The credits'
++    # check is the branch's own code, so it ran in the container (make credits-check, above), never here.
 +    (arrival_run,) = fx.logged("arrival_check")
 +    assert arrival_run["argv"] == ["--repo", str(fx.main), "--range", f"{base}..{sha}"]
-+    (credits_run,) = fx.logged("credits")
-+    assert credits_run["argv"] == ["--root", str(export), "--check"]
-+    for run in (arrival_run, credits_run):
-+        assert (run["isolated"], run["no_bytecode"], run["pycache_prefix"]) == (
-+            1,
-+            1,
-+            "/dev/null",
-+        )
++    assert (
++        arrival_run["isolated"],
++        arrival_run["no_bytecode"],
++        arrival_run["pycache_prefix"],
++    ) == (1, 1, "/dev/null")
++    assert fx.logged("credits") == []
 +    assert status_of(done, "arrival") == "PASS"
++    assert status_of(done, "credits") == "PASS"
 +
      # The image build on the agents' engine, with the Author's certificate.
      (compose,) = by_kind(calls, "compose")
      assert compose["argv"] == [
-@@ -639,6 +667,8 @@
+@@ -639,6 +675,8 @@
              "tools/gates/compose_policy.py",
              "tools/gates/toolchain_check.py",
              "tools/gates/gate",
@@ -5032,7 +5165,7 @@
              "corpus/tools/check_corpus.py",
              "deploy/agents-engine/engine.sh",
              "evals/agent-config/behavioral.py",
-@@ -1529,6 +1559,52 @@
+@@ -1529,6 +1567,64 @@
      assert TOKEN not in done.stdout + done.stderr
  
  
@@ -5050,7 +5183,9 @@
 +    assert done.returncode == 1
 +    assert status_of(done, "arrival") == "FAIL"
 +    assert "M1 assets/twin/still.png @abc1234" in done.stdout
-+    assert fx.logged("credits") == []  # the credits' check waits for a clean arrival
++    assert (
++        fx.logged("credits") == []
++    )  # the host never runs the branch's credits renderer
 +
 +
 +def test_an_arrival_check_that_couldnt_run_fails_the_step(fx: Fixture) -> None:
@@ -5064,13 +5199,23 @@
 +    assert "couldn't check" in row(done, "arrival")
 +
 +
-+def test_a_stale_credits_rendering_fails_the_step(fx: Fixture) -> None:
++def test_a_stale_credits_rendering_fails_its_container_step(fx: Fixture) -> None:
 +    fx.branch(CHANGE)
-+    (fx.logs / "credits.control").write_text(
-+        "1\ncredits: assets/CREDITS.md differs from its records", encoding="utf-8"
-+    )
++    fx.control(fail=["credits-check"])
 +    done = gate(fx, "feature")
-+    assert status_of(done, "arrival") == "FAIL"
++    assert status_of(done, "credits") == "FAIL"
++    assert status_of(done, "arrival") == "PASS"
++    assert fx.logged("credits") == []
++
++
++def test_a_branch_from_before_spec_003_skips_the_credits_step(fx: Fixture) -> None:
++    git(fx.main, "rm", "-q", "scripts/assets/credits.py")
++    git(fx.main, "commit", "-qm", "main from before spec 003")
++    fx.branch(CHANGE)
++    done = gate(fx, "feature")
++    assert status_of(done, "credits") == "SKIP"
++    assert "neither scripts/assets/credits.py nor assets/" in row(done, "credits")
++    assert [c["command"][-1] for c in make_runs(fx.docker())] == TARGETS[:-1]
 +
 +
 +def test_without_mains_arrival_check_the_step_fails(fx: Fixture) -> None:
