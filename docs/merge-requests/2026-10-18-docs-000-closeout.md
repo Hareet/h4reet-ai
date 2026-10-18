@@ -3,13 +3,13 @@ Spec: specs/000-local-foundations/ (T119's table; the records of T066, T086, T09
 Session: worked in `/tmp/claude-1000/wt-closeout`, launched from `~/h4reet-ai/h4reet-ai` while main's checkout was parked on `wip/away-2026-10-17` · Repo hooks active: yes (no refusal on this branch)
 Authorized by: T119 ("fill the success-criteria table … in `docs/merge-requests/<date>-feat-000-enforcement.md`"), the Author's runs of 2026-10-12 to 2026-10-17, and the Author's direction of 2026-10-17 to keep going overnight.
 
-**Status: ready for your review.** Branched from 58bd232, main's tip. Nothing here runs in your terminal: it is records, docs, and one dashboard setting with its test. Spec 000 is done but for three runs you put off for now: SC-001's re-run, SC-002's recorded run (T085), and SC-007's timing.
+**Status: ready for your review.** Branched from 58bd232, main's tip. Nothing here runs in your terminal: it is records, docs, and one dashboard setting with its test. Spec 000 is done but for four runs, three of which you put off for now (SC-001's re-run, SC-002's recorded run (T085), and SC-007's timing), plus SC-005's dashboard timing, and FR-013's confirmation that the old IAM user's keys are deleted.
 
 ## What changed and why
 
 | File | Change |
 |---|---|
-| `docs/merge-requests/2026-10-11-feat-000-enforcement.md` | **T119's table**, "T119: the success criteria on the 5090": each criterion in spec.md's words, its scenario, its result, and its status. Passed: SC-003 (stage E 16 of 16 included), SC-005, SC-006, SC-008, SC-009, FR-040, FR-041. Open: SC-001's re-run after T184, SC-002, SC-007. FR-042 found the commit email. |
+| `docs/merge-requests/2026-10-11-feat-000-enforcement.md` | **T119's table**, "T119: the success criteria on the 5090": each criterion in spec.md's words, its scenario, its result, and its status. Passed: SC-003 (stage E 16 of 16 included), SC-006, SC-008, SC-009, FR-040, FR-041. SC-005's failover passed, and its 60 s to the dashboard is open, because nobody timed it. Open: SC-001's re-run after T184, SC-002, SC-007. FR-042 found the commit email. |
 | `specs/000-local-foundations/tasks.md` | **Done, with what the record shows:** T066 and T086 (the two notes), T097 (52 of 52 in 368 s), T105 (the model, the price, the profile, the subscription step), T107 (SC-005 and SC-006), T115 (done differently: the gate on main), T118, and T179. **Progress lines, not ticked:** T099, whose open part is SC-007's timing, and T119. |
 | `specs/000-local-foundations/quickstart.md` | **§0.6, a step 5:** Bedrock's one-time AWS Marketplace subscription, done as yourself from the console's Playground, and why the runtime role mustn't hold the Marketplace actions. **§4.2:** the first fallback call may be `local_unhealthy`, as in your run, when the health check notices first. |
 | `docs/runbooks/bedrock-unavailable.md` | `auth` calls: how to read the exception's name from the trace, and the Marketplace cause, which shows when some calls pass and others don't. |
@@ -21,13 +21,25 @@ Authorized by: T119 ("fill the success-criteria table … in `docs/merge-request
 1. **FR-013:** confirm whether the old IAM user `h4reet-runtime`'s access keys were deleted, not only deactivated. FR-013 reads "no IAM user access keys MUST exist". T105's record leaves it open.
 2. **T105:** the permission set attaches `h4reet-ai-cloud`, which also allows `bedrock:ListInferenceProfiles`. Plan §5.2 says the runtime role holds "only `bedrock:InvokeModel`". Keep it and say so, or remove that statement.
 3. **T200:** the matrix's required-row list stays curated, unless you choose the full roster (the enforcement note's decision 3). It's still open.
-4. **Still yours, Heavy, when you choose:**
+4. **Still yours, when you choose:**
+   - SC-005's dashboard timing: one fallback call with the model server stopped (quickstart.md §4.2), noting the seconds until the cost table and the sub-budget panel move. It's light: one Bedrock call, about 27 micro-dollars;
    - SC-001's cold start (quickstart.md §1.2);
    - SC-002's recorded run (§2.2, T085, with dev's channel keys filled);
    - SC-007's timing (§6.2).
 
+## Review
+
+One pass by the reviewer agent, which didn't write the change, against REVIEW.md, the spec, the plan, and the constitution. **BLOCK, one finding, fixed in the second commit:** T119's table said every criterion was in spec.md's words, but its FR-040, FR-041, and FR-042 rows paraphrased them. FR-041's paraphrase had dropped its second half ("every branch's merge-request note MUST carry its output and the reviewer agent's `REVIEW.md` passes"), and SC-005 was marked passed with nothing timing "the fallback cost appears on the dashboard within 60 seconds". The rows now quote the spec, FR-041 is judged on both halves, and SC-005 reads "failover passed; the dashboard's 60 s is open".
+
+Its checks that passed: SC-001 to SC-009 match spec.md word for word; no row is called passed where the note puts it off; the diff has no account ID, portal URL, ARN, key, or number about the Author; both texts keep the Marketplace actions off the runtime role; exactly the eight named tasks were ticked; the dashboard diff is two one-line `decimals` changes, with a test.
+
+Taken from its backlog in the same commit: quickstart §0.6 step 5 no longer says the runtime role "holds `bedrock:InvokeModel` alone" (T105 records `ListInferenceProfiles` too; "For you" item 2) and says the Playground's call is billed outside the gateway's meter; SC-003's row says stages H and S passed 642 together and cites quickstart §7's "zero failures and zero planned rows"; SC-005's row says 27 micro-dollars was one call's cost.
+
 ## Backlog (not done here)
 
+- From the review: the source output behind several cited figures (SC-005's and SC-006's runs, the canary, FR-041's gate at fa9cf51, FR-042's scan) lives in your terminal and the earlier notes, not beside the table. Cite each output's place if you want the table to stand alone.
+- From the review: T107's Done line says "the gate on each branch" without naming a result.
+- From the review: the sub-budget time series' renewal flag (series B) picks up the 6 decimals on its right axis; a `decimals: 0` override fixes it.
 - The spend panels (today, month-to-date) also show 2 decimals, so a few Bedrock calls read $0.00 there. They aren't what SC-005 reads.
 - T164, T165, and T169 change human-only engine code (patches). They're open, and not needed for any criterion.
 
