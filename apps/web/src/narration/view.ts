@@ -5,8 +5,8 @@
 //   start       the first word at once, in the selection's own event, so it paints with the next frame (SC-006's
 //               "within 1 s" is measured from the click to the first word painted);
 //   pace        then a word every 375 ms, 160 words a minute, timed from the start, until the script is shown whole;
-//   assistive   the whole script goes to the panel's polite live region at the start; the word-by-word copy is hidden
-//               from assistive technology, so the script is read once;
+//   assistive   the AI line, then the whole script, go to the panel's polite live region at the start; the word-by-word
+//               copy is hidden from assistive technology, so the script is read once, after who narrates it;
 //   the AI      a line above the words says the AI twin narrates them, so the twin's words never show without it
 //               (FR-004; the page's AI disclosure, sticky at the top, says it too);
 //   another     a new selection stops the current one at once and starts the new one (FR-011); so does selecting the
@@ -125,7 +125,7 @@ export function createNarrator(doc: Document, source: NarrationSource): Narrator
     const list = narration.words.split(/\s+/).filter(Boolean);
     label.hidden = narration.approved;
     button.after(region);
-    live.textContent = narration.words;
+    live.textContent = `${NARRATION_AI_LINE} ${narration.words}`;
     const start = clock.now();
     let shown = 0;
     const step = (): void => {

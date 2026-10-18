@@ -509,27 +509,83 @@ export function forbiddenList(options: {
 /** An auxiliary right before a verb, an adverb allowed between: "was built", "is being used". */
 const AUXILIARY = /(?:^|[^\p{L}])(?:is|was|were|are|been|being|be)\s+(?:\p{L}+ly\s+)?$/u;
 
-/** Whether a sentence says a single-word verb as someone's act: in the active voice, or in a passive whose "by" names
- * the agent ("Designed by Hareet"). An agentless passive doesn't: "was built on a public server", or a verb
- * coordinated after a "by" passive, whose agent belongs to the first verb ("Built by Hareet and released to
- * production" says who built it, not who released it). Normalized text, lowercase. */
-function saysAsAct(sentence: string, verb: string): boolean {
-  const verbs = [...OWNERSHIP_VERBS, ...ACT_VERBS].filter((v) => /^[a-z-]+$/.test(v)).map(escape);
-  const byPassive = new RegExp(`(?:^|[^\\p{L}\\p{N}-])(?:${verbs.join("|")})\\s+by\\s`, "u");
-  const found = new RegExp(`(?:^|[^\\p{L}\\p{N}-])${escape(verb)}(?=$|[^\\p{L}\\p{N}-])`, "gu");
+/** Who a subject word names: the Author (a pronoun, the room's name, or "who" in a sentence about him) or someone
+ * else. Other words aren't subjects this test can read. */
+const OTHER_SUBJECTS = new Set([
+  "it",
+  "they",
+  "others",
+  "which",
+  "that",
+  "she",
+  "we",
+  "i",
+  "you",
+  "someone",
+  // A possessive opens someone's or something's noun phrase: "his pitch and design won" says the pitch won.
+  "his",
+  "her",
+  "its",
+  "their",
+]);
+const ADVERB = "(?:(?:still|also|first|then|later|once|now|just)\\s+)?";
+
+type Act = { author: boolean; passive: boolean };
+
+/** The single-word ownership and act verbs a sentence says as the Author's own acts (C8; the narration review of
+ * 2026-10-18). Each occurrence, in order:
+ *   - with "by" after it, a passive naming its agent: the Author's when "by" names him ("Designed by Hareet");
+ *   - after an auxiliary ("was built"), or right after a comma, a participle phrase ("…on-call engineer, built
+ *     security-first"): nobody's act;
+ *   - right after a subject: the Author's when it's "he", "him", the room's name, or "who"; someone else's when it's
+ *     "it", "they", "others", "which", "that", or the like ("which others built");
+ *   - after "and", "or", "then", or a dash: the act of the verb it's coordinated with, the last one before it, and
+ *     nobody's when that one was a passive ("Built by Hareet and released to production" says who built it, not who
+ *     released it);
+ *   - first in its clause ("Built agent-watchdog", "Ownership: led"): the Author's, the resume's implied subject or a
+ *     ruling;
+ *   - otherwise: the Author's when the nearest subject word before it in its sentence names him.
+ * Each sentence on its own; normalized text, lowercase. A heuristic, not a parser. */
+function authorActs(text: string, authorWords: readonly string[]): Set<string> {
+  const acts = new Set<string>();
+  for (const sentence of sentences(text)) for (const verb of sentenceActs(sentence, authorWords)) acts.add(verb);
+  return acts;
+}
+
+function sentenceActs(sentence: string, authorWords: readonly string[]): Set<string> {
+  const verbs = [...OWNERSHIP_VERBS, ...ACT_VERBS].filter((v) => /^[a-z-]+$/.test(v));
+  const author = new Set([...authorWords, "he", "him", "who"]);
+  const found = new RegExp(`(?:^|[^\\p{L}\\p{N}-])(${verbs.map(escape).join("|")})(?=$|[^\\p{L}\\p{N}-])`, "gu");
+  const subjectBefore = new RegExp(`(?:^|[^\\p{L}'-])([\\p{L}'-]+)\\s+${ADVERB}$`, "u");
+  const acts = new Set<string>();
+  let last: Act | null = null;
   for (const m of sentence.matchAll(found)) {
-    const end = m.index + m[0].length;
-    const before = sentence.slice(0, end - verb.length);
-    const after = sentence.slice(end);
-    if (/^\s+by\s/.test(after)) return true;
-    if (AUXILIARY.test(before)) continue;
-    const clause = before.slice(
-      Math.max(before.lastIndexOf(";"), before.lastIndexOf(":"), before.lastIndexOf(".")) + 1,
-    );
-    if (/(?:^|[\s,])and\s+$/.test(before) && byPassive.test(clause)) continue;
-    return true;
+    const verb = m[1] ?? "";
+    const start = m.index + m[0].length - verb.length;
+    const before = sentence.slice(0, start);
+    const after = sentence.slice(start + verb.length);
+    let act: Act;
+    const by = /^\s+by\s+([\p{L}'-]+)/u.exec(after);
+    const subject = subjectBefore.exec(before)?.[1] ?? "";
+    if (by) {
+      act = { author: author.has(by[1] ?? "") && by[1] !== "who", passive: true };
+    } else if (AUXILIARY.test(before) || /,\s*$/.test(before)) {
+      act = { author: false, passive: true };
+    } else if (author.has(subject) || OTHER_SUBJECTS.has(subject)) {
+      act = { author: author.has(subject), passive: false };
+    } else if (/(?:^|[^\p{L}])(?:and|or|then)\s+$|[—–]\s*$/u.test(before) && last) {
+      act = { author: !last.passive && last.author, passive: last.passive };
+    } else if (!/\p{L}/u.test(before.slice(Math.max(before.lastIndexOf(";"), before.lastIndexOf(":")) + 1))) {
+      act = { author: true, passive: false };
+    } else {
+      const words = before.match(/[\p{L}'-]+/gu) ?? [];
+      const named = [...words].reverse().find((w) => author.has(w) || OTHER_SUBJECTS.has(w));
+      act = { author: named !== undefined && author.has(named), passive: false };
+    }
+    if (act.author) acts.add(verb);
+    last = act;
   }
-  return false;
+  return acts;
 }
 
 const wordBoundary = (phrase: string): RegExp =>
@@ -558,6 +614,7 @@ export function checkSource(
 ): { problems: string[]; denylist: DenylistState } {
   const { root } = options;
   const roomName = source.header.room.name;
+  const authorWords = normalize(roomName).split(/\s+/).filter(Boolean);
   const cache = new Map<string, CorpusFile>();
   const corpusFile = (rel: string): CorpusFile => {
     let file = cache.get(rel);
@@ -606,7 +663,11 @@ export function checkSource(
       if (!said.test(shownText)) continue;
       if (!cited.some((s) => said.test(normalize(s)))) return `${id}: ownership verb not cited`;
       const word = owned.toLowerCase();
-      if (/^[a-z-]+$/.test(word) && saysAsAct(shownText, word) && !cited.some((s) => saysAsAct(normalize(s), word))) {
+      if (
+        /^[a-z-]+$/.test(word) &&
+        authorActs(shownText, authorWords).has(word) &&
+        !cited.some((s) => authorActs(normalize(s), authorWords).has(word))
+      ) {
         return `${id}: passive made active`;
       }
     }

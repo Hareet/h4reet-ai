@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import { NARRATION_AI_LINE, WORD_MS } from "../../src/narration/view";
-import { roomDataLoader } from "../../src/room/resume-port";
+import { narrationFromRoomData, roomDataLoader } from "../../src/room/resume-port";
 import {
   AI_DISCLOSURE,
   axeViolations,
@@ -193,6 +193,20 @@ describe("narration in the room", () => {
     }) as typeof fetch);
     expect(await load()).toBeNull();
     expect(await Promise.all([load(), load()])).toEqual([{ resume_state: "approved" }, { resume_state: "approved" }]);
+    expect(fetches).toBe(2);
+  });
+
+  it("fails a narration load whose room-data.json didn't load, so the narration loads again, as the resume does", async () => {
+    let fetches = 0;
+    const load = narrationFromRoomData(
+      roomDataLoader((async () => {
+        fetches += 1;
+        if (fetches === 1) throw new Error("offline");
+        return new Response(JSON.stringify(built()), { status: 200 });
+      }) as typeof fetch),
+    );
+    await expect(load()).rejects.toThrow(/room-data\.json/);
+    expect((await load()).get(ids()[0] ?? "")?.engineer?.words).toBe(WORDS.engineer);
     expect(fetches).toBe(2);
   });
 

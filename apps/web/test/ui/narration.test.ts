@@ -9,7 +9,7 @@ import axe from "axe-core";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
-import { asRoomNarration, type NarrationPath } from "../../src/narration/data";
+import { asRoomNarration, type NarrationPath, type RoomNarration } from "../../src/narration/data";
 import { DRAFT_LABEL, NARRATION_AI_LINE, type Clock, WORD_MS, WORDS_PER_MINUTE } from "../../src/narration/view";
 import type { RoomResume } from "../../src/resume/data";
 import { resumeView } from "../../src/room/resume-port";
@@ -103,7 +103,11 @@ class FakeClock implements Clock {
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-async function room(path: NarrationPath = "engineer", built: unknown = BUILT) {
+async function room(
+  path: NarrationPath = "engineer",
+  built: unknown = BUILT,
+  load: () => Promise<RoomNarration> = async () => asRoomNarration(built),
+) {
   const dom = new JSDOM(
     '<!doctype html><html lang="en"><head><title>t</title></head><body><header><p>An AI representation.</p></header>' +
       '<main><h1>The work area</h1><section aria-labelledby="r"><h2 id="r">The resume</h2><div id="host"></div>' +
@@ -112,7 +116,7 @@ async function room(path: NarrationPath = "engineer", built: unknown = BUILT) {
   );
   const doc = dom.window.document;
   const clock = new FakeClock();
-  const view = resumeView(async () => RESUME, { load: async () => asRoomNarration(built), clock });
+  const view = resumeView(async () => RESUME, { load, clock });
   const host = doc.getElementById("host") as HTMLElement;
   view.mount(host, {
     doc,
@@ -170,7 +174,8 @@ describe("the narration display", () => {
     expect(live().getAttribute("aria-live")).toBe("polite");
     expect(live().textContent).toBe("");
     select("lantern");
-    expect(live().textContent).toBe(LANTERN_ENGINEER);
+    // The AI line first, then the script (Principle VIII): a screen reader hears who narrates before the words.
+    expect(live().textContent).toBe(`${NARRATION_AI_LINE} ${LANTERN_ENGINEER}`);
   });
 
   it("shows the words beside the selected item", async () => {
@@ -188,11 +193,27 @@ describe("the narration display", () => {
     expect(shown()).toBe("Robin designed the");
     const tide = select("tide");
     expect(shown()).toBe("Robin");
-    expect(live().textContent).toBe(TIDE_ENGINEER);
+    expect(live().textContent).toBe(`${NARRATION_AI_LINE} ${TIDE_ENGINEER}`);
     expect(tide.nextElementSibling?.matches("[data-narration]")).toBe(true);
     expect(panel.querySelectorAll("[data-narration]")).toHaveLength(1);
     clock.advance(WORD_MS * 100);
     expect(shown()).toBe(TIDE_ENGINEER);
+  });
+
+  it("loads the scripts again after a load that failed, rather than keeping none for the visit", async () => {
+    let loads = 0;
+    const flaky = async (): Promise<RoomNarration> => {
+      loads += 1;
+      if (loads === 1) throw new Error("room-data.json didn't load");
+      return asRoomNarration(BUILT);
+    };
+    const { select, shown } = await room("engineer", BUILT, flaky);
+    expect(loads).toBe(1);
+    select("lantern");
+    await tick();
+    await tick();
+    expect(loads).toBe(2);
+    expect(shown()).toBe("Robin");
   });
 
   it("starts the same item over when it is selected again", async () => {

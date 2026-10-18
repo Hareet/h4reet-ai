@@ -3,8 +3,8 @@
 // its heading ("The resume") and the focus, closes it on Escape, returns focus to "Resume", and counts resume_opened.
 // What goes inside is a ResumeView's: here, Phase 3's view (src/resume/), behind an adapter.
 import type { VisitPath } from "../choice/visit";
-import { createNarrator } from "../narration";
-import type { NarrationSource, Narrator } from "../narration";
+import { asRoomNarration, createNarrator } from "../narration";
+import type { NarrationSource, Narrator, RoomNarration } from "../narration";
 import { fetchRoomResume, resumePanel } from "../resume";
 import type { RoomResume } from "../resume";
 import { ABSENT } from "../resume/data";
@@ -88,6 +88,16 @@ export function resumeView(
       current?.host.replaceChildren();
       current = null;
     },
+  };
+}
+
+/** The narration's load from room-data.json's loader: a failed load fails, rather than reading as no narration, so
+ * the narrator loads again on the next selection, as the resume view does on its next opening. */
+export function narrationFromRoomData(roomData: () => Promise<unknown>): () => Promise<RoomNarration> {
+  return async () => {
+    const json = await roomData();
+    if (json === null) throw new Error("room-data.json didn't load");
+    return asRoomNarration(json);
   };
 }
 

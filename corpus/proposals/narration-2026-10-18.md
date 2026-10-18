@@ -246,7 +246,7 @@ The verb in parentheses is the item's ownership verb. It sets the bar for its sc
 
 **Engineer** (`cht-skills.engineer.md`):
 
-> Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace, with OpenCode supported: among them cht-specialist, create-cht-task, create-cht-target, and cht-pr-review, which others built. It installs those skills, the CHT Docs MCP, slash commands, and validation hooks; it is the strategy's shared layer of CHT AI tools. Inside it, Hareet built agent-watchdog and the Docs MCP it packages.
+> Hareet sponsored the CHT skills in cht-ai-tools, including cht-pr-review, which others built. cht-ai-tools is Medic's public Claude Code plugin marketplace, with OpenCode supported. Its CHT skills also include cht-specialist, create-cht-task, and create-cht-target, and it installs the CHT Docs MCP, slash commands, and validation hooks; it is the strategy's shared layer of CHT AI tools. Inside it, Hareet built agent-watchdog and the Docs MCP it packages.
 
 - `01-ai-strategy-and-cht.md`, `[A 2026-09-27]`: "Inside it, Hareet built agent-watchdog and the Docs MCP it packages, and sponsored the CHT skills, including `cht-pr-review`, which others built"
 - `01-ai-strategy-and-cht.md`, `[C]`: "is a public Claude Code plugin marketplace (OpenCode supported) that installs CHT skills — `cht-specialist`, `create-cht-task`, `create-cht-target`, `cht-pr-review` — the CHT Docs MCP, slash commands, and validation hooks"
