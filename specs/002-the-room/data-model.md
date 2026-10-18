@@ -38,7 +38,7 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 |---|---|---|
 | `id` | string | `^[a-z][a-z0-9-]{1,40}$`, unique across the source; it's the item's ID in events, scripts, and the manifest |
 | `text` | string | display text, at most 400 characters. Any digit must sit inside a `{{slot:<id>}}` (FR-014). No "we" without its expansion (the corpus's rule) |
-| `claims[]` | list, at least one | each `{file, quote}`. `file` is a path under `corpus/` (no `intake/`, `proposals/`, or `facts/`); `quote` is at least 12 characters, found verbatim in one sentence of that file |
+| `claims[]` | list, at least one | each `{file, quote}`. `file` is one of the corpus's topic files, `corpus/NN-<topic>.md` (no `intake/`, `proposals/`, or `facts/`, and not `README.md` or `INTAKE.md`); `quote` is at least 12 characters, found verbatim in one sentence of that file |
 | `slots[]` | list | the slot IDs `text` uses; each must exist in `corpus/facts/*.yaml` |
 | `verb` | string, optional | for a role claim, one of the corpus's ownership verbs (built, designed, co-authored, sourced, sponsored, AI system architect, led, was part of a team that), or "architected", the ruling `02` gives the CHT 4.0 architecture; the check requires it to appear in `text` and in a cited sentence (FR-015) |
 
