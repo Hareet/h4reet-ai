@@ -1,0 +1,399 @@
+--- a/tools/gates/toolchain_check.py
++++ b/tools/gates/toolchain_check.py
+@@ -8,6 +8,11 @@
+ A pin matches its exact version, or any release in its series: "3.12" matches 3.12.3, and "1.7" matches 1.7.1.
+ Claude Code is required where agent sessions run (the host), not inside the devcontainer, which sets
+ H4_DEVCONTAINER=1 and builds without it by default.
++
++Claude Code's pin is a floor (ADR 0023). It updates itself from the Author's other projects, which this project's
++DISABLE_AUTOUPDATER doesn't reach, so a newer release is WARN: a row, and a line starting "WARN:", that don't fail the
++check. An older release is DRIFT. The agent-config evals record the version each run used, and a moved floor is in
++their trigger hash.
+ """
+ 
+ from __future__ import annotations
+@@ -25,6 +30,8 @@
+ DEFAULT_VARS = REPO / ".devcontainer" / "toolchain.vars"
+ DEFAULT_LINT_NODE = Path.home() / ".local" / "share" / "h4reet" / "lint-node"
+ VERSION_RE = re.compile(r"(\d+(?:\.\d+)+)")
++# Pins that are floors (ADR 0023): a newer release is WARN, not DRIFT.
++FLOORS = frozenset({"CLAUDE_CODE_VERSION"})
+ 
+ 
+ @dataclass
+@@ -33,7 +40,7 @@
+     pinned: str
+     found: str
+     where: str
+-    status: str  # OK, DRIFT, MISSING, or SKIP
++    status: str  # OK, WARN (newer than a floor), DRIFT, MISSING, or SKIP
+ 
+ 
+ def read_vars(path: Path) -> dict[str, str]:
+@@ -55,6 +62,15 @@
+     return found == pinned or found.startswith(pinned + ".")
+ 
+ 
++def newer(pinned: str, found: str) -> bool:
++    """True when found is a later release than pinned, number by number: 2.1.301 is newer than 2.1.296 and 2.1.30
++    isn't. A pin that isn't dotted numbers is never below anything."""
++    try:
++        return tuple(map(int, found.split("."))) > tuple(map(int, pinned.split(".")))
++    except ValueError:
++        return False
++
++
+ def first_version(text: str) -> str | None:
+     found = VERSION_RE.search(text)
+     return found.group(1) if found else None
+@@ -130,16 +146,12 @@
+             rows.append(
+                 Row(tool, pinned, "-", where, "MISSING" if required else "SKIP")
+             )
++        elif matches(pinned, found):
++            rows.append(Row(tool, pinned, found, where, "OK"))
++        elif key in FLOORS and newer(pinned, found):
++            rows.append(Row(tool, pinned, found, where, "WARN"))
+         else:
+-            rows.append(
+-                Row(
+-                    tool,
+-                    pinned,
+-                    found,
+-                    where,
+-                    "OK" if matches(pinned, found) else "DRIFT",
+-                )
+-            )
++            rows.append(Row(tool, pinned, found, where, "DRIFT"))
+ 
+     for tool, key, argv in (
+         ("node", "NODE_VERSION", ["node", "--version"]),
+@@ -222,6 +234,12 @@
+     in_devcontainer = os.environ.get("H4_DEVCONTAINER") == "1"
+     rows = check(pins, lint_node, in_devcontainer)
+     print(render(rows))
++    above = [r for r in rows if r.status == "WARN"]
++    for r in above:
++        print(
++            f"WARN: {r.tool} {r.found} is newer than its floor, {r.pinned} (ADR 0023): the agent-config evals "
++            "record the version each run used, and moving the floor runs them again"
++        )
+     bad = [r for r in rows if r.status in ("DRIFT", "MISSING")]
+     if bad:
+         names = ", ".join(r.tool for r in bad)
+@@ -229,7 +247,12 @@
+             f"toolchain-check: {len(bad)} of {len(rows)} differ from their pins ({names}); see tasks.md T013"
+         )
+         return 1
+-    print(f"toolchain-check: all {len(rows)} match their pins")
++    tail = (
++        f", {len(above)} newer than its floor ({', '.join(r.tool for r in above)})"
++        if above
++        else ""
++    )
++    print(f"toolchain-check: all {len(rows)} match their pins{tail}")
+     return 0
+ 
+ 
+--- a/tools/gates/test/test_toolchain_check.py
++++ b/tools/gates/test/test_toolchain_check.py
+@@ -184,6 +184,57 @@
+     assert tc.main(["toolchain_check.py", str(pins)]) == 1
+ 
+ 
++# ADR 0023: Claude Code updates itself from the Author's other projects, so its pin is a floor.
++def test_newer_compares_release_numbers() -> None:
++    assert tc.newer("2.1.294", "2.1.301")
++    assert tc.newer("2.1.294", "2.2.0")
++    assert tc.newer("2.1.294", "3.0")
++    assert not tc.newer("2.1.294", "2.1.294")
++    assert not tc.newer("2.1.294", "2.1.30")
++    assert not tc.newer("2.1.294", "2.1.293")
++    assert not tc.newer("latest", "2.1.301")
++
++
++def test_claude_codes_pin_is_a_floor(host: tuple[Path, Path]) -> None:
++    bin_dir, lint = host
++    make_tool(bin_dir, "claude", "2.1.301 (Claude Code)")
++    assert status(tc.check(PINS, lint, in_devcontainer=False), "claude code") == "WARN"
++    make_tool(bin_dir, "claude", "2.1.293 (Claude Code)")
++    assert status(tc.check(PINS, lint, in_devcontainer=False), "claude code") == "DRIFT"
++
++
++def test_only_claude_codes_pin_is_a_floor(host: tuple[Path, Path]) -> None:
++    bin_dir, lint = host
++    make_tool(bin_dir, "node", "v24.22.0")
++    make_tool(bin_dir, "gitleaks", "8.31.0")
++    rows = tc.check(PINS, lint, in_devcontainer=False)
++    assert status(rows, "node") == "DRIFT"
++    assert status(rows, "gitleaks") == "DRIFT"
++
++
++def test_main_passes_a_newer_claude_code_with_a_warn_line(
++    host: tuple[Path, Path],
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    capsys: pytest.CaptureFixture[str],
++) -> None:
++    bin_dir, lint = host
++    pins = tmp_path / "toolchain.vars"
++    pins.write_text("".join(f"{k}={v}\n" for k, v in PINS.items()), encoding="utf-8")
++    monkeypatch.setenv("H4_LINT_NODE", str(lint))
++    monkeypatch.delenv("H4_DEVCONTAINER", raising=False)
++    make_tool(bin_dir, "claude", "2.1.301 (Claude Code)")
++    assert tc.main(["toolchain_check.py", str(pins)]) == 0
++    lines = capsys.readouterr().out.splitlines()
++    (warn,) = [ln for ln in lines if ln.startswith("WARN:")]
++    assert "claude code 2.1.301" in warn and "floor, 2.1.294" in warn
++    assert lines[-1].endswith("match their pins, 1 newer than its floor (claude code)")
++    # A drift elsewhere still fails the check.
++    make_tool(bin_dir, "jq", "jq-1.6")
++    assert tc.main(["toolchain_check.py", str(pins)]) == 1
++    assert "differ from their pins (jq)" in capsys.readouterr().out
++
++
+ def test_the_repository_pins_and_the_dockerfile_agree() -> None:
+     """The Dockerfile's version arguments must equal toolchain.vars, so the devcontainer installs the pins."""
+     pins = tc.read_vars(REPO / ".devcontainer" / "toolchain.vars")
+--- a/tools/gates/gate
++++ b/tools/gates/gate
+@@ -36,7 +36,8 @@
+ 4. Host phase:
+    - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
+      gc.packRefs is false, and main is a loose ref, as `make githooks-check` has it;
+-   - toolchain: tools/gates/toolchain_check.py against the export's pins;
++   - toolchain: tools/gates/toolchain_check.py against the export's pins; a Claude Code newer than its pin, a floor
++     (ADR 0023), passes the check with a "WARN:" line, which makes the step WARN;
+    - policy: tools/gates/compose_policy.py --root <export>;
+    - corpus: corpus/tools/check_corpus.py over the export's corpus, with the Author's denylist, which must exist;
+      loaded into this process, which runs with PY_HOST's flags, since the script reads only its own tree;
+@@ -84,7 +85,8 @@
+ with H4_CONTRACT_RECORDING set and --network none. It passes only when the replay passed tests under the
+ recording's own name ("recorded live: <adapter>"), so a replay that never read FILE can't pass.
+ 
+-Statuses are make check's (PASS, SKIP, PLANNED, PENDING, FAIL), plus WARN for telemetry that didn't arrive.
++Statuses are make check's (PASS, SKIP, PLANNED, PENDING, FAIL), plus WARN for telemetry that didn't arrive and for
++a Claude Code above its floor.
+ Exit 0 with no FAIL or PENDING; 1 otherwise, or when the export's proof fails; 2 when the gate refuses to start.
+ """
+ 
+@@ -847,7 +849,13 @@
+         env,
+         tmp,
+     )
+-    return classify(Step("toolchain"), rc, out)
++    step = classify(Step("toolchain"), rc, out)
++    # A Claude Code newer than its floor passes the check with a WARN line (ADR 0023): the step is WARN, which the
++    # summary line counts, so the merge commit records it, and which the merge doesn't wait on.
++    warned = [ln for ln in out.splitlines() if ln.startswith("WARN:")]
++    if step.status == "PASS" and warned:
++        step.status, step.notes = "WARN", warned
++    return step
+ 
+ 
+ def policy(repo: Path, export_dir: Path, tmp: Path) -> Step:
+--- a/tools/gates/test/test_gate.py
++++ b/tools/gates/test/test_gate.py
+@@ -1261,6 +1261,42 @@
+     assert len(by_kind(fx.docker(), "compose")) == 1
+ 
+ 
++# ADR 0023: Claude Code's pin is a floor, and toolchain_check passes a newer one with a "WARN:" line.
++FLOOR_WARN = (
++    "WARN: claude code 2.1.301 is newer than its floor, 2.1.295 (ADR 0023): the agent-config evals record the "
++    "version each run used, and moving the floor runs them again"
++)
++
++
++def test_a_claude_code_above_its_floor_is_a_warn_the_merge_doesnt_wait_on(
++    fx: Fixture,
++) -> None:
++    fx.branch(CHANGE)
++    (fx.logs / "toolchain_check.control").write_text(
++        f"0\n{FLOOR_WARN}\ntoolchain-check: all 15 match their pins, 1 newer than its floor (claude code)",
++        encoding="utf-8",
++    )
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert status_of(done, "toolchain") == "WARN"
++    assert f"-> WARN toolchain ({FLOOR_WARN})" in done.stdout
++    line = summary(done)
++    assert ", 1 WARN, " in line and "failing" not in line
++    assert "merge --no-ff" in done.stdout
++
++
++def test_a_warn_line_never_hides_a_failing_toolchain(fx: Fixture) -> None:
++    fx.branch(CHANGE)
++    (fx.logs / "toolchain_check.control").write_text(
++        f"1\n{FLOOR_WARN}\ntoolchain-check: 1 of 15 differ from their pins (jq); see tasks.md T013",
++        encoding="utf-8",
++    )
++    done = gate(fx, "feature")
++    assert done.returncode == 1
++    assert status_of(done, "toolchain") == "FAIL"
++    assert "failing: toolchain FAIL" in summary(done)
++
++
+ def test_no_engine_certificate_fails_the_image_step_without_calling_docker(
+     fx: Fixture,
+ ) -> None:
+--- a/evals/agent-config/behavioral.py
++++ b/evals/agent-config/behavioral.py
+@@ -15,7 +15,7 @@
+ then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, and evals/agent-config/** (without
+ history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
+ but not ignored (every file there, in a git archive export), with their executable bits, plus the Claude Code pin
+-in .devcontainer/toolchain.vars. The gate calls status(export=True) on its export, which walks the tree and never
++in .devcontainer/toolchain.vars, a floor (ADR 0023). The gate calls status(export=True) on its export, which walks the tree and never
+ runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. An entry
+ counts only when this machine attests its exact bytes: `run` writes their SHA-256, as a file of that name, under
+ ~/.local/state/h4reet/evals/attested/, which agent sessions can't write. Of the counted entries with that hash, the
+@@ -32,8 +32,9 @@
+ where it loads code (an entry an earlier run left in history/ aside); untracked files elsewhere, like an editor's
+ .idea/, don't matter (review D1, 6). It clones the
+ repository into a scratch folder and checks the branch out there, and that tree's cases, thresholds, roles,
+-settings, and Claude Code pin are data; the runner, its checks, and the FR-007 list are main's. Before any session
+-starts it prints the branch's diff against main under .claude/, CLAUDE.md, REVIEW.md, and every other human-only
++settings, and Claude Code pin are data; the runner, its checks, and the FR-007 list are main's. The claude that
++runs must be at that pin or newer, since the pin is a floor (ADR 0023), and the entry records its version. Before
++any session starts it prints the branch's diff against main under .claude/, CLAUDE.md, REVIEW.md, and every other human-only
+ path (HUMAN_ONLY; plan §15, ADR 0017), read as text and cleaned for the terminal, and waits for the Author to type
+ yes at a terminal. Then it runs each case three times, each run a real Claude Code session on the Team plan, in a
+ fresh clone of the branch with the git hooks installed:
+@@ -670,6 +671,17 @@
+     return sorted(n for n in names if not _skipped(n))
+ 
+ 
++def at_least(pin: str, version: str) -> bool:
++    """Whether the Claude Code that runs is at the pin, a floor (ADR 0023): the pin itself, a release in its series, or
++    a later release, number by number. A pin that isn't dotted numbers takes only itself and its series."""
++    if version == pin or version.startswith(pin + "."):
++        return True
++    try:
++        return tuple(map(int, version.split("."))) > tuple(map(int, pin.split(".")))
++    except ValueError:
++        return False
++
++
+ def read_pin(repo: Path) -> str:
+     try:
+         text = (repo / PIN_FILE).read_text(encoding="utf-8")
+@@ -982,9 +994,13 @@
+     named = f"{', '.join(unattested)} {'is' if len(unattested) == 1 else 'are'}"
+     failed = bool(found)
+     if counted and counted[-1].entry["verdict"] == "pass":
++        # The pin is a floor (ADR 0023), so the line names the Claude Code the run used, beside toolchain-check's
++        # row. Only a version's digits and dots are printed: an entry is a file, and this reaches a terminal.
++        used = counted[-1].entry["claude_code_version"]
++        shown = used if re.fullmatch(r"\d+(?:\.\d+)+", used) else "of unknown version"
+         print(
+             f"PASS  behavioral tier: {counted[-1].run} passed for trigger hash {digest[:12]}, the newest run for "
+-            "it"
++            f"it, on Claude Code {shown}"
+         )
+         state = "pass"
+     elif counted:
+@@ -2228,11 +2244,11 @@
+                     )
+                 cases = [c for c in cases if c.id in wanted]
+             version, pin = claude_version(claude), read_pin(tree)
+-            if version is None or not (version == pin or version.startswith(pin + ".")):
++            if version is None or not at_least(pin, version):
+                 raise Abort(
+-                    f"the trigger hash names Claude Code {pin} ({PIN_FILE} on {ref}), but {claude} is "
+-                    f"{version or 'unreadable'}: install the pin, or move the pin in a commit (which triggers the "
+-                    "evals again)"
++                    f"the trigger hash names Claude Code {pin} ({PIN_FILE} on {ref}), a floor (ADR 0023), but "
++                    f"{claude} is {version or 'unreadable'}: update Claude Code, or lower the floor in a commit "
++                    "(which triggers the evals again)"
+                 )
+             digest = trigger_hash(tree, export=True)
+             baseline, skipped = (
+--- a/evals/agent-config/test_behavioral.py
++++ b/evals/agent-config/test_behavioral.py
+@@ -910,6 +910,26 @@
+     assert classify(out) == "PASS"
+ 
+ 
++def test_status_names_the_claude_code_the_deciding_run_used(
++    repo: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    # ADR 0023: beside toolchain-check's row for the host's Claude Code, make evals names the one the run used.
++    (here_of(repo) / "cases" / "docs.yaml").unlink()
++    put(repo, {**entry(repo), "claude_code_version": "2.1.301"})
++    assert bh.status(repo, here_of(repo)) == 0
++    out = capsys.readouterr().out
++    (line,) = [ln for ln in out.splitlines() if ln.startswith("PASS")]
++    assert line.endswith(", the newest run for it, on Claude Code 2.1.301")
++    # An entry is a file: only a version's digits and dots reach the terminal.
++    later = entry(repo, run_name="2026-10-11T120000Z-feat-x-abcdef012345")
++    put(repo, {**later, "claude_code_version": "2.1\x1b[2J"})
++    assert bh.status(repo, here_of(repo)) == 0
++    out = capsys.readouterr().out
++    (line,) = [ln for ln in out.splitlines() if ln.startswith("PASS")]
++    assert line.endswith(", on Claude Code of unknown version")
++    assert "\x1b" not in out
++
++
+ def test_a_passing_entry_for_another_hash_leaves_it_pending(
+     repo: Path, capsys: pytest.CaptureFixture[str]
+ ) -> None:
+@@ -1390,16 +1410,42 @@
+     assert (here_of(repo) / "cases" / "docs.yaml").is_file()
+ 
+ 
+-def test_run_refuses_a_claude_code_off_the_pin(
++def test_run_refuses_a_claude_code_below_the_floor(
+     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+ ) -> None:
++    # ADR 0023: the pin is a floor. An older Claude Code never starts a session.
+     agent = Agent()
+-    assert run(repo, agent, tmp_path, version="2.1.296") == 2
++    assert run(repo, agent, tmp_path, version="2.1.294") == 2
+     err = capsys.readouterr().err
+-    assert "2.1.296" in err and PIN in err and "toolchain.vars" in err
++    assert "2.1.294" in err and PIN in err and "toolchain.vars" in err
++    assert "a floor" in err
++    assert run(repo, agent, tmp_path, version="2.1.29") == 2
+     assert agent.calls == []
+ 
+ 
++def test_run_takes_a_claude_code_above_the_floor_and_records_it(
++    repo: Path, tmp_path: Path
++) -> None:
++    # ADR 0023: Claude Code updates itself from the Author's other projects. A newer one runs, and the entry records
++    # the version that ran beside the pin.
++    assert run(repo, Agent(), tmp_path, version="2.1.301") == 0
++    record = only_entry(repo)
++    assert record["claude_code_version"] == "2.1.301"
++    assert record["claude_code_pin"] == PIN
++    # The hash names the pin, not the version that ran, so an update alone doesn't move it.
++    assert record["trigger_hash"] == bh.trigger_hash(repo)
++
++
++def test_at_least_takes_the_pin_its_series_and_later_releases() -> None:
++    assert bh.at_least("2.1.295", "2.1.295")
++    assert bh.at_least("2.1", "2.1.7")
++    assert bh.at_least("2.1.295", "2.1.301")
++    assert bh.at_least("2.1.295", "2.2.0")
++    assert not bh.at_least("2.1.295", "2.1.294")
++    assert not bh.at_least("2.1.295", "2.1.29")
++    assert not bh.at_least("latest", "2.1.301")
++
++
+ def test_the_pin_is_the_branchs(
+     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+ ) -> None:
+--- a/evals/agent-config/history/README.md
++++ b/evals/agent-config/history/README.md
+@@ -26,8 +26,8 @@
+ | `branch` | the branch the run tested |
+ | `commit` | its tip: the commit every scratch clone held |
+ | `main` | `main`'s commit at the time, or `null` |
+-| `claude_code_version` | the Claude Code that ran |
+-| `claude_code_pin` | `CLAUDE_CODE_VERSION` in `.devcontainer/toolchain.vars`; the run refuses a version off it |
++| `claude_code_version` | the Claude Code that ran: the pin or a later release; `make evals` names it beside a pass |
++| `claude_code_pin` | `CLAUDE_CODE_VERSION` in `.devcontainer/toolchain.vars`, a floor (ADR 0023); the run refuses an older version |
+ | `started`, `finished` | UTC, ISO 8601 |
+ | `models` | every model the sessions reported |
+ | `thresholds` | `thresholds.yaml`, as the run read it |
