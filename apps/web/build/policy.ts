@@ -1,6 +1,7 @@
 // A checkout's prebuild (spec 002, T017; contracts/resume-source.md §5): fills the policy directory with main's
-// assets/policy/content-approvals.json and resume-header.json, read with `git show main:<path>` from the repository
-// this workspace sits in, never from the branch's working tree. A file main doesn't hold, or a checkout with no main
+// assets/policy/content-approvals.json and resume-header.json, read with `git cat-file blob refs/heads/main:<path>` from
+// the repository this workspace sits in, never from the branch's working tree. The branch's full ref, as spec 003 reads
+// its policy: a bare `main` resolves to refs/tags/main before refs/heads/main, and an agent session can make that tag. A file main doesn't hold, or a checkout with no main
 // (an exported tree), leaves it out, so every content file builds as a draft.
 //
 // It never runs in the image: the Dockerfile runs the build with --ignore-scripts, and ROOM_POLICY_DIR there names the
@@ -24,10 +25,11 @@ export const DEFAULT_POLICY_DIR = here("../../../node_modules/.cache/h4reet-web/
 
 export type Show = (repo: string, path: string) => Buffer | null;
 
-/** git show main:<path>, with git's own minimum of settings: no GIT_DIR or replace objects, no global config. */
+/** main's blob at <path>, by the branch's full ref, with git's own minimum of settings: no GIT_DIR, no replace
+ * objects, no global config. A missing blob, or no branch main, is null. */
 export const gitShow: Show = (repo, path) => {
   try {
-    return execFileSync("git", ["-C", repo, "show", `main:${path}`], {
+    return execFileSync("git", ["-C", repo, "cat-file", "blob", `refs/heads/main:${path}`], {
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 60_000,
       env: {

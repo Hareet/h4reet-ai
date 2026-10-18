@@ -17,19 +17,19 @@ The Author's direction of 2026-10-17 was to take the recommended options and rev
   - The PDF's header, the full name and one contact channel, sits beside it in `assets/policy/resume-header.json`, outside `corpus/`, where the surname may not go (R-16).
 - **Human-only, from the start.** The approvals patch creates both files empty and protects them before the first draft is committed: `.claude/hooks/protected-paths.sh`, the sandbox's `denyWrite`, and `Edit(...)` denies. The forbidden-action matrix holds those rows.
 - **Read from `main`, on the host, never in the build stage.**
-  - `deploy/scripts/web_image.py` reads both files with `git show main:` from the working tree and hands them to the image's build as the named build context `policy`. The build stage runs no git.
+  - `deploy/scripts/web_image.py` reads both files with `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:<path>` from the working tree and hands them to the image's build as the named build context `policy`. The build stage runs no git. The full ref matters: a bare `main` resolves to a tag of that name first, and an agent session can make one (the review of 2026-10-18).
   - A checkout's build gets them from its prebuild, `apps/web/build/policy.ts`, the same way, into a directory under `node_modules/.cache`.
   - A file `main` lacks is absent: every content file is then a draft, and the PDF gets the room's header.
   - So an approval takes effect when the Author's commit is on `main`, at the next build.
 - **Drafts are left out of prod, shown on dev.** A build without `ROOM_DRAFTS=1` leaves drafts out and lists them in `room-data.json`'s `drafts`. Only the `-drafts` images of dev and dev-cpu build with it, and they show drafts under a "Draft, not approved" banner (contracts/web-serving.md §1).
-- **The gate enforces it.** `tools/gates/content_check.py` is human-only and runs in `make check` and in the Author's gate, after a build without drafts. It reads `main`'s approvals itself, recomputes each content file's digest, and fails when `room-data.json` leaves an unapproved file out of `drafts`. `approvals.ts` is the build's convenience; the check is the enforcement, as spec 003 enforces its intake from human-only gate code.
+- **The gate enforces it.** `tools/gates/content_check.py` is human-only and runs in `make check` and in the Author's gate, after a build without drafts. It reads `main`'s approvals itself, by `refs/heads/main`, recomputes each content file's digest, and trusts none of the build's bookkeeping. It fails when `room-data.json`'s `published` claims a file `main` doesn't approve, or when an unapproved file's text appears in any file under `dist/`. `approvals.ts` is the build's convenience; the check is the enforcement, as spec 003 enforces its intake from human-only gate code.
 
 ## Alternatives considered
 
 - **The Author's commits as the approval,** for example a commit by the Author touching the content file. Rejected: fragile to detect, and agents' commits carry the same name in this repository.
 - **A signature over the content.** Rejected: no key infrastructure exists, and the Author's terminal already holds the only write access the approvals need.
 - **Reading the approvals from the branch being built.** Rejected: a branch could approve its own content.
-- **`git show main:` in the image's build stage.** Rejected: a host stack's context has no `.git`, so every file would be a draft (the review's first blocker).
+- **Reading `main` in the image's build stage.** Rejected: a host stack's context has no `.git`, so every file would be a draft (the review's first blocker).
 - **One approvals file for spec 002 and spec 003.** Rejected: a content approval and a likeness approval confirm different things, so each has its own shape, in sibling files.
 
 ## Consequences

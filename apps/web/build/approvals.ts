@@ -2,7 +2,7 @@
 // resume's source or a narration script, is approved only when main's assets/policy/content-approvals.json lists the
 // SHA-256 of its current bytes; anything else is a draft. The build reads main's policy from a policy directory, never
 // the branch's copy and never with git: the image gets it as the named build context `policy` (web_image.py), and a
-// checkout's prebuild (build/policy.ts) fills it with git show main:.
+// checkout's prebuild (build/policy.ts) fills it from refs/heads/main with git cat-file.
 //
 // This file is the build's convenience. The enforcement is tools/gates/content_check.py, human-only, which reads main's
 // approvals itself and fails a build whose room-data.json publishes a file main doesn't approve.
@@ -153,13 +153,29 @@ export function publication(state: ContentState, drafts: boolean): { publish: bo
   return drafts ? { publish: true, banner: true } : { publish: false, banner: false };
 }
 
-/** room-data.json's parts this phase writes (data-model.md §5): the policy built with, and every draft. */
+export interface Published {
+  path: string;
+  sha256: string;
+  /** Present, and true, only for a draft a drafts build shows under its banner. */
+  draft?: true;
+}
+
+/** room-data.json's parts this phase writes (data-model.md §5): the policy built with, each content file the build
+ * published with its digest, and every draft. The gate's content check holds `published` to main's approvals, and
+ * scans dist/ for a draft's text whatever this says. */
 export function roomData(
   files: readonly ContentFile[],
   policy: Policy,
-): { built_from: { policy: string }; drafts: string[] } {
+  drafts: boolean,
+): { built_from: { policy: string }; published: Published[]; drafts: string[] } {
+  const published: Published[] = files
+    .filter((f) => publication(f.state, drafts).publish)
+    .map((f) =>
+      f.state === "draft" ? { path: f.path, sha256: f.sha256, draft: true } : { path: f.path, sha256: f.sha256 },
+    );
   return {
     built_from: { policy: policyDigest(policy) },
+    published,
     drafts: files.filter((f) => f.state === "draft").map((f) => f.path),
   };
 }
@@ -171,7 +187,7 @@ export function roomDataFile(options: { root: string; policyDir: () => string })
     apply: "build",
     generateBundle() {
       const policy = readPolicy(options.policyDir());
-      const data = roomData(contentFiles(options.root, policy), policy);
+      const data = roomData(contentFiles(options.root, policy), policy, draftsOn(process.env));
       this.emitFile({ type: "asset", fileName: "room-data.json", source: `${JSON.stringify(data, null, 2)}\n` });
     },
   };

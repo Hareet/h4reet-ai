@@ -1,7 +1,7 @@
 // T014 (spec 002; FR-012; contracts/resume-source.md §5, data-model.md §4): a content file is approved only when the
 // policy directory's copy of main's content-approvals.json lists its current SHA-256; anything else is a draft, left
 // out of a build without ROOM_DRAFTS=1 and bannered in one with it. build/policy.ts fills that directory from main
-// with git show in a checkout, never from the branch; the image gets it as the named context `policy` instead.
+// by refs/heads/main in a checkout, never from the branch or a tag; the image gets it as the named context `policy`.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -156,14 +156,26 @@ describe("publication", () => {
     }
   });
 
-  it("lists every draft in room-data.json, with the policy's digest, approved or not", () => {
+  it("names in room-data.json what it published, each with its digest, and every draft it left out", () => {
+    // The gate's content check reads `published` as the build's claim, holds each digest to main's approvals, and
+    // scans dist/ for any draft's text whatever the build says (contracts/resume-source.md §5).
     const root = tree();
     const policy = readPolicy(policyDir({ "content-approvals.json": approvals(sha256(RESUME)) }));
-    const data = roomData(contentFiles(root, policy), policy);
+    const data = roomData(contentFiles(root, policy), policy, false);
     expect(data).toEqual({
       built_from: { policy: policyDigest(policy) },
+      published: [{ path: "apps/web/content/resume.yaml", sha256: sha256(RESUME) }],
       drafts: ["apps/web/content/narration/x.engineer.md"],
     });
+  });
+
+  it("publishes drafts too in a drafts build, marked as such, and still lists them as drafts", () => {
+    const root = tree();
+    const policy = readPolicy(policyDir({ "content-approvals.json": approvals(sha256(RESUME)) }));
+    expect(roomData(contentFiles(root, policy), policy, true).published).toEqual([
+      { path: "apps/web/content/resume.yaml", sha256: sha256(RESUME) },
+      { path: "apps/web/content/narration/x.engineer.md", sha256: sha256(SCRIPT), draft: true },
+    ]);
   });
 });
 
@@ -194,7 +206,10 @@ describe("build/policy.ts, a checkout's prebuild", () => {
     git(root, "commit", "-qm", "base");
     if (branch) {
       git(root, "switch", "-qc", "feature");
-      for (const [rel, text] of Object.entries(branch)) writeFileSync(join(root, rel), text);
+      for (const [rel, text] of Object.entries(branch)) {
+        mkdirSync(join(root, rel, ".."), { recursive: true });
+        writeFileSync(join(root, rel), text);
+      }
       git(root, "add", "-A");
       git(root, "commit", "-qm", "branch");
     }
@@ -224,6 +239,23 @@ describe("build/policy.ts, a checkout's prebuild", () => {
     fillPolicy(dir, root);
     expect(readFileSync(join(dir, "content-approvals.json"), "utf8")).toBe(MAIN_APPROVALS);
     expect(readdirSync(dir)).toEqual(["content-approvals.json"]);
+  });
+
+  it("reads main by its full ref: a tag named main never stands in for the branch", () => {
+    // git resolves a bare `main` to refs/tags/main before refs/heads/main, and an agent session can make that tag.
+    const root = repo(
+      { "assets/policy/content-approvals.json": MAIN_APPROVALS },
+      { "assets/policy/content-approvals.json": approvals(sha256(SCRIPT)) },
+    );
+    git(root, "tag", "main", "feature");
+    const dir = join(temp("h4-fill-"), "policy");
+    fillPolicy(dir, root);
+    expect(readFileSync(join(dir, "content-approvals.json"), "utf8")).toBe(MAIN_APPROVALS);
+    // With no branch main, a tag named main approves nothing.
+    const tagged = repo(null, { "assets/policy/content-approvals.json": approvals(sha256(SCRIPT)) });
+    git(tagged, "tag", "main", "feature");
+    fillPolicy(dir, tagged);
+    expect(readdirSync(dir)).toEqual([]);
   });
 
   it("does nothing, and runs no git, when ROOM_POLICY_DIR names the directory, as in the image", () => {

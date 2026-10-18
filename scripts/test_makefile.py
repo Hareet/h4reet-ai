@@ -567,7 +567,7 @@ def test_the_content_check_builds_without_drafts_then_runs_mains_check(
     )
     build = recipe.index("ROOM_DRAFTS= npm run build -w apps/web")
     check = recipe.index(
-        "tools/gates/content_check.py --tree . --room-data apps/web/dist/room-data.json --repo ."
+        "tools/gates/content_check.py --tree . --dist apps/web/dist --repo ."
     )
     assert build < check
     assert (

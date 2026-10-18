@@ -120,6 +120,6 @@ describe("the built room-data.json", () => {
     const absent = createHash("sha256")
       .update("content-approvals.json:absent\nresume-header.json:absent\n")
       .digest("hex");
-    expect(data).toEqual({ built_from: { policy: absent }, drafts: [] });
+    expect(data).toEqual({ built_from: { policy: absent }, published: [], drafts: [] });
   });
 });

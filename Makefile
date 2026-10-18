@@ -240,15 +240,16 @@ test-fast: ## The quick subset
 
 # The published-content check (spec 002, T080; contracts/resume-source.md §5): the room built without drafts, whatever
 # the shell's ROOM_DRAFTS, its prebuild reading main's policy; then tools/gates/content_check.py, human-only, which
-# reads main's approvals itself and fails when room-data.json publishes a content file main doesn't approve. The
-# build's approvals code is agent-editable; the check isn't. PLANNED until the approvals patch adds the script. The
-# Author's gate runs the same check from main's tree, over a build in its container phase.
+# reads main's approvals itself and fails when the build publishes a content file main doesn't approve, by its own
+# account in room-data.json or in the text of any file in dist/. The build's approvals code is agent-editable; the
+# check isn't. PLANNED until the approvals patch adds the script. The Author's gate runs the same check from main's
+# tree, over a build in its container phase.
 content-check: ## The room's published content against main's approvals, after a build without drafts (spec 002, T080)
 	$(CONTAINED)
 	@# One shell: the PLANNED exit must end the recipe, not only its own line.
 	@if [ ! -f tools/gates/content_check.py ]; then echo "PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch"; exit 0; fi; \
 	set -x; ROOM_DRAFTS= npm run build -w apps/web && \
-	$(PY_HOST) tools/gates/content_check.py --tree . --room-data apps/web/dist/room-data.json --repo .
+	$(PY_HOST) tools/gates/content_check.py --tree . --dist apps/web/dist --repo .
 
 corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local denylist
 	$(PY_HOST) corpus/tools/check_corpus.py
@@ -311,7 +312,7 @@ GATEWAY_IMAGE = if [ -f $(1)/deploy/scripts/gateway_image.py ]; then $(PY_HOST) 
   else echo "gateway image: the commit being run has no deploy/scripts/gateway_image.py, so its compose file builds the gateway"; fi
 # The room's image (spec 002, contracts/web-serving.md §1): deploy/scripts/web_image.py, from $(1), the tree being
 # started, builds h4reet-web:<ref><H4_WEB_SUFFIX> outside compose, on every run, with ROOM_DRAFTS only in a -drafts
-# build, and main's policy files read from this working tree (--repo, as preflight's) with git show. A commit older
+# build, and main's policy files read from this working tree (--repo, as preflight's) by refs/heads/main. A commit older
 # than the script, which a rollback can run, has no web service either.
 WEB_IMAGE = if [ -f $(1)/deploy/scripts/web_image.py ]; then $(PY_HOST) $(1)/deploy/scripts/web_image.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR); \
   else echo "web image: the commit being run has no deploy/scripts/web_image.py, and no web service"; fi

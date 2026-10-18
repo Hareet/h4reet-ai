@@ -48,7 +48,7 @@
  H/role/ops/edit deploy/env/prod.env [--agent]
 --- a/tools/gates/gate
 +++ b/tools/gates/gate
-@@ -32,7 +32,10 @@
+@@ -32,7 +32,11 @@
     devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
     the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
     validate-config, test, evals, redteam-suite, and matrix (stage H). Every container drops all capabilities, sets
@@ -56,11 +56,12 @@
 +   no-new-privileges, and runs as the Author's uid on that copy. When the export has the room (apps/web), the room is
 +   built last, without drafts, its scripts off, with main's two policy files mounted read-only at /policy
 +   (content-build; spec 002, T080), and the host then runs main's content_check.py over the export and that build's
-+   room-data.json (content): it fails when the build publishes a content file main doesn't approve.
++   dist/ (content): it fails when the build publishes a content file main doesn't approve, by its own account or in
++   any file's text. main's policy is read by the branch's full ref, refs/heads/main, never a tag of that name.
  4. Host phase:
     - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
       gc.packRefs is false, and main is a loose ref, as `make githooks-check` has it;
-@@ -158,6 +161,13 @@
+@@ -158,6 +162,13 @@
      ("matrix-h", "matrix"),
  )
  STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
@@ -74,7 +75,7 @@
  # gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
  # exit code of their own, and its log is read: a line at any level but these means the scan may be partial.
  LEAKS = 99
-@@ -739,7 +749,89 @@
+@@ -739,7 +750,92 @@
      return docker, image, work
  
  
@@ -91,17 +92,20 @@
 +    """The room's published content (spec 002, T080; contracts/resume-source.md §5), when the export has the room.
 +
 +    The build runs in the container, as a release builds it: no drafts, no pre- or post-scripts (a checkout's prebuild
-+    reads main with git, and there is none here), and main's policy, read here from the main tree with git show, in a
-+    fresh directory mounted read-only. Then main's content_check.py, on the host, recomputes each content file's digest
-+    from the export, the commit's own read-only tree, and fails when the build's room-data.json publishes one main
-+    doesn't approve. The build's approvals code is the branch's; the check is main's.
++    reads main with git, and there is none here), and main's policy, read here from the main tree by the branch's full
++    ref, refs/heads/main, never a bare "main", which a tag of that name would answer, in a fresh directory mounted
++    read-only. Then main's content_check.py, on the host, recomputes each content file's digest from the export, the
++    commit's own read-only tree, and fails when the build says it published a file main doesn't approve, or when any
++    such file's text is anywhere in the build's dist/. The build's approvals code is the branch's; the check is main's.
 +    """
 +    if not (export_dir / "apps" / "web" / "package.json").is_file():
 +        return  # a commit from before spec 002: no room, nothing published
 +    try:
 +        policy_dir = fresh_dir(tmp)
 +        for path, name in POLICY_FILES:
-+            shown = git(repo, "show", f"main:{path}", binary=True)
++            shown = git(
++                repo, "cat-file", "blob", f"refs/heads/main:{path}", binary=True
++            )
 +            if shown.returncode == 0:
 +                (policy_dir / name).write_bytes(shown.stdout)
 +    except OSError as exc:
@@ -136,7 +140,7 @@
 +    build = report.add(classify(Step("content-build"), rc, out))
 +    begin(
 +        "content",
-+        "main's content check over the export and that build's room-data.json",
++        "main's content check over the export and that build's dist/",
 +    )
 +    if build.status != "PASS":
 +        report.add(
@@ -148,8 +152,8 @@
 +            repo / "tools" / "gates" / "content_check.py",
 +            "--tree",
 +            str(export_dir),
-+            "--room-data",
-+            str(work / "apps" / "web" / "dist" / "room-data.json"),
++            "--dist",
++            str(work / "apps" / "web" / "dist"),
 +            "--policy-dir",
 +            str(policy_dir),
 +        ),
@@ -165,7 +169,7 @@
      names = [name for name, _ in CONTAINER_TARGETS]
      if report.status("makefiles") != "PASS":
          for name in ["devcontainer", "npm-ci", *names]:
-@@ -767,6 +859,7 @@
+@@ -767,6 +863,7 @@
              tmp,
          )
          report.add(classify(Step(name), rc, out))
@@ -173,7 +177,7 @@
  
  
  # --------------------------------------------------------------------------------------------------
-@@ -1594,7 +1687,7 @@
+@@ -1594,7 +1691,7 @@
          report.add(Step("export").set("PASS", f"{sha}, the commit's own tree"))
          report.add(makefiles(repo, export_dir))
          if not host_only:
@@ -209,7 +213,7 @@
      ):
          write(
              main / f"tools/gates/{name}.py",
-@@ -2393,3 +2401,106 @@
+@@ -2393,3 +2401,124 @@
      assert "didn't build the room's image" in done.stdout
      assert len(by_kind(fx.docker(), "buildx")) == 2
      assert by_kind(fx.docker(), "compose") == []
@@ -258,8 +262,9 @@
 +    (check,) = fx.logged("content_check")
 +    assert check["isolated"] and check["no_bytecode"]
 +    flags = dict(zip(check["argv"][::2], check["argv"][1::2]))
-+    assert set(flags) == {"--tree", "--room-data", "--policy-dir"}
-+    assert flags["--room-data"].endswith("/work/apps/web/dist/room-data.json")
++    # The whole dist/, which the check scans for any unapproved file's text, room-data.json's claims aside.
++    assert set(flags) == {"--tree", "--dist", "--policy-dir"}
++    assert flags["--dist"].endswith("/work/apps/web/dist")
 +    # The digests come from the export, the commit's own read-only tree, not the build's working copy.
 +    assert Path(flags["--tree"]).name == "export"
 +    assert status_of(done, "content-build") == "PASS"
@@ -274,6 +279,23 @@
 +            "assets/policy/content-approvals.json": '{"schema": 1, "approvals": ["the branch approving itself"]}\n',
 +        }
 +    )
++    done = gate(fx, "feature")
++    (build,) = web_builds(fx.docker())
++    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
++    assert status_of(done, "content") == "PASS"
++
++
++def test_a_tag_named_main_never_stands_in_for_the_branch(fx: Fixture) -> None:
++    # git resolves a bare `main` to refs/tags/main before refs/heads/main, and an agent session can make that tag:
++    # the gate reads refs/heads/main, as spec 003's check reads its policy.
++    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
++    fx.branch(
++        {
++            **ROOM_BRANCH,
++            "assets/policy/content-approvals.json": '{"schema": 1, "approvals": ["the tag approving itself"]}\n',
++        }
++    )
++    git(fx.main, "tag", "main", "feature")
 +    done = gate(fx, "feature")
 +    (build,) = web_builds(fx.docker())
 +    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
@@ -386,39 +408,45 @@
  # planned or skipped row.
 diff --git a/tools/gates/content_check.py b/tools/gates/content_check.py
 new file mode 100644
-index 0000000..56a66ce
+index 0000000..b388172
 --- /dev/null
 +++ b/tools/gates/content_check.py
-@@ -0,0 +1,219 @@
+@@ -0,0 +1,387 @@
 +#!/usr/bin/env python3
 +"""The published-content check (spec 002, T080; FR-012; contracts/resume-source.md §5; research.md R-08).
 +
-+    python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py --tree DIR --room-data FILE
++    python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py --tree DIR --dist DIR
 +        (--repo DIR | --policy-dir DIR)
 +
 +The room publishes a content file, the resume's source or a narration script, only when main's
-+assets/policy/content-approvals.json lists the SHA-256 of its bytes. The build marks the rest drafts and lists them in
-+room-data.json's `drafts`; a build without drafts (ROOM_DRAFTS unset) then leaves them out. The build's code that
-+decides this, apps/web/build/approvals.ts, is agent-editable, so a branch could change it to call a draft approved.
-+This check is the enforcement, in human-only code, run by make check (make content-check) and by the Author's gate
-+after a build without drafts:
-+  - main's approvals, from --repo (it runs `git -C DIR show main:assets/policy/content-approvals.json` itself, never
-+    reading the branch's copy) or from --policy-dir (a directory the gate filled from main); absent means nothing is
-+    approved;
-+  - each content file's SHA-256, recomputed from --tree: apps/web/content/resume.yaml and
++assets/policy/content-approvals.json lists the SHA-256 of its bytes. The build's code that decides this,
++apps/web/build/approvals.ts, is agent-editable, so a branch could change it to publish a draft and say otherwise. This
++check is the enforcement, in human-only code, run by make check (make content-check) and by the Author's gate after a
++build without drafts, and it trusts none of the build's bookkeeping:
++  - main's approvals come from --repo, which it reads itself with `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob
++    refs/heads/main:assets/policy/content-approvals.json` (the branch's full ref: a bare `main` resolves to a tag of
++    that name first, and an agent session can make one), or from --policy-dir, a directory the gate filled the same
++    way. Absent means nothing is approved;
++  - each content file's SHA-256 is recomputed from --tree: apps/web/content/resume.yaml and
 +    apps/web/content/narration/*.md, each a regular file, never a link;
-+  - a FAIL for each file whose digest main doesn't approve and that room-data.json doesn't list in `drafts`: the
-+    build published it.
-+An approved file listed as a draft is only held back, which passes. It prints paths and counts, never a file's content.
++  - every entry of dist/room-data.json's `published`, {path, sha256}, must name a content file, carry that file's
++    current digest, and have main approve it;
++  - and, whatever room-data.json says, no text of a content file main doesn't approve may appear in any file under
++    dist/. The text is the resume's `text`, `title`, and `name` values and a script's body after its front matter, cut
++    at slot placeholders and sentence ends into fragments of at least MIN_FRAGMENT characters; a fragment an approved
++    file also holds doesn't count. dist/'s files are read with JSON's strings parsed, HTML's entities, and a bundle's
++    string escapes undone. A PDF is read as it is, so its text is found only in uncompressed streams.
++It prints paths and counts, never a file's text.
 +
-+Exit codes: 0 every unapproved file is a draft; 1 a file is published that main doesn't approve, or room-data.json
-+isn't a build's; 2 usage, or main's approvals can't be read as the contract's shape.
++Exit codes: 0 nothing published that main doesn't approve; 1 something is, or dist/room-data.json isn't a build's; 2
++usage, or main's approvals can't be read as the contract's shape.
 +"""
 +
 +from __future__ import annotations
 +
 +import argparse
 +import hashlib
++import html
 +import json
 +import os
 +import re
@@ -427,11 +455,21 @@ index 0000000..56a66ce
 +from pathlib import Path
 +
 +APPROVALS = "assets/policy/content-approvals.json"
++MAIN_REF = "refs/heads/main"
 +CONTENT = Path("apps/web/content")
 +SHA256_RE = re.compile(r"[0-9a-f]{64}")
 +ID_RE = re.compile(r"C-\d{4}")
 +DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 +KINDS = ("resume", "narration")
++# The shortest piece of a draft's text that counts as publishing it: shorter shared words (a section title, an ID)
++# say nothing about where they came from.
++MIN_FRAGMENT = 24
++TEXT_KEY_RE = re.compile(
++    r"^(?P<indent>\s*)(?:-\s+)?(?P<key>text|title|name)\s*:\s*(?P<value>.*)$"
++)
++SLOT_RE = re.compile(r"\{\{[^}]*\}\}")
++SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
++JS_UNICODE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 +
 +
 +class CantCheck(Exception):
@@ -452,10 +490,10 @@ index 0000000..56a66ce
 +
 +
 +def mains_approvals(repo: Path) -> bytes | None:
-+    """main's copy of the approvals file, or None: no main, or no file on it."""
++    """main's copy of the approvals file, by the branch's full ref, or None: no branch main, or no file on it."""
 +    try:
 +        done = subprocess.run(
-+            ["git", "-C", str(repo), "show", f"main:{APPROVALS}"],
++            ["git", "-C", str(repo), "cat-file", "blob", f"{MAIN_REF}:{APPROVALS}"],
 +            capture_output=True,
 +            check=False,
 +            timeout=60,
@@ -524,8 +562,118 @@ index 0000000..56a66ce
 +    return paths
 +
 +
-+def drafts_of(room_data: Path) -> tuple[set[str] | None, str]:
-+    """room-data.json's drafts, or None with the reason it isn't a build's."""
++def collapse(text: str) -> str:
++    return " ".join(text.split())
++
++
++def unquote(value: str) -> str:
++    value = value.strip()
++    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
++        inner = value[1:-1]
++        return (
++            inner.replace('\\"', '"') if value[0] == '"' else inner.replace("''", "'")
++        )
++    return value
++
++
++def yaml_texts(text: str) -> list[str]:
++    """The displayed values of a resume source: `text`, `title`, and `name`, inline or as a block scalar."""
++    lines = text.splitlines()
++    out = []
++    i = 0
++    while i < len(lines):
++        found = TEXT_KEY_RE.match(lines[i])
++        i += 1
++        if not found:
++            continue
++        value = found["value"].strip()
++        if value and value[0] not in ">|":
++            out.append(unquote(value))
++            continue
++        indent = len(found["indent"])
++        block = []
++        while i < len(lines) and (
++            not lines[i].strip() or len(lines[i]) - len(lines[i].lstrip()) > indent
++        ):
++            block.append(lines[i].strip())
++            i += 1
++        out.append(" ".join(b for b in block if b))
++    return out
++
++
++def script_body(text: str) -> list[str]:
++    """A narration script's words: its body after the front matter."""
++    if text.startswith("---\n"):
++        end = text.find("\n---\n", 4)
++        if end != -1:
++            text = text[end + 5 :]
++    return [text]
++
++
++def fragments(texts: list[str]) -> set[str]:
++    """Each displayed text cut at slot placeholders and sentence ends; the pieces long enough to say where they came
++    from, whitespace collapsed and trailing punctuation dropped."""
++    out = set()
++    for text in texts:
++        for piece in SLOT_RE.split(text):
++            for sentence in SENTENCE_END_RE.split(collapse(piece)):
++                sentence = sentence.strip().rstrip(".!?,;:").strip()
++                if len(sentence) >= MIN_FRAGMENT:
++                    out.add(sentence)
++    return out
++
++
++def displayed(rel: str, data: bytes) -> list[str]:
++    text = data.decode("utf-8", errors="replace")
++    return yaml_texts(text) if rel.endswith(".yaml") else script_body(text)
++
++
++def json_strings(node: object) -> list[str]:
++    if isinstance(node, str):
++        return [node]
++    if isinstance(node, dict):
++        return [
++            s for k, v in node.items() for s in (*json_strings(k), *json_strings(v))
++        ]
++    if isinstance(node, list):
++        return [s for v in node for s in json_strings(v)]
++    return []
++
++
++def readable(path: Path) -> str:
++    """A dist/ file's text as a reader would see it: JSON's strings, HTML's entities and a bundle's escapes undone."""
++    data = path.read_bytes()
++    text = data.decode("utf-8", errors="replace")
++    if path.suffix == ".json":
++        try:
++            return collapse("\n".join(json_strings(json.loads(text))))
++        except json.JSONDecodeError:
++            pass
++    text = html.unescape(text)
++    text = JS_UNICODE_RE.sub(lambda m: chr(int(m.group(1), 16)), text)
++    text = (
++        text.replace("\\'", "'")
++        .replace('\\"', '"')
++        .replace("\\n", " ")
++        .replace("\\\\", "\\")
++    )
++    return collapse(text)
++
++
++def dist_files(dist: Path) -> list[Path]:
++    """Every regular file under dist/, never following a link."""
++    out = []
++    for dirpath, dirnames, filenames in os.walk(dist):
++        dirnames.sort()
++        for name in sorted(filenames):
++            path = Path(dirpath, name)
++            if path.is_file() and not path.is_symlink():
++                out.append(path)
++    return out
++
++
++def published_of(room_data: Path) -> tuple[list[dict] | None, str]:
++    """room-data.json's published entries, or None with the reason it isn't a build's."""
 +    try:
 +        doc = json.loads(room_data.read_text(encoding="utf-8"))
 +    except FileNotFoundError:
@@ -537,16 +685,21 @@ index 0000000..56a66ce
 +        return None, f"{room_data} can't be read as JSON ({type(error).__name__})"
 +    if not isinstance(doc, dict):
 +        return None, f"{room_data} isn't an object"
-+    drafts = doc.get("drafts")
-+    if not isinstance(drafts, list) or not all(isinstance(d, str) for d in drafts):
-+        return None, f"{room_data}'s drafts isn't a list of paths"
-+    return set(drafts), ""
++    published = doc.get("published")
++    if not isinstance(published, list) or not all(
++        isinstance(e, dict)
++        and isinstance(e.get("path"), str)
++        and isinstance(e.get("sha256"), str)
++        for e in published
++    ):
++        return None, f"{room_data}'s published isn't a list of {{path, sha256}}"
++    return published, ""
 +
 +
 +def main(argv: list[str]) -> int:
 +    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 +    parser.add_argument("--tree", type=Path, required=True)
-+    parser.add_argument("--room-data", type=Path, required=True)
++    parser.add_argument("--dist", type=Path, required=True)
 +    source = parser.add_mutually_exclusive_group(required=True)
 +    source.add_argument("--repo", type=Path)
 +    source.add_argument("--policy-dir", type=Path)
@@ -566,15 +719,16 @@ index 0000000..56a66ce
 +        )
 +        return 2
 +
-+    drafts, why = drafts_of(args.room_data)
-+    if drafts is None:
++    published, why = published_of(args.dist / "room-data.json")
++    if published is None:
 +        print(f"FAIL room-data.json: {why}")
 +        print("content check: 1 problem (room-data.json isn't a build's)")
 +        return 1
 +
-+    paths = content_files(args.tree)
 +    problems = []
-+    held = approved_count = 0
++    paths = content_files(args.tree)
++    digests: dict[str, str] = {}
++    texts: dict[str, list[str]] = {}
 +    for rel in paths:
 +        full = args.tree / rel
 +        if full.is_symlink() or not full.is_file():
@@ -582,14 +736,50 @@ index 0000000..56a66ce
 +                f"FAIL {rel}: not a regular file: a content file is never a link"
 +            )
 +            continue
-+        digest = hashlib.sha256(full.read_bytes()).hexdigest()
-+        if digest in approved:
-+            approved_count += 1
-+            continue
-+        if rel in drafts:
-+            held += 1
-+            continue
-+        problems.append(f"FAIL {rel}: published, and main doesn't approve its SHA-256")
++        raw = full.read_bytes()
++        digests[rel] = hashlib.sha256(raw).hexdigest()
++        texts[rel] = displayed(rel, raw)
++
++    # What the build says it published: each must be a content file, at its current digest, which main approves.
++    for item in published:
++        rel, claimed = item["path"], item["sha256"]
++        if rel not in digests:
++            problems.append(
++                f"FAIL {rel}: room-data.json says it published this, and it isn't a content file"
++            )
++        elif claimed != digests[rel]:
++            problems.append(
++                f"FAIL {rel}: room-data.json's SHA-256 for it isn't the file's"
++            )
++        elif claimed not in approved:
++            problems.append(
++                f"FAIL {rel}: published, and main doesn't approve its SHA-256"
++            )
++
++    # What dist/ holds, whatever the build says: no fragment of a file main doesn't approve.
++    unapproved = [rel for rel in digests if digests[rel] not in approved]
++    # A draft's words that an approved file also shows (a script quoting an approved item) are the approved file's.
++    allowed_text = "\n".join(
++        collapse(t) for rel in digests if digests[rel] in approved for t in texts[rel]
++    )
++    wanted = {
++        rel: {f for f in fragments(texts[rel]) if f not in allowed_text}
++        for rel in unapproved
++    }
++    if any(wanted.values()):
++        for path in dist_files(args.dist):
++            seen = readable(path)
++            where = (
++                path.relative_to(args.dist.parent).as_posix()
++                if args.dist.name == "dist"
++                else str(path)
++            )
++            for rel in unapproved:
++                if any(f in seen for f in wanted[rel]):
++                    problems.append(
++                        f"FAIL {rel}: main doesn't approve it, and its text is in {where}"
++                    )
++
 +    for line in problems:
 +        print(line)
 +    if problems:
@@ -601,8 +791,8 @@ index 0000000..56a66ce
 +        print("content check: PASS (no content files yet)")
 +    else:
 +        print(
-+            f"content check: PASS ({len(paths)} content files: {approved_count} approved by main, "
-+            f"{held} drafts, all listed in room-data.json's drafts)"
++            f"content check: PASS ({len(paths)} content files: {len(paths) - len(unapproved)} approved by main, "
++            f"{len(unapproved)} drafts, none of whose text is in dist/)"
 +        )
 +    return 0
 +
@@ -611,17 +801,19 @@ index 0000000..56a66ce
 +    sys.exit(main(sys.argv[1:]))
 diff --git a/tools/gates/test/test_content_check.py b/tools/gates/test/test_content_check.py
 new file mode 100644
-index 0000000..c60c146
+index 0000000..0fc22b3
 --- /dev/null
 +++ b/tools/gates/test/test_content_check.py
-@@ -0,0 +1,398 @@
+@@ -0,0 +1,558 @@
 +"""Tests for tools/gates/content_check.py: the published-content check (spec 002, T080; contracts/resume-source.md §5).
 +
-+The build's own approvals code (apps/web/build/approvals.ts) is agent-editable, so a branch could make it call a
-+draft approved. This check is the enforcement, in human-only code: it reads main's approvals itself, recomputes each
-+content file's SHA-256 from the tree, and fails when room-data.json leaves a file main doesn't approve out of its
-+drafts, which is to say publishes it. The fixtures below are builds of that kind: room-data.json files as a build
-+would write them, honest or not. Every digest is made at run time.
++The build's own approvals code (apps/web/build/approvals.ts) is agent-editable, so a branch could make it publish a
++draft and say otherwise. This check is the enforcement, in human-only code, and it trusts none of the build's
++bookkeeping. It reads main's approvals itself, by main's full ref, and recomputes each content file's SHA-256 from
++the tree. Then:
++  - every file room-data.json says it published must be a content file whose current digest main approves;
++  - no text of a file main doesn't approve may appear anywhere in dist/, whatever room-data.json says.
++The fixtures are builds: dist/ directories, honest or not. Every digest is made at run time.
 +"""
 +
 +from __future__ import annotations
@@ -646,8 +838,23 @@ index 0000000..c60c146
 +
 +RESUME = "apps/web/content/resume.yaml"
 +NARRATION = "apps/web/content/narration/x.engineer.md"
-+RESUME_TEXT = "version: 1\nsections: []\n"
-+NARRATION_TEXT = "---\nitem: x\npath: engineer\n---\nWords the room would say.\n"
++RESUME_ITEM = "Led the move of the platform's hosting to a managed cluster"
++RESUME_TEXT = (
++    "version: 1\n"
++    "sections:\n"
++    "  - id: work\n"
++    "    title: Experience\n"
++    "    items:\n"
++    f'      - id: hosting\n        text: "{RESUME_ITEM}"\n'
++    "        claims: [{file: corpus/00-profile.md, quote: a span of a tagged sentence in the corpus}]\n"
++)
++NARRATION_SENTENCE = (
++    "The twin walks you through the night the deploy pipeline first ran end to end."
++)
++NARRATION_TEXT = (
++    "---\nitem: hosting\npath: engineer\nclaims: [{file: corpus/00-profile.md, quote: a corpus span}]\n---\n"
++    f"{NARRATION_SENTENCE} It still runs every night.\n"
++)
 +
 +
 +def sha(text: str) -> str:
@@ -675,20 +882,32 @@ index 0000000..c60c146
 +
 +def make_tree(root: Path, files: dict[str, str] | None = None) -> Path:
 +    files = {RESUME: RESUME_TEXT, NARRATION: NARRATION_TEXT} if files is None else files
++    root.mkdir(parents=True, exist_ok=True)
 +    for rel, text in files.items():
 +        (root / rel).parent.mkdir(parents=True, exist_ok=True)
 +        (root / rel).write_text(text, encoding="utf-8")
 +    return root
 +
 +
-+def room_data(path: Path, drafts: object, **extra: object) -> Path:
-+    """What a build writes: room-data.json, with the drafts it says it left out."""
-+    path.parent.mkdir(parents=True, exist_ok=True)
-+    path.write_text(
-+        json.dumps({"built_from": {"policy": "x"}, "drafts": drafts, **extra}),
-+        encoding="utf-8",
-+    )
-+    return path
++def build(
++    root: Path,
++    published: object,
++    files: dict[str, str] | None = None,
++    drafts: object = None,
++) -> Path:
++    """A dist/ as a build writes it: room-data.json with what it says it published, and any other files."""
++    dist = root / "dist"
++    dist.mkdir(parents=True)
++    data = {
++        "built_from": {"policy": "x"},
++        "published": published,
++        "drafts": drafts or [],
++    }
++    (dist / "room-data.json").write_text(json.dumps(data), encoding="utf-8")
++    for rel, text in (files or {}).items():
++        (dist / rel).parent.mkdir(parents=True, exist_ok=True)
++        (dist / rel).write_text(text, encoding="utf-8")
++    return dist
 +
 +
 +def policy_dir(root: Path, approvals_text: str | None) -> Path:
@@ -699,8 +918,20 @@ index 0000000..c60c146
 +    return folder
 +
 +
-+def run(tree: Path, data: Path, *source: str) -> int:
-+    return cc.main(["--tree", str(tree), "--room-data", str(data), *source])
++def run(tree: Path, dist: Path, *source: str) -> int:
++    return cc.main(["--tree", str(tree), "--dist", str(dist), *source])
++
++
++def entry(path: str, text: str) -> dict:
++    return {"path": path, "sha256": sha(text)}
++
++
++def page(*texts: str) -> str:
++    return (
++        "<!doctype html><html><body>"
++        + "".join(f"<li>{t}</li>" for t in texts)
++        + "</body></html>"
++    )
 +
 +
 +@pytest.fixture
@@ -709,14 +940,19 @@ index 0000000..c60c146
 +
 +
 +# --------------------------------------------------------------------------------------------------
-+# What a build may publish
++# An honest build passes
 +# --------------------------------------------------------------------------------------------------
-+def test_a_build_that_lists_every_draft_passes(
++def test_an_honest_build_passes(
 +    tmp_path: Path, tree: Path, capsys: pytest.CaptureFixture[str]
 +) -> None:
 +    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
-+    data = room_data(tmp_path / "dist/room-data.json", [NARRATION])
-+    assert run(tree, data, "--policy-dir", str(folder)) == 0
++    dist = build(
++        tmp_path,
++        [entry(RESUME, RESUME_TEXT)],
++        {"index.html": page(RESUME_ITEM)},
++        drafts=[NARRATION],
++    )
++    assert run(tree, dist, "--policy-dir", str(folder)) == 0
 +    out = capsys.readouterr().out
 +    assert (
 +        "content check: PASS" in out
@@ -725,81 +961,194 @@ index 0000000..c60c146
 +    )
 +
 +
-+def test_a_build_whose_code_marks_a_draft_approved_fails(
-+    tmp_path: Path, tree: Path, capsys: pytest.CaptureFixture[str]
-+) -> None:
-+    # The build's approvals code said the script was approved and left it out of drafts; main never approved it.
-+    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
-+    data = room_data(tmp_path / "dist/room-data.json", [])
-+    assert run(tree, data, "--policy-dir", str(folder)) == 1
-+    out = capsys.readouterr().out
-+    assert f"FAIL {NARRATION}: published, and main doesn't approve its SHA-256" in out
-+    assert RESUME not in out.replace(
-+        "content check", ""
-+    )  # the approved one isn't named
-+
-+
-+def test_an_edit_after_approval_makes_a_draft_again(
-+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-+) -> None:
-+    tree = make_tree(tmp_path / "tree", {RESUME: RESUME_TEXT + "edited: true\n"})
-+    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
-+    data = room_data(tmp_path / "dist/room-data.json", [])
-+    assert run(tree, data, "--policy-dir", str(folder)) == 1
-+    assert f"FAIL {RESUME}: published" in capsys.readouterr().out
-+
-+
-+def test_with_no_approvals_on_main_every_file_is_a_draft(
-+    tmp_path: Path, tree: Path
-+) -> None:
-+    folder = policy_dir(tmp_path, None)
-+    assert (
-+        run(tree, room_data(tmp_path / "a.json", [RESUME]), "--policy-dir", str(folder))
-+        == 1
-+    )
-+    assert (
-+        run(
-+            tree,
-+            room_data(tmp_path / "b.json", [RESUME, NARRATION]),
-+            "--policy-dir",
-+            str(folder),
-+        )
-+        == 0
-+    )
-+
-+
-+def test_an_approved_file_listed_as_a_draft_is_only_held_back(
-+    tmp_path: Path, tree: Path
-+) -> None:
-+    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT), sha(NARRATION_TEXT)))
-+    data = room_data(tmp_path / "dist/room-data.json", [RESUME, NARRATION])
-+    assert run(tree, data, "--policy-dir", str(folder)) == 0
-+
-+
-+def test_only_the_resume_and_the_scripts_are_content(tmp_path: Path) -> None:
-+    # The fixed messages are reviewed in the branch, not approved by hash (data-model.md §1 and §7).
-+    tree = make_tree(
-+        tmp_path / "tree",
-+        {
-+            "apps/web/content/messages.yaml": "- {id: x, text: y}\n",
-+            "apps/web/src/main.ts": "x\n",
-+        },
-+    )
-+    folder = policy_dir(tmp_path, None)
-+    assert (
-+        run(tree, room_data(tmp_path / "d.json", []), "--policy-dir", str(folder)) == 0
-+    )
-+
-+
 +def test_no_content_files_yet_passes_and_says_so(
 +    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 +) -> None:
 +    tree = make_tree(tmp_path / "tree", {})
-+    folder = policy_dir(tmp_path, None)
-+    assert (
-+        run(tree, room_data(tmp_path / "d.json", []), "--policy-dir", str(folder)) == 0
++    dist = build(
++        tmp_path,
++        [],
++        {"index.html": page("anything at all, since nothing is content yet")},
 +    )
++    assert run(tree, dist, "--policy-dir", str(policy_dir(tmp_path, None))) == 0
 +    assert "no content files yet" in capsys.readouterr().out
++
++
++# --------------------------------------------------------------------------------------------------
++# What the build says it published
++# --------------------------------------------------------------------------------------------------
++def test_a_build_that_says_it_published_a_draft_fails(
++    tmp_path: Path, tree: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    dist = build(
++        tmp_path, [entry(RESUME, RESUME_TEXT), entry(NARRATION, NARRATION_TEXT)]
++    )
++    assert run(tree, dist, "--policy-dir", str(folder)) == 1
++    assert (
++        f"FAIL {NARRATION}: published, and main doesn't approve its SHA-256"
++        in capsys.readouterr().out
++    )
++
++
++def test_a_published_digest_that_isnt_the_trees_fails(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    # The file changed after its approval; the build reports the approved digest, not the file's.
++    tree = make_tree(tmp_path / "tree", {RESUME: RESUME_TEXT + "edited: true\n"})
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    dist = build(tmp_path, [entry(RESUME, RESUME_TEXT)])
++    assert run(tree, dist, "--policy-dir", str(folder)) == 1
++    assert (
++        f"FAIL {RESUME}: room-data.json's SHA-256 for it isn't the file's"
++        in capsys.readouterr().out
++    )
++
++
++@pytest.mark.parametrize(
++    "path", ["apps/web/src/main.ts", "../outside.yaml", "apps/web/content/notes.txt"]
++)
++def test_a_published_path_that_isnt_a_content_file_fails(
++    tmp_path: Path, tree: Path, path: str
++) -> None:
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    dist = build(tmp_path, [{"path": path, "sha256": sha(RESUME_TEXT)}])
++    assert run(tree, dist, "--policy-dir", str(folder)) == 1
++
++
++# --------------------------------------------------------------------------------------------------
++# What dist/ holds, whatever room-data.json says
++# --------------------------------------------------------------------------------------------------
++def test_a_build_that_lists_a_draft_but_renders_it_fails(
++    tmp_path: Path, tree: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    # The review's case: the bookkeeping is honest (the script is a draft, listed as one, and not "published"),
++    # and the page carries its words anyway.
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    dist = build(
++        tmp_path,
++        [entry(RESUME, RESUME_TEXT)],
++        {"index.html": page(RESUME_ITEM, NARRATION_SENTENCE)},
++        drafts=[NARRATION],
++    )
++    assert run(tree, dist, "--policy-dir", str(folder)) == 1
++    assert (
++        f"FAIL {NARRATION}: main doesn't approve it, and its text is in dist/index.html"
++        in capsys.readouterr().out
++    )
++
++
++@pytest.mark.parametrize(
++    ("name", "text"),
++    [
++        # In the room's data, as JSON writes it.
++        ("room-data.json", None),
++        # In a bundle, as a minifier writes a string: a \u escape, or an escaped apostrophe.
++        (
++            "assets/index-abc.js",
++            'const s="' + RESUME_ITEM.replace("'", "\\u0027") + '";',
++        ),
++        ("assets/index-def.js", "const s='" + RESUME_ITEM.replace("'", "\\'") + "';"),
++        # In a page, as HTML escapes it.
++        ("disclosure/index.html", page(RESUME_ITEM.replace("'", "&#39;"))),
++        # In an uncompressed PDF's text.
++        ("resume.pdf", "%PDF-1.7\n1 0 obj\n(" + RESUME_ITEM + ") Tj\nendobj\n"),
++    ],
++)
++def test_a_drafts_text_is_found_however_the_build_wrote_it(
++    tmp_path: Path, name: str, text: str | None
++) -> None:
++    tree = make_tree(tmp_path / "tree")
++    folder = policy_dir(tmp_path, None)  # nothing approved: the resume is a draft
++    dist = build(tmp_path, [], drafts=[RESUME, NARRATION])
++    if text is None:
++        data = json.loads((dist / "room-data.json").read_text(encoding="utf-8"))
++        data["sections"] = [{"items": [{"id": "hosting", "text": RESUME_ITEM}]}]
++        (dist / "room-data.json").write_text(json.dumps(data), encoding="utf-8")
++    else:
++        (dist / name).parent.mkdir(parents=True, exist_ok=True)
++        (dist / name).write_text(text, encoding="utf-8")
++    assert run(tree, dist, "--policy-dir", str(folder)) == 1
++
++
++def test_text_on_either_side_of_a_slot_is_found(tmp_path: Path) -> None:
++    item = "Ran the nightly builds for {{slot:projects.count}} projects across the whole national rollout"
++    tree = make_tree(
++        tmp_path / "tree",
++        {RESUME: f'version: 1\nsections:\n  - items:\n      - text: "{item}"\n'},
++    )
++    shown = "Ran the nightly builds for 12 projects across the whole national rollout"
++    dist = build(tmp_path, [], {"index.html": page(shown)})
++    assert run(tree, dist, "--policy-dir", str(policy_dir(tmp_path, None))) == 1
++
++
++def test_a_block_scalar_is_read_whole(tmp_path: Path) -> None:
++    resume = (
++        "version: 1\nsections:\n  - items:\n      - text: >\n"
++        "          Wrote the runbook the on-call\n          team still follows today\n"
++    )
++    tree = make_tree(tmp_path / "tree", {RESUME: resume})
++    dist = build(
++        tmp_path,
++        [],
++        {"index.html": page("Wrote the runbook the on-call team still follows today")},
++    )
++    assert run(tree, dist, "--policy-dir", str(policy_dir(tmp_path, None))) == 1
++
++
++def test_short_shared_words_and_structure_never_count(
++    tmp_path: Path, tree: Path
++) -> None:
++    # A section title, a key, an ID, a citation's quote: none is the draft's published text.
++    dist = build(
++        tmp_path,
++        [],
++        {
++            "index.html": page(
++                "Experience",
++                "hosting",
++                "engineer",
++                "a span of a tagged sentence in the corpus",
++            )
++        },
++    )
++    assert run(tree, dist, "--policy-dir", str(policy_dir(tmp_path, None))) == 0
++
++
++def test_a_drafts_words_that_an_approved_file_also_holds_never_count(
++    tmp_path: Path,
++) -> None:
++    # The draft script quotes the approved resume's item; the page shows the approved item, which is fine.
++    script = f"---\nitem: hosting\n---\n{RESUME_ITEM}. That is the one to ask about.\n"
++    tree = make_tree(tmp_path / "tree", {RESUME: RESUME_TEXT, NARRATION: script})
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    dist = build(
++        tmp_path, [entry(RESUME, RESUME_TEXT)], {"index.html": page(RESUME_ITEM)}
++    )
++    assert run(tree, dist, "--policy-dir", str(folder)) == 0
++
++
++def test_an_edit_after_approval_makes_a_draft_whose_text_mustnt_ship(
++    tmp_path: Path,
++) -> None:
++    edited_item = (
++        "Led the move of the platform's hosting to a managed cluster, twice over"
++    )
++    tree = make_tree(
++        tmp_path / "tree", {RESUME: RESUME_TEXT.replace(RESUME_ITEM, edited_item)}
++    )
++    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
++    dist = build(tmp_path, [], {"index.html": page(edited_item)})
++    assert run(tree, dist, "--policy-dir", str(folder)) == 1
++
++
++def test_the_output_names_paths_and_never_content(
++    tmp_path: Path, tree: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    dist = build(tmp_path, [], {"index.html": page(NARRATION_SENTENCE)})
++    assert run(tree, dist, "--policy-dir", str(policy_dir(tmp_path, None))) == 1
++    captured = capsys.readouterr()
++    assert "first ran end to end" not in captured.out + captured.err
 +
 +
 +def test_a_content_file_that_is_a_link_fails(tmp_path: Path) -> None:
@@ -808,22 +1157,7 @@ index 0000000..c60c146
 +    (tmp_path / "elsewhere.yaml").write_text(RESUME_TEXT, encoding="utf-8")
 +    (tree / RESUME).symlink_to(tmp_path / "elsewhere.yaml")
 +    folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
-+    assert (
-+        run(tree, room_data(tmp_path / "d.json", []), "--policy-dir", str(folder)) == 1
-+    )
-+
-+
-+def test_the_output_names_paths_and_never_content(
-+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-+) -> None:
-+    phrase = "a sentence only the content holds"
-+    tree = make_tree(tmp_path / "tree", {NARRATION: f"---\nitem: x\n---\n{phrase}\n"})
-+    folder = policy_dir(tmp_path, None)
-+    assert (
-+        run(tree, room_data(tmp_path / "d.json", []), "--policy-dir", str(folder)) == 1
-+    )
-+    captured = capsys.readouterr()
-+    assert phrase not in captured.out + captured.err
++    assert run(tree, build(tmp_path, []), "--policy-dir", str(folder)) == 1
 +
 +
 +# --------------------------------------------------------------------------------------------------
@@ -836,19 +1170,19 @@ index 0000000..c60c146
 +        "{",
 +        json.dumps([]),
 +        json.dumps({"built_from": {}}),
-+        json.dumps({"drafts": RESUME}),
-+        json.dumps({"drafts": [RESUME, 3]}),
++        json.dumps({"published": RESUME}),
++        json.dumps({"published": [RESUME]}),
++        json.dumps({"published": [{"path": RESUME}]}),
 +    ],
 +)
 +def test_a_room_data_file_that_isnt_a_builds_fails(
 +    tmp_path: Path, tree: Path, text: str | None
 +) -> None:
-+    data = tmp_path / "dist/room-data.json"
++    dist = tmp_path / "dist"
++    dist.mkdir()
 +    if text is not None:
-+        data.parent.mkdir(parents=True)
-+        data.write_text(text, encoding="utf-8")
-+    folder = policy_dir(tmp_path, None)
-+    assert run(tree, data, "--policy-dir", str(folder)) == 1
++        (dist / "room-data.json").write_text(text, encoding="utf-8")
++    assert run(tree, dist, "--policy-dir", str(policy_dir(tmp_path, None))) == 1
 +
 +
 +# --------------------------------------------------------------------------------------------------
@@ -871,9 +1205,10 @@ index 0000000..c60c146
 +def test_approvals_that_arent_the_contracts_shape_stop_the_check(
 +    tmp_path: Path, tree: Path, text: str, capsys: pytest.CaptureFixture[str]
 +) -> None:
-+    folder = policy_dir(tmp_path, text)
-+    data = room_data(tmp_path / "dist/room-data.json", [RESUME, NARRATION])
-+    assert run(tree, data, "--policy-dir", str(folder)) == 2
++    assert (
++        run(tree, build(tmp_path, []), "--policy-dir", str(policy_dir(tmp_path, text)))
++        == 2
++    )
 +    assert "content-approvals.json" in capsys.readouterr().err
 +
 +
@@ -921,42 +1256,51 @@ index 0000000..c60c146
 +    return root
 +
 +
++SELF_APPROVED = approvals(sha(RESUME_TEXT), sha(NARRATION_TEXT))
++
++
 +def test_the_branchs_own_approvals_are_never_read(
 +    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 +) -> None:
 +    repo = make_repo(
-+        tmp_path / "repo",
-+        approvals(sha(RESUME_TEXT)),
-+        branch_approvals=approvals(sha(RESUME_TEXT), sha(NARRATION_TEXT)),
++        tmp_path / "repo", approvals(sha(RESUME_TEXT)), branch_approvals=SELF_APPROVED
 +    )
-+    data = room_data(tmp_path / "dist/room-data.json", [])
-+    assert run(repo, data, "--repo", str(repo)) == 1
++    dist = build(
++        tmp_path, [entry(RESUME, RESUME_TEXT), entry(NARRATION, NARRATION_TEXT)]
++    )
++    assert run(repo, dist, "--repo", str(repo)) == 1
 +    assert f"FAIL {NARRATION}: published" in capsys.readouterr().out
-+    assert (
-+        run(repo, room_data(tmp_path / "ok.json", [NARRATION]), "--repo", str(repo))
-+        == 0
-+    )
 +
 +
-+def test_no_main_approves_nothing(tmp_path: Path) -> None:
++def test_a_tag_named_main_never_stands_in_for_the_branch(tmp_path: Path) -> None:
++    # git resolves a bare `main` to refs/tags/main before refs/heads/main, and an agent session can make that tag.
 +    repo = make_repo(
-+        tmp_path / "repo", None, branch_approvals=approvals(sha(RESUME_TEXT))
++        tmp_path / "repo", approvals(sha(RESUME_TEXT)), branch_approvals=SELF_APPROVED
 +    )
-+    assert (
-+        run(repo, room_data(tmp_path / "a.json", [NARRATION]), "--repo", str(repo)) == 1
++    git(repo, "tag", "main", "feature")
++    assert "C-0002" in git(
++        repo, "show", "main:assets/policy/content-approvals.json"
++    )  # what a bare read would see
++    dist = build(
++        tmp_path, [entry(RESUME, RESUME_TEXT), entry(NARRATION, NARRATION_TEXT)]
 +    )
++    assert run(repo, dist, "--repo", str(repo)) == 1
++    # With no branch main, a tag named main approves nothing.
++    bare = make_repo(tmp_path / "bare", None, branch_approvals=SELF_APPROVED)
++    git(bare, "tag", "main", "feature")
 +    assert (
 +        run(
-+            repo,
-+            room_data(tmp_path / "b.json", [RESUME, NARRATION]),
++            bare,
++            build(tmp_path / "b", [entry(RESUME, RESUME_TEXT)]),
 +            "--repo",
-+            str(repo),
++            str(bare),
 +        )
-+        == 0
++        == 1
 +    )
++    assert run(bare, build(tmp_path / "c", []), "--repo", str(bare)) == 0
 +
 +
-+def test_git_reads_main_without_replace_objects_or_the_callers_settings(
++def test_git_reads_mains_full_ref_without_replace_objects_or_the_callers_settings(
 +    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 +) -> None:
 +    repo = make_repo(tmp_path / "repo", approvals(sha(RESUME_TEXT)))
@@ -970,10 +1314,18 @@ index 0000000..c60c146
 +    monkeypatch.setattr(cc.subprocess, "run", spy)
 +    monkeypatch.setenv("GIT_DIR", str(tmp_path / "elsewhere"))
 +    assert (
-+        run(repo, room_data(tmp_path / "d.json", [NARRATION]), "--repo", str(repo)) == 0
++        run(repo, build(tmp_path, [entry(RESUME, RESUME_TEXT)]), "--repo", str(repo))
++        == 0
 +    )
 +    assert [a for a, _ in seen] == [
-+        ["git", "-C", str(repo), "show", "main:assets/policy/content-approvals.json"]
++        [
++            "git",
++            "-C",
++            str(repo),
++            "cat-file",
++            "blob",
++            "refs/heads/main:assets/policy/content-approvals.json",
++        ]
 +    ]
 +    (env,) = [e for _, e in seen]
 +    assert env["GIT_NO_REPLACE_OBJECTS"] == "1" and "GIT_DIR" not in env
@@ -981,8 +1333,6 @@ index 0000000..c60c146
 +
 +def test_it_runs_isolated_by_path(tmp_path: Path, tree: Path) -> None:
 +    # As make check and the gate run it: python3 -I -B -X pycache_prefix=/dev/null, by path, never -m.
-+    folder = policy_dir(tmp_path, None)
-+    data = room_data(tmp_path / "d.json", [RESUME, NARRATION])
 +    done = subprocess.run(
 +        [
 +            sys.executable,
@@ -993,10 +1343,10 @@ index 0000000..c60c146
 +            str(SCRIPT),
 +            "--tree",
 +            str(tree),
-+            "--room-data",
-+            str(data),
++            "--dist",
++            str(build(tmp_path, [])),
 +            "--policy-dir",
-+            str(folder),
++            str(policy_dir(tmp_path, None)),
 +        ],
 +        capture_output=True,
 +        text=True,
@@ -1008,11 +1358,11 @@ index 0000000..c60c146
 +
 +
 +def test_it_takes_one_source_of_main_approvals(tmp_path: Path, tree: Path) -> None:
-+    data = room_data(tmp_path / "d.json", [])
++    dist = build(tmp_path, [])
 +    with pytest.raises(SystemExit):
-+        run(tree, data)
++        run(tree, dist)
 +    with pytest.raises(SystemExit):
-+        run(tree, data, "--repo", str(tree), "--policy-dir", str(tmp_path))
++        run(tree, dist, "--repo", str(tree), "--policy-dir", str(tmp_path))
 diff --git a/assets/policy/content-approvals.json b/assets/policy/content-approvals.json
 new file mode 100644
 index 0000000..919018a

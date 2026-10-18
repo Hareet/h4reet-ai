@@ -90,6 +90,7 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | Field | Rules |
 |---|---|
 | `built_from` | the commit, `resume.lock.json`'s digest, and the policy files' digest (the approvals and the PDF header, as read from `main`) |
+| `published` | `{path, sha256}` for each content file the build published, and `draft: true` on a draft a drafts build shows; the gate's content check holds each to the tree's digest and `main`'s approvals, and scans `dist/` for any unapproved file's text whatever this says |
 | `drafts` | the paths of draft files, empty for a release |
 | `header` | the room's header |
 | `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), and per path `{words, approved}` |
