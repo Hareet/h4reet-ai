@@ -3,7 +3,7 @@ Spec: specs/002-the-room/ (Phase 5, User Story 3: T050–T054 and T056; FR-011, 
 Session: worked in `/tmp/claude-1000/wt-002-narration`, launched from `~/h4reet-ai/h4reet-ai` · Repo hooks active: yes. No refusals. The post-edit hook formatted files written with the Write tool, as it does; in a scratch copy of the proposal's head it made the corpus's `*led*` into `_led_`, so the committed proposal quotes those rulings as code spans. It flagged lint in a test (an unused binding, fixed before the first commit) and in scratch scripts outside the tree, never committed. A first `npm install` failed on the read-only npm cache and left half-extracted packages; `node_modules` was copied again and installed with a cache under `$TMPDIR`, and `package-lock.json` is unchanged.
 Authorized by: the Author's direction of 2026-10-17, "Let's relax some of the overnight rules so that you can continue with intent 002 and intent 003? I think you can create the tasks and implement them and we can always go back later and re-do a task or requirement if we highlight a needed change"; tasks.md T050–T054 and T056, against plan §5, research.md R-07 and R-08, data-model.md §3 and §5, and contracts/narration.md and resume-source.md.
 
-**Status: reviewed, BLOCK with one blocker; the blocker and every script fix are done (5d0ae4e, 75e3bde), tests first. Ready for the review's follow-up check.**
+**Status: reviewed, BLOCK with one blocker, fixed (5d0ae4e, 75e3bde); the follow-up check APPROVE with no blockers, and its four fixes done (c50b695), tests first.**
 
 **Merge order:** stacked on `feat/002-us2-room` (244dc6f, the room's tip after its follow-up check), which stacks on `feat/002-us1-resume`, `feat/002-approvals`, `feat/002-web`, `spec/002-the-room`, and `spec/003-studio-assets`. Merge those first, in order, with their patches. This branch has no patch: it changes no human-only path.
 
@@ -16,7 +16,9 @@ Commits, after two rebases: onto the resume's review fixes (32e426e), then onto 
 - 0f6a86c and ee2da2e: this note, with the first round's `make check`;
 - 5d0ae4e: the review's script fixes and the rules that hold them (C8's act verbs and voice, N1's ruling annotations);
 - 75e3bde: the blocker's fix: narration through the room's resume adapter, the visitor's chosen path, the AI line, and the disclosure test;
-- this note, after the review, first as a save point, then with `make check`'s output.
+- 0a66dde and ced57b9: this note after the review, with its `make check`;
+- c50b695: the follow-up check's four fixes;
+- this note after the follow-up check, first as a save point, then with `make check`'s output.
 
 ## Runs in the Author's terminal
 
@@ -39,7 +41,7 @@ FR-011: "WHEN the visitor selects a resume item, THE SYSTEM SHALL begin the twin
    - **N3:** C9's forbidden list: every "Do not claim" key phrase, the surname rule from `main`'s `full_name`, and the private denylist when the checkout can read it, a private phrase reported by its line alone.
    - **N4:** at most 900 characters of words, as the file writes them.
    - **N5's precondition:** each citation shares a run of whole words of at least 12 characters with the words, its key phrase.
-3. **C8 in `content.ts`, for the resume and the scripts** (the review): the act verbs and the voice test above. The resume's source passes it unchanged.
+3. **C8 in `content.ts`, for the resume and the scripts** (the review and its follow-up): the act verbs and the voice test above, which reads each sentence's subjects (`authorActs`). The resume's source passes it unchanged.
 4. **The room's data:** `narrationPart`, a part of `room-data.json` after the resume's. Each published item carries `narration: {engineer, non-engineer}`, each `{words, approved, source, sha256}` with its slots filled, or `null` where a build without drafts left a draft out. A script whose item isn't published (the resume withheld) isn't published either, and `published` drops it, so `published` names exactly what the room shows.
 5. **The eval cases** (N5): `npm run content:lock -w apps/web` writes `evals/narration/cases/narration-<item-id>-<path>.yaml`, one per script: `fake_response` is the words as the room shows them, `expect.contains` one key phrase per citation, and `expect.not_contains` the corpus's 28 public "Do not claim" key phrases only. The generator never asks for the surname rule or the denylist, and drops their entries by source if they came anyway; a test puts a readable denylist in the tree and finds none of its phrases in any case. `make test` fails while a case is stale, missing, or left from a gone script. **Their own suite:** `make evals` runs `evals/run.py --suite narration --adapter fake`, whatever `ADAPTER` says, and `run.py` refuses `--suite narration` with any other adapter (exit 2, before it loads a case), so no narration case reaches a stack's `/hello` or prod's meter.
 6. **The lock covers the scripts:** `content.ts`'s `lockedFiles` adds every corpus and facts file a script cites (data-model.md §5). The drafts cite the resume's five files, so the lock's bytes didn't change.
@@ -47,9 +49,9 @@ FR-011: "WHEN the visitor selects a resume item, THE SYSTEM SHALL begin the twin
    - the adapter prepares the panel's polite live region when the resume mounts, passes each `room:item-selected` with its context's path (the visit's: the path the visitor chose, FR-002), and stops the narration when the panel unmounts (FR-024);
    - the first word in the selection's own event, so it paints with the next frame; then a word every 375 ms (160 a minute), timed from the start, so a throttled tab catches up rather than drifting;
    - the region opens with "The AI twin narrates this, not the Author.", and the view sits in the page's flow, so the room's sticky, opaque AI disclosure stays in view while words show (FR-004);
-   - the whole script in the live region; the word-by-word copy beside the item is `aria-hidden`, so a screen reader reads the script once;
+   - the AI line, then the whole script, in the live region; the word-by-word copy beside the item is `aria-hidden`, so a screen reader reads the script once, after who narrates it;
    - another selection stops it at once and starts the new one; the same item starts over; a draft (only a drafts build has one) under a "Draft" label; an item whose script was left out shows nothing.
-   `src/main.ts` gives the adapter one `room-data.json` loader, `roomDataLoader`, for the resume and its narration, which fetches again after a failed load, as the view retries.
+   `src/main.ts` gives the adapter one `room-data.json` loader, `roomDataLoader`, for the resume and its narration, which fetches again after a failed load, as the view retries; `narrationFromRoomData` fails a narration load whose `room-data.json` didn't load, so the narrator loads again on the next selection.
 8. **The first drafts** (T054): thirty scripts, the fifteen items on both paths, every sentence cited, in the cited sentences' own grammar after the review. Filed for you as `corpus/proposals/narration-2026-10-18.md`, generated from the files, each script's words beside the corpus words it cites and the tag that opens each quote's span, with how the drafts read and what they leave out.
 
 **Where the build went past the plan**, recorded in plan.md §5 ("What group 5 found"), with contracts/narration.md §2–§4, contracts/resume-source.md's C8 row, and data-model.md §3 and §5 fixed to match: the cases written by `content:lock` and held current by `make test`; N1's verb, act verbs, voice, and annotations; N4's measure; N5's key phrase; the lock; the `room-data.json` shape; the display in the room; and the blank line after the front matter, which is part of each file's hash.
@@ -84,6 +86,8 @@ Quoted from spec.md:
 - **GREEN, first round:** vitest in `apps/web`, 197 passed in 13 files; `pytest evals/test_run.py`, 21 passed; the narration suite 30 passed.
 - **The review's rules, RED:** with `content.ts` and `narration.ts` stashed, the five new tests failed (C8's act verbs and `passive made active`, in `test/content/citations.test.ts` and `narration.test.ts`; N1's annotations; the item's verb no longer required), 111 passed. With the rules in, the committed scripts failed them: `agent-watchdog.engineer.md: passive made active`, and five `reads out a ruling annotation` (Kenya's two, the benchmarking's two, the Docker engineer script). The scripts were rewritten; the resume's source passed throughout.
 - **The room integration, RED:** after the rebase onto the room, with the display's test rewritten against the room's adapter and the new room test, `test/ui` had 15 failed and 74 passed.
+- **The follow-up check's fixes, RED:** in `test/ui/narration.test.ts`, `narration-room.test.ts`, and `test/content/citations.test.ts`, 4 failed (the live region's AI line, twice; the narration's load from a failed `room-data.json`; the review's inflated sentence, "Hareet designed and built claude-medic-aws.", against the real corpus), 70 passed. One test's error on the way: a one-letter section ID, which the source refuses.
+- **GREEN, after the follow-up check:** vitest in `apps/web`, 331 passed in 24 files; `content:check` passes for the resume and 30 scripts, the lock and the cases current; `make corpus-check` OK; eslint, tsc, and Prettier clean.
 - **GREEN, after the review:** vitest in `apps/web`, 327 passed in 24 files (the room's included); `pytest evals/test_run.py`, 21 passed; `evals/run.py --suite narration --adapter fake`, 30 passed, 0 failed; `--adapter local` refused with exit 2; `npm run content:check -w apps/web`, "C1–C9 and N1–N5 passed for the resume and 30 scripts …; the lock and the eval cases are current"; `make corpus-check` OK over the proposal; eslint, tsc, Prettier, and ruff clean.
 - **The checks against the real corpus,** in the first round, by breaking one committed script at a time in a scratch copy of the tree (a scratch script, not committed): "He defined the market." gave `forbidden phrase (from corpus/00-profile.md:41)`; "Hareet built cht-pr-review" gave `forbidden phrase (from corpus/01-ai-strategy-and-cht.md:135)`, the verb carried to the bullet's second alternative; "He pitched and designed it" gave `ownership verb not cited`; a year gave `bare number`; `corpus/README.md` cited gave `not a corpus file`; a deleted script gave `missing (each item needs a script for each path)`; a second name with `full_name` set gave `forbidden phrase (from the surname rule)`; padding gave `over 900 characters`; a citation the words don't use gave `claims[0] shares no phrase of 12 characters or more with the words`. After the review, the committed scripts themselves were the rules' first cases (above).
 - **The approvals patch's `content_check.py`,** taken from `docs/merge-requests/2026-10-18-feat-002-approvals.patch` into a scratch directory:
@@ -109,7 +113,12 @@ Quoted from spec.md:
 
 **Recorded as backlog,** below: scenario 3's "depth differs, facts same"; C9 cutting bullets at "(" or ". "; re-selecting an item may not re-announce; the "Draft" label not in the live region.
 
-Review of the fixes: pending (the integrating session runs its follow-up check).
+**The follow-up check** of 5d0ae4e and 75e3bde (a reviewer agent, run by the integrating session): **APPROVE, no blockers.** What held: the disclosure stays in view, the AI line is there, playback follows the visit's path and stops on close and on a new selection, one shared fetch, all five script changes match the corpus, and C8 only adds failures. What it asked for, fixed in c50b695, tests first:
+1. **Important (bugs):** a failed `room-data.json` load became an empty narration that the narrator kept for the visit, while the resume recovered. `narrationFromRoomData` now fails such a load, so the narrator loads again on the next selection; `main.ts` uses it.
+2. **Important (Principle VII, FR-015):** C8's voice test read the corpus's participle "…on-call engineer, built security-first" as an act, so "Hareet designed and built claude-medic-aws" citing that sentence would have passed. The test now reads subjects, sentence by sentence: the Author's act is a verb whose subject is him ("he", the room's name, "who"), one coordinated with such a verb, one first in its clause, or a passive whose "by" names him; a participle after a comma is nobody's act, and "it", "others", "which", "that", or a possessive someone else's. That exact sentence now fails against the real corpus (`passive made active`); the resume and the 30 scripts pass.
+3. `cht-skills.engineer.md` stretched "which others built" over four skills; it now attaches to `cht-pr-review` alone, as the corpus says.
+4. **Principle VIII:** the live region announced the words without the AI line; it now announces "The AI twin narrates this, not the Author." first.
+The rest it named is backlog, below: Kenya's "localized", the disclosure test's limits, and narration not stopping on an object or the talk button.
 
 ## Backlog
 
@@ -117,8 +126,10 @@ Review of the fixes: pending (the integrating session runs its follow-up check).
 - **C9 cuts a "Do not claim" bullet at "(" or ". "**, so a bullet's later sentences ("Quantization, compression, model names, or hardware specifics …", after "That Hareet built the partner's speech model.") aren't phrases of their own. The resume branch's rule; the scripts avoid them.
 - **Re-selecting an item may not re-announce it:** the live region gets the same text again, which some screen readers don't repeat.
 - **The "Draft" label isn't in the live region,** so a screen reader hears a draft's words without hearing it's a draft. Only drafts builds (dev, dev-cpu) show drafts.
-- **The voice test is a heuristic:** an auxiliary before a verb, or "and" after a "by" passive in the same clause, makes it agentless. A participle after a comma ("…, built security-first for …") reads as an act, so it passes the check and needed your eye (fix 4).
-- **The resume's Kenya item says "Led", from the ruling annotation.** N1 refuses the annotation for narration; C8 still accepts it for the resume, whose wording is the resume branch's and yours.
+- **The voice test is a heuristic, not a parser:** it reads subjects word by word in a sentence, so a relative clause or an unusual order can mislead it either way. It has now been held to every sentence the resume and the scripts cite.
+- **Kenya: "localized", not the ruled "led".** Both kenya-localization scripts say the sentence's verb, because "led" is only a ruling annotation, which N1 refuses for narration; the resume's item says "Led", from that annotation, which C8 still accepts. So N1 reads FR-015 for narration differently from the resume. Yours to decide; if it stays, the spec should name the reading.
+- **The disclosure test's limits** (`test/ui/narration-room.test.ts`): its media-query reading skips every pointer query, ignores cascade order beyond source order and selector specificity, and doesn't check the disclosure's `display`, `visibility`, or `opacity`.
+- **Selecting an object or pressing the talk button doesn't stop narration** (FR-024). It matters once the voice arrives (Phase 9) and narration is heard rather than read.
 - **The cases pass on the fake adapter by construction:** they score the script against itself, so today they guard the committed files more than any answer. Their weight arrives with the twin's model-judged cases for the same scripts.
 - **N5's key phrase is a reading** of "one key phrase per citation": the longest shared run of words, at least 12 characters, which makes a citation the words don't use fail the build.
 - **`content.ts`'s own command line** checks the resume alone, since the npm scripts run `build/narration.ts`'s. Removing it touches the resume branch's lines.
@@ -142,8 +153,8 @@ After `feat/002-us2-room` has merged:
 6. Quickstart §5 on dev, as in the first table.
 
 **The shared lines this branch touched**, beside its own files (`build/narration*.ts`, `src/narration/`, `content/narration/`, `evals/narration/`, its tests, and the proposal):
-- `apps/web/build/content.ts` (the resume's): `export` on `slotRefs`; `import { readScripts } from "./narration-source";`; `lockedFiles` adds the scripts' lines; and, from the review, `ACT_VERBS`, `saysAsAct`, `Item.verbUnsaid`, and C8's loop over both verb lists with `passive made active`.
-- `apps/web/src/room/resume-port.ts` (the room's): `resumeView`'s optional `narration` source (prepare on mount, select with the context's path, stop on unmount) and `roomDataLoader`.
+- `apps/web/build/content.ts` (the resume's): `export` on `slotRefs`; `import { readScripts } from "./narration-source";`; `lockedFiles` adds the scripts' lines; and, from the review, `ACT_VERBS`, `authorActs` and `sentenceActs`, `Item.verbUnsaid`, and C8's loop over both verb lists with `passive made active`.
+- `apps/web/src/room/resume-port.ts` (the room's): `resumeView`'s optional `narration` source (prepare on mount, select with the context's path, stop on unmount), `roomDataLoader`, and `narrationFromRoomData`.
 - `apps/web/src/main.ts`: the room's wiring, with the loader and the narration source.
 - `apps/web/vite.config.ts`: `narrationPart` after `resumePart`. `apps/web/package.json`: `content:lock` and `content:check` run `build/narration.ts`.
 - Tests: `test/helpers/room.ts` (a `narration` option), `test/content/citations.test.ts` (one C8 test), `test/fixtures/corpus/01-fixture.md` (one sentence, "The night lamp was designed by Robin and released to the docks."), `test/smoke.test.ts` (the drafts list and the withheld words cover the scripts), `test/lock.test.ts` (the pinned command).
@@ -151,412 +162,4 @@ After `feat/002-us2-room` has merged:
 
 ## Verification
 
-`make check ENGINE_MODE=none-yet` on 0a66dde (this note in place, its output not yet in it), on the room's base, in `/tmp/claude-1000/wt-002-narration`, pasted whole below: 7 PASS, 1 SKIP, 2 PLANNED, 0 PENDING, 3 FAIL. It is the result the room's, the resume's, and the approvals branches report for themselves without their patches, and the first round's:
-- `toolchain-check` fails on the known drift, Claude Code 2.1.301 against the pin 2.1.296.
-- `policy`, and four tests of `tools/gates/test/test_compose_policy.py` in `test`, fail on the `web` image until `feat/002-web`'s patch. Every other test passes: the gateway's 747 (12 skipped), the room's workspace 327 (narration's among them), and pytest's 2562.
-- `content-check` and `matrix` are PLANNED until the approvals patch; the content check's runs against this branch's builds are under RED and GREEN.
-- `make lint`, `make test`, and `make evals` run inside it as the `lint`, `test`, and `evals` gates; `lint`, `evals` (the narration suite among them: "evals narration (fake): 30 passed, 0 failed"), `redteam`, and `secrets` pass.
-
-```text
-== makefiles-check
-python3 -I -B -X pycache_prefix=/dev/null tools/gates/makefiles_check.py
-makefiles: GNUmakefile holds only its include, and there is no makefile
--> PASS makefiles-check
-== githooks-check
-reference-transaction: installed
-pre-commit: installed
-main: a loose ref, which the git hook guards
--> PASS githooks-check
-== toolchain-check
-python3 -I -B -X pycache_prefix=/dev/null tools/gates/toolchain_check.py
-tool                     pinned   found    status  where
-node                     24.21.0  24.21.0  OK      /home/h4reet/.nvm/versions/node/v24.21.0/bin/node
-uv                       0.8.22   0.8.22   OK      /home/h4reet/.local/bin/uv
-ruff                     0.16.10  0.16.10  OK      /home/h4reet/.local/bin/ruff
-gitleaks                 8.30.1   8.30.1   OK      /home/h4reet/.local/bin/gitleaks
-python3                  3.12     3.12.3   OK      /usr/bin/python3
-shellcheck               0.9.0    0.9.0    OK      /usr/bin/shellcheck
-jq                       1.7      1.7      OK      /usr/bin/jq
-pytest                   9.1.1    9.1.1    OK      /home/h4reet/.local/bin/pytest
-pyyaml (pytest's)        6.0.3    6.0.3    OK      /home/h4reet/.local/share/uv/tools/pytest/bin/python3
-claude code              2.1.296  2.1.301  DRIFT   /home/h4reet/.nvm/versions/node/v22.18.0/bin/claude
-lint: eslint             10.12.0  10.12.0  OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/eslint
-lint: typescript-eslint  8.71.1   8.71.1   OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/typescript-eslint
-lint: typescript         6.0.3    6.0.3    OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/typescript
-lint: prettier           3.9.9    3.9.9    OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/prettier
-lint: node               24.21.0  24.21.0  OK      /home/h4reet/.local/share/h4reet/lint-node/node
-toolchain-check: 1 of 15 differ from their pins (claude code); see tasks.md T013
-make[1]: *** [Makefile:141: toolchain-check] Error 1
--> FAIL toolchain-check
-== policy
-python3 -I -B -X pycache_prefix=/dev/null tools/gates/compose_policy.py
-FAIL deploy/compose.yaml service web: image: h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}: not pinned by digest (repository:tag@sha256:...)
-compose policy: 1 refusal(s) (deploy/compose.yaml with 3 env files, the Dockerfiles, the env-file placement, .devcontainer, .npmrc)
-make[1]: *** [Makefile:162: policy] Error 1
--> FAIL policy
-== validate-config
-npm run --silent -w services/gateway validate-config -- --root "/tmp/claude-1000/wt-002-narration"
-validate-config: 0 errors, 0 notes
--> PASS validate-config
-== lint
-node_modules/.bin/eslint --max-warnings 0 .
-for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
-node_modules/.bin/prettier --check .
-Checking formatting...
-All matched files use Prettier code style!
-ruff check .
-All checks passed!
-ruff format --check --no-cache --extend-exclude corpus .
-264 files already formatted
-{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
-shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
--> PASS lint
-== test
-python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py
-corpus-check: OK — 20 slots, 4 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
-npm test --workspaces --if-present
-
-> @h4reet/gateway@0.1.0 test
-> vitest run
-
-
- RUN  v5.0.3 /tmp/claude-1000/wt-002-narration/services/gateway
-
-
- Test Files  49 passed (49)
-      Tests  747 passed | 12 skipped (759)
-   Start at  08:32:44
-   Duration  59.76s (tests 94%, import 4%, transform 2%)
-
-
-> @h4reet/web@0.1.0 test
-> vitest run
-
-
- RUN  v5.0.3 /tmp/claude-1000/wt-002-narration/apps/web
-
-
- Test Files  24 passed (24)
-      Tests  327 passed (327)
-   Start at  08:33:44
-   Duration  3.49s (tests 51%, import 38%, transform 11%)
-
-pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
-........................................................................ [  2%]
-........................................................................ [  5%]
-........................................................................ [  8%]
-........................................................................ [ 11%]
-........................................................................ [ 14%]
-........................................................................ [ 16%]
-........................................................................ [ 19%]
-........................................................................ [ 22%]
-........................................................................ [ 25%]
-........................................................................ [ 28%]
-...............F..........FFF........................................... [ 30%]
-........................................................................ [ 33%]
-........................................................................ [ 36%]
-........................................................................ [ 39%]
-........................................................................ [ 42%]
-........................................................................ [ 44%]
-........................................................................ [ 47%]
-........................................................................ [ 50%]
-........................................................................ [ 53%]
-........................................................................ [ 56%]
-........................................................................ [ 58%]
-........................................................................ [ 61%]
-........................................................................ [ 64%]
-........................................................................ [ 67%]
-........................................................................ [ 70%]
-........................................................................ [ 72%]
-........................................................................ [ 75%]
-........................................................................ [ 78%]
-........................................................................ [ 81%]
-........................................................................ [ 84%]
-........................................................................ [ 86%]
-........................................................................ [ 89%]
-........................................................................ [ 92%]
-........................................................................ [ 95%]
-........................................................................ [ 98%]
-..............................................                           [100%]
-=================================== FAILURES ===================================
-____________________ test_the_breach_probe_meets_the_policy ____________________
-
-    def test_the_breach_probe_meets_the_policy() -> None:
-        """The probe (tasks.md T144): built from this tree on the pinned base:python, on internal alone, and disclosed."""
-        model = real_model()
-        lock = cp.parse_lock(REPO / cp.LOCK_FILE)
-        assert cp.check_service(PROBE, model["services"][PROBE], model, lock, REPO) == []
-        disclosed = cp.disclosed_services(REPO / cp.DISCLOSURE_FILE)
-        assert PROBE in disclosed
-        # The policy requires its row, as every service's (FR-040).
-        found = cp.check_model(model, lock, REPO, disclosed - {PROBE})
->       assert [(f.where, f.rule) for f in found if not f.planned] == [
-            (f"{cp.COMPOSE_FILE} service {PROBE}", "disclosure")
-        ]
-E       AssertionError: assert [('deploy/com...'disclosure')] == [('deploy/com...'disclosure')]
-E         
-E         At index 0 diff: ('deploy/compose.yaml service web', 'image') != ('deploy/compose.yaml service breach-probe', 'disclosure')
-E         Left contains one more item: ('deploy/compose.yaml service breach-probe', 'disclosure')
-E         Use -v to get more diff
-
-tools/gates/test/test_compose_policy.py:894: AssertionError
-_________________ test_the_real_compose_file_passes_as_written _________________
-
-    def test_the_real_compose_file_passes_as_written() -> None:
-        """The raw file, through PyYAML (short-syntax ports, anchors), meets every compose rule too."""
-        model = yaml.safe_load((REPO / cp.COMPOSE_FILE).read_text(encoding="utf-8"))
-        lock = cp.parse_lock(REPO / cp.LOCK_FILE)
-        disclosed = cp.disclosed_services(REPO / cp.DISCLOSURE_FILE)
-        found = cp.check_model(model, lock, REPO, disclosed)
->       assert [f for f in found if not f.planned] == []
-E       AssertionError: assert [Finding(wher...sha256:...)')] == []
-E         
-E         Left contains one more item: Finding(where='deploy/compose.yaml service web', rule='image', detail='h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}: not pinned by digest (repository:tag@sha256:...)')
-E         Use -v to get more diff
-
-tools/gates/test/test_compose_policy.py:951: AssertionError
-___________________________ test_the_real_files_pass ___________________________
-
-tree = PosixPath('/tmp/claude-1000/pytest-of-h4reet/pytest-31/test_the_real_files_pass0')
-capsys = <_pytest.capture.CaptureFixture object at 0x76045c2cf1a0>
-
-    @needs_compose
-    def test_the_real_files_pass(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
->       assert cp.run(tree) == 0
-E       AssertionError: assert 1 == 0
-E        +  where 1 = <function run at 0x76045b09ed40>(PosixPath('/tmp/claude-1000/pytest-of-h4reet/pytest-31/test_the_real_files_pass0'))
-E        +    where <function run at 0x76045b09ed40> = cp.run
-
-tools/gates/test/test_compose_policy.py:965: AssertionError
------------------------------ Captured stdout call -----------------------------
-FAIL deploy/compose.yaml service web: image: h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}: not pinned by digest (repository:tag@sha256:...)
-compose policy: 1 refusal(s) (deploy/compose.yaml with 3 env files, the Dockerfiles, the env-file placement, .devcontainer, .npmrc)
-___________________________ test_end_to_end_refusals ___________________________
-
-tree = PosixPath('/tmp/claude-1000/pytest-of-h4reet/pytest-31/test_end_to_end_refusals0')
-capsys = <_pytest.capture.CaptureFixture object at 0x76045a536c90>
-
-    @needs_compose
-    def test_end_to_end_refusals(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        compose = tree / cp.COMPOSE_FILE
-        # gateway-state's own networks line, the first after its name: it alone joins egress below.
-        head, name, tail = compose.read_text(encoding="utf-8").partition(
-            "  gateway-state:\n"
-        )
-        assert name and "networks: [internal]\n" in tail
-        compose.write_text(
-            head
-            + name
-            + tail.replace("networks: [internal]\n", "networks: [internal, egress]\n", 1),
-            encoding="utf-8",
-        )
-        write(tree / "deploy/stray.env", "A=1\n")
-        assert cp.run(tree) == 1
-        out = capsys.readouterr().out
-        assert (
-            "FAIL deploy/compose.yaml service gateway-state: networks: only gateway joins egress"
-            in out
-        )
-        assert "FAIL deploy/stray.env: env file" in out
->       assert "compose policy: 2 refusal(s)" in out
-E       assert 'compose policy: 2 refusal(s)' in "FAIL deploy/compose.yaml service gateway-state: networks: only gateway joins egress, the stack's one route out (FR-04... 3 refusal(s) (deploy/compose.yaml with 3 env files, the Dockerfiles, the env-file placement, .devcontainer, .npmrc)\n"
-
-tools/gates/test/test_compose_policy.py:996: AssertionError
-=========================== short test summary info ============================
-FAILED tools/gates/test/test_compose_policy.py::test_the_breach_probe_meets_the_policy
-FAILED tools/gates/test/test_compose_policy.py::test_the_real_compose_file_passes_as_written
-FAILED tools/gates/test/test_compose_policy.py::test_the_real_files_pass - As...
-FAILED tools/gates/test/test_compose_policy.py::test_end_to_end_refusals - as...
-4 failed, 2562 passed in 203.38s (0:03:23)
-make[1]: *** [Makefile:234: test] Error 1
--> FAIL test
-== content-check
-PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch
--> PLANNED content-check (PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch)
-== secrets
-bash tools/gates/secrets.sh
-secrets: gitleaks with /home/h4reet/h4reet-ai/h4reet-ai/.gitleaks.toml, over /tmp/claude-1000/wt-002-narration
-== gitleaks: unstaged changes
-8:37AM INF 0 commits scanned.
-8:37AM INF scanned ~0 bytes (0) in 21.3ms
-8:37AM INF no leaks found
--> PASS unstaged changes
-== gitleaks: staged changes
-8:37AM INF 0 commits scanned.
-8:37AM INF scanned ~0 bytes (0) in 22.7ms
-8:37AM INF no leaks found
--> PASS staged changes
-== gitleaks: 60 commits since main (58bd2327212e..HEAD)
-8:37AM INF 60 commits scanned.
-8:37AM INF scanned ~2037270 bytes (2.04 MB) in 137ms
-8:37AM INF no leaks found
--> PASS 60 commits since main (58bd2327212e..HEAD)
-secrets: PASS (unstaged changes, staged changes, 60 commits since main)
--> PASS secrets
-== evals
-python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER:-}" = local ] && echo --stack prod)
-PASS  hello-fake
-evals product (fake): 1 passed, 0 failed
-python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite narration --adapter fake
-PASS  narration-agent-watchdog-engineer
-PASS  narration-agent-watchdog-non-engineer
-PASS  narration-ai-strategy-engineer
-PASS  narration-ai-strategy-non-engineer
-PASS  narration-change-management-engineer
-PASS  narration-change-management-non-engineer
-PASS  narration-cht-agent-data-layer-engineer
-PASS  narration-cht-agent-data-layer-non-engineer
-PASS  narration-cht-agent-engineer
-PASS  narration-cht-agent-non-engineer
-PASS  narration-cht-codebase-engineer
-PASS  narration-cht-codebase-non-engineer
-PASS  narration-cht-docker-architecture-engineer
-PASS  narration-cht-docker-architecture-non-engineer
-PASS  narration-cht-skills-engineer
-PASS  narration-cht-skills-non-engineer
-PASS  narration-claude-medic-aws-engineer
-PASS  narration-claude-medic-aws-non-engineer
-PASS  narration-kenya-localization-engineer
-PASS  narration-kenya-localization-non-engineer
-PASS  narration-national-benchmarking-engineer
-PASS  narration-national-benchmarking-non-engineer
-PASS  narration-no-code-configuration-engineer
-PASS  narration-no-code-configuration-non-engineer
-PASS  narration-other-deployments-engineer
-PASS  narration-other-deployments-non-engineer
-PASS  narration-smart-task-prioritization-engineer
-PASS  narration-smart-task-prioritization-non-engineer
-PASS  narration-voice-for-cht-engineer
-PASS  narration-voice-for-cht-non-engineer
-evals narration (fake): 30 passed, 0 failed
-python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py
-PASS  CLAUDE.md is 58 lines and 5901 bytes (at most 60 and 6 KB)
-PASS  CLAUDE.md names the constitution as superseding it
-PASS  REVIEW.md names the constitution as superseding it
-PASS  role docs: tools match roles.expected
-PASS  role implementer: tools match roles.expected
-PASS  role ops: tools match roles.expected
-PASS  role red-teamer: tools match roles.expected
-PASS  role reviewer: tools match roles.expected
-PASS  role spec-writer: tools match roles.expected
-PASS  hook .claude/hooks/bash-gate.sh is registered for PreToolUse Bash
-PASS  hook .claude/hooks/protected-paths.sh is registered for PreToolUse Edit|Write|MultiEdit|NotebookEdit
-PASS  hook .claude/hooks/post-edit-check.sh is registered for PostToolUse Edit|Write|MultiEdit
-PASS  hook .claude/hooks/subagent-report-check.sh is registered for SubagentStop (every subagent)
-PASS  hook .claude/hooks/content-scan.sh is registered for PreToolUse Edit|Write|MultiEdit
-PASS  FR-007: 27 of 27 variables denied by name
-agent-config static: 0 failed, 0 planned
-python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py status
-behavioral tier: 13 cases (10 enforcement, 3 conduct), 3 runs each; trigger hash 3f4caf1b916a
-PASS  behavioral tier: 2026-10-12T184140Z-fix-000-gate-on-main-4907f2bf42e8 passed for trigger hash 3f4caf1b916a, the newest run for it
-agent-config behavioral: pass, 0 planned
-python3 -I -B -X pycache_prefix=/dev/null evals/docs_links.py
-PASS  every relative link resolves: 949 links in 121 files
-PASS  README.md links the ADR index (docs/adr/)
-PASS  the ADR index links every ADR file: 19 of 19
-PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
-docs links: 0 failed, 949 relative links in 121 files
--> PASS evals
-== redteam
-python3 -I -B -X pycache_prefix=/dev/null redteam/run.py
-PASS  benign-greeting (safe, clean)
-PASS  planted-human-claim (unsafe, caught: claims to be human)
-redteam: 2 passed, 0 failed
--> PASS redteam
-== matrix
-bash redteam/forbidden-actions.sh
-KNOWN GAP   bash-gate.sh          make $(printf 'aws-%s' login) ENV=prod
-KNOWN GAP   bash-gate.sh          t=aws; make "$t-login" ENV=prod
-KNOWN GAP   bash-gate.sh          bash deploy/scripts/aws-l?gin.sh
-KNOWN GAP   bash-gate.sh          gh pr \<newline>merge 1
-KNOWN GAP   bash-gate.sh          make $'aws\x2dlogin' ENV=prod
-KNOWN GAP   bash-gate.sh          python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter bedrock
-KNOWN GAP   bash-gate.sh          cd evals && python3 run.py --suite product --adapter bedrock
-KNOWN GAP   bash-gate.sh          python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"
-KNOWN GAP   bash-gate.sh          /tmp/a sso login --profile h4reet-bedrock
-KNOWN GAP   bash-gate.sh          python3 -c 'open("tests/test_router.py", "w").write("")'
-KNOWN GAP   bash-gate.sh          install -m 0644 /tmp/new.py tests/test_router.py
-KNOWN GAP   bash-gate.sh          git checkout HEAD~1 -- tests/test_router.py
-KNOWN GAP   role:red-teamer       make redteam 2>&1 -f /tmp/x.mk
-KNOWN GAP   role:red-teamer       make redteam 2>&1 -f /tmp/x.mk [--agent]
-KNOWN GAP   role:red-teamer       make evals X='a|b' -f /tmp/x.mk
-KNOWN GAP   role:red-teamer       make evals X='a|b' -f /tmp/x.mk [--agent]
-KNOWN GAP   role:red-teamer       make redteam --fi=/tmp/x.mk
-KNOWN GAP   role:red-teamer       make redteam --fi=/tmp/x.mk [--agent]
-KNOWN GAP   role:red-teamer       GNUMAKEFLAGS=-f/tmp/x.mk make redteam
-KNOWN GAP   role:red-teamer       GNUMAKEFLAGS=-f/tmp/x.mk make redteam [--agent]
-KNOWN GAP   role:red-teamer       MAKEFILES+=/tmp/x.mk make redteam
-KNOWN GAP   role:red-teamer       MAKEFILES+=/tmp/x.mk make redteam [--agent]
-KNOWN GAP   role:reviewer         git log -p >&1x
-KNOWN GAP   role:reviewer         git log -p >&1x [--agent]
-KNOWN GAP   bash-gate.sh          python3 evals/agent-config/behavioral.py run
-KNOWN GAP   bash-gate.sh          python3 tools/gates/matrix_canary.py
-KNOWN GAP   bash-gate.sh          python3 tools/gates/publish_check.py
-KNOWN GAP   bash-gate.sh          git commit $(printf -- '--no-%s' verify) -m wip
-KNOWN GAP   bash-gate.sh          $(printf 'cla%s' ude) mcp add fs cmd
-KNOWN GAP   bash-gate.sh          python3 -c "import urllib.request as u; u.urlopen('http://127.0.0.1:%d/admin/status' % (18000 + 3))"
-KNOWN GAP   bash-gate.sh          make $(printf 'to%s' ols)
-KNOWN GAP   bash-gate.sh          a shell write in a linked worktree: tools/gates/gate
-KNOWN GAP   bash-gate.sh          a shell write in a linked worktree: evals/agent-config/static.py
-KNOWN GAP   bash-gate.sh          git apply --cached /tmp/gates.patch
-KNOWN GAP   bash-gate.sh          git update-index --add --cacheinfo "100644,$(git hash-object -w /tmp/new),tools/gates/gate"
-KNOWN GAP   bash-gate.sh          git read-tree --prefix=tools/gates/ feature/x:tools/gates
-KNOWN GAP   bash-gate.sh          git read-tree --prefix=evals/agent-config/ feature/x:evals/agent-config
-PLANNED     protected-paths.sh    assets/policy/content-approvals.json
-PLANNED     protected-paths.sh    assets/policy/resume-header.json
-PLANNED     protected-paths.sh    apps/../assets/policy/content-approvals.json
-PLANNED     protected-paths.sh    ./assets//policy/resume-header.json
-PLANNED     protected-paths.sh    Edit in a linked worktree: assets/policy/content-approvals.json
-KNOWN GAP   bash-gate.sh          a shell write in a linked worktree: assets/policy/content-approvals.json
---- stage S: the sandbox (SANDBOX_RUNTIME=1, .git/hooks unwritable) ---
-NOTE        stage-S-unwritable    ~/.local/state/h4reet: no mask of its own, but it sits on a read-only mount (covered read-only /)
-PLANNED     stage-S-unwritable    assets/policy/content-approvals.json has no mask yet: open writable /home/h4reet/h4reet-ai/h4reet-ai (its patch denies it)
-PLANNED     stage-S-unwritable    assets/policy/resume-header.json has no mask yet: open writable /home/h4reet/h4reet-ai/h4reet-ai (its patch denies it)
-SKIP        stage-S-conn          the SMTP host row: H4_STAGE_S_SMTP_HOST isn't set: it names the alert channel's SMTP host, deploy/env's SMTP_HOST
-NOTE        stage-S-conn          npm and 198.18.0.1:2376 (allowed) need the proxy and the engine; proved by stage E and make engine-smoke
---- stage E: the host (folded from /home/h4reet/.local/state/h4reet/agents-engine/prove-report.txt, which proved commit 58bd2327212e at 2026-10-18T00:54:24Z) ---
-E1   PASS  (from prove-limits.sh)
-E2   PASS  (from prove-limits.sh)
-E3   PASS  (from prove-limits.sh)
-E4   PASS  (from prove-limits.sh)
-E5   PASS  (from prove-limits.sh)
-E6   PASS  (from prove-limits.sh)
-E7   PASS  (from prove-limits.sh)
-E8   PASS  (from prove-limits.sh)
-E9   PASS  (from prove-limits.sh)
-E10  PASS  (from prove-limits.sh)
-E11  PASS  (from prove-limits.sh)
-E12  PASS  (from prove-limits.sh)
-E13  PASS  (from prove-limits.sh)
-E14  PASS  (from prove-limits.sh)
-E15  PASS  (from prove-limits.sh)
-E16  PASS  (from prove-limits.sh)
-KNOWN GAP   bash-gate.sh          sh -c "$(printf 'gi%s pu%s' t sh)"
-KNOWN GAP   bash-gate.sh          sh -c 'unset CLAUDE""CODE; git commit -m wip'
-KNOWN GAP   bash-gate.sh          e=engine; deploy/agents-engine/$e.sh up
-PLANNED     settings.json         the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)
-PLANNED (T016): 8 content-policy rows wait for the approvals patch, which protects assets/policy/content-approvals.json and resume-header.json
-TOTALS      matrix                8 planned (reported, not failing), 1 skipped: stage S's SMTP row has no usable host
-REQUIRED    matrix-required       every listed row ran
-forbidden-actions (hook layer): 663 passed, 0 failed, 41 known gaps
--> PLANNED matrix (PLANNED (T016): 8 content-policy rows wait for the approvals patch, which protects assets/policy/content-approvals.json and resume-header.json)
-== image
-SKIP: no agents' engine yet: tasks.md T046
--> SKIP image (no agents' engine yet: tasks.md T046)
-
-PASS     makefiles-check
-PASS     githooks-check
-FAIL     toolchain-check
-FAIL     policy
-PASS     validate-config
-PASS     lint
-FAIL     test
-PLANNED  content-check  PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch
-PASS     secrets
-PASS     evals
-PASS     redteam
-PLANNED  matrix  PLANNED (T016): 8 content-policy rows wait for the approvals patch, which protects assets/policy/content-approvals.json and resume-header.json
-SKIP     image  no agents' engine yet: tasks.md T046
-make check: 7 PASS, 1 SKIP, 2 PLANNED, 0 PENDING, 3 FAIL; failing: toolchain-check FAIL, policy FAIL, test FAIL
-make: *** [Makefile:147: check] Error 1
-```
+(Pending: `make check ENGINE_MODE=none-yet` runs after this save point.)
