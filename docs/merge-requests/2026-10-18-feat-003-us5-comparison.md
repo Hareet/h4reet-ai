@@ -3,7 +3,7 @@ Spec: specs/003-studio-assets/ (Phase 3: T027–T031; User Story 5) · Intent: s
 Session: worked in `/tmp/claude-1000/wt-003-comparison`, launched from `~/h4reet-ai/h4reet-ai` · Repo hooks active: yes (the post-edit hook's lint asked for `re.DOTALL` in place of `re.S` in the new test, done; the pre-commit hook's gitleaks ran on each commit, no leaks; the command guard refused nothing)
 Authorized by: tasks.md T027–T031, against plan §5, research R-09, and contracts/arrival-check.md and asset-record.md; the Author's direction of 2026-10-17: "Let's relax some of the overnight rules so that you can continue with intent 002 and intent 003? I think you can create the tasks and implement them and we can always go back later and re-do a task or requirement if we highlight a needed change".
 
-**Status: ready for review; then yours to merge, after Phase 2.** Stacked on `feat/003-us1-arrival-check` (b7c3210). Four commits: 94874c3 (the test, RED), 0f5e67b (T028: the folder and its credits), 2128fb5 (T029: the evaluation note, and plan §5's "As built"), and this note with tasks.md (T031). **No patch:** everything T027 asks is already in Phase 2's patch (below). T030 is yours, after the evaluation's runs. No image is committed: the grids come after your runs. Review: pending (the integrating session runs it).
+**Status: reviewed, no blockers; yours to merge, after Phase 2.** Stacked on `feat/003-us1-arrival-check` (b7c3210). Four commits: 94874c3 (the test, RED), 0f5e67b (T028: the folder and its credits), 2128fb5 (T029: the evaluation note, and plan §5's "As built"), and this note with tasks.md (T031). **No patch:** everything T027 asks is already in Phase 2's patch (below). T030 is yours, after the evaluation's runs. No image is committed: the grids come after your runs. Review: pending (the integrating session runs it).
 
 **A divergence from the plan, recorded in plan §5 in the same commit (2128fb5).** Plan §5 said "the record table's rows become `records.json` entries, with the arm." The note's rows are one per output in a grid; a record entry describes one file and names one `arm` (data-model.md §2, and the check's R1 holds it to A, B, C, or D). So each grid file, and the style anchor, gets one entry; each published grid holds one arm's outputs; and the per-output columns the record has no field for (the output's position, ID, task, seed, and settings) stay in the note's "Results".
 
@@ -77,7 +77,16 @@ ADR 0017 puts this section first. Nothing new runs in your terminal on its own; 
 
 ## Review
 
-Review: pending (the integrating session runs it).
+One pass by the reviewer agent, which didn't write the change, against REVIEW.md, spec 003 as clarified, its plan, contracts, and data model, and the constitution: **no blockers.** It confirmed: the license and marking text matches the spec's options word for word; both preconditions still come first in the note; nothing in the folder or the note locates the Author or names a studio path; `LICENSE.md` matches contracts/asset-record.md §3; `credits.py --check` passes; `test_tree.py` failed first (2 failed, 6 passed, 1 skipped) and passes (11); the one-arm-per-grid departure is in plan §5 and asked of you here. US5's independent test and its scenarios 1 and 2 come from Phase 2 and your T030.
+
+Its five nits, all done in a follow-up commit by the integrating session:
+1. The note paraphrased the clarification's definition of research display; it now quotes it ("the Author's reading, per license, of whether its outputs may be shown publicly as evaluation results, not used in the site") with the reading beside it.
+2. T030's licenses: every model each step loaded, auxiliary ones included (data-model §2.1), not only the arms' models (step 4 above), so the check doesn't refuse a grid on L1 for a license you didn't record.
+3. Plan §5's "As built" now says where arms B and D's caption goes.
+4. The copyright holder: a name you choose; your surname only if you decide it should (step 1 above).
+5. FR-034's approval of the visible line's wording before the first likeness file is published is now step 2 of T030.
+
+**Backlog:** contracts/arrival-check.md:59 says L1 refuses a license that reads `no`, while FR-036 and Phase 2's code refuse anything that isn't `yes` (the contract should say "isn't `yes`"); the last test in `test_tree.py` checks the note's exact wording, so a rewording breaks it.
 
 ## Verification
 
