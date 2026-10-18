@@ -1,6 +1,6 @@
 # Image-model evaluation for the studio's 2D steps
 
-Status: plan, not run yet · Written: 2026-10-12, by Claude (the lead session), at the Author's direction · Intent: `intent/003-studio-assets.md` (draft) · Runs: the Author's, on the studio machine
+Status: plan, not run yet · Written: 2026-10-12, by Claude (the lead session), at the Author's direction · Intent: `specs/003-studio-assets/intent.md` (a draft when this was written; accepted on 2026-10-17) · Runs: the Author's, on the studio machine
 
 This note plans an offline comparison of image models for the studio's 2D steps. Once the comparison has run, the note also records what it found. The studio's pipeline stays outside this repository (intent 003), and only the comparison's results come in here.
 
