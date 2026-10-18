@@ -5,11 +5,11 @@
 id: narration-claude-medic-aws-non-engineer
 description: "The room's narration of the resume item claude-medic-aws on the non-engineer path, as the visitor reads it."
 prompt: "Narrate the resume item claude-medic-aws for a visitor on the non-engineer path."
-fake_response: "Hareet designed claude-medic-aws, Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base. It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect. It is read-only today; one step away from being trusted with production changes."
+fake_response: "Hareet designed claude-medic-aws, Medic's infrastructure agent and the team's on-call engineer, security-first for a non-technical user base. It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect. It is read-only today; one step away from being trusted with production changes."
 expect:
   contains:
     - "designed claude-medic-aws"
-    - "Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base"
+    - "Medic's infrastructure agent and the team's on-call engineer"
     - "It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect"
     - "read-only today; one step away from being trusted with production changes"
   not_contains:

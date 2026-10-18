@@ -1,9 +1,10 @@
 // Narration's checks, its place in room-data.json, and its eval cases (spec 002, T052; FR-011, FR-012, FR-014 to
 // FR-016; contracts/narration.md §1 to §3; data-model.md §3 and §5; research.md R-07).
 //
-//   N1  each script's citations and words pass the resume's C1–C8 (build/content.ts's checkSource), held to its item's
-//       ownership verb: a script makes its item's claim, so it cites a sentence that says the verb, under a tag
-//       sufficient for a role claim
+//   N1  each script's citations and words pass the resume's C1–C8 (build/content.ts's checkSource), with its item's
+//       ownership verb setting C4's bar: a script tells its item's story, so its citations need a tag sufficient for a
+//       role claim, and every ownership or act verb its words say is one a cited sentence says, as an act. It neither
+//       quotes nor reads out a ruling annotation ("Ownership: *led*."), which rules a verb and isn't a sentence
 //   N2  every item in resume.yaml has a script on each path, and no script names an item the resume doesn't have
 //   N3  no forbidden phrase in the words: C9's list (the corpus's "Do not claim" key phrases, the surname rule, and the
 //       private denylist when the checkout can read it), reported by source line, a private phrase never by its words
@@ -105,6 +106,14 @@ export function keyPhrase(quote: string, words: string): string | null {
 
 // ---- N1–N5 ----
 
+/** The corpus's ruling annotations in a file, `Ownership: *led*.`, whitespace collapsed: rulings on which verb to use,
+ * not sentences that say the Author did something (the review of 2026-10-18). */
+function annotations(root: string, file: string): string[] {
+  const full = join(root, file);
+  if (!/^corpus\/[^/]+\.md$/.test(file) || !existsSync(full)) return [];
+  return [...collapse(readFileSync(full, "utf8")).matchAll(/Ownership:\s*\*[^*]+\*\.?/g)].map((m) => m[0]);
+}
+
 /** N1–N5 over every script: `narration/<item-id>.<path>.md: <reason>` for each that has a problem, at its first, after
  * N2's for scripts that are missing. A malformed slot reference is refused as a ContentError. */
 export function checkNarration(
@@ -140,7 +149,10 @@ export function checkNarration(
   const asItems: Item[] = known.map((s) => {
     const verb = items.get(s.item)?.verb;
     const item: Item = { id: label(s.file), text: s.body, claims: s.claims, slots: s.slots };
-    if (verb !== undefined) item.verb = verb;
+    if (verb !== undefined) {
+      item.verb = verb;
+      item.verbUnsaid = true;
+    }
     return item;
   });
   const checked = checkSource(
@@ -162,6 +174,17 @@ export function checkNarration(
     const at = label(s.file);
     if (collapse(s.body).length > MAX_CHARS) {
       problems.push(`${at}: over ${MAX_CHARS} characters`);
+      continue;
+    }
+    if (/\bownership\s*:/i.test(s.body)) {
+      problems.push(`${at}: reads out a ruling annotation`);
+      continue;
+    }
+    const ruling = s.claims.findIndex((c) =>
+      annotations(options.root, c.file).some((a) => a.includes(collapse(c.quote))),
+    );
+    if (ruling !== -1) {
+      problems.push(`${at}: claims[${ruling}] quotes a ruling annotation, not a sentence`);
       continue;
     }
     const found = first.get(at);

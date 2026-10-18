@@ -11,4 +11,4 @@ claims:
 slots: []
 ---
 
-Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace, with OpenCode supported. It installs CHT skills, among them cht-specialist, create-cht-task, and create-cht-target, along with the CHT Docs MCP, slash commands, and validation hooks; it is the strategy's shared layer of CHT AI tools. Inside it, Hareet built agent-watchdog and the Docs MCP it packages, and sponsored the CHT skills.
+Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace, with OpenCode supported: among them cht-specialist, create-cht-task, create-cht-target, and cht-pr-review, which others built. It installs those skills, the CHT Docs MCP, slash commands, and validation hooks; it is the strategy's shared layer of CHT AI tools. Inside it, Hareet built agent-watchdog and the Docs MCP it packages.

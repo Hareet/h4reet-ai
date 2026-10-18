@@ -13,4 +13,4 @@ claims:
 slots: []
 ---
 
-Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace. It installs CHT skills, the CHT Docs MCP, slash commands, and validation hooks, and it is the strategy's shared layer of CHT AI tools.
+Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace, including cht-pr-review, which others built. It installs CHT skills, the CHT Docs MCP, slash commands, and validation hooks, and it is the strategy's shared layer of CHT AI tools.

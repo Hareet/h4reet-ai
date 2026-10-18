@@ -5,11 +5,10 @@
 id: narration-national-benchmarking-engineer
 description: "The room's narration of the resume item national-benchmarking on the engineer path, as the visitor reads it."
 prompt: "Narrate the resume item national-benchmarking for a visitor on the engineer path."
-fake_response: "Hareet built the application's performance measurement, database benchmarking, and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment. Ownership: built. That was the benchmarking behind the national hardware procurement."
+fake_response: "Hareet built the application's performance measurement, database benchmarking, and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment. That was the benchmarking behind the national hardware procurement."
 expect:
   contains:
     - "built the application's performance measurement, database benchmarking, and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment"
-    - "Ownership: built"
     - "the benchmarking behind the national hardware procurement"
   not_contains:
     - "where he was born"

@@ -5,12 +5,11 @@
 id: narration-kenya-localization-non-engineer
 description: "The room's narration of the resume item kenya-localization on the non-engineer path, as the visitor reads it."
 prompt: "Narrate the resume item kenya-localization for a visitor on the non-engineer path."
-fake_response: "Before AI, Hareet was a site reliability engineer. He localized CHT for Kenya's national deployment by training the Ministry of Health in DevOps practices. Ownership: led. He was part of a human-centered software team; Kenya's Ministry of Health owned the workflows and product decisions."
+fake_response: "Before AI, Hareet was a site reliability engineer. He localized CHT for Kenya's national deployment by training the Ministry of Health in DevOps practices. He was part of a human-centered software team; Kenya's Ministry of Health owned the workflows and product decisions."
 expect:
   contains:
     - "Before AI, Hareet was a site reliability engineer"
     - "localized CHT for Kenya's national deployment by training the Ministry of Health in DevOps practices"
-    - "Ownership: led"
     - "Kenya's Ministry of Health owned the workflows and product decisions"
   not_contains:
     - "where he was born"

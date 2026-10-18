@@ -5,12 +5,11 @@
 id: narration-other-deployments-engineer
 description: "The room's narration of the resume item other-deployments on the engineer path, as the visitor reads it."
 prompt: "Narrate the resume item other-deployments for a visitor on the engineer path."
-fake_response: "Hareet was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's. Throughout, he was part of a human-centered software team. Zanzibar's national app is Jamii ni Afya."
+fake_response: "Hareet was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's. Throughout, he was part of a human-centered software team."
 expect:
   contains:
     - "was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's"
     - "Throughout, he was part of a human-centered software team"
-    - "Zanzibar's national app is Jamii ni Afya"
   not_contains:
     - "where he was born"
     - "surname"

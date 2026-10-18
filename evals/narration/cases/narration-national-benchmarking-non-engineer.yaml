@@ -5,12 +5,11 @@
 id: narration-national-benchmarking-non-engineer
 description: "The room's narration of the resume item national-benchmarking on the non-engineer path, as the visitor reads it."
 prompt: "Narrate the resume item national-benchmarking for a visitor on the non-engineer path."
-fake_response: "Hareet built the benchmarking behind the national hardware procurement for the Ministry's national-scale deployment. Ownership: built."
+fake_response: "Hareet built the benchmarking behind the national hardware procurement for the Ministry's national-scale deployment."
 expect:
   contains:
     - "built the benchmarking behind the national hardware procurement"
     - "for the Ministry's national-scale deployment"
-    - "Ownership: built"
   not_contains:
     - "where he was born"
     - "surname"

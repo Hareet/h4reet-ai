@@ -252,9 +252,44 @@ describe("N1, the resume's citation check on each script", () => {
     expect(problems(lantern([cite(DESIGNED)], words, ["fixture.nope"]))).toEqual([`${at}: unknown slot`]);
   });
 
-  it("C8: fails words without the item's ownership verb", () => {
+  it("C8: doesn't require the item's verb in the words, whose citations it still holds to C4's bar", () => {
+    // The review of 2026-10-18: a script tells its item's story in the cited sentences' own words, and the only
+    // sentence that says a verb can be a ruling annotation, which a script may not read out.
     const words = "Robin made the lantern service for the fixture clinic.";
+    expect(problems(lantern([cite(DESIGNED)], words))).toEqual([]);
+  });
+
+  it("C8: fails an act verb, like released, that no cited sentence holds", () => {
+    const words = `${DESIGNED}, and released it.`;
     expect(problems(lantern([cite(DESIGNED)], words))).toEqual([`${at}: ownership verb not cited`]);
+  });
+
+  it("C8: fails an act the corpus says only in an agentless passive, made the Author's in the active", () => {
+    const tide = (words: string, quote = PUBLIC_SERVER) => ({
+      ...CLEAN,
+      "tide.engineer.md": script("tide", "engineer", [cite(quote)], words),
+    });
+    const at = "narration/tide.engineer.md";
+    // "The tide clock was built on a public server" says what was done, not who did it.
+    expect(problems(tide("Robin built the tide clock on a public server."))).toEqual([`${at}: passive made active`]);
+    // "Designed by Robin and released to the docks": the "by" names who designed it, not who released it.
+    const lamp = "The night lamp was designed by Robin and released to the docks";
+    expect(problems(tide("Robin designed the night lamp and released it to the docks.", lamp))).toEqual([
+      `${at}: passive made active`,
+    ]);
+    // In the corpus's own grammar, both pass; and a "by" passive names its agent, so its verb can be said as an act.
+    expect(problems(tide(`${lamp}.`, lamp))).toEqual([]);
+    expect(problems(tide("Robin designed the night lamp for the docks.", lamp))).toEqual([]);
+  });
+
+  it("N1: neither quotes nor reads out a ruling annotation, which rules a verb and isn't a sentence", () => {
+    const words = `${DESIGNED}.`;
+    expect(problems(lantern([cite(DESIGNED), cite("Ownership: *designed*")], words))).toEqual([
+      `${at}: claims[1] quotes a ruling annotation, not a sentence`,
+    ]);
+    expect(problems(lantern([cite(DESIGNED)], `${DESIGNED}. Ownership: designed.`))).toEqual([
+      `${at}: reads out a ruling annotation`,
+    ]);
   });
 
   it("C8: fails any ownership verb in the words that no cited sentence holds, in a script whose item has none", () => {

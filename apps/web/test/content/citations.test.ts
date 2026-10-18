@@ -227,6 +227,16 @@ describe("C8, the ownership verb", () => {
     const kept = { ...item, text: "Keeper of the tide clock; his design of its face won the harbor prize." };
     expect(problems([kept])).toEqual([]);
   });
+
+  it("holds the corpus's other act verbs too, like released, and never makes an agentless passive an act", () => {
+    // The narration review (2026-10-18): "Built by Robin and released ..." names who built it, not who released it.
+    const lamp = "The night lamp was designed by Robin and released to the docks";
+    const item = { id: "c8a", text: "Designed the night lamp and released it to the docks.", claims: [cite(lamp)] };
+    expect(problems([item])).toEqual(["c8a: passive made active"]);
+    expect(problems([{ ...item, text: "The night lamp, designed by Robin and released to the docks." }])).toEqual([]);
+    const released = { ...CLEAN, id: "c8r", text: "Designed and released the lantern service for the fixture clinic." };
+    expect(problems([released])).toEqual(["c8r: ownership verb not cited"]);
+  });
 });
 
 describe("C9, forbidden phrases", () => {

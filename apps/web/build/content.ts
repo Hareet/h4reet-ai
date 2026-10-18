@@ -48,6 +48,30 @@ export const OWNERSHIP_VERBS = [
   "architected",
 ] as const;
 
+/** The past-tense verbs the corpus uses for the Author's acts beside the ownership verbs (spec 002's narration
+ * review): C8 holds them as it holds the ownership verbs, so a word the text says as an act must be one a cited
+ * sentence says. They aren't `verb` values an item can declare. */
+export const ACT_VERBS = [
+  "released",
+  "published",
+  "organized",
+  "researched",
+  "turned",
+  "localized",
+  "trained",
+  "prepared",
+  "found",
+  "determined",
+  "mapped",
+  "engaged",
+  "obtained",
+  "adopted",
+  "pitched",
+  "won",
+  "defined",
+  "coined",
+] as const;
+
 export class ContentError extends Error {}
 
 // ---- The source (contracts/resume-source.md §1; data-model.md §2) ----
@@ -66,6 +90,8 @@ export interface Line {
 export interface Item extends Line {
   id: string;
   verb?: string;
+  /** A narration script's: its item's verb sets C4's bar for its citations, and the words needn't say it (N1). */
+  verbUnsaid?: true;
 }
 
 export interface Section {
@@ -480,6 +506,32 @@ export function forbiddenList(options: {
   return { list: [...list, ...denied.list], denylist: denied.state };
 }
 
+/** An auxiliary right before a verb, an adverb allowed between: "was built", "is being used". */
+const AUXILIARY = /(?:^|[^\p{L}])(?:is|was|were|are|been|being|be)\s+(?:\p{L}+ly\s+)?$/u;
+
+/** Whether a sentence says a single-word verb as someone's act: in the active voice, or in a passive whose "by" names
+ * the agent ("Designed by Hareet"). An agentless passive doesn't: "was built on a public server", or a verb
+ * coordinated after a "by" passive, whose agent belongs to the first verb ("Built by Hareet and released to
+ * production" says who built it, not who released it). Normalized text, lowercase. */
+function saysAsAct(sentence: string, verb: string): boolean {
+  const verbs = [...OWNERSHIP_VERBS, ...ACT_VERBS].filter((v) => /^[a-z-]+$/.test(v)).map(escape);
+  const byPassive = new RegExp(`(?:^|[^\\p{L}\\p{N}-])(?:${verbs.join("|")})\\s+by\\s`, "u");
+  const found = new RegExp(`(?:^|[^\\p{L}\\p{N}-])${escape(verb)}(?=$|[^\\p{L}\\p{N}-])`, "gu");
+  for (const m of sentence.matchAll(found)) {
+    const end = m.index + m[0].length;
+    const before = sentence.slice(0, end - verb.length);
+    const after = sentence.slice(end);
+    if (/^\s+by\s/.test(after)) return true;
+    if (AUXILIARY.test(before)) continue;
+    const clause = before.slice(
+      Math.max(before.lastIndexOf(";"), before.lastIndexOf(":"), before.lastIndexOf(".")) + 1,
+    );
+    if (/(?:^|[\s,])and\s+$/.test(before) && byPassive.test(clause)) continue;
+    return true;
+  }
+  return false;
+}
+
 const wordBoundary = (phrase: string): RegExp =>
   new RegExp(`(?:^|[^\\p{L}\\p{N}-])${escape(phrase)}(?:$|[^\\p{L}\\p{N}-])`, "iu");
 
@@ -533,7 +585,7 @@ export function checkSource(
     return citable.map((p) => p.text);
   };
 
-  const check = (id: string, item: Line, verb: string | undefined): string | null => {
+  const check = (id: string, item: Line, verb: string | undefined, verbUnsaid = false): string | null => {
     const cited: string[] = [];
     for (const claim of item.claims) {
       const result = citation(claim, verb);
@@ -543,13 +595,20 @@ export function checkSource(
     if (/\d/.test(outsideSlots(item.text))) return `${id}: bare number`;
     if (slotIds(item).some((slot) => !facts.has(slot))) return `${id}: unknown slot`;
     // C8: the declared verb is in the text, and every ownership verb the text uses, declared or not, is in a cited
-    // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015).
+    // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015). The corpus's other act verbs are
+    // held the same way, and a verb the text says as an act must be one a cited sentence says as an act, never only
+    // in an agentless passive.
     const shownText = normalize(outsideSlots(item.text));
-    if (verb !== undefined && !wordBoundary(verb.toLowerCase()).test(shownText))
+    if (verb !== undefined && !verbUnsaid && !wordBoundary(verb.toLowerCase()).test(shownText))
       return `${id}: ownership verb not cited`;
-    for (const owned of OWNERSHIP_VERBS) {
+    for (const owned of [...OWNERSHIP_VERBS, ...ACT_VERBS]) {
       const said = wordBoundary(owned.toLowerCase());
-      if (said.test(shownText) && !cited.some((s) => said.test(normalize(s)))) return `${id}: ownership verb not cited`;
+      if (!said.test(shownText)) continue;
+      if (!cited.some((s) => said.test(normalize(s)))) return `${id}: ownership verb not cited`;
+      const word = owned.toLowerCase();
+      if (/^[a-z-]+$/.test(word) && saysAsAct(shownText, word) && !cited.some((s) => saysAsAct(normalize(s), word))) {
+        return `${id}: passive made active`;
+      }
     }
     const shown = fillSlots(item.text, facts);
     const hit = forbidden.list.find((f) => holds(shown, f));
@@ -566,7 +625,7 @@ export function checkSource(
   });
   for (const section of source.sections) {
     for (const item of section.items) {
-      const problem = check(item.id, item, item.verb);
+      const problem = check(item.id, item, item.verb, item.verbUnsaid === true);
       if (problem) problems.push(problem);
     }
   }

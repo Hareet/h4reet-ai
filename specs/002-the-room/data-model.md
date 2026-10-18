@@ -56,7 +56,7 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 | Front matter: `path` | `engineer` or `non-engineer`, matching the file name |
 | Front matter: `claims[]` | as an item's |
 | Front matter: `slots[]` | as an item's |
-| (its verb) | none of its own: the item's `verb` holds for both its scripts (N1) |
+| (its verb) | none of its own: the item's `verb` sets C4's bar for both its scripts' citations, and the words needn't say it; every ownership or act verb they do say is one a cited sentence says as an act, and no ruling annotation is cited or read out (N1) |
 | Body | plain text after a blank line, at most 900 characters as written (about 45 seconds at 160 words a minute), in the twin's first person about the Author in the third person, as the corpus's Golden Q&A does; any digit inside a slot |
 
 **Required:** one script for every item on each path (FR-016). **The forbidden-claim check** fails a script that contains any phrase from the forbidden list ([contracts/narration.md](contracts/narration.md) §2), which the build assembles from each corpus file's "Do not claim" section, the surname rule, and the private denylist when it can read it. Private phrases are never written into a committed file.

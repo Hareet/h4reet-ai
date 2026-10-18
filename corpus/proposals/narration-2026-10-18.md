@@ -5,7 +5,7 @@ Status: drafts for the Author. Nothing in `corpus/` changes.
 
 ## What this is
 
-The first drafts of the room's narration: one script for each of the resume's fifteen items on each path, thirty files in `apps/web/content/narration/<item-id>.<path>.md` (contracts/narration.md §1). They aren't corpus changes: a script is a rendering of the corpus, like the resume, and every sentence in it rests on a corpus sentence it cites. The build checks each script against the corpus (N1 to N4, contracts/narration.md §2), with the resume's own citation check (C1 to C8, held to the item's ownership verb) and its forbidden list (C9), and writes one eval case per script in `evals/narration/cases/` (N5), which `make evals` runs on the fake adapter.
+The first drafts of the room's narration: one script for each of the resume's fifteen items on each path, thirty files in `apps/web/content/narration/<item-id>.<path>.md` (contracts/narration.md §1). They aren't corpus changes: a script is a rendering of the corpus, like the resume, and every sentence in it rests on a corpus sentence it cites. The build checks each script against the corpus (N1 to N4, contracts/narration.md §2), with the resume's own citation check (C1 to C8, the item's ownership verb setting the bar for the citations) and its forbidden list (C9), and writes one eval case per script in `evals/narration/cases/` (N5), which `make evals` runs on the fake adapter.
 
 The scripts stay drafts until you approve them. Until then, a build without drafts publishes none of their words, and dev's drafts build shows each under a "Draft" label. A script also needs its item published: while the resume itself is a draft, a build without drafts shows no narration at all.
 
@@ -20,18 +20,20 @@ The scripts stay drafts until you approve them. Until then, a build without draf
 
 These are readings for you to decide on; none of them is a corpus change this proposal makes.
 
-- **The voice.** The twin narrates in its own voice about you in the third person ("Hareet designed...", "He led..."), as data-model.md §3 asks. Andra is "Andra, our CEO", the corpus's naming convention, as the resume writes it.
-- **The two depths.** The non-engineer script stays at the "Role at a glance" depth; the engineer script goes into the topic sections. The facts are the same (the spec's User Story 3, scenario 3).
-- **Your ownership verbs, in the corpus's words.** Each script makes its item's claim, so it carries the item's verb, cited from a sentence that says it as a verb. Where the only such sentence is a ruling (`Ownership: *led*`, `Ownership: *built*`, `Ownership: *architected*`), the script says it the same way: "Ownership: led." Smart Task Prioritization and No-Code CHT Configuration say only "AI system architect", with "his pitch and design" kept as a noun phrase.
+- **The voice.** The twin narrates in its own voice about you in the third person ("Hareet designed...", "He localized..."), as data-model.md §3 asks. Andra is "Andra, our CEO", the corpus's naming convention, as the resume writes it.
+- **The two depths.** The non-engineer script stays at the "Role at a glance" depth; the engineer script goes into the topic sections.
+- **Your acts, in the cited sentences' own grammar** (the review of 2026-10-18). A script says an ownership verb where a cited sentence says it as your act ("designed cht-agent", "built agent-watchdog", "sponsored the CHT skills, including cht-pr-review, which others built", "AI system architect", with "his pitch and design" kept a noun phrase). A passive stays passive: "agent-watchdog was built by Hareet and released to production" says who built it, not who released it. Your words are quoted whole: "Buildtime AI in Hareet's words: ..." is the corpus's sentence, start to end. The check now holds these rules (C8's act verbs and `passive made active`).
+- **No ruling annotation read out.** `Ownership: *led*`, `Ownership: *built*`, and `Ownership: *architected*` rule which verb to use; they aren't sentences, and a script neither cites nor says them. For Kenya that leaves "localized", the sentence's own verb: no sentence in the corpus says "led" of that work, so the scripts don't, while the resume's item, "Led the localization...", rests on the ruling. If you want the narration to say "led", a sentence in `02` that says it would let it.
+- **claude-medic-aws** is "designed ... security-first for a non-technical user base", as the resume words it. The corpus's "built security-first" isn't said with you as its subject, since its ruling for you is designed.
+- **The other national deployments** say exactly what `02` tells the twin to say, "involved ... to a lesser extent than in Kenya's", with the slots and nothing beside them; Zanzibar's app, public context, is left out so it can't read as a part.
 - **No numbers.** The check admits a digit only through a filled slot, and these drafts also leave out the counts the corpus spells in words: agent-watchdog "flagged projects with degraded API performance" (the corpus says three), and claude-medic-aws traced it to "a specific EKS node" (one). The years, CHT's version number, and the strategy's "Track 1" and "Track 2" are left out for the same reason; "two tracks" stays, as in the resume.
-- **Thin engineer scripts.** Smart Task Prioritization, No-Code CHT Configuration, CHT's Docker architecture, and the benchmarking have little more on the engineer path than on the other. Their depth in the corpus sits under headings that carry the tag, not on each bullet: the strategy's tracks and categories (`01`, "The strategy"), the Voice for CHT pilot's design (`01`, "Voice for CHT"), and the PowerSync-to-Postgres backend (`02`, "Designing new systems"). The check reads a tag only on the line it covers, as the resume's proposal explains, so a tag on each bullet line would let these scripts go deeper.
+- **Thin engineer scripts.** Smart Task Prioritization, No-Code CHT Configuration, CHT's Docker architecture, the benchmarking, Kenya, and the other deployments have little more on the engineer path than on the other. Their depth in the corpus sits under headings that carry the tag, not on each bullet: the strategy's tracks and categories (`01`, "The strategy"), the Voice for CHT pilot's design (`01`, "Voice for CHT"), and the PowerSync-to-Postgres backend (`02`, "Designing new systems"). The check reads a tag only on the line it covers, as the resume's proposal explains, so a tag on each bullet line would let these scripts go deeper.
 - **"Before Kenya's national-scale deployment"** in `cht-docker-architecture.engineer.md` reads `02`'s "Before that deployment", which follows the Kenya sentence.
-- **`cht-pr-review` isn't named** in the narration (the resume names it). The skills are "sponsored", in the corpus's word.
-- **Until the room's choice screen exists** (Phase 4), the interactive resume shows the non-engineer scripts. The engineer scripts can be read here and in their eval cases.
+- **Until the room's choice screen gives the visitor's path,** the resume would show the non-engineer scripts; with the room, each visitor gets the path they chose. The engineer scripts can also be read here and in their eval cases.
 
 ## The scripts
 
-The verb in parentheses is the item's ownership verb, which both of its scripts must say and cite (C8).
+The verb in parentheses is the item's ownership verb. It sets the bar for its scripts' citations (C4), and a script says it where a cited sentence says it as your act (C8).
 
 ### AI strategy
 
@@ -118,7 +120,7 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Engineer** (`agent-watchdog.engineer.md`):
 
-> Hareet built agent-watchdog and released it to production; it is the newest agent Medic runs. It makes a daily analysis of the CHT projects Medic's hosted CHT Watchdog monitors: it reads metrics through Grafana, computes changes deterministically, and gives a bounded Claude Agent SDK session read-only tools to interpret them; every number, date, and link is verified in code before anything posts. What the agent learns arrives as proposal files for human review, never as changes to its own prompts, skills, or thresholds. It flags and never acts. It is built spec-first, as a staged pipeline that can dry-run without posting or replay stored runs against changed prompts, in a hardened container.
+> agent-watchdog was built by Hareet and released to production; it is the newest agent Medic runs. It makes a daily analysis of the CHT projects Medic's hosted CHT Watchdog monitors: it reads metrics through Grafana, computes changes deterministically, and gives a bounded Claude Agent SDK session read-only tools to interpret them; every number, date, and link is verified in code before anything posts. What the agent learns arrives as proposal files for human review, never as changes to its own prompts, skills, or thresholds. It flags and never acts. It is built spec-first, as a staged pipeline that can dry-run without posting or replay stored runs against changed prompts, in a hardened container.
 
 - `01-ai-strategy-and-cht.md`, `[A 2026-09-27]`: "Built by Hareet and released to production; the newest agent Medic runs"
 - `01-ai-strategy-and-cht.md`, `[C]`: "a daily analysis of the CHT projects"
@@ -133,7 +135,7 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Non-engineer** (`claude-medic-aws.non-engineer.md`):
 
-> Hareet designed claude-medic-aws, Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base. It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect. It is read-only today; one step away from being trusted with production changes.
+> Hareet designed claude-medic-aws, Medic's infrastructure agent and the team's on-call engineer, security-first for a non-technical user base. It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect. It is read-only today; one step away from being trusted with production changes.
 
 - `00-profile.md`, `[A, C]`: "and designed claude-medic-aws, the infrastructure agent"
 - `01-ai-strategy-and-cht.md`, `[A 2026-09-27]`: "Designed by Hareet: Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base"
@@ -142,7 +144,7 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Engineer** (`claude-medic-aws.engineer.md`):
 
-> Hareet designed claude-medic-aws, Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base. It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect. After agent-watchdog posts its brief, claude-medic-aws correlates performance changes with cluster modifications and AWS resource changes and suggests the infrastructure cause. When agent-watchdog flagged projects with degraded API performance, claude-medic-aws correlated the degradation to a specific EKS node and flagged the command to roll it over. It is read-only today; one step away from being trusted with production changes.
+> Hareet designed claude-medic-aws, Medic's infrastructure agent and the team's on-call engineer, security-first for a non-technical user base. It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect. After agent-watchdog posts its brief, claude-medic-aws correlates performance changes with cluster modifications and AWS resource changes and suggests the infrastructure cause. When agent-watchdog flagged projects with degraded API performance, claude-medic-aws correlated the degradation to a specific EKS node and flagged the command to roll it over. It is read-only today; one step away from being trusted with production changes.
 
 - `00-profile.md`, `[A, C]`: "and designed claude-medic-aws, the infrastructure agent"
 - `01-ai-strategy-and-cht.md`, `[A 2026-09-27]`: "Designed by Hareet: Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base"
@@ -225,17 +227,17 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Engineer** (`change-management.engineer.md`):
 
-> Hareet led change management and built internal AI tooling so other senior engineers could see how the workflow was changing. The principle behind it: organizational AI, not individual AI, with shared tools, shared standards, and shared learning; everyone experiments, and the organization learns together. In his words, buildtime AI means taking dreams that would have cost massive engineering time off the shelf, after first building the harnesses and skills that let AI build them reliably, and changing cht-core's development lifecycle by using cht-agent, guided so non-technical users can drive it.
+> Hareet led change management and built internal AI tooling so other senior engineers could see how the workflow was changing. The principle behind it: organizational AI, not individual AI, with shared tools, shared standards, and shared learning; everyone experiments, and the organization learns together. Buildtime AI in Hareet's words: taking dreams that would have cost massive engineering time off the shelf — after first building the harnesses and skills that let AI build them reliably — and changing cht-core's development lifecycle by using cht-agent, guided so non-technical users can drive it.
 
 - `01-ai-strategy-and-cht.md`, `[A 2026-09-14]`: "He led change management and built internal AI tooling so other senior engineers could see how the workflow was changing"
 - `01-ai-strategy-and-cht.md`, `[A-DOC strategy]`: "The principle behind it: organizational AI, not individual AI — shared tools, shared standards, shared learning; everyone experiments, and the organization learns together"
-- `01-ai-strategy-and-cht.md`, `[A 2026-09-14]`: "taking dreams that would have cost massive engineering time off the shelf — after first building the harnesses and skills that let AI build them reliably — and changing cht-core's development lifecycle by using cht-agent, guided so non-technical users can drive it"
+- `01-ai-strategy-and-cht.md`, `[A 2026-09-14]`: "Buildtime AI in Hareet's words: taking dreams that would have cost massive engineering time off the shelf — after first building the harnesses and skills that let AI build them reliably — and changing cht-core's development lifecycle by using cht-agent, guided so non-technical users can drive it"
 
 #### cht-skills (sponsored)
 
 **Non-engineer** (`cht-skills.non-engineer.md`):
 
-> Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace. It installs CHT skills, the CHT Docs MCP, slash commands, and validation hooks, and it is the strategy's shared layer of CHT AI tools.
+> Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace, including cht-pr-review, which others built. It installs CHT skills, the CHT Docs MCP, slash commands, and validation hooks, and it is the strategy's shared layer of CHT AI tools.
 
 - `01-ai-strategy-and-cht.md`, `[A 2026-09-27]`: "and sponsored the CHT skills, including `cht-pr-review`, which others built"
 - `01-ai-strategy-and-cht.md`, `[C]`: "github.com/medic/cht-ai-tools is a public Claude Code plugin marketplace"
@@ -244,7 +246,7 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Engineer** (`cht-skills.engineer.md`):
 
-> Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace, with OpenCode supported. It installs CHT skills, among them cht-specialist, create-cht-task, and create-cht-target, along with the CHT Docs MCP, slash commands, and validation hooks; it is the strategy's shared layer of CHT AI tools. Inside it, Hareet built agent-watchdog and the Docs MCP it packages, and sponsored the CHT skills.
+> Hareet sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace, with OpenCode supported: among them cht-specialist, create-cht-task, create-cht-target, and cht-pr-review, which others built. It installs those skills, the CHT Docs MCP, slash commands, and validation hooks; it is the strategy's shared layer of CHT AI tools. Inside it, Hareet built agent-watchdog and the Docs MCP it packages.
 
 - `01-ai-strategy-and-cht.md`, `[A 2026-09-27]`: "Inside it, Hareet built agent-watchdog and the Docs MCP it packages, and sponsored the CHT skills, including `cht-pr-review`, which others built"
 - `01-ai-strategy-and-cht.md`, `[C]`: "is a public Claude Code plugin marketplace (OpenCode supported) that installs CHT skills — `cht-specialist`, `create-cht-task`, `create-cht-target`, `cht-pr-review` — the CHT Docs MCP, slash commands, and validation hooks"
@@ -260,10 +262,10 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Engineer** (`cht-codebase.engineer.md`):
 
-> Hareet still produces, maintains, and contributes to the main CHT codebase, and is changing it so agentic best practices can take root. In his words, buildtime AI means changing cht-core's development lifecycle by using cht-agent, guided so non-technical users can drive it. cht-agent is being used on the datasource migration to Postgres.
+> Hareet still produces, maintains, and contributes to the main CHT codebase, and is changing it so agentic best practices can take root. Buildtime AI in Hareet's words: taking dreams that would have cost massive engineering time off the shelf — after first building the harnesses and skills that let AI build them reliably — and changing cht-core's development lifecycle by using cht-agent, guided so non-technical users can drive it. cht-agent is being used on the datasource migration to Postgres.
 
 - `01-ai-strategy-and-cht.md`, `[A-CHAT]`: "He still produces, maintains, and contributes to the main CHT codebase, and is changing it so agentic best practices can take root"
-- `01-ai-strategy-and-cht.md`, `[A 2026-09-14]`: "and changing cht-core's development lifecycle by using cht-agent, guided so non-technical users can drive it"
+- `01-ai-strategy-and-cht.md`, `[A 2026-09-14]`: "Buildtime AI in Hareet's words: taking dreams that would have cost massive engineering time off the shelf — after first building the harnesses and skills that let AI build them reliably — and changing cht-core's development lifecycle by using cht-agent, guided so non-technical users can drive it"
 - `01-ai-strategy-and-cht.md`, `[A 2026-09-14]`: "It is being used on the datasource migration to Postgres"
 
 ### Before AI: production infrastructure at national scale
@@ -272,20 +274,18 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Non-engineer** (`kenya-localization.non-engineer.md`):
 
-> Before AI, Hareet was a site reliability engineer. He localized CHT for Kenya's national deployment by training the Ministry of Health in DevOps practices.{{slot:echis_ke.moh_engineers_trained}} Ownership: led. He was part of a human-centered software team; Kenya's Ministry of Health owned the workflows and product decisions.
+> Before AI, Hareet was a site reliability engineer. He localized CHT for Kenya's national deployment by training the Ministry of Health in DevOps practices.{{slot:echis_ke.moh_engineers_trained}} He was part of a human-centered software team; Kenya's Ministry of Health owned the workflows and product decisions.
 
 - `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "Before AI, Hareet was a site reliability engineer who localized CHT for Kenya's national-scale deployment"
 - `00-profile.md`, `[A 2026-09-27]`: "a site reliability engineer who localized CHT for Kenya's national deployment by training the Ministry of Health in DevOps practices"
-- `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "Ownership: *led*"
 - `00-profile.md`, `[A 2026-09-07]`: "Medic: part of a human-centered software team building CHT for CHWs; Kenya's Ministry of Health owned the workflows and product decisions"
 - Slots, unfilled today: `echis_ke.moh_engineers_trained`
 
 **Engineer** (`kenya-localization.engineer.md`):
 
-> Before AI, Hareet was a site reliability engineer who localized CHT for Kenya's national-scale deployment by building capacity: training the Ministry of Health in DevOps practices.{{slot:echis_ke.moh_engineers_trained}} Ownership: led. {{slot:echis_ke.deployment_start}} Throughout, he was part of a human-centered software team; the Ministry owned the workflows and product decisions.
+> Before AI, Hareet was a site reliability engineer who localized CHT for Kenya's national-scale deployment by building capacity: training the Ministry of Health in DevOps practices.{{slot:echis_ke.moh_engineers_trained}} {{slot:echis_ke.deployment_start}} Throughout, he was part of a human-centered software team; the Ministry owned the workflows and product decisions.
 
 - `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "Before AI, Hareet was a site reliability engineer who localized CHT for Kenya's national-scale deployment by building capacity — training the Ministry of Health in DevOps practices"
-- `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "Ownership: *led*"
 - `02-production-infrastructure-national-scale.md`, `[A 2026-09-03/07]`: "Throughout, he was part of a human-centered software team; the Ministry owned the workflows and product decisions"
 - Slots, unfilled today: `echis_ke.moh_engineers_trained`, `echis_ke.deployment_start`
 
@@ -301,28 +301,25 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Engineer** (`cht-docker-architecture.engineer.md`):
 
-> Before Kenya's national-scale deployment, Hareet prepared CHT for ease of deployment: he architected the move from a monolith to Docker-based services, with blue-green deployments and one-click, zero-downtime upgrades. Ownership: architected. {{slot:cht4.release}}
+> Before Kenya's national-scale deployment, Hareet prepared CHT for ease of deployment: he architected the move from a monolith to Docker-based services, with blue-green deployments and one-click, zero-downtime upgrades. {{slot:cht4.release}}
 
 - `02-production-infrastructure-national-scale.md`, `[A 2026-09-27, C]`: "Before that deployment, he prepared CHT for version 4.0 and ease of deployment: he architected the move from a monolith to Docker-based services, with blue-green deployments and one-click, zero-downtime upgrades"
-- `02-production-infrastructure-national-scale.md`, `[A 2026-09-27, C]`: "Ownership: *architected*"
 - Slots, unfilled today: `cht4.release`
 
 #### national-benchmarking (built)
 
 **Non-engineer** (`national-benchmarking.non-engineer.md`):
 
-> Hareet built the benchmarking behind the national hardware procurement for the Ministry's national-scale deployment. Ownership: built.
+> Hareet built the benchmarking behind the national hardware procurement for the Ministry's national-scale deployment.
 
 - `00-profile.md`, `[A 2026-09-27]`: "and built the benchmarking behind the national hardware procurement"
 - `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment"
-- `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "Ownership: *built*"
 
 **Engineer** (`national-benchmarking.engineer.md`):
 
-> Hareet built the application's performance measurement, database benchmarking, and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment. Ownership: built. That was the benchmarking behind the national hardware procurement.
+> Hareet built the application's performance measurement, database benchmarking, and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment. That was the benchmarking behind the national hardware procurement.
 
 - `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "he built the application's performance measurement — database benchmarking — and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment"
-- `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "Ownership: *built*"
 - `00-profile.md`, `[A 2026-09-27]`: "and built the benchmarking behind the national hardware procurement"
 
 #### other-deployments (no verb)
@@ -336,11 +333,10 @@ The verb in parentheses is the item's ownership verb, which both of its scripts 
 
 **Engineer** (`other-deployments.engineer.md`):
 
-> Hareet was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's.{{slot:echis_ug.involvement}}{{slot:moh_mali.involvement}}{{slot:moh_zanzibar.involvement}} Throughout, he was part of a human-centered software team. Zanzibar's national app is Jamii ni Afya.
+> Hareet was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's.{{slot:echis_ug.involvement}}{{slot:moh_mali.involvement}}{{slot:moh_zanzibar.involvement}} Throughout, he was part of a human-centered software team.
 
 - `02-production-infrastructure-national-scale.md`, `[A 2026-09-27]`: "He was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's"
 - `02-production-infrastructure-national-scale.md`, `[A 2026-09-03/07]`: "Throughout, he was part of a human-centered software team"
-- `02-production-infrastructure-national-scale.md`, `[P]`: "Zanzibar's national app is Jamii ni Afya"
 - Slots, unfilled today: `echis_ug.involvement`, `moh_mali.involvement`, `moh_zanzibar.involvement`
 
 ## Facts slots

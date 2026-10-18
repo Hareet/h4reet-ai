@@ -5,10 +5,10 @@
 id: narration-agent-watchdog-engineer
 description: "The room's narration of the resume item agent-watchdog on the engineer path, as the visitor reads it."
 prompt: "Narrate the resume item agent-watchdog for a visitor on the engineer path."
-fake_response: "Hareet built agent-watchdog and released it to production; it is the newest agent Medic runs. It makes a daily analysis of the CHT projects Medic's hosted CHT Watchdog monitors: it reads metrics through Grafana, computes changes deterministically, and gives a bounded Claude Agent SDK session read-only tools to interpret them; every number, date, and link is verified in code before anything posts. What the agent learns arrives as proposal files for human review, never as changes to its own prompts, skills, or thresholds. It flags and never acts. It is built spec-first, as a staged pipeline that can dry-run without posting or replay stored runs against changed prompts, in a hardened container."
+fake_response: "agent-watchdog was built by Hareet and released to production; it is the newest agent Medic runs. It makes a daily analysis of the CHT projects Medic's hosted CHT Watchdog monitors: it reads metrics through Grafana, computes changes deterministically, and gives a bounded Claude Agent SDK session read-only tools to interpret them; every number, date, and link is verified in code before anything posts. What the agent learns arrives as proposal files for human review, never as changes to its own prompts, skills, or thresholds. It flags and never acts. It is built spec-first, as a staged pipeline that can dry-run without posting or replay stored runs against changed prompts, in a hardened container."
 expect:
   contains:
-    - "the newest agent Medic runs"
+    - "built by Hareet and released to production"
     - "a daily analysis of the CHT projects"
     - "it reads metrics through Grafana, computes changes deterministically, and gives a bounded Claude Agent SDK session read-only tools to interpret them; every number, date, and link is verified in code before anything posts"
     - "What the agent learns arrives as proposal files for human review, never as changes to its own prompts, skills, or thresholds"
