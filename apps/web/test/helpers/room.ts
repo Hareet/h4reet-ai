@@ -256,9 +256,12 @@ export function roomContent(): RoomContent {
   return { messages: readMessages(join(WEB, "content/messages.yaml")), manifest: buildManifest(REPO) };
 }
 
+/** A jsdom window, with its event constructors (Event, KeyboardEvent, PointerEvent) typed. */
+export type TestWindow = Window & typeof globalThis;
+
 export interface Visit {
   dom: JSDOM;
-  win: Window;
+  win: TestWindow;
   doc: Document;
   clock: FakeClock;
   events: RoomEvent[];
@@ -270,7 +273,7 @@ export interface Visit {
 /** Opens the page: the room starts on its window, with every spy in place first. */
 export function start(options: WindowOptions & { sceneFails?: boolean } = {}): Visit {
   const dom = makeWindow(options);
-  const win = dom.window as unknown as Window;
+  const win = dom.window as unknown as TestWindow;
   const spies = spyOnEverything(win);
   const clock = new FakeClock();
   const events: RoomEvent[] = [];

@@ -46,7 +46,8 @@ function imports(code: string): { statics: string[]; dynamics: string[] } {
   const statics = [...code.matchAll(/(?:^|[;\s}])import\s*(?:[\w*{}\s,$]+?from\s*)?["']\.\/([^"']+\.js)["']/g)].map(
     (m) => m[1] ?? "",
   );
-  const dynamics = [...code.matchAll(/import\(\s*["']\.\/([^"']+\.js)["']\s*\)/g)].map((m) => m[1] ?? "");
+  // Rolldown writes a dynamic import's specifier as a template literal.
+  const dynamics = [...code.matchAll(/import\(\s*["'`]\.\/([^"'`]+\.js)["'`]\s*\)/g)].map((m) => m[1] ?? "");
   return { statics, dynamics };
 }
 

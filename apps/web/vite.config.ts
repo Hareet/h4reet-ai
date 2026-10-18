@@ -25,6 +25,8 @@ export default defineConfig({
     // No inline script: the image's CSP is script-src 'self' (contracts/web-serving.md §3).
     modulePreload: { polyfill: false },
     assetsInlineLimit: 0,
+    // The 3D chunk is Three.js, about 580 KB (150 KB compressed), loaded behind the choice screen (spec 002, T041).
+    chunkSizeWarningLimit: 640,
   },
   plugins: [
     disclosurePage({ source: here("../../docs/data-flow-disclosure.md") }),

@@ -11,6 +11,7 @@ import { renderFlat } from "../../src/room/flat";
 import { ROOM_OBJECTS, bindPointerSelection } from "../../src/room/objects";
 import type { ObjectId } from "../../src/room/objects";
 import { buildWorkArea, createPicker, fitCamera } from "../../src/room/scene";
+import type { TestWindow } from "../helpers/room";
 
 const WIDTH = 300;
 const HEIGHT = 200;
@@ -32,8 +33,8 @@ function centerNdc(object: Object3D, camera: PerspectiveCamera): { x: number; y:
   return { x: c.x, y: c.y };
 }
 
-function surface(): { doc: Document; win: Window; canvas: HTMLCanvasElement } {
-  const win = new JSDOM("<main></main>", { pretendToBeVisual: true }).window as unknown as Window;
+function surface(): { doc: Document; win: TestWindow; canvas: HTMLCanvasElement } {
+  const win = new JSDOM("<main></main>", { pretendToBeVisual: true }).window as unknown as TestWindow;
   const doc = win.document;
   const canvas = doc.createElement("canvas");
   doc.body.append(canvas);
@@ -42,7 +43,7 @@ function surface(): { doc: Document; win: Window; canvas: HTMLCanvasElement } {
   return { doc, win, canvas };
 }
 
-function tap(win: Window, el: Element, ndc: { x: number; y: number }, pointerType: string, drag = 0): void {
+function tap(win: TestWindow, el: Element, ndc: { x: number; y: number }, pointerType: string, drag = 0): void {
   const clientX = ((ndc.x + 1) / 2) * WIDTH;
   const clientY = ((1 - ndc.y) / 2) * HEIGHT;
   const init = { bubbles: true, pointerType, clientX, clientY, button: 0 };

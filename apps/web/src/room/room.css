@@ -103,8 +103,9 @@ body.in-room .disclosure p {
 .room-stage-view {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .room-canvas {

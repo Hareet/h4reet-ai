@@ -53,7 +53,7 @@ describe("the objects", () => {
 
 describe("the text box", () => {
   it("answers cannot_talk.unavailable, ending with the resume and the PDF, and sends turn_sent", async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await intoRoom(v);
     textBox(v).value = "What did the Author build?";
     button(v.doc, "Send").click();
@@ -90,7 +90,7 @@ describe("the text box", () => {
   });
 
   it("ignores an empty send", async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await intoRoom(v);
     textBox(v).value = "   ";
     button(v.doc, "Send").click();

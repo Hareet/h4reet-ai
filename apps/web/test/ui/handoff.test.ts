@@ -123,7 +123,7 @@ describe("after the hand-off", () => {
   });
 
   it('opens the interactive resume on "Read the resume now", and Escape returns focus to "Resume"', async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await enter(v);
     v.clock.advance(5000);
     button(v.doc, "Read the resume now").click();
@@ -138,7 +138,7 @@ describe("after the hand-off", () => {
   });
 
   it('keeps "Resume" one action away for the rest of the visit after "Keep it for later"', async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await enter(v);
     v.clock.advance(5000);
     button(v.doc, "Keep it for later").click();

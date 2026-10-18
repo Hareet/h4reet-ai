@@ -347,19 +347,16 @@ export function buildWorkArea(options: { avatar: AvatarId; label?: LabelFactory 
   parts.paper = paper;
   scene.add(paper, kept);
 
-  // The labels, each saying it's a placeholder (R-11).
+  // The labels, each saying it's a placeholder (R-11). On screen they keep one size wherever the camera stands, so the
+  // laptop's and the screen's sit on their faces, and the window's view's below it, clear of their neighbours.
   const lift = LABEL_LIFT;
-  parts.desk.add(labelAt(label, "Desk (placeholder)", [LAYOUT.desk.center[0] + 0.45, topOf(LAYOUT.desk) + 0.05, -1.1]));
-  parts.laptop.add(
-    labelAt(label, "Laptop (placeholder)", [LAYOUT.laptop.center[0], topOf(LAYOUT.laptop) + lift, -1.3]),
-  );
-  parts.screen.add(
-    labelAt(label, "Screen (placeholder)", [LAYOUT.screen.center[0], topOf(LAYOUT.screen) + lift, -1.6]),
-  );
+  parts.desk.add(labelAt(label, "Desk (placeholder)", [LAYOUT.desk.center[0] + 0.45, 0.45, -1.05]));
+  parts.laptop.add(labelAt(label, "Laptop (placeholder)", [LAYOUT.laptop.center[0], 0.98, -1.2]));
+  parts.screen.add(labelAt(label, "Screen (placeholder)", [LAYOUT.screen.center[0], 1.09, -1.55]));
   parts.snowboard.add(labelAt(label, "Snowboard (placeholder)", [-2.3, topOf(LAYOUT.snowboard) + lift, -1.9]));
   parts.bicycle.add(labelAt(label, "Bicycle (placeholder)", [2.25, topOf(LAYOUT.bicycle) + lift, -1.85]));
-  parts.window.add(labelAt(label, "Window (placeholder)", [0.25, LAYOUT.window.center[1] + 0.25, -1.9]));
-  parts.view.add(labelAt(label, "View: a fence and a tree (placeholder)", [0.95, 1.4, -1.9]));
+  parts.window.add(labelAt(label, "Window (placeholder)", [0.2, LAYOUT.window.center[1] + 0.15, -1.9]));
+  parts.view.add(labelAt(label, "Fence and tree (placeholder)", [0.95, 1.4, -1.9]));
   parts.artwork.add(labelAt(label, "Artwork (placeholder)", [0.95, topOf(LAYOUT.artwork) + lift, -1.9]));
   parts.twin.add(labelAt(label, "The twin (placeholder)", [0, 1.75 + lift, 0]));
   parts.visitor.add(
@@ -441,28 +438,42 @@ export function qualitySettings(level: number): QualitySettings {
   return LEVELS[Math.min(LEVELS.length - 1, Math.max(0, Math.round(level)))] as QualitySettings;
 }
 
-/** Labels drawn on a 2D canvas and shown as sprites of a fixed size on screen, readable at any camera distance. */
+/**
+ * Labels drawn on a 2D canvas, the name above "placeholder", and shown as sprites of one size on screen, readable
+ * at any camera distance. The node keeps the whole text as its name.
+ */
 function spriteLabels(doc: Document, scale: () => number): LabelFactory {
   return (text) => {
     const node = namedLabel(text);
     const canvas = doc.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) return node;
+    const placeholder = text.endsWith(" (placeholder)");
+    const lines = placeholder ? [text.slice(0, -" (placeholder)".length), "placeholder"] : [text];
     const px = Math.round(28 * scale());
-    const font = `600 ${px}px system-ui, sans-serif`;
-    ctx.font = font;
-    canvas.width = Math.ceil(ctx.measureText(text).width) + px;
-    canvas.height = Math.round(px * 1.5);
-    ctx.font = font;
+    const fonts = [`600 ${px}px system-ui, sans-serif`, `400 ${Math.round(px * 0.75)}px system-ui, sans-serif`];
+    const width = Math.max(
+      ...lines.map((line, i) => {
+        ctx.font = fonts[i] ?? fonts[0] ?? "";
+        return ctx.measureText(line).width;
+      }),
+    );
+    const lineHeight = Math.round(px * 1.25);
+    canvas.width = Math.ceil(width) + px;
+    canvas.height = lineHeight * lines.length + Math.round(px / 2);
     ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#1a1a1a";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, px / 2, canvas.height / 2);
+    ctx.textBaseline = "top";
+    lines.forEach((line, i) => {
+      ctx.font = fonts[i] ?? fonts[0] ?? "";
+      ctx.fillStyle = i === 0 ? "#1a1a1a" : "#3a3a3a";
+      ctx.fillText(line, px / 2, Math.round(px / 4) + i * lineHeight);
+    });
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
     const sprite = new Sprite(new SpriteMaterial({ map: texture, depthTest: false, sizeAttenuation: false }));
-    const height = 0.045;
+    // About 4% of the view's height a line.
+    const height = 0.033 * lines.length;
     sprite.scale.set((height * canvas.width) / canvas.height, height, 1);
     sprite.renderOrder = 10;
     node.add(sprite);

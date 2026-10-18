@@ -47,8 +47,8 @@ function targetSize(el: Element, all: CssRule[]): { width: number; height: numbe
   let height = 0;
   for (const rule of all) {
     if (!matchesRule(el, rule.selector)) continue;
-    width = Math.max(width, px(rule.declarations.get("min-width")), px(rule.declarations.get("width")) || 0);
-    height = Math.max(height, px(rule.declarations.get("min-height")), px(rule.declarations.get("height")) || 0);
+    width = Math.max(width, px(rule.declarations.get("min-width")) || 0, px(rule.declarations.get("width")) || 0);
+    height = Math.max(height, px(rule.declarations.get("min-height")) || 0, px(rule.declarations.get("height")) || 0);
   }
   return { width, height };
 }

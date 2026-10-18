@@ -159,21 +159,22 @@ describe("the WebGL 2 check", () => {
 describe("a lost context", () => {
   it("gets one restore: restored in time, the room stays; lost again, or not restored, it goes to 2D", () => {
     const clock = new FakeClock();
-    const canvas = new JSDOM("<canvas></canvas>").window.document.querySelector("canvas") as unknown as EventTarget;
-    const lost = (): Event => new Event("webglcontextlost", { cancelable: true });
+    const win = new JSDOM("<canvas></canvas><canvas></canvas>").window;
+    const [canvas, other] = [...win.document.querySelectorAll("canvas")] as unknown as EventTarget[];
+    if (!canvas || !other) throw new Error("no canvases");
+    const lost = (): Event => new win.Event("webglcontextlost", { cancelable: true });
     let failed = 0;
     watchContext(canvas, clock, () => (failed += 1));
     const first = lost();
     canvas.dispatchEvent(first);
     expect(first.defaultPrevented).toBe(true);
     clock.advance(1000);
-    canvas.dispatchEvent(new Event("webglcontextrestored"));
+    canvas.dispatchEvent(new win.Event("webglcontextrestored"));
     clock.advance(10_000);
     expect(failed).toBe(0);
     canvas.dispatchEvent(lost());
     expect(failed).toBe(1);
 
-    const other = new JSDOM("<canvas></canvas>").window.document.querySelector("canvas") as unknown as EventTarget;
     let otherFailed = 0;
     watchContext(other, clock, () => (otherFailed += 1));
     other.dispatchEvent(lost());
