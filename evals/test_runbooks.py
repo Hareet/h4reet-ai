@@ -248,11 +248,34 @@ def plan_runbooks() -> list[str]:
     return names
 
 
+SPEC_003_PLAN = REPO / "specs" / "003-studio-assets" / "plan.md"
+
+
+def spec_003_runbooks() -> set[str]:
+    """The pages spec 003's plan §8 lists in its "Runbooks" bullet, each written by the task group that needs it."""
+    text = SPEC_003_PLAN.read_text(encoding="utf-8")
+    start = text.index("\n## 8. ")
+    section = text[start : text.index("\n## 9. ", start)]
+    (line,) = [ln for ln in section.splitlines() if ln.startswith("- **Runbooks:**")]
+    return set(re.findall(r"`([a-z0-9-]+\.md)`", line))
+
+
 def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
     names = plan_runbooks()
     assert len(names) == 16  # not vacuous: the list parses
     assert sorted(names) == sorted(PLAN_PAGES)
-    assert sorted(p.name for p in pages()) == sorted(PLAN_PAGES.values())
+    # Spec 003 adds its own pages, each with its task group (asset-withdrawal.md in Phase 2, studio-gpu-window.md in
+    # Phase 4); nothing else may be there.
+    later = spec_003_runbooks()
+    assert later == {
+        "asset-withdrawal.md",
+        "studio-gpu-window.md",
+    }  # not vacuous: spec 003's list parses
+    found = {p.name for p in pages()}
+    assert set(PLAN_PAGES.values()) <= found
+    assert found - set(PLAN_PAGES.values()) <= later, (
+        found - set(PLAN_PAGES.values()) - later
+    )
 
 
 def index_line(page: str) -> str:
