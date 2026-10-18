@@ -775,7 +775,9 @@ edit allow 'evals/product/run.py'
 # denyWrite, and an Edit(...) deny. Until it's applied (no list in this checkout), these rows are PLANNED: reported, not
 # failing. Once it is, they must hold, and a folder whose line still holds its <STUDIO_…> placeholder fails, naming the
 # placeholder (research R-07), so the patch can't be applied half-filled unnoticed. Stage S reads each folder from
-# inside the sandbox, below. No row prints a folder's path: the matrix's output goes into merge-request notes.
+# inside the sandbox, below. No row prints a folder's path: the matrix's output goes into merge-request notes. The paths
+# themselves are published with the two files they're in, so a path under a Windows user's folder, /mnt/<drive>/Users/,
+# fails too: it would publish the account's name, and spec 000 already denies /mnt/c/Users whole.
 studio_list="$repo/tools/gates/studio-folders.txt"
 if [ -e "$studio_list" ]; then guard_expect=block; else guard_expect=planned; fi
 studio_folders=(photos:STUDIO_PHOTOS outputs:STUDIO_OUTPUTS workflows:STUDIO_WORKFLOWS blinding-key:STUDIO_BLINDING_KEY)
@@ -792,7 +794,11 @@ studio_problem() {
   case "$sp" in
     '' | "$1") echo "tools/gates/studio-folders.txt has no path for it" ;;
     *'<STUDIO_'*) echo "placeholder not filled: <$2> (the Author writes the folder's path in its place, in .claude/settings.json and tools/gates/studio-folders.txt)" ;;
-    /*) ;;
+    /*)
+      if [[ ${sp,,} =~ ^/mnt/[a-z]/users(/|$) ]]; then
+        echo "its path is under a Windows user's folder, which would publish the account's name with the two files, and spec 000 already denies /mnt/c/Users: use a neutral folder, such as /mnt/c/studio/$1"
+      fi
+      ;;
     *) echo "its path in tools/gates/studio-folders.txt isn't absolute" ;;
   esac
 }
@@ -1068,7 +1074,9 @@ PY
   s_unreadable '/mnt/c/Users' /mnt/c/Users
   # Spec 003's studio folders (FR-003; research R-07), from tools/gates/studio-folders.txt, which the guard patch adds
   # (stage H's block above): PLANNED until it's there, and a FAIL naming the placeholder while a line still holds one.
-  # A path with nothing at it passes, since there is nothing to read, with a NOTE: a mistyped path looks the same.
+  # A path with nothing at it fails: there would be nothing to read, but a mistyped path looks the same, and the deny
+  # would guard nothing. The Author makes the folders before applying the patch. Inside the sandbox a denied folder
+  # that exists is still there, emptied, so only a path with nothing behind it on the host meets this.
   for entry in "${studio_folders[@]}"; do
     sname="${entry%%:*}"
     rid "S/unreadable/the studio's $sname folder"
@@ -1082,11 +1090,11 @@ PY
     if [ -n "$why" ]; then
       fail=$((fail + 1))
       printf "FAIL        %-21s the studio's %s folder: %s\n" stage-S-unreadable "$sname" "$why"
+    elif [ ! -e "$sp" ] && [ ! -L "$sp" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: nothing at its path from inside the sandbox: make the folder, or correct the path in .claude/settings.json and tools/gates/studio-folders.txt\n" stage-S-unreadable "$sname"
     elif reads_blocked "$sp"; then
       pass=$((pass + 1))
-      if [ ! -e "$sp" ]; then
-        printf "NOTE        %-21s the studio's %s folder: nothing at its path from inside the sandbox (check the path in tools/gates/studio-folders.txt)\n" stage-S-unreadable "$sname"
-      fi
     else
       fail=$((fail + 1))
       printf "FAIL        %-21s the studio's %s folder: its contents are readable from inside the sandbox\n" stage-S-unreadable "$sname"
