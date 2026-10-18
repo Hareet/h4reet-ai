@@ -4,7 +4,7 @@ FR-037).
 The expected panels and their exact queries are read from the contract's own tables, so a query changes in the
 contract first and here never. Each of §7's sections is all or nothing, and every one must be whole: US1's three
 (§7.3 requests, §7.4 the model server, §7.6 telemetry health), US2's three (§7.1 state, §7.2 spend, §7.5 audit and
-alerts), and US3's dev-time row (§7.7, tasks.md T094).
+alerts), US3's dev-time row (§7.7, tasks.md T094), and spec 002's room row (§7.8, its tasks.md T061).
 
 How a row of the contract becomes panels:
   - a type that names two visualizations, "time series and stat" or "stat, and a state timeline", is two panels
@@ -35,8 +35,9 @@ DASHBOARD = json.loads(
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
 US3 = ("7.7",)
-REQUIRED = US1 + US2 + US3
-SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7")
+ROOM = ("7.8",)  # spec 002's usage events (contracts/room-events.md §4)
+REQUIRED = US1 + US2 + US3 + ROOM
+SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "7.8")
 DATASOURCES = {
     "prom": "prometheus",
     "loki": "loki",
@@ -306,7 +307,8 @@ def dev_time_row() -> str:
 
 
 # Each row's title and its section of §7, in §7's order: the state and spend first, next to the requests' latency and
-# errors (Principle V), and the dev-time row last, apart from the production meter (FR-037).
+# errors (Principle V), the room's use after the stack's own rows, and the dev-time row last, apart from the production
+# meter (FR-037).
 ROWS = {
     "State": "7.1",
     "Spend": "7.2",
@@ -314,6 +316,7 @@ ROWS = {
     "Model server": "7.4",
     "Audit and alerts": "7.5",
     "Telemetry health": "7.6",
+    "Room": "7.8",
     dev_time_row(): "7.7",
 }
 
@@ -517,3 +520,73 @@ def test_the_dashboards_folder_is_documented() -> None:
         "(state timeline)" in readme
     )  # how a two-visualization row becomes two panels
     assert "§7.7" in readme  # US3's dev-time row is required too
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 002's room (telemetry.md §7.8; contracts/room-events.md §4; its tasks.md T061)
+# --------------------------------------------------------------------------------------------------
+
+ROOM_SERIES = {"h4_room_events_total", "h4_room_events_refused_total"}
+
+
+def test_the_room_row_is_whole_and_sits_above_the_dev_time_row() -> None:
+    expected = contract_panels("7.8")
+    assert list(expected) == [
+        "Use per object per day",
+        "Use per item per day",
+        "PDF downloads per day",
+        "Visits shown the 2D mode",
+        "Turns sent and talk presses",
+        "Events refused",
+    ]
+    rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
+    assert rows.index("Room") == rows.index(dev_time_row()) - 1
+
+
+def test_the_room_row_reads_only_the_events_counters_by_their_own_labels() -> None:
+    # FR-054: the counters carry the kind and the ID, or a refusal's reason, and nothing about the visitor, so no panel
+    # can split them by anything else: every grouping and matcher is one of those labels.
+    for title in contract_panels("7.8"):
+        for expr in queries(by_title()[title]):
+            names = set(re.findall(r"\bh4_[a-z_]+\b", expr))
+            assert names and names <= ROOM_SERIES, (title, names)
+            for group in re.findall(r"\bby\s*\(([^)]*)\)", expr):
+                assert {g.strip() for g in group.split(",")} <= {
+                    "id",
+                    "kind",
+                    "reason",
+                }, title
+            for label in re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:=~|!~|!=|=)", expr):
+                assert label == "kind", (title, label)
+
+
+@pytest.mark.parametrize("title", ["Use per object per day", "Use per item per day"])
+def test_the_rooms_use_reads_the_last_day_at_the_ranges_end(title: str) -> None:
+    # One bar per object or item: an instant query over the 24 hours before the range's end, named by its ID.
+    panel = by_title()[title]
+    (target,) = panel["targets"]
+    assert target["instant"] is True and target["range"] is False, title
+    assert "[1d]" in target["expr"], title
+    assert target["legendFormat"] == "{{id}}", title
+    assert "24 hours" in panel["description"], title
+
+
+def test_pdf_downloads_read_per_day() -> None:
+    panel = by_title()["PDF downloads per day"]
+    assert panel["options"]["reduceOptions"]["calcs"] == ["lastNotNull"]
+    assert "24 hours" in panel["description"]
+
+
+def test_the_2d_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
+    panel = by_title()["Visits shown the 2D mode"]
+    assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
+    for words in ("resume_opened", "resume_kept", "stand-in"):
+        assert words in panel["description"], words
+
+
+def test_refused_events_read_by_their_reason() -> None:
+    panel = by_title()["Events refused"]
+    (target,) = panel["targets"]
+    assert target["legendFormat"] == "{{reason}}"
+    for reason in ("content_type", "shape", "kind", "id"):
+        assert reason in panel["description"], reason

@@ -182,3 +182,20 @@ describe("the built resume.pdf (FR-018)", () => {
     }
   });
 });
+
+describe("the built scripts (T060)", () => {
+  it("send the usage events' beacon to the site's own /api/room/events, so the page's entry wires it in", () => {
+    const scripts: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith(".js")) scripts.push(readFileSync(path, "utf8"));
+      }
+    };
+    walk(out);
+    const beacon = scripts.filter((s) => s.includes("/api/room/events"));
+    expect(beacon).toHaveLength(1);
+    expect(beacon[0]).toContain("sendBeacon");
+  });
+});
