@@ -1,6 +1,6 @@
 # Runbooks
 
-One page for each alert, degraded cause, and operator action of spec 000's stack, one each for the agents' engine and the local gate (plan §16), and spec 003's for the studio's assets. Every page has the same six sections: Symptoms · Impact · Act, with the make targets · Verify · Undo · Record.
+One page for each alert, degraded cause, and operator action of spec 000's stack, one each for the agents' engine and the local gate (plan §16), and spec 003's for the studio's GPU window and its assets. Every page has the same six sections: Symptoms · Impact · Act, with the make targets · Verify · Undo · Record.
 
 How to find yours:
 - **An alert** names its page on its last line, `Runbook: docs/runbooks/<page>.md` ([contracts/alerts.md §3](../../specs/000-local-foundations/contracts/alerts.md#3-message-format)).
@@ -41,6 +41,12 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 | [alert-channel-down.md](alert-channel-down.md) | failed deliveries on the dashboard's alert panel: Telegram, email, or both can't deliver |
 | [operator-auth-failures.md](operator-auth-failures.md) | the `auth_failed` alert: calls to the admin listener with a missing, malformed, or wrong token |
 | [rollback.md](rollback.md) | a new commit misbehaving on prod or dev: back to the previous one, in one command |
+
+## The studio's GPU window (spec 003)
+
+| Runbook | Use it for |
+|---|---|
+| [studio-gpu-window.md](studio-gpu-window.md) | handing prod's GPU to a studio job and taking it back (spec 003 FR-035): `make studio-window`; the `operator_action` alert for a `studio_window` |
 
 ## Development: the agents' engine and the local gate
 

@@ -9,8 +9,9 @@
 // third queues one auth_failed alert. While the store is down a failure is only counted and logged.
 //
 // Routes: POST /admin/init (meter/init.ts), POST /admin/reset and /admin/renew (meter/operator.ts), the reads,
-// GET /admin/status, /admin/audit, and /admin/incidents, the live adapter calls (routes/adapters.ts), and the
-// dev-only test machinery (routes/test.ts).
+// GET /admin/status, /admin/audit, and /admin/incidents, the live adapter calls (routes/adapters.ts), the
+// dev-only test machinery (routes/test.ts), and spec 003's POST /admin/studio-window (meter/operator.ts; its
+// contracts/gpu-window.md §1), on prod and dev-cpu.
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -26,10 +27,17 @@ import { rfc3339Seconds } from "../core/router.js";
 import type { TxDeps, TxEffects } from "../meter/crossings.js";
 import { initializeStore, type InitRequest, type Meter, type Operator } from "../meter/init.js";
 import type { Journal } from "../meter/journal.js";
-import { renewFallback, resetKillSwitch, type OperatorDeps, type OperatorResult } from "../meter/operator.js";
+import {
+  renewFallback,
+  resetKillSwitch,
+  studioWindow,
+  type OperatorDeps,
+  type OperatorResult,
+  type StudioWindowState,
+} from "../meter/operator.js";
 import { toBigInt, type MeterRow, type Store } from "../meter/store.js";
 import type { AuthFailureClass, GatewayMetrics } from "../telemetry/metrics.js";
-import { noteErrorType } from "../telemetry/otel.js";
+import { noteErrorType, noteStudioWindowState } from "../telemetry/otel.js";
 import { registerAdapterCalls } from "./adapters.js";
 import { registerTestMachinery } from "./test.js";
 
@@ -283,6 +291,24 @@ function reasonRequestOf(body: unknown): { ok: true; reason: string } | Invalid 
   return reasonOf(b.reason);
 }
 
+/**
+ * The studio window's body (spec 003's contracts/gpu-window.md §1): the state, start or end, and the reason, and nothing
+ * else. The state is checked before the reason, so a refused body with a valid state still names it on the span.
+ */
+export function studioWindowRequestOf(
+  body: unknown,
+): { ok: true; state: StudioWindowState; reason: string } | (Invalid & { state?: StudioWindowState }) {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return invalid("body", "must be a JSON object");
+  const b = body as Record<string, unknown>;
+  if (Object.keys(b).some((k) => k !== "state" && k !== "reason")) {
+    return invalid("body", "the fields are state and reason");
+  }
+  if (b.state !== "start" && b.state !== "end") return invalid("state", "start or end");
+  const state = b.state;
+  const reason = reasonOf(b.reason);
+  return reason.ok ? { ok: true, state, reason: reason.reason } : { ...reason, state };
+}
+
 export function isJson(contentType: string | undefined): boolean {
   return (contentType ?? "").split(";")[0]?.trim().toLowerCase() === "application/json";
 }
@@ -314,6 +340,7 @@ const AUDIT_ACTIONS = new Set([
   "test_synthetic",
   "adapter_call",
   "journal_failed",
+  "studio_window", // spec 003 (its contracts/gpu-window.md §5)
 ]);
 
 /** An incident draft's path, relative to the state directory, as the drafter writes it (alerts.md §7). */
@@ -416,6 +443,24 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
 
   admin.post("/admin/reset", reasonWrite(resetKillSwitch));
   admin.post("/admin/renew", reasonWrite(renewFallback));
+
+  // spec 003's studio GPU window (its contracts/gpu-window.md §1): prod's, and dev-cpu's for rehearsals. dev routes no
+  // fallback to hand hello to, so its listener doesn't serve the path, and answers 404 after authentication.
+  if (deps.stack !== "dev") {
+    admin.post("/admin/studio-window", async (req, reply) => {
+      const operator = operatorOf(req);
+      if (!isJson(req.headers["content-type"])) {
+        return reply.code(415).send({ error: "unsupported_media_type", request_id: req.id });
+      }
+      const parsed = studioWindowRequestOf(req.body);
+      // The state goes on the server span once the body has a valid one; the reason never does.
+      if (parsed.state !== undefined) noteStudioWindowState(req, parsed.state);
+      if (!parsed.ok) {
+        return reply.code(400).send({ error: "invalid_request", field: parsed.field, detail: parsed.detail });
+      }
+      return answerWrite(req, reply, await studioWindow(operatorDeps(), parsed.state, parsed.reason, operator));
+    });
+  }
 
   // §5: the live adapter calls, behind the same authentication.
   registerAdapterCalls(admin, {

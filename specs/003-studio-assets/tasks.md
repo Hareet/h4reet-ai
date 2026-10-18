@@ -106,15 +106,15 @@ description: "Task list for spec 003, Studio Assets"
 
 ### Tests for User Story 6 (first)
 
-- [ ] T032 [P] [US6] `services/gateway/test/integration/studio-window.test.ts`: start, end, `already_open`, `not_open`, the audit row, the gauge, the span's attributes with no reason text, and no meter or budget changed, per contracts/gpu-window.md §1
-- [ ] T033 [P] [US6] The operator CLI's tests for the `studio-window` command: arguments, the reason's length, and the stack refusals, per contracts/gpu-window.md §2
+- [X] T032 [P] [US6] `services/gateway/test/integration/studio-window.test.ts`: start, end, `already_open`, `not_open`, the audit row, the gauge, the span's attributes with no reason text, and no meter or budget changed, per contracts/gpu-window.md §1
+- [X] T033 [P] [US6] The operator CLI's tests for the `studio-window` command: arguments, the reason's length, and the stack refusals, per contracts/gpu-window.md §2
 
 ### Implementation for User Story 6
 
-- [ ] T034 [US6] `POST /admin/studio-window` in `services/gateway/src/routes/admin.ts`, its server span's attributes (the state and the outcome, never the reason's text), the gauge in the gateway's metrics, and the operator CLI's command, per contracts/gpu-window.md §1
-- [ ] T035 [US6] `make studio-window ENV=… STATE=… REASON=…`, and **Patch** the bash gate's operator rule to cover it for every stack but dev-cpu, with matrix rows in `redteam/forbidden-actions.sh` for its plain spelling and others (`make -C . studio-window ENV=prod …`, `bash -c 'make studio-window ENV=dev …'`, a variable carrying the stack, the operator CLI's command called directly) and a gap row for any spelling the rule can't catch, per contracts/gpu-window.md §2 and §4
-- [ ] T036 [P] [US6] The dashboard's annotation and the "Fallback spend in studio windows" panel in `deploy/grafana/dashboards/h4-runtime.json`, with `deploy/scripts/test_dashboard.py`'s cases, per contracts/gpu-window.md §3
-- [ ] T037 [P] [US6] `docs/runbooks/studio-gpu-window.md`, per FR-035
+- [X] T034 [US6] `POST /admin/studio-window` in `services/gateway/src/routes/admin.ts`, its server span's attributes (the state and the outcome, never the reason's text), the gauge in the gateway's metrics, and the operator CLI's command, per contracts/gpu-window.md §1
+- [X] T035 [US6] `make studio-window ENV=… STATE=… REASON=…`, and **Patch** the bash gate's operator rule to cover it for every stack but dev-cpu, with matrix rows in `redteam/forbidden-actions.sh` for its plain spelling and others (`make -C . studio-window ENV=prod …`, `bash -c 'make studio-window ENV=dev …'`, a variable carrying the stack, the operator CLI's command called directly) and a gap row for any spelling the rule can't catch, per contracts/gpu-window.md §2 and §4
+- [X] T036 [P] [US6] The dashboard's annotation and the "Fallback spend in studio windows" panel in `deploy/grafana/dashboards/h4-runtime.json`, with `deploy/scripts/test_dashboard.py`'s cases, per contracts/gpu-window.md §3
+- [X] T037 [P] [US6] `docs/runbooks/studio-gpu-window.md`, per FR-035
 - [ ] T038 [US6] **Author** (Heavy): the rehearsal, per quickstart §4 (SC-011)
 - [ ] T039 [US6] Merge-request note `docs/merge-requests/<date>-feat-003-us6-gpu-window.md`, with `make check`, the rehearsal's record, and the reviewer's passes
 

@@ -868,7 +868,10 @@ export class Gateway {
       cause: this.dryRun(read) ?? "none",
       ...(read.kind === "ok" ? { fallbackAwaitingRenewal: read.fallbackAwaitingRenewal } : {}),
     };
-    if (read.kind !== "ok") delete this.gauges.meters;
+    if (read.kind !== "ok") {
+      delete this.gauges.meters;
+      delete this.gauges.studioWindow;
+    }
     this.opts.metrics.setSnapshot(this.gauges);
     return read;
   }
@@ -1427,9 +1430,18 @@ export class Gateway {
       rows = await this.opts.store.readMeters(day, month);
     } catch {
       delete this.gauges.meters;
+      delete this.gauges.studioWindow;
       this.meterView = undefined;
       this.opts.metrics.setSnapshot(this.gauges);
       return;
+    }
+    // spec 003's studio GPU window, from the store, so a gateway restarted inside one still reads it open. A read that
+    // fails leaves its series stale, as the meters' do, and the meters as read.
+    let studioWindow: boolean | undefined;
+    try {
+      studioWindow = await this.opts.store.readStudioWindow();
+    } catch {
+      studioWindow = undefined;
     }
     this.meterView = meterViewOf(rows, this.opts.budgets.envs[this.opts.envClass]);
     this.gauges = { ...this.gauges, cause: this.dryRun(read) ?? "none" };
@@ -1448,6 +1460,8 @@ export class Gateway {
         },
       },
     };
+    if (studioWindow === undefined) delete this.gauges.studioWindow;
+    else this.gauges.studioWindow = studioWindow;
     this.opts.metrics.setSnapshot(this.gauges);
   }
 

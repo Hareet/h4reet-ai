@@ -1,8 +1,8 @@
 {
   "uid": "h4-runtime",
   "title": "h4reet.ai runtime",
-  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
-  "tags": ["h4reet", "spec-000"],
+  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md \u00a73), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
+  "tags": ["h4reet", "spec-000", "spec-003"],
   "timezone": "utc",
   "refresh": "10s",
   "time": {
@@ -17,7 +17,27 @@
     "list": []
   },
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "name": "Studio GPU windows",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prom"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "purple",
+        "target": {
+          "refId": "Anno",
+          "expr": "max(h4_studio_window) > 0",
+          "interval": "30s"
+        },
+        "titleFormat": "Studio GPU window",
+        "textFormat": "The model server is handed to a studio job: hello falls back within the sub-budget, or degrades (docs/runbooks/studio-gpu-window.md)",
+        "tagKeys": "",
+        "useValueForTime": false
+      }
+    ]
   },
   "links": [],
   "panels": [
@@ -2974,12 +2994,118 @@
     },
     {
       "type": "row",
+      "id": 49,
+      "title": "Studio GPU windows",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 117,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 50,
+      "title": "Fallback spend in studio windows",
+      "description": "Each studio GPU window in the dashboard's time range, from its start to its end (blank while it is open), with the ledger's fallback spend and calls between them, straight from the store through grafana_ro (gateway.v_studio_windows), so it still answers when telemetry is down. A window hands the model server's GPU to a studio job: hello falls back within the sub-budget, or degrades, and no budget or ceiling changes for it (spec 003 FR-035, SC-011). The time series' shaded regions are the same windows, from h4_studio_window. Runbook: docs/runbooks/studio-gpu-window.md.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "gateway"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 118,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "gateway"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT started_at AS \"time\", ended_at, fallback_micro / 1e6 AS fallback_usd, fallback_calls FROM gateway.v_studio_windows WHERE started_at <= $__timeTo() AND (ended_at IS NULL OR ended_at >= $__timeFrom()) ORDER BY started_at DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Started"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ended_at"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Ended"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fallback_usd"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Fallback spend"
+              },
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 6
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fallback_calls"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Fallback calls"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "row",
       "id": 42,
       "title": "Development time on the Team plan: notional cost, outside the production meter",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 117,
+        "y": 125,
         "w": 24,
         "h": 1
       },
@@ -2996,7 +3122,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 126,
         "w": 10,
         "h": 7
       },
@@ -3055,7 +3181,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 118,
+        "y": 126,
         "w": 4,
         "h": 7
       },
@@ -3109,7 +3235,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 118,
+        "y": 126,
         "w": 10,
         "h": 7
       },
@@ -3175,7 +3301,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 125,
+        "y": 133,
         "w": 4,
         "h": 7
       },
@@ -3229,7 +3355,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 125,
+        "y": 133,
         "w": 8,
         "h": 7
       },
@@ -3295,7 +3421,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 125,
+        "y": 133,
         "w": 12,
         "h": 7
       },

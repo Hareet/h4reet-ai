@@ -98,6 +98,22 @@ export type AlertSpec =
       grantMicro: bigint;
     }
   | {
+      // spec 003's studio GPU window (its contracts/gpu-window.md §1): opened, then closed with its fallback spend.
+      kind: "operator_action";
+      action: "studio_window";
+      fingerprint: string;
+      state: "start";
+    }
+  | {
+      kind: "operator_action";
+      action: "studio_window";
+      fingerprint: string;
+      state: "end";
+      /** The ledger's fallback spend inside the window, and its calls. */
+      fallbackMicro: bigint;
+      fallbackCalls: number;
+    }
+  | {
       kind: "credentials_expiring";
       /** The adapter's ID: its dedupe key, and its runbook's name. */
       adapter: string;
@@ -236,6 +252,22 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
           runbook: "fallback-renewal.md",
         };
       }
+      if (spec.action === "studio_window") {
+        if (spec.state === "start") {
+          return {
+            headline: `OPERATOR ACTION: studio GPU window opened by operator #${spec.fingerprint}`,
+            sentence:
+              "The model server stops next: hello falls back within the sub-budget, or degrades, until the window closes.",
+            runbook: "studio-gpu-window.md",
+          };
+        }
+        const calls = `${spec.fallbackCalls} call${spec.fallbackCalls === 1 ? "" : "s"}`;
+        return {
+          headline: `OPERATOR ACTION: studio GPU window closed by operator #${spec.fingerprint}`,
+          sentence: `Hello answers from the local model again. The window's fallback spend: $${usd(spec.fallbackMicro)} in ${calls}.`,
+          runbook: "studio-gpu-window.md",
+        };
+      }
       return {
         headline: `OPERATOR ACTION: store initialized by operator #${spec.fingerprint}`,
         sentence: initSentence(spec.sources, spec.confirmZero, spec.renewed),
@@ -310,6 +342,17 @@ function specFacts(spec: AlertSpec): Record<string, unknown> {
           grant_no: spec.grantNo,
           grant_micro: Number(spec.grantMicro),
         };
+      }
+      if (spec.action === "studio_window") {
+        return spec.state === "start"
+          ? { action: "studio_window", fingerprint: spec.fingerprint, state: "start" }
+          : {
+              action: "studio_window",
+              fingerprint: spec.fingerprint,
+              state: "end",
+              fallback_micro: Number(spec.fallbackMicro),
+              fallback_calls: spec.fallbackCalls,
+            };
       }
       return { action: spec.action, fingerprint: spec.fingerprint, sources: spec.sources, renewed: spec.renewed };
     case "credentials_expiring":

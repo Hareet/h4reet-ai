@@ -101,6 +101,10 @@ redteam/forbidden-actions.sh          [A] changed: the rows
 scripts/assets/scrub.py, credits.py   [A] new, with tests
 Makefile                              [A] changed: arrival, assets-scrub, assets-credits, studio-window
 services/gateway/src/routes/admin.ts  [A] changed: POST /admin/studio-window (§6)
+services/gateway/migrations/0003_studio_window.sql   [A] new: the audit action, and the view the panel reads (§6)
+services/gateway/src/meter/, src/alerts/, src/telemetry/, src/core/gateway.ts   [A] changed: the window's write,
+                                          state, journal record, alert, gauge, and span (§6)
+deploy/scripts/test_dashboard.py, evals/test_runbooks.py   [A] changed: read this spec's contract and §8 too (§6)
 scripts/operator.py                   [A] changed: the studio-window command
 deploy/grafana/dashboards/h4-runtime.json   [A] changed: the studio-window annotation and its spend panel
 docs/runbooks/asset-withdrawal.md, studio-gpu-window.md   [A] new
@@ -179,6 +183,12 @@ The arrival check's rule C reads the note for each arm-B or arm-D image's captio
 - it stops prod's model server at `start`, and at `end` restarts prod at its run file's commit and checks that hello answers locally.
 
 The dashboard shows the window as an annotation and the fallback spend inside it. No budget or ceiling changes. The Author rehearses it once (SC-011, Heavy).
+
+(Updated by tasks.md T034 to T037, on `feat/003-us6-gpu-window`, where the build met spec 000's rules; [contracts/gpu-window.md](contracts/gpu-window.md) has the whole interface.)
+- **The state** is the store's newest `studio_window` audit row, with no new column. Migration `0003_studio_window` adds the action to the audit log's CHECKs, and the view `gateway.v_studio_windows`, which the panel reads through `grafana_ro`, as the audit and state panels read the store.
+- **`end`** waits, after `make up`, until the gateway sees the local model healthy, so its one hello isn't charged to the fallback.
+- **The CLI** takes the state as a positional, `studio-window start|end`: bash-gate reads any `--s…` option on the operator CLI's command line as `--stack`, so `--state` would have refused even dev-cpu's command.
+- **The tests that pin spec 000's lists** read this spec's too: the dashboard test reads the contract's §3, and the runbook test reads §8's runbooks.
 
 ## 7. The site, waiting for specs 001 and 002 (FR-021 to FR-034, FR-038 to FR-040)
 

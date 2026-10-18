@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID STATE
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -517,6 +517,49 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 	$(OPERATOR_AGENTS)
 	$(OPERATOR) incidents --show$(call OPERATOR_VALUE,ID,--id)
 .PHONY: operator-incidents
+
+# The studio's GPU window (spec 003 FR-035; specs/003-studio-assets/contracts/gpu-window.md §2), the Author's on prod.
+# start records the window through the operator CLI, then stops the model server, so hello falls back within the
+# sub-budget or degrades; a refused record stops nothing. end brings the stack back at the commit its run file names
+# (make up REF=, as a rollback does), waits until the gateway sees the local model healthy, sends one hello, and records
+# the end only when that hello answers route: local; a step that fails leaves the window open and records nothing.
+# dev-cpu takes it for rehearsals: its model server is model-server-cpu, stopped through the relay inside the sandbox.
+# dev doesn't: it routes no fallback to hand hello to. Agent sessions run it on dev-cpu only, as the operator targets:
+# OPERATOR_AGENTS here, and bash-gate's operator rule once this target's patch lands. STATE and REASON come from the
+# command line only, read by the shell, as every operator value is.
+STUDIO_MODEL_SERVER = $(if $(filter dev-cpu,$(ENV)),model-server-cpu,model-server-gpu)
+STUDIO_WAIT_S := 60
+STUDIO_OPEN = the window stays open, and nothing was recorded (docs/runbooks/studio-gpu-window.md)
+
+studio-window: ## (the Author) Hand ENV's GPU to a studio job, or take it back: STATE=start|end REASON="..." (spec 003)
+	$(OPERATOR_AGENTS)
+	@[ "$(ENV)" != dev ] || { echo "make studio-window ENV=dev: the window is prod's, and dev-cpu's for rehearsals; dev has no fallback to hand hello to (specs/003-studio-assets/contracts/gpu-window.md)" >&2; exit 2; }
+	@case "$(if $(call from_cli,STATE),$$STATE)" in start|end) ;; *) echo "make studio-window needs STATE=start or STATE=end on the command line" >&2; exit 2 ;; esac
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make studio-window needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	@[ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "make studio-window ENV=$(ENV): h4reet-$(ENV) wasn't started by make up (no $(RUNFILE)), so there is no model server to hand over" >&2; exit 2; }
+	@if [ "$$STATE" = start ]; then \
+	  $(OPERATOR) studio-window start --reason="$$REASON" || exit $$?; \
+	  $(if $(VIA_RELAY),$(RELAY) )$(COMPOSE) stop $(STUDIO_MODEL_SERVER) || { echo "make studio-window: the window is open, but $(STUDIO_MODEL_SERVER) didn't stop; close it with STATE=end, which brings the stack back, then start again (docs/runbooks/studio-gpu-window.md)" >&2; exit 1; }; \
+	  echo "studio-window: $(STUDIO_MODEL_SERVER) is stopped. Hello falls back within the sub-budget, or degrades, until make studio-window ENV=$(ENV) STATE=end"; \
+	  exit 0; \
+	fi; \
+	if [ -n "$(RUNFILE)" ]; then \
+	  ref=$$(sed -n 's/^H4_REF=//p' "$(RUNFILE)"); \
+	  [[ "$$ref" =~ ^[0-9a-f]{40}$$ ]] || { echo "make studio-window: $(RUNFILE) names no commit (H4_REF), so h4reet-$(ENV) can't come back at the one it ran" >&2; exit 2; }; \
+	  $(MAKE) --no-print-directory up ENV=$(ENV) REF="$$ref" || { echo "make studio-window: make up didn't bring h4reet-$(ENV) back healthy, so no hello was sent; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	else \
+	  $(MAKE) --no-print-directory up ENV=$(ENV) || { echo "make studio-window: make up didn't bring h4reet-$(ENV) back healthy, so no hello was sent; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	fi; \
+	waited=0; \
+	until $(OPERATOR) status 2>/dev/null | grep -q 'local healthy'; do \
+	  [ "$$waited" -lt $(STUDIO_WAIT_S) ] || { echo "make studio-window: the gateway didn't see the local model healthy within $(STUDIO_WAIT_S) s, so no hello was sent; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	  sleep 2; waited=$$((waited + 2)); \
+	done; \
+	out=$$($(HELLO)) || { printf '%s\n' "$$out"; echo "make studio-window: hello didn't answer 2xx; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	printf '%s\n' "$$out"; \
+	grep -Eq '^  "route": "local",?$$' <<<"$$out" || { echo "make studio-window: hello didn't answer route: local; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	$(OPERATOR) studio-window end --reason="$$REASON"
+.PHONY: studio-window
 
 # The live contract run (contracts/provider-adapter.md §5.3; tasks.md T103), the Author's: operator.py records each case
 # of live-cases.json through ENV's POST /admin/adapters/ADAPTER/complete into a 0700 temporary directory, then the

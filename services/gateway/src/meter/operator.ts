@@ -1,10 +1,12 @@
 // The operator's writes to the meter and the kill switch (data-model.md §6.1, §6.2, §7.5; contracts/operator-admin.md
-// §2.1, §2.2, §3.1): a reset, a renewal, and dev's test clock. Each:
+// §2.1, §2.2, §3.1): a reset, a renewal, and dev's test clock; and spec 003's studio GPU window (its
+// contracts/gpu-window.md §1), which writes the same records and changes no meter or state. Each:
 // - locks stack_state first (the locking order of §2.1);
 // - writes its audit row, and for a reset or a renewal its operator_action alert, in the same transaction as the change;
 // - then appends its journal record: `operator` for a reset or a renewal, `clock` for the test clock. A failed append is
 //   reported in the response as "journal": "unwritable", and in a second audit row, journal_failed, which carries the
-//   action's audit_id: the first row is append-only. It doesn't undo the action.
+//   action's audit_id: the first row is append-only. It doesn't undo the action. The studio window's record is
+//   `operator` too, with its state.
 // When COMMIT's answer is lost, the write may have landed: the audit row it wrote is looked for, and if it is there the
 // action finishes as if the acknowledgement had come (tasks.md T072's rule, applied to every operator write).
 import type { Ceiling } from "../alerts/format.js";
@@ -18,7 +20,17 @@ import { lockState, meterFactsOf, MeterTx, type TxDeps, type TxEffects } from ".
 import type { Operator } from "./init.js";
 import { JournalWriteError, type Journal, type NewRecord } from "./journal.js";
 import { periodsAt, readPeriodRows, upsertPeriodRows, type LockedRow, type Periods } from "./rollover.js";
-import { CommitUnknownError, isStoreFailure, Rollback, toBigInt, type Queryable, type Store } from "./store.js";
+import {
+  CommitUnknownError,
+  isStoreFailure,
+  Rollback,
+  STUDIO_WINDOW_SQL,
+  studioWindowOf,
+  toBigInt,
+  type Queryable,
+  type Store,
+  type StudioWindowRow,
+} from "./store.js";
 import { sweepExpired } from "./sweep.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -108,6 +120,8 @@ const DETAILS = {
   not_degraded: "The kill switch is normal; there is nothing to reset.",
   not_awaiting_renewal: "The fallback sub-budget isn't awaiting renewal; there is nothing to renew.",
   clock_backwards: "The test clock moves forward only: that time is before the gateway's current time.",
+  already_open: "A studio window is already open: end it first, with STATE=end.",
+  not_open: "No studio window is open: there is nothing to end.",
 } as const;
 
 const refusal = (error: keyof typeof DETAILS, extra: Record<string, unknown> = {}): OperatorResult => ({
@@ -178,7 +192,7 @@ async function landed(store: Store, auditId: number, action: string): Promise<bo
  */
 async function operatorWrite(
   deps: OperatorDeps,
-  action: Extract<OperatorAction, "reset" | "renew" | "test_clock">,
+  action: Extract<OperatorAction, "reset" | "renew" | "test_clock" | "studio_window">,
   reason: string,
   operator: Operator,
   fn: (q: Queryable) => Promise<Written>,
@@ -477,6 +491,131 @@ export function setTestClock(
       before,
       after,
       offsetMs: offset,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// spec 003's studio GPU window (its contracts/gpu-window.md §1; FR-035)
+// ---------------------------------------------------------------------------------------------------------------
+
+export type StudioWindowState = "start" | "end";
+
+/**
+ * USD from micro-USD, with cents always and every digit that isn't 0 after them: a window's few fallback calls cost
+ * fractions of a cent, which two decimals would show as $0.00. Nothing is rounded away.
+ */
+export function exactUsd(micro: bigint): string {
+  const whole = micro / 1_000_000n;
+  const fraction = (micro % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "").padEnd(2, "0");
+  return `${whole}.${fraction}`;
+}
+
+const calls = (n: number): string => `${n} call${n === 1 ? "" : "s"}`;
+
+/**
+ * POST /admin/studio-window: a start opens the window and an end closes it, refused with 409 already_open or not_open
+ * otherwise. The window's state is the newest studio_window audit row, read under the state lock, so two writes can't
+ * both open one. An end reports the ledger's fallback spend inside the window, from the start's time to its own. It
+ * writes the audit row, the operator_action alert, and then the journal's operator record, as every operator write,
+ * and changes no meter, budget, ceiling, routing, or state.
+ */
+export function studioWindow(
+  deps: OperatorDeps,
+  state: StudioWindowState,
+  reason: string,
+  operator: Operator,
+): Promise<OperatorResult> {
+  return operatorWrite(deps, "studio_window", reason, operator, async (q) => {
+    const locked = await lockState(q);
+    if (locked === undefined) throw new Rollback(refusal("store_uninitialized"));
+    const now = gatewayTime(deps.realNow(), locked.testClockOffsetMs);
+    const current = studioWindowOf((await q.query<StudioWindowRow>(STUDIO_WINDOW_SQL)).rows);
+    if (state === "start" && current.open) {
+      throw new Rollback(refusal("already_open", { since: rfc3339Seconds(current.since.getTime()) }));
+    }
+    if (state === "end" && !current.open) throw new Rollback(refusal("not_open"));
+    const txDeps = deps.meter.txDeps();
+    const tx = new MeterTx(q, txDeps, locked, now);
+    const periods = periodsAt(now);
+    const rows = await readPeriodRows(q, periods);
+    let before: Record<string, unknown>;
+    let after: Record<string, unknown>;
+    let detail: Record<string, unknown>;
+    let spec: Parameters<MeterTx["queue"]>[1];
+    let body: Record<string, unknown>;
+    if (current.open) {
+      // The end: the ledger's fallback rows inside the window, [start, end), as the view gateway.v_studio_windows sums.
+      const opened = toRfc3339(current.since.getTime());
+      const { rows: spent } = await q.query<{ micro: unknown; n: unknown }>(
+        `SELECT coalesce(sum(cost_micro), 0)::text AS micro, count(*)::text AS n FROM gateway.ledger
+         WHERE attribution = 'fallback' AND ts >= $1 AND ts < $2`,
+        [opened, tx.nowIso],
+      );
+      const micro = toBigInt(spent[0]?.micro ?? "0");
+      const n = Number(toBigInt(spent[0]?.n ?? "0"));
+      before = { window: "open", since: opened };
+      after = { window: "closed" };
+      detail = { state: "end", opened, fallback_micro: Number(micro), fallback_calls: n };
+      spec = {
+        kind: "operator_action",
+        action: "studio_window",
+        fingerprint: operator.fingerprint,
+        state: "end",
+        fallbackMicro: micro,
+        fallbackCalls: n,
+      };
+      body = {
+        window: "closed",
+        since: rfc3339Seconds(now),
+        opened: rfc3339Seconds(current.since.getTime()),
+        fallback: { spent_micro_usd: Number(micro), calls: n },
+        note: `The window is closed. Its fallback spend: $${exactUsd(micro)} in ${calls(n)}.`,
+      };
+    } else {
+      before = { window: "closed" };
+      after = { window: "open", since: tx.nowIso };
+      detail = { state: "start" };
+      spec = { kind: "operator_action", action: "studio_window", fingerprint: operator.fingerprint, state: "start" };
+      body = {
+        window: "open",
+        since: rfc3339Seconds(now),
+        note: "The window is open. Hello falls back within the sub-budget, or degrades, once the model server stops.",
+      };
+    }
+    const auditId = await auditRow(q, {
+      ts: tx.nowIso,
+      stack: deps.stack,
+      actor: operator.actor,
+      action: "studio_window",
+      reason,
+      before,
+      after,
+      detail,
+    });
+    await tx.queue(
+      dedupeKey.operatorAction(deps.stack, "studio_window", auditId),
+      spec,
+      meterFactsOf(rows, txDeps.thresholds),
+    );
+    // No meter or state changed; the window's gauge follows the audit row, so the gauges refresh.
+    tx.effects.changed = true;
+    return {
+      auditId,
+      journalAt: now,
+      body: { action: "studio_window", audit_id: auditId, state, ...body },
+      journal: {
+        kind: "operator",
+        action: "studio_window",
+        state,
+        audit_id: auditId,
+        actor: operator.actor,
+        period_day: periods.day,
+        period_month: periods.month,
+      },
+      effects: tx.effects,
+      before,
+      after,
     };
   });
 }
