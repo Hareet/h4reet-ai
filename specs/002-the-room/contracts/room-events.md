@@ -30,6 +30,8 @@ The stack's `edge` listener 8087 (x005) forwards `POST /api/room/events` to `gat
 - `client_max_body_size 512`;
 - no logging of the body.
 
+The api listener, x000, answers `/room/` itself with 404 `{"error":"not_found","request_id":…}`, as the gateway answers an unknown route, so events reach the gateway only through this location, with its limit and cap.
+
 Spec 001's relay applies its own public cap when this route is public.
 
 ## 3. The gateway's route

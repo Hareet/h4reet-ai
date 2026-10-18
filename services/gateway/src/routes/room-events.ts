@@ -21,11 +21,14 @@ import type { GatewayMetrics, RoomEventRefusal } from "../telemetry/metrics.js";
 
 export const ROOM_EVENTS_PATH = "/room/events";
 
-/** The kinds that take an ID, and the list it comes from; every other kind takes none (contracts/room-events.md §1). */
-const ID_LISTS: Readonly<Record<string, "objects" | "items">> = {
-  object_selected: "objects",
-  item_selected: "items",
-};
+/**
+ * The kinds that take an ID, and the list it comes from; every other kind takes none (contracts/room-events.md §1).
+ * A Map, so a kind named like an Object property (`constructor`, `toString`) finds nothing inherited.
+ */
+const ID_LISTS: ReadonlyMap<string, "objects" | "items"> = new Map([
+  ["object_selected", "objects"],
+  ["item_selected", "items"],
+]);
 
 const MEDIA_TYPES = new Set(["application/json", "text/plain"]);
 
@@ -56,7 +59,7 @@ function check(text: unknown, events: RoomEventsConfig | null): Checked {
   if (id !== undefined && typeof id !== "string") return SHAPE;
   if (events === null) return { ok: false, reason: "id", field: "id", detail: "the room's event list isn't loaded" };
   if (!events.kinds.has(kind)) return { ok: false, reason: "kind", field: "kind", detail: "unknown kind" };
-  const list = ID_LISTS[kind];
+  const list = ID_LISTS.get(kind);
   if ((list === undefined) !== (id === undefined)) return SHAPE;
   if (list === undefined || id === undefined) return { ok: true, kind, id: "-" };
   if (!events[list].has(id)) return { ok: false, reason: "id", field: "id", detail: "unknown ID for its kind" };

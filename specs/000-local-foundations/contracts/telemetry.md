@@ -71,7 +71,7 @@ POST /hello                      SERVER    one per request (also POST /admin/tes
 
 A request refused before routing (the per-client cap, a validation error) has a server span and no `gateway.route` span. A degraded request decided from the state alone (`store_unreachable`, `store_uninitialized`, `kill_switch_tripped`) has a `gateway.route` span and no client span.
 
-Spec 002's usage events, `POST /room/events` ([room-events.md §3](../../002-the-room/contracts/room-events.md#3-the-gateways-route)), have a server span and nothing under it: no routing, no model call, and no attribute but the server span's own below, with `h4.outcome` `ok` for its 204 and `invalid` for its 400 and 415. The event's body is in no span and no log record.
+Spec 002's usage events, `POST /room/events` ([room-events.md §3](../../002-the-room/contracts/room-events.md#3-the-gateways-route)), have a server span with no `gateway.route` or client span under it, only `@fastify/otel`'s own hook spans, as every route has (below). They make no model call, and their server span carries only the attributes below, with `h4.outcome` `ok` for its 204 and `invalid` for its 400 and 415. The event's body is in no span and no log record.
 
 (Departure, tasks.md T074.) `POST /admin/test/synthetic` makes its calls one after another in one request, and gives each its own trace, as operator-admin.md §3.2's answer shows a trace ID per call: each call's `gateway.route` span is a root span, linked to the request's server span. So the breach test's T assertions, and an incident draft's list of the last metered calls, can name each call by its trace.
 
