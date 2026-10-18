@@ -126,7 +126,11 @@ There is no way back to `full` in the same visit, so a phone on the edge doesn't
 
 ## 8. The GPU window
 
-- **Audit row** (spec 000's `audit_log`): `action = studio_window`, `state = start | end`, the reason, the time.
-- **Gauge:** `h4_studio_window{stack="prod"}`, 1 while a window is open, 0 otherwise.
-- **Span:** the server span spec 000's contracts/telemetry.md gives "`POST /hello` and the admin routes", with `http.route` `/admin/studio-window`, `h4.outcome`, and the state, never the reason's text.
+- **Audit row** (spec 000's `audit_log`): `action = studio_window`, the reason, the time; the state in `detail.state` (`start` or `end`), and the window in `before` and `after` (`{"window": "closed"}`, `{"window": "open", "since": …}`); an end's `detail` adds `opened`, `fallback_micro`, and `fallback_calls`. Migration `0003_studio_window` adds the action to the table's CHECKs.
+- **State:** the newest `studio_window` audit row says whether a window is open; with none, it is closed. No column holds it.
+- **Gauge:** `h4_studio_window`, 1 while a window is open, 0 otherwise, with no attribute: the stack is every series' `deployment_environment_name`.
+- **Span:** the server span spec 000's contracts/telemetry.md gives "`POST /hello` and the admin routes", with `http.route` `/admin/studio-window`, `h4.outcome`, and `h4.studio_window.state`, never the reason's text.
+- **View:** `gateway.v_studio_windows`, one row per window, with its fallback spend from the ledger, which `grafana_ro` reads for the dashboard's panel.
 - **States:** closed → open (`start`) → closed (`end`). A second `start` while open is refused with 409 `already_open`, and an `end` while closed with 409 `not_open`.
+
+(Updated by tasks.md T034 on `feat/003-us6-gpu-window`: the audit row's state is in `detail`, since `audit_log` has no state column; the gauge has no `stack` label, as no gateway series has one; and the state and the view are new. contracts/gpu-window.md has the whole interface.)

@@ -32,6 +32,11 @@ CONTRACT = (REPO / "specs/000-local-foundations/contracts/telemetry.md").read_te
 DASHBOARD = json.loads(
     (REPO / "deploy/grafana/dashboards/h4-runtime.json").read_text(encoding="utf-8")
 )
+# Spec 003's studio GPU window adds a row, its panel, and an annotation, in its own contract's §3 (FR-035, SC-011).
+STUDIO = (REPO / "specs/003-studio-assets/contracts/gpu-window.md").read_text(
+    encoding="utf-8"
+)
+STUDIO_ROW = "gpu-window §3"
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
 US3 = ("7.7",)
@@ -124,7 +129,32 @@ def all_contract_panels() -> dict[str, tuple[str, list[str]]]:
     expected: dict[str, tuple[str, list[str]]] = {}
     for number in SECTIONS:
         expected.update(contract_panels(number))
+    expected.update(studio_panels())
     return expected
+
+
+def studio_section() -> str:
+    """gpu-window.md §3, the studio window's dashboard, up to its next "## " heading."""
+    start = STUDIO.index("\n## 3. ")
+    end = STUDIO.find("\n## ", start + 1)
+    return STUDIO[start : end if end > 0 else None]
+
+
+def studio_panels() -> dict[str, tuple[str, list[str]]]:
+    """gpu-window.md §3's panel table, read as contract_panels reads telemetry.md §7's."""
+    out: dict[str, tuple[str, list[str]]] = {}
+    for line in studio_section().splitlines():
+        if not line.startswith("| ") or line.startswith("| Panel"):
+            continue
+        title, kind, query = cells(line)[:3]
+        title = re.sub(r"\s*\((?:FR|SC)-[^)]*\)$", "", title)
+        out[title] = (kind, expand(query, []))
+    return out
+
+
+def row_panels(key: str) -> dict[str, tuple[str, list[str]]]:
+    """A row's panels: a section of telemetry.md §7, or the studio window's."""
+    return studio_panels() if key == STUDIO_ROW else contract_panels(key)
 
 
 def panels() -> list[dict]:
@@ -321,7 +351,11 @@ def test_the_store_panels_read_their_sql_as_a_table() -> None:
     # The audit panel and the store's state read gateway.audit_log and gateway.v_state through grafana_ro, so they
     # still work when telemetry is down (telemetry.md §7.1, §7.5; research.md R-10).
     sql = [p for p in panels() if p["datasource"]["uid"] == "gateway"]
-    assert {p["title"] for p in sql} == {"Store state (authoritative)", "Audit log"}
+    assert {p["title"] for p in sql} == {
+        "Store state (authoritative)",
+        "Audit log",
+        "Fallback spend in studio windows",
+    }
     for panel in sql:
         (target,) = panel["targets"]
         assert target["format"] == "table" and target["rawQuery"] is True, panel[
@@ -348,6 +382,7 @@ ROWS = {
     "Audit and alerts": "7.5",
     "Telemetry health": "7.6",
     "Room": "7.8",
+    "Studio GPU windows": STUDIO_ROW,
     dev_time_row(): "7.7",
 }
 
@@ -377,7 +412,7 @@ def test_the_panels_follow_their_rows() -> None:
     for i, row in enumerate(rows):
         top = row["gridPos"]["y"]
         bottom = rows[i + 1]["gridPos"]["y"] if i + 1 < len(rows) else float("inf")
-        for title in contract_panels(ROWS[row["title"]]):
+        for title in row_panels(ROWS[row["title"]]):
             y = by_title()[title]["gridPos"]["y"]
             assert top < y < bottom, (row["title"], title)
 
@@ -680,3 +715,65 @@ def test_refused_events_read_by_their_reason() -> None:
     assert target["legendFormat"] == "{{reason}}"
     for reason in ("content_type", "shape", "kind", "id"):
         assert reason in panel["description"], reason
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 003's studio GPU window (contracts/gpu-window.md §3; tasks.md T036)
+# --------------------------------------------------------------------------------------------------
+
+
+def test_the_studio_windows_panel_is_whole_and_in_its_row() -> None:
+    expected = studio_panels()
+    assert list(expected) == ["Fallback spend in studio windows"]
+    (title,) = expected
+    panel = by_title()[title]
+    assert expected[title][0] == "table (SQL)"
+    assert queries(panel) == expected[title][1]
+    assert queries(panel)[0].startswith('SELECT started_at AS "time"')
+    assert "gateway.v_studio_windows" in queries(panel)[0]
+
+
+def test_the_studio_windows_spend_reads_in_dollars_to_the_micro_dollar() -> None:
+    # One Bedrock fallback call costs a few thousand micro-dollars (plan §5.4), which two decimals would show as 0.00.
+    # The columns are named by overrides, not an organize step: an override matches the field's name before its own
+    # displayName applies, where a rename would have changed the name it matches.
+    panel = by_title()["Fallback spend in studio windows"]
+    assert overrides(panel) == {
+        "time": {"displayName": "Started"},
+        "ended_at": {"displayName": "Ended"},
+        "fallback_usd": {
+            "displayName": "Fallback spend",
+            "unit": "currencyUSD",
+            "decimals": 6,
+        },
+        "fallback_calls": {"displayName": "Fallback calls"},
+    }
+    assert "transformations" not in panel
+    for words in ("SC-011", "docs/runbooks/studio-gpu-window.md", "sub-budget"):
+        assert words in panel["description"], words
+    assert (REPO / "docs/runbooks/studio-gpu-window.md").is_file()
+
+
+def studio_annotation() -> str:
+    """gpu-window.md §3's annotation query: the backticked PromQL on the annotation's line."""
+    (line,) = [x for x in studio_section().splitlines() if "**An annotation,**" in x]
+    (query,) = [c for c in re.findall(r"`([^`]+)`", line) if "h4_studio_window" in c]
+    return query
+
+
+def test_the_studio_window_is_an_annotation_from_the_gauge() -> None:
+    (annotation,) = [
+        a for a in DASHBOARD["annotations"]["list"] if a["name"] == "Studio GPU windows"
+    ]
+    assert annotation["datasource"] == {"type": "prometheus", "uid": "prom"}
+    assert annotation["enable"] is True and annotation["hide"] is False
+    assert annotation["target"]["expr"] == studio_annotation()
+    assert annotation["target"]["expr"] == "max(h4_studio_window) > 0"
+    # Its metric is the contract's: spec 003's §1 names the gauge it adds to spec 000's §4.1.
+    assert "h4_studio_window" in STUDIO
+
+
+def test_the_studio_row_sits_above_the_dev_time_row() -> None:
+    rows = [p for p in DASHBOARD["panels"] if p["type"] == "row"]
+    titles = [r["title"] for r in rows]
+    assert titles.index("Studio GPU windows") == titles.index(dev_time_row()) - 1
