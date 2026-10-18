@@ -70,7 +70,7 @@ description: "Task list for spec 002, The Room"
 - [X] T080 **Patch**, in the same patch file: `tools/gates/content_check.py` and `tools/gates/test/test_content_check.py`, and its step in `tools/gates/gate` and `make check`'s runner list: after a build without drafts, read `main`'s approvals file itself, recompute each content file's SHA-256 from the tree, and fail when `room-data.json` publishes a file `main` doesn't approve or leaves a draft out of its `drafts`; tests first, against a fixture build whose agent-editable code marks a draft approved, per contracts/resume-source.md §5 and research.md R-08
 - [X] T018 [P] ADR 0034, "Content approvals by hash, in a human-only file read from `main`", beside spec 003's likeness approvals, per research.md R-08
 - [ ] T019 **Author**: apply the patch; `claude doctor`; `make git-hooks`, per quickstart §2
-- [ ] T020 Merge-request note `docs/merge-requests/<date>-feat-002-approvals.md`
+- [X] T020 Merge-request note `docs/merge-requests/<date>-feat-002-approvals.md`
 
 ---
 
