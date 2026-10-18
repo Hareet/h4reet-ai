@@ -118,6 +118,7 @@ describe("the lock", () => {
 
   it("is rewritten by npm run content:lock -w apps/web", () => {
     const pkg = JSON.parse(readFileSync(join(WEB, "package.json"), "utf8")) as { scripts: Record<string, string> };
-    expect(pkg.scripts["content:lock"]).toBe("node --import tsx build/content.ts --lock");
+    // build/narration.ts checks the resume and its scripts, then writes the lock and the narration's eval cases.
+    expect(pkg.scripts["content:lock"]).toBe("node --import tsx build/narration.ts --lock");
   });
 });

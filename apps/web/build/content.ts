@@ -23,6 +23,7 @@ import { parse as parseYaml, parseDocument, visit } from "yaml";
 
 import type { RoomResumeHeader, RoomResumeSection } from "../src/resume/data";
 import { publication, readPolicy, type RoomData, type RoomDataContext } from "./approvals";
+import { readScripts } from "./narration-source";
 import { pdfInput, pdfText, renderPdf } from "./pdf";
 import { DEFAULT_POLICY_DIR } from "./policy";
 
@@ -115,8 +116,8 @@ function text(label: string, at: string, v: unknown): string {
   return v;
 }
 
-/** The slot IDs a display text references, refusing a malformed reference. */
-function slotRefs(label: string, at: string, display: string): string[] {
+/** The slot IDs a display text references, refusing a malformed reference. Narration's scripts use it too. */
+export function slotRefs(label: string, at: string, display: string): string[] {
   const ids: string[] = [];
   for (const m of display.matchAll(SLOT_REF)) {
     const id = m[1] ?? "";
@@ -602,10 +603,12 @@ export interface Lock {
 
 const sha256 = (data: Uint8Array | string): string => createHash("sha256").update(data).digest("hex");
 
-/** Every corpus file a citation names and every facts file a slot reads, sorted. */
+/** Every corpus file a citation names and every facts file a slot reads, the narration scripts' with the source's
+ * (data-model.md §5), sorted. */
 export function lockedFiles(root: string, source: ResumeSource): string[] {
   const facts = readFacts(root);
-  const lines: Line[] = [...source.header.room.lines, ...source.sections.flatMap((s) => s.items)];
+  const scripts: Line[] = readScripts(root).map((s) => ({ text: s.body, claims: s.claims, slots: s.slots }));
+  const lines: Line[] = [...source.header.room.lines, ...source.sections.flatMap((s) => s.items), ...scripts];
   const files = new Set<string>();
   for (const l of lines) {
     for (const claim of l.claims) files.add(claim.file);

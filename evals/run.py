@@ -4,6 +4,7 @@
     python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter fake   # what `make evals` runs
     ... --adapter local --stack dev     # hello on the stack, answered by its local model and nothing else
     ... --adapter bedrock               # the Author only: prod's admin endpoint, charged to prod's meter
+    ... --suite narration --adapter fake   # spec 002's narration scripts, which run on the fake adapter only
 
 Standard library plus PyYAML. A case is one YAML file in evals/<suite>/cases/:
 
@@ -64,6 +65,9 @@ HELLO_MAX_OUTPUT_TOKENS = (
 RETRIES = 5
 RETRY_CAP_S = 60.0
 CASE_KEYS = {"id", "description", "prompt", "fake_response", "expect"}
+# Suites that only the fake adapter runs. Spec 002's narration cases (contracts/narration.md §2) score prepared
+# scripts, not a model: a local run would send them to a stack's /hello, and the other adapter would charge prod's meter.
+FAKE_ONLY_SUITES = {"narration"}
 EXPECT_KEYS = {"contains", "not_contains", "regex"}
 
 Reply = dict[str, Any]
@@ -354,6 +358,12 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--stack", choices=["prod", "dev"], default="dev")
     args = parser.parse_args(argv)
+    if args.suite in FAKE_ONLY_SUITES and args.adapter != "fake":
+        print(
+            f"evals: the {args.suite} suite runs on the fake adapter only (spec 002, contracts/narration.md §2)",
+            file=sys.stderr,
+        )
+        return 2
     stack = "prod" if args.adapter == "bedrock" else args.stack
     started = dt.datetime.now(dt.UTC)
     try:

@@ -195,7 +195,7 @@ describe("the script's file (contracts/narration.md §1)", () => {
     [
       "a claim without a quote",
       "lantern.engineer.md",
-      good.replace(/quote: .*\n/, ""),
+      good.replace(/ *quote: .*\n/, ""),
       /claims\[0\] needs a file and a quote/,
     ],
     ["no words", "lantern.engineer.md", script("lantern", "engineer", [cite(DESIGNED)], ""), /no words/],
@@ -378,8 +378,14 @@ describe("N5, the eval cases", () => {
   });
 
   it("fails a citation the words don't use: no shared phrase of at least 12 characters", () => {
+    // The tide clock's sentence shares only "Robin" with these words.
     const words = "Robin designed the lantern service for the fixture clinic.";
-    const text = script("lantern", "engineer", [cite(DESIGNED), cite(RAN)], words);
+    const text = script(
+      "lantern",
+      "engineer",
+      [cite(DESIGNED), cite("Robin built the tide clock for the harbor office")],
+      words,
+    );
     expect(problems({ ...CLEAN, "lantern.engineer.md": text })).toEqual([
       "narration/lantern.engineer.md: claims[1] shares no phrase of 12 characters or more with the words",
     ]);
@@ -424,7 +430,9 @@ describe("room-data.json's narration", () => {
   const approval = (root: string, path: string): [string, string] => [path, sha256(readFileSync(join(root, path)))];
   const all = (root: string): [string, string][] => [
     approval(root, RESUME_PATH),
-    ...readdirSync(join(root, NARRATION_DIR)).map((n) => approval(root, `${NARRATION_DIR}/${n}`)),
+    ...readdirSync(join(root, NARRATION_DIR))
+      .sort()
+      .map((n) => approval(root, `${NARRATION_DIR}/${n}`)),
   ];
 
   async function build(root: string, policyDir: string, drafts: boolean): Promise<RoomData> {
