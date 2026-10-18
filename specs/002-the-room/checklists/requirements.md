@@ -15,7 +15,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
   - Three remain on purpose, each for a decision that is the Author's alone, each with options and a recommendation the spec already follows: Q1 scope (the Scope line before FR-001), Q2 where speech is recognized (FR-030), Q3 the name and contact details on the resume (FR-017). They go to `/speckit-clarify`.
 - [x] Requirements are testable and unambiguous
   - Every functional requirement is in EARS form (WHEN, WHILE, WHERE, IF … THEN, or ubiquitous THE SYSTEM SHALL). FR-017 and FR-030 become fully testable once Q3 and Q2 are answered.
@@ -57,8 +57,9 @@
   - FR-004 required disclosing the cloned voice before any voice exists; it now applies wherever the twin speaks aloud.
   - The per-call limits assumption didn't mention that the budget schema caps input at 4,000 characters; added.
 - **Iteration 2**: every item passes except the three deliberate markers.
+- **Clarify, 2026-10-18**: the three markers resolved with their recommended options (Q1 A, Q2 A, Q3 B), on the Author's direction of 2026-10-17 (spec.md's Clarifications). Every item passes. The notes under "No [NEEDS CLARIFICATION] markers remain" and "Scope is clearly bounded" describe the draft before that session.
 
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
-- The only incomplete item is the three markers, which `/speckit-clarify` resolves.
+- None is incomplete since the clarify session of 2026-10-18.

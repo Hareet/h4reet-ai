@@ -4,9 +4,19 @@
 
 **Created**: 2026-10-17
 
-**Status**: Draft
+**Status**: Draft, clarified on 2026-10-18: the three open questions are answered with their recommended options, on the Author's direction (Clarifications), and no needs-clarification marker remains.
 
-**Input**: the accepted intent, [`intent.md`](intent.md) in this folder (moved from `intent/002-the-room.md`, as `intent/README.md` step 2 asks; Status: accepted on 2026-10-17, the Author: "Yeah, they are accepted. We can always revise them later"), which extends the room and avatars of `intent/000-ai-twin-portfolio.md`. Read with the constitution (1.0.1), `CLAUDE.md`, spec `000-local-foundations` and its gateway contracts, spec `001-cloud-elevation` (draft), and `docs/data-flow-disclosure.md`. Specified overnight by the spec-writer while the Author slept, on the Author's instruction to take the recommended default wherever one exists; every such choice is in Assumptions, and the three decisions that are the Author's alone are marked `[NEEDS CLARIFICATION]` and listed at the end.
+**Input**: the accepted intent, [`intent.md`](intent.md) in this folder (moved from `intent/002-the-room.md`, as `intent/README.md` step 2 asks; Status: accepted on 2026-10-17, the Author: "Yeah, they are accepted. We can always revise them later"), which extends the room and avatars of `intent/000-ai-twin-portfolio.md`. Read with the constitution (1.0.1), `CLAUDE.md`, spec `000-local-foundations` and its gateway contracts, spec `001-cloud-elevation` (draft), and `docs/data-flow-disclosure.md`. Specified overnight by the spec-writer while the Author slept, on the Author's instruction to take the recommended default wherever one exists; every such choice is in Assumptions, and the three decisions that are the Author's alone were marked as needing clarification and listed at the end, until the clarify session below answered them.
+
+## Clarifications
+
+### Session 2026-10-18
+
+The Author was away overnight and gave this direction during the session, on 2026-10-17: "Let's relax some of the overnight rules so that you can continue with intent 002 and intent 003? I think you can create the tasks and implement them and we can always go back later and re-do a task or requirement if we highlight a needed change". With their earlier direction that evening, "trust the recommendations and keep going as far as we can!", each open question takes its recommended option. Each answer quotes the option as the spec worded it. Any of them can be reversed later, with the requirements it touches.
+
+- Q: Scope — what this spec owns, and what it depends on (Q1) → A: "A (recommended)", which read: "This spec owns the room end to end: entry, scene, hand-off, the interactive resume and its narration, the PDF, the three objects' topics, push-to-talk and recognition, the room's telemetry and cost. The twin's conversation core (Phase 1), the avatar rig and voice (Phase 2), and spec 001's edge are dependencies." Reading: User Stories 1–3, 5, and 6 are built and tested without the twin; User Stories 4 and 7 wait for a spec of the twin's conversation core, which needs its own intent or a spec from intent 000 (Scope; Dependencies).
+- Q: Where push-to-talk speech is recognized (Q2) → A: "A (recommended)", which read: "The local tier only, for every browser. The disclosure's reason: one recognizer of known quality on every browser and phone; browsers' built-in recognition sends audio to the browser maker's servers in some browsers, which would be a third-party flow; an in-browser model is a large download and slow on phones. Intent 000's words stay; the spec reads "cannot run in the browser" as "cannot run in every visitor's browser at the twin's quality bar"." Reading: FR-030 and row V3 state it, and one ADR records the reading of intent 000's sentence (the plan lists it).
+- Q: The name and contact details on the resume (Q3) → A: "B (recommended)", which read: "The PDF carries the full name and one contact channel the Author chooses (for example an address on the h4reet.ai domain from spec 001), each through a filled facts slot; the interactive resume and the narration follow the conversation rule." Reading: FR-017. Until both slots are filled, the PDF's header is the interactive resume's, so nothing unfilled ships. Spec 001's Assumptions say "No mail is received on h4reet.ai", so the example channel needs that revisited, or another channel; the Author chooses it when filling the slot.
 
 ## The Author's Words
 
@@ -18,7 +28,7 @@ The spec rests on these. Each is quoted as the intent records it, typing include
 | W2 | Answer 2: "Everything around the window and desk is owned by me, and will be shown in photos. Our studio pipeline should take an input of a photo and identify which specific part to focus on and recreate in our artistic asset." | The room is built from the studio's recreations, never the photos (FR-006, FR-051–FR-053). |
 | W3 | Answer 3: "Yes it will match the corpus and facts, and we can define the interactivity later. There is no existing pdf version, so we can add that to download as well." | One resume source, from the corpus and its filled `facts/` slots, renders both the interactive resume and the PDF (FR-013). This spec defines what is clickable: every item the resume shows (FR-010). |
 | W4 | Answer 4: "Which, let's not worry about someone selecting both paths yet. Let's capture that a refresh of the browser page should allow someone to re-visit and select the other path if they want to." | The path is chosen once, at entry, with the avatar; a reload starts a new choice (FR-001, FR-002). For the room this replaces intent 000's decision, quoted below. |
-| W5 | Answer 5: "Yes push to talk only, never always listening, and local tier recognition." | FR-026–FR-031. Where the recognition runs, against intent 000's promise, is Q2. |
+| W5 | Answer 5: "Yes push to talk only, never always listening, and local tier recognition." | FR-026–FR-031. Where the recognition runs, against intent 000's promise, was Q2: the local tier, with the reason disclosed (Clarifications). |
 | W6 | Answer 6: "THe visitor shouldnt skip the hand-off animation. I don't see how the room should interact differently on a landscape phone?" | The hand-off has no skip (FR-007). Every screen gets the same room; only input and framing change (FR-046–FR-048). |
 | W8 | Answer 8: "We want to recreate a similar view, it's a small window that largely see's an immediate neighboring fence and tree, there won't be any defining information present." | The window's view is recreated with nothing that could locate the Author, and the Author's review of it is recorded (FR-052). |
 | W9 | Answer 9: "Yes, that's fine. You can put it in the room spec" (to: a twin that needs Claude most of the time). | A conditional deviation, decided by evaluation and an ADR (Assumptions, Deviations). |
@@ -190,7 +200,7 @@ As a visitor, I want to hold a button and speak to the twin, so that I can ask a
 
 Every requirement below is in EARS form. "The room" means the whole visitor-facing experience this spec adds; "the stack" means spec 000's compose topology on whichever tier runs it.
 
-**Scope** [NEEDS CLARIFICATION: Q1 — what this spec owns and what it depends on. Recommended (A): this spec owns the room end to end (entry, scene, hand-off, interactive resume and narration, the PDF, the three objects' topics, push-to-talk with recognition, the room's telemetry and cost attribution), and depends on, without specifying, the twin's conversation core (persona, corpus-grounded conversation, guardrails: Phase 1, from intent 000), the avatar rig and the cloned voice (Phase 2; ADRs 0010 and 0011; intent 003's studio outputs), and spec 001's public edge and relay. Options and implications under Open Questions.]
+**Scope** (Q1, answered in Clarifications): this spec owns the room end to end (entry, scene, hand-off, interactive resume and narration, the PDF, the three objects' topics, push-to-talk with recognition, the room's telemetry and cost attribution), and depends on, without specifying, the twin's conversation core (persona, corpus-grounded conversation, guardrails: Phase 1, from intent 000), the avatar rig and the cloned voice (Phase 2; ADRs 0010 and 0011; intent 003's studio outputs), and spec 001's public edge and relay.
 
 ### Functional Requirements
 
@@ -217,14 +227,14 @@ Every requirement below is in EARS form. "The room" means the whole visitor-faci
 - **FR-010**: WHEN the visitor opens the resume, THE SYSTEM SHALL show the interactive resume, in which every item it shows can be selected, and from which the PDF can be downloaded.
 - **FR-011**: WHEN the visitor selects a resume item, THE SYSTEM SHALL begin the twin's narration of that item within 1 second, at the depth of the visitor's path, show its words as text as they are spoken, and stop any narration already playing.
 - **FR-012**: THE SYSTEM SHALL prepare each resume item's narration ahead of time, one for each path, from the corpus, and SHALL publish a narration only after it passes the product evals the twin's answers must pass and the Author has approved it.
-- **FR-013**: THE SYSTEM SHALL render the interactive resume and the PDF from one resume source, drawn from the corpus and its filled facts slots, so that WHEN either is built, the two hold the same claims in the same words (W3), apart from any difference Q3 allows in the header.
+- **FR-013**: THE SYSTEM SHALL render the interactive resume and the PDF from one resume source, drawn from the corpus and its filled facts slots, so that WHEN either is built, the two hold the same claims in the same words (W3), apart from the header, as FR-017 says.
 
 **The resume's content**
 
 - **FR-014**: THE SYSTEM SHALL admit into the resume, its narration, and the PDF only claims the corpus states with a tag sufficient for the twin to say them, and none that is a gap (`[?]`), an empty facts slot, a job description's role scope presented as an accomplishment, or on any "Do not claim" list; every number SHALL come from a filled facts slot or a corpus file.
 - **FR-015**: THE SYSTEM SHALL describe each role in the resume and its narration with the ownership verb the corpus rules for it, keeping the two kinds of ownership Principle VII distinguishes apart: "Range is demonstrated, not claimed, and never inflated."
 - **FR-016**: WHEN a corpus file or facts slot the resume draws on changes, THE SYSTEM SHALL rebuild the resume, its narration's source, and the PDF; IF any of them was built from an older corpus, or an item lacks a narration for either path, THEN the local gate SHALL fail.
-- **FR-017**: THE SYSTEM SHALL show in the resume's header the name and contact details [NEEDS CLARIFICATION: Q3 — which name and which contact details the interactive resume and the PDF carry, given the corpus's rule that the twin never gives or confirms the Author's surname in conversation. Recommended (B): the PDF carries the full name and one contact channel the Author chooses, through a filled facts slot; the interactive resume and the narration follow the conversation rule. Options under Open Questions.]
+- **FR-017**: THE SYSTEM SHALL show in the PDF's header the Author's full name and one contact channel the Author chooses, each from a filled facts slot, and in the interactive resume's header and the narration only what the corpus's conversation rule allows, with no surname (Q3, Clarifications). WHILE either facts slot is empty, THE SYSTEM SHALL give the PDF the interactive resume's header.
 
 **The PDF**
 
@@ -246,7 +256,7 @@ Every requirement below is in EARS form. "The room" means the whole visitor-faci
 - **FR-027**: THE SYSTEM SHALL ask for the microphone only when the visitor first presses the talk button, never on load, and SHALL show a recording indicator while it captures.
 - **FR-028**: WHEN the visitor releases the talk button, THE SYSTEM SHALL send the audio for recognition, show the transcript, and send it to the twin as the visitor's turn; WHEN the transcript is empty, THE SYSTEM SHALL say it didn't catch that, without calling the twin.
 - **FR-029**: WHEN an utterance reaches 30 seconds, THE SYSTEM SHALL stop capturing, tell the visitor, and handle what was captured as if the button were released.
-- **FR-030**: WHEN visitor audio is sent for recognition, THE SYSTEM SHALL recognize it [NEEDS CLARIFICATION: Q2 — where, given intent 000's "Visitor text and audio leave the browser only when the twin's brain or speech cannot run in the browser" and the constitution's "browser-side speech processing where quality allows". Recommended (A): on the local tier only, for every browser, with the reason stated in the disclosure. Options under Open Questions.]
+- **FR-030**: WHEN visitor audio is sent for recognition, THE SYSTEM SHALL recognize it on the local tier only, for every browser, and SHALL state the reason in the data-flow disclosure: one recognizer of known quality on every browser and phone; browsers' built-in recognition sends audio to the browser maker's servers in some browsers, which would be a third-party flow; and an in-browser model is a large download and slow on phones (Q2, Clarifications). An ADR records the reading of intent 000's "Visitor text and audio leave the browser only when the twin's brain or speech cannot run in the browser" as "cannot run in every visitor's browser at the twin's quality bar".
 - **FR-031**: THE SYSTEM SHALL use visitor audio only to transcribe it, SHALL discard it once it is transcribed or refused, and SHALL NOT store, log, trace, or send it to any other destination, nor derive from it anything about the speaker: no identification, no voiceprint, and no estimate of age, gender, or emotion (Principle I: "MUST NOT collect biometric data (faces, voiceprints) from visitors").
 
 **Models, routing, and cost**
@@ -338,11 +348,11 @@ Every requirement below is in EARS form. "The room" means the whole visitor-faci
 
 ## Assumptions
 
-Defaults chosen overnight on the Author's instruction to trust the recommendations; each can be reversed in `/speckit-clarify`.
+Defaults chosen overnight on the Author's instruction to trust the recommendations; each can be reversed later, as the Author's direction of 2026-10-17 allows (Clarifications).
 
 **Scope and phasing**
 
-- **Scope** follows Q1's recommended option (A) until the Author answers: the room is this spec's; the twin's conversation core, the avatar rig, the cloned voice, and the public edge are dependencies.
+- **Scope** follows Q1's answer (A, Clarifications): the room is this spec's; the twin's conversation core, the avatar rig, the cloned voice, and the public edge are dependencies.
 - **Phasing** follows answer 7's recommendation (Claude's, "for me to confirm"; the spec reads the intent's acceptance as confirming it): User Story 1 (the PDF) ships in Phase 1, with the corpus; the avatars and the voice come from Phase 2 (the studio's outputs, intent 003); the room's other stories are Phase 3.
 - **Placeholders until the studio delivers.** The studio has no workflow for these assets yet (W10), so the room may be built and tested with placeholder geometry and intent 000's placeholder avatars; it is deployed to visitors only with the studio's outputs and their provenance records (FR-052).
 - **The visitor's avatar** is shown in the room and is the one the paper is handed to; the camera's framing is the plan's.
@@ -364,7 +374,7 @@ Defaults chosen overnight on the Author's instruction to trust the recommendatio
 
 - **Nothing is stored on the visitor's device** beyond the open page (FR-003): no cookie, no browser storage. The HTTP cache of static assets is the browser's own.
 - **Usage events carry no path, avatar, or visit identifier** (FR-054), the conservative reading of I0-a's "not stored". Splitting the dashboard by path would add the path to the events, which is a change to the disclosure.
-- **No cloud recognizer and no cloud voice** in this spec (FR-034): visitor audio goes only where Q2's answer says, and the Author's cloned voice runs only on the local tier. When either can't answer, the room degrades to text. Adding a non-local recognizer or voice is a spec change with a disclosure row and an ADR.
+- **No cloud recognizer and no cloud voice** in this spec (FR-034): visitor audio goes only to the local tier (Q2's answer, FR-030), and the Author's cloned voice runs only on the local tier. When either can't answer, the room degrades to text. Adding a non-local recognizer or voice is a spec change with a disclosure row and an ADR.
 - **The conversation lives in the page** and travels with each turn (FR-021); the stack keeps no conversation text beyond the request, and prod never samples payloads (spec 000, FR-029).
 
 **Models and cost**
@@ -381,7 +391,7 @@ Defaults chosen overnight on the Author's instruction to trust the recommendatio
 
 **Dependencies**
 
-- **The twin's conversation core** (Phase 1, from intent 000): persona, corpus-grounded conversation, guardrails, and its evals. No spec exists for it yet (Q1).
+- **The twin's conversation core** (Phase 1, from intent 000): persona, corpus-grounded conversation, guardrails, and its evals. No spec exists for it yet (Q1's answer: a dependency, not this spec's).
 - **The Author's corpus material** for hobbies and general life, and for travel, written by the Author first (intent 002, Constraints). Work projects draw on the existing corpus.
 - **The avatar rig with lip-sync and the cloned voice** (Phase 2): ADRs 0010 and 0011 are listed as proposed in `docs/adr/README.md` and have no files yet. Until they exist, the twin speaks as text, and the avatar idles.
 - **The studio's outputs** (intent 003, which is not in this branch's history).
@@ -429,7 +439,7 @@ New rows for `docs/data-flow-disclosure.md`, written with the plan and in the sa
 |---|---|---|---|---|
 | V1 | the visitor's browser → the site's own origin (the edge) | requests for the room's static assets, the narration's audio, and the PDF: the paths requested (which show which items a visitor plays), the IP address, the user agent | anything to a third-party host (FR-057) | the room, the resume, and the PDF are static assets |
 | V2 | the visitor's browser → the stack, through the edge and relay | each conversation turn: the visitor's typed or transcribed text, the conversation so far, the path | audio, the avatar, any identifier of the visit or the visitor beyond what the edge needs for its request cap | the twin's conversation runs on the local tier or its paid fallback (I0-a: "only when the twin's brain or speech cannot run in the browser") |
-| V3 | the visitor's browser → speech recognition, while the talk button is held | the utterance's audio, at most 30 seconds | anything after release; anything while the button isn't held; anything kept after transcription (FR-031) | push-to-talk (W5); destination and reason per Q2 |
+| V3 | the visitor's browser → speech recognition, while the talk button is held | the utterance's audio, at most 30 seconds | anything after release; anything while the button isn't held; anything kept after transcription (FR-031) | push-to-talk (W5); to the local tier only, for the reason FR-030 states (Q2) |
 | V4 | the visitor's browser → the stack's telemetry | usage events: kind, identifier, time | text, audio, path, avatar, client address, visit identifier (FR-054) | the dashboard's use panels (FR-056) |
 | V5 | the visitor's browser → the twin's voice, on the local tier | the twin's own words, or the identifier of a prepared line | anything the visitor wrote or said | the twin speaks in its cloned voice (I0-c), a disclosure item in intent 000's words |
 | F1 (changed) | the gateway, on prod → Bedrock | from the room: a visitor's conversation turn, the conversation so far, and the corpus context, when the local model can't answer and the sub-budget allows | the visitor's audio; anything that names who asked | today F1 carries hello's message, which only the host's own terminal or tools can send, and the Author's contract-test and eval cases; the room makes visitor text a fallback payload |
@@ -440,7 +450,7 @@ Applied with the `constitution-check` skill's eight questions.
 
 | Principle | Touched | How this spec complies, or the named deviation |
 |---|---|---|
-| I. Data-Local by Default | Yes | Every new byte leaving the visitor's device is a disclosure row (V1–V5, F1; FR-058), shown on the site. No visitor biometrics: audio only for transcription, discarded, never characterized (FR-031); avatars stay pre-generated (FR-001). Degraded modes come first (FR-038–FR-042; the table above). The room runs on the local tier with one command (FR-059). Local first per step (FR-034). Open: Q2, recognition off the browser, against intent 000 and the Frontend standard's "browser-side speech processing where quality allows". |
+| I. Data-Local by Default | Yes | Every new byte leaving the visitor's device is a disclosure row (V1–V5, F1; FR-058), shown on the site. No visitor biometrics: audio only for transcription, discarded, never characterized (FR-031); avatars stay pre-generated (FR-001). Degraded modes come first (FR-038–FR-042; the table above). The room runs on the local tier with one command (FR-059). Local first per step (FR-034). Recognition runs off the browser, on the local tier (Q2's answer, FR-030), against the Frontend standard's "browser-side speech processing where quality allows": the reason is disclosed, and an ADR records the reading of intent 000's sentence. |
 | II. Production-Grade or Not Shipped | Yes | Acceptance scenarios for every story; product evals and red-team cases per topic (FR-050); telemetry and dashboard panels (FR-054–FR-056); a cost estimate above and its measurement (FR-032). The room adds no alert of its own (spec 000's budget alerts cover its spend), so no new runbook entry; the plan adds one if it adds an alert, such as for recognition. |
 | III. Intent Before Spec, Spec Before Code, Humans Merge | Yes | From the accepted intent 002; ADRs expected for the art direction (0010) and the cloned voice (0011), for recognition's location (Q2), and for W9 if it happens. |
 | IV. Least Privilege | Lightly | No permission, allowlist, or credential is widened by this spec. New: a recognition service on the local tier, browser clients behind spec 001's edge and relay, and studio files entering the repository as untrusted data, checked for metadata and provenance (FR-051–FR-053). |
@@ -452,7 +462,7 @@ Applied with the `constitution-check` skill's eight questions.
 
 ## Open Questions for /speckit-clarify
 
-Three decisions are the Author's alone. Each has a recommendation, which this spec already follows; answering confirms or reverses it.
+All three were answered on 2026-10-18 with their recommended options, on the Author's direction (Clarifications): Q1 A, Q2 A, Q3 B. The questions stay as they were asked, because Clarifications quotes them; reversing an answer changes the requirements its bullet names.
 
 ### Q1: Scope — what this spec owns, and what it depends on
 
