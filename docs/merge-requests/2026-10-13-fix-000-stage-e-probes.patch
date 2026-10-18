@@ -1,0 +1,185 @@
+--- a/deploy/agents-engine/authz.py
++++ b/deploy/agents-engine/authz.py
+@@ -306,8 +306,10 @@
+     if ".." in source.split("/"):
+         return False, f"{source} (traversal)"
+     normalized = posixpath.normpath(source)
+-    # A second layer: resolve a real path where the plugin can see it and refuse one leaving its root.
+-    resolved = os.path.realpath(source) if os.path.exists(source) else normalized
++    # A second layer: resolve a real path where the plugin can see it and refuse one leaving its root. lexists, not
++    # exists: on a nosymfollow root, exists() follows a link, gets ELOOP, and reads False, which skipped the link,
++    # while realpath() reads links with readlink(2), which nosymfollow allows (stage E's row E5c, 2026-10-13).
++    resolved = os.path.realpath(source) if os.path.lexists(source) else normalized
+     for candidate in {normalized, resolved}:
+         in_ro = any(_under(candidate, root) for root in RO_ROOTS)
+         in_state = _under(candidate, STATE_ROOT)
+--- a/deploy/agents-engine/prove-limits.sh
++++ b/deploy/agents-engine/prove-limits.sh
+@@ -444,6 +444,11 @@
+ 		echo "the plugin ($rule)"
+ 	elif grep -qiE 'too many levels of symbolic links|ELOOP' <<<"$2"; then
+ 		echo ELOOP
++	elif [ -n "${3:-}" ] && grep -qF "error while creating mount source path '$3'" <<<"$2" &&
++		grep -qF 'file exists' <<<"$2"; then
++		# The same refusal as the daemon reports it: its stat of the link gets ELOOP, so it makes the source as a
++		# directory, and mkdir finds the link itself there (stage E, 2026-10-13). Only for this probe's own link.
++		echo "the kernel (nosymfollow; the daemon reports it as mkdir: file exists)"
+ 	fi
+ }
+ 
+@@ -522,7 +527,7 @@
+ 		out="$(engine_docker run --rm -v /run/h4agents/tree/.h4-prove-e5c:/x:ro "$probe_image" ls /x 2>&1)"
+ 		rc=$?
+ 		rm -f -- "$link"
+-		who="$(link_refusal "$rc" "$out")"
++		who="$(link_refusal "$rc" "$out" /run/h4agents/tree/.h4-prove-e5c)"
+ 		if [ -n "$who" ]; then
+ 			facts+="; (E5c) a bind through a link in the tree refused by $who"
+ 		else
+@@ -539,7 +544,7 @@
+ 		out="$(engine_docker run --rm -v "$link:/x" "$probe_image" ls /x 2>&1)"
+ 		rc=$?
+ 		as_h4agents rm -f -- "$link"
+-		who="$(link_refusal "$rc" "$out")"
++		who="$(link_refusal "$rc" "$out" "$link")"
+ 		if [ -n "$who" ]; then
+ 			facts+="; one in the state root by $who"
+ 		else
+@@ -1139,12 +1144,15 @@
+ 		seen+="; the engine's volumes and containers can't be listed"
+ 	fi
+ 	if sudo test -d "$H4_STATE"; then
+-		left="$(sudo find "$H4_STATE" -mindepth 1 -print -quit 2>/dev/null)"
++		# The reset ends with seed, whose chown_state makes dev-cpu's empty state directory (T145): that may be
++		# there, and nothing else. Anything under it is data that outlived the reset.
++		left="$(sudo find "$H4_STATE" -mindepth 1 ! -path "$H4_STATE/dev-cpu" ! -path "$H4_STATE/dev-cpu/gateway" \
++			-print -quit 2>/dev/null)"
+ 		if [ -n "$left" ]; then
+ 			ok=false
+ 			seen+="; the state root still holds ${left#"$H4_STATE"/}"
+ 		else
+-			facts+="; an empty state root"
++			facts+="; a state root holding only seed's empty dev-cpu/gateway"
+ 		fi
+ 	else
+ 		ok=false
+--- a/deploy/agents-engine/test/test_authz.py
++++ b/deploy/agents-engine/test/test_authz.py
+@@ -237,6 +237,30 @@
+     assert create({"Binds": [f"{source}:/w:ro"]}).rule == "A14"
+ 
+ 
++def test_a14_refuses_a_link_it_cannot_follow_out_of_its_root(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    # On a nosymfollow root, os.path.exists() can't follow a link and reads False, as it does for a dangling one:
++    # the plugin still reads the link, and refuses the place it names (stage E's row E5c, 2026-10-13).
++    state = tmp_path.resolve() / "state"
++    state.mkdir()
++    monkeypatch.setattr(authz, "STATE_ROOT", str(state))
++    link = state / "away"
++    link.symlink_to(tmp_path.resolve() / "outside" / "etc")
++    assert create({"Binds": [f"{link}:/x"]}).rule == "A14"
++
++
++def test_a14_allows_a_link_that_stays_in_its_root(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    state = tmp_path.resolve() / "state"
++    (state / "dev-cpu").mkdir(parents=True)
++    monkeypatch.setattr(authz, "STATE_ROOT", str(state))
++    link = state / "here"
++    link.symlink_to(state / "dev-cpu")
++    assert create({"Binds": [f"{link}:/x"]}).allow
++
++
+ def test_a14_bind_rw_under_readonly_root_refused() -> None:
+     assert create({"Binds": [f"{TREE}:/w:rw"]}).rule == "A14"
+     assert (
+--- /dev/null
++++ b/deploy/agents-engine/test/test_prove_limits_sh.py
+@@ -0,0 +1,84 @@
++"""Tests for deploy/agents-engine/prove-limits.sh's classifiers (spec 000, FR-039; contracts/agents-engine.md §7).
++
++The script runs only on the host, against the live engine, so these load its pure functions alone: each is cut from
++the script by name and run in bash on recorded engine output.
++
++    PYTHONPYCACHEPREFIX=$TMPDIR/pyc pytest -q -p no:cacheprovider --import-mode=importlib deploy/agents-engine
++"""
++
++from __future__ import annotations
++
++import re
++import subprocess
++from pathlib import Path
++
++import pytest
++
++SCRIPT = Path(__file__).resolve().parents[1] / "prove-limits.sh"
++TEXT = SCRIPT.read_text(encoding="utf-8")
++LINK = "/run/h4agents/tree/.h4-prove-e5c"
++
++
++def function(name: str) -> str:
++    """A function's definition, from its `name() {` line to the `}` that closes it at the start of a line."""
++    match = re.search(rf"^{name}\(\) {{\n.*?^}}\n", TEXT, re.MULTILINE | re.DOTALL)
++    assert match, name
++    return match.group(0)
++
++
++def link_refusal(rc: int, out: str, source: str = LINK) -> str:
++    script = (
++        function("refusal_rule")
++        + function("link_refusal")
++        + 'link_refusal "$1" "$2" "$3"\n'
++    )
++    done = subprocess.run(
++        ["bash", "-c", script, "bash", str(rc), out, source],
++        capture_output=True,
++        text=True,
++        check=True,
++    )
++    return done.stdout.strip()
++
++
++def test_the_plugins_refusal_names_its_rule() -> None:
++    out = "docker: Error response from daemon: refused by h4-authz (A14): HostConfig.Binds."
++    assert link_refusal(125, out) == "the plugin (A14)"
++
++
++def test_the_kernels_eloop_is_named() -> None:
++    out = f"docker: Error response from daemon: {LINK}: too many levels of symbolic links."
++    assert link_refusal(125, out) == "ELOOP"
++
++
++def test_the_daemons_mkdir_over_the_unfollowed_link_is_the_kernels_refusal() -> None:
++    # Stage E, 2026-10-13: on a nosymfollow root the daemon's stat of the link gets ELOOP, so it makes the source as a
++    # directory, and mkdir finds the link itself there.
++    out = (
++        "docker: Error response from daemon: error while creating mount source path "
++        f"'{LINK}': mkdir {LINK}: file exists."
++    )
++    assert link_refusal(125, out).startswith("the kernel (nosymfollow")
++
++
++@pytest.mark.parametrize(
++    "out",
++    [
++        (
++            "docker: Error response from daemon: error while creating mount source path "
++            "'/run/h4agents/tree/other': mkdir /run/h4agents/tree/other: file exists."
++        ),
++        (
++            "docker: Error response from daemon: error while creating mount source path "
++            f"'{LINK}': mkdir {LINK}: permission denied."
++        ),
++        "",
++    ],
++)
++def test_other_failures_name_no_refusal(out: str) -> None:
++    assert link_refusal(125, out) == ""
++
++
++def test_a_run_that_succeeded_is_no_refusal() -> None:
++    out = f"error while creating mount source path '{LINK}': mkdir {LINK}: file exists"
++    assert link_refusal(0, out) == ""
