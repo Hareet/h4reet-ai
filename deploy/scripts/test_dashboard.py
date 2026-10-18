@@ -443,6 +443,26 @@ def test_the_renewal_flag_reads_as_a_whole_number() -> None:
 
 
 @pytest.mark.parametrize(
+    ("title", "ref"),
+    [
+        ("Spend today", "B"),
+        ("Spend today", "C"),
+        ("Spend today (stat)", "B"),
+        ("Spend today (stat)", "C"),
+        ("Spend month-to-date", "B"),
+        ("Spend month-to-date", "C"),
+        ("Spend month-to-date (stat)", "B"),
+        ("Spend month-to-date (stat)", "C"),
+        ("Fallback sub-budget remaining (time series)", "C"),
+    ],
+)
+def test_the_warning_and_ceiling_lines_read_in_cents(title: str, ref: str) -> None:
+    # The warning and ceiling lines are whole cents ($3.50, $5, $14, $20). With the panels at 6 decimals for the
+    # meter's micro-dollars they read $3.500000, so their own overrides keep 2 (fix/000-spend-decimals's review).
+    assert overrides(by_title()[title])[ref]["decimals"] == 2
+
+
+@pytest.mark.parametrize(
     "title",
     ["Fallback sub-budget remaining", "Fallback sub-budget remaining (time series)"],
 )

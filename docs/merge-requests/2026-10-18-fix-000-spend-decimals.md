@@ -18,11 +18,13 @@ Checked and not changed:
 - The stat "Fallback sub-budget remaining" needs no override for B: its value mappings replace the number with "available" or "awaiting renewal".
 - The dev-time row's currency panels (§7.7) stay at 2. They show the Team plan's notional cost, outside the production meter, not spend.
 - Neither contracts/telemetry.md §7.2 nor plan §6 states the decimals, so neither changes, and the plan holds.
-- A side effect to know: the warning and ceiling lines and stat values now read $3.500000, $5.000000, $14.000000, and $20.000000, as the sub-budget's "warning at" already did.
+- The warning and ceiling lines would have read $3.500000, $5.000000, $14.000000, and $20.000000 at the panels' 6 decimals. The review's follow-up (below) gives them 2.
+
+**The review's follow-up** (a third commit, by the integrating session): the warning and ceiling series keep 2 decimals through their own overrides, B and C in the four spend panels and C ("warning at") in the sub-budget time series, nine overrides in all. The spend itself (A) stays at 6. Test first: `test_the_warning_and_ceiling_lines_read_in_cents`, nine cases, failed 9 of 9 on the second commit's dashboard (`KeyError: 'decimals'`), then passed: 54 passed in all. 36 lines added to the JSON, none changed.
 
 ## Acceptance
 
-FR-028: "Grafana MUST run in the stack with a dashboard showing … spend today and month-to-date, fallback sub-budget remaining …". At Bedrock's scale, a fallback call's 27 micro-USD now moves "Spend today" and "Spend month-to-date" by $0.000027, which the panels show, where 2 decimals hid it. This isn't what SC-005 reads ("the fallback cost appears on the dashboard within 60 seconds" is read off the cost table and the sub-budget panel, quickstart.md §4.2), but the same call now shows on the spend panels too.
+FR-028: "Grafana MUST run in the stack with a dashboard showing … spend today and month-to-date, fallback sub-budget remaining …". US2's first acceptance scenario is the one 2 decimals broke: "added to the daily and monthly meters, and visible on the dashboard within 60 seconds". At Bedrock's scale, a fallback call's 27 micro-USD now moves "Spend today" and "Spend month-to-date" by $0.000027, which the panels show, where 2 decimals hid it. This isn't what SC-005 reads ("the fallback cost appears on the dashboard within 60 seconds" is read off the cost table and the sub-budget panel, quickstart.md §4.2), but the same call now shows on the spend panels too.
 
 ## Tests first (RED, then GREEN)
 
@@ -45,7 +47,7 @@ None: a display setting. No call, no cost, and no byte leaves the visitor's devi
 
 ## Review
 
-Review: pending (the integrating session runs it).
+One pass by the reviewer agent, which didn't write the change: **approve, no blockers.** It checked that the diff is targeted (the four `decimals` lines and B's override, nothing reformatted, no other panel, the queries and the warning and ceiling targets the same, the dev-time panels still at 2), and that the tests fail without the change: with no pytest in its sandbox, it ran the same checks on the JSON at both commits. Security, cost, and telemetry: nothing; a display setting, and the meter keeps whole micro-dollars, so 6 decimals shows the exact value. Its two nits are done in the third commit: the Acceptance section now quotes US2's first scenario, and the warning and ceiling lines read in cents (above).
 
 ## For you
 
@@ -57,7 +59,7 @@ Review: pending (the integrating session runs it).
 
 ## Verification
 
-`make check ENGINE_MODE=none-yet` at this branch's change (bacfd67), pasted whole below. Every gate passes but `toolchain-check`, as on docs/000-closeout: Claude Code 2.1.301 against its pin of 2.1.296, not this branch's. pytest counts 2464, five more than docs/000-closeout's 2459, which are this branch's tests. The matrix folds in stage E's report: 658 passed, 0 failed, 40 known gaps, 0 planned. `image` is SKIP, as `ENGINE_MODE=none-yet` asks. This note's commit adds only this file.
+`make check ENGINE_MODE=none-yet` at this branch's final tree (the third commit's change, the warning and ceiling overrides), pasted whole below. Every gate passes but `toolchain-check`, as on docs/000-closeout: Claude Code 2.1.301 against its pin of 2.1.296, not this branch's. pytest counts 2473: docs/000-closeout's 2459, plus this branch's 5 first tests and 9 cases of the follow-up's test. The matrix: 658 passed, 0 failed, 40 known gaps, 0 planned. `image` is SKIP, as `ENGINE_MODE=none-yet` asks.
 
 ```text
 == makefiles-check
@@ -107,7 +109,7 @@ All matched files use Prettier code style!
 ruff check .
 All checks passed!
 ruff format --check --no-cache --extend-exclude corpus .
-191 files already formatted
+192 files already formatted
 { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
 -> PASS lint
@@ -125,8 +127,8 @@ npm test --workspaces --if-present
 
  Test Files  49 passed (49)
       Tests  747 passed | 12 skipped (759)
-   Start at  20:13:19
-   Duration  56.26s (tests 94%, import 3%, transform 2%)
+   Start at  20:24:22
+   Duration  56.79s (tests 94%, import 4%, transform 2%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  2%]
@@ -140,7 +142,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 26%]
 ........................................................................ [ 29%]
 ........................................................................ [ 32%]
-........................................................................ [ 35%]
+........................................................................ [ 34%]
 ........................................................................ [ 37%]
 ........................................................................ [ 40%]
 ........................................................................ [ 43%]
@@ -151,9 +153,9 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 58%]
 ........................................................................ [ 61%]
 ........................................................................ [ 64%]
-........................................................................ [ 67%]
-........................................................................ [ 70%]
-........................................................................ [ 73%]
+........................................................................ [ 66%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
 ........................................................................ [ 75%]
 ........................................................................ [ 78%]
 ........................................................................ [ 81%]
@@ -162,29 +164,29 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 90%]
 ........................................................................ [ 93%]
 ........................................................................ [ 96%]
-........................................................................ [ 99%]
-................                                                         [100%]
-2464 passed in 193.90s (0:03:13)
+........................................................................ [ 98%]
+.........................                                                [100%]
+2473 passed in 164.14s (0:02:44)
 -> PASS test
 == secrets
 bash tools/gates/secrets.sh
 secrets: gitleaks with /home/h4reet/h4reet-ai/h4reet-ai/.gitleaks.toml, over /tmp/claude-1000/wt-decimals
 == gitleaks: unstaged changes
-8:17PM INF 0 commits scanned.
-8:17PM INF scanned ~0 bytes (0) in 34.2ms
-8:17PM INF no leaks found
+8:28PM INF 0 commits scanned.
+8:28PM INF scanned ~3716 bytes (3.72 KB) in 23.5ms
+8:28PM INF no leaks found
 -> PASS unstaged changes
 == gitleaks: staged changes
-8:17PM INF 0 commits scanned.
-8:17PM INF scanned ~0 bytes (0) in 34.2ms
-8:17PM INF no leaks found
+8:28PM INF 0 commits scanned.
+8:28PM INF scanned ~0 bytes (0) in 21.3ms
+8:28PM INF no leaks found
 -> PASS staged changes
-== gitleaks: 3 commits since main (58bd2327212e..HEAD)
-8:17PM INF 3 commits scanned.
-8:17PM INF scanned ~44383 bytes (44.38 KB) in 60.2ms
-8:17PM INF no leaks found
--> PASS 3 commits since main (58bd2327212e..HEAD)
-secrets: PASS (unstaged changes, staged changes, 3 commits since main)
+== gitleaks: 4 commits since main (58bd2327212e..HEAD)
+8:28PM INF 4 commits scanned.
+8:28PM INF scanned ~65123 bytes (65.12 KB) in 36ms
+8:28PM INF no leaks found
+-> PASS 4 commits since main (58bd2327212e..HEAD)
+secrets: PASS (unstaged changes, staged changes, 4 commits since main)
 -> PASS secrets
 == evals
 python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER:-}" = local ] && echo --stack prod)
@@ -212,11 +214,11 @@ behavioral tier: 13 cases (10 enforcement, 3 conduct), 3 runs each; trigger hash
 PASS  behavioral tier: 2026-10-12T184140Z-fix-000-gate-on-main-4907f2bf42e8 passed for trigger hash 3f4caf1b916a, the newest run for it
 agent-config behavioral: pass, 0 planned
 python3 -I -B -X pycache_prefix=/dev/null evals/docs_links.py
-PASS  every relative link resolves: 813 links in 83 files
+PASS  every relative link resolves: 814 links in 84 files
 PASS  README.md links the ADR index (docs/adr/)
 PASS  the ADR index links every ADR file: 17 of 17
 PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
-docs links: 0 failed, 813 relative links in 83 files
+docs links: 0 failed, 814 relative links in 84 files
 -> PASS evals
 == redteam
 python3 -I -B -X pycache_prefix=/dev/null redteam/run.py

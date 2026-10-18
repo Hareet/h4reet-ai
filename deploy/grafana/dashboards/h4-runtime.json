@@ -456,6 +456,10 @@
             },
             "properties": [
               {
+                "id": "decimals",
+                "value": 2
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
@@ -477,6 +481,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -576,6 +584,10 @@
             },
             "properties": [
               {
+                "id": "decimals",
+                "value": 2
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
@@ -590,6 +602,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -683,6 +699,10 @@
             },
             "properties": [
               {
+                "id": "decimals",
+                "value": 2
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
@@ -704,6 +724,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -803,6 +827,10 @@
             },
             "properties": [
               {
+                "id": "decimals",
+                "value": 2
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
@@ -817,6 +845,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -1069,6 +1101,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
