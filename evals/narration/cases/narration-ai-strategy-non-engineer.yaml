@@ -1,0 +1,43 @@
+# Generated from apps/web/content/narration/ai-strategy.non-engineer.md
+# by apps/web/build/narration.ts (spec 002, contracts/narration.md §2, N5). Don't edit it: `npm run content:lock
+# -w apps/web` rewrites it, and make test fails when it's stale. The narration suite runs on the fake adapter only.
+# expect.not_contains holds the corpus's public "Do not claim" phrases, never a private one or the surname.
+id: narration-ai-strategy-non-engineer
+description: "The room's narration of the resume item ai-strategy on the non-engineer path, as the visitor reads it."
+prompt: "Narrate the resume item ai-strategy for a visitor on the non-engineer path."
+fake_response: "Hareet designed Medic's AI strategy with Andra, our CEO, around two tracks: AI inside the CHT for health workers, and AI around the CHT for the people who build on it. He led its implementation. Its test for every AI investment: does this replace caring, or does it support more care between people?"
+expect:
+  contains:
+    - "designed Medic's AI strategy with Andra, our CEO"
+    - "around two tracks: AI inside the CHT for health workers, and AI around the CHT for the people who build on it"
+    - "He led its implementation"
+    - "Its test for every AI investment: does this replace caring, or does it support more care between people"
+  not_contains:
+    - "where he was born"
+    - "surname"
+    - "employer dates"
+    - "a degree"
+    - "religious affiliation"
+    - "defined the market"
+    - "designed chw workflows at medic"
+    - "coined the words buildtime/runtime ai"
+    - "award amounts"
+    - "sole authorship of the strategy"
+    - "coining the words buildtime/runtime ai"
+    - "a link to the ground truth recording"
+    - 'cht-agent was "trained" on cht knowledge'
+    - "built the partner's speech model"
+    - "field results for the voice for cht pilot"
+    - "built the cht skills"
+    - "built cht-pr-review"
+    - "claude-medic-aws makes production changes"
+    - "the jd's aws service list as claude-medic-aws's architecture"
+    - "the roadmap's dates as delivery dates"
+    - 'anything in the "held back" list at the top of this file'
+    - "any metric"
+    - "a part in uganda"
+    - "any number that is not tagged in this file"
+    - "in a filled slot"
+    - "any sre-jd bullet as an accomplishment until confirmed"
+    - "any amount"
+    - "won anything personally"

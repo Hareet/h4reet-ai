@@ -1,0 +1,46 @@
+# Generated from apps/web/content/narration/claude-medic-aws.engineer.md
+# by apps/web/build/narration.ts (spec 002, contracts/narration.md §2, N5). Don't edit it: `npm run content:lock
+# -w apps/web` rewrites it, and make test fails when it's stale. The narration suite runs on the fake adapter only.
+# expect.not_contains holds the corpus's public "Do not claim" phrases, never a private one or the surname.
+id: narration-claude-medic-aws-engineer
+description: "The room's narration of the resume item claude-medic-aws on the engineer path, as the visitor reads it."
+prompt: "Narrate the resume item claude-medic-aws for a visitor on the engineer path."
+fake_response: "Hareet designed claude-medic-aws, Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base. It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect. After agent-watchdog posts its brief, claude-medic-aws correlates performance changes with cluster modifications and AWS resource changes and suggests the infrastructure cause. When agent-watchdog flagged projects with degraded API performance, claude-medic-aws correlated the degradation to a specific EKS node and flagged the command to roll it over. It is read-only today; one step away from being trusted with production changes."
+expect:
+  contains:
+    - "designed claude-medic-aws"
+    - "Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base"
+    - "It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect"
+    - "After agent-watchdog posts its brief, claude-medic-aws correlates performance changes with cluster modifications and AWS resource changes and suggests the infrastructure cause"
+    - "projects with degraded API performance"
+    - "specific EKS node and flagged the command to roll it over"
+    - "read-only today; one step away from being trusted with production changes"
+  not_contains:
+    - "where he was born"
+    - "surname"
+    - "employer dates"
+    - "a degree"
+    - "religious affiliation"
+    - "defined the market"
+    - "designed chw workflows at medic"
+    - "coined the words buildtime/runtime ai"
+    - "award amounts"
+    - "sole authorship of the strategy"
+    - "coining the words buildtime/runtime ai"
+    - "a link to the ground truth recording"
+    - 'cht-agent was "trained" on cht knowledge'
+    - "built the partner's speech model"
+    - "field results for the voice for cht pilot"
+    - "built the cht skills"
+    - "built cht-pr-review"
+    - "claude-medic-aws makes production changes"
+    - "the jd's aws service list as claude-medic-aws's architecture"
+    - "the roadmap's dates as delivery dates"
+    - 'anything in the "held back" list at the top of this file'
+    - "any metric"
+    - "a part in uganda"
+    - "any number that is not tagged in this file"
+    - "in a filled slot"
+    - "any sre-jd bullet as an accomplishment until confirmed"
+    - "any amount"
+    - "won anything personally"

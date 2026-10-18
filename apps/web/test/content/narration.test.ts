@@ -228,6 +228,7 @@ describe("N1, the resume's citation check on each script", () => {
 
   it.each([
     ["C1, a file outside the corpus's topics", [cite(DESIGNED, "corpus/intake/notes.md")], "not a corpus file"],
+    ["C1, the corpus's README, which isn't a topic file", [cite(DESIGNED, "corpus/README.md")], "not a corpus file"],
     ["C2, a quote the file doesn't hold", [cite("Robin designed the moon")], "quote not found"],
     ["C3, an untagged sentence", [cite("mentions the untagged harbor map")], "untagged sentence"],
     ["C5, a sentence under Do not claim", [cite("The lantern predates Robin by a century")], "do-not-claim section"],
@@ -256,6 +257,12 @@ describe("N1, the resume's citation check on each script", () => {
     expect(problems(lantern([cite(DESIGNED)], words))).toEqual([`${at}: ownership verb not cited`]);
   });
 
+  it("C8: fails any ownership verb in the words that no cited sentence holds, in a script whose item has none", () => {
+    const words = `${PUBLIC_SERVER}; Robin led its care.`;
+    const tide = { ...CLEAN, "tide.engineer.md": script("tide", "engineer", [cite(PUBLIC_SERVER)], words) };
+    expect(problems(tide)).toEqual(["narration/tide.engineer.md: ownership verb not cited"]);
+  });
+
   it("reports each script's first problem, for every script that has one", () => {
     const bad = {
       ...lantern([cite("Robin designed the moon")], "Lit 12 lanterns."),
@@ -281,6 +288,14 @@ describe("N3, forbidden phrases", () => {
     expect(problems(lantern(invented))).toEqual([
       `${at}: forbidden phrase (from ${FILE}:${lineOf(FILE, "Robin invented the lantern")})`,
     ]);
+  });
+
+  it("checks each alternative of a Do not claim bullet joined by or, its verb carried over", () => {
+    const line = lineOf(FILE, "That Robin built the tide clock alone or the harbor bell");
+    const words = `${DESIGNED}. Robin built the harbor bell.`;
+    const claims = [cite(DESIGNED), cite("Robin built the tide clock for the harbor office")];
+    const bell = { ...CLEAN, "lantern.non-engineer.md": script("lantern", "non-engineer", claims, words) };
+    expect(problems(bell)).toEqual([`${at}: forbidden phrase (from ${FILE}:${line})`]);
   });
 
   it("fails the surname, from the PDF header's full name, without printing it", () => {

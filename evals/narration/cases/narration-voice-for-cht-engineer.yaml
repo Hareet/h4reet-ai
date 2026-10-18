@@ -1,0 +1,48 @@
+# Generated from apps/web/content/narration/voice-for-cht.engineer.md
+# by apps/web/build/narration.ts (spec 002, contracts/narration.md §2, N5). Don't edit it: `npm run content:lock
+# -w apps/web` rewrites it, and make test fails when it's stale. The narration suite runs on the fake adapter only.
+# expect.not_contains holds the corpus's public "Do not claim" phrases, never a private one or the surname.
+id: narration-voice-for-cht-engineer
+description: "The room's narration of the resume item voice-for-cht on the engineer path, as the visitor reads it."
+prompt: "Narrate the resume item voice-for-cht for a visitor on the engineer path."
+fake_response: "Hareet designed Voice for CHT, the idea, the project, and the capability, as the strategy's runtime-AI answer to its top priority, supporting the CHW. The CHW speaks the visit and the form fills itself, offline, and she confirms before anything saves. He went looking for a partner who already had some of Medic's languages working in small models, found one, and built Medic's side. The roles: the speech-model partner, the offline speech models; Medic, the CHT platform and integration; a CHW partner organization, CHWs, voices, and feedback. The pilot is underway, and field results come later, published by the brief's own rules. Next, Medic plans to build its own in-house voice-to-CHT for Nepali and rural Nepali dialects: a plan, not work done."
+expect:
+  contains:
+    - "the idea, the project, and the capability"
+    - "the strategy's runtime-AI answer to its top priority, supporting the CHW"
+    - "The CHW speaks the visit and the form fills itself, offline, and she confirms before anything saves"
+    - "went looking for a partner who already had some of Medic's languages working in small models"
+    - "the speech-model partner, the offline speech models"
+    - "Medic, the CHT platform and integration"
+    - "a CHW partner organization, CHWs, voices, and feedback"
+    - "field results come later, published by the brief's own rules"
+    - "Medic plans to build its own in-house voice-to-CHT for Nepali and rural Nepali dialects: a plan, not work done"
+  not_contains:
+    - "where he was born"
+    - "surname"
+    - "employer dates"
+    - "a degree"
+    - "religious affiliation"
+    - "defined the market"
+    - "designed chw workflows at medic"
+    - "coined the words buildtime/runtime ai"
+    - "award amounts"
+    - "sole authorship of the strategy"
+    - "coining the words buildtime/runtime ai"
+    - "a link to the ground truth recording"
+    - 'cht-agent was "trained" on cht knowledge'
+    - "built the partner's speech model"
+    - "field results for the voice for cht pilot"
+    - "built the cht skills"
+    - "built cht-pr-review"
+    - "claude-medic-aws makes production changes"
+    - "the jd's aws service list as claude-medic-aws's architecture"
+    - "the roadmap's dates as delivery dates"
+    - 'anything in the "held back" list at the top of this file'
+    - "any metric"
+    - "a part in uganda"
+    - "any number that is not tagged in this file"
+    - "in a filled slot"
+    - "any sre-jd bullet as an accomplishment until confirmed"
+    - "any amount"
+    - "won anything personally"
