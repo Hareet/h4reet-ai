@@ -131,3 +131,56 @@ The spec's Scope section lists each of these:
   - nothing refers past FR-062 or SC-014, except to the moved SC-015;
   - the only new headings are Clarifications and its two sessions.
 - Every quote added in this session was checked against `main`: the routing header, operator-admin.md §6, env-files.md, data-model.md §2.4, disclosure row S2, ADRs 0003 and 0017, research R-06, the plan-interview record, and tasks T105 and T119. The Author's words are quoted from this session.
+
+## Plan draft, 2026-10-18
+
+Written by: the lead session (research.md and plan.md) and a forked helper of it (data-model.md, contracts/, quickstart.md, and the plan's follow-on changes), in `/tmp/claude-1000/wt-spec001`. Authorized by: the Author's direction of 2026-10-17, "trust the recommendations and keep going as far as we can!", and the overnight plan agreed that evening: "spec/001: rebase onto main, then draft /speckit-plan's artifacts for the Author's approval".
+
+**Status: a draft plan for your approval. Nothing in it is approved.** The branch was rebased onto main at 58bd232, cleanly (it was 292 commits behind). Then `/speckit-plan` ran. There is no task list and no code.
+
+### What's new
+
+- **`research.md`:** 25 decisions, each with its rationale and the alternatives weighed; the idle-cost table at prices checked on 2026-10-18; and "The plan interview, to ask": nine questions, each with the answer the plan assumes until you give yours.
+- **`plan.md`:** spec 000's layout: Technical Context, the constitution gate, the project structure, fifteen design sections, eight task groups with the guard patch first, the risks, and the coverage of every FR and SC.
+- **`data-model.md`:** the gateway's changes (the `cloud` stack, the `prod-cloud` route class, the `infra` attribution and its migration), and the new records: releases, deployments, the plan block, the apply record, the credential audit, the public view's document, the relay's caps, the tunnel.
+- **`contracts/`:** `relay-http`, `tunnel`, `edge`, `releases-deployer`, `infra-records`, `aws-alerts`, `public-view`, and `env-cloud`.
+- **`quickstart.md`:** your validation runs, per task group, each naming the success criterion it proves.
+
+Writing the contracts changed twelve details of the first plan commit, each carried into `plan.md` and `research.md` in the same commit, so the contract and the plan agree. Among them:
+- the viewer's address travels as `X-H4-Viewer`, since `X-H4-Client` is spec 000's client label;
+- the edge's error responses replace only 502 and 504, so the relay's own 503s keep their causes;
+- the heavy services (Langfuse and its stores, Prometheus, Loki, Grafana) join a new `local` profile that prod, dev, and dev-cpu select and the cloud stack doesn't;
+- the tunnel's blocks on the local `edge` are guarded by their own tokens, not a fixed subnet, which prod and dev would share on one host;
+- the provider mirror lives under `~/.local/share/h4reet/`, beside spec 000's lint toolchain.
+
+### For you: the plan interview
+
+The plan assumes each recommended answer until you give yours. research.md argues each one.
+1. **Approve now, or after spec 000's open runs?** The spec's Assumptions say spec 000 passes "before this spec is planned", and SC-001's re-run, SC-002, SC-005's dashboard timing, and SC-007 are open. Recommended: approve the plan now; task group 4, the first that needs a stack, waits for SC-001's re-run and SC-002.
+2. **How CloudFront reaches the relay.** Recommended: a VPC origin on a second, private network interface, so only this distribution can reach the relay, and no secret sits in Terraform's state. The trade: from CloudFront to the VM, a request travels as HTTP inside AWS's network. The alternative is TLS end to end, with a certificate on the VM and a shared secret header.
+3. **The instance.** Recommended: a t4g.micro spot instance, about $8 a month idle in all (research R-05). If the thin services don't fit in 1 GiB, a t4g.small, about $10.90, just over the $10 target.
+4. **The DNS zone.** Which registrar and DNS provider hold h4reet.ai today? Recommended: the zone in Route 53, with the registrar's name servers pointed at it.
+5. **Apply records.** Recommended: `make infra-record` commits each one on an `ops/apply-*` branch for you to merge.
+6. **FR-013: import or replace spec 000's hand-made Bedrock identity?** Recommended: replace it with a Terraform role the fallback gateway assumes on the VM, then delete the Identity Center user, its permission set, and the old IAM user.
+7. **The local tier's release source.** Recommended: your own release directory, written by `make release`, so the local tier holds no AWS credential.
+8. **A last-resort breaker that switches the site off past a hard stop?** Recommended: not in this spec; the risk is named.
+9. **Telemetry and the public snapshot through the tunnel?** Recommended: yes, so the local tier never holds an AWS credential.
+
+### Worth knowing
+
+- **No `make apply`.** The plan keeps CLAUDE.md's "There is no `make apply` on purpose". You apply with Terraform yourself, between `make infra-verify`, which matches your saved plan to the reviewed note, and `make infra-record`. CLAUDE.md's infra line still says apply happens "in the protected CI environment"; the guard patch (task group 1) proposes the local-phase wording.
+- **The guard rule already exists in part.** Spec 000's bash gate already refuses Terraform's apply, destroy, import, and three state writes; FR-006 grows the list and its spellings.
+- **The new ADRs start at 0024,** since the pin-rule proposal (docs/000-claude-pin-rule) took 0023. They're written in the commit that records your approval (plan §13), from their research entries.
+- **Prices** come from AWS's pricing pages for everything but spot, which AWS publishes only through its API; the spot figures are from trackers that sample it. Two of research.md's AWS sentences come from tonight's web-search summaries of AWS's pages, not the pages themselves: the Budgets free-tier sentence and the VPC origins' private-subnet sentence. The first infra task re-prices the table, and re-reads both, from your terminal.
+
+### Verification
+
+- **Links:** `evals/docs_links.py`: 0 failed, 977 relative links in 97 files.
+- **Format:** `ruff format --check` on the folder: 16 files already formatted.
+- **Quotes:** each quote of 25 characters or more in the new files was checked against its sources: the spec, spec 000's files, the constitution, CLAUDE.md, the ADRs, and the configuration. Five that weren't word for word were fixed. What's left unmatched is literal values and new proposed text, not quotes.
+- **Secrets:** no account ID, portal URL, key, or address appears; the commits' pre-commit scans passed.
+- `make check` wasn't run: no gate reads `specs/001-cloud-elevation/` beyond the links check, as this note found for the spec.
+
+### Review
+
+Pending: one `REVIEW.md` pass by an agent that wrote neither the spec nor the plan, covering both, since the spec's own pass was owed after clarify.
