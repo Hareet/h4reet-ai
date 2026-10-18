@@ -52,6 +52,8 @@ gitleaks version       # 8.30.1: the early patch's hooks fail closed without it
 
 This is tasks.md T013, on the setup branch, before its note is written.
 
+**Proposed: Claude Code's pin is a floor** ([ADR 0023](../../docs/adr/0023-claude-code-pin-is-a-floor.md), 2026-10-18). Claude Code updates itself from your other projects, which this project's `DISABLE_AUTOUPDATER` doesn't reach. Once you accept the ADR and apply its patch, `make toolchain-check` passes a newer Claude Code with a WARN row and a `WARN:` line, and fails only an older one. Every other tool must still match its pin exactly. Until then, a newer Claude Code fails the check.
+
 Don't make Node 24 your default (`nvm alias default`): Claude Code is installed under your default Node, and the Makefile finds the pinned one itself. Also remove from your shell profile any variable an env template uses, such as `TELEGRAM_BOT_TOKEN`, and any `COMPOSE_*` or `H4_*`. Preflight refuses to start while the shell sets one, because compose would let it override the env file ([env-files.md §10](contracts/env-files.md#10-make-up-preflight), P5).
 
 ### 0.4 The host's Docker moves to the containerd image store (Heavy)

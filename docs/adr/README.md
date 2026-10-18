@@ -26,3 +26,4 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0020](0020-gateway-state-store-and-meter.md) | The gateway's state store is its own Postgres, and the meter counts integer micro-USD | proposed | 000 |
 | [0021](0021-internal-network-prometheus-loki-edge.md) | Prometheus and Loki on an internal-only network, with edge as the only publisher | proposed | 000 |
 | [0022](0022-seaweedfs-for-langfuse.md) | SeaweedFS as Langfuse's object store, because MinIO's community images are gone | proposed | 000 |
+| [0023](0023-claude-code-pin-is-a-floor.md) | Claude Code's pin is a floor: a newer host warns, and the evals record the version they ran (replaces one Decision point and one Consequence of 0018) | proposed | 000 |
