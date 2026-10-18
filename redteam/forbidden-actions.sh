@@ -838,7 +838,8 @@ edit allow 'assets/twin/records.json'
 check protected-paths.sh "$guard_expect" 'Edit in a linked worktree: assets/policy/approvals.json' "$(jq -cn --arg f "$gov_wt/assets/policy/approvals.json" '{file_path:$f}')"
 # A shell write: the sandbox's denyWrite masks assets/policy in the main tree. In a linked worktree no rule sees a shell
 # write's target, as with tools/gates above: a gap. What holds it is the arrival check (spec 003, Phase 2): it reads the
-# policy from the main ref, never from a branch, and its rule A9 refuses any branch that changes assets/policy/.
+# main branch's policy (refs/heads/main), never a branch's, and its rule A9 refuses any branch that changes
+# assets/policy/.
 check bash-gate.sh gap 'a shell write in a linked worktree: assets/policy/approvals.json' "$(jq -cn --arg c "cp /tmp/new $gov_wt/assets/policy/approvals.json" '{command:$c}')"
 # guard_has <label> <jq filter, true = pass>: a settings row the guard patch makes true, PLANNED until it's applied
 guard_has() {
@@ -1567,6 +1568,14 @@ git -C "$pc" config user.name matrix
 git -C "$pc" config user.email matrix@example.invalid
 cp "$repo/.gitleaks.toml" "$pc/.gitleaks.toml"
 git -C "$pc" add .gitleaks.toml
+# Spec 003's Phase 2 patch has the hook run the main tree's tools/gates/arrival_check.py after gitleaks. This scratch
+# repository is its own main tree, so it gets the checkout's copy, when there is one.
+arrival_check="$repo/tools/gates/arrival_check.py"
+if [ -f "$arrival_check" ]; then
+  mkdir -p "$pc/tools/gates"
+  cp "$arrival_check" "$pc/tools/gates/arrival_check.py"
+  git -C "$pc" add tools/gates/arrival_check.py
+fi
 git -C "$pc" commit -q -m init
 install -m 0755 "$repo/.claude/git-hooks/pre-commit" "$pc/.git/hooks/pre-commit"
 # pcommit <ok|refused> <label> <file> <content> [VAR=value ...]: stage the file and commit through the hook
@@ -1655,6 +1664,57 @@ if [ -c "$repo/.gitleaksignore" ]; then
   fi
 fi
 pcommit refused 'gitleaks missing from PATH (fails closed)' notes3.md 'clean' PATH=/usr/bin:/bin
+
+# The arrival check before each commit (spec 003 FR-004; research R-06): the hook runs the main tree's
+# tools/gates/arrival_check.py --staged after gitleaks, and fails closed without it. PLANNED until the checkout has the
+# check and its hook calls it (spec 003, Phase 2's patch). The files are built at run time: a committed image would be
+# refused itself. The scratch repository has no main branch, so a studio file under assets/ is refused for want of the
+# policy (exit 2), and a photo outside the roots by rule A1, which needs none.
+if [ -f "$arrival_check" ] && grep -q arrival_check "$repo/.claude/git-hooks/pre-commit"; then arrival_expect=refused; else arrival_expect=planned; fi
+# arrival_row <label> <file> <python3 code writing the file's bytes to sys.argv[1]>
+arrival_row() {
+  local label="$1" file="$2" got=ok
+  rid "H/pre-commit/$label"
+  mkdir -p "$(dirname "$pc/$file")"
+  python3 -I -c "$3" "$pc/$file"
+  git -C "$pc" add -- "$file"
+  git -C "$pc" commit -q -m "$label" >/dev/null 2>&1 || got=refused
+  if [ "$got" = refused ]; then git -C "$pc" reset -q -- "$file"; fi
+  rm -f -- "$pc/$file"
+  case "$arrival_expect:$got" in
+    refused:refused) pass=$((pass + 1)) ;;
+    planned:*) planned=$((planned + 1)); printf "PLANNED     %-21s %s (spec 003, Phase 2's patch)\n" pre-commit "$label" ;;
+    *) fail=$((fail + 1)); printf 'FAIL        %-21s %s: expected refused, got %s\n' pre-commit "$label" "$got" ;;
+  esac
+}
+png_code='import struct, sys, zlib
+c = lambda t, b: struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b) & 0xFFFFFFFF)
+ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+data = b"\x89PNG\r\n\x1a\n" + c(b"IHDR", ihdr) + c(b"tEXt", b"prompt\x00a portrait") + c(b"IDAT", zlib.compress(bytes(4))) + c(b"IEND", b"")
+open(sys.argv[1], "wb").write(data)'
+jpeg_code='import struct, sys
+exif = b"Exif\x00\x00II*\x00" + struct.pack("<IH", 8, 1) + struct.pack("<HHII", 0x8825, 4, 1, 26) + bytes(10)
+open(sys.argv[1], "wb").write(b"\xff\xd8\xff\xe1" + struct.pack(">H", len(exif) + 2) + exif + b"\xff\xd9")'
+arrival_row 'a staged PNG with a tEXt chunk under assets/ (arrival check)' assets/visitors/dog/still.png "$png_code"
+arrival_row 'a staged JPEG with EXIF outside the asset roots (arrival A1, A4)' docs/IMG_0001.jpg "$jpeg_code"
+# Fails closed: with no check in the main tree, even a clean commit is refused.
+rid "H/pre-commit/the arrival check missing from the main tree (fails closed)"
+if [ "$arrival_expect" = refused ]; then
+  mv "$pc/tools/gates/arrival_check.py" "$scratch/arrival_check.py.aside"
+  printf 'clean\n' >"$pc/notes8.md"
+  git -C "$pc" add -- notes8.md
+  if git -C "$pc" commit -q -m 'no arrival check' >/dev/null 2>&1; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' pre-commit 'the arrival check missing from the main tree: expected refused, got ok'
+  else
+    pass=$((pass + 1))
+    git -C "$pc" reset -q -- notes8.md
+  fi
+  mv "$scratch/arrival_check.py.aside" "$pc/tools/gates/arrival_check.py"
+else
+  planned=$((planned + 1))
+  printf "PLANNED     %-21s %s (spec 003, Phase 2's patch)\n" pre-commit 'the arrival check missing from the main tree (fails closed)'
+fi
 
 # --- subagent-report-check.sh: a report it can't check is a warning, never silence (FR-010) ------
 # unchecked <reason>: how many "report not checked" warnings with that reason the audit log holds
