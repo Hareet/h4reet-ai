@@ -40,7 +40,7 @@ export interface RoomDeps {
   win: Window;
   /** The fixed messages and the manifest, bundled at build (build/manifest.ts). */
   content: RoomContent;
-  /** The interactive resume's view (Phase 3's src/resume/; a stub until then). */
+  /** The interactive resume's view: Phase 3's, through src/room/resume-port.ts's adapter. */
   resume: ResumeView;
   /** Where usage events go (Phase 6's beacon); by default nowhere. */
   events?: EventSink;

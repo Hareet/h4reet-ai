@@ -1,14 +1,8 @@
-/* The interactive resume (spec 002, T029; contracts/room-scene.md §5): a panel over the room, readable from 320 CSS
-   pixels, every control at least 44 pixels high, focus always visible. */
+/* The interactive resume (spec 002, T029; contracts/room-scene.md §5): a panel in the room's resume panel, in the
+   page's flow, so it never covers the AI disclosure; readable from 320 CSS pixels, every control at least 44 pixels
+   high, focus always visible. */
 .resume {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  overflow-y: auto;
   box-sizing: border-box;
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 1rem;
   background: #fff;
   color: #1a1a1a;
 }

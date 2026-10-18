@@ -29,12 +29,13 @@ export interface ResumeView {
 
 /**
  * Phase 3's view in the room's panel. It:
- * - loads room-data.json the first time the resume opens, and shares that one load with every later opening;
+ * - loads room-data.json the first time the resume opens, and shares that one load with every later opening, unless
+ *   it failed: then the next opening loads again;
  * - shows "Loading the resume…" until it arrives, then the view's panel, unhidden (the view builds it hidden);
  * - drops the view's own heading and dialog role: the room's section and heading frame it, in the page's flow;
  * - wires the view's "Close" and "Download (PDF)" to the room, and passes `room:item-selected` on;
- * - never wires the view's own openers (wireResumeOpeners), which would open the resume a second way and count
- *   `room:resume-opened` again beside the room's resume_opened.
+ * - is the only way the view opens: the view has no opener of its own, so nothing opens it a second way or counts
+ *   it twice beside the room's resume_opened.
  * A load that fails reads as absent, and the view says so beside the PDF link.
  */
 export function resumeView(load: () => Promise<RoomResume> = () => fetchRoomResume()): ResumeView {
@@ -42,7 +43,10 @@ export function resumeView(load: () => Promise<RoomResume> = () => fetchRoomResu
   let current: { host: HTMLElement; context: ResumeContext } | null = null;
 
   const build = async (doc: Document): Promise<HTMLElement> => {
-    const panel = resumePanel(doc, await load().catch(() => ABSENT));
+    const data = await load().catch(() => ABSENT);
+    // A load that failed isn't kept: the next opening tries again. One that worked is kept for the visit.
+    if (data.resume_state === "absent") built = null;
+    const panel = resumePanel(doc, data);
     panel.hidden = false;
     panel.removeAttribute("role");
     panel.removeAttribute("aria-labelledby");
