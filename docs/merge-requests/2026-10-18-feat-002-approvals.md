@@ -136,7 +136,11 @@ One pass by the reviewer agent, which didn't write the change, over both of this
 
 **Two nits on `feat/002-web`:** edge's 503 page headers, and the package description's `§`. They're fixed there (fc9fe49). Phase 2's copy of the description held `§`, written by a JSON dump; the rebase took `feat/002-web`'s ASCII text.
 
-**What it found fine:** the coordinator's message named no other blocker on this branch. The review's own account of what holds is in the review.
+**What it found fine:**
+- **`node_modules/.cache`** breaks no rule: nothing the Author runs reads it. The gate builds a fresh `npm ci` copy of the export with `--ignore-scripts` and `ROOM_POLICY_DIR=/policy`; a host `make up` builds a `git archive` export with `ROOM_POLICY_DIR=/src/policy`, and `.dockerignore` drops `node_modules`; and the prebuild empties and refills the cache on every run.
+- **The matrix rows are honest:** `planned` on the branch and `block` after the patch, with the shell write in a linked worktree recorded as a gap.
+- **Tests:** the RED runs are recorded; the reviewer re-ran the agent-side suites (90 passed).
+- **Criteria met:** FR-012's "publish… only after… the Author has approved it" (`approvals.ts` and `content_check.py`), and FR-017's header rule while either facts slot is empty (`pdfHeader()`; the PDF itself is Phase 3's).
 
 **Its backlog, not fixed here:**
 - **The gate grades `npm run build`** in the devcontainer, not the image's own build. The content check reads that build's `dist/`, while what ships is the image's. Both run the same build script with `main`'s policy, but the gate doesn't prove the image's output.
