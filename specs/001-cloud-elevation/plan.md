@@ -249,7 +249,7 @@ Every root sets `default_tags` (`project`, `environment`), and every taggable re
 
 ### 1.3 The offline checks and the policy (FR-002, FR-004, FR-012; R-14)
 
-- **`make infra-mirror`** (the Author) seeds `/opt/h4reet/terraform-providers` with the pinned providers.
+- **`make infra-mirror`** (the Author) seeds `~/.local/share/h4reet/terraform-providers` with the pinned providers, where spec 000's lint toolchain also lives: readable by agents, outside every sandbox write root.
 - **`make infra-check`**, run by `make check`, does `terraform fmt -check -recursive`, then `init -backend=false` and `validate` for each root against the mirror, then `tools/gates/infra_policy.py` on the HCL. It is PLANNED until the mirror exists, naming its task.
 - **In the Author's terminal,** `make plan` also runs the policy on `terraform show -json`.
 
@@ -278,7 +278,7 @@ The rule from spec 000's plan §15: a deny lands in a patch applied before the r
 **`docs/merge-requests/<date>-feat-001-guards.patch`:**
 - **`.claude/hooks/bash-gate.sh`:** R-16's Terraform rules (subcommands, spellings, `TF_CLI_ARGS*`), and the Author-only make targets: `infra-verify`, `infra-record`, `infra-mirror`, `release`, `tunnel-keys`, `tunnel-revoke`, `cloud-session`, `rollback ENV=cloud`, and `operator-* ENV=cloud`.
 - **`.claude/settings.json`:**
-  - `denyRead`, `denyWrite`, `Read(...)`, and `Edit(...)` denies on `*.tfstate*`, `*.tfplan`, `*.tfvars*`, `~/.config/h4reet-ai/{infra,tunnel,release}`, and `/opt/h4reet/terraform-providers` (read-only);
+  - `denyRead`, `denyWrite`, `Read(...)`, and `Edit(...)` denies on `*.tfstate*`, `*.tfplan`, and `*.tfvars*`. `~/.config/h4reet-ai/{infra,tunnel,release}` are already denied, as part of spec 000's deny on all of `~/.config/h4reet-ai`; the patch adds their matrix rows ([contracts/env-cloud.md §8](contracts/env-cloud.md#8-fr-011s-deny-list));
   - `credentials.envVars` gains `TF_VAR_*`, `AWS_*`, `TF_CLI_ARGS*`, and the new secrets' variable names ([contracts/env-cloud.md](contracts/env-cloud.md)).
 - **`.claude/hooks/protected-paths.sh`:** `infra/**/{iam,budgets,alerts,killswitch,edge-limits}*.tf`, `infra/policy/**`, and `config/budgets*` (already protected).
 - **`tools/gates/`:** `infra_policy.py`, `infra_redact.py`, `infra_plan_note.py`, `disclosure_check.py`, their tests, the new gate steps, and `matrix-required.txt`'s new rows.
@@ -316,7 +316,7 @@ Every notice goes to `h4-alerts`. The Author activates the cost-allocation tags 
   - the `cloud` stack name, with `H4_ENV=prod`;
   - the route class `prod-cloud`;
   - the relay as a trusted peer for `X-Forwarded-For`, on the cloud stack only;
-  - attribution `infra` in reservations and the ledger, and cost bases `estimate` and `billing_correction`;
+  - attribution `infra` in the ledger (an infra booking never reserves), and cost bases `estimate` and `billing_correction`;
   - the daily booking, in the 10 s background task and at admission;
   - the daily correction, from `budgets:DescribeBudget` on `h4-infra-actual` through the egress proxy, with the gateway's assumed role.
 - **The refusals** (FR-018): preflight and the gateway refuse a paid adapter in any route but `prod-cloud`. The `prod` class keeps `primary: local`, with no fallback.
@@ -337,9 +337,9 @@ Each is a container image in ECR, deployed by `infra/account`, with tests in `in
 ### 4.1 CloudFront and DNS (FR-027 to FR-029, FR-034; R-07 to R-09)
 
 - **The distribution** serves `h4reet.ai` and `www.h4reet.ai`, with ACM's certificate (DNS-validated in the Route 53 zone), and redirects HTTP to HTTPS. Its behaviors:
-  - **`/api/*`:** the VPC origin, which is the relay on the VM's `eth0`. `CachingDisabled`, plus an origin request policy that forwards `CloudFront-Viewer-Address` and no cookies. POST and GET only.
+  - **`/api/*`:** the VPC origin, which is the relay on the VM's `eth0`. `CachingDisabled`, plus an origin request policy that forwards `CloudFront-Viewer-Address` and no cookies. CloudFront passes its full method set, and the relay answers only GET and POST.
   - **default:** the site's bucket, through origin access control. Cached, with a response headers policy carrying the CSP, HSTS, `Referrer-Policy: no-referrer`, and `Permissions-Policy` that turns off the camera, microphone, and geolocation.
-- **Custom error responses** turn the origin's 502, 503, and 504 into 503 with `/_degraded/api.json` (R-08).
+- **Custom error responses** turn the origin's 502 and 504 into 503 with `/_degraded/api.json` (R-08). The relay's own 503s pass through, causes intact.
 - **No access logs** on the distribution: they would store visitors' addresses (FR-042). The edge's request and error counts come from CloudFront's free default metrics, read every 5 minutes (§9).
 
 [contracts/edge.md](contracts/edge.md) has the behaviors, the headers, and the CSP.
@@ -371,7 +371,11 @@ The relay also runs on dev and dev-cpu, in the `dev-relay` profile, against the 
 
 ### 5.2 The local `edge`'s tunnel blocks (FR-052, FR-053; R-12)
 
-Two server blocks, 8085 (the local path) and 8086 (telemetry in). They are unpublished, and reachable only from the `tunnel` network's fixed subnet. Each requires its own bearer token from the local prod env file, which nginx's template reads at start. Block 8085 accepts only `POST /hello` and `GET /health`, carries the client's address from `X-H4-Client` into `X-Forwarded-For` after the token check, and clears trace context as port 8080 does.
+Two server blocks, 8085 (the local path) and 8086 (telemetry in), on unpublished ports.
+- **The token:** each requires its own bearer token from the local prod env file, which nginx's template reads at start. Only the cloud side's callers hold them: the relay for 8085, and the cloud collector for 8086.
+- **8085** accepts only `POST /hello` and `GET /health`. After the token check, it carries the client's address from `X-H4-Viewer` into `X-Forwarded-For`, and keeps the relay's trace context. (`X-H4-Client` is spec 000's client label; it is dropped.)
+
+A fixed subnet for a `tunnel` network was considered and dropped: prod and dev on one host would collide on it ([contracts/tunnel.md §5](contracts/tunnel.md#5-the-local-edges-tunnel-blocks)).
 
 ### 5.3 Health, failover, and recovery (FR-054; R-12)
 
@@ -396,7 +400,7 @@ Two server blocks, 8085 (the local path) and 8086 (telemetry in). They are unpub
   - attaches and mounts the meter's volume at `/var/lib/h4reet/cloud`, the cloud stack's `H4_STATE_DIR`;
   - writes the cloud env file from Parameter Store into a 0600 file on tmpfs, so no secret touches the root volume;
   - starts the deployer, which brings up the newest release.
-- **Operator access:** through Systems Manager only. No SSH key exists for the instance, and no port is open for administration. `make cloud-session` (the Author) opens the admin listener's port-forwarding session (FR-050).
+- **Operator access:** through Systems Manager only. No SSH key exists for the instance, and no port is open for administration. `make cloud-session` (the Author) opens port-forwarding sessions to the admin listener and, for the Author's tests, to the relay (FR-050; [contracts/env-cloud.md §7](contracts/env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy)).
 
 ### 6.2 Networks and the literal bindings (FR-032, FR-051; R-07, R-10)
 
@@ -406,7 +410,7 @@ Two server blocks, 8085 (the local path) and 8086 (telemetry in). They are unpub
 | `eth1` | public | fixed private (`10.42.0.10`), plus the Elastic IP | TCP 2222 from anywhere (the tunnel) | egress through the proxy; the tunnel's port |
 
 The compose file's `cloud` profile publishes:
-- the relay at `10.42.1.10:8443`;
+- the relay at `10.42.1.10:8080`;
 - `tunnel-end` at `10.42.0.10:2222`;
 - the admin listener at `127.0.0.1:18503`.
 
@@ -420,7 +424,7 @@ All three are literals, so no environment file can move them. The compose policy
 
 ### 6.4 The fallback gateway's credentials (FR-013; R-15)
 
-`h4-gateway-credentials.timer` (host) assumes `h4-prod-fallback-gateway` every 30 minutes with the instance role. It writes `credentials` into `${H4_AWS_DIR}`, a tmpfs directory mounted read-only into the gateway, as spec 000's prod mounts its SSO directory. The gateway's Bedrock adapter reads it through the SDK's default chain, and its `credentials_warn_before_s` alert still fires if the timer stops.
+`h4-gateway-credentials.timer` (host) assumes `h4-prod-fallback-gateway` every 30 minutes with the instance role. It writes `credentials` into `${H4_AWS_DIR}`, a tmpfs directory mounted read-only into the gateway, as spec 000's prod mounts its SSO directory. The gateway's Bedrock adapter reads it through the SDK's default chain, and its `credentials_warn_before_s` alert still fires if the timer stops. The same timer writes `snapshot-sink`'s credentials for `h4-prod-public-view-writer`, which may write one S3 key. The table is in [contracts/env-cloud.md §7](contracts/env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy).
 
 ### 6.5 What the cloud stack runs (FR-044)
 
@@ -429,12 +433,12 @@ All three are literals, so no environment file can move them. The compose policy
 | `relay` | cloud, dev-relay | `relay` (new) | 0.25 CPU, 96 MiB |
 | `gateway` (the fallback gateway) | – | spec 000's | 0.5 CPU, 256 MiB |
 | `gateway-state` | – | spec 000's Postgres, `shared_buffers=32MB` | 0.25 CPU, 128 MiB |
-| `edge` | – | spec 000's nginx, cloud config: admin only | 0.1 CPU, 32 MiB |
+| `edge` | – | spec 000's nginx and configuration; its loopback ports on the VM are reached only through the operator's session | 0.1 CPU, 32 MiB |
 | `otel-collector` | – | spec 000's, `collector-cloud.yaml` | 0.25 CPU, 96 MiB |
 | `tunnel-end` | cloud | `tunnel` (new) | 0.1 CPU, 32 MiB |
 | `snapshot-sink` | cloud | `snapshot` (new) | 0.1 CPU, 48 MiB |
 
-The cloud env file's `COMPOSE_PROFILES` is `cloud`. The heavy services (the model server, Langfuse and its stores, Prometheus, Loki, Grafana) don't run: preflight's rule "not exactly one of `gpu` and `cpu`" becomes "exactly one, except the cloud class, which selects neither". Each service's absence is a degraded mode spec 000 already defines ([§11](#11-degraded-modes)).
+The cloud env file's `COMPOSE_PROFILES` is `cloud`. The heavy services (the model server, Langfuse and its stores, Prometheus, Loki, Grafana) don't run: they join a `local` profile that prod, dev, and dev-cpu select and cloud doesn't, and preflight's rule "not exactly one of `gpu` and `cpu`" becomes "exactly one, except the cloud class, which selects neither" ([contracts/env-cloud.md §3](contracts/env-cloud.md#3-profiles-and-services-by-stack)). Each service's absence is a degraded mode spec 000 already defines ([§11](#11-degraded-modes)).
 
 ## 7. Releases and the deployers
 
@@ -446,7 +450,7 @@ The cloud env file's `COMPOSE_PROFILES` is `cloud`. The heavy services (the mode
 3. **Copies** every upstream image in `deploy/images.lock` into ECR by digest.
 4. **Writes** `release.json` to the release bucket and to the local release directory, and prints the record.
 
-The site's files are synced to the site's bucket under the release's commit, and the distribution's default origin path moves to it through the release record. The previous release's files stay, so a rollback is a pointer change.
+The site's files are synced to the site bucket's `site/` prefix, with a copy kept under `releases/<commit>/`, and one invalidation follows. The distribution's configuration never changes for a release, so Terraform's state stays true. A rollback of the site syncs the previous release's copy back ([contracts/edge.md §4](contracts/edge.md#4-releases-of-the-site-and-the-public-views-path)).
 
 ### 7.2 The deployer (FR-046 to FR-049; R-17)
 
@@ -481,7 +485,7 @@ Every page links the disclosure. The CSP (`default-src 'self'; connect-src 'self
 
 - **The spec's flows** become rows with spec 000's columns: V1–V5 and C1–C11, the numbering kept and C12 not reused.
 - **Rows this plan adds:**
-  - **C13,** the fallback gateway → the AWS Budgets API: the infra correction's one daily read, carrying no visitor data;
+  - **C13,** the fallback gateway and the VM's `h4-aws-poller` → AWS's Budgets, CloudWatch, and SQS APIs: the infra correction's daily read, the edge's metrics, and the AWS-side alerts' copy, carrying no visitor data;
   - **C14,** the VM → AWS's Systems Manager, STS, and Parameter Store: the operator's session, the gateway's credentials, and the secrets at boot.
 - **Changes to spec 000's rows:**
   - F1 and F2 move to the fallback gateway, with "a visitor's message can now reach Bedrock";
@@ -498,7 +502,7 @@ Each disclosure row carries a machine-readable tag naming its hosts and its comp
 
 ### 8.3 The public view (FR-057 to FR-059; R-19)
 
-The publisher on the local tier sends the document described in [contracts/public-view.md](contracts/public-view.md) every 2 minutes through the tunnel. The sink checks it and writes `public-view/latest.json`, and `/status/` renders:
+The publisher on the local tier sends the local part of the document every 2 minutes through the tunnel. The sink checks it, and adds the cloud part: the meter of record's values, which it reads itself every 2 minutes whether or not the local tier is up. It writes the merged document to `site/status/latest.json` ([contracts/public-view.md](contracts/public-view.md)). `/status/` renders:
 - **spec 000's FR-028 panels:** requests, latency p50 and p95, errors, spend today and month to date, fallback remaining, the kill switch, model-server health, and degraded causes;
 - **this spec's additions:** the local tier's status now (from `/api/status`, live, not from the snapshot), the tunnel's state, idle cloud cost beside metered spend, and the running release;
 - **when the values were taken.**
@@ -514,8 +518,9 @@ It has no write action and nothing per client.
   - `h4.relay.requests` by path and outcome, `h4.relay.duration`, and `h4.relay.cap_refusals`;
   - `h4.tunnel.up` from both ends, and `h4.tunnel.reconnects`;
   - `h4.deploy.events` by host and outcome, and `h4.release.info` (the running commit and who started it);
-  - the edge's `requests` and `errors`, from CloudFront's default metrics, read every 5 minutes by the cloud collector's poller through `GetMetricData` (about $0.35 a month, in R-05);
-  - `h4.aws.alerts` by source, from the SNS topic's SQS copy, which a host service drains into the collector;
+  - the edge's `requests` and `errors`, from CloudFront's default metrics, read every 5 minutes through `GetMetricData` (about $0.35 a month, in R-05);
+  - `h4.aws.alerts` by source, from the SNS topic's SQS copy;
+  - both come from `h4-aws-poller`, a host service with the instance role, which the cloud collector scrapes ([contracts/env-cloud.md §7](contracts/env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy));
   - the collector's queue and drop counters.
 - **The dashboard:** a new row, "Cloud": paths next to spend, the tunnel, the release, the probes, the edge's errors, AWS-side alerts, and telemetry delayed or lost.
 - **No payloads, no client identifiers:** spec 000's collector redaction runs on the cloud collector too.
