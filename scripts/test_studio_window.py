@@ -531,9 +531,7 @@ def test_start_says_the_window_is_open_when_the_stop_fails(tmp_path: Path) -> No
         tmp_path, "ENV=prod", "STATE=start", f"REASON={START}", DOCKER_FAIL="stop"
     )
     assert done.returncode != 0
-    assert index(calls, "studio-window start") < index(
-        calls, " stop model-server-gpu"
-    )
+    assert index(calls, "studio-window start") < index(calls, " stop model-server-gpu")
     assert "the window is open, but model-server-gpu didn't stop" in done.stderr
     assert "STATE=end" in done.stderr
 
