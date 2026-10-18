@@ -446,7 +446,7 @@
             "showPoints": "never"
           },
           "unit": "currencyUSD",
-          "decimals": 2
+          "decimals": 6
         },
         "overrides": [
           {
@@ -565,7 +565,7 @@
           },
           "mappings": [],
           "unit": "currencyUSD",
-          "decimals": 2,
+          "decimals": 6,
           "noValue": "no data"
         },
         "overrides": [
@@ -673,7 +673,7 @@
             "showPoints": "never"
           },
           "unit": "currencyUSD",
-          "decimals": 2
+          "decimals": 6
         },
         "overrides": [
           {
@@ -792,7 +792,7 @@
           },
           "mappings": [],
           "unit": "currencyUSD",
-          "decimals": 2,
+          "decimals": 6,
           "noValue": "no data"
         },
         "overrides": [
@@ -1041,6 +1041,10 @@
               {
                 "id": "unit",
                 "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
               },
               {
                 "id": "custom.axisPlacement",
