@@ -61,7 +61,8 @@ export interface FontsLock {
   family: string;
   license: string;
   source: { package: string; version: string; url: string; sha256: string; integrity: string; published: string };
-  files: Record<string, { sha256: string; from: string }>;
+  /** Each file's SHA-256 as vendored, its path in the tarball, and what changed from it, if anything. */
+  files: Record<string, { sha256: string; from: string; note?: string }>;
 }
 
 export function readFontsLock(dir: string = FONTS_DIR): FontsLock {
