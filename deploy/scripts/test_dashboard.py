@@ -539,8 +539,12 @@ def test_the_room_row_is_whole_and_sits_above_the_dev_time_row() -> None:
         "Turns sent and talk presses",
         "Events refused",
     ]
+    # After the stack's own rows and before the dev-time row. Not necessarily right above it: spec 003's studio row
+    # (its gpu-window.md §3) goes there, and asks for that place itself.
     rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
-    assert rows.index("Room") == rows.index(dev_time_row()) - 1
+    assert (
+        rows.index("Telemetry health") < rows.index("Room") < rows.index(dev_time_row())
+    )
 
 
 def test_the_room_row_reads_only_the_events_counters_by_their_own_labels() -> None:
