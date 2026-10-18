@@ -278,6 +278,37 @@ describe("POST /room/events refuses, and counts each refusal by its reason", () 
   });
 });
 
+describe("a kind named like an Object property", () => {
+  it("is a kind like any other: no inherited property makes it take an ID, or makes a 500", async () => {
+    // config/room-events.yaml's kind pattern allows `constructor`, `toString`, and `hasOwnProperty` (review, item 2).
+    const list: RoomEventsConfig = {
+      kinds: new Set(["constructor", "toString", "hasOwnProperty", "object_selected"]),
+      objects: new Set(["laptop"]),
+      items: new Set(),
+    };
+    const { stack, meter } = await stackWith({ list });
+    const answers: [string, number][] = [];
+    for (const body of [
+      '{"kind":"constructor"}',
+      '{"kind":"toString"}',
+      '{"kind":"constructor","id":"laptop"}',
+      '{"kind":"hasOwnProperty","id":"objects"}',
+      '{"kind":"__proto__","id":"laptop"}',
+    ]) {
+      answers.push([body, (await post(stack, body)).statusCode]);
+    }
+    expect(answers.map(([, status]) => status)).toEqual([204, 204, 400, 400, 400]);
+    expect(await meter.points("h4.room.events")).toEqual([
+      [{ kind: "constructor", id: "-" }, 1],
+      [{ kind: "toString", id: "-" }, 1],
+    ]);
+    expect(await meter.points("h4.room.events.refused")).toEqual([
+      [{ reason: "shape" }, 2],
+      [{ reason: "kind" }, 1],
+    ]);
+  });
+});
+
 describe("the counters", () => {
   it("carry the kind and the ID, or the reason, and nothing about the client", async () => {
     const { stack, meter } = await stackWith();
