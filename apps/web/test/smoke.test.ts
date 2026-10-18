@@ -123,10 +123,17 @@ describe("the built room-data.json", () => {
     const lock = createHash("sha256")
       .update(readFileSync(join(WEB, "content/resume.lock.json")))
       .digest("hex");
+    // The resume's source, then every narration script, all drafts (contracts/narration.md §3).
+    const scripts = existsSync(join(WEB, "content/narration"))
+      ? readdirSync(join(WEB, "content/narration"))
+          .filter((n) => n.endsWith(".md"))
+          .sort()
+          .map((n) => `apps/web/content/narration/${n}`)
+      : [];
     expect(data).toEqual({
       built_from: { policy: absent, lock },
       published: [],
-      drafts: ["apps/web/content/resume.yaml"],
+      drafts: ["apps/web/content/resume.yaml", ...scripts],
       resume_state: "withheld",
       header: null,
       sections: [],
@@ -144,13 +151,22 @@ describe("the built resume.pdf (FR-018)", () => {
     expect(readFileSync(join(out, "resume.pdf.txt"), "utf8")).toBe("Draft, not approved\n");
   });
 
-  it("carries none of a withheld draft's words, and neither does any other built file", () => {
+  it("carries none of a withheld draft's words, the resume's or a script's, and neither does any other built file", () => {
     // The start of every item's display text, as the source writes it, before any slot reference.
     const source = readFileSync(join(WEB, "content/resume.yaml"), "utf8");
     const texts = [...source.matchAll(/^\s+(?:- )?text: "?(.+?)"?$/gm)]
       .map((m) => (m[1] as string).replace(/\{\{slot:[^}]*\}\}.*/, "").slice(0, 40))
       .filter((t) => t.length >= 20);
     expect(texts.length).toBeGreaterThan(0);
+    // And every narration script's words: each sentence's first 40 characters, cut at any slot reference.
+    const narration = join(WEB, "content/narration");
+    for (const name of existsSync(narration) ? readdirSync(narration) : []) {
+      const body = readFileSync(join(narration, name), "utf8").split("\n---\n").slice(1).join("\n---\n");
+      for (const sentence of body.replace(/\{\{slot:[^}]*\}\}/g, "\n").split(/(?<=[.!?])\s+|\n/)) {
+        const start = sentence.trim().slice(0, 40);
+        if (start.length >= 24) texts.push(start);
+      }
+    }
     const files: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
