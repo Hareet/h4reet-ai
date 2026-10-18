@@ -9,9 +9,10 @@ Spec 000's conventions hold ([its quickstart](../000-local-foundations/quickstar
 ## 1. Group 1: serving the room (FR-059)
 
 1. **An agent session:** `make check ENGINE_MODE=none-yet` passes, with `apps/web`'s lint and tests in it.
-2. **The Author's terminal:** `make init-env SYNC=1 ENV=prod` (and `ENV=dev`), which appends `H4_SITE_PORT`. Then `make up ENV=dev`.
+2. **The Author's terminal:** `make init-env SYNC=1 ENV=prod` (and `ENV=dev`), which appends `H4_SITE_PORT` and `H4_WEB_SUFFIX`. Then `make up ENV=dev`, and `make up ENV=prod`.
 3. **Expected:**
    - `make status ENV=dev` shows `web` healthy;
+   - `docker image ls h4reet-web` shows prod's `<commit>` and dev's `<commit>-drafts` as two images, and prod's label `org.h4reet.web.policy` names the policy digest read from `main`;
    - `http://127.0.0.1:18105/` serves the choice screen;
    - the response headers carry the CSP and no `Set-Cookie`;
    - `make isolation-check` still passes with prod and dev up.
@@ -21,18 +22,19 @@ Spec 000's conventions hold ([its quickstart](../000-local-foundations/quickstar
 
 1. **The Author's terminal:** apply the patch (`git apply docs/merge-requests/<date>-feat-002-approvals.patch`), then `claude doctor` and `make git-hooks`.
 2. **Expected:**
-   - from an agent session, an Edit of `assets/policy/content-approvals.json` is refused, and its matrix row passes;
-   - `npm run build -w apps/web` marks every content file a draft.
+   - from an agent session, an Edit of `assets/policy/content-approvals.json` or `assets/policy/resume-header.json` is refused, and their matrix rows pass;
+   - `npm run build -w apps/web` marks every content file a draft;
+   - the gate's `content_check` step passes on that build, and fails on a scratch build whose `room-data.json` was edited to publish a draft.
 
 ## 3. Group 3: the resume (User Story 1; SC-002)
 
 1. **An agent session:** `npm run build -w apps/web`. **Expected:** the citation check passes; `dist/resume.pdf` and `dist/room-data.json` exist; `test/pdf.test.ts` passes (text equality, tags, language, the two property keys).
 2. **The Author:** read `corpus/proposals/resume-<date>.md` and the draft source.
    - When satisfied: `sha256sum apps/web/content/resume.yaml`, then add an entry to `assets/policy/content-approvals.json` ([its format](contracts/resume-source.md#5-approvals)) and commit it on `main`; the build reads approvals only from `main`.
-   - Optionally, fill `profile.full_name` and `profile.contact` in `corpus/facts/` from the proposal.
-3. **Expected after a rebuild:**
+   - Optionally, fill `full_name` and `contact` in `assets/policy/resume-header.json` and commit it on `main`. Not in `corpus/facts/`: the corpus's denylist keeps the surname out of the corpus (spec.md's Assumptions).
+3. **Expected after the next `make up`** (the image rebuilds and reads `main` again):
    - the source is approved;
-   - with both slots filled, the PDF's header carries them, and the interactive resume's doesn't;
+   - with both header values filled, the PDF's header carries them, and the interactive resume's doesn't;
    - with either empty, the two headers match (FR-017).
 4. **The PDF by hand (the Author):** open it in a reader with a screen reader. **Expected:** the title is shown as the window's title; the headings, the list, and the reading order are announced; the text selects; and the document properties show only the title and the name (FR-019).
 5. **Staleness:** change one character in a cited corpus file, on a scratch branch. **Expected:** `make test` fails with `corpus changed since the lock: <file>` (FR-016).
@@ -62,7 +64,7 @@ Run on dev, at `http://127.0.0.1:18105/`:
 
 ## 5. Group 5: narration (User Story 3; SC-006)
 
-1. **An agent session:** `npm run build -w apps/web` and `make evals`. **Expected:** one script per item and path; the citations pass; the narration eval cases pass.
+1. **An agent session:** `npm run build -w apps/web` and `make evals`. **Expected:** one script per item and path; the citations pass; the `narration` suite passes on the fake adapter; `evals/run.py --suite narration --adapter local` refuses to run; no committed case holds a private-denylist phrase.
 2. **The Author:** read the scripts, and approve each by hash.
 3. **Expected on dev:** selecting an item starts its words within 1 s (the performance panel's click-to-paint), at the path's depth; another selection stops it; with the model server stopped, the same.
 
@@ -77,4 +79,4 @@ Run on dev, at `http://127.0.0.1:18105/`:
 
 ## 7. Waiting
 
-Groups 7 to 10 wait on the twin's spec, a local recognizer, the cloned voice, spec 003's intake, and spec 001's edge. Their runs are written with them: SC-007, SC-008, SC-009, SC-011, SC-013, and SC-014.
+Groups 7 to 10 wait on the twin's spec, a local recognizer, the cloned voice, spec 003's intake, and spec 001's edge. Their runs are written with them: SC-007 (its answer half with group 7's T081, its transcript half with group 8's T082), SC-008, SC-009, SC-011, SC-013, and SC-014.

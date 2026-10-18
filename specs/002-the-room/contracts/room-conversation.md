@@ -48,7 +48,11 @@ Each `cannot_talk` message ends with a link to the resume and one to the PDF. Th
 ## 4. Push-to-talk (for the push-to-talk group)
 
 - **Capture:** only while the button or its held key is down, at most 30 s, stopped on `visibilitychange` to hidden (FR-026, FR-029).
-- **Recognition:** `POST /api/room/recognize`, the audio as the request body, to the local tier only (FR-030), answered with `{"transcript": "<text>"}` or a degraded status.
+- **Recognition:** `POST /api/room/recognize`, the audio as the request body, answered with `{"transcript": "<text>"}` or a degraded status. It goes **through the gateway**, like every model call the room causes (FR-032): the gateway reads the kill switch before anything else and answers degraded while it's `degraded` or unknown (FR-035), then calls the recognizer through a local adapter only (FR-030, FR-034). Each call records its provider, model, size in audio seconds, latency, routing decision, estimated cost from the price table (0 for a local model), and `h4.room.feature = free_talk` or the object that started the turn.
 - **Audio:** never stored, logged, traced, or forwarded, and discarded after transcription (FR-031).
 
 This is specified with that group, with its ADR and its disclosure row V3.
+
+## 5. The twin's voice (for the voice group)
+
+The twin's spoken answers and voiced narration made at run time go through the gateway the same way: the kill switch first (FR-035), a local adapter only (FR-034), and each call recording its provider, model, size in characters and audio seconds, latency, routing decision, estimated cost, and room feature (FR-032). Narration voiced ahead of time (contracts/narration.md §4) is a build step, not a call the room causes, so it isn't metered at run time.

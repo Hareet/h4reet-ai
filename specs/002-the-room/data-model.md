@@ -9,10 +9,12 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 | The resume source | `apps/web/content/resume.yaml` | agents draft; the Author approves by hash |
 | A narration script | `apps/web/content/narration/<item-id>.<path>.md` | agents draft; the Author approves by hash |
 | The fixed messages | `apps/web/content/messages.yaml` | agents, reviewed |
-| The approvals | `assets/policy/content-approvals.json` (human-only) | the Author |
+| The approvals | `assets/policy/content-approvals.json` (human-only, read from `main`) | the Author |
+| The PDF's header | `assets/policy/resume-header.json` (human-only, read from `main`; outside `corpus/`, never read by the twin) | the Author |
 | The lock | `apps/web/content/resume.lock.json` | the build |
 | The room's data | `apps/web/dist/room-data.json` | the build |
 | The room's manifest | `apps/web/dist/room-manifest.json` | the build |
+| The events' kinds and IDs | `config/room-events.yaml` (committed, generated, checked) | the build; the gateway reads it |
 | The PDF | `apps/web/dist/resume.pdf` | the build |
 | The visit | the page's memory | the browser |
 | A usage event | in flight only; then the counter `h4.room.events` | the browser, then the gateway |
@@ -26,7 +28,7 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 |---|---|---|
 | `version` | integer | `1` |
 | `header.room` | object | `{name, lines[]}`. `name` is what the conversation rule allows (no surname); each line is display text with citations, like an item's |
-| `header.pdf` | object | `{name_slot, contact_slot}`: two facts slot IDs. While either slot is empty, the PDF uses `header.room` (FR-017) |
+| (the PDF's header) | – | not in this file: `full_name` and `contact` come from `main`'s `assets/policy/resume-header.json` (§4). While either is `null`, the PDF uses `header.room` (FR-017) |
 | `sections[]` | list | `{id, title, items[]}`; `id` matches `^[a-z][a-z0-9-]{1,40}$`, unique |
 | `items[]` | list | see Item |
 
@@ -40,7 +42,9 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 | `slots[]` | list | the slot IDs `text` uses; each must exist in `corpus/facts/*.yaml` |
 | `verb` | string, optional | for a role claim, one of the corpus's ownership verbs (built, designed, co-authored, sourced, sponsored, AI system architect, led, was part of a team that); the check requires it to appear in `text` and in a cited sentence (FR-015) |
 
-**A citation is sufficient** when the cited sentence's tag is one of `[A …]`, `[A-DOC …]`, `[A-BIO]`, `[A-CHAT]`, `[A-NOTES]`, or `[C]`. A sentence tagged only `[P]`, `[A-JD]`, or `[A-SRE-JD]` is sufficient for a fact about a system or organization, never for a claim with `verb`. A `[?]` sentence is never sufficient. No sentence under a "Do not claim" heading is citable.
+**A citation is sufficient** when the cited sentence's own tag, the one that opens its span on the line, is one of `[A …]`, `[A-DOC …]`, `[A-BIO]`, `[A-CHAT]`, `[A-NOTES]`, or `[C]`. A sentence tagged only `[P]`, `[A-JD]`, or `[A-SRE-JD]` is sufficient for a fact about a system or organization, never for a claim with `verb`. A `[?]` sentence is never sufficient. No sentence under a "Do not claim" heading is citable.
+
+**The display text** also passes the forbidden-phrase check (C9): no "Do not claim" key phrase, no surname, and no private-denylist phrase, in any item's `text` or the room's header.
 
 ## 3. A narration script
 
@@ -54,7 +58,7 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 | Front matter: `slots[]` | as an item's |
 | Body | plain text, at most 900 characters (about 45 seconds at 160 words a minute), in the twin's first person about the Author in the third person, as the corpus's Golden Q&A does; any digit inside a slot |
 
-**Required:** one script for every item on each path (FR-016). **The forbidden-claim check** fails a script that contains any phrase from the forbidden list ([contracts/narration.md](contracts/narration.md) §2), which the build assembles from each corpus file's "Do not claim" section and the surname rule.
+**Required:** one script for every item on each path (FR-016). **The forbidden-claim check** fails a script that contains any phrase from the forbidden list ([contracts/narration.md](contracts/narration.md) §2), which the build assembles from each corpus file's "Do not claim" section, the surname rule, and the private denylist when it can read it. Private phrases are never written into a committed file.
 
 ## 4. Approvals
 
@@ -67,7 +71,17 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 
 A content file is **approved** when an entry's `sha256` equals its current digest, in the copy of the file on `main`. Otherwise it's a **draft**.
 
-**States of a content file:** `draft` → (the Author adds its hash) → `approved` → (any edit) → `draft`.
+**`assets/policy/resume-header.json`** (human-only, read from `main`):
+
+| Field | Type | Rules |
+|---|---|---|
+| `schema` | integer | `1` |
+| `full_name` | string or `null` | the PDF's name line; `null` until the Author fills it |
+| `contact` | string or `null` | the one contact channel the Author chooses |
+
+**How both files reach the build:** on the host, by `git show main:<path>` (`web_image.py` for the image, `build/policy.ts` for a checkout's build), into a policy directory the build reads; the image's build stage reads it as the named build context `policy` and never runs git. A file missing on `main` counts as absent: every content file a draft, and the room's header on the PDF.
+
+**States of a content file:** `draft` → (the Author adds its hash on `main`) → `approved` → (any edit) → `draft`. An image built before the approval keeps the draft until the next `make up` rebuilds it.
 
 ## 5. The built data
 
@@ -75,7 +89,7 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 
 | Field | Rules |
 |---|---|
-| `built_from` | the commit, and `resume.lock.json`'s digest |
+| `built_from` | the commit, `resume.lock.json`'s digest, and the policy files' digest (the approvals and the PDF header, as read from `main`) |
 | `drafts` | the paths of draft files, empty for a release |
 | `header` | the room's header |
 | `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), and per path `{words, approved}` |
@@ -93,6 +107,8 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | `event_kinds[]` | the kinds §8 lists |
 
 **`resume.lock.json`:** `{files: {<corpus path>: <sha256>}}`, for every corpus and facts file the source and scripts cite.
+
+**`config/room-events.yaml`:** `{schema: 1, kinds[], objects[], items[]}`, the event kinds (§8), the object IDs, and the resume's item IDs, generated by the build from the same source as the manifest and committed, so the gateway can read it from its mounted `config/` ([contracts/room-events.md §3](contracts/room-events.md#3-the-gateways-route)). `make test` fails when it's stale.
 
 ## 6. The conversation turn (later)
 

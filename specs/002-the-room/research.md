@@ -16,6 +16,7 @@ Phase 0 output of `/speckit-plan`, written on 2026-10-18 under the Author's dire
 | 6 | Usage events | a validated gateway route that only counts, so no event is stored | R-10 |
 | 7 | Placeholders | code-generated geometry and intent 000's four placeholder avatars as flat shapes; a build flag refuses a public release while any is in use | R-11 |
 | 8 | What the room does while the twin doesn't exist | every topic "not ready": each object, the text box, and the talk button answer with the spec's fixed messages and call no model | R-14 |
+| 9 | Where the PDF's full name and contact live | a human-only file outside `corpus/`, `assets/policy/resume-header.json`, read from `main`, never read by the twin (the review's finding: the corpus keeps the surname out) | R-16 |
 
 ---
 
@@ -70,7 +71,7 @@ Agents draft the source from the corpus and file a copy in `corpus/proposals/` (
 **Decision.** The build renders `resume.pdf` with PDFKit (pinned by the first task from the npm registry), from the same parsed source as the interactive resume:
 - `tagged: true`, a structure tree in reading order (the document, headings, paragraphs, lists), `lang: en-US`, and `displayTitle: true`;
 - a vendored open-licensed font, embedded, chosen for legibility (its file and license in `apps/web/fonts/`, pinned by SHA-256);
-- the document properties hold only `Title` and `Author` (the name the PDF's header shows, FR-019): `Producer` and `Creator` are blanked, and the creation and modification dates are the approved source's date, so the same source builds the same bytes.
+- the document properties hold only `Title` and `Author` (the name the PDF's header shows, FR-019): no `CreationDate` or `ModDate`, no `Producer` or `Creator`, and no XMP metadata stream (so no `xmp:CreatorTool` or `pdf:Producer`). Nothing dates the file or names its toolchain, and the same source and policy build the same bytes. PDFKit sets a producer, a creator, and a creation date by default, so the build overrides each, and the test asserts their absence.
 
 The build's test extracts the PDF's text with pdf.js (a dev dependency, pinned) and compares it with the interactive resume's, claim for claim (SC-002). It also checks the catalog: `MarkInfo/Marked`, a `StructTreeRoot`, `Lang`, `DisplayDocTitle`, and the `Info` dictionary's keys.
 
@@ -85,7 +86,7 @@ The build's test extracts the PDF's text with pdf.js (a dev dependency, pinned) 
 
 **Decision.** `apps/web/content/narration/<item-id>.<path>.md`, one script per resume item per path (`engineer`, `non-engineer`). Each script:
 - carries the same kind of citations as the resume's items (R-05), checked the same way;
-- passes the narration checks: the citation check, the forbidden-claim check (each corpus file's "Do not claim" items, the surname rule, and the ownership verbs of `01`'s rulings), and the product eval cases generated for it in `evals/product/cases/narration-*.yaml`, run by `make evals`;
+- passes the narration checks: the citation check, the forbidden-claim check (each corpus file's "Do not claim" items, the surname rule, the private denylist when the build can read it, and the ownership verbs of `01`'s rulings), and the eval cases generated for it in a suite of their own, `evals/narration/cases/narration-*.yaml`, run by `make evals` on the fake adapter only. The committed cases hold only public phrases; the private denylist is checked at build time and never written to a file;
 - is published only when its hash is approved (R-08).
 
 The room shows the script's words as they would be spoken: word by word, at a speaking rate, starting within 1 second of the selection (FR-011), with the full text in a live region for screen readers. When the cloned voice exists (Phase 2, ADR 0011), the build adds one audio file per script, and the words follow the audio's timing.
@@ -96,7 +97,9 @@ The room shows the script's words as they would be spoken: word by word, at a sp
 
 ## R-08: Approvals: a human-only file of hashes, read from `main`
 
-**Decision.** `assets/policy/content-approvals.json`, beside spec 003's `approvals.json` in its human-only policy directory, lists the SHA-256 of each approved resume source and narration script, with the date. A patch the Author applies protects it before the first draft is committed. Like spec 003's approvals, the build reads it from `main` (`git show main:<path>`), never from the branch being built, so a branch can't approve its own content. The build marks unapproved content as a draft: the room shows it only on dev stacks, with a "draft" banner, and `make release` (spec 001) refuses a release that contains a draft.
+**Decision.** `assets/policy/content-approvals.json`, beside spec 003's `approvals.json` in its human-only policy directory, lists the SHA-256 of each approved resume source and narration script, with the date. A patch the Author applies protects it before the first draft is committed. Like spec 003's approvals, it's read from `main` (`git show main:<path>`), never from the branch being built, so a branch can't approve its own content. The build marks unapproved content as a draft: the room shows it only on dev stacks, with a "draft" banner, and `make release` (spec 001) refuses a release that contains a draft.
+- **Read on the host, not in the build stage.** `web_image.py` runs `git show main:` on the host and hands the file to the image's build as a named build context; a checkout's build gets it from `build/policy.ts` the same way. A host stack's build context is a `git archive` export, and `.dockerignore` drops `.git`, so the same command inside the build stage would find no `main` and mark every file a draft (the review's first blocker).
+- **Enforced by the gate, not the build.** `apps/web/build/approvals.ts` is agent-editable, so a branch could change how it decides. `tools/gates/content_check.py`, human-only, runs in the Author's gate and in `make check` after a build without drafts: it reads `main`'s approvals itself, recomputes each content file's digest, and fails when `room-data.json` publishes a file `main` doesn't approve. Spec 003 enforces its intake from human-only gate code the same way.
 
 **Rationale.** FR-012 and FR-052 need the Author's recorded approval; agents mustn't be able to give it. A hash list in a human-only file is the smallest mechanism that does that, and the build can check it deterministically. Spec 003's plan does the same for likeness approvals (its FR-005, FR-016), in `assets/policy/approvals.json`, read from `main` (spec 003 plan §2–§3). This spec follows its pattern with a sibling file of its own shape, since a content approval confirms different things from a likeness approval.
 
@@ -105,7 +108,7 @@ The room shows the script's words as they would be spoken: word by word, at a sp
 ## R-09: Serving the room on the local tier
 
 **Decision.**
-- **A `web` service** in `deploy/compose.yaml`: spec 000's pinned `nginx-unprivileged` image with `apps/web/dist/` baked in, built once per commit outside compose, as T184 builds the gateway (`deploy/scripts/web_image.py`, `h4reet-web:${H4_REF:-working-tree}`, `pull_policy: never`).
+- **A `web` service** in `deploy/compose.yaml`: spec 000's pinned `nginx-unprivileged` image with `apps/web/dist/` baked in, built outside compose as T184 builds the gateway (`deploy/scripts/web_image.py`, `pull_policy: never`), but tagged per variant, `h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}` (empty for prod, `-drafts` for dev and dev-cpu), and rebuilt on every `make up` rather than reused. T184's reuse rests on prod and dev at one commit running the same code; this image also bakes in the drafts flag and `main`'s approvals, so reusing it would let a dev build with drafts run as prod's, or keep an approval from reaching prod (the review's first blocker). The layer cache keeps an unchanged rebuild to seconds.
 - **The stack's `edge`** gains a sixth listener, internal port 8087, published on the stack's `127.0.0.1` at **x005** (`H4_SITE_PORT`: 18005 for prod, 18105 for dev, 18305 for dev-cpu). Port 8087 avoids 8085 and 8086, which spec 001's draft gives the tunnel's blocks.
   - `/` proxies to `web:8080`.
   - `/api/room/events` proxies to the gateway's new events route (R-10), with nginx's `limit_req` and a 512-byte body cap.
@@ -118,7 +121,7 @@ The room shows the script's words as they would be spoken: word by word, at a sp
 ## R-10: Usage events: counted, never stored
 
 **Decision.** The browser sends each usage event with `navigator.sendBeacon` to `/api/room/events`, a JSON body of `{kind, id}` only. The gateway's `POST /room/events`:
-- accepts only kinds from a fixed list and IDs from the build's room manifest (`apps/web/dist/room-manifest.json`, which the gateway reads from the tree at start);
+- accepts only kinds from a fixed list and IDs from `config/room-events.yaml`, which the build generates from the same source as the room's manifest, commits, and keeps current through `make test`. The gateway reads it at start from its mounted `config/`. Reading `apps/web/dist/` instead wouldn't work: it's gitignored, so it isn't in a host stack's export, and compose binds only `deploy/` and `config/` into the gateway;
 - increments `h4.room.events{kind, id}`, a counter;
 - answers 204, and stores nothing else, logs no body, and makes no model call.
 
@@ -158,10 +161,18 @@ The conversation's interface (`POST /api/room/turn`, its request and its fixed a
 
 ## R-15: ADRs
 
-**Decision.** Written with the task group that makes each decision real. The ADR index is shared: 0023 is the pin-rule proposal, spec 001's draft holds 0024–0029, and spec 003's plan 0030–0032, so this spec's start at 0033.
+**Decision.** Written with the task group that makes each decision real. ADR 0034 (approvals) also records R-16's header file and the gate's content check. The ADR index is shared: 0023 is the pin-rule proposal, spec 001's draft holds 0024–0029, and spec 003's plan 0030–0032, so this spec's start at 0033.
 - **0033**, the room's stack: `apps/web`, Vite, Three.js, no framework (R-01 to R-03), with the first group.
 - **0034**, content approvals by hash, read from `main`, beside spec 003's likeness approvals (R-08), with the approvals group.
 - **0035**, recognition on the local tier: the reading of intent 000's sentence (Q2's answer), with the push-to-talk group.
+
+## R-16: The PDF's full name and contact, outside the corpus
+
+**Decision.** The PDF's two header values (Q3's answer: the full name and one contact channel) live in `assets/policy/resume-header.json`, a human-only file beside the approvals, created empty by the approvals patch, filled by the Author, read from `main` on the host like the approvals, and never read by the twin. While either is `null`, the PDF carries the room's header (FR-017).
+
+**Rationale.** FR-017 says "each from a filled facts slot", and the first plan proposed them as corpus facts slots. But the corpus keeps the surname out of every file the twin reads: `corpus/tools/check_corpus.py`'s rule 4 ("If intake/private/denylist.txt exists (gitignored, local only), none of its phrases may appear") fails a public corpus file that holds it, and the intake's ruling is that "The denylist keeps it out of the corpus". A slot in `corpus/facts/` would either fail that check or put the surname where the twin can read it. A human-only file outside `corpus/` keeps both: the Author's PDF header, and a corpus without the surname. The spec's Assumptions record this reading of FR-017's "facts slot".
+
+**Alternatives.** A corpus facts slot: it collides with the denylist (above). A value in the Author's env file: the build reads no env file, and a release must build the same bytes from the repository.
 
 ## Rejected for now, revisit later
 

@@ -128,23 +128,27 @@ apps/web/                         [A] new workspace
   content/resume.yaml             the resume source (drafts until approved)
   content/narration/*.md          one script per item and path
   content/messages.yaml           the fixed messages (FR-023, FR-039, FR-040, FR-041)
-  build/content.ts                parses the source, checks citations, renders the room's data
+  build/policy.ts                 a checkout's prebuild: main's approvals and PDF header into the policy directory
+  build/content.ts                parses the source, checks citations (C1–C9), renders the room's data
   build/pdf.ts                    the tagged PDF (R-06)
-  build/manifest.ts               room-manifest.json: object IDs, item IDs, placeholders flag
+  build/manifest.ts               room-manifest.json and config/room-events.yaml: object IDs, item IDs, placeholders flag
   fonts/                          the vendored font and its license
   test/**                         unit, content, PDF, accessibility
   Dockerfile                      the web image (built outside compose, R-09)
 services/gateway/                 [A] changed: POST /room/events (R-10), its validation and counter
 deploy/compose.yaml               [A] changed: the web service; edge's x005 publication
 deploy/edge/nginx.conf            [A] changed: listener 8087 (the site, the events location)
-deploy/scripts/web_image.py       [A] new: builds h4reet-web per commit, as gateway_image.py
-deploy/env.example/*.env.example, deploy/env.agents/dev-cpu.vars   [A] changed: H4_SITE_PORT
+deploy/scripts/web_image.py       [A] new: builds h4reet-web<suffix> on every make up, with main's policy as a named context
+deploy/env.example/*.env.example, deploy/env.agents/dev-cpu.vars   [A] changed: H4_SITE_PORT, H4_WEB_SUFFIX
+config/room-events.yaml           [A] new, generated and checked: the events' kinds and IDs, read by the gateway
 deploy/scripts/preflight.py       [A] changed: the sixth port
 deploy/grafana/dashboards/h4-runtime.json   [A] changed: the "Room" row
-evals/product/cases/narration-*.yaml        [A] new: one per script
-redteam/cases/room-*.yaml                   [A] new: location probing and injection, run when conversations exist
+evals/narration/cases/narration-*.yaml      [A] new: one per script, their own suite, fake adapter only
+redteam/cases/room-*.yaml                   [A] new, with conversations (Phase 7): location probing and injection
 assets/policy/content-approvals.json            [P] new, human-only: approved hashes (R-08)
-.claude/hooks/protected-paths.sh, .claude/settings.json   [P] the approvals path's protection
+assets/policy/resume-header.json                [P] new, human-only: the PDF's full name and contact (R-16)
+.claude/hooks/protected-paths.sh, .claude/settings.json   [P] both files' protection
+tools/gates/content_check.py, tools/gates/compose_policy.py   [P] the published-content check; SHARED_IMAGES gains web
 corpus/proposals/resume-*.md      [A] the resume source and scripts, filed as proposals
 docs/data-flow-disclosure.md      [A] rows V1 and V4 (local only until spec 001), and the room's notes
 docs/adr/                         [A] the room's stack; approvals by hash; the recognition reading (with push-to-talk)
@@ -158,7 +162,10 @@ docs/adr/                         [A] the room's stack; approvals by hash; the r
 
 - **The workspace** joins the root `package.json`'s `workspaces` as `apps/*`. `npm run build --workspaces` builds it, and `make lint` and `make test` cover it with the existing tools.
 - **The build** (`vite build`, then `build/content.ts` and `build/pdf.ts`) writes `apps/web/dist/`: `index.html`, hashed JavaScript chunks (the 3D code in its own chunk, loaded after the choice), `resume.pdf`, `room-manifest.json`, `room-data.json` (the resume and narration, approved or marked draft), and the font.
-- **The `web` image:** `apps/web/Dockerfile` builds `dist/` on the build platform and copies it into spec 000's pinned `nginx-unprivileged`, read-only, listening on 8080. It sets the security headers itself: `Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`, `Referrer-Policy: no-referrer`, `Permissions-Policy: microphone=(self), camera=(), geolocation=()`, and no cookie. `deploy/scripts/web_image.py` builds it once per commit outside compose, tagged `h4reet-web:${H4_REF:-working-tree}`, as `gateway_image.py` does (spec 000 plan §4, T184).
+- **The `web` image:** `apps/web/Dockerfile` builds `dist/` on the build platform and copies it into spec 000's pinned `nginx-unprivileged`, read-only, listening on 8080. It sets the security headers itself: `Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`, `Referrer-Policy: no-referrer`, `Permissions-Policy: microphone=(), camera=(), geolocation=()` (the microphone opens with push-to-talk's group), and no cookie.
+- **`deploy/scripts/web_image.py`** builds it outside compose, as `gateway_image.py` builds the gateway's (spec 000 plan §4, T184), with two differences ([contracts/web-serving.md §1](contracts/web-serving.md#1-the-web-image)):
+  - **The tag carries the drafts flag:** `h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}`, where the suffix is empty on prod and `-drafts` on dev and dev-cpu, and `ROOM_DRAFTS=1` goes only into a `-drafts` build. It rebuilds on every `make up` (the layer cache keeps that to seconds) and never reuses a tag: a gateway image is the same code for every stack, but this image bakes in the drafts flag and `main`'s approvals, so a dev build must never run as prod's.
+  - **The policy comes from the host:** it reads `main`'s approvals and PDF-header files with `git show` and hands them to the build as the named build context `policy`. The build stage never runs git, since a host stack builds from a `git archive` export without `.git`.
 - **The stack's `edge`** gains listener 8087, published at `127.0.0.1:${H4_SITE_PORT}` (x005). Its `/` proxies to `web:8080`; its `/api/room/events` proxies to `gateway:8080/room/events` with `limit_req` (10 a second, burst 20, per stack) and a 512-byte body cap; anything else under `/api/` is 404 until the conversation exists.
 
 [contracts/web-serving.md](contracts/web-serving.md) has the ports, the headers, and preflight's new checks.
@@ -170,21 +177,24 @@ docs/adr/                         [A] the room's stack; approvals by hash; the r
   - each quote is found in its cited file, inside one tagged sentence;
   - that sentence's tag is sufficient for its kind of claim;
   - the sentence isn't under a "Do not claim" heading;
-  - every digit in the display text sits inside a `{{slot:…}}`, and every slot exists in `corpus/facts/`.
-  It fails the build with the item's ID and the reason.
+  - every digit in the display text sits inside a `{{slot:…}}`, and every slot exists in `corpus/facts/`;
+  - the display text holds no forbidden phrase: no "Do not claim" key phrase, no surname, and no private-denylist phrase (C9, the narration's N3 applied to the resume). The display text is the Author's wording, so the citations prove where it comes from, and C9 proves it doesn't say what the corpus forbids.
+  It fails the build with the item's ID and the reason, never printing a private phrase.
 - **The header** (FR-017):
   - **The interactive resume** shows what the conversation rule allows: no surname.
-  - **The PDF** shows the full name and one contact channel, from two facts slots, `profile.full_name` and `profile.contact`. These are proposed in `corpus/proposals/` for the Author to add to `corpus/facts/`.
+  - **The PDF** shows the full name and one contact channel, from two slots the Author fills in `assets/policy/resume-header.json`, a human-only file outside `corpus/`, read from `main` like the approvals. They can't be corpus facts: the corpus's denylist check fails any public corpus file that holds the surname, and the intake's ruling is that "The denylist keeps it out of the corpus" (spec.md's Assumptions).
   - While either slot is empty, the PDF's header is the interactive one.
 - **Staleness** (FR-016): `apps/web/content/resume.lock.json`, committed, records the SHA-256 of every corpus file and facts file the resume and its scripts read. `make test` recomputes them and fails when the corpus has changed since the lock, naming the changed file; rebuilding the content rewrites the lock, and the changed content becomes a draft again until it's approved.
-- **The PDF** (`build/pdf.ts`, R-06): tagged, `en-US`, the vendored font embedded, only `Title` and `Author` in its properties, and the dates from the source's approval. Its test extracts the text with pdf.js and compares it with `room-data.json`'s, claim for claim.
+- **The PDF** (`build/pdf.ts`, R-06): tagged, `en-US`, the vendored font embedded, only `Title` and `Author` in its properties: no dates, no producer or creator, and no XMP metadata stream, so the same source and policy build the same bytes. Its test extracts the text with pdf.js and compares it with `room-data.json`'s, claim for claim.
 - **The interactive resume** (`src/resume/`): an HTML list of sections and items, each item a button; it is reachable from the room's "Resume" control and from the choice screen's "Download the resume (PDF)" link, which works without entering the room (FR-018).
 - **The first draft:** an agent drafts `resume.yaml` from the corpus's "Role at a glance" and topic sections, cited, and files it in `corpus/proposals/` for the Author. It ships as a draft until approved (§3).
 
 ## 3. Approvals (FR-012, FR-052; R-08)
 
-- **`assets/policy/content-approvals.json`** (human-only, created by the Author's patch before the first draft is committed) lists the approved resume source's and each script's SHA-256, with the date. It sits beside spec 003's likeness approvals, `assets/policy/approvals.json`, and follows its rule: the build reads it from `main`, so a branch can't approve its own content ([contracts/resume-source.md §5](contracts/resume-source.md#5-approvals)).
-- **The build** marks every unapproved file as a draft in `room-data.json`. The room shows drafts only when built with `ROOM_DRAFTS=1`, which `web_image.py` sets for dev and dev-cpu only, and never for prod. Drafts show a "Draft, not approved" banner.
+- **`assets/policy/content-approvals.json`** (human-only, created by the Author's patch before the first draft is committed) lists the approved resume source's and each script's SHA-256, with the date. It sits beside spec 003's likeness approvals, `assets/policy/approvals.json`, and follows its rule: it's read from `main`, never from the branch being built, so a branch can't approve its own content ([contracts/resume-source.md §5](contracts/resume-source.md#5-approvals)). The same patch creates `assets/policy/resume-header.json`, the PDF's two header slots, empty.
+- **Read on the host:** `web_image.py`, and the checkout's `build/policy.ts`, read both files with `git show main:` and hand them to the build as a policy directory. The image's build stage never runs git (§1).
+- **The build** marks every unapproved file as a draft in `room-data.json`. The room shows drafts only when built with `ROOM_DRAFTS=1`, which `web_image.py` sets only for the `-drafts` images of dev and dev-cpu, never for prod's. Drafts show a "Draft, not approved" banner.
+- **The gate's check** (human-only): `tools/gates/content_check.py`, a step in the Author's gate and in `make check`, recomputes each content file's digest and reads `main`'s approvals itself, then fails when `room-data.json` publishes anything `main` doesn't approve. `apps/web/build/approvals.ts` is agent-editable, so this check, not it, is the enforcement, as spec 003 enforces its intake from human-only gate code.
 - **The release:** spec 001's `make release` must refuse a build with a draft or with `placeholders: true`. That's a line for spec 001's plan, recorded in the note.
 
 ## 4. The room (User Story 2, User Story 5; FR-001 to FR-009, FR-042 to FR-048; R-03, R-04, R-11, R-13)
@@ -208,14 +218,14 @@ docs/adr/                         [A] the room's stack; approvals by hash; the r
 ## 5. Narration (User Story 3; FR-011, FR-012; R-07)
 
 - **Scripts:** `apps/web/content/narration/<item-id>.<path>.md`, front matter with the citations, then the words. The build requires one per item per path (FR-016) and checks each as the resume's items are checked, plus the forbidden-claim list ([contracts/narration.md](contracts/narration.md) §2).
-- **Eval cases:** the build writes `evals/product/cases/narration-<item-id>-<path>.yaml`, one per script, in spec 000's case format (`fake_response` is the script itself; `expect` holds the citations' key phrases and the forbidden phrases). `make evals` runs them on the fake adapter, which checks the script, not a model.
+- **Eval cases:** the build writes `evals/narration/cases/narration-<item-id>-<path>.yaml`, one per script, in spec 000's case format (`fake_response` is the script itself; `expect` holds the citations' key phrases and the public "Do not claim" phrases, never a private-denylist phrase or the surname). They're their own suite, `narration`, which `make evals` runs on the fake adapter and `evals/run.py` refuses with any other, so a local or Bedrock run can't send them to `/hello` or charge prod's meter.
 - **Display:** selecting an item starts the display within 1 s; words appear at 160 a minute in a region beside the item, with the whole text in a polite live region; selecting another item stops it (FR-011). A "Voice" toggle appears only when the build holds audio for the script (Phase 2).
 - **Drafts:** an agent drafts the scripts from the cited corpus, for both paths, as proposals; they're drafts until approved (§3).
 
 ## 6. Usage events and the dashboard (User Story 6; FR-054, FR-056; R-10)
 
 - **The browser** sends `{kind, id}` with `sendBeacon` for the kinds in [contracts/room-events.md](contracts/room-events.md): `object_selected`, `item_selected`, `resume_opened`, `resume_kept`, `pdf_downloaded`, `turn_sent`, `voice_pressed`, and `mode_2d`. There's no text, no path, no avatar, no visit ID, and no time: the server's clock gives the time.
-- **The gateway's `POST /room/events`** validates the kind against the list and the ID against `room-manifest.json` (read from the stack's tree at start). It increments `h4.room.events{kind, id}` and answers 204. Anything else is 400, counted by kind of refusal, with no body logged. It has its own listener path, so spec 000's admission, meter, and model routing never see it.
+- **The gateway's `POST /room/events`** validates the kind and the ID against `config/room-events.yaml`, a committed file the build generates from the same source as `room-manifest.json` and `make test` keeps current. The gateway reads it at start from its mounted `config/`; `apps/web/dist/` is gitignored, so it isn't in a host stack's export, and compose binds only `deploy/` and `config/`. It increments `h4.room.events{kind, id}` and answers 204. Anything else is 400, counted by kind of refusal, with no body logged. It has its own listener path, so spec 000's admission, meter, and model routing never see it.
 - **The dashboard's "Room" row** shows:
   - **built now:** use per object and per item per day, PDF downloads, the 2D share, and turns sent;
   - **when conversations exist:** cost per room feature, latency, and degraded responses by cause (FR-056's other panels), from the gateway's existing `h4.cost.usd` and degraded-cause series, labeled by a `h4.room.feature` attribute the turn endpoint adds.
@@ -228,7 +238,7 @@ docs/adr/                         [A] the room's stack; approvals by hash; the r
   - each topic's evals and red-team cases (FR-050);
   - the step configuration (FR-033, FR-034);
   - the per-turn limits (FR-037), which need the Author's change to `config/budgets.yaml`'s input cap ([data-model.md §6](data-model.md#6-the-conversation-turn-later)).
-- **Waits for a local recognizer:** push-to-talk's capture, and the recognition route on the local tier (FR-026 to FR-031), with the ADR on intent 000's sentence (Q2).
+- **Waits for a local recognizer:** push-to-talk's capture, and the recognition route on the local tier (FR-026 to FR-031), with the ADR on intent 000's sentence (Q2). Recognition, like the twin's voice, goes through the gateway: the kill switch read first (FR-035), a local adapter only, and each call recorded with its provider, model, audio seconds (characters for the voice), latency, routing decision, estimated cost, and room feature (FR-032; [contracts/room-conversation.md §4–§5](contracts/room-conversation.md#4-push-to-talk-for-the-push-to-talk-group)).
 
 ## 8. Data flows (FR-057, FR-058)
 
@@ -251,15 +261,16 @@ The disclosure's line "No visitor data flows in this spec" belongs to spec 000's
 
 | What | Where | Proves |
 |---|---|---|
-| The citation check | `apps/web/test/content/*.test.ts`, with fixture corpora | a quote outside its file, a gap-tagged or role-scope sentence, a "Do not claim" sentence, a bare number, and a missing slot each fail; a clean source passes (FR-014) |
+| The citation check | `apps/web/test/content/*.test.ts`, with fixture corpora | a quote outside its file, a gap-tagged or role-scope sentence (by the tag that opens its span), a "Do not claim" sentence, a bare number, a missing slot, and display text with a forbidden phrase each fail; a clean source passes (FR-014) |
 | The PDF | `apps/web/test/pdf.test.ts` | the text equals the interactive resume's, claim for claim; the catalog's tags, language, title display, and two property keys (FR-013, FR-019, SC-002) |
 | Staleness | `apps/web/test/lock.test.ts` | a changed corpus file fails `make test`, naming it (FR-016) |
-| Approvals | `apps/web/test/approvals.test.ts` | an unapproved file is a draft; a draft is hidden without `ROOM_DRAFTS=1` (FR-012) |
+| Approvals | `apps/web/test/approvals.test.ts`; `tools/gates/test/test_content_check.py` (in the patch) | an unapproved file is a draft; a draft is hidden without `ROOM_DRAFTS=1`; the gate fails a build that publishes an unapproved file, whatever the build's own code says (FR-012) |
+| The image's variants | `deploy/scripts/test_web_image.py` | prod's tag never carries drafts; dev's and dev-cpu's do; the policy comes in as a named context from `main`; the build stage runs no git |
 | The screens | `apps/web/test/ui/*.test.ts` (jsdom, axe-core) | the choice gate, reload, the hand-off's length, its live-region text, no skip control, reduced motion, the 2D switch, keyboard order, 0 axe violations (FR-001–FR-009, FR-042–FR-045) |
 | The fixed messages | `apps/web/test/ui/talk.test.ts` | each object, the text box, and the talk button answer as R-14 says, and no network request leaves but events (FR-023, FR-039, FR-040) |
 | Events | `apps/web/test/events.test.ts`; `services/gateway/test/integration/room-events.test.ts` | the payload is `{kind, id}` alone; unknown kinds and IDs are 400; the counter moves; no body is logged (FR-054) |
-| Serving | `deploy/scripts/test_web_image.py`, `test_edge_site.py` | one image per commit; the listener's routes, headers, and limits; preflight's port (FR-059) |
-| Narration | `make evals` with the generated cases; `apps/web/test/narration.test.ts` | one script per item and path; citations; forbidden phrases; display within 1 s (FR-011, FR-012) |
+| Serving | `deploy/scripts/test_web_image.py`, `test_edge_site.py` | the image's build; the listener's routes, headers, and limits; preflight's port and suffix (FR-059) |
+| Narration | `make evals` with the generated `narration` suite; `apps/web/test/narration.test.ts` | one script per item and path; citations; forbidden phrases, none written into a committed case; display within 1 s (FR-011, FR-012) |
 
 ## 11. Degraded modes
 
@@ -287,8 +298,8 @@ ADRs are written with the group that makes each decision real (R-15). Their numb
 | # | Branch | What | Ready | The Author's part |
 |---|---|---|---|---|
 | 1 | `feat/002-web` | the workspace, the `web` image, the edge listener, `H4_SITE_PORT`, preflight, disclosure row V1 and the disclosure page, the stack's ADR | now | `make init-env SYNC=1` for the new port key; `make up` and open x005 |
-| 2 | `feat/002-approvals` | the approvals file and its protection (Patch), the build's draft marking | now | apply the patch |
-| 3 | `feat/002-us1-resume` | the source format, the citation check, the lock, the PDF, the interactive resume, the first draft and its proposal | now | read the draft and the proposal; approve by hash when satisfied; fill the two header slots if wanted |
+| 2 | `feat/002-approvals` | the approvals and PDF-header files, their protection, and the gate's published-content check (Patch); the build's draft marking | now | apply the patch |
+| 3 | `feat/002-us1-resume` | the source format, the citation check, the lock, the PDF, the interactive resume, the first draft and its proposal | now | read the draft and the proposal; approve by hash when satisfied; fill `assets/policy/resume-header.json` on `main` if wanted |
 | 4 | `feat/002-us2-room` | the choice, the scene with placeholders, the hand-off, the 2D mode, the quality controller, the accessible layer, the fixed messages | now | the keyboard and screen-reader visits (SC-003), the phone (FR-047) |
 | 5 | `feat/002-us3-narration` | scripts for every item and path, their checks and eval cases, the display | now | approve the scripts by hash |
 | 6 | `feat/002-us6-events` | the beacon, the gateway route, the edge location, the Room row, disclosure row V4 | now | read the row after a visit |
@@ -304,6 +315,7 @@ ADRs are written with the group that makes each decision real (R-15). Their numb
 | PDFKit's tagging doesn't satisfy a PDF/UA checker | The build's catalog test, and the Author's check with a screen reader (quickstart §3); Chromium's tagged print is the documented fallback (R-06) |
 | jsdom can't show what a real browser does (layout, focus visibility, WebGL) | The Author's keyboard, screen-reader, and phone runs; the quality controller is unit-tested with a simulated clock |
 | The resume's wording drifts from the corpus | The citation check and the lock fail the build; approval is by hash, so a changed file is a draft again |
+| A drafts build reaches prod, or approvals never reach it (the review's blocker) | The tag carries the drafts flag and is never reused; the policy is read from `main` on the host, never inside the build stage; the gate's human-only check fails a build that publishes an unapproved file |
 | Spec 003 plans its own asset loader and 2D mode | One controller (R-04) and one 2D mode, extended here; the two plans name each other, and the note asks the Author to confirm the split |
 | Spec 001's draft plans `apps/web` too | This spec creates it; the note records the change for spec 001's plan |
 
@@ -326,7 +338,7 @@ ADRs are written with the group that makes each decision real (R-15). Their numb
 | FR-038 | §11 | 3–5 |
 | FR-039–FR-041 | §7, R-14 | 4 (fixed messages); 9 (voice) |
 | FR-042–FR-048 | §4 | 4 |
-| FR-049, FR-050 | §7 | 7 (waits); the room's red-team cases filed in 4 |
+| FR-049, FR-050 | §7 | 7 (waits), with the room's red-team cases |
 | FR-051–FR-053 | spec 003's intake | 10 |
 | FR-054–FR-056 | §6, §9 | 6 |
 | FR-057, FR-058 | §1, §8 | 1, 6 |
@@ -335,7 +347,8 @@ ADRs are written with the group that makes each decision real (R-15). Their numb
 | SC-002 | §2, §10 | 3 |
 | SC-003, SC-004 | quickstart §4 | 4 |
 | SC-005, SC-006 | quickstart §4, §5 | 4, 5 |
-| SC-007, SC-009, SC-011 | waits | 7, 8 |
+| SC-007 | waits: the answer's start in 7 (T081), the transcript's in 8 (T082) | 7, 8 |
+| SC-009, SC-011 | waits | 7, 8 |
 | SC-008 | quickstart §8 (a moderated test, with the room complete) | 10 |
 | SC-010 | §6 | 6 (counts now; cost when calls exist) |
 | SC-012 | quickstart §4 | 4 |
@@ -346,7 +359,7 @@ ADRs are written with the group that makes each decision real (R-15). Their numb
 
 Re-checked: no new violation.
 - **Principle I is met by construction:** the room's floor is static and built first.
-- **Principle IV gains a guarded path:** approvals by hash, human-only.
+- **Principle IV gains a guarded path:** approvals by hash, human-only, read from `main` on the host, and enforced by the gate's human-only check rather than the build's agent-editable code.
 - **The one reading on record:** recognition's location (Q2), with its ADR when push-to-talk is built.
 
 Verdict: **PASS**.

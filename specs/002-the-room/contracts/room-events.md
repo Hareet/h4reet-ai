@@ -41,17 +41,19 @@ Spec 001's relay applies its own public cap when this route is public.
 | `Content-Type` is `application/json` or `text/plain` (beacons may send either) | 415, counted as `content_type` |
 | The body is a JSON object with exactly `kind`, plus `id` when the kind takes one | 400, counted as `shape` |
 | `kind` is in the list | 400, counted as `kind` |
-| `id` is in `room-manifest.json`'s objects or items, matching its kind | 400, counted as `id` |
+| `id` is in `config/room-events.yaml`'s objects or items, matching its kind | 400, counted as `id` |
 
 **On success:** increment `h4.room.events{kind, id}` (with `id="-"` when absent), then 204.
 
-**Never:** a log line with the body, a span attribute with the body, a ledger row, a model call, or a meter admission. The route sits outside spec 000's `/hello` path, so admission and routing never see it. The manifest is read at start from the stack's tree (`${H4_TREE}/apps/web/...`, the commit's build); a missing manifest makes every event 400 `id`, and the gateway still starts.
+**Never:** a log line with the body, a span attribute with the body, a ledger row, a model call, or a meter admission. The route sits outside spec 000's `/hello` path, so admission and routing never see it.
+
+**Where the gateway gets the kinds and IDs:** `config/room-events.yaml`, a committed file the build generates from the same source as `room-manifest.json`: `{schema: 1, kinds: [...], objects: [...], items: [...]}`. The gateway reads it at start from `${H4_TREE}/config`, which compose already mounts into it read-only. `apps/web/dist/` isn't a choice: it's gitignored, not in a host stack's export, and compose binds only `deploy/` and `config/`. `make test` fails when the committed file differs from what the build would write, as the resume's lock does, naming the first difference. A missing or invalid file makes every event 400 `id`, and the gateway still starts.
 
 ## 4. Telemetry and the dashboard
 
 | Series | Type | Labels |
 |---|---|---|
-| `h4.room.events` | counter | `kind`, `id` (bounded by the manifest) |
+| `h4.room.events` | counter | `kind`, `id` (bounded by `config/room-events.yaml`) |
 | `h4.room.events.refused` | counter | `reason` (`content_type`, `shape`, `kind`, `id`) |
 
 **The "Room" row** of `h4-runtime.json`:

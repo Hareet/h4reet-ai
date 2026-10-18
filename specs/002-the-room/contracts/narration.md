@@ -23,17 +23,17 @@ slots: []
 ## 2. Checks
 
 Run by the workspace's `build` and `test` scripts:
-- **N1, citations:** the resume source's C1–C8 ([resume-source.md §2](resume-source.md#2-the-citation-check)) apply to each script's citations and body.
+- **N1, citations:** the resume source's C1–C8 ([resume-source.md §2](resume-source.md#2-the-citation-check)) apply to each script's citations and body; its C9 is N3 below.
 - **N2, completeness:** every item in `resume.yaml` has both scripts; no script names an item that doesn't exist (FR-016).
-- **N3, forbidden phrases:** the build assembles the forbidden list from every corpus file's "Do not claim" section: each bullet's key phrase, and the surname rule (no surname in any script). A script that contains a listed phrase fails, with its file and the phrase's source line, never the phrase if the source is the private denylist.
+- **N3, forbidden phrases:** the build assembles the forbidden list from every corpus file's "Do not claim" section (each bullet's key phrase), the surname rule (no surname in any script), and the private denylist's phrases when the build can read it. A script that contains a listed phrase fails, with its file and the phrase's source line, never the phrase if the source is the private denylist. The resume's items and header get the same check, as C9 ([resume-source.md §2](resume-source.md#2-the-citation-check)).
 - **N4, length:** at most 900 characters.
-- **N5, eval cases:** for each script, the build writes `evals/product/cases/narration-<item-id>-<path>.yaml` in spec 000's case format:
+- **N5, eval cases:** for each script, the build writes `evals/narration/cases/narration-<item-id>-<path>.yaml` in spec 000's case format:
   - `prompt` names the item and the path;
   - `fake_response` is the script;
   - `expect.contains` holds one key phrase per citation;
-  - `expect.not_contains` holds the forbidden list's phrases.
+  - `expect.not_contains` holds the public "Do not claim" phrases only. **No private-denylist phrase, and not the surname, is ever written into a committed file:** N3 checks those at build time and reports them by source line alone.
 
-  `make evals` runs them. When the twin exists, its spec adds model-judged cases for the same scripts.
+  **Their own suite, `narration`, run on the fake adapter only.** `make evals` runs `evals/run.py --suite narration --adapter fake`, and `run.py` refuses `--suite narration` with any other adapter. Kept out of the `product` suite, they can't be sent to a stack's `/hello` by a local run, or charged to prod's meter by a Bedrock run. When the twin exists, its spec adds model-judged cases for the same scripts, in a suite of its own.
 
 ## 3. Approval
 
