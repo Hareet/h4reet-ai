@@ -49,8 +49,6 @@ Each refusal names one rule's ID.
 | **B1** | A prompt or workflow record: ComfyUI's `prompt` or `workflow` keys, or JSON with `class_type` and `inputs` | FR-007 |
 | **B2** | A model file's name: any name ending in an A2 extension | FR-007 |
 | **B3** | A local path: `/home/`, `/Users/`, `/mnt/`, `/tmp/`, `C:\`, `\\wsl`, or `file://` | FR-007, FR-009 |
-
-**The B rules' scope.** They scan the parts of a file that hold text: every chunk and segment the M rules admit other than pixel data (the mark's packet, an `iCCP` profile's name, an ICC profile's text), a GLB's JSON chunk, and `records.json` and `LICENSE.md`. They never scan compressed pixel data (PNG's `IDAT`, JPEG's scan data, WebP's `VP8`, `VP8L`, and `ALPH`, and the image views of a GLB's `BIN` chunk): a three-byte pattern such as `C:\` occurs by chance in about 46% of random 10 MB streams, and the scrubber, which never re-encodes pixels, couldn't clear it. M9 refuses the bytes a container doesn't account for, so text can't hide beside the pixels either. A binary file outside the M parsers' formats is refused by A1 or A4, or isn't a studio file.
 | **R1** | The directory has no `records.json`, or it fails [asset-record.md](asset-record.md)'s schema | FR-010 |
 | **R2** | A file no entry names, or an entry naming no file | FR-008 |
 | **R3** | An entry's `sha256` doesn't match its file | FR-010 |
@@ -70,6 +68,23 @@ Each refusal names one rule's ID.
 | **F3** | The first-visit total over its budget | FR-019, SC-006 |
 | **H1** | The history total of asset and published-image blobs over 500 MB | FR-020 |
 | **C1** | A published image from arm B or D whose note doesn't carry "Evaluation output; not used in the site's assets." on the line after its link | FR-036 |
+
+**The B rules' scope.** They scan the parts of a file that hold text: every chunk and segment the M rules admit other than pixel data (the mark's packet, an `iCCP` profile's name, an ICC profile's text), a GLB's JSON chunk, and `records.json` and `LICENSE.md`. They never scan compressed pixel data (PNG's `IDAT`, JPEG's scan data, WebP's `VP8`, `VP8L`, and `ALPH`, and the image views of a GLB's `BIN` chunk): a three-byte pattern such as `C:\` occurs by chance in about 46% of random 10 MB streams, and the scrubber, which never re-encodes pixels, couldn't clear it. M9 refuses the bytes a container doesn't account for, so text can't hide beside the pixels either. A binary file outside the M parsers' formats is refused by A1 or A4, or isn't a studio file.
+
+**Readings the implementation makes** (spec 003, Phase 2; the rule IDs are as above):
+- **A3** also refuses a file at the top of an asset root other than `assets/README.md` and the two `CREDITS.md` files, and a link or a submodule in an asset directory.
+- **A4** searches every binary file whole, in an asset root too, but the mark's packet (with a JPEG's `APP1` identifier); its patterns are six bytes or longer, so a chance match in pixel data is negligible, unlike the B rules' three-byte ones. In an asset root a file can meet both an M rule and A4.
+- **M2** refuses a JFIF `APP0` carrying a thumbnail, which can hold a picture of its own.
+- **M3** reads "VP8X with only the XMP flag set" as refusing the EXIF and animation flags and the reserved bits: the ICC flag is allowed exactly when an `ICCP` chunk is there, and the alpha flag with `ALPH` or a VP8L image's alpha, since the table admits both chunks.
+- **M4** holds `asset.copyright`, when present, to naming the media license ("All rights reserved"), and refuses NaN, Infinity, and duplicate keys in the JSON.
+- **M5** accepts the property as an attribute of `rdf:Description` or as one child element, and refuses any comment, declaration, or processing instruction in the packet but the `xpacket` wrapper.
+- **M8** doesn't read Blender's side suffixes, `.L` and `.R`, as extensions, since a rig's bones carry them.
+- **B3** matches any drive letter, `X:\`, not only `C:\`.
+- **N1** holds `LICENSE.md` to asset-record.md §3's text exactly, apart from the year and the holder.
+- **R1** requires `note` on a published image, equal to `docs/research/<the folder's name>.md`, and refuses `arm` outside a published-image folder. A source of type `asset` is held to the opaque-ID form; checking that it names another record's file is a follow-up.
+- **F3**'s first visit is every GLB under `assets/twin/` and `assets/animations/` (and `assets/room/` in Phase 3), plus the largest visitor directory's GLBs, by gzip size, against `caps.json`'s `phase2` budget, or `phase3` once `assets/room/` holds a GLB.
+- **Exit 2** prints `arrival-check: can't check: <reason>`, and a run that meets no studio file reads no policy, including for H1.
+- `--repo DIR` names the repository; the gate passes the main tree, make check the checkout.
 
 ## 4. Output
 
