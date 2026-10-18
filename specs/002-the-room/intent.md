@@ -1,5 +1,5 @@
 # Intent: the room, my work area, where my avatar hands visitors my resume
-Author: the Author. Status: accepted on 2026-10-17 (the Author: "Yeah, they are accepted. We can always revise them later"). Created: 2026-10-08. Revised: 2026-10-08, with the Author's answers to the open questions; 2026-10-12, with where the studio's pipeline lives (answer 10). Extends the room and avatars in [intent 000](000-ai-twin-portfolio.md); for a later phase, not spec 000.
+Author: the Author. Status: accepted on 2026-10-17 (the Author: "Yeah, they are accepted. We can always revise them later"). Created: 2026-10-08. Revised: 2026-10-08, with the Author's answers to the open questions; 2026-10-12, with where the studio's pipeline lives (answer 10). Extends the room and avatars in [intent 000](../../intent/000-ai-twin-portfolio.md); for a later phase, not spec 000.
 
 ## Problem
 Intent 000 puts visitors in "a shared 3D room" with my twin, but it doesn't say what the room is or what a visitor does in it. Without that, the room is a backdrop: nothing in it leads a visitor to my resume, my work, or the person behind them.
@@ -28,7 +28,7 @@ Read as a list, for the spec. This is Claude's reading of the quote above, to co
 - **Visitors**, on both paths, on desktop and phone.
 - **Me:** the photos, and new corpus material for hobbies, life, and travel.
 - **`apps/web`:** the 3D room in Three.js, the clickable objects, the hand-off, the interactive resume, and the PDF download.
-- **The studio asset pipeline,** outside this repository, which will make the avatars and their animations, extended to take my photos. Only its outputs come in (answer 10; [intent 003](003-studio-assets.md)).
+- **The studio asset pipeline,** outside this repository, which will make the avatars and their animations, extended to take my photos. Only its outputs come in (answer 10; [intent 003](../003-studio-assets/intent.md)).
 - **The twin:** persona, corpus, facts, and voice.
 - **The gateway,** for chat, with each step's model and fallback set by configuration.
 - **The local tier,** for speech recognition.
@@ -96,7 +96,7 @@ Each answer is quoted as I gave it, with Claude's reading beside it.
 9. **A twin that needs Claude most of the time.** "Yes, that's fine. You can put it in the room spec", along with the cost answer under Constraints.
    - Reading: if no local model meets the twin's bar, Claude may be the twin's usual route. The room's spec names that against Principle I's local-first default, with an ADR, and sizes its budget by the testing above.
 10. **Where the pipeline lives** (2026-10-12). Claude asked whether the studio's pipeline already exists outside this repository (a) or doesn't exist yet (b). "Let's go with (a). The studio already has a pipeline outside this repo. We may want to update the models if possible if newer releases have been made for our particular use-case. Only the outputs should come in". Then: "We don't have a workflow yet for this, so there would be nothing to export, but it is worth checking what models we already have and what tools are installed like blender".
-    - Reading: the studio's pipeline, its tools, and its models stay outside this repository, and it has no workflow for these assets yet. The studio builds that workflow, checking its models against newer releases first. This repository receives only the outputs, under [intent 003](003-studio-assets.md).
+    - Reading: the studio's pipeline, its tools, and its models stay outside this repository, and it has no workflow for these assets yet. The studio builds that workflow, checking its models against newer releases first. This repository receives only the outputs, under [intent 003](../003-studio-assets/intent.md).
 
 ## Still open
 - **Local-tier recognition against intent 000.** Intent 000 lets audio leave the browser "only when the twin's brain or speech cannot run in the browser". Local-tier recognition means audio always leaves while the button is held. The spec states the reason (for example, one recognizer of known quality for every browser), or intent 000's wording changes.

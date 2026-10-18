@@ -1,5 +1,5 @@
 # Intent: the studio's assets, brought in as outputs only
-Author: the Author. Status: accepted on 2026-10-17 (the Author: "Yeah, they are accepted. We can always revise them later"). Created: 2026-10-12. Covers the avatars and animations of [intent 000](../../intent/000-ai-twin-portfolio.md) and the room's assets of [intent 002](../../intent/002-the-room.md); for Phase 2, not spec 000 or 001.
+Author: the Author. Status: accepted on 2026-10-17 (the Author: "Yeah, they are accepted. We can always revise them later"). Created: 2026-10-12. Covers the avatars and animations of [intent 000](../../intent/000-ai-twin-portfolio.md) and the room's assets of [intent 002](../002-the-room/intent.md); for Phase 2, not spec 000 or 001.
 
 ## Problem
 Intent 000 promises "an animated AI twin of me" and "four pre-generated avatars", and intent 002 makes the room from my photos in "the same pipeline". That pipeline is the studio's, and it lives outside this repository. Nothing here says how its work arrives: which files, in what form, under which license, checked how, or with what record of the models that made them. The studio also has no workflow for these assets yet, and its newest model is from late 2025.
