@@ -70,13 +70,14 @@ def expand(cell: str, previous: list[str]) -> list[str]:
             codes[0],
             codes[0].replace("histogram_quantile(0.50,", "histogram_quantile(0.95,"),
         ]
-    # The collector's counters carry no _total (telemetry.md §4.3; T065 found the panels empty with it).
-    if "and the same for" in cell and re.search(r"_spans\b", codes[0]):
+    # The collector's counters are pushed over OTLP, so they carry _total, as the gateway's do (telemetry.md §4.3,
+    # T185). Scraped, they had none (T065).
+    if "and the same for" in cell and re.search(r"_spans_total\b", codes[0]):
         base = codes[0]
         return [
             base,
-            re.sub(r"_spans\b", "_metric_points", base),
-            re.sub(r"_spans\b", "_log_records", base),
+            re.sub(r"_spans_total\b", "_metric_points_total", base),
+            re.sub(r"_spans_total\b", "_log_records_total", base),
         ]
     if cell.startswith("the same three with "):
         (label,) = codes
@@ -232,7 +233,8 @@ def test_each_panels_type_is_the_contracts() -> None:
 
 def test_every_metric_name_is_the_contracts() -> None:
     """telemetry.md §8: every metric name the dashboard queries appears in the contract, or is one of the "the same
-    for" names it spells with _metric_points or _log_records in place of _spans. The PromQL panels hold them all."""
+    for" names it spells with _metric_points_total or _log_records_total in place of _spans_total (the collector's
+    counters, pushed with _total since T185). The PromQL panels hold them all."""
     words = set(re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", CONTRACT))
     names = set()
     for panel in panels():
@@ -252,7 +254,7 @@ def test_every_metric_name_is_the_contracts() -> None:
                     names.add(name)
     assert names
     for name in names:
-        spelled = re.sub(r"_(metric_points|log_records)$", "_spans", name)
+        spelled = re.sub(r"_(metric_points|log_records)_total$", "_spans_total", name)
         assert name in words or spelled in words, name
 
 

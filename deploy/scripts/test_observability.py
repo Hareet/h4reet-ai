@@ -201,8 +201,21 @@ def test_the_exporters_and_extensions() -> None:
     }
     service = COLLECTOR["service"]
     assert service["extensions"] == ["health_check", "basicauth/langfuse"]
+    # The collector's own metrics: pushed to Prometheus over OTLP, with the stack's labels, and still served on 8888
+    # for the scrape's up (telemetry.md §6.4, T185).
     assert service["telemetry"] == {
         "logs": {"level": "info"},
+        "resource": {
+            "attributes": [
+                {"name": "service.name", "value": "otel-collector"},
+                {"name": "service.namespace", "value": "h4reet"},
+                {"name": "deployment.environment.name", "value": "${env:H4_STACK}"},
+                {
+                    "name": "service.instance.id",
+                    "value": "${env:H4_STACK}-otel-collector",
+                },
+            ]
+        },
         "metrics": {
             "level": "normal",
             "readers": [
@@ -210,7 +223,20 @@ def test_the_exporters_and_extensions() -> None:
                     "pull": {
                         "exporter": {"prometheus": {"host": "0.0.0.0", "port": 8888}}
                     }
-                }
+                },
+                {
+                    "periodic": {
+                        "interval": 10000,
+                        "exporter": {
+                            "otlp": {
+                                "protocol": "http/protobuf",
+                                "endpoint": "http://prometheus:9090/api/v1/otlp/v1/metrics",
+                                "compression": "gzip",
+                                "temporality_preference": "cumulative",
+                            }
+                        },
+                    }
+                },
             ],
         },
     }
