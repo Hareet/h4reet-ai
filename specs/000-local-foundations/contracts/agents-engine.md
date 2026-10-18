@@ -340,7 +340,7 @@ In the Author's terminal, engine.sh's client for the engine is always `tcp://198
 
 | What fails | What happens |
 |---|---|
-| The engine is down | The image gate fails with "ask the Author: deploy/agents-engine/engine.sh up". Ops falls back to its batched request to the Author (plan §19). |
+| The engine is down | The image gate fails with "ask the Author: deploy/agents-engine/engine.sh up", and so does `make build`'s image step. An engine that takes the connection and never answers fails them within 15 s, at the probe they run before they build (plan §11, tasks.md T167). Ops falls back to its batched request to the Author (plan §19). |
 | The plugin is down | The daemon refuses every request: fail closed (row E12). |
 | The proxy is down | Pulls, and the npm steps of builds, fail closed. Seeded images still run. |
 | The proxy's list can't be read | It refuses every request (`no_list`): fail closed. |

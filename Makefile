@@ -63,6 +63,18 @@ endif
 # Where compose images can be built: relay (the sandbox, with an engine), none-yet (the sandbox, before T046),
 # direct (a docker CLI: already relayed, or outside the sandbox), or no-cli (the devcontainer).
 ENGINE_MODE := $(if $(VIA_RELAY),$(if $(and $(wildcard $(RELAY)),$(wildcard $(ENGINE_CERT))),relay,none-yet),$(if $(shell command -v docker 2>/dev/null),direct,no-cli))
+# Before image and build relay a build, the engine must answer one docker version through the relay, stopped at
+# ENGINE_PROBE_SECONDS, as engine.sh's wait_for_tls stops each of its tries (tasks.md T167). The relay has no timeout,
+# and while RootlessKit's forward took connections and never answered (T046), make check waited at image with no end.
+# timeout signals the relay's whole process group, socat and the client with it, and the relay's exit trap still runs;
+# --kill-after ends one that ignores the signal. $(1) names the target.
+ENGINE_PROBE_SECONDS := 15
+ENGINE_PROBE = rc=0; timeout --kill-after=5 $(ENGINE_PROBE_SECONDS) $(RELAY) docker version >/dev/null || rc=$$?; \
+  case $$rc in \
+    0) ;; \
+    124|137) echo "$(1): the agents' engine didn't answer within $(ENGINE_PROBE_SECONDS) s; ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1 ;; \
+    *) echo "$(1): the agents' engine didn't answer (docker version through the relay exited $$rc); ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1 ;; \
+  esac
 
 # Every Python a recipe runs: isolated, and blind to bytecode an agent could plant, by script path and never with -m
 # (research.md R-35). -I alone still loads a planted __pycache__/*.pyc. Under /dev/null, which can never hold a
@@ -191,6 +203,7 @@ build: ## Build the workspaces, then the gateway's and the compose images on the
 	$(CONTAINED)
 	$(call NPM_WS,run build)
 ifeq ($(ENGINE_MODE),relay)
+	@$(call ENGINE_PROBE,build)
 	@$(RELAY) make --no-print-directory gateway-image compose-images ENV=dev-cpu || { echo "build: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
 else ifeq ($(ENGINE_MODE),direct)
 	@$(MAKE) --no-print-directory gateway-image compose-images
@@ -348,9 +361,11 @@ pull: ## (the Author) Pull every image by digest, Docker Hub's one at a time wit
 	@$(call PULL_MODELS,.,$(if $(filter all,$(MODELS)),--all))
 
 # The image gate (plan §11): SKIP before the agents' engine exists (tasks.md T046), and FAIL once it exists and
-# doesn't build them. The devcontainer has no docker CLI; the Author's gate builds the images on the engine.
+# doesn't answer within ENGINE_PROBE_SECONDS (T167), or doesn't build them. The devcontainer has no docker CLI; the
+# Author's gate builds the images on the engine.
 image: ## The image gate: the gateway's and the compose images built on the agents' engine (plan §11)
 ifeq ($(ENGINE_MODE),relay)
+	@$(call ENGINE_PROBE,image)
 	@$(RELAY) make --no-print-directory gateway-image compose-images ENV=dev-cpu || { echo "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
 else ifeq ($(ENGINE_MODE),none-yet)
 	@echo "SKIP: no agents' engine yet: tasks.md T046"

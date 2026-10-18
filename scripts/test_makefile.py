@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -428,3 +429,147 @@ def test_make_up_builds_the_gateway_image_after_preflight_and_before_compose(
     assert ("--run-file " in line) == (stack != "dev-cpu")
     # A commit from before T184, which a rollback can run, has no script: its compose file builds the gateway.
     assert "has no deploy/scripts/gateway_image.py" in line
+
+
+# --------------------------------------------------------------------------------------------------
+# make image and make build ask the agents' engine for an answer, within a bound, before they build on it (tasks.md
+# T167). The relay has no timeout, and while RootlessKit's forward took connections and never answered (T046), make
+# check waited at image with no end.
+# --------------------------------------------------------------------------------------------------
+# The relay's stand-in, as contracts/agents-engine.md §2.2 has it: socat in the background (here a sleep that holds
+# make's stderr, so a probe that stopped only the relay would leave make's output open), then the command with the
+# relay's DOCKER_HOST. It records each command beside itself.
+FAKE_RELAY = (
+    "#!/usr/bin/env bash\n"
+    'printf \'%s\\n\' "$*" >>"$(dirname "$0")/../relay.log"\n'
+    "sleep 300 &\n"
+    "socat=$!\n"
+    "trap 'kill \"$socat\" 2>/dev/null || true' EXIT\n"
+    "status=0\n"
+    'DOCKER_HOST=tcp://127.0.0.1:2376 DOCKER_TLS_VERIFY=1 "$@" || status=$?\n'
+    'exit "$status"\n'
+)
+# The engine behind the forward, for every call: it answers, it refuses at once, or it takes the connection and
+# never answers (the T046 forward).
+ENGINE = {
+    "answers": "exit 0",
+    "refuses": "echo 'error during connect: EOF' >&2; exit 1",
+    "hangs": "exec sleep 300",
+}
+PROBE_SECONDS = 2
+
+
+def _make_through_relay(
+    target: str, tmp_path: Path, engine: str, *args: str
+) -> tuple[subprocess.CompletedProcess[str], list[str], list[str], float]:
+    """make <target> in the sandbox with an agents' engine: the relay's stand-in, the agents' certificate, and a
+    stand-in docker that records beside itself, then behaves as `engine` says. Returns make's run, the relay's
+    commands, docker's, and the seconds make took."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    docker = bindir / "docker"
+    docker.write_text(FAKE_DOCKER_HERE + ENGINE[engine] + "\n", encoding="utf-8")
+    relay = bindir / "docker-relay"
+    relay.write_text(FAKE_RELAY, encoding="utf-8")
+    for stub in (docker, relay):
+        stub.chmod(0o755)
+    cert = tmp_path / ".config" / "h4reet" / "agents-engine" / "docker" / "cert.pem"
+    cert.parent.mkdir(parents=True, exist_ok=True)
+    cert.write_text("", encoding="utf-8")
+    for log in ("calls.log", "relay.log"):
+        (tmp_path / log).write_text("", encoding="utf-8")
+    start = time.monotonic()
+    done = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-C",
+            str(ROOT),
+            target,
+            f"RELAY={relay}",
+            f"ENGINE_PROBE_SECONDS={PROBE_SECONDS}",
+            *args,
+        ],
+        env={
+            "PATH": f"{bindir}:/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+            "LC_ALL": "C",
+            "SANDBOX_RUNTIME": "1",
+        },
+        capture_output=True,
+        text=True,
+        # Well past the bound: without one, a hanging engine holds make here until this stops it.
+        timeout=60,
+        check=False,
+    )
+    elapsed = time.monotonic() - start
+    return (
+        done,
+        (tmp_path / "relay.log").read_text(encoding="utf-8").splitlines(),
+        (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines(),
+        elapsed,
+    )
+
+
+RELAYED_BUILD = "make --no-print-directory gateway-image compose-images ENV=dev-cpu"
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+def test_the_image_gate_asks_the_engine_through_the_relay_before_it_builds(
+    tmp_path: Path,
+) -> None:
+    done, relayed, calls, _ = _make_through_relay("image", tmp_path, "answers")
+    assert done.returncode == 0, done.stderr
+    assert relayed == ["docker version", RELAYED_BUILD]
+    assert calls == ["version", GATEWAY_BUILD, COMPOSE_BUILD]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize("engine", ["refuses", "hangs"])
+def test_the_image_gate_fails_within_the_bound_when_the_engine_does_not_answer(
+    tmp_path: Path, engine: str
+) -> None:
+    done, relayed, calls, elapsed = _make_through_relay("image", tmp_path, engine)
+    # make exits 2 when a recipe fails.
+    assert done.returncode == 2, done.stderr
+    # The bound, timeout's grace after it, and room for a loaded machine; far short of a hang.
+    assert elapsed < PROBE_SECONDS + 5 + 15
+    assert "image: the agents' engine didn't answer" in done.stderr
+    assert "ask the Author: deploy/agents-engine/engine.sh up" in done.stderr
+    if engine == "hangs":
+        assert f"within {PROBE_SECONDS} s" in done.stderr
+    # Nothing was built: the probe was the only call.
+    assert relayed == ["docker version"]
+    assert calls == ["version"]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+def test_make_build_asks_the_engine_after_the_workspaces_and_before_it_builds_on_it(
+    tmp_path: Path,
+) -> None:
+    # make -n: the workspaces' build would run npm, so this reads the commands build would run, none of them run.
+    done, relayed, calls, _ = _make_through_relay("build", tmp_path, "answers", "-n")
+    assert done.returncode == 0, done.stderr
+    assert relayed == [] and calls == []
+    lines = done.stdout.splitlines()
+
+    def first(text: str) -> int:
+        return next(i for i, line in enumerate(lines) if text in line)
+
+    probe = first("docker version")
+    assert f"timeout --kill-after=5 {PROBE_SECONDS} " in lines[probe]
+    assert first("npm run build") < probe < first(RELAYED_BUILD)
+    assert "build: the agents' engine didn't answer" in lines[probe]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize("mode", ["none-yet", "no-cli"])
+def test_the_image_gate_skips_without_asking_while_there_is_no_engine_to_ask(
+    tmp_path: Path, mode: str
+) -> None:
+    done, relayed, calls, _ = _make_through_relay(
+        "image", tmp_path, "hangs", f"ENGINE_MODE={mode}"
+    )
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.startswith("SKIP: ")
+    assert relayed == [] and calls == []
