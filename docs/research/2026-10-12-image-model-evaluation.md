@@ -51,7 +51,7 @@ So re-read the license before running arm D, and again before committing any arm
 
 **Apache-2.0** (arms A and C) puts no limit on use or outputs.
 
-**Research display** (spec 003's clarification of 2026-10-18; its [FR-036](../../specs/003-studio-assets/spec.md)). Whether a license lets its outputs be shown here, as evaluation results not used in the site, is the Author's reading, per license and version, recorded as `research_display` in `assets/policy/licenses.json` on `main`. The arrival check refuses a grid whose model's license doesn't read `yes` there (its rule L1).
+**Research display** (spec 003's clarification of 2026-10-18; its [FR-036](../../specs/003-studio-assets/spec.md)). The clarification defines it as "the Author's reading, per license, of whether its outputs may be shown publicly as evaluation results, not used in the site". Reading: the reading is recorded per license and version, as `research_display` in `assets/policy/licenses.json` on `main`. The arrival check refuses a grid whose model's license doesn't read `yes` there (its rule L1).
 - **Arms B and D:** the Author reads the Qwen Research License from its clauses above, and the FLUX [dev] license from its own, once "Results" quotes them. A `yes` lets that arm's grids in, each with its caption ("Captions" below). A `no` keeps them in the studio, and "Results" describes them in words.
 - **Arms A and C,** the style anchor's model, and ImageMagick, which assembles the grids, need their entries too: the check reads every license a record names.
 - FR-013's three terms and FR-014's commercial license hold for the site's assets, not for these images. So a `yes` here lets no output of arm B or D into an asset ("The arms" above).
