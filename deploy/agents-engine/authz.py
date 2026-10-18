@@ -306,8 +306,10 @@ def _bind_decision(source: str, mode_ro: bool) -> tuple[bool, str | None]:
     if ".." in source.split("/"):
         return False, f"{source} (traversal)"
     normalized = posixpath.normpath(source)
-    # A second layer: resolve a real path where the plugin can see it and refuse one leaving its root.
-    resolved = os.path.realpath(source) if os.path.exists(source) else normalized
+    # A second layer: resolve a real path where the plugin can see it and refuse one leaving its root. lexists, not
+    # exists: on a nosymfollow root, exists() follows a link, gets ELOOP, and reads False, which skipped the link,
+    # while realpath() reads links with readlink(2), which nosymfollow allows (stage E's row E5c, 2026-10-13).
+    resolved = os.path.realpath(source) if os.path.lexists(source) else normalized
     for candidate in {normalized, resolved}:
         in_ro = any(_under(candidate, root) for root in RO_ROOTS)
         in_state = _under(candidate, STATE_ROOT)

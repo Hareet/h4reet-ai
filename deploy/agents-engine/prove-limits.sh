@@ -444,6 +444,11 @@ link_refusal() {
 		echo "the plugin ($rule)"
 	elif grep -qiE 'too many levels of symbolic links|ELOOP' <<<"$2"; then
 		echo ELOOP
+	elif [ -n "${3:-}" ] && grep -qF "error while creating mount source path '$3'" <<<"$2" &&
+		grep -qF 'file exists' <<<"$2"; then
+		# The same refusal as the daemon reports it: its stat of the link gets ELOOP, so it makes the source as a
+		# directory, and mkdir finds the link itself there (stage E, 2026-10-13). Only for this probe's own link.
+		echo "the kernel (nosymfollow; the daemon reports it as mkdir: file exists)"
 	fi
 }
 
@@ -522,7 +527,7 @@ sys.exit(0 if tree == models == "ro" and not other else 3)'
 		out="$(engine_docker run --rm -v /run/h4agents/tree/.h4-prove-e5c:/x:ro "$probe_image" ls /x 2>&1)"
 		rc=$?
 		rm -f -- "$link"
-		who="$(link_refusal "$rc" "$out")"
+		who="$(link_refusal "$rc" "$out" /run/h4agents/tree/.h4-prove-e5c)"
 		if [ -n "$who" ]; then
 			facts+="; (E5c) a bind through a link in the tree refused by $who"
 		else
@@ -539,7 +544,7 @@ sys.exit(0 if tree == models == "ro" and not other else 3)'
 		out="$(engine_docker run --rm -v "$link:/x" "$probe_image" ls /x 2>&1)"
 		rc=$?
 		as_h4agents rm -f -- "$link"
-		who="$(link_refusal "$rc" "$out")"
+		who="$(link_refusal "$rc" "$out" "$link")"
 		if [ -n "$who" ]; then
 			facts+="; one in the state root by $who"
 		else
@@ -1139,12 +1144,15 @@ e10_disposable() {
 		seen+="; the engine's volumes and containers can't be listed"
 	fi
 	if sudo test -d "$H4_STATE"; then
-		left="$(sudo find "$H4_STATE" -mindepth 1 -print -quit 2>/dev/null)"
+		# The reset ends with seed, whose chown_state makes dev-cpu's empty state directory (T145): that may be
+		# there, and nothing else. Anything under it is data that outlived the reset.
+		left="$(sudo find "$H4_STATE" -mindepth 1 ! -path "$H4_STATE/dev-cpu" ! -path "$H4_STATE/dev-cpu/gateway" \
+			-print -quit 2>/dev/null)"
 		if [ -n "$left" ]; then
 			ok=false
 			seen+="; the state root still holds ${left#"$H4_STATE"/}"
 		else
-			facts+="; an empty state root"
+			facts+="; a state root holding only seed's empty dev-cpu/gateway"
 		fi
 	else
 		ok=false

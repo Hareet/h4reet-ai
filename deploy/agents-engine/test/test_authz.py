@@ -237,6 +237,30 @@ def test_a14_bind_forbidden_sources(source: str) -> None:
     assert create({"Binds": [f"{source}:/w:ro"]}).rule == "A14"
 
 
+def test_a14_refuses_a_link_it_cannot_follow_out_of_its_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # On a nosymfollow root, os.path.exists() can't follow a link and reads False, as it does for a dangling one:
+    # the plugin still reads the link, and refuses the place it names (stage E's row E5c, 2026-10-13).
+    state = tmp_path.resolve() / "state"
+    state.mkdir()
+    monkeypatch.setattr(authz, "STATE_ROOT", str(state))
+    link = state / "away"
+    link.symlink_to(tmp_path.resolve() / "outside" / "etc")
+    assert create({"Binds": [f"{link}:/x"]}).rule == "A14"
+
+
+def test_a14_allows_a_link_that_stays_in_its_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = tmp_path.resolve() / "state"
+    (state / "dev-cpu").mkdir(parents=True)
+    monkeypatch.setattr(authz, "STATE_ROOT", str(state))
+    link = state / "here"
+    link.symlink_to(state / "dev-cpu")
+    assert create({"Binds": [f"{link}:/x"]}).allow
+
+
 def test_a14_bind_rw_under_readonly_root_refused() -> None:
     assert create({"Binds": [f"{TREE}:/w:rw"]}).rule == "A14"
     assert (
