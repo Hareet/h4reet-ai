@@ -1,6 +1,6 @@
 # ADR 0023: Claude Code's pin is a floor; a newer host warns, and the evals record the version they ran
 
-Status: proposed, 2026-10-18 · Spec: 000 (FR-005, FR-011, FR-014; SC-008) · If accepted, replaces one Decision point and one Consequence of [ADR 0018](0018-agent-sessions-on-wsl.md), both about Claude Code's exact pin; the rest of ADR 0018 stands.
+Status: proposed, 2026-10-18 · Spec: 000 (FR-005, FR-011; SC-008) · If accepted, replaces one Decision point of [ADR 0018](0018-agent-sessions-on-wsl.md), "`make toolchain-check` compares installed versions with the pins and fails on any drift, Claude Code included", for Claude Code alone, and the one Consequence quoted below; the rest of ADR 0018 stands.
 
 ## Context
 
@@ -35,7 +35,7 @@ Proposed: option A of the three below.
   - A newer one is WARN: its row, and a line starting `WARN:`. A WARN doesn't fail the check.
   - An older one is DRIFT and fails, as before.
 - **The gate's `toolchain` step:**
-  - It shows WARN, and its summary line counts it, so the merge commit records that the host was above the floor.
+  - It shows WARN, and its summary line counts it, so the merge commit records that a step warned. The gate's output names the step and the version; the summary line doesn't.
   - The merge doesn't wait on a WARN.
 - **The behavioral evals:**
   - `make evals-agent-config` takes a Claude Code at the floor or newer, and refuses an older one.

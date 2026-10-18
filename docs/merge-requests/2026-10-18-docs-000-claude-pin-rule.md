@@ -62,7 +62,23 @@ None: a proposed process change. T013's check (FR-005) and the agent-config eval
 
 ## Review
 
-None yet. No reviewer agent has run `REVIEW.md` on this branch. The integrating session can start one before you decide.
+One pass by the reviewer agent, which didn't write the change, against REVIEW.md, spec 000, its plan, T013, ADR 0018, and the constitution: **APPROVE, no blockers.** It checked the patch against main's tree with a temporary index: it applies cleanly and touches exactly the seven files listed. The integrating session separately applied it in a scratch worktree: the affected suites passed (425 tests), and `make toolchain-check` printed "toolchain-check: all 15 match their pins, 1 newer than its floor (claude code)" and exited 0.
+
+The reviewer's six checks:
+1. **Only Claude Code gets a floor.** The patch checks `key in FLOORS` inside `add()`, with `key` from constants in the code, not from `toolchain.vars`, and `FLOORS` holds only `CLAUDE_CODE_VERSION`. A branch that lowers the floor changes the pin line, so the gate marks the evals PENDING.
+2. **A WARN can't hide a failure.** The gate's `classify` returns FAIL whenever the exit code isn't 0; the patch only turns a PASS into a WARN, and only FAIL and PENDING count as failing. An older Claude Code is still DRIFT, which exits 1.
+3. **The version in the history.** What goes into the committed entry was already limited to digits and dots by the existing `claude_version()`; the new `fullmatch` guards the status line printed to the terminal.
+4. **The ADR is honest** about what option A gives up, both quotes match their sources, and spec 000's Assumptions call it a proposed deviation.
+5. **The patch goes on main before the merge,** correctly: the gate runs main's checker and prints no merge command while a step fails (precedent: 2d81243). Rejecting means neither.
+6. **No human-only path changed** on the branch.
+
+Fixed from its nits, in a fourth commit: the ADR said the merge commit "records that the host was above the floor", but the summary line only counts a WARN; it now says the gate's output names the step and the version. The ADR now quotes the ADR 0018 Decision point it replaces, and no longer cites FR-014, which covers lockfile-pinned dependencies, not Claude Code.
+
+**Backlog from the review:**
+- `make check`'s runner (`tools/gates/run_checks.py`) has no WARN status, so its summary shows `toolchain-check PASS` while the host is above the floor; only the printed `WARN:` line shows it.
+- `newer()` and `at_least()` repeat one comparison in two files, and `\d` without `re.ASCII` also accepts non-ASCII digits. Harmless today.
+- Have the gate's summary line name the steps that warned.
+- A cheap step short of option B: let the WARN line say whether the host is newer than the version the latest attested evals run used.
 
 ## Verification
 
