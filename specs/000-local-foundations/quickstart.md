@@ -86,6 +86,7 @@ In IAM Identity Center, with the Author's own console session. IAM is a human ac
    make aws-login
    stat -c %a ~/.config/h4reet-ai/aws-home/.aws    # 700
    ```
+5. Before the first fallback call, complete Bedrock's one-time AWS Marketplace subscription for the model, as yourself: in the console, us-east-1, Bedrock → Model catalog → the model → open it in the Playground and send one short message. Bedrock subscribes the account on a model's first use, and that needs `aws-marketplace:ViewSubscriptions` and `aws-marketplace:Subscribe`, which your own identity has and the runtime role rightly doesn't. Until then the runtime role's calls fail with `AccessDeniedException` ("Model access is denied due to IAM user or service role is not authorized to perform the required AWS Marketplace actions…"), which the gateway classes `auth`, so hello answers `fallback_unavailable`. It can take a few minutes to take effect after the Playground call (the Author's run, 2026-10-12). Don't add the Marketplace actions to the runtime role's permission set: it holds `bedrock:InvokeModel` alone.
 
 **Record:** the inference profile ID and the price version's `id`. Not the account ID, the portal URL, or anything from the SSO cache.
 
@@ -419,7 +420,7 @@ docker start h4reet-prod-model-server-gpu-1
 ```
 
 **Expected:**
-- Both answers are 200, with `route: "fallback"`, `provider: "aws.bedrock"`, and a `time_total` under 5 s. The first has `route_reason: "local_failed"` (the call itself failed over); the second `local_unhealthy` (the health check had noticed).
+- Both answers are 200, with `route: "fallback"`, `provider: "aws.bedrock"`, and a `time_total` under 5 s. The first has `route_reason: "local_failed"` (the call itself failed over) when it lands before the model server's 1 s health check notices, and `local_unhealthy` when it lands after, as it did in the Author's run on 2026-10-12, since `docker stop` takes a few seconds; the second `local_unhealthy` (the health check had noticed). Either reason passes.
 - In Langfuse, the first trace has two client spans: the failed local attempt, with `error.type`, then Bedrock's, with its cost.
 - Within 60 s, the dashboard's "Fallback sub-budget remaining" drops by the calls' cost, and "Cost by provider and attribution" shows `aws.bedrock` with `fallback` (SC-005).
 - After the start, once the model loads and passes three checks in a row, hello is local again.

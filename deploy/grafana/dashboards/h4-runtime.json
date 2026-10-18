@@ -899,7 +899,7 @@
           },
           "mappings": [],
           "unit": "currencyUSD",
-          "decimals": 2,
+          "decimals": 6,
           "noValue": "no data"
         },
         "overrides": [
@@ -1009,7 +1009,7 @@
             "showPoints": "never"
           },
           "unit": "currencyUSD",
-          "decimals": 2
+          "decimals": 6
         },
         "overrides": [
           {
