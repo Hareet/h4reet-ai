@@ -3,7 +3,7 @@ Spec: specs/000-local-foundations/ (T167, T166; FR-041) · Intent: specs/000-loc
 Session: worked in `/tmp/claude-1000/wt-t167`, launched from `~/h4reet-ai/h4reet-ai` · Repo hooks active: yes (`2026-10-18T01:08:32Z bash BLOCK running the agents' engine's Author commands`: the guard matched the engine script's name inside T167's commit message, in a heredoc. The message went in by file, written with the Write tool, and nothing was respelled)
 Authorized by: tasks.md T167 and T166, against plan §11 and contracts/agents-engine.md §8.
 
-**Status: ready for review.** Branched from 58bd232, main's tip. Three commits: b564be9 (T167), 5bdd38c (T166), and this note. Your part: a reviewer's pass, the gate, and the merge.
+**Status: reviewed, APPROVE; ready for your gate and merge.** Branched from 58bd232, main's tip. Four commits: b564be9 (T167), 5bdd38c (T166), 625c77c (this note), and the review's two wording fixes. Your part: the gate and the merge.
 
 ## Runs in the Author's terminal
 
@@ -44,7 +44,24 @@ Nothing. There is no patch, and the branch touches no human-only path.
 
 ## Review
 
-Not yet reviewed. The implementer doesn't review its own change (CLAUDE.md), so a reviewer agent's `REVIEW.md` pass is owed before the merge.
+One pass by the reviewer agent, which didn't write the change, against REVIEW.md, the spec, the plan, tasks T166 and T167, the engine's contract, and the constitution: **APPROVE, no blockers.** It ran the six new cases at 625c77c: all passed, and the hanging case failed `make image` in 2.01 s against its 2 s bound. Reading the tests against the old Makefile confirms "4 failed, 2 passed". Its checks:
+- **Cleanup on a timeout holds.** `timeout` signals the relay's whole process group; the relay sets its EXIT trap before it writes `proxy-auth`, and the trap runs on SIGTERM. Exit codes 124 and 137 fail with "didn't answer", any other non-zero fails naming its code, and nothing counts as a pass (`Makefile:72-77`).
+- **The modes are right.** The probe is only in the relay branches; none-yet and no-cli SKIP without asking; the direct mode is unchanged.
+- **The tests** use stand-ins and only add tests. The stand-in relay's background `sleep` holds make's stderr, so the 2.01 s result also shows the kill reaching the relay's children.
+- **T166 keeps all five points**, mostly word for word, and no human-only path changed.
+
+Two of its nits are fixed in a fourth commit, by the integrating session:
+- "only while one is needed" had come to follow `up` in the `setup` row, so it read as limiting the `up`; the source put it on the `wsl --shutdown`, and the row now does too.
+- "within 15 s" in the contract's degraded-mode row and plan §11: the `--kill-after` path can take 20 s, and both now say so. (The make message's "didn't answer within 15 s" is true on either path, so it stays.)
+
+Its other two nits, and its backlog, are below.
+
+**Backlog from the review:**
+- `ENGINE_PROBE_SECONDS=0` on the command line turns the bound off (GNU `timeout` reads 0 as no limit). It affects only the agent that passes it.
+- No automated test checks that the relay's work directory is gone after a timeout: the stand-in has none, and the TERM/INT check above was by hand.
+- The pasted `make check` ran with `ENGINE_MODE=none-yet`, so `image` was skipped; relay mode has run for real only as the bare probe. The next `make check` without that override should paste its `image` line.
+- Still unbounded: the relayed `up` and `down` targets, `breach-test`, a build that hangs after a probe that answered, and the gate's own image step (human-only; "For the Author" item 2).
+- The probe tries once and doesn't retry.
 
 ## Verification
 
