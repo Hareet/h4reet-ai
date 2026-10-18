@@ -257,6 +257,30 @@ describe("the room's modes", () => {
     expect(v.room.visit.stage).toBe("room");
   });
 
+  it("ignores a 3D chunk that arrives after SCENE_WAIT_MS: the hand-off starts once, and the room stays 2D", async () => {
+    const v = start({ webgl: true, sceneLate: true });
+    await flush();
+    radio(v.doc, "path", "engineer").click();
+    radio(v.doc, "avatar", "dog").click();
+    button(v.doc, "Enter").click();
+    await flush();
+    v.clock.advance(SCENE_WAIT_MS);
+    await v.room.settled();
+    await flush();
+    expect(v.room.visit.mode).toBe("2d");
+    v.scene.release?.();
+    await flush();
+    v.clock.advance(4500);
+    await flush();
+    expect(v.scene.created).toHaveLength(0);
+    expect(v.room.visit).toMatchObject({ mode: "2d", stage: "room" });
+    expect(v.doc.querySelectorAll(".room-offer")).toHaveLength(1);
+    expect(v.doc.querySelectorAll("canvas")).toHaveLength(0);
+    expect(twoD(v.events)).toBe(1);
+    v.clock.advance(10_000);
+    expect(v.doc.querySelectorAll(".room-offer")).toHaveLength(1);
+  });
+
   it("ignores frames while the page is hidden, and starts a new window when it shows", async () => {
     const v = start({ webgl: true });
     await intoRoom(v);

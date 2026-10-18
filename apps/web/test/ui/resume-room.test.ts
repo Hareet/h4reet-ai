@@ -57,13 +57,14 @@ describe("the room's resume", () => {
     expect([...panelOf(v).querySelectorAll("h1, h2")].map((h) => textOf(h))).toEqual(["The resume"]);
     expect(panelOf(v).querySelector('[role="dialog"], [aria-modal]')).toBeNull();
     expect(panelOf(v).contains(v.doc.activeElement)).toBe(true);
-    // Phase 3's view is a fixed panel over the page on its own; in the room it sits in the flow, under the AI
-    // disclosure, which stays in view.
+    // Nothing lays the view over the page or the AI disclosure, which stays in view.
     const view = viewOf(v);
     if (!view) throw new Error("no view");
-    const rules = stylesheets().flatMap((s) => parseCss(s.text).rules);
-    const inFlow = rules.find((r) => r.selector.includes(".resume-panel") && matchesRule(view, r.selector));
-    expect(inFlow?.declarations.get("position")).toBe("static");
+    for (const rule of stylesheets().flatMap((sheet) => parseCss(sheet.text).rules)) {
+      if (!matchesRule(view, rule.selector)) continue;
+      expect(rule.declarations.get("position") ?? "static", rule.selector).toMatch(/^(static|relative)$/);
+      expect(rule.declarations.has("z-index"), rule.selector).toBe(false);
+    }
     expect(textOf(v.doc.body)).toContain(AI_DISCLOSURE);
   });
 
@@ -98,6 +99,21 @@ describe("the room's resume", () => {
     expect(v.resumeLoads()).toBe(1);
     expect(v.events.filter((e) => e.kind === "resume_opened")).toHaveLength(2);
     expect(viewOf(v)?.hidden).toBe(false);
+  });
+
+  it("loads room-data.json again after a load that failed, and keeps the one that worked", async () => {
+    const v = start({ resumeData: [ABSENT, fixtureResume()] });
+    await opened(v);
+    expect(textOf(panelOf(v))).toContain(LOAD_FAILED);
+    button(v.doc, "Close").click();
+    button(v.doc, "Resume").click();
+    await flush();
+    expect(textOf(panelOf(v))).not.toContain(LOAD_FAILED);
+    expect(panelOf(v).querySelectorAll("button[data-item-id]").length).toBeGreaterThan(0);
+    button(v.doc, "Close").click();
+    button(v.doc, "Resume").click();
+    await flush();
+    expect(v.resumeLoads()).toBe(2);
   });
 
   it("closes with the view's Close, and with Escape, focus back on Resume", async () => {

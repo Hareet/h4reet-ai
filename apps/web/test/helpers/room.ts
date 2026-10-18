@@ -216,6 +216,8 @@ export interface FakeScene {
   quality: number[];
   disposed: number;
   stage: Stage3D | null;
+  /** With sceneLate: lets the chunk's import resolve now. */
+  release?: () => void;
 }
 
 export function fakeScene(): FakeScene {
@@ -281,8 +283,13 @@ export interface Visit {
 export interface SceneOptionsForTest {
   sceneFails?: boolean;
   sceneHangs?: boolean;
-  /** What the resume's room-data.json gives the room's resume view; by default fixtureResume(). */
-  resumeData?: RoomResume;
+  /**
+   * What the resume's room-data.json gives the room's resume view, by default fixtureResume(); a list gives each
+   * load the next, the last one again once they run out.
+   */
+  resumeData?: RoomResume | RoomResume[];
+  /** The 3D chunk's import settles only when the test calls scene.release(). */
+  sceneLate?: boolean;
 }
 
 /** An approved resume of fixture words, under the first two item IDs the manifest lists. */
@@ -311,13 +318,20 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     // The real resume view (Phase 3), its room-data.json from the test, never from the network.
     resume: resumeView(() => {
       loads += 1;
-      return Promise.resolve(options.resumeData ?? fixtureResume());
+      const data = options.resumeData ?? fixtureResume();
+      const list = Array.isArray(data) ? data : [data];
+      return Promise.resolve(list[Math.min(loads, list.length) - 1] ?? fixtureResume());
     }),
     events: (event) => events.push(event),
     clock,
     loadScene: () => {
       scene.loads += 1;
       if (options.sceneHangs) return new Promise<SceneModule>(() => undefined);
+      if (options.sceneLate) {
+        return new Promise<SceneModule>((resolve) => {
+          scene.release = () => resolve(scene.module);
+        });
+      }
       return options.sceneFails ? Promise.reject(new Error("the chunk didn't load")) : Promise.resolve(scene.module);
     },
   });

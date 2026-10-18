@@ -1,7 +1,8 @@
 // T025 (spec 002; FR-010, FR-018; contracts/room-scene.md §1 and §5): the interactive resume, in jsdom with axe-core.
-// Its items are buttons in lists, each selectable; "Download (PDF)" links the built file; it opens from any control
-// marked data-resume-open and closes with "Close" or Escape, focus back on that control. The first screen's PDF link
-// is plain HTML, so it works without the room or any script. 0 axe violations.
+// Its items are buttons in lists, each selectable; "Download (PDF)" links the built file. The room opens it in its
+// resume panel and closes it with "Close" or Escape, focus back on "Resume" (test/ui/resume-room.test.ts); the view
+// has no opener of its own, and no style that could lay it over the page. The first screen's PDF link is plain HTML,
+// so it works without the room or any script. 0 axe violations.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -10,9 +11,11 @@ import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
 import { ABSENT, type RoomResume } from "../../src/resume/data";
-import { DRAFT_NOTICE, LOAD_FAILED, PDF_HREF, resumePanel, wireResumeOpeners } from "../../src/resume/view";
+import * as view from "../../src/resume/view";
+import { DRAFT_NOTICE, LOAD_FAILED, PDF_HREF, resumePanel } from "../../src/resume/view";
 
 const INDEX = fileURLToPath(new URL("../../index.html", import.meta.url));
+const CSS = fileURLToPath(new URL("../../src/resume/resume.css", import.meta.url));
 
 const DATA: RoomResume = {
   resume_state: "approved",
@@ -30,7 +33,7 @@ const DATA: RoomResume = {
   ],
 };
 
-function page(body = '<main><h1>The work area</h1><button type="button" data-resume-open>Resume</button></main>') {
+function page(body = "<main><h1>The work area</h1></main>") {
   const dom = new JSDOM(`<!doctype html><html lang="en"><head><title>t</title></head><body>${body}</body></html>`, {
     runScripts: "outside-only",
     pretendToBeVisual: true,
@@ -45,19 +48,14 @@ async function axeViolations(dom: JSDOM): Promise<string[]> {
   return result.violations.map((v) => `${v.id}: ${v.help}`);
 }
 
-const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
-
-async function opened(data: RoomResume = DATA) {
+/** The panel as the room shows it: built from the data, shown, in the page's main. */
+function opened(data: RoomResume = DATA) {
   const dom = page();
   const doc = dom.window.document;
-  wireResumeOpeners(doc, async () => data);
-  const opener = doc.querySelector("[data-resume-open]") as HTMLButtonElement;
-  opener.focus();
-  opener.click();
-  await tick();
-  const panel = doc.querySelector<HTMLElement>("[data-resume-panel]");
-  if (!panel) throw new Error("no resume panel");
-  return { dom, doc, opener, panel };
+  const panel = resumePanel(doc, data);
+  panel.hidden = false;
+  doc.querySelector("main")?.append(panel);
+  return { dom, doc, panel };
 }
 
 describe("the interactive resume", () => {
@@ -83,8 +81,8 @@ describe("the interactive resume", () => {
     expect(PDF_HREF).toBe("./resume.pdf");
   });
 
-  it("makes each item selectable: selecting marks it and tells the room which item it was", async () => {
-    const { doc, panel } = await opened();
+  it("makes each item selectable: selecting marks it and tells the room which item it was", () => {
+    const { doc, panel } = opened();
     const seen: string[] = [];
     doc.addEventListener("room:item-selected", (e) => seen.push((e as CustomEvent<{ id: string }>).detail.id));
     const tide = panel.querySelector('button[data-item-id="tide"]') as HTMLButtonElement;
@@ -96,29 +94,16 @@ describe("the interactive resume", () => {
     expect(seen).toEqual(["tide", "lantern"]);
   });
 
-  it("opens from a data-resume-open control, and closes with Escape, focus back on that control", async () => {
-    const { dom, doc, opener, panel } = await opened();
-    expect(panel.hidden).toBe(false);
-    expect(panel.contains(doc.activeElement)).toBe(true);
-    panel.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    expect(panel.hidden).toBe(true);
-    expect(doc.activeElement).toBe(opener);
-  });
-
-  it("closes with its Close button too, and opens again on the same panel", async () => {
-    const { doc, opener, panel } = await opened();
-    const close = [...panel.querySelectorAll("button")].find((b) => b.textContent === "Close") as HTMLButtonElement;
-    close.click();
-    expect(panel.hidden).toBe(true);
-    expect(doc.activeElement).toBe(opener);
-    opener.click();
-    await tick();
-    expect(panel.hidden).toBe(false);
-    expect(doc.querySelectorAll("[data-resume-panel]")).toHaveLength(1);
+  it("has no opener of its own, and no style that lays it over the page and the AI disclosure", () => {
+    // The room opens it (src/room/resume-port.ts); a stand-alone opener would open it a second way.
+    expect("wireResumeOpeners" in view).toBe(false);
+    const css = readFileSync(CSS, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(css).not.toMatch(/position\s*:\s*(fixed|absolute|sticky)/);
+    expect(css).not.toMatch(/z-index/);
   });
 
   it("has no axe violations, open", async () => {
-    const { dom } = await opened();
+    const { dom } = opened();
     expect(await axeViolations(dom)).toEqual([]);
   });
 });
@@ -132,7 +117,7 @@ describe("a draft resume", () => {
 
   it("says only that it's a draft when it's withheld, and still links the PDF", async () => {
     const withheld: RoomResume = { resume_state: "withheld", header: null, sections: [] };
-    const { dom, panel } = await opened(withheld);
+    const { dom, panel } = opened(withheld);
     expect(panel.querySelector("[data-draft-banner]")?.textContent).toBe(DRAFT_NOTICE);
     expect(panel.querySelectorAll("button[data-item-id]")).toHaveLength(0);
     expect([...panel.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toContain(PDF_HREF);
@@ -140,39 +125,9 @@ describe("a draft resume", () => {
   });
 });
 
-describe("opening before room-data.json arrives", () => {
-  it("builds one panel for any number of presses while it loads, and that panel closes", async () => {
-    const dom = page();
-    const doc = dom.window.document;
-    let arrive: (data: RoomResume) => void = () => undefined;
-    let loads = 0;
-    wireResumeOpeners(doc, () => {
-      loads++;
-      return new Promise<RoomResume>((resolve) => {
-        arrive = resolve;
-      });
-    });
-    const opener = doc.querySelector("[data-resume-open]") as HTMLButtonElement;
-    opener.focus();
-    opener.click();
-    opener.click();
-    await tick();
-    arrive(DATA);
-    await tick();
-    expect(loads).toBe(1);
-    const panels = doc.querySelectorAll<HTMLElement>("[data-resume-panel]");
-    expect(panels).toHaveLength(1);
-    const panel = panels[0] as HTMLElement;
-    expect(panel.hidden).toBe(false);
-    panel.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    expect(panel.hidden).toBe(true);
-    expect(doc.activeElement).toBe(opener);
-  });
-});
-
 describe("a resume that couldn't load", () => {
   it("says so, not that it's a draft, and still offers the PDF", async () => {
-    const { dom, panel } = await opened(ABSENT);
+    const { dom, panel } = opened(ABSENT);
     expect(panel.querySelector("[data-resume-error]")?.textContent).toBe(LOAD_FAILED);
     expect(panel.querySelector("[data-draft-banner]")).toBeNull();
     expect(panel.querySelectorAll("button[data-item-id]")).toHaveLength(0);
