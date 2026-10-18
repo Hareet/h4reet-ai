@@ -128,7 +128,7 @@ description: "Task list for spec 002, The Room"
 - [X] T045 [US2] `apps/web/src/talk/` and `apps/web/content/messages.yaml`: the text box, "Send", the talk button, and the fixed messages, per data-model.md §7 and contracts/room-conversation.md §3
 - [X] T046 [US2] `room-manifest.json` from `apps/web/build/manifest.ts`: objects with `ready: false`, items, avatars, `placeholders: true`, event kinds; and `config/room-events.yaml` from the same source (kinds, object IDs, item IDs), committed, with `make test` failing when it's stale, per data-model.md §5 and contracts/room-events.md §3
 - [ ] T048 [US2] **Author**: quickstart §4: the visit, reload, the floor with the model server stopped (SC-001), the keyboard and screen-reader visits (SC-003), the phone and laptop frame rates (SC-004), 4G emulation (SC-005), the network log (SC-012)
-- [ ] T049 [US2] Merge-request note `docs/merge-requests/<date>-feat-002-us2-room.md`
+- [X] T049 [US2] Merge-request note `docs/merge-requests/<date>-feat-002-us2-room.md`
 
 **Checkpoint**: the room works end to end on its floor, with no model.
 
