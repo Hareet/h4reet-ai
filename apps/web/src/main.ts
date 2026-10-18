@@ -7,8 +7,18 @@ import "./fonts.css";
 
 import { content } from "virtual:room-content";
 
+import { asRoomNarration } from "./narration";
+import { asRoomResume } from "./resume";
 import { startRoom } from "./room/app";
-import { resumeView } from "./room/resume-port";
+import { resumeView, roomDataLoader } from "./room/resume-port";
 
-// The interactive resume is Phase 3's view (tasks.md T029) in the room's panel, through src/room/resume-port.ts.
-startRoom({ win: window, content, resume: resumeView() });
+// The interactive resume is Phase 3's view (tasks.md T029) in the room's panel, through src/room/resume-port.ts, which
+// narrates a selected item at the path the visitor chose (tasks.md T053). room-data.json is fetched once for both.
+const roomData = roomDataLoader();
+startRoom({
+  win: window,
+  content,
+  resume: resumeView(async () => asRoomResume(await roomData()), {
+    load: async () => asRoomNarration(await roomData()),
+  }),
+});

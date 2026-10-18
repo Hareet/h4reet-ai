@@ -48,6 +48,8 @@ As the resume source ([resume-source.md §5](resume-source.md#5-approvals)): a s
 | Start | within 1 s of the item's selection; the measure is from the click event to the first word painted (SC-006) |
 | Pace | 160 words a minute, word by word, into the narration region beside the item |
 | Assistive technology | the whole script goes to the panel's polite live region at the start; the word-by-word copy beside the item is hidden from assistive technology, so the script is read once |
+| The AI | the region opens with a line saying the AI twin narrates the words, and the page's AI disclosure stays in view, never covered or scrolled away, while the words show (FR-004) |
+| Path | the visitor's chosen path, from the room's visit through its resume adapter's context |
 | Another selection | stops the current one at once and starts the new one (FR-011); selecting the same item starts it over, and closing the resume stops it |
 | Draft | with `ROOM_DRAFTS=1`, a draft plays with a "Draft" label; without it, the item shows no narration |
 | Voice (later) | when the build holds `narration/<item>.<path>.<hash>.ogg` (Phase 2, ADR 0011), the words follow the audio's word timings, and a "Voice" toggle mutes it while keeping the words (FR-025) |

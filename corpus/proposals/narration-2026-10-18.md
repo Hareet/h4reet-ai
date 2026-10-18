@@ -29,7 +29,7 @@ These are readings for you to decide on; none of them is a corpus change this pr
 - **No numbers.** The check admits a digit only through a filled slot, and these drafts also leave out the counts the corpus spells in words: agent-watchdog "flagged projects with degraded API performance" (the corpus says three), and claude-medic-aws traced it to "a specific EKS node" (one). The years, CHT's version number, and the strategy's "Track 1" and "Track 2" are left out for the same reason; "two tracks" stays, as in the resume.
 - **Thin engineer scripts.** Smart Task Prioritization, No-Code CHT Configuration, CHT's Docker architecture, the benchmarking, Kenya, and the other deployments have little more on the engineer path than on the other. Their depth in the corpus sits under headings that carry the tag, not on each bullet: the strategy's tracks and categories (`01`, "The strategy"), the Voice for CHT pilot's design (`01`, "Voice for CHT"), and the PowerSync-to-Postgres backend (`02`, "Designing new systems"). The check reads a tag only on the line it covers, as the resume's proposal explains, so a tag on each bullet line would let these scripts go deeper.
 - **"Before Kenya's national-scale deployment"** in `cht-docker-architecture.engineer.md` reads `02`'s "Before that deployment", which follows the Kenya sentence.
-- **Until the room's choice screen gives the visitor's path,** the resume would show the non-engineer scripts; with the room, each visitor gets the path they chose. The engineer scripts can also be read here and in their eval cases.
+- **In the room,** each visitor reads the scripts for the path they chose, under a line saying the AI twin narrates them. The engineer scripts can also be read here and in their eval cases.
 
 ## The scripts
 

@@ -1,17 +1,18 @@
-// T051 (spec 002; FR-011, SC-006; contracts/narration.md §4): the narration display, in jsdom with a fake clock.
-// Selecting an item in the interactive resume shows its script for the visitor's path: the first word at once (within
-// 1 s of the selection), then word by word at 160 words a minute, beside the item, with the whole text in the polite
-// live region at the start. Another selection stops it at once and starts the new one. A draft plays under a "Draft"
-// label in a drafts build; without ROOM_DRAFTS=1 the build leaves it out, and the item shows no narration. 0 axe
-// violations.
+// T051 (spec 002; FR-011, SC-006; contracts/narration.md §4): the narration display, in jsdom with a fake clock, in
+// the room's resume view (src/room/resume-port.ts), whose context carries the visitor's path. Selecting an item shows
+// its script for that path: the first word at once (within 1 s of the selection), then word by word at 160 words a
+// minute, beside the item, under a line saying the AI twin narrates, with the whole text in the polite live region at
+// the start. Another selection stops it at once and starts the new one; closing the resume stops it. A draft plays
+// under a "Draft" label in a drafts build; without ROOM_DRAFTS=1 the build leaves it out, and the item shows no
+// narration. 0 axe violations. test/ui/narration-room.test.ts runs the same view inside the room.
 import axe from "axe-core";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
 import { asRoomNarration, type NarrationPath } from "../../src/narration/data";
-import { DRAFT_LABEL, type Clock, WORD_MS, WORDS_PER_MINUTE, wireNarration } from "../../src/narration/view";
+import { DRAFT_LABEL, NARRATION_AI_LINE, type Clock, WORD_MS, WORDS_PER_MINUTE } from "../../src/narration/view";
 import type { RoomResume } from "../../src/resume/data";
-import { wireResumeOpeners } from "../../src/resume/view";
+import { resumeView } from "../../src/room/resume-port";
 
 const LANTERN_ENGINEER = "Robin designed the lantern service and its nightly schedule for the fixture clinic.";
 const LANTERN_PLAIN = "Robin designed the lantern service, so the harbor stays lit.";
@@ -104,15 +105,22 @@ const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0
 
 async function room(path: NarrationPath = "engineer", built: unknown = BUILT) {
   const dom = new JSDOM(
-    '<!doctype html><html lang="en"><head><title>t</title></head><body><main><h1>The work area</h1>' +
-      '<button type="button" data-resume-open>Resume</button></main></body></html>',
+    '<!doctype html><html lang="en"><head><title>t</title></head><body><header><p>An AI representation.</p></header>' +
+      '<main><h1>The work area</h1><section aria-labelledby="r"><h2 id="r">The resume</h2><div id="host"></div>' +
+      "</section></main></body></html>",
     { runScripts: "outside-only", pretendToBeVisual: true },
   );
   const doc = dom.window.document;
   const clock = new FakeClock();
-  wireResumeOpeners(doc, async () => RESUME);
-  wireNarration(doc, { load: async () => asRoomNarration(built), path: () => path, clock });
-  (doc.querySelector("[data-resume-open]") as HTMLButtonElement).click();
+  const view = resumeView(async () => RESUME, { load: async () => asRoomNarration(built), clock });
+  const host = doc.getElementById("host") as HTMLElement;
+  view.mount(host, {
+    doc,
+    path,
+    close: () => view.unmount(),
+    pdfFollowed: () => undefined,
+    itemSelected: () => undefined,
+  });
   await tick();
   await tick();
   const panel = doc.querySelector("[data-resume-panel]") as HTMLElement;
@@ -123,7 +131,7 @@ async function room(path: NarrationPath = "engineer", built: unknown = BUILT) {
   };
   const shown = (): string => panel.querySelector("[data-narration] .narration-words")?.textContent ?? "";
   const live = (): HTMLElement => panel.querySelector("[data-narration-live]") as HTMLElement;
-  return { dom, doc, panel, clock, select, shown, live };
+  return { dom, doc, panel, clock, select, shown, live, view };
 }
 
 const words = (text: string): string[] => text.split(/\s+/);
@@ -225,14 +233,29 @@ describe("the narration display", () => {
     expect(clock.pending()).toBe(0);
   });
 
-  it("stops when the resume closes", async () => {
-    const { dom, clock, panel, select, shown } = await room();
+  it("stops at once when the resume closes, and shows nothing of it when the resume opens again", async () => {
+    const { clock, panel, select, shown, live } = await room();
     select("lantern");
-    panel.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    expect(panel.hidden).toBe(true);
-    clock.advance(WORD_MS * 100);
-    expect(shown()).toBe("Robin");
+    const close = [...panel.querySelectorAll("button")].find((b) => b.textContent === "Close") as HTMLButtonElement;
+    close.click();
     expect(clock.pending()).toBe(0);
+    expect(panel.querySelector("[data-narration]")).toBeNull();
+    expect(live().textContent).toBe("");
+    clock.advance(WORD_MS * 100);
+    expect(shown()).toBe("");
+  });
+
+  it("says, beside the words, that the AI twin narrates them", async () => {
+    const { panel, select } = await room();
+    select("lantern");
+    const region = panel.querySelector("[data-narration]") as HTMLElement;
+    const line = region.querySelector(".narration-ai") as HTMLElement;
+    expect(line.textContent).toBe(NARRATION_AI_LINE);
+    expect(NARRATION_AI_LINE).toMatch(/\bAI\b/);
+    expect(line.hidden).toBe(false);
+    expect(line.closest("[aria-hidden]")).toBeNull();
+    // Before the words, so it's read and seen first.
+    expect(line.compareDocumentPosition(region.querySelector(".narration-words") as Node)).toBe(4);
   });
 
   it("has no axe violations while narrating", async () => {
