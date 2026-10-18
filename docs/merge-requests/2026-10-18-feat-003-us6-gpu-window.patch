@@ -1,0 +1,25 @@
+--- a/.claude/hooks/bash-gate.sh
++++ b/.claude/hooks/bash-gate.sh
+@@ -227,7 +227,9 @@
+ # - The breach test inits, resets, and renews the stack it runs on, which outside the agents' own engine takes "a
+ #   pre-execution hook with a reason and an audit record" (FR-008); make's and breach.py's own SANDBOX_RUNTIME checks are
+ #   one unset away. The operator targets and CLI change or read the stack's state through its admin listener, whose
+-#   ports for prod and dev, 18003 and 18103, are refused by name wherever they appear.
++#   ports for prod and dev, 18003 and 18103, are refused by name wherever they appear. make studio-window is one of
++#   them (spec 003's contracts/gpu-window.md §2): it records a window on that listener and stops or restarts the
++#   stack's model server.
+ # - The Author's other targets: make publish-check, make tools, make matrix-canary, and make evals-agent-config.
+ # - git's --no-verify (and the prefixes git accepts), and git commit -n, skip the pre-commit scan.
+ # - claude mcp add gives sessions a new tool server.
+@@ -265,8 +267,9 @@
+ if runs_script "$breach_script" && ! only_dev_cpu "$stack_opt"; then
+   block "the breach test outside dev-cpu" "evals/breach.py: $dev_cpu_route"
+ fi
+-if has "$make_word" && has "${tb}$(spelled operator-)[[:alnum:]_\"'\\\$-]*${te}" && ! only_dev_cpu "$env_opt"; then
+-  block "an operator target outside dev-cpu" "make operator-*: $dev_cpu_route"
++if has "$make_word" && has "${tb}($(spelled operator-)[[:alnum:]_\"'\\\$-]*|$(spelled studio-window))${te}" \
++  && ! only_dev_cpu "$env_opt"; then
++  block "an operator target outside dev-cpu" "make operator-* and make studio-window: $dev_cpu_route"
+ fi
+ operator_script="($(spelled operator.py)|$(spelled scripts.operator)|$(spelled scripts)[[:space:]]+$(spelled import)[[:space:]]+$(spelled operator))"
+ if runs_script "$operator_script" && ! only_dev_cpu "$stack_opt"; then

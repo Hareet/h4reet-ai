@@ -702,12 +702,18 @@ cmd planned 'make studio-window ENV=dev-cpu ENV=prod STATE=start REASON="studio:
 # The operator CLI's own studio-window command, called directly: the CLI rule above already refuses it off dev-cpu.
 cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod studio-window start --reason "studio: a portrait batch"'
 cmd block 'python3 scripts/operator.py --stack dev studio-window end --reason "studio: the batch is done"'
-# Spellings the rule can't see: the target's name built at run time, or held in a variable. What holds them: the recipe's
-# own refusal of prod and dev inside the sandbox, the operator token the sandbox can't read (FR-007), and prod's admin
-# port and the host's engine out of the sandbox's reach (stage S).
+# The name in a variable assigned in the same command: the rule reads the assignment's text, so it holds too.
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd planned 't=studio-window; make $t ENV=prod STATE=start REASON=studio-portraits'
+# Spellings the rule can't see: the target's name built at run time, put together from parts the command holds apart,
+# or carried in from an earlier command's environment. What holds them: the recipe's own refusal of prod and dev inside
+# the sandbox, the operator token the sandbox can't read (FR-007), and prod's admin port and the host's engine out of
+# the sandbox's reach (stage S).
 cmd gap "make \$(printf 'studio-%s' window) ENV=prod STATE=start REASON=studio-portraits"
 # shellcheck disable=SC2016 # the command text is the test input, not an expansion
-cmd gap 't=studio-window; make $t ENV=prod STATE=start REASON=studio-portraits'
+cmd gap 't=studio; make "$t-window" ENV=prod STATE=start REASON=studio-portraits'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 'make "$TARGET" ENV=prod STATE=start REASON=studio-portraits'
 # dev-cpu's window stays the agents' to rehearse.
 cmd allow 'make studio-window ENV=dev-cpu STATE=start REASON="studio: a rehearsal"'
 cmd allow 'python3 scripts/operator.py --stack dev-cpu studio-window end --reason "studio: rehearsal done"'
