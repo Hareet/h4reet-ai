@@ -578,6 +578,80 @@ def test_prometheus_is_the_contracts() -> None:
     assert jobs["model-server"]["scrape_interval"] == "5s"
 
 
+# The collector's own metrics (telemetry.md §4.3, §6.4, §6.6; T185). Scraped, its counters carried no start time, so
+# created-timestamp-zero-ingestion wrote no 0 and a fresh collector's first batch never counted: on dev-cpu,
+# otelcol_exporter_sent_spans went straight to 13 (T149). Pushed over OTLP, each point carries its start time.
+
+
+def test_the_collector_pushes_its_own_metrics_to_prometheus_over_otlp() -> None:
+    readers = COLLECTOR["service"]["telemetry"]["metrics"]["readers"]
+    pulls = [r["pull"] for r in readers if "pull" in r]
+    pushes = [r["periodic"] for r in readers if "periodic" in r]
+    assert len(readers) == 2 and len(pulls) == len(pushes) == 1
+    (push,) = pushes
+    ((kind, exporter),) = push["exporter"].items()
+    assert kind == "otlp" and exporter["protocol"] == "http/protobuf"
+    # Prometheus's OTLP receiver, where the metrics pipelines deliver the gateway's metrics: one translation of names
+    # and one start-time rule for both. Straight there, not through the collector's own receiver, so its counters
+    # of a refusing receiver or a full queue don't wait behind what they count.
+    assert (
+        exporter["endpoint"]
+        == COLLECTOR["exporters"]["otlphttp/prometheus"]["metrics_endpoint"]
+    )
+    # Prometheus takes cumulative series only.
+    assert exporter["temporality_preference"] == "cumulative"
+    # The gateway's export interval, the freshness budget's 10 s step (§6.5).
+    gateway = COMPOSE["services"]["gateway"]["environment"]
+    assert push["interval"] == int(gateway["OTEL_METRIC_EXPORT_INTERVAL"]) == 10_000
+    # 8888 stays served, and scraped, for up{job="otel-collector"}.
+    assert pulls[0]["exporter"]["prometheus"]["port"] == 8888
+    jobs = {job["job_name"]: job for job in PROMETHEUS["scrape_configs"]}
+    assert jobs["otel-collector"]["static_configs"] == [
+        {"targets": ["otel-collector:8888"]}
+    ]
+
+
+def test_the_collectors_own_metrics_carry_the_stack_labels() -> None:
+    """telemetry.md §2: the stack's labels are the collector's. Its own metrics never pass the resource processor,
+    so its telemetry resource sets the two values the processor upserts, its own service name, and a stable
+    instance, so a restart reads as a counter reset in one series, as the gateway's does."""
+    resource = {
+        a["name"]: a["value"]
+        for a in COLLECTOR["service"]["telemetry"]["resource"]["attributes"]
+    }
+    upserted = {
+        a["key"]: a["value"]
+        for a in PROCESSORS["resource"]["attributes"]
+        if a["action"] == "upsert"
+    }
+    assert upserted and {key: resource.get(key) for key in upserted} == upserted
+    assert resource["service.name"] == "otel-collector"
+    assert resource["service.instance.id"] == "${env:H4_STACK}-otel-collector"
+    # Nothing the resource processor deletes from every other resource.
+    assert not [k for k in resource if k == "host.name" or k.startswith("process.")]
+
+
+def test_the_collector_scrape_keeps_only_up() -> None:
+    """The scrape of 8888 stays for up{job="otel-collector"}, the backends panel's (§7.6). Prometheus writes up for
+    the scrape itself, and metric relabelling never touches it; every sample the target serves is dropped, so no
+    otelcol_ series is stored twice, once scraped and once pushed."""
+    jobs = {job["job_name"]: job for job in PROMETHEUS["scrape_configs"]}
+    (rule,) = jobs["otel-collector"]["metric_relabel_configs"]
+    assert rule == {"source_labels": ["__name__"], "regex": ".+", "action": "drop"}
+    dropped = re.compile(rule["regex"])  # Prometheus anchors it at both ends
+    for name in (
+        "otelcol_exporter_sent_spans",
+        "otelcol_exporter_queue_size",
+        "otelcol_process_uptime",
+        "target_info",
+    ):
+        assert dropped.fullmatch(name), name
+    # Every other job keeps what it scrapes.
+    assert [n for n, job in jobs.items() if "metric_relabel_configs" in job] == [
+        "otel-collector"
+    ]
+
+
 def test_loki() -> None:
     loki = yaml.safe_load((REPO / "deploy/loki/loki.yaml").read_text(encoding="utf-8"))
     assert loki["auth_enabled"] is False

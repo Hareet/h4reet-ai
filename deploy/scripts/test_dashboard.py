@@ -166,6 +166,12 @@ def test_the_contract_parses_as_this_file_reads_it() -> None:
     assert expected["Alert log"][1] == [
         '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed)"'
     ]
+    # The collector's "and the same for" shorthand, spelled out with its pushed names (T185).
+    assert expected["Export failures"][1] == [
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))",
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points_total[5m]))",
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]))",
+    ]
     for _, found in expected.values():
         assert found, "a panel parsed with no query"
 
@@ -269,6 +275,29 @@ FUNCTIONS = {
     "max_over_time",
     "le",
 }
+
+
+# The collector's two gauges; every other otelcol_ metric a panel reads is a counter.
+COLLECTOR_GAUGES = {"otelcol_exporter_queue_size", "otelcol_exporter_queue_capacity"}
+
+
+def test_the_collectors_counters_are_the_pushed_ones() -> None:
+    """T185: the collector pushes its own metrics over OTLP, and its scrape keeps only up (telemetry.md §4.3, §6.6).
+    So each otelcol_ counter a panel reads has the _total that Prometheus's OTLP translation appends, and no otelcol_
+    query selects the scrape's job, which no longer holds one."""
+    found = set()
+    for panel in panels():
+        if panel["datasource"]["uid"] != "prom":
+            continue
+        for expr in queries(panel):
+            names = set(re.findall(r"\botelcol_[a-z_]+", expr))
+            for name in names - COLLECTOR_GAUGES:
+                assert name.endswith("_total"), (panel["title"], name)
+            assert not names or "job" not in expr, (panel["title"], expr)
+            found |= names
+    # Every panel of §7.6 that reads the collector: three failures, three drops, two gauges, one sent, three refused.
+    assert len(found) == 12, sorted(found)
+    assert COLLECTOR_GAUGES <= found
 
 
 def test_every_datasource_is_the_one_its_query_language_needs() -> None:
