@@ -10,6 +10,9 @@
 //   PDFKit's hash of the info with a fixed date, so the same source and policy build the same bytes.
 // - The header follows FR-017: main's full name and contact when resume-header.json fills both, else the room's.
 //   A withheld draft's PDF says "Draft, not approved" and nothing else; a drafts build's carries it first.
+// - Its text, as pdf.js reads it through the embedded font's ToUnicode map, goes beside it in resume.pdf.txt
+//   (pdfText): the font stores glyph codes, not text, so this is what the gate's scan of dist/ for a draft's words
+//   reads to cover the PDF.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -154,4 +157,23 @@ export async function renderPdf(input: PdfInput, fontsDir: string = FONTS_DIR): 
   root.end();
   doc.end();
   return done;
+}
+
+/** The PDF's text as pdf.js extracts it, one line: a line that ends after a hyphen rejoined to the next without a
+ * space, any other line break a space, and whitespace collapsed, so it holds the source's words as written. */
+export async function pdfText(pdf: Uint8Array): Promise<string> {
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const task = getDocument({ data: new Uint8Array(pdf), verbosity: 0, disableFontFace: true, useSystemFonts: false });
+  const doc = await task.promise;
+  let text = "";
+  for (let n = 1; n <= doc.numPages; n++) {
+    const content = await (await doc.getPage(n)).getTextContent();
+    for (const item of content.items) if ("str" in item) text += item.str + (item.hasEOL ? "\n" : "");
+    text += "\n";
+  }
+  await task.destroy();
+  return text
+    .replace(/-\n+(?=\S)/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 }

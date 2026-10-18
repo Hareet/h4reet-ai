@@ -23,7 +23,7 @@ import { parse as parseYaml, parseDocument, visit } from "yaml";
 
 import type { RoomResumeHeader, RoomResumeSection } from "../src/resume/data";
 import { publication, readPolicy, type RoomData, type RoomDataContext } from "./approvals";
-import { pdfInput, renderPdf } from "./pdf";
+import { pdfInput, pdfText, renderPdf } from "./pdf";
 import { DEFAULT_POLICY_DIR } from "./policy";
 
 export const RESUME_PATH = "apps/web/content/resume.yaml";
@@ -656,7 +656,10 @@ export async function resumePart(data: RoomData, context: RoomDataContext): Prom
   const { publish, banner } = publication(file?.state ?? "draft", context.drafts);
   const state = !publish ? "withheld" : banner ? "draft" : "approved";
   const rendered = renderResume(source, readFacts(context.root));
-  context.emit("resume.pdf", await renderPdf(pdfInput(publish ? rendered : null, context.policy, state)));
+  const pdf = await renderPdf(pdfInput(publish ? rendered : null, context.policy, state));
+  context.emit("resume.pdf", pdf);
+  // The PDF's text, for the gate's scan of dist/: the embedded font stores glyph codes, not text.
+  context.emit("resume.pdf.txt", `${await pdfText(pdf)}\n`);
 
   const stamp = { source: RESUME_PATH, sha256: file?.sha256 ?? sha256(readFileSync(path)) };
   const lockPath = join(context.root, LOCK_PATH);

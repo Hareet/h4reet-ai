@@ -140,6 +140,10 @@ describe("the built resume.pdf (FR-018)", () => {
     expect(pdf.subarray(0, 8).toString("latin1")).toBe("%PDF-1.7");
   });
 
+  it("has its text beside it, which says only that the withheld draft is a draft", () => {
+    expect(readFileSync(join(out, "resume.pdf.txt"), "utf8")).toBe("Draft, not approved\n");
+  });
+
   it("carries none of a withheld draft's words, and neither does any other built file", () => {
     // The start of every item's display text, as the source writes it, before any slot reference.
     const source = readFileSync(join(WEB, "content/resume.yaml"), "utf8");

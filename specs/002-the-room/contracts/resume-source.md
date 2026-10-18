@@ -47,11 +47,13 @@ No content about the Author goes in this contract's examples: placeholders in an
 | C8 | When `verb` is set, it appears in `text` and in at least one cited sentence | `ownership verb not cited` |
 | C9 | No item's `text` and no line of `header.room` contains a phrase from the forbidden list: every corpus file's "Do not claim" key phrases, the surname rule, and the private denylist's phrases when the build can read it ([narration.md §2](narration.md#2-checks), N3). The display text is the Author's wording, so C1–C8 prove it cites the corpus, and C9 proves it doesn't say what the corpus forbids | `forbidden phrase (from <file:line>)`, never the phrase itself when its source is the private denylist |
 
-**Slots** render as the fact's `phrasing` with `{value}` filled when the fact has a value and `public_safe: true`, else as the citation's declared fallback (`fallback:` on the slot reference) or nothing. Never an estimate (the corpus's rule).
+**Slots** render as the fact's `phrasing` with `{value}` filled when the fact has a value and `public_safe: true`, else as the citation's declared fallback (`fallback:` on the slot reference, or the corpus's own `{{slot:<id> | else: <text>}}`) or nothing. Never an estimate (the corpus's rule). A fallback's digits count for C6.
+
+**Readings** (plan §2, "What group 3 found"): C3 reads a tag only on the line it covers, so a heading's tag covers no bullet below it. C9's "Do not claim" key phrase is each bullet's text up to its first clause break, without a leading "That" or its subject, compared lowercase. The surname rule is each word of `main`'s `full_name` after the first (§5), matched as a whole word, and reported as `forbidden phrase (from the surname rule)`.
 
 ## 3. The lock
 
-`apps/web/content/resume.lock.json` holds `{files: {<corpus path>: <sha256>}}` for every file any citation names. The check recomputes the digests, and fails with `corpus changed since the lock: <path>` when one differs. `npm run content:lock -w apps/web` rewrites it after a rebuild (FR-016).
+`apps/web/content/resume.lock.json` holds `{files: {<corpus path>: <sha256>}}` for every file any citation names, and every facts file a slot reads. The check recomputes the digests, and fails with `corpus changed since the lock: <path>` when one differs. `npm run content:lock -w apps/web` rewrites it after a rebuild (FR-016), and refuses while C1–C9 fail. `make test` fails on a stale lock; the build only warns, so a corpus edit on `main` never stops `make up`.
 
 ## 4. The renderings
 
@@ -61,7 +63,7 @@ No content about the Author goes in this contract's examples: placeholders in an
 
 | Property | Value |
 |---|---|
-| Header | the full name and the contact channel from `main`'s `assets/policy/resume-header.json` (§5) when both are filled, else the `room` header (FR-017) |
+| Header | the full name and the contact channel from `main`'s `assets/policy/resume-header.json` (§5) when both are filled, then the `room` header's lines; else the `room` header (FR-017) |
 | Structure | tagged: a `Document` with `H1` (the name), `H2` per section, `L`/`LI` per item, in reading order |
 | Language | `en-US`, on the catalog |
 | Title | "Resume", with `DisplayDocTitle` true |
@@ -70,6 +72,10 @@ No content about the Author goes in this contract's examples: placeholders in an
 | Links | none but the site's own URL, when spec 001 gives it one |
 
 **Equality** (SC-002): the PDF's extracted text, with whitespace collapsed, holds each item's filled text exactly once, in order, and nothing that isn't in the source except the section titles and the header.
+
+**The PDF's text**, `resume.pdf.txt` beside it: the text pdf.js extracts, one line, a line broken after a hyphen rejoined. The embedded font stores glyph codes, so this is what the gate's scan of `dist/` reads to cover the PDF (§5).
+
+**A withheld draft** (§5) builds a PDF whose only text is "Draft, not approved", with `Title` alone in `Info`, and a `room-data.json` with no header and no items.
 
 ## 5. Approvals
 

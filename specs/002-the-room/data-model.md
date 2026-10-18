@@ -40,7 +40,7 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 | `text` | string | display text, at most 400 characters. Any digit must sit inside a `{{slot:<id>}}` (FR-014). No "we" without its expansion (the corpus's rule) |
 | `claims[]` | list, at least one | each `{file, quote}`. `file` is a path under `corpus/` (no `intake/`, `proposals/`, or `facts/`); `quote` is at least 12 characters, found verbatim in one sentence of that file |
 | `slots[]` | list | the slot IDs `text` uses; each must exist in `corpus/facts/*.yaml` |
-| `verb` | string, optional | for a role claim, one of the corpus's ownership verbs (built, designed, co-authored, sourced, sponsored, AI system architect, led, was part of a team that); the check requires it to appear in `text` and in a cited sentence (FR-015) |
+| `verb` | string, optional | for a role claim, one of the corpus's ownership verbs (built, designed, co-authored, sourced, sponsored, AI system architect, led, was part of a team that), or "architected", the ruling `02` gives the CHT 4.0 architecture; the check requires it to appear in `text` and in a cited sentence (FR-015) |
 
 **A citation is sufficient** when the cited sentence's own tag, the one that opens its span on the line, is one of `[A …]`, `[A-DOC …]`, `[A-BIO]`, `[A-CHAT]`, `[A-NOTES]`, or `[C]`. A sentence tagged only `[P]`, `[A-JD]`, or `[A-SRE-JD]` is sufficient for a fact about a system or organization, never for a claim with `verb`. A `[?]` sentence is never sufficient. No sentence under a "Do not claim" heading is citable.
 
@@ -92,8 +92,9 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | `built_from` | the commit, `resume.lock.json`'s digest, and the policy files' digest (the approvals and the PDF header, as read from `main`) |
 | `published` | `{path, sha256}` for each content file the build published, and `draft: true` on a draft a drafts build shows; the gate's content check holds each to the tree's digest and `main`'s approvals, and scans `dist/` for any unapproved file's text whatever this says |
 | `drafts` | the paths of draft files, empty for a release |
-| `header` | the room's header |
-| `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), and per path `{words, approved}` |
+| `resume_state` | what the build published from the resume's source: `approved`; `draft`, a drafts build's, under the banner; `withheld`, a draft in a build without drafts, so no header and no items; or `absent` |
+| `header` | the room's header, `{name, lines[]}` with slots filled, and its `source` file and that file's `sha256`; `null` when withheld |
+| `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), with its `source` file and that file's `sha256`, and per path `{words, approved}` (Phase 5); no sections when withheld |
 | `messages` | the fixed messages (§7) |
 
 **`room-manifest.json`:**

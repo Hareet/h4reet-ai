@@ -2,8 +2,11 @@
 // source. The citation check runs on every build, published or not. An approved source publishes its items, each
 // with its source file and that file's SHA-256, so the gate's check can trace every published item to an approval.
 // A draft is left out of a build without drafts, so none of its text reaches room-data.json or the PDF, which says
-// only "Draft, not approved"; with drafts shown, it publishes under that banner. A stale lock warns at build, and
-// fails make test (test/content/source.test.ts), so a corpus edit on main never stops make up.
+// only "Draft, not approved"; with drafts shown, it publishes under that banner. room-data.json's `published` names
+// the file and its digest whenever its words are out. Beside the PDF, resume.pdf.txt holds the PDF's text as pdf.js
+// reads it, so the gate's scan of dist/ for a draft's words covers the PDF, whose embedded font stores glyph codes.
+// A stale lock warns at build, and fails make test (test/content/source.test.ts), so a corpus edit on main never
+// stops make up.
 import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -83,7 +86,7 @@ async function build(root: string, policyDir: string, drafts: boolean) {
   const files = contentFiles(root, policy);
   const emitted: Record<string, Uint8Array | string> = {};
   const warnings: string[] = [];
-  const data: RoomData = await resumePart(roomData(files, policy), {
+  const data: RoomData = await resumePart(roomData(files, policy, drafts), {
     root,
     files,
     policy,
@@ -113,6 +116,7 @@ describe("an approved source", () => {
     const root = tree(text);
     const { data, emitted, warnings } = await build(root, policyApproving(sha256(text)), false);
     expect(data.drafts).toEqual([]);
+    expect(data.published).toEqual([{ path: RESUME_PATH, sha256: sha256(text) }]);
     expect(data.resume_state).toBe("approved");
     expect(data.header).toEqual({
       name: "Robin",
@@ -129,7 +133,17 @@ describe("an approved source", () => {
     ]);
     expect((data.built_from as Record<string, unknown>).lock).toMatch(/^[0-9a-f]{64}$/);
     expect(await pdfText(emitted["resume.pdf"])).toContain(ITEM_TEXT);
+    expect(emitted["resume.pdf.txt"]).toBe(`Robin Lighthouse keeping by background Lanterns ${ITEM_TEXT}\n`);
     expect(warnings).toEqual([]);
+  });
+
+  it("writes the PDF's text beside it with lines rejoined, so a scan finds the source's words as written", async () => {
+    const long =
+      "Designed the lantern service for the fixture clinic as a well-known, much-loved, long-standing, carefully kept part of the harbor's nightly life.";
+    const text = sourceText().replace(ITEM_TEXT, long);
+    const root = tree(text);
+    const { emitted } = await build(root, policyApproving(sha256(text)), false);
+    expect(String(emitted["resume.pdf.txt"])).toContain(long);
   });
 });
 
@@ -138,18 +152,21 @@ describe("a draft source", () => {
     const root = tree();
     const { data, emitted } = await build(root, policyApproving(), false);
     expect(data.drafts).toEqual([RESUME_PATH]);
+    expect(data.published).toEqual([]);
     expect(data.resume_state).toBe("withheld");
     expect(data.header).toBeNull();
     expect(data.sections).toEqual([]);
     const json = JSON.stringify(data);
     for (const words of [ITEM_TEXT, "Lighthouse keeping", "Lanterns", "Robin"]) expect(json).not.toContain(words);
     expect(await pdfText(emitted["resume.pdf"])).toBe(DRAFT_NOTICE);
+    expect(emitted["resume.pdf.txt"]).toBe(`${DRAFT_NOTICE}\n`);
   });
 
   it("publishes under the banner with drafts shown, still listed as a draft", async () => {
     const root = tree();
     const { data, emitted } = await build(root, policyApproving(), true);
     expect(data.drafts).toEqual([RESUME_PATH]);
+    expect(data.published).toEqual([{ path: RESUME_PATH, sha256: sha256(sourceText()), draft: true }]);
     expect(data.resume_state).toBe("draft");
     expect((data.sections as { items: { text: string }[] }[])[0]?.items[0]?.text).toBe(ITEM_TEXT);
     expect(await pdfText(emitted["resume.pdf"])).toMatch(new RegExp(`^${DRAFT_NOTICE} Robin`));
