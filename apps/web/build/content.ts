@@ -214,10 +214,14 @@ export function parseResume(source: string, label: string = RESUME_PATH): Resume
 // ---- The corpus, as the check reads it ----
 
 /** A backticked claim tag, as the corpus README lists them: `[A 2026-09-27]`, `[A-DOC strategy]`, `[A, C]`. Any other
- * backticked bracket, like the README's own example `[A date]`, is text. */
+ * backticked bracket, like the README's own examples `[A date]` and `[A-DOC <name>]`, is text: an A tag's date is
+ * digits, and an A-DOC tag names its document in words. */
 const TAG_MARK = /`\[([^\]`]+)\]`/g;
 const TAG_PART =
-  /^(?:A(?: \d{4}-\d{2}(?:-\d{2})?(?:\/\d{2})*)?|A-DOC(?: [^,]+)?|A-CHAT|A-BIO|A-NOTES|A-JD|A-SRE-JD|P|C|\?)$/;
+  /^(?:A(?: \d{4}-\d{2}(?:-\d{2})?(?:\/\d{2})*)?|A-DOC(?: [a-z][a-z ]*)?|A-CHAT|A-BIO|A-NOTES|A-JD|A-SRE-JD|P|C|\?)$/;
+/** The corpus's topic files, the only citable ones: `corpus/NN-<topic>.md`, never README.md, INTAKE.md, or a file in a
+ * folder (corpus/README.md, Files). */
+const TOPIC_FILE = /^\d{2}-[a-z0-9-]+\.md$/;
 
 interface Tag {
   parts: string[];
@@ -293,7 +297,29 @@ function segments(lineText: string): Segment[] {
 
 const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** A "Do not claim" bullet's key phrase: its text up to the first clause break, without "That" or its subject. */
+/** The single-word ownership verbs, and any past tense, for carrying a verb across a bullet's alternatives. */
+const verbish = (word: string): boolean =>
+  ["built", "led", "sourced", "sponsored", "designed", "co-authored", "architected"].includes(word) ||
+  /[a-z]ed$/.test(word);
+
+/** A "Do not claim" bullet's key phrases: its text up to the first clause break, without "That" or its subject, then
+ * each alternative it joins with "or". When the first alternative opens with a verb and a later one doesn't, the verb
+ * carries over: "built the CHT skills or cht-pr-review" gives "built the cht skills" and "built cht-pr-review". */
+function keyPhrases(bullet: string, roomName: string): string[] {
+  const subjects = ["he", "she", "they", "his", "her", "their", ...roomName.split(/\s+/).filter(Boolean).map(escape)];
+  const lead = new RegExp(`^(?:that\\s+)?(?:(?:${subjects.join("|")})\\s+)?`, "i");
+  const clause = keyPhrase(bullet, roomName);
+  if (clause === null) return [];
+  const [first = "", ...rest] = clause.split(/\s+or\s+/).map((a) => a.replace(lead, "").trim());
+  const verb = first.split(" ")[0] ?? "";
+  const alternatives = [
+    first,
+    ...rest.map((a) => (verbish(verb) && !verbish(a.split(" ")[0] ?? "") ? `${verb} ${a}` : a)),
+  ];
+  return alternatives.filter((a) => a.length >= 4);
+}
+
+/** A "Do not claim" bullet's first clause: its text up to the first clause break, without "That" or its subject. */
 function keyPhrase(bullet: string, roomName: string): string | null {
   let s = segments(bullet.replace(/^\s*[-*]\s+/, ""))
     .map((seg) => seg.text)
@@ -337,18 +363,17 @@ function readCorpusFile(root: string, rel: string, roomName: string): { file: Co
       if (seg.tag) for (const text of sentences(seg.text)) file.pieces.push({ text, tag: seg.tag, doNotClaim });
     }
     if (doNotClaim && !heading && /^\s*[-*]\s+/.test(raw)) {
-      const phrase = keyPhrase(raw, roomName);
-      if (phrase) forbidden.push({ phrase, source: `${rel}:${i + 1}` });
+      for (const phrase of keyPhrases(raw, roomName)) forbidden.push({ phrase, source: `${rel}:${i + 1}` });
     }
   });
   return { file, forbidden };
 }
 
-/** C1: under corpus/, a Markdown file, not under intake/, proposals/, or facts/, and a regular file in the tree. */
+/** C1: one of the corpus's topic files, `corpus/NN-<topic>.md` at its top level (so never under intake/, proposals/,
+ * or facts/, and never README.md or INTAKE.md), and a regular file in the tree. */
 function corpusPath(root: string, file: string): boolean {
-  if (!/^corpus\/[^\\]+\.md$/.test(file) || file.split("/").some((p) => p === ".." || p === "." || p === ""))
-    return false;
-  if (/^corpus\/(?:intake|proposals|facts)\//.test(file)) return false;
+  const [top, name, ...deeper] = file.split("/");
+  if (top !== "corpus" || name === undefined || deeper.length > 0 || !TOPIC_FILE.test(name)) return false;
   const full = join(root, file);
   return existsSync(full) && lstatSync(full).isFile();
 }
@@ -444,7 +469,7 @@ export function forbiddenList(options: {
   const list: Forbidden[] = [];
   const dir = join(options.root, "corpus");
   for (const name of existsSync(dir) ? readdirSync(dir).sort() : []) {
-    if (!name.endsWith(".md") || !lstatSync(join(dir, name)).isFile()) continue;
+    if (!TOPIC_FILE.test(name) || !lstatSync(join(dir, name)).isFile()) continue;
     list.push(...readCorpusFile(options.root, posix.join("corpus", name), options.roomName).forbidden);
   }
   for (const word of (options.fullName ?? "").split(/\s+/).filter(Boolean).slice(1)) {
@@ -516,11 +541,14 @@ export function checkSource(
     }
     if (/\d/.test(outsideSlots(item.text))) return `${id}: bare number`;
     if (slotIds(item).some((slot) => !facts.has(slot))) return `${id}: unknown slot`;
-    if (verb !== undefined) {
-      const said = wordBoundary(verb.toLowerCase());
-      if (!said.test(normalize(outsideSlots(item.text))) || !cited.some((s) => said.test(normalize(s)))) {
-        return `${id}: ownership verb not cited`;
-      }
+    // C8: the declared verb is in the text, and every ownership verb the text uses, declared or not, is in a cited
+    // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015).
+    const shownText = normalize(outsideSlots(item.text));
+    if (verb !== undefined && !wordBoundary(verb.toLowerCase()).test(shownText))
+      return `${id}: ownership verb not cited`;
+    for (const owned of OWNERSHIP_VERBS) {
+      const said = wordBoundary(owned.toLowerCase());
+      if (said.test(shownText) && !cited.some((s) => said.test(normalize(s)))) return `${id}: ownership verb not cited`;
     }
     const shown = fillSlots(item.text, facts);
     const hit = forbidden.list.find((f) => holds(shown, f));

@@ -90,6 +90,8 @@ describe("C1, a corpus file", () => {
     "docs/elsewhere.md",
     "/corpus/01-fixture.md",
     "corpus/01-fixture.txt",
+    "corpus/README.md",
+    "corpus/INTAKE.md",
   ])("refuses %s", (file) => {
     expect(problems([{ ...CLEAN, id: "c1", claims: [cite(DESIGNED, file)] }])).toEqual(["c1: not a corpus file"]);
   });
@@ -119,6 +121,11 @@ describe("C3, a tagged span", () => {
   it("reads a backticked bracket that isn't a tag, like the README's `[A date]`, as text", () => {
     const item = { id: "c3t", text: "The README's example.", claims: [cite("here is the README's own example")] };
     expect(problems([item])).toEqual(["c3t: untagged sentence"]);
+  });
+
+  it("reads the README's example tag `[A-DOC <name>]` as text too: only real tags count", () => {
+    const item = { id: "c3d", text: "A placeholder.", claims: [cite("Robin wrote a placeholder tag on this line")] };
+    expect(problems([item])).toEqual(["c3d: untagged sentence"]);
   });
 });
 
@@ -205,6 +212,21 @@ describe("C8, the ownership verb", () => {
     const item = { ...CLEAN, id: "c8c", verb: "built", text: "Built the lantern service for the fixture clinic." };
     expect(problems([item])).toEqual(["c8c: ownership verb not cited"]);
   });
+
+  it("fails any ownership verb in the text that the cited sentence holds only as a noun phrase", () => {
+    // The corpus says "his design of its face"; "Designed its face" turns the noun into a second ownership claim.
+    const quote = "his design of its face won the harbor prize";
+    const item = {
+      id: "c8n",
+      text: "Keeper of the tide clock. Designed its face, which won the harbor prize.",
+      claims: [cite(quote)],
+    };
+    expect(problems([item])).toEqual(["c8n: ownership verb not cited"]);
+    expect(problems([{ ...item, verb: "designed" }])).toEqual(["c8n: ownership verb not cited"]);
+    // In the corpus's own words, the noun phrase stays a noun phrase.
+    const kept = { ...item, text: "Keeper of the tide clock; his design of its face won the harbor prize." };
+    expect(problems([kept])).toEqual([]);
+  });
 });
 
 describe("C9, forbidden phrases", () => {
@@ -212,6 +234,22 @@ describe("C9, forbidden phrases", () => {
     const item = { id: "c9", text: "Invented the lantern for the fixture clinic.", claims: [cite(DESIGNED)] };
     const line = lineOf(FIXTURE, "That Robin invented the lantern");
     expect(problems([item])).toEqual([`c9: forbidden phrase (from ${FIXTURE}:${line})`]);
+  });
+
+  it("checks each alternative of a bullet that joins them with or, carrying its verb to the next", () => {
+    const line = lineOf(FIXTURE, "That Robin built the tide clock alone or the harbor bell");
+    for (const [id, text] of [
+      ["c9a", "Built the tide clock alone, at night."],
+      ["c9b", "Built the harbor bell for the docks."],
+    ] as const) {
+      // Cited from a sentence that says "built", so C8 passes and C9 is the rule that answers.
+      const claims = [cite("Robin built the tide clock for the harbor office")];
+      expect(problems([{ id, text, claims }])).toEqual([`${id}: forbidden phrase (from ${FIXTURE}:${line})`]);
+    }
+    const { list } = forbiddenList({ root: ROOT, roomName: "Robin", fullName: null });
+    expect(list).toContainEqual({ phrase: "built the tide clock alone", source: `${FIXTURE}:${line}` });
+    expect(list).toContainEqual({ phrase: "built the harbor bell", source: `${FIXTURE}:${line}` });
+    expect(list.map((f) => f.phrase)).not.toContain("the harbor bell");
   });
 
   it("fails the surname, from the PDF header's full name, without printing it", () => {
@@ -258,6 +296,7 @@ describe("C9, forbidden phrases", () => {
       phrase: "the logbook is official",
       source: `corpus/02-other.md:${lineOf("corpus/02-other.md", "logbook is official")}`,
     });
+    expect(list.every((f) => /^corpus\/\d{2}-[^/]+\.md:\d+$/.test(f.source))).toBe(true);
   });
 });
 

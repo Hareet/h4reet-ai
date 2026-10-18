@@ -12,6 +12,8 @@ Tags as the real corpus's README lists them. `[A date]` here is the README's own
 - `[A-JD]` The role covers maintaining lantern fleets across the coast, and building new ones.
 - `[?]` Whether the lantern service reached the northern islands.
 - `[C]` The lantern service has run every night since its launch. {{slot:fixture.lanterns}}
+- `[A 2026-01-01]` Robin is the keeper of the tide clock; his design of its face won the harbor prize.
+- `[A-DOC <name>]` Robin wrote a placeholder tag on this line, as the README's example does.
 
 ## The lantern service `[A 2026-01-01]`
 
@@ -21,3 +23,4 @@ Tags as the real corpus's README lists them. `[A date]` here is the README's own
 
 - That Robin invented the lantern. `[A 2026-01-01]` The lantern predates Robin by a century.
 - Sole ownership of the harbor map, which a crew built.
+- That Robin built the tide clock alone or the harbor bell.

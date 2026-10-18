@@ -3,4 +3,4 @@
 import "./resume.css";
 
 export { asRoomResume, type RoomResume } from "./data";
-export { DRAFT_NOTICE, fetchRoomResume, PDF_HREF, resumePanel, wireResumeOpeners } from "./view";
+export { DRAFT_NOTICE, fetchRoomResume, LOAD_FAILED, PDF_HREF, resumePanel, wireResumeOpeners } from "./view";

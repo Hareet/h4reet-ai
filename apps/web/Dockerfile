@@ -34,8 +34,11 @@ COPY --from=policy / /src/policy/
 # ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else. --ignore-scripts keeps a checkout's
 # prebuild (build/policy.ts, which reads main with git) from running here: the context already holds main's policy.
 ARG ROOM_DRAFTS=
+# dist/resume.pdf.txt, the PDF's text, is for the gate's scan of dist/: with the PDF's full header filled it would put
+# the name and contact in crawlable plain text, so it never reaches the runtime stage (nginx.conf refuses it as well).
 RUN ROOM_DRAFTS="$ROOM_DRAFTS" ROOM_POLICY_DIR=/src/policy npm run --ignore-scripts build -w apps/web \
- && printf 'ok\n' > apps/web/dist/healthz
+ && printf 'ok\n' > apps/web/dist/healthz \
+ && rm -f apps/web/dist/*.pdf.txt
 
 # ---- runtime: nginx, unprivileged, with the built site and its own configuration ----
 FROM ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3

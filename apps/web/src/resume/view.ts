@@ -10,6 +10,8 @@ import { ABSENT, asRoomResume, type RoomResume } from "./data";
 
 export const PDF_HREF = "./resume.pdf";
 export const DRAFT_NOTICE = "Draft, not approved";
+/** When room-data.json can't be read: the resume isn't shown, and the PDF link beside this may still work. */
+export const LOAD_FAILED = "The resume couldn't be loaded. The PDF may still be available.";
 export const ROOM_DATA_HREF = "./room-data.json";
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -42,7 +44,9 @@ export function resumePanel(doc: Document, data: RoomResume): HTMLElement {
   );
   panel.append(bar);
 
-  if (data.resume_state !== "approved") {
+  if (data.resume_state === "absent") {
+    panel.append(el(doc, "p", { class: "resume-draft", "data-resume-error": "" }, LOAD_FAILED));
+  } else if (data.resume_state !== "approved") {
     panel.append(el(doc, "p", { class: "resume-draft", "data-draft-banner": "" }, DRAFT_NOTICE));
   }
 
@@ -96,7 +100,22 @@ export async function fetchRoomResume(fetcher: typeof fetch = fetch): Promise<Ro
 /** Wires every control marked data-resume-open to one panel, built on first use from what `load` returns. */
 export function wireResumeOpeners(doc: Document, load: () => Promise<RoomResume> = () => fetchRoomResume()): void {
   let panel: HTMLElement | null = null;
+  /** The panel while room-data.json is on its way, so presses before it arrives share one load and one panel. */
+  let building: Promise<HTMLElement> | null = null;
   let opener: HTMLElement | null = null;
+
+  const build = async (): Promise<HTMLElement> => {
+    const built = resumePanel(doc, await load());
+    built.querySelector(".resume-close")?.addEventListener("click", close);
+    built.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      }
+    });
+    (doc.querySelector("main") ?? doc.body).append(built);
+    return built;
+  };
 
   const close = (): void => {
     if (!panel || panel.hidden) return;
@@ -106,17 +125,9 @@ export function wireResumeOpeners(doc: Document, load: () => Promise<RoomResume>
 
   const open = async (from: HTMLElement): Promise<void> => {
     opener = from;
-    if (!panel) {
-      panel = resumePanel(doc, await load());
-      panel.querySelector(".resume-close")?.addEventListener("click", close);
-      panel.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          close();
-        }
-      });
-      (doc.querySelector("main") ?? doc.body).append(panel);
-    }
+    building ??= build();
+    panel = await building;
+    if (!panel.hidden) return;
     panel.hidden = false;
     panel.querySelector<HTMLElement>("#resume-title")?.focus();
     announce(panel, "room:resume-opened");

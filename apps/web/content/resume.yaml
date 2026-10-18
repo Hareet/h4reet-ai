@@ -91,7 +91,7 @@ sections:
             quote: "The CHW speaks the visit and the form fills itself, offline, and she confirms before anything saves"
         slots: []
       - id: smart-task-prioritization
-        text: "AI system architect for Smart Task Prioritization. Pitched and designed it; the pitch won Medic the AWS IMAGINE Grant's Momentum to Modernize award."
+        text: "AI system architect for Smart Task Prioritization; his pitch and design won Medic the AWS IMAGINE Grant's Momentum to Modernize award."
         verb: AI system architect
         claims:
           - file: corpus/00-profile.md

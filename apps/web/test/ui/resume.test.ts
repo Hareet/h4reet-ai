@@ -9,8 +9,8 @@ import axe from "axe-core";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
-import type { RoomResume } from "../../src/resume/data";
-import { DRAFT_NOTICE, PDF_HREF, resumePanel, wireResumeOpeners } from "../../src/resume/view";
+import { ABSENT, type RoomResume } from "../../src/resume/data";
+import { DRAFT_NOTICE, LOAD_FAILED, PDF_HREF, resumePanel, wireResumeOpeners } from "../../src/resume/view";
 
 const INDEX = fileURLToPath(new URL("../../index.html", import.meta.url));
 
@@ -134,6 +134,47 @@ describe("a draft resume", () => {
     const withheld: RoomResume = { resume_state: "withheld", header: null, sections: [] };
     const { dom, panel } = await opened(withheld);
     expect(panel.querySelector("[data-draft-banner]")?.textContent).toBe(DRAFT_NOTICE);
+    expect(panel.querySelectorAll("button[data-item-id]")).toHaveLength(0);
+    expect([...panel.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toContain(PDF_HREF);
+    expect(await axeViolations(dom)).toEqual([]);
+  });
+});
+
+describe("opening before room-data.json arrives", () => {
+  it("builds one panel for any number of presses while it loads, and that panel closes", async () => {
+    const dom = page();
+    const doc = dom.window.document;
+    let arrive: (data: RoomResume) => void = () => undefined;
+    let loads = 0;
+    wireResumeOpeners(doc, () => {
+      loads++;
+      return new Promise<RoomResume>((resolve) => {
+        arrive = resolve;
+      });
+    });
+    const opener = doc.querySelector("[data-resume-open]") as HTMLButtonElement;
+    opener.focus();
+    opener.click();
+    opener.click();
+    await tick();
+    arrive(DATA);
+    await tick();
+    expect(loads).toBe(1);
+    const panels = doc.querySelectorAll<HTMLElement>("[data-resume-panel]");
+    expect(panels).toHaveLength(1);
+    const panel = panels[0] as HTMLElement;
+    expect(panel.hidden).toBe(false);
+    panel.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(panel.hidden).toBe(true);
+    expect(doc.activeElement).toBe(opener);
+  });
+});
+
+describe("a resume that couldn't load", () => {
+  it("says so, not that it's a draft, and still offers the PDF", async () => {
+    const { dom, panel } = await opened(ABSENT);
+    expect(panel.querySelector("[data-resume-error]")?.textContent).toBe(LOAD_FAILED);
+    expect(panel.querySelector("[data-draft-banner]")).toBeNull();
     expect(panel.querySelectorAll("button[data-item-id]")).toHaveLength(0);
     expect([...panel.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toContain(PDF_HREF);
     expect(await axeViolations(dom)).toEqual([]);
