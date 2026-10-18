@@ -25,6 +25,9 @@ COPY apps/web/package.json apps/web/
 RUN npm ci --ignore-scripts -w apps/web
 COPY tsconfig.base.json ./
 COPY docs/data-flow-disclosure.md docs/
+# The resume's citation check reads the corpus it cites (build/content.ts). .dockerignore keeps corpus/intake/private,
+# the Author's denylist and uncleared sources, out of every context, so C9 here checks the public list only.
+COPY corpus corpus
 COPY apps/web apps/web
 COPY --from=policy / /src/policy/
 # ROOM_DRAFTS is 1 for the -drafts images of dev and dev-cpu, and empty for prod's (contracts/web-serving.md §1).

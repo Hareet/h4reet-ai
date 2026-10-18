@@ -66,7 +66,7 @@ describe("loading the fonts", () => {
     cpSync(FONTS, dir, { recursive: true });
     const path = join(dir, FONT_FILES.regular);
     const bytes = readFileSync(path);
-    bytes[bytes.length - 1] ^= 0xff;
+    bytes.writeUInt8(bytes.readUInt8(bytes.length - 1) ^ 0xff, bytes.length - 1);
     writeFileSync(path, bytes);
     expect(() => loadFonts(dir)).toThrow(/IBMPlexSans-Regular\.woff.*fonts\.lock/);
   });

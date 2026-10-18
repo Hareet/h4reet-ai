@@ -89,7 +89,6 @@ const collapse = (s: string): string =>
 async function read(pdf: Buffer) {
   const doc = await getDocument({
     data: new Uint8Array(pdf),
-    isEvalSupported: false,
     disableFontFace: true,
     useSystemFonts: false,
     verbosity: 0,
@@ -117,6 +116,12 @@ function trailerRef(pdf: string, key: string): string {
   const match = new RegExp(`/${key} (\\d+) 0 R`).exec(trailer);
   if (!match?.[1]) throw new Error(`no /${key} in the trailer`);
   return match[1];
+}
+
+/** A catalog entry as pdf.js returns it: a Map at run time, whatever its types say, or a plain object. */
+function entry(value: unknown, key: string): unknown {
+  if (value instanceof Map) return value.get(key);
+  return value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined;
 }
 
 const keys = (dict: string): string[] => [...dict.matchAll(/^\/([A-Za-z]+)\b/gm)].map((m) => m[1] as string);
@@ -151,8 +156,8 @@ describe("the PDF's catalog and properties (FR-019)", () => {
   it("is tagged, in en-US, with its title displayed and a structure tree in reading order", async () => {
     const pdf = await renderPdf(pdfInput(RENDERED, policy(), "approved"));
     const { doc } = await read(pdf);
-    expect((await doc.getMarkInfo())?.get("Marked")).toBe(true);
-    expect((await doc.getViewerPreferences())?.get("DisplayDocTitle")).toBe(true);
+    expect(entry(await doc.getMarkInfo(), "Marked")).toBe(true);
+    expect(entry(await doc.getViewerPreferences(), "DisplayDocTitle")).toBe(true);
     const catalog = object(raw(pdf), trailerRef(raw(pdf), "Root"));
     expect(catalog).toMatch(/^\/Lang \(en-US\)$/m);
     expect(catalog).toMatch(/^\/StructTreeRoot \d+ 0 R$/m);

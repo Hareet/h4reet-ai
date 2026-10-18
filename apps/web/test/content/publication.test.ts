@@ -98,7 +98,7 @@ async function build(root: string, policyDir: string, drafts: boolean) {
 
 async function pdfText(pdf: Uint8Array | string | undefined): Promise<string> {
   if (!(pdf instanceof Uint8Array)) throw new Error("no PDF emitted");
-  const doc = await getDocument({ data: new Uint8Array(pdf), isEvalSupported: false, verbosity: 0 }).promise;
+  const doc = await getDocument({ data: new Uint8Array(pdf), verbosity: 0 }).promise;
   const content = await (await doc.getPage(1)).getTextContent();
   return content.items
     .map((i) => ("str" in i ? i.str : ""))

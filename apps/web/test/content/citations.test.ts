@@ -25,6 +25,8 @@ type Claim = { file: string; quote: string };
 type ItemIn = { id: string; text: string; verb?: string; claims: Claim[]; slots?: string[] };
 
 const cite = (quote: string, file = FIXTURE): Claim => ({ file, quote });
+/** Shared objects are written out in full: the source refuses aliases. */
+const NO_ALIASES = { aliasDuplicateObjects: false } as const;
 
 /** A source with the fixture's clean header and one section holding the given items, through YAML and the parser. */
 function source(items: ItemIn[], header?: { name?: string; lines?: { text: string; claims: Claim[] }[] }) {
@@ -40,7 +42,7 @@ function source(items: ItemIn[], header?: { name?: string; lines?: { text: strin
     },
     sections: [{ id: "work", title: "Work", items: items.map((i) => ({ slots: [], ...i })) }],
   };
-  return parseResume(stringify(doc));
+  return parseResume(stringify(doc, NO_ALIASES));
 }
 
 function problems(items: ItemIn[], options: { fullName?: string | null; denylist?: string } = {}): string[] {
@@ -271,9 +273,9 @@ describe("the first problem", () => {
   });
 
   it("is reported for every item that has one", () => {
-    const a = { ...CLEAN, id: "a", text: "Lit 12 lanterns." };
-    const b = { ...CLEAN, id: "b", claims: [cite("Robin designed the moon")] };
-    expect(problems([CLEAN, a, b])).toEqual(["a: bare number", "b: quote not found"]);
+    const a = { ...CLEAN, id: "item-a", text: "Lit 12 lanterns." };
+    const b = { ...CLEAN, id: "item-b", claims: [cite("Robin designed the moon")] };
+    expect(problems([CLEAN, a, b])).toEqual(["item-a: bare number", "item-b: quote not found"]);
   });
 });
 
@@ -305,7 +307,7 @@ describe("the source's shape", () => {
     ],
     ["an unknown key", { ...base, extra: true }, /extra/],
   ])("refuses %s", (_why, doc, why) => {
-    expect(() => parseResume(stringify(doc))).toThrow(why);
+    expect(() => parseResume(stringify(doc, NO_ALIASES))).toThrow(why);
   });
 
   it("refuses YAML aliases", () => {
