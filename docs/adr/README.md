@@ -26,3 +26,4 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0020](0020-gateway-state-store-and-meter.md) | The gateway's state store is its own Postgres, and the meter counts integer micro-USD | proposed | 000 |
 | [0021](0021-internal-network-prometheus-loki-edge.md) | Prometheus and Loki on an internal-only network, with edge as the only publisher | proposed | 000 |
 | [0022](0022-seaweedfs-for-langfuse.md) | SeaweedFS as Langfuse's object store, because MinIO's community images are gone | proposed | 000 |
+| [0033](0033-the-rooms-stack-apps-web-vite-threejs.md) | The room's stack: `apps/web`, Vite, Three.js, no framework (0023 to 0032 are allocated on other branches: the pin-rule proposal, spec 001, and spec 003) | proposed | 002 |

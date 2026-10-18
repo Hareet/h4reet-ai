@@ -97,7 +97,8 @@ def proxied(port: str) -> list[Directive]:
 
 
 def test_the_listeners() -> None:
-    assert sorted(SERVERS) == ["8080", "8081", "8082", "8083", "8084", "8090"]
+    # 8087 is the room's site, x005 (spec 002; test_edge_site.py holds its locations).
+    assert sorted(SERVERS) == ["8080", "8081", "8082", "8083", "8084", "8087", "8090"]
 
 
 @pytest.mark.parametrize("port", sorted(UPSTREAMS))

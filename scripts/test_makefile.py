@@ -312,6 +312,17 @@ COMPOSE_BUILD = (
     "compose -p h4reet-dev-cpu -f deploy/compose.yaml --env-file deploy/env.agents/dev-cpu.vars "
     "--profile * build"
 )
+# The room's image (spec 002, contracts/web-serving.md §1): dev-cpu's holds the drafts, so its tag says so, and
+# main's policy files come in as the named context `policy`, from a fresh temporary directory, whose digest is a label.
+WEB_BUILD = re.compile(
+    re.escape(
+        f"buildx build --load --file {ROOT}/apps/web/Dockerfile --tag h4reet-web:working-tree-drafts "
+        f"--build-arg HTTP_PROXY={ENGINE_PROXY} --build-arg HTTPS_PROXY={ENGINE_PROXY} --build-arg ROOM_DRAFTS=1 "
+        "--build-context policy="
+    )
+    + r"/\S+ --label org\.h4reet\.web\.policy=[0-9a-f]{64} "
+    + re.escape(str(ROOT))
+)
 # deploy/scripts/gateway_image.py hands docker only Docker's own variables, so this stand-in records beside itself
 # rather than at $DOCKER_CALLS.
 FAKE_DOCKER_HERE = '#!/bin/sh\nprintf \'%s\\n\' "$*" >>"$(dirname "$0")/../calls.log"\n'
@@ -386,10 +397,11 @@ def test_the_agents_engine_builds_the_gateway_image_outside_compose(
 
 @pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
 def test_the_image_gate_builds_the_gateway_then_compose_images(tmp_path: Path) -> None:
-    # make image and make build: every image the tree builds, the gateway's first.
+    # make image and make build: every image the tree builds, the gateway's first, then the room's (spec 002).
     done, calls = _make_here("image", tmp_path, DOCKER_HOST="tcp://198.18.0.1:2376")
     assert done.returncode == 0, done.stderr
-    assert calls == [GATEWAY_BUILD, COMPOSE_BUILD]
+    assert len(calls) == 3 and calls[0] == GATEWAY_BUILD and calls[2] == COMPOSE_BUILD
+    assert WEB_BUILD.fullmatch(calls[1]), calls[1]
 
 
 def _dry_run_up(tmp_path: Path, stack: str) -> list[str]:
@@ -428,3 +440,89 @@ def test_make_up_builds_the_gateway_image_after_preflight_and_before_compose(
     assert ("--run-file " in line) == (stack != "dev-cpu")
     # A commit from before T184, which a rollback can run, has no script: its compose file builds the gateway.
     assert "has no deploy/scripts/gateway_image.py" in line
+
+
+# --------------------------------------------------------------------------------------------------
+# The room (spec 002, T005, T008; contracts/web-serving.md §1): a workspace make lint and make test cover, and an
+# image make up builds after the gateway's, as deploy/scripts/web_image.py does, outside compose
+# --------------------------------------------------------------------------------------------------
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize(
+    "env",
+    [
+        {},  # the Author's terminal, the host's engine
+        {"DOCKER_HOST": "unix:///var/run/docker.sock"},
+        {
+            "DOCKER_HOST": "tcp://127.0.0.1:2376"
+        },  # the relay's address, outside the sandbox
+        {"DOCKER_HOST": "tcp://198.18.0.1:2377"},
+    ],
+)
+def test_the_working_trees_web_image_never_builds_on_another_engine(
+    tmp_path: Path, env: dict[str, str]
+) -> None:
+    done, calls = _make_here("web-image", tmp_path, **env)
+    assert done.returncode == 2, done.stderr
+    assert "agents' engine" in done.stderr
+    assert not [c for c in calls if " build" in c]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"DOCKER_HOST": "tcp://198.18.0.1:2376"},  # the Author's gate (T092)
+        {
+            "DOCKER_HOST": "tcp://127.0.0.1:2376",
+            "SANDBOX_RUNTIME": "1",
+        },  # inside the relay
+    ],
+)
+def test_the_agents_engine_builds_the_web_image_with_drafts(
+    tmp_path: Path, env: dict[str, str]
+) -> None:
+    done, calls = _make_here("web-image", tmp_path, **env)
+    assert done.returncode == 0, done.stderr
+    assert len(calls) == 1 and WEB_BUILD.fullmatch(calls[0]), calls
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+@pytest.mark.parametrize("stack", ["prod", "dev", "dev-cpu"])
+def test_make_up_builds_the_web_image_after_the_gateways_and_before_compose(
+    tmp_path: Path, stack: str
+) -> None:
+    lines = _dry_run_up(tmp_path, stack)
+
+    def first(text: str) -> int:
+        return next(i for i, line in enumerate(lines) if text in line)
+
+    build = first("deploy/scripts/web_image.py")
+    assert first("deploy/scripts/gateway_image.py") < build < first(" up -d ")
+    line = lines[build]
+    assert f"--stack {stack} " in line
+    assert ("--run-file " in line) == (stack != "dev-cpu")
+    # main's policy is read from the working tree, as preflight's --repo names it, whatever tree is being started.
+    assert f"--repo {ROOT}" in line
+    # A commit from before spec 002, which a rollback can run, has neither the script nor a web service.
+    assert "has no deploy/scripts/web_image.py" in line
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+def test_lint_typechecks_the_room_as_a_workspace(tmp_path: Path) -> None:
+    # make test and make build run npm's --workspaces, which finds apps/web through the root package.json; tsc runs
+    # per workspace directory, which the Makefile lists itself, so the room's typecheck can't be skipped silently.
+    done = subprocess.run(
+        ["make", "--no-print-directory", "-n", "-C", str(ROOT), "lint"],
+        env={
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+            "LC_ALL": "C",
+            "SANDBOX_RUNTIME": "1",
+        },
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    assert "for ws in services/gateway apps/web;" in done.stdout

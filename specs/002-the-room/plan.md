@@ -149,6 +149,8 @@ assets/policy/content-approvals.json            [P] new, human-only: approved ha
 assets/policy/resume-header.json                [P] new, human-only: the PDF's full name and contact (R-16)
 .claude/hooks/protected-paths.sh, .claude/settings.json   [P] both files' protection
 tools/gates/content_check.py, tools/gates/compose_policy.py   [P] the published-content check; SHARED_IMAGES gains web
+tools/gates/gate                  [P] the image step builds the web image too (prod's variant), after the gateway's
+deploy/agents-engine/authz.py, prove-limits.sh   [P] the agents' engine may publish dev-cpu's x005 (rules A21, E14)
 corpus/proposals/resume-*.md      [A] the resume source and scripts, filed as proposals
 docs/data-flow-disclosure.md      [A] rows V1 and V4 (local only until spec 001), and the room's notes
 docs/adr/                         [A] the room's stack; approvals by hash; the recognition reading (with push-to-talk)
@@ -167,6 +169,12 @@ docs/adr/                         [A] the room's stack; approvals by hash; the r
   - **The tag carries the drafts flag:** `h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}`, where the suffix is empty on prod and `-drafts` on dev and dev-cpu, and `ROOM_DRAFTS=1` goes only into a `-drafts` build. It rebuilds on every `make up` (the layer cache keeps that to seconds) and never reuses a tag: a gateway image is the same code for every stack, but this image bakes in the drafts flag and `main`'s approvals, so a dev build must never run as prod's.
   - **The policy comes from the host:** it reads `main`'s approvals and PDF-header files with `git show` and hands them to the build as the named build context `policy`. The build stage never runs git, since a host stack builds from a `git archive` export without `.git`.
 - **The stack's `edge`** gains listener 8087, published at `127.0.0.1:${H4_SITE_PORT}` (x005). Its `/` proxies to `web:8080`; its `/api/room/events` proxies to `gateway:8080/room/events` with `limit_req` (10 a second, burst 20, per stack) and a 512-byte body cap; anything else under `/api/` is 404 until the conversation exists.
+
+- **What group 1 found** (2026-10-18, in the same commit as the code; the contract holds):
+  - **The agents' engine refused x005.** Its admission plugin lets dev-cpu publish only 18300–18304 and row E15's 18999 (spec 000's contracts/agents-engine.md, A21), so dev-cpu's `edge` could not have started. Group 1's patch widens `PUBLISH_PORTS` in `deploy/agents-engine/authz.py` to 18305, with its tests, and adds x005 to `prove-limits.sh`'s row E14 and its port list; the Author reinstalls the plugin with the engine's setup. prod's and dev's x005, 18005 and 18105, stay refused on the engine, as their other ports are.
+  - **The gate builds the web image too,** after the gateway's, as prod's variant (`ROOM_DRAFTS` empty), when the export has `apps/web/Dockerfile`, in the same patch.
+  - **A default `policy` stage.** `apps/web/Dockerfile` declares `FROM scratch AS policy`, which `web_image.py`'s named context replaces. A build without the context, such as the gate's, gets an empty policy, so every content file is a draft, and Docker never tries to pull an image named `policy`.
+  - **Preflight:** P3 lets prod's `H4_WEB_SUFFIX` be empty (its value), and P21 watches `apps/` for uncommitted changes, beside `services/`.
 
 [contracts/web-serving.md](contracts/web-serving.md) has the ports, the headers, and preflight's new checks.
 

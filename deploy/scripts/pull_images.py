@@ -27,9 +27,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BACKOFF_S = (5, 15, 45)
 BASES = ("base:node", "base:python")
-# The gateway's one image per commit, which make up builds and compose never pulls (tasks.md T184;
-# deploy/scripts/gateway_image.py): no registry has it, so it is neither pulled nor unpinned.
-SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
+# The gateway's one image per commit, and the room's web image, which make up builds and compose never pulls (tasks.md
+# T184, deploy/scripts/gateway_image.py; spec 002, deploy/scripts/web_image.py): no registry has either, so neither is
+# pulled or unpinned.
+SHARED_IMAGES = {
+    "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
+    "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+}
 DOCKER_ENV = (
     "PATH",
     "HOME",

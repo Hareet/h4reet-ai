@@ -37,8 +37,10 @@ from dataclasses import dataclass, field
 TIMEOUT_S = 1.5
 # What each service of deploy/compose.yaml listens on, beside what its image exposes.
 PORTS = {
-    "edge": (8080, 8081, 8082, 8083, 8084, 8090),
+    "edge": (8080, 8081, 8082, 8083, 8084, 8087, 8090),
     "gateway": (8080, 8081),
+    # The room's site (spec 002): its nginx, behind edge's 8087.
+    "web": (8080,),
     "gateway-state": (5432,),
     "model-server-gpu": (8080,),
     "model-server-cpu": (8080,),

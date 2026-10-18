@@ -279,7 +279,15 @@ def test_the_ports_tried_are_the_services_own_and_its_images() -> None:
     (state,) = [c for c in facts.of("prod") if c.service == "gateway-state"]
     assert state.ports() == [5432]
     (edge,) = [c for c in facts.of("prod") if c.service == "edge"]
-    assert edge.ports() == [8080, 8081, 8082, 8083, 8084, 8090]
+    assert edge.ports() == [
+        8080,
+        8081,
+        8082,
+        8083,
+        8084,
+        8087,
+        8090,
+    ]  # 8087: the room's site (spec 002)
 
 
 def test_every_listening_service_of_the_topology_has_its_ports() -> None:

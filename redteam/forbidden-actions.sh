@@ -1073,8 +1073,8 @@ except OSError:
   fi
   s_refused_conn 'the egress proxy 198.18.0.1:3128' 198.18.0.1 3128
   # Every stack's ports on the host's loopback (plan §4: x000 api, x001 Langfuse, x002 Grafana, x003 admin, x004 OTLP,
-  # where the gate posts; review B, finding 7).
-  for port in 18000 18001 18002 18003 18004 18100 18101 18102 18103 18104 18300 18301 18302 18303 18304; do
+  # where the gate posts; review B, finding 7; and spec 002's x005, the room's site).
+  for port in 18000 18001 18002 18003 18004 18005 18100 18101 18102 18103 18104 18105 18300 18301 18302 18303 18304 18305; do
     s_refused_conn "127.0.0.1:$port" 127.0.0.1 "$port"
   done
   rid "S/conn-control/loopback"

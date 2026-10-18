@@ -200,3 +200,20 @@ def test_make_ups_own_gateway_build_is_never_pulled(
     fake = FakeDocker(services, set(), {})
     assert run(fake, []) == 1
     assert "edge: its image isn't pinned by digest" in capsys.readouterr().err
+
+
+def test_make_ups_own_web_build_is_never_pulled(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # spec 002: compose names h4reet-web:<commit>, with -drafts on dev, which make up builds and compose never pulls.
+    services = {
+        "web": {
+            "image": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+            "pull_policy": "never",
+        },
+        "edge": {"image": ref("edge")},
+    }
+    fake = FakeDocker(services, {ref("edge")}, {})
+    assert run(fake, []) == 0
+    assert not [c for c in fake.calls if "h4reet-web" in c[-1]]
+    assert "web" not in capsys.readouterr().err

@@ -1,0 +1,330 @@
+--- a/tools/gates/compose_policy.py
++++ b/tools/gates/compose_policy.py
+@@ -22,9 +22,10 @@
+   - an image without a digest, or one that differs from deploy/images.lock. One exception, reported PLANNED rather
+     than refused: a service of OPEN_PINS whose lock line is still open (tag and digest "-") and whose image is that
+     line's bare repository, until make pin-images pins it. Once the lock holds a digest the ordinary check applies,
+-    so the mark expires with the pin (plan §11). And one name that is no registry's: the image of SHARED_IMAGES,
+-    make up's own build of the gateway (tasks.md T184), on that service alone, as written there, with pull_policy:
+-    never, so compose never pulls an image by that name;
++    so the mark expires with the pin (plan §11). And two names that are no registry's: the images of SHARED_IMAGES,
++    make up's own builds of the gateway (tasks.md T184) and of the room's site (spec 002, contracts/web-serving.md
++    §1), each on its service alone, as written there, with pull_policy: never, so compose never pulls an image by
++    either name;
+   - a build context that is absolute, interpolated, or outside the compose file's tree; a built service that
+     names an image; inline Dockerfiles, extra contexts, host networking, and entitlements in a build;
+   - plan §1's rules for every service: no container_name, no env_file, no external resource, no extra_hosts or
+@@ -179,8 +180,14 @@
+ # The gateway's one image per commit (tasks.md T184): make up builds it outside compose (deploy/scripts/
+ # gateway_image.py), h4reet-gateway:<commit> from a host stack's export, or h4reet-gateway:working-tree on dev-cpu, and
+ # the compose file names it, exactly as written here, with pull_policy: never. No registry has it, so no lock line
+-# pins it; never pulled, a missing one stops the stack instead of fetching another by the same name.
+-SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
++# pins it; never pulled, a missing one stops the stack instead of fetching another by the same name. The room's web
++# image is the same kind of name (spec 002, contracts/web-serving.md §1 and §4): deploy/scripts/web_image.py builds it
++# on every make up, its tag ending in the env file's H4_WEB_SUFFIX, empty on prod and -drafts on dev and dev-cpu.
++# x005, its publication on edge, needs nothing here: the port rule already takes any edge publication on 127.0.0.1.
++SHARED_IMAGES = {
++    "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
++    "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
++}
+ 
+ 
+ @dataclass(frozen=True)
+--- a/tools/gates/test/test_compose_policy.py
++++ b/tools/gates/test/test_compose_policy.py
+@@ -1180,4 +1180,74 @@
+     gateway = real_model()["services"]["gateway"]
+     assert (gateway["image"], gateway["pull_policy"]) == (SHARED, "never")
+     assert "build" not in gateway
+-    assert cp.SHARED_IMAGES == {"gateway": SHARED}
++    assert cp.SHARED_IMAGES == {"gateway": SHARED, "web": SHARED_WEB}
++
++
++# --------------------------------------------------------------------------------------------------
++# The room's web image (spec 002, contracts/web-serving.md §1 and §4): make up builds it outside compose on every run,
++# its tag ending in the env file's H4_WEB_SUFFIX, empty on prod and -drafts on dev and dev-cpu. That one name, on web
++# alone, with pull_policy: never, is the other image no lock line pins.
++# --------------------------------------------------------------------------------------------------
++SHARED_WEB = "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}"
++
++
++def with_web(**fields: object) -> dict:
++    model = good_model()
++    model["services"]["web"] = service(
++        image=SHARED_WEB, pull_policy="never", read_only=True, tmpfs=["/tmp"], **fields
++    )
++    return model
++
++
++def test_the_web_services_shared_build_passes(tmp_path: Path) -> None:
++    assert findings(with_web(), tmp_path, DISCLOSED | {"web"}) == []
++
++
++@pytest.mark.parametrize("policy", [None, "missing", "always", "build"])
++def test_the_web_image_is_never_pulled(tmp_path: Path, policy: str | None) -> None:
++    model = with_web(pull_policy=policy)
++    if policy is None:
++        del model["services"]["web"]["pull_policy"]
++    assert rules(model, tmp_path, DISCLOSED | {"web"}) == {("web", "pull_policy")}
++
++
++@pytest.mark.parametrize(
++    "image",
++    [
++        "h4reet-web:${H4_REF:-working-tree}",  # no suffix: dev's drafts build could take prod's tag
++        "h4reet-web:${H4_REF:-working-tree}-drafts",
++        "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX:-}",
++        "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX:--drafts}",
++        "h4reet-web:latest",
++        "ghcr.io/someone/h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
++        SHARED,  # the gateway's name is the gateway's alone
++    ],
++)
++def test_any_other_spelling_of_the_web_image_is_an_unpinned_image(tmp_path: Path, image: str) -> None:
++    assert ("web", "image") in rules(with_web(image=image), tmp_path, DISCLOSED | {"web"})
++
++
++def test_the_web_name_is_the_web_services_alone(tmp_path: Path) -> None:
++    model = with_web()
++    model["services"]["gateway-state"]["image"] = SHARED_WEB
++    model["services"]["gateway-state"]["pull_policy"] = "never"
++    assert rules(model, tmp_path, DISCLOSED | {"web"}) == {("gateway-state", "image")}
++
++
++def test_the_web_service_still_meets_every_other_rule(tmp_path: Path) -> None:
++    model = with_web(networks={"internal": None, "edge": None}, ports=["127.0.0.1:${H4_SITE_PORT}:8080"])
++    assert {("web", "networks"), ("web", "ports")} <= rules(model, tmp_path, DISCLOSED | {"web"})
++    # And it needs its disclosure row, as every service does.
++    assert ("web", "disclosure") in rules(with_web(), tmp_path)
++
++
++def test_the_real_web_service_is_the_shared_build_and_x005_needs_no_exception() -> None:
++    """The committed compose file names make up's web build, and edge's sixth publication is an ordinary one."""
++    model = real_model()
++    web = model["services"]["web"]
++    assert (web["image"], web["pull_policy"]) == (SHARED_WEB, "never")
++    assert "build" not in web
++    lock = cp.parse_lock(REPO / cp.LOCK_FILE)
++    assert cp.check_service("web", web, model, lock, REPO) == []
++    assert "127.0.0.1:${H4_SITE_PORT}:8087" in model["services"]["edge"]["ports"]
++    assert cp.check_service("edge", model["services"]["edge"], model, lock, REPO) == []
+--- a/tools/gates/gate
++++ b/tools/gates/gate
+@@ -56,7 +56,8 @@
+    - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
+      only after the policy passed, because an unvetted build could read host files into the engine: first the
+      gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
+-     proxy; then the compose images;
++     proxy; then, when the export has apps/web/Dockerfile, the room's, as make up builds prod's (spec 002), as
++     h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
+    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
+      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
+    - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
+@@ -1101,7 +1102,7 @@
+ 
+ 
+ def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
+-    begin("image", "the gateway's and the compose images, built on the agents' engine")
++    begin("image", "the gateway's, the room's, and the compose images, built on the agents' engine")
+     step = Step("image")
+     if policy_step.status not in ("PASS", "PLANNED"):
+         return step.fail(
+@@ -1146,6 +1147,38 @@
+         return step.fail(
+             "the agents' engine didn't build the gateway's image; if it's down: deploy/agents-engine/engine.sh up"
+         )
++    # The room's image (spec 002, contracts/web-serving.md §1), as make up builds prod's: h4reet-web:<SHA>, with no
++    # drafts. The gate names no `policy` context, so the Dockerfile's own empty policy stage applies: every content
++    # file builds as a draft, which a build without drafts leaves out. That proves the image builds; what main
++    # approves is make up's to read. A commit from before spec 002 has no apps/web/Dockerfile and no web image.
++    web_dockerfile = export_dir / "apps" / "web" / "Dockerfile"
++    if web_dockerfile.is_file():
++        rc, web = stream(
++            [
++                docker,
++                "buildx",
++                "build",
++                "--load",
++                "--file",
++                str(web_dockerfile),
++                "--tag",
++                f"h4reet-web:{sha}",
++                "--build-arg",
++                f"HTTP_PROXY={AGENTS_PROXY}",
++                "--build-arg",
++                f"HTTPS_PROXY={AGENTS_PROXY}",
++                "--build-arg",
++                "ROOM_DRAFTS=",
++                str(export_dir),
++            ],
++            engine,
++            tmp,
++        )
++        if rc != 0:
++            return step.fail(
++                "the agents' engine didn't build the room's image; if it's down: deploy/agents-engine/engine.sh up"
++            )
++        out += web
+     rc, more = stream(
+         [
+             docker,
+--- a/tools/gates/test/test_gate.py
++++ b/tools/gates/test/test_gate.py
+@@ -2312,3 +2312,84 @@
+     assert "deploy/agents-engine/engine.sh up" in done.stdout
+     assert len(by_kind(fx.docker(), "buildx")) == 1
+     assert by_kind(fx.docker(), "compose") == []
++
++
++# --------------------------------------------------------------------------------------------------
++# The room's image (spec 002, contracts/web-serving.md §1), after the gateway's, when the export has its Dockerfile
++# --------------------------------------------------------------------------------------------------
++WEB_BRANCH = {**CHANGE, "apps/web/Dockerfile": "FROM scratch\n"}
++
++
++def test_the_image_step_builds_the_rooms_image_as_prods_after_the_gateways(
++    fx: Fixture,
++) -> None:
++    sha = fx.branch(WEB_BRANCH)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    calls = fx.docker()
++    (devcontainer,) = by_kind(calls, "build")
++    export = devcontainer["argv"][-1]
++    gateway, web = by_kind(calls, "buildx")
++    assert f"h4reet-gateway:{sha}" in gateway["argv"]
++    # prod's variant: no drafts, and no policy context, so the Dockerfile's own empty policy stage applies.
++    assert web["argv"] == [
++        "buildx",
++        "build",
++        "--load",
++        "--file",
++        f"{export}/apps/web/Dockerfile",
++        "--tag",
++        f"h4reet-web:{sha}",
++        "--build-arg",
++        f"HTTP_PROXY={GATEWAY_PROXY}",
++        "--build-arg",
++        f"HTTPS_PROXY={GATEWAY_PROXY}",
++        "--build-arg",
++        "ROOM_DRAFTS=",
++        export,
++    ]
++    assert web["docker_env"] == gateway["docker_env"]
++    (compose,) = by_kind(calls, "compose")
++    assert calls.index(gateway) < calls.index(web) < calls.index(compose)
++    assert status_of(done, "image") == "PASS"
++
++
++def test_a_commit_without_the_rooms_dockerfile_builds_the_gateway_alone(
++    fx: Fixture,
++) -> None:
++    fx.branch(CHANGE)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    (gateway,) = by_kind(fx.docker(), "buildx")
++    assert not [a for a in gateway["argv"] if "h4reet-web" in a]
++
++
++BUILDX_WEB_FAILS = r"""#!/usr/bin/env python3
++import json, os, sys
++here = os.path.dirname(os.path.abspath(__file__))
++args = sys.argv[1:]
++if args[:1] == ["buildx"]:
++    with open(os.path.join(here, "docker.calls"), "a", encoding="utf-8") as handle:
++        handle.write(json.dumps({"argv": args, "env_keys": [], "docker_env": {}}) + "\n")
++    if any(a.startswith("h4reet-web:") for a in args):
++        print("buildx: a step failed")
++        sys.exit(1)
++    sys.exit(0)
++real = os.path.join(here, "docker.real")
++os.execv(real, [real, *args])
++"""
++
++
++def test_a_web_image_that_doesnt_build_fails_the_step_before_compose(
++    fx: Fixture,
++) -> None:
++    fx.branch(WEB_BRANCH)
++    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
++    (fx.stubs / "docker").write_text(BUILDX_WEB_FAILS, encoding="utf-8")
++    (fx.stubs / "docker").chmod(0o755)
++    done = gate(fx, "feature")
++    assert done.returncode == 1
++    assert status_of(done, "image") == "FAIL"
++    assert "didn't build the room's image" in done.stdout
++    assert len(by_kind(fx.docker(), "buildx")) == 2
++    assert by_kind(fx.docker(), "compose") == []
+--- a/deploy/agents-engine/authz.py
++++ b/deploy/agents-engine/authz.py
+@@ -368,11 +368,12 @@
+ 
+ 
+ LOOPBACK_PUBLISH = ("127.0.0.1", "::1")
+-# The host ports the engine may publish on: dev-cpu's x000-x004 (deploy/env.agents/dev-cpu.vars) and the one
++# The host ports the engine may publish on: dev-cpu's x000-x005 (deploy/env.agents/dev-cpu.vars; x005 is the room's
++# site, spec 002) and the one
+ # prove-limits.sh's row E15 runs on. Any other loopback port may be another stack's while it is down: prod's and
+ # dev's 18000-18004 and 18100-18104 hold their admin listeners and the Author's Langfuse and Grafana logins, so a
+ # container squatting there would be handed the Author's token or password (A21; T056's review, round 2).
+-PUBLISH_PORTS = frozenset((*range(18300, 18305), 18999))
++PUBLISH_PORTS = frozenset((*range(18300, 18306), 18999))
+ 
+ 
+ def _publish_port_ok(value: object) -> bool:
+--- a/deploy/agents-engine/test/test_authz.py
++++ b/deploy/agents-engine/test/test_authz.py
+@@ -392,7 +392,7 @@
+ 
+ 
+ @pytest.mark.parametrize("address", ["127.0.0.1", "::1"])
+-@pytest.mark.parametrize("port", [*range(18300, 18305), 18999])
++@pytest.mark.parametrize("port", [*range(18300, 18306), 18999])  # x000-x005: x005 is the room's site
+ def test_a21_dev_cpus_ports_and_the_proofs_allowed(address: str, port: int) -> None:
+     host = {"PortBindings": {"80/tcp": [{"HostIp": address, "HostPort": str(port)}]}}
+     assert create(host).allow
+@@ -403,12 +403,12 @@
+     "port",
+     [
+         *(
+-            str(p) for p in range(18000, 18005)
+-        ),  # prod's: api, Langfuse, Grafana, admin, OTLP
+-        *(str(p) for p in range(18100, 18105)),  # dev's
++            str(p) for p in range(18000, 18006)
++        ),  # prod's: api, Langfuse, Grafana, admin, OTLP, and the room's site (spec 002)
++        *(str(p) for p in range(18100, 18106)),  # dev's
+         "8080",
+         "18299",
+-        "18305",
++        "18306",
+         "18998",
+         "",  # the daemon would choose one
+         "18300-18304",  # a range: the daemon would choose within it
+--- a/deploy/agents-engine/prove-limits.sh
++++ b/deploy/agents-engine/prove-limits.sh
+@@ -309,7 +309,7 @@
+ 		"${ids[@]}" 2>/dev/null |
+ 		while IFS='|' read -r ips ports; do
+ 			for ip in $ips; do
+-				for port in $ports 8080/tcp 8081/tcp 8082/tcp 8083/tcp 8084/tcp 8090/tcp 5432/tcp; do
++				for port in $ports 8080/tcp 8081/tcp 8082/tcp 8083/tcp 8084/tcp 8087/tcp 8090/tcp 5432/tcp; do
+ 					case "$port" in */tcp) echo "$ip:${port%/tcp}" ;; esac
+ 				done
+ 			done
+@@ -1258,13 +1258,13 @@
+ 	# With dev-cpu up, every port answers on the host's loopback: RootlessKit publishes them there for the
+ 	# Author's browser (contracts/agents-engine.md §7). Any HTTP answer counts, whatever its status; a refused
+ 	# or timed-out connection fails the row. The sandbox half (refused there) is row E9's stage S.
+-	for port in 18300 18301 18302 18303 18304; do
++	for port in 18300 18301 18302 18303 18304 18305; do
+ 		if ! curl -s -o /dev/null --max-time 3 "http://127.0.0.1:$port/" 2>/dev/null; then
+ 			ok=false
+ 			silent="$silent $port"
+ 		fi
+ 	done
+-	record E14 "$(verdict $ok)" "dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18304)${silent:+; no answer on$silent}; the sandbox cannot reach them (stage S)"
++	record E14 "$(verdict $ok)" "dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305)${silent:+; no answer on$silent}; the sandbox cannot reach them (stage S)"
+ }
+ 
+ e15_published_ports() {
