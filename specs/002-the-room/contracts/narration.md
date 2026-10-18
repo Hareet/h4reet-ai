@@ -37,7 +37,7 @@ Run by the workspace's `build` and `test` scripts:
 
 ## 3. Approval
 
-As the resume source ([resume-source.md §5](resume-source.md#5-approvals)): a script is approved when `approvals/content.yaml` lists its current SHA-256. An unapproved script isn't published.
+As the resume source ([resume-source.md §5](resume-source.md#5-approvals)): a script is approved when `assets/policy/content-approvals.json` lists its current SHA-256. An unapproved script isn't published.
 
 ## 4. Display
 

@@ -76,7 +76,7 @@ What waits: object conversations and free talk (User Story 4) on a spec of the t
 | I. Data-local by default | Everything the room needs is static, from its own origin (FR-057), and works with the local tier off (FR-038). No device storage (FR-003). Usage events are counters with no visitor data (FR-054). Recognition, when it comes, is local only (FR-030, Q2). Degraded modes first: the floor is built before any conversation exists ([§11](#11-degraded-modes)) | PASS |
 | II. Production-grade or not shipped | Tests per screen and per check, product eval cases for every narration script, a dashboard row, a cost estimate (zero at run time for what's built now) | PASS |
 | III. Intent → spec → code | The accepted intent in the folder, the clarified spec, this plan, ADRs per decision ([§12](#12-documentation-and-adrs)) | PASS, with the Author's relaxed lifecycle of 2026-10-17 named in Status |
-| IV. Least privilege | No permission widened. A new human-only path, `approvals/`, arrives by patch before the first draft it governs. Studio files stay spec 003's intake | PASS |
+| IV. Least privilege | No permission widened. A new human-only file, `assets/policy/content-approvals.json`, arrives by patch before the first draft it governs, and the build reads it from `main`, so a branch can't approve itself. Studio files stay spec 003's intake | PASS |
 | V. Cost | No model call in anything built now. When conversations come, gateway-only, local first, attributed per room feature (FR-032) | PASS |
 | VI. Build in public | The resume source, the scripts, their citations, and their checks are public | PASS |
 | VII. Say exactly what you owned | Every item and script cites the corpus; the ownership verbs are checked (FR-015) | PASS |
@@ -143,7 +143,7 @@ deploy/scripts/preflight.py       [A] changed: the sixth port
 deploy/grafana/dashboards/h4-runtime.json   [A] changed: the "Room" row
 evals/product/cases/narration-*.yaml        [A] new: one per script
 redteam/cases/room-*.yaml                   [A] new: location probing and injection, run when conversations exist
-approvals/content.yaml            [P] new, human-only: approved hashes (R-08)
+assets/policy/content-approvals.json            [P] new, human-only: approved hashes (R-08)
 .claude/hooks/protected-paths.sh, .claude/settings.json   [P] the approvals path's protection
 corpus/proposals/resume-*.md      [A] the resume source and scripts, filed as proposals
 docs/data-flow-disclosure.md      [A] rows V1 and V4 (local only until spec 001), and the room's notes
@@ -183,7 +183,7 @@ docs/adr/                         [A] the room's stack; approvals by hash; the r
 
 ## 3. Approvals (FR-012, FR-052; R-08)
 
-- **`approvals/content.yaml`** (human-only, created by the Author's patch before the first draft is committed) lists the approved resume source's and each script's SHA-256, with the date. Its `content` section is this spec's. Spec 003's likeness approvals take the `assets` section of the same file, in the same format ([contracts/resume-source.md §5](contracts/resume-source.md#5-approvals)).
+- **`assets/policy/content-approvals.json`** (human-only, created by the Author's patch before the first draft is committed) lists the approved resume source's and each script's SHA-256, with the date. It sits beside spec 003's likeness approvals, `assets/policy/approvals.json`, and follows its rule: the build reads it from `main`, so a branch can't approve its own content ([contracts/resume-source.md §5](contracts/resume-source.md#5-approvals)).
 - **The build** marks every unapproved file as a draft in `room-data.json`. The room shows drafts only when built with `ROOM_DRAFTS=1`, which `web_image.py` sets for dev and dev-cpu only, and never for prod. Drafts show a "Draft, not approved" banner.
 - **The release:** spec 001's `make release` must refuse a build with a draft or with `placeholders: true`. That's a line for spec 001's plan, recorded in the note.
 
@@ -239,6 +239,8 @@ The rows go into `docs/data-flow-disclosure.md` with the change that creates eac
 
 The disclosure's line "No visitor data flows in this spec" belongs to spec 000's section, and stays. This spec's rows sit in a new section for spec 002.
 
+**The disclosure page** (FR-004's link target): `apps/web/build/disclosure.ts` renders `docs/data-flow-disclosure.md` into `dist/disclosure/index.html` at build, and a test checks that its rows equal the Markdown's. This is the page spec 001's draft plans in its §8.1, built here first; spec 001's plan then serves it rather than building it.
+
 ## 9. Telemetry (FR-055)
 
 - **The events route** emits its own server span with no body, and the counter.
@@ -268,10 +270,13 @@ The spec's Degraded-Mode Behavior table holds. What this plan adds:
 
 ## 12. Documentation and ADRs
 
-ADRs are written with the group that makes each decision real (R-15), at the next free number:
-- the room's stack (group 1);
-- approvals by hash, shared with spec 003 (group 2);
-- the recognition's location (with push-to-talk, waiting).
+ADRs are written with the group that makes each decision real (R-15). Their numbers follow the other specs' allocations: 0023 is the pin-rule proposal, spec 001's draft holds 0024–0029, and spec 003's plan 0030–0032.
+
+| ADR | Decision | Group |
+|---|---|---|
+| 0033 | The room's stack: `apps/web`, Vite, Three.js, no framework | 1 |
+| 0034 | Content approvals by hash, in a human-only file read from `main`, beside spec 003's likeness approvals | 2 |
+| 0035 | Recognition on the local tier: the reading of intent 000's sentence (Q2) | 8 (waits) |
 
 `apps/web/README.md`, the dashboard row's description, and quickstart.md's runs come in their groups.
 
@@ -281,7 +286,7 @@ ADRs are written with the group that makes each decision real (R-15), at the nex
 
 | # | Branch | What | Ready | The Author's part |
 |---|---|---|---|---|
-| 1 | `feat/002-web` | the workspace, the `web` image, the edge listener, `H4_SITE_PORT`, preflight, disclosure row V1, the stack's ADR | now | `make init-env SYNC=1` for the new port key; `make up` and open x005 |
+| 1 | `feat/002-web` | the workspace, the `web` image, the edge listener, `H4_SITE_PORT`, preflight, disclosure row V1 and the disclosure page, the stack's ADR | now | `make init-env SYNC=1` for the new port key; `make up` and open x005 |
 | 2 | `feat/002-approvals` | the approvals file and its protection (Patch), the build's draft marking | now | apply the patch |
 | 3 | `feat/002-us1-resume` | the source format, the citation check, the lock, the PDF, the interactive resume, the first draft and its proposal | now | read the draft and the proposal; approve by hash when satisfied; fill the two header slots if wanted |
 | 4 | `feat/002-us2-room` | the choice, the scene with placeholders, the hand-off, the 2D mode, the quality controller, the accessible layer, the fixed messages | now | the keyboard and screen-reader visits (SC-003), the phone (FR-047) |
@@ -317,7 +322,7 @@ ADRs are written with the group that makes each decision real (R-15), at the nex
 | FR-020–FR-022, FR-024, FR-025 | §7 | 7 (waits) |
 | FR-023 | §7, R-14 | 4 (the fixed message now) |
 | FR-026–FR-031 | §7 | 8 (waits); FR-040's degraded floor in 4 |
-| FR-032–FR-037 | §6, §7 | 6 (attribution's panels), 7 (waits) |
+| FR-032–FR-037 | §6, §7 | 6 (attribution's panels), 7 (waits: the step configuration, and the per-turn limits by the Author's patch) |
 | FR-038 | §11 | 3–5 |
 | FR-039–FR-041 | §7, R-14 | 4 (fixed messages); 9 (voice) |
 | FR-042–FR-048 | §4 | 4 |

@@ -9,7 +9,7 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 | The resume source | `apps/web/content/resume.yaml` | agents draft; the Author approves by hash |
 | A narration script | `apps/web/content/narration/<item-id>.<path>.md` | agents draft; the Author approves by hash |
 | The fixed messages | `apps/web/content/messages.yaml` | agents, reviewed |
-| The approvals | `approvals/content.yaml` (human-only) | the Author |
+| The approvals | `assets/policy/content-approvals.json` (human-only) | the Author |
 | The lock | `apps/web/content/resume.lock.json` | the build |
 | The room's data | `apps/web/dist/room-data.json` | the build |
 | The room's manifest | `apps/web/dist/room-manifest.json` | the build |
@@ -58,15 +58,14 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 
 ## 4. Approvals
 
-**`approvals/content.yaml`** (human-only):
+**`assets/policy/content-approvals.json`** (human-only, beside spec 003's `approvals.json`, read from `main`):
 
 | Field | Type | Rules |
 |---|---|---|
-| `version` | integer | `1` |
-| `content[]` | list | `{path, sha256, approved}`: a content file's path, the SHA-256 of its bytes, and the date (`YYYY-MM-DD`) |
-| `assets[]` | list | spec 003's section, the same shape, for likeness and room files |
+| `schema` | integer | `1` |
+| `approvals[]` | list | `{id, path_when_approved, kind, sha256, date, reason}`: `id` matches `^C-\d{4}$`; `kind` is `resume` or `narration`; `sha256` is the file's bytes' digest; `date` is `YYYY-MM-DD` |
 
-A content file is **approved** when an entry with its path has its current SHA-256. Otherwise it's a **draft**.
+A content file is **approved** when an entry's `sha256` equals its current digest, in the copy of the file on `main`. Otherwise it's a **draft**.
 
 **States of a content file:** `draft` → (the Author adds its hash) → `approved` → (any edit) → `draft`.
 
@@ -87,6 +86,7 @@ A content file is **approved** when an entry with its path has its current SHA-2
 | Field | Rules |
 |---|---|
 | `objects[]` | `{id, topic, ready}`. The IDs are `snowboard`, `bicycle`, and `laptop`; `ready` is false until the twin's spec marks a topic ready (FR-023) |
+| `free_talk` | `{ready}`: false until the twin's spec marks free talk ready ([contracts/room-conversation.md §1](contracts/room-conversation.md#1-readiness)) |
 | `items[]` | every resume item's ID |
 | `avatars[]` | `woman`, `man`, `dinosaur`, and `dog` (intent 000's four placeholders), until spec 003's avatars replace them |
 | `placeholders` | `true` while any placeholder geometry or avatar is in use |

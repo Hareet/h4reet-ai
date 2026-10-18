@@ -21,14 +21,14 @@ Spec 000's conventions hold ([its quickstart](../000-local-foundations/quickstar
 
 1. **The Author's terminal:** apply the patch (`git apply docs/merge-requests/<date>-feat-002-approvals.patch`), then `claude doctor` and `make git-hooks`.
 2. **Expected:**
-   - from an agent session, an Edit of `approvals/content.yaml` is refused, and its matrix row passes;
+   - from an agent session, an Edit of `assets/policy/content-approvals.json` is refused, and its matrix row passes;
    - `npm run build -w apps/web` marks every content file a draft.
 
 ## 3. Group 3: the resume (User Story 1; SC-002)
 
 1. **An agent session:** `npm run build -w apps/web`. **Expected:** the citation check passes; `dist/resume.pdf` and `dist/room-data.json` exist; `test/pdf.test.ts` passes (text equality, tags, language, the two property keys).
 2. **The Author:** read `corpus/proposals/resume-<date>.md` and the draft source.
-   - When satisfied: `sha256sum apps/web/content/resume.yaml`, then add the line to `approvals/content.yaml`.
+   - When satisfied: `sha256sum apps/web/content/resume.yaml`, then add an entry to `assets/policy/content-approvals.json` ([its format](contracts/resume-source.md#5-approvals)) and commit it on `main`; the build reads approvals only from `main`.
    - Optionally, fill `profile.full_name` and `profile.contact` in `corpus/facts/` from the proposal.
 3. **Expected after a rebuild:**
    - the source is approved;

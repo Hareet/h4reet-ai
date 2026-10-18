@@ -94,11 +94,11 @@ The room shows the script's words as they would be spoken: word by word, at a sp
 
 **Alternatives.** Narration generated live on each click: metered, degraded with the twin, and not approvable in advance.
 
-## R-08: Approvals: a human-only file of hashes
+## R-08: Approvals: a human-only file of hashes, read from `main`
 
-**Decision.** `approvals/content.yaml`, a new human-only path (protected by a patch the Author applies before the first draft is committed), lists the SHA-256 of each approved resume source and narration script, with the date. The build marks unapproved content as a draft: the room shows it only on dev stacks, with a "draft" banner, and `make release` (spec 001) refuses a release that contains a draft.
+**Decision.** `assets/policy/content-approvals.json`, beside spec 003's `approvals.json` in its human-only policy directory, lists the SHA-256 of each approved resume source and narration script, with the date. A patch the Author applies protects it before the first draft is committed. Like spec 003's approvals, the build reads it from `main` (`git show main:<path>`), never from the branch being built, so a branch can't approve its own content. The build marks unapproved content as a draft: the room shows it only on dev stacks, with a "draft" banner, and `make release` (spec 001) refuses a release that contains a draft.
 
-**Rationale.** FR-012 and FR-052 need the Author's recorded approval; agents mustn't be able to give it. A hash list in a human-only file is the smallest mechanism that does that, and the build can check it deterministically. Spec 003 needs the same for likeness approvals (its FR-005, FR-016): the two specs share the file's format and its protection, one section each.
+**Rationale.** FR-012 and FR-052 need the Author's recorded approval; agents mustn't be able to give it. A hash list in a human-only file is the smallest mechanism that does that, and the build can check it deterministically. Spec 003's plan does the same for likeness approvals (its FR-005, FR-016), in `assets/policy/approvals.json`, read from `main` (spec 003 plan §2–§3). This spec follows its pattern with a sibling file of its own shape, since a content approval confirms different things from a likeness approval.
 
 **Alternatives.** The Author's commits as the approval (a commit by the Author touching the file): fragile to detect, and agents' commits carry the same name in this repository. A signature: no key infrastructure exists, and the Author's terminal already holds the only write access the approvals need.
 
@@ -158,10 +158,10 @@ The conversation's interface (`POST /api/room/turn`, its request and its fixed a
 
 ## R-15: ADRs
 
-**Decision.** Written with the task group that makes each decision real, numbered at the next free number when written. The ADR index is shared with specs 001 and 003, whose drafts reserve numbers from 0024.
-- The recognition's location: the reading of intent 000's sentence (Q2's answer), with the push-to-talk group.
-- The room's stack: `apps/web`, Vite, Three.js, no framework (R-01 to R-03), with the first group.
-- Content approvals by hash (R-08), shared with spec 003, with the resume group.
+**Decision.** Written with the task group that makes each decision real. The ADR index is shared: 0023 is the pin-rule proposal, spec 001's draft holds 0024–0029, and spec 003's plan 0030–0032, so this spec's start at 0033.
+- **0033**, the room's stack: `apps/web`, Vite, Three.js, no framework (R-01 to R-03), with the first group.
+- **0034**, content approvals by hash, read from `main`, beside spec 003's likeness approvals (R-08), with the approvals group.
+- **0035**, recognition on the local tier: the reading of intent 000's sentence (Q2's answer), with the push-to-talk group.
 
 ## Rejected for now, revisit later
 

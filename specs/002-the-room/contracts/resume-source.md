@@ -73,20 +73,25 @@ No content about the Author goes in this contract's examples: placeholders in an
 
 ## 5. Approvals
 
-`approvals/content.yaml` is human-only. The Author's patch creates it, and protects it in `.claude/hooks/protected-paths.sh` and `.claude/settings.json`, before the first draft is committed:
+`assets/policy/content-approvals.json` is human-only, beside spec 003's `approvals.json`. The Author's patch creates it, and protects it in `.claude/hooks/protected-paths.sh` and `.claude/settings.json`, before the first draft is committed:
 
-```yaml
-version: 1
-content:
-  - path: apps/web/content/resume.yaml
-    sha256: <64 hex>
-    approved: <YYYY-MM-DD>
-assets: []   # spec 003's section
+```json
+{
+  "schema": 1,
+  "approvals": [
+    {"id": "C-0001", "path_when_approved": "apps/web/content/resume.yaml", "kind": "resume",
+     "sha256": "<64 hex>", "date": "<YYYY-MM-DD>", "reason": "<the Author's words>"}
+  ]
+}
 ```
 
-**Drafts and approval:** the build reads the file and marks each content file approved or a draft. With `ROOM_DRAFTS` unset, drafts are left out of `room-data.json` and the PDF: an item with a draft script shows its text without narration, and a draft source builds a PDF and resume that say "Draft, not approved" and no more. With `ROOM_DRAFTS=1`, which the `web` image's build sets on dev and dev-cpu only, drafts show with a banner.
+`kind` is `resume` or `narration`. A file is approved when an entry's `sha256` equals its current digest, whatever its path now.
 
-**How the Author approves:** `sha256sum apps/web/content/resume.yaml`, then a line in `approvals/content.yaml`, in the Author's terminal.
+**Read from `main`:** the build reads the file with `git show main:assets/policy/content-approvals.json`, as spec 003's check reads its policy, never from the branch it builds. So an approval is in effect only once the Author's commit to it is on `main`. Where no `main` exists (an exported tree), the build counts every file a draft.
+
+**Drafts and approval:** the build marks each content file approved or a draft. With `ROOM_DRAFTS` unset, drafts are left out of `room-data.json` and the PDF: an item with a draft script shows its text without narration, and a draft source builds a PDF and resume that say "Draft, not approved" and no more. With `ROOM_DRAFTS=1`, which the `web` image's build sets on dev and dev-cpu only, drafts show with a banner.
+
+**How the Author approves:** in the Author's terminal, `sha256sum apps/web/content/resume.yaml`, then an entry in `assets/policy/content-approvals.json`, committed on `main`.
 
 ## 6. Proposals
 
