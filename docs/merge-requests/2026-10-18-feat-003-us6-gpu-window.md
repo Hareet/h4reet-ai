@@ -3,7 +3,7 @@ Spec: specs/003-studio-assets/ (T032 to T039; FR-035, SC-011) · Intent: specs/0
 Session: worked in `/tmp/claude-1000/wt-003-gpu`, launched from `~/h4reet-ai/h4reet-ai` · Repo hooks active: yes (`2026-10-18T03:01:57Z bash BLOCK an operator target outside dev-cpu`, `03:13:30Z` and `03:15:04Z bash BLOCK the operator CLI outside dev-cpu`, and one earlier the same way: each time the guard matched my own command's text, a heredoc or a grep naming `make studio-window` or the operator CLI with prod. The text went in by a file written with the Write tool, and nothing was respelled)
 Authorized by: tasks.md T032 to T039, against plan §6, research R-14, data-model.md §8, and contracts/gpu-window.md; the Author's direction of 2026-10-17: "Let's relax some of the overnight rules so that you can continue with intent 002 and intent 003? I think you can create the tasks and implement them and we can always go back later and re-do a task or requirement if we highlight a needed change". The span and the matrix's spellings came from the coordinator's review of spec/003 (0f1e8b1).
 
-**Status: built, tested, and verified; Review: pending (the integrating session runs it).** Branched from `spec/003-studio-assets` at 150649d and rebased onto its tip, 0f1e8b1, at the coordinator's request. Five commits: cb3123c (the tests and the contract they read, failing), e5789b5 (the implementation, T034 to T037), edc23b2 (T035's bash-gate patch and the matrix rows it settles), b3112ec (one line of formatting `make check` found), and this note. Your part: the review, the gate and the merge, the patch, and T038's rehearsal.
+**Status: built, tested, verified, and reviewed: APPROVE, no blockers (below).** **Store migration:** `0003_studio_window` is the first store migration since spec 000. Once prod or dev runs it, a rollback to a commit from before this merge exits 78 (`schema_newer_than_code`), as docs/runbooks/rollback.md step 3 says. Branched from `spec/003-studio-assets` at 150649d and rebased onto its tip, 0f1e8b1, at the coordinator's request. Five commits: cb3123c (the tests and the contract they read, failing), e5789b5 (the implementation, T034 to T037), edc23b2 (T035's bash-gate patch and the matrix rows it settles), b3112ec (one line of formatting `make check` found), and this note. Your part: the review, the gate and the merge, the patch, and T038's rehearsal.
 
 ## Runs in the Author's terminal
 
@@ -16,7 +16,7 @@ ADR 0017 puts this section first. operator-admin.md §6 asks that changes to `sc
 | `docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch` | `git apply --index` on main, after this branch merges | `.claude/hooks/bash-gate.sh`: the operator-target rule's name pattern gains `studio-window` beside `operator-*`, its message names both, and the comment above says why. Nothing else. |
 
 1. **The review and the merge:** from main's checkout, `tools/gates/gate feat/003-us6-gpu-window`, then the merge command it prints.
-2. **The patch,** on main: `git apply --index docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch`, then `git commit -m "Apply the studio window's bash-gate patch (T035)"`. The matrix's 11 `planned` rows for `make studio-window` then read `ENFORCED (a planned row: make it "block")`; flipping them to `block` is a one-word change per row that any later branch can make. If you want them required, the first row's ID for `tools/gates/matrix-required.txt` (human-only) is `H/bash-gate.sh/make studio-window ENV=prod STATE=start REASON="studio: a portrait batch"`.
+2. **The patch,** on main, before the merge or in the same sitting (it doesn't depend on the branch, and the rule that a deny lands before its risk favors first): `git apply --index docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch`, then `git commit -m "Apply the studio window's bash-gate patch (T035)"`. The matrix's 11 `planned` rows for `make studio-window` then read `ENFORCED (a planned row: make it "block")`; flipping them to `block` is a one-word change per row that any later branch can make. If you want them required, the first row's ID for `tools/gates/matrix-required.txt` (human-only) is `H/bash-gate.sh/make studio-window ENV=prod STATE=start REASON="studio: a portrait batch"`.
 3. **T038, Heavy:** the rehearsal, per quickstart §4: it stops prod's model server. `docs/runbooks/studio-gpu-window.md` walks it, with what to record for SC-011.
 
 ## Deviations
@@ -86,7 +86,20 @@ Tests changed only where the feature changes what they enumerate:
 
 ## Review
 
-Pending (the integrating session runs it).
+One pass by the reviewer agent, which didn't write the change, against REVIEW.md, spec 003, spec 000's operator-admin and telemetry contracts, and the constitution: **APPROVE, no blockers.** Its checks:
+- **The window only records and shows:** `studioWindow` reads the meters and writes only an audit row, the alert, and the journal record; the test compares `stack_state` and every meter row before and after.
+- **The reason stays out of telemetry:** the audit row and the `h4.audit` log record only, per spec 000's rule; not on the span (the state only), the metric, or the alert.
+- **Auth and refusals:** behind the admin listener's existing token, prefix, and constant-time hash check; 415, 400, 409, and 503 as reset and renew answer; dev 404 after authentication.
+- **The migration:** additive (two CHECKs widened, a view and a grant); the exit-78 rule holds, its test now on a made-up 0004. Spec 001's draft renamed its own `0003_infra` to `0004_infra` (spec/001-cloud-elevation, 1686072).
+- **The 60 s wait** is a loop in the make recipe, so the admin listener never waits.
+- **Agents kept to dev-cpu:** the recipe's check, dev's exit 2, and the CLI's stack check; the patch only adds `studio-window` to the operator rule. The gap rows are honest. The reviewer couldn't rerun the patched matrix (its role can't write).
+- **Tests and dashboard:** existing tests change only where they list migrations, instruments, panels, or runbooks; the dashboard edit adds the annotation and two panels and moves three `y` values, nothing reformatted.
+- **Acceptance:** FR-035's steps are met by `start` and `end`; SC-011 is T038, your rehearsal; FR-039's "the studio's GPU windows" in the site-events panel waits for specs 001 and 002.
+
+From its nits, two are done here: the patch's order (above: before the merge or in the same sitting), and the migration's rollback consequence (the status line). **Backlog:**
+- Switch the 11 `planned` rows to `block` and add the required-row ID in the patch, so a later gate regression fails the matrix instead of reading PLANNED.
+- The wait at `Makefile`'s `studio-window` recipe counts only its sleeps; each `status` call can take up to 30 s, so it isn't capped at 60 s.
+- The alert shows the window's spend in cents, so a typical window reads "$0.00"; `exactUsd` would show the real amount.
 
 ## Verification
 
