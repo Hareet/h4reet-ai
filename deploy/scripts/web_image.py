@@ -15,9 +15,10 @@ bakes in what the gateway's doesn't:
     build does, so prod's tag never names an image with drafts in it.
   - It builds on every run and reuses no tag: the image holds main's policy as it stood at build time, so an approval
     on main reaches the next make up, and prod and dev at one commit run two images.
-  - The policy comes from main, read on the host: `git -C <repo> show main:<path>` for assets/policy/
-    content-approvals.json and assets/policy/resume-header.json, where <repo> is the working tree make names (as it
-    names preflight's --repo). It writes them to a fresh 0700 temporary directory, outside the tree being built, and
+  - The policy comes from main, read on the host: `git -C <repo> cat-file blob refs/heads/main:<path>`, with
+    GIT_NO_REPLACE_OBJECTS=1, for assets/policy/content-approvals.json and assets/policy/resume-header.json, where
+    <repo> is the working tree make names (as it names preflight's --repo). The full ref, as spec 003 reads its
+    policy: a bare "main" resolves to refs/tags/main before refs/heads/main, and an agent session can make that tag. It writes them to a fresh 0700 temporary directory, outside the tree being built, and
     hands that to the build as the named build context `policy`, then removes it. A file main lacks is absent from
     it, so every content file builds as a draft and the PDF gets the room's header. The build stage reads only that
     directory and runs no git: a host stack builds a git archive export, and .dockerignore drops .git anyway. The
@@ -188,12 +189,14 @@ def git_env() -> dict[str, str]:
 
 
 def read_policy(repo: Path) -> dict[str, bytes | None]:
-    """main's policy files, by their name in the context; None for a file main doesn't hold (or no main at all)."""
+    """main's policy files, by their name in the context; None for a file main doesn't hold (or no main at all).
+
+    The branch's full ref, refs/heads/main, never a bare "main", which git resolves to a tag of that name first."""
     found: dict[str, bytes | None] = {}
     for path, name in POLICY_FILES:
         try:
             done = subprocess.run(
-                ["git", "-C", str(repo), "show", f"main:{path}"],
+                ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{path}"],
                 capture_output=True,
                 check=False,
                 timeout=60,

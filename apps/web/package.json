@@ -2,7 +2,7 @@
   "name": "@h4reet/web",
   "version": "0.1.0",
   "private": true,
-  "description": "The room: the static site the visitor sees, built by Vite and served by the web image (spec 002, plan §1).",
+  "description": "The room: the static site the visitor sees, built by Vite and served by the web image (spec 002, plan section 1).",
   "license": "MIT",
   "type": "module",
   "engines": {

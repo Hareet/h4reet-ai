@@ -556,14 +556,47 @@ def test_git_reads_main_without_replace_objects_or_the_callers_config(
     monkeypatch.setenv("GIT_DIR", str(tmp_path / "elsewhere"))
     env, run = host_files(tmp_path, export)
     assert host("prod", env, run, FakeDocker(), export, repo) == 0
-    shows = [a for a, _ in seen if "show" in a]
-    assert shows == [
-        ["git", "-C", str(repo), "show", f"main:{APPROVALS}"],
-        ["git", "-C", str(repo), "show", f"main:{HEADER}"],
+    # The branch's full ref, never a bare "main", which git would resolve to refs/tags/main before refs/heads/main.
+    assert [a for a, _ in seen] == [
+        ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{APPROVALS}"],
+        ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{HEADER}"],
     ]
     for _, git_env in seen:
         assert git_env.get("GIT_NO_REPLACE_OBJECTS") == "1"
         assert "GIT_DIR" not in git_env
+
+
+def test_a_tag_named_main_never_stands_in_for_the_branch(
+    tmp_path: Path, export: Path
+) -> None:
+    # An agent session can write .git/refs/tags, and `git show main:<path>` would read a tag named main before the
+    # branch. The tag here points at the feature branch, whose copy approves the branch's own content.
+    repo = make_repo(
+        tmp_path / "repo",
+        {APPROVALS: MAIN_APPROVALS, HEADER: MAIN_HEADER},
+        branch_files={
+            APPROVALS: '{"schema": 1, "approvals": ["the tag approving itself"]}\n'
+        },
+    )
+    git(repo, "tag", "main", "feature")
+    assert "the tag approving itself" in git(
+        repo, "show", f"main:{APPROVALS}"
+    )  # what the old read would see
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.contexts == [BOTH]
+
+
+def test_a_tag_named_main_with_no_branch_main_approves_nothing(
+    tmp_path: Path, export: Path
+) -> None:
+    repo = make_repo(tmp_path / "repo", None, branch_files={APPROVALS: MAIN_APPROVALS})
+    git(repo, "tag", "main", "feature")
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.contexts == [{}]
 
 
 # --------------------------------------------------------------------------------------------------

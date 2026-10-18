@@ -78,6 +78,12 @@ def test_web_unreachable_is_edges_own_503_page() -> None:
     assert headers["Cache-Control"] == ["no-store", "always"]
     assert headers["X-Content-Type-Options"] == ["nosniff", "always"]
     assert headers["Content-Security-Policy"][0].startswith("default-src 'none'")
+    # The site's own headers, as the web image sends them (contracts/web-serving.md §3), on edge's page too.
+    assert headers["Referrer-Policy"] == ["no-referrer", "always"]
+    assert headers["Permissions-Policy"] == [
+        "microphone=(), camera=(), geolocation=()",
+        "always",
+    ]
 
 
 def test_the_events_beacon_goes_to_the_gateway_post_only_capped_and_limited() -> None:

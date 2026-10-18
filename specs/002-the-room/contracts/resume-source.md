@@ -96,7 +96,7 @@ No content about the Author goes in this contract's examples: placeholders in an
 Each value is a string or `null`. While either is `null`, the PDF gets the room's header (FR-017). It sits outside `corpus/` because the corpus keeps the surname out of every file the twin reads (spec.md's Assumptions; `corpus/tools/check_corpus.py`'s rule 4 and `corpus/INTAKE.md`).
 
 **Read from `main`, on the host, never by the build stage:** the build reads both files from a policy directory, never from the branch it builds, and never runs git itself.
-- **The `web` image:** `web_image.py` fills the directory from `main` with `git show` on the host and hands it to the build as the named build context `policy` ([web-serving.md §1](web-serving.md#1-the-web-image)). A host stack's build context is a `git archive` export with no `.git`, so `git show main:` inside the build stage would find nothing and make every file a draft.
+- **The `web` image:** `web_image.py` fills the directory from `main` on the host with `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:<path>` (the branch's full ref, since a bare `main` resolves to a tag of that name first, and an agent session can make one) and hands it to the build as the named build context `policy` ([web-serving.md §1](web-serving.md#1-the-web-image)). A host stack's build context is a `git archive` export with no `.git`, so reading `main` inside the build stage would find nothing and make every file a draft.
 - **An agent session's or `make check`'s build** (`npm run build -w apps/web`, in a checkout): the workspace's `prebuild` step, `build/policy.ts`, fills the same directory from `main` the same way.
 - **No `main`, or no file on it:** every content file counts as a draft, and the PDF gets the room's header.
 

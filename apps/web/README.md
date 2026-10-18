@@ -28,7 +28,7 @@ The build writes `apps/web/dist/`: `index.html`, hashed files under `assets/`, a
 
 `deploy/scripts/web_image.py` builds the image outside compose on every `make up`, after the gateway's (contracts/web-serving.md §1):
 - **Its tag carries the drafts flag:** `h4reet-web:<ref>` on prod, which never holds drafts, and `h4reet-web:<ref>-drafts` on dev and dev-cpu, built with `ROOM_DRAFTS=1`. The env file's `H4_WEB_SUFFIX` says which, and preflight holds it to the stack.
-- **Main's content policy comes from the host:** it reads `assets/policy/content-approvals.json` and `assets/policy/resume-header.json` from `main` with `git show`, and hands them to the build as the named build context `policy`. The build stage never runs git, and a file `main` lacks leaves every content file a draft.
+- **Main's content policy comes from the host:** it reads `assets/policy/content-approvals.json` and `assets/policy/resume-header.json` from `main` with `git cat-file blob refs/heads/main:<path>` (the branch's full ref: a bare `main` would read a tag of that name first), and hands them to the build as the named build context `policy`. The build stage never runs git, and a file `main` lacks leaves every content file a draft.
 
 On dev-cpu, `make web-image` builds the working tree on the agents' engine; `make build` and `make image` include it.
 
