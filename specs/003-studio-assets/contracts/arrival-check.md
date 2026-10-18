@@ -35,7 +35,7 @@ Each refusal names one rule's ID.
 | **A1** | An image, video, or model file outside the asset roots (§2's formats) | FR-001 |
 | **A2** | Model weights or a LoRA anywhere (by extension, or by a safetensors or GGUF header) | FR-001 |
 | **A3** | In an asset root: a file that isn't PNG, JPEG, WebP, GLB, `records.json`, or `LICENSE.md` (a workflow, a node pack, a script, a `.gltf`, a KTX2 file, a HEIC, AVIF, TIFF, DNG, or video file, an editor's backup such as `*_original`) | FR-001, FR-008 |
-| **A4** | Camera metadata in any binary file anywhere: an EXIF header, an XMP packet, or a GPS directory (§2, "by content"), apart from the mark's own packet in a file the M rules admit | FR-002, FR-006 |
+| **A4** | An XMP sidecar file (`.xmp`), text or not, anywhere; and camera metadata in any binary file anywhere: an EXIF header, an XMP packet, or a GPS directory (§2, "by content"), apart from the mark's own packet in a file the M rules admit | FR-002, FR-006 |
 | **A9** | A branch changes `assets/policy/`. It applies under `--staged` when the current branch isn't `main`, and under `--range`; never to the Author's own policy commits on `main`, and not under `--history`, where they're expected | FR-005 |
 | **M1** | PNG: a chunk outside research R-03's list, or more than one `iTXt` mark | FR-006 |
 | **M2** | JPEG: a segment outside the list; an EXIF `APP1`; an `APP0` that isn't JFIF; an `APP2` that isn't an ICC profile | FR-002, FR-006 |
@@ -44,7 +44,7 @@ Each refusal names one rule's ID.
 | **M5** | The mark: missing, or its packet holds anything but `Iptc4xmpExt:DigitalSourceType` set to `http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia` | FR-034 |
 | **M6** | An image embedded in a GLB fails M1 to M4 or M7, or carries any XMP packet: the GLB's one mark covers the model file ("one machine-readable mark in every published image and model file"), so an embedded image carries none of its own | FR-006, FR-034 |
 | **M7** | An ICC profile's description or copyright text fails B1 to B3 | FR-006, FR-007 |
-| **M8** | GLB: a `uri` on any image or buffer (a GLB embeds both through its `BIN` chunk); or any `name` (on an image, texture, sampler, material, mesh, node, skin, or animation) or a `targetNames` entry holding a file name or path: a dot followed by a 1-to-5-letter extension, a slash, a backslash, or a camera's file stem (`IMG_`, `DSC`, `DSCN`, `PXL_`, `MVIMG_`, `Screenshot`) | FR-007 |
+| **M8** | GLB: a `uri` on any image or buffer (a GLB embeds both through its `BIN` chunk); or any `name` (on an image, texture, sampler, material, mesh, node, skin, or animation) or a `targetNames` entry holding a file name or path: a dot followed by a 1-to-5-letter extension, a slash, a backslash, or a camera's file stem (`IMG_`, `DSC`, `DSCN`, `PXL_`, `MVIMG_`, `Screenshot`, WhatsApp's `IMG-YYYYMMDD-WA`, Samsung's `YYYYMMDD_HHMMSS`) | FR-007 |
 | **M9** | Bytes a container doesn't account for: anything after PNG's `IEND` or JPEG's `EOI`, past the RIFF size a WebP declares, or in a GLB's `BIN` chunk outside every `bufferView` beyond 4-byte padding. With the B rules' scope (below), this is what keeps text out of the pixel data the B rules don't scan | FR-006, FR-007 |
 | **B1** | A prompt or workflow record: ComfyUI's `prompt` or `workflow` keys, or JSON with `class_type` and `inputs` | FR-007 |
 | **B2** | A model file's name: any name ending in an A2 extension | FR-007 |
@@ -60,7 +60,7 @@ Each refusal names one rule's ID.
 | **L2** | An evaluation-only license in an asset directory without `commercial_license` | FR-014 |
 | **N1** | The directory has no `LICENSE.md`, it doesn't name the media license, or its copyright line still holds a placeholder ([asset-record.md §3](asset-record.md#3-the-media-license)) | FR-015 |
 | **N2** | An entry's `media_license` differs from the directory's | FR-015 |
-| **P1** | `likeness`, a photo source, or the `room` kind, and no approval in the `main` branch's `approvals.json` names this hash with every confirmation true | FR-002, FR-016 |
+| **P1** | `likeness`, a photo source, the `room` kind, or any file under `assets/twin/` whatever its record says, and no approval in the `main` branch's `approvals.json` names this hash with every confirmation true | FR-002, FR-016 |
 | **P2** | A `room` file whose approval lacks the room confirmations | FR-037 |
 | **P3** | A file of the twin before an approval carries the disclosure line | FR-034 (research R-11) |
 | **F1** | An avatar or animation while `caps.json` says ADR 0010 isn't accepted | FR-018 |
@@ -81,10 +81,13 @@ Each refusal names one rule's ID.
 - **M8** doesn't read Blender's side suffixes, `.L` and `.R`, as extensions, since a rig's bones carry them.
 - **B3** matches any drive letter, `X:\`, not only `C:\`.
 - **N1** holds `LICENSE.md` to asset-record.md §3's text exactly, apart from the year and the holder.
+- **R4** requires `approval` on every entry under `assets/twin/`, as it does for a likeness, a photo source, or a room file, since P1 does.
 - **R1** requires `note` on a published image, equal to `docs/research/<the folder's name>.md`, and refuses `arm` outside a published-image folder. A source of type `asset` is held to the opaque-ID form; checking that it names another record's file is a follow-up.
 - **F3**'s first visit is every GLB under `assets/twin/` and `assets/animations/` (and `assets/room/` in Phase 3), plus the largest visitor directory's GLBs, by gzip size, against `caps.json`'s `phase2` budget, or `phase3` once `assets/room/` holds a GLB.
 - **Exit 2** prints `arrival-check: can't check: <reason>`, and a run that meets no studio file reads no policy, including for H1.
 - `--repo DIR` names the repository; the gate passes the main tree, make check the checkout.
+- **The credits' check** (`scripts/assets/credits.py --check`, asset-record.md §4) is agent-editable, so the gate runs it in its container phase, `make credits-check`, never on the host; `make arrival` runs it after the check.
+- **Not checked, recorded for later:** files under `assets/policy/` meet no A1 or A4 in any mode, the history scan's included; and a GLB's `bufferView` that nothing references counts as accounted for by M9 but isn't read as an image or text.
 
 ## 4. Output
 

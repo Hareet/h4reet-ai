@@ -266,6 +266,11 @@ assets-scrub: ## Rewrite one studio file to what the arrival check admits, and a
 assets-credits: ## Render assets/CREDITS.md and docs/research/images/CREDITS.md from the records, in canonical form (spec 003)
 	$(PY_HOST) scripts/assets/credits.py
 
+# The credits' check alone, which writes nothing: the Author's gate runs it in its container phase, since
+# scripts/assets/ is agent-editable and the gate's host phase runs main's code only (ADR 0017). make arrival runs it too.
+credits-check: ## Check the credits' renderings and the records' form against the records, writing nothing (spec 003)
+	$(PY_HOST) scripts/assets/credits.py --check
+
 evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, the behavioral tier's status, and the docs' links
 	@case "$${ADAPTER:-fake}" in fake) ;; \
 	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
@@ -560,7 +565,7 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check secrets arrival assets-scrub assets-credits validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image compose-images pin-images \
+	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
