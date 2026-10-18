@@ -146,6 +146,30 @@ describe("the talk button", () => {
     expect(talkLog(v.doc).children).toHaveLength(2);
   });
 
+  it("is one press however long it's held: one message, one voice_pressed", async () => {
+    const v = start();
+    await intoRoom(v);
+    const talk = button(v.doc, "Hold to talk");
+    talk.dispatchEvent(new v.win.PointerEvent("pointerdown", { bubbles: true }));
+    v.clock.advance(2500);
+    talk.dispatchEvent(new v.win.PointerEvent("pointerup", { bubbles: true }));
+    talk.click();
+    expect(talkLog(v.doc).children).toHaveLength(1);
+    expect(v.events.filter((e) => e.kind === "voice_pressed")).toHaveLength(1);
+  });
+
+  it("takes a click after a cancelled pointer press as a press of its own", async () => {
+    const v = start();
+    await intoRoom(v);
+    const talk = button(v.doc, "Hold to talk");
+    talk.dispatchEvent(new v.win.PointerEvent("pointerdown", { bubbles: true }));
+    talk.dispatchEvent(new v.win.PointerEvent("pointercancel", { bubbles: true }));
+    v.clock.advance(100);
+    talk.click();
+    expect(talkLog(v.doc).children).toHaveLength(2);
+    expect(v.events.filter((e) => e.kind === "voice_pressed")).toHaveLength(2);
+  });
+
   it("keeps microphone=() in the image's Permissions-Policy until push-to-talk's group", () => {
     const nginx = readFileSync(join(WEB, "nginx.conf"), "utf8");
     expect(nginx).toContain('Permissions-Policy "microphone=(), camera=(), geolocation=()"');

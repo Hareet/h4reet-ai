@@ -112,6 +112,17 @@ describe("selectObject", () => {
     expect(selectObject).not.toHaveBeenCalled();
   });
 
+  it("labels every piece of the 2D drawing as a placeholder, its buttons too", () => {
+    const { doc } = surface();
+    const flat = renderFlat(doc, { avatar: "dinosaur", select: () => undefined });
+    const texts = [...flat.element.querySelectorAll("text, button")].map((t) =>
+      (t.textContent ?? "").replace(/\s+/g, " ").trim(),
+    );
+    expect(flat.element.querySelectorAll("button")).toHaveLength(3);
+    expect(texts.length).toBeGreaterThan(6);
+    for (const text of texts) expect(text).toMatch(/ \(placeholder\)$/);
+  });
+
   it("is called with the same IDs from the 2D drawing's buttons", () => {
     const { doc } = surface();
     const selectObject = vi.fn<(id: ObjectId) => void>();

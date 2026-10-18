@@ -60,6 +60,9 @@ export class FakeClock implements Clock {
 
   /** Moves time forward by `ms`: each timer runs at its time, and pending frames run every `frameMs`. */
   advance(ms: number, frameMs = 16): void {
+    if (!Number.isFinite(ms) || ms < 0 || !Number.isFinite(frameMs) || frameMs <= 0) {
+      throw new Error(`FakeClock.advance(${ms}, ${frameMs}): a step must be finite, and frames must take time`);
+    }
     const end = this.t + ms;
     for (;;) {
       let timerAt = Infinity;
@@ -271,7 +274,13 @@ export interface Visit {
 }
 
 /** Opens the page: the room starts on its window, with every spy in place first. */
-export function start(options: WindowOptions & { sceneFails?: boolean } = {}): Visit {
+/** How the stand-in 3D chunk's import ends: it loads, it fails, or it never settles (a stalled download). */
+export interface SceneOptionsForTest {
+  sceneFails?: boolean;
+  sceneHangs?: boolean;
+}
+
+export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit {
   const dom = makeWindow(options);
   const win = dom.window as unknown as TestWindow;
   const spies = spyOnEverything(win);
@@ -286,6 +295,7 @@ export function start(options: WindowOptions & { sceneFails?: boolean } = {}): V
     clock,
     loadScene: () => {
       scene.loads += 1;
+      if (options.sceneHangs) return new Promise<SceneModule>(() => undefined);
       return options.sceneFails ? Promise.reject(new Error("the chunk didn't load")) : Promise.resolve(scene.module);
     },
   });

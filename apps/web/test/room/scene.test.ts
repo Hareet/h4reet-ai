@@ -3,12 +3,13 @@
 // its place; the visitor's avatar is the one chosen; the camera keeps the twin, the desk, the snowboard, and the bicycle
 // in view from a wide desktop to a 320-pixel portrait phone; and the hand-off moves the paper from the twin's hand to the
 // visitor, or crossfades it under reduced motion.
+import { JSDOM } from "jsdom";
 import { Box3, PerspectiveCamera, Vector3 } from "three";
-import type { Object3D } from "three";
+import type { Object3D, Sprite, Texture } from "three";
 import { describe, expect, it } from "vitest";
 
 import { AVATARS } from "../../src/choice/avatars";
-import { applyHandoff, buildWorkArea, fitCamera, qualitySettings } from "../../src/room/scene";
+import { applyHandoff, buildWorkArea, createLabels, fitCamera, qualitySettings } from "../../src/room/scene";
 import type { PartName } from "../../src/room/scene";
 
 const PARTS: PartName[] = [
@@ -153,5 +154,60 @@ describe("quality levels", () => {
     expect(levels[0]).toMatchObject({ shadows: true, animations: true });
     expect(levels[3]).toMatchObject({ shadows: false, animations: false });
     expect(levels[1]?.pixelRatio).toBeLessThan(levels[0]?.pixelRatio ?? 0);
+  });
+});
+
+describe("the labels' textures", () => {
+  /** A jsdom document whose canvases draw on a stand-in 2D context that measures text by its font's size. */
+  function documentWith2d(): Document {
+    const win = new JSDOM("<p>").window;
+    win.HTMLCanvasElement.prototype.getContext = function getContext(kind: string) {
+      if (kind !== "2d") return null;
+      const ctx = {
+        font: "",
+        fillStyle: "",
+        textBaseline: "",
+        measureText: (text: string) => ({ width: text.length * 0.55 * Number(/(\d+)px/.exec(ctx.font)?.[1] ?? 10) }),
+        fillRect: () => undefined,
+        fillText: () => undefined,
+      };
+      return ctx;
+    } as unknown as HTMLCanvasElement["getContext"];
+    return win.document as unknown as Document;
+  }
+
+  it("are redrawn at quality 3's smaller scale, the old texture released and the size on screen kept", () => {
+    const labels = createLabels(documentWith2d());
+    const node = labels.factory("Snowboard (placeholder)");
+    expect(node.name).toBe("label:Snowboard (placeholder)");
+    const sprite = node.children[0] as Sprite;
+    const first = sprite.material.map as Texture;
+    const height = (first.image as HTMLCanvasElement).height;
+    const onScreen = sprite.scale.clone();
+    let released = 0;
+    first.addEventListener("dispose", () => (released += 1));
+
+    labels.setScale(qualitySettings(3).textureScale);
+    const second = sprite.material.map as Texture;
+    expect(second).not.toBe(first);
+    expect(released).toBe(1);
+    expect((second.image as HTMLCanvasElement).height).toBeLessThanOrEqual(Math.ceil(height / 2) + 1);
+    expect((second.image as HTMLCanvasElement).height).toBeGreaterThanOrEqual(Math.floor(height / 2) - 1);
+    expect(sprite.scale.x).toBeCloseTo(onScreen.x, 2);
+    expect(sprite.scale.y).toBeCloseTo(onScreen.y, 5);
+
+    // The same scale again changes nothing.
+    labels.setScale(qualitySettings(3).textureScale);
+    expect(sprite.material.map).toBe(second);
+  });
+
+  it("are left as named nodes where the page has no 2D canvas", () => {
+    const win = new JSDOM("<p>").window;
+    win.HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
+    const labels = createLabels(win.document as unknown as Document);
+    const node = labels.factory("Desk (placeholder)");
+    expect(node.name).toBe("label:Desk (placeholder)");
+    expect(node.children).toHaveLength(0);
+    labels.setScale(0.5);
   });
 });

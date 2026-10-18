@@ -10,13 +10,25 @@ import {
   FLOOR_FPS,
   FRAME_WINDOW_MS,
   MAX_QUALITY,
+  SCENE_WAIT_MS,
   createQualityController,
   hasWebGL2,
   targetFps,
   watchContext,
 } from "../../src/room/quality";
 import type { FlatReason, QualityController } from "../../src/room/quality";
-import { FakeClock, button, enter, flush, intoRoom, start } from "../helpers/room";
+import {
+  FakeClock,
+  HANDOFF_LINE,
+  announcer,
+  button,
+  enter,
+  flush,
+  intoRoom,
+  radio,
+  start,
+  textOf,
+} from "../helpers/room";
 
 /** Feeds frames at `fps` for `seconds`, from `from` (ms); returns the time after the last frame. */
 function feed(c: QualityController, fps: number, seconds: number, from: number): number {
@@ -107,14 +119,23 @@ describe("the quality controller", () => {
     expect(desktop.steps).toEqual([1]);
   });
 
-  it("doesn't count a pause, such as a hidden tab, as slow frames", () => {
+  it("starts a new window after the page was hidden, so the time away isn't a slow frame", () => {
     const { c, steps } = controller(60);
     let t = feed(c, 60, 3, 0);
+    c.restart();
     t += 20_000;
     t = feed(c, 60, 3, t);
+    c.restart();
     t += 2000;
     feed(c, 60, 3, t);
     expect(steps).toEqual([]);
+  });
+
+  it("counts a visible page under 1 frame a second as slow: it steps down, then switches to 2D", () => {
+    const { c, steps, flats } = controller(60);
+    feed(c, 0.5, 40, 0);
+    expect(steps).toEqual([1, 2, 3]);
+    expect(flats).toEqual(["frame_floor"]);
   });
 
   it("goes to 2D on request, once, from any quality", () => {
@@ -211,6 +232,53 @@ describe("the room's modes", () => {
     expect(v.scene.created[0]?.avatar).toBe("dog");
     expect(v.room.visit.mode).toBe("3d");
     expect(twoD(v.events)).toBe(0);
+  });
+
+  it("falls back to 2D when the 3D chunk's import never settles, SCENE_WAIT_MS after Enter", async () => {
+    const v = start({ webgl: true, sceneHangs: true });
+    await flush();
+    radio(v.doc, "path", "engineer").click();
+    radio(v.doc, "avatar", "dog").click();
+    button(v.doc, "Enter").click();
+    await flush();
+    expect(v.room.visit.stage).toBe("handoff");
+    expect(v.doc.querySelector(".flat, canvas")).toBeNull();
+    v.clock.advance(SCENE_WAIT_MS - 1);
+    await flush();
+    expect(v.doc.querySelector(".flat")).toBeNull();
+    v.clock.advance(1);
+    await v.room.settled();
+    await flush();
+    expect(v.room.visit.mode).toBe("2d");
+    expect(v.doc.querySelector(".flat")).not.toBeNull();
+    expect(textOf(announcer(v.doc))).toBe(HANDOFF_LINE);
+    expect(twoD(v.events)).toBe(1);
+    v.clock.advance(4500);
+    expect(v.room.visit.stage).toBe("room");
+  });
+
+  it("ignores frames while the page is hidden, and starts a new window when it shows", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    let state: DocumentVisibilityState = "hidden";
+    Object.defineProperty(v.doc, "visibilityState", { configurable: true, get: () => state });
+    v.doc.dispatchEvent(new v.win.Event("visibilitychange"));
+    v.clock.advance(30_000, 2000);
+    expect(v.scene.quality).toEqual([]);
+    state = "visible";
+    v.doc.dispatchEvent(new v.win.Event("visibilitychange"));
+    v.clock.advance(30_000, 16);
+    expect(v.scene.quality).toEqual([]);
+    expect(v.room.visit.mode).toBe("3d");
+  });
+
+  it("steps down and reaches 2D on a visible page drawing under 1 frame a second", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    v.clock.advance(40_000, 2000);
+    expect(v.scene.quality).toEqual([1, 2, 3]);
+    expect(v.room.visit.mode).toBe("2d");
+    expect(twoD(v.events)).toBe(1);
   });
 
   it("falls back to 2D when the 3D chunk fails to load", async () => {

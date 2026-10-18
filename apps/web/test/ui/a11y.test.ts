@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AI_DISCLOSURE,
   axeViolations,
   button,
   enter,
@@ -19,6 +20,7 @@ import {
   stylesheets,
   tabOrder,
   talkLog,
+  textOf,
 } from "../helpers/room";
 import type { CssRule, Visit } from "../helpers/room";
 
@@ -224,6 +226,34 @@ describe("assistive technology", () => {
       expect(await axeViolations(v), name).toEqual([]);
     }
   }, 60_000);
+});
+
+describe("the AI disclosure", () => {
+  /** The value a property ends with on an element, from the top-level rules that match it, in order. */
+  function declared(el: Element, property: string, all: CssRule[]): string | undefined {
+    let value: string | undefined;
+    for (const rule of all)
+      if (matchesRule(el, rule.selector) && rule.declarations.has(property)) value = rule.declarations.get(property);
+    return value;
+  }
+
+  it("stays in view on every screen: the page's header, sticky at the top, opaque, never inert or hidden", async () => {
+    const all = rules();
+    for (const [name, v] of await screens()) {
+      const header = [...v.doc.querySelectorAll("header")].find((h) => textOf(h).includes(AI_DISCLOSURE));
+      if (!header) throw new Error(`${name}: no header holds the AI disclosure`);
+      expect(header.closest("[inert], [hidden], [aria-hidden='true']"), name).toBeNull();
+      expect(header.parentElement, name).toBe(v.doc.body);
+      expect(declared(header, "position", all), name).toBe("sticky");
+      expect(declared(header, "top", all), name).toBe("0");
+      expect(declared(header, "background", all), name).toMatch(/^#fff(fff)?$/i);
+    }
+  });
+
+  it("leaves room above a focused control for itself, so the header never covers it (WCAG 2.4.11)", () => {
+    const html = rules().find((r) => r.selector === "html");
+    expect(px(html?.declarations.get("scroll-padding-top"))).toBeGreaterThanOrEqual(64);
+  });
 });
 
 describe("touch and small screens", () => {
