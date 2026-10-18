@@ -8,7 +8,7 @@ Spec 000's (its [quickstart.md](../000-local-foundations/quickstart.md#conventio
 
 ## 1. Group 1: the guards (FR-003, FR-005)
 
-1. **Fill the placeholders.** In `docs/merge-requests/<date>-feat-003-guards.patch`, replace `<STUDIO_PHOTOS>`, `<STUDIO_OUTPUTS>`, `<STUDIO_WORKFLOWS>`, and `<STUDIO_BLINDING_KEY>` with the studio's real folders on this machine. In an editor, in the Author's terminal; the paths don't go in any note.
+1. **Fill the placeholders.** In `docs/merge-requests/<date>-feat-003-guards.patch`, replace `<STUDIO_PHOTOS>`, `<STUDIO_OUTPUTS>`, `<STUDIO_WORKFLOWS>`, and `<STUDIO_BLINDING_KEY>` with the studio's real folders on this machine, as absolute paths, everywhere each appears: twice in `.claude/settings.json`'s part and once in `tools/gates/studio-folders.txt`'s. The blinding key's is the folder that holds the key. In an editor, in the Author's terminal; the paths don't go in any note.
 2. **Apply it** (`git apply`), then `claude doctor` and `make git-hooks`, as spec 000's patches.
 3. **Expected, from an agent session's `make check`:** the new rows pass: a read of each studio folder is refused (stage S), and an Edit or write of each file in `assets/policy/` is refused (stage H). A row still naming a placeholder fails, naming it.
 4. **Only then** does the studio stage anything on this machine for the evaluation: the photos of the room and of the Author, ComfyUI's outputs (`out/`), the blinded copies (`blind/`), and the blinding key (`key.csv`), all inside the folders this patch denies (FR-003). The evaluation note says so at its first step.

@@ -37,12 +37,12 @@ description: "Task list for spec 003, Studio Assets"
 
 **Independent test**: quickstart §1: an agent session's `make check` shows the new rows passing once the placeholders are filled.
 
-- [ ] T001 [P] [US1] Add stage S rows to `redteam/forbidden-actions.sh` reading each studio folder (`<STUDIO_PHOTOS>`, `<STUDIO_OUTPUTS>`, `<STUDIO_WORKFLOWS>`, `<STUDIO_BLINDING_KEY>`), each failing with "placeholder not filled" while a placeholder remains, per FR-003 and research R-07
-- [ ] T002 [P] [US1] Add stage H rows to `redteam/forbidden-actions.sh` refusing an Edit and a shell write of `assets/policy/licenses.json`, `approvals.json`, and `caps.json`, per FR-005
-- [ ] T003 [US1] **Patch** `docs/merge-requests/<date>-feat-003-guards.patch`: `.claude/settings.json` (`denyRead` and `Read(...)` on the four placeholders; `denyWrite` and `Edit(...)` on `assets/policy/**`), `.claude/hooks/protected-paths.sh` (`assets/policy/**`), the three policy files as data-model.md §3 to §5 give them (no licenses, no approvals, `adr_0010: "not-accepted"`), and `tools/gates/matrix-required.txt`'s new rows, per plan §2
-- [ ] T004 [US1] Verify the patch in a detached scratch worktree, with stand-in paths for the placeholders: `git apply --check`, then `make check` on the patched tree and `gitleaks dir`, recording T001 and T002's rows going from PLANNED to PASS
+- [x] T001 [P] [US1] Add stage S rows to `redteam/forbidden-actions.sh` reading each studio folder (`<STUDIO_PHOTOS>`, `<STUDIO_OUTPUTS>`, `<STUDIO_WORKFLOWS>`, `<STUDIO_BLINDING_KEY>`), each failing with "placeholder not filled" while a placeholder remains, per FR-003 and research R-07
+- [x] T002 [P] [US1] Add stage H rows to `redteam/forbidden-actions.sh` refusing an Edit and a shell write of `assets/policy/licenses.json`, `approvals.json`, and `caps.json`, per FR-005
+- [x] T003 [US1] **Patch** `docs/merge-requests/<date>-feat-003-guards.patch`: `.claude/settings.json` (`denyRead` and `Read(...)` on the four placeholders; `denyWrite` and `Edit(...)` on `assets/policy/**`), `.claude/hooks/protected-paths.sh` (`assets/policy/**`), the three policy files as data-model.md §3 to §5 give them (no licenses, no approvals, `adr_0010: "not-accepted"`), `tools/gates/matrix-required.txt`'s new rows, and `tools/gates/studio-folders.txt`, the folders by name for the matrix (added in implementation), per plan §2
+- [x] T004 [US1] Verify the patch in a detached scratch worktree, with stand-in paths for the placeholders: `git apply --check`, then `make check` on the patched tree and `gitleaks dir`, recording T001 and T002's rows going from PLANNED to PASS
 - [ ] T005 [US1] **Author**: fill the placeholders, apply the patch, `claude doctor`, `make git-hooks`, per quickstart §1
-- [ ] T006 [US1] Merge-request note `docs/merge-requests/<date>-feat-003-guards.md`, with the patch's verification, `make check`, and the reviewer's passes
+- [x] T006 [US1] Merge-request note `docs/merge-requests/<date>-feat-003-guards.md`, with the patch's verification, `make check`, and the reviewer's passes
 
 **Checkpoint**: no agent session can read the studio's folders or write the policy.
 

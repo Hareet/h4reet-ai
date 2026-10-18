@@ -791,7 +791,7 @@ studio_problem() {
   sp="$(studio_path "$1")"
   case "$sp" in
     '' | "$1") echo "tools/gates/studio-folders.txt has no path for it" ;;
-    *'<STUDIO_'*) echo "placeholder not filled: <$2> (the Author writes the folder's path in place of it in the guard patch, everywhere it appears, before applying)" ;;
+    *'<STUDIO_'*) echo "placeholder not filled: <$2> (the Author writes the folder's path in its place, in .claude/settings.json and tools/gates/studio-folders.txt)" ;;
     /*) ;;
     *) echo "its path in tools/gates/studio-folders.txt isn't absolute" ;;
   esac
