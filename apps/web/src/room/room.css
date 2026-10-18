@@ -257,6 +257,17 @@ body.in-room .disclosure p {
   border-radius: 4px;
 }
 
+/* Phase 3's view is a fixed panel over the page on its own; in the room it sits in the resume's panel, in the page's
+   flow, so the AI disclosure and the room stay in view and a focused control is never hidden under it. */
+.resume-panel .resume {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  max-width: none;
+  overflow: visible;
+  padding: 0;
+}
+
 .resume-panel h2 {
   margin: 0 0 0.5rem;
   font-size: 1.125rem;

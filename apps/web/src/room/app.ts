@@ -233,7 +233,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (!resumeOpen) {
       resumeOpen = true;
       room.resumePanel.hidden = false;
-      resume.mount(room.resumeBody, { doc, path: visit.path, close: closeResume, pdfFollowed });
+      resume.mount(room.resumeBody, { doc, path: visit.path, close: closeResume, pdfFollowed, itemSelected });
       emit({ kind: "resume_opened" });
     }
     room.resumeHeading.focus();
@@ -245,6 +245,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     resume.unmount();
     room.resumePanel.hidden = true;
     room.resumeButton.focus();
+  }
+
+  /** A resume item selected in the view: item_selected, for an ID the manifest lists (contracts/room-events.md §1). */
+  function itemSelected(id: string): void {
+    if (content.manifest.items.includes(id)) emit({ kind: "item_selected", id });
   }
 
   function selectObject(id: ObjectId): void {

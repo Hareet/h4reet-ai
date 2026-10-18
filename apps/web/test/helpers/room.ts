@@ -15,7 +15,8 @@ import { startRoom } from "../../src/room/app";
 import type { RoomHandle } from "../../src/room/app";
 import type { Clock } from "../../src/room/clock";
 import type { RoomEvent } from "../../src/room/events";
-import { stubResumeView } from "../../src/room/resume-port";
+import { resumeView } from "../../src/room/resume-port";
+import type { RoomResume } from "../../src/resume";
 import type { SceneModule, SceneOptions, Stage3D } from "../../src/room/stage";
 
 export const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
@@ -271,6 +272,8 @@ export interface Visit {
   spies: Spies;
   scene: FakeScene;
   room: RoomHandle;
+  /** How many times the room's resume view loaded room-data.json. */
+  resumeLoads: () => number;
 }
 
 /** Opens the page: the room starts on its window, with every spy in place first. */
@@ -278,6 +281,20 @@ export interface Visit {
 export interface SceneOptionsForTest {
   sceneFails?: boolean;
   sceneHangs?: boolean;
+  /** What the resume's room-data.json gives the room's resume view; by default fixtureResume(). */
+  resumeData?: RoomResume;
+}
+
+/** An approved resume of fixture words, under the first two item IDs the manifest lists. */
+export function fixtureResume(): RoomResume {
+  const ids = roomContent().manifest.items.slice(0, 2);
+  return {
+    resume_state: "approved",
+    header: { name: "Fixture", lines: ["A fixture line for the room's tests."] },
+    sections: [
+      { id: "fixture", title: "Fixture section", items: ids.map((id) => ({ id, text: `Fixture item ${id}.` })) },
+    ],
+  };
 }
 
 export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit {
@@ -287,10 +304,15 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
   const clock = new FakeClock();
   const events: RoomEvent[] = [];
   const scene = fakeScene();
+  let loads = 0;
   const room = startRoom({
     win,
     content: roomContent(),
-    resume: stubResumeView(),
+    // The real resume view (Phase 3), its room-data.json from the test, never from the network.
+    resume: resumeView(() => {
+      loads += 1;
+      return Promise.resolve(options.resumeData ?? fixtureResume());
+    }),
     events: (event) => events.push(event),
     clock,
     loadScene: () => {
@@ -299,7 +321,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
       return options.sceneFails ? Promise.reject(new Error("the chunk didn't load")) : Promise.resolve(scene.module);
     },
   });
-  return { dom, win, doc: win.document, clock, events, spies, scene, room };
+  return { dom, win, doc: win.document, clock, events, spies, scene, room, resumeLoads: () => loads };
 }
 
 /** Lets promises the page started settle (the 3D chunk's import, the stage after Enter). */

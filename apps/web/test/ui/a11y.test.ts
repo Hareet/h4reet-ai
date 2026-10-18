@@ -117,6 +117,8 @@ async function screens(): Promise<[string, Visit][]> {
   const reading = start({ webgl: true });
   await intoRoom(reading);
   button(reading.doc, "Resume").click();
+  // The resume's view renders once its room-data.json has loaded.
+  await flush();
   out.push(["the room, with the resume open", reading]);
   return out;
 }
@@ -135,6 +137,7 @@ describe("keyboard", () => {
       "Hold to talk",
     ]);
     button(v.doc, "Resume").click();
+    await flush();
     const order = tabOrder(v.doc).map(nameOf);
     expect(order.slice(0, 9)).toEqual([
       "Resume",

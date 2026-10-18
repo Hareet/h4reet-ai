@@ -8,7 +8,7 @@ import "./fonts.css";
 import { content } from "virtual:room-content";
 
 import { startRoom } from "./room/app";
-import { stubResumeView } from "./room/resume-port";
+import { resumeView } from "./room/resume-port";
 
-// The interactive resume is Phase 3's src/resume/ (tasks.md T029); this stub stands in until the branches meet.
-startRoom({ win: window, content, resume: stubResumeView() });
+// The interactive resume is Phase 3's view (tasks.md T029) in the room's panel, through src/room/resume-port.ts.
+startRoom({ win: window, content, resume: resumeView() });
