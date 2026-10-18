@@ -11,14 +11,14 @@
 | `arrival_check.py --history` | every commit reachable from any ref | `make publish-check` |
 | `arrival_check.py <path>…` | the named files as they are on disk | the Author, and the scrubber's tests |
 
-**Its policy and its code come from the main working tree.** It finds that tree as the pre-commit hook does (`git rev-parse --git-common-dir`, then its parent), and reads `assets/policy/{licenses,approvals,caps}.json` there, never from the branch under check. A branch that changes `assets/policy/` fails rule A9 whatever else it does. The hook, `make check`, and the gate each run the main tree's copy of the program itself.
+**Its code comes from the main working tree, and its policy from the `main` ref.** The hook, `make check`, and the gate each run the main working tree's copy of the program, found as the pre-commit hook finds that tree (`git rev-parse --git-common-dir`, then its parent). The program reads `assets/policy/{licenses,approvals,caps}.json` with `git show main:<path>`, never from the branch under check, and never from whatever branch the main working tree has checked out. Only the Author's merges and patches move `main`. A branch that changes `assets/policy/` fails rule A9 whatever else it does.
 
-**Exit codes:** 0, nothing refused; 1, at least one finding; 2, can't check (a policy file missing or unreadable, a git range that doesn't resolve, the main tree not found). Callers treat 2 as a failure.
+**Exit codes:** 0, nothing refused; 1, at least one finding; 2, can't check (a git range that doesn't resolve, the main tree not found, or a file that needs the policy while `main` has none or it can't be parsed). Callers treat 2 as a failure. A run that meets no studio file needs no policy and exits 0, so commits keep working before the policy exists.
 
 ## 2. Which files it checks
 
 - **Asset roots:** `assets/**` (but `assets/policy/`), and `docs/research/images/**`.
-- **Anywhere:** every file whose extension or leading bytes mark an image or model format (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.glb`, `.gltf`, `.ktx2`, `.bin`, `.safetensors`, `.ckpt`, `.pt`, `.pth`, `.gguf`, `.onnx`, and their magic numbers), so a studio file can't hide outside the roots.
+- **Anywhere:** every file whose extension or leading bytes mark an image or model format (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.glb`, `.gltf`, `.ktx2`, `.safetensors`, `.ckpt`, `.pt`, `.pth`, `.gguf`, `.onnx`, a `.bin` over 1 MB, and their magic numbers), so a studio file can't hide outside the roots. A smaller `.bin` outside the roots isn't checked, since build tools use the extension for other things.
 
 ## 3. The rules
 
@@ -77,4 +77,4 @@ It never prints the bytes a B rule matched, only the offset; never a key or toke
 
 ## 5. Tests
 
-`tools/gates/test/test_arrival_check.py`, with `arrival_fixtures.py` building every fixture at run time: one passing file per format with its record, notice, and approval; one failing file per rule; a three-commit branch where the second commit adds a failing file and the third fixes it (`--range` fails); and the policy read from a separate "main tree" directory, with the branch's own copy ignored. SC-001: every rule refuses its fixture, and every passing fixture passes.
+`tools/gates/test/test_arrival_check.py`, with `arrival_fixtures.py` building every fixture at run time: one passing file per format with its record, notice, and approval; one failing file per rule; a three-commit branch where the second commit adds a failing file and the third fixes it (`--range` fails); the policy read from the fixture repository's `main` ref, with the branch's own copy and the working tree's checked-out copy both ignored; and a commit with no studio file passing while `main` has no policy. SC-001: every rule refuses its fixture, and every passing fixture passes.

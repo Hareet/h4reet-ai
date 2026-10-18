@@ -134,7 +134,7 @@ README.md                             [A] changed: the license line (FR-015)
 
 [contracts/arrival-check.md](contracts/arrival-check.md) holds the command, the rules with their IDs, and the output. In brief:
 - **Inputs:** a list of files, or a commit range (`--range main..HEAD`, checking each commit's added and changed files as that commit had them), or `--staged`, or `--history`.
-- **The policy, the caps, and the check's own code come from the main working tree** (R-05, R-06).
+- **The check's own code comes from the main working tree, and the policy and the caps from the `main` ref** (R-05, R-06). A run that meets no studio file needs no policy.
 - **The rules,** each with an ID that every refusal names:
   - **A:** where a file may be (R-01, R-02; FR-001), and model weights anywhere;
   - **M:** metadata, by container (R-03; FR-002, FR-006), and the mark's exact packet (FR-034);
@@ -253,7 +253,7 @@ Until then, nothing in this spec is served to a visitor.
 ## Constitution Check (post-design)
 
 - **No new violation.**
-- **Principle IV is stronger than the spec asked in one place:** the check reads its policy and its own code from `main`, so a branch can neither approve its own files nor carry a weakened check.
+- **Principle IV is stronger than the spec asked in one place:** the check reads its policy from the `main` ref and runs its code from the main working tree, so a branch can neither approve its own files nor carry a weakened check.
 - **Principle I's degraded modes** are designed now and built with the site, so the happy path can't ship first: the site's group (5) carries both.
 
 Verdict: **PASS**.

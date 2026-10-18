@@ -12,7 +12,7 @@ Phase 0 output of `/speckit-plan`, written on 2026-10-18. One entry per decision
 |---|---|---|---|
 | 1 | Where the assets live in the repository | `assets/` at the root, one directory per asset family; published images beside the note that shows them | R-01 |
 | 2 | The record's format | one `records.json` per directory, read with Python's standard library | R-04 |
-| 3 | Where the arrival check reads the license allowlist and the approvals | from the main working tree, never from the branch under check | R-05 |
+| 3 | Where the arrival check reads the license allowlist and the approvals | from the `main` ref, never from the branch under check or whatever the main working tree has checked out | R-05 |
 | 4 | The machine-readable mark's exact form | an XMP packet holding only `Iptc4xmpExt:DigitalSourceType` = `trainedAlgorithmicMedia` in images, and the same in glTF's `KHR_xmp_json_ld` in models | R-03 |
 | 5 | The draft of the visible disclosure line | "This avatar is a stylized likeness of the Author, made with AI from the Author's photos and published by the Author's choice." The Author approves the wording before the first likeness file is published | R-11 |
 | 6 | The reference phone and the mobile profile | a 2023 mid-range Android phone, a Samsung Galaxy A54 or the closest the Author has, and a 9 Mbps, 150 ms round-trip connection, as spec 002 assumes for 4G | R-13 |
@@ -80,7 +80,7 @@ Phase 0 output of `/speckit-plan`, written on 2026-10-18. One entry per decision
 **Decision.**
 - **`assets/policy/licenses.json`:** one entry per license and version: its name, version or date, a link to its text, and the Author's reading of FR-013's three terms (display on a public site that promotes the studio; everywhere; public distribution), each `yes` or `no`. A license is allowed only when all three read `yes`. It starts with no entries; the Author adds each, as the studio adopts a model.
 - **`assets/policy/approvals.json`:** one entry per approved file: its SHA-256, its path when approved, its kind, the five confirmations FR-016 lists, the date, and the reason. Only the Author writes it.
-- **The arrival check reads both from the main working tree,** the way `publish_check.py` reads the denylist from it (`tools/gates/publish_check.py`: "The denylist, in the main working tree"). A branch that edits either is refused, so an approval never travels with the file it approves. The Author approves on `main`, then merges the branch.
+- **The arrival check reads both from the `main` ref** (`git show main:assets/policy/…`), never from the branch under check. Only the Author's merges and patches move `main` (spec 000's reference-transaction hook keeps agents off it), so neither a branch nor a switch of the main working tree to another branch can change what the check reads. `publish_check.py` keeps its denylist out of a branch's reach the same way, from the main working tree, an untracked file there (`tools/gates/publish_check.py`: "The denylist, in the main working tree"); the policy is tracked, so the ref is the stronger source. A branch that edits either file is refused, so an approval never travels with the file it approves. The Author approves on `main`, then merges the branch.
 - **The guard patch** makes `assets/policy/**` human-only (`protected-paths.sh`, and `Edit(...)` and `denyWrite` in `.claude/settings.json`), with matrix rows (FR-005).
 
 **Rationale.** FR-005 makes both the Author's alone. Reading them from the branch would let a branch approve its own file; reading them from `main` makes the approval exist before the merge, which is what FR-016 means.
@@ -90,7 +90,7 @@ Phase 0 output of `/speckit-plan`, written on 2026-10-18. One entry per decision
 ### R-06: Where the check runs (FR-004)
 
 **Decision.** One program, `tools/gates/arrival_check.py` (human-only), in four places:
-- **Before each commit:** `.claude/git-hooks/pre-commit` runs the main working tree's copy over the staged files, after gitleaks, and refuses the commit on any finding. It reads its own code, the policy, and the caps from the main working tree, never from the branch.
+- **Before each commit:** `.claude/git-hooks/pre-commit` runs the main working tree's copy of the program over the staged files, after gitleaks, as it reads `.gitleaks.toml` from that tree, and refuses the commit on any finding. The program reads the policy and the caps from the `main` ref (R-05). A commit that touches no studio file passes without the policy, so commits keep working before the policy exists.
 - **In `make check`:** a new gate, `arrival`, over every commit on the branch since `main`, each commit's added and changed files checked as that commit had them.
 - **In the Author's gate,** `tools/gates/gate`: the same, as a step.
 - **In `make publish-check`:** over every commit in the history, before the first push (spec 000's FR-042).

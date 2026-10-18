@@ -101,7 +101,7 @@ While `adr_0010` isn't `accepted`, every avatar and animation is refused (FR-018
 
 ## 6. The arrival check's result
 
-**Exit code:** 0 when nothing was refused, 1 on any finding, 2 when it can't check (a missing policy file, an unreadable git range), so a check that couldn't run never passes.
+**Exit code:** 0 when nothing was refused, 1 on any finding, 2 when it can't check (a file that needs the policy while `main` has none, an unreadable git range), so a check that couldn't run never passes.
 
 **A finding:** `{ "rule": "M3", "path": "assets/twin/idle.glb", "commit": "abc123…" | null, "reason": "…" }`, printed as one line. The size table follows, per file: `bytes`, `gzip_bytes`, and for GLB `vertices`, `triangles`, `texture_bytes`; then the first-visit totals and the history total.
 
