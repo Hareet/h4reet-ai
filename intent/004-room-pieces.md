@@ -55,7 +55,10 @@ Read as a list, for the spec. This is Claude's reading, to correct where it's wr
   - Until a topic's corpus exists, the twin says it can't talk about it yet, and calls no model.
 - **Readable props are enlarged,** as a stylized scale: the signs, the neon sign, the monitor's screen, and the laptop's cable (answer 8).
 - **The signs are my own designs** (answer 4). Their lettering is drawn live from approved outlines of my design. Their non-word graphics may stay in the model's texture.
-- **"You will get photos…"** In Claude's reading, the photos go to the studio, which runs on my machine. No agent receives a photo, a sketch, or an unstripped output (spec 003's FR-003). The photos are reference for shape, size, color, and material. The studio's textures never come from them.
+- **"You will get photos…"** In Claude's reading, the photos go to the studio, which runs on my machine.
+  - Local models on my GPU turn them into assets. Cutouts isolate each piece. Image-to-3D models give the chunky pieces their first meshes. Style frames restyle a photo into the room's look. Each model's license must allow publishing what it makes.
+  - The studio's agent never receives a photo (spec 003's FR-003). It sees only what those models make, after I've reviewed it: a style frame with no brand, text, screen content, or view beyond the fence, or a mesh stripped to geometry.
+  - The photos are also my reference for shape, size, color, and material. The studio's textures never come from them.
 - **The order:**
   1. The shoot.
   2. Lookdev settles the look on a small vignette, at the room's real framing, on a reference phone. The vignette has the desk, the monitor and its terminal, the cost glow, the laptop's cable states, one sign, a corner of the chalkboard, and a bicycle wheel. Stand-in shapes and one or two cheap studio pieces are enough: the desk and one sign, made with flat colors and no baked shading.
