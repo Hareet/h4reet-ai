@@ -791,9 +791,11 @@ function structure(g: Gltf, box: Container, notes: Notes): Problem[] {
   }
   if (bin.subarray(length).some((byte) => byte !== 0)) bad("buffers[0]", REASON.binPadding);
 
-  // Every accessor inside its view, aligned, and of a type its use takes.
+  // Every accessor inside its view, aligned, and of a type its use takes; a sparse substitution's indices and values
+  // inside theirs, starting at or after the view's start, so no read lands in another view or before the BIN chunk.
   const within = (at: string, view: GBufferView, offset: number, span: number, size: number): boolean => {
-    if (offset + span > view.byteLength) bad(at, REASON.accessorOutside);
+    if (offset < 0) bad(`${at}.byteOffset`, REASON.offset);
+    else if (offset + span > view.byteLength) bad(at, REASON.accessorOutside);
     else if (offset % size || ((view.byteOffset ?? 0) + offset) % size) bad(`${at}.byteOffset`, REASON.alignment);
     else return true;
     return false;
