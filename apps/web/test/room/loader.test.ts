@@ -657,6 +657,86 @@ describe("memory and a lost context (R-28 step 6)", () => {
   });
 });
 
+describe("a stop's one event per load (data-model.md §11.5)", () => {
+  it("stops during a swap's two settle frames: its loaded event stands alone, its hold let go once, its frame cancelled", async () => {
+    const h = harness();
+    // Every call of each release, the repeated ones too: the controller's own release counts once however often it's
+    // called, so only the calls show a second one.
+    const calls: number[] = [];
+    const loader = createLoader({
+      ...optionsOf(h),
+      hold: () => {
+        const at = calls.push(0) - 1;
+        return () => {
+          calls[at] = (calls[at] ?? 0) + 1;
+        };
+      },
+    });
+    const done = loader.load([memoryEntry("fx-desk", DESK_GLB, 55)]);
+    await settle();
+    expect(h.events.map((e) => e.outcome)).toEqual(["loaded"]);
+    expect(calls).toEqual([0]);
+    expect(loader.busy).toBe(true);
+    h.mode = "2d";
+    loader.stop();
+    expect(calls).toEqual([1]);
+    expect(h.clock.pendingFrames).toBe(0);
+    await done;
+    h.clock.advance(SETTLE_FRAMES * 16 * 2);
+    expect(calls).toEqual([1]);
+    expect(loader.busy).toBe(false);
+    expect(h.events).toEqual([{ asset: "fx-desk", outcome: "loaded", ms_bucket: "<250", bytes: 55, mode: "full" }]);
+  });
+
+  it("stops during a ledger skip's settle frames: its one skipped event stands alone", async () => {
+    const h = harness({ limit: DESK_TEXTURE_BYTES - 1 });
+    const done = h.loader.load([memoryEntry("fx-desk", DESK_GLB)]);
+    await settle();
+    expect(h.events.map((e) => e.outcome)).toEqual(["skipped"]);
+    h.mode = "2d";
+    h.loader.stop();
+    await done;
+    h.clock.advance(SETTLE_FRAMES * 16 * 2);
+    expect(h.events).toEqual([{ asset: "fx-desk", outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "full" }]);
+    expect(h.holds.held()).toBe(0);
+    expect(h.loader.busy).toBe(false);
+  });
+
+  it("stops while its loads wait for the figures: each is skipped, once, and nothing is fetched", async () => {
+    const h = harness({ figures: "pending" });
+    const done = h.loader.load([urlEntry("fx-desk"), urlEntry("fx-sign")]);
+    await settle();
+    h.mode = "2d";
+    h.loader.stop();
+    h.figures();
+    await done;
+    await settle();
+    expect(h.fetch.calls).toEqual([]);
+    expect(h.events).toEqual([
+      { asset: "fx-desk", outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "2d" },
+      { asset: "fx-sign", outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "2d" },
+    ]);
+  });
+
+  it("skips a piece once when a newer load of it superseded an older one still fetching", async () => {
+    const d = decoder({ gated: true });
+    const h = harness({ decoder: d });
+    const first = h.loader.load([urlEntry("fx-desk")]);
+    await settle();
+    // The page's own copy of the piece, read from memory, supersedes the fetch on its way, and is decoding at the stop.
+    const newer = h.loader.load([memoryEntry("fx-desk", DESK_GLB)]);
+    await settle();
+    expect(d.waiting()).toBeGreaterThan(0);
+    h.mode = "2d";
+    h.loader.stop();
+    d.open();
+    await Promise.all([first, newer]);
+    await settle();
+    expect(h.swaps).toEqual([]);
+    expect(h.events).toEqual([{ asset: "fx-desk", outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "2d" }]);
+  });
+});
+
 // --------------------------------------------------------------------------------------------------------------------
 // The scene's side
 // --------------------------------------------------------------------------------------------------------------------
