@@ -18,7 +18,11 @@
     "fonts:lock": "node --import tsx build/fonts-lock.ts",
     "typecheck": "tsc --noEmit -p .",
     "lint": "eslint --max-warnings 0 . && tsc --noEmit -p .",
-    "manifest": "node --import tsx build/manifest.ts"
+    "manifest": "node --import tsx build/manifest.ts",
+    "room:check": "node --import tsx build/room/cli.ts check",
+    "room:report": "node --import tsx build/room/cli.ts report",
+    "room:scan": "node --import tsx build/room/cli.ts scan",
+    "room:fit": "node --import tsx build/room/cli.ts fit"
   },
   "devDependencies": {
     "@types/jsdom": "30.0.0",
@@ -26,7 +30,9 @@
     "@types/pdfkit": "0.17.6",
     "@types/three": "0.186.0",
     "axe-core": "4.13.0",
+    "fontkit": "2.0.4",
     "jsdom": "30.1.1",
+    "pako": "2.1.0",
     "pdfjs-dist": "6.4.299",
     "pdfkit": "0.20.2",
     "three": "0.186.1",
@@ -34,6 +40,7 @@
     "typescript": "6.0.3",
     "vite": "8.3.3",
     "vitest": "5.0.3",
-    "yaml": "2.9.1"
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
   }
 }
