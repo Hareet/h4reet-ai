@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-22
 
-**Status**: Draft, from the specify pass of 2026-10-22, revised the same day after its review. Two needs-clarification markers remain (Q1 and Q2, under Open Questions), plus one clarification recorded during the review (Clarifications).
+**Status**: Draft, clarified on 2026-10-22: one answer during the specify review, then the Author's answers to Q1, Q2, and Confirmations 1 to 20 (Clarifications). No needs-clarification marker remains.
 
 **Input**: [`intent.md`](intent.md) in this folder (moved from `intent/004-room-pieces.md`; accepted 2026-10-22, with the Author's answers of that day). Also read: the [constitution](../../.specify/memory/constitution.md) 1.0.1 and `CLAUDE.md`; the reviewed design page "Room Compositor" of 2026-10-21 (outside this repository; each item of its "What the review changed" list is carried by an FR; the plan's research.md records the studio checks' conclusions this spec relies on, with their dates), its design synthesis, and its three skeptics' reviews (constitution and privacy; spec 003's intake and the studio; runtime, accessibility, and testing); the studio checks of 2026-10-22 (the Langfuse name, the per-call cost, the chalkboard typeface, the photos and the guard) and the contract the studio's session was given that day; spec 001 as drafted on `spec/001-cloud-elevation` (its spec, plan, data model, and the relay-http and public-view contracts); spec 002 on the `feat/002-*` branches (its spec, data model, and the room-scene, room-conversation, room-events, resume-source, and web-serving contracts) and intent 002; spec 003 on the `feat/003-*` branches (its spec, data model, and the arrival-check, asset-record, and site-loading contracts) and intent 003; ADR 0010 (proposed) and the ADR index; and, from `main`, [intent 000](../../intent/000-ai-twin-portfolio.md), the [data-flow disclosure](../../docs/data-flow-disclosure.md), `config/routing.yaml`, `config/prices.yaml`, `config/budgets.yaml`, and `corpus/`.
 
@@ -15,6 +15,14 @@ Summary: the room stops being code. Each kind of piece is a catalog entry, each 
 ### Session 2026-10-22 (during the specify review)
 
 - Q: Does the chalkboard join answer 8's stylized scale? → A: "Yes, chalkboard can get stylized scale too" (the Author).
+
+### Session 2026-10-22 (after the specify pass)
+
+The Author answered the two questions and twenty confirmations, as this spec's Open Questions worded them, in one line: "yes to all, go ahead".
+
+- Q: How does the reference phone reach the lookdev page? (FR-069) → A: "A (recommended)", which read: "Copy, don't connect, as FR-069 says". Reading: no listener, forward, USB debugging, ADR, or deviation. The plan confirms the phone's browser runs a local file with WebGL 2; if it can't, option B is the fallback, and the plan records that departure from the intent's order for the Author.
+- Q: Which pose do resting, budget, and unavailable show? (FR-043) → A: "A (recommended)", which read: "The pose unknown, paused, and not-live share, the plug resting on the desk, told apart by their sentences in the text copy".
+- Q: Confirmations 1 to 12, and the defaults 13 to 20 → A: yes to each, as worded.
 
 ## Source: The Author's Words
 
@@ -319,7 +327,7 @@ Terms used below. **Piece**: one kind of physical thing, described by a catalog 
   | 10 | anything else | unknown |
 
 - **FR-042**: THE CHARGER SHALL show plugged in only WHILE the tier is local. The freshness window is 35 seconds by default, configuration, and at least the poll interval plus the request timeout. A request in flight SHALL NOT change the tier. WHEN a status request fails in any way, THE TIER SHALL become unknown at once. WHEN the room resumes, or the page becomes visible again, THE ROOM SHALL reduce the tier before the next frame, then request once only if no backoff or `Retry-After` wait is running and the last request began at least one poll interval ago; otherwise it SHALL keep its schedule.
-- **FR-043**: THE LAPTOP'S SWITCH SHALL have a case for every tier value, and THE TEXT COPY a sentence for each. UNKNOWN, PAUSED, AND NOT-LIVE SHALL share one pose of their own, distinct from the plugged and the cloud poses (the intent: "its own, distinct pose"). THE COMPOSITOR SHALL refuse a scene in which any value but local can show the plugged pose, or in which unknown, paused, or not-live can show the cloud pose. [NEEDS CLARIFICATION: Which pose do the degraded classes (resting, budget, unavailable) show? Recommended: the pose unknown, paused, and not-live share, the plug resting on the desk, told apart by their sentences; the alternative shows the cloud pose for them whenever `local_tier` is "down". Open Questions, Q2.]
+- **FR-043**: THE LAPTOP'S SWITCH SHALL have a case for every tier value, and THE TEXT COPY a sentence for each. UNKNOWN, PAUSED, AND NOT-LIVE SHALL share one pose of their own, distinct from the plugged and the cloud poses (the intent: "its own, distinct pose"), and THE DEGRADED CLASSES (resting, budget, unavailable) SHALL show that shared pose too, told apart by their sentences in the text copy (Q2, answered 2026-10-22). THE COMPOSITOR SHALL refuse a scene in which any value but local can show the plugged pose, or in which any value but cloud can show the cloud pose.
 - **FR-044**: WHILE the visitor has entered the room, the page is visible, the room isn't paused, and the live source is on, THE ROOM SHALL request `GET /api/status` from its own origin every 30 seconds by default (configuration), with no query string, extra header, or credentials, uncached, and with a 5-second timeout. After a failure it SHALL double its wait, up to 120 seconds, and after a 429 wait at least its `Retry-After`. After a valid answer, the wait SHALL return to the poll interval. It SHALL store nothing, and SHALL make no request before the visitor enters the room.
 - **FR-045**: WHILE the live source is off, THE ROOM SHALL make no status request and SHALL show the not-live state. THE LIVE SOURCE SHALL be switched on only in the change that serves `GET /api/status` on the room's origin (spec 001), together with the disclosure change of FR-074.
 
@@ -365,7 +373,7 @@ Terms used below. **Piece**: one kind of physical thing, described by a catalog 
 - **FR-066**: THE LOOKDEV PAGE AND THE FIXTURES SHALL be built only into drafts builds, never into prod's image. THE RELEASE STEP SHALL refuse a bundle that holds fixtures, the lookdev page, or draft text (Amendment A5).
 - **FR-067**: THE LOOKDEV PAGE SHALL run the production scene and runtime at the production framing on both reference stages, with the real quality controller, the desk close-up as a secondary view, and controls for the look, the sample state, quality, and pause. Its file picker SHALL load a candidate model into memory only, never into the repository, and the page SHALL show its fit findings, the frame time's p50 and p95, the median frame rate, the share of frames over 33 ms, the settled quality level, draw calls, triangles, texture memory, and the smallest glyph height.
 - **FR-068**: THE LOOKDEV PAGE'S FIT CHECK SHALL be the compositor's own code. It SHALL report "not scrubbed" for a file without spec 003's mark. THE PAGE SHALL show the loaded file's SHA-256, and THE AUTHOR SHALL approve only that hash.
-- **FR-069**: WHEN the Author measures the look on the reference phone, THE LOOKDEV RUN SHALL open no path into the host by default: the phone runs a self-contained drafts build of the vignette, copied to it with the scrubbed candidates while its backup and sync stay paused (FR-026), opened with no network, the candidates loaded through its file picker, and all of it deleted after the session. [NEEDS CLARIFICATION: How does the reference phone reach the lookdev page? Recommended: copy, don't connect, as above; the plan confirms the phone's browser runs a local file with WebGL 2. The alternatives are desktop-only lookdev until publication, or a USB forward, which is a deviation. Open Questions, Q1.]
+- **FR-069**: WHEN the Author measures the look on the reference phone, THE LOOKDEV RUN SHALL open no path into the host by default: the phone runs a self-contained drafts build of the vignette, copied to it with the scrubbed candidates while its backup and sync stay paused (FR-026), opened with no network, the candidates loaded through its file picker, and all of it deleted after the session. (Q1, answered 2026-10-22.) IF the phone's browser can't run the local file, THEN lookdev SHALL run on the desktop at the phone's stage size and pixel ratio (Q1's option B), and the plan SHALL record that departure from the intent's order for the Author.
 - **FR-070**: THE FIRST LOOKDEV RUN SHALL use the intent's vignette: the desk, the monitor and its terminal, the neon sign's glow, the laptop's cable states, one sign, a corner of the chalkboard, and a bicycle wheel, on stand-ins plus the studio's desk and one sign, made with flat colours and no baked shading. THE LOOK SHALL be recorded in ADR 0010, and the work orders regenerated from it, before the remaining pieces are modeled.
 
 **Telemetry and the dashboard**
@@ -488,7 +496,7 @@ Answer 10 took the recommendation that "A new spec 004 owns the composition and 
 - **What "local" means:** a hello sent now would be answered by the local tier, since the relay's check is the local gateway's own verdict. It says nothing about whether a topic is ready, which is why the sentences speak about the machine (FR-035).
 - **The cost is the gateway's estimate** from `config/prices.yaml`, not the provider's bill, hence "est.". In a rare case the meter later charges more than the reply said (a reservation that expires before its commit lands); the sign doesn't follow that.
 - **Langfuse's name.** The check of 2026-10-22 (a research reading, not legal advice) calls plain 'Langfuse' in text 'normal nominative use', but as the glowing title over the counters 'the word claims Langfuse is where the numbers come from' and 'leans toward the "sponsorship, endorsement" impression the brand page forbids'. Its recommendation was a neon word that says what the numbers are ('COST' or 'SPEND'). Answer 6 asks for "Langfuse", which the check calls 'defensible but less clear at a glance' with a visible second label; FR-046, FR-047, and FR-049 carry its conditions. The counters are the gateway's figures, the same figure Langfuse records on each call's trace; Langfuse never sees a visit's total, and the room never reads Langfuse. "Claude Code" and "Claude" on the monitor are plain product names in the same way.
-- **The poses.** The intent's "its own, distinct pose" and the adopted skeptic fix ("a third pose for unknown or not live") settle one shared pose for unknown, paused, and not-live (FR-043). Only the degraded classes are open (Q2). Each value keeps its own switch case, so splitting a pose later is a data edit.
+- **The poses.** The intent's "its own, distinct pose" and the adopted skeptic fix ("a third pose for unknown or not live") settle one shared pose for unknown, paused, and not-live (FR-043), and the Author's answer to Q2 gives the degraded classes that pose too (Clarifications, 2026-10-22). Each value keeps its own switch case, so splitting a pose later is a data edit.
 - **No local status endpoint.** Before spec 001, the room stays not-live everywhere; afterwards, the Author's own local-tier room, whose `edge` answers 404 under `/api/`, reads unknown. The design's alternative, a status endpoint on the local stack, would need its own span, panel, and disclosure row, and isn't taken.
 
 **Where this spec differs from the studio's contract of 2026-10-22.** The spec agrees with the studio's contract of 2026-10-22, and is stricter in the compositor's checks: three refused `KHR_materials_*` extensions (FR-015), the name rule for objects and meshes only, with digits allowed (FR-018), the 1 mm, 1°, and size tolerances (FR-017, FR-019), and the repository's caps on `main` as the authority (FR-053). The work orders list these before the window is modeled. The studio's own caps file keeps 12,000,000 gzip bytes as a soft budget of its own.
@@ -499,7 +507,7 @@ Answer 10 took the recommendation that "A new spec 004 owns the composition and 
 - **Spec 003's FR-040** ("each in the same change as its flow"), whose entry (c) is the studio's agent session's row (C8, FR-027), and spec 001's FR-040, which sets that rule for its own flows ("before the flow first happens"): the studio's agent sessions began on 2026-10-22, before the row existed. The row lands with this spec's first change, before publication (ADR 0013).
 - **Spec 003's FR-003 and the intent's Constraints** ("Spec 003's guard (T005) is applied before the first photo is staged"): the Author staged the room photos on 2026-10-22 under the user-level deny of the photos and key folders only; the outputs and workflows denies and every write deny land before the first studio output is brought in for intake (FR-077; Assumptions, "Already past").
 - **Inherited: local until publication** (ADR 0013). This spec is reviewed as a branch with a note in `docs/merge-requests/`, as specs 000 to 003 are.
-- **Conditional, on Q1's option C: Principle IV and spec 001's FR-052** ("THE local tier SHALL accept no inbound connection from outside its host"), as ADR 0021 reads the principle ("no inbound from outside the host"). A USB forward from the Author's phone to the dev stack reaches the host from outside it, so option C needs an ADR, an amendment row to FR-052, and row S1 changed, before first use.
+- **Not taken: Q1's option C.** The phone gets a copy and no inbound path, so there is no deviation from Principle IV or spec 001's FR-052 (Clarifications, 2026-10-22).
 - **Not a deviation:** the status polls carry no visitor data beyond the request itself, and the turn's cost travels back to the device in a reply it already gets.
 
 **The disclosure's row IDs** collide across the unmerged specs: spec 001's V1 to V5 and spec 002's V1 to V5 name different flows, and spec 003 adds its own. This spec names rows by spec and ID; one scheme is agreed before any of them merges (Confirmation 17).
@@ -525,7 +533,7 @@ Answer 10 took the recommendation that "A new spec 004 owns the composition and 
 | A status request fails, times out, is refused (429), or is malformed, or the last answer is stale | unknown, never plugged, at once | unchanged | works |
 | The room is paused, or the page hidden | paused (counts as unknown), or not-live while the live source is off; never plugged; no polls | counts the visitor's turns; glow still | motion stops; "Paused at <time>" |
 | The local tier is off, and the cloud fallback answers | the cloud pose | paid turns show their cost | works |
-| The kill switch has tripped, the budget is spent, or no path answers | the degraded classes' pose (Q2), never plugged | a turn reads "cost unavailable", and the visit "at least" from then (FR-048) | works; the conversation shows its fixed message |
+| The kill switch has tripped, the budget is spent, or no path answers | the shared pose, never plugged | a turn reads "cost unavailable", and the visit "at least" from then (FR-048) | works; the conversation shows its fixed message |
 | The conversation core doesn't exist yet | as the tier | "cost unavailable" | every topic says it can't talk yet |
 | A piece's model fails to load | its stand-in, still bound to its state | its stand-in | works; an asset event |
 | No 3D, or the room falls to 2D | the 2D vector drawing of the current case, with its cable run | a still image, redrawn on change | the 2D room |
@@ -554,7 +562,7 @@ Applied with the `constitution-check` skill's questions against constitution 1.0
 | I. Data-local by default | Yes | FR-027, FR-074, and the table above; FR-075; FR-024 to FR-026; FR-057 to FR-062; FR-013; no visitor biometrics. Deviations: the studio session's row comes after its first sessions, and the rest of the guard after the first photos (Deviations). |
 | II. Production-grade or not shipped | Yes | SC-001 to SC-015; FR-071, FR-072; FR-073 and Expected Cost Impact; no new alert, so no new runbook entry. The topics' evals are the twin's (Amendment B4). Deviation: no production series until spec 001 (Deviations). |
 | III. Intent before spec, spec before code, humans merge | Yes | From the accepted intent 004; amendments named, not edited in (answer 10); ADRs 0010, 0030, and the composition's; the Author's patches in order (FR-077). Deviation: inherited, local until publication (ADR 0013; Deviations). |
-| IV. Least privilege | Yes | FR-025, FR-077; FR-030 and FR-053 keep privacy, approvals, and caps in human-only checks and files. Nothing is widened unless Q1 takes option C (Deviations). |
+| IV. Least privilege | Yes | FR-025, FR-077; FR-030 and FR-053 keep privacy, approvals, and caps in human-only checks and files. Nothing is widened (Q1 took option A). |
 | V. Cost is a first-class signal | Yes | FR-076; FR-047 to FR-050; FR-053; Expected Cost Impact. |
 | VI. Build in public, including failures | Yes | FR-012, FR-024: the catalog, work orders, records, and room text are public; the photos and the studio's working files aren't. |
 | VII. Own the whole product, and say exactly what you owned | Yes | The Author's part is quoted from the intent (User Scenarios); the studio agent's share is recorded per step (C1, C8), in its contract's words. C2, C5. |
@@ -563,9 +571,13 @@ Applied with the `constitution-check` skill's questions against constitution 1.0
 
 ## Open Questions for `/speckit-clarify`
 
-Two questions carry needs-clarification markers: Q1 (FR-069), on security, and Q2 (FR-043), on what the room shows. Everything else the intent leaves open takes a recommended default under Confirmations, each naming the intent question it answers; the intent's question 4 is settled by answer 3 (Assumptions, "The corpus").
+Both questions and all twenty confirmations were answered on 2026-10-22, each with its recommended option (Clarifications). The text below stays because the Clarifications quote it.
+
+Two questions carried needs-clarification markers: Q1 (FR-069), on security, and Q2 (FR-043), on what the room shows. Everything else the intent left open took a recommended default under Confirmations, each naming the intent question it answers; the intent's question 4 is settled by answer 3 (Assumptions, "The corpus").
 
 ### Question 1: How the reference phone reaches the lookdev page (FR-069)
+
+Answered: A.
 
 **Context**: The intent: "Lookdev settles the look on a small vignette, at the room's real framing, on a reference phone", and answer 10 puts the fit check "in the lookdev page". The page lives in the dev stack's drafts image, published on the host's `127.0.0.1` only. Principle IV says the local tier "accepts no inbound connections", spec 001's FR-052 says "THE local tier SHALL accept no inbound connection from outside its host", and ADR 0021, which is proposed, reads the principle as "no inbound from outside the host" and leaves the host boundary to spec 001's tunnel. Disclosure row S1 says requests come from "the Author's own terminal or browser, on the same host". The review found that the design's phone loop also moved unscrubbed files to the phone.
 
@@ -579,6 +591,8 @@ Two questions carry needs-clarification markers: Q1 (FR-069), on security, and Q
 | Custom | Another route | Name it, and its disclosure row. |
 
 ### Question 2: What the laptop shows when nobody is answering (FR-043)
+
+Answered: A.
 
 **Context**: The Author: "plugged in, only when we are running locally, and unplugged when it has failed over to the cloud". The intent gives unknown, paused, and not-live "its own, distinct pose", which FR-043 settles as one shared pose, and says "Unknown means degraded". It says nothing of the degraded classes, when the kill switch has tripped, the day's budget is used, or no path answers, and the review found that drawing those like a failover makes a false claim.
 

@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain. Two remain for the Author: Q1 (FR-069), how the reference phone reaches lookdev; and Q2 (FR-043), the pose for the degraded classes.
+- [x] No [NEEDS CLARIFICATION] markers remain. Q1 and Q2 were answered on 2026-10-22 (Clarifications).
 - [x] Requirements are testable and unambiguous. They are in EARS form, and each states a pass condition (verified 2026-10-22).
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details). They measure outcomes. A few name the repository's own gates (`make check`, the forbidden-action matrix), as the house style does.
@@ -35,5 +35,5 @@
   - **Draft 2b47aab.** The first draft.
   - **One review pass, then revision 1 (595e471).** Four read-only reviewers checked the draft against the constitution, the intent, testability, and the other specs. The Author answered one question during the review: "Yes, chalkboard can get stylized scale too".
   - **A verification workflow, then revision 2 (3209951).** Four item verifiers and three regression lenses checked revision 1, and a skeptic per checker tried to refute each finding. 37 findings were confirmed, none of them blockers. The clarify-readiness lens judged the spec ready once the majors were fixed, and revision 2 fixes them.
-- **What remains before `/speckit-plan`:** only the two markers, which the Author answers next.
+- **What remains before `/speckit-plan`:** nothing in this checklist; `/speckit-clarify` runs next.
 - **Size:** about 107 KB; spec 001 is 93 KB. The reviewers' cuts that lose no requirement are applied.
