@@ -758,6 +758,27 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     expect(collapse(root.querySelector(".lookdev-results")?.textContent)).not.toContain("Lookdev results");
   });
 
+  it("stops a run when the page is hidden, which draws no frames, with no results, and says why", async () => {
+    // The review's page-3: the phone's screen times out mid-run; its frames stop, and the run's timer runs on.
+    const { root, clock, doc } = open();
+    buttonNamed(root, "Run 10 minutes").click();
+    await settle(clock);
+    clock.advance(30_000, 16);
+    Object.defineProperty(doc, "visibilityState", { configurable: true, value: "hidden" });
+    Object.defineProperty(doc, "hidden", { configurable: true, value: true });
+    doc.dispatchEvent(new (doc.defaultView as TestWindow).Event("visibilitychange"));
+    clock.advance(600_000, Number.MAX_SAFE_INTEGER);
+    await settle();
+    expect(root.querySelector("textarea")).toBeNull();
+    const text = collapse(root.querySelector(".lookdev-results")?.textContent);
+    expect(text).not.toContain("Lookdev results");
+    expect(text).toMatch(/stopped early/);
+    expect(text).toMatch(/hidden/);
+    expect(text).toMatch(/screen on/);
+    expect(buttonNamed(root, "Run 10 minutes").disabled).toBe(false);
+    expect(buttonNamed(root, "Stop the run").disabled).toBe(true);
+  });
+
   it("records the probe in the phone copy's results", async () => {
     const probe: Probe = {
       webgl2: true,
