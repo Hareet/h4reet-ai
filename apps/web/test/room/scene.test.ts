@@ -51,6 +51,7 @@ import {
   standinLabel,
 } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
+import { VISITOR_TURN, visitorTurnShare } from "../../src/room/handoff";
 import { shapeGeometry } from "../../src/room/scene/standins";
 import { FakeClock, enter, repositoryBundle, start } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
@@ -62,6 +63,24 @@ const text = (path: string): string => decoder.decode(goodFiles().get(path));
 const SCENE = "apps/web/room/scene.yaml";
 const strict = { mode: "strict", drafts: false } as const;
 const good = (): ComposeResult => compose(goodTree(), noPolicy(), strict);
+const TWIN = "apps/web/room/catalog/fx-twin.yaml";
+const VISITOR = "apps/web/room/catalog/fx-visitor.yaml";
+/** The fixture set mirrored: its twin stands on the visitor's left, its hand on its right, and the visitor's hand
+ *  anchor, where the paper goes, on its left, the side nearer the twin. The fixture itself stands its twin on the
+ *  visitor's right, as the Author's room does. */
+const mirrored = (): ComposeResult =>
+  compose(
+    overlay({
+      [SCENE]: text(SCENE).replace(
+        "mount: { on: fx-desk, anchor: top, offset: [0.48, 0, 0.12] }",
+        "mount: { on: fx-desk, anchor: top, offset: [-0.48, 0, 0.12] }",
+      ),
+      [TWIN]: text(TWIN).replace("hand: { at: [-0.1, 0.25, 0.05] }", "hand: { at: [0.1, 0.25, 0.05] }"),
+      [VISITOR]: text(VISITOR).replace("hand: { at: [0.1, 0.25, 0.05] }", "hand: { at: [-0.1, 0.25, 0.05] }"),
+    }),
+    noPolicy(),
+    strict,
+  );
 
 /** A label with no renderer: an empty node named for the words it would draw, as spec 002's are. */
 function named(words: string): Object3D {
@@ -331,26 +350,34 @@ describe("the object tree (buildRoom)", () => {
     expectClose(after.anchors.twinHand.toArray(), before.anchors.twinHand.toArray(), 1e-12);
   });
 
-  it("ends the paper in each avatar's own hand, as spec 002 placed it from the avatar's size, offset from the anchor", () => {
-    // Spec 002's hand: left of the figure's centre by 35% of its width, at 60% of its height but never above 0.95 m.
-    const hand = (avatar: AvatarId): Vec3 => {
+  it("ends the paper in each avatar's own hand on the anchor's side, as spec 002 placed it from the avatar's size", () => {
+    // Spec 002's hand: off the figure's centre by 35% of its width, at 60% of its height but never above 0.95 m, on
+    // the side of the scene's anchor, which the data puts nearer the twin: right in the fixture, left mirrored.
+    const hand = (avatar: AvatarId, side: number): Vec3 => {
       const { width, height } = AVATAR_SHAPES[avatar];
-      return [-width * 0.35, Math.min(0.95, height * 0.6), 0];
+      return [side * width * 0.35, Math.min(0.95, height * 0.6), 0];
     };
-    const first = hand(AVATARS[0].id);
+    const sideOf = (part: RoomScene): number => {
+      const visitor = placementOf(part, part.figures.visitor);
+      return (part.pieces[visitor.piece]?.anchors[part.handoff.to.anchor]?.at[0] ?? 0) > 0 ? 1 : -1;
+    };
     // The visitor turned a little on its mount, so the offset is the visitor's own, not the world's.
     const turned = text(SCENE).replace(
       "mount: { on: fx-shell, anchor: floor, offset: [0, 0, 0.8] }",
       "mount: { on: fx-shell, anchor: floor, offset: [0, 0, 0.8], turn: { y: 20 } }",
     );
     expect(turned).not.toBe(text(SCENE));
-    for (const result of [good(), compose(overlay({ [SCENE]: turned }), noPolicy(), strict)]) {
+    const sides: number[] = [];
+    for (const result of [good(), compose(overlay({ [SCENE]: turned }), noPolicy(), strict), mirrored()]) {
       expect(result.findings).toEqual([]);
       const part = result.scene;
+      const side = sideOf(part);
+      sides.push(side);
+      const first = hand(AVATARS[0].id, side);
       const visitor = resolved(part).world.get(part.figures.visitor) ?? IDENTITY;
       const at = anchorPoint(part, part.handoff.to);
       for (const { id } of AVATARS) {
-        const own = hand(id);
+        const own = hand(id, side);
         const offset = transformDirection(visitor, [own[0] - first[0], own[1] - first[1], own[2] - first[2]]);
         const room = build(result, id);
         expectClose(
@@ -370,8 +397,12 @@ describe("the object tree (buildRoom)", () => {
       [1, 0, 0],
     );
     expect(across[0]).toBeCloseTo(Math.cos((20 * Math.PI) / 180), 9);
-    // The dog's hand is 576 mm below the first avatar's, which a single anchor would leave in the air.
-    expect(hand("dog")[1] - first[1]).toBeCloseTo(-0.576, 9);
+    expect(sides).toEqual([1, 1, -1]);
+    // The dog's hand is 576 mm below the first avatar's, which a single anchor would leave in the air, and the man's
+    // 21 mm nearer its centre than the first avatar's, on the anchor's side, either side.
+    expect(hand("dog", 1)[1] - hand(AVATARS[0].id, 1)[1]).toBeCloseTo(-0.576, 9);
+    expect(hand("man", 1)[0] - hand(AVATARS[0].id, 1)[0]).toBeCloseTo(-0.021, 9);
+    expect(hand("man", -1)[0] - hand(AVATARS[0].id, -1)[0]).toBeCloseTo(0.021, 9);
   });
 
   it("refuses a 3D part whose digest isn't the index's, so the room falls to 2D as for a failed load", () => {
@@ -462,6 +493,54 @@ describe("the object tree (buildRoom)", () => {
 });
 
 describe("the hand-off in 3D", () => {
+  /** Where a world point lies across a figure, in its own frame: above 0 on its right (+X), below 0 on its left. */
+  const across = (figure: Object3D, point: Vector3): number => {
+    const frame = figure.parent;
+    if (!frame) return point.x;
+    frame.updateWorldMatrix(true, false);
+    return frame.worldToLocal(point.clone()).x;
+  };
+
+  for (const [setting, result] of [
+    ["the twin on the visitor's right", good],
+    ["the twin on the visitor's left", mirrored],
+  ] as const) {
+    it(`turns the visitor toward the twin to take the paper, then back, and the twin toward the visitor, ${setting}`, () => {
+      const composed = result();
+      expect(composed.findings).toEqual([]);
+      for (const { id } of AVATARS) {
+        const room = build(composed, id);
+        // The paper comes from the twin's hand, and the visitor's own hand waits on the twin's side (the data's).
+        const towardTwin = Math.sign(across(room.visitor, room.anchors.twinHand));
+        const towardVisitor = Math.sign(across(room.twin, room.anchors.visitorHand));
+        expect(towardTwin).toBe(setting.endsWith("right") ? 1 : -1);
+        expect(towardVisitor).toBe(-towardTwin);
+        expect(Math.sign(across(room.visitor, room.anchors.visitorHand)), id).toBe(towardTwin);
+        showHandoff(room, 0, false);
+        expect([room.visitor.rotation.y, room.twin.rotation.y]).toEqual([0, 0]);
+        // A positive turn about +Y brings a figure's front, +Z, toward its +X: each turns toward the other.
+        showHandoff(room, 0.5, false);
+        expect(room.visitor.rotation.y, id).toBeCloseTo(towardTwin * VISITOR_TURN, 12);
+        expect(room.twin.rotation.y, id).toBeCloseTo(towardVisitor * 0.45, 12);
+        // Then back, once the paper is in its hand.
+        showHandoff(room, 1, false);
+        expect(room.visitor.rotation.y, id).toBeCloseTo(0, 12);
+        expect(room.twin.rotation.y, id).toBeCloseTo(0, 12);
+        // Under reduced motion, nothing turns.
+        showHandoff(room, 0.5, true);
+        expect([room.visitor.rotation.y, room.twin.rotation.y]).toEqual([0, 0]);
+      }
+    });
+  }
+
+  it("turns the visitor only as the paper nears its hand: none at first, all of it by the middle", () => {
+    expect([0, 0.2, 0.5, 0.8, 1].map(visitorTurnShare)).toEqual([0, 0, 1, 1, 0]);
+    expect(visitorTurnShare(0.35)).toBeCloseTo(0.5, 12);
+    expect(visitorTurnShare(0.9)).toBeCloseTo(0.5, 12);
+    expect(VISITOR_TURN).toBeGreaterThan(0);
+    expect(VISITOR_TURN).toBeLessThan(0.45);
+  });
+
   it("moves the paper from the twin's hand to the visitor's in an arc, the twin turning toward the visitor", () => {
     const room = build(good(), "man");
     const { twinHand, visitorHand } = room.anchors;
@@ -474,7 +553,8 @@ describe("the hand-off in 3D", () => {
       .lerp(visitorHand, 0.5)
       .add(new Vector3(0, 0.35, 0));
     expectClose(position(room.paper.sheet), middle.toArray(), 1e-9, "at the middle");
-    expect(room.twin.rotation.y).toBeCloseTo(0.45, 12);
+    // The fixture's twin stands on the visitor's right, so it turns to its own left.
+    expect(room.twin.rotation.y).toBeCloseTo(-0.45, 12);
     showHandoff(room, 1, false);
     expectClose(position(room.paper.sheet), visitorHand.toArray(), 1e-9, "at the end");
     expect(room.twin.rotation.y).toBeCloseTo(0, 12);
@@ -489,7 +569,7 @@ describe("the hand-off in 3D", () => {
     expectClose(position(room.paper.sheet), start, 1e-12);
     expect(room.paper.atTwin.opacity).toBeCloseTo(0.5);
     expect(room.paper.atVisitor.opacity).toBeCloseTo(0.5);
-    expect(room.twin.rotation.y).toBe(0);
+    expect([room.twin.rotation.y, room.visitor.rotation.y]).toEqual([0, 0]);
     showHandoff(room, 1, true);
     expect([room.paper.atTwin.opacity, room.paper.atVisitor.opacity]).toEqual([0, 1]);
   });

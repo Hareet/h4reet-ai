@@ -26,17 +26,40 @@ import type { PickArea, PickInput, Rect } from "../../src/room/compose/pick";
 import { FLAT_VIEW, REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, flatScale } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import { drawFlat, flatPicker, renderFlat } from "../../src/room/flat";
-import { FLAT_FRAMES } from "../../src/room/handoff";
+import { FLAT_FRAMES, VISITOR_TURN } from "../../src/room/handoff";
 import { standinLabel } from "../../src/room/scene/bundle3d";
 import { enter, parseCss, start, stylesheets } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
-import { goodTree } from "../helpers/room-fixtures";
+import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 
 type Point = readonly [number, number];
 
 let composed: ComposeResult | null = null;
 /** The fixture set, composed once a file, as a release build in strict mode. */
 const fixture = (): ComposeResult => (composed ??= compose(goodTree(), noPolicy(), { mode: "strict", drafts: false }));
+const fixtureText = (path: string): string => new TextDecoder().decode(goodFiles().get(path));
+let composedMirror: ComposeResult | undefined;
+/** The fixture set mirrored: its twin on the visitor's left, its hand on its right, and the visitor's hand anchor on
+ *  its left, the side nearer the twin; the fixture itself stands its twin on the visitor's right. */
+const mirrored = (): ComposeResult =>
+  (composedMirror ??= compose(
+    overlay({
+      "apps/web/room/scene.yaml": fixtureText("apps/web/room/scene.yaml").replace(
+        "mount: { on: fx-desk, anchor: top, offset: [0.48, 0, 0.12] }",
+        "mount: { on: fx-desk, anchor: top, offset: [-0.48, 0, 0.12] }",
+      ),
+      "apps/web/room/catalog/fx-twin.yaml": fixtureText("apps/web/room/catalog/fx-twin.yaml").replace(
+        "hand: { at: [-0.1, 0.25, 0.05] }",
+        "hand: { at: [0.1, 0.25, 0.05] }",
+      ),
+      "apps/web/room/catalog/fx-visitor.yaml": fixtureText("apps/web/room/catalog/fx-visitor.yaml").replace(
+        "hand: { at: [0.1, 0.25, 0.05] }",
+        "hand: { at: [-0.1, 0.25, 0.05] }",
+      ),
+    }),
+    noPolicy(),
+    { mode: "strict", drafts: false },
+  ));
 
 function page(): { win: TestWindow; doc: Document } {
   const win = new JSDOM("<main></main>", { pretendToBeVisual: true }).window as unknown as TestWindow;
@@ -172,11 +195,11 @@ function tap(win: TestWindow, el: Element, [clientX, clientY]: Point, pointerTyp
 
 // ---- The hand-off (FR-008) ----
 
-/** Spec 002's hand on an avatar's flat cut-out, from its feet, in metres: left of its centre by 35% of its width, and
- *  up 60% of its height, never above 0.95 m. */
-function hand(avatar: AvatarId): Point {
+/** Spec 002's hand on an avatar's flat cut-out, from its feet, in metres: off its centre by 35% of its width on a side
+ *  (−1 left, +1 right), and up 60% of its height, never above 0.95 m. */
+function hand(avatar: AvatarId, side: number): Point {
   const { width, height } = AVATAR_SHAPES[avatar];
-  return [-width * 0.35, Math.min(0.95, height * 0.6)];
+  return [side * width * 0.35, Math.min(0.95, height * 0.6)];
 }
 
 const paperCentre = (paper: Element | undefined): number[] => [
@@ -454,35 +477,77 @@ describe("the drawing (drawFlat)", () => {
     }
   });
 
-  it("puts the paper at the index's three positions, the first avatar's, moved to each avatar's own hand", () => {
-    const { doc } = page();
-    const { index } = fixture();
-    const { papers, visitor } = index.flat;
-    const first = hand(AVATARS[0].id);
-    for (const { id } of AVATARS) {
-      const drawing = drawFlat(doc, index, id);
-      expect(drawing.papers).toHaveLength(FLAT_FRAMES);
-      // The cut-out stands square to the view at the visitor's scale, so the paper in its hand moves by the hand's
-      // offset at that scale, y down; the paper between the two hands moves half as far.
-      const own = hand(id);
-      const offset = [(own[0] - first[0]) * visitor.scale, -(own[1] - first[1]) * visitor.scale];
-      papers.forEach((p, k) =>
-        expectClose(
-          paperCentre(drawing.papers[k]),
-          [p[0] + (offset[0] ?? 0) * (k / 2), p[1] + (offset[1] ?? 0) * (k / 2)],
-          1e-9,
-          `${id}'s paper ${k}`,
-        ),
-      );
-      if (id === AVATARS[0].id)
-        drawing.papers.forEach((paper, k) => expectClose(paperCentre(paper), papers[k] ?? [], 1e-9));
-    }
-    // The dog holds it 576 mm lower than the first avatar, at the visitor's scale: one anchor would leave it in the
-    // air.
-    const dog = drawFlat(doc, index, "dog");
-    expect(hand("dog")[1] - first[1]).toBeCloseTo(-0.576, 9);
-    expect((paperCentre(dog.papers[2])[1] ?? 0) - papers[2][1]).toBeCloseTo(0.576 * visitor.scale, 6);
-  });
+  for (const [setting, result] of [
+    ["the twin on the visitor's right", fixture],
+    ["the twin on the visitor's left", mirrored],
+  ] as const) {
+    it(`puts the paper at the index's three positions, moved to each avatar's own hand on the anchor's side, ${setting}`, () => {
+      const { doc } = page();
+      const { index, findings } = result();
+      expect(findings).toEqual([]);
+      const { papers, visitor } = index.flat;
+      // The paper ends where the data's anchor is, the first avatar's hand on the side nearer the twin.
+      const side = setting.endsWith("right") ? 1 : -1;
+      expect(Math.sign(papers[2][0] - visitor.x)).toBe(side);
+      expect(Math.sign(papers[0][0] - visitor.x)).toBe(side);
+      const first = hand(AVATARS[0].id, side);
+      for (const { id } of AVATARS) {
+        const drawing = drawFlat(doc, index, id);
+        expect(drawing.papers).toHaveLength(FLAT_FRAMES);
+        // The cut-out stands square to the view at the visitor's scale, so the paper in its hand moves by the hand's
+        // offset at that scale, y down; the paper between the two hands moves half as far.
+        const own = hand(id, side);
+        const offset = [(own[0] - first[0]) * visitor.scale, -(own[1] - first[1]) * visitor.scale];
+        papers.forEach((p, k) =>
+          expectClose(
+            paperCentre(drawing.papers[k]),
+            [p[0] + (offset[0] ?? 0) * (k / 2), p[1] + (offset[1] ?? 0) * (k / 2)],
+            1e-9,
+            `${id}'s paper ${k}`,
+          ),
+        );
+        if (id === AVATARS[0].id)
+          drawing.papers.forEach((paper, k) => expectClose(paperCentre(paper), papers[k] ?? [], 1e-9));
+      }
+      // The dog holds it 576 mm lower than the first avatar, at the visitor's scale: one anchor would leave it in the
+      // air; and the man 21 mm nearer his centre, on the anchor's side.
+      const dog = drawFlat(doc, index, "dog");
+      expect(hand("dog", side)[1] - first[1]).toBeCloseTo(-0.576, 9);
+      expect((paperCentre(dog.papers[2])[1] ?? 0) - papers[2][1]).toBeCloseTo(0.576 * visitor.scale, 6);
+      const man = drawFlat(doc, index, "man");
+      expect((paperCentre(man.papers[2])[0] ?? 0) - papers[2][0]).toBeCloseTo(-side * 0.021 * visitor.scale, 6);
+    });
+
+    it(`turns the visitor toward the twin in the middle frame and back in the last, for every avatar, ${setting}`, () => {
+      const { doc } = page();
+      const { index } = result();
+      const { visitor } = index.flat;
+      const side = setting.endsWith("right") ? 1 : -1;
+      for (const { id } of AVATARS) {
+        const stage = renderFlat(doc, { room: index, avatar: id, select: () => undefined });
+        const cutout = stage.drawing.visitor;
+        // Outside the hand-off, and in its first frame, the cut-out stands square to the view.
+        expect(cutout.getAttribute("transform"), id).toBeNull();
+        stage.showHandoff(0);
+        expect(cutout.getAttribute("transform"), id).toBeNull();
+        stage.showHandoff(0.5);
+        const m = matrixOf(cutout);
+        expect(m, id).not.toBeNull();
+        const [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0] = m ?? [];
+        const at = ([x, y]: Point): Point => [a * x + c * y + e, b * x + d * y + f];
+        // Its feet stay where they stand; it narrows to the cosine of the turn, as a flat figure turning about its
+        // feet does seen from the front; and its head leans toward the twin, where the paper comes from.
+        expectClose(at([visitor.x, visitor.baseline]), [visitor.x, visitor.baseline], 1e-9, `${id}'s feet`);
+        expect(a, id).toBeCloseTo(Math.cos(VISITOR_TURN), 9);
+        expect([b, d], id).toEqual([0, 1]);
+        const head: Point = [visitor.x, visitor.baseline - AVATAR_SHAPES[id].height * visitor.scale];
+        expect(Math.sign(at(head)[0] - head[0]), id).toBe(side);
+        stage.showHandoff(1);
+        expect(cutout.getAttribute("transform"), id).toBeNull();
+        stage.dispose();
+      }
+    });
+  }
 });
 
 describe("the 2D stage (renderFlat)", () => {
