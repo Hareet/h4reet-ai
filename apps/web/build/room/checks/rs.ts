@@ -98,7 +98,7 @@ function claimedTwice(ctx: Context): void {
 function shown(ctx: Context, file: string, { sw, i, claims }: Judged): void {
   if (!claims) return;
   for (const [value, pose] of Object.entries(sw.cases)) {
-    const claim = claims.get(pose);
+    const claim = has(sw.poses, pose) ? claims.get(pose) : undefined;
     if (isTier(value) && claim !== undefined && claim !== null && claim !== value)
       ctx.report("RS3", file, ctx.path("switches", i, "cases", value), `shows a pose that claims ${claim}`);
   }
@@ -134,7 +134,7 @@ function sharedPose(ctx: Context, file: string, { sw, i, claims }: Judged): void
     const reason = `another pose than the one ${SIX} share`;
     ctx.report("RS4", file, s.path, s.own ? `shows ${reason}` : `gives ${s.value} ${reason}`);
   }
-  const claim = claims?.get(shared.pose);
+  const claim = has(sw.poses, shared.pose) ? claims?.get(shared.pose) : undefined;
   if (claim !== undefined && claim !== null)
     ctx.report("RS4", file, shared.path, `the pose ${SIX} share claims ${claim}, where it claims nothing`);
 }

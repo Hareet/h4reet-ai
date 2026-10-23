@@ -262,6 +262,17 @@ describe("the switches' rules on the fixtures (RS1 to RS6)", () => {
       );
     });
 
+    it("leaves a case showing a pose the switch lacks to RI4 and RS2", () => {
+      const lacking = rs({
+        scene: (d) => {
+          delete at(power(d), "poses")["fx-cloud"];
+          at(power(d), "cases").budget = "fx-cloud";
+        },
+      });
+      expect(lacking.seen.filter((s) => s.startsWith("RS3"))).toEqual([]);
+      expect(lacking.seen).toContain(`RS2 ${SCENE}:switches[0].poses.fx-cloud`);
+    });
+
     it("refuses a case that passes over the pose claiming its value", () => {
       const passed = rs({ scene: (d) => (at(power(d), "cases").cloud = "fx-resting") });
       expect(passed.seen).toEqual([`RS3 ${SCENE}:switches[0].cases.cloud`]);
@@ -284,6 +295,16 @@ describe("the switches' rules on the fixtures (RS1 to RS6)", () => {
     it("refuses a shared pose that claims a value", () => {
       const claimed = rs({ plug: (d) => (at(d, "claims", "poses")["fx-resting"] = "unknown") });
       expect(claimed.seen).toContain(`RS4 ${SCENE}:switches[0].cases.unknown`);
+    });
+
+    it("leaves a shared pose the switch lacks to RI4 and RS2, its claim unjudged", () => {
+      const lacking = rs({
+        plug: (d) => (at(d, "claims", "poses")["fx-resting"] = "unknown"),
+        scene: (d) => {
+          delete at(power(d), "poses")["fx-resting"];
+        },
+      });
+      expect(lacking.found.filter((f) => f.rule === "RS4")).toEqual([]);
     });
 
     it("holds a piece that claims nothing to one shared pose too, its default among the six", () => {
