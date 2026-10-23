@@ -24,6 +24,7 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type * as RoomContentModule from "virtual:room-content";
 import type roomFixtures from "virtual:room-fixtures";
 import type roomLookdev from "virtual:room-lookdev";
+import type * as RoomLookdevModule from "virtual:room-lookdev";
 import type roomScene from "virtual:room-scene";
 
 import { readMessages } from "../../build/manifest";
@@ -299,10 +300,15 @@ describe("resolveId and load (contracts/room-bundle.md §3)", () => {
     const plugin = bundle(goodTree);
     const h = hookContext();
     callHook(plugin, "buildStart", h.context, {});
-    const drafts = compose(goodTree(), noPolicy(), { mode: "lenient", drafts: true }).drafts;
+    const { drafts, index } = compose(goodTree(), noPolicy(), { mode: "lenient", drafts: true });
     expect(drafts?.fixtures.length).toBeGreaterThan(0);
     expect(loadModule(plugin, h.context, "virtual:room-fixtures")).toEqual({ default: json(drafts?.fixtures) });
-    expect(loadModule(plugin, h.context, "virtual:room-lookdev")).toEqual({ default: json(drafts?.lookdev) });
+    // The lookdev page's own copy of the index, beside its inputs, as `room`: importing virtual:room-content would
+    // take the index out of the room's entry chunk in a drafts build (plan.md §10).
+    expect(loadModule(plugin, h.context, "virtual:room-lookdev")).toEqual({
+      default: json(drafts?.lookdev),
+      room: json(index),
+    });
   });
 });
 
@@ -416,5 +422,6 @@ describe("the modules' declarations (src/room/content.d.ts)", () => {
     expectTypeOf<typeof roomScene>().toEqualTypeOf<RoomScene>();
     expectTypeOf<typeof roomFixtures>().toEqualTypeOf<readonly RoomFixture[]>();
     expectTypeOf<typeof roomLookdev>().toEqualTypeOf<RoomLookdev>();
+    expectTypeOf<typeof RoomLookdevModule.room>().toEqualTypeOf<RoomIndex>();
   });
 });
