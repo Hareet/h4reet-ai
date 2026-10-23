@@ -299,20 +299,22 @@ export interface Composed {
 const ZERO_BOX: Box = { min: [0, 0, 0], max: [0, 0, 0] };
 const UP: Vec3 = [0, 1, 0];
 
+/** A box's eight corners. */
+function corners(b: Box): Vec3[] {
+  const out: Vec3[] = [];
+  for (const x of [b.min[0], b.max[0]])
+    for (const y of [b.min[1], b.max[1]]) for (const z of [b.min[2], b.max[2]]) out.push([x, y, z]);
+  return out;
+}
+
 /** The world box of a box under a transform: its eight corners' bounds. */
 function worldBox(m: Mat4, b: Box): Box {
-  const lo = [Infinity, Infinity, Infinity];
-  const hi = [-Infinity, -Infinity, -Infinity];
-  for (const x of [b.min[0], b.max[0]])
-    for (const y of [b.min[1], b.max[1]])
-      for (const z of [b.min[2], b.max[2]]) {
-        const p = transformPoint(m, [x, y, z]);
-        for (const i of [0, 1, 2] as const) {
-          lo[i] = Math.min(lo[i] as number, p[i]);
-          hi[i] = Math.max(hi[i] as number, p[i]);
-        }
-      }
-  return { min: lo as unknown as Vec3, max: hi as unknown as Vec3 };
+  const points = corners(b).map((p) => transformPoint(m, p));
+  const axis = (i: 0 | 1 | 2, f: (...values: number[]) => number): number => f(...points.map((p) => p[i]));
+  return {
+    min: [axis(0, Math.min), axis(1, Math.min), axis(2, Math.min)],
+    max: [axis(0, Math.max), axis(1, Math.max), axis(2, Math.max)],
+  };
 }
 
 const scaled = (b: Box, s: number): Box => ({
@@ -810,14 +812,8 @@ function viewBounds(prims: readonly Prim[], matrix: Matrix2D): Bounds2 {
 
 /** A box's nearest and farthest depths in front of a camera. */
 function depths(view: Projector, b: Box): { near: number; far: number } {
-  let [near, far] = [Infinity, -Infinity];
-  for (const x of [b.min[0], b.max[0]])
-    for (const y of [b.min[1], b.max[1]])
-      for (const z of [b.min[2], b.max[2]]) {
-        const d = view.depth([x, y, z]);
-        [near, far] = [Math.min(near, d), Math.max(far, d)];
-      }
-  return { near, far };
+  const all = corners(b).map((p) => view.depth(p));
+  return { near: Math.min(...all), far: Math.max(...all) };
 }
 
 /** §3.1's `flat`: the 2D room through framing(1.6), in the 320 × 200 view box. */

@@ -34,6 +34,7 @@ import { count, fixed } from "../../src/room/glb/rules";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { Composed, RoomReport, StageView } from "./emit";
 import { formatPath } from "./checks/family";
+import { MODELS_DIR } from "./checks/ri";
 import type { Pose, Switch } from "./schema";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
@@ -190,7 +191,13 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   const avatarBytes = (figures.twin ?? 0) + (figures.visitor ?? 0);
   const total = modelBytes + cardBytes + avatarBytes + canvases;
   const share = set.reduce((sum, p) => sum + (p.kind === "model" ? p.gz.length : p.bytes.length), 0);
-  const f3 = filesUnder(c.reader.tree, "assets/room").reduce((sum, f) => sum + gzipBytes(f.data), 0);
+  // A set model's copy is already made: its length is the file's gzip-9 bytes.
+  const copies = new Map<string, number>();
+  for (const p of c.pictures.values()) if (p.kind === "model") copies.set(`${MODELS_DIR}/${p.file}`, p.gz.length);
+  const f3 = filesUnder(c.reader.tree, MODELS_DIR).reduce(
+    (sum, f) => sum + (copies.get(f.path) ?? gzipBytes(f.data)),
+    0,
+  );
   lines.push(
     `Per piece, the largest against the caps: ${count(largestGz)} of ${count(c.caps.gzip_bytes)} gzip-9 bytes; ` +
       `${count(largestTriangles)} of ${count(c.caps.triangles)} triangles.`,
