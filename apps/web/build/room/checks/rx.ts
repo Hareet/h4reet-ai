@@ -62,7 +62,8 @@ export interface ModelCheck {
   /** Its repository path, `assets/room/<name>`. */
   readonly file: string;
   readonly kind: "glb" | "card";
-  /** Null where the file can't be read, RX1 or RX2 refuses it, or a card's header can't be read. */
+  /** Null where the file can't be read, RX1 or RX2 refuses it (but for a property the reader reads past, READ_PAST,
+   *  whose finding stands while the file is measured), or a card's header can't be read. */
   readonly measures: ModelMeasures | null;
   /** RX1 to RX10's, sorted by path, then rule. */
   readonly findings: readonly GlbFinding[];

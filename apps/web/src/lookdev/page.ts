@@ -11,7 +11,8 @@
 // - the readouts of §5, live, labelled "close-up" on the desk close-up, which judges nothing;
 // - one "Load a candidate…" picker per piece but the figures', each candidate read into memory alone (candidate.ts),
 //   its SHA-256, sizes, measures, mark, and findings shown under its piece, swapped in through the room's loader when
-//   RX1 and RX2 pass and it names no uri, and "Clear";
+//   RX1 and RX2 pass and it names no uri, and "Clear". RX2's finding for a property the reader never reads, Blender's
+//   asset.generator among them, keeps no file out: an unscrubbed file swaps in, labelled a preview (plan.md §10);
 // - the results of a run that ends, as text and one JSON block in a read-only text area (results.ts), and none for a
 //   run stopped early, by "Stop the run" or by the page being hidden, which draws no frames while the run's timer runs
 //   on (a screen that times out, another app or tab in front), which it says;
@@ -27,7 +28,16 @@ import { count } from "../room/glb/rules";
 import { MODEL_FLOOR } from "../room/quality";
 import type { Capability } from "../room/quality";
 import { SCENE_TEXTURE_BYTES } from "../room/scene/ledger";
-import { NOT_GLB, candidatePieces, loadable, markReadout, readCandidate, startsAsGlb } from "./candidate";
+import {
+  NOT_GLB,
+  PREVIEW,
+  REFUSAL,
+  candidatePieces,
+  loadable,
+  markReadout,
+  readCandidate,
+  startsAsGlb,
+} from "./candidate";
 import type { Candidate } from "./candidate";
 import { actionButton, filePicker, radioGroup, selectControl, toggleButton } from "./controls";
 import type { Control } from "./controls";
@@ -382,21 +392,24 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
         "p",
         {},
         m.triangles === null
-          ? "No measures: RX1 or RX2 refuses the file."
+          ? `No measures: ${REFUSAL[c.refusal === "RX1" ? "RX1" : "RX2"]}.`
           : `${count(m.triangles)} triangles; ${count(m.textureBytes ?? 0)} bytes of texture memory`,
       ),
       h(doc, "p", {}, `Mark: ${markReadout(c)}`),
-      ...findings,
-      ...(c.swappable
-        ? []
-        : [
+      ...(c.preview
+        ? [
             h(
               doc,
               "p",
-              { class: "lookdev-refused" },
-              "Not swapped in: RX1 or RX2 refuses the file, or it names a uri, which the page never fetches.",
+              { class: "lookdev-preview" },
+              `A ${PREVIEW}: approve only the scrubbed file's SHA-256, once it shows no finding.`,
             ),
-          ]),
+          ]
+        : []),
+      ...findings,
+      ...(c.refusal === null
+        ? []
+        : [h(doc, "p", { class: "lookdev-refused" }, `Not swapped in: ${REFUSAL[c.refusal]}.`)]),
       ...(stage.scene === "vignette" && !inVignette(piece)
         ? [h(doc, "p", { class: "lookdev-later" }, "Not in the vignette: the room scene shows it.")]
         : []),

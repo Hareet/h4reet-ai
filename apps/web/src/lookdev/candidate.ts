@@ -12,13 +12,16 @@
 // other, and RK before RX, so RK2's come first.
 // The bytes stay inside this module. `loadable` hands a copy to the room's parse path only where RX1 and RX2 pass and
 // no image or buffer has a uri (RX3), since three's GLTFLoader fetches a buffer's uri and a candidate never makes a
-// request; past that, whatever its other findings, so the Author sees a misfit at the room's framing. A reload forgets
-// it: nothing is stored, no object URL is made, and nothing is sent.
+// request; past that, whatever its other findings, so the Author sees a misfit at the room's framing. RX2's finding for
+// a property the reader never reads (glb/rules.ts's READ_PAST: Blender's asset.generator, which spec 003's scrub drops,
+// among them) keeps nothing out: the file is measured and swapped in, a preview of an unscrubbed file, as one without
+// the mark is, every finding listed (plan.md §10). Only a scrubbed file with no finding has a hash to approve. A reload
+// forgets it: nothing is stored, no object URL is made, and nothing is sent.
 import type { RoomScene } from "../room/compose/bundle";
 import { budgetReasons, fit, render } from "../room/glb/fit";
-import type { Budget, FitInput, Measures } from "../room/glb/fit";
+import type { Budget, FitInput, GlbFinding, Measures } from "../room/glb/fit";
 import { gzipBytes } from "../room/glb/gzip";
-import { REASON } from "../room/glb/rules";
+import { READ_PAST, REASON } from "../room/glb/rules";
 import type { MarkClass } from "../room/glb/rules";
 import { sha256 } from "./sha256";
 
@@ -36,6 +39,25 @@ export const CANDIDATE_FILE = "candidate";
 export const NOT_SCRUBBED = "not scrubbed";
 /** What a candidate's row says of a picked file that doesn't begin with GLB's magic. */
 export const NOT_GLB = "not a GLB: nothing kept";
+/** What a candidate swapped in without spec 003's scrub is, a view only: its hash is never one to approve. */
+export const PREVIEW = "preview of an unscrubbed file";
+
+/** Why a candidate stays out of the room's parse path: RX1, an RX2 problem that keeps the reader from reading it, or a
+ *  uri, which three would fetch. */
+export type Refusal = "RX1" | "RX2" | "uri";
+/** What the page says of each refusal. */
+export const REFUSAL: Readonly<Record<Refusal, string>> = {
+  RX1: "RX1 refuses the file",
+  RX2: "RX2 refuses the file",
+  uri: "it names a uri, which the page never fetches",
+};
+
+/** The refusal a finding makes, if any. */
+function refusalOf(f: GlbFinding): Refusal | null {
+  if (f.rule === "RX1") return "RX1";
+  if (f.rule === "RX2" && !READ_PAST.has(f.reason)) return "RX2";
+  return f.rule === "RX3" && f.reason === REASON.uri ? "uri" : null;
+}
 
 /** GLB's magic, the first 4 bytes of every GLB: "glTF". */
 const GLB_MAGIC = [0x67, 0x6c, 0x54, 0x46] as const;
@@ -54,7 +76,8 @@ export interface Candidate {
   readonly bytes: number;
   /** Its gzip-9 copy's length: what the site would send (plain-model-fit.md §7). */
   readonly gzipBytes: number;
-  /** §7's measures: triangles, texture memory, bounds, and the rest; only the bytes where RX1 or RX2 refuses it. */
+  /** §7's measures: triangles, texture memory, bounds, and the rest; only the bytes where RX1 or RX2 refuses it, but
+   *  for a property the reader reads past. */
   readonly measures: Measures;
   /** Whether it carries spec 003's mark at all. */
   readonly scrubbed: boolean;
@@ -62,8 +85,13 @@ export interface Candidate {
   readonly mark: MarkClass | null;
   /** `<rule> candidate:<path>: <reason>`, RK2's and RX's, in compose()'s order. */
   readonly findings: readonly string[];
-  /** Whether the room's parse path may take it: RX1 and RX2 pass, and no image or buffer has a uri. */
+  /** Whether the room's parse path may take it: RX1 and RX2 pass, but for a property the reader reads past, and no
+   *  image or buffer has a uri. */
   readonly swappable: boolean;
+  /** Why it isn't swappable; null where it is. */
+  readonly refusal: Refusal | null;
+  /** Whether it swaps in as a preview of an unscrubbed file: it has no mark, or holds a property the scrub drops. */
+  readonly preview: boolean;
 }
 
 /** Each candidate's bytes, which only `loadable` hands out. */
@@ -83,9 +111,8 @@ function judge(piece: string, bytes: Uint8Array, inputs: PieceFit): Candidate {
           inputs.budget,
           "glb",
         );
-  const swappable = !result.findings.some(
-    (f) => f.rule === "RX1" || f.rule === "RX2" || (f.rule === "RX3" && f.reason === REASON.uri),
-  );
+  const refusal = result.findings.map(refusalOf).find((r) => r !== null) ?? null;
+  const readPast = result.findings.some((f) => f.rule === "RX2" && READ_PAST.has(f.reason));
   const candidate: Candidate = {
     piece,
     sha256: sha256(bytes),
@@ -95,7 +122,9 @@ function judge(piece: string, bytes: Uint8Array, inputs: PieceFit): Candidate {
     scrubbed: result.scrubbed,
     mark: result.mark,
     findings: [...over.map((reason) => `RK2 ${CANDIDATE_FILE}:-: ${reason}`), ...result.findings.map(render)],
-    swappable,
+    swappable: refusal === null,
+    refusal,
+    preview: refusal === null && (!result.scrubbed || readPast),
   };
   held.set(candidate, bytes);
   return candidate;
@@ -117,7 +146,8 @@ export async function readCandidate(
 }
 
 /** A copy of the candidate's bytes for the room's parse path (the GLTFLoader plugin the room uses), or null where it
- *  mustn't reach it: RX1 or RX2 refuses the file, or it names a uri, which three would fetch. */
+ *  mustn't reach it: RX1 or RX2 refuses the file, but for a property the reader reads past, or it names a uri, which
+ *  three would fetch. */
 export function loadable(candidate: Candidate): ArrayBuffer | null {
   const bytes = held.get(candidate);
   return bytes === undefined || !candidate.swappable ? null : bytes.slice().buffer;

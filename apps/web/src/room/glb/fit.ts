@@ -6,6 +6,9 @@
 //
 // The readings §5 gives: RX1, then RX2, stop the file's other rules, which need a sound file; otherwise every rule runs
 // and every finding is reported, sorted by path (its indices as numbers), then rule, and "not scrubbed" stops nothing.
+// Nor does RX2's finding for a property the reader never reads (rules.ts's READ_PAST: Blender's asset.generator, which
+// spec 003's scrub drops, among them): it stands, so no build sets the model, and the other rules and the measures run,
+// so the lookdev page can show an unscrubbed file at the room's framing (plan.md §10).
 // RX7's tolerance is the larger of 2 cm and 3% of the expected extent at the stylized scale: FR-019's "the larger of
 // 2 cm and 3%", with the catalog's lengths times the scale and the 2 cm the studio's own. RX8 finds a face's corners by
 // their texture coordinates and prints its measured plane. A comparison counts as off unless it holds, so a number that
@@ -111,7 +114,7 @@ export interface FaceMeasure {
   readonly up: Vec3;
 }
 
-/** §7's measures. A file RX1 or RX2 refuses has only its bytes measured. */
+/** §7's measures. A file RX1 or RX2 refuses has only its bytes measured, but for a property the reader reads past. */
 export interface Measures {
   readonly bytes: number;
   readonly gzipBytes: number;
@@ -194,7 +197,8 @@ export function fit(bytes: Uint8Array, input: FitInput, options: FitOptions): Fi
     };
   }
   const glb = read.glb;
-  const problems: Problem[] = [];
+  // The properties the reader read past, RX2's findings still (READ_PAST).
+  const problems: Problem[] = [...read.problems];
   rx3(glb, problems);
   rx4(glb, problems);
   const mark = rx5(glb, problems);

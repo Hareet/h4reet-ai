@@ -76,7 +76,8 @@ body {
 }
 
 .lookdev-floor,
-.lookdev-refused {
+.lookdev-refused,
+.lookdev-preview {
   color: var(--lookdev-warn);
   font-weight: 600;
 }
