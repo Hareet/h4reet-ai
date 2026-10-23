@@ -330,12 +330,16 @@ describe("the capability floor for studio models (spec 004, R-28)", () => {
   /** WebGL's MAX_TEXTURE_SIZE. */
   const MAX_TEXTURE_SIZE = 0x0d33;
 
-  /** A jsdom window whose canvases give a WebGL 2 context reporting `maxTextureSize`, or none, recording each call. */
-  function windowWith(maxTextureSize: number | null): { win: Window; calls: string[] } {
+  /**
+   * A jsdom window whose canvases give a WebGL 2 context reporting `maxTextureSize`, give none, or throw when asked,
+   * recording each call.
+   */
+  function windowWith(maxTextureSize: number | null | "throws"): { win: Window; calls: string[] } {
     const win = new JSDOM("<p>").window;
     const calls: string[] = [];
     win.HTMLCanvasElement.prototype.getContext = ((kind: string, attributes: unknown) => {
       calls.push(`getContext ${kind} ${JSON.stringify(attributes)}`);
+      if (maxTextureSize === "throws") throw new Error("blocked");
       if (maxTextureSize === null) return null;
       return {
         MAX_TEXTURE_SIZE,
@@ -367,11 +371,7 @@ describe("the capability floor for studio models (spec 004, R-28)", () => {
 
   it("reads no WebGL 2 where there is none, or where asking throws", () => {
     expect(capability(windowWith(null).win)).toEqual({ webgl2: false, maxTextureSize: 0, deviceMemory: null });
-    const { win } = windowWith(4096);
-    win.HTMLCanvasElement.prototype.getContext = (() => {
-      throw new Error("blocked");
-    }) as unknown as HTMLCanvasElement["getContext"];
-    expect(capability(win)).toEqual({ webgl2: false, maxTextureSize: 0, deviceMemory: null });
+    expect(capability(windowWith("throws").win)).toEqual({ webgl2: false, maxTextureSize: 0, deviceMemory: null });
   });
 
   it("is ADR 0010's floor: WebGL 2, at least 4 GB where the browser reports it, and 4096-pixel textures", () => {
