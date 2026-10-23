@@ -1008,6 +1008,81 @@ describe("the status line by the canvas (the Author's first lookdev run; plan.md
   });
 });
 
+describe("the stand-ins' labels (the Author's first lookdev run; plan.md §10)", () => {
+  // Every stand-in carries a "placeholder" label, and they crowd the view: "Labels", on by default, hides them from the
+  // page's camera, the page's view only. A run shows them for its whole length, as the room shows them, so its figures
+  // are the room's.
+  /** Whether the page's camera sees each stand-in's label, and everything the label holds. */
+  const seen = (page: LookdevPage): boolean[] =>
+    [...page.stage.room.labels.values()].map((label) => {
+      let all = true;
+      label.traverse((node) => {
+        if (!node.layers.test(page.stage.camera.layers)) all = false;
+      });
+      return all;
+    });
+
+  it("hides the labels from the page's view on Labels, and shows them again, whatever the look or the scene", () => {
+    const { page, root, renderer, clock, inputs: given } = open();
+    const labels = buttonNamed(root, "Labels");
+    expect(labels.getAttribute("aria-pressed")).toBe("true");
+    expect(page.stage.room.labels.size).toBeGreaterThan(0);
+    expect(seen(page).every(Boolean)).toBe(true);
+    clock.advance(50);
+    const passes = renderer.passes;
+    labels.click();
+    expect(labels.getAttribute("aria-pressed")).toBe("false");
+    expect(seen(page).some(Boolean)).toBe(false);
+    // The rest of the room draws on, on the camera's own layer.
+    expect(page.stage.camera.layers.isEnabled(0)).toBe(true);
+    clock.advance(50);
+    expect(renderer.passes).toBeGreaterThan(passes);
+    // The room rebuilt in another look, and the vignette: the labels stay hidden.
+    const other = given.lookdev.looks.find((l) => l.id !== page.stage.look.id);
+    if (!other) throw new Error("one look only");
+    choose(control<HTMLSelectElement>(root, "Look"), other.id);
+    expect(page.stage.look.id).toBe(other.id);
+    expect(page.stage.room.labels.size).toBeGreaterThan(0);
+    expect(seen(page).some(Boolean)).toBe(false);
+    choose(control<HTMLInputElement>(root, "Vignette"));
+    expect(seen(page).some(Boolean)).toBe(false);
+    labels.click();
+    expect(labels.getAttribute("aria-pressed")).toBe("true");
+    expect(seen(page).every(Boolean)).toBe(true);
+  });
+
+  it("shows them while a run measures, as the room shows them, then hides them again", async () => {
+    const { page, root, clock } = open();
+    const labels = buttonNamed(root, "Labels");
+    labels.click();
+    expect(seen(page).some(Boolean)).toBe(false);
+    buttonNamed(root, "Run 2 minutes").click();
+    await settle(clock);
+    expect([labels.disabled, labels.getAttribute("aria-pressed")]).toEqual([true, "true"]);
+    expect(seen(page).every(Boolean)).toBe(true);
+    expect(collapse(root.querySelector(".lookdev-results")?.textContent)).toMatch(/labels show/);
+    clock.advance(120_000, 100);
+    await settle(clock);
+    expect(root.querySelector("textarea")).not.toBeNull();
+    expect([labels.disabled, labels.getAttribute("aria-pressed")]).toEqual([false, "false"]);
+    expect(seen(page).some(Boolean)).toBe(false);
+    // And after a run stopped early.
+    buttonNamed(root, "Run 10 minutes").click();
+    await settle(clock);
+    expect(seen(page).every(Boolean)).toBe(true);
+    buttonNamed(root, "Stop the run").click();
+    expect([labels.disabled, labels.getAttribute("aria-pressed")]).toEqual([false, "false"]);
+    expect(seen(page).some(Boolean)).toBe(false);
+    // With the labels on, a run says nothing of them, and leaves them on.
+    labels.click();
+    buttonNamed(root, "Run 2 minutes").click();
+    await settle(clock);
+    expect(collapse(root.querySelector(".lookdev-results")?.textContent)).not.toMatch(/labels/);
+    buttonNamed(root, "Stop the run").click();
+    expect([labels.getAttribute("aria-pressed"), seen(page).every(Boolean)]).toEqual(["true", true]);
+  });
+});
+
 describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
   it("runs 2 minutes, the scripted load first, then shows the results as text and one read-only JSON block", async () => {
     const { root, clock, spies, inputs: given } = open();
