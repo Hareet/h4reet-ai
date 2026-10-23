@@ -187,18 +187,26 @@ const TOPICS_HEADER = [
   "# fails while it's stale.",
 ];
 
+/** A value double-quoted as JSON writes it, but each double quote inside it as YAML's `\x22`: Prettier rewrites a
+ *  double-quoted value in single quotes when `\"` is its only escape, and keeps one that holds any other. JSON's
+ *  escapes are YAML's too, and a `"` in JSON's text only ever follows the backslash of its own `\"`. */
+const yamlQuoted = (value: string): string => `"${JSON.stringify(value).slice(1, -1).replaceAll('\\"', "\\x22")}"`;
+
 /** config/room-topics.yaml (contracts/room-bundle.md §8): one entry for each talk selectable, in scene order, every
- *  value double-quoted, `lead` the selectable's or null. It holds no phrase, live value, or quote. */
+ *  value double-quoted, `lead` the selectable's or null. It holds no phrase, live value, or quote. It is written in the
+ *  form Prettier writes at any length (§13): `corpus` a block list, one path a line, never a flow list that a long
+ *  line would break, and a value's double quotes `\x22`. */
 export function roomTopicsFile(entries: readonly TopicEntry[]): string {
-  const quote = (value: string): string => JSON.stringify(value);
+  const corpus = (paths: readonly string[]): string =>
+    paths.length === 0 ? "    corpus: []\n" : `    corpus:\n${paths.map((p) => `      - ${yamlQuoted(p)}\n`).join("")}`;
   const body =
     entries.length === 0
       ? "selectables: []\n"
       : `selectables:\n${entries
           .map(
             (e) =>
-              `  - id: ${quote(e.id)}\n    topic: ${quote(e.topic)}\n    corpus: [${e.corpus.map(quote).join(", ")}]\n` +
-              `    lead: ${e.lead === null ? "null" : quote(e.lead)}\n`,
+              `  - id: ${yamlQuoted(e.id)}\n    topic: ${yamlQuoted(e.topic)}\n${corpus(e.corpus)}` +
+              `    lead: ${e.lead === null ? "null" : yamlQuoted(e.lead)}\n`,
           )
           .join("")}`;
   return [...TOPICS_HEADER.map((line) => `${line}\n`), "schema: 1\n", body].join("");
