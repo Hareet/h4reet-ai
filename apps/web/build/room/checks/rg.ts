@@ -338,8 +338,9 @@ function span(s: StandinEntry, d: Vec3): readonly [number, number] {
   }
 }
 
-/** A stand-in shape's extent in its piece's frame: around `at`, its own geometry through R(turn) · S(scale). */
-function shapeBox(s: StandinEntry): Box {
+/** A stand-in shape's extent in its piece's frame: around `at`, its own geometry through R(turn) · S(scale). The room's
+ *  stand-in builders (src/room/scene/standins.ts) are held to it, so what RG checks is what the room draws. */
+export function shapeBox(s: StandinEntry): Box {
   const r = rotation(s.turn);
   const [sx, sy, sz] = typeof s.scale === "number" ? [s.scale, s.scale, s.scale] : (s.scale ?? [1, 1, 1]);
   // Each axis takes its row of R · S, R column-major: element (k, c) at index c × 4 + k.
