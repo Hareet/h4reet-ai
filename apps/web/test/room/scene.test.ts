@@ -1157,9 +1157,6 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
     vi.resetModules();
     try {
       const { createScene: blocked } = await import("../../src/room/scene");
-      const left = staged({ floor: true }, undefined, blocked);
-      left.mode = "2d";
-      left.stage.dispose();
       const s = staged({ floor: true }, undefined, blocked);
       await vi.waitFor(() => expect(s.events).toHaveLength(2));
       expect(byAsset(s.events)).toEqual(
@@ -1169,9 +1166,15 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
       s.clock.advance(16);
       for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: false, standin: true });
       s.stage.dispose();
-      // The room that went to 2D first records its own (app.ts); its stage records nothing.
-      expect(left.events).toEqual([]);
       expect(s.events).toHaveLength(2);
+      // A stage the room left first records nothing: the room skips its models in 2D (app.ts).
+      const left = staged({ floor: true }, undefined, blocked);
+      left.mode = "2d";
+      left.stage.dispose();
+      await flush();
+      await flush();
+      expect(left.events).toEqual([]);
+      expect(left.fetched).toEqual([]);
     } finally {
       vi.doUnmock("../../src/room/scene/loader");
       vi.resetModules();

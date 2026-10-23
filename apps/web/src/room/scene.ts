@@ -24,6 +24,7 @@ import {
 import type { Material, Mesh } from "three";
 import part from "virtual:room-scene";
 
+import { assetEvent } from "../asset-events";
 import { bindPointerSelection } from "./objects";
 import { capability, meetsModelFloor } from "./quality";
 import {
@@ -235,8 +236,10 @@ export function createScene(options: SceneOptions): Stage3D {
   // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, which the room
   // read behind the choice (app.ts), so nothing here asks the device during the hand-off; after the hand-off; under the
   // controller's holds; each outcome an asset event. The loader, with three's GLTFLoader, is a chunk of its own,
-  // imported only when the part sets a model, so the 3D chunk carries neither until the first studio piece; if that
-  // chunk can't load, the stand-ins stay.
+  // imported only when the part sets a model, so the 3D chunk carries neither until the first studio piece. If that
+  // chunk can't load, the stand-ins stay, each model failed (or skipped below the floor) at once: a browser keeps a
+  // failed module's failure, so nothing retries it. A stage the room left first records nothing: app.ts skips its
+  // models in 2D.
   const { floor } = options;
   let loader: Loader | null = null;
   let disposed = false;
@@ -266,7 +269,12 @@ export function createScene(options: SceneOptions): Stage3D {
         });
         void loader.load(entries);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (disposed) return;
+        const outcome = floor === false ? "skipped" : "failed";
+        for (const asset of options.room.models)
+          options.assets?.(assetEvent({ asset, outcome, ms: 0, bytes: 0, mode: options.mode?.() ?? "3d" }));
+      });
   // A restored context lost the models' textures, whose bitmaps were closed: back to stand-ins, and loaded again.
   const restored = (): void => void loader?.reload();
   canvas.addEventListener("webglcontextrestored", restored);

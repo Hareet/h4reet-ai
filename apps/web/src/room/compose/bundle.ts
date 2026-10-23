@@ -138,6 +138,9 @@ export interface RoomIndex {
   /** The text copy's order. */
   copy: ({ face: string } | { switch: string } | { figures: true } | { line: string })[];
   typefaces: { use: TypefaceUse; family: string; weight: number; cap_ratio: number; fallback: string }[];
+  /** Each set model the room's loader loads (a GLB), by its asset events' `asset`, in load_order, once a piece: what a
+   *  room in 2D records as skipped, since the entry has no 3D part (FR-071; an addition to §3.1, plan.md §10). */
+  models: string[];
 }
 
 /** A set model, as the room fetches and verifies it (contracts/room-bundle.md §3.2): `url`, `a/<stem>.<hash16>.glb` (a

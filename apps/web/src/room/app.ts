@@ -6,14 +6,16 @@
 //   is imported: a device without WebGL 2 never downloads Three.js.
 // - "Enter" builds the room with its controls inert, mounts the 3D scene or the 2D drawing, and plays the hand-off,
 //   which nothing skips; its end offers the resume now or later and opens the room.
-// - The quality controller, a lost context, or the visitor's "2D view" moves the room to 2D, once, keeping the visit.
+// - The quality controller, a lost context, or the visitor's "2D view" moves the room to 2D, once, keeping the visit;
+//   each studio model whose load hadn't recorded its end is skipped then (spec 004, FR-071).
 // - Every selectable, the text box, and the talk button answer with the fixed messages and call nothing (R-14). The
 //   selectables, the list, and the 2D drawing are the bundle's index's (spec 004, FR-011): no ID of the room's is here.
 // - Usage events go to the EventSink: the page's sends beacons (src/events.ts); by default, nothing is sent.
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
-import { createAssetEvents } from "../asset-events";
+import { assetEvent, createAssetEvents } from "../asset-events";
+import type { AssetEvent } from "../asset-events";
 import { renderChoice } from "../choice/choice";
 import type { Choice } from "../choice/choice";
 import { newVisit } from "../choice/visit";
@@ -116,14 +118,20 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     });
   }
 
-  // Spec 003's asset events from the 3D stage's loader (spec 004, T134; R-60): queued in page memory, and sent only
-  // while the index's live.asset_events is `site`, which spec 001's route turns on.
+  // Spec 003's asset events from the 3D stage's loader, and the room's own when it goes to 2D (spec 004, T134; R-60):
+  // queued in page memory, and sent only while the index's live.asset_events is `site`, which spec 001's route turns on.
   const assets = createAssetEvents({
     live: deps.room.live.asset_events,
     clock,
     fetch: (url, init) => win.fetch(url, init),
     nav: win.navigator,
   });
+  /** The set models whose load has recorded its end, loaded, failed, or skipped: each event goes through here. */
+  const ended = new Set<string>();
+  const recordAsset = (event: AssetEvent): void => {
+    if (event.outcome !== "retried") ended.add(event.asset);
+    assets.record(event);
+  };
   // The hand-off's end, after which the 3D stage parses and swaps studio models (R-28).
   let handoffEnded = (): void => undefined;
   const handoffDone = new Promise<void>((resolve) => (handoffEnded = resolve));
@@ -209,7 +217,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         hold: holdQuality,
         level: () => controller?.quality ?? 0,
         mode: () => visit.mode,
-        assets: (event) => assets.record(event),
+        assets: recordAsset,
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -260,7 +268,12 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       const words = uiWord(deps.room.ui, "flat-failed") ?? "";
       room.view.replaceChildren(h(doc, "p", { class: "room-flat-failed" }, words));
     }
+    // The 3D stage's loader skips what it had on its way; every other set model whose load hadn't recorded its end is
+    // skipped here, the room in 2D (data-model.md §11.4): one the room started in 2D without, or one its 3D stage's
+    // loader hadn't reached. The entry has no 3D part, so the index names them (FR-071).
     old?.dispose();
+    for (const asset of deps.room.models)
+      if (!ended.has(asset)) recordAsset(assetEvent({ asset, outcome: "skipped", ms: 0, bytes: 0, mode: "2d" }));
     flat?.showHandoff(handoff && !handoff.finished ? handoff.progress() : 1);
     room.markFlat();
     emit({ kind: "mode_2d" });
