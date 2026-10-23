@@ -20,12 +20,14 @@
 // - Candidates, from page memory, through the loader; the site's page also loads each set model from ../a/, and the
 //   phone copy, which makes no request, every model from memory.
 // It never polls the status, sends a turn or an event, or stores anything: its asset events go to the page's log with
-// the live switch held off, and a pick on the canvas logs spec 002's object_selected there too.
+// the live switch held off, and to the page's status line, which says how a candidate's load ended; and a pick on the
+// canvas logs spec 002's object_selected in the log too.
 import { PerspectiveCamera, SRGBColorSpace } from "three";
 import type { Material, Mesh, Object3D, WebGLRenderer } from "three";
 
 import type { RoomFixture, RoomLookdev } from "../../build/room/emit";
 import { createAssetEvents } from "../asset-events";
+import type { AssetEvent } from "../asset-events";
 import { AVATARS } from "../choice/avatars";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "../room/clock";
@@ -84,6 +86,8 @@ export interface StageOptions {
   readonly log: (entry: LogEntry) => void;
   /** Each change of the quality level, the controller's or a pin's. */
   readonly onLevel: (level: number) => void;
+  /** Each asset event the loader records, as it records it: how a candidate's load ended, for the status line. */
+  readonly onAsset: (event: AssetEvent) => void;
 }
 
 export interface LookdevStage {
@@ -327,7 +331,10 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     hold,
     level: () => level,
     mode: (): Mode => (level === 0 ? "3d" : "reduced"),
-    record: (event) => assets.record(event),
+    record: (event) => {
+      assets.record(event);
+      options.onAsset(event);
+    },
     ledger,
     uploader: renderer,
     prepare: (piece, model) => {

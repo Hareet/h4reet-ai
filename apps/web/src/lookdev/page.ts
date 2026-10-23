@@ -13,6 +13,9 @@
 //   its SHA-256, sizes, measures, mark, and findings shown under its piece, swapped in through the room's loader when
 //   RX1 and RX2 pass and it names no uri, and "Clear". RX2's finding for a property the reader never reads, Blender's
 //   asset.generator among them, keeps no file out: an unscrubbed file swaps in, labelled a preview (plan.md §10);
+// - a status line by the canvas, saying what became of the latest pick or Clear, by its piece's word: swapped in, once
+//   the loader has it, with its findings' count and whether it is a preview; or not, and why, the refusal's or the
+//   loader's (the Author's first lookdev run, where a refusal showed only under Candidates; plan.md §10);
 // - the results of a run that ends, as text and one JSON block in a read-only text area (results.ts), and none for a
 //   run stopped early, by "Stop the run" or by the page being hidden, which draws no frames while the run's timer runs
 //   on (a screen that times out, another app or tab in front), which it says;
@@ -22,6 +25,7 @@
 import type { WebGLRenderer } from "three";
 
 import type { RoomFixture } from "../../build/room/emit";
+import type { AssetEvent } from "../asset-events";
 import type { Clock } from "../room/clock";
 import { h } from "../room/dom";
 import { count } from "../room/glb/rules";
@@ -85,6 +89,19 @@ const HIDDEN =
 const LOG_MAX = 500;
 /** What a candidate's row says when its picked file couldn't be read. */
 const UNREADABLE = "The file couldn't be read: nothing kept.";
+/** The status line's words, after the piece's (plan.md §10). */
+const STATUS = {
+  swapping: "swapping in…",
+  cleared: "cleared",
+  unreadable: "the file couldn't be read: nothing kept",
+  failed: "not swapped in: the room's loader failed on it",
+  belowFloor: "not swapped in: this device is below ADR 0010's floor for studio models",
+  overCap: "not swapped in: its textures would pass the scene's texture memory cap",
+  notInVignette: "not in the vignette: the room scene shows it",
+} as const;
+
+/** A count of findings in words. */
+const findingsText = (n: number): string => (n === 0 ? "no finding" : n === 1 ? "1 finding" : `${count(n)} findings`);
 
 /** The views; "This device", its own stage from its probe, in the phone copy alone (the review's page-4). */
 const VIEWS: readonly { value: ViewChoice; label: string }[] = [
@@ -136,6 +153,55 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     (Object.hasOwn(index.ui, key) ? index.ui[key] : undefined) ?? fallback;
   const sampleBadge = word("sign.sample", "Sample");
 
+  // ---- The pieces, by name ----
+  /** The label word's key of a piece's labelled placement, or its switch's. */
+  const labelKey = (piece: string): string | undefined => {
+    const placed = part.placements.find((p) => p.piece === piece && p.label !== null);
+    const sw = index.switches.find((s) => part.switches.some((x) => x.id === s.id && x.piece === piece));
+    return placed?.label ?? sw?.label;
+  };
+  /** A piece's word, as the status line names it; its ID where it has none. */
+  const pieceWord = (piece: string): string => {
+    const key = labelKey(piece);
+    return key ? word(key, piece) : piece;
+  };
+  /** A piece's word and ID, as its candidate's section names it. */
+  const pieceName = (piece: string): string => {
+    const key = labelKey(piece);
+    return key ? `${word(key, piece)} (${piece})` : piece;
+  };
+  const inVignette = (piece: string): boolean =>
+    part.placements.some((p) => p.piece === piece && lookdev.vignette.show.includes(p.id)) ||
+    part.switches.some(
+      (sw) =>
+        sw.piece === piece && Object.values(sw.poses).some((pose) => lookdev.vignette.show.includes(pose.mount.on)),
+    );
+
+  // ---- The status line, by the canvas: what became of the latest pick or Clear ----
+  const status = h(doc, "p", { class: "lookdev-status", role: "status" });
+  /** The piece the line speaks of: the latest pick's or Clear's. */
+  let statusOf: string | null = null;
+  /** Each piece's candidate swapping in, whose load's end the line waits for. */
+  const awaiting = new Map<string, Candidate>();
+  const say = (piece: string, what: string): void => {
+    statusOf = piece;
+    status.textContent = `${pieceWord(piece)}: ${what}`;
+  };
+  /** A candidate's load ended: the line says how, while it still speaks of the candidate's piece. */
+  const loadEnded = (event: AssetEvent): void => {
+    const c = awaiting.get(event.asset);
+    if (c === undefined || event.outcome === "retried") return;
+    awaiting.delete(event.asset);
+    if (statusOf !== event.asset) return;
+    if (event.outcome === "failed") say(event.asset, STATUS.failed);
+    else if (event.outcome === "skipped") say(event.asset, stage.floor ? STATUS.overCap : STATUS.belowFloor);
+    else {
+      const details = [...(c.preview ? [PREVIEW] : []), findingsText(c.findings.length)].join(", ");
+      const hidden = stage.scene === "vignette" && !inVignette(event.asset) ? `; ${STATUS.notInVignette}` : "";
+      say(event.asset, `swapped in (${details})${hidden}`);
+    }
+  };
+
   // ---- The log ----
   const logList = h(doc, "ol", { class: "lookdev-log" });
   const log = (entry: LogEntry): void => {
@@ -161,6 +227,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       run?.quality(level);
       showReadouts();
     },
+    onAsset: loadEnded,
   });
   undo.push(() => stage.dispose());
   if (options.phone && options.probe === null) {
@@ -176,6 +243,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     "section",
     { class: "lookdev-stage-panel", "aria-label": "The room at the chosen view" },
     h(doc, "div", { class: "lookdev-stage" }, stage.canvas),
+    status,
     caption,
     ...(below ? [below] : []),
   );
@@ -351,18 +419,6 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
   const rows = new Map<string, HTMLElement>();
   const pickers: Control[] = [];
   const clears: HTMLButtonElement[] = [];
-  const pieceName = (piece: string): string => {
-    const placed = part.placements.find((p) => p.piece === piece && p.label !== null);
-    const sw = index.switches.find((s) => part.switches.some((x) => x.id === s.id && x.piece === piece));
-    const key = placed?.label ?? sw?.label;
-    return key ? `${word(key, piece)} (${piece})` : piece;
-  };
-  const inVignette = (piece: string): boolean =>
-    part.placements.some((p) => p.piece === piece && lookdev.vignette.show.includes(p.id)) ||
-    part.switches.some(
-      (sw) =>
-        sw.piece === piece && Object.values(sw.poses).some((pose) => lookdev.vignette.show.includes(pose.mount.on)),
-    );
 
   function showCandidate(piece: string): void {
     const row = rows.get(piece);
@@ -428,6 +484,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
   function drop(piece: string, why: string | null): void {
     if (why === null) notes.delete(piece);
     else notes.set(piece, why);
+    awaiting.delete(piece);
     if (candidates.delete(piece)) stage.setCandidate(piece, null);
     showCandidate(piece);
   }
@@ -452,11 +509,20 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
             if (!latest()) return;
             if (c === null) {
               drop(piece, NOT_GLB);
+              say(piece, NOT_GLB);
               return;
             }
             notes.delete(piece);
             candidates.set(piece, c);
             showCandidate(piece);
+            // The line says what became of it: refused now, or swapped in once the loader has it (loadEnded).
+            if (c.refusal === null) {
+              awaiting.set(piece, c);
+              say(piece, STATUS.swapping);
+            } else {
+              awaiting.delete(piece);
+              say(piece, `not swapped in: ${REFUSAL[c.refusal]}`);
+            }
             stage.setCandidate(
               piece,
               c.swappable
@@ -465,7 +531,9 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
             );
           },
           () => {
-            if (latest()) drop(piece, UNREADABLE);
+            if (!latest()) return;
+            drop(piece, UNREADABLE);
+            say(piece, STATUS.unreadable);
           },
         );
       },
@@ -474,6 +542,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     const clear = actionButton(doc, "Clear", () => {
       nextPick(piece);
       drop(piece, null);
+      say(piece, STATUS.cleared);
     });
     clears.push(clear);
     showCandidate(piece);

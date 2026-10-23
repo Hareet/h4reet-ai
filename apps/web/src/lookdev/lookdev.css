@@ -68,6 +68,14 @@ body {
   background: #20252b;
 }
 
+/* What became of the latest pick, right under the canvas: its line keeps its height while empty, so the caption
+   doesn't move when it first speaks. */
+.lookdev-status {
+  margin: 0.4rem 0 0;
+  min-height: 1.45em;
+  font-weight: 600;
+}
+
 .lookdev-caption,
 .lookdev-later,
 .lookdev-none {
