@@ -171,6 +171,39 @@ describe("a run on the room's clock", () => {
     expect(ended[0]?.readouts).toMatchObject({ drawCalls: 180, triangles: 41_000, textureBytes: 96_000_000 });
   });
 
+  it("keeps its live readouts cheap over a 10-minute run: no sort, each figure within 0.1 ms, never better", () => {
+    // The review's page-9: the page reads them each second, inside the frames the run measures.
+    const clock = new FakeClock();
+    const { ended, handle } = run(clock, { seconds: 600 });
+    let sorts = 0;
+    let live: RunReadouts | null = null;
+    for (let second = 0; second < 599; second += 1) {
+      // Frames at about 60 a second, every tenth second at about 24, on rAF's fractional times.
+      clock.advance(1000, second % 10 === 9 ? 41.3 : 16.7);
+      const sort = vi.spyOn(Array.prototype, "sort");
+      try {
+        live = handle.readouts();
+      } finally {
+        sorts += sort.mock.calls.length;
+        sort.mockRestore();
+      }
+    }
+    // The end, with no frame since the last live read: the results' exact figures over the same intervals.
+    until(clock, 0, 600_000);
+    expect(sorts).toBe(0);
+    const exact = ended[0]?.readouts.frames;
+    const shown = live?.frames;
+    if (!exact || !shown) throw new Error("no readouts");
+    expect(exact.count).toBeGreaterThan(30_000);
+    expect([shown.count, shown.over33Share]).toEqual([exact.count, exact.over33Share]);
+    for (const key of ["p50Ms", "p95Ms"] as const) {
+      expect(shown[key], key).toBeGreaterThanOrEqual(exact[key]);
+      expect(shown[key], key).toBeLessThanOrEqual(exact[key] + 0.1 + 1e-9);
+    }
+    expect(shown.medianFps).toBeLessThanOrEqual(exact.medianFps);
+    expect(shown.medianFps).toBeGreaterThanOrEqual(1000 / (1000 / exact.medianFps + 0.1 + 1e-9));
+  });
+
   it("reads no time of day: neither Date nor performance.now()", () => {
     const now = vi.spyOn(Date, "now");
     const performanceNow = vi.spyOn(performance, "now");
