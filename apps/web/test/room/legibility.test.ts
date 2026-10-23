@@ -3,11 +3,14 @@
 // height on the face is the typeface's cap ratio times the glyph size the region's grid gives, or an outline's
 // `cap_height` over its fitted view box; it is projected through `compose/project.ts` at the production framing, on a
 // stage, and the smallest over the region's corners is the face's. Words never resize a grid. Every ID is a synthetic
-// `fx-` one.
+// `fx-` one, and the production framing is the known-good set's, as compose() frames it (T112 took spec 002's layout,
+// which these cases framed until then, out of the code).
 import { Matrix4, PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
-import { framing, withLabel } from "../../src/room/compose/framing";
+import { compose } from "../../build/room/compose";
+import { noPolicy } from "../../build/room/policy";
+import { framing } from "../../src/room/compose/framing";
 import type { Box } from "../../src/room/compose/framing";
 import { GRID_METRICS, fitOutline, regionBox, textGrid } from "../../src/room/compose/layout";
 import { facePoint, regionCap, smallestCapPx, typefaceFor } from "../../src/room/compose/legibility";
@@ -17,17 +20,16 @@ import type { Mat4, Vec3 } from "../../src/room/compose/math";
 import type { Camera } from "../../src/room/compose/project";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
-import { LAYOUT } from "../../src/room/framing";
+import { goodTree } from "../helpers/room-fixtures";
 
-const LAYOUT_BOXES: Box[] = Object.values(LAYOUT)
-  .filter((v): v is Exclude<typeof v, number> => typeof v !== "number")
-  .map(({ center, size }) => ({
-    min: [center[0] - size[0] / 2, center[1] - size[1] / 2, center[2] - size[2] / 2],
-    max: [center[0] + size[0] / 2, center[1] + size[1] / 2, center[2] + size[2] / 2],
-  }));
+/** The known-good set's framed boxes, as compose() gives the 3D part's: each grown for its label where a stand-in's
+ *  floats over it. */
+const FRAMED: Box[] = compose(goodTree(), noPolicy(), { mode: "strict", drafts: false })
+  .scene.placements.filter((p) => p.framed)
+  .map((p) => p.frame_box);
 
-/** The production framing on a stage: spec 002's room, each piece grown for its label. */
-const productionCamera = (stage: Stage): Camera => framing(stage.w / stage.h, LAYOUT_BOXES.map(withLabel));
+/** The production framing on a stage: the room's framed boxes, as the room frames its camera. */
+const productionCamera = (stage: Stage): Camera => framing(stage.w / stage.h, FRAMED);
 
 const FACE: FaceGeometry = { at: [0, 0, 0], size: [1, 0.5], facing: [0, 0, 1], up: [0, 1, 0] };
 const WALL: Mat4 = translation([0.4, 1.2, -1.95]);

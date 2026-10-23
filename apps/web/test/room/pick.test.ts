@@ -1,14 +1,17 @@
 // T062 (spec 004; FR-064, SC-009; R-19, R-20; data-model.md §4.5; contracts/room-data-files.md §5.5, RG6): the kernel's
-// projection, `compose/project.ts`, held to three.js's Vector3.project for spec 002's camera, which looks straight down
+// projection, `compose/project.ts`, held to three.js's Vector3.project for the room's camera, which looks straight down
 // −Z; and its pick areas, `compose/pick.ts`, one function for the build's spacing check and the room's pointer. Each
 // selectable's area is the union of its members' CSS-pixel rectangles with an exclusive 44 × 44 core centred on that
 // union. A pick goes to the frontmost member rectangle under the point; else to the selectable whose union and core
 // contain the point and whose union is nearest, ties to scene order; else to none. In 2D, 44 px converts at the
-// drawing's scale, min(W ÷ 320, H ÷ 200). Every ID is a synthetic `fx-` one.
+// drawing's scale, min(W ÷ 320, H ÷ 200). Every ID is a synthetic `fx-` one, and the room's camera frames the known-good
+// set's boxes as compose() gives them (T112 took spec 002's layout, which it framed until then, out of the code).
 import { PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
-import { framing, withLabel } from "../../src/room/compose/framing";
+import { compose } from "../../build/room/compose";
+import { noPolicy } from "../../build/room/policy";
+import { framing } from "../../src/room/compose/framing";
 import type { Box } from "../../src/room/compose/framing";
 import type { Vec3 } from "../../src/room/compose/math";
 import { CORE_PX, flatCore, memberRect, pick, pickAreas, pickProblems } from "../../src/room/compose/pick";
@@ -16,7 +19,7 @@ import type { MemberRect, PickInput, Rect } from "../../src/room/compose/pick";
 import { project, toStage, viewDepth } from "../../src/room/compose/project";
 import type { Camera } from "../../src/room/compose/project";
 import { ASPECTS, REFERENCE_PHONE, SMALLEST } from "../../src/room/compose/stages";
-import { LAYOUT } from "../../src/room/framing";
+import { goodTree } from "../helpers/room-fixtures";
 
 function stream(seed: number): () => number {
   let s = seed >>> 0 || 1;
@@ -38,14 +41,13 @@ function expectClose(actual: ArrayLike<number>, expected: ArrayLike<number>, tol
   }
 }
 
-const LAYOUT_BOXES: Box[] = Object.values(LAYOUT)
-  .filter((v): v is Exclude<typeof v, number> => typeof v !== "number")
-  .map(({ center, size }) => ({
-    min: [center[0] - size[0] / 2, center[1] - size[1] / 2, center[2] - size[2] / 2],
-    max: [center[0] + size[0] / 2, center[1] + size[1] / 2, center[2] + size[2] / 2],
-  }));
+/** The known-good set's framed boxes, as compose() gives the 3D part's: each grown for its label where a stand-in's
+ *  floats over it. */
+const FRAMED: Box[] = compose(goodTree(), noPolicy(), { mode: "strict", drafts: false })
+  .scene.placements.filter((p) => p.framed)
+  .map((p) => p.frame_box);
 
-/** Spec 002's camera, as its scene.ts fitCamera sets it: the framing's place and target, near 0.1, far 80. */
+/** The room's camera, as scene/bundle3d.ts's frameCamera sets it: the framing's place and target, near 0.1, far 80. */
 function threeCamera(f: Camera, aspect: number): PerspectiveCamera {
   const camera = new PerspectiveCamera();
   camera.fov = f.fov;
@@ -62,10 +64,10 @@ function threeCamera(f: Camera, aspect: number): PerspectiveCamera {
 const cssOf = (ndc: Vector3, w: number, h: number): [number, number] => [((ndc.x + 1) / 2) * w, ((1 - ndc.y) / 2) * h];
 
 describe("project (compose/project.ts)", () => {
-  it("equals three.js's Vector3.project for spec 002's camera at each of the six aspects, within 1e-9", () => {
+  it("equals three.js's Vector3.project for the room's camera at each of the six aspects, within 1e-9", () => {
     const next = stream(0x5eed0062);
     for (const aspect of ASPECTS) {
-      const camera = framing(aspect, LAYOUT_BOXES.map(withLabel));
+      const camera = framing(aspect, FRAMED);
       const three = threeCamera(camera, aspect);
       for (let i = 0; i < 40; i += 1) {
         const p: Vec3 = [-3 + 6 * next(), 3.2 * next(), -2.1 + 2.6 * next()];
@@ -89,7 +91,7 @@ describe("project (compose/project.ts)", () => {
     expect(toStage([-1, 1, 0], stage)).toEqual([0, 0]);
     expect(toStage([1, -1, 0], stage)).toEqual([368, 420]);
     expect(toStage([0, 0, 0.5], stage)).toEqual([184, 210]);
-    const camera = framing(1.6, LAYOUT_BOXES);
+    const camera = framing(1.6, FRAMED);
     expect(viewDepth([0, 1.5, -2], camera)).toBeCloseTo(camera.position[2] + 2, 12);
     expect(viewDepth([0, 1.5, camera.position[2] + 1], camera)).toBeCloseTo(-1, 12);
   });
@@ -99,9 +101,10 @@ describe("a member's rectangle in 3D", () => {
   it("is the CSS-pixel bounds of its box's projected corners, with the depth of its nearest corner", () => {
     const stage = REFERENCE_PHONE.stage;
     const aspect = stage.w / stage.h;
-    const camera = framing(aspect, LAYOUT_BOXES.map(withLabel));
+    const camera = framing(aspect, FRAMED);
     const three = threeCamera(camera, aspect);
-    for (const box of LAYOUT_BOXES) {
+    expect(FRAMED.length).toBeGreaterThan(3);
+    for (const box of FRAMED) {
       const corners: [number, number][] = [];
       let nearest = Infinity;
       for (const x of [box.min[0], box.max[0]])
@@ -126,7 +129,7 @@ describe("a member's rectangle in 3D", () => {
   });
 
   it("is none when a corner is behind the camera", () => {
-    const camera = framing(1.6, LAYOUT_BOXES);
+    const camera = framing(1.6, FRAMED);
     const behind: Box = { min: [-0.2, 1, camera.position[2] - 0.5], max: [0.2, 1.4, camera.position[2] + 0.5] };
     expect(memberRect(behind, camera, { w: 640, h: 400 })).toBeNull();
   });

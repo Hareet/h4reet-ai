@@ -7,6 +7,8 @@
 // selectablePicker, src/room/scene/bundle3d.ts), here held to three.js's own projection, with no renderer. The
 // selectables and their IDs come from compose() over the repository, never from a list in the test, and the room
 // takes a selection only for an ID its index lists (src/room/app.ts).
+// T112 (spec 004; FR-005, FR-007; R-16): src/room/objects.ts holds no list of the room's objects, nor a check against
+// one: it keeps the tap's slop, toNdc, and bindPointerSelection over string IDs.
 import { JSDOM } from "jsdom";
 import { PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it, vi } from "vitest";
@@ -224,5 +226,13 @@ describe("selectObject", () => {
     const [events, messages] = [v.events.length, talkLog(v.doc).children.length];
     scene.select("fx-elsewhere");
     expect([v.events.length, talkLog(v.doc).children.length]).toEqual([events, messages]);
+  });
+
+  it("finds no list of the room's objects in the pointer's code, only the selection over string IDs (T112)", async () => {
+    expect(Object.keys(await import("../../src/room/objects")).sort()).toEqual([
+      "TAP_SLOP_PX",
+      "bindPointerSelection",
+      "toNdc",
+    ]);
   });
 });

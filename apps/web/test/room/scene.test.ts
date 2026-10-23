@@ -13,9 +13,18 @@
 // part whose digest isn't the index's; and src/room/scene.ts draws the site's own 3D part (the repository's, which
 // vitest.config.ts gives the tests as `virtual:room-scene`), refusing it before it makes a renderer when the digest
 // differs, so the room falls to 2D as for a chunk that fails to load.
+// T112 (spec 004; FR-005, FR-007; R-16, R-18, R-27): scene.ts builds no piece of its own, holds no layout, and picks
+// with no raycast, and src/room/framing.ts, spec 002's layout, is gone. Spec 002's work-area cases, which T090 kept in
+// work-area.test.ts, end here: its labels' and quality levels' cases move unchanged, since scene.ts keeps both; its
+// framing and placeholder cases move onto the site's own room, the repository's bundle; its hand-off cases and its
+// visitor's cut-out go, as this file's own cases above hold both of the bundle's room; and where spec 002 hung its
+// pieces goes with its layout, FR-078's work area being the data's, which the Author's runs judge (T119).
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { JSDOM } from "jsdom";
 import { Box3, Mesh, Object3D, PerspectiveCamera, ShapeGeometry, Vector3 } from "three";
-import type { BufferGeometry, Color, Material, MeshBasicMaterial, Texture } from "three";
+import type { BufferGeometry, Color, Material, MeshBasicMaterial, Sprite, Texture } from "three";
 import { describe, expect, it, vi } from "vitest";
 import roomScene from "virtual:room-scene";
 
@@ -32,7 +41,7 @@ import { anchorWorld, mountWorld, resolveMounts } from "../../src/room/compose/m
 import type { Resolved } from "../../src/room/compose/mount";
 import { projector } from "../../src/room/compose/project";
 import { ASPECTS } from "../../src/room/compose/stages";
-import { createScene } from "../../src/room/scene";
+import { createLabels, createScene, qualitySettings } from "../../src/room/scene";
 import {
   buildRoom,
   disposeRoom,
@@ -555,5 +564,126 @@ describe("the scene module (src/room/scene.ts, T098)", () => {
     expect(v.room.visit.mode).toBe("2d");
     expect(v.doc.querySelector(".flat")).not.toBeNull();
     expect(v.events.filter((e) => e.kind === "mode_2d")).toHaveLength(1);
+  });
+
+  it("builds no piece of its own, holds no layout, and picks with no raycast: the 3D part is the room (T112)", async () => {
+    // The stage that draws the bundle's room, its labels, and its quality levels are all the module gives.
+    expect(Object.keys(await import("../../src/room/scene")).sort()).toEqual([
+      "createLabels",
+      "createScene",
+      "qualitySettings",
+    ]);
+    // Spec 002's layout went with its pieces: compose/framing.ts frames the bundle's boxes.
+    expect(existsSync(fileURLToPath(new URL("../../src/room/framing.ts", import.meta.url)))).toBe(false);
+  });
+});
+
+describe("the site's own room, from the repository's bundle (spec 002's work area, T112)", () => {
+  // From a 320-pixel portrait phone's stage to a wide desktop: spec 002 kept its twin, desk, laptop, screen, snowboard,
+  // and bicycle on screen; the site's room keeps every framed placement's picture there, each avatar's cut-out too.
+  for (const aspect of ASPECTS) {
+    it(`keeps every framed piece on screen at ${aspect}`, () => {
+      const result = repositoryBundle();
+      const framed = result.scene.placements.filter((p) => p.framed);
+      expect(framed.length).toBeGreaterThan(3);
+      const camera = new PerspectiveCamera();
+      frameCamera(camera, aspect, framedBoxes(result.scene));
+      for (const { id: avatar } of AVATARS) {
+        const room = build(result, avatar);
+        for (const p of framed) {
+          const b = new Box3().setFromObject(room.pictures.get(p.id) as Object3D);
+          expect(b.isEmpty(), p.id).toBe(false);
+          for (const x of [b.min.x, b.max.x])
+            for (const y of [b.min.y, b.max.y])
+              for (const z of [b.min.z, b.max.z]) {
+                const q = new Vector3(x, y, z).project(camera);
+                expect(Math.abs(q.x), `${p.id} x at ${aspect}, ${avatar}`).toBeLessThanOrEqual(1);
+                expect(Math.abs(q.y), `${p.id} y at ${aspect}, ${avatar}`).toBeLessThanOrEqual(1);
+                expect(q.z, `${p.id} in front at ${aspect}, ${avatar}`).toBeLessThan(1);
+              }
+        }
+        disposeRoom(room);
+      }
+    });
+  }
+
+  it("labels each stand-in it shows as a placeholder, in the site's own words", () => {
+    const room = build(repositoryBundle());
+    const words = [...room.labels.values()].map((node) => node.name.slice("label:".length));
+    expect(words.length).toBeGreaterThan(3);
+    for (const w of words) expect(w).toMatch(/placeholder/i);
+    disposeRoom(room);
+  });
+});
+
+describe("quality levels", () => {
+  it("lower the pixel ratio, then shadows, then textures and animations, never raising any", () => {
+    const levels = [0, 1, 2, 3].map(qualitySettings);
+    for (let i = 1; i < levels.length; i += 1) {
+      const [a, b] = [levels[i - 1], levels[i]];
+      if (!a || !b) throw new Error("missing level");
+      expect(b.pixelRatio).toBeLessThanOrEqual(a.pixelRatio);
+      expect(Number(b.shadows)).toBeLessThanOrEqual(Number(a.shadows));
+      expect(b.textureScale).toBeLessThanOrEqual(a.textureScale);
+      expect(Number(b.animations)).toBeLessThanOrEqual(Number(a.animations));
+    }
+    expect(levels[0]).toMatchObject({ shadows: true, animations: true });
+    expect(levels[3]).toMatchObject({ shadows: false, animations: false });
+    expect(levels[1]?.pixelRatio).toBeLessThan(levels[0]?.pixelRatio ?? 0);
+  });
+});
+
+describe("the labels' textures", () => {
+  /** A jsdom document whose canvases draw on a stand-in 2D context that measures text by its font's size. */
+  function documentWith2d(): Document {
+    const win = new JSDOM("<p>").window;
+    win.HTMLCanvasElement.prototype.getContext = function getContext(kind: string) {
+      if (kind !== "2d") return null;
+      const ctx = {
+        font: "",
+        fillStyle: "",
+        textBaseline: "",
+        measureText: (text: string) => ({ width: text.length * 0.55 * Number(/(\d+)px/.exec(ctx.font)?.[1] ?? 10) }),
+        fillRect: () => undefined,
+        fillText: () => undefined,
+      };
+      return ctx;
+    } as unknown as HTMLCanvasElement["getContext"];
+    return win.document as unknown as Document;
+  }
+
+  it("are redrawn at quality 3's smaller scale, the old texture released and the size on screen kept", () => {
+    const labels = createLabels(documentWith2d());
+    const node = labels.factory("Snowboard (placeholder)");
+    expect(node.name).toBe("label:Snowboard (placeholder)");
+    const sprite = node.children[0] as Sprite;
+    const first = sprite.material.map as Texture;
+    const height = (first.image as HTMLCanvasElement).height;
+    const onScreen = sprite.scale.clone();
+    let released = 0;
+    first.addEventListener("dispose", () => (released += 1));
+
+    labels.setScale(qualitySettings(3).textureScale);
+    const second = sprite.material.map as Texture;
+    expect(second).not.toBe(first);
+    expect(released).toBe(1);
+    expect((second.image as HTMLCanvasElement).height).toBeLessThanOrEqual(Math.ceil(height / 2) + 1);
+    expect((second.image as HTMLCanvasElement).height).toBeGreaterThanOrEqual(Math.floor(height / 2) - 1);
+    expect(sprite.scale.x).toBeCloseTo(onScreen.x, 2);
+    expect(sprite.scale.y).toBeCloseTo(onScreen.y, 5);
+
+    // The same scale again changes nothing.
+    labels.setScale(qualitySettings(3).textureScale);
+    expect(sprite.material.map).toBe(second);
+  });
+
+  it("are left as named nodes where the page has no 2D canvas", () => {
+    const win = new JSDOM("<p>").window;
+    win.HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
+    const labels = createLabels(win.document as unknown as Document);
+    const node = labels.factory("Desk (placeholder)");
+    expect(node.name).toBe("label:Desk (placeholder)");
+    expect(node.children).toHaveLength(0);
+    labels.setScale(0.5);
   });
 });

@@ -1,9 +1,11 @@
 // T061 (spec 004; FR-009, FR-019; R-08, R-18): the kernel's `framing(aspect, boxes)`, spec 002's camera algorithm moved
-// out of `src/room/framing.ts` (whose LAYOUT stays until T112): a 45° vertical field of view, a 1.5 m eye height, a 6%
-// margin, and the label lift, the camera straight down −Z from x = 0, as close as it can be while every corner of every
-// box fits. For spec 002's LAYOUT boxes, each grown for its label as spec 002 grows every piece's, it equals spec 002's
-// `framing(aspect)` at each of the six aspects, and the camera positions recorded from spec 002's own code before the
-// move, so the move changed nothing.
+// out of its `src/room/framing.ts`: a 45° vertical field of view, a 1.5 m eye height, a 6% margin, and the label lift,
+// the camera straight down −Z from x = 0, as close as it can be while every corner of every box fits. For spec 002's
+// LAYOUT boxes, each grown for its label as spec 002 grows every piece's, it places the camera where spec 002's own code
+// placed it before the move, recorded at each of the six aspects, so the move changed nothing.
+// T112 (spec 004; FR-005, FR-007) deleted that file with the rest of the room's data in code, and spec 002's framing
+// with it, which this file compared the kernel to while both stood. Its nine boxes stay here as numbers, the fixture
+// the recorded positions were measured on: the room's own boxes are its data's, which the bundle frames.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -18,16 +20,55 @@ import {
   withLabel,
 } from "../../src/room/compose/framing";
 import type { Box } from "../../src/room/compose/framing";
+import type { Vec3 } from "../../src/room/compose/math";
 import { ASPECTS } from "../../src/room/compose/stages";
-import { LAYOUT, framing as spec002Framing } from "../../src/room/framing";
 
-/** Spec 002's LAYOUT boxes as the kernel's {min, max}, computed as spec 002's framing computes their corners. */
-const LAYOUT_BOXES: Box[] = Object.values(LAYOUT)
-  .filter((v): v is Exclude<typeof v, number> => typeof v !== "number")
-  .map(({ center, size }) => ({
-    min: [center[0] - size[0] / 2, center[1] - size[1] / 2, center[2] - size[2] / 2],
-    max: [center[0] + size[0] / 2, center[1] + size[1] / 2, center[2] + size[2] / 2],
-  }));
+/** Spec 002's LAYOUT at the base (dc7f023), each piece's centre and size in metres, in its order: the desk, the laptop,
+ *  the screen, the snowboard, the bicycle, the window, the artwork, the twin, and the visitor's largest avatar. */
+const LAYOUT: readonly (readonly [center: Vec3, size: Vec3])[] = [
+  [
+    [0.1, 0.375, -1.45],
+    [1.7, 0.75, 0.7],
+  ],
+  [
+    [-0.25, 0.865, -1.35],
+    [0.36, 0.23, 0.26],
+  ],
+  [
+    [0.4, 1.02, -1.62],
+    [0.64, 0.54, 0.16],
+  ],
+  [
+    [-2.3, 1.45, -1.94],
+    [0.32, 1.55, 0.06],
+  ],
+  [
+    [2.25, 1.6, -1.9],
+    [1.26, 0.76, 0.1],
+  ],
+  [
+    [0.95, 1.85, -1.97],
+    [0.9, 0.7, 0.06],
+  ],
+  [
+    [0.95, 2.55, -1.97],
+    [0.7, 0.4, 0.04],
+  ],
+  [
+    [-0.95, 0.875, -1.3],
+    [0.56, 1.75, 0.4],
+  ],
+  [
+    [1.0, 0.87, -0.35],
+    [1.1, 1.74, 0.05],
+  ],
+];
+
+/** Spec 002's LAYOUT boxes as the kernel's {min, max}, computed as spec 002's framing computed their corners. */
+const LAYOUT_BOXES: Box[] = LAYOUT.map(([center, size]) => ({
+  min: [center[0] - size[0] / 2, center[1] - size[1] / 2, center[2] - size[2] / 2],
+  max: [center[0] + size[0] / 2, center[1] + size[1] / 2, center[2] + size[2] / 2],
+}));
 
 /** spec 002's framing(aspect) at the base (dc7f023), before the move: its camera's z at each of the six aspects. */
 const SPEC_002_Z: Record<number, number> = {
@@ -50,17 +91,14 @@ describe("framing(aspect, boxes)", () => {
     expect(LAYOUT_BOXES).toHaveLength(9);
   });
 
-  it("equals spec 002's framing(aspect) for its LAYOUT boxes at each of the six aspects", () => {
+  it("places the camera where spec 002's framing(aspect) did for its LAYOUT boxes, at each of the six aspects", () => {
     expect(ASPECTS).toHaveLength(6);
     for (const aspect of ASPECTS) {
       const kernel = framing(aspect, LAYOUT_BOXES.map(withLabel));
-      const spec002 = spec002Framing(aspect);
-      expect(kernel.fov, `fov at ${aspect}`).toBe(spec002.fov);
-      expect(kernel.position, `position at ${aspect}`).toEqual(spec002.position);
-      expect(kernel.target, `target at ${aspect}`).toEqual(spec002.target);
-      // And the camera spec 002 placed before the algorithm moved, to the last bit.
-      expect(kernel.position).toEqual([0, 1.5, SPEC_002_Z[aspect]]);
-      expect(kernel.target).toEqual([0, 1.5, (SPEC_002_Z[aspect] ?? Number.NaN) - 1]);
+      expect(kernel.fov, `fov at ${aspect}`).toBe(FOV);
+      // The camera spec 002 placed before the algorithm moved, to the last bit.
+      expect(kernel.position, `position at ${aspect}`).toEqual([0, 1.5, SPEC_002_Z[aspect]]);
+      expect(kernel.target, `target at ${aspect}`).toEqual([0, 1.5, (SPEC_002_Z[aspect] ?? Number.NaN) - 1]);
     }
   });
 
