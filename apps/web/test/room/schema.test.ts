@@ -5,12 +5,17 @@
 // (RD2), a missing key or a value outside its type (RD3), and a version other than 1 (RD4), and holds the constraints
 // T076 and T077 give verbatim; a constraint another family's rule names carries that rule. RD5 keeps the data folders
 // to their kinds. Every input is the known-good fixture set, changed one value at a time.
+import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 
 import { formatPath } from "../../build/room/checks/family";
 import { loadRoom, namespaceIds, readFile, readJson, readYaml } from "../../build/room/load";
 import type { DataKind } from "../../build/room/load";
+import { fileTree } from "../../build/room/source";
 import { goodFiles, overlay } from "../helpers/room-fixtures";
 
 const good = goodFiles();
@@ -777,6 +782,46 @@ describe("RD5: the data folders hold only their kinds", () => {
       "apps/web/room/catalog/fx-shell.yaml:id",
       "apps/web/room/fixtures/fx-sample.yaml:id",
     ]);
+  });
+
+  it("refuses a file where a data folder belongs, the outlines folder of apps/web/content/room/ among them (core-3)", () => {
+    const outline = "apps/web/content/room/outlines/fx-sign-words.outline.json";
+    expect(
+      problems({
+        [outline]: null,
+        "apps/web/content/room/outlines": text(outline),
+        "apps/web/room/fixtures/fx-sample.yaml": null,
+        "apps/web/room/fixtures": fixture,
+      }),
+    ).toEqual(["apps/web/content/room/outlines:-", "apps/web/room/fixtures:-"]);
+  });
+
+  it("refuses a link where a data folder belongs, which the tree never follows, so its files are never lost unsaid (core-3)", () => {
+    const root = mkdtempSync(join(tmpdir(), "room-links-"));
+    try {
+      for (const [path, data] of good) {
+        if (!/^apps\/web\/(content\/)?room\//.test(path)) continue;
+        mkdirSync(dirname(join(root, path)), { recursive: true });
+        writeFileSync(join(root, path), data);
+      }
+      // Each folder moved out of the data's folders, and a link to it left in its place.
+      mkdirSync(join(root, "elsewhere"));
+      for (const [dir, moved] of [
+        ["apps/web/room/fixtures", "elsewhere/fixtures"],
+        ["apps/web/content/room/outlines", "elsewhere/outlines"],
+      ] as const) {
+        renameSync(join(root, dir), join(root, moved));
+        symlinkSync(join(root, moved), join(root, dir));
+      }
+      const room = loadRoom(fileTree(root));
+      expect(room.problems.map((p) => `${p.rule} ${p.file}:${p.path}`)).toEqual([
+        "RD5 apps/web/content/room/outlines:-",
+        "RD5 apps/web/room/fixtures:-",
+      ]);
+      expect([room.fixtures, room.outlines]).toEqual([[], []]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("leaves apps/web/room/README.md apart, unread", () => {
