@@ -119,11 +119,8 @@ describe("the gzip-9 parity (glb/gzip.ts; contracts/plain-model-fit.md §7)", ()
     const data = caseBytes(c);
     const copy = gzip9(data);
     expect([...copy.subarray(0, 10)], `${name}: the header`).toEqual(HEADER);
-    const trailer = [u32le(copy, copy.length - 8), u32le(copy, copy.length - 4)];
-    expect(trailer, `${name}: the trailer's CRC-32 and length, so these are the fixture's bytes`).toEqual([
-      c.crc32,
-      c.bytes,
-    ]);
+    expect(u32le(copy, copy.length - 8), `${name}: the CRC-32 of the generator's bytes`).toBe(c.crc32);
+    expect(u32le(copy, copy.length - 4), `${name}: the trailer's length`).toBe(c.bytes);
     expect(copy.length, `${name}: pako's gzip-9 length beside Python's`).toBe(c.gzip9);
     expect(Buffer.compare(gunzipSync(copy), data), `${name}: the copy inflates to the case's bytes`).toBe(0);
   });
@@ -135,7 +132,8 @@ describe("the measure fit is given (glb/gzip.ts)", () => {
     const measures = fit(model, DESK_INPUT, { file: "candidate", gzipBytes: gzipBytes(model) }).measures;
     expect(measures.gzipBytes).toBe(gzip9(model).length);
     expect(measures.bytes).toBe(model.length);
-    expect(gzipBytes(caseBytes(byName("text-like-300000")))).toBe(byName("text-like-300000").gzip9);
+    const text = byName("text-like-300000");
+    expect(gzipBytes(caseBytes(text)), `${text.name}: gzipBytes beside Python's length`).toBe(text.gzip9);
   });
 
   it("compresses only the bytes a view shows, and leaves them as they were", () => {
