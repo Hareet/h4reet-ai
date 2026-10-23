@@ -20,6 +20,7 @@ import { loadRoom } from "../../build/room/load";
 import { noPolicy, policyFrom } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
 import type { Tree } from "../../build/room/source";
+import { readTypefaces } from "../../build/room/typefaces";
 import { LABEL_HEIGHT, LABEL_LIFT } from "../../src/room/compose/framing";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 
@@ -159,11 +160,16 @@ describe("RG2: a piece's bounds hold its origin, faces, glows, and stand-ins", (
 
   it("refuses an up that isn't square to its facing, the +Y an absent up takes included", () => {
     const up = (face: Doc): string[] =>
-      where(rg(tree({ [LAPTOP]: (d) => Object.assign(at(d, "live_faces", 0), face) }))).filter((w) =>
-        w.endsWith("live_faces[0].up"),
-      );
+      rg(tree({ [LAPTOP]: (d) => Object.assign(at(d, "live_faces", 0), face) }))
+        .filter((f) => f.path === "live_faces[0].up")
+        .map((f) => `${f.rule} ${f.file}:${f.path}: ${f.reason}`);
     expect(up({ facing: [0, 0.6, 0.8], up: [0, 0.8, -0.6] })).toEqual([]);
-    expect(up({ facing: [0, 0.6, 0.8], up: undefined })).toEqual([`RG2 ${LAPTOP}:live_faces[0].up`]);
+    expect(up({ facing: [0, 0.6, 0.8], up: [0, 1, 0] })).toEqual([
+      `RG2 ${LAPTOP}:live_faces[0].up: not perpendicular to facing within 1e-6`,
+    ]);
+    expect(up({ facing: [0, 0.6, 0.8], up: undefined })).toEqual([
+      `RG2 ${LAPTOP}:live_faces[0].up: absent, and +Y, its default, isn't perpendicular to facing within 1e-6`,
+    ]);
     expect(up({ facing: [0.6, 0, 0.8], up: undefined })).toEqual([]);
   });
 });
@@ -264,21 +270,37 @@ describe("RG7: legibility at the production framing on both reference stages", (
     expect(over[0]?.reason).toBe("its words hold 11 characters, over its max_chars of 10");
   });
 
-  it("gives each bound face's cap heights for the report", () => {
-    const faces = faceCaps(loadRoom(goodTree()), goodTree());
-    expect(faces.map((f) => f.face)).toEqual([
-      "fx-monitor.screen",
-      "fx-neon.panel",
-      "fx-board.slate",
-      "fx-sign.lettering",
+  it("gives the report each bound face's cap heights from the index's cap ratios, as RG7 measures them", () => {
+    const room = loadRoom(goodTree());
+    const look = room.looks[0];
+    const typefaces = look
+      ? (readTypefaces(goodTree(), [{ file: look.file, typefaces: look.value.typefaces }]).looks[0]?.typefaces ?? [])
+      : [];
+    expect(typefaces).toHaveLength(5);
+    const faces = faceCaps(room, typefaces);
+    expect(faces.map((f) => [f.face, f.placement, f.role])).toEqual([
+      ["fx-monitor.screen", 2, "screen"],
+      ["fx-neon.panel", 3, "panel"],
+      ["fx-board.slate", 5, "slate"],
+      ["fx-sign.lettering", 6, "lettering"],
     ]);
     for (const f of faces) {
-      expect(f.readable).toBe(true);
+      expect([f.readable, f.atmosphere, f.max_chars]).toEqual([true, false, null]);
       expect(f.desktop).toBeGreaterThan(9);
+      // The phone's stage is the smaller: every glyph is smaller there.
       expect(f.phone).toBeGreaterThan(9);
+      expect(f.phone).toBeLessThan(f.desktop ?? 0);
     }
-    // The phone's stage is the smaller: every glyph is smaller there.
-    for (const f of faces) expect(f.phone).toBeLessThan(f.desktop ?? 0);
+    // A floor just over the smallest of them refuses that face alone, with its own number.
+    const least = faces.reduce((a, b) => ((b.phone ?? Infinity) < (a.phone ?? Infinity) ? b : a));
+    const floor = Math.ceil(((least.phone ?? 0) + 0.01) * 100) / 100;
+    const refused = rg(goodTree(), floorOf(floor));
+    expect(where(refused)).toEqual([`RG7 ${SCENE}:placements[${least.placement}].faces.${least.role}`]);
+    expect(refused[0]?.reason).toBe(
+      `cap height ${(Math.floor((least.phone ?? 0) * 10) / 10).toFixed(1)} px on the phone stage, under the floor of ${floor}`,
+    );
+    // Without a use's ratio its text regions go unmeasured; a sign's outline needs none.
+    expect(faceCaps(room, []).map((f) => f.phone !== null)).toEqual([false, false, false, true]);
   });
 });
 

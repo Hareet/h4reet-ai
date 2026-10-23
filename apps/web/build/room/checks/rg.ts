@@ -58,13 +58,14 @@ import { capsOf } from "../policy";
 import type { RoomPolicy } from "../policy";
 import type { AnchorRef, CatalogEntry, FaceBinding, LiveFace, Region, Scene, StandinEntry, Switch } from "../schema";
 import { readTypefaces } from "../typefaces";
-import type { TreeReader } from "../typefaces";
+import type { TreeReader, Typeface } from "../typefaces";
 import type { Context, Family } from "./family";
 
 /** Room for floating point at a boundary, in metres or fractions of a face. */
 const EPS = 1e-9;
-/** RG2's: a unit up within 1e-6 of square to its facing, and a canvas within a pixel of its face's aspect. */
-const SQUARE = 1e-6;
+/** RG2's: a unit up within 1e-6 of square to its facing, as the reason prints it, and a canvas within a pixel of its
+ *  face's aspect. */
+const SQUARE = { value: 1e-6, text: "1e-6" } as const;
 const ASPECT_PX = 1;
 /** An absent up's default (contracts/room-data-files.md §4). */
 const UP: Vec3 = [0, 1, 0];
@@ -298,12 +299,12 @@ function bounds(ctx: Context): void {
       const face = faceOf(f);
       if (!FACE_CORNERS.every(([u, v]) => holds(b, facePoint(face, u, v))))
         rg2(ctx.path("live_faces", k), "a corner outside origin.bounds");
-      if (Math.abs(dot(face.up, f.facing)) > SQUARE)
+      if (Math.abs(dot(face.up, f.facing)) > SQUARE.value)
         rg2(
           ctx.path("live_faces", k, "up"),
           f.up
-            ? `not perpendicular to facing within ${SQUARE}`
-            : `absent, and +Y, its default, isn't perpendicular to facing within ${SQUARE}`,
+            ? `not perpendicular to facing within ${SQUARE.text}`
+            : `absent, and +Y, its default, isn't perpendicular to facing within ${SQUARE.text}`,
         );
       const off = aspectOff(f.size, f.px);
       if (off > ASPECT_PX + EPS)
@@ -452,13 +453,15 @@ function sourceOf(r: Region): RegionSourceRef {
   return { signal: "turn-cost", part: r.part ?? "call" };
 }
 
-/** The scene's look's cap ratio for each typeface use, read after fonts.lock's check (typefaces.ts); none while an
- *  RT10 finding stands on the look, which is the one to fix. */
-function capRatios(room: LoadedRoom, look: string, tree: TreeReader): ReadonlyMap<TypefaceUse, number> {
+/** A typeface use's cap ratio, as the index's typefaces[] carries it (contracts/room-bundle.md §3.1). */
+export type CapRatio = Pick<Typeface, "use" | "cap_ratio">;
+
+/** The scene's look's typefaces, read after fonts.lock's check (typefaces.ts); none while an RT10 finding stands on the
+ *  look, which is the one to fix. */
+function lookTypefaces(room: LoadedRoom, look: string, tree: TreeReader): readonly CapRatio[] {
   const file = room.looks.find((l) => l.value.id === look);
-  if (!file) return new Map();
-  const read = readTypefaces(tree, [{ file: file.file, typefaces: file.value.typefaces }]);
-  return new Map((read.looks[0]?.typefaces ?? []).map((t) => [t.use, t.cap_ratio]));
+  if (!file) return [];
+  return readTypefaces(tree, [{ file: file.file, typefaces: file.value.typefaces }]).looks[0]?.typefaces ?? [];
 }
 
 /** A region's cap height on its face, in the face's units at scale 1: its outline's for a sign, else its typeface's cap
@@ -481,8 +484,8 @@ function capOf(
 }
 
 /** Each bound face of each placement, in scene order, measured. */
-function measureFaces(room: LoadedRoom, g: Geometry, tree: TreeReader): FaceCaps[] {
-  const ratios = capRatios(room, g.scene.value.look, tree);
+function measureFaces(room: LoadedRoom, g: Geometry, typefaces: readonly CapRatio[]): FaceCaps[] {
+  const ratios = new Map(typefaces.map((t) => [t.use, t.cap_ratio]));
   const cameras = REFERENCE.map(([, stage]) => ({ stage, camera: cameraAt(g, stage.w / stage.h).camera }));
   const out: FaceCaps[] = [];
   g.scene.value.placements.forEach((p, i) => {
@@ -514,10 +517,12 @@ function measureFaces(room: LoadedRoom, g: Geometry, tree: TreeReader): FaceCaps
 }
 
 /** Each bound face's smallest cap height on both reference stages at the production framing, in scene order, as RG7
- *  measures it: for the report's Legibility table, which sets each beside the floor (contracts/room-bundle.md §10). */
-export function faceCaps(room: LoadedRoom, tree: TreeReader): FaceCaps[] {
+ *  measures it, from each typeface use's cap ratio as the index's typefaces[] carries it: for the report's Legibility
+ *  table, which sets each beside the floor (contracts/room-bundle.md §10). A text region whose use has no ratio there
+ *  is left out of its face's measure. */
+export function faceCaps(room: LoadedRoom, typefaces: readonly CapRatio[]): FaceCaps[] {
   const g = geometry(room);
-  return g ? measureFaces(room, g, tree) : [];
+  return g ? measureFaces(room, g, typefaces) : [];
 }
 
 /** The characters an atmosphere face draws from the data: its blocks' lines but pending ones, its outlines' words, and
@@ -543,7 +548,7 @@ function characters(room: LoadedRoom, binding: FaceBinding): number {
  *  atmosphere on a face the catalog marks readable; an atmosphere face whose words run over its max_chars. */
 function legibility(ctx: Context, g: Geometry): void {
   const floor = capsOf(ctx.policy).legibility_floor_css_px;
-  for (const f of measureFaces(ctx.room, g, ctx.tree)) {
+  for (const f of measureFaces(ctx.room, g, lookTypefaces(ctx.room, g.scene.value.look, ctx.tree))) {
     const at = (...more: string[]): string => ctx.path("placements", f.placement, "faces", f.role, ...more);
     const binding = g.scene.value.placements[f.placement]?.faces?.[f.role];
     if (f.atmosphere) {
