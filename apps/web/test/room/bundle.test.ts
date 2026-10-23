@@ -664,6 +664,7 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "label",
       "model",
     ]);
+    expect(Object.keys(scene.switches[0] ?? {})).toEqual(["id", "piece", "poses", "cable", "model"]);
   });
 
   it("holds each piece the scene places at scale 1, its stand-in's shapes resolved", () => {
@@ -768,6 +769,7 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
           drop: 0.05,
           rest: { placement: "fx-desk", anchor: "top" },
         },
+        model: null,
       },
     ]);
     const look = fixture("room/looks/fx-cel.yaml");
@@ -925,6 +927,34 @@ describe("the models (contracts/room-bundle.md §3.4)", () => {
       "fx-sign",
     ]);
     expect(result.index.build.placeholders).toBe(true);
+  });
+
+  it("gives a switch whose piece is set its model, so every load_order entry resolves to a model the part carries", () => {
+    const result = withModels();
+    const plug = result.models.find((m) => m.piece === "fx-plug");
+    // The plug's model, made at its stylized scale of 2: its expected bounds times 2, measured.
+    expect(result.scene.switches.find((s) => s.id === "fx-power")?.model).toEqual({
+      url: plug?.url,
+      sha256: plug?.sha256,
+      bytes: plug?.gz.length,
+      bounds: { min: [-0.04, 0, -0.06], max: [0.04, 0.04, 0.06] },
+      texture_bytes: 0,
+    });
+    // A load_order entry is a placement's ID or a switch's pose, <switch>.<pose>; each names a model the part gives.
+    const modelOf = (id: string): ComposeResult["scene"]["placements"][number]["model"] =>
+      result.scene.placements.find((p) => p.id === id)?.model ??
+      result.scene.switches.find((s) => Object.keys(s.poses).some((pose) => `${s.id}.${pose}` === id))?.model ??
+      null;
+    expect(result.scene.load_order).toEqual(["fx-board", "fx-desk", "fx-power.fx-resting"]);
+    for (const id of result.scene.load_order) {
+      const model = modelOf(id);
+      expect(model, id).not.toBeNull();
+      expect(result.models.find((m) => m.url === model?.url)?.gz.length, id).toBe(model?.bytes);
+    }
+    // And every model the build emits is one the 3D part names, by its URL and SHA-256.
+    const named = [...result.scene.placements, ...result.scene.switches].map((x) => x.model);
+    for (const m of result.models)
+      expect(named, m.piece).toContainEqual(expect.objectContaining({ url: m.url, sha256: m.sha256 }));
   });
 
   it("emits a set image card plain, at a/<stem>.<hash16>.<ext>, measured by its image's header", () => {
