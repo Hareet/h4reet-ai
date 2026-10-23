@@ -1,12 +1,17 @@
 // The 3D chunk (spec 002, T041; FR-005, FR-047, FR-048; contracts/room-scene.md §2–§4; research.md R-03, R-11): the
-// work area in Three.js, from labeled placeholder geometry: the desk with its laptop and screen, the snowboard hanging
-// on the left, the bicycle on the right, the small window with artwork above it and its view of a fence and a tree,
-// the twin's figure at the desk, and the visitor's chosen avatar as a flat cut-out in front. No photo and no studio
-// output: R-11's placeholders, which spec 003's assets replace (Phase 10).
+// work area in Three.js. Since spec 004 (T098; its FR-003, FR-005, FR-008, FR-011; R-11, R-20, R-27), createScene
+// draws the room from the bundle's 3D part, `virtual:room-scene`, which only this module imports, so it lands in this
+// lazy chunk. It refuses a part whose digest isn't the index's, before it makes a renderer, and the room falls to 2D as
+// for a chunk that fails to load; it builds the object tree with scene/bundle3d.ts's buildRoom (each piece's stand-in,
+// the figures, the hand-off and its paper), frames the camera over the framed placements' boxes with its frameCamera,
+// draws in the look through scene/look.ts's createInk, and picks the index's selectables through compose/pick.ts over
+// the same boxes, recomputed whenever the stage's size changes. No photo and no studio output: the stand-ins are
+// R-11's placeholders, which spec 003's assets replace.
 //
 // The room imports this file only after the WebGL 2 check (quality.ts), so Three.js is its own chunk, loaded behind
-// the choice screen and never on a device without WebGL 2. buildWorkArea, fitCamera, createPicker, and applyHandoff
-// need no renderer, so the tests run them in Node; createScene adds the renderer and the frame loop.
+// the choice screen and never on a device without WebGL 2. Spec 002's placeholders below (buildWorkArea, fitCamera,
+// createPicker, and applyHandoff) stay until spec 004's T112 takes the room's data out of the code; its labels and
+// quality levels draw the bundle's room too. None of them needs a renderer, so the tests run them in Node.
 import {
   Box3,
   BoxGeometry,
@@ -38,7 +43,8 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
-import type { Material, Texture } from "three";
+import type { Material } from "three";
+import part from "virtual:room-scene";
 
 import { AVATAR_SHAPES, avatarById } from "../choice/avatars";
 import type { AvatarId } from "../choice/avatars";
@@ -46,6 +52,15 @@ import { LABEL_LIFT, LAYOUT, framing } from "./framing";
 import type { Box, Vec3 } from "./framing";
 import { bindPointerSelection, isObjectId } from "./objects";
 import type { ObjectId, Picker } from "./objects";
+import {
+  buildRoom,
+  disposeRoom,
+  frameCamera,
+  framedBoxes,
+  selectablePicker,
+  showHandoff as drawHandoff,
+} from "./scene/bundle3d";
+import { createInk } from "./scene/look";
 import type { SceneOptions, Stage3D } from "./stage";
 
 export type PartName =
@@ -529,37 +544,35 @@ export function createLabels(doc: Document): Labels {
   };
 }
 
-function disposeAll(root: Object3D): void {
-  const textures = new Set<Texture>();
-  root.traverse((node) => {
-    const mesh = node as Partial<Mesh> & Partial<Sprite>;
-    mesh.geometry?.dispose();
-    const materials = ([] as Material[]).concat((mesh.material as Material | Material[] | undefined) ?? []);
-    for (const material of materials) {
-      const map = (material as Partial<SpriteMaterial>).map;
-      if (map) textures.add(map);
-      material.dispose();
-    }
-  });
-  for (const texture of textures) texture.dispose();
-}
-
-/** The 3D stage: the renderer on its own canvas, the frame loop on the room's clock, and the hand-off's drawing. */
+/**
+ * The 3D stage: the room from the bundle's 3D part on its own canvas, drawn in its look, the frame loop on the room's
+ * clock, the hand-off's drawing, and the pointer's picks. It throws, before it makes a renderer, on a part that isn't
+ * the index's or doesn't build whole, and the room goes to 2D.
+ */
 export function createScene(options: SceneOptions): Stage3D {
   const { win, doc, clock } = options;
+  const labels = createLabels(doc);
+  const room = buildRoom(part, { avatar: options.avatar, label: labels.factory, index: options.room });
   const canvas = doc.createElement("canvas");
   canvas.className = "room-canvas";
   canvas.setAttribute("aria-hidden", "true");
-  const renderer = new WebGLRenderer({ canvas, antialias: true });
+  let renderer: WebGLRenderer;
+  try {
+    renderer = new WebGLRenderer({ canvas, antialias: true });
+  } catch (error) {
+    disposeRoom(room);
+    throw error;
+  }
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.shadowMap.enabled = true;
+  const ink = createInk(renderer, part.look);
 
   let settings = qualitySettings(0);
-  const labels = createLabels(doc);
-  const area = buildWorkArea({ avatar: options.avatar, label: labels.factory });
   const camera = new PerspectiveCamera();
-  fitCamera(camera, 16 / 9);
-  const unbind = bindPointerSelection(canvas, createPicker(camera, area), options.select);
+  const boxes = framedBoxes(part);
+  frameCamera(camera, 16 / 9, boxes);
+  const picker = selectablePicker(part, options.room);
+  const unbind = bindPointerSelection(canvas, picker.pick, options.select);
 
   let size = { w: 0, h: 0, ratio: 0 };
   const resize = (): void => {
@@ -570,7 +583,10 @@ export function createScene(options: SceneOptions): Stage3D {
     size = { w, h, ratio };
     renderer.setPixelRatio(ratio);
     renderer.setSize(w, h, false);
-    fitCamera(camera, w / h);
+    // The camera, the pick areas, and the ink's width follow the stage, all from the same framing of the same boxes.
+    frameCamera(camera, w / h, boxes);
+    picker.resize({ w, h });
+    ink.setStageHeight(h);
   };
 
   let disposed = false;
@@ -581,11 +597,11 @@ export function createScene(options: SceneOptions): Stage3D {
     // The controller may have switched the room to 2D, which disposes this stage.
     if (disposed) return;
     resize();
-    area.twin.rotation.z = settings.animations && !options.reducedMotion ? Math.sin(time / 900) * 0.015 : 0;
-    renderer.render(area.scene, camera);
+    room.twin.rotation.z = settings.animations && !options.reducedMotion ? Math.sin(time / 900) * 0.015 : 0;
+    ink.render(room.scene, camera);
     frame = clock.requestFrame(loop);
   };
-  applyHandoff(area, 0, options.reducedMotion);
+  drawHandoff(room, 0, options.reducedMotion);
   frame = clock.requestFrame(loop);
 
   return {
@@ -593,7 +609,7 @@ export function createScene(options: SceneOptions): Stage3D {
     element: canvas,
     canvas,
     showHandoff(progress) {
-      applyHandoff(area, progress, options.reducedMotion);
+      drawHandoff(room, progress, options.reducedMotion);
     },
     setQuality(level) {
       const before = settings.shadows;
@@ -601,7 +617,7 @@ export function createScene(options: SceneOptions): Stage3D {
       renderer.shadowMap.enabled = settings.shadows;
       labels.setScale(settings.textureScale);
       if (before !== settings.shadows) {
-        area.scene.traverse((node) => {
+        room.scene.traverse((node) => {
           const material = (node as Partial<Mesh>).material;
           for (const m of ([] as Material[]).concat((material as Material | Material[] | undefined) ?? [])) {
             m.needsUpdate = true;
@@ -614,7 +630,7 @@ export function createScene(options: SceneOptions): Stage3D {
       disposed = true;
       clock.cancelFrame(frame);
       unbind();
-      disposeAll(area.scene);
+      disposeRoom(room);
       renderer.dispose();
       canvas.remove();
     },

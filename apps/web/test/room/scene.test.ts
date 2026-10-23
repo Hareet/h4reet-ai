@@ -44,6 +44,7 @@ import {
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { shapeGeometry } from "../../src/room/scene/standins";
 import { FakeClock, enter, repositoryBundle, start } from "../helpers/room";
+import type { TestWindow } from "../helpers/room";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
@@ -331,8 +332,9 @@ describe("the object tree (buildRoom)", () => {
     // The visitor turned a little on its mount, so the offset is the visitor's own, not the world's.
     const turned = text(SCENE).replace(
       "mount: { on: fx-shell, anchor: floor, offset: [0, 0, 0.8] }",
-      "mount: { on: fx-shell, anchor: floor, offset: [0, 0, 0.8] }\n    turn: { y: 20 }",
+      "mount: { on: fx-shell, anchor: floor, offset: [0, 0, 0.8], turn: { y: 20 } }",
     );
+    expect(turned).not.toBe(text(SCENE));
     for (const result of [good(), compose(overlay({ [SCENE]: turned }), noPolicy(), strict)]) {
       expect(result.findings).toEqual([]);
       const part = result.scene;
@@ -353,6 +355,12 @@ describe("the object tree (buildRoom)", () => {
         expectClose(position(room.paper.sheet), room.anchors.visitorHand.toArray(), 1e-9, `${id}'s paper`);
       }
     }
+    const turnedVisitor = compose(overlay({ [SCENE]: turned }), noPolicy(), strict).scene;
+    const across = transformDirection(
+      resolved(turnedVisitor).world.get(turnedVisitor.figures.visitor) ?? IDENTITY,
+      [1, 0, 0],
+    );
+    expect(across[0]).toBeCloseTo(Math.cos((20 * Math.PI) / 180), 9);
     // The dog's hand is 576 mm below the first avatar's, which a single anchor would leave in the air.
     expect(hand("dog")[1] - first[1]).toBeCloseTo(-0.576, 9);
   });
@@ -509,7 +517,7 @@ describe("the scene module (src/room/scene.ts, T098)", () => {
   /** What createScene fails with, or null; jsdom draws no WebGL, so a part it accepts fails only at its renderer, which
    *  says so on the console too. */
   function failure(room: RoomIndex): string | null {
-    const win = new JSDOM("<main></main>", { pretendToBeVisual: true }).window as unknown as Window;
+    const win = new JSDOM("<main></main>", { pretendToBeVisual: true }).window as unknown as TestWindow;
     win.HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {

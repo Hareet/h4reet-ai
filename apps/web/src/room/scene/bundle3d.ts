@@ -8,14 +8,18 @@
 // label word filled, floats where its frame box leaves room, only while the placement has no set model. The figures
 // are found by role: the twin's picture is its stand-in until spec 003's avatars; the visitor's is the chosen avatar's
 // flat cut-out (src/choice/avatars.ts), at its own size, as the 2D room draws it. The hand-off and its paper stay code,
-// their two anchors the scene's `handoff` (FR-008). Each switch case is its own group, at its pose's mount, holding the
-// switch piece's stand-in; only the index's not-live case shows until the tier applies another (the face quads, glow
-// cards, and cable tubes come with T185 and T160). The camera frames the framed placements' boxes with
-// compose/framing.ts, never loaded geometry, so a model arriving or failing moves nothing (R-18).
+// their two anchors the scene's `handoff` (FR-008); the visitor's is where the first avatar holds the paper, and the
+// chosen avatar's own hand, spec 002's placement from its size, is offset from it (handoff.ts). Each switch case is
+// its own group, at its pose's mount, holding the switch piece's stand-in; only the index's not-live case shows until
+// the tier applies another (the face quads, glow cards, and cable tubes come with T185 and T160). The camera frames
+// the framed placements' boxes with compose/framing.ts, never loaded geometry, so a model arriving or failing moves
+// nothing (R-18), and the pointer picks from the same boxes through compose/pick.ts, as the compositor's spacing check
+// (RG6) measures them: each selectable's members projected at the camera's framing into the stage's CSS pixels,
+// recomputed whenever the stage's size changes (R-20).
 //
 // The 3D part holds a label's key and a switch's poses, so the index gives the words and the cases (plan.md §10). A
-// part that doesn't build whole (a mount, an anchor, or a figure that doesn't resolve) is refused with an error, and
-// the room falls to 2D as for a chunk that fails to load.
+// part that isn't the index's (its digest differs) or doesn't build whole (a mount, an anchor, or a figure that
+// doesn't resolve) is refused with an error, and the room falls to 2D as for a chunk that fails to load.
 import {
   Color,
   DoubleSide,
@@ -36,10 +40,16 @@ import { AVATAR_SHAPES } from "../../choice/avatars";
 import type { AvatarId } from "../../choice/avatars";
 import type { Box, RoomIndex, RoomScene } from "../compose/bundle";
 import { LABEL_HEIGHT, framing } from "../compose/framing";
-import { IDENTITY, invert, origin, transformPoint } from "../compose/math";
+import { IDENTITY, add, invert, origin, transformDirection, transformPoint } from "../compose/math";
 import type { Mat4, Turn, Vec3 } from "../compose/math";
 import { anchorWorld, mountWorld, resolveMounts } from "../compose/mount";
+import { memberRect, pick, pickAreas } from "../compose/pick";
+import type { PickArea } from "../compose/pick";
+import { toStage } from "../compose/project";
 import type { Camera } from "../compose/project";
+import type { Stage } from "../compose/stages";
+import { handOffset } from "../handoff";
+import type { Ndc } from "../objects";
 import type { UiKey } from "../ui-keys";
 import { lookLights, lookMaterials } from "./look";
 import type { Materials } from "./look";
@@ -61,8 +71,9 @@ export interface RoomOptions {
   /** The visitor's chosen avatar: its flat cut-out is the visitor's picture. */
   readonly avatar: AvatarId;
   readonly label: LabelFactory;
-  /** The index composed with the part: its UI words, for the labels, and its switches' cases. */
-  readonly index: Pick<RoomIndex, "ui" | "switches">;
+  /** The index composed with the part: its digest, which the part's must equal; its UI words, for the labels; and its
+   *  switches' cases. */
+  readonly index: Pick<RoomIndex, "digest" | "ui" | "switches">;
 }
 
 export interface Room3D {
@@ -81,7 +92,8 @@ export interface Room3D {
   /** The figures' pictures, found by role: the twin's turns toward the visitor in the hand-off. */
   readonly twin: Group;
   readonly visitor: Group;
-  /** The hand-off's two anchors in the world: the twin's hand and the visitor's, from the part's `handoff`. */
+  /** The hand-off's two anchors in the world, from the part's `handoff`: the twin's hand, and the chosen avatar's, the
+   *  visitor's anchor moved by the avatar's hand from the first avatar's. */
   readonly anchors: { readonly twinHand: Vector3; readonly visitorHand: Vector3 };
   /** The paper: the sheet that travels from the twin's hand (or fades there), and its two materials. */
   readonly paper: { readonly sheet: Mesh; readonly atTwin: MeshBasicMaterial; readonly atVisitor: MeshBasicMaterial };
@@ -131,6 +143,8 @@ function cutout(avatar: AvatarId, materials: Materials): Group {
 
 /** The room's object tree from the 3D part, with no renderer. */
 export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
+  // Only the index's own part: one composed with other data would draw a room the 2D room and the list don't hold.
+  if (part.digest !== options.index.digest) throw new Error("buildRoom: the 3D part's digest isn't the index's");
   const piece = (id: string): RoomScene["pieces"][string] | undefined =>
     Object.hasOwn(part.pieces, id) ? part.pieces[id] : undefined;
   // A repeated ID is RI2's; the first placement with it is the one built, as mount.ts resolves it.
@@ -158,14 +172,14 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
     if (!parent || !own || !at) throw new Error("buildRoom: a mount of the 3D part doesn't resolve");
     return { parent, local: mountWorld(IDENTITY, own.scale, at, offset, turn) };
   };
-  /** A placement's anchor in the world. */
-  const anchorPoint = (ref: { placement: string; anchor: string }): Vector3 => {
+  /** A placement's anchor in the world, moved by an offset in the placement's own frame. */
+  const anchorPoint = (ref: { placement: string; anchor: string }, offset: Vec3 = [0, 0, 0]): Vector3 => {
     const p = byId.get(ref.placement);
     const own = p && piece(p.piece);
     const w = p && world.get(p.id);
     const at = own && Object.hasOwn(own.anchors, ref.anchor) ? own.anchors[ref.anchor] : undefined;
     if (!own || !w || !at) throw new Error("buildRoom: an anchor of the hand-off doesn't resolve");
-    return new Vector3(...origin(anchorWorld(w, own.scale, at)));
+    return new Vector3(...add(origin(anchorWorld(w, own.scale, at)), transformDirection(w, offset)));
   };
 
   // The tree: the shell in the scene, every other placement under the node it mounts on.
@@ -230,7 +244,11 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
 
   const [twin, visitor] = [pictures.get(part.figures.twin), pictures.get(part.figures.visitor)];
   if (!twin || !visitor) throw new Error("buildRoom: a figure of the 3D part doesn't resolve");
-  const anchors = { twinHand: anchorPoint(part.handoff.from), visitorHand: anchorPoint(part.handoff.to) };
+  // The scene's visitor anchor is the first avatar's hand; the chosen avatar's own hand is offset from it (FR-008).
+  const anchors = {
+    twinHand: anchorPoint(part.handoff.from),
+    visitorHand: anchorPoint(part.handoff.to, handOffset(options.avatar)),
+  };
 
   // The paper: one sheet that travels from the twin's hand (or fades out there), one that fades in at the visitor's.
   const sheet = new PlaneGeometry(SHEET[0], SHEET[1]);
@@ -266,6 +284,52 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
 /** The framed placements' boxes, which the room frames and picks from: never loaded geometry (R-18). */
 export function framedBoxes(part: RoomScene): Box[] {
   return part.placements.filter((p) => p.framed).map((p) => p.frame_box);
+}
+
+/** Each selectable's pick area on a stage, as the compositor's spacing check (RG6) measures it: its members' frame boxes
+ *  projected at the camera's framing into the stage's CSS pixels (a box with a corner behind the camera gives none),
+ *  their union, and the exclusive core centred on it, in the index's order, the scene's. */
+export function pickAreasOn(
+  part: RoomScene,
+  index: Pick<RoomIndex, "selectables">,
+  camera: Camera,
+  stage: Stage,
+): PickArea[] {
+  const boxes = new Map<string, Box>();
+  for (const p of part.placements) if (!boxes.has(p.id)) boxes.set(p.id, p.frame_box);
+  return pickAreas(
+    index.selectables.map((s) => ({
+      id: s.id,
+      members: s.members.flatMap((m) => {
+        const box = boxes.get(m);
+        const rect = box && memberRect(box, camera, stage);
+        return rect ? [rect] : [];
+      }),
+    })),
+  );
+}
+
+/** The pointer's picker on the 3D stage (R-20). */
+export interface SelectablePicker {
+  /** The stage's size in CSS pixels: the areas are recomputed at the camera's framing for it whenever it changes. */
+  resize(stage: Stage): void;
+  /** The selectable under a point of the view, in normalized device coordinates, or null; none before a size. */
+  readonly pick: (ndc: Ndc) => string | null;
+}
+
+/** Picks the index's selectables from the part's frame boxes, framed as frameCamera frames them (compose/pick.ts). */
+export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "selectables">): SelectablePicker {
+  const boxes = framedBoxes(part);
+  let stage: Stage | null = null;
+  let areas: readonly PickArea[] = [];
+  return {
+    resize(next) {
+      if (stage !== null && next.w === stage.w && next.h === stage.h) return;
+      stage = { w: next.w, h: next.h };
+      areas = next.w > 0 && next.h > 0 ? pickAreasOn(part, index, framing(next.w / next.h, boxes), stage) : [];
+    },
+    pick: (ndc) => (stage === null ? null : pick(areas, toStage([ndc.x, ndc.y, 0], stage))),
+  };
 }
 
 /** Places the camera for a stage of this aspect with the kernel's framing over the boxes, and gives that framing. */

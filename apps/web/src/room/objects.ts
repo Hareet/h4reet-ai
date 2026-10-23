@@ -1,7 +1,8 @@
 // The room's selectable objects (spec 002, FR-020; contracts/room-scene.md §2): their IDs, names, and topics, and the
 // pointer and touch handling that turns a tap on the scene into selectObject(id). Three.js stays out of this file: the
-// list, the 2D drawing, and the manifest use it too, and the 3D chunk (scene.ts) supplies the picker that raycasts.
-// A mouse, a touch, and the "In the room" list's button all end in the same selectObject, so the paths can't drift.
+// list, the 2D drawing, and the manifest use it too, and the 3D chunk (scene.ts) supplies the picker, which picks a
+// selectable's ID from the bundle's pick areas (spec 004, T098). A mouse, a touch, and the "In the room" list's button
+// all end in the same selectObject, so the paths can't drift.
 export const ROOM_OBJECTS = [
   { id: "snowboard", name: "Snowboard", topic: "hobbies and general life" },
   { id: "bicycle", name: "Bicycle", topic: "travel adventures" },
@@ -27,8 +28,8 @@ export interface Ndc {
   y: number;
 }
 
-/** What is under a point of the scene, if it is one of the objects. */
-export type Picker = (ndc: Ndc) => ObjectId | null;
+/** The selectable under a point of the scene, by its ID, if there is one. */
+export type Picker = (ndc: Ndc) => string | null;
 
 /** A press that moves farther than this before it ends is a drag (looking around), not a tap. */
 export const TAP_SLOP_PX = 10;
@@ -42,9 +43,9 @@ export function toNdc(rect: { left: number; top: number; width: number; height: 
  * main button, a pen, or a finger. A mouse over an object gets the class `over-object` (a pointer cursor), which is
  * only an extra: the scene's labels and the list are the cues. Returns a function that unbinds.
  */
-export function bindPointerSelection(surface: HTMLElement, pick: Picker, select: (id: ObjectId) => void): () => void {
+export function bindPointerSelection(surface: HTMLElement, pick: Picker, select: (id: string) => void): () => void {
   let down: { x: number; y: number } | null = null;
-  const at = (e: PointerEvent): ObjectId | null => {
+  const at = (e: PointerEvent): string | null => {
     const rect = surface.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
     return pick(toNdc(rect, e.clientX, e.clientY));

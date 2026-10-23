@@ -3,7 +3,7 @@
 // quality controller, a lost context, or the visitor asks; never back.
 import type { AvatarId } from "../choice/avatars";
 import type { Clock } from "./clock";
-import type { ObjectId } from "./objects";
+import type { RoomIndex } from "./compose/bundle";
 
 export interface Stage {
   readonly mode: "3d" | "2d";
@@ -25,10 +25,12 @@ export interface SceneOptions {
   win: Window;
   doc: Document;
   clock: Clock;
+  /** The bundle's index (spec 004): the 3D part is drawn only if it's this index's, with its words and its cases. */
+  room: RoomIndex;
   avatar: AvatarId;
   reducedMotion: boolean;
-  /** The one handler a raycast hit, a touch, and the list's button all call. */
-  select(id: ObjectId): void;
+  /** The one handler a pick, a touch, and the list's button all call, with a selectable's ID. */
+  select(id: string): void;
   /** Each frame's time, for the quality controller. */
   onFrame(time: number): void;
 }

@@ -30,8 +30,7 @@ import { handoffDuration, runHandoff } from "./handoff";
 import type { Handoff } from "./handoff";
 import { renderRoom } from "./layout";
 import type { RoomLayout } from "./layout";
-import { objectById } from "./objects";
-import type { ObjectId } from "./objects";
+import { isObjectId, objectById } from "./objects";
 import { SCENE_WAIT_MS, createQualityController, hasWebGL2, targetFps, watchContext } from "./quality";
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
@@ -159,12 +158,14 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         win,
         doc,
         clock,
+        room: deps.room,
         avatar: choice.avatar,
         reducedMotion,
         select: selectObject,
         onFrame,
       });
     } catch {
+      // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
       return;
     }
     stage = scene3d;
@@ -255,10 +256,12 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (content.manifest.items.includes(id)) emit({ kind: "item_selected", id });
   }
 
-  function selectObject(id: ObjectId): void {
-    if (!open() || !talk) return;
+  /** A selectable picked in 3D or 2D, or from the list: object_selected, for an ID the index lists (spec 004, T098). */
+  function selectObject(id: string): void {
+    if (!open() || !talk || !deps.room.selectables.some((s) => s.id === id)) return;
     emit({ kind: "object_selected", id });
-    talk.objectSelected(objectById(id));
+    // The fixed message names spec 002's topic until the talk panel reads the index's phrase (T110).
+    if (isObjectId(id)) talk.objectSelected(objectById(id));
   }
 
   return {
