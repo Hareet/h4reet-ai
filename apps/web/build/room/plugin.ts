@@ -76,19 +76,21 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
       return resolved(id);
     },
     load(id) {
-      const { index, scene, drafts, manifest } = result();
       switch (id) {
         case resolved(ROOM_CONTENT): {
           this.addWatchFile(options.messages);
+          const { index, manifest } = result();
           const content = { messages: readMessages(options.messages), manifest };
           return `export const content = ${serialize(content)};\nexport const room = ${serialize(index)};\n`;
         }
         case resolved(ROOM_SCENE):
-          return `export default ${serialize(scene)};\n`;
+          return `export default ${serialize(result().scene)};\n`;
         case resolved(ROOM_FIXTURES):
-        case resolved(ROOM_LOOKDEV):
+        case resolved(ROOM_LOOKDEV): {
+          const drafts = result().drafts;
           if (drafts === null) throw new Error(DRAFTS_ONLY);
           return `export default ${serialize(id === resolved(ROOM_FIXTURES) ? drafts.fixtures : drafts.lookdev)};\n`;
+        }
         default:
           return null;
       }
