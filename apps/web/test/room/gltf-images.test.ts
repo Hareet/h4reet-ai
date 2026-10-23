@@ -443,7 +443,7 @@ describe("the texture ledger (FR-053, SC-006)", () => {
     expect(ledger.bytes).toBe(0);
   });
 
-  it("counts every upload: an image uploaded again at another size counts at that size, a closed bitmap as before", () => {
+  it("counts each upload at the size uploaded, keeping a closed bitmap's count", () => {
     const ledger = createTextureLedger();
     const gpu = renderer();
     // A live face's canvas, redrawn smaller at another quality level and uploaded again by the renderer.
