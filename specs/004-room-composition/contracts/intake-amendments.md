@@ -670,7 +670,7 @@ No agent merges. Agents only rebase and cherry-pick. The Author gates each branc
 - **Line I** (intake and governance) branches from `main`: `feat/004-guard` after M4, and `feat/004-intake` after M7. Its patches must reach `main` before the first studio output is brought in for intake, so line I merges first. The Author approved that order with the plan.
 - **Line R** (the room) starts now, on `feat/002-us6-events`.
   - Its first branch, `feat/004-setup`, opens by cherry-picking this branch's documents. That puts `plan.md` in the tree, so a departure from the plan can update it in the same commit (CLAUDE.md).
-  - The story branches stack on it. After M9, each is rebased onto `main`, and the replayed document commits drop out as already applied.
+  - The story branches stack on it. After M9, each is rebased onto `main`. A replayed document commit that equals one of M3's drops out; any other may conflict in the spec's folder, and each conflict resolves to `main`'s words with the branch's ticks.
   - User Story 1's branch merges only after M8, because its work orders need P-7 (FR-077, item 5).
   - User Story 4's intake, spec 003's task T050 (Amendment C10), merges after P-10 and the look. Its first room files are the desk and one sign.
   - Approved room text ships after P-9.
