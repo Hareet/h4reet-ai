@@ -28,7 +28,9 @@ export interface Probe {
 }
 
 export type SceneChoice = "room" | "vignette";
-export type ViewChoice = "desktop" | "phone" | "close-up";
+/** The reference stages, stages.ts's on any device; the phone copy's own device's stage, from its probe, which on the
+ *  reference phone re-measures its stage; and the desk close-up. */
+export type ViewChoice = "desktop" | "phone" | "device" | "close-up";
 /** Automatic, the real controller; or a level pinned for a measurement. */
 export type QualityChoice = "auto" | 0 | 1 | 2 | 3;
 

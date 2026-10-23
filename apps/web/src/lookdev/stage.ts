@@ -4,9 +4,10 @@
 // (scene/loader.ts) with the room's image step and texture ledger, and the real quality controller (quality.ts) with
 // its holds, all as the room's 3D stage runs them, after the hand-off. Around them, the page's settings:
 // - The view: the reference desktop's stage (≈686 × 640 CSS px at a pixel ratio of 1, compose/stages.ts), the
-//   reference phone's (its last measured stage and pixel ratio, or in the phone copy the phone's own, from its probe),
-//   or the desk close-up, framed over close_up.frame's boxes on the page's primary stage. The camera frames as the
-//   room's does, with compose/framing.ts over the framed placements' boxes; the pixel ratio drawn at is the view's,
+//   reference phone's (its last measured stage and pixel ratio), each as stages.ts gives it on any device; in the
+//   phone copy, this device's own, from its probe, the copy's first view, which on the reference phone re-measures its
+//   stage; or the desk close-up, framed over close_up.frame's boxes on the page's primary stage. The camera frames as
+//   the room's does, with compose/framing.ts over the framed placements' boxes; the pixel ratio drawn at is the view's,
 //   capped by the quality level as the room caps the device's.
 // - The scene: the room, or the vignette, where only vignette.show's placements are drawn, and every placement still
 //   resolves the mounts. What a placement draws is everything under its node but the placements mounted on it, its
@@ -76,8 +77,8 @@ export interface StageOptions {
   /** Makes the page's one renderer on its canvas. */
   readonly renderer: (canvas: HTMLCanvasElement) => WebGLRenderer;
   readonly capability: Capability;
-  /** The phone copy's own viewport and pixel ratio, from its probe; null on the site's page. */
-  readonly phone: { readonly viewport: readonly [number, number]; readonly dpr: number } | null;
+  /** The viewport and pixel ratio of the device that opened the phone copy, from its probe; null on the site's page. */
+  readonly device: { readonly viewport: readonly [number, number]; readonly dpr: number } | null;
   /** Whether set models load from the site's a/: the site's page, never the phone copy. */
   readonly site: boolean;
   readonly log: (entry: LogEntry) => void;
@@ -180,7 +181,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   // One frame's draw calls and triangles, inked cel's lines among them: reset at each frame, not at each render.
   renderer.info.autoReset = false;
   let ink: Ink = createInk(renderer, look);
-  let view: ViewChoice = options.phone ? "phone" : "desktop";
+  let view: ViewChoice = options.device ? "device" : "desktop";
   let scene: SceneChoice = "room";
   let sample: RoomFixture | null = fixtures[0] ?? null;
   let quality: QualityChoice = "auto";
@@ -215,11 +216,16 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     });
   }
 
-  /** The stage and pixel ratio of a view: the phone copy's phone view is the phone's own. */
+  /**
+   * The stage and pixel ratio of a view. The reference stages are stages.ts's on whatever device opens the page, the
+   * phone's the last measured; this device's, the copy's alone, is the room's layout at its probe's viewport, at its
+   * pixel ratio; and the close-up takes the page's primary stage, this device's in the copy (the review's page-4).
+   */
   function viewOf(v: ViewChoice): { stage: Stage; dpr: number } {
-    const own = options.phone && { stage: stageFor({ w: options.phone.viewport[0], h: options.phone.viewport[1] }) };
-    if (v === "phone") return own ? { stage: own.stage, dpr: options.phone?.dpr ?? 1 } : REFERENCE_PHONE;
-    if (v === "close-up" && own) return { stage: own.stage, dpr: options.phone?.dpr ?? 1 };
+    const device = options.device;
+    const own = device && { stage: stageFor({ w: device.viewport[0], h: device.viewport[1] }), dpr: device.dpr };
+    if (v === "phone") return REFERENCE_PHONE;
+    if ((v === "device" || v === "close-up") && own) return own;
     return REFERENCE_DESKTOP;
   }
 

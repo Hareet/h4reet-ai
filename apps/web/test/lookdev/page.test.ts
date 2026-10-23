@@ -477,7 +477,7 @@ describe("the views (contracts/lookdev.md §3)", () => {
     expect(collapse(open().root.textContent)).not.toContain("This device");
   });
 
-  it("in the phone copy, draws the phone view at the probe's own viewport and pixel ratio", () => {
+  it("in the phone copy, first draws this device's own stage, at the probe's viewport and pixel ratio", () => {
     const probe: Probe = {
       webgl2: true,
       max_texture_size: 8192,
@@ -834,6 +834,9 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     await settle(clock);
     const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
     expect(results.probe).toEqual(probe);
-    expect(results.view).toBe("phone");
+    // The copy's first view is the stage of the device that opened it, which on the reference phone re-measures it.
+    expect(results.view).toBe("device");
+    const own = stageFor({ w: 384, h: 740 });
+    expect(results.stage_css).toEqual([own.w, own.h]);
   });
 });

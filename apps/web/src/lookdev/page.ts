@@ -41,7 +41,8 @@ import type { LogEntry, LookdevInputs, LookdevStage } from "./stage";
 export type { LookdevInputs } from "./stage";
 
 export interface LookdevOptions {
-  /** The phone copy: the phone's own stage, and every model from memory (contracts/lookdev.md §3, §7). */
+  /** The phone copy: the stage of the device that opened it, and every model from memory (contracts/lookdev.md §3,
+   *  §7). */
   readonly phone: boolean;
   /** The phone copy's probe (§7.2); null on the site's page. */
   readonly probe: Probe | null;
@@ -73,9 +74,11 @@ const HIDDEN =
 /** The most lines the log keeps. */
 const LOG_MAX = 500;
 
+/** The views; "This device", its own stage from its probe, in the phone copy alone (the review's page-4). */
 const VIEWS: readonly { value: ViewChoice; label: string }[] = [
   { value: "desktop", label: "Reference desktop" },
   { value: "phone", label: "Reference phone" },
+  { value: "device", label: "This device" },
   { value: "close-up", label: "Desk close-up" },
 ];
 const QUALITIES: readonly { value: "auto" | "0" | "1" | "2" | "3"; label: string }[] = [
@@ -131,13 +134,15 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
 
   // ---- The canvas, made first: without a renderer there is no page to build ----
   let run: Run | null = null;
+  const device = options.phone && options.probe ? { viewport: options.probe.viewport, dpr: options.probe.dpr } : null;
+  const views = VIEWS.filter((v) => v.value !== "device" || device !== null);
   const stage = createStage({
     win: deps.win,
     clock,
     inputs,
     renderer: deps.renderer,
     capability,
-    phone: options.phone && options.probe ? { viewport: options.probe.viewport, dpr: options.probe.dpr } : null,
+    device,
     site: !options.phone,
     log,
     onLevel: (level) => {
@@ -205,7 +210,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
   const controls: Control[] = [];
   const viewGroup = radioGroup(doc, {
     legend: "View",
-    choices: VIEWS,
+    choices: views,
     value: stage.view,
     onChange: (v) => {
       stage.setView(v);
@@ -287,10 +292,11 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
   function showReadouts(): void {
     const closeUp = stage.view === "close-up";
     readoutHeading.textContent = closeUp ? "Readouts, close-up: they judge nothing" : "Readouts";
-    const label = VIEWS.find((v) => v.value === stage.view)?.label ?? stage.view;
+    const label = views.find((v) => v.value === stage.view)?.label ?? stage.view;
+    // Only this device's own stage says so: the reference stages are stages.ts's wherever the page runs.
     caption.textContent =
       `${closeUp ? "close-up, " : ""}${label}: a stage of ${size(stage.stage.w, stage.stage.h)} CSS px at a pixel ` +
-      `ratio of ${stage.ratio}${options.phone && stage.view !== "desktop" ? ", this phone's own" : ""}`;
+      `ratio of ${stage.ratio}${closeUp && device ? ", this device's own" : ""}`;
     const frame = stage.frameSample();
     const f = measured?.frames;
     const rows: [string, string][] = [
