@@ -500,6 +500,9 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       h(doc, "h2", { id: "lookdev-results-heading" }, "Results"),
       h(doc, "p", {}, `Running for ${seconds / 60} minutes, the scripted load first.`),
     );
+    // An automatic run measures a fresh controller at level 0, as a visit starts, never one stepped down or gone flat
+    // before it (the review's page-7).
+    if (stage.quality === "auto") stage.setQuality("auto");
     void stage.loadEveryPiece();
     doc.addEventListener("visibilitychange", onVisibility);
     run = startRun({
