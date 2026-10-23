@@ -4,7 +4,8 @@
 // with nothing approved on main makes. The smoke test, the chunk test, and the built-site checks read the folders
 // through `inject("siteBuilds")`, so the site is built twice a run, not once a file. A test that needs another policy
 // directory makes its own build with `buildSite`, the same build under the policy it gives. A build reads
-// ROOM_POLICY_DIR and ROOM_DRAFTS from the environment, so builds run one at a time, each restoring both after.
+// ROOM_POLICY_DIR and ROOM_DRAFTS from the environment, so builds run one at a time, each restoring both after. What a
+// build prints (spec 002's content checks say what they checked) stays quiet unless it fails, as a passing test's does.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -44,6 +45,11 @@ export async function buildSite(options: { readonly drafts: boolean; readonly po
   const saved = { ROOM_POLICY_DIR: process.env.ROOM_POLICY_DIR, ROOM_DRAFTS: process.env.ROOM_DRAFTS };
   process.env.ROOM_POLICY_DIR = policy;
   process.env.ROOM_DRAFTS = options.drafts ? "1" : "";
+  const log = console.log;
+  const printed: string[] = [];
+  console.log = (...args: unknown[]): void => {
+    printed.push(args.map(String).join(" "));
+  };
   try {
     await build({
       root: WEB,
@@ -52,9 +58,11 @@ export async function buildSite(options: { readonly drafts: boolean; readonly po
       build: { outDir: out, emptyOutDir: true },
     });
   } catch (error) {
+    for (const line of printed) log(line);
     remove();
     throw error;
   } finally {
+    console.log = log;
     for (const [key, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
