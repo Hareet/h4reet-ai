@@ -136,6 +136,17 @@ export interface RoomIndex {
   typefaces: { use: TypefaceUse; family: string; weight: number; cap_ratio: number; fallback: string }[];
 }
 
+/** A set model, as the room fetches and verifies it (contracts/room-bundle.md §3.2): `url`, `a/<stem>.<hash16>.glb` (a
+ *  card's own extension for an image card), relative to the site's root; `sha256`, the plain file's, for the integrity
+ *  check; `bytes`, the served file's length (C11); its measured bounds; and `texture_bytes`, for the texture ledger. */
+export interface SceneModel {
+  url: string;
+  sha256: string;
+  bytes: number;
+  bounds: Box;
+  texture_bytes: number;
+}
+
 /** The 3D part, in the lazy 3D chunk (contracts/room-bundle.md §3.2). */
 export interface RoomScene {
   schema: 1;
@@ -161,7 +172,7 @@ export interface RoomScene {
     framed: boolean;
     frame_box: Box;
     label: string | null;
-    model: { url: string; sha256: string; bytes: number; bounds: Box; texture_bytes: number } | null;
+    model: SceneModel | null;
   }[];
   switches: {
     id: string;
@@ -181,12 +192,16 @@ export interface RoomScene {
       drop: number;
       rest: { placement: string; anchor: string } | null;
     } | null;
+    /** Its piece's set model, which each of its poses shows, so `load_order`'s `<switch>.<pose>` resolves to it; null
+     *  while the piece shows its stand-in. RS2 lets no placement place a switch's piece, so this is the model's one
+     *  place in the part (an addition to contracts/room-bundle.md §3.2, plan.md §10). */
+    model: SceneModel | null;
   }[];
   /** room-data-files.md §10, without material_notes. */
   look: Look;
   /** Placement IDs. */
   figures: { twin: string; visitor: string };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
-  /** Placement IDs with a set model. */
+  /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */
   load_order: string[];
 }

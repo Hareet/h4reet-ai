@@ -18,7 +18,8 @@
 // Readings beside the contract's words:
 // - A switch's pose is named `<switch>.<pose>` where a list names placements (`load_order`, the manifest's `standins`),
 //   which no ID can equal. The shown pose is the case of the tier the room starts on: not-live while the live source is
-//   off, else unknown.
+//   off, else unknown. Every pose shows the switch's piece, so the 3D part's switch carries that piece's set model, as
+//   a placement carries its own, and a pose in `load_order` resolves to it (plan.md §10).
 // - The figures' placements show avatars, so they aren't stand-ins of their own; whether an avatar is a placeholder is
 //   spec 003's files: the twin's GLB under assets/twin/, and each visitor's at assets/visitors/<avatar>/<avatar>.glb.
 // - The 2D drawing is each placement's front elevation in a plane square to the view at the farthest depth of its frame
@@ -33,7 +34,7 @@ import { createHash } from "node:crypto";
 import { parse } from "yaml";
 
 import { AVATARS } from "../../src/choice/avatars";
-import type { Look, Matrix2D, Prim, RoomIndex, RoomScene, Shape } from "../../src/room/compose/bundle";
+import type { Look, Matrix2D, Prim, RoomIndex, RoomScene, SceneModel, Shape } from "../../src/room/compose/bundle";
 import { cableControl } from "../../src/room/compose/cable";
 import { FOV, framing, LABEL_LIFT } from "../../src/room/compose/framing";
 import type { Box } from "../../src/room/compose/framing";
@@ -1207,6 +1208,7 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
             rest: sw.cable.rest ? { placement: sw.cable.rest.placement, anchor: sw.cable.rest.anchor } : null,
           }
         : null,
+      model: setModel(c, sw.piece),
     })),
     look: lookOf(c.look?.value),
     figures: { twin: twin?.id ?? "", visitor: visitor?.id ?? "" },
@@ -1218,11 +1220,16 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
   };
 }
 
-/** A placement's model (§3.2), or null while it shows its stand-in. */
-function modelOf(c: Composed, p: Placement): RoomScene["placements"][number]["model"] {
-  const picture = c.pictures.get(p.piece);
-  const entry = c.pieces.get(p.piece)?.value;
-  if (c.figures.has(p.id) || !picture || !entry) return null;
+/** A placement's model (§3.2), or null while it shows its stand-in, or an avatar, as a figure's does. */
+function modelOf(c: Composed, p: Placement): SceneModel | null {
+  return c.figures.has(p.id) ? null : setModel(c, p.piece);
+}
+
+/** A piece's set model as the 3D part gives it to a placement or a switch (§3.2), or null while it shows its stand-in. */
+function setModel(c: Composed, piece: string): SceneModel | null {
+  const picture = c.pictures.get(piece);
+  const entry = c.pieces.get(piece)?.value;
+  if (!picture || !entry) return null;
   if (picture.kind === "model")
     return {
       url: picture.url,
