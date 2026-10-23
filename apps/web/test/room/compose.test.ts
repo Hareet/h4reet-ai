@@ -4,15 +4,20 @@
 // naming its rule, file, and path, its reason echoing no data value; every finding is reported, sorted by file, path
 // (indices as numbers), and rule; compose() never throws on data and reads only what contracts/room-data-files.md §1
 // lists. The coverage test fails while a rule of §13 but RG8 has no bad/ case, so it stays red until every family has
-// its cases (T078).
-import { describe, expect, it } from "vitest";
+// its cases (T078). The trees compose() reads through (T075; contracts/room-bundle.md §1) are held to their interface:
+// repository paths only, listings sorted bytewise, no link followed, and a log of every path read or listed.
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 import { compareFindings, RULE_IDS, RULES } from "../../build/room/checks/family";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
-import { memoryTree } from "../../build/room/source";
+import { fileTree, isTreePath, memoryTree, overlayTree } from "../../build/room/source";
 import { badCases, caseTree, goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 
 const MODES: ComposeOptions[] = [
@@ -219,5 +224,118 @@ describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
       RT9: "whole",
       RT13: "part",
     });
+  });
+});
+
+describe("the trees (contracts/room-bundle.md §1)", () => {
+  const encoder = new TextEncoder();
+  const made: string[] = [];
+  afterEach(() => {
+    for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+  /** A root holding `files`, beside a folder outside it. */
+  function root(files: Record<string, string>): { root: string; outside: string } {
+    const top = mkdtempSync(join(tmpdir(), "room-tree-"));
+    made.push(top);
+    const inside = join(top, "repo");
+    const outside = join(top, "outside");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "secret.yaml"), "fx: outside\n");
+    for (const [path, text] of Object.entries({ ...files })) {
+      mkdirSync(join(inside, path, ".."), { recursive: true });
+      writeFileSync(join(inside, path), text);
+    }
+    return { root: inside, outside };
+  }
+
+  it("takes repository paths only: /-separated, with no empty, ., or .. segment", () => {
+    for (const ok of ["", "apps", "apps/web/room/scene.yaml", "a/.hidden", "a/b..c"])
+      expect(isTreePath(ok), ok).toBe(true);
+    for (const bad of ["/apps", "apps/", "apps//web", "./apps", "apps/../x", "..", "a\\b", "a\0b"])
+      expect(isTreePath(bad), bad).toBe(false);
+  });
+
+  it("reads the file system under its root, lists it sorted bytewise, and logs every path in order", () => {
+    const { root: r } = root({ "d/b.yaml": "b", "d/a.yaml": "a", "d/B.yaml": "B", "d/\u00e9.yaml": "e", "d/z/x": "x" });
+    const tree = fileTree(r);
+    expect(tree.list("d")).toEqual(["B.yaml", "a.yaml", "b.yaml", "z", "\u00e9.yaml"]);
+    expect(new TextDecoder().decode(tree.read("d/a.yaml") ?? new Uint8Array())).toBe("a");
+    expect([tree.read("d/z"), tree.read("d/none"), tree.read(""), tree.read("d/../d/a.yaml")]).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect([tree.list("d/a.yaml"), tree.list("none")]).toEqual([[], []]);
+    expect(tree.list("")).toEqual(["d"]);
+    expect(tree.log).toEqual(["d", "d/a.yaml", "d/z", "d/none", "", "d/../d/a.yaml", "d/a.yaml", "none", ""]);
+  });
+
+  it("follows no link, so nothing outside its root is read", () => {
+    const { root: r, outside } = root({ "d/a.yaml": "a" });
+    symlinkSync(join(outside, "secret.yaml"), join(r, "d", "out.yaml"));
+    symlinkSync(outside, join(r, "linked"));
+    symlinkSync(join(r, "d", "a.yaml"), join(r, "d", "in.yaml"));
+    const tree = fileTree(r);
+    expect([tree.read("d/out.yaml"), tree.read("linked/secret.yaml"), tree.read("d/in.yaml")]).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    expect(tree.list("linked")).toEqual([]);
+    expect(fileTree(join(r, "missing")).list("")).toEqual([]);
+  });
+
+  it("overlays a base: a path replaced, added, or removed with everything under it, and a removed folder refilled", () => {
+    const base = memoryTree(
+      new Map([
+        ["a/one.yaml", encoder.encode("1")],
+        ["a/two.yaml", encoder.encode("2")],
+        ["b/c/three.yaml", encoder.encode("3")],
+        ["d/four.yaml", encoder.encode("4")],
+      ]),
+    );
+    const tree = overlayTree(
+      base,
+      new Map([
+        ["a/one.yaml", encoder.encode("one")],
+        ["a/new.yaml", encoder.encode("new")],
+        ["a/two.yaml", null],
+        ["b", null],
+        ["d", null],
+        ["d/five.yaml", encoder.encode("5")],
+      ]),
+    );
+    const text = (path: string): string | null => {
+      const data = tree.read(path);
+      return data === null ? null : new TextDecoder().decode(data);
+    };
+    expect([text("a/one.yaml"), text("a/new.yaml"), text("a/two.yaml"), text("b/c/three.yaml")]).toEqual([
+      "one",
+      "new",
+      null,
+      null,
+    ]);
+    expect([text("d/four.yaml"), text("d/five.yaml"), text("a")]).toEqual([null, "5", null]);
+    expect([tree.list(""), tree.list("a"), tree.list("b"), tree.list("d")]).toEqual([
+      ["a", "d"],
+      ["new.yaml", "one.yaml"],
+      [],
+      ["five.yaml"],
+    ]);
+    expect(tree.log).toEqual([
+      "a/one.yaml",
+      "a/new.yaml",
+      "a/two.yaml",
+      "b/c/three.yaml",
+      "d/four.yaml",
+      "d/five.yaml",
+      "a",
+      "",
+      "a",
+      "b",
+      "d",
+    ]);
+    expect(base.log).not.toContain("a/new.yaml");
   });
 });
