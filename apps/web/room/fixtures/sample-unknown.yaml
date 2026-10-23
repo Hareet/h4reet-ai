@@ -1,0 +1,9 @@
+# A sample state for the lookdev page (FR-049; R-05; data-model.md §8), drafts only: the status unknown, so the laptop's
+# switch shows its shared pose; a degraded turn, then a turn refused with 429, which costs nothing (FR-048). Every
+# figure it feeds reads "Sample".
+version: 1
+id: sample-unknown
+tier: unknown
+turns:
+  - { outcome: degraded }
+  - { outcome: refused, status: 429 }

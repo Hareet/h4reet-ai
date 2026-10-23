@@ -1,0 +1,56 @@
+# A look to compare in lookdev (FR-070; R-44): painted, the models' textures drawn unlit. It keeps inked cel's palette,
+# lights, and typefaces, so a comparison changes only the method; its lights, ramp, and outlines are read by inked cel
+# alone. The scene names inked cel until the Author chooses, and ADR 0010 records the choice.
+version: 1
+id: painted
+method: painted
+palette:
+  wall: "#d9d2c5"
+  floor: "#8f7a62"
+  desk-wood: "#8a6a4a"
+  desk-leg: "#6e5238"
+  frame-wood: "#5b4a3a"
+  graphite: "#4a4a4a"
+  graphite-light: "#5a5a5a"
+  charcoal: "#3a3a3a"
+  screen-black: "#1f1f1f"
+  screen-glow: "#2d4f6e"
+  board-blue: "#2f6db5"
+  ink: "#1a1a1a"
+  tyre: "#2b2b2b"
+  bike-red: "#b03a2e"
+  sky: "#cfe6f5"
+  fence: "#a07a4f"
+  bark: "#6b4a2b"
+  leaf: "#4f7d3a"
+  canvas: "#f3d27a"
+  sun: "#c4553b"
+  hill: "#3b6fa5"
+  twin-violet: "#6c5a8f"
+  twin-lilac: "#8a77ad"
+  figure-grey: "#9a9a9a"
+  paper: "#ffffff"
+  neon-tube: "#ff8a5c"
+  slate: "#2f3b33"
+  sign-cream: "#efe6d2"
+  sign-wood: "#a7825a"
+lights:
+  ambient: { sky: "#ffffff", ground: "#8a7a66", intensity: 1.2 }
+  key: { color: "#ffffff", intensity: 1.6, from: [2.5, 4.5, 3], shadows: true }
+shading: { steps: 3 }
+# Inked cel's ink lines, which this method doesn't draw.
+outlines: { color: ink, width: 0.003 }
+glow_tones:
+  screen-blue: { color: "#8fc3ff", intensity: 0.6 }
+  neon-warm: { color: "#ff6a3d", intensity: 1.5 }
+  charge-green: { color: "#7cfc9a", intensity: 0.8 }
+typefaces:
+  terminal: { family: IBM Plex Mono, weight: 400 }
+  desktop-session: { family: IBM Plex Sans, weight: 400 }
+  chalk: { family: Patrick Hand, weight: 400 }
+  neon: { family: IBM Plex Sans, weight: 700 }
+  counters: { family: IBM Plex Mono, weight: 400 }
+material_notes: >-
+  Base colours from the palette and painted textures, matte, drawn unlit. A texture holds colour and painted detail
+  only: no baked light, shadow, ambient occlusion, glow, or outline. Screens, panels, and lettering areas stay one
+  plain colour: the room draws on them.
