@@ -16,6 +16,7 @@ import {
   nameOf,
   parseCss,
   px,
+  roomIndex,
   start,
   stylesheets,
   tabOrder,
@@ -200,12 +201,16 @@ describe("assistive technology", () => {
     }
   });
 
-  it("keeps the 2D drawing's buttons out of the Tab order, beside the list", async () => {
+  it("puts nothing to focus or press in the 2D drawing, whose cues picture what the list's buttons hold", async () => {
     const v = start({ webgl: false });
     await intoRoom(v);
-    const hits = [...v.doc.querySelectorAll(".flat button")];
-    expect(hits).toHaveLength(3);
-    for (const hit of hits) expect(hit.getAttribute("tabindex")).toBe("-1");
+    const flat = v.doc.querySelector(".flat");
+    expect(flat?.getAttribute("aria-hidden")).toBe("true");
+    expect(flat?.querySelectorAll("button, a, input, [tabindex]")).toHaveLength(0);
+    // Each selectable is cued in the drawing (spec 004, T109), and has its button in the list.
+    const count = roomIndex().selectables.length;
+    expect(flat?.querySelectorAll(".flat-cue")).toHaveLength(count);
+    expect(v.doc.querySelectorAll(".room-list button")).toHaveLength(count);
   });
 
   it("has polite live regions for the hand-off line and the twin's words, in the page before either speaks", () => {

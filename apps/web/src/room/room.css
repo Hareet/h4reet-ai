@@ -196,11 +196,17 @@ body.in-room .disclosure p {
   padding: 0 0.5rem;
 }
 
-/* The 2D drawing keeps its 8:5 shape inside the stage, so the buttons' places match the drawing's objects. */
+/* The 2D drawing keeps its 8:5 shape inside the stage, the view box's, so a pointer's place maps onto the drawing's
+   pick areas at its scale (spec 004, R-20, R-39). */
 .flat {
   position: relative;
   width: min(100cqw, 160cqh);
   height: min(100cqh, 62.5cqw);
+  touch-action: manipulation;
+}
+
+.flat.over-object {
+  cursor: pointer;
 }
 
 .flat svg {
@@ -209,45 +215,30 @@ body.in-room .disclosure p {
   height: 100%;
 }
 
-.room .flat-hit {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 0 2px;
-  background: transparent;
-  border: 2px dashed #0b4f9c;
-  font-size: 0.75rem;
+/* Each selectable's cue in the 2D drawing: a dashed rectangle around its pick area, with its name tag at the foot.
+   Classes, never per ID, so a selectable added as data is cued with no change here. */
+.flat-cue {
+  fill: none;
+  stroke: #0b4f9c;
+  stroke-width: 2px;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
 }
 
-.flat-hit span {
-  padding: 1px 4px;
-  color: #ffffff;
-  background: #1a1a1a;
-  border-radius: 2px;
+.flat-cue-name {
+  fill: #ffffff;
+  stroke: #1a1a1a;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
 
-.flat-hit--snowboard {
-  left: 9.4%;
-  top: 42.5%;
-  width: 9%;
-  height: 60%;
-}
-
-.flat-hit--bicycle {
-  left: 87.5%;
-  top: 46%;
-  width: 24%;
-  height: 32%;
-}
-
-.flat-hit--laptop {
-  left: 52%;
-  top: 53%;
-  width: 34%;
-  height: 22%;
+/* A stand-in's label: its ink haloed, so it reads over any piece. */
+.flat-label {
+  stroke: #ffffff;
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
 
 .resume-panel {

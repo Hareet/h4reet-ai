@@ -197,7 +197,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     unwatch?.();
     unwatch = null;
     const old = stage;
-    const flat = renderFlat(doc, { avatar: visit.avatar, select: selectObject });
+    const flat = renderFlat(doc, { room: deps.room, avatar: visit.avatar, select: selectObject });
     stage = flat;
     show(flat);
     old?.dispose();

@@ -1,6 +1,6 @@
 // T039 (spec 002; FR-020, FR-043–FR-045; contracts/room-scene.md §2): the three ways to select an object (a pick from a
-// mouse, a touch, and the "In the room" list's button) each call selectObject with the same ID, and the 2D drawing's
-// buttons do too.
+// mouse, a touch, and the "In the room" list's button) each call selectObject with the same ID, and a pick in the 2D
+// drawing does too (spec 004's T109 took its buttons away; test/room/flat.test.ts holds the 2D room).
 // T092 (spec 004; FR-064; R-20): the 3D pick goes through compose/pick.ts as the compositor's spacing check (RG6)
 // measures it: each selectable's members' frame boxes, projected with the camera's framing into CSS-pixel rectangles
 // on the stage, with their union and exclusive core, recomputed when the stage's size changes (the 3D room's
@@ -13,9 +13,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { renderObjectList } from "../../src/room/a11y";
 import type { Box } from "../../src/room/compose/bundle";
-import { pick, pickAreas } from "../../src/room/compose/pick";
+import { flatCore, pick, pickAreas } from "../../src/room/compose/pick";
 import type { MemberRect, PickArea } from "../../src/room/compose/pick";
-import { REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST } from "../../src/room/compose/stages";
+import { REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, flatScale } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import { renderFlat } from "../../src/room/flat";
 import { bindPointerSelection } from "../../src/room/objects";
@@ -187,25 +187,27 @@ describe("selectObject", () => {
     expect(selectObject).not.toHaveBeenCalled();
   });
 
-  it("labels every piece of the 2D drawing as a placeholder, its buttons too", () => {
-    const { doc } = surface(REFERENCE_PHONE.stage);
-    const flat = renderFlat(doc, { avatar: "dinosaur", select: () => undefined });
-    const texts = [...flat.element.querySelectorAll("text, button")].map((t) =>
-      (t.textContent ?? "").replace(/\s+/g, " ").trim(),
-    );
-    expect(flat.element.querySelectorAll("button")).toHaveLength(roomIndex().selectables.length);
-    expect(texts.length).toBeGreaterThan(6);
-    for (const text of texts) expect(text).toMatch(/ \(placeholder\)$/);
-  });
-
-  it("is called with the same IDs from the 2D drawing's buttons", () => {
-    const { doc } = surface(REFERENCE_PHONE.stage);
+  it("is called with the same IDs from a 2D pick at each selectable, the drawing's own pick areas", () => {
+    // The drawing has no buttons since spec 004 (T109): a pointer picks through compose/pick.ts, in flat.test.ts.
+    const stage = REFERENCE_PHONE.stage;
+    const { doc, win } = surface(stage);
+    const index = roomIndex();
     const selectObject = vi.fn<(id: string) => void>();
-    const flat = renderFlat(doc, { avatar: "woman", select: selectObject });
+    const flat = renderFlat(doc, { room: index, avatar: "woman", select: selectObject });
     doc.body.append(flat.element);
-    const ids = roomIndex().selectables.map((s) => s.id);
-    for (const id of ids) flat.element.querySelector<HTMLButtonElement>(`button[data-object-id="${id}"]`)?.click();
-    expect(selectObject.mock.calls).toEqual(ids.map((id) => [id]));
+    // room.css's .flat keeps the view box's 8:5 shape inside the stage, at the drawing's scale.
+    const s = flatScale(stage);
+    flat.element.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 320 * s, bottom: 200 * s, width: 320 * s, height: 200 * s, x: 0, y: 0 }) as DOMRect;
+    const areas = pickAreas(
+      index.flat.hits.map((hit) => ({
+        id: hit.selectable,
+        members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
+      })),
+      flatCore(stage),
+    );
+    for (const area of areas) tap(win, flat.element, [centre(area)[0] * s, centre(area)[1] * s], "touch");
+    expect(selectObject.mock.calls).toEqual(index.selectables.map((x) => [x.id]));
   });
 
   it("is the room's only for an ID its index lists, whatever calls it", async () => {
