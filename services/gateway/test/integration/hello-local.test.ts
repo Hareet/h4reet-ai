@@ -219,7 +219,7 @@ describe("after initialization", () => {
   });
 
   it("answers 200 from the local adapter, with a body exactly as §2.5.1", async () => {
-    const res = await hello({ body: { message: "Say hello." }, label: "author-laptop" });
+    const res = await hello({ body: { message: "Say hello." }, label: "author-terminal" });
     expect(res.statusCode).toBe(200);
     expect(res.headers["x-h4-degraded-cause"]).toBeUndefined();
     const body = res.json() as Record<string, unknown>;

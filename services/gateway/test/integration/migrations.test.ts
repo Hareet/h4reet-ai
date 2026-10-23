@@ -328,8 +328,8 @@ describe("the schema (data-model.md §2.2–§2.9)", () => {
     );
     await expect(ledger({ ...metered })).rejects.toThrow(/ledger_reservation_iff_metered/);
     await expect(ledger({ route_reason: "local_failed" })).rejects.toThrow(/ledger_route_reason_fallback_only/);
-    await expect(ledger({ client_label: "Author's Laptop" })).rejects.toThrow(/client_label/);
-    await expect(ledger({ client_label: "author-laptop" })).resolves.toBeDefined();
+    await expect(ledger({ client_label: "Author's Terminal" })).rejects.toThrow(/client_label/);
+    await expect(ledger({ client_label: "author-terminal" })).resolves.toBeDefined();
     await expect(ledger({ trace_id: HEX32.toUpperCase() })).rejects.toThrow(/trace_id/);
     await expect(ledger({ routing_sha: "abc" })).rejects.toThrow(/routing_sha/);
     await expect(ledger({ purpose: "chat" })).rejects.toThrow(/purpose/);

@@ -155,7 +155,7 @@ describe("the started SDK", () => {
   });
 
   it("exports a request's spans on both listeners without the query string or the client's attributes", async () => {
-    const hello = await fetch(`${apiUrl}/hello?message=hello-payload&label=author-laptop`, {
+    const hello = await fetch(`${apiUrl}/hello?message=hello-payload&label=author-terminal`, {
       method: "POST",
       headers: { "content-type": "application/json", "user-agent": "curl/8.0-test" },
       body: "{}",
@@ -173,7 +173,7 @@ describe("the started SDK", () => {
       expect(path(s), s.name).not.toContain("?");
     }
     expect(JSON.stringify(got.map((s) => [s.name, s.attributes, s.events]))).not.toMatch(
-      /hello-payload|author-laptop|curl\/8\.0-test/,
+      /hello-payload|author-terminal|curl\/8\.0-test/,
     );
     expect(servers[0]?.resource.attributes).toMatchObject({
       "service.name": "gateway",
