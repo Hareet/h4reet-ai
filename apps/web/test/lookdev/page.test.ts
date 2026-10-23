@@ -36,9 +36,11 @@ import type { Probe } from "../../src/lookdev/results";
 import { framing } from "../../src/room/compose/framing";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../../src/room/compose/stages";
 import { readImage } from "../../src/room/glb/images";
+import { count } from "../../src/room/glb/rules";
 import { MODEL_FLOOR } from "../../src/room/quality";
 import type { Capability } from "../../src/room/quality";
 import { qualitySettings } from "../../src/room/scene";
+import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
 import { MODEL_NODE } from "../../src/room/scene/loader";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
@@ -851,6 +853,35 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     await settle(clock);
     expect(root.querySelector("textarea")).toBeNull();
     expect(collapse(root.querySelector(".lookdev-results")?.textContent)).not.toContain("Lookdev results");
+  });
+
+  it("shows the run's texture memory beside its other figures, while they show", async () => {
+    // The review's page-8: §5's texture memory is the largest over the run, as the draw calls and triangles are.
+    const { page, root, clock, inputs: given } = open();
+    const { piece } = vignettePiece(given);
+    pick(root, piece, desk({ mark: false }).bytes);
+    await settle(clock);
+    buttonNamed(root, "Run 2 minutes").click();
+    await settle(clock);
+    clock.advance(120_000, 100);
+    await settle(clock);
+    const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, number>;
+    expect(results.texture_bytes).toBeGreaterThan(0);
+    /** A readout's value by its term. */
+    const readout = (term: string): string => {
+      const dt = [...root.querySelectorAll(".lookdev-figures dt")].find((e) => collapse(e.textContent) === term);
+      return collapse(dt?.nextElementSibling?.textContent);
+    };
+    // The candidate cleared, the ledger empties, and the run's figures still show: its texture memory among them.
+    const pieceRow = root.querySelector(`[data-candidate="${piece}"]`)?.closest(".lookdev-piece") as HTMLElement;
+    buttonNamed(pieceRow, "Clear").click();
+    await settle(clock);
+    clock.advance(1_000);
+    expect(page.stage.textureBytes).toBe(0);
+    expect(readout("Draw calls")).toBe(count(results.draw_calls ?? -1));
+    expect(readout("Texture memory")).toBe(
+      `${count(results.texture_bytes ?? -1)} of ${count(SCENE_TEXTURE_BYTES)} bytes`,
+    );
   });
 
   it("starts an automatic run on a fresh controller at level 0, whatever the page stepped down to before", async () => {
