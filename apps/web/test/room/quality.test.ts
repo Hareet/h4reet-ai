@@ -442,15 +442,15 @@ describe("a lost context", () => {
   }
 
   it("holds the quality controller from the loss until two frames after the restore (spec 004, R-35)", () => {
+    // Unheld, the window opened before the loss closes during it, and steps down.
     expect(restore(false).steps).toEqual([1]);
 
+    // Held, the restore's two frames (at 25 and 50 ms after it) are ignored too, and the third opens the window,
+    // which closes 5 s later, stepping down once.
     const { clock, steps } = restore(true);
-    clock.advance(400, 200);
+    clock.advance(5050, 25);
     expect(steps).toEqual([]);
-    // The window restarts at the first frame after the hold: 5 s of frames below the target step once.
-    clock.advance(4800, 25);
-    expect(steps).toEqual([]);
-    clock.advance(400, 25);
+    clock.advance(25, 25);
     expect(steps).toEqual([1]);
   });
 
