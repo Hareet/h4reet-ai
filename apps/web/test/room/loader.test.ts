@@ -15,7 +15,7 @@
 // - In spec 003's reduced tier (a quality level of 1 or more as the model decodes) images decode at half size; every
 //   texture uploads through the ledger, each image counted once, and the decoded bitmaps close.
 // - After a lost context is restored, swapped pieces go back to their stand-ins and load again under a hold; stopping
-//   (the room gone to 2D) skips what hasn't settled.
+//   (the room gone to 2D) skips each load that hasn't recorded its end, once, its holds let go and frames cancelled.
 // - The scene's side: the 3D part's load order as entries; a model readied as the room's (lights and cameras out, the
 //   look's materials, its face objects hidden) and shown in place of its piece's stand-ins wherever the piece shows,
 //   the stand-ins back when it goes.

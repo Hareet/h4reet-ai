@@ -22,7 +22,9 @@
 //    and loads them again, from the HTTP cache, each under its hold.
 // Each outcome records spec 003's asset event once (asset-events.ts): `asset` the record's file stem, `ms_bucket` from
 // the first fetch's start to the swap or the failure, `bytes` the .glb.gz copy's length for loaded alone, and `mode`
-// the visit's. stop(), when the room goes to 2D, fetches, parses, and swaps nothing more, and skips what hadn't settled.
+// the visit's. A load's end (loaded, failed, or skipped) is recorded as it happens, before its hold's two frames.
+// stop(), when the room goes to 2D, fetches, parses, and swaps nothing more, lets every hold go, and skips each load
+// that hadn't recorded its end, from its load() call on, once; a load a newer one of its piece superseded isn't one.
 //
 // Readings beside the research's words (plan.md §10):
 // - An image card (a set model whose URL isn't a .glb) waits for its drawing: the loader takes GLBs only.
@@ -111,7 +113,8 @@ export interface Loader {
   reload(): Promise<void>;
   /** Puts one piece's stand-in back and releases its model; a load of it still on its way is dropped. */
   remove(piece: string): void;
-  /** Fetches, parses, and swaps nothing more; what hadn't settled is skipped (the room went to 2D). */
+  /** Fetches, parses, and swaps nothing more, and lets every hold go; each load that hadn't recorded its end is
+   *  skipped, once (the room went to 2D). */
   stop(): void;
   /** The pieces showing a model. */
   readonly loaded: ReadonlySet<string>;
@@ -296,6 +299,13 @@ function slots(count: number): () => Promise<() => void> {
     });
 }
 
+/** One entry's load, from its load() call to the state it ends in. */
+interface Load {
+  readonly entry: ModelEntry;
+  /** Its piece's token in `latest` while it is the piece's latest load. */
+  readonly mine: symbol;
+}
+
 /** The room's loader. */
 export function createLoader(options: LoaderOptions): Loader {
   const { clock } = options;
@@ -308,11 +318,23 @@ export function createLoader(options: LoaderOptions): Loader {
   /** What a stop must undo: fetches to abort, and settling holds to let go. */
   const aborts = new Set<AbortController>();
   const settling = new Map<number, () => void>();
-  const unsettled = new Set<ModelEntry>();
+  /** The loads that haven't recorded the state they end in (loaded, failed, or skipped), from their load() call on:
+   *  what a stop skips. A load superseded by a newer one of its piece, or by its removal, leaves them unrecorded. */
+  const pending = new Set<Load>();
   let floor: boolean | null = null;
   let stopped = false;
   let fellBack = false;
   let active = 0;
+
+  /** A piece's older loads, superseded, record nothing more. */
+  const supersede = (piece: string): void => {
+    for (const load of pending) if (load.entry.piece === piece) pending.delete(load);
+  };
+
+  /** Records the state a load ends in, once, while it is pending. */
+  const end = (load: Load, outcome: "loaded" | "failed" | "skipped", start: number | null): void => {
+    if (pending.delete(load)) record(load.entry, outcome, start);
+  };
 
   const record = (entry: ModelEntry, outcome: AssetOutcome, start: number | null): void => {
     if (outcome === "failed" || outcome === "skipped") fellBack = true;
@@ -393,29 +415,26 @@ export function createLoader(options: LoaderOptions): Loader {
     return data;
   }
 
-  /** Parses and swaps one model under a hold; "superseded" when a newer load or a removal of its piece came first. */
-  async function parseAndSwap(
-    entry: ModelEntry,
-    data: ArrayBuffer,
-    start: number | null,
-    mine: symbol,
-  ): Promise<"loaded" | "skipped" | "superseded"> {
+  /** Parses and swaps one model under a hold, which it lets go two frames after; the state it ends in is recorded at
+   *  once, so a stop in those frames finds it settled. A newer load or a removal of its piece that came first drops it. */
+  async function parseAndSwap(load: Load, data: ArrayBuffer, start: number | null): Promise<void> {
+    const { entry } = load;
     const releaseSlot = await parseSlot();
     const release = options.hold();
     try {
-      if (stopped) return "superseded";
+      if (stopped) return;
       const parsed = await parseModel(data, { reduced: options.level() >= 1, decode: options.decode });
       const model = parsed.gltf.scene;
-      if (stopped || latest.get(entry.piece) !== mine) {
+      if (stopped || latest.get(entry.piece) !== load.mine) {
         parsed.close();
         disposeModel(model);
-        return "superseded";
+        return;
       }
       if (!options.ledger.fits(parsed.textureBytes)) {
         parsed.close();
         disposeModel(model);
-        record(entry, "skipped", null);
-        return "skipped";
+        end(load, "skipped", null);
+        return;
       }
       options.prepare(entry.piece, model);
       const before = shown.get(entry.piece);
@@ -427,8 +446,7 @@ export function createLoader(options: LoaderOptions): Loader {
       shown.set(entry.piece, { entry, model });
       options.ledger.upload(options.uploader, texturesOf(model));
       parsed.close();
-      record(entry, "loaded", start);
-      return "loaded";
+      end(load, "loaded", start);
     } finally {
       releaseSlot();
       await settle(release);
@@ -436,8 +454,8 @@ export function createLoader(options: LoaderOptions): Loader {
   }
 
   /** One entry through its fetch, its parse, and its swap, with one retry. */
-  async function one(entry: ModelEntry, mine: symbol): Promise<void> {
-    unsettled.add(entry);
+  async function one(load: Load): Promise<void> {
+    const { entry } = load;
     active += 1;
     let start: number | null = null;
     try {
@@ -455,15 +473,15 @@ export function createLoader(options: LoaderOptions): Loader {
           }
           await options.handoff;
           if (stopped) return;
-          await parseAndSwap(entry, data, start, mine);
+          await parseAndSwap(load, data, start);
           return;
         } catch {
-          if (stopped || latest.get(entry.piece) !== mine) return;
-          record(entry, attempt === 0 ? "retried" : "failed", start);
+          if (stopped || latest.get(entry.piece) !== load.mine) return;
+          if (attempt === 0) record(entry, "retried", start);
+          else end(load, "failed", start);
         }
       }
     } finally {
-      unsettled.delete(entry);
       active -= 1;
     }
   }
@@ -471,17 +489,23 @@ export function createLoader(options: LoaderOptions): Loader {
   async function load(entries: readonly ModelEntry[]): Promise<void> {
     if (stopped || entries.length === 0) return;
     const mine = new Map(entries.map((e) => [e.piece, Symbol(e.piece)]));
-    for (const [piece, token] of mine) latest.set(piece, token);
+    for (const [piece, token] of mine) {
+      latest.set(piece, token);
+      supersede(piece);
+    }
+    const loads = entries.map((entry): Load => ({ entry, mine: mine.get(entry.piece) as symbol }));
+    for (const l of loads) pending.add(l);
     active += 1;
     try {
       await options.figures;
       if (stopped) return;
       floor ??= options.floor();
       if (!floor) {
-        for (const entry of entries) record(entry, "skipped", null);
+        for (const l of loads) end(l, "skipped", null);
         return;
       }
-      await Promise.all(entries.map((entry) => one(entry, mine.get(entry.piece) as symbol)));
+      // A load superseded while it waited fetches nothing.
+      await Promise.all(loads.filter((l) => pending.has(l)).map(one));
     } finally {
       active -= 1;
     }
@@ -496,6 +520,7 @@ export function createLoader(options: LoaderOptions): Loader {
     },
     remove(piece) {
       latest.set(piece, Symbol(piece));
+      supersede(piece);
       take(piece);
     },
     stop() {
@@ -503,11 +528,15 @@ export function createLoader(options: LoaderOptions): Loader {
       stopped = true;
       for (const abort of aborts) abort.abort();
       aborts.clear();
-      for (const letGo of [...settling.values()]) letGo();
-      for (const [id] of settling) clock.cancelFrame(id);
+      // Each settling hold let go at once, its next frame cancelled first, so no tick of it runs again.
+      const holds = [...settling];
       settling.clear();
-      for (const entry of unsettled) record(entry, "skipped", null);
-      unsettled.clear();
+      for (const [id, letGo] of holds) {
+        clock.cancelFrame(id);
+        letGo();
+      }
+      for (const l of pending) record(l.entry, "skipped", null);
+      pending.clear();
     },
     get loaded() {
       return new Set(shown.keys());
