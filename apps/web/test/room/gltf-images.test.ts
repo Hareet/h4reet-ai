@@ -378,13 +378,18 @@ describe("the room's image step (R-29)", () => {
 });
 
 describe("the texture ledger (FR-053, SC-006)", () => {
-  /** A renderer's initTexture, recording each upload and whether its bitmap was already closed. */
+  /**
+   * A renderer's initTexture, recording each upload and whether its bitmap was already closed, then calling the
+   * texture's onUpdate, as three's renderer does after it uploads.
+   */
   function renderer(): Uploader & { uploads: { texture: Texture; closed: boolean }[] } {
     const uploads: { texture: Texture; closed: boolean }[] = [];
     return {
       uploads,
-      initTexture: (texture) =>
-        uploads.push({ texture, closed: (texture.image as Partial<FakeBitmap>).closed === true }),
+      initTexture: (texture) => {
+        uploads.push({ texture, closed: (texture.image as Partial<FakeBitmap>).closed === true });
+        texture.onUpdate?.(texture);
+      },
     };
   }
 
@@ -435,6 +440,27 @@ describe("the texture ledger (FR-053, SC-006)", () => {
     expect(ledger.bytes).toBe(textureBytes(32, 16));
     b.dispose();
     b.dispose();
+    expect(ledger.bytes).toBe(0);
+  });
+
+  it("counts every upload: an image uploaded again at another size counts at that size, a closed bitmap as before", () => {
+    const ledger = createTextureLedger();
+    const gpu = renderer();
+    // A live face's canvas, redrawn smaller at another quality level and uploaded again by the renderer.
+    const face = { width: 512, height: 128 };
+    const canvas = new Texture(face as unknown as HTMLCanvasElement);
+    let theirs = 0;
+    canvas.onUpdate = () => (theirs += 1);
+    const bitmap = new Texture(new FakeBitmap(64, 64) as unknown as ImageBitmap);
+    ledger.upload(gpu, [canvas, bitmap]);
+    expect(ledger.bytes).toBe(textureBytes(512, 128) + textureBytes(64, 64));
+    Object.assign(face, { width: 256, height: 64 });
+    gpu.initTexture(canvas);
+    gpu.initTexture(bitmap);
+    expect(ledger.bytes).toBe(textureBytes(256, 64) + textureBytes(64, 64));
+    expect(theirs).toBe(2);
+    canvas.dispose();
+    bitmap.dispose();
     expect(ledger.bytes).toBe(0);
   });
 
