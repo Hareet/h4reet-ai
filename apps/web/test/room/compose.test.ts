@@ -315,6 +315,17 @@ describe("the committed tree (T094)", () => {
     expect(ids.length).toBeGreaterThan(0);
     expect(ids.filter((id) => id.startsWith("fx-"))).toEqual([]);
   });
+
+  // look.ts reads outlines.width in CSS pixels of the stage's height; OutlineEffect's own default thickness, 0.003, is
+  // in normalized device units, and taken as pixels it draws lines a few thousandths of a pixel thick, which no one
+  // sees (the review of feat/004-us3-lookdev, page-5).
+  it("draws the scene's look's ink lines at least half a CSS pixel thick", () => {
+    const room = loadRoom(fileTree(ROOT));
+    const name = room.scene?.value.look;
+    const look = room.looks.find((l) => l.value.id === name)?.value;
+    expect(look).toBeDefined();
+    if (look?.outlines) expect(look.outlines.width).toBeGreaterThanOrEqual(0.5);
+  });
 });
 
 describe("compose()", () => {
