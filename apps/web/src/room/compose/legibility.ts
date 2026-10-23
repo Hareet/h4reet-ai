@@ -80,7 +80,8 @@ export function regionCap(
 /**
  * A face's smallest cap height in CSS pixels on a stage: from each corner of each region, a segment of its cap height
  * along the face's up, into the region, through the piece's model transform (its stylized scale included) and the
- * camera at the stage's aspect. Null for a face with no region.
+ * camera at the stage's aspect. Null for a face with no region, and where a point it measures is at or behind the
+ * camera's near plane, whose projection is no length on screen, as pick.ts's `memberRect` refuses such a box.
  */
 export function smallestCapPx(
   model: Mat4,
@@ -92,7 +93,11 @@ export function smallestCapPx(
   if (regions.length === 0) return null;
   const view = projector(camera, stage.w / stage.h);
   const up = normalize(face.up);
-  const css = (p: Vec3): readonly [number, number] => toStage(view.project(transformPoint(model, p)), stage);
+  /** A point of the face on the stage, or null at or behind the near plane. */
+  const css = (p: Vec3): readonly [number, number] | null => {
+    const world = transformPoint(model, p);
+    return view.depth(world) > camera.near ? toStage(view.project(world), stage) : null;
+  };
   let smallest = Infinity;
   for (const { rect, cap } of regions) {
     const [x, y, w, h] = rect;
@@ -104,9 +109,9 @@ export function smallestCapPx(
     ];
     for (const [u, v, inward] of corners) {
       const corner = facePoint(face, u, v);
-      const [ax, ay] = css(corner);
-      const [bx, by] = css(add(corner, scale(up, inward * cap)));
-      smallest = Math.min(smallest, Math.hypot(bx - ax, by - ay));
+      const [a, b] = [css(corner), css(add(corner, scale(up, inward * cap)))];
+      if (a === null || b === null) return null;
+      smallest = Math.min(smallest, Math.hypot(b[0] - a[0], b[1] - a[1]));
     }
   }
   return smallest;
