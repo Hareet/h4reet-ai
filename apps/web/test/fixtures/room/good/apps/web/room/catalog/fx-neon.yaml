@@ -1,0 +1,34 @@
+# The fixture neon panel: one readable face, which the scene splits into a word region and two counter regions.
+version: 1
+id: fx-neon
+name: Fixture neon panel
+size: { w: 0.5, h: 0.2, d: 0.03 }
+origin:
+  point: Fixture point at the bottom centre of the clip
+  bounds: { min: [-0.25, 0, -0.015], max: [0.25, 0.2, 0.015] }
+live_faces:
+  - role: panel
+    at: [0, 0.1, 0.015]
+    size: [0.48, 0.18]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [480, 180]
+    readable: true
+glows:
+  - { id: fx-tube, at: [0, 0.1, 0.01], radius: 0.25, tone: fx-warm, motion: flicker }
+standin:
+  - { shape: box, size: [0.5, 0.2, 0.02], at: [0, 0.1, -0.005], color: fx-ink }
+drawing:
+  primitives:
+    - { primitive: rect, x: -0.25, y: 0, w: 0.5, h: 0.2, fill: fx-ink }
+    - primitive: path
+      d: "M -0.2 0.05 L 0.2 0.05 L 0.2 0.15 L -0.2 0.15 Z"
+      fill: none
+      stroke: fx-glow
+      stroke_width: 0.004
+budget: { gzip_bytes: 200000, triangles: 3000, texture_px: 256, texture_bytes: 349525 }
+work_order:
+  method: Fixture method for the neon panel
+  shots: [Fixture shot of the panel]
+  measurements: [Fixture measure of the panel's face]
+  studio_notes: Fixture studio notes for the neon panel

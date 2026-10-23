@@ -1,0 +1,6 @@
+rule: RD2
+file: apps/web/room/ui-words.yaml
+path: words.fx-extra
+why: a UI word key that is neither a key of the code's closed list nor a label.<name>
+edits:
+  - { file: apps/web/room/ui-words.yaml, at: [words, fx-extra], set: Fixture extra word }

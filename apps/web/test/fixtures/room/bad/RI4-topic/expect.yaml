@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: selectables[0].action.talk.topic
+why: a talk action on a topic topics.yaml lacks
+edits:
+  - { file: apps/web/room/scene.yaml, at: [selectables, 0, action, talk, topic], set: fx-notopic }

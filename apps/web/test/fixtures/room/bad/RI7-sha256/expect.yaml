@@ -1,0 +1,12 @@
+rule: RI7
+file: apps/web/room/catalog/fx-laptop.yaml
+path: model.file
+why: a model whose record holds another file's SHA-256, the two records' names swapped
+generate:
+  assets/room/fx-laptop.glb: glb:desk
+  assets/room/fx-board.glb: glb:sign
+  assets/room/records.json: records
+edits:
+  - { file: apps/web/room/catalog/fx-laptop.yaml, at: [model], set: { file: fx-laptop.glb } }
+  - { file: assets/room/records.json, at: [entries, 0, file], set: fx-laptop.glb }
+  - { file: assets/room/records.json, at: [entries, 1, file], set: fx-board.glb }

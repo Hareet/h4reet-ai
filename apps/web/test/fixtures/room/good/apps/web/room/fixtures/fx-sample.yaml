@@ -1,0 +1,12 @@
+# A fixture of the fixtures: a tier, and turns of every outcome, one of them invalid on purpose (a metered route).
+version: 1
+id: fx-sample
+tier: local
+turns:
+  - { outcome: reply, route: local, cost_micro_usd: 0 }
+  - { outcome: reply, route: fallback, cost_micro_usd: 1200 }
+  - { outcome: reply, route: metered, cost_micro_usd: "12.5" }
+  - { outcome: degraded }
+  - { outcome: failed }
+  - { outcome: lost }
+  - { outcome: refused, status: 429 }

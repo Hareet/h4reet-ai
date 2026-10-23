@@ -1,0 +1,8 @@
+rule: RI2
+file: apps/web/room/catalog/fx-neon.yaml
+path: glows[1].id
+why: two glows of one piece with one name
+edits:
+  - file: apps/web/room/catalog/fx-neon.yaml
+    at: [glows]
+    push: { id: fx-tube, at: [0, 0.05, 0.01], radius: 0.1, tone: fx-warm, motion: steady }

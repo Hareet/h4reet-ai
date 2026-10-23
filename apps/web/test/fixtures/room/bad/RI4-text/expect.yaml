@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: placements[2].faces.screen.regions[0].text
+why: a region bound to room text that doesn't exist
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 2, faces, screen, regions, 0, text], set: fx-notext }

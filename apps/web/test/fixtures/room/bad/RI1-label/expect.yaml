@@ -1,0 +1,6 @@
+rule: RI1
+file: apps/web/room/ui-words.yaml
+path: words.label.x
+why: a label.<name> UI word whose name is outside the name grammar
+edits:
+  - { file: apps/web/room/ui-words.yaml, at: [words, label.x], set: fixture short label }

@@ -1,0 +1,6 @@
+rule: RD1
+file: apps/web/room/lookdev.yaml
+path: "-"
+why: CR LF line ends
+raw:
+  apps/web/room/lookdev.yaml: "version: 1\r\nvignette: { show: [fx-desk] }\r\nclose_up: { frame: [fx-desk] }\r\n"

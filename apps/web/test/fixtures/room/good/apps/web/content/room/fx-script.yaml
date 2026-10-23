@@ -1,0 +1,9 @@
+# The fixture terminal block: words from the fixture intent, lines that fit the region's 12 by 3 grid.
+version: 1
+block: fx-script
+renderer: terminal
+words_from:
+  - { file: intent/900-fx-room.md, quote: the screen shows a short script }
+lines:
+  - text: fx run
+  - text: fx ok

@@ -1,0 +1,4 @@
+# The fixture vignette and close-up: placements the scene has.
+version: 1
+vignette: { show: [fx-desk, fx-monitor, fx-neon, fx-laptop, fx-sign, fx-board] }
+close_up: { frame: [fx-desk, fx-monitor] }

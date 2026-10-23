@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: placements[1].label
+why: a label no UI word holds
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 1, label], set: label.fx-nolabel }

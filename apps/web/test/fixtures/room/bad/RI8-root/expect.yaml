@@ -1,0 +1,6 @@
+rule: RI8
+file: apps/web/room/scene.yaml
+path: placements[1]
+why: a second placement without a mount, where only the shell has none
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 1, mount], delete: true }

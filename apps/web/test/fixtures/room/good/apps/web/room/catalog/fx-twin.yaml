@@ -1,0 +1,21 @@
+# The fixture twin's figure: its picture comes from the avatar loader, so the piece has a stand-in and a hand, no model.
+version: 1
+id: fx-twin
+name: Fixture twin figure
+size: { w: 0.2, h: 0.5, d: 0.15 }
+origin:
+  point: Fixture point between the figure's feet
+  bounds: { min: [-0.1, 0, -0.075], max: [0.1, 0.5, 0.075] }
+anchors:
+  hand: { at: [-0.1, 0.25, 0.05] }
+standin:
+  - { shape: capsule, radius: 0.08, length: 0.3, at: [0, 0.25, 0], color: fx-skin }
+drawing:
+  primitives:
+    - { primitive: ellipse, cx: 0, cy: 0.25, rx: 0.08, ry: 0.23, fill: fx-skin }
+budget: { gzip_bytes: 100000, triangles: 1000, texture_px: 256, texture_bytes: 349525 }
+work_order:
+  method: Fixture method for the twin's stand-in
+  shots: [Fixture shot of the figure]
+  measurements: [Fixture measure of the figure's height]
+  studio_notes: Fixture studio notes for the twin

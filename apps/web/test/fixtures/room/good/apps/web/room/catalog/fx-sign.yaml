@@ -1,0 +1,31 @@
+# The fixture sign: a readable lettering face the scene binds to an outline, enlarged by its stylized scale.
+version: 1
+id: fx-sign
+name: Fixture sign
+size: { w: 0.3, h: 0.12, d: 0.02 }
+stylized_scale: 1.25
+origin:
+  point: Fixture point at the centre of the sign's foot
+  bounds: { min: [-0.15, 0, -0.01], max: [0.15, 0.12, 0.01] }
+live_faces:
+  - role: lettering
+    at: [0, 0.06, 0.01]
+    size: [0.28, 0.1]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [280, 100]
+    readable: true
+standin:
+  - { shape: box, size: [0.3, 0.12, 0.02], at: [0, 0.06, 0], color: fx-wood }
+drawing:
+  primitives:
+    - { primitive: rect, x: -0.15, y: 0, w: 0.3, h: 0.12, fill: fx-wood, stroke: fx-ink, stroke_width: 0.002 }
+    - { primitive: circle, cx: -0.12, cy: 0.1, r: 0.008, fill: fx-ink }
+    - { primitive: ellipse, cx: 0, cy: 0.06, rx: 0.1, ry: 0.03, fill: none, stroke: fx-ink, stroke_width: 0.002 }
+    - { primitive: polygon, points: [[0.1, 0.02], [0.13, 0.02], [0.115, 0.05]], fill: fx-ink }
+budget: { gzip_bytes: 150000, triangles: 1500, texture_px: 256, texture_bytes: 349525 }
+work_order:
+  method: Fixture method for the sign
+  shots: [Fixture shot of the lettering]
+  measurements: [Fixture measure of the sign]
+  studio_notes: Fixture studio notes for the sign

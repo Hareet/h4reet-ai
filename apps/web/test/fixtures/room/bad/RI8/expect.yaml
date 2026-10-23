@@ -1,0 +1,6 @@
+rule: RI8
+file: apps/web/room/scene.yaml
+path: placements
+why: no placement with the role twin
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 7, role], delete: true }

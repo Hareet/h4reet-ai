@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: placements[3].faces.panel.regions[0].ui[0]
+why: a neon region naming a UI word that doesn't exist
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 3, faces, panel, regions, 0, ui, 0], set: label.fx-missing }

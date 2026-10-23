@@ -1,0 +1,30 @@
+# The fixture board: a readable slate the scene binds to a chalk block, drawn with a polyline and a colour by hex.
+version: 1
+id: fx-board
+name: Fixture board
+size: { w: 0.8, h: 0.6, d: 0.03 }
+origin:
+  point: Fixture point at the centre of the board's back
+  bounds: { min: [-0.4, -0.3, 0], max: [0.4, 0.3, 0.03] }
+live_faces:
+  - role: slate
+    at: [0, 0, 0.03]
+    size: [0.74, 0.54]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [740, 540]
+    readable: true
+standin:
+  - { shape: box, size: [0.8, 0.6, 0.02], at: [0, 0, 0.01], color: fx-wood }
+  - { shape: plane, size: [0.74, 0.54], at: [0, 0, 0.025], color: fx-slate }
+drawing:
+  primitives:
+    - { primitive: rect, x: -0.4, y: -0.3, w: 0.8, h: 0.6, fill: fx-wood }
+    - { primitive: rect, x: -0.37, y: -0.27, w: 0.74, h: 0.54, fill: fx-slate }
+    - { primitive: polyline, points: [[-0.3, 0.1], [0.3, 0.1]], stroke: "#f4f1e8", stroke_width: 0.005 }
+budget: { gzip_bytes: 300000, triangles: 2000, texture_px: 1024, texture_bytes: 5592405 }
+work_order:
+  method: Fixture method for the board
+  shots: [Fixture shot of the slate]
+  measurements: [Fixture measure of the frame]
+  studio_notes: Fixture studio notes for the board

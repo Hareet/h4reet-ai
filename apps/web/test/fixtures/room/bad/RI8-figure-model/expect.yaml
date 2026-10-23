@@ -1,0 +1,6 @@
+rule: RI8
+file: apps/web/room/catalog/fx-twin.yaml
+path: model
+why: a figure's piece with a model, where its picture comes from the avatar loader
+edits:
+  - { file: apps/web/room/catalog/fx-twin.yaml, at: [model], set: { file: fx-twin.glb } }

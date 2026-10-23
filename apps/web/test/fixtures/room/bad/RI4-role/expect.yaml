@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: placements[2].faces.fx-noface
+why: a face binding for a live face the placement's piece lacks
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 2, faces, screen], rename: fx-noface }

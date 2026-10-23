@@ -1,0 +1,6 @@
+rule: RI1
+file: apps/web/room/catalog/fx-board.yaml
+path: live_faces[0].role
+why: a live face's role outside the object-name rule
+edits:
+  - { file: apps/web/room/catalog/fx-board.yaml, at: [live_faces, 0, role], set: the-Slate }

@@ -1,0 +1,21 @@
+# The fixture room's shell: a floor and a back wall, the root every other placement mounts under.
+version: 1
+id: fx-shell
+name: Fixture shell
+size: { w: 4, h: 2.6, d: 3 }
+origin:
+  point: Fixture point at the floor's centre below the wall
+  bounds: { min: [-2, -0.05, -1.25], max: [2, 2.6, 1.75] }
+anchors:
+  floor: { at: [0, 0, 0] }
+  wall: { at: [0, 1.4, -1.2] }
+standin:
+  - { shape: box, size: [4, 0.05, 3], at: [0, -0.025, 0.25], color: fx-floor }
+  - { shape: box, size: [4, 2.6, 0.05], at: [0, 1.3, -1.225], color: fx-wall }
+drawing: { from: standin }
+budget: { gzip_bytes: 400000, triangles: 2000, texture_px: 512, texture_bytes: 1398101 }
+work_order:
+  method: Fixture method for the shell
+  shots: [Fixture shot of the wall]
+  measurements: [Fixture measure of the floor]
+  studio_notes: Fixture studio notes for the shell
