@@ -196,11 +196,14 @@ describe("a run on the room's clock", () => {
     if (!exact || !shown) throw new Error("no readouts");
     expect(exact.count).toBeGreaterThan(30_000);
     expect([shown.count, shown.over33Share]).toEqual([exact.count, exact.over33Share]);
+    // Each time is the exact one rounded up to 0.1 ms, as the results round it (results.ts), never under it but for
+    // floating point's noise; and so the median frame rate is never over the exact one by more than that noise.
+    const up = (ms: number): number => Math.ceil(ms * 10 - 1e-9) / 10;
     for (const key of ["p50Ms", "p95Ms"] as const) {
-      expect(shown[key], key).toBeGreaterThanOrEqual(exact[key]);
-      expect(shown[key], key).toBeLessThanOrEqual(exact[key] + 0.1 + 1e-9);
+      expect(shown[key], key).toBe(up(exact[key]));
+      expect(shown[key], key).toBeGreaterThan(exact[key] - 1e-9);
     }
-    expect(shown.medianFps).toBeLessThanOrEqual(exact.medianFps);
+    expect(shown.medianFps).toBeLessThanOrEqual(exact.medianFps + 1e-6);
     expect(shown.medianFps).toBeGreaterThanOrEqual(1000 / (1000 / exact.medianFps + 0.1 + 1e-9));
   });
 

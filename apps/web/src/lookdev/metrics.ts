@@ -7,11 +7,21 @@
 // in all and while a quality hold is held or a piece loads, and the level it settles at. A run gives its readouts at its
 // end, once; one stopped early gives none, so the results (§6) never come from part of a run. Every time is the
 // clock's, and only durations leave the run: it reads no time of day.
+// The page also reads the figures so far each second, inside the frames a run measures, so those live figures come
+// from running counts and a fixed histogram of the intervals in 0.1-ms steps, each read at its step's top, so a live
+// figure is within 0.1 ms of the exact one and never reads better; the exact percentiles are taken once, at the end
+// (the review's page-9).
 import type { Clock } from "../room/clock";
 import { median } from "../room/quality";
 
 /** A frame interval over this many milliseconds counts as over (SC-005). */
 export const OVER_MS = 33;
+/** The live figures' steps in a millisecond, and the longest interval a step of its own holds; longer ones share the
+ *  last, read as the longest the run measured. */
+const STEPS_PER_MS = 10;
+const LIVE_MAX_MS = 1000;
+/** Room for floating point at a step's edge. */
+const EPS = 1e-9;
 /** SC-005's visit and soak, in seconds. */
 export const RUN_SECONDS = [120, 600] as const;
 export type RunSeconds = (typeof RUN_SECONDS)[number];
@@ -86,7 +96,8 @@ export interface RunOptions {
 export interface Run {
   /** The controller's level changed, through its onQuality: a rise is a step down. */
   quality(level: number): void;
-  /** The readouts so far, for the page's live view; the results come from `onEnd` alone. */
+  /** The readouts so far, for the page's live view, cheap to read however long the run: the frame times to their
+   *  0.1-ms step's top, the rest exact. The results come from `onEnd` alone, exact. */
   readouts(): RunReadouts;
   /** Stops the run early: it gives no readouts. */
   stop(): void;
@@ -98,6 +109,10 @@ export interface Run {
 export function startRun(options: RunOptions): Run {
   const { clock, seconds } = options;
   const intervals: number[] = [];
+  // The live figures' counts: each interval in its 0.1-ms step, those over 33 ms, and the longest.
+  const steps = new Uint32Array(LIVE_MAX_MS * STEPS_PER_MS + 1);
+  let over = 0;
+  let longest = 0;
   let last: number | null = null;
   let level = options.level;
   let stepDowns = 0;
@@ -112,7 +127,15 @@ export function startRun(options: RunOptions): Run {
   const tick = (time: number): void => {
     frame = null;
     if (!running) return;
-    if (last !== null) intervals.push(time - last);
+    if (last !== null) {
+      const ms = time - last;
+      intervals.push(ms);
+      // Its step: up to 0.1 ms, as results.ts rounds a time up.
+      const step = Math.min(steps.length - 1, Math.max(0, Math.ceil(ms * STEPS_PER_MS - EPS)));
+      steps[step] = (steps[step] ?? 0) + 1;
+      if (ms > OVER_MS) over += 1;
+      longest = Math.max(longest, ms);
+    }
     last = time;
     const s = options.sample();
     drawCalls = Math.max(drawCalls, s.drawCalls);
@@ -121,9 +144,34 @@ export function startRun(options: RunOptions): Run {
     frame = clock.requestFrame(tick);
   };
 
-  const readouts = (): RunReadouts => ({
+  /** The interval at a rank, 1 for the shortest, to its step's top: the last step's is the longest measured. */
+  const atRank = (rank: number): number => {
+    let seen = 0;
+    for (let step = 0; step < steps.length; step += 1) {
+      seen += steps[step] ?? 0;
+      if (seen >= rank) return step === steps.length - 1 ? longest : step / STEPS_PER_MS;
+    }
+    return longest;
+  };
+
+  /** §5's frame figures so far from the counts, with no copy or sort of the intervals. */
+  const liveFrames = (): FrameStats => {
+    const n = intervals.length;
+    if (n === 0) return frameStats([]);
+    const rank = (percent: number): number => Math.max(1, Math.ceil((percent * n) / 100));
+    const middle = n % 2 === 1 ? atRank((n + 1) / 2) : (atRank(n / 2) + atRank(n / 2 + 1)) / 2;
+    return {
+      count: n,
+      p50Ms: atRank(rank(50)),
+      p95Ms: atRank(rank(95)),
+      medianFps: middle > 0 ? 1000 / middle : 0,
+      over33Share: over / n,
+    };
+  };
+
+  const readouts = (frames: FrameStats): RunReadouts => ({
     seconds,
-    frames: frameStats(intervals),
+    frames,
     settled: level,
     stepDowns,
     stepDownsWhileLoading: whileLoading,
@@ -144,7 +192,7 @@ export function startRun(options: RunOptions): Run {
   timer = clock.setTimeout(() => {
     timer = null;
     halt();
-    options.onEnd(readouts());
+    options.onEnd(readouts(frameStats(intervals)));
   }, seconds * 1000);
 
   return {
@@ -156,7 +204,7 @@ export function startRun(options: RunOptions): Run {
       }
       level = next;
     },
-    readouts,
+    readouts: () => readouts(liveFrames()),
     stop: halt,
     get running() {
       return running;
