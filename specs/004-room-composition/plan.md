@@ -1,0 +1,803 @@
+# Implementation Plan: Room Composition — The Work Area's Pieces, Composed From Data
+
+**Branch**: `spec/004-room-composition` (this plan; the work runs on two lines of stacked branches, [§3](#3-the-order-of-work)) | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
+
+**Status**: Planned on 2026-10-22, from the design the Author approved that day. The readings approved with it, and the Author's four actions it names, are in [research.md](research.md#readings-approved-with-the-plan), with the two actions due now that 2026-10-23 added. No `NEEDS CLARIFICATION` remains. Revised on 2026-10-23 by the `/speckit-analyze` remediation: P-11 joins the Author's patches ([§4.1](#41-the-patches-p-1-to-p-11)), and FR-070 reads as the spec's Clarifications of that day record; both wait for the Author's yes (the spec's Confirmations 21 and 22). Revised again that night by the remediation of the spec branch's `REVIEW.md` pass: the Author's interim deny and the ComfyUI check, now (T290, T291); P-3's listener rules; the matrix's loopback rows; the photo guide's side-file steps; ADR 0021's amendment on P-11's branch; and the spec's Confirmations 23 and 24, which wait for the Author's yes too.
+
+**Input**: [spec.md](spec.md), clarified on 2026-10-22 (its [Clarifications](spec.md#clarifications)), and [intent.md](intent.md). The explorations read spec 002's room on `feat/002-us6-events` (dc7f023); spec 003's intake on `feat/003-us5-comparison` (0b13887), with its guard patch on `feat/003-guards` (a72ebe3) and its arrival-check patch, both the Author's and both unapplied; spec 001's plan on `spec/001-cloud-elevation` (00309c4); and `main` (58bd232).
+
+**Companions**: [research.md](research.md) (Phase 0), [data-model.md](data-model.md), [contracts/](contracts/), and [quickstart.md](quickstart.md) (Phase 1). Where this plan and a contract disagree on an interface detail, the contract is right and this plan is fixed.
+
+**Conventions** (spec 000's, as spec 002's plan restates them):
+- **The Author's terminal**: commands only the Author runs, outside Claude Code.
+- **Agent-editable** files are changed by agents and reviewed by the Author. **Human-only** files change only by the Author's hand; agents deliver their changes as patches in `docs/merge-requests/`.
+- **Implementable now** marks work whose dependencies all exist; **waits for** names the one that doesn't.
+- **Paths.** A file on another branch is named in a code span, with its branch, and never linked: `evals/docs_links.py` fails a link to a missing file. Spec 002's workspace, `apps/web/`, and `config/room-events.yaml` are on `feat/002-us6-events`; `scripts/assets/**` and ADRs 0010 and 0030 are on the `feat/003-*` branches; `assets/policy/**`, `tools/gates/arrival_check.py`, and `tools/gates/content_check.py` exist only inside the Author's unapplied patches (spec 003's guard and arrival-check patches, spec 002's approvals patch). A path that exists on no branch is one this plan creates.
+
+## Summary
+
+Spec 004 makes the room data, in the Author's words: "features should be modeled with that abstract perspective rather than one-off hard-coded". Spec 002's room is code today: `objects.ts`, `framing.ts`, `scene.ts`, a hand-drawn SVG, and per-ID CSS, on `feat/002-us6-events`. This plan replaces it with four things:
+- **Data, one kind per file** (FR-001 to FR-008, FR-078): a piece catalog; one scene file of placements, switches, and selectables; topics; room text approved by hash; UI words; looks; and fixtures (R-01 to R-07).
+- **A compositor,** a Node-only build step that checks the data against nine rule families and writes one deterministic bundle (FR-009 to FR-014; R-08 to R-14). Its index sits in the entry chunk for the 2D room, the lists, and the text copy; its 3D part in the lazy chunk; and the approved room text, with the resume's section titles, in `room-data.json`, fetched once at Enter. A shared kernel gives the build, the room, and the lookdev page the same framing, pick areas, cable runs, and cap heights (R-17 to R-22).
+- **Plain studio models** through spec 003's intake, held to one fit check (RX1 to RX10) that the lookdev page shares, budgeted under the Author's caps on `main`, and served gzip-encoded at `/a/` (FR-015 to FR-023, FR-053, FR-079; R-23 to R-26, R-45).
+- **Live words and signals:** five renderers draw every readable word from FR-029's four sources (R-36 to R-38); the laptop's charger shows the tier from a pure reducer of FR-041's table (R-30); the neon sign counts the visitor's own turn costs (R-32).
+
+**Built now**, on line R, stacked on spec 002's tip: the setup, the foundation, and User Stories 1 to 9 as far as their dependencies exist. That is the room on stand-ins, its degraded modes, lookdev, the serving, the renderers with draft text, the topics' fixed messages, accessibility, the poller with the live source off, and the counters reading "cost unavailable" (answer 7: "Yes it can have cost unavailable for now."). **Governance lands first**, on line I and as the Author's ten patches in FR-077's order ([§4](#4-the-authors-patches-and-the-merge-order)); an eleventh, P-11, outside that order, admits SC-004's dev-only harness at the compose policy before User Story 8's switch-on. **What waits:** the first room files, for the patches and the look; shipped room text, for P-9 and the Author's approvals; the live tier, for spec 001; the live counters and the topics' conversations, for the twin's conversation core and the Author's corpus ([§3.2](#32-now-and-what-waits)).
+
+**Do first:** two Author actions now, before any merge; then M1 to M4, with P-1, as soon as this plan is approved.
+- **The interim deny (T290).** Until P-1 (M4), this repository's agent sessions can still read the studio's outputs and workflows folders, and until P-2 (M5) write them. The workflows folder is the studio session's own workspace, so a write there could change that session's settings or instructions. So the Author adds Read and Edit denies, and sandbox `denyRead` and `denyWrite` entries, for both folders to this repository's `.claude/settings.local.json`, which only the Author writes and which is never committed. P-1 and P-2 then put the same denies in the committed settings, where the matrix proves them (R-50, R-51). The review proposed the Author's user-level deny in `~/.claude/settings.json` instead, where the photos and key denies already are. The plan's reading, beside it: a user-level deny would also deny both folders to the studio's own session, which loads the same user settings and works in exactly those two folders (it starts in the workflows folder, with the outputs folder added), so this repository's local file holds them.
+- **The ComfyUI check (T291).** The Author checks whether the studio's session could reach ComfyUI's port at any time since 2026-10-22: through a hook or an MCP server in any of its settings scopes, a WebFetch rule, a sandbox network allowance for a loopback host, or its own queueing of ComfyUI's runs. If it could, the Author closes the route before the next studio session, and records it (the spec's Assumptions, "An Author action, now"; Confirmation 24).
+
+**One reading for the Author to confirm:** the approved design's one motion store is read per FR, so reduced motion stops motion but not polling, and only the pause shows "Paused at" (FR-044, FR-060); [research.md](research.md#readings-approved-with-the-plan) records it beside the readings approved with the plan (R-34).
+
+## Technical Context
+
+**Language/Version**:
+- TypeScript 6.0.3 on Node 24.21.0 (spec 000's pins) for `apps/web`: the compositor (Node only, at build time), the shared kernel and the runtime (in the browser), and the lookdev page; and the eleven gateway tests that hold a room ID or "author-laptop" today (R-16).
+- Python 3.12 for the agents' Python: `evals/test_room_order.py`, `scripts/assets/test_gzip_parity.py`, `scripts/room/har_check.py`, and the scrubber's and the credits' changes. Every human-only script in the Author's patches (P-3, P-5, P-8, P-9, P-10) is standard library only, as spec 000's gate tools are.
+- nginx configuration for the web image; YAML and JSON for the room's data; Markdown for the generated studio documents; Bash for the forbidden-action matrix's rows.
+
+**Primary Dependencies**:
+- **Already pinned on `feat/002-us6-events`:** three 0.186.1, held exactly (R-29's source pin); vite 8.3.3; vitest 5.0.3; yaml 2.9.1; tsx 4.23.15; jsdom 30.1.1; axe-core 4.13.0; pdfkit 0.20.2.
+- **New `apps/web` devDependencies,** pinned exactly in the root lockfile by the first task that needs each:
+  - **zod 4.6.5**, the gateway's pin, for the data's `strictObject` schemas (FR-005), declared in `apps/web` itself because the image installs only that workspace (R-01);
+  - **fontkit 2.0.4**, already locked through pdfkit, made explicit to read the typefaces' cap heights, typed by a local `build/room/fontkit.d.ts` (R-21);
+  - **pako 2.1.0**, a pure-JavaScript port of zlib 1.2.8 and the one gzip-9 implementation, used by the compositor and the lookdev page and never by a release's room chunks (R-26, R-41).
+- **Vendored, not installed:** IBM Plex Mono from `@ibm/plex-mono`, unmodified, and Patrick Hand from `@fontsource/patrick-hand` (latin, weight 400), taken from the npm registry's tarballs, checked against their integrity, and locked in `fonts.lock` schema 2 beside IBM Plex Sans (R-38, B10). The agents' sandbox reaches the npm registry, not GitHub.
+- **TypeScript's own parser** (typescript 6.0.3, the toolchain's pin) for the source scan, which runs in `make test` and `room:scan` only, never in the image build (R-16).
+- **Nothing new** in Python, and nothing in any human-only script.
+- **Containers:** the web image keeps its pinned bases (`node:24.21.0-trixie-slim` to build, `nginx-unprivileged:1.30.5-alpine` to serve) and gains an empty `room-assets` stage. Serving uses nginx's `gzip_static` and `gunzip` modules, which `nginx -V` confirms in the pinned image before the first model merges (R-45, R-46).
+
+**Storage**: none at run time beyond page memory. The tier, the visit's cost total, the pause, and each model's state live in the page and leave with it: no cookie, Web Storage, IndexedDB, or URL (FR-044, FR-047). The room's data and room text are repository files; models enter `assets/room/` only through spec 003's intake; the caps and the approvals are human-only files in `assets/policy/`, read from `refs/heads/main` (R-13). The generated files are committed and checked for freshness: `config/room-events.yaml`, `config/room-topics.yaml`, and `docs/studio/`'s work orders and photo guide (R-14).
+
+**Testing**:
+- **vitest** in `apps/web`, in Node, each test with its own jsdom and axe-core, as spec 002's suite runs: the compositor's fixture set (one known-bad overlay per rule), the data-only proof set, determinism, the source scan, the kernel against three.js's math, the fit check on GLBs built at run time (spec 003's rule A1 refuses committed models), the renderers, the tier's table, the poller and the cost channel on `FakeClock`, fault injection, accessibility, and full release, drafts, and phone-copy builds (R-65 to R-69).
+- **pytest:** the order test, the gzip parity, the web image's, nginx's, and the edge's configuration tests, the HAR checker, and the scrubber and credits; the human-only patches carry their own tests in `tools/gates/test/`.
+- **The forbidden-action matrix** for the guard's rows, stages H and S; **`make redteam`** for Amendment B4's scaffold cases.
+- **Every check runs inside `make test`** (R-65). The Author's gate runs a fixed tuple, `make test` among it, in a container with no `.git` and no network, and never runs `make check`, so spec 004 adds no `CHECK_GATES` entry.
+- **The Author's runs** ([quickstart.md](quickstart.md)): lookdev on the reference phone, the failover on dev, the network log through the HAR checker, assistive technology, the agent-configuration evals, and stage E. The toolchain has no headless browser, so rendering, frame rates, memory, and real network logs are measured there (R-69, R-70).
+
+**Target Platform**: evergreen browsers on desktop and phone: WebGL 2 for the 3D room (models only above ADR 0010's floor), anything for the 2D room. The reference phone is ADR 0010's Galaxy A54-class phone; the reference desktop is a 1920 × 1200 window at a pixel ratio of 1. The web image runs behind each stack's `edge` on loopback, and later behind spec 001's CloudFront. Node 24 runs the compositor inside the image's build stage; the Author's WSL host runs the human-only checks, and P-8 runs inside the photos folder.
+
+**Project Type**: a data-driven extension of spec 002's static web application (`apps/web`): its build-time compositor, the web image's serving, and the Author's governance patches. No new event kind, and no new service, compose entry, or port but one, named in [Complexity Tracking](#complexity-tracking): SC-004's harness, a dev-only compose profile for the Author's failover run, which `main`'s compose policy admits only through P-11 (R-70; the spec's Amendment Z1).
+
+**Performance Goals**:
+- **The reference phone,** at the production framing with every studio piece the scene holds: a median of at least 30 frames a second, at least 95% of frames within 33 ms, over a 2-minute visit and a 10-minute soak, and 0 quality step-downs during a scripted load of every piece (SC-005, FR-055).
+- **Memory and bytes:** at most 96,000,000 bytes of texture memory on the phone (SC-006); per piece, at most 2,500,000 bytes at gzip level 9 and 40,000 triangles, with 1024-pixel textures on the small props (FR-053); the first visit inside spec 003's 25,000,000-byte phase-3 budget, the room's share estimated at 12,000,000.
+- **The entry chunk** within spec 002's 150 KB gzipped, the index at most 16 KB of it (FR-011), so spec 002's load goal for the choice screen still holds.
+- **Signals:** the charger leaves the plugged pose on the first frame after a failed request or a stale answer (SC-003), and within 40 seconds of the relay's local path turning unhealthy (SC-004); the "Room live state" panel follows within 60 seconds (SC-014).
+- **Faces:** the monitor types once, in at most 5 seconds (FR-031); a late typeface falls back after 2 seconds (FR-061); every readable face's smallest cap height is at least 9 CSS pixels on both reference stages (FR-052, SC-010).
+- **Loading:** 4 fetches and 2 parses at once, a 10-second timeout, and one retry (FR-056, FR-057; R-28).
+
+**Constraints**:
+- **No model call** from any piece, poll, renderer, or the lookdev page (FR-076); an unready topic calls nothing (FR-037).
+- **One same-origin read,** spec 001's `GET /api/status`: every 30 seconds while the visitor has entered, the page is visible, the room isn't paused, and the live source is on; a 5-second timeout; backoff doubling to 120 seconds; `Retry-After` honoured (FR-042, FR-044). The live source stays `off` until spec 001 serves the status, so until then no request is made at all (FR-045).
+- **Nothing stored** on the device, and no third-party host (FR-044, FR-047, FR-075).
+- **The CSPs stay as they are.** They refuse `style` attributes and `blob:` URLs, and spec 001's edge has no `data:` images. So the 2D room is attributes only, GLB textures decode with no object URL, and 2D faces are SVG (R-29, R-36, R-39).
+- **Models stay plain glTF** and are sent gzip-encoded from a copy made once at build time; nothing compresses per request on the web image's 0.1 CPU and 32 MB (FR-015, FR-079).
+- **Human-only paths** (`.claude/**`, `CLAUDE.md`, `REVIEW.md`, `tools/gates/**`, `evals/agent-config/**`, `assets/policy/**`) change only by the Author's patches and commits; agents never raise a cap (FR-053).
+- **No number about the Author** outside the corpus or a filled slot; no edit to `corpus/`, and corpus proposals carry no amounts.
+- **`make up` must always work** (CLAUDE.md): one piece's misfit model warns and keeps its stand-in, and absent caps take FR-053's starting figures (FR-013; R-10, R-13).
+
+**Scale/Scope**:
+- **The default scene** ([data-model.md §4.9](data-model.md#49-the-default-scene)): the shell, the desk, the ultrawide monitor, the neon sign, the laptop's stand, the laptop, the charger's poses, the snowboard, the bicycle, the window and its view, the artwork, the chalkboard, two desk signs, the twin, and the visitor. Four selectables, `snowboard`, `bicycle`, `laptop`, and `chalkboard`, of at most 64; three default topics; five renderers; one switch on the tier's eight values.
+- **The code:** a kernel of 12 modules, a GLB reader of 7, a compositor of 12 with 9 rule-family modules, about 35 runtime and lookdev modules, and about 70 new or changed test files, eleven of them the gateway's (R-16).
+- **The governance:** eleven patches: P-1 to P-10, one of them the Author's own commit (P-6), and nine merges, M1 to M9, before line R's; and P-11, outside FR-077's order, before User Story 8's switch-on.
+- **The spec:** 79 FRs, 15 success criteria in force (SC-016 is folded into SC-001), and 33 amendment rows (Z1, A1 to A7, B1 to B14, C1 to C11).
+
+## Constitution Check
+
+*GATE: passed before research and re-checked after design ([below](#constitution-check-post-design)).* Applied with the `constitution-check` skill's questions against the [constitution](../../.specify/memory/constitution.md) 1.0.1.
+
+| Principle or standard | What this plan does | Verdict |
+|---|---|---|
+| I. Data-local by default | One same-origin read, the status poll, switched on only in the change that serves it, with Amendment A4's words on V7 (FR-044, FR-045, FR-074). The turn's cost travels inside the reply the device already gets (FR-075, B6). Nothing is stored on the device, and no visitor biometrics. The photos stay on the Author's machine: the four studio folders are denied (P-1, P-2), with the Author's local deny of the outputs and workflows folders until then (T290); the studio session's denies are proven by the settings check (P-3); no Claude session reaches ComfyUI's port (P-3's listener rules, the matrix's loopback rows, and the spec's Confirmation 24); photo work's side files stay in the photos folder (the photo guide); and only reviewed outputs leave the photos folder (FR-024, FR-025, P-8). Degraded modes come before the happy paths: User Story 2 sits below User Stories 8 and 9 in the stack ([§3](#3-the-order-of-work)), and the room renders fully whatever is live (FR-062) | PASS, with the spec's named deviations: row D4 after the studio's first sessions, and the rest of the guard after the first photos ([Complexity Tracking](#complexity-tracking)) |
+| II. Production-grade or not shipped | Tests for every requirement, inside `make test` (R-65); the twin's evals stay the twin's spec's, with B4's cases scaffolded now (R-64); no new event kind, and §7.9 written now (R-60, R-61); the spec's cost estimate, measured by the compositor's report ([§5](#5-expected-cost-and-how-it-is-measured)); no new alert, so no runbook entry; ADR 0036 and `apps/web/room/README.md` for a cold reader | PASS, with the spec's named deviation: no production series until spec 001 |
+| III. Intent before spec, spec before code, humans merge | From the accepted intent. This plan comes before code and is carried into each line's tree. Amendments are named, never edited into specs 001 to 003 (answer 10), nor into spec 000 (Z1). ADRs 0036, 0010, and 0030 (R-63). No agent merges; agents only rebase and cherry-pick (R-48) | PASS, with the inherited deviation: local until publication (ADR 0013) |
+| IV. Least privilege | Every human-only change is one of the Author's patches or commits: P-1 to P-10 in FR-077's order, each landing before the risk it guards, and P-11 before User Story 8's switch-on. Each adds denies or checks, apart from the changes the spec approves at three enforcement points: P-5 admits the `design` source in any record (C2) and, for room files, the composite and human-made marks (C1) and "not_applicable" room confirmations and `likeness_accepted` (C4, C5); P-9 admits `room-text` approvals behind its whole-string checks (B9); P-11 admits `status-harness`'s loopback port and the edge network (R-70): SC-004's dev-only harness alone, past spec 000's plan §1 port and edge-network rules, with the compose policy's disclosure rule kept whole, and ADR 0021, still proposed, amended on P-11's branch to name it (the spec's Amendment Z1) ([§4](#4-the-authors-patches-and-the-merge-order)). Caps and approvals are human-only and read from `refs/heads/main` (R-13). Nothing else is widened: no CSP, sandbox domain, or permission. The phone copy opens no path (Q1's option A). No host is allowlisted for IPTC's term (R-53) | PASS |
+| V. Cost is a first-class signal | $0 model spend at run time (FR-076); no budget, ceiling, or price changes; caps from `main`, which agents never raise (FR-053); the sign shows the visitor's own turn costs, marked "est.", after Confirmation 6's price check; the report in every room note (FR-073) | PASS |
+| VI. Build in public | The catalog, the scene, the work orders, the photo guide, the records, and the approved room text are public; the photos, the studio's working files, and the private denylist aren't; notes print folder names, never paths (R-52) | PASS |
+| VII. Own the whole product, and say exactly what you owned | The mark follows the record (C1); `design` sources (C2); `likeness` means the file shows the Author (C5); a step the studio's session scripted is a model step, with its service and row D4 (C8); the monitor's scripts claim nothing about the Author's role or the agents' share beyond the corpus (FR-035) | PASS |
+| VIII. Honest AI | An unready topic says so and calls nothing (FR-037); the tier's sentences speak about the machine (FR-035); the twin states no amount (FR-039, FR-050); the chalkboard draws corpus lines only, with nothing of Seva (FR-033); the AI disclosure stays visible in every mode (FR-062); B4's red-team cases (R-64) | PASS |
+| Security and agent governance | The implementer never reviews; P-7 gives the reviewer a sixth pass; the agent-configuration evals run after P-1, P-2, P-4, and P-7, each of which changes the behavioural tier's trigger hash, and stage E after P-1 and P-2 (R-50); agents never edit `.claude/**`, `CLAUDE.md`, `REVIEW.md`, `tools/gates/**`, `evals/agent-config/**`, or `assets/policy/**` | PASS |
+| Workflow step 7: "A feature without a graph is not done." | §7.9 is written now; its panels join the dashboard at User Story 8's switch-on (R-61) | PASS, with the spec's named deviation until spec 001 |
+| Workflow step 8 (`docs/how-we-build/` updated if the process changed) | P-2 and P-7 add behavioural cases, P-7 a sixth review pass, and P-10 a gate host step. P-2's and P-7's patches carry the case count in `docs/how-we-build/lifecycle.md`'s behavioural-tier row and in START-HERE §7. The gate's branch names the studio-settings host step in START-HERE §7. `CONTRIBUTING.md` stops counting the review passes | PASS |
+| Technology standards | No provider call, and no gateway change beyond its tests; the one compose topology, with no new service or port on prod or dev-cpu: its one addition is SC-004's harness, a dev-only profile, which `main`'s compose policy admits only through P-11 ([Complexity Tracking](#complexity-tracking)); everything still ships as a container | PASS |
+
+Gate result: **PASS**, with the spec's named deviations only.
+
+## Project Structure
+
+### Documentation (this feature)
+
+```text
+specs/004-room-composition/
+├── intent.md                          # the accepted intent, moved from intent/004-room-pieces.md
+├── spec.md                            # clarified 2026-10-22
+├── plan.md                            # this file
+├── research.md                        # Phase 0: R-01 to R-70; the readings approved with the plan; the unknowns and what resolves each
+├── data-model.md                      # Phase 1: every entity, its fields, rules, relations, and states
+├── quickstart.md                      # Phase 1: Q0 to Q12, the agents' checks and the Author's runs
+├── contracts/
+│   ├── room-data-files.md             # the data files' schemas; the rule families RD to RL; refusals; strict and lenient; the source scan
+│   ├── room-bundle.md                 # the compositor; the bundle's parts; room_text; the manifest; the generated files; the report
+│   ├── plain-model-fit.md             # the export rules; RX1 to RX10; the mark; the measures; the caps; the gzip parity
+│   ├── serving.md                     # /a/; nginx's gzip_static; the image's room-assets context; spec 001's release
+│   ├── tier-signal.md                 # the live configuration; reduceTier; causeClass; the poller; what the relay must provide
+│   ├── turn-cost.md                   # classifyTurn; the counters' readings; onTurnOutcome
+│   ├── lookdev.md                     # the page; candidates; the results; the phone copy and its probe; the five layers
+│   ├── intake-amendments.md           # P-1 to P-11; the order test; M1 to M9; the disclosure rows; the ADRs
+│   └── room-live-state-telemetry.md   # object_selected; the asset events; §7.9; the dashboard's test
+├── checklists/requirements.md
+└── tasks.md                           # next: /speckit-tasks, from §3.1
+```
+
+### Source Code (repository root)
+
+**[A]** agent-editable; **[G]** generated by `npm run room:generate` and committed, its freshness tested in `make test`; **[P]** human-only, in one of the Author's patches ([§4.1](#41-the-patches-p-1-to-p-11)); **[M]** the Author's own commit on `main`; **[S]** the studio's or the Author's files, brought in by the Author through spec 003's intake. Every branch also adds its merge-request note, `docs/merge-requests/<date>-<branch>.md`, with `make check`'s output whole, and FR-073's report when it changes the room's data or models.
+
+**Line R, the room.** Stacked on `feat/002-us6-events` (dc7f023) in story order; each branch is rebased onto `main` after M9 and merged in this order after P-10 (R-48, R-49).
+
+```text
+feat/004-setup                                        Phase 1 (Setup); now
+  specs/004-room-composition/**                         [A] cherry-picked first from spec/004-room-composition, so plan.md is in the tree
+  apps/web/build/approvals.ts                           [A] accepts the kind room-text; POLICY_FILES gains assets/policy/caps.json (R-57, R-13)
+  apps/web/build/policy.ts                              [A] POLICY_PATHS gains caps.json, in the same order (R-13)
+  apps/web/test/approvals.test.ts                       [A] a room-text approval on main breaks no build (R-57)
+  apps/web/test/smoke.test.ts                           [A] the built room-data.json's policy digest, over three files (R-13; §10)
+  deploy/scripts/{web_image,test_web_image}.py          [A] POLICY_FILES gains caps.json; the image's label digests three files (R-13);
+                                                            web_image.py runs in the Author's terminal, so the note lists it first (ADR 0017)
+  apps/web/fonts/fonts.lock                             [A] schema 2: families[], each with its uses (R-38, B10)
+  apps/web/fonts/*                                      [A] IBM Plex Mono's files from @ibm/plex-mono; Patrick Hand's latin 400 WOFF from
+                                                            @fontsource/patrick-hand; their licences (R-38)
+  apps/web/fonts/README.md, apps/web/src/fonts.css, apps/web/README.md
+                                                        [A] the one-font lines (B10)
+  apps/web/build/pdf.ts, apps/web/test/{fonts,pdf}.test.ts
+                                                        [A] the PDF takes the families whose uses hold pdf, Plex Sans alone; the font test loops over families
+  apps/web/package.json                                 [A] the script fonts:lock
+  apps/web/build/fonts-lock.ts, apps/web/test/fonts-lock.test.ts
+                                                        [A] its code: the families declared, the tarballs found by their integrity, the lock
+                                                            written with every digest computed; and its tests on tarballs made at run time
+  docs/adr/0036-the-room-composed-from-data.md, docs/adr/README.md
+                                                        [A] ADR 0036, proposed, and its row in the index (R-63)
+  specs/000-local-foundations/contracts/telemetry.md    [A] §7.9 "Room live state" (R-61)
+  deploy/scripts/test_dashboard.py                      [A] SECTIONS gains "7.9"; REQUIRED unchanged (R-61)
+  evals/test_room_order.py                              [A] FR-077's ordering failure, from main's constants (R-58)
+
+feat/004-foundation                                   Phase 2 (Foundational); now
+  apps/web/src/room/compose/{math,mount,framing,project,stages,layout,pick,cable,legibility,load-order,vocabulary,bundle}.ts
+                                                        [A] the shared kernel: pure TypeScript, no three.js, no DOM (R-08, R-17 to R-22)
+  apps/web/src/room/ui-keys.ts                          [A] the UI words' closed keys and their slots (R-05)
+  apps/web/src/room/glb/{json,read,images,names,fit,rules,gzip}.ts
+                                                        [A] the GLB reader, RX1 to RX10, and the measures, for the compositor and lookdev (R-23, R-26)
+  apps/web/build/room/{source,schema,load,compose,typefaces,emit,orders,report,scan,plugin,cli}.ts, apps/web/build/room/fontkit.d.ts
+                                                        [A] the compositor: the Tree, the zod schemas, compose(), the typefaces' metrics, the work-order and
+                                                            photo-guide writer, the report, the source scan, roomBundle(), the command line (R-08 to R-16)
+  apps/web/build/room/checks/{rd,ri,rg,rs,rt,rv,rx,rk,rl}.ts
+                                                        [A] one module per rule family (R-09)
+  apps/web/build/content.ts                             [A] exports checkLine, bareNumber, and forbiddenHit; checkSource unchanged (R-15)
+  apps/web/build/manifest.ts                            [A] the manifest's additions (B7); the manifest script becomes room:generate's alias
+  apps/web/vite.config.ts                               [A] roomBundle() replaces roomContentModule (R-08)
+  apps/web/src/room/content.d.ts                        [A] room in virtual:room-content; virtual:room-scene, virtual:room-fixtures, virtual:room-lookdev
+  apps/web/package.json, the root package-lock.json     [A] zod 4.6.5, fontkit 2.0.4, pako 2.1.0; room:generate, room:report, room:check, room:scan, room:fit
+  apps/web/vitest.config.ts, apps/web/test/global-build.ts
+                                                        [A] one release and one drafts build, shared by the smoke, chunk, and dist tests (R-67)
+  apps/web/test/helpers/glb.ts                          [A] GLBs and their textures built at run time (R-66)
+  apps/web/test/fixtures/room/**                        [A] fx- overlays: one known-bad case per rule, and the known-good set (SC-002)
+  apps/web/test/fixtures/gzip-parity.json, scripts/assets/test_gzip_parity.py
+                                                        [A] the gzip parity, through pako and through Python (R-26)
+  apps/web/test/room/{schema,compose,determinism,policy,mount,framing,stages,pick,legibility,switches,words,glb,budgets,gzip,scan,dist}.test.ts
+                                                        [A] (R-66 to R-69)
+  apps/web/test/room/chunk.test.ts, apps/web/test/smoke.test.ts
+                                                        [A] the index within 16 KB; the 3D part only behind the dynamic import (R-67)
+
+feat/004-us1-composition                              Phase 3 (User Story 1, P1, the MVP); now; merges after M8, since its work orders need P-7
+  apps/web/room/{README.md,scene.yaml,topics.yaml,ui-words.yaml}, apps/web/room/catalog/*.yaml, apps/web/room/looks/inked-cel.yaml
+                                                        [A] two data commits: spec 002's room exactly, then FR-078's (R-07)
+  config/room-events.yaml                               [G] objects from the selectables, chalkboard joining them (B7)
+  config/room-topics.yaml                               [G] FR-038's mapping, for the twin's spec (R-14)
+  docs/studio/work-orders/<piece>.md, docs/studio/photo-guide.md
+                                                        [G] one work order per piece; the privacy template, the photo-work setup and its
+                                                            checklist, and the layout checklist (R-14, R-59)
+  apps/web/src/room/scene/{bundle3d,standins,look}.ts   [A] the 3D part's interpreter, the stand-ins' shapes, the look (R-27)
+  apps/web/src/room/text-copy.ts                        [A] the text copy, wired from the index (R-40)
+  apps/web/src/room/{app,objects,scene,stage,flat,a11y,layout}.ts, apps/web/src/room/room.css
+                                                        [A] all of it reads the bundle; ROOM_OBJECTS, ObjectId, the per-piece builders, LAYOUT,
+                                                            the raycast picker, and the per-ID CSS go (R-16, R-20, R-27, R-39)
+  apps/web/src/room/framing.ts                          [A] removed: its algorithm is the kernel's now (R-18)
+  apps/web/src/talk/talk.ts                             [A] the fixed message takes the topic's phrase (R-33)
+  apps/web/test/{manifest,events}.test.ts, apps/web/test/room/{scene,objects}.test.ts, apps/web/test/ui/{talk,a11y}.test.ts
+                                                        [A] expectations from compose(), and synthetic fx- IDs (R-16)
+  services/gateway/test/unit/room-events-config.test.ts [A] the committed file loads, with 1 to 64 unique IDs (R-16)
+  services/gateway/test/integration/{room-events,hello-fallback,hello-local,incidents,meter,migrations,telemetry-sdk}.test.ts,
+  services/gateway/test/unit/{gateway,limits,telemetry}.test.ts
+                                                        [A] synthetic fx- IDs, or the committed events file's IDs read at run time, and a
+                                                            client label that holds no room ID in place of "author-laptop" (R-16)
+  apps/web/test/room/{data-only,generated,standins,flat,events}.test.ts
+                                                        [A] SC-001's proof set; the generated files' freshness; each input's object_selected (R-68, R-14, R-60)
+
+feat/004-us2-degraded                                 Phase 4 (User Story 2, P1); now
+  apps/web/src/room/signals/{tier,live}.ts              [A] reduceTier and its wiring, with the live source off (R-30)
+  apps/web/src/room/motion.ts                           [A] pause, reduced motion, and a hidden page in one store (R-34)
+  apps/web/src/room/scene/cables.ts                     [A] the switch's cases and the cable run in 3D (R-22)
+  apps/web/src/room/{app,layout,scene,flat}.ts          [A] "Pause the room"; reduced motion read throughout; each case applied at once (R-34)
+  apps/web/src/talk/messages.ts                         [A] causeClass moved out, shared with the tier (R-30)
+  apps/web/test/room/{tier,live,motion}.test.ts, apps/web/test/ui/{pause,degraded}.test.ts
+                                                        [A] SC-003; the fault-injection suite that later stories extend (SC-007)
+
+feat/004-us3-lookdev                                  Phase 5 (User Story 3, P1); now; the Author's run needs the studio's desk and one sign
+  apps/web/lookdev/index.html, apps/web/src/lookdev/{main,controls,candidate,metrics,sha256,results,phone}.ts, apps/web/src/lookdev/lookdev.css
+                                                        [A] the drafts-only page, and the phone copy's entry with its probe (R-41, R-42)
+  apps/web/vite.phone.config.ts, apps/web/build/single-file.ts
+                                                        [A] the phone copy: one classic script in one file, with a meta CSP (R-42)
+  apps/web/room/fixtures/*.yaml, apps/web/room/lookdev.yaml
+                                                        [A] the sample states; the intent's vignette and the desk close-up (R-05, R-44)
+  apps/web/src/room/scene/{loader,gltf-images,ledger}.ts
+                                                        [A] loading pieces; textures with no object URL; the 96 MB ledger (R-28, R-29)
+  apps/web/src/asset-events.ts                          [A] spec 003's asset events, queued and switched off (R-60)
+  apps/web/src/room/{quality,scene}.ts                  [A] hold(); the quality levels' added steps; ADR 0010's floor (R-28, R-35)
+  apps/web/vite.config.ts, apps/web/package.json, apps/web/README.md
+                                                        [A] the drafts-only input; build:lookdev-phone; how to use the page
+  apps/web/Dockerfile, deploy/scripts/test_web_image.py [A] the drafts-only lookdev-phone target, before the runtime stage, which stays the
+                                                            default: it exports only lookdev.html, and the Author builds the phone's copy with
+                                                            it from the note's commit (R-43; lookdev.md §7)
+  .gitignore, .dockerignore, both at the root           [A] apps/web/dist-phone/; **/dist-phone (R-43)
+  apps/web/test/lookdev/{builds,candidate,metrics,sha256,results,phone}.test.ts,
+  apps/web/test/room/{loader,gltf-images,quality}.test.ts, apps/web/test/asset-events.test.ts
+                                                        [A] (R-41 to R-43, R-60)
+
+feat/004-us4-studio                                   Phase 6 (User Story 4, P2), first part; now
+  docs/studio/handoff.md                                [A] hand-written: the studio contract's changes the Author makes by hand (R-59)
+  apps/web/nginx.conf                                   [A] /a/ in the cache map; location ^~ /a/ (R-45, B14)
+  apps/web/Dockerfile, the root .dockerignore           [A] the room-assets stage and its copy; assets/policy ignored (R-46)
+  deploy/scripts/web_image.py                           [A] --build-context room-assets=<tree>/assets/room when that path is a directory (R-46);
+                                                            it runs in the Author's terminal, so the note lists it first (ADR 0017)
+  deploy/scripts/{test_web_nginx,test_web_image,test_edge_site}.py, apps/web/test/serving.test.ts
+                                                        [A] (R-45, R-67)
+  apps/web/src/room/layout.ts, apps/web/room/ui-words.yaml
+                                                        [A] the toolbar's one "Credits" link (C9)
+
+feat/004-us5-words                                    Phase 7 (User Story 5, P2); now, as drafts
+  apps/web/src/room/faces/{registry,display-list,terminal,desktop-session,neon,chalk,sign,raster,svg,fonts,words}.ts
+                                                        [A] five renderers to display lists; Canvas2D and attribute-only SVG; typefaces by document.fonts (R-36, R-37)
+  apps/web/src/room/scene/{faces3d,glows}.ts            [A] the face quads and the glow cards in 3D (R-27)
+  apps/web/build/room/text.ts                           [A] roomTextPart: room_text in room-data.json (R-11, R-57)
+  apps/web/content/room/<block>.yaml                    [A] drafts: the chalkboard's blocks now; the monitor's two halves once the Author's
+                                                            typed description of the photographed screen is recorded in an intent file, both
+                                                            citing it in words_from (FR-030, FR-031, FR-033)
+  apps/web/build/approvals.ts, apps/web/vite.config.ts  [A] the room-text files and outlines in the content list; roomTextPart joins the parts (R-57)
+  apps/web/src/room/resume-port.ts, apps/web/src/main.ts
+                                                        [A] room-data.json fetched once at Enter, with one retry (R-11)
+  .prettierignore, at the root                          [A] apps/web/content/room/outlines/ (R-06)
+  apps/web/test/room/{faces,text}.test.ts, apps/web/test/ui/around.test.ts
+                                                        [A] the copy equals the drawing; drafts; pending lines; nothing of Seva on the board (SC-008)
+  apps/web/content/room/outlines/<sign>.outline.json    [S] later: from the studio, or the Author's local tracing after P-8 (FR-032)
+
+feat/004-us6-topics                                   Phase 8 (User Story 6, P2); now; conversations wait for the twin's core
+  apps/web/src/room/app.ts, apps/web/src/talk/talk.ts   [A] selectObject runs the selectable's action (R-33)
+  redteam/cases/{gives-an-amount,sign-speaks-for-author,locates-from-window,seva-past-corpus}.yaml, redteam/{run,test_run}.py
+                                                        [A] Amendment B4's scaffold cases and their detectors (R-64)
+  apps/web/test/ui/talk.test.ts                         [A] SC-015; a turn holds only the ID, the path, and the turns (FR-038)
+
+feat/004-us7-access                                   Phase 9 (User Story 7, P2); now; the Author's assistive-technology runs
+  apps/web/src/room/{a11y,layout,text-copy}.ts, apps/web/src/room/room.css
+                                                        [A] the list in scene order; "Around the room" after the talk panel; the narrow-portrait rules (R-40)
+  apps/web/test/ui/{a11y,pick}.test.ts                  [A] the Tab order, 0 axe violations, 44 × 44 at the smallest stages in 3D and 2D, 320 × 568 (SC-009);
+                                                            no state, cue, or badge told by colour alone: a sentence for each tier value, a word
+                                                            for each badge, a name tag on each 2D cue (FR-065; R-40)
+
+feat/004-us8-live-tier                                Phase 10 (User Story 8, P3); the poller now, with the live source off
+  apps/web/src/room/signals/{status-poller,frame-log}.ts
+                                                        [A] GET /api/status on the room's Clock; the drafts-only frame log, h4FrameLog() (R-31, R-70)
+  apps/web/src/room/signals/live.ts                     [A] the poller runs only while live.source is site
+  scripts/room/{har_check,test_har_check}.py            [A] the HAR checker, run in the Author's terminal (R-70)
+  apps/web/test/room/status-poller.test.ts              [A] the cadence, the backoff, Retry-After, the resume rule, the property test (SC-012)
+  its switch-on change, once spec 001 serves GET /api/status on the room's origin with Amendments A1 to A3:
+  apps/web/room/scene.yaml                              [A] live.source: site, which RL2 refuses without V7's words
+  docs/data-flow-disclosure.md                          [A] Amendment A4's words on V7 (R-62); status-harness named in S1's From → To cell, before
+                                                            its arrow, and S1's Default cell saying it runs only on dev while dev's environment
+                                                            selects its profile (the spec's Amendment Z1; R-70)
+  deploy/grafana/dashboards/h4-runtime.json, deploy/scripts/test_dashboard.py, specs/000-local-foundations/contracts/telemetry.md
+                                                        [A] the "Room live state" row; §7.9 in REQUIRED; §8's row (R-61)
+  deploy/compose.yaml, deploy/images.lock, deploy/edge/status-harness.conf, deploy/env.example/dev.env.example,
+  deploy/scripts/{preflight,test_preflight,test_compose_env}.py, specs/000-local-foundations/contracts/env-files.md
+                                                        [A] SC-004's harness: a status-harness service in a compose profile of that name, which
+                                                            only dev's environment selects, and only for the Author's run; preflight refuses the
+                                                            profile in prod's and dev-cpu's COMPOSE_PROFILES, as it refuses breach. It runs the
+                                                            pinned nginx-unprivileged image, under an images.lock line of its own name, on the
+                                                            stack's edge and internal networks, published on dev's loopback port
+                                                            H4_STATUS_HARNESS_PORT (18106), and sends GET /api/status to dev's relay and
+                                                            everything else to edge:8087. Prod's and dev-cpu's x005 keep
+                                                            location /api/ { return 404; }, which test_edge_site.py pins (the spec's "No local
+                                                            status endpoint"; R-70). preflight.py runs in the Author's terminal at every make up,
+                                                            so the note lists it first (ADR 0017)
+  its policy patch, on a branch of its own from main that holds only the patch, ADR 0021's amendment, and its note, once spec 001's dev relay exists:
+  docs/merge-requests/<date>-<branch>.patch             [P] P-11: tools/gates/compose_policy.py, tools/gates/test/test_compose_policy.py: status-harness
+                                                            alone admitted past the port and edge-network rules, the disclosure rule kept
+                                                            whole (§4.1; the spec's Amendment Z1)
+  docs/adr/0021-internal-network-prometheus-loki-edge.md, docs/adr/README.md
+                                                        [A] ADR 0021, still proposed, amended to name status-harness as dev's one other
+                                                            publisher; a new ADR at the next free number amends it instead if the Author
+                                                            has accepted it first (the spec's Amendment Z1)
+
+feat/004-us9-neon-sign                                Phase 11 (User Story 9, P3); now, reading "cost unavailable"
+  apps/web/src/room/signals/turn-cost.ts                [A] classifyTurn and createCostChannel (R-32)
+  apps/web/src/talk/talk.ts, apps/web/src/room/app.ts, apps/web/src/room/faces/neon.ts
+                                                        [A] onTurnOutcome; the wiring; the counters' readings (R-32)
+  apps/web/test/room/turn-cost.test.ts                  [A] SC-011
+  live with the twin's spec, which adds POST /api/room/turn with B6's fields, sets live.turn: site, and writes B6's words on V2
+```
+
+**From `main`, after line R's merges.**
+
+```text
+feat/004-look                                         User Story 3's scenario 5 (T149; §10): once line R has merged through feat/004-us3-lookdev and the
+                                                        Author has chosen the look on the whole vignette (T193); before US4's intake
+  docs/adr/0010-real-time-avatar-rig-and-art-direction.md, docs/adr/README.md
+                                                        [A] the chosen look; a new ADR 0037 instead if ADR 0010 is accepted first (R-44, R-63)
+  apps/web/room/looks/<look>.yaml, apps/web/room/scene.yaml
+                                                        [A] the look as data (FR-070)
+  docs/studio/work-orders/<piece>.md                    [G] regenerated from the look, before the remaining pieces are modeled (FR-070)
+
+feat/004-us4-intake                                   Phase 6 (User Story 4), second part: after P-5, P-6, P-10, line R's merges, and the look
+  assets/room/{LICENSE.md,records.json,<piece>.glb}     [S] the desk and one sign first (C10): scrubbed, recorded, approved by hash
+  assets/CREDITS.md                                     [A] rendered by scripts/assets/credits.py
+  apps/web/room/catalog/<piece>.yaml                    [A] model set: the one edit that replaces a stand-in (User Story 4, scenario 1)
+
+feat/004-close                                        Phase 12 (Polish), last
+  apps/web/room/catalog/*.yaml, apps/web/room/scene.yaml
+                                                        [A] FR-078's measured layout, each estimate replaced as it is measured
+  apps/web/src/room/compose/stages.ts, apps/web/test/room/stages.test.ts
+                                                        [A] the reference phone's stage and pixel ratio, as lookdev measured them (R-18)
+```
+
+**Line I, intake and governance.** Its branches start from `main` after the Author's spec 003 merges; the integration branch, `fix/002-patches-on-003`, sits on spec 002's tip.
+
+```text
+feat/004-guard                                        Phase 1 (Setup); from main after M4; merged at M5
+  redteam/forbidden-actions.sh                          [A] the write, hook, path-form, and case-variant rows, PLANNED until P-2's marker; and stage S's
+                                                            rows for ComfyUI's port, refused directly and through the proxy, in force at once (R-51)
+  docs/data-flow-disclosure.md                          [A] row D4, right after D3 in spec 000's development-time table (R-62)
+  docs/merge-requests/<date>-feat-004-guard.patch       [P] P-2: .claude/settings.json, .claude/hooks/protected-paths.sh, tools/gates/studio-folders.txt,
+                                                            tools/gates/matrix-required.txt, evals/agent-config/cases/reads-studio-folder.yaml,
+                                                            evals/agent-config/{behavioral,test_behavioral}.py; and, agent-editable but in the
+                                                            patch, since evals/test_repository_docs.py holds lifecycle.md's count to the case files
+                                                            in the tree: docs/how-we-build/lifecycle.md (the behavioural tier's row, 14 cases) and
+                                                            docs/START-HERE.md (§7's "Then 14 cases run three times each"), each counted on main
+                                                            when the patch is generated
+  docs/merge-requests/<date>-feat-004-settings-check.patch
+                                                        [P] P-3: tools/gates/studio_settings_check.py, tools/gates/test/test_studio_settings_check.py:
+                                                            the file denies, and the listener rules (hooks, MCP servers, WebFetch, the
+                                                            sandbox's network)
+
+fix/002-patches-on-003                                Phase 1 (Setup); on feat/002-us6-events, after M6; only if spec 002's patches no longer apply
+  docs/merge-requests/<date>-fix-002-patches-on-003.md  [A] the conflict list from git merge-tree --write-tree, with resolutions
+  docs/merge-requests/<date>-fix-002-patches-on-003.patch
+                                                        [P] spec 002's gate patches, regenerated against main's gate after P-4
+
+feat/004-intake                                       Phase 1 (Setup); from main after M7; merged at M8
+  scripts/assets/{scrub,credits,test_scrub,test_credits}.py
+                                                        [A] the mark from the record's steps (--record); design sources; tools and service on model steps (R-53);
+                                                            scrub.py and credits.py run in the Author's terminal, so the note lists them first (ADR 0017)
+  Makefile                                              [A] assets-scrub passes RECORD on; it runs in the Author's terminal, so the note lists it first
+  CONTRIBUTING.md                                       [A] "runs the passes in REVIEW.md", no longer counting them
+  docs/adr/{0010-real-time-avatar-rig-and-art-direction,0030-media-license-and-ai-mark,README}.md
+                                                        [A] the room caps in ADR 0010; Amendment C1 in ADR 0030; the index (R-63)
+  docs/merge-requests/<date>-feat-004-intake-arrival.patch
+                                                        [P] P-5: tools/gates/arrival_check.py, tools/gates/test/{test_arrival_check,arrival_fixtures}.py
+  docs/merge-requests/<date>-feat-004-intake-review.patch
+                                                        [P] P-7: REVIEW.md, .claude/agents/reviewer.md, evals/agent-config/cases/reviewer-reads-room-data.yaml,
+                                                            evals/agent-config/{behavioral,test_behavioral}.py; and, as in P-2,
+                                                            docs/how-we-build/lifecycle.md and docs/START-HERE.md §7 (15 cases)
+  docs/merge-requests/<date>-feat-004-intake-outline.patch
+                                                        [P] P-8: tools/gates/outline_check.py, tools/gates/test/test_outline_check.py
+
+main, the Author's own commit, at M8
+  assets/policy/caps.json, assets/policy/licenses.json  [M] P-6: per_asset.room; the hand tools', the tracing tool's, and the studio session's licences (R-54)
+
+feat/004-content-check, then feat/004-gate            Phase 1 (Setup); each from main after M9
+  docs/merge-requests/<date>-feat-004-content-check.patch
+                                                        [P] P-9: tools/gates/content_check.py, tools/gates/test/test_content_check.py
+  docs/merge-requests/<date>-feat-004-gate.patch        [P] P-10: tools/gates/gate, tools/gates/test/test_gate.py
+  docs/START-HERE.md                                    [A] on feat/004-gate: §7 names the gate's studio-settings host step, "once P-10 is applied"
+```
+
+**Structure Decision**: spec 002's `apps/web` workspace grows a data folder (`apps/web/room/`), a kernel the build and the page share (`src/room/compose/`), a GLB reader the compositor and lookdev share (`src/room/glb/`), and a Node-only compositor (`build/room/`) (R-08). There is no new workspace, and no new service, compose entry, or port but SC-004's dev-only harness, which P-11 admits at the compose policy ([Complexity Tracking](#complexity-tracking); R-70). Governance changes travel as the Author's patches (R-50).
+
+---
+
+## 1. Phase 0 and Phase 1 outputs
+
+| Phase | Artifact | What it holds |
+|---|---|---|
+| 0 | [research.md](research.md) | R-01 to R-70, each a decision with its rationale and the alternatives weighed; the readings approved with the plan; the studio checks of 2026-10-22, in the spec's words; the [unknowns the exploration found](research.md#unknowns-the-exploration-found-and-what-resolves-them) and what resolves each |
+| 1 | [data-model.md](data-model.md) | where each entity lives and who writes it; the catalog entry, the scene, topics, room text and outlines, UI words, looks, `fonts.lock`, fixtures, the caps' room block, records and approvals; what the compositor writes; the page's state machines; the key numbers |
+| 1 | [contracts/room-data-files.md](contracts/room-data-files.md) | the data files' exact schemas; the rule families RD to RL; the refusal line; strict and lenient; the source scan |
+| 1 | [contracts/room-bundle.md](contracts/room-bundle.md) | `compose()`'s interface; the policy's sources; the index, the 3D part, `room_text`, the manifest, the events file, the topic mapping, the studio documents, and the report; determinism; the Vite plugin and the npm scripts |
+| 1 | [contracts/plain-model-fit.md](contracts/plain-model-fit.md) | the export rules; the reader; RX1 to RX10; the mark; the measures; the budgets and the caps; the gzip parity |
+| 1 | [contracts/serving.md](contracts/serving.md) | the URLs and `dist/`'s files; nginx's `/a/` location; the image's `room-assets` context; the edge; spec 001's release (A6) |
+| 1 | [contracts/tier-signal.md](contracts/tier-signal.md) | the live configuration and RL1 to RL4; the tier's values; `reduceTier`; `causeClass`; the poller; the frame log; what the relay must provide (A1, A2, A4) |
+| 1 | [contracts/turn-cost.md](contracts/turn-cost.md) | the reply's two fields (B6); `classifyTurn`; a valid reply; the readings; the channel; `onTurnOutcome` |
+| 1 | [contracts/lookdev.md](contracts/lookdev.md) | the page, its controls, candidates in memory, the readouts, the results; the phone copy, its probe, and its steps; the five layers that keep it out of release builds |
+| 1 | [contracts/intake-amendments.md](contracts/intake-amendments.md) | the behaviour of P-1 to P-11; the order test; the scrubber and the credits; M1 to M9; the disclosure rows and their IDs; the ADRs |
+| 1 | [contracts/room-live-state-telemetry.md](contracts/room-live-state-telemetry.md) | `object_selected`, unchanged; the asset events, built and off; the relay's series; §7.9's text; the dashboard's test |
+| 1 | [quickstart.md](quickstart.md) | Q0 to Q12: each phase's agents' checks and the Author's runs, with what to expect |
+| 1 | the agent context | not updated: `CLAUDE.md` is human-only ([Agent context](#agent-context)) |
+| 2 | `tasks.md` | next: `/speckit-tasks`, from [§3.1](#31-task-phases-for-speckit-tasks) |
+
+## 2. The design, by area
+
+Each row is detailed in the decisions and the contract it names. Every FR, FR-001 to FR-079, appears in at least one row; [§8](#8-requirement-coverage) maps the success criteria and the amendments.
+
+| Area | What the design does | Decisions | Contract | Serves | Phase |
+|---|---|---|---|---|---|
+| The data | One file per kind under `apps/web/room/`, room text under `apps/web/content/room/`, read as spec 002's content is read and validated by zod `strictObject`s. IDs follow `^[a-z][a-z0-9-]{1,40}$` in four namespaces, with retired IDs and a closed vocabulary. Mounts form one tree; switches claim poses; a selectable talks or opens the resume. Spec 002's room comes first, then FR-078's | R-01 to R-07 | room-data-files.md | FR-001 to FR-006, FR-008, FR-078 | 2, 3 |
+| The compositor and the bundle | `compose(tree, policy, {mode, drafts})`. Nine rule families, each finding `<rule> <file>:<path>: <reason>`, never echoing data. Strict in `make test`; lenient only for one piece's model in the image build. Byte-identical builds. Caps from `main`, FR-053's starting figures when absent. The index in the entry (at most 16 KB gzipped), the 3D part in the lazy chunk, room text in `room-data.json` at Enter. Generated files with freshness tests; the source scan | R-08 to R-16 | room-bundle.md, room-data-files.md | FR-007, FR-009 to FR-014 | 2, 3 |
+| The shared kernel | Pure TypeScript: the mount resolver (anchor, offset, and turn in Y-X-Z degrees; a piece's stylized scale scales its own geometry, anchors, and faces, never its children); `framing(aspect, boxes)` at spec 002's six aspects; the stages; fixed text grids; 44 px pick cores; the cable; cap heights; the load order | R-17 to R-22 | room-data-files.md §2 and §13.3 | FR-003, FR-009, FR-020, FR-064 | 2 |
+| Plain models and budgets | The GLB reader and fit check in `apps/web/src/room/glb/`, a strict port of spec 003's parser, shared with lookdev. Budgets RK1 to RK4 under `per_asset.room`. Texture memory w × h × 4 × 4/3 over models, cards, avatars, and canvases. FR-073's report in every room note | R-23 to R-25 | plain-model-fit.md | FR-015 to FR-023, FR-053, FR-073 | 2, 6 |
+| gzip and serving | Only `dist/a/<stem>.<hash16>.glb.gz` is emitted: pako at level 9, mtime 0, OS 255, its length the caps' and the report's measure, held to Python's `gzip.compress(data, 9, mtime=0)` by a parity test. nginx's `location ^~ /a/` with `gzip_static always`, `gunzip on`, and `types` for `model/gltf-binary glb`; `/a/` immutable in the cache map; no new `add_header`. A named build context brings in `assets/room`. Spec 001's release uploads each copy with both headers. The twin's and the avatars' copies come with spec 003's site-loading group, through the same pako call ([§3.2](#32-now-and-what-waits)) | R-26, R-45 to R-47 | serving.md | FR-079 | 2, 6 |
+| The 3D runtime and loading | `scene.ts` interprets the 3D part; stand-ins from the shape grammar; inked cel, lit at run time. Models load after the figures and above ADR 0010's floor, framed selectables first, 4 fetches and 2 parses at once, with integrity, a 10-second timeout, one retry, a quality hold, and a 96 MB ledger. Textures decode with `createImageBitmap` under the unchanged CSPs. Four quality levels, none raising a setting | R-27 to R-29, R-35 | room-bundle.md §3.2; data-model.md §11.4 (no contract of its own) | FR-005, FR-055 to FR-057 | 3, 5 |
+| Faces, words, and typefaces | Five renderers (terminal, desktop session, neon, chalk, sign) make display lists that Canvas2D and attribute-only SVG draw. Words come from FR-029's four sources only; the text copy comes from each renderer's own word list. The monitor types once in at most 5 s. A canvas is no larger than its face's largest on-screen size times the pixel ratio. The fallback typeface draws after 2 s. Plex Mono, Patrick Hand, Plex Sans, and Plex Sans Bold as a stroked tube. Cap height from fontkit after the `fonts.lock` check, or the outline's `cap_height`. Spec 002's C9, C6, and C8 reused | R-06, R-15, R-21, R-36 to R-38 | room-data-files.md §7 to §10 | FR-029 to FR-035, FR-051, FR-052, FR-054, FR-061 | 1, 7 |
+| 2D and accessibility | The 2D room is projected from the catalog's drawings through `framing(1.6)` into a 320 × 200 view box, attributes only, switch cases by `visibility`. The "In the room" list in scene order. "Around the room" visible after the conversation panel, updated in place with no live region. "Pause the room" in the toolbar; five controls within 320 × 568. 44 × 44 pick cores at 304 × 248, at 326 × 208, and over a sweep of screen sizes. Colour never carries meaning alone: poses, words, and name tags carry every state and cue | R-19, R-20, R-39, R-40 | room-bundle.md §3.1 | FR-058, FR-063 to FR-065 | 3, 9 |
+| The tier, pause, and the degraded room | `reduceTier`, a pure function of FR-041's ten rows, with `recheckAt`; `causeClass` shared with the talk panel. The poller asks `GET /api/status` same-origin every 30 s, with a 5 s timeout, backoff doubling to 120 s, and `Retry-After`; it stores nothing and never runs before Enter or while paused or hidden. Each switch case applies at once. One motion store for pause, reduced motion, and hidden. The live source stays `off` until spec 001 | R-30, R-31, R-34 | tier-signal.md | FR-040 to FR-045, FR-059, FR-060, FR-062 | 4, 10 |
+| The neon sign | `classifyTurn` and `createCostChannel`: BigInt micro-dollars in page memory; FR-048's readings; "at least" until reload; a refused turn changes nothing; "cost unavailable" while the live configuration has no turn route; `onTurnOutcome` for the twin's spec | R-32 | turn-cost.md | FR-046 to FR-050 | 7, 11 |
+| Topics | `selectObject` runs the selectable's action: the fixed message with the topic's phrase and no model call; the conversation's `feature` for a ready topic; or the resume. FR-038's mapping in `config/room-topics.yaml`. Amendment B4's four scaffold cases | R-05, R-33, R-64 | room-bundle.md §8 | FR-036 to FR-039, FR-076 | 3, 8 |
+| Lookdev | A drafts-only page at `/lookdev/`, running the production runtime. Candidates stay in memory, with their SHA-256 and pako gzip-9 computed in the page and the compositor's own fit check. The phone copy is one classic script with a meta CSP of `connect-src 'none'`, its probe first. Five layers keep all of it out of release builds | R-41 to R-44 | lookdev.md | FR-066 to FR-070 | 5, 12 |
+| The photos, the studio, and the order | The guard's four folders denied to reads (P-1) and writes (P-2), with the Author's local deny of the outputs and workflows folders until then (T290); the studio session's settings check (P-3), its listener rules among them; ComfyUI's port refused to this repository's sandbox (the matrix's loopback rows); the outline check (P-8), inside the photos folder; the photo guide, with photo work's side files kept in the photos folder, the work orders, and the handoff in `docs/studio/`; the arrival amendments (P-5) and the Author's policy commit (P-6); the review pass (P-7); the order test | R-50 to R-59 | intake-amendments.md | FR-024 to FR-028, FR-077 | 1, 3, 6 |
+| Telemetry, disclosure, and ADRs | No new event kind, span, or beacon. Spec 003's asset events built and switched off. §7.9 written now, its panels at User Story 8's switch-on. D4 on `feat/004-guard`. The first row written keeps its ID, so spec 001's planned V2 to V5 become V7 to V10 (the spec's Amendment A7), and A4's words land on V7 at the switch-on. ADR 0036 now; ADRs 0010 and 0030 on `feat/004-intake`; ADR 0021 amended on P-11's branch (the spec's Amendment Z1) | R-60 to R-63, R-70 | room-live-state-telemetry.md; intake-amendments.md §15 and §16 | FR-071, FR-072, FR-074, FR-075 | 1, 5, 10 |
+| Proof | Every check inside `make test`; GLBs built at run time; one release and one drafts build checked; the data-only proof on overlays; each success criterion's proof, by agents or by the Author | R-65 to R-70 | quickstart.md | SC-001 to SC-015 | all |
+
+## 3. The order of work
+
+### 3.1 Task phases, for `/speckit-tasks`
+
+User Story 1 is the MVP: it ships on today's stand-ins, and every later story builds on it. User Story 3, the lookdev page, comes right after it, on the Author's overnight direction ([§10](#10-departures-from-this-plan)), and the phases follow tasks.md's order. User Story 2, the degraded mode, still sits below User Stories 8 and 9, as Principle I requires: "Every user-facing capability MUST define its degraded mode before its happy path."
+
+| Phase | Branch, and its base | What | Starts | Merges | Proof |
+|---|---|---|---|---|---|
+| 1 Setup | `feat/004-setup`, on `feat/002-us6-events` | the spec branch's documents; `room-text` accepted; `caps.json` in the policy path; the typefaces (B10); ADR 0036; §7.9 in `SECTIONS`; the order test | now | first of line R, after P-10 | Q2's order test; Q3 |
+| 1 Setup | `feat/004-guard`, from `main` | the matrix's rows, written to fail first; P-2; P-3; D4; the patch chain checked | after M4; on `feat/003-guards` (a72ebe3) with P-1's placeholders if M4 is slow | M5 | Q1 |
+| 1 Setup | `fix/002-patches-on-003`, on `feat/002-us6-events` | the conflict list; spec 002's gate patches regenerated, only if they no longer apply after P-4 | after M6 | with M9 | the note |
+| 1 Setup | `feat/004-intake`, from `main` | P-5 (once the IPTC term is confirmed), P-7, P-8, and P-6's draft; the scrubber and the credits; ADRs 0010 and 0030 | after M7 | M8 | Q2 |
+| 1 Setup | `feat/004-content-check`, then `feat/004-gate`, from `main` | P-9; P-10 | after M9 | before line R's merges | Q7, Q6 |
+| 2 Foundational | `feat/004-foundation` | the schemas and the closed kinds; the kernel; the compositor's core (refusals, determinism, the policy's sources, the report, the generators); the GLB reader and fit check; the bundle's parts; the source scan; the built-site checks; the fixtures; the gzip parity | now | after Setup | Q3 |
+| 3 US1 (P1), the MVP | `feat/004-us1-composition` | spec 002's room as data, then FR-078's; `roomBundle()` in the site with the first data; the generated files; the 3D room, the 2D room, the list, and the text copy from the bundle; the pinned tests migrated | now | after M8, for P-7 | Q3 |
+| 4 US3 (P1) | `feat/004-us3-lookdev` | the page and the fixtures, drafts only (B11); the phone copy and its probe; the loader and its image plugin; the quality holds; the asset events, off | now; the Author's runs need the studio's desk and one sign | after US1 | Q5 |
+| 4 US3 (P1), its scenario 5 | `feat/004-look`, from `main` | the look in ADR 0010, and the work orders regenerated | once line R's branches through `feat/004-us3-lookdev` have merged, and the Author has chosen the look on the whole vignette (T193) | after its gate | Q5 |
+| 5 US2 (P1) | `feat/004-us2-degraded` | the tier's reducer, with the live source off; the laptop's switch and its cable; pause, reduced motion, and hidden; the fault-injection suite; the lookdev page's pause and cable states | now | after US3 | Q4 |
+| 6 US7 (P2) | `feat/004-us7-access` | the list; "Around the room" in its place; the hit areas; the 320 × 568 layout, sized for five controls; the axe check | now | after US2 | Q9 |
+| 7 US5 (P2) | `feat/004-us5-words` | the renderers; room text as drafts; the text copy equal to the drawing; the chalkboard's rules; the legibility report; the lookdev page's faces, glows, and glyph readout, and the whole vignette's run | now, as drafts | after US7 | Q7 |
+| 8 US6 (P2) | `feat/004-us6-topics` | the selectables' actions; the fixed messages with their phrases; FR-038's turn; B4's scaffold cases | now | after US5 | Q8 |
+| 9 US4 (P2), first part | `feat/004-us4-studio` | the handoff; gzip serving (B14); the `room-assets` context; the "Credits" link (C9) | now | after US6 | Q6's serving checks |
+| 9 US4 (P2), second part | `feat/004-us4-intake`, from `main` | the first room files, the desk and one sign (C10): spec 002's T078, which B13 moves here | after P-5, P-6, P-10, line R's merges through `feat/004-us4-studio`, and the look | after its gate | Q6 |
+| 10 US8 (P3) | `feat/004-us8-live-tier` | the poller, with the live source off; the frame log; the HAR checker; later, the switch-on | the poller now; the switch-on after spec 001 | after US4's first part; the switch-on after spec 001 | Q10 |
+| 11 US9 (P3) | `feat/004-us9-neon-sign` | the cost channel; the counters reading "cost unavailable"; the lookdev page's sample figures | now | after US8 | Q11 |
+| 12 Polish | `feat/004-close`, from `main` | FR-078's measured layout, the phone's measured stage, the success-criteria table, and converge | last | — | Q12 |
+
+Phase 9's second part comes after the look, Phase 4's `feat/004-look`: the look is recorded, and the work orders follow it, before the first room files come in (FR-070; the intent's order).
+
+### 3.2 Now, and what waits
+
+| Work | Implementable now | Waits for |
+|---|---|---|
+| Line R's code, Phases 1 to 11 | yes: built and tested on stacked branches | merging: M8 (User Story 1's work orders need P-7), M9 (spec 002's line), then P-9 and P-10 |
+| Line I's branches | after M4 and M7 | the Author's merges, and the IPTC term before P-5 |
+| User Story 4's intake | — | P-5, P-6, and P-10 on `main`; the look in ADR 0010; the studio's files; the Author's approvals; P-3's output in the note |
+| The monitor's two scripts, drafted | — | the Author's typed description of the photographed screen (answer 5, FR-031), recorded verbatim, in the Author's words, in an intent file, which both blocks cite in `words_from` (RD3, RT9) |
+| Shipped room text | drafts, shown only in drafts builds | P-9; the approvals by hash; the signs' outlines, through P-8 when traced from a photo |
+| The live tier (User Story 8) | the reducer and the poller, with the live source off | spec 001 serving `GET /api/status` on the room's origin, with A1 to A3; row V7, with A4's words in the switch-on change |
+| The asset events, sent | built, queued, switched off | spec 001's `POST /api/events`, and row V6 |
+| The twin's and the avatars' GLBs, gzip-encoded (FR-079, C11, SC-006) | the room's copies; `dist.test.ts` already fails any build with a plain `.glb` in `dist/` (room-bundle.md §14) | spec 003's site-loading group, which writes each GLB only as `dist/a/<stem>.<hash16>.glb.gz`, with the room's pako call (`apps/web/src/room/glb/gzip.ts`), and sets `files[].bytes` to that copy's length |
+| The live counters (User Story 9) | the channel, reading "cost unavailable" | the twin's conversation core: `POST /api/room/turn` with B6's fields and A5's pass-through; B6's words on V2; Confirmation 6's price check |
+| Ready topics and conversations | the fixed messages, with their phrases | the twin's conversation core; the Author's corpus (hobbies and travel adventures, the mission statements with Seva, the three approach words, the dog); the twin's evals; B4's cases as live prompts |
+| The look; SC-005, SC-006's phone figure, SC-010 | the lookdev page and the phone copy | the Author's runs, with the studio's desk and one sign; the phone probe first |
+| FR-078's measured layout | estimates, marked in the data | the Author's measurements, from the photo guide's checklist |
+| SC-004, SC-012, SC-014 | their automated halves | spec 001's dev relay; P-11 on `main`, for SC-004's harness; the Author's failover and network log |
+| SC-009's human half | the automated half | the Author's keyboard-only and screen-reader visits, and the grayscale run |
+| Spec 001's release (A5, A6) | — | spec 001 |
+
+### 3.3 Dependencies
+
+```text
+The Author's merges and patches (§4), in order:
+  M1 → M2 → M3 → M4 (+P-1) → M5 (+P-2, P-3) → M6 (+P-4) → M7 → M8 (+P-5, P-6, P-7, P-8) → M9 → P-9 → P-10
+  feat/004-guard            from main after M4      ──→ merged at M5
+  fix/002-patches-on-003    after M6, if needed     ──→ with M9
+  feat/004-intake           from main after M7      ──→ merged at M8
+  now, before any merge: the Author's interim deny (T290) and the ComfyUI check (T291)
+  M4 with P-1 is recommended at once: until P-1, this repository's sessions can read the outputs and workflows folders,
+    and until P-2, write them; T290's local deny covers both meanwhile
+
+Line R (now, on feat/002-us6-events; rebased onto main after M9; merged in this order after P-10; tasks.md's order, §10):
+  setup → foundation → US1 → US3 (lookdev) → US2 → US7 → US5 → US6 → US4 (studio docs, serving) → US8 (poller) → US9 (counters)
+
+From main, beside line R's merges:
+  the Author's morning lookdev runs (US3's page; the studio's desk and one sign as candidates; the phone probe first)
+    → the whole vignette's run on US5's branch (T193), where the Author chooses the look
+    → feat/004-look, once line R has merged through feat/004-us3-lookdev (the look in ADR 0010; the work orders regenerated)
+    → feat/004-us4-intake, once line R has merged through feat/004-us4-studio (the desk and one sign; P-5, P-6, P-10 on main)
+    → the remaining pieces, each through the intake
+  P-9, the Author's approvals, and the outlines (P-8)  ──→ room text ships (US5)
+  spec 001: GET /api/status with A1 to A3; row V7      ──→ US8's switch-on: live.source site; A4's words on V7; S1's cells; §7.9's panels
+  spec 001's dev relay; P-11's branch, then P-11       ──→ US8's switch-on rebased and gated, with SC-004's harness (§4.2)
+  spec 001: POST /api/events; row V6                   ──→ the asset events on: live.asset_events site
+  the twin's core: POST /api/room/turn with B6 and A5  ──→ US9 live: live.turn site; B6's words on V2; Confirmation 6 first
+  the twin's core and the Author's corpus              ──→ topics ready; B4's cases as live prompts (US6)
+  the Author's measurements                            ──→ feat/004-close: FR-078's measured layout; the phone's stage; converge
+```
+
+## 4. The Author's patches and the merge order
+
+[contracts/intake-amendments.md](contracts/intake-amendments.md) holds each patch's behaviour. Each patch is a file `docs/merge-requests/<date>-<name>.patch` beside its branch's note, which opens with what runs in the Author's terminal (ADR 0017) and names the patches that must come first. A branch that carries a patch checks the whole chain in one scratch worktree from `main`: `git apply --check` for each patch in order, then an agent's `make check ENGINE_MODE=none-yet` and `gitleaks dir` on the patched tree, both pasted whole. A patch that stops applying is regenerated from `main`, so the Author never merges human-only code by hand (R-49). CLAUDE.md: "a secret, a paid route, or a file prod reads gets its deny in the same patch that creates it, or an earlier one."
+
+### 4.1 The patches, P-1 to P-11
+
+| # | What | FR-077 | Carried on | Applied | Lands before |
+|---|---|---|---|---|---|
+| P-1 | Spec 003's guard (its T005), the four folders filled in: read denies in the file tools and the sandbox | item 1: the outputs and workflows read denies, and the photos and key denies in this repository's settings | `feat/003-guards` | after M4 | P-2; the first studio output brought in for intake |
+| P-2 | The rest of the guard (C3): `Edit()` denies and `denyWrite` for the four folders; the hook's check; the marker line; the matrix's rows, inserted mid-file, the marker of stage S's rows for ComfyUI's port among them; a behavioural case, symlinked reads included, aimed only at a canary folder | item 1: every write deny | `feat/004-guard` | after M5, P-1 first | the first studio output brought in for intake |
+| P-3 | `tools/gates/studio_settings_check.py`: every settings scope the studio's session loads; the photos and key denies, and the listener rules (SS9 to SS11: no hook, MCP server, plugin, or helper command beyond the Author's approved list; no loopback host, local binding, local socket, or proxy of its own in the sandbox's network; no WebFetch for a loopback host); folder names and file hashes, never paths (the third clarification: "B is fine"; FR-025) | item 2 | `feat/004-guard` | after M5, P-2 first | every intake note; P-10 |
+| P-4 | Spec 003's arrival check (its T025) | item 3 | `feat/003-us1-arrival-check` | after M6 | P-5 and P-7, which change its lines |
+| P-5 | Amendments C1, C2, C4, C5, C6, and C7, and the constant `AMENDMENTS` | items 3 and 4 | `feat/004-intake` | after M8, P-4 first, once the Author confirms the IPTC term | the first file under `assets/room/` |
+| P-6 | The Author's commit: `caps.json`'s `per_asset.room` = `{gzip_bytes: 2500000, triangles: 40000, small_props: [...], small_prop_texture_px: 1024, scene_texture_bytes: 96000000, legibility_floor_css_px: 9}`, unknown keys refused; and the licence entries | item 3: the policy entries | `main` | at M8, P-5 first | the first room file's approval |
+| P-7 | `REVIEW.md`'s sixth pass, "Room data", work orders and studio notes included, and what they may ask of the studio's session (FR-014); `reviewer.md`'s "the passes"; a behavioural case with two planted files | item 5 | `feat/004-intake` | at M8, P-4 and P-5 first | User Story 1's merge (the first work orders), the photo guide, any studio note |
+| P-8 | `tools/gates/outline_check.py`: vector paths only, no `href`, `data:`, or base64, an opaque source ID, the tool with its version and licence (the fourth clarification) | FR-032's check | `feat/004-intake` | at M8 | the first outline traced from a photo leaving the photos folder |
+| P-9 | The content check's `room-text` kind, matched as whole strings at any length (B9) | item 6 | a branch from `main` after M9 | after M9 | the first `room-text` approval; the first room text shipped |
+| P-10 | The gate: `caps.json` mounted for the content build; the `studio-settings` host step on branches that bring studio files in | items 2 and 3, at every intake | a branch from `main` after M9 | after M9 and P-9 | User Story 4's intake |
+| P-11 | `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py`: admit `status-harness` alone, in its own profile, publishing only on the literal 127.0.0.1, on the `edge` and `internal` networks; every other service, and every service's disclosure row, still under the policy's rules (the spec's Amendment Z1; R-70). Beside it on the same branch, as an agent commit: ADR 0021's amendment | — | a branch from `main` holding only the patch, ADR 0021's amendment, and its note | once spec 001's dev relay exists, before the switch-on change's rebase (T259, T260) | US8's switch-on change |
+
+- **The photos and key denies** have held at user level, for every Claude session on the machine, since the room photos were staged on 2026-10-22 (the spec's Assumptions, "Already past"). P-1 adds them to this repository's settings, where the matrix proves them.
+- **The outputs and workflows denies, until P-1 and P-2.** This repository's sessions can read both folders until P-1 (M4), and write them until P-2 (M5). The Author's interim deny in this repository's `.claude/settings.local.json` covers both now (T290; "Do first", above, gives the plan's reading beside the review's proposal of a user-level deny). P-1 and P-2 then put the same denies in the committed settings, where the matrix proves them; the local entries can stay or go. A session reads the `.claude/` folder of the checkout it starts in, so until P-2 lands, agent sessions start in the main checkout, as they do now, or the Author copies the local file into a worktree a session starts in.
+- **ComfyUI's port.** No Claude session reaches it (the spec's FR-025). For this repository's sessions, the matrix's stage-S rows prove it, in force from the commit that adds them; for the studio's session, P-3's listener rules, and until P-3 lands, the Author's check (T291). The studio's session hands its ComfyUI workflows to the Author as files (the spec's Confirmation 24).
+- **How the order is enforced:** the order test enforces items 3, 4, and 6 inside `make test` (R-58); P-10's `studio-settings` step enforces item 2 at every intake (R-52); items 1 and 5 hold by the merge order (§4.2). `make check` fails while a file exists under `assets/room/` and `main` lacks C1 and C2, or while room text is published and `main` lacks FR-030's check (FR-077).
+- **If P-5 slips,** P-7 still waits for it, and User Story 1's merge waits too: FR-077's order holds (approved with the plan; R-50).
+- **Two names collide.** "Amendment C1" is spec 004's mark that follows the record; "rule C1" is the arrival check's caption rule. Every note says which it means.
+- **P-11 sits outside FR-077's order.** It guards no risk FR-077 names. It admits SC-004's dev-only harness at the compose policy: the one admission at an enforcement point that isn't the spec's approval of a record, a mark, or a text kind. With row S1 naming it, `main`'s policy still refuses the harness on two rules: a published port, and the `edge` network, on any service but `edge`. P-11 lifts those two for `status-harness` alone, and every other rule applies to it unchanged, the disclosure rule among them (R-70; the spec's Amendment Z1 and Confirmation 22). [intake-amendments.md §18](contracts/intake-amendments.md#18-p-11-the-compose-policy-admits-sc-004s-harness) holds its behaviour.
+
+**What the Author does besides applying patches** ([intake-amendments.md §17](contracts/intake-amendments.md#17-what-the-author-does-besides-applying-patches)):
+- **Now, before any merge:** the interim deny of the outputs and workflows folders (T290), and the check of whether the studio's session could reach ComfyUI's port since 2026-10-22, closing and recording any route (T291).
+- **Before P-1:** make the four folders, and fill P-1's placeholders with their paths.
+- **Before P-5 is generated:** confirm IPTC's digital-source-type term for media a person made with digital tools. C1 asks the plan to confirm that code against IPTC's vocabulary, and agents have no route to it; the term the plan's sources name, `digitalCreation`, is unverified (R-53).
+- **P-6:** name the `small_props`; read each licence, and fill in its terms and the date read (R-54).
+- **Before User Story 5's monitor drafts:** type a description of the photographed screen (FR-031, answer 5). It is recorded verbatim in an intent file, which both monitor blocks cite in `words_from`. The whole-vignette runs that settle the look show the monitor and its terminal (FR-070), so the description comes before them if the terminal is to show words.
+- **After a patch that changes `.claude/**`:** `claude doctor`, `make git-hooks`, and new agent sessions. After P-1, P-2, P-4, and P-7, each of which changes the behavioural tier's trigger hash (`.claude/**`, `REVIEW.md`, or `evals/agent-config/**`): `make evals-agent-config REF=<branch>` from main's checkout, once the next gate shows the tier PENDING. After P-1 and P-2: `tools/gates/gate --prove <branch>`, for the matrix's stage E (R-50).
+- **Runs:** P-3 on each intake branch, its output pasted into the note; P-8 on each outline traced from a photo, inside the photos folder.
+- **Approvals by hash on `main`:** each room file in `assets/policy/approvals.json`, with the room confirmations as C4 and C5 read them, approving only the SHA-256 the lookdev page showed (FR-023, FR-068); each room-text file in `assets/policy/content-approvals.json`, kind `room-text`, only once P-9 and `feat/004-setup` are both on `main`.
+- **The studio's contract,** by hand, as `docs/studio/handoff.md` lists, before the first outline is handed over and before the window is modeled (the spec's Assumptions); its ComfyUI change comes at once, with T291 (the spec's Confirmation 24).
+- **Photo work,** by the photo guide's setup steps and checklist: Blender's Temporary Files folder and TMPDIR inside the photos folder, and the tracing tool's autosave and recent files off (FR-025, FR-026).
+
+### 4.2 The merge order, M1 to M9
+
+No agent merges; agents only rebase and cherry-pick. The Author gates each branch, merges it with the command the gate prints, then applies its patches ([START-HERE §7](../../docs/START-HERE.md#7-before-you-merge)).
+
+| Step | The Author merges | Then applies | FR-077 |
+|---|---|---|---|
+| M1 | `spec/003-studio-assets`, spec 003's documents | — | — |
+| M2 | `spec/002-the-room`, spec 002's documents | — | — |
+| M3 | `spec/004-room-composition`, this spec's documents: based on `main`, documents only, mergeable once this plan is approved | — | — |
+| M4 | `feat/003-guards` | P-1, filled in | item 1 |
+| M5 | `feat/004-guard`: row D4 and the matrix's rows | P-2, then P-3 | items 1 and 2 |
+| M6 | `feat/003-us1-arrival-check` | P-4 | item 3 |
+| M7 | `feat/003-us5-comparison` | — | — |
+| M8 | `feat/004-intake`: the scrubber and the credits, ADRs 0010 and 0030 | P-5; the P-6 commit; P-7; P-8 | items 3, 4, and 5; FR-032 |
+| M9 | spec 002's line, in its notes' order up to `feat/002-us6-events` | spec 002's patches | — |
+| then | `feat/004-content-check`, then `feat/004-gate` | P-9, then P-10 | item 6 |
+| then | line R, in story order, each branch first rebased onto `main` | — | — |
+| later | P-11's branch, from `main`, once spec 001's dev relay exists | P-11 | — |
+
+- **P-11** lands before User Story 8's switch-on change is rebased onto `main` and gated: the gate's container phase runs the branch's own `tools/gates/test/`, whose real-file test refuses the harness until P-11 is on `main` (R-70).
+- **Before M1,** now: the Author's interim deny (T290) and the ComfyUI check (T291). Neither is a merge (§4.1).
+- **Line I first.** Its patches must reach `main` before the first studio output is brought in for intake, so M4 to M8 come before line R's merges (approved with the plan; R-49).
+- **`CHECK_GATES` at M9** resolves to `makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival evals redteam=redteam-suite matrix image`: spec 002's `content-check` right after `test`, as its Makefile test pins, and spec 003's `arrival` after `secrets`. Spec 004 adds no gate.
+- **The other conflicts** (`.PHONY`, `redteam/forbidden-actions.sh`, the ADR index, START-HERE, the README) are listed with their resolutions by the integration task, from `git merge-tree --write-tree main feat/002-us6-events`, which moves no ref. The Author makes that merge in a worktree of its own, on a scratch branch from `main`, with the list's resolutions; gates the scratch branch with `tools/gates/gate <scratch branch>`; and merges it with the command the gate prints, so `main` never takes a merged tree the gate didn't check (START-HERE §7, step 2).
+- `feat/003-us6-gpu-window` is independent, and merges whenever the Author likes.
+
+## 5. Expected cost, and how it is measured
+
+The spec's [Expected Cost Impact](spec.md#expected-cost-impact) holds, and this plan adds no cost of its own:
+- **Model spend: $0 at run time.** No piece, poll, renderer, or lookdev run calls a model (FR-076), and an unready topic calls nothing (FR-037). The sign only displays what the conversation already costs: spec 002's estimate is about $0.00095 a paid turn, and $0 a local one.
+- **Cloud, edge transfer:** the design's estimate is about 12,000,000 bytes of spec 003's 25,000,000-byte phase-3 first visit. 1,000 first visits a month at 12 MB is about 12 GB, under $1.20 at typical CDN rates below $0.10 per GB, possibly $0 inside the free allowance. The site sends GLBs gzip-encoded (FR-079), so the bytes downloaded are the gzip-9 bytes measured. The added typefaces are a few hundred kilobytes, cached.
+- **Cloud, status polls:** about 2 small requests a minute per visible, unpaused room; 1,000 five-minute visits a month make about 10,000, around a cent, inside the relay's existing cap and with no model call. None before spec 001.
+- **Before publication:** $0 in the cloud; nothing is served to visitors.
+- **Local:** the Author's time and electricity, including queueing the studio's ComfyUI workflows by hand (the spec's Confirmation 24) and the photo-work checklist. An image-to-3D blockout borrows the GPU in spec 003's studio window, while prod's twin falls back within its $2 daily sub-budget or degrades. No budget, ceiling, or price changes.
+- **Development time:** the Claude Team plan, including the agent-configuration evals P-1, P-2, P-4, and P-7 call for, kept apart from the production budget on the dashboard's [development-time row](../000-local-foundations/contracts/telemetry.md#77-development-time-fr-037).
+
+**How it is measured:**
+- **Now, in every merge-request note that changes the room's data or models,** `npm run room:report` pastes FR-073's report (R-24; [data-model.md §10.9](data-model.md#109-the-compositors-report-fr-073)). It gives each piece's source, bytes, gzip-9 bytes, triangles, and texture memory; the totals against the caps, with the caps' source and SHA-256; the room's share of the first visit, beside 12,000,000 and the enforced 25,000,000; spec 003's F3 view of every file under `assets/room/`; texture memory by class; each face's smallest glyph; and the switch pairs' separations.
+- **The parity test** makes the report's bytes the arrival check's measure and the bytes served (R-26).
+- **On the reference phone,** the lookdev page's texture ledger reads the scene's texture memory (SC-006).
+- **On the stacks,** the in-network probe on dev-cpu reads each GLB's headers, and the Author's network log shows every GLB response gzip-encoded (SC-006).
+- **After spec 001,** spec 003's transfer panel, and §7.9's poll counts (FR-072).
+
+## 6. Degraded-mode behaviour
+
+The spec's [Degraded-Mode Behavior](spec.md#degraded-mode-behavior) table holds, row for row, and is built where this table says (test paths under `apps/web/`):
+
+| The spec's row | Built in | Proven by |
+|---|---|---|
+| The live source is off (before spec 001) | row 1 of `reduceTier`; no poller starts (US2, US8) | `test/room/tier.test.ts`, `test/room/status-poller.test.ts`; Q4 |
+| A status request fails, times out, is refused (429), or is malformed, or the last answer is stale | rows 3 and 4; the `recheckAt` timer; the poller's backoff and `Retry-After` (US2, US8) | `tier.test.ts`, `live.test.ts`, `status-poller.test.ts` (SC-003) |
+| The room is paused, or the page hidden | the motion store; row 2 (US2) | `test/ui/pause.test.ts`, `live.test.ts`; Q4 |
+| The local tier is off, and the cloud fallback answers | rows 7 and 9 (US2); paid figures (US9) | `tier.test.ts`, `turn-cost.test.ts` |
+| The kill switch has tripped, the budget is spent, or no path answers | row 6 through `causeClass`, showing the shared pose (US2); "cost unavailable", with the visit "at least" (US9) | `tier.test.ts`, `turn-cost.test.ts`, `test/ui/talk.test.ts` |
+| The conversation core doesn't exist yet | `live.turn` is `off` (US9); every topic unready (US6) | `turn-cost.test.ts`; `talk.test.ts` (SC-015) |
+| A piece's model fails to load | one retry, then the stand-in, still bound to its state (US3) | `test/room/loader.test.ts`; `test/ui/degraded.test.ts` (SC-007) |
+| No 3D, or the room falls to 2D | the 2D room from the bundle (US1), its faces as still SVG redrawn on change (US5) | `test/room/flat.test.ts`, `degraded.test.ts` |
+| Reduced motion | the motion store, read throughout the visit (US2) | `pause.test.ts`, `degraded.test.ts` |
+| Room text withheld or failing to load | faces plain, their text-copy entries left out; `room-data.json` fetched once at Enter, retried once (US5) | `test/room/text.test.ts`, `degraded.test.ts` |
+| A typeface arrives late, or never | the fallback after 2 seconds, redrawn when it arrives (US5) | `test/room/faces.test.ts`, `degraded.test.ts` |
+
+What this plan adds, beyond the visitor's view:
+- **`make up` with a misfit model** builds, warns, and keeps that piece's stand-in, and the manifest lists it; `make test` fails on the same finding (FR-013, R-10).
+- **No room caps on `main`** (before P-6, or in the gate's image build, which has no policy context): every catalog budget is checked against FR-053's starting figures, every model stays a stand-in, the floor is 9, and the report says so (R-13).
+- **A build with no models,** which has no `room-assets` context: every piece builds as its stand-in, and the image still builds (R-46).
+- **A 3D part whose digest disagrees with the index:** the room falls to 2D, as on a failed 3D load (R-11).
+- **A client that takes no gzip:** nginx's `gunzip` inflates the copy (R-45).
+- **A phone that can't run the copy:** the probe stops it, and lookdev runs on the desktop at the phone's stage size and pixel ratio, FR-069's option B ([§10](#10-departures-from-this-plan)).
+- **Spec 001's release whose read-back disagrees** stops before it invalidates the edge, and a site rollback keeps both headers (A6; [serving.md](contracts/serving.md) §5).
+
+## 7. Risks and mitigations
+
+| Risk | Mitigation |
+|---|---|
+| Until P-1 lands, this repository's sessions can read the studio's outputs and workflows folders, and until P-2, write them, though the workflows folder is the studio session's own workspace | the Author's interim deny in this repository's local settings, now (T290); then M4 and P-1 as soon as the documents merge, and P-2 for the write denies; the matrix proves both (R-50, R-51) |
+| A listener hands a photo to a Claude session: ComfyUI's `/view` and its previews, reached through a hook, an MCP server, WebFetch, or a sandbox network allowance | FR-025's closure: the studio's session hands its workflows to the Author (the spec's Confirmation 24); P-3's SS9 to SS11 for the studio's session, and the Author's check until P-3 lands (T291); the matrix's loopback rows for this repository's sandbox (R-51, R-52) |
+| A tool's side file of a photo lands where a Claude session can read it: Blender's autosaves and `quit.blend` in the system temp folder, or the tracing tool's autosave or recent-files list | the photo guide's setup steps and checklist, before each photo-work session (FR-025, FR-026; R-59) |
+| The patch chain drifts: P-4's `matrix-required.txt` hunk has no trailing context, so it applies only at the file's end | P-2 inserts its rows mid-file; each patch-carrying branch checks the whole chain in order; a patch that stops applying is regenerated from `main` (R-49, R-51) |
+| A read form gets past the guard's deny: a symlink, a `..` path, or a case variant | P-2's behavioural case and the matrix's path-form rows. If one gets through: a gap row in `redteam/forbidden-actions.sh` at once, and a resolving hook in the Author's next patch, by CLAUDE.md's rule for gates that match one spelling (R-51) |
+| A `room-text` approval lands on `main` before P-9 | `approvals.ts` accepts the kind in Setup, so `make up` never breaks; the old content check exits 2 and fails closed; the order test fails `make test`; the Author approves room text only after P-9 (R-57, R-58) |
+| IPTC's term for hand-made work is unverified | the Author confirms it before P-5 is generated; P-5, the scrubber, and RX5 use exactly that one term (R-53) |
+| Legibility at the room's framing: a 9 px cap height needs capitals about 15 cm tall on the phone and about 8 cm on the desktop | the report prints each face's margin, and RG7 fails visibly first; lookdev sets the stylized scales and the grids (Confirmation 8; R-21) |
+| Spacing at 304 × 248: two selectables need about 0.9 m between them at the wall | RG6 refuses the scene, so FR-078's layout moves pieces as data, and a regroup of adjacent pieces needs a move too (R-19, R-20) |
+| three.js's `GLTFLoader` internals change under the image plugin | three held at 0.186.1; a source-pin test; the image count fails a piece to its stand-in rather than to a white model; one real-browser check in a lookdev run before the first studio piece (R-29) |
+| The entry chunk outgrows 150 KB | the index's own 16 KB budget, and the chunk test fails first; the fallback is a small 2D and text-copy chunk loaded at Enter, still apart from three.js (R-11, R-36) |
+| gzip lengths differ between implementations | one implementation, pako; the parity test against Python's measure fails visibly; the served bytes govern SC-006 (R-26) |
+| nginx's modules, or its `types` semantics inside a location, differ from the design | the static configuration tests; `nginx -V` and the in-network header probe before the first model merges (R-45) |
+| The phone's browser can't run a local file with WebGL 2 | the probe runs first; option B is recorded only if it fails (R-42; §10) |
+| Outlines, glow cards, and canvas uploads cost too much on the phone | the quality ladder drops them at q2; typing redraws are rate-limited; lookdev measures them (R-35, R-37) |
+| The toolbar wraps at 320 px and pushes the talk button off a 568 px screen | the narrow-portrait rules; the layout test; the Author's run at 320 × 568 (R-40) |
+| Reformatting an approved file changes its hash | outlines in `.prettierignore`; room-text YAML formatted before the Author approves it (R-06) |
+| The source scan flags vocabulary, common words, or a spec-fixed ID inside another label (the gateway tests' "author-laptop") | literals only; RI5 keeps vocabulary out of IDs; distinctive IDs where the data chooses them; for the spec-fixed `laptop`, User Story 1 migrates the ten gateway tests that hold it to `fx-` IDs, the events file's IDs read at run time, and a client label with no room ID (R-02, R-16) |
+| SC-004's harness runs on a stack other than dev, or its forward reaches x005 | preflight refuses its profile on prod and dev-cpu; it publishes one loopback port of its own, and x005 keeps `location /api/ { return 404; }`, pinned by `test_edge_site.py`; P-11 admits `status-harness` alone, by name, in its own profile, on the literal 127.0.0.1, and its tests refuse any other shape (R-70) |
+| P-11's admission widens beyond the harness, or exempts it from the disclosure rule | P-11 lifts two rules for one service name only; row S1 names the harness, so the disclosure rule stays whole; the reviewer reads P-11's branch as the code the Author will apply (R-70; the spec's Amendment Z1) |
+| ADR 0021 still says `edge` is "the only publisher" once the harness publishes on dev | P-11's branch amends ADR 0021 while it is proposed, or a new ADR amends it if the Author has accepted it (the spec's Amendment Z1; intake-amendments.md §16, §18) |
+| FR-077's order holds User Story 1's merge until M8, and line R's until after M9 | line R keeps building on branches, each rebased onto `main` after M9 (R-48, R-49) |
+| Spec 001 renames the relay's series, or spec 003's batch-event shape changes | §7.9 is the one place the dashboard test reads; the asset events' sender is off behind one module, tested against the contract as written (R-60, R-61) |
+| ADR 0010 is accepted before its room changes land | ADR 0037 amends it instead (R-63) |
+| The gate's container reads the export's copies of the human-only files | they can only lag `main`; a shell write in a linked worktree is the known gap, which the host-phase arrival check and the reviewer still hold (R-58) |
+| Amounts in corpus proposals fail the corpus check's currency rule | proposals carry no amounts (R-64) |
+
+## 8. Requirement coverage
+
+Every functional requirement, FR-001 to FR-079, sits in at least one row of [§2](#2-the-design-by-area), with its decisions, its contract, and its phase. The success criteria:
+
+| SC | The agents' proof, in `make test` unless named | The Author's run | Phase |
+|---|---|---|---|
+| SC-001 | the data-only proof set on overlays (R-68); the source scan (R-16) | — | 3 |
+| SC-002 | one known-bad overlay per rule, and the known-good set (R-66); two composes compared byte for byte (R-12) | — | 2 |
+| SC-003 | the tier's table tests, and the first-frame test (R-30) | — | 4 |
+| SC-004 | the reducer and the poller on the fake clock | the failover on dev, and 10 minutes paused or hidden, read from the frame log (Q10) | 10 |
+| SC-005 | the loader's holds: 0 step-downs in a scripted load (R-35) | on the phone: a 2-minute visit and a 10-minute soak (Q5) | 5 |
+| SC-006 | texture memory and the first visit (R-24); the gzip copies and their headers (R-26, R-45) | the phone's texture memory; the network log (Q5, Q6, Q12) | 2, 6 |
+| SC-007 | fault injection in jsdom over each failure of FR-057 to FR-061 (R-69) | — | 4, 5, 7 |
+| SC-008 | each renderer's text copy equals its drawn words; the word checks (R-15); P-9 in the gate | the hash approvals (Q7) | 7 |
+| SC-009 | the Tab order; 0 axe violations; 44 px cores at the smallest stages, in 3D and 2D (R-20); no meaning carried by colour alone (R-40) | keyboard-only and screen-reader visits, and the grayscale run (Q9) | 9 |
+| SC-010 | the legibility report (R-21) | judging the look on both reference stages (Q5) | 5, 7 |
+| SC-011 | the cost channel's tests (R-32) | a paid turn on dev, after the twin's core (Q11) | 11 |
+| SC-012 | the poller's property test (R-31) | the network log, through the HAR checker (Q4, Q10) | 10 |
+| SC-013 | P-5's tests; the matrix's rows, the loopback rows for ComfyUI's port among them (R-51); the photo guide's fixed parts, in the generated files' test (R-14); the outline schema; the fit fixtures (R-66) | P-3's output, its listener rules included, in each intake note; P-8 on each outline (Q1, Q2, Q6, Q7) | 1, 3, 6 |
+| SC-014 | the dashboard test against §7.9 (R-61) | the panel within 60 seconds of the relay's change (Q10) | 1, 10 |
+| SC-015 | the talk tests: 0 requests, and the topic's phrase (R-33) | — | 8 |
+| SC-016 | folded into SC-001 | — | — |
+
+The amendments to specs 000 to 003:
+
+| Amendment | Where this plan carries it | Phase |
+|---|---|---|
+| Z1 | P-11, on a branch from `main` (§4.1), with ADR 0021's amendment beside it; row S1's cells and the harness, in User Story 8's switch-on change (R-70) | 10 |
+| A1 to A3 | spec 001's relay and public view; this plan names what the room needs of them: A1 and A2 in [tier-signal.md](contracts/tier-signal.md) §7, A3 in [room-live-state-telemetry.md](contracts/room-live-state-telemetry.md) §4, and §7.9's proposed series names | US8's switch-on waits for them |
+| A4 | Amendment A4's words on V7, in the switch-on change; RL2 refuses the live source `site` without them (R-62) | 10 |
+| A5 | spec 001's release refuses fixtures, the lookdev page, and draft text, behind lookdev's five layers (R-43); the turn's body passes through for the twin's spec | 5; spec 001 |
+| A6 | spec 001's release uploads each GLB's copy with both headers (R-47) | spec 001 |
+| A7 | the row IDs: V7 in RL2 and in A4's switch-on change; [intake-amendments.md](contracts/intake-amendments.md) §15's table (R-62) | 10 |
+| B1 to B3 | the scene's defaults: W1's sides, the work area as the scene composes it, the topics as data, `chalkboard` among the selectables (R-07) | 3 |
+| B4 | the four scaffold cases and detectors (R-64) | 8 |
+| B5 | `config/room-topics.yaml` (R-14); `h4.room.topic` is the twin's spec's | 3 |
+| B6 | the cost channel reads the reply's two fields (R-32); V2's words are the twin's change's | 11 |
+| B7 | the events file from the selectables; the manifest's additions (R-11, R-14) | 2, 3 |
+| B8 | the 2D room from the bundle (US1); "Pause the room" (US2); the Tab order, the hit areas, and the portrait guarantee (US7) | 3, 4, 9 |
+| B9 | `approvals.ts` accepts `room-text` (Setup); `room_text` in `room-data.json` (US5); P-9 (R-57) | 1, 7 |
+| B10 | the typefaces and `fonts.lock` schema 2 (R-38) | 1 |
+| B11 | drafts images carry the lookdev page and the fixtures; release builds refuse them (R-43) | 5 |
+| B12 | carried by this spec's own tables, which §5 and §6 hold; the amended spec's text stays as it is | — |
+| B13 | T078 in User Story 4's intake, with the loader built in User Story 3 (R-28); R-04's added quality steps (R-35); R-11's placeholders as catalog stand-ins (R-03); R-15 keeps 0035, so the composition takes 0036 (R-63) | 1, 3, 5, 6 |
+| B14 | the web image's gzip serving (R-45) | 6 |
+| C1, C2, C4 to C7 | P-5; the scrubber and the credits (R-53) | 1 (line I, M8) |
+| C3 | P-2 (R-51) | 1 (line I, M5) |
+| C8 | P-6's licences; row D4 (R-54, R-62) | 1 |
+| C9 | the load order, the failures, and lighter textures in the reduced display mode (R-28); the "Credits" link, inside FR-065's 320 × 568 budget (R-40) | 5, 6 |
+| C10 | the first room files are the desk and one sign (R-44) | 6 |
+| C11 | the bundle's and the room's asset events' `bytes` are the copy's length (R-26, R-60); spec 003's `assets.json` `files[].bytes`, and the twin's and the avatars' `.glb.gz` copies, come with spec 003's site-loading group ([serving.md](contracts/serving.md) §1 and §6; §3.2) | 2, 5; spec 003 |
+
+## 9. What the spec left for the plan to verify
+
+| The spec's item | Status | Where |
+|---|---|---|
+| T005's patch on `feat/003-guards`, which denies reads only | verified: no `Edit()` deny or `denyWrite` for the studio's folders | R-51; P-2 adds them |
+| ADR 0035's reservation, and every unmerged branch's ADRs, before taking 0036 | verified: spec 002 reserves 0035 (its R-15, task T072); 0036 is free on every branch | R-63 |
+| B10's one-font locations | verified: `apps/web/fonts/README.md`, `src/fonts.css`, `fonts.lock`'s schema, `fonts.test.ts`'s pins, spec 002's plan ("One vendored font"), its T028, and `resume-source.md` §4 | R-38 |
+| `releases-deployer.md` and `edge.md` (A6) | verified: releases-deployer.md §2 step 5 and §4's site rollback; edge.md §3 and §4 | R-47 |
+| T050, T078, and spec 002's R-04, R-11, and R-15 ("not in this pass's copies") | verified present | R-44, R-28, R-35, R-03, R-63 |
+| C1: "the plan confirms the code against IPTC's vocabulary" | open, as the Author's action: agents have no route to IPTC's vocabulary, so the Author confirms the term before P-5 is generated | R-53; §4.1 |
+| Q1: "The plan confirms the phone's browser runs a local file with WebGL 2" | open until the Author's probe run, which comes before any measurement | R-42; §10 |
+
+## 10. Departures from this plan
+
+CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the same commit." Line R carries this file from its first branch, so a departure updates it there, in the commit that makes it.
+
+**Recorded:**
+- **Line R follows tasks.md's order, so the lookdev page comes first** (T003, 2026-10-23). This plan stacked the stories in number order. Line R stacks setup → foundation → `feat/004-us1-composition` → `feat/004-us3-lookdev` → `feat/004-us2-degraded` → `feat/004-us7-access` → `feat/004-us5-words` → `feat/004-us6-topics` → `feat/004-us4-studio` → `feat/004-us8-live-tier` → `feat/004-us9-neon-sign`, and merges in that order, on the Author's two directions, given while away overnight, which tasks.md's Prerequisites quote: "I want you to keep going! that way i can do the merges and lookdev with the studio input in the morning" and "You are also free to continue beyond lookdev if you reach that point, try to keep going!". [§3.1](#31-task-phases-for-speckit-tasks)'s table and [§3.3](#33-dependencies)'s line R chain carry the order. The phase numbers elsewhere in this plan (§2's and §8's tables, and the Project Structure's labels) are the story order's; tasks.md numbers its phases in this order. Its consequences, each with the task that carries it:
+  - `roomBundle()` replaces `roomContentModule` in User Story 1, with the first data (T096), not in the foundation, which proves the compositor and its plugin on fixture trees.
+  - The source scan's committed-tree case turns on at the end of User Story 1's migration (T107, T112).
+  - FR-078's data lands in two commits: its pieces first, with spec 002's three selectables (T100), and the chalkboard's selectable with FR-036's topics after the migration (T113).
+  - The lookdev page ships before the motion store, the faces, and the cost channel, so User Story 2 wires its pause and the cable states into it (T162), User Story 5 its faces, glows, and glyph readout (T192), and User Story 9 its sample figures (T267).
+  - The morning runs (T143 to T145) show the vignette without the terminal, the neon glow, and the cable tube. FR-070's runs with the whole vignette ("the desk, the monitor and its terminal, the neon sign's glow, the laptop's cable states, one sign, a corner of the chalkboard, and a bicycle wheel"), where the Author chooses the look, are T193 on the desktop, on User Story 5's branch, and T287 on the reference phone. FR-070's first wording, "THE FIRST LOOKDEV RUN SHALL use the intent's vignette", didn't allow that: the first runs come earlier, with part of it.
+    **Not accepted yet: the Author decides before the morning runs** (the review of `feat/004-setup`, finding F1, 2026-10-23). This consequence departs from a requirement, not only from this plan, and CLAUDE.md's rule covers the plan alone. The `/speckit-analyze` remediation (d5e8ec3, now cherry-picked onto line R) amends FR-070 in spec.md: the look is chosen on runs that show the whole vignette, and earlier runs may show part of it and are preliminary. It records the amendment as Confirmation 21, which waits for the Author's yes, since the directions quoted above don't accept a partial first run by themselves. So branch `feat/004-setup`'s merge-request note puts the decision first under "For the Author":
+    - **On a yes,** FR-070's amendment stands, and this entry is marked accepted.
+    - **On a no,** FR-070 keeps its first wording, and the morning runs judge no look (Confirmation 21). Either User Stories 2 and 5 go back ahead of User Story 3, or T144 and T145 wait for T193's branch, the probe (T143), which loads no model, still coming first.
+  - `feat/004-look` moves from Polish to User Story 3's phase (its scenario 5), and branches from `main` once line R's branches through `feat/004-us3-lookdev` have merged (T149); `feat/004-us4-intake` waits for line R's merges through `feat/004-us4-studio` (T231). The Project Structure's `feat/004-look` line, contracts/intake-amendments.md §16's row for ADR 0010's look, and quickstart.md Q5's step 7 say so (the review of `feat/004-setup`, finding N3); research.md's R-44 and R-63 still say "a Polish branch", and this entry supersedes them.
+  - The "Credits" link stays in User Story 4's first part, now after User Story 7, whose narrow-portrait rules are sized for five controls (T171, T223).
+  - User Story 2's Author run sees no neon counters or glow cards yet (T165), and User Story 7's screen-reader run hears no face's words or sign's figures (T174), so Q9's screen-reader run is made again on User Story 5's branch (T197).
+  - A later task that departs further updates this section in its own commit (CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the same commit").
+- **`apps/web/test/smoke.test.ts` changes on `feat/004-setup`** (T004, 2026-10-23). The smoke test pins the built `room-data.json`'s policy digest over spec 002's two policy files, so taking `caps.json` into the digest (R-13) changes its expected value on this branch, before the foundation's own changes to that file. The Project Structure lists it.
+
+**Foreseen, and conditional.** If the phone probe stops ("This browser can't run the vignette from a local file."), lookdev runs on the desktop at the phone's stage size and pixel ratio, FR-069's option B. This section then records, for the Author and with the probe's results, that departure from the intent's order ("Lookdev settles the look on a small vignette, at the room's real framing, on a reference phone"). SC-005, SC-006's phone figure, and SC-010's phone judgment then wait for the first release build after publication (R-42).
+
+## Constitution Check (post-design)
+
+Re-checked after Phase 1. The design adds no deviation beyond the spec's four ([Complexity Tracking](#complexity-tracking)). FR-069's option B, Q1's named fallback, departs from the intent's order, not from the constitution, and [§10](#10-departures-from-this-plan) records it only if the probe fails.
+
+| Principle or standard | After design | Verdict |
+|---|---|---|
+| I. Data-local by default | Held by construction: RL2 refuses the live source `site` unless row V7 (spec 001's status row, under the spec's Amendment A7) names the room's polling, so a scene that would poll without its row can't be built, not in `make test`, the image build, the gate's container, or spec 001's release (FR-074). The phone copy's policy is `connect-src 'none'`. No series carries anything about a visitor. The degraded room is built before the live pieces (§3.1) | PASS, with the spec's named deviations |
+| II. Production-grade or not shipped | Each success criterion has its proof (§8); FR-073's report measures the cost now (§5); §7.9 is written now, and its panels follow spec 001 | PASS, with the spec's named deviation |
+| III. Intent before spec, spec before code, humans merge | `plan.md` is in each line's tree from its first branch, and a departure updates it in the same commit (§10); ADR 0036 lands in Setup, ADRs 0010 and 0030 on line I; the merge order is the Author's (§4.2) | PASS, with the inherited deviation |
+| IV. Least privilege | Every human-only change adds denies or checks, apart from P-5's admissions (C1, C2, C4, C5), P-9's `room-text` kind (B9), and P-11's admission of `status-harness` (R-70), which admits SC-004's dev-only harness alone past spec 000's plan §1 port and edge-network rules, with the disclosure rule kept whole and ADR 0021 amended to name it (the spec's Amendment Z1). The order test reads `main`'s constants with `ast` and never imports human-only code (R-58). The caps, the approvals, the settings check, and the outline check stay human-only. No CSP, sandbox domain, or permission is widened, and nothing listens beyond the host: the harness publishes on dev's 127.0.0.1 alone, during the Author's run. The studio's session loses its routes to a loopback listener (P-3's SS9 to SS11; the spec's Confirmation 24) | PASS |
+| V. Cost is a first-class signal | Agents can't raise a cap, since RK1 refuses a budget above `main`'s; the bytes counted are the bytes sent (FR-079) | PASS |
+| VI. Build in public | The generated studio documents are public, and P-7's pass reads them as it reads room text; notes print no studio path | PASS |
+| VII. Say exactly what you owned | The credits render tools and services on model steps, so a scripted step shows what drove it, and row D4 (R-53) | PASS |
+| VIII. Honest AI | B4's detectors are written now, on planted answers (R-64); the sign's text copy is never voiced and stays apart from the twin's words (FR-050) | PASS |
+| Security and agent governance | P-1, P-2, P-4, and P-7 call for the behavioural evals, and P-1 and P-2 for stage E (R-50); agent code that runs in the Author's terminal is listed first in its note (ADR 0017): the HAR checker, the Makefile's change, every `deploy/scripts/**` change, and `scripts/assets/scrub.py` and `credits.py` on `feat/004-intake` | PASS |
+| Workflow step 7: "A feature without a graph is not done." | §7.9 is written now, and the dashboard test reads it; its panels join the dashboard at User Story 8's switch-on (R-61) | PASS, with the spec's named deviation until spec 001 |
+| Workflow step 8 (`docs/how-we-build/` updated if the process changed) | P-2 and P-7 add behavioural cases, P-7 a sixth review pass, and P-10 a gate host step. P-2's and P-7's patches carry the case count in `docs/how-we-build/lifecycle.md`'s behavioural-tier row and in START-HERE §7. The gate's branch names the studio-settings host step in START-HERE §7. `CONTRIBUTING.md` stops counting the review passes | PASS |
+| Technology standards | No provider call, and no gateway change beyond its tests; the one compose topology, its one addition SC-004's dev-only harness profile, which preflight keeps off prod and dev-cpu and P-11 alone admits at the compose policy; everything still ships as a container | PASS |
+
+Verdict: **PASS**.
+
+## Complexity Tracking
+
+The spec's named deviations (its Assumptions, "Deviations"):
+
+| Deviation | Why needed | Simpler alternative rejected because |
+|---|---|---|
+| **Principle II and Development Workflow step 7** ("A feature without a graph is not done."): the piece loads and the "Room live state" panel have no production series until spec 001 | spec 001's relay, which would carry spec 003's asset events and serve the status, doesn't exist. Until it does, both are measured in tests, the lookdev page's log, a drafts build's frame log, and FR-073's report. The Author is the only visitor until publication, and the deviation ends when spec 001 carries both | a status endpoint on the local stack would need its own span, panel, and disclosure row, for a room only the Author sees (the spec's "No local status endpoint"); a beacon of the room's own would be a new event kind, which FR-071 refuses |
+| **Inherited: local until publication** ([ADR 0013](../../docs/adr/0013-local-until-publication.md)) | the repository stays local until the Author publishes; each branch is reviewed with a note in `docs/merge-requests/`, as specs 000 to 003 are, and the Author merges locally | a remote with CI review doesn't exist before publication |
+| **Spec 003's FR-003 and the intent's Constraints** ("Spec 003's guard (T005) is applied before the first photo is staged"): already past | the Author staged the room photos on 2026-10-22, before T005 landed, under the user-level deny of the photos and key folders, with the studio's own workspace denying both too. P-1 and P-2 land the outputs and workflows denies and every write deny before the first studio output is brought in for intake (FR-077; the spec's Assumptions, "Already past"; Confirmation 23). Until then this repository's sessions could read both folders (until P-1, M4) and write them (until P-2, M5), so the Author's local deny covers both now (T290) | none: it happened before this plan; the interim deny closes the gap now (T290), and M4 with P-1, then M5 with P-2, close it in the committed settings |
+| **Spec 003's FR-040, its entry (c), and spec 001's FR-040, for row D4** | the studio's agent sessions began on 2026-10-22, before the row existed. D4 lands on `feat/004-guard`, merged at M5, the first change after this spec's documents, before any room file whose record names the session, and before publication (FR-027) | writing D4 on this documents branch: the spec-writer's role writes only `specs/` and `intent/` |
+
+Not a deviation from the constitution, and not among the spec's Deviations: FR-069's option B, the spec's named fallback for Q1 (Clarifications), a departure from the intent's order that §10 records for the Author only if the phone probe fails.
+
+The complexity the design adds:
+
+| Choice | Why needed | Simpler alternative rejected because |
+|---|---|---|
+| Two lines of branches: line R stacked on unmerged spec 002, line I from `main` | line R needs spec 002's room code, which isn't on `main`; line I's patches must reach `main` before the first studio output is brought in (R-48) | waiting for both specs to merge leaves weeks idle; an integration branch that merged them would be an agent merge |
+| A TypeScript GLB reader beside spec 003's human-only Python check | FR-068 puts the compositor's own fit check in the lookdev page; the Python check is human-only, can't run in a page, and admits what FR-015 refuses for room files (R-23) | three.js's `GLTFLoader` as the checker is lenient and needs a DOM |
+| pako as the one gzip | the caps and F3 count gzip-9 bytes, and the served copy must be those bytes; Node's zlib may not give Python's lengths (R-26) | Node's zlib gives lengths that aren't portable; compressing per request costs CPU on a 0.1-CPU container and sends bytes nothing counted |
+| A loader plugin that decodes GLB textures with `createImageBitmap` | neither CSP allows `blob:`, and `GLTFLoader` would turn a refused texture into an untextured material with no error (R-29) | widening two specs' CSPs for one decoder |
+| One kernel for the build, the room, and lookdev | the checks must measure what the room draws: its framing, pick areas, cables, and cap heights (R-08) | separate math in each place drifts, and a check could pass a room that fails |
+| SC-004's harness: a `status-harness` service in its own compose profile, published on one dev loopback port (18106), the plan's one exception to "no new service, compose entry, or port", which main's compose policy refuses until P-11 | SC-004 needs the page's status requests forwarded to dev's relay, and the drafts image can't forward them: x005 answers 404 under `/api/` before `location /` reaches `web:8080`. Only dev's environment selects the profile, for the Author's run, and preflight refuses it on prod and dev-cpu, so the spec's "No local status endpoint" holds there (R-70). Main's compose policy refuses a published port and the `edge` network on any service but `edge`, and P-11 lifts those two rules for `status-harness` alone (§4.1). Row S1 names it in its From → To cell, and its Default cell says it runs only on dev while dev's environment selects its profile, so the policy's disclosure rule holds with no exemption (the spec's Amendment Z1). It is a second, lasting publisher on dev, which reverses ADR 0021's "only publisher", so P-11's branch amends ADR 0021 while it is still proposed | a rule in `deploy/edge/nginx.conf`: one edge configuration serves every stack, so a dev-only rule can't live there; a status endpoint on the local stack, the spec's rejected alternative, with its own span, panel, and disclosure row; an exemption from the compose policy's disclosure rule, which every other service keeps |
+
+## Agent context
+
+Spec Kit's plan step would refresh the agent context file, here `CLAUDE.md`. That file is human-only: the project's settings deny agents its edits, and the constitution counts it, with the role definitions, hooks, and skills, as production code whose changes run the agent-configuration evals before merge. So this plan doesn't update it, and nothing this plan decides needs a line there: what changes how agents work in this repository arrives as the Author's patches (§4).

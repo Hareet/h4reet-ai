@@ -1,0 +1,41 @@
+# Specification Quality Checklist: Room Composition — The Work Area's Pieces, Composed From Data
+
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-10-22
+**Feature**: [spec.md](../spec.md)
+
+## Content Quality
+
+- [x] No implementation details (languages, frameworks, APIs). The FRs name only what the earlier specs already fixed: files, endpoints, and the glTF contract. Libraries, code structure, and chunking are left to the plan (revision 1, cut 6).
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders. Each story leads with the Author's words, and readings sit beside them, never in their place.
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [x] No [NEEDS CLARIFICATION] markers remain. Q1 and Q2 were answered on 2026-10-22 (Clarifications).
+- [x] Requirements are testable and unambiguous. They are in EARS form, and each states a pass condition (verified 2026-10-22).
+- [x] Success criteria are measurable
+- [x] Success criteria are technology-agnostic (no implementation details). They measure outcomes. A few name the repository's own gates (`make check`, the forbidden-action matrix), as the house style does.
+- [x] All acceptance scenarios are defined. Each of the 9 stories has an Independent Test and acceptance scenarios.
+- [x] Edge cases are identified
+- [x] Scope is clearly bounded (Assumptions, "Scope and order")
+- [x] Dependencies and assumptions identified
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
+- [x] Feature meets measurable outcomes defined in Success Criteria
+- [x] No implementation details leak into specification
+
+## Notes
+
+- **Validation history:**
+  - **Draft 2b47aab.** The first draft.
+  - **One review pass, then revision 1 (595e471).** Four read-only reviewers checked the draft against the constitution, the intent, testability, and the other specs. The Author answered one question during the review: "Yes, chalkboard can get stylized scale too".
+  - **A verification workflow, then revision 2 (3209951).** Four item verifiers and three regression lenses checked revision 1, and a skeptic per checker tried to refute each finding. 37 findings were confirmed, none of them blockers. The clarify-readiness lens judged the spec ready once the majors were fixed, and revision 2 fixes them.
+  - **The `/speckit-analyze` remediation (2026-10-23).** FR-025 and FR-077's first item no longer state timings that had already passed. FR-070 is amended and Amendment Z1 added, each taken under the Author's overnight direction as Confirmations 21 and 22, which wait for the Author's yes. No needs-clarification marker was added: the intent's own words, "Lookdev settles the look on a small vignette, at the room's real framing, on a reference phone", settle FR-070's amendment, and Z1 waits on the Author's patch P-11 as well as the yes.
+  - **The `REVIEW.md` pass's remediation (2026-10-23, the same night).** FR-025 closes the listeners (ComfyUI's port, reached by a hook, an MCP server, WebFetch, or a sandbox network allowance) and the side files (Blender's Temporary Files and TMPDIR, the tracing tool's autosave and recent files) that could hand a photo to a Claude session, and keeps the outputs and workflows folders from this repository's sessions until the guard lands; User Story 4's scenario 4, SC-013, and the disclosure's offered wording cite the settings check with those controls. FR-026, FR-032, and FR-077 follow; FR-014 has the review pass check what the work orders ask of the studio's session; Amendment A7 states the row-ID scheme, which FR-074 cites; Z1 names ADR 0021; User Story 2's scenario 3 agrees with FR-060. FR-025's deadline and the studio's ComfyUI runs are taken under the Author's overnight direction as Confirmations 23 and 24, which wait for the Author's yes. No needs-clarification marker was added: each new requirement remediates a review finding, and the one choice it forces on the Author's studio work is put to the Author as Confirmation 24.
+- **What remains before `/speckit-plan`:** nothing in this checklist; `/speckit-clarify` runs next.
+- **Size:** about 107 KB; spec 001 is 93 KB. The reviewers' cuts that lose no requirement are applied.
