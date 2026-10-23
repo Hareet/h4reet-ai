@@ -2,9 +2,10 @@
 // part of the charger's cable the room draws at run time, from the free end of the lead the shown case places to the
 // `to` anchor (the desk's back edge), so moving the laptop, its stand, or the desk needs no re-export and only the
 // plug's pose decides whether the cable reaches the port. Sixteen points along the straight line, lowered by
-// sag × span × 4t(1 − t), never below the `rest` plane (so a lead lying on the desk lies on it), then a short drop
-// behind the edge; its radius is the binding's times the switch piece's stylized scale (FR-051). The 3D scene makes one
-// tube of it per pose; the 2D drawing draws the unclamped run as one quadratic curve, {from, control, to}.
+// sag × span × 4t(1 − t), their centreline never nearer the `rest` plane than the tube's radius (so a lead lying on the
+// desk lies on it), then a short drop behind the edge; its radius is the binding's times the switch piece's stylized
+// scale (FR-051). The 3D scene makes one tube of it per pose; the 2D drawing draws the unclamped run as one quadratic
+// curve, {from, control, to}.
 import { dot, length, normalize, origin, scale, sub, transformDirection } from "./math";
 import type { Mat4, Vec3 } from "./math";
 
@@ -50,6 +51,7 @@ export function restPlane(anchor: Mat4): CablePlane {
 export function cableRun(input: CableInput): CableRun {
   const { from, to, sag, rest } = input;
   const span = length(sub(to, from));
+  const radius = input.radius * input.scale;
   const points: Vec3[] = [];
   for (let i = 0; i < CABLE_POINTS; i += 1) {
     const t = i / (CABLE_POINTS - 1);
@@ -59,13 +61,14 @@ export function cableRun(input: CableInput): CableRun {
       from[2] + (to[2] - from[2]) * t,
     ];
     if (rest) {
-      const below = dot(sub(p, rest.point), rest.normal);
+      // The centreline keeps the tube's radius above the plane, so the tube lies on the surface, not half into it.
+      const below = dot(sub(p, rest.point), rest.normal) - radius;
       if (below < 0) p = sub(p, scale(rest.normal, below));
     }
     points.push(p);
   }
   const drop: Vec3 | null = input.drop > 0 ? [to[0], to[1] - input.drop, to[2]] : null;
-  return { points, drop, radius: input.radius * input.scale };
+  return { points, drop, radius };
 }
 
 /**
