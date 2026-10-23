@@ -39,7 +39,7 @@ lights:
   key: { color: "#ffffff", intensity: 1.6, from: [2.5, 4.5, 3], shadows: true }
 shading: { steps: 3 }
 # Inked cel's ink lines, which this method doesn't draw.
-outlines: { color: ink, width: 0.003 }
+outlines: { color: ink, width: 1 }
 glow_tones:
   screen-blue: { color: "#8fc3ff", intensity: 0.6 }
   neon-warm: { color: "#ff6a3d", intensity: 1.5 }
