@@ -11,13 +11,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 
 import { compareFindings, RULE_IDS, RULES } from "../../build/room/checks/family";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { CAPS_DEFAULTS, noPolicy, policyFrom } from "../../build/room/policy";
 import { fileTree, isTreePath, memoryTree, overlayTree } from "../../build/room/source";
+import { AVATARS } from "../../src/choice/avatars";
 import { badCases, caseTree, goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
@@ -227,9 +228,44 @@ describe("findings", () => {
     }
   });
 
-  it.todo(
-    "on an RX or RK2 finding the manifest lists that piece in standins[] with the reason findings, and placeholders is true, where the same piece's clean model is set (T080's manifest)",
-  );
+  it("on an RX or RK2 finding in lenient mode the manifest lists that piece in standins[] with the reason findings, placeholders true and no model of it emitted, where its clean model is set (T080's manifest)", () => {
+    // Under main's caps every piece a placement or a pose shows has a clean model, and every avatar its file, so only
+    // the desk's model's finding can make a stand-in, or a placeholder.
+    const pieces = ["fx-board", "fx-desk", "fx-laptop", "fx-monitor", "fx-neon", "fx-plug", "fx-shell", "fx-sign"];
+    const files: Record<string, Uint8Array> = modelChanges(pieces);
+    const glb = files["assets/room/fx-desk.glb"] as Uint8Array;
+    files["assets/twin/fx-twin.glb"] = glb;
+    for (const a of AVATARS) files[`assets/visitors/${a.id}/${a.id}.glb`] = glb;
+    const DESK = "apps/web/room/catalog/fx-desk.yaml";
+    const lenient: ComposeOptions = { mode: "lenient", drafts: true };
+    const clean = compose(overlay(files), capsPolicy(), lenient);
+    expect(lines(clean.findings)).toEqual([]);
+    expect(clean.manifest.standins).toEqual([]);
+    expect([clean.manifest.placeholders, clean.index.build.placeholders]).toEqual([false, false]);
+    expect(clean.models.map((m) => m.piece)).toEqual(pieces);
+    expect(clean.scene.placements.find((p) => p.id === "fx-desk")?.model).not.toBeNull();
+    type Entry = { origin: { bounds: { max: number[] } }; budget: { triangles: number } };
+    for (const [rule, change] of [
+      // The catalog's bounds grown 10 cm past the model's, which RX7 holds within the larger of 2 cm and 3%.
+      ["RX7", (e: Entry) => (e.origin.bounds.max[0] = 0.7)],
+      // A budget of one triangle, under the model's twelve.
+      ["RK2", (e: Entry) => (e.budget.triangles = 1)],
+    ] as const) {
+      const entry = parse(decoder.decode(files[DESK])) as Entry;
+      change(entry);
+      const result = compose(overlay({ ...files, [DESK]: stringify(entry) }), capsPolicy(), lenient);
+      expect([...new Set(result.findings.map((f) => `${f.rule} ${f.file}`))]).toEqual([
+        `${rule} assets/room/fx-desk.glb`,
+      ]);
+      expect(result.findings.map((f) => formatFinding(f, "lenient")).every((line) => line.startsWith("warn "))).toBe(
+        true,
+      );
+      expect(result.manifest.standins).toEqual([{ placement: "fx-desk", reason: "findings" }]);
+      expect([result.manifest.placeholders, result.index.build.placeholders]).toEqual([true, true]);
+      expect(result.models.map((m) => m.piece)).toEqual(pieces.filter((p) => p !== "fx-desk"));
+      expect(result.scene.placements.find((p) => p.id === "fx-desk")?.model).toBeNull();
+    }
+  });
 
   it("the 3D part's load_order puts the framed members of selectables first, in scene order with the shown pose first, then the other framed placements, then the rest, a shared model once (T080)", () => {
     const scene = decoder
