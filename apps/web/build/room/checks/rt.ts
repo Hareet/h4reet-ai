@@ -4,8 +4,9 @@
 // and to the room's own rules:
 // - RT1, a region's text naming a block of another renderer, or what its renderer can't draw (its sources are the
 //   loader's, schema.ts);
-// - RT2, C9 over every string of every data file as written, IDs and names, map keys among them, included: the walk
-//   compose() runs after RD and before every other family, whose refused strings no later path or reason prints;
+// - RT2, C9 over every string of every data file as written, IDs and names, map keys among them, included, each key
+//   and ID- or name-shaped string read again with `-` and `.` as spaces: the walk compose() runs after RD and before
+//   every other family, whose refused strings no later path or reason prints;
 // - RT3, C6, a UI word's {time}, {amount}, and {name} its slots; RT4 and RT5, C1 to C5 and C8 on claims, pending lines
 //   apart; RT6, the monitor's scripts: paths, user@host, email and IP addresses, URLs other than the site's, amounts,
 //   secret-shaped tokens, and typing over the screens' limit (compose/layout.ts);
@@ -106,15 +107,27 @@ function asWritten(ctx: Context, loaded: Loaded<unknown>): unknown {
   return read?.ok ? read.value : loaded.value;
 }
 
-/** Each string of a value, a map's keys among them, with its steps from the file's top. */
-function eachString(value: unknown, at: Step[], visit: (text: string, at: Step[]) => void): void {
-  if (typeof value === "string") visit(value, at);
+/** Each string of a value, a map's keys among them, with its steps from the file's top and whether it is a key. */
+function eachString(value: unknown, at: Step[], visit: (text: string, at: Step[], key: boolean) => void): void {
+  if (typeof value === "string") visit(value, at, false);
   else if (Array.isArray(value)) value.forEach((v, i) => eachString(v, [...at, i], visit));
   else if (value !== null && typeof value === "object")
     for (const [key, v] of Object.entries(value)) {
-      visit(key, [...at, key]);
+      visit(key, [...at, key], true);
       eachString(v, [...at, key], visit);
     }
+}
+
+/** A string in the shape of an ID or a name (contracts/room-data-files.md §3.1, §3.2), a role, or a UI key: lowercase
+ *  letters and digits, the words joined by `-` or `.`. */
+const NAME_SHAPED = /^[a-z0-9][a-z0-9.-]*$/;
+
+/** C9's hit in a string, or in its words where it is a map key or shaped as an ID or a name: `-` and `.` read as
+ *  spaces, so the surname rule's whole word and a phrase's words are found inside `<surname>-desk` as in prose. Spec
+ *  002's matcher is the one used, unchanged: only the string it reads is spelled out. */
+function hitIn(text: string, key: boolean, forbidden: LineContext["forbidden"]): ReturnType<typeof forbiddenHit> {
+  const hit = forbiddenHit(text, forbidden);
+  return hit ?? (key || NAME_SHAPED.test(text) ? forbiddenHit(text.replace(/[-.]/g, " "), forbidden) : null);
 }
 
 /** A C9 source as §14 prints it: a corpus file's line, the surname rule, or the private denylist, never its line. */
@@ -122,10 +135,11 @@ const sourceOf = (source: string): string => (source.startsWith(`${DENYLIST_PATH
 
 /**
  * RT2, spec 002's C9 over every string value of every loaded file as written, IDs and names (map keys among them)
- * included: a "Do not claim" key phrase of the corpus, the surname rule (`ctx.policy.full_name`), or a private-denylist
- * phrase where the tree holds the denylist. compose() runs it after RD and before every other family; it reports each
- * hit, its reason ending `(from <source>)`, and gives back the strings it refused, which no later reason or path may
- * print (`ctx.printable`); nor do its own paths.
+ * included, a key or an ID- or name-shaped string read a second time with `-` and `.` as spaces (`hitIn`): a "Do not
+ * claim" key phrase of the corpus, the surname rule (`ctx.policy.full_name`), or a private-denylist phrase where the
+ * tree holds the denylist. compose() runs it after RD and before every other family; it reports each hit, its reason
+ * ending `(from <source>)`, and gives back the strings it refused, which no later reason or path may print
+ * (`ctx.printable`); nor do its own paths.
  */
 export const walkStrings: (ctx: Context) => ReadonlySet<string> = (ctx) => {
   const { forbidden } = words(ctx).line;
@@ -133,8 +147,8 @@ export const walkStrings: (ctx: Context) => ReadonlySet<string> = (ctx) => {
   if (forbidden.length === 0) return refused;
   const hits: { file: string; at: Step[]; source: string }[] = [];
   for (const loaded of loadedFiles(ctx.room))
-    eachString(asWritten(ctx, loaded), [], (text, at) => {
-      const hit = forbiddenHit(text, forbidden);
+    eachString(asWritten(ctx, loaded), [], (text, at, key) => {
+      const hit = hitIn(text, key, forbidden);
       if (hit === null) return;
       refused.add(text);
       hits.push({ file: loaded.file, at, source: hit.source });
