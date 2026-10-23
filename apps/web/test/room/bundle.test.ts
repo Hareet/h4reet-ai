@@ -25,6 +25,7 @@ import { FOV, framing, withLabel } from "../../src/room/compose/framing";
 import { anchorWorld, mountWorld, resolveMounts } from "../../src/room/compose/mount";
 import { DEG, IDENTITY, origin, transformPoint } from "../../src/room/compose/math";
 import type { Mat4, Vec3 } from "../../src/room/compose/math";
+import { memberRect } from "../../src/room/compose/pick";
 import { projector, toStage } from "../../src/room/compose/project";
 import { TIER_VALUES, TYPEFACE_USES } from "../../src/room/compose/vocabulary";
 import { EVENT_KINDS } from "../../src/room/events";
@@ -446,14 +447,19 @@ describe("the 2D drawing (flat)", () => {
       ["fx-board", 1, 1],
     ]);
     for (const h of flat.hits) for (const d of h.depths) expect(d).toBeGreaterThan(0);
-    // The monitor's rectangle covers its drawing.
+    // The monitor's rectangle is its frame box projected through framing(1.6), as RG6 checks it, so it covers its
+    // drawing.
+    const frame = result.scene.placements.find((p) => p.id === "fx-monitor")?.frame_box as Box;
+    const projected = memberRect(frame, flatCamera(result), VIEW);
+    const [x = NaN, y = NaN, w = NaN, h = NaN] = flat.hits[0]?.rects[0] ?? [];
+    expect([x, y, w, h].every((n, i) => near(n, projected?.rect[i] ?? NaN))).toBe(true);
+    expect(near(flat.hits[0]?.depths[0] ?? NaN, projected?.depth ?? NaN, 1e-5)).toBe(true);
     const monitor = flat.items.find((i) => i.placement === "fx-monitor");
-    const [x, y, w, h] = flat.hits[0]?.rects[0] ?? [];
     const box = monitor?.primitives[0] as { x: number; y: number; w: number; h: number };
-    expect(near(x ?? 0, (monitor?.matrix[4] ?? 0) + box.x) && near(y ?? 0, (monitor?.matrix[5] ?? 0) + box.y)).toBe(
+    const [left, top] = [(monitor?.matrix[4] ?? 0) + box.x, (monitor?.matrix[5] ?? 0) + box.y];
+    expect(x <= left + 1e-4 && y <= top + 1e-4 && x + w >= left + box.w - 1e-4 && y + h >= top + box.h - 1e-4).toBe(
       true,
     );
-    expect(near(w ?? 0, box.w) && near(h ?? 0, box.h)).toBe(true);
     // Only the placements showing a stand-in that have a label: never a figure's.
     expect(flat.labels.map((l) => [l.placement, l.label])).toEqual([
       ["fx-desk", "label.fx-desk"],

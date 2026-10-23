@@ -1,28 +1,43 @@
 // RG on the fixtures (spec 004; T065, T078; FR-002, FR-003, FR-009, FR-017, FR-051, FR-052, FR-064, SC-009, SC-010;
 // R-17 to R-21; contracts/room-data-files.md §4, §5.2 to §5.5, §13.3, §14), beside its known-bad cases in
 // compose.test.ts: what the geometry family measures through the shared kernel, and how it says so.
-// - A framed box is the catalog's expected bounds at the stylized scale through the placement's world transform, its
-//   top raised where the placement has a label (RG4 to RG6).
+// - A framed box is the catalog's expected bounds at the stylized scale through the placement's world transform, or a
+//   set model's measured bounds, its top raised where the placement shows a stand-in with a label (RG4 to RG6).
 // - A piece's bounds hold its origin, faces, glows, and stand-ins, each shape by its own extent, turned and scaled; a
 //   face's up stands square to its facing, +Y when absent; its canvas keeps its aspect within one pixel (RG2).
 // - RG5 names every aspect a framed box leaves the view at; RG6 the first supported stage a core fails at, in 3D and
 //   in 2D; RG7 the cap height on each reference stage under the floor main's caps give, or 9.
 // - RG8 is a report, never a finding: every two shown poses of a switch, apart by the floor or not (FR-052).
+// - One production framing: the bundle's frame boxes, 2D hit rectangles, and face sizes, RK3's canvases, and the
+//   report's cap heights and separations are RG's own measures.
 // Every ID is a synthetic `fx-` one.
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 
-import { RULES } from "../../build/room/checks/family";
-import { faceCaps, frameBoxes, poseSeparations } from "../../build/room/checks/rg";
+import { createContext, RULES } from "../../build/room/checks/family";
+import type { Context } from "../../build/room/checks/family";
+import {
+  faceCaps,
+  flatMembers,
+  frameBoxes,
+  geometryOf,
+  lookTypefaces,
+  poseSeparations,
+} from "../../build/room/checks/rg";
+import { sceneTextureMemory } from "../../build/room/checks/rk";
 import { compose } from "../../build/room/compose";
-import type { Finding } from "../../build/room/compose";
+import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { loadRoom } from "../../build/room/load";
 import { noPolicy, policyFrom } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
 import type { Tree } from "../../build/room/source";
-import { readTypefaces } from "../../build/room/typefaces";
+import type { Box } from "../../src/room/compose/framing";
 import { LABEL_HEIGHT, LABEL_LIFT } from "../../src/room/compose/framing";
+import { flatCore, pickAreas, pickProblems } from "../../src/room/compose/pick";
+import { flatScale, REFERENCE_PHONE, supportedStages } from "../../src/room/compose/stages";
+import { fixed } from "../../src/room/glb/rules";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
+import { capsPolicy, modelChanges } from "../helpers/room-models";
 
 const SCENE = "apps/web/room/scene.yaml";
 const SHELL = "apps/web/room/catalog/fx-shell.yaml";
@@ -55,6 +70,10 @@ function tree(changes: Readonly<Record<string, (d: Doc) => void>>): Tree {
 function rg(t: Tree, policy: RoomPolicy = noPolicy()): Finding[] {
   return compose(t, policy, { mode: "strict", drafts: true }).findings.filter((f) => f.rule.startsWith("RG"));
 }
+
+/** A family's context over a tree, as compose() makes it. */
+const contextOf = (t: Tree, policy: RoomPolicy = noPolicy()): Context =>
+  createContext(loadRoom(t), policy, { mode: "strict", drafts: true }, t).ctx;
 const where = (findings: readonly Finding[]): string[] => findings.map((f) => `${f.rule} ${f.file}:${f.path}`);
 
 /** Main's caps with every starting figure but the legibility floor. */
@@ -78,7 +97,7 @@ function expectClose(actual: ArrayLike<number>, expected: ArrayLike<number>, tol
 }
 
 describe("framed boxes", () => {
-  const boxes = frameBoxes(loadRoom(goodTree()));
+  const boxes = frameBoxes(contextOf(goodTree()));
 
   it("are a piece's expected bounds at its stylized scale where its placement stands", () => {
     // fx-sign, at 1.25, on the desk's top (0, 0.75, 0) from the desk at (0, 0, -0.6), offset (-0.4, 0, 0.15).
@@ -97,14 +116,20 @@ describe("framed boxes", () => {
     expect((laptop?.max ?? [])[2]).toBeCloseTo(-0.6 + hz, 12);
   });
 
-  it("are raised for a placement's label, and only there", () => {
+  it("are raised for a stand-in's label, and only there: never over a set piece or a figure", () => {
     expect(boxes.get("fx-monitor")?.max[1]).toBeCloseTo(0.75 + 0.42 + LABEL_LIFT + LABEL_HEIGHT, 12);
     expect(boxes.get("fx-neon")?.max[1]).toBeCloseTo(0.75 + 0.42 + 0.2, 12);
+    // Under main's caps the monitor's clean model is set, and frames it by its measured bounds, the expected ones.
+    const set = frameBoxes(contextOf(overlay(modelChanges(["fx-monitor"])), capsPolicy()));
+    expect(set.get("fx-monitor")?.max[1]).toBeCloseTo(0.75 + 0.42, 6);
+    // The twin shows its avatar, so a label on its placement raises nothing.
+    const labelled = frameBoxes(contextOf(tree({ [SCENE]: (d) => (at(d, "placements", 7).label = "label.fx-desk") })));
+    expect(labelled.get("fx-twin")?.max[1]).toBeCloseTo(boxes.get("fx-twin")?.max[1] ?? Number.NaN, 12);
   });
 
   it("leave out what doesn't resolve", () => {
     const cycle = tree({ [SCENE]: (d) => (at(d, "placements", 1).mount = { on: "fx-monitor", anchor: "top-edge" }) });
-    const resolved = frameBoxes(loadRoom(cycle));
+    const resolved = frameBoxes(contextOf(cycle));
     expect(resolved.has("fx-shell")).toBe(true);
     expect(resolved.has("fx-desk")).toBe(false);
     expect(resolved.has("fx-twin")).toBe(false);
@@ -272,7 +297,7 @@ describe("RG7: legibility at the production framing on both reference stages", (
     expect(where(rg(t).filter((f) => f.rule === "RG7"))).toEqual([
       `RG7 ${SCENE}:placements[2].faces.screen.atmosphere`,
     ]);
-    const screen = faceCaps(loadRoom(t), []).find((f) => f.face === "fx-monitor.screen");
+    const screen = faceCaps(geometryOf(contextOf(t)), []).find((f) => f.face === "fx-monitor.screen");
     expect([screen?.atmosphere, screen?.desktop, screen?.phone]).toEqual([true, null, null]);
   });
 
@@ -285,13 +310,12 @@ describe("RG7: legibility at the production framing on both reference stages", (
   });
 
   it("gives the report each bound face's cap heights from the index's cap ratios, as RG7 measures them", () => {
-    const room = loadRoom(goodTree());
-    const look = room.looks[0];
-    const typefaces = look
-      ? (readTypefaces(goodTree(), [{ file: look.file, typefaces: look.value.typefaces }]).looks[0]?.typefaces ?? [])
-      : [];
+    const typefaces = lookTypefaces(loadRoom(goodTree()), goodTree());
     expect(typefaces).toHaveLength(5);
-    const faces = faceCaps(room, typefaces);
+    // To 1e-6, as the index carries them.
+    for (const t of typefaces) expect(Math.round(t.cap_ratio * 1e6) / 1e6).toBe(t.cap_ratio);
+    const g = geometryOf(contextOf(goodTree()));
+    const faces = faceCaps(g, typefaces);
     expect(faces.map((f) => [f.face, f.placement, f.role])).toEqual([
       ["fx-monitor.screen", 2, "screen"],
       ["fx-neon.panel", 3, "panel"],
@@ -314,12 +338,12 @@ describe("RG7: legibility at the production framing on both reference stages", (
       `cap height ${(Math.floor((least.phone ?? 0) * 10) / 10).toFixed(1)} px on the phone stage, under the floor of ${floor}`,
     );
     // Without a use's ratio its text regions go unmeasured; a sign's outline needs none.
-    expect(faceCaps(room, []).map((f) => f.phone !== null)).toEqual([false, false, false, true]);
+    expect(faceCaps(g, []).map((f) => f.phone !== null)).toEqual([false, false, false, true]);
   });
 });
 
 describe("RG8: two shown poses of a switch apart by the floor, reported and never refused", () => {
-  const pairs = (t: Tree, policy = noPolicy()) => poseSeparations(loadRoom(t), policy);
+  const pairs = (t: Tree, policy = noPolicy()) => poseSeparations(geometryOf(contextOf(t, policy)), policy);
 
   it("measures every two poses the cases show, on both reference stages", () => {
     const good = pairs(goodTree());
@@ -394,4 +418,145 @@ describe("RG9: regions inside their face, none over another", () => {
     expect(where(found)).toEqual([`RG9 ${SCENE}:placements[3].faces.panel.regions[1]`]);
     expect(found[0]?.reason).toBe("overlaps regions[0]");
   });
+});
+
+describe("one production framing: the bundle and the report carry what RG and RK measure", () => {
+  const STRICT: ComposeOptions = { mode: "strict", drafts: true };
+  /** Every piece a placement or a pose shows: a figure's shows its avatar. */
+  const SHOWN = ["fx-board", "fx-desk", "fx-laptop", "fx-monitor", "fx-neon", "fx-plug", "fx-shell", "fx-sign"];
+  const DESK = "apps/web/room/catalog/fx-desk.yaml";
+  /** Every shown piece's clean model, the desk's budget changed by `budget`. */
+  function models(budget: Doc = {}): Tree {
+    const files = modelChanges(SHOWN);
+    const desk = parse(decoder.decode(files[DESK])) as Doc;
+    Object.assign(at(desk, "budget"), budget);
+    return overlay({ ...files, [DESK]: stringify(desk) });
+  }
+  // The known-good set, every piece a stand-in; every shown piece set under main's caps, so each frames by its measured
+  // bounds with no label; and the desk's model over its budget in a lenient build, which keeps the desk a stand-in.
+  const CASES: readonly (readonly [string, () => Tree, () => RoomPolicy, ComposeOptions])[] = [
+    ["the known-good set", goodTree, noPolicy, STRICT],
+    ["every shown piece set", () => models(), capsPolicy, STRICT],
+    [
+      "the desk's model over its budget, lenient",
+      () => models({ triangles: 1 }),
+      capsPolicy,
+      { ...STRICT, mode: "lenient" },
+    ],
+  ];
+
+  /** A case's tree, its compose, and a family's context over the same tree and policy, as compose() makes it. */
+  function composed(make: () => Tree, policyOf: () => RoomPolicy, options: ComposeOptions) {
+    const [t, policy] = [make(), policyOf()];
+    const result = compose(t, policy, options);
+    // A build whose outputs are used: no finding but a lenient one.
+    expect(result.findings.every((f) => f.lenient)).toBe(true);
+    return { t, policy, result, ctx: createContext(loadRoom(t), policy, options, t).ctx };
+  }
+  /** Metres to 1e-6, as the 3D part carries them. */
+  const micro = (n: number): number => Math.round(n * 1e6) / 1e6 || 0;
+  const microBox = (b: Box | undefined): Box | null =>
+    b
+      ? {
+          min: [micro(b.min[0]), micro(b.min[1]), micro(b.min[2])],
+          max: [micro(b.max[0]), micro(b.max[1]), micro(b.max[2])],
+        }
+      : null;
+
+  it.each(CASES)("gives the 3D part's frame_box as RG frames each placement: %s", (_, make, policyOf, options) => {
+    const { result, ctx } = composed(make, policyOf, options);
+    const boxes = frameBoxes(ctx);
+    expect(result.scene.placements.map((p) => p.frame_box)).toEqual(
+      result.scene.placements.map((p) => microBox(boxes.get(p.id))),
+    );
+  });
+
+  it.each(CASES)(
+    "gives the index's flat hits as the 2D member rectangles RG6 checks: %s",
+    (_, make, policyOf, options) => {
+      const { result, ctx } = composed(make, policyOf, options);
+      const g = geometryOf(ctx);
+      const members = g ? flatMembers(g) : [];
+      expect(members.flat()).not.toHaveLength(0);
+      expect(result.index.flat.hits).toEqual(
+        result.index.selectables.map((x, k) => ({
+          selectable: x.id,
+          rects: (members[k] ?? []).map((m) => [...m.rect]),
+          depths: (members[k] ?? []).map((m) => m.depth),
+        })),
+      );
+    },
+  );
+
+  it("has RG6 refuse in 2D exactly what the pick function finds among the index's flat hits", () => {
+    // The twin made a selectable of its own beside the workstation, whose laptop its core meets.
+    const t = tree({
+      [SCENE]: (d) =>
+        (d.selectables as Doc[]).push({
+          id: "fx-figure",
+          name: "Fixture figure",
+          members: ["fx-twin"],
+          action: { resume: {} },
+        }),
+    });
+    const result = compose(t, noPolicy(), STRICT);
+    const smallest = supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
+    const inputs = result.index.flat.hits.map((h, k) => ({
+      id: String(k),
+      members: h.rects.map((rect, i) => ({ rect, depth: h.depths[i] ?? 0 })),
+    }));
+    const found = pickProblems(pickAreas(inputs, flatCore(smallest)), [0, 0, 320, 200]).map(
+      (p) => `selectables[${p.selectable}] ${p.problem} ${p.other ?? "-"}`,
+    );
+    const what =
+      /^its (?:44 × 44 core leaves the view|exclusive core overlaps (the core|a member) of selectables\[(\d+)\]) in 2D, at the drawing's smallest scale$/;
+    const refused = result.findings.flatMap((f) => {
+      const m = f.rule === "RG6" ? what.exec(f.reason) : null;
+      if (!m) return [];
+      return [`${f.path} ${m[1] === undefined ? "outside" : m[1] === "the core" ? "core" : "member"} ${m[2] ?? "-"}`];
+    });
+    expect(found).not.toHaveLength(0);
+    expect(refused.sort()).toEqual(found.sort());
+  });
+
+  it.each(CASES)(
+    "gives RK3 each face's canvas at the size the index's screen_css gives on the reference phone: %s",
+    (_, make, policyOf, options) => {
+      const { result, ctx } = composed(make, policyOf, options);
+      const { faces } = sceneTextureMemory(ctx);
+      expect(faces.map((f) => `${f.placement}.${f.role}`)).toEqual(result.index.faces.map((f) => f.id));
+      expect(faces.map((f) => f.screen)).toEqual(result.index.faces.map((f) => f.screen_css));
+      expect(faces.map((f) => f.canvas)).toEqual(
+        result.index.faces.map((f) =>
+          [0, 1].map((i) => Math.min(f.px[i] ?? 0, Math.floor((f.screen_css[i] ?? 0) * REFERENCE_PHONE.dpr))),
+        ),
+      );
+    },
+  );
+
+  it.each(CASES)(
+    "gives the report each face's cap heights as RG7 measures them, and each two poses' separation as RG8 does: %s",
+    (_, make, policyOf, options) => {
+      const { t, policy, result, ctx } = composed(make, policyOf, options);
+      const g = geometryOf(ctx);
+      const rows = result.report.markdown.split("\n");
+      const px = (n: number | null | undefined): string => (n === null || n === undefined ? "–" : `${fixed(n, 1)} px`);
+      const caps = faceCaps(g, lookTypefaces(loadRoom(t), t));
+      expect(caps.every((f) => f.desktop !== null && f.phone !== null)).toBe(true);
+      for (const face of result.index.faces) {
+        const measured = caps.find((f) => f.face === face.id);
+        const row = rows.find((r) => r.startsWith(`| \`${face.id}\` |`));
+        expect(row?.split(" | ").slice(2, 4), face.id).toEqual([px(measured?.desktop), px(measured?.phone)]);
+      }
+      const pairs = poseSeparations(g, policy);
+      expect(pairs).not.toHaveLength(0);
+      const at = rows.indexOf("| Switch | Poses | Desktop | Phone | Status |");
+      expect(rows.slice(at + 2, rows.indexOf("", at))).toEqual(
+        pairs.map(
+          (p) =>
+            `| \`${p.id}\` | \`${p.poses[0]}\` / \`${p.poses[1]}\` | ${px(p.desktop)} | ${px(p.phone)} | ${p.status} |`,
+        ),
+      );
+    },
+  );
 });

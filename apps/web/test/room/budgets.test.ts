@@ -13,7 +13,8 @@ import { parse, stringify } from "yaml";
 
 import { createContext } from "../../build/room/checks/family";
 import type { Context } from "../../build/room/checks/family";
-import { frameBoxes, sceneTextureMemory } from "../../build/room/checks/rk";
+import { frameBoxes } from "../../build/room/checks/rg";
+import { sceneTextureMemory } from "../../build/room/checks/rk";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { loadRoom } from "../../build/room/load";
@@ -260,7 +261,7 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     expect([memory.twin, memory.visitor, memory.figures]).toEqual([deskMemory, deskMemory, 2 * deskMemory]);
   });
 
-  it("sizes each bound face's canvas at min(px, its largest on-screen size × the reference phone's ratio)", () => {
+  it("sizes each bound face's canvas at min(px, its largest on-screen size × the reference phone's ratio), at most", () => {
     const memory = sceneTextureMemory(contextOf(goodTree()));
     expect(memory.faces.map((f) => `${f.placement}.${f.role}`)).toEqual([
       "fx-monitor.screen",
@@ -271,8 +272,9 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     for (const face of memory.faces) {
       const screen = face.screen ?? [Infinity, Infinity];
       expect(screen.every((side) => Number.isFinite(side) && side > 0)).toBe(true);
+      // Rounded down: a canvas is at most its on-screen size × the ratio (contracts/room-bundle.md §3.1).
       expect(face.canvas).toEqual(
-        [0, 1].map((i) => Math.min(face.px[i] ?? 0, Math.ceil((screen[i] ?? 0) * REFERENCE_PHONE.dpr))),
+        [0, 1].map((i) => Math.min(face.px[i] ?? 0, Math.floor((screen[i] ?? 0) * REFERENCE_PHONE.dpr))),
       );
       expect(face.bytes).toBe(textureMemory(face.canvas[0], face.canvas[1]));
     }
