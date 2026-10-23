@@ -11,8 +11,9 @@
 //   apart; RT6, the monitor's scripts: paths, user@host, email and IP addresses, URLs other than the site's, amounts,
 //   secret-shaped tokens, and typing over the screens' limit (compose/layout.ts);
 // - RT7, the chalkboard's excludes (a chalk block without one is the loader's); RT8, words over their grid
-//   (compose/layout.ts), the section titles' fit in strict mode only; RT9, the Author's words, verbatim, in strict mode
-//   only; RT10, the looks' typefaces (typefaces.ts); RT11, the tier's sentences; RT12, the closed list's keys and slots
+//   (compose/layout.ts), a turn-cost counter's readings among them (contracts/turn-cost.md §5), the section titles' fit
+//   in strict mode only; RT9, the Author's words, verbatim, in strict mode only; RT10, the looks' typefaces
+//   (typefaces.ts); RT11, the tier's sentences; RT12, the closed list's keys and slots
 //   (src/room/ui-keys.ts); RT13, an outline's strings and, in strict mode only, its words in its intent's quotation
 //   marks (its keys, cap height, and path data are the loader's).
 // The room's name, which C8 and C9's key phrases read as spec 002 reads them, is the resume source's, through the
@@ -36,6 +37,7 @@ import {
   typingSeconds,
 } from "../../../src/room/compose/layout";
 import type { Grid } from "../../../src/room/compose/layout";
+import { typefaceFor } from "../../../src/room/compose/legibility";
 import type { TypefaceUse } from "../../../src/room/compose/vocabulary";
 import { nameProblem } from "../../../src/room/glb/names";
 import { SLOTS, slotsIn, UI_KEYS } from "../../../src/room/ui-keys";
@@ -47,6 +49,7 @@ import { readFaces } from "../typefaces";
 import type { Faces } from "../typefaces";
 import { formatPath } from "./family";
 import type { Context, Family } from "./family";
+import { sourceOf as regionSource } from "./rg";
 
 type Step = string | number;
 
@@ -454,14 +457,39 @@ function excludes(ctx: Context, line: LineContext): void {
 
 // ---- RT8: words over their grid ----
 
-/** A region's words, each with what a reason calls it; null where a region has none fixed, a turn-cost counter's live
- *  values, or where another rule stands (RI4, RT1). */
+/** The largest amount a counter reads below $100, and a local reply's (contracts/turn-cost.md §5): amounts are live
+ *  values, so these are the contract's figures, never data. */
+const MOST = "$99.999999";
+const NOTHING = "$0";
+
+/** A turn-cost counter's readings, each with what a reason calls it: every reading of contracts/turn-cost.md §5's
+ *  table, made from the UI words with the amounts that make them longest below $100, "cost unavailable" and
+ *  "at least $99.999999 est." the longest in the contract's words. A word the UI words lack is RT12's. */
+function readings(words: Readonly<Record<string, UiWord>>): { what: string; text: string }[] {
+  const text = (key: string): string | null =>
+    Object.hasOwn(words, key) ? uiText(words[key] as UiWord, key).text : null;
+  const filled = (key: string, amount: string | null): string | null =>
+    amount === null ? null : (text(key)?.replaceAll("{amount}", amount) ?? null);
+  const estimated = filled("sign.estimated", MOST);
+  const all: [string, string | null][] = [
+    ["of sign.no_call_yet", text("sign.no_call_yet")],
+    ["of sign.unavailable", text("sign.unavailable")],
+    [NOTHING, NOTHING],
+    [`of sign.local at ${NOTHING}`, filled("sign.local", NOTHING)],
+    [`of sign.estimated at ${MOST}`, estimated],
+    [`of sign.at_least of sign.estimated at ${MOST}`, filled("sign.at_least", estimated)],
+  ];
+  return all.flatMap(([what, reading]) => (reading === null ? [] : [{ what: `the reading ${what}`, text: reading }]));
+}
+
+/** A region's words, each with what a reason calls it; `alternatives` where only one shows at a time, a counter's
+ *  readings; null where a region has none fixed, or where another rule stands (RI4, RT1). */
 function regionWords(
   ctx: Context,
   region: Region,
   blocks: ReadonlyMap<string, RoomTextBlock>,
   resume: ResumeSource | null,
-): { kind: string; lines: { what: string; text: string }[] } | null {
+): { kind: string; lines: { what: string; text: string }[]; alternatives?: true } | null {
   if (region.text !== undefined) {
     const block = blocks.get(region.text);
     if (!block || block.renderer !== region.renderer) return null;
@@ -486,12 +514,17 @@ function regionWords(
       lines: resume.sections.map((s, k) => ({ what: what(k), text: collapse(s.title) })),
     };
   }
+  if (region.signal === "turn-cost") {
+    const ui = ctx.room.ui?.value.words;
+    return ui ? { kind: "readings", lines: readings(ui), alternatives: true } : null;
+  }
   return null;
 }
 
 /** RT8: a region's words over its grid: more lines than its rows, a line wider than its columns, or, for chalk and
- *  neon, wider than the region at the grid's size by the typeface's advance widths. The resume source's section titles
- *  are held to a resume_titles region in strict mode only. */
+ *  neon, wider than the region at the grid's size by the advance widths of the typeface it draws in (legibility.ts's
+ *  `typefaceFor`: a counter in `counters`). The resume source's section titles are held to a resume_titles region in
+ *  strict mode only; a turn-cost counter's readings, one shown at a time, each to its one row. */
 function grids(ctx: Context, resume: ResumeSource | null, faces: Faces): void {
   const scene = ctx.room.scene;
   if (!scene) return;
@@ -506,10 +539,13 @@ function grids(ctx: Context, resume: ResumeSource | null, faces: Faces): void {
     const words = grid && regionWords(ctx, region, blocks, resume);
     if (!grid || !words) continue;
     const rt8 = (reason: string): void => ctx.report("RT8", scene.file, ctx.path(...at), reason);
-    const { kind, lines } = words;
-    if (lines.length > grid.rows)
+    const { kind, lines, alternatives } = words;
+    if (!alternatives && lines.length > grid.rows)
       rt8(`${lines.length} ${kind}, more than the grid's ${grid.rows} ${grid.rows === 1 ? "row" : "rows"}`);
-    const use: TypefaceUse | null = region.renderer === "chalk" || region.renderer === "neon" ? region.renderer : null;
+    const use: TypefaceUse | null =
+      region.renderer === "chalk" || region.renderer === "neon"
+        ? typefaceFor(region.renderer, regionSource(region))
+        : null;
     const cells = region.renderer === "neon" ? "characters" : "columns";
     for (const { what, text } of lines) {
       const length = [...text].length;

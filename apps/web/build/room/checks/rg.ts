@@ -517,8 +517,8 @@ export interface FaceCaps {
   readonly phone: number | null;
 }
 
-/** Where a region's words come from, as legibility.ts names it. */
-function sourceOf(r: Region): RegionSourceRef {
+/** Where a region's words come from, as legibility.ts names it: its typeface by `typefaceFor`, for RG7 and RT8. */
+export function sourceOf(r: Region): RegionSourceRef {
   if (r.text !== undefined) return { room_text: r.text };
   if (r.resume_titles !== undefined) return { resume_titles: true };
   if (r.ui !== undefined) return { ui: r.ui };
