@@ -8,8 +8,11 @@
 //   it;
 // - the visitor as the chosen avatar's flat polygons (src/choice/avatars.ts), at the index's place and scale;
 // - the hand-off as three still frames of its paper, at the index's projected positions, which are the first avatar's:
-//   the paper in the visitor's hands moves by the chosen avatar's hand offset (handoff.ts), at the visitor's scale, and
-//   the paper between the hands half as far, as the 3D room's arc does (plan.md §10, T098's entry);
+//   the paper in the visitor's hands moves by the chosen avatar's hand offset (handoff.ts), at the visitor's scale, on
+//   the side the index's paper ends on (the data's anchor, nearer the twin), and the paper between the hands half as
+//   far, as the 3D room's arc does (plan.md §10, T098's entry); and the visitor turning toward the twin as the 3D room
+//   turns it, in the frames where it is turned: narrowed to the turn's cosine about its feet, its head leaning toward
+//   the side the paper comes from;
 // - each selectable's cue, a dashed rectangle around its hit rectangles with its name tag, styled by room.css's
 //   classes.
 // The faces come with their renderers' SVG backend (T185).
@@ -29,7 +32,7 @@ import type { PickArea, PickInput } from "./compose/pick";
 import { FLAT_VIEW, flatScale } from "./compose/stages";
 import type { Stage as Size } from "./compose/stages";
 import { SVG_NS, h, svg } from "./dom";
-import { FLAT_FRAMES, flatFrame, handOffset } from "./handoff";
+import { FLAT_FRAMES, VISITOR_TURN, flatFrame, handOffset, sideOf, visitorTurnShare } from "./handoff";
 import { bindPointerSelection } from "./objects";
 import type { Ndc } from "./objects";
 import type { Stage } from "./stage";
@@ -54,6 +57,9 @@ export interface FlatDrawing {
   readonly visitor: SVGElement;
   /** The hand-off's paper in its three still frames: in the twin's hand, between the hands, in the visitor's. */
   readonly papers: readonly SVGElement[];
+  /** For each of those frames, the visitor's turn toward the twin as a matrix about its feet, or null where it stands
+   *  square to the view. */
+  readonly turns: readonly (Matrix2D | null)[];
 }
 
 export interface FlatStage extends Stage {
@@ -161,6 +167,17 @@ function node(
 /** A switch case's or a paper's visibility, set by code. */
 const show = (el: Element, on: boolean): void => el.setAttribute("visibility", on ? "visible" : "hidden");
 
+/** The visitor's turn, set by code through the allowlist's matrix, or taken off. */
+function turnTo(el: Element, m: Matrix2D | null): void {
+  if (m === null) {
+    el.removeAttribute("transform");
+    return;
+  }
+  const text = matrix(m);
+  if (text === null) throw new Error("the 2D room refuses the visitor's turn");
+  el.setAttribute("transform", text);
+}
+
 // ---- The drawing ----
 
 /** The labels' and the name tags' typefaces: the page's own, as spec 002's 2D labels were. */
@@ -173,6 +190,17 @@ const NAME = { size: 8, weight: 600, inset: 2 } as const;
 const CABLE = { stroke: "#1a1a1a", width: 1 } as const;
 /** The paper, spec 002's sheet in the 2D drawing, in view-box units, and its ink. */
 const PAPER = { w: 8, h: 11, fill: "#ffffff", stroke: "#555555" } as const;
+/** How far the turned cut-out's head leans toward the twin, as a share of the turn's sine of its height: the 2D room's
+ *  cue for which way a flat figure turned, which seen square on would only narrow. */
+const LEAN = 0.25;
+
+/** The visitor's turn by an angle toward a side, as a matrix about its feet at (x, baseline), y down: narrowed to the
+ *  angle's cosine, its head leaning to that side; null for no turn. */
+function visitorTurn(x: number, baseline: number, side: number, angle: number): Matrix2D | null {
+  if (angle === 0) return null;
+  const [cos, lean] = [Math.cos(angle), side * Math.sin(angle) * LEAN];
+  return [cos, 0, -lean, 1, x * (1 - cos) + lean * baseline, 0];
+}
 
 function primitive(doc: Document, p: Prim): SVGElement {
   const paint = { fill: p.fill, stroke: p.stroke, "stroke-width": p.stroke_width };
@@ -279,9 +307,11 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     root.append(text);
   }
 
-  // The scene's anchor is the first avatar's hand; the chosen avatar's own is offset from it, in the cut-out's frame,
-  // which stands square to the view at the visitor's scale (y down in the view box).
-  const [dx, dy] = handOffset(avatar);
+  // The scene's anchor is the first avatar's hand, on the side the paper ends on, the twin's; the chosen avatar's own is
+  // offset from it on that side, in the cut-out's frame, which stands square to the view at the visitor's scale (y down
+  // in the view box).
+  const [toTwin, , atVisitor] = flat.papers;
+  const [dx, dy] = handOffset(avatar, sideOf(atVisitor[0] - feet));
   const papers = flat.papers.map(([x, y], k) => {
     const share = k / (FLAT_FRAMES - 1);
     const [cx, cy] = [x + dx * flat.visitor.scale * share, y - dy * flat.visitor.scale * share];
@@ -323,7 +353,13 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     root.append(area, name);
   }
 
-  return { root, items, switches, labels, cues, visitor, papers };
+  // In each frame, the visitor turns toward the paper's side as the 3D room turns it at that frame's progress.
+  const towardTwin = sideOf(toTwin[0] - feet);
+  const turns = flat.papers.map((_, k) =>
+    visitorTurn(feet, baseline, towardTwin, VISITOR_TURN * visitorTurnShare(k / (FLAT_FRAMES - 1))),
+  );
+
+  return { root, items, switches, labels, cues, visitor, papers, turns };
 }
 
 // ---- The pick ----
@@ -383,6 +419,7 @@ export function renderFlat(
   const frame = (k: number): void => {
     element.setAttribute("data-handoff-frame", String(k));
     drawing.papers.forEach((paper, i) => show(paper, i === k));
+    turnTo(drawing.visitor, drawing.turns[k] ?? null);
   };
   // Outside the hand-off, the paper is in the visitor's hands.
   frame(FLAT_FRAMES - 1);

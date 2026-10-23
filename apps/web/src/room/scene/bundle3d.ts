@@ -48,7 +48,8 @@ import type { PickArea } from "../compose/pick";
 import { toStage } from "../compose/project";
 import type { Camera } from "../compose/project";
 import type { Stage } from "../compose/stages";
-import { handOffset } from "../handoff";
+import { VISITOR_TURN, handOffset, sideOf, visitorTurnShare } from "../handoff";
+import type { Side } from "../handoff";
 import type { Ndc } from "../objects";
 import type { UiKey } from "../ui-keys";
 import { lookLights, lookMaterials } from "./look";
@@ -95,6 +96,9 @@ export interface Room3D {
   /** The hand-off's two anchors in the world, from the part's `handoff`: the twin's hand, and the chosen avatar's, the
    *  visitor's anchor moved by the avatar's hand from the first avatar's. */
   readonly anchors: { readonly twinHand: Vector3; readonly visitorHand: Vector3 };
+  /** Which way each figure turns in the hand-off, toward the other, as a sign about +Y: the twin toward the visitor's
+   *  hand, the visitor toward the twin's, each from where the other's hand lies in its own frame. */
+  readonly facing: { readonly twin: Side; readonly visitor: Side };
   /** The paper: the sheet that travels from the twin's hand (or fades there), and its two materials. */
   readonly paper: { readonly sheet: Mesh; readonly atTwin: MeshBasicMaterial; readonly atVisitor: MeshBasicMaterial };
   /** The look's materials, which the stand-ins share. */
@@ -244,10 +248,26 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
 
   const [twin, visitor] = [pictures.get(part.figures.twin), pictures.get(part.figures.visitor)];
   if (!twin || !visitor) throw new Error("buildRoom: a figure of the 3D part doesn't resolve");
-  // The scene's visitor anchor is the first avatar's hand; the chosen avatar's own hand is offset from it (FR-008).
+  // The scene's visitor anchor is the first avatar's hand, on the side the data puts nearer the twin; the chosen
+  // avatar's own hand is offset from it, on that side (FR-008).
+  const visitorPiece = piece(byId.get(part.handoff.to.placement)?.piece ?? "");
+  const handAt =
+    visitorPiece && Object.hasOwn(visitorPiece.anchors, part.handoff.to.anchor)
+      ? visitorPiece.anchors[part.handoff.to.anchor]
+      : undefined;
+  if (!handAt) throw new Error("buildRoom: an anchor of the hand-off doesn't resolve");
   const anchors = {
     twinHand: anchorPoint(part.handoff.from),
-    visitorHand: anchorPoint(part.handoff.to, handOffset(options.avatar)),
+    visitorHand: anchorPoint(part.handoff.to, handOffset(options.avatar, sideOf(handAt.at[0]))),
+  };
+  // Each figure turns toward the other's hand: where it lies across the figure, in the figure's own frame.
+  const across = (figure: string, point: Vector3): Side => {
+    const back = invert(world.get(figure) ?? IDENTITY);
+    return sideOf(back ? transformPoint(back, point.toArray())[0] : point.x);
+  };
+  const facing = {
+    twin: across(part.figures.twin, anchors.visitorHand),
+    visitor: across(part.figures.visitor, anchors.twinHand),
   };
 
   // The paper: one sheet that travels from the twin's hand (or fades out there), one that fades in at the visitor's.
@@ -276,6 +296,7 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
     twin,
     visitor,
     anchors,
+    facing,
     paper: { sheet: paper, atTwin, atVisitor },
     materials,
   };
@@ -351,8 +372,9 @@ const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2)
 
 /**
  * The hand-off at a progress, 0 to 1 (spec 002's, FR-008): the twin turns toward the visitor and the paper travels in
- * an arc from its hand to the visitor's; under reduced motion nothing moves, and the paper crossfades from one hand to
- * the other.
+ * an arc from its hand to the visitor's, who turns toward the twin to take it and back (handoff.ts's VISITOR_TURN and
+ * visitorTurnShare), each toward the side the other stands on; under reduced motion nothing moves, and the paper
+ * crossfades from one hand to the other.
  */
 export function showHandoff(room: Room3D, progress: number, reducedMotion: boolean): void {
   const p = Math.min(1, Math.max(0, progress));
@@ -363,6 +385,7 @@ export function showHandoff(room: Room3D, progress: number, reducedMotion: boole
     atTwin.opacity = 1 - p;
     atVisitor.opacity = p;
     room.twin.rotation.y = 0;
+    room.visitor.rotation.y = 0;
     return;
   }
   const e = easeInOut(p);
@@ -370,7 +393,8 @@ export function showHandoff(room: Room3D, progress: number, reducedMotion: boole
   sheet.position.y += Math.sin(Math.PI * e) * PAPER_ARC;
   atTwin.opacity = 1;
   atVisitor.opacity = 0;
-  room.twin.rotation.y = TWIN_TURN * Math.min(1, p / 0.3) * (1 - Math.max(0, (p - 0.8) / 0.2));
+  room.twin.rotation.y = room.facing.twin * TWIN_TURN * Math.min(1, p / 0.3) * Math.min(1, (1 - p) / 0.2);
+  room.visitor.rotation.y = room.facing.visitor * VISITOR_TURN * visitorTurnShare(p);
 }
 
 /** Releases what the room made: every mesh's geometry, every material and its textures (the ramp, a label's), and the

@@ -517,7 +517,8 @@ describe("the hand-off in 3D", () => {
         expect(towardVisitor).toBe(-towardTwin);
         expect(Math.sign(across(room.visitor, room.anchors.visitorHand)), id).toBe(towardTwin);
         showHandoff(room, 0, false);
-        expect([room.visitor.rotation.y, room.twin.rotation.y]).toEqual([0, 0]);
+        expect(room.visitor.rotation.y, id).toBeCloseTo(0, 12);
+        expect(room.twin.rotation.y, id).toBeCloseTo(0, 12);
         // A positive turn about +Y brings a figure's front, +Z, toward its +X: each turns toward the other.
         showHandoff(room, 0.5, false);
         expect(room.visitor.rotation.y, id).toBeCloseTo(towardTwin * VISITOR_TURN, 12);
