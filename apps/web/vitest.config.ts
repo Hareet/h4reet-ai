@@ -6,7 +6,9 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     environment: "node",
-    // The smoke test runs one vite build first.
+    // One release build and one drafts build of the site, made before any test file runs, which the smoke test, the
+    // chunk test, and the built-site checks read (spec 004, T084).
+    globalSetup: ["test/global-build.ts"],
     testTimeout: 60_000,
     hookTimeout: 120_000,
     restoreMocks: true,
