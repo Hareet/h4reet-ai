@@ -1,23 +1,43 @@
 // The room's accessible layer (spec 002, FR-043–FR-045; contracts/room-scene.md §5; research.md R-03): the "In the
-// room" list, the objects' equivalent for keyboards and screen readers, whose buttons call the same selectObject as a
-// raycast hit and a touch; and the polite status region the hand-off's line goes to, in the page from the first screen
-// so a screen reader is already watching it when the line arrives. The canvas and the 2D drawing stay aria-hidden.
+// room" list, the selectables' equivalent for keyboards and screen readers, whose buttons call the same selectObject as
+// a pick in 3D or 2D; and the polite status region the hand-off's line goes to, in the page from the first screen so a
+// screen reader is already watching it when the line arrives. The canvas and the 2D drawing stay aria-hidden.
+// Since spec 004 (FR-004, FR-063; R-40), the list is the bundle's index's: a button per selectable in scene order,
+// named by its name, with a visually hidden ": " and its topic's phrase, or the resume action's UI word, under the
+// index's own heading, so a selectable added, renamed, or retargeted as data changes the list with no change here.
+import type { RoomIndex } from "./compose/bundle";
 import { h } from "./dom";
-import { ROOM_OBJECTS } from "./objects";
-import type { ObjectId } from "./objects";
+import { uiWord } from "./ui-keys";
 
-/** The "In the room" list: one button per object, named by the object and its topic, in a fixed order. */
-export function renderObjectList(doc: Document, select: (id: ObjectId) => void): HTMLElement {
-  const heading = h(doc, "h2", { id: "room-list-heading", class: "visually-hidden" }, "In the room");
-  const items = ROOM_OBJECTS.map((object) => {
+/** What the list reads of the index: its words, its selectables, and their topics. */
+export type ListIndex = Pick<RoomIndex, "ui" | "selectables" | "topics">;
+
+/** What a selectable opens, in words: its topic's phrase, or the resume action's UI word; null where the index has
+ *  neither. */
+function opens(room: ListIndex, selectable: ListIndex["selectables"][number]): string | null {
+  const { action } = selectable;
+  if (action.kind === "talk") return room.topics.find((t) => t.id === action.topic)?.phrase ?? null;
+  return uiWord(room.ui, "list.resume_action");
+}
+
+/** The "In the room" list: a button per selectable, in the index's order, named by it and by what it opens. */
+export function renderObjectList(doc: Document, room: ListIndex, select: (id: string) => void): HTMLElement {
+  const heading = h(
+    doc,
+    "h2",
+    { id: "room-list-heading", class: "visually-hidden" },
+    uiWord(room.ui, "list.heading") ?? "",
+  );
+  const items = room.selectables.map((selectable) => {
+    const what = opens(room, selectable);
     const button = h(
       doc,
       "button",
-      { type: "button", "data-object-id": object.id },
-      h(doc, "span", {}, object.name),
-      h(doc, "span", { class: "visually-hidden" }, `: ${object.topic}`),
+      { type: "button", "data-object-id": selectable.id },
+      h(doc, "span", {}, selectable.name),
+      ...(what === null ? [] : [h(doc, "span", { class: "visually-hidden" }, `: ${what}`)]),
     );
-    button.addEventListener("click", () => select(object.id));
+    button.addEventListener("click", () => select(selectable.id));
     return h(doc, "li", {}, button);
   });
   return h(

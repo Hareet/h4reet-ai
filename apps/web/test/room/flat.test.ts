@@ -172,8 +172,8 @@ function tap(win: TestWindow, el: Element, [clientX, clientY]: Point, pointerTyp
 
 // ---- The hand-off (FR-008) ----
 
-/** Spec 002's hand on an avatar's flat cut-out, from its feet, in metres: left of its centre by 35% of its width, and up
- *  60% of its height, never above 0.95 m. */
+/** Spec 002's hand on an avatar's flat cut-out, from its feet, in metres: left of its centre by 35% of its width, and
+ *  up 60% of its height, never above 0.95 m. */
 function hand(avatar: AvatarId): Point {
   const { width, height } = AVATAR_SHAPES[avatar];
   return [-width * 0.35, Math.min(0.95, height * 0.6)];
@@ -200,7 +200,7 @@ function valueImports(file: string, seen: Set<string> = new Set()): Set<string> 
 const ROOM_SRC = fileURLToPath(new URL("../../src/room/", import.meta.url));
 
 describe("the drawing (drawFlat)", () => {
-  it("draws from the index alone: what it imports reaches neither three.js nor the 3D part, so it never waits on them", () => {
+  it("draws from the index alone: its imports reach neither three.js nor the 3D part, so it never waits", () => {
     const reached = [...valueImports(resolve(ROOM_SRC, "flat.ts"))];
     // The walk follows the module's own imports: the kernel's picker and the avatars' shapes among them.
     expect(reached).toContain(resolve(ROOM_SRC, "compose/pick.ts"));
@@ -315,7 +315,7 @@ describe("the drawing (drawFlat)", () => {
     }
   });
 
-  it("makes each switch case its own group, toggled by visibility, its cable a quadratic curve, only not-live's shown", () => {
+  it("makes each switch case a group toggled by visibility, its cable a quadratic curve, not-live's shown", () => {
     const { doc } = page();
     const { index } = fixture();
     const drawing = drawFlat(doc, index, "dog");
@@ -385,7 +385,7 @@ describe("the drawing (drawFlat)", () => {
     expect(drawFlat(doc, absent, "dog").labels.has("fx-unworded")).toBe(false);
   });
 
-  it("cues each selectable with a dashed rectangle around its hit rectangles and its name tag, over every piece", () => {
+  it("cues each selectable: a dashed rectangle around its hit rectangles, its name tag, over every piece", () => {
     const { doc } = page();
     const { index } = fixture();
     const drawing = drawFlat(doc, index, "dog");
@@ -449,7 +449,7 @@ describe("the drawing (drawFlat)", () => {
     }
   });
 
-  it("puts the paper at the index's three positions, the first avatar's, and moves it to each avatar's own hand", () => {
+  it("puts the paper at the index's three positions, the first avatar's, moved to each avatar's own hand", () => {
     const { doc } = page();
     const { index } = fixture();
     const { papers, visitor } = index.flat;
@@ -472,7 +472,8 @@ describe("the drawing (drawFlat)", () => {
       if (id === AVATARS[0].id)
         drawing.papers.forEach((paper, k) => expectClose(paperCentre(paper), papers[k] ?? [], 1e-9));
     }
-    // The dog holds it 576 mm lower than the first avatar, at the visitor's scale: one anchor would leave it in the air.
+    // The dog holds it 576 mm lower than the first avatar, at the visitor's scale: one anchor would leave it in the
+    // air.
     const dog = drawFlat(doc, index, "dog");
     expect(hand("dog")[1] - first[1]).toBeCloseTo(-0.576, 9);
     expect((paperCentre(dog.papers[2])[1] ?? 0) - papers[2][1]).toBeCloseTo(0.576 * visitor.scale, 6);
@@ -531,7 +532,7 @@ describe("the 2D stage (renderFlat)", () => {
     },
   );
 
-  it("gives a small selectable a core of 44 CSS pixels at the drawing's scale, and the frontmost member the pick", () => {
+  it("gives a small selectable a 44-pixel core at the drawing's scale, and the frontmost member the pick", () => {
     const hits: RoomIndex["flat"]["hits"] = [
       { selectable: "fx-small", rects: [[150, 90, 4, 4]], depths: [3] },
       { selectable: "fx-front", rects: [[20, 20, 60, 40]], depths: [1] },
@@ -562,7 +563,7 @@ describe("the 2D stage (renderFlat)", () => {
     }
   });
 
-  it("selects on a tap of a mouse or a finger at each selectable, never on a drag, off every one, or once disposed", () => {
+  it("selects on a mouse's or a finger's tap, never on a drag, off every selectable, or once disposed", () => {
     const { win, doc } = page();
     const { index } = fixture();
     const select = vi.fn<(id: string) => void>();

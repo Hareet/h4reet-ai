@@ -2,16 +2,17 @@
 // §3; research.md R-14): the text box, "Send", the talk button, and the log where the twin's words and the fixed
 // messages appear. Until the twin's conversation core exists (Phase 7), every surface answers with a fixed message and
 // sends nothing anywhere:
-// - an object answers topic_not_ready;
+// - a selectable answers topic_not_ready, its {topic} the topic's own phrase from the bundle's index (spec 004,
+//   FR-037), never the visitor's words;
 // - a typed turn answers cannot_talk.unavailable, pointing to the resume and the PDF, and leaves the text in the box;
 // - the talk button announces voice_unavailable and moves focus to the text box, without asking for the microphone
 //   (the image's Permissions-Policy keeps microphone=() until push-to-talk's group).
 import "./talk.css";
 
 import type { Clock } from "../room/clock";
+import type { RoomIndex } from "../room/compose/bundle";
 import { h } from "../room/dom";
 import type { EventSink } from "../room/events";
-import type { RoomObject } from "../room/objects";
 import { fill, pointsToResume } from "./messages";
 import type { MessageId, Messages } from "./messages";
 
@@ -21,8 +22,9 @@ const LOG_LIMIT = 20;
 export interface TalkPanel {
   readonly element: HTMLElement;
   readonly textBox: HTMLInputElement;
-  /** An object was selected: its topic isn't ready (FR-023). */
-  objectSelected(object: RoomObject): void;
+  /** A selectable was selected whose topic isn't ready (FR-023; spec 004, FR-037): the fixed message names the topic by
+   *  its own phrase, from the bundle's index. */
+  objectSelected(topic: Pick<RoomIndex["topics"][number], "phrase">): void;
 }
 
 export function renderTalk(
@@ -137,8 +139,8 @@ export function renderTalk(
   return {
     element,
     textBox,
-    objectSelected(object) {
-      show("topic_not_ready", { topic: object.topic });
+    objectSelected(topic) {
+      show("topic_not_ready", { topic: topic.phrase });
     },
   };
 }

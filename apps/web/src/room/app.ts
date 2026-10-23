@@ -7,7 +7,8 @@
 // - "Enter" builds the room with its controls inert, mounts the 3D scene or the 2D drawing, and plays the hand-off,
 //   which nothing skips; its end offers the resume now or later and opens the room.
 // - The quality controller, a lost context, or the visitor's "2D view" moves the room to 2D, once, keeping the visit.
-// - Every object, the text box, and the talk button answer with the fixed messages and call nothing (R-14).
+// - Every selectable, the text box, and the talk button answer with the fixed messages and call nothing (R-14). The
+//   selectables, the list, and the 2D drawing are the bundle's index's (spec 004, FR-011): no ID of the room's is here.
 // - Usage events go to the EventSink: the page's sends beacons (src/events.ts); by default, nothing is sent.
 import "./room.css";
 
@@ -30,7 +31,6 @@ import { handoffDuration, runHandoff } from "./handoff";
 import type { Handoff } from "./handoff";
 import { renderRoom } from "./layout";
 import type { RoomLayout } from "./layout";
-import { isObjectId, objectById } from "./objects";
 import { SCENE_WAIT_MS, createQualityController, hasWebGL2, targetFps, watchContext } from "./quality";
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
@@ -117,7 +117,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   async function arrive(choice: Choice): Promise<void> {
-    const list = renderObjectList(doc, selectObject);
+    const list = renderObjectList(doc, deps.room, selectObject);
     talk = renderTalk(doc, { messages: content.messages, clock, emit, enabled: open, openResume, pdfFollowed });
     const layout = renderRoom(doc, { list, talk: talk.element });
     room = layout;
@@ -256,12 +256,19 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (content.manifest.items.includes(id)) emit({ kind: "item_selected", id });
   }
 
-  /** A selectable picked in 3D or 2D, or from the list: object_selected, for an ID the index lists (spec 004, T098). */
+  /**
+   * A selectable picked in 3D or 2D, or pressed in the list, the one path for every input (spec 004, FR-004, FR-071;
+   * R-33): object_selected with the selectable's ID, only for one the index lists; then, while no topic is ready, the
+   * fixed message naming its topic by the topic's own phrase, and no call (FR-037). Running the action is T207's.
+   */
   function selectObject(id: string): void {
-    if (!open() || !talk || !deps.room.selectables.some((s) => s.id === id)) return;
-    emit({ kind: "object_selected", id });
-    // The fixed message names spec 002's topic until the talk panel reads the index's phrase (T110).
-    if (isObjectId(id)) talk.objectSelected(objectById(id));
+    const selectable = deps.room.selectables.find((s) => s.id === id);
+    if (!open() || !talk || !selectable) return;
+    emit({ kind: "object_selected", id: selectable.id });
+    const { action } = selectable;
+    if (action.kind !== "talk") return;
+    const topic = deps.room.topics.find((t) => t.id === action.topic);
+    if (topic) talk.objectSelected(topic);
   }
 
   return {

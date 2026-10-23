@@ -3,10 +3,10 @@
 // focus in the CSS, the canvas and the 2D drawing hidden from assistive technology with the list as their equivalent,
 // 44-pixel targets in the CSS, polite live regions, and 0 axe violations on every screen. What jsdom can't show (layout,
 // real focus rings, a screen reader) is the Author's run, quickstart §4.
-// T105 (spec 004; FR-063; R-16, R-40): the "In the room" list is the bundle's index's: a button per selectable in scene
-// order, named by its name with a visually hidden ": " and its topic's phrase, or the resume action's UI word, under the
-// index's own heading. Expectations come from compose(), of the repository's data and of the fixture set, whose IDs
-// are synthetic fx- ones.
+// T105 (spec 004; FR-063; R-16, R-40): the "In the room" list is the bundle's index's: a button per selectable in
+// scene order, named by its name with a visually hidden ": " and its topic's phrase, or the resume action's UI word,
+// under the index's own heading. Expectations come from compose(), of the repository's data and of the fixture set,
+// whose IDs are synthetic fx- ones.
 import { describe, expect, it } from "vitest";
 
 import { compose } from "../../build/room/compose";
@@ -215,7 +215,7 @@ describe("assistive technology", () => {
     }
   });
 
-  it('builds the "In the room" list from the index: a button per selectable in scene order, with its topic or action', async () => {
+  it('builds the "In the room" list from the index: a button per selectable, with its topic or action', async () => {
     const { index } = compose(goodTree(), noPolicy(), { mode: "strict", drafts: false });
     expect(new Set(index.selectables.map((s) => s.action.kind))).toEqual(new Set(["talk", "resume"]));
     const v = start({ webgl: false, room: index });

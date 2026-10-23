@@ -1,15 +1,17 @@
 // The 2D room (spec 002, FR-042; spec 004, FR-011, FR-058, FR-064; Amendment B8; R-39; contracts/room-bundle.md §3.1):
-// the bundle's index, drawn as an inline SVG, which never waits on the 3D part. The compositor projected each piece's 2D
-// drawing through framing(1.6) into the 320 × 200 view box, so this module only draws the index's `flat`:
+// the bundle's index, drawn as an inline SVG, which never waits on the 3D part. The compositor projected each piece's
+// 2D drawing through framing(1.6) into the 320 × 200 view box, so this module only draws the index's `flat`:
 // - each placement's primitives in a group at its matrix, back to front as the index orders them;
 // - each switch case its own group, toggled by `visibility`, holding its pose and its cable as a quadratic curve, the
 //   not-live case shown until the tier applies another (T160, T161);
-// - each stand-in's label as SVG text, the UI word `standin.label` filled with its label's word, as the 3D room words it;
+// - each stand-in's label as SVG text, the UI word `standin.label` filled with its label's word, as the 3D room words
+//   it;
 // - the visitor as the chosen avatar's flat polygons (src/choice/avatars.ts), at the index's place and scale;
 // - the hand-off as three still frames of its paper, at the index's projected positions, which are the first avatar's:
 //   the paper in the visitor's hands moves by the chosen avatar's hand offset (handoff.ts), at the visitor's scale, and
 //   the paper between the hands half as far, as the 3D room's arc does (plan.md §10, T098's entry);
-// - each selectable's cue, a dashed rectangle around its hit rectangles with its name tag, styled by room.css's classes.
+// - each selectable's cue, a dashed rectangle around its hit rectangles with its name tag, styled by room.css's
+//   classes.
 // The faces come with their renderers' SVG backend (T185).
 //
 // An allowlist governs every element and attribute the drawing holds: the elements g, rect, circle, ellipse, line,
@@ -327,7 +329,8 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
 export interface FlatPicker {
   /** The drawing's size on screen, in CSS pixels: the cores are 44 px at its scale, recomputed when it changes. */
   resize(size: Size): void;
-  /** The selectable under a point of the drawing's box, in normalized device coordinates, or null; none before a size. */
+  /** The selectable under a point of the drawing's box, in normalized device coordinates, or null; none before a
+   *  size. */
   readonly pick: (ndc: Ndc) => string | null;
 }
 

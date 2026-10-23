@@ -155,7 +155,7 @@ describe("selectObject", () => {
       const { doc, win, canvas } = surface(stage);
       const selectObject = vi.fn<(id: string) => void>();
       bindPointerSelection(canvas, picker.pick, selectObject);
-      const list = renderObjectList(doc, selectObject);
+      const list = renderObjectList(doc, index, selectObject);
       doc.body.append(list);
       const areas = threeAreas(stage);
       expect(areas).toHaveLength(index.selectables.length);
