@@ -13,13 +13,15 @@
 // 2, and a vendored file absent, off its digest, or not a font fontkit can measure, each once at its file; a look's
 // family that fonts.lock doesn't vendor for the room, and a weight it has no file at, or two, at the look's
 // `typefaces.<use>`. No reason holds a family's name. A look's typefaces[] is null while a finding stands on a family
-// it names. Pure but for the tree: no clock, environment variable, or network.
+// it names. `readFaces` also gives each use's advance widths, where its font was read, which RT8 holds a chalk line
+// and a neon word to. Pure but for the tree: no clock, environment variable, or network.
 import { createHash } from "node:crypto";
 
 import { create } from "fontkit";
 
 import type { Look, RoomIndex } from "../../src/room/compose/bundle";
 import { TYPEFACE_USES } from "../../src/room/compose/vocabulary";
+import type { TypefaceUse } from "../../src/room/compose/vocabulary";
 import { parseFontsLock } from "../pdf";
 import type { FontsLock } from "../pdf";
 
@@ -57,6 +59,13 @@ export interface Typefaces {
   readonly findings: readonly TypefaceFinding[];
 }
 
+/** readTypefaces's reading, with the fonts kept for their advance widths (RT8). */
+export interface Faces extends Typefaces {
+  /** A text's advance width in ems, laid out in the font a look names for a use, kerning included; null where that
+   * font wasn't read, or fontkit can't lay the text out. */
+  advance(look: string, use: TypefaceUse, text: string): number | null;
+}
+
 const REASON = {
   lockAbsent: "absent, so no typeface is vendored",
   lockShape: "not fonts.lock's schema 2 (data-model.md §7.2), so no typeface is vendored",
@@ -82,11 +91,13 @@ const FONT_FILE = /\.(?:woff2?|ttf|otf)$/i;
 /** The capitals and digits whose glyphs' tops give a cap ratio. */
 const CAPS_AND_DIGITS = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"].map((c) => c.charCodeAt(0));
 
-/** What a font gives the index. */
+/** What a font gives the index, and its advance widths. */
 interface Measured {
   readonly weight: number;
   readonly capRatio: number;
   readonly fixedPitch: boolean;
+  /** A text's advance width in ems, or null when fontkit can't lay it out. */
+  readonly advance: (text: string) => number | null;
 }
 
 /** A vendored file as read: sound when present, on its digest, and, for a font, measured. */
@@ -111,15 +122,24 @@ function measure(bytes: Uint8Array): Measured | null {
     }
     const capRatio = top / font.unitsPerEm;
     if (!Number.isFinite(capRatio) || capRatio <= 0) return null;
-    return { weight, capRatio, fixedPitch: (font.post?.isFixedPitch ?? 0) !== 0 };
+    const advance = (text: string): number | null => {
+      try {
+        const ems = font.layout(text).advanceWidth / font.unitsPerEm;
+        return Number.isFinite(ems) ? ems : null;
+      } catch {
+        return null;
+      }
+    };
+    return { weight, capRatio, fixedPitch: (font.post?.isFixedPitch ?? 0) !== 0, advance };
   } catch {
     return null;
   }
 }
 
-/** Each font's measure, once a process, by the SHA-256 its file matched fonts.lock with: a measure is the bytes' alone,
- * and fontkit's read of a font is most of a compose's time, which RG7, RT10, and the index each ask for. */
+/** Each font file's measure, by its SHA-256, made once: a measure is a function of the file's bytes alone, and every
+ * compose reads the same few files, so no result depends on what was read before. */
 const MEASURED = new Map<string, Measured | null>();
+
 function measureOnce(bytes: Uint8Array, sha256: string): Measured | null {
   if (!MEASURED.has(sha256)) MEASURED.set(sha256, measure(bytes));
   return MEASURED.get(sha256) ?? null;
@@ -127,11 +147,21 @@ function measureOnce(bytes: Uint8Array, sha256: string): Measured | null {
 
 /** Each look's typefaces from the fonts the tree holds, and RT10's findings (the module's header gives the rules). */
 export function readTypefaces(tree: TreeReader, looks: readonly LookFonts[]): Typefaces {
+  const { looks: read, findings } = readFaces(tree, looks);
+  return { looks: read, findings };
+}
+
+/** readTypefaces's reading, with each use's advance widths where its font was read. */
+export function readFaces(tree: TreeReader, looks: readonly LookFonts[]): Faces {
   const findings: TypefaceFinding[] = [];
   const refuse = (file: string, path: string, reason: string): void => {
     findings.push({ rule: "RT10", file, path, reason });
   };
-  const unread = (): Typefaces => ({ looks: looks.map((look) => ({ file: look.file, typefaces: null })), findings });
+  const unread = (): Faces => ({
+    looks: looks.map((look) => ({ file: look.file, typefaces: null })),
+    findings,
+    advance: () => null,
+  });
 
   const bytes = tree.read(LOCK);
   if (bytes === null) {
@@ -178,6 +208,8 @@ export function readTypefaces(tree: TreeReader, looks: readonly LookFonts[]): Ty
     });
   }
 
+  /** Each look's font for each use it resolved, by the look's file and the use. */
+  const resolved = new Map<string, Measured>();
   const out = looks.map((look) => {
     const typefaces: Typeface[] = [];
     let whole = true;
@@ -202,8 +234,13 @@ export function readTypefaces(tree: TreeReader, looks: readonly LookFonts[]): Ty
       }
       const fallback = font.fixedPitch ? "monospace" : "sans-serif";
       typefaces.push({ use, family, weight, cap_ratio: font.capRatio, fallback });
+      resolved.set(`${look.file}\n${use}`, font);
     }
     return { file: look.file, typefaces: whole ? typefaces : null };
   });
-  return { looks: out, findings };
+  return {
+    looks: out,
+    findings,
+    advance: (look, use, text) => resolved.get(`${look}\n${use}`)?.advance(text) ?? null,
+  };
 }

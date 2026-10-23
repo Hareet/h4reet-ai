@@ -1,6 +1,7 @@
 // fontkit 2.0.4, as far as build/room/typefaces.ts reads it (spec 004, T079; R-21): the package ships no types, so this
 // declares only that use, never fontkit's whole API: a font made from its bytes; its kind, its units per em, its OS/2
-// weight class, and its post table's fixed pitch; and a glyph by code point, with its bounding box.
+// weight class, and its post table's fixed pitch; a glyph by code point, with its bounding box; and a text laid out,
+// for its advance width (RT8).
 declare module "fontkit" {
   /** A glyph's bounding box in font units, y up from the baseline. */
   export interface BBox {
@@ -21,6 +22,13 @@ declare module "fontkit" {
     readonly post?: { readonly isFixedPitch: number } | undefined;
     hasGlyphForCodePoint(codePoint: number): boolean;
     glyphForCodePoint(codePoint: number): Glyph;
+    /** The text shaped with the font's default features, kerning among them. */
+    layout(text: string): GlyphRun;
+  }
+
+  /** A shaped text: its total advance width, in font units. */
+  export interface GlyphRun {
+    readonly advanceWidth: number;
   }
 
   /** A TrueType collection: several fonts in one file. */

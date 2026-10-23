@@ -57,7 +57,7 @@ const CORPUS_TEXT = [
   "",
   "## Do not claim",
   "",
-  "- That the fixture keeper invented the glowword. `[A 2026-01-01]` The glowword predates the fixture keeper by years.",
+  "- That the fixture keeper invented the glowword. `[A 2026-01-01]` The glowword predates the fixture keeper.",
   "",
 ].join("\n");
 const KEY_PHRASE_LINE = 14;
@@ -321,7 +321,7 @@ describe("RT6, the monitor's scripts (FR-031)", () => {
     expect(where("RT6", edit(NOTES, [["lines", 0, "text"], "ls ~/fx"]))).toEqual([]);
   });
 
-  it(`refuses a block that would take its renderer over ${TYPING_LIMIT_S} s to type; a pending line isn't typed`, () => {
+  it(`refuses a block its renderer would type for over ${TYPING_LIMIT_S} s; a pending line isn't typed`, () => {
     expect(TYPING_LIMIT_S).toBe(5);
     const most = TYPING_CHARS_PER_S * TYPING_LIMIT_S;
     const typed = Array.from({ length: most / 12 }, () => ({ text: "fx run fx ok" }));
@@ -389,15 +389,15 @@ describe("RT8, words over their grid (FR-031, FR-033, FR-052)", () => {
     const wide = edit(NOTES, [["lines", 0, "text"], "Plan small things daily"]);
     const found = of("RT8", lines(wide));
     expect(found).toHaveLength(1);
-    expect(found[0]).toMatch(
-      /^RT8 apps\/web\/room\/scene\.yaml:placements\[5\]\.faces\.slate\.regions\[0\]: lines\[0\] of its block is \d+\.\d{3} m wide at the grid's size, wider than the region's 0\.740 m$/,
-    );
+    const width = /^lines\[0\] of its block is \d+\.\d{3} m wide at the grid's size, wider than the region's 0\.740 m$/;
+    expect(found[0]?.startsWith(`RT8 ${CHALK}: `)).toBe(true);
+    expect(found[0]?.slice(`RT8 ${CHALK}: `.length)).toMatch(width);
     // Six rows halve the glyph: the same line fits.
     const smaller = edit(SCENE, [["placements", 5, "faces", "slate", "regions", 0, "grid"], { rows: 6 }]);
     expect(where("RT8", { ...wide, ...smaller })).toEqual([]);
   });
 
-  it("refuses a neon word over its panel's characters, or wider than the panel by the neon typeface's advance widths", () => {
+  it("refuses a neon word over its panel's characters, or wider than the panel in its typeface", () => {
     expect(where("RT8", edit(UI, [["words", "sign.word"], "Glowwordss"]))).toEqual([]);
     expect(of("RT8", lines(edit(UI, [["words", "sign.word"], "Glowwordsss"])))).toEqual([
       `RT8 ${NEON}: ui[0] is 11 characters, more than the grid's 10 characters`,

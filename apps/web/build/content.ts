@@ -15,7 +15,8 @@
 // is reported as `<item-id>: <reason>`, at each item's first, and a private denylist phrase never by its words.
 // The forbidden list is shared with narration's N3 (contracts/narration.md §2). The line check is exported for spec
 // 004's room words (T074; FR-035; R-15): `checkLine` gives one line's first problem, which checkSource reports after
-// the line's ID, with C6's `bareNumber` and C9's `forbiddenHit`, and `lineContext` makes what it reads.
+// the line's ID, with C6's `bareNumber` and C9's `forbiddenHit`, and `lineContext` makes what it reads from the root,
+// `treeLineContext` the same through the compositor's tree.
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
@@ -369,7 +370,13 @@ function normalize(s: string): string {
 }
 
 function readCorpusFile(root: string, rel: string, roomName: string): { file: CorpusFile; forbidden: Forbidden[] } {
-  const lines = readFileSync(join(root, rel), "utf8").split("\n");
+  return parseCorpusFile(readFileSync(join(root, rel), "utf8"), rel, roomName);
+}
+
+/** A corpus topic file's text, `rel`'s, as the check reads it: its sentences and tagged pieces (C2 to C5), and its
+ * "Do not claim" key phrases, each with its line (C9). */
+function parseCorpusFile(text: string, rel: string, roomName: string): { file: CorpusFile; forbidden: Forbidden[] } {
+  const lines = text.split("\n");
   const headings: { level: number; doNotClaim: boolean }[] = [];
   const file: CorpusFile = { sentences: [], pieces: [] };
   const forbidden: Forbidden[] = [];
@@ -401,10 +408,15 @@ function readCorpusFile(root: string, rel: string, roomName: string): { file: Co
 /** C1: one of the corpus's topic files, `corpus/NN-<topic>.md` at its top level (so never under intake/, proposals/,
  * or facts/, and never README.md or INTAKE.md), and a regular file in the tree. */
 function corpusPath(root: string, file: string): boolean {
-  const [top, name, ...deeper] = file.split("/");
-  if (top !== "corpus" || name === undefined || deeper.length > 0 || !TOPIC_FILE.test(name)) return false;
+  if (!isTopicPath(file)) return false;
   const full = join(root, file);
   return existsSync(full) && lstatSync(full).isFile();
+}
+
+/** C1's form, with nothing read: `corpus/NN-<topic>.md` at the corpus's top level. */
+function isTopicPath(file: string): boolean {
+  const [top, name, ...deeper] = file.split("/");
+  return top === "corpus" && name !== undefined && deeper.length === 0 && TOPIC_FILE.test(name);
 }
 
 // ---- Facts slots (corpus/README.md, Plug-in numbers) ----
@@ -425,18 +437,26 @@ export function readFacts(root: string): Map<string, Fact> {
   if (!existsSync(dir)) return facts;
   for (const name of readdirSync(dir).sort()) {
     if (!name.endsWith(".yaml")) continue;
-    const doc = parseYaml(readFileSync(join(dir, name), "utf8"), { schema: "core" }) as unknown;
-    const list = isObject(doc) && Array.isArray(doc.facts) ? doc.facts : [];
-    for (const f of list) {
-      if (!isObject(f) || typeof f.id !== "string") continue;
-      facts.set(f.id, {
-        id: f.id,
-        value: f.value ?? null,
-        public_safe: f.public_safe ?? null,
-        phrasing: typeof f.phrasing === "string" ? f.phrasing : "",
-        file: posix.join("corpus", "facts", name),
-      });
-    }
+    for (const fact of factsIn(readFileSync(join(dir, name), "utf8"), name)) facts.set(fact.id, fact);
+  }
+  return facts;
+}
+
+/** The slots of one facts file, `corpus/facts/<name>`, from its text; the yaml package's error for one that isn't
+ * YAML. */
+function factsIn(text: string, name: string): Fact[] {
+  const doc = parseYaml(text, { schema: "core" }) as unknown;
+  const list = isObject(doc) && Array.isArray(doc.facts) ? doc.facts : [];
+  const facts: Fact[] = [];
+  for (const f of list) {
+    if (!isObject(f) || typeof f.id !== "string") continue;
+    facts.push({
+      id: f.id,
+      value: f.value ?? null,
+      public_safe: f.public_safe ?? null,
+      phrasing: typeof f.phrasing === "string" ? f.phrasing : "",
+      file: posix.join("corpus", "facts", name),
+    });
   }
   return facts;
 }
@@ -471,20 +491,31 @@ function slotIds(item: Line): string[] {
 export type DenylistState = "applied" | "missing" | "unreadable";
 
 function readDenylist(path: string): { state: DenylistState; list: Forbidden[] } {
-  let lines: string[];
+  let text: string;
   try {
     if (!statSync(path).isFile()) return { state: "unreadable", list: [] };
-    lines = readFileSync(path, "utf8").split("\n");
+    text = readFileSync(path, "utf8");
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     return { state: code === "ENOENT" || code === "ENOTDIR" ? "missing" : "unreadable", list: [] };
   }
+  return { state: "applied", list: denylistPhrases(text) };
+}
+
+/** The private denylist's phrases from its text, one a line, `#` opening a comment, each with its line. */
+function denylistPhrases(text: string): Forbidden[] {
   const list: Forbidden[] = [];
-  lines.forEach((l, i) => {
+  text.split("\n").forEach((l, i) => {
     const phrase = normalize(l);
     if (phrase && !l.trimStart().startsWith("#")) list.push({ phrase, source: `${DENYLIST_PATH}:${i + 1}` });
   });
-  return { state: "applied", list };
+  return list;
+}
+
+/** The surname rule: each word of main's full name after the first, of two letters or more. */
+function surnameRule(fullName: string | null): Forbidden[] {
+  const words = (fullName ?? "").split(/\s+/).filter(Boolean).slice(1);
+  return words.filter((word) => word.length >= 2).map((word) => ({ phrase: word.toLowerCase(), source: SURNAME_RULE }));
 }
 
 /** Every corpus file's "Do not claim" key phrases, the surname rule (each word of main's full name after the
@@ -501,9 +532,7 @@ export function forbiddenList(options: {
     if (!TOPIC_FILE.test(name) || !lstatSync(join(dir, name)).isFile()) continue;
     list.push(...readCorpusFile(options.root, posix.join("corpus", name), options.roomName).forbidden);
   }
-  for (const word of (options.fullName ?? "").split(/\s+/).filter(Boolean).slice(1)) {
-    if (word.length >= 2) list.push({ phrase: word.toLowerCase(), source: SURNAME_RULE });
-  }
+  list.push(...surnameRule(options.fullName));
   const denied = readDenylist(options.denylist ?? join(options.root, DENYLIST_PATH));
   return { list: [...list, ...denied.list], denylist: denied.state };
 }
@@ -645,6 +674,57 @@ export function lineContext(options: CheckOptions, roomName: string): LineContex
     authorWords,
     forbidden: forbidden.list,
     denylist: forbidden.denylist,
+  };
+}
+
+/** A tree of the repository's files, as spec 004's compositor reads its inputs (apps/web/build/room/source.ts), as far
+ * as the check needs it: a path's bytes, null when it isn't a regular file there, and a folder's entries, sorted. */
+export interface CorpusTree {
+  read(path: string): Uint8Array | null;
+  list(dir: string): readonly string[];
+}
+
+/** lineContext's context read through a tree, as spec 004's compositor reads everything (RT2 to RT7): the corpus's
+ * topic files, its facts, and the private denylist where the tree holds it, in lineContext's order, with the same
+ * room name and surname rule. A file the tree doesn't give is absent, and a facts file that isn't YAML gives no slots:
+ * nothing throws. */
+export function treeLineContext(tree: CorpusTree, roomName: string, fullName: string | null): LineContext {
+  const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
+  const text = (path: string): string | null => {
+    const bytes = tree.read(path);
+    return bytes === null ? null : decoder.decode(bytes);
+  };
+  const files = new Map<string, ReturnType<typeof parseCorpusFile> | null>();
+  const corpus = (rel: string): ReturnType<typeof parseCorpusFile> | null => {
+    if (!files.has(rel)) {
+      const found = isTopicPath(rel) ? text(rel) : null;
+      files.set(rel, found === null ? null : parseCorpusFile(found, rel, roomName));
+    }
+    return files.get(rel) ?? null;
+  };
+  const facts = new Map<string, Fact>();
+  for (const name of tree.list("corpus/facts")) {
+    const found = name.endsWith(".yaml") ? text(`corpus/facts/${name}`) : null;
+    if (found === null) continue;
+    try {
+      for (const fact of factsIn(found, name)) facts.set(fact.id, fact);
+    } catch {
+      // Not YAML: no slots from it.
+    }
+  }
+  const forbidden: Forbidden[] = [];
+  for (const name of tree.list("corpus")) {
+    if (TOPIC_FILE.test(name)) forbidden.push(...(corpus(`corpus/${name}`)?.forbidden ?? []));
+  }
+  forbidden.push(...surnameRule(fullName));
+  const denylist = text(DENYLIST_PATH);
+  if (denylist !== null) forbidden.push(...denylistPhrases(denylist));
+  return {
+    corpusFile: (rel) => corpus(rel)?.file ?? null,
+    facts,
+    authorWords: normalize(roomName).split(/\s+/).filter(Boolean),
+    forbidden,
+    denylist: denylist === null ? "missing" : "applied",
   };
 }
 

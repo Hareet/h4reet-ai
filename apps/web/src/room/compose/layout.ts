@@ -5,6 +5,7 @@
 // the terminal's and the desktop session's columns and rows, the chalkboard's line slots, and the neon sign's word and
 // counter panels with their maximum characters. A sign has no grid: its outline is fitted inside its region, keeping
 // its aspect, centred. Lengths are in the face's own units, metres at the piece's scale 1, from its top left, y down.
+// The screens' typing rate sits here too, so the time RT6 holds a monitor's script to is the time the screen types.
 import type { Renderer } from "./vocabulary";
 
 /** A region's rectangle on its face: `[x, y, w, h]`, fractions of the face from its top left (FR-017). */
@@ -35,6 +36,19 @@ export const GRID_METRICS = {
   chalk: { line: 1.3 },
   neon: { line: 1.2, advance: 0.6 },
 } as const satisfies Record<TextRenderer, { line: number; advance?: number }>;
+
+/**
+ * The screens' typing (FR-031): the terminal and the desktop session type their block's drawn lines once, a character
+ * at a time at this rate, then hold. They must finish within TYPING_LIMIT_S, so a block that would take longer is
+ * refused (RT6). A line break takes no time.
+ */
+export const TYPING_CHARS_PER_S = 60;
+export const TYPING_LIMIT_S = 5;
+
+/** How long a screen takes to type these lines, in seconds. */
+export function typingSeconds(lines: readonly string[]): number {
+  return lines.reduce((n, line) => n + [...line].length, 0) / TYPING_CHARS_PER_S;
+}
 
 export interface TextGrid {
   /** The glyph size, the typeface's em, in the face's units. */
