@@ -6,7 +6,7 @@ name: Room shell, the back wall and the floor
 size: { w: 16, h: 9, d: 20 }
 stylized_scale: 1
 origin:
-  point: On the floor, 2 m out from the back wall, on the room's centre line
+  point: on the floor, 2 m out from the back wall, on the room's centre line.
   bounds: { min: [-8, 0, -2], max: [8, 9, 18] }
 anchors:
   floor: { at: [0, 0, 0] }

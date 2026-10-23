@@ -1,14 +1,15 @@
 # The twin's figure: spec 002's placeholder, a body, a head, and an arm held out (src/room/scene.ts), at LAYOUT's size
-# (src/room/framing.ts). Its picture is the twin's avatar (spec 003), so the piece has no model; it gives the stand-in,
-# the size, and the hand the paper leaves from (FR-008). Its budget is nominal: the avatar's files carry their own.
+# (src/room/framing.ts), widened to hold the arm. Its picture is the twin's avatar (spec 003), so the piece has no
+# model; it gives the stand-in, the size, and the hand the paper leaves from (FR-008). Its budget is nominal: the
+# avatar's files carry their own.
 version: 1
 id: twin-figure
 name: The twin's figure
-size: { w: 0.56, h: 1.75, d: 0.4 }
+size: { w: 0.65, h: 1.75, d: 0.4 }
 stylized_scale: 1
 origin:
-  point: On the floor, between the figure's feet
-  bounds: { min: [-0.28, 0, -0.2], max: [0.28, 1.75, 0.2] }
+  point: on the floor, between the figure's feet.
+  bounds: { min: [-0.28, 0, -0.2], max: [0.37, 1.75, 0.2] }
 anchors:
   hand: { at: [0.33, 1.02, 0.2] }
 standin:

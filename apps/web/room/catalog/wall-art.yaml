@@ -1,28 +1,24 @@
-# The artwork above the window: spec 002's placeholder, a framed canvas with a sun and a hill, unlit
-# (src/room/scene.ts), at LAYOUT's size (src/room/framing.ts), hanging on the back wall.
+# The artwork above the window (FR-028, FR-078): spec 002's placeholder, a framed canvas with a sun and a hill, unlit
+# (src/room/scene.ts), at the size estimated for the Author's frame until measured, hanging on the back wall.
 version: 1
 id: wall-art
 name: Artwork
-size: { w: 0.7, h: 0.4, d: 0.04 }
+size: { w: 0.5, h: 0.3, d: 0.04, estimated: true }
 stylized_scale: 1
 origin:
-  point: The centre of the frame's back, against the wall
-  bounds: { min: [-0.35, -0.2, 0], max: [0.35, 0.2, 0.04] }
+  point: the centre of the frame's back, against the wall.
+  bounds: { min: [-0.25, -0.15, 0], max: [0.25, 0.15, 0.04] }
 standin:
-  - { shape: box, size: [0.7, 0.4, 0.03], at: [0, 0, 0.02], color: frame-wood }
-  - { shape: plane, size: [0.64, 0.34], at: [0, 0, 0.036], color: canvas, lit: false }
-  - { shape: circle, radius: 0.07, at: [-0.12, 0.02, 0.037], color: sun, lit: false }
+  - { shape: box, size: [0.5, 0.3, 0.03], at: [0, 0, 0.02], color: frame-wood }
+  - { shape: plane, size: [0.45, 0.25], at: [0, 0, 0.036], color: canvas, lit: false }
+  - { shape: circle, radius: 0.05, at: [-0.09, 0.02, 0.037], color: sun, lit: false }
   - shape: polygon
-    points: [[0.12, 0], [-0.06, 0.103923], [-0.06, -0.103923]]
+    points: [[0.09, 0], [-0.045, 0.077942], [-0.045, -0.077942]]
     depth: 0.002
-    at: [0.12, -0.04, 0.037]
+    at: [0.09, -0.03, 0.037]
     color: hill
     lit: false
-drawing:
-  primitives:
-    - { primitive: rect, x: -0.35, y: -0.2, w: 0.7, h: 0.4, fill: canvas, stroke: frame-wood, stroke_width: 0.038 }
-    - { primitive: ellipse, cx: -0.117, cy: 0, rx: 0.117, ry: 0.109, fill: sun }
-    - { primitive: polygon, points: [[0.039, -0.127], [0.194, 0.127], [0.311, -0.127]], fill: hill }
+drawing: { from: standin }
 budget: { gzip_bytes: 400000, triangles: 500, texture_px: 1024, texture_bytes: 5592405 }
 work_order:
   method: >-
@@ -32,7 +28,7 @@ work_order:
     - The frame from the front, square on, for its shape and depth only.
   measurements:
     - The frame's outer width, height, and depth.
-    - The height from the floor to the frame's lower edge, and its offset from the window's centre.
+    - Where the frame hangs, from the floor to its lower edge and from the window's centre.
   studio_notes: >-
     Original art, the studio's own by default, or none (FR-028): never a copy, trace, or crop of the picture that
     hangs there, and no signature, word, or digit (FR-016).

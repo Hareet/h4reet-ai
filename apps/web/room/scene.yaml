@@ -1,8 +1,8 @@
-# The room's scene: spec 002's room exactly (R-07's first data commit). Each placement mounts so its box lands where
-# spec 002's LAYOUT put it (src/room/framing.ts): the desk on the floor, the laptop and the screen on the desk's top,
-# the snowboard, the bicycle, the window, and the artwork on the back wall, the window's view inside the window, and
-# the two figures on the floor. Spec 002's framed set is framed, its placeholders keep their labels, and its three
-# objects are the selectables, in its order.
+# The room's scene: FR-078's work area (R-07's second data commit, B1, B2). The desk stands against the back wall with
+# the ultrawide monitor, the neon sign clipped to its top edge, the laptop on its stand, and the two signs; the
+# chalkboard hangs beside the twin, the snowboard on the left above it, and the bicycle on the right next to the desk,
+# with the window and the artwork above it. Every position in the Author's room is an estimate until measured. The
+# charger is the laptop's switch on the tier: plugged in only while the tier is local (FR-043).
 version: 1
 look: inked-cel
 live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
@@ -10,32 +10,76 @@ placements:
   - { id: room-shell, piece: room-shell }
   - id: work-desk
     piece: work-desk
-    mount: { on: room-shell, anchor: floor, offset: [0.1, 0, -1.45] }
+    mount: { on: room-shell, anchor: floor, offset: [0.1, 0, -1.55], estimated: true }
     frame: true
     label: label.desk
-  - id: laptop
-    piece: laptop
-    mount: { on: work-desk, anchor: top, offset: [-0.35, 0, 0.1] }
-    frame: true
-    label: label.laptop
   - id: desk-screen
     piece: desk-screen
-    mount: { on: work-desk, anchor: top, offset: [0.3, 0, -0.17] }
+    mount: { on: work-desk, anchor: top, offset: [-0.22, 0, -0.22], estimated: true }
     frame: true
-    label: label.screen
+    label: label.monitor
+  - id: neon-sign
+    piece: neon-sign
+    mount: { on: desk-screen, anchor: top-edge }
+    frame: true
+    label: label.neon-sign
+    faces:
+      word:
+        label: label.neon-word
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 10 }, ui: [sign.word] }
+      call:
+        label: label.neon-call
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 24 }, signal: turn-cost, part: call }
+      visit:
+        label: label.neon-visit
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 24 }, signal: turn-cost, part: visit }
+      second-line:
+        label: label.neon-line
+        atmosphere: true
+        max_chars: 43
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 43 }, ui: [sign.second_line] }
+  - id: laptop-stand
+    piece: laptop-stand
+    mount: { on: work-desk, anchor: top, offset: [0.47, 0, -0.1], estimated: true }
+    frame: true
+    label: label.stand
+  - id: laptop
+    piece: laptop
+    mount: { on: laptop-stand, anchor: top, estimated: true }
+    frame: true
+    label: label.laptop
+  - id: busy-sign
+    piece: busy-sign
+    mount: { on: work-desk, anchor: top, offset: [-0.45, 0, 0.27], turn: { y: 12 }, estimated: true }
+    frame: true
+    label: label.busy-sign
+  - id: dog-sign
+    piece: dog-sign
+    mount: { on: work-desk, anchor: top, offset: [0.22, 0, 0.29], turn: { y: -10 }, estimated: true }
+    frame: true
+    label: label.dog-sign
+  - id: chalkboard
+    piece: chalkboard
+    mount: { on: room-shell, anchor: back-wall, offset: [-1.42, 1.45, 0], estimated: true }
+    frame: true
+    label: label.chalkboard
   - id: snowboard
     piece: snowboard
-    mount: { on: room-shell, anchor: back-wall, offset: [-2.3, 1.45, 0.06] }
+    mount: { on: room-shell, anchor: back-wall, offset: [-0.95, 2.76, 0.035], turn: { z: 90 }, estimated: true }
     frame: true
     label: label.snowboard
   - id: bicycle
     piece: bicycle
-    mount: { on: room-shell, anchor: back-wall, offset: [2.25, 1.53, 0.1] }
+    mount: { on: room-shell, anchor: back-wall, offset: [1.35, 1.13, 0.05], turn: { z: 90 }, estimated: true }
     frame: true
     label: label.bicycle
   - id: wall-window
     piece: wall-window
-    mount: { on: room-shell, anchor: back-wall, offset: [0.95, 1.85, 0] }
+    mount: { on: room-shell, anchor: back-wall, offset: [1.3, 2.3, 0], estimated: true }
     frame: true
     label: label.window
   - id: window-view
@@ -44,19 +88,48 @@ placements:
     label: label.view
   - id: wall-art
     piece: wall-art
-    mount: { on: room-shell, anchor: back-wall, offset: [0.95, 2.55, 0.01] }
+    mount: { on: room-shell, anchor: back-wall, offset: [1.3, 2.85, 0.01], estimated: true }
     frame: true
     label: label.artwork
   - id: twin-figure
     piece: twin-figure
     role: twin
-    mount: { on: room-shell, anchor: floor, offset: [-0.95, 0, -1.3] }
+    mount: { on: room-shell, anchor: floor, offset: [-0.95, 0, -1.45] }
     frame: true
   - id: visitor-figure
     piece: visitor-figure
     role: visitor
-    mount: { on: room-shell, anchor: floor, offset: [1, 0, -0.35] }
+    mount: { on: room-shell, anchor: floor, offset: [0, 0, -0.95] }
     frame: true
+switches:
+  - id: laptop-power
+    signal: tier
+    piece: charger
+    label: label.charger
+    poses:
+      plugged:
+        mount: { on: laptop, anchor: port }
+        glows: [{ placement: laptop, glow: charge-light, level: 1 }]
+      unplugged:
+        mount: { on: work-desk, anchor: top, offset: [0.5, 0.007, 0.16], turn: { y: 160 } }
+      resting:
+        mount: { on: work-desk, anchor: top, offset: [0.32, 0.007, -0.3], turn: { y: 90 } }
+    cases:
+      local: plugged
+      cloud: unplugged
+      resting: resting
+      budget: resting
+      unavailable: resting
+      unknown: resting
+      paused: resting
+      not-live: resting
+    cable:
+      from: lead-end
+      to: { placement: work-desk, anchor: back-edge }
+      sag: 0.2
+      radius: 0.002
+      drop: 0.1
+      rest: { placement: work-desk, anchor: top }
 selectables:
   - id: snowboard
     name: Snowboard
@@ -68,7 +141,7 @@ selectables:
     action: { talk: { topic: travel-adventures } }
   - id: laptop
     name: Laptop and screen
-    members: [laptop, desk-screen]
+    members: [laptop, laptop-stand, desk-screen]
     action: { talk: { topic: work-projects } }
 handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
 survey: { desk_corner: { placement: work-desk, anchor: front-left } }

@@ -1,28 +1,25 @@
-# The desk: spec 002's placeholder, a top on four legs (src/room/scene.ts), at LAYOUT's size (src/room/framing.ts).
-# Its top's anchors carry what stands on it; its front-left corner is the photo guide's origin (survey.desk_corner).
+# The Author's computer desk (FR-078), a top on four legs. Its size, its anchors, and where it stands are estimates
+# until measured. Its top carries the monitor, the laptop's stand, the two signs, and the charger's unplugged poses;
+# its back edge is where the charger's cable runs; its front-left corner is the photo guide's origin.
 version: 1
 id: work-desk
 name: Desk
-size: { w: 1.7, h: 0.75, d: 0.7 }
+size: { w: 1.5, h: 0.75, d: 0.8, estimated: true }
 stylized_scale: 1
 origin:
-  point: On the floor, below the centre of the desk's top
-  bounds: { min: [-0.85, 0, -0.35], max: [0.85, 0.75, 0.35] }
+  point: on the floor, below the centre of the desk's top.
+  bounds: { min: [-0.75, 0, -0.4], max: [0.75, 0.75, 0.4] }
 anchors:
-  top: { at: [0, 0.75, 0] }
-  front-left: { at: [-0.85, 0.75, 0.35] }
-  back-edge: { at: [0, 0.75, -0.35] }
+  top: { at: [0, 0.75, 0], estimated: true }
+  front-left: { at: [-0.75, 0.75, 0.4], estimated: true }
+  back-edge: { at: [0.4, 0.75, -0.4], estimated: true }
 standin:
-  - { shape: box, size: [1.7, 0.05, 0.7], at: [0, 0.725, 0], color: desk-wood }
-  - { shape: box, size: [0.05, 0.7, 0.05], at: [-0.8, 0.35, -0.3], color: desk-leg }
-  - { shape: box, size: [0.05, 0.7, 0.05], at: [-0.8, 0.35, 0.3], color: desk-leg }
-  - { shape: box, size: [0.05, 0.7, 0.05], at: [0.8, 0.35, -0.3], color: desk-leg }
-  - { shape: box, size: [0.05, 0.7, 0.05], at: [0.8, 0.35, 0.3], color: desk-leg }
-drawing:
-  primitives:
-    - { primitive: rect, x: -0.85, y: 0.6, w: 1.7, h: 0.15, fill: desk-wood }
-    - { primitive: rect, x: -0.789, y: 0, w: 0.091, h: 0.6, fill: "#7a5a3a" }
-    - { primitive: rect, x: 0.698, y: 0, w: 0.091, h: 0.6, fill: "#7a5a3a" }
+  - { shape: box, size: [1.5, 0.04, 0.8], at: [0, 0.73, 0], color: desk-wood }
+  - { shape: box, size: [0.05, 0.71, 0.05], at: [-0.7, 0.355, -0.35], color: desk-leg }
+  - { shape: box, size: [0.05, 0.71, 0.05], at: [-0.7, 0.355, 0.35], color: desk-leg }
+  - { shape: box, size: [0.05, 0.71, 0.05], at: [0.7, 0.355, -0.35], color: desk-leg }
+  - { shape: box, size: [0.05, 0.71, 0.05], at: [0.7, 0.355, 0.35], color: desk-leg }
+drawing: { from: standin }
 budget: { gzip_bytes: 600000, triangles: 6000, texture_px: 1024, texture_bytes: 5592405 }
 work_order:
   method: Model the desk from the dimension sheet and the Author's description, as plain solid parts in flat colours.
@@ -34,6 +31,7 @@ work_order:
     - The top's width, depth, and thickness.
     - The height from the floor to the top's upper face.
     - The legs' or frame's size and where they stand under the top.
+    - Where the desk stands, from the back wall and from the room's left side.
   studio_notes: >-
     No brand, label, sticker, or readable print on any part (FR-016). Any wood grain is painted or procedural, never
     taken from a photo (FR-022).

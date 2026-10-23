@@ -1,31 +1,45 @@
-# The screen beside the laptop: spec 002's placeholder, a foot, a neck, and a panel whose face glows
-# (src/room/scene.ts), at LAYOUT's size (src/room/framing.ts), standing on the desk's top.
+# The ultrawide monitor on the desk (FR-078; answer 5), which spec 002's screen gives way to under its ID: a foot, a
+# neck, and a panel whose display is a readable live face, a terminal half and a desktop half drawn by the room once
+# its scripts are bound (FR-031, T191); until then the face stays a plain glow. Its top edge carries the neon sign.
+# The size and the anchor are estimates until measured; the stylized scale is lookdev's to set, for the screen.
 version: 1
 id: desk-screen
-name: Screen
-size: { w: 0.64, h: 0.54, d: 0.16 }
-stylized_scale: 1
+name: Ultrawide monitor
+size: { w: 0.82, h: 0.52, d: 0.24, estimated: true }
+stylized_scale: 1.2
 origin:
-  point: On the desk, below the centre of the screen's foot
-  bounds: { min: [-0.32, 0, -0.08], max: [0.32, 0.54, 0.08] }
+  point: on the desk, below the centre of the monitor's foot.
+  bounds: { min: [-0.41, 0, -0.12], max: [0.41, 0.52, 0.12] }
+anchors:
+  top-edge: { at: [0, 0.52, -0.04], estimated: true }
+live_faces:
+  - role: screen
+    at: [0, 0.335, -0.013]
+    size: [0.8, 0.34]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [2048, 870]
+    readable: true
+glows:
+  - { id: screen-glow, at: [0, 0.335, -0.01], radius: 0.45, tone: screen-blue, motion: breathe }
 standin:
-  - { shape: box, size: [0.22, 0.015, 0.14], at: [0, 0.008, 0], color: charcoal }
-  - { shape: box, size: [0.05, 0.14, 0.05], at: [0, 0.08, 0], color: charcoal }
-  - { shape: box, size: [0.62, 0.38, 0.04], at: [0, 0.34, 0], color: screen-black }
-  - { shape: plane, size: [0.56, 0.32], at: [0, 0.34, 0.021], color: screen-glow, lit: false }
-drawing:
-  primitives:
-    - { primitive: rect, x: -0.32, y: 0.108, w: 0.64, h: 0.432, fill: "#2b2b2b", stroke: graphite, stroke_width: 0.017 }
-    - { primitive: rect, x: -0.032, y: 0, w: 0.064, h: 0.108, fill: graphite }
-budget: { gzip_bytes: 400000, triangles: 4000, texture_px: 512, texture_bytes: 1398101 }
+  - { shape: box, size: [0.3, 0.02, 0.24], at: [0, 0.01, 0], color: charcoal }
+  - { shape: box, size: [0.06, 0.2, 0.04], at: [0, 0.12, -0.08], color: charcoal }
+  - { shape: box, size: [0.82, 0.37, 0.05], at: [0, 0.335, -0.04], color: screen-black }
+  - { shape: plane, size: [0.8, 0.34], at: [0, 0.335, -0.014], color: screen-glow, lit: false }
+drawing: { from: standin }
+budget: { gzip_bytes: 600000, triangles: 6000, texture_px: 1024, texture_bytes: 5592405 }
 work_order:
-  method: Model the screen on its stand from the dimension sheet and the Author's description, as plain solid parts.
+  method: >-
+    Model the monitor on its stand from the dimension sheet and the Author's description, as plain solid parts. The
+    display is one quad, the live face named for its role, in one plain colour.
   shots:
-    - The screen from the front, square on, switched off.
-    - The screen from its side, showing the stand.
+    - The monitor from the front, square on, switched off.
+    - The monitor from its side, showing the stand and the panel's depth.
   measurements:
     - The panel's width, height, and depth, and the size of its display area.
-    - The stand's foot, and the height from the desk to the panel's lower edge.
+    - The stand's foot, and the height from the desk to the panel's lower and upper edges.
+    - Where the foot stands on the desk, from the desk's front-left corner.
   studio_notes: >-
-    The display area is one plain colour: nothing shows on it (spec 003's screens confirmation). No logo, label,
-    sticker, or button legend (FR-016).
+    The display is one plain colour: nothing shows on it, since the room draws its two halves live (FR-031; spec
+    003's screens confirmation). No logo, label, sticker, or button legend (FR-016).

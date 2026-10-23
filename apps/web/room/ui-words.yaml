@@ -37,8 +37,18 @@ words:
   standin.note: Placeholder shapes stand in for the room's pieces until their models arrive
   draft.badge: Draft
   label.desk: Desk
+  label.monitor: Monitor
+  label.neon-sign: Neon sign
+  label.neon-word: Neon sign
+  label.neon-call: This call
+  label.neon-visit: This visit
+  label.neon-line: The neon sign's second line
+  label.stand: Laptop stand
   label.laptop: Laptop
-  label.screen: Screen
+  label.charger: Laptop charger
+  label.busy-sign: Desk sign, busy
+  label.dog-sign: Desk sign, dog
+  label.chalkboard: Chalkboard
   label.snowboard: Snowboard
   label.bicycle: Bicycle
   label.window: Window

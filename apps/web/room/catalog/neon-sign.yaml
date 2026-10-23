@@ -1,0 +1,71 @@
+# The clip-on neon arrow sign on the monitor's top edge (FR-021, FR-046; answer 6): an arrow-shaped backing, the neon
+# tube tracing its outline, and the clip that grips the edge, with no tube shaped like a letter or a digit. Its four
+# live faces are plain panels the room draws on: the word, the two counters, and the second line (FR-049), which isn't
+# a readable face, so its words go to the text copy (FR-052). A designed prop with nothing to measure, enlarged as a
+# readable prop (FR-051): stylized scale 4 and the panels' sizes hold the word and the counters at the legibility
+# floor on both reference stages; lookdev sets them again (Confirmation 8).
+version: 1
+id: neon-sign
+name: Neon arrow sign
+size: { w: 0.59, h: 0.263, d: 0.05 }
+stylized_scale: 4
+origin:
+  point: the middle of the clip, where it sits on the monitor's top edge.
+  bounds: { min: [-0.255, -0.02, -0.015], max: [0.335, 0.243, 0.035] }
+live_faces:
+  - role: word
+    at: [0, 0.198, 0.0245]
+    size: [0.2, 0.04]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [1024, 205]
+    readable: true
+  - role: call
+    at: [0, 0.15, 0.0245]
+    size: [0.46, 0.04]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [2048, 178]
+    readable: true
+  - role: visit
+    at: [0, 0.102, 0.0245]
+    size: [0.46, 0.04]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [2048, 178]
+    readable: true
+  - role: second-line
+    at: [0, 0.064, 0.0245]
+    size: [0.46, 0.02]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [2048, 89]
+    readable: false
+glows:
+  - { id: tube-glow, at: [0.03, 0.136, 0.03], radius: 0.3, tone: neon-warm, motion: flicker }
+standin:
+  - { shape: box, size: [0.03, 0.04, 0.03], at: [0, 0, 0], color: graphite }
+  - shape: polygon
+    points: [[-0.254, 0.03], [0.254, 0.03], [0.33, 0.136], [0.254, 0.242], [-0.254, 0.242]]
+    depth: 0.008
+    at: [0, 0, 0.02]
+    color: ink
+  - { shape: tube, from: [-0.244, 0.04, 0], to: [0.254, 0.04, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
+  - { shape: tube, from: [0.254, 0.04, 0], to: [0.318, 0.136, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
+  - { shape: tube, from: [0.318, 0.136, 0], to: [0.254, 0.232, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
+  - { shape: tube, from: [0.254, 0.232, 0], to: [-0.244, 0.232, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
+  - { shape: tube, from: [-0.244, 0.232, 0], to: [-0.244, 0.04, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
+drawing: { from: standin }
+budget: { gzip_bytes: 300000, triangles: 4000, texture_px: 512, texture_bytes: 1398101 }
+work_order:
+  method: >-
+    Model the sign from the dimension sheet: the arrow-shaped backing, one neon tube bent along its outline, and the
+    clip that grips the monitor's top edge. The word panel, the two counter panels, and the line below them are four
+    flat quads on the backing, the live faces named for their roles, each one plain colour: the room draws the word
+    and the figures on them and lights the tube.
+  shots: []
+  measurements: []
+  studio_notes: >-
+    An original arrow in the look's own style: no tube or shape spelling a letter or a digit, and no logo, wordmark,
+    brand colour, or game asset of any kind (FR-021, FR-046). The tube's colour is a flat base colour; its glow is the
+    room's, never an emissive material (FR-022).
