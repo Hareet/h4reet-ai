@@ -11,12 +11,12 @@
 // that isn't directly under assets/room/, or whose stem isn't its piece's ID, isn't read: RI7's finding is the one to
 // fix. A reason never quotes a name or a string from the file, and a path names a GLB's element by its index (FR-018).
 // `modelChecks` keeps each model's findings and measures for the compose, so RK reads every file once; `overBudget`
-// gives RK2's reasons from them; and `setModels` the pieces whose model is set, main's caps existing and no RX or RK2
-// finding standing on it (contracts/room-bundle.md §3.4), which every frame box reads (rg.ts).
-import { atScale, fit, fitCard, unreadable } from "../../../src/room/glb/fit";
+// gives RK2's reasons from them, by fit.ts's `budgetReasons`, which the lookdev page shares; and `setModels` the pieces
+// whose model is set, main's caps existing and no RX or RK2 finding standing on it (contracts/room-bundle.md §3.4),
+// which every frame box reads (rg.ts).
+import { atScale, budgetReasons, fit, fitCard, unreadable } from "../../../src/room/glb/fit";
 import type { Bounds, FitInput, GlbFinding, Vec3 } from "../../../src/room/glb/fit";
 import { gzipBytes } from "../../../src/room/glb/gzip";
-import { count } from "../../../src/room/glb/rules";
 import type { Loaded } from "../load";
 import { capsOf } from "../policy";
 import type { RoomCaps } from "../policy";
@@ -140,23 +140,9 @@ export function modelChecks(ctx: Context): readonly ModelCheck[] {
   return out;
 }
 
-/** RK2's reasons: each of a model's measures over its piece's budget. */
+/** RK2's reasons: each of a model's measures over its piece's budget, by fit.ts's `budgetReasons`. */
 export function overBudget(check: ModelCheck): string[] {
-  const m = check.measures;
-  if (m === null) return [];
-  const b = check.entry.value.budget;
-  const over = (measured: string, budget: number): string =>
-    `${measured}, over the piece's budget of ${count(budget)}; the piece keeps its stand-in`;
-  const served =
-    check.kind === "card" ? `${count(m.served)} bytes, served as stored` : `${count(m.served)} gzip-9 bytes`;
-  const out: string[] = [];
-  if (m.served > b.gzip_bytes) out.push(over(served, b.gzip_bytes));
-  if (m.triangles !== null && m.triangles > b.triangles) out.push(over(`${count(m.triangles)} triangles`, b.triangles));
-  if (m.maxTexturePx !== null && m.maxTexturePx > b.texture_px)
-    out.push(over(`a texture side of ${count(m.maxTexturePx)} pixels`, b.texture_px));
-  if (m.textureBytes > b.texture_bytes)
-    out.push(over(`${count(m.textureBytes)} bytes of texture memory`, b.texture_bytes));
-  return out;
+  return check.measures === null ? [] : budgetReasons(check.measures, check.entry.value.budget, check.kind);
 }
 
 /** Each piece whose model is set, main's caps existing and the model having no RX or RK2 finding, with a model's

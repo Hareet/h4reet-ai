@@ -9,8 +9,9 @@
 // RX7's tolerance is the larger of 2 cm and 3% of the expected extent at the stylized scale: FR-019's "the larger of
 // 2 cm and 3%", with the catalog's lengths times the scale and the 2 cm the studio's own. RX8 finds a face's corners by
 // their texture coordinates and prints its measured plane. A comparison counts as off unless it holds, so a number that
-// isn't finite never passes. An image card meets RX9's texture rules through the same code (§7, `fitCard`). Pure: no
-// Node, DOM, or three.js.
+// isn't finite never passes. An image card meets RX9's texture rules through the same code (§7, `fitCard`). RK2's
+// reasons, a model's measures over its piece's budget (§8.2), are here too, so the compositor's RK family and the
+// lookdev page's candidates take them from one place (`budgetReasons`). Pure: no Node, DOM, or three.js.
 import { readImage } from "./images";
 import type { ImageFormat, ImageHeader, ImageRead } from "./images";
 import type { Json } from "./json";
@@ -33,6 +34,7 @@ import {
   TOLERANCE,
   XMP,
   admitted,
+  count,
   placedOn,
 } from "./rules";
 import type { MarkClass, RxRule } from "./rules";
@@ -706,4 +708,40 @@ function rx10(glb: Glb, out: Problem[]): void {
     }
     if (m.occlusionTexture !== undefined) bad(`${at}.occlusionTexture`, REASON.occlusion);
   });
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// RK2: a model's measures against its piece's budget (§8.2)
+// --------------------------------------------------------------------------------------------------------------------
+/** A piece's budget, from its catalog entry (data-model.md): what RK2 holds its model to. */
+export interface Budget {
+  readonly gzip_bytes: number;
+  readonly triangles: number;
+  readonly texture_px: number;
+  readonly texture_bytes: number;
+}
+
+/** What RK2 reads of a model's or a card's measures (§7). */
+export interface BudgetMeasures {
+  /** The bytes the site serves: a model's gzip-9 copy, a card as stored. */
+  readonly served: number;
+  /** A model's; null for a card. */
+  readonly triangles: number | null;
+  readonly maxTexturePx: number | null;
+  readonly textureBytes: number;
+}
+
+/** RK2's reasons: each of a model's or a card's measures over its piece's budget, in the budget's order. */
+export function budgetReasons(m: BudgetMeasures, b: Budget, kind: "glb" | "card"): string[] {
+  const over = (measured: string, budget: number): string =>
+    `${measured}, over the piece's budget of ${count(budget)}; the piece keeps its stand-in`;
+  const served = kind === "card" ? `${count(m.served)} bytes, served as stored` : `${count(m.served)} gzip-9 bytes`;
+  const out: string[] = [];
+  if (m.served > b.gzip_bytes) out.push(over(served, b.gzip_bytes));
+  if (m.triangles !== null && m.triangles > b.triangles) out.push(over(`${count(m.triangles)} triangles`, b.triangles));
+  if (m.maxTexturePx !== null && m.maxTexturePx > b.texture_px)
+    out.push(over(`a texture side of ${count(m.maxTexturePx)} pixels`, b.texture_px));
+  if (m.textureBytes > b.texture_bytes)
+    out.push(over(`${count(m.textureBytes)} bytes of texture memory`, b.texture_bytes));
+  return out;
 }

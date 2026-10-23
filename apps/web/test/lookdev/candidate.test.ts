@@ -238,7 +238,7 @@ describe("a picked file, in memory only (FR-067, contracts/lookdev.md §4)", () 
   /** A picked file that records every property read of it. */
   function picked(data: Uint8Array): { file: File; touched: string[] } {
     const touched: string[] = [];
-    const real = new File([data], PICKED_NAME, { type: "model/gltf-binary", lastModified: 1_761_200_000_000 });
+    const real = new File([data.slice()], PICKED_NAME, { type: "model/gltf-binary", lastModified: 1_761_200_000_000 });
     const file = new Proxy(real, {
       get(target, key) {
         touched.push(String(key));
