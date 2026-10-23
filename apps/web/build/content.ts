@@ -13,7 +13,9 @@
 //
 // The check runs on every build, published or withheld, and in make test (test/content/source.test.ts). A problem
 // is reported as `<item-id>: <reason>`, at each item's first, and a private denylist phrase never by its words.
-// The forbidden list is shared with narration's N3 (contracts/narration.md §2).
+// The forbidden list is shared with narration's N3 (contracts/narration.md §2). The line check is exported for spec
+// 004's room words (T074; FR-035; R-15): `checkLine` gives one line's first problem, which checkSource reports after
+// the line's ID, with C6's `bareNumber` and C9's `forbiddenHit`, and `lineContext` makes what it reads.
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
@@ -288,7 +290,7 @@ interface Piece {
   doNotClaim: boolean;
 }
 
-interface CorpusFile {
+export interface CorpusFile {
   /** Every sentence of every line, with the tags taken out (C2). */
   sentences: string[];
   /** The sentence pieces of each tagged span: the text from a tag to the next tag or the line's end (C3). */
@@ -466,7 +468,7 @@ function slotIds(item: Line): string[] {
 
 // ---- The forbidden list (C9; narration's N3) ----
 
-type DenylistState = "applied" | "missing" | "unreadable";
+export type DenylistState = "applied" | "missing" | "unreadable";
 
 function readDenylist(path: string): { state: DenylistState; list: Forbidden[] } {
   let lines: string[];
@@ -607,90 +609,133 @@ export interface CheckOptions {
   denylist?: string | undefined;
 }
 
+/** What checkLine reads besides the line: made once per check, by lineContext from the repository's root for
+ * checkSource, and by whichever caller reads the corpus another way, such as spec 004's compositor (RT2 to RT5). */
+export interface LineContext {
+  /** C1: a corpus topic file as the check reads it, or null when the path names none. */
+  corpusFile(file: string): CorpusFile | null;
+  /** C7's facts slots, by ID; C9 reads a line with them filled. */
+  readonly facts: ReadonlyMap<string, Fact>;
+  /** C8's subject words for the Author: the room's name, normalized, word by word. */
+  readonly authorWords: readonly string[];
+  /** C9's list (forbiddenList). */
+  readonly forbidden: readonly Forbidden[];
+  /** Whether C9's list holds the private denylist, as checkSource reports it. */
+  readonly denylist: DenylistState;
+}
+
+/** checkSource's context: the room's name, the facts, and C9's list, each corpus file read once, when first cited. */
+export function lineContext(options: CheckOptions, roomName: string): LineContext {
+  const { root } = options;
+  const authorWords = normalize(roomName).split(/\s+/).filter(Boolean);
+  const cache = new Map<string, CorpusFile>();
+  const facts = readFacts(root);
+  const forbidden = forbiddenList({ root, roomName, fullName: options.fullName ?? null, denylist: options.denylist });
+  return {
+    corpusFile(rel: string): CorpusFile | null {
+      if (!corpusPath(root, rel)) return null;
+      let file = cache.get(rel);
+      if (!file) {
+        file = readCorpusFile(root, rel, roomName).file;
+        cache.set(rel, file);
+      }
+      return file;
+    },
+    facts,
+    authorWords,
+    forbidden: forbidden.list,
+    denylist: forbidden.denylist,
+  };
+}
+
+/** C1–C5 for one citation: its reason, or the sentence pieces it may cite. */
+function citation(claim: Claim, verb: string | undefined, ctx: LineContext): string | string[] {
+  const file = ctx.corpusFile(claim.file);
+  if (file === null) return "not a corpus file";
+  const quote = collapse(claim.quote);
+  if (quote.length < 12 || !file.sentences.some((s) => s.includes(quote))) return "quote not found";
+  const tagged = file.pieces.filter((p) => p.text.includes(quote));
+  if (tagged.length === 0) return "untagged sentence";
+  const enough = tagged.filter((p) => sufficient(p.tag, verb));
+  if (enough.length === 0) return "tag not sufficient";
+  const citable = enough.filter((p) => !p.doNotClaim);
+  if (citable.length === 0) return "do-not-claim section";
+  return citable.map((p) => p.text);
+}
+
+/** C6: whether a display text shows a digit outside its slot references; a fallback's digits count. */
+export function bareNumber(display: string): boolean {
+  return /\d/.test(outsideSlots(display));
+}
+
+/** C9: the first phrase of the list that a shown text holds, or null: the surname rule's only as a whole word, any
+ * other anywhere, compared as normalize gives the text. A caller reports it by its source, never by its words. */
+export function forbiddenHit(shown: string, list: readonly Forbidden[]): Forbidden | null {
+  return list.find((f) => holds(shown, f)) ?? null;
+}
+
+/** C1–C9 for one line, a header line or an item, under the verb its item declares: the first problem's reason, as
+ * checkSource reports it after the line's ID, or null. A line marked verbUnsaid, a narration script's, holds its
+ * citations to the verb's bar without saying the verb (N1). */
+export function checkLine(
+  line: Line & { readonly verbUnsaid?: true },
+  verb: string | undefined,
+  ctx: LineContext,
+): string | null {
+  const cited: string[] = [];
+  for (const claim of line.claims) {
+    const result = citation(claim, verb, ctx);
+    if (typeof result === "string") return result;
+    cited.push(...result);
+  }
+  if (bareNumber(line.text)) return "bare number";
+  if (slotIds(line).some((slot) => !ctx.facts.has(slot))) return "unknown slot";
+  // C8: the declared verb is in the text, and every ownership verb the text uses, declared or not, is in a cited
+  // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015). The corpus's other act verbs are
+  // held the same way, and a verb the text says as an act must be one a cited sentence says as an act, never only
+  // in an agentless passive.
+  const shownText = normalize(outsideSlots(line.text));
+  if (verb !== undefined && line.verbUnsaid !== true && !wordBoundary(verb.toLowerCase()).test(shownText))
+    return "ownership verb not cited";
+  for (const owned of [...OWNERSHIP_VERBS, ...ACT_VERBS]) {
+    const said = wordBoundary(owned.toLowerCase());
+    if (!said.test(shownText)) continue;
+    if (!cited.some((s) => said.test(normalize(s)))) return "ownership verb not cited";
+    const word = owned.toLowerCase();
+    if (
+      /^[a-z-]+$/.test(word) &&
+      authorActs(shownText, ctx.authorWords).has(word) &&
+      !cited.some((s) => authorActs(normalize(s), ctx.authorWords).has(word))
+    ) {
+      return "passive made active";
+    }
+  }
+  const hit = forbiddenHit(fillSlots(line.text, ctx.facts), ctx.forbidden);
+  return hit ? `forbidden phrase (from ${hit.source})` : null;
+}
+
 /** C1–C9 over the room's header and every item: `<id>: <reason>` for each that has a problem, at its first. */
 export function checkSource(
   source: ResumeSource,
   options: CheckOptions,
 ): { problems: string[]; denylist: DenylistState } {
-  const { root } = options;
   const roomName = source.header.room.name;
-  const authorWords = normalize(roomName).split(/\s+/).filter(Boolean);
-  const cache = new Map<string, CorpusFile>();
-  const corpusFile = (rel: string): CorpusFile => {
-    let file = cache.get(rel);
-    if (!file) {
-      file = readCorpusFile(root, rel, roomName).file;
-      cache.set(rel, file);
-    }
-    return file;
-  };
-  const facts = readFacts(root);
-  const forbidden = forbiddenList({ root, roomName, fullName: options.fullName ?? null, denylist: options.denylist });
-
-  /** C1–C5 for one citation: its reason, or the sentence pieces it may cite. */
-  const citation = (claim: Claim, verb: string | undefined): string | string[] => {
-    if (!corpusPath(root, claim.file)) return "not a corpus file";
-    const file = corpusFile(claim.file);
-    const quote = collapse(claim.quote);
-    if (quote.length < 12 || !file.sentences.some((s) => s.includes(quote))) return "quote not found";
-    const tagged = file.pieces.filter((p) => p.text.includes(quote));
-    if (tagged.length === 0) return "untagged sentence";
-    const enough = tagged.filter((p) => sufficient(p.tag, verb));
-    if (enough.length === 0) return "tag not sufficient";
-    const citable = enough.filter((p) => !p.doNotClaim);
-    if (citable.length === 0) return "do-not-claim section";
-    return citable.map((p) => p.text);
-  };
-
-  const check = (id: string, item: Line, verb: string | undefined, verbUnsaid = false): string | null => {
-    const cited: string[] = [];
-    for (const claim of item.claims) {
-      const result = citation(claim, verb);
-      if (typeof result === "string") return `${id}: ${result}`;
-      cited.push(...result);
-    }
-    if (/\d/.test(outsideSlots(item.text))) return `${id}: bare number`;
-    if (slotIds(item).some((slot) => !facts.has(slot))) return `${id}: unknown slot`;
-    // C8: the declared verb is in the text, and every ownership verb the text uses, declared or not, is in a cited
-    // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015). The corpus's other act verbs are
-    // held the same way, and a verb the text says as an act must be one a cited sentence says as an act, never only
-    // in an agentless passive.
-    const shownText = normalize(outsideSlots(item.text));
-    if (verb !== undefined && !verbUnsaid && !wordBoundary(verb.toLowerCase()).test(shownText))
-      return `${id}: ownership verb not cited`;
-    for (const owned of [...OWNERSHIP_VERBS, ...ACT_VERBS]) {
-      const said = wordBoundary(owned.toLowerCase());
-      if (!said.test(shownText)) continue;
-      if (!cited.some((s) => said.test(normalize(s)))) return `${id}: ownership verb not cited`;
-      const word = owned.toLowerCase();
-      if (
-        /^[a-z-]+$/.test(word) &&
-        authorActs(shownText, authorWords).has(word) &&
-        !cited.some((s) => authorActs(normalize(s), authorWords).has(word))
-      ) {
-        return `${id}: passive made active`;
-      }
-    }
-    const shown = fillSlots(item.text, facts);
-    const hit = forbidden.list.find((f) => holds(shown, f));
-    return hit ? `${id}: forbidden phrase (from ${hit.source})` : null;
-  };
-
+  const ctx = lineContext(options, roomName);
   const problems: string[] = [];
-  const name = forbidden.list.find((f) => holds(roomName, f));
+  const name = forbiddenHit(roomName, ctx.forbidden);
   if (/\d/.test(roomName)) problems.push("header.name: bare number");
   else if (name) problems.push(`header.name: forbidden phrase (from ${name.source})`);
   source.header.room.lines.forEach((l, i) => {
-    const problem = check(`header.lines[${i}]`, l, undefined);
-    if (problem) problems.push(problem);
+    const problem = checkLine(l, undefined, ctx);
+    if (problem) problems.push(`header.lines[${i}]: ${problem}`);
   });
   for (const section of source.sections) {
     for (const item of section.items) {
-      const problem = check(item.id, item, item.verb, item.verbUnsaid === true);
-      if (problem) problems.push(problem);
+      const problem = checkLine(item, item.verb, ctx);
+      if (problem) problems.push(`${item.id}: ${problem}`);
     }
   }
-  return { problems, denylist: forbidden.denylist };
+  return { problems, denylist: ctx.denylist };
 }
 
 // ---- The rendering ----
