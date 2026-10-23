@@ -912,10 +912,11 @@ def test_docker_gets_only_its_own_settings(monkeypatch: pytest.MonkeyPatch) -> N
 LOOKDEV_PHONE = "lookdev-phone"
 
 
-def dockerfile_stages() -> list[tuple[str, str, list[str]]]:
-    """apps/web/Dockerfile's stages in order: each FROM's image, the stage's name in lower case ("" for none), and
-    its other instructions as logical lines, continuations joined and comments dropped."""
-    text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+def dockerfile_stages(text: str | None = None) -> list[tuple[str, str, list[str]]]:
+    """apps/web/Dockerfile's stages in order, or those of `text`: each FROM's image, the stage's name in lower case
+    ("" for none), and its other instructions as logical lines, continuations joined and comments dropped."""
+    if text is None:
+        text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
     logical: list[str] = []
     pending = ""
     for raw in text.splitlines():
@@ -1002,14 +1003,40 @@ def test_the_copy_is_built_with_drafts_on_the_build_stages_install() -> None:
     assert "git" not in run.split()
 
 
+def stages_reading_the_copy(stages: list[tuple[str, str, list[str]]]) -> list[str]:
+    """Each stage but the lookdev-phone target and the stage it copies lookdev.html from that builds on either or
+    reads their files, by its name (its image where it has none)."""
+    by_name = {name: body for _, name, body in stages if name}
+    (copy,) = by_name[LOOKDEV_PHONE]
+    phone = {LOOKDEV_PHONE, copied_from(copy)}
+    return [
+        name or image
+        for image, name, steps in stages
+        if name not in phone
+        and (image.lower() in phone or any(copied_from(ln) in phone for ln in steps))
+    ]
+
+
 def test_no_other_stage_copies_from_the_lookdev_phone_target() -> None:
-    _, body, _, _ = lookdev_phone_stages()
-    phone = {LOOKDEV_PHONE, copied_from(body[0])}
-    for image, name, steps in dockerfile_stages():
-        if name in phone:
-            continue
-        assert image.lower() not in phone, name
-        assert not [ln for ln in steps if copied_from(ln) in phone], name
+    assert stages_reading_the_copy(dockerfile_stages()) == []
+
+
+def test_a_run_mount_from_the_phone_copys_stages_reads_them_too() -> None:
+    # The review's phone-5: a RUN --mount from either stage, in the build stage, would put the drafts copy into
+    # dist/ and the runtime image as surely as a COPY --from would.
+    text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+    for spec in (
+        "type=bind,from=lookdev-phone-build,source=/src/apps/web/dist-phone,target=/p",
+        "type=bind,source=/,from=lookdev-phone,target=/p",
+        "type=cache,target=/p,from=LOOKDEV-PHONE-BUILD",
+        '"type=bind,from=lookdev-phone-build,target=/p"',
+    ):
+        mount = f"RUN --mount={spec} cp /p/lookdev.html apps/web/dist/"
+        edited = text.replace(
+            "FROM install AS build\n", f"FROM install AS build\n{mount}\n", 1
+        )
+        assert edited != text
+        assert stages_reading_the_copy(dockerfile_stages(edited)) == ["build"], spec
 
 
 def test_the_phone_copy_stays_out_of_every_build_context_and_commit() -> None:
