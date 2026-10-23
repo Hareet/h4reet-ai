@@ -27,9 +27,9 @@ placements:
       panel:
         label: label.fx-neon
         regions:
-          - { rect: [0, 0, 1, 0.5], renderer: neon, grid: { chars: 10 }, ui: [sign.word] }
-          - { rect: [0, 0.5, 0.5, 0.5], renderer: neon, grid: { chars: 6 }, signal: turn-cost, part: call }
-          - { rect: [0.5, 0.5, 0.5, 0.5], renderer: neon, grid: { chars: 6 }, signal: turn-cost, part: visit }
+          - { rect: [0, 0, 0.32, 0.45], renderer: neon, grid: { chars: 10 }, ui: [sign.word] }
+          - { rect: [0, 0.5, 1, 0.5], renderer: neon, grid: { chars: 24 }, signal: turn-cost, part: call }
+          - { rect: [0.32, 0, 0.68, 0.4], renderer: neon, grid: { chars: 24 }, signal: turn-cost, part: visit }
   - id: fx-laptop
     piece: fx-laptop
     mount: { on: fx-desk, anchor: top, offset: [0.17, 0, 0], turn: { y: -10 } }

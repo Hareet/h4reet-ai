@@ -217,12 +217,12 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
       ],
     });
     expect(panel?.regions).toEqual([
-      { rect: [0, 0, 1, 0.5], renderer: "neon", grid: { chars: 10 }, source: { ui: ["sign.word"] } },
-      { rect: [0, 0.5, 0.5, 0.5], renderer: "neon", grid: { chars: 6 }, source: { signal: "turn-cost", part: "call" } },
+      { rect: [0, 0, 0.32, 0.45], renderer: "neon", grid: { chars: 10 }, source: { ui: ["sign.word"] } },
+      { rect: [0, 0.5, 1, 0.5], renderer: "neon", grid: { chars: 24 }, source: { signal: "turn-cost", part: "call" } },
       {
-        rect: [0.5, 0.5, 0.5, 0.5],
+        rect: [0.32, 0, 0.68, 0.4],
         renderer: "neon",
-        grid: { chars: 6 },
+        grid: { chars: 24 },
         source: { signal: "turn-cost", part: "visit" },
       },
     ]);

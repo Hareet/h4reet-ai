@@ -444,6 +444,44 @@ describe("RT8, words over their grid (FR-031, FR-033, FR-052)", () => {
     expect(where("RT8", edit(UI, [["words", "sign.word"], "WWWWWWWWWW"]))).toEqual([`RT8 ${NEON}`]);
   });
 
+  describe("a turn-cost counter, sized for its longest readings below $100 (contracts/turn-cost.md §5; words-3)", () => {
+    const CALL = `${SCENE}:placements[3].faces.panel.regions[1]`;
+    const VISIT = `${SCENE}:placements[3].faces.panel.regions[2]`;
+    const grid = (chars: number): Changes =>
+      edit(SCENE, [["placements", 3, "faces", "panel", "regions", 2, "grid"], { chars }]);
+    const over = (what: string, length: number, chars: number, at = VISIT): string =>
+      `RT8 ${at}: the reading ${what} is ${length} characters, more than the grid's ${chars} characters`;
+
+    it("holds every reading the UI words make to the grid's characters, at least $99.999999 est. the longest", () => {
+      expect(where("RT8", {})).toEqual([]);
+      expect(of("RT8", lines(grid(23)))).toEqual([over("of sign.at_least of sign.estimated at $99.999999", 24, 23)]);
+      // The six characters the known-good counters had: every reading but the visit's bare $0 is longer.
+      expect(of("RT8", lines(grid(6)))).toEqual([
+        over("of sign.no_call_yet", 11, 6),
+        over("of sign.unavailable", 16, 6),
+        over("of sign.local at $0", 10, 6),
+        over("of sign.estimated at $99.999999", 15, 6),
+        over("of sign.at_least of sign.estimated at $99.999999", 24, 6),
+      ]);
+    });
+
+    it("reads them from the UI words, so a longer rewording is held to both counters", () => {
+      const reworded = edit(UI, [["words", "sign.unavailable"], "the cost is not available yet"]);
+      expect(of("RT8", lines(reworded))).toEqual([
+        over("of sign.unavailable", 29, 24, CALL),
+        over("of sign.unavailable", 29, 24, VISIT),
+      ]);
+    });
+
+    it("measures their width in the counters' typeface, not the neon word's", () => {
+      // Twenty-four W's fill IBM Plex Mono's 0.6-em cells exactly; in IBM Plex Sans Bold they run over the region.
+      const wide = edit(UI, [["words", "sign.unavailable"], "W".repeat(24)]);
+      expect(where("RT8", wide)).toEqual([]);
+      const sans = { ...wide, ...edit(LOOK, [["typefaces", "counters"], { family: "IBM Plex Sans", weight: 700 }]) };
+      expect(where("RT8", sans)).toEqual([`RT8 ${CALL}`, `RT8 ${VISIT}`]);
+    });
+  });
+
   it("refuses more neon words than the panel's one row", () => {
     const two = edit(SCENE, [
       ["placements", 3, "faces", "panel", "regions", 0, "ui"],
