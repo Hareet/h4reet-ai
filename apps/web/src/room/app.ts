@@ -21,6 +21,7 @@ import type { TalkPanel } from "../talk/talk";
 import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
+import type { RoomIndex } from "./compose/bundle";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
@@ -38,8 +39,10 @@ import type { SceneModule, Stage, Stage3D } from "./stage";
 
 export interface RoomDeps {
   win: Window;
-  /** The fixed messages and the manifest, bundled at build (build/manifest.ts). */
+  /** The fixed messages and the manifest, bundled at build (build/room/plugin.ts). */
   content: RoomContent;
+  /** The bundle's index, bundled at build beside them (spec 004; contracts/room-bundle.md §3.1). */
+  room: RoomIndex;
   /** The interactive resume's view: Phase 3's, through src/room/resume-port.ts's adapter. */
   resume: ResumeView;
   /** Where usage events go (Phase 6's beacon); by default nowhere. */

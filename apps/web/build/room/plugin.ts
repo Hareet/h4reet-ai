@@ -1,6 +1,6 @@
 // roomBundle() (spec 004; FR-011, FR-013, FR-066; R-08, R-10, R-11, R-43; contracts/room-bundle.md §3, §12;
 // contracts/room-data-files.md §14, §15): the Vite plugin that puts the room's bundle into the site, in place of spec
-// 002's roomContentModule, which vite.config.ts keeps until the room's first data (T096).
+// 002's roomContentModule, since the room's first data (vite.config.ts; T096).
 // - buildStart reads main's policy (policy.ts's readRoomPolicy: ROOM_POLICY_DIR, else refs/heads/main, else the
 //   export's own copy) and composes once, in lenient mode, over the file-system tree, with drafts from spec 002's
 //   draftsOn(process.env) (ROOM_DRAFTS=1). Each finding lenient mode tolerates, RX or RK2 on one piece's model, prints

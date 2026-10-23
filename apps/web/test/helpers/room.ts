@@ -1,7 +1,8 @@
 // Helpers for the room's screen tests (spec 002, Phase 4: T034–T039). Each test gets a page made from the real
 // index.html in its own jsdom window, a fake clock it moves by hand, spies on every storage, history, network, and
-// microphone API the page could reach, a stand-in for the 3D chunk (jsdom has no WebGL), and the room's content as the
-// build reads it. Nothing here reaches the network: jsdom loads no subresource, and every request API is a spy.
+// microphone API the page could reach, a stand-in for the 3D chunk (jsdom has no WebGL), and the room's content and
+// index as the build bundles them, composed from the repository's data (spec 004, T096). Nothing here reaches the
+// network: jsdom loads no subresource, and every request API is a spy.
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import axe from "axe-core";
 import { JSDOM, VirtualConsole } from "jsdom";
 
-import { buildManifest, readMessages } from "../../build/manifest";
+import { readMessages } from "../../build/manifest";
 import type { RoomContent } from "../../build/manifest";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
@@ -18,6 +19,7 @@ import { fileTree } from "../../build/room/source";
 import { startRoom } from "../../src/room/app";
 import type { RoomHandle } from "../../src/room/app";
 import type { Clock } from "../../src/room/clock";
+import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { RoomEvent } from "../../src/room/events";
 import { asRoomNarration } from "../../src/narration/data";
 import { resumeView } from "../../src/room/resume-port";
@@ -289,9 +291,14 @@ export function repositoryBundle(
   return result;
 }
 
-/** The room's content, as the build reads it: content/messages.yaml and the manifest. */
+/** The room's content, as the build reads it: content/messages.yaml and the manifest, compose()'s. */
 export function roomContent(): RoomContent {
-  return { messages: readMessages(join(WEB, "content/messages.yaml")), manifest: buildManifest(REPO) };
+  return { messages: readMessages(join(WEB, "content/messages.yaml")), manifest: repositoryBundle().manifest };
+}
+
+/** The bundle's index, as the build bundles it beside the content. */
+export function roomIndex(): RoomIndex {
+  return repositoryBundle().index;
 }
 
 /** A jsdom window, with its event constructors (Event, KeyboardEvent, PointerEvent) typed. */
@@ -349,6 +356,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
   const room = startRoom({
     win,
     content: roomContent(),
+    room: roomIndex(),
     // The real resume view (Phase 3), its room-data.json from the test, never from the network.
     resume: resumeView(
       () => {

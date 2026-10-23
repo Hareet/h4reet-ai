@@ -1,17 +1,15 @@
 // The room's manifest and its fixed messages (spec 002, T045, T046; data-model.md §5 and §7; contracts/room-events.md
-// §3). One source: the objects, avatars, and event kinds the page itself uses (src/), and the resume's item IDs from
-// its source. From it come:
-// - dist/room-manifest.json, written at build: the objects with `ready: false`, free talk not ready, the items, the
-//   avatars, `placeholders: true`, and the event kinds;
-// - config/room-events.yaml, committed, which the gateway's events route will read (Phase 6). `npm run manifest -w
-//   apps/web` rewrites it, and test/manifest.test.ts fails make test while it's stale;
-// - the module `virtual:room-content`, which bundles the manifest and content/messages.yaml into the page, so the
-//   room shows its fixed messages without a request.
+// §3). Spec 002's manifest has one source: the objects, avatars, and event kinds the page itself uses (src/), and the
+// resume's item IDs from its source. From it comes config/room-events.yaml, committed, which the gateway's events route
+// reads (Phase 6): `npm run manifest -w apps/web` rewrites it, and test/manifest.test.ts fails make test while it's
+// stale, until `room:generate` writes it from the room's data (spec 004, T108).
+// The page's manifest is spec 004's (Amendment B7), built below from a compose's parts: build/room/plugin.ts's
+// roomBundle() bundles it with content/messages.yaml into the page as `virtual:room-content`, so the room shows its
+// fixed messages without a request, and writes it to dist/room-manifest.json (spec 004, T096).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Plugin } from "vite";
 import { parse } from "yaml";
 
 import { AVATARS } from "../src/choice/avatars";
@@ -48,10 +46,10 @@ export interface RoomManifest {
   event_kinds: EventKind[];
 }
 
-/** What the page gets at build: its fixed messages and its manifest. */
+/** What the page gets at build: its fixed messages and its manifest, Amendment B7's. */
 export interface RoomContent {
   messages: Messages;
-  manifest: RoomManifest;
+  manifest: BundleManifest;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -94,8 +92,13 @@ export function buildManifest(root: string): RoomManifest {
 const list = (key: string, values: readonly string[]): string =>
   values.length === 0 ? `${key}: []\n` : `${key}:\n${values.map((v) => `  - "${v}"\n`).join("")}`;
 
-/** config/room-events.yaml's text: `{schema: 1, kinds, objects, items}`, every value quoted for any YAML reader. */
-export function roomEventsYaml(manifest: RoomManifest): string {
+/** config/room-events.yaml's text: `{schema: 1, kinds, objects, items}`, every value quoted for any YAML reader, from
+ *  spec 002's manifest or Amendment B7's, whose objects are the selectables. */
+export function roomEventsYaml(manifest: {
+  readonly event_kinds: readonly string[];
+  readonly objects: readonly { readonly id: string }[];
+  readonly items: readonly string[];
+}): string {
   return [
     ...ROOM_EVENTS_HEADER.map((line) => `${line}\n`),
     "schema: 1\n",
@@ -115,8 +118,8 @@ const ROOM_EVENTS_HEADER = [
 ];
 
 // ---- Spec 004's manifest and config files, from the room's data (Amendment B7; contracts/room-bundle.md §6 to §8).
-// The compositor (build/room/emit.ts) builds them from a compose's parts; spec 002's buildManifest and
-// roomContentModule above stay wired until the room's data replaces ROOM_OBJECTS (spec 004, T096).
+// The compositor (build/room/emit.ts) builds them from a compose's parts, and roomBundle() serves the manifest (T096);
+// spec 002's buildManifest above writes config/room-events.yaml until room:generate does (T108).
 
 /** What B7's manifest is built from, a compose's parts: its index (the build, the live source, the selectables, and
  *  the topics' readiness), the placements and poses that show stand-ins with their reasons, the caps' source and
@@ -247,33 +250,6 @@ export function parseMessages(text: string, source: string): Messages {
 
 export function readMessages(path: string): Messages {
   return parseMessages(readFileSync(path, "utf8"), path);
-}
-
-const VIRTUAL = "virtual:room-content";
-const RESOLVED = `\0${VIRTUAL}`;
-
-/** The Vite plugin: `virtual:room-content` for the page, and dist/room-manifest.json at build. */
-export function roomContentModule(options: { root: string; messages: string }): Plugin {
-  return {
-    name: "h4-room-content",
-    resolveId(id) {
-      return id === VIRTUAL ? RESOLVED : null;
-    },
-    load(id) {
-      if (id !== RESOLVED) return null;
-      this.addWatchFile(options.messages);
-      const content: RoomContent = { messages: readMessages(options.messages), manifest: buildManifest(options.root) };
-      return `export const content = ${JSON.stringify(content)};\n`;
-    },
-    generateBundle() {
-      const manifest = buildManifest(options.root);
-      this.emitFile({
-        type: "asset",
-        fileName: "room-manifest.json",
-        source: `${JSON.stringify(manifest, null, 2)}\n`,
-      });
-    },
-  };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

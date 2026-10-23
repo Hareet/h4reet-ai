@@ -1,7 +1,6 @@
-// The modules the room's Vite plugins provide, bundled at build. `content`, the fixed messages and the manifest, is
-// build/manifest.ts's roomContentModule's until build/room/plugin.ts's roomBundle() replaces it with the room's first
-// data, whose manifest is Amendment B7's (spec 004, T096). The rest is roomBundle()'s (contracts/room-bundle.md §3):
-// the index in the entry chunk, the 3D part in the lazy 3D chunk, and, in a drafts build only, the fixtures and the
+// The modules the room's Vite plugin, build/room/plugin.ts's roomBundle(), provides, bundled at build (spec 004, T096;
+// contracts/room-bundle.md §3): `content`, spec 002's fixed messages and the manifest, now Amendment B7's, and the
+// index, in the entry chunk; the 3D part in the lazy 3D chunk; and, in a drafts build only, the fixtures and the
 // lookdev page's inputs, which a release build refuses to resolve (FR-066).
 declare module "virtual:room-content" {
   export const content: import("../../build/manifest").RoomContent;

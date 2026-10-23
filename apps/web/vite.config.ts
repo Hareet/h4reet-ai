@@ -8,9 +8,9 @@ import { defineConfig } from "vite";
 import { roomDataFile } from "./build/approvals";
 import { resumePart } from "./build/content";
 import { disclosurePage } from "./build/disclosure";
-import { roomContentModule } from "./build/manifest";
 import { narrationPart } from "./build/narration";
 import { DEFAULT_POLICY_DIR } from "./build/policy";
+import { roomBundle } from "./build/room/plugin";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 
@@ -39,7 +39,9 @@ export default defineConfig({
       policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR,
       parts: [resumePart, narrationPart],
     }),
-    // The room's fixed messages and manifest, bundled into the page, and dist/room-manifest.json (T045, T046).
-    roomContentModule({ root: here("../.."), messages: here("content/messages.yaml") }),
+    // The room's bundle, composed from apps/web/room/ under main's policy (spec 004, T096; its contracts/room-bundle.md
+    // §3, §12): spec 002's fixed messages and the manifest, now Amendment B7's, with the index, in the entry; the 3D
+    // part in the lazy 3D chunk; dist/room-manifest.json; and each set model's gzip copy under dist/a/.
+    roomBundle({ root: here("../.."), messages: here("content/messages.yaml") }),
   ],
 });
