@@ -10,6 +10,7 @@ import { atScale, compareFindings, fit, fitCard, render, textureMemory, unreadab
 import type { FitInput, FitResult, GlbFinding, Vec3 } from "../../src/room/glb/fit";
 import { readImage } from "../../src/room/glb/images";
 import { strictJson } from "../../src/room/glb/json";
+import { readGlb } from "../../src/room/glb/read";
 import { NAME_RULE, nameProblem, neutralId } from "../../src/room/glb/names";
 import {
   ADMITTED_EXTENSIONS,
@@ -32,6 +33,7 @@ import {
   SIGN,
   SIGN_CATALOG,
   SIGN_INPUT,
+  SPARSE_POINTS,
   UNSIGNED_BYTE,
   UNSIGNED_SHORT,
   WORD_QUAD,
@@ -48,10 +50,12 @@ import {
   jpeg,
   list,
   obj,
+  packGlb,
   packText,
   png,
   rxVariants,
   sign,
+  sparseDesk,
   webp,
 } from "../helpers/glb";
 import type { Obj } from "../helpers/glb";
@@ -456,6 +460,13 @@ describe("the measures", () => {
     expect(paths(check(packText(JSON.stringify(model.gltf), bin)))).toEqual([`RX2 accessors[${over}].sparse.indices`]);
   });
 
+  it("reads sparse indices and values at their byteOffsets inside their views", () => {
+    const model = sparseDesk();
+    expect(check(model.bytes).findings).toEqual([]);
+    const read = readGlb(model.bytes).glb;
+    expect([...(read?.accessor(SPARSE_POINTS) ?? [])]).toEqual([0, 0, 0, 0.5, 0.7, 0.3, 0, 0, 0].map(Math.fround));
+  });
+
   it("reads positions from an interleaved view through its byteStride", () => {
     const b = new ModelBuilder();
     const rows = [
@@ -753,6 +764,43 @@ describe("a check that never throws", () => {
         expect(f.path.length * f.reason.length, `run ${run}`).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("answers every number of the desk, the sign, and the sparse desk made negative, huge, or fractional, never a throw", () => {
+    // Values a changed digit can't make: the number's sign flipped, small and large negatives, past a 32-bit index, and
+    // a fraction, on every number the JSON holds, the sparse desk's explicit sparse offsets among them.
+    type Holder = Record<string | number, unknown>;
+    const numbers = (value: unknown, path: readonly (string | number)[] = []): (string | number)[][] => {
+      if (typeof value === "number") return [[...path]];
+      if (Array.isArray(value)) return value.flatMap((v, i) => numbers(v, [...path, i]));
+      if (typeof value === "object" && value !== null)
+        return Object.entries(value).flatMap(([k, v]) => numbers(v, [...path, k]));
+      return [];
+    };
+    /** The object or array holding the number at `path`. */
+    const holder = (root: unknown, path: readonly (string | number)[]): Holder =>
+      path.slice(0, -1).reduce<Holder>((o, k) => o[k] as Holder, root as Holder);
+    const swept = new Set<string>();
+    for (const [model, input] of [
+      [desk(), DESK_INPUT],
+      [sign(), SIGN_INPUT],
+      [sparseDesk(), DESK_INPUT],
+    ] as const) {
+      for (const path of numbers(model.gltf)) {
+        const key = path[path.length - 1] ?? "";
+        const was = holder(model.gltf, path)[key] as number;
+        swept.add(path.join("."));
+        for (const value of [-was, -1, -2, -4, -1_000_000_000, 1_000_000_000, 2 ** 32, was + 0.5]) {
+          const copy: unknown = JSON.parse(JSON.stringify(model.gltf));
+          holder(copy, path)[key] = value;
+          let result: FitResult | undefined;
+          expect(() => (result = check(packGlb(copy, model.bin), input)), `${path.join(".")}: ${value}`).not.toThrow();
+          for (const f of result?.findings ?? []) expect(RX_RULES).toContain(f.rule);
+        }
+      }
+    }
+    for (const part of ["indices", "values"])
+      expect(swept).toContain(`accessors.${SPARSE_POINTS}.sparse.${part}.byteOffset`);
   });
 });
 

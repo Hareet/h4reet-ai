@@ -612,6 +612,40 @@ export function desk(o: DeskOptions = {}): Model {
   return b.pack(o);
 }
 
+/** The desk with three points of its own under its root (mode 0, no triangle): zeros but the second, which a sparse
+ *  substitution puts at (0.5, 0.7, 0.3), and the desk's turn at (−0.5, 0.7, −0.3), so its bounds stay DESK_INPUT's. The
+ *  substitution's index and values sit past the start of their views, at explicit byteOffsets of 4 and 12, after bytes
+ *  that would be refused if read (an index of 7, values of 9), so a sweep has sparse offsets to change. */
+export function sparseDesk(o: DeskOptions = {}): Model {
+  return desk({
+    ...o,
+    build: (b) => {
+      const points = b.accessor({
+        componentType: FLOAT,
+        count: 3,
+        type: "VEC3",
+        min: [0, 0, 0],
+        max: [0.5, 0.7, 0.3],
+        sparse: {
+          count: 1,
+          indices: {
+            bufferView: b.view(encode([7, 7, 1], UNSIGNED_SHORT)),
+            byteOffset: 4,
+            componentType: UNSIGNED_SHORT,
+          },
+          values: { bufferView: b.view(encode([9, 9, 9, 0.5, 0.7, 0.3], FLOAT)), byteOffset: 12 },
+        },
+      });
+      const mesh = b.mesh([{ attributes: { POSITION: points }, mode: 0 }], "fx-points");
+      list(item(b.gltf, "nodes", 0), "children").push(b.node({ name: "fx-points", mesh }));
+      o.build?.(b);
+    },
+  });
+}
+
+/** The sparse desk's points accessor, by index: after the desk's three boxes' positions and indices. */
+export const SPARSE_POINTS = 6;
+
 /** The clean sign's catalog entry at scale 1, with a stylized scale of 2 (a readable prop). */
 export const SIGN_CATALOG = {
   bounds: { min: [-0.2, 0, -0.01], max: [0.2, 0.2, 0.01] },
@@ -815,6 +849,18 @@ export function rxVariants(): Variant[] {
     build: (b) => (primitive(b.gltf, 0, 0).indices = b.indices([0, 1, 8])),
   });
   onDesk("rx2-matrix-and-trs", "RX2", "nodes[5]", { edit: (g) => (item(g, "nodes", 5).scale = [1, 1, 1]) });
+  // A sparse substitution's indices or values before their view's start: read there, they'd be another view's bytes,
+  // or bytes before the BIN chunk, and a throw.
+  for (const [part, byteOffset] of [
+    ["indices", -2],
+    ["values", -1_000_000_000],
+  ] as const) {
+    const at = `accessors[${SPARSE_POINTS}].sparse.${part}`;
+    const model = sparseDesk({
+      edit: (g) => (obj(obj(item(g, "accessors", SPARSE_POINTS).sparse)[part]).byteOffset = byteOffset),
+    });
+    add(`rx2-sparse-${part}-before-their-view`, "RX2", `${at}.byteOffset`, model.bytes);
+  }
 
   // RX3: anything that moves or isn't geometry.
   onDesk("rx3-camera", "RX3", "nodes[1].camera", {
