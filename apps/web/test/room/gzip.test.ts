@@ -14,7 +14,8 @@ import { fit } from "../../src/room/glb/fit";
 import { gzip9, gzipBytes } from "../../src/room/glb/gzip";
 import { DESK_INPUT, desk } from "../helpers/glb";
 
-type Bounds = readonly [number, number];
+/** A draw's span, `[lo, hi]`. */
+type Span = readonly [number, number];
 
 /** One case: the recipe for its bytes, their CRC-32, and their expected gzip-9 length. */
 interface ParityCase {
@@ -22,11 +23,11 @@ interface ParityCase {
   readonly seed: number;
   readonly bytes: number;
   /** Each random run's length. */
-  readonly random: Bounds;
+  readonly random: Span;
   /** Each pattern run's length. */
-  readonly pattern: Bounds;
+  readonly pattern: Span;
   /** Each pattern's length. */
-  readonly period: Bounds;
+  readonly period: Span;
   /** How many patterns; 0 for random runs alone. */
   readonly pool: number;
   readonly crc32: number;
@@ -60,7 +61,7 @@ class Xorshift32 {
   }
 
   /** lo + (the next value mod (hi − lo + 1)). */
-  draw([lo, hi]: Bounds): number {
+  draw([lo, hi]: Span): number {
     return lo + (this.next() % (hi - lo + 1));
   }
 

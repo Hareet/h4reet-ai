@@ -5,8 +5,8 @@ apps/web/test/fixtures/gzip-parity.json holds cases cut from a seeded xorshift32
 apps/web/test/room/gzip.test.ts generate identically (the fixture's "about" gives the recipe), each with its bytes'
 CRC-32 and its expected gzip-9 length. Python's gzip.compress(data, 9, mtime=0), the arrival check's measure for its
 F2 and F3, must give each case that length, as pako must in gzip.test.ts, so the bytes the site serves are the bytes
-the caps count. A Python linked to a zlib other than stock zlib (zlib-ng, or the Chromium fork that Node bundles)
-fails here, naming the case. Only the length is compared, with the trailer: Python 3.12's gzip.compress with mtime=0
+the caps count. A zlib other than stock zlib can fail it, naming the case: Chromium's fork, which Node bundles, gives
+four of these cases other lengths. Only the length is compared, with the trailer: Python 3.12's gzip.compress with mtime=0
 returns zlib's own header, whose OS byte is 3 (Unix) where pako's is 255, and the length never depends on that byte.
 Self-contained: spec 003's intake adds its own files to this folder.
 """
@@ -42,9 +42,9 @@ class Xorshift32:
         self.x = x
         return x
 
-    def draw(self, bounds: list[int]) -> int:
-        """lo + (the next value mod (hi - lo + 1)), for bounds [lo, hi]."""
-        lo, hi = bounds
+    def draw(self, span: list[int]) -> int:
+        """lo + (the next value mod (hi - lo + 1)), for the span [lo, hi]."""
+        lo, hi = span
         return lo + self.next() % (hi - lo + 1)
 
     def random_bytes(self, n: int) -> bytes:
