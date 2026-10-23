@@ -12,10 +12,11 @@
 // - Each hash is a browser's for its element: base64 of the SHA-256 of the element's text as UTF-8. A browser hashes
 //   what its HTML parser made of the text, so a text the parser would change (a carriage return, which it makes a line
 //   feed; a NUL; a lone surrogate, which UTF-8 can't hold) is refused rather than hashed as written.
-// - Everything else the build wrote is dropped: the room's own files beside the bundle (room-manifest.json, the set
-//   models' gzip copies and cards) are the site's, not the copy's, which holds no model; every model reaches the copy
-//   through the page's pickers. A build of more than one chunk or one stylesheet is refused, since the copy has no way
-//   to load a second.
+// - The room's own files beside the bundle (room-manifest.json, and under a/ the set models' gzip copies and cards) are
+//   dropped: they are the site's, not the copy's, which holds no model; every model reaches the copy through the
+//   page's pickers. A build of more than one chunk or one stylesheet is refused, since the copy has no way to load a
+//   second, and so is any other file the build wrote, by its name: the copy would ask for it by URL, which its policy
+//   refuses (the review's phone-4).
 // The output is a function of the chunk and the CSS alone, so two builds of one tree write the same bytes.
 import { createHash } from "node:crypto";
 
@@ -109,6 +110,9 @@ export function singleFileHtml(page: PhonePage, code: string, css: string): stri
  */
 const VITE_CSS_MARKER = /\/\*\$vite\$:\d+\*\//g;
 
+/** The room's own files beside the bundle (build/room/plugin.ts), the site's alone: the manifest and what's under a/. */
+const roomsOwn = (name: string): boolean => name === "room-manifest.json" || name.startsWith("a/");
+
 /** The plugin: last in the build, it turns the bundle into lookdev.html alone. */
 export function singleFile(page: PhonePage): Plugin {
   return {
@@ -127,6 +131,12 @@ export function singleFile(page: PhonePage): Plugin {
         const styles = files.filter((f) => f.type === "asset" && f.fileName.endsWith(".css"));
         if (styles.length > 1) this.error(`single-file: the copy has one stylesheet; the build made ${styles.length}`);
         const [sheet] = styles;
+        const others = Object.keys(bundle).filter(
+          (name) => name !== entry.fileName && name !== sheet?.fileName && !roomsOwn(name),
+        );
+        if (others.length > 0) {
+          this.error(`single-file: the copy is one file, which can't load ${others.join(", ")}, as the build wrote it`);
+        }
         const css =
           sheet?.type !== "asset"
             ? ""
