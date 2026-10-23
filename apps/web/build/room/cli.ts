@@ -28,7 +28,7 @@ import { checkModel, overBudget } from "./checks/rx";
 import type { ModelCheck } from "./checks/rx";
 import { compose, formatFinding } from "./compose";
 import type { Finding } from "./compose";
-import { loadRoom } from "./load";
+import { loadRoom, pathOf } from "./load";
 import { WORK_ORDERS_DIR } from "./orders";
 import { capsOf, readRoomPolicy } from "./policy";
 import type { RoomPolicy } from "./policy";
@@ -85,12 +85,14 @@ function usage(io: CliIo): number {
 /** Whether a file's bytes are the build's text. */
 const same = (data: Uint8Array, text: string): boolean => Buffer.compare(data, Buffer.from(text, "utf8")) === 0;
 
-/** The work orders whose piece is gone: each `.md` file under docs/studio/work-orders/ the compose doesn't write. */
+/** The work orders whose piece is gone: each `.md` file under docs/studio/work-orders/ the compose doesn't write and
+ *  no catalog file has the stem of. One whose catalog file doesn't load waits for that file's finding to be fixed. */
 function orphans(tree: Tree, generated: ReadonlySet<string>): string[] {
   return tree
     .list(WORK_ORDERS_DIR)
+    .filter((name) => name.endsWith(".md") && tree.read(pathOf("catalog", name.slice(0, -".md".length))) === null)
     .map((name) => `${WORK_ORDERS_DIR}/${name}`)
-    .filter((path) => path.endsWith(".md") && !generated.has(path) && tree.read(path) !== null);
+    .filter((path) => !generated.has(path) && tree.read(path) !== null);
 }
 
 /** The number of the first line where a committed file and the build's text differ (spec 002's firstDifference, whose
