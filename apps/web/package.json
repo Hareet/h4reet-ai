@@ -15,6 +15,7 @@
     "test:unit": "vitest run",
     "content:lock": "node --import tsx build/narration.ts --lock",
     "content:check": "node --import tsx build/narration.ts",
+    "fonts:lock": "node --import tsx build/fonts-lock.ts",
     "typecheck": "tsc --noEmit -p .",
     "lint": "eslint --max-warnings 0 . && tsc --noEmit -p .",
     "manifest": "node --import tsx build/manifest.ts"

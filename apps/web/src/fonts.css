@@ -1,6 +1,8 @@
-/* The room's one font (spec 002, T028): IBM Plex Sans, the files apps/web/fonts/ vendors and fonts.lock pins, the
-   same ones the PDF embeds. Served from the site's own origin (the CSP's default-src 'self'); text shows in the
-   system font until it loads. */
+/* The site's fonts (spec 002, T028; spec 004, Amendment B10): the files apps/web/fonts/ vendors and fonts.lock pins,
+   served from the site's own origin (the CSP's default-src 'self'). IBM Plex Sans is the page's text, and the same
+   files the PDF embeds. IBM Plex Mono and Patrick Hand are for the room's live faces (spec 004: the terminal and the
+   counters, and the chalkboard); a browser fetches a face only once something uses it. Text shows in the system font
+   until its face loads. */
 @font-face {
   font-family: "IBM Plex Sans";
   src: url("../fonts/IBMPlexSans-Regular.woff") format("woff");
@@ -13,6 +15,22 @@
   font-family: "IBM Plex Sans";
   src: url("../fonts/IBMPlexSans-Bold.woff") format("woff");
   font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../fonts/IBMPlexMono-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Patrick Hand";
+  src: url("../fonts/patrick-hand-latin-400-normal.woff") format("woff");
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }

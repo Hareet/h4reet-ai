@@ -4,7 +4,9 @@
 // - Tagged, in reading order: a Document holding an H1 (the name), a P per header line, then an H2 and an L of
 //   LI (Lbl, LBody) per section. The catalog has MarkInfo/Marked, a StructTreeRoot, Lang en-US, and DisplayDocTitle.
 // - One font: IBM Plex Sans, vendored in apps/web/fonts/ and checked against fonts.lock before it's embedded,
-//   subset. It is also the first font PDFKit loads, so its default, Helvetica, is never in the file.
+//   subset. It is also the first font PDFKit loads, so its default, Helvetica, is never in the file. fonts.lock,
+//   schema 2 (spec 004, Amendment B10), holds the room's families too; the PDF takes the one family whose uses hold
+//   pdf, and refuses a lock that gives that use to none, or to more than one.
 // - Info holds Title and Author only. PDFKit adds Producer, Creator, and CreationDate, which are taken out before the
 //   file is written; its XMP metadata stream (xmp:CreatorTool, pdf:Producer) is never written. The file ID is
 //   PDFKit's hash of the info with a fixed date, so the same source and policy build the same bytes.
@@ -57,28 +59,131 @@ export function pdfInput(rendered: Rendered | null, policy: Policy, state: PdfSt
   };
 }
 
-// ---- The font and its lock ----
+// ---- The fonts and their lock ----
 
-export interface FontsLock {
-  schema: 1;
+/** What a vendored family is for (spec 004, B10): the site's CSS, the resume's PDF, or the room's live faces. */
+export const FONT_USES = ["site", "pdf", "room"] as const;
+export type FontUse = (typeof FONT_USES)[number];
+
+/** One vendored family: its release on the npm registry and the files taken from it (spec 004's data-model.md §7.2). */
+export interface FontFamily {
   family: string;
   license: string;
+  /** The Reserved Font Name its license declares, or null when it declares none (Patrick Hand). */
+  reserved_font_name: string | null;
+  uses: FontUse[];
   source: { package: string; version: string; url: string; sha256: string; integrity: string; published: string };
   /** Each file's SHA-256 as vendored, its path in the tarball, and what changed from it, if anything. */
   files: Record<string, { sha256: string; from: string; note?: string }>;
 }
 
-export function readFontsLock(dir: string = FONTS_DIR): FontsLock {
-  return JSON.parse(readFileSync(join(dir, "fonts.lock"), "utf8")) as FontsLock;
+/** apps/web/fonts/fonts.lock, schema 2, which `npm run fonts:lock` writes (build/fonts-lock.ts). */
+export interface FontsLock {
+  schema: 2;
+  families: FontFamily[];
 }
 
-/** The two weights' bytes, each refused unless it matches its SHA-256 in fonts.lock. */
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const keysAre = (v: Record<string, unknown>, keys: readonly string[]): boolean =>
+  Object.keys(v).length === keys.length && keys.every((k) => k in v);
+
+/** fonts.lock, refused unless it is schema 2's shape: every family's fields, its uses among FONT_USES with none
+ * twice, its source, and each file a plain name with a SHA-256, the same in every family that names it. */
+export function readFontsLock(dir: string = FONTS_DIR): FontsLock {
+  const refuse = (why: string): never => {
+    throw new Error(`fonts.lock isn't schema 2's shape (spec 004's data-model.md §7.2): ${why}`);
+  };
+  let doc: unknown;
+  try {
+    doc = JSON.parse(readFileSync(join(dir, "fonts.lock"), "utf8")) as unknown;
+  } catch {
+    return refuse("it isn't there, or isn't JSON");
+  }
+  if (!isRecord(doc) || !keysAre(doc, ["schema", "families"])) return refuse("its keys aren't schema and families");
+  if (doc.schema !== 2) refuse("schema isn't 2");
+  if (!Array.isArray(doc.families) || doc.families.length === 0) refuse("families isn't a list of at least one");
+  const families = doc.families as unknown[];
+  const names = new Set<string>();
+  const digests = new Map<string, string>();
+  families.forEach((family, i) => {
+    const at = `families[${i}]`;
+    if (!isRecord(family)) return refuse(`${at} isn't an object`);
+    if (!keysAre(family, ["family", "license", "reserved_font_name", "uses", "source", "files"])) {
+      refuse(`${at}'s keys aren't family, license, reserved_font_name, uses, source, and files`);
+    }
+    if (typeof family.family !== "string" || family.family === "" || names.has(family.family)) {
+      refuse(`${at}.family is missing, or names a family twice`);
+    }
+    names.add(family.family as string);
+    if (typeof family.license !== "string" || family.license === "") refuse(`${at}.license is missing`);
+    if (family.reserved_font_name !== null && typeof family.reserved_font_name !== "string") {
+      refuse(`${at}.reserved_font_name isn't a name or null`);
+    }
+    const uses = family.uses;
+    if (
+      !Array.isArray(uses) ||
+      uses.length === 0 ||
+      new Set(uses).size !== uses.length ||
+      !uses.every((use) => (FONT_USES as readonly unknown[]).includes(use))
+    ) {
+      refuse(`${at}.uses isn't one or more of site, pdf, and room, each once`);
+    }
+    const source = family.source;
+    if (
+      !isRecord(source) ||
+      !keysAre(source, ["package", "version", "url", "sha256", "integrity", "published"]) ||
+      !Object.values(source).every((v) => typeof v === "string" && v !== "") ||
+      !SHA256_HEX.test(source.sha256 as string) ||
+      !(source.integrity as string).startsWith("sha512-")
+    ) {
+      refuse(`${at}.source isn't its package, version, url, sha256, integrity, and published date`);
+    }
+    const files = family.files;
+    if (!isRecord(files) || Object.keys(files).length === 0) return refuse(`${at}.files is empty`);
+    for (const [name, entry] of Object.entries(files)) {
+      if (name === "" || name.includes("/") || name.includes("\\") || name.startsWith(".")) {
+        refuse(`${at}.files names ${JSON.stringify(name)}, which isn't a file name in apps/web/fonts/`);
+      }
+      if (
+        !isRecord(entry) ||
+        !Object.keys(entry).every((k) => k === "sha256" || k === "from" || k === "note") ||
+        typeof entry.sha256 !== "string" ||
+        !SHA256_HEX.test(entry.sha256) ||
+        typeof entry.from !== "string" ||
+        (entry.note !== undefined && typeof entry.note !== "string")
+      ) {
+        refuse(`${at}.files.${name} isn't its sha256, from, and an optional note`);
+      }
+      const digest = (entry as { sha256: string }).sha256;
+      if ((digests.get(name) ?? digest) !== digest) refuse(`${name} has two SHA-256s in two families`);
+      digests.set(name, digest);
+    }
+    return undefined;
+  });
+  return doc as unknown as FontsLock;
+}
+
+/** The PDF's two weights' bytes, from the one family whose uses hold pdf, each refused unless it is a file of that
+ * family and matches its SHA-256 in fonts.lock. */
 export function loadFonts(dir: string = FONTS_DIR): { regular: Buffer; bold: Buffer } {
   const lock = readFontsLock(dir);
+  const forPdf = lock.families.filter((family) => family.uses.includes("pdf"));
+  const family = forPdf[0];
+  if (forPdf.length !== 1 || family === undefined) {
+    throw new Error(
+      `fonts.lock gives the pdf use to ${forPdf.length} families, and the PDF embeds exactly one (spec 004, B10)`,
+    );
+  }
   const load = (name: string): Buffer => {
+    const pinned = family.files[name]?.sha256;
+    if (!pinned) {
+      throw new Error(
+        `${name} isn't a file of ${family.family}, the family fonts.lock gives the pdf use; the PDF embeds that family alone`,
+      );
+    }
     const bytes = readFileSync(join(dir, name));
-    const pinned = lock.files[name]?.sha256;
-    if (!pinned || createHash("sha256").update(bytes).digest("hex") !== pinned) {
+    if (createHash("sha256").update(bytes).digest("hex") !== pinned) {
       throw new Error(`${name} doesn't match its SHA-256 in fonts.lock; the build embeds only the pinned font`);
     }
     return bytes;

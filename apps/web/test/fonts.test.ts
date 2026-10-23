@@ -156,11 +156,15 @@ describe("fonts.lock, schema 2 (spec 004, B10)", () => {
       const licenses = Object.keys(family.files).filter((n) => /license/i.test(n));
       expect(licenses.length, family.family).toBe(1);
       const text = readFileSync(join(FONTS, licenses[0] as string), "utf8");
-      expect(text, family.family).toContain("SIL OPEN FONT LICENSE Version 1.1");
+      const body = text.indexOf("SIL OPEN FONT LICENSE Version 1.1");
+      expect(body, family.family).toBeGreaterThan(0);
+      // A family reserves a name in the copyright notice above the license; the license's own definitions name the
+      // term whatever the family reserves.
+      const notice = text.slice(0, body);
       if (family.reserved_font_name === null) {
-        expect(text, family.family).not.toMatch(/Reserved Font Name/i);
+        expect(notice, family.family).not.toMatch(/Reserved Font Name/i);
       } else {
-        expect(text, family.family).toContain(`Reserved Font Name "${family.reserved_font_name}"`);
+        expect(notice, family.family).toContain(`Reserved Font Name "${family.reserved_font_name}"`);
       }
     }
   });
