@@ -17,6 +17,9 @@
 // - The sample state: a fixture's tier picks each tier switch's case, as the tier signal will (User Story 2).
 // - Quality: automatic, a controller of its own on the device's target, or pinned at a level for a measurement.
 // - Pause: the idle sway stops (the motion store of User Story 2 joins it, T162).
+// - Labels: the stand-ins' labels, each saying "placeholder", draw on a layer of their own, which the page's camera
+//   sees while Labels is on, so turning it off hides them from the page's view alone: the room's own 3D stage
+//   (scene.ts) makes its labels as it did (the Author's first lookdev run; plan.md §10).
 // - Candidates, from page memory, through the loader; the site's page also loads each set model from ../a/, and the
 //   phone copy, which makes no request, every model from memory.
 // It never polls the status, sends a turn or an event, or stores anything: its asset events go to the page's log with
@@ -109,6 +112,8 @@ export interface LookdevStage {
   readonly floor: boolean;
   /** Whether a hold is held or a model is loading. */
   readonly busy: boolean;
+  /** Whether the page's camera sees the stand-ins' labels. */
+  readonly labels: boolean;
   /** The pieces showing a model. */
   readonly loaded: ReadonlySet<string>;
   /** The texture ledger's bytes. */
@@ -119,6 +124,8 @@ export interface LookdevStage {
   setSample(id: string): void;
   setQuality(choice: QualityChoice): void;
   setPaused(on: boolean): void;
+  /** Shows the stand-ins' labels in the page's view, or hides them from it. */
+  setLabels(on: boolean): void;
   /** Shows a candidate for its piece through the loader; null clears it, its set model or its stand-in back. */
   setCandidate(piece: string, entry: ModelEntry | null): void;
   /** The scripted load: every model back to its stand-in, then each loaded again, in load order, under the holds. */
@@ -131,6 +138,8 @@ export interface LookdevStage {
 /** The figure the visitor's placement shows: the first avatar, as the scene's anchors are its. */
 const AVATAR = AVATARS[0].id;
 const IDLE_SWAY = 0.015;
+/** The layer the stand-ins' labels draw on, which the page's camera sees beside its own, layer 0, while Labels is on. */
+const LABEL_LAYER = 1;
 
 /** Whether an object draws: a mesh, a sprite, a line, or points. */
 const drawable = (node: Object3D): boolean => {
@@ -158,6 +167,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   canvas.setAttribute("aria-hidden", "true");
 
   const camera = new PerspectiveCamera();
+  camera.layers.enable(LABEL_LAYER);
   const ledger = createTextureLedger(part.scene_texture_bytes);
   const floor = meetsModelFloor(options.capability);
   const framed = framedBoxes(part);
@@ -203,7 +213,14 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
 
   function build(next: Look): Room3D {
     labels = createLabels(doc);
-    const built = buildRoom({ ...part, look: next }, { avatar: AVATAR, label: labels.factory, index });
+    const made = labels;
+    // Each label, and the sprite it holds, on the labels' layer alone: Labels hides it from the camera.
+    const label = (text: string): Object3D => {
+      const node = made.factory(text);
+      node.traverse((o) => o.layers.set(LABEL_LAYER));
+      return node;
+    };
+    const built = buildRoom({ ...part, look: next }, { avatar: AVATAR, label, index });
     // The room as a visitor has it after the hand-off.
     showHandoff(built, 1, false);
     return built;
@@ -459,6 +476,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     get busy() {
       return holds > 0 || loader.busy;
     },
+    get labels() {
+      return camera.layers.isEnabled(LABEL_LAYER);
+    },
     get loaded() {
       return loader.loaded;
     },
@@ -499,6 +519,10 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     },
     setPaused(on) {
       paused = on;
+    },
+    setLabels(on) {
+      if (on) camera.layers.enable(LABEL_LAYER);
+      else camera.layers.disable(LABEL_LAYER);
     },
     setCandidate(piece, entry) {
       if (entry) {

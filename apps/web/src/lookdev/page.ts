@@ -5,7 +5,9 @@
 // - one canvas (stage.ts), the production runtime at the production framing;
 // - the controls of §3: the view, the scene, the look, the sample state, quality, pause, "Load every piece", and
 //   "Run 2 minutes" and "Run 10 minutes" (each starting with the scripted load), which turn the other settings off
-//   while they measure, so the results describe one setting throughout;
+//   while they measure, so the results describe one setting throughout; and "Labels", on by default, which hides the
+//   stand-ins' labels from the page's view alone, and which a run turns on while it measures, so its figures are the
+//   room's (the Author's first lookdev run; plan.md §10);
 // - the sample state's panel: the tier sentence of the fixture's tier (the text copy's words, User Story 2) and its
 //   turns, every figure badged with the UI word `sign.sample` (FR-049);
 // - the readouts of §5, live, labelled "close-up" on the desk close-up, which judges nothing;
@@ -337,13 +339,23 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     },
   });
   const pause = toggleButton(doc, { label: "Pause", pressed: false, onChange: (on) => stage.setPaused(on) });
+  /** The Author's choice for the stand-ins' labels, which a run sets aside while it measures. */
+  let labelsOn = true;
+  const labelToggle = toggleButton(doc, {
+    label: "Labels",
+    pressed: labelsOn,
+    onChange: (on) => {
+      labelsOn = on;
+      stage.setLabels(on);
+    },
+  });
   const loadEvery = actionButton(doc, "Load every piece", () => void stage.loadEveryPiece());
   const runButtons = RUN_SECONDS.map((seconds) =>
     actionButton(doc, `Run ${seconds / 60} minutes`, () => begin(seconds)),
   );
   const stopButton = actionButton(doc, "Stop the run", () => stop());
   stopButton.disabled = true;
-  controls.push(viewGroup, sceneGroup, lookSelect, sampleSelect, qualityGroup, pause);
+  controls.push(viewGroup, sceneGroup, lookSelect, sampleSelect, qualityGroup, pause, labelToggle);
   const controlPanel = h(
     doc,
     "section",
@@ -355,7 +367,16 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     sampleSelect.element,
     samplePanel,
     qualityGroup.element,
-    h(doc, "div", { class: "lookdev-actions" }, pause.element, loadEvery, ...runButtons, stopButton),
+    h(
+      doc,
+      "div",
+      { class: "lookdev-actions" },
+      pause.element,
+      labelToggle.element,
+      loadEvery,
+      ...runButtons,
+      stopButton,
+    ),
   );
 
   // ---- The readouts ----
@@ -584,15 +605,20 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     for (const b of [loadEvery, ...clears]) b.disabled = on;
     for (const b of runButtons) b.disabled = on;
     stopButton.disabled = !on;
+    // A run measures the room as visitors get it, its stand-ins labelled; the Author's choice comes back after it.
+    const labelled = on || labelsOn;
+    stage.setLabels(labelled);
+    labelToggle.set(labelled);
   }
 
   function begin(seconds: RunSeconds): void {
     if (run?.running) return;
+    const labelsNote = labelsOn ? "" : " The stand-ins' labels show while it runs, as the room shows them.";
     setRunning(true);
     measured = null;
     resultsPanel.replaceChildren(
       h(doc, "h2", { id: "lookdev-results-heading" }, "Results"),
-      h(doc, "p", {}, `Running for ${seconds / 60} minutes, the scripted load first.`),
+      h(doc, "p", {}, `Running for ${seconds / 60} minutes, the scripted load first.${labelsNote}`),
     );
     // An automatic run measures a fresh controller at level 0, as a visit starts, never one stepped down or gone flat
     // before it (the review's page-7).

@@ -1,10 +1,10 @@
 // The lookdev page's controls (spec 004; FR-067; research.md R-41; contracts/lookdev.md §3): the widgets page.ts builds
 // its panels from, each a native form control with its own label, so every one is reachable and operable by keyboard
 // and named for a screen reader: a group of radios under a legend, a labelled select, a toggle button with
-// aria-pressed, a plain button, and the "Load a candidate…" file picker, its input inside its label. Built with the
-// room's h() (src/room/dom.ts), attributes only: no markup string, and no style attribute the site's CSP would refuse.
-// A picker hands its page the picked file and nothing else of it: it clears its own value at once, so the name the
-// browser shows beside a file input is never kept on the page (§4).
+// aria-pressed, which the page can set too, a plain button, and the "Load a candidate…" file picker, its input inside
+// its label. Built with the room's h() (src/room/dom.ts), attributes only: no markup string, and no style attribute the
+// site's CSP would refuse. A picker hands its page the picked file and nothing else of it: it clears its own value at
+// once, so the name the browser shows beside a file input is never kept on the page (§4).
 import { h } from "../room/dom";
 
 /** One choice of a group or a select. */
@@ -115,11 +115,16 @@ export function selectControl<T extends string>(
   };
 }
 
+export interface Toggle extends Control {
+  /** Shows a state the page set, without calling `onChange`: a run's, while it measures. */
+  set(on: boolean): void;
+}
+
 /** A toggle button, its state in aria-pressed, calling `onChange` with the state it moved to. */
 export function toggleButton(
   doc: Document,
   options: { readonly label: string; readonly pressed: boolean; onChange(on: boolean): void },
-): Control {
+): Toggle {
   let pressed = options.pressed;
   const button = h(doc, "button", { type: "button", "aria-pressed": String(pressed) }, options.label);
   button.addEventListener("click", () => {
@@ -131,6 +136,10 @@ export function toggleButton(
     element: button,
     setEnabled(on) {
       button.disabled = !on;
+    },
+    set(on) {
+      pressed = on;
+      button.setAttribute("aria-pressed", String(pressed));
     },
   };
 }
