@@ -154,7 +154,9 @@ describe("keyboard", () => {
     button(v.doc, "Resume").click();
     await flush();
     const order = tabOrder(v.doc).map(nameOf);
-    expect(order.slice(0, 9)).toEqual([
+    // The toolbar's three stops, a button per selectable, and the conversation panel's three come first.
+    const room = 3 + OBJECT_BUTTONS.length + 3;
+    expect(order.slice(0, room)).toEqual([
       "Resume",
       "2D view",
       "How data flows",
@@ -163,8 +165,8 @@ describe("keyboard", () => {
       "Send",
       "Hold to talk",
     ]);
-    expect(order.slice(9)).toContain("Close");
-    expect(order.slice(9)).toContain("Download (PDF)");
+    expect(order.slice(room)).toContain("Close");
+    expect(order.slice(room)).toContain("Download (PDF)");
   });
 
   it("orders the choice screen's Tab stops: the path, the avatar, Enter, then the links", async () => {
