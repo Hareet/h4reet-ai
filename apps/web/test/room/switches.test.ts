@@ -16,7 +16,7 @@ import { compose } from "../../build/room/compose";
 import type { Finding } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import { CABLE_POINTS, cableControl, cableRun, restPlane } from "../../src/room/compose/cable";
-import { multiply, rotation, translation } from "../../src/room/compose/math";
+import { multiply, rotation, transformPoint, translation } from "../../src/room/compose/math";
 import type { Vec3 } from "../../src/room/compose/math";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { goodFiles, overlay } from "../helpers/room-fixtures";
@@ -385,6 +385,27 @@ describe("the switches' rules on the fixtures (RS1 to RS6)", () => {
       expect(near(0, 0, 1.1)).toEqual([]);
       // A whole turn is no turn.
       expect(near(0, 0, 360)).toEqual(refused);
+    });
+
+    it("refuses a pose on another placement and anchor that the world places where the plugged pose sits (words-8)", () => {
+      // The plugged pose from the desk's top: the laptop's offset (0.17, 0, 0) and turn of −10° about Y, then the port
+      // (0.16, 0.01, 0) and the pose's own offset (0.03, 0, 0) and turn of 90°.
+      const [x, y, z] = transformPoint(rotation({ x: 0, y: -10, z: 0 }), [0.19, 0.01, 0]);
+      const landed = (dx: number, turn = 80): string[] =>
+        rs({
+          scene: (d) =>
+            (at(power(d), "poses", "fx-resting").mount = {
+              on: "fx-desk",
+              anchor: "top",
+              offset: [0.17 + x + dx, y, z],
+              turn: { y: turn },
+            }),
+        }).seen;
+      const refused = [`RS5 ${SCENE}:switches[0].poses.fx-resting.mount`];
+      expect(landed(0)).toEqual(refused);
+      expect(landed(0.0009, 80.9)).toEqual(refused);
+      expect(landed(0.0011)).toEqual([]);
+      expect(landed(0, 81.1)).toEqual([]);
     });
   });
 
