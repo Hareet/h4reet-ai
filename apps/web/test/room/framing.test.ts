@@ -72,7 +72,7 @@ describe("framing(aspect, boxes)", () => {
     expect([f.fov, f.near, f.far]).toEqual([FOV, NEAR, FAR]);
   });
 
-  it("stands as close as it can while every corner fits inside the view with the margin", () => {
+  it("stands as close as it can while every corner fits inside the frame with the margin", () => {
     const boxes: Box[] = [
       { min: [-2.6, 0.2, -2], max: [-2.1, 2.3, -1.9] },
       { min: [0.4, 0, -1.8], max: [1.9, 0.8, -1.1] },

@@ -108,7 +108,7 @@ describe("the stages (compose/stages.ts)", () => {
     expect(decl(".flat", "height")).toBe("min(100cqh, 62.5cqw)");
   });
 
-  it("give the reference desktop's stage, ≈ 686 × 640 CSS px from a 1920 × 1200 window at a pixel ratio of 1", () => {
+  it("give the reference desktop's stage, ≈ 686 × 640 CSS px from 1920 × 1200 CSS px at a pixel ratio of 1", () => {
     expect(REFERENCE_DESKTOP.screen).toEqual({ w: 1920, h: 1200 });
     expect(REFERENCE_DESKTOP.dpr).toBe(1);
     expect(REFERENCE_DESKTOP.stage.w).toBeCloseTo(686.4, 9);

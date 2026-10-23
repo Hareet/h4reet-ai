@@ -123,45 +123,45 @@ describe("the kernel's matrices (compose/math.ts)", () => {
 // A small tree: the shell at the root, a parent on the shell, a child on the parent, a grandchild on the child, and a
 // sibling on the shell. Turns on every level, so a wrong order shows.
 const PIECES: Record<string, MountPiece> = {
-  "fx-room": { scale: 1, anchors: { "fx-floor-mark": { at: [0.4, 0, -1.2], turn: turnOf(0, 15, 0) } } },
-  "fx-table": {
+  "fx-base": { scale: 1, anchors: { "fx-mark": { at: [0.4, 0, -1.2], turn: turnOf(0, 15, 0) } } },
+  "fx-holder": {
     scale: 1,
     anchors: {
-      "fx-top": { at: [0.1, 0.75, -0.2], turn: turnOf(0, -30, 0) },
-      "fx-back": { at: [0, 0.75, -0.35], turn: NO_TURN },
+      "fx-upper": { at: [0.1, 0.75, -0.2], turn: turnOf(0, -30, 0) },
+      "fx-rear": { at: [0, 0.75, -0.35], turn: NO_TURN },
     },
   },
-  "fx-screen": { scale: 2, anchors: { "fx-top-edge": { at: [0, 0.3, 0.01], turn: turnOf(10, 0, 5) } } },
-  "fx-lamp": { scale: 1.5, anchors: { "fx-tip": { at: [0.05, 0.12, 0], turn: turnOf(0, 0, 20) } } },
+  "fx-panel": { scale: 2, anchors: { "fx-rim": { at: [0, 0.3, 0.01], turn: turnOf(10, 0, 5) } } },
+  "fx-small": { scale: 1.5, anchors: { "fx-point": { at: [0.05, 0.12, 0], turn: turnOf(0, 0, 20) } } },
 };
 
 const TREE: MountPlacement[] = [
-  { id: "fx-shell", piece: "fx-room", mount: null, offset: [0, 0, 0], turn: NO_TURN },
+  { id: "fx-root", piece: "fx-base", mount: null, offset: [0, 0, 0], turn: NO_TURN },
   {
     id: "fx-parent",
-    piece: "fx-table",
-    mount: { on: "fx-shell", anchor: "fx-floor-mark" },
+    piece: "fx-holder",
+    mount: { on: "fx-root", anchor: "fx-mark" },
     offset: [0.2, 0, 0.1],
     turn: turnOf(0, 12, 0),
   },
   {
     id: "fx-child",
-    piece: "fx-screen",
-    mount: { on: "fx-parent", anchor: "fx-top" },
+    piece: "fx-panel",
+    mount: { on: "fx-parent", anchor: "fx-upper" },
     offset: [0.05, 0.01, -0.02],
     turn: turnOf(-8, 25, 3),
   },
   {
     id: "fx-grandchild",
-    piece: "fx-lamp",
-    mount: { on: "fx-child", anchor: "fx-top-edge" },
+    piece: "fx-small",
+    mount: { on: "fx-child", anchor: "fx-rim" },
     offset: [0, 0.02, 0],
     turn: turnOf(5, -40, 0),
   },
   {
     id: "fx-sibling",
-    piece: "fx-lamp",
-    mount: { on: "fx-shell", anchor: "fx-floor-mark" },
+    piece: "fx-small",
+    mount: { on: "fx-root", anchor: "fx-mark" },
     offset: [-1, 0, 0],
     turn: NO_TURN,
   },
@@ -203,13 +203,13 @@ function threeTree(
 }
 
 const position = (m: Mat4): Vec3 => [m[12], m[13], m[14]];
-const columnLength = (m: Mat4, c: 0 | 1 | 2): number => Math.hypot(m[c * 4], m[c * 4 + 1], m[c * 4 + 2]);
+const columnLength = (m: Mat4, c: 0 | 1 | 2): number => Math.hypot(...[0, 1, 2].map((r) => m[c * 4 + r] ?? Number.NaN));
 
 describe("the world resolver (compose/mount.ts)", () => {
-  it("puts the shell, the one placement with no mount, at the identity", () => {
+  it("puts the root, the one placement with no mount, at the identity", () => {
     const { world, model, unresolved } = resolveMounts(TREE, PIECES);
-    expectClose(world.get("fx-shell") ?? [], IDENTITY);
-    expectClose(model.get("fx-shell") ?? [], IDENTITY);
+    expectClose(world.get("fx-root") ?? [], IDENTITY);
+    expectClose(model.get("fx-root") ?? [], IDENTITY);
     expect(unresolved).toEqual([]);
   });
 
@@ -267,12 +267,12 @@ describe("the world resolver (compose/mount.ts)", () => {
     const atScale2 = anchorWorld(
       world.get("fx-child") ?? IDENTITY,
       2,
-      PIECES["fx-screen"]?.anchors["fx-top-edge"] ?? { at: [0, 0, 0], turn: NO_TURN },
+      PIECES["fx-panel"]?.anchors["fx-rim"] ?? { at: [0, 0, 0], turn: NO_TURN },
     );
     const atScale1 = anchorWorld(
       world.get("fx-child") ?? IDENTITY,
       1,
-      PIECES["fx-screen"]?.anchors["fx-top-edge"] ?? { at: [0, 0, 0], turn: NO_TURN },
+      PIECES["fx-panel"]?.anchors["fx-rim"] ?? { at: [0, 0, 0], turn: NO_TURN },
     );
     const childOrigin = position(world.get("fx-child") ?? IDENTITY);
     const far = Math.hypot(...position(atScale2).map((v, i) => v - (childOrigin[i] ?? 0)));
@@ -320,36 +320,42 @@ describe("the world resolver (compose/mount.ts)", () => {
       ...TREE,
       {
         id: "fx-loop-a",
-        piece: "fx-lamp",
-        mount: { on: "fx-loop-b", anchor: "fx-tip" },
+        piece: "fx-small",
+        mount: { on: "fx-loop-b", anchor: "fx-point" },
         offset: [0, 0, 0],
         turn: NO_TURN,
       },
       {
         id: "fx-loop-b",
-        piece: "fx-lamp",
-        mount: { on: "fx-loop-a", anchor: "fx-tip" },
+        piece: "fx-small",
+        mount: { on: "fx-loop-a", anchor: "fx-point" },
         offset: [0, 0, 0],
         turn: NO_TURN,
       },
       {
         id: "fx-on-loop",
-        piece: "fx-lamp",
-        mount: { on: "fx-loop-a", anchor: "fx-tip" },
+        piece: "fx-small",
+        mount: { on: "fx-loop-a", anchor: "fx-point" },
         offset: [0, 0, 0],
         turn: NO_TURN,
       },
-      { id: "fx-self", piece: "fx-lamp", mount: { on: "fx-self", anchor: "fx-tip" }, offset: [0, 0, 0], turn: NO_TURN },
+      {
+        id: "fx-self",
+        piece: "fx-small",
+        mount: { on: "fx-self", anchor: "fx-point" },
+        offset: [0, 0, 0],
+        turn: NO_TURN,
+      },
       {
         id: "fx-orphan",
-        piece: "fx-lamp",
-        mount: { on: "fx-nowhere", anchor: "fx-tip" },
+        piece: "fx-small",
+        mount: { on: "fx-nowhere", anchor: "fx-point" },
         offset: [0, 0, 0],
         turn: NO_TURN,
       },
       {
         id: "fx-no-anchor",
-        piece: "fx-lamp",
+        piece: "fx-small",
         mount: { on: "fx-parent", anchor: "fx-missing" },
         offset: [0, 0, 0],
         turn: NO_TURN,
@@ -357,14 +363,14 @@ describe("the world resolver (compose/mount.ts)", () => {
       {
         id: "fx-no-piece",
         piece: "fx-missing",
-        mount: { on: "fx-parent", anchor: "fx-top" },
+        mount: { on: "fx-parent", anchor: "fx-upper" },
         offset: [0, 0, 0],
         turn: NO_TURN,
       },
       {
         id: "fx-under-no-piece",
-        piece: "fx-lamp",
-        mount: { on: "fx-no-piece", anchor: "fx-tip" },
+        piece: "fx-small",
+        mount: { on: "fx-no-piece", anchor: "fx-point" },
         offset: [0, 0, 0],
         turn: NO_TURN,
       },
