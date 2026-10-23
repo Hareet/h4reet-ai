@@ -3,8 +3,8 @@
 // committed file loads; a missing file and an invalid one each give a reason the startup log records, never a value
 // from the file, and the gateway then answers every event 400 (the route's tests, test/integration/room-events.test.ts).
 // Which objects the committed file lists is the room's data (spec 004, FR-007, SC-001; its research.md R-16), so its
-// case holds the list's bounds and none of its IDs: adding, removing, or retargeting a selectable changes no source
-// file. The other cases parse lists of their own, with synthetic IDs in `fx-`, a prefix the room's data never takes.
+// case holds the list's bounds and none of its IDs: adding or removing a selectable changes no source file. The other
+// cases parse lists of their own, with synthetic IDs in `fx-`, a prefix the room's data never takes.
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
