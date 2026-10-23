@@ -70,6 +70,7 @@ function direct(name: string, id: string): boolean {
   return !/[/\\]/.test(name) && !name.startsWith(".") && name.slice(0, name.lastIndexOf(".")) === id;
 }
 
+/** One catalog entry's model, checked; null where it has none, or RI7 refuses where it is. */
 function check(ctx: Context, entry: Loaded<CatalogEntry>, caps: RoomCaps): ModelCheck | null {
   const model = entry.value.model;
   const name = model?.file ?? model?.card;

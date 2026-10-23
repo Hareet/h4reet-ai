@@ -155,6 +155,7 @@ interface Layout {
   readonly resolved: Resolved;
 }
 
+/** The scene's layout, or null without a scene. */
 function layoutOf(ctx: Context): Layout | null {
   const scene = ctx.room.scene;
   if (!scene) return null;
@@ -176,6 +177,7 @@ function layoutOf(ctx: Context): Layout | null {
   return { placements, pieces, resolved };
 }
 
+/** `frameBoxes` over a layout. */
 function boxesOf(ctx: Context, layout: Layout): Map<string, Box> {
   const set = setModels(ctx);
   const out = new Map<string, Box>();
