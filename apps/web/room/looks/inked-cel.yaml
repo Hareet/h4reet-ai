@@ -39,8 +39,9 @@ lights:
   ambient: { sky: "#ffffff", ground: "#8a7a66", intensity: 1.2 }
   key: { color: "#ffffff", intensity: 1.6, from: [2.5, 4.5, 3], shadows: true }
 shading: { steps: 3 }
-# OutlineEffect's thickness, its default.
-outlines: { color: ink, width: 0.003 }
+# The ink lines' width in CSS pixels of the stage's height (look.ts); 1 is about OutlineEffect's own default on the
+# 640-pixel reference stage.
+outlines: { color: ink, width: 1 }
 glow_tones:
   screen-blue: { color: "#8fc3ff", intensity: 0.6 }
   neon-warm: { color: "#ff6a3d", intensity: 1.5 }
