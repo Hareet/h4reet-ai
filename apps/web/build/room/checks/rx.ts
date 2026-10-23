@@ -82,9 +82,21 @@ function check(ctx: Context, entry: Loaded<CatalogEntry>, caps: RoomCaps): Model
   const kind = model?.file !== undefined ? "glb" : "card";
   const bytes = ctx.tree.read(file);
   if (bytes === null) return { entry, file, kind, measures: null, findings: [unreadable(file)] };
+  return checkModel(entry, file, kind, bytes, caps);
+}
+
+/** A model's or a card's bytes, as `file`, checked against its catalog entry: RX's findings and §7's measures. The
+ *  compose checks each catalog model so, and `room:fit` any GLB in the tree (cli.ts). */
+export function checkModel(
+  entry: Loaded<CatalogEntry>,
+  file: string,
+  kind: "glb" | "card",
+  bytes: Uint8Array,
+  caps: RoomCaps,
+): ModelCheck {
   if (kind === "card") {
     const input = fitInput(entry.value, caps);
-    const result = fitCard(bytes, name.slice(name.lastIndexOf(".") + 1), input, { file });
+    const result = fitCard(bytes, file.slice(file.lastIndexOf(".") + 1), input, { file });
     const m = result.measures;
     const measures =
       m.textureBytes === null
