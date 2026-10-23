@@ -956,7 +956,7 @@ describe("the models (contracts/room-bundle.md §3.4)", () => {
     expect(result.index.build.placeholders).toBe(true);
   });
 
-  it("gives a switch whose piece is set its model, so every load_order entry resolves to a model the part carries", () => {
+  it("gives a switch whose piece is set its model, so each load_order entry resolves to a model in the part", () => {
     const result = withModels();
     const plug = result.models.find((m) => m.piece === "fx-plug");
     // The plug's model, made at its stylized scale of 2: its expected bounds times 2, measured.

@@ -261,7 +261,7 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     expect(memory.total).toBe(memory.pieces + memory.canvases);
   });
 
-  it("counts a figure's model that can't be read 0, and says how many there are, never as a model measured at 0", () => {
+  it("counts a figure's model that can't be read 0, and how many there are, never as a model measured at 0", () => {
     const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
     const unreadable = desk().bytes.subarray(0, 40);
     const tree = overlay({

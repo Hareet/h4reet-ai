@@ -766,7 +766,7 @@ describe("a check that never throws", () => {
     }
   });
 
-  it("answers every number of the desk, the sign, and the sparse desk made negative, huge, or fractional, never a throw", () => {
+  it("answers every number of three models made negative, huge, or fractional with findings, never a throw", () => {
     // Values a changed digit can't make: the number's sign flipped, small and large negatives, past a 32-bit index, and
     // a fraction, on every number the JSON holds, the sparse desk's explicit sparse offsets among them.
     type Holder = Record<string | number, unknown>;

@@ -21,8 +21,9 @@
 //   any part of the piece moves, or the size of a cue a pose's glow adds, on each stage: apart, or under the floor, RG8's
 //   own measure (`poseSeparations`), which only reports;
 // - the findings, each line, a lenient one marked warn in a lenient build, or "none".
-// Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path outside the repository, or a data string: pieces,
-// placements, faces, switches, and poses are named by IDs, each only where RT2 passed it.
+// Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path
+// outside the repository, or a data string: pieces, placements, faces, switches, and poses are named by IDs, each only
+// where RT2 passed it.
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";

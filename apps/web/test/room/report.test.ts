@@ -166,7 +166,7 @@ describe("the report's totals", () => {
     );
   });
 
-  it("prints RK3's own total and classes, through RK3's function: the figures' models measured, a set card a card", () => {
+  it("prints RK3's own total and classes through RK3's function: the figures measured, a set card a card", () => {
     const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
     const signMemory = textureMemory(4, 4) + textureMemory(8, 8);
     const tree = overlay({

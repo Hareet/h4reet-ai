@@ -18,8 +18,8 @@
 //
 // A figure's piece isn't counted by its budget: the figure shows an avatar, which RK3 measures, and RI8 gives its piece
 // no model for that budget to bound (plan.md §10). The on-screen sizes are RG's, the index's screen_css (rg.ts's
-// `faceScreens`), at the one production framing that the checks and the bundle share (§13.3): so RK3 counts the canvases
-// the index sizes. `sceneTextureTotal` is RK3's sum over a framing and a tree, which the report prints (report.ts).
+// `faceScreens`), at the one production framing that the checks and the bundle share (§13.3): so RK3 counts the
+// canvases the index sizes. `sceneTextureTotal` is RK3's sum over a framing and a tree, which the report prints.
 import { REFERENCE_PHONE } from "../../../src/room/compose/stages";
 import { fit, textureMemory } from "../../../src/room/glb/fit";
 import type { FitInput } from "../../../src/room/glb/fit";
@@ -57,7 +57,8 @@ export interface FaceCanvas {
 
 /** RK3's total by class, each by ⌊16 · w · h / 3⌋. */
 export interface SceneTextureMemory {
-  /** Each piece placed by a placement that isn't a figure's, or by a switch: its budgeted texture_bytes, once a piece. */
+  /** Each piece placed by a placement that isn't a figure's, or by a switch: its budgeted texture_bytes, once a
+   *  piece. */
   readonly pieces: number;
   /** Of `pieces`, the pieces whose model is a set model, or a stand-in. */
   readonly models: number;

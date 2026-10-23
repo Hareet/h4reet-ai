@@ -1227,7 +1227,8 @@ function modelOf(c: Composed, p: Placement): SceneModel | null {
   return c.figures.has(p.id) ? null : setModel(c, p.piece);
 }
 
-/** A piece's set model as the 3D part gives it to a placement or a switch (§3.2), or null while it shows its stand-in. */
+/** A piece's set model as the 3D part gives it to a placement or a switch (§3.2), or null while it shows its
+ *  stand-in. */
 function setModel(c: Composed, piece: string): SceneModel | null {
   const picture = c.pictures.get(piece);
   const entry = c.pieces.get(piece)?.value;
