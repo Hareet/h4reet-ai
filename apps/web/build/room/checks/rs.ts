@@ -2,10 +2,11 @@
 // contracts/room-data-files.md §4, §5.4, §13.4, §17). A switch shows one pose of its piece for each value of the tier,
 // and a piece that claims values names, for each pose, the value it claims or nothing. RS1's signal and RS6's sag,
 // radius, and drop are checks the schema holds (schema.ts), so the loader refuses a scene that breaks one; the rest are
-// here: RS1 the cases against the tier's values; RS2 the poses against the claims, a placement of a switch's piece, and
-// two poses claiming one value; RS3 a case showing a pose that claims another value, or passing over the pose that
-// claims its own; RS4 the six values FR-043 gives one pose not sharing one that claims nothing; RS5 a pose sitting where
-// the local pose sits; RS6 a cable from an anchor the switch's piece lacks.
+// here: RS1 the cases against the tier's values; RS2 the poses against the claims, a placement of a switch's piece, two
+// poses claiming one value, and claims that give no pose local or none cloud, by which alone RS3 to RS5 know the
+// plugged and the cloud poses (FR-043); RS3 a case showing a pose that claims another value, or passing over the pose
+// that claims its own; RS4 the six values FR-043 gives one pose not sharing one that claims nothing; RS5 a pose
+// sitting where the local pose sits; RS6 a cable from an anchor the switch's piece lacks.
 // Readings: a pose the claims don't name is RS2's alone, so RS3 and RS5 judge only the poses the claims name; RS4's
 // shared pose is the one most of the six values show, ties to the earliest in §13.4's order, and each value showing
 // another is reported where its pose comes from, its case or the default; RS5 compares two poses where the world puts
@@ -83,16 +84,28 @@ function placed(ctx: Context, file: string, judged: readonly Judged[]): void {
   });
 }
 
-/** RS2, in the catalog: two poses claiming one value. */
+/** The two values whose poses FR-043 names: the plugged pose, which only local shows, and the cloud pose, which only
+ *  cloud shows. */
+const NAMED: readonly { readonly value: TierValue; readonly pose: string }[] = [
+  { value: "local", pose: "the plugged pose" },
+  { value: "cloud", pose: "the cloud pose" },
+];
+
+/** RS2, in the catalog: two poses claiming one value; claims that give no pose local, or none cloud, since RS3 to RS5
+ *  know the plugged and the cloud poses only by those claims. A piece that claims nothing is left to its default. */
 function claimedTwice(ctx: Context): void {
   for (const { file, value } of ctx.room.catalog) {
+    if (!value.claims) continue;
     const seen = new Set<TierValue>();
-    for (const [name, claim] of Object.entries(value.claims?.poses ?? {})) {
+    for (const [name, claim] of Object.entries(value.claims.poses)) {
       if (claim === null) continue;
       if (seen.has(claim))
         ctx.report("RS2", file, ctx.path("claims", "poses", name), `claims ${claim}, as another pose does`);
       seen.add(claim);
     }
+    for (const { value: tier, pose } of NAMED)
+      if (!seen.has(tier))
+        ctx.report("RS2", file, ctx.path("claims", "poses"), `no pose claims ${tier}, so none is known as ${pose}`);
   }
 }
 
