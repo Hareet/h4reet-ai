@@ -991,7 +991,6 @@ function copyOf(faces: RoomIndex["faces"], switches: RoomIndex["switches"]): Roo
   ];
 }
 
-/** The index without its digest. */
 /** A set model's URL in the 3D part, `a/<stem>.<hash16>.glb`, its stem its record's file stem. */
 const MODEL_URL = /^a\/(.+)\.[0-9a-f]{16}\.glb$/;
 
@@ -1016,6 +1015,7 @@ function loadedModels(part: Pick<RoomScene, "placements" | "switches" | "load_or
   return out;
 }
 
+/** The index without its digest. */
 function indexBody(c: Composed, placeholders: boolean, models: readonly string[]): Omit<RoomIndex, "digest"> {
   const scene = c.scene;
   const live = scene?.live;
