@@ -9,6 +9,8 @@
 // ID with no letter or digit beside it, case-sensitively, on the line where it stands, outside every token the reserved
 // prefix begins; it reads only where §16 says, sorts its output, looks for every ID of the four namespaces, and never
 // prints an ID RT2 refused.
+// T107 (spec 004; FR-007, SC-001, User Story 1 scenario 4): over the real sources the scan finds 0 data-only IDs, an
+// it.fails case until T112 takes the room's data out of its code.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -19,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { walkStrings } from "../../build/room/checks/rt";
 import { loadRoom, namespaceIds, pathOf, TOPICS_FILE } from "../../build/room/load";
 import type { Namespaces } from "../../build/room/load";
-import { noPolicy } from "../../build/room/policy";
+import { noPolicy, readRoomPolicy } from "../../build/room/policy";
 import { roomIds, scan } from "../../build/room/scan";
 import type { ScanResult } from "../../build/room/scan";
 import { fileTree, memoryTree, overlayTree } from "../../build/room/source";
@@ -396,5 +398,31 @@ describe("its output", () => {
       code: 1,
     });
     expect(result?.lines.join("\n")).not.toContain(id);
+  });
+});
+
+describe("the committed tree (T107; FR-007, SC-001, User Story 1 scenario 4)", () => {
+  // The scan over the repository's own data and sources, as `npm run room:scan -w apps/web` runs it. Spec 002's room
+  // code and the tests that pin its IDs still hold the data's IDs until T112 takes the room's data out of its code and
+  // T104 to T106 move the tests to compose() and the data, so the case that wants 0 hits is an it.fails until T112
+  // makes it an `it`: a red test here would block User Story 1's parallel branches. The first case holds the scan to
+  // running whole over the real tree meanwhile.
+  let result: ScanResult | undefined;
+  const committed = (): ScanResult => {
+    result ??= scan(fileTree(ROOT), fileTree(ROOT), readRoomPolicy({ env: process.env, root: ROOT }));
+    return result;
+  };
+
+  it("runs over the real sources: one well-formed line per hit, and exit 1 on any", () => {
+    const { lines, code } = committed();
+    expect(code).toBe(lines.length > 0 ? 1 : 0);
+    for (const l of lines)
+      expect(l).toMatch(
+        /^FR-007 \S+:\d+: holds ("[a-z][a-z0-9-]*"|an ID RT2 refused), which only the room's data defines$/,
+      );
+  });
+
+  it.fails("finds 0 IDs only the room's data defines in the room's code (RED until T112)", () => {
+    expect(committed()).toEqual({ lines: [], code: 0 });
   });
 });

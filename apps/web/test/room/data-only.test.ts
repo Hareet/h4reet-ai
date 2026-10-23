@@ -1,0 +1,628 @@
+// T101 (spec 004; FR-006, SC-001, User Story 1 scenarios 1 to 3; R-68; contracts/room-bundle.md §1, §15;
+// contracts/room-data-files.md §1): the proof set, each change made on an overlay copy of the committed data, never on
+// the files themselves. Each composes in strict mode with no finding, as room:check composes, while every path the
+// overlay changes is the room's data and its log shows only the paths contracts/room-data-files.md §1 lists, so no
+// source file is read or changed (SC-001):
+// - a move: the placement most others are mounted on moves, and everything mounted on it moves with it, in 3D and 2D;
+// - an addition of a catalog entry, a placement, a selectable, and a topic, which becomes a labelled, selectable
+//   stand-in with a work order, its ID in the events file and its topic in the topic mapping;
+// - a removal: a selectable and its members go, their IDs join retired[] and leave the events file, and taking the
+//   selectable's ID back is RI3's refusal;
+// - a regroup with its move: a member leaves the largest group, which moves until each core is exclusive again (RG6);
+// - a retarget: a selectable opens another topic and keeps its ID and its event;
+// - a rewording: a selectable's name, a topic's phrase, and a label's word;
+// - a switch case for a value its signal already has, on a fixture switch whose piece claims nothing and uses default.
+// Where a change needs room in the scene, the test looks for it in the committed layout, so a later data edit that
+// takes one spot leaves the proof standing. The runtime half: a bundle with an added selectable gets a stand-in and a
+// pick area in 3D, and a list button, a 2D cue, and its fixed message, the last three it.fails cases until T110 builds
+// the list and the message, and T109 the 2D room, from the bundle. And apps/web/room/README.md, which says how to make
+// each change, names no ID the data defines (T114). Synthetic IDs take the reserved prefix fx-; every other ID is read
+// from the data, never written here.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { Object3D } from "three";
+import { describe, expect, it } from "vitest";
+import { parse, stringify } from "yaml";
+
+import { readMessages, ROOM_EVENTS_PATH } from "../../build/manifest";
+import { compose, formatFinding } from "../../build/room/compose";
+import type { ComposeResult } from "../../build/room/compose";
+import { loadRoom, namespaceIds, pathOf, SCENE_FILE, TOPICS_FILE, UI_WORDS_FILE } from "../../build/room/load";
+import { readRoomPolicy } from "../../build/room/policy";
+import type { Mount, Scene, Topics, UiWords } from "../../build/room/schema";
+import { fileTree, overlayTree } from "../../build/room/source";
+import type { Tree } from "../../build/room/source";
+import { AVATARS } from "../../src/choice/avatars";
+import { startRoom } from "../../src/room/app";
+import type { RoomScene } from "../../src/room/compose/bundle";
+import { framing } from "../../src/room/compose/framing";
+import { origin, sub } from "../../src/room/compose/math";
+import type { Vec3 } from "../../src/room/compose/math";
+import { resolveMounts } from "../../src/room/compose/mount";
+import { REFERENCE_DESKTOP, REFERENCE_PHONE } from "../../src/room/compose/stages";
+import { TIER_VALUES } from "../../src/room/compose/vocabulary";
+import type { RoomEvent } from "../../src/room/events";
+import { resumeView } from "../../src/room/resume-port";
+import { buildRoom, framedBoxes, pickAreasOn, selectablePicker } from "../../src/room/scene/bundle3d";
+import {
+  FakeClock,
+  REPO,
+  WEB,
+  button,
+  fakeScene,
+  fixtureResume,
+  flush,
+  intoRoom,
+  makeWindow,
+  nameOf,
+  talkLog,
+  textOf,
+} from "../helpers/room";
+import type { Spies, TestWindow, Visit } from "../helpers/room";
+
+const encoder = new TextEncoder();
+const policy = readRoomPolicy({ env: process.env, root: REPO });
+const MESSAGES = readMessages(join(WEB, "content/messages.yaml"));
+
+/** Where contracts/room-data-files.md §1 lets the compositor read, the policy apart. */
+const READABLE = [
+  /^apps\/web\/room(\/|$)/,
+  /^apps\/web\/content\/room(\/|$)/,
+  /^assets\/(room|twin|visitors)(\/|$)/,
+  /^apps\/web\/fonts(\/|$)/,
+  /^apps\/web\/content\/resume\.yaml$/,
+  /^corpus(\/[^/]+\.md|\/facts(\/[^/]+\.yaml)?|\/intake\/private\/denylist\.txt)?$/,
+  /^docs\/data-flow-disclosure\.md$/,
+  /^intent(\/[^/]+\.md)?$/,
+  /^specs(\/[^/]+(\/intent\.md)?)?$/,
+];
+/** The room's data, the only files a data edit changes. */
+const DATA = /^apps\/web\/(room|content\/room)\//;
+
+/** The committed data, loaded and schema-checked: what each change starts from, its defaults written out. */
+const committed = loadRoom(fileTree(REPO));
+function must<T>(value: T | null | undefined, what: string): T {
+  if (value === null || value === undefined) throw new Error(`the committed data has no ${what}`);
+  return value;
+}
+const SCENE: Scene = must(committed.scene, "scene").value;
+const TOPICS: Topics = must(committed.topics, "topics file").value;
+const WORDS: UiWords = must(committed.ui, "UI words").value;
+const copy = <T>(value: T): T => structuredClone(value);
+
+/** One change of the proof set, made on an overlay: the files it writes (an object as YAML, null to remove), the tree
+ *  it composed, and the compose, strict, with drafts, as room:check composes. */
+interface Change {
+  readonly changed: readonly string[];
+  readonly tree: Tree;
+  readonly result: ComposeResult;
+}
+
+function change(files: Readonly<Record<string, unknown>>): Change {
+  const map = new Map<string, Uint8Array | null>();
+  for (const [path, value] of Object.entries(files))
+    map.set(
+      path,
+      value === null ? null : encoder.encode(stringify(value, { aliasDuplicateObjects: false, lineWidth: 0 })),
+    );
+  const tree = overlayTree(fileTree(REPO), map);
+  return { changed: [...map.keys()], tree, result: compose(tree, policy, { mode: "strict", drafts: true }) };
+}
+
+/** The first of `candidates` that composes with no finding, or the last one tried, whose findings the test prints. */
+function firstClean(candidates: Iterable<Readonly<Record<string, unknown>>>): Change {
+  let last: Change | null = null;
+  for (const files of candidates) {
+    last = change(files);
+    if (last.result.findings.length === 0) return last;
+  }
+  if (!last) throw new Error("no candidate change");
+  return last;
+}
+
+/** A data edit: no finding, only data changed, and only §1's paths read. */
+function expectDataOnly(c: Change): void {
+  expect(c.result.findings.map((f) => formatFinding(f))).toEqual([]);
+  expect(c.changed.length).toBeGreaterThan(0);
+  expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
+  expect(c.tree.log.length).toBeGreaterThan(0);
+  expect(c.tree.log.filter((path) => !READABLE.some((re) => re.test(path)))).toEqual([]);
+}
+
+const base = compose(fileTree(REPO), policy, { mode: "strict", drafts: true });
+const generatedText = (result: ComposeResult, path: string): string =>
+  must(
+    result.generated.find((g) => g.path === path),
+    path,
+  ).text;
+const eventObjects = (result: ComposeResult): unknown =>
+  (parse(generatedText(result, ROOM_EVENTS_PATH)) as { objects: unknown }).objects;
+
+/** Each placement's world position, by the kernel's resolver over a 3D part. */
+function positions(part: RoomScene): Map<string, Vec3> {
+  const { world } = resolveMounts(part.placements, part.pieces);
+  return new Map([...world].map(([id, m]) => [id, origin(m)]));
+}
+const near = (a: Vec3, b: Vec3, tolerance = 1e-9): boolean =>
+  a.every((v, i) => Math.abs(v - (b[i] ?? NaN)) <= tolerance);
+
+/** The placements mounted on `id`, directly or through others. */
+function below(id: string, scene: Scene = SCENE): string[] {
+  return scene.placements.filter((p) => p.mount?.on === id).flatMap((p) => [p.id, ...below(p.id, scene)]);
+}
+const root = must(
+  SCENE.placements.find((p) => p.mount === undefined),
+  "root placement",
+);
+/** The root's anchor the most placements mount on directly: the wall, in a room of pieces on a wall. */
+const wallAnchor = must(
+  [...new Set(SCENE.placements.flatMap((p) => (p.mount?.on === root.id ? [p.mount.anchor] : [])))]
+    .map((a) => [a, SCENE.placements.filter((p) => p.mount?.on === root.id && p.mount.anchor === a).length] as const)
+    .sort((a, b) => b[1] - a[1])[0]?.[0],
+  "anchor on the root",
+);
+
+// The added piece, its placement, its selectable, its topic, and its label: synthetic IDs, a name and a label word
+// apart, so the 2D cue's name tag and the stand-in's label can't be taken for each other.
+const ADDED = "fx-added";
+const ADDED_PICK = "fx-added-pick";
+const ADDED_TOPIC = "fx-added-topic";
+const ADDED_LABEL = `label.${ADDED}`;
+const ADDED_NAME = "Fixture selectable";
+const ADDED_WORD = "Fixture stand-in";
+const ADDED_PHRASE = "fixture topic";
+const SIDE = 0.3;
+const addedPiece = {
+  version: 1,
+  id: ADDED,
+  name: "Fixture piece",
+  size: { w: SIDE, h: SIDE, d: 0.04 },
+  stylized_scale: 1,
+  origin: {
+    point: "Fixture point at the centre of the piece's back.",
+    bounds: { min: [-SIDE / 2, -SIDE / 2, 0], max: [SIDE / 2, SIDE / 2, 0.04] },
+  },
+  standin: [{ shape: "box", size: [SIDE, SIDE, 0.04], at: [0, 0, 0.02], color: "#808080" }],
+  drawing: { from: "standin" },
+  budget: { gzip_bytes: 100000, triangles: 1000, texture_px: 256, texture_bytes: 349525 },
+  work_order: {
+    method: "Fixture method for the added piece.",
+    shots: ["Fixture shot of the added piece."],
+    measurements: ["Fixture measurement of the added piece."],
+    studio_notes: "Fixture studio notes for the added piece.",
+  },
+};
+
+/** Spots for the added piece on the wall anchor, in its frame, inside the committed framed boxes' span, the farthest
+ *  from every selectable's members first. */
+function spots(): [number, number][] {
+  const boxes = base.scene.placements.filter((p) => p.framed).map((p) => p.frame_box);
+  const members = new Set(base.index.selectables.flatMap((s) => s.members));
+  const taken = base.scene.placements.filter((p) => members.has(p.id)).map((p) => p.frame_box);
+  const at = base.scene.pieces[root.piece]?.anchors[wallAnchor]?.at ?? [0, 0, 0];
+  const [x0, x1] = [Math.min(...boxes.map((b) => b.min[0])) + SIDE, Math.max(...boxes.map((b) => b.max[0])) - SIDE];
+  const [y0, y1] = [Math.min(...boxes.map((b) => b.min[1])) + SIDE, Math.max(...boxes.map((b) => b.max[1])) - 2 * SIDE];
+  const out: { spot: [number, number]; room: number }[] = [];
+  for (let x = Math.ceil(x0 * 4) / 4; x <= x1; x += 0.25)
+    for (let y = Math.ceil(y0 * 4) / 4; y <= y1; y += 0.25) {
+      const [wx, wy] = [at[0] + x, at[1] + y];
+      const gap = (b: (typeof taken)[number]): number =>
+        Math.hypot(Math.max(b.min[0] - wx, 0, wx - b.max[0]), Math.max(b.min[1] - wy, 0, wy - b.max[1]));
+      out.push({ spot: [x, y], room: Math.min(...taken.map(gap)) });
+    }
+  return out.sort((a, b) => b.room - a.room).map((o) => o.spot);
+}
+
+/** The addition: a catalog entry, a placement, a selectable, and a topic, at the first spot that composes clean. */
+const addition = ((): (() => Change) => {
+  let made: Change | null = null;
+  return () => {
+    made ??= firstClean(
+      spots().map(([x, y]) => {
+        const scene = copy(SCENE);
+        scene.placements.push({
+          id: ADDED,
+          piece: ADDED,
+          mount: { on: root.id, anchor: wallAnchor, offset: [x, y, 0.02], turn: { x: 0, y: 0, z: 0 }, estimated: true },
+          frame: true,
+          label: ADDED_LABEL,
+        });
+        scene.selectables.push({
+          id: ADDED_PICK,
+          name: ADDED_NAME,
+          members: [ADDED],
+          action: { talk: { topic: ADDED_TOPIC } },
+        });
+        const topics = copy(TOPICS);
+        const words = must(TOPICS.topics[0], "topic").words_from;
+        topics.topics.push({
+          id: ADDED_TOPIC,
+          phrase: ADDED_PHRASE,
+          words_from: copy(words),
+          corpus: ["corpus/99-fx-added-topic.md"],
+        });
+        const ui = copy(WORDS);
+        ui.words[ADDED_LABEL] = ADDED_WORD;
+        return {
+          [SCENE_FILE]: scene,
+          [TOPICS_FILE]: topics,
+          [UI_WORDS_FILE]: ui,
+          [pathOf("catalog", ADDED)]: addedPiece,
+        };
+      }),
+    );
+    return made;
+  };
+})();
+
+describe("the committed data (R-68)", () => {
+  it("composes with no finding, reading only what contracts/room-data-files.md §1 lists: the ground every change stands on", () => {
+    expect(base.findings.map((f) => formatFinding(f))).toEqual([]);
+    expect(base.index.selectables.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the proof set, each change a data edit (FR-006, SC-001)", () => {
+  it("a move: the placement most others are mounted on moves, and everything on it moves with it, in 3D and 2D", () => {
+    const mover = must(
+      SCENE.placements.filter((p) => p.mount !== undefined).sort((a, b) => below(b.id).length - below(a.id).length)[0],
+      "mounted placement",
+    );
+    const carried = new Set([mover.id, ...below(mover.id)]);
+    expect(carried.size).toBeGreaterThan(1);
+    const steps: Vec3[] = [
+      [0, 0, 0.002],
+      [0, 0, -0.002],
+      [0.002, 0, 0],
+      [-0.002, 0, 0],
+    ];
+    const moved = firstClean(
+      steps.map((step) => {
+        const scene = copy(SCENE);
+        const mount = must(scene.placements.find((p) => p.id === mover.id)?.mount, "mount");
+        mount.offset = [mount.offset[0] + step[0], mount.offset[1] + step[1], mount.offset[2] + step[2]];
+        return { [SCENE_FILE]: scene };
+      }),
+    );
+    expectDataOnly(moved);
+    const [before, after] = [positions(base.scene), positions(moved.result.scene)];
+    const shift = (id: string): Vec3 => sub(must(after.get(id), id), must(before.get(id), id));
+    const by = shift(mover.id);
+    expect(Math.hypot(...by)).toBeCloseTo(0.002, 9);
+    for (const p of base.scene.placements) {
+      if (carried.has(p.id)) expect(near(shift(p.id), by), p.id).toBe(true);
+      else expect(near(shift(p.id), [0, 0, 0]), p.id).toBe(true);
+    }
+    const drawn = (result: ComposeResult): Map<string, string> =>
+      new Map(result.index.flat.items.map((i) => [i.placement, JSON.stringify(i.matrix)]));
+    const [flatBefore, flatAfter] = [drawn(base), drawn(moved.result)];
+    for (const id of carried)
+      if (flatBefore.has(id)) expect(flatAfter.get(id), `${id} in 2D`).not.toBe(flatBefore.get(id));
+  });
+
+  it("an addition: a catalog entry, a placement, a selectable, and a topic become a labelled, selectable stand-in", () => {
+    const added = addition();
+    expectDataOnly(added);
+    const { scene, index, manifest } = added.result;
+    const placement = must(
+      scene.placements.find((p) => p.id === ADDED),
+      ADDED,
+    );
+    expect([placement.piece, placement.model, placement.label, placement.framed]).toEqual([
+      ADDED,
+      null,
+      ADDED_LABEL,
+      true,
+    ]);
+    expect(scene.pieces[ADDED]?.standin.length).toBeGreaterThan(0);
+    expect(index.ui[ADDED_LABEL]).toBe(ADDED_WORD);
+    expect(index.flat.labels.filter((l) => l.placement === ADDED).map((l) => l.label)).toEqual([ADDED_LABEL]);
+    expect(index.selectables.at(-1)).toEqual({
+      id: ADDED_PICK,
+      name: ADDED_NAME,
+      members: [ADDED],
+      action: { kind: "talk", topic: ADDED_TOPIC },
+    });
+    expect(index.flat.hits.map((h) => h.selectable)).toContain(ADDED_PICK);
+    expect(index.topics).toContainEqual({ id: ADDED_TOPIC, phrase: ADDED_PHRASE, ready: false });
+    expect(manifest.objects.at(-1)).toEqual({ id: ADDED_PICK, action: "talk", topic: ADDED_TOPIC, ready: false });
+    expect(manifest.standins).toContainEqual({ placement: ADDED, reason: "no-model" });
+    // Its work order, its ID in the events file, which the gateway reads from its next start, and its topic's mapping.
+    expect(generatedText(added.result, `docs/studio/work-orders/${ADDED}.md`).split("\n")[0]).toBe(
+      "# Work order: Fixture piece",
+    );
+    expect(eventObjects(added.result)).toEqual(index.selectables.map((s) => s.id));
+    expect(parse(generatedText(added.result, "config/room-topics.yaml"))).toMatchObject({
+      selectables: expect.arrayContaining([
+        { id: ADDED_PICK, topic: ADDED_TOPIC, corpus: ["corpus/99-fx-added-topic.md"], lead: null },
+      ]) as unknown,
+    });
+  });
+
+  it("a removal: a selectable and its members go, their IDs join retired[], and the selectable's ID can't come back", () => {
+    // The last selectable whose members nothing else mounts on: its pieces go with it.
+    const mounted = new Set([
+      ...SCENE.placements.flatMap((p) => (p.mount ? [p.mount.on] : [])),
+      ...SCENE.switches.flatMap((s) => Object.values(s.poses).map((pose) => pose.mount.on)),
+    ]);
+    const gone = must(
+      [...SCENE.selectables].reverse().find((s) => s.members.every((m) => !mounted.has(m))),
+      "selectable with free members",
+    );
+    const members = SCENE.placements.filter((p) => gone.members.includes(p.id));
+    const pieces = [...new Set(members.map((p) => p.piece))].filter(
+      (piece) => !SCENE.placements.some((p) => p.piece === piece && !gone.members.includes(p.id)),
+    );
+    const kinds = new Map<string, Set<"piece" | "placement" | "selectable" | "topic">>();
+    const retire = (id: string, kind: "piece" | "placement" | "selectable"): void => {
+      kinds.set(id, (kinds.get(id) ?? new Set()).add(kind));
+    };
+    retire(gone.id, "selectable");
+    for (const p of members) retire(p.id, "placement");
+    for (const piece of pieces) retire(piece, "piece");
+    const scene = copy(SCENE);
+    scene.placements = scene.placements.filter((p) => !gone.members.includes(p.id));
+    scene.selectables = scene.selectables.filter((s) => s.id !== gone.id);
+    scene.retired.push(
+      ...[...kinds].map(([id, k]) => ({
+        id,
+        kinds: (["piece", "placement", "selectable", "topic"] as const).filter((n) => k.has(n)),
+        retired: "2026-10-23",
+        reason: "Fixture reason for the removal.",
+      })),
+    );
+    const ui = copy(WORDS);
+    for (const p of members) if (p.label !== undefined) delete ui.words[p.label];
+    const files: Record<string, unknown> = { [SCENE_FILE]: scene, [UI_WORDS_FILE]: ui };
+    for (const piece of pieces) files[pathOf("catalog", piece)] = null;
+    const removed = change(files);
+    expectDataOnly(removed);
+    const { index, manifest, generated } = removed.result;
+    expect(index.selectables.map((s) => s.id)).not.toContain(gone.id);
+    expect(manifest.objects.map((o) => o.id)).not.toContain(gone.id);
+    expect(eventObjects(removed.result)).toEqual(
+      base.index.selectables.map((s) => s.id).filter((id) => id !== gone.id),
+    );
+    for (const piece of pieces)
+      expect(generated.map((g) => g.path)).not.toContain(`docs/studio/work-orders/${piece}.md`);
+    // Taking the ID back, on members that are still there, is refused: retired[] only grows.
+    const back = copy(scene);
+    const other = must(
+      SCENE.placements.find((p) => p.frame && !SCENE.selectables.some((s) => s.members.includes(p.id))),
+      "framed placement in no selectable",
+    );
+    back.selectables.push({ ...copy(gone), members: [other.id] });
+    const refused = change({ ...files, [SCENE_FILE]: back }).result.findings.map(
+      (f) => `${f.rule} ${f.file}:${f.path}`,
+    );
+    expect(refused).toContain(`RI3 ${SCENE_FILE}:selectables[${back.selectables.length - 1}].id`);
+  });
+
+  it("a regroup with its move: a member leaves the largest group, which moves until each core is exclusive (RG6)", () => {
+    const group = must([...SCENE.selectables].sort((a, b) => b.members.length - a.members.length)[0], "selectable");
+    expect(group.members.length).toBeGreaterThan(1);
+    const parent = new Map(SCENE.placements.map((p) => [p.id, p.mount?.on]));
+    // A member no other member is mounted on leaves; the rest move with the members no other member carries.
+    const leaving = group.members.filter((m) => !group.members.some((o) => parent.get(o) === m)).reverse();
+    const candidates = leaving.flatMap((left) => {
+      const rest = group.members.filter((m) => m !== left);
+      const tops = rest.filter((m) => !rest.includes(parent.get(m) ?? ""));
+      return [0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4].flatMap((step) =>
+        [-step, step].map((dx) => {
+          const scene = copy(SCENE);
+          must(
+            scene.selectables.find((s) => s.id === group.id),
+            group.id,
+          ).members = rest;
+          for (const top of tops) {
+            const mount = must(scene.placements.find((p) => p.id === top)?.mount, `${top}'s mount`);
+            mount.offset = [mount.offset[0] + dx, mount.offset[1], mount.offset[2]];
+          }
+          return { [SCENE_FILE]: scene };
+        }),
+      );
+    });
+    const regrouped = firstClean(candidates);
+    expectDataOnly(regrouped);
+    const after = must(
+      regrouped.result.index.selectables.find((s) => s.id === group.id),
+      group.id,
+    );
+    expect(after.members.length).toBe(group.members.length - 1);
+    const left = group.members.filter((m) => !after.members.includes(m));
+    expect(regrouped.result.index.selectables.flatMap((s) => s.members)).not.toContain(left[0]);
+    // The group moved, and its ID and every selectable's event stay.
+    const [before, moved] = [positions(base.scene), positions(regrouped.result.scene)];
+    for (const m of after.members) expect(near(must(moved.get(m), m), must(before.get(m), m)), m).toBe(false);
+    expect(eventObjects(regrouped.result)).toEqual(eventObjects(base));
+  });
+
+  it("a retarget: a selectable opens another topic, and keeps its ID and its event", () => {
+    const scene = copy(SCENE);
+    const target = must(
+      scene.selectables.find((s) => s.action.talk !== undefined),
+      "talk selectable",
+    );
+    const talk = must(target.action.talk, "talk action");
+    const topic = must(
+      TOPICS.topics.find((t) => t.id !== talk.topic),
+      "another topic",
+    );
+    talk.topic = topic.id;
+    const retargeted = change({ [SCENE_FILE]: scene });
+    expectDataOnly(retargeted);
+    const { index, manifest } = retargeted.result;
+    expect(index.selectables.find((s) => s.id === target.id)?.action).toEqual({ kind: "talk", topic: topic.id });
+    expect(manifest.objects.find((o) => o.id === target.id)).toMatchObject({ action: "talk", topic: topic.id });
+    expect(index.selectables.map((s) => s.id)).toEqual(base.index.selectables.map((s) => s.id));
+    expect(generatedText(retargeted.result, ROOM_EVENTS_PATH)).toBe(generatedText(base, ROOM_EVENTS_PATH));
+    const mapped = (parse(generatedText(retargeted.result, "config/room-topics.yaml")) as { selectables: unknown[] })
+      .selectables;
+    expect(mapped).toContainEqual({ id: target.id, topic: topic.id, corpus: topic.corpus, lead: talk.lead ?? null });
+  });
+
+  it("a rewording: a selectable's name, a topic's phrase, and a label's word, the 3D part untouched", () => {
+    const scene = copy(SCENE);
+    const selectable = must(scene.selectables[0], "selectable");
+    selectable.name = "Fixture reworded name";
+    const topics = copy(TOPICS);
+    const topic = must(topics.topics[0], "topic");
+    topic.phrase = "fixture reworded phrase";
+    const ui = copy(WORDS);
+    const key = must(SCENE.placements.find((p) => p.label !== undefined)?.label, "label");
+    ui.words[key] = "Fixture reworded label";
+    const reworded = change({ [SCENE_FILE]: scene, [TOPICS_FILE]: topics, [UI_WORDS_FILE]: ui });
+    expectDataOnly(reworded);
+    const { index, scene: part } = reworded.result;
+    expect(index.selectables.find((s) => s.id === selectable.id)?.name).toBe("Fixture reworded name");
+    expect(index.topics.find((t) => t.id === topic.id)?.phrase).toBe("fixture reworded phrase");
+    expect(index.ui[key]).toBe("Fixture reworded label");
+    expect({ ...part, digest: "" }).toEqual({ ...base.scene, digest: "" });
+    expect(generatedText(reworded.result, ROOM_EVENTS_PATH)).toBe(generatedText(base, ROOM_EVENTS_PATH));
+  });
+
+  it("a new switch case for a value its signal already has, on a fixture switch whose piece claims nothing", () => {
+    const LAMP = "fx-lamp";
+    const SWITCH = "fx-lamp-switch";
+    const lamp = { ...copy(addedPiece), id: LAMP, name: "Fixture lamp" };
+    const scene = copy(SCENE);
+    const at = (y: number): Mount => ({
+      on: root.id,
+      anchor: wallAnchor,
+      offset: [0, y, 0.3],
+      turn: { x: 0, y: 0, z: 0 },
+      estimated: false,
+    });
+    scene.switches.push({
+      id: SWITCH,
+      signal: "tier",
+      piece: LAMP,
+      label: `label.${SWITCH}`,
+      poses: { "fx-low": { mount: at(0.25), glows: [] }, "fx-high": { mount: at(0.75), glows: [] } },
+      cases: {},
+      default: "fx-low",
+    });
+    const ui = copy(WORDS);
+    ui.words[`label.${SWITCH}`] = "Fixture switch";
+    const files = { [SCENE_FILE]: scene, [UI_WORDS_FILE]: ui, [pathOf("catalog", LAMP)]: lamp };
+    const before = change(files);
+    expectDataOnly(before);
+    const cases = (c: Change): Record<string, string> | undefined =>
+      c.result.index.switches.find((s) => s.id === SWITCH)?.cases;
+    expect(cases(before)).toEqual(Object.fromEntries(TIER_VALUES.map((v) => [v, "fx-low"])));
+    // The case: one value the signal already has, shown by the other pose.
+    const value = must(TIER_VALUES[0], "tier value");
+    const withCase = copy(scene);
+    must(withCase.switches.at(-1), SWITCH).cases = { [value]: "fx-high" };
+    const after = change({ ...files, [SCENE_FILE]: withCase });
+    expectDataOnly(after);
+    expect(cases(after)).toEqual({ ...cases(before), [value]: "fx-high" });
+  });
+});
+
+describe("the runtime half: a bundle with an added selectable (R-68)", () => {
+  /** The room's page over a bundle, as test/helpers/room.ts's start() opens it over the repository's. */
+  function visit(bundle: ComposeResult): Visit {
+    const dom = makeWindow({ webgl: true });
+    const win = dom.window as unknown as TestWindow;
+    const spies: Spies = { storage: [], history: [], network: [], beacons: [], microphone: 0 };
+    Object.defineProperty(win, "fetch", {
+      configurable: true,
+      value: (input: unknown) => {
+        spies.network.push(`fetch ${String(input)}`);
+        return Promise.reject(new Error("no network in the room's tests"));
+      },
+    });
+    const clock = new FakeClock();
+    const events: RoomEvent[] = [];
+    const scene = fakeScene();
+    const room = startRoom({
+      win,
+      content: { messages: MESSAGES, manifest: bundle.manifest },
+      room: bundle.index,
+      resume: resumeView(() => Promise.resolve(fixtureResume())),
+      events: (event) => events.push(event),
+      clock,
+      loadScene: () => {
+        scene.loads += 1;
+        return Promise.resolve(scene.module);
+      },
+    });
+    return { dom, win, doc: win.document, clock, events, spies, scene, room, resumeLoads: () => 0 };
+  }
+
+  it("gets a labelled stand-in in 3D, and a pick area its pointer picks", () => {
+    const { scene: part, index } = addition().result;
+    const named = (words: string): Object3D => Object.assign(new Object3D(), { name: `label:${words}` });
+    const room = buildRoom(part, { avatar: must(AVATARS[0], "avatar").id, label: named, index });
+    expect(room.pictures.get(ADDED)?.name).toBe("standin");
+    expect(room.labels.get(ADDED)?.name).toBe(
+      `label:${(index.ui["standin.label"] ?? "").replace("{name}", ADDED_WORD)}`,
+    );
+    for (const stage of [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage]) {
+      const picker = selectablePicker(part, index);
+      picker.resize(stage);
+      const area = pickAreasOn(part, index, framing(stage.w / stage.h, framedBoxes(part)), stage).find(
+        (a) => a.id === ADDED_PICK,
+      );
+      const core = must(area?.core, "core");
+      const [x, y] = [core[0] + core[2] / 2, core[1] + core[3] / 2];
+      expect(picker.pick({ x: (x / stage.w) * 2 - 1, y: 1 - (y / stage.h) * 2 })).toBe(ADDED_PICK);
+    }
+  });
+
+  // RED until T110 builds the "In the room" list from the bundle's selectables.
+  it.fails("gets a button in the list, which selects it (until T110)", async () => {
+    const v = visit(addition().result);
+    await intoRoom(v);
+    const found = [...v.doc.querySelectorAll("button")].filter((b) => nameOf(b).startsWith(ADDED_NAME));
+    expect(found).toHaveLength(1);
+    found[0]?.click();
+    expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: ADDED_PICK });
+  });
+
+  // RED until T109 draws the 2D room from the bundle's drawing, each selectable's cue with its name tag.
+  it.fails("gets a cue in the 2D room, with its name (until T109)", async () => {
+    const v = visit(addition().result);
+    await intoRoom(v);
+    button(v.doc, "2D view").click();
+    await flush();
+    expect(textOf(v.doc.querySelector(".flat"))).toContain(ADDED_NAME);
+  });
+
+  // RED until T110 has the talk panel fill the fixed message with the topic's phrase from the bundle.
+  it.fails("says the twin can't talk about its topic yet, in its phrase, and calls no model (until T110)", async () => {
+    const v = visit(addition().result);
+    await intoRoom(v);
+    const created = must(v.scene.created[0], "3D scene");
+    created.select(ADDED_PICK);
+    expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: ADDED_PICK });
+    expect(textOf(talkLog(v.doc).lastElementChild)).toBe(MESSAGES.topic_not_ready.replace("{topic}", ADDED_PHRASE));
+    expect(v.spies.network).toEqual([]);
+  });
+});
+
+describe("apps/web/room/README.md (T114; R-01)", () => {
+  const text = (): string => readFileSync(join(WEB, "room/README.md"), "utf8");
+
+  it("says how to add, move, regroup, retarget, reword, and remove a piece, and gives the commands", () => {
+    const headings = text()
+      .split("\n")
+      .filter((l) => l.startsWith("#"))
+      .join("\n")
+      .toLowerCase();
+    for (const change of ["add", "move", "regroup", "retarget", "reword", "remove", "switch"])
+      expect(headings, change).toContain(change);
+    for (const command of ["npm run room:generate -w apps/web", "room:check", "room:report"])
+      expect(text()).toContain(command);
+  });
+
+  it("names no ID the room's data defines", () => {
+    const { pieces, placements, selectables, topics } = namespaceIds(committed);
+    const ids = [...new Set([...pieces, ...placements, ...selectables, ...topics])];
+    expect(ids.length).toBeGreaterThan(0);
+    const holds = (id: string): boolean => new RegExp(`(?<![a-z0-9])${id}(?![a-z0-9])`, "i").test(text());
+    expect(ids.filter(holds)).toEqual([]);
+  });
+});
