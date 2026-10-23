@@ -1,13 +1,13 @@
 # Contract: the Author's patches, the intake amendments, and the order they land in
 
 Spec 004's human-only changes, and the order they land in. `tools/gates/**`, `.claude/**`, `REVIEW.md`, `evals/agent-config/**`, and `assets/policy/**` reach `main` only as patches the Author reads and applies, or as the Author's own commits on `main` ([START-HERE §7](../../../docs/START-HERE.md#7-before-you-merge); ADR 0017). This contract covers:
-- the behaviour of each of the Author's patches, P-1 to P-10, in FR-077's order;
+- the behaviour of each of the Author's patches: P-1 to P-10, in FR-077's order, and P-11, for SC-004's dev-only harness, outside it (§18);
 - the agent code beside them;
 - the Author's merge order, M1 to M9;
 - the data-flow disclosure's rows and their IDs;
 - the ADRs.
 
-Spec: FR-014, FR-023, FR-025, FR-027, FR-030, FR-032, FR-052, FR-053, FR-073, FR-074, FR-077; SC-008, SC-013; Amendments A4, B6, B9, C1 to C8, C10, C11. Plan: [plan.md](../plan.md). Runs: [quickstart.md](../quickstart.md), Q1, Q2, Q6, and Q7.
+Spec: FR-014, FR-023, FR-025, FR-027, FR-030, FR-032, FR-052, FR-053, FR-073, FR-074, FR-077; SC-004, SC-008, SC-013; Amendments Z1, A4, B6, B9, C1 to C8, C10, C11. Plan: [plan.md](../plan.md). Runs: [quickstart.md](../quickstart.md), Q1, Q2, Q6, Q7, and Q10.
 
 Spec 002's and spec 003's files sit on unmerged branches, so this contract names them in code spans, with their branch. Two names collide. "Amendment C1" is spec 004's: the mark follows the record. "Rule C1" is the arrival check's caption rule. This contract always says which it means.
 
@@ -25,6 +25,7 @@ Spec 002's and spec 003's files sit on unmerged branches, so this contract names
 | P-8 | The outline check (FR-032) | FR-032's own order | `feat/004-intake` | at M8 | the first outline traced from a photo leaving the photos folder |
 | P-9 | The content check's `room-text` kind, matched as whole strings at any length (FR-030, Amendment B9) | item 6 | a branch from `main` after M9 | after M9, spec 002's approvals patch first | the first `room-text` approval; the first room text shipped |
 | P-10 | The gate: `caps.json` in the content build's policy, and the `studio-settings` host step (FR-025, FR-053, SC-013) | items 2 and 3, at every intake | a branch from `main` after M9 | after M9, spec 002's and spec 003's gate patches and P-3 first | the merge of User Story 4's intake |
+| P-11 | The compose policy admits SC-004's harness, `status-harness`, alone past its port and edge-network rules: in its own profile, published only on the literal 127.0.0.1, on `edge` and `internal`; the disclosure rule stays whole (§18; Amendment Z1) | — | a branch from `main` holding only the patch and its note | once spec 001's dev relay exists | User Story 8's switch-on change is rebased and gated |
 
 FR-077's first item began outside the repository. The photos folder and the key have been denied to every Claude session on the machine, at user level, since the room photos were staged on 2026-10-22 (spec.md, Assumptions, "Already past"). P-1 puts those two denies in this repository's settings, beside the outputs and workflows folders' denies. There the matrix proves them.
 
@@ -32,6 +33,8 @@ Three mechanisms enforce the order:
 - The order test (§13) enforces items 3, 4, and 6 inside `make test`.
 - P-10's `studio-settings` step enforces item 2 at every intake.
 - Items 1 and 5 hold by the merge order (§14).
+
+P-11 sits outside FR-077's order: it guards no risk, and admits SC-004's dev-only harness at an enforcement point. The merge order holds it before User Story 8's switch-on change (§14, §18).
 
 ## 2. Rules every patch keeps
 
@@ -624,7 +627,9 @@ No agent merges. Agents only rebase and cherry-pick. The Author gates each branc
 | M9 | spec 002's line, in its notes' order up to `feat/002-us6-events`, with its patches | spec 002's patches | — |
 | then | — | P-9, then P-10, each from a branch on `main` | item 6 |
 | then | line R, in story order, each branch first rebased onto `main` | — | — |
+| later | P-11's branch, from `main`, once spec 001's dev relay exists | P-11 | — |
 
+- **P-11** lands before User Story 8's switch-on change is rebased and gated, since the gate's container phase runs the branch's own `tools/gates/test/`, whose real-file test refuses the harness without it (§18).
 - **Line I** (intake and governance) branches from `main`: `feat/004-guard` after M4, and `feat/004-intake` after M7. Its patches must reach `main` before the first studio output is brought in for intake, so line I merges first. The Author approved that order with the plan.
 - **Line R** (the room) starts now, on `feat/002-us6-events`.
   - Its first branch, `feat/004-setup`, opens by cherry-picking this branch's documents. That puts `plan.md` in the tree, so a departure from the plan can update it in the same commit (CLAUDE.md).
@@ -650,6 +655,7 @@ The scheme (Confirmation 17): the first row written keeps its ID, and a later sp
 | ID | The flow | Whose | Written |
 |---|---|---|---|
 | D4 | the studio's agent session → Anthropic | spec 003's FR-040(c); spec 004's FR-027 | on `feat/004-guard` (M5), in spec 000's development-time table, right after D3 |
+| S1 | `edge`, and on dev SC-004's harness, `status-harness` → nothing beyond the host | spec 000's | written; Amendment Z1's words join it in User Story 8's switch-on change, which adds the harness |
 | V1 | the visitor's browser → the site's own origin | spec 002's; spec 001's planned V1 (the static site and the disclosure, through the edge) joins it when the public edge arrives | written |
 | V2 | the conversation's turns | spec 002's | with the twin's change, which also adds Amendment B6's words |
 | V3 | speech recognition | spec 002's | with its work |
@@ -678,6 +684,8 @@ Spec 001's cloud rows, C1 to C11, keep their IDs.
 - The compositor's rule RL2 refuses the live source `site` without those words ([tier-signal.md](tier-signal.md) §7), so the room can't poll without its row (FR-074).
 
 **B6 on V2.** The twin's change that writes V2 adds that the reply carries the turn's estimated cost and its route. User Story 9 hands those words over.
+
+**Z1 on S1.** The switch-on change that adds SC-004's harness writes spec.md's words for S1 (its Data-Flow Disclosure Entries, row "Spec 000's S1, amended (Z1)"): `status-harness` in the From → To cell, before its first arrow, where the compose policy reads names, and in the Default cell, that it runs only on dev while dev's environment selects its profile. The compose policy's disclosure rule then holds for the harness with no exemption (§18).
 
 ## 16. ADRs
 
@@ -708,7 +716,7 @@ Spec 001's cloud rows, C1 to C11, keep their IDs.
   - P-5's `MARK_HUMAN`, the scrubber, and RX5's `glb/rules.ts` then use exactly that one term.
   - The term the plan's sources name, `digitalCreation`, is unverified.
 - **P-6:** name the `small_props`; read each license, and fill in its terms and the date read.
-- **Before User Story 5's monitor drafts:** type a description of the photographed screen (FR-031, answer 5). It is recorded verbatim in an intent file, which both monitor blocks cite in `words_from` ([room-data-files.md](room-data-files.md) §7). The first lookdev run's vignette shows the monitor and its terminal (FR-070), so the description comes before that run if the terminal is to show words.
+- **Before User Story 5's monitor drafts:** type a description of the photographed screen (FR-031, answer 5). It is recorded verbatim in an intent file, which both monitor blocks cite in `words_from` ([room-data-files.md](room-data-files.md) §7). The whole-vignette runs that settle the look show the monitor and its terminal (FR-070), so the description comes before them if the terminal is to show words.
 - **After each patch:** the steps of §2.
 - **Runs:**
   - P-3 on each intake branch, with its output in the note;
@@ -717,3 +725,15 @@ Spec 001's cloud rows, C1 to C11, keep their IDs.
   - Each room file goes in `assets/policy/approvals.json`, with the room confirmations as Amendments C4 and C5 read them. Approve only the SHA-256 the lookdev page showed (FR-023, FR-068).
   - Each room-text file goes in `assets/policy/content-approvals.json` with kind `room-text`, only once P-9 and `feat/004-setup` are both on `main`.
 - **The studio's contract,** by hand: make the changes `docs/studio/handoff.md` lists before the first outline is handed over, and before the window is modeled (spec.md, Assumptions).
+
+## 18. P-11: the compose policy admits SC-004's harness
+
+The patch is `docs/merge-requests/<date>-<branch>.patch`, on a branch from `main` that holds only the patch and its note, as `feat/004-gate` holds P-10. It changes `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py`. FR-077 doesn't order it, since it guards no risk. It carries spec.md's Amendment Z1 to spec 000's plan §1, and it is the one admission at an enforcement point that isn't the spec's approval of a record, a mark, or a text kind (spec.md, Confirmation 22).
+
+- **Why.** User Story 8's switch-on change adds SC-004's harness, `status-harness` ([research.md](../research.md) R-70). It publishes dev's loopback port `H4_STATUS_HARNESS_PORT` and joins the `edge` network. `main`'s policy refuses both on any service but `edge` (spec 000's plan §1: "Only `edge` joins it, to publish ports"; FR-020), so its real-file test, which `make test` runs over the raw `deploy/compose.yaml` with every profile's services, fails on the switch-on branch.
+- **What it admits.** `status-harness` alone, by name, past those two rules, and only in this shape: in a compose profile of its own name and no other; every port it publishes bound to the literal 127.0.0.1; and exactly the networks `edge` and `internal`. Any other shape of it is refused, and so is every other service's port or `edge` network, as before.
+- **What stays.** Every other rule applies to the harness unchanged: plan §1's rules for every service, binds and volumes, the image's pin, and the disclosure rule. The policy reads `deploy/images.lock` by service name, so the switch-on change gives the harness a lock line of its own; and it meets the disclosure rule in row S1 (§15, "Z1 on S1").
+- **Tests,** in `tools/gates/test/test_compose_policy.py`: the harness in its own profile, on 127.0.0.1, on `edge` and `internal`, passes; outside its profile, on another address, on another network, or under another name, each is refused; another service's port or `edge` network is still refused; and a harness that no disclosure row names is refused.
+- **When.** Once spec 001's dev relay exists, and before the switch-on change is rebased onto `main` and gated, since the gate's container phase runs the branch's own `tools/gates/test/` (§14).
+- **Checked** as every patch is (§2), in a scratch worktree of the switch-on branch with the patch applied: `git apply --check` against `main`, `make check ENGINE_MODE=none-yet`, and `gitleaks dir`, the outputs whole in its note. The reviewer reads the branch, the patch as the code the Author will apply, before the Author gates it.
+- **After applying:** only §2's steps. P-11 changes no file the behavioural tier's trigger hash covers.

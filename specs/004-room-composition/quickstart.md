@@ -216,14 +216,17 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
 2. **The desktop,** on dev's drafts image at `http://127.0.0.1:18105/lookdev/`. **Expected:**
    - the production framing on both reference stages, with the desk close-up as a secondary view (User Story 3 scenario 1);
    - each candidate, picked from disk, stays in memory, and shows its SHA-256 and fit findings, or "not scrubbed" (scenario 2).
+
+   A run before the page shows the monitor's terminal, the neon sign's glow, and the laptop's cable states is preliminary: the looks are compared, not chosen. The whole-vignette desktop run uses a drafts image of a commit that holds User Story 2's cable states and User Story 5's faces (FR-070).
 3. **The phone,** with the candidates: [lookdev.md](contracts/lookdev.md) §7.3, all nine steps, building the copy from the note's commit as lookdev.md §7.3, step 2 says, and checking its SHA-256 against the note. The phone stays offline whatever the page's own policy says, and its file picker gives the page only the files the Author picks.
-   - **Expected, on the first run:** the vignette, with the studio's desk and one sign. The page shows the median frame rate, the share of frames over 33 ms, the settled quality level, draw calls, and texture memory (scenario 3).
+   - **Expected, on a preliminary run** (FR-070: a run before the page shows the monitor's terminal, the neon sign's glow, and the laptop's cable states): the vignette as far as the branch draws it, with the studio's desk and one sign. The page shows the median frame rate, the share of frames over 33 ms, the settled quality level, draw calls, and texture memory (scenario 3). The looks are compared, not chosen.
+   - **Expected, on the whole-vignette run** (FR-070), with the copy built from a commit that holds User Story 2's cable states and User Story 5's faces: the whole vignette (the desk, the monitor and its terminal, the neon sign's glow, the laptop's cable states, one sign, a corner of the chalkboard, and a bicycle wheel), with the studio's desk and one sign, and the same readouts. With the desktop's whole-vignette run, this is where the look is chosen.
    - **Expected, once every studio piece the scene holds is set** (the Polish run):
      - a median of at least 30 frames a second, with at least 95% of frames within 33 ms, over the 2-minute visit and the 10-minute soak;
      - 0 quality step-downs during the scripted load of every piece (SC-005);
      - texture memory at or under 96 MB (SC-006).
    - **Also record:** the phone's model, as ADR 0010 asks, and the probe's viewport and pixel ratio, which replace the estimated reference phone stage (about 368 × 420) in a later commit ([lookdev.md](contracts/lookdev.md) §10).
-4. **Judge the look** at the production framing on both reference stages, and read the smallest cap height against the floor (SC-010).
+4. **Judge the look** on the whole-vignette runs, on the desktop and on the phone, at the production framing on both reference stages, and read the smallest cap height against the floor (SC-010; FR-070).
 5. **The results:** the JSON block ([lookdev.md](contracts/lookdev.md) §6) goes into the note. It holds no file name, path, or device identifier beyond the viewport and pixel ratio.
 6. **Approve** only the SHA-256 the page showed (FR-023, FR-068), at the intake (Q6).
 7. **The look** (FR-070, User Story 3 scenario 5):
@@ -304,7 +307,7 @@ The first room files are the desk and one sign (Amendment C10). **Where:** the A
    - `tools/gates/test/test_content_check.py` fails an unapproved 14-character string in a bundle (User Story 5 scenario 5; [intake-amendments.md §11](contracts/intake-amendments.md#11-p-9-the-content-checks-room-text-kind)).
 
 **The Author's runs:**
-1. **The screen's description** (FR-031, answer 5), before the monitor's drafts, and before the first lookdev run if its terminal is to show words: type a description of the photographed screen. It is recorded verbatim, in the Author's words, in an intent file, which both monitor blocks cite in `words_from` ([room-data-files.md](contracts/room-data-files.md) §7). **Expected:** the agents' strict build finds each quote verbatim (RT9), and the drafts follow it.
+1. **The screen's description** (FR-031, answer 5), before the monitor's drafts, and before the whole-vignette lookdev runs that settle the look (FR-070) if its terminal is to show words: type a description of the photographed screen. It is recorded verbatim, in the Author's words, in an intent file, which both monitor blocks cite in `words_from` ([room-data-files.md](contracts/room-data-files.md) §7). **Expected:** the agents' strict build finds each quote verbatim (RT9), and the drafts follow it.
 2. **A sign traced from its photo** (FR-032, SC-013). Inside the photos folder, offline:
    1. trace the lettering with the local tool;
    2. run `<main's checkout>/tools/gates/outline_check.py --from-svg …` with the fields [intake-amendments.md §10](contracts/intake-amendments.md#10-p-8-the-outline-check) lists.
@@ -315,7 +318,7 @@ The first room files are the desk and one sign (Amendment C10). **Where:** the A
    1. run `sha256sum` on each room-text file and outline;
    2. add an entry of kind `room-text` to `assets/policy/content-approvals.json`;
    3. commit it on `main`.
-5. **The gate** on the branch that ships them. **Expected:** `content` passes, and after the next `make up` the faces draw the approved words (User Story 5 scenario 1).
+5. **The gate** on the branch that ships them: the branch that brought the outlines in and bound them, which is User Story 5's branch if they came in before it merged, else a branch from `main`, once the reviewer has read the outlines and their binding as the "Room data" pass reads room text. **Expected:** `content` passes, and after the next `make up` the faces draw the approved words (User Story 5 scenario 1).
 
 ## Q8. User Story 6: selecting a piece opens its topic (FR-036 to FR-039, FR-076; SC-015)
 
@@ -362,7 +365,8 @@ The first room files are the desk and one sign (Amendment C10). **Where:** the A
 
 **Prerequisites:**
 - now: the poller, with the live source off;
-- for the switch-on: spec 001 serving `GET /api/status` on the room's origin, with Amendments A1 to A3.
+- for the switch-on: spec 001 serving `GET /api/status` on the room's origin, with Amendments A1 to A3;
+- for SC-004's harness: P-11 applied on `main`, which admits `status-harness` at the compose policy ([intake-amendments.md](contracts/intake-amendments.md) §18; the spec's Amendment Z1).
 
 **Where:** an agent session now; the Author on dev after spec 001, with dev brought up (Heavy).
 
@@ -376,7 +380,8 @@ The first room files are the desk and one sign (Amendment C10). **Where:** the A
    That is FR-044, and the automated half of SC-012.
 2. **In the switch-on change,** `make test` again. **Expected:**
    - the compositor's RL2 refuses the live source `site` without Amendment A4's words on row V7 (FR-074; [intake-amendments.md §15](contracts/intake-amendments.md#15-disclosure-rows-and-their-ids));
-   - §7.9's panels join the dashboard test's required set ([room-live-state-telemetry.md](contracts/room-live-state-telemetry.md) §6).
+   - §7.9's panels join the dashboard test's required set ([room-live-state-telemetry.md](contracts/room-live-state-telemetry.md) §6);
+   - with P-11 on `main`, `tools/gates/test/test_compose_policy.py`'s real-file test passes over `deploy/compose.yaml` with the harness, whose name row S1's From → To cell gives before its arrow (Amendment Z1).
 
 **The Author's runs** (after spec 001, on dev's drafts image, opened through SC-004's harness at `http://127.0.0.1:18106/`, which forwards the page's status requests to dev's relay on the stack's network and every other request to the stack's site, `edge:8087` ([research.md](research.md) R-70)):
 

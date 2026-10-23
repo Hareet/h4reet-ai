@@ -2,7 +2,7 @@
 
 **Branch**: `spec/004-room-composition` (this plan; the work runs on two lines of stacked branches, [§3](#3-the-order-of-work)) | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 
-**Status**: Planned on 2026-10-22, from the design the Author approved that day. The readings approved with it, and the Author's four actions it names, are in [research.md](research.md#readings-approved-with-the-plan). No `NEEDS CLARIFICATION` remains.
+**Status**: Planned on 2026-10-22, from the design the Author approved that day. The readings approved with it, and the Author's four actions it names, are in [research.md](research.md#readings-approved-with-the-plan). No `NEEDS CLARIFICATION` remains. Revised on 2026-10-23 by the `/speckit-analyze` remediation: P-11 joins the Author's patches ([§4.1](#41-the-patches-p-1-to-p-11)), and FR-070 reads as the spec's Clarifications of that day record; both wait for the Author's yes (the spec's Confirmations 21 and 22).
 
 **Input**: [spec.md](spec.md), clarified on 2026-10-22 (its [Clarifications](spec.md#clarifications)), and [intent.md](intent.md). The explorations read spec 002's room on `feat/002-us6-events` (dc7f023); spec 003's intake on `feat/003-us5-comparison` (0b13887), with its guard patch on `feat/003-guards` (a72ebe3) and its arrival-check patch, both the Author's and both unapplied; spec 001's plan on `spec/001-cloud-elevation` (00309c4); and `main` (58bd232).
 
@@ -22,7 +22,7 @@ Spec 004 makes the room data, in the Author's words: "features should be modeled
 - **Plain studio models** through spec 003's intake, held to one fit check (RX1 to RX10) that the lookdev page shares, budgeted under the Author's caps on `main`, and served gzip-encoded at `/a/` (FR-015 to FR-023, FR-053, FR-079; R-23 to R-26, R-45).
 - **Live words and signals:** five renderers draw every readable word from FR-029's four sources (R-36 to R-38); the laptop's charger shows the tier from a pure reducer of FR-041's table (R-30); the neon sign counts the visitor's own turn costs (R-32).
 
-**Built now**, on line R, stacked on spec 002's tip: the setup, the foundation, and User Stories 1 to 9 as far as their dependencies exist. That is the room on stand-ins, its degraded modes, lookdev, the serving, the renderers with draft text, the topics' fixed messages, accessibility, the poller with the live source off, and the counters reading "cost unavailable" (answer 7: "Yes it can have cost unavailable for now."). **Governance lands first**, on line I and as the Author's ten patches in FR-077's order ([§4](#4-the-authors-patches-and-the-merge-order)). **What waits:** the first room files, for the patches and the look; shipped room text, for P-9 and the Author's approvals; the live tier, for spec 001; the live counters and the topics' conversations, for the twin's conversation core and the Author's corpus ([§3.2](#32-now-and-what-waits)).
+**Built now**, on line R, stacked on spec 002's tip: the setup, the foundation, and User Stories 1 to 9 as far as their dependencies exist. That is the room on stand-ins, its degraded modes, lookdev, the serving, the renderers with draft text, the topics' fixed messages, accessibility, the poller with the live source off, and the counters reading "cost unavailable" (answer 7: "Yes it can have cost unavailable for now."). **Governance lands first**, on line I and as the Author's ten patches in FR-077's order ([§4](#4-the-authors-patches-and-the-merge-order)); an eleventh, P-11, outside that order, admits SC-004's dev-only harness at the compose policy before User Story 8's switch-on. **What waits:** the first room files, for the patches and the look; shipped room text, for P-9 and the Author's approvals; the live tier, for spec 001; the live counters and the topics' conversations, for the twin's conversation core and the Author's corpus ([§3.2](#32-now-and-what-waits)).
 
 **Do first:** M1 to M4, with P-1, as soon as this plan is approved. Until spec 003's guard lands, this repository's agent sessions can still read the studio's outputs and workflows folders (R-50).
 
@@ -57,7 +57,7 @@ Spec 004 makes the room data, in the Author's words: "features should be modeled
 
 **Target Platform**: evergreen browsers on desktop and phone: WebGL 2 for the 3D room (models only above ADR 0010's floor), anything for the 2D room. The reference phone is ADR 0010's Galaxy A54-class phone; the reference desktop is a 1920 × 1200 window at a pixel ratio of 1. The web image runs behind each stack's `edge` on loopback, and later behind spec 001's CloudFront. Node 24 runs the compositor inside the image's build stage; the Author's WSL host runs the human-only checks, and P-8 runs inside the photos folder.
 
-**Project Type**: a data-driven extension of spec 002's static web application (`apps/web`): its build-time compositor, the web image's serving, and the Author's governance patches. No new event kind, and no new service, compose entry, or port but one, named in [Complexity Tracking](#complexity-tracking): SC-004's harness, a dev-only compose profile for the Author's failover run (R-70).
+**Project Type**: a data-driven extension of spec 002's static web application (`apps/web`): its build-time compositor, the web image's serving, and the Author's governance patches. No new event kind, and no new service, compose entry, or port but one, named in [Complexity Tracking](#complexity-tracking): SC-004's harness, a dev-only compose profile for the Author's failover run, which `main`'s compose policy admits only through P-11 (R-70; the spec's Amendment Z1).
 
 **Performance Goals**:
 - **The reference phone,** at the production framing with every studio piece the scene holds: a median of at least 30 frames a second, at least 95% of frames within 33 ms, over a 2-minute visit and a 10-minute soak, and 0 quality step-downs during a scripted load of every piece (SC-005, FR-055).
@@ -80,8 +80,8 @@ Spec 004 makes the room data, in the Author's words: "features should be modeled
 **Scale/Scope**:
 - **The default scene** ([data-model.md §4.9](data-model.md#49-the-default-scene)): the shell, the desk, the ultrawide monitor, the neon sign, the laptop's stand, the laptop, the charger's poses, the snowboard, the bicycle, the window and its view, the artwork, the chalkboard, two desk signs, the twin, and the visitor. Four selectables, `snowboard`, `bicycle`, `laptop`, and `chalkboard`, of at most 64; three default topics; five renderers; one switch on the tier's eight values.
 - **The code:** a kernel of 12 modules, a GLB reader of 7, a compositor of 12 with 9 rule-family modules, about 35 runtime and lookdev modules, and about 70 new or changed test files, eleven of them the gateway's (R-16).
-- **The governance:** ten patches, P-1 to P-10, one of them the Author's own commit (P-6), and nine merges, M1 to M9, before line R's.
-- **The spec:** 79 FRs, 15 success criteria in force (SC-016 is folded into SC-001), and 31 amendment rows (A1 to A6, B1 to B14, C1 to C11).
+- **The governance:** eleven patches: P-1 to P-10, one of them the Author's own commit (P-6), and nine merges, M1 to M9, before line R's; and P-11, outside FR-077's order, before User Story 8's switch-on.
+- **The spec:** 79 FRs, 15 success criteria in force (SC-016 is folded into SC-001), and 32 amendment rows (Z1, A1 to A6, B1 to B14, C1 to C11).
 
 ## Constitution Check
 
@@ -91,8 +91,8 @@ Spec 004 makes the room data, in the Author's words: "features should be modeled
 |---|---|---|
 | I. Data-local by default | One same-origin read, the status poll, switched on only in the change that serves it, with Amendment A4's words on V7 (FR-044, FR-045, FR-074). The turn's cost travels inside the reply the device already gets (FR-075, B6). Nothing is stored on the device, and no visitor biometrics. The photos stay on the Author's machine: the four studio folders are denied (P-1, P-2), the studio session's denies are proven by the settings check (P-3), and only reviewed outputs leave the photos folder (FR-024, FR-025, P-8). Degraded modes come before the happy paths: User Story 2 sits below User Stories 8 and 9 in the stack ([§3](#3-the-order-of-work)), and the room renders fully whatever is live (FR-062) | PASS, with the spec's named deviations: row D4 after the studio's first sessions, and the rest of the guard after the first photos ([Complexity Tracking](#complexity-tracking)) |
 | II. Production-grade or not shipped | Tests for every requirement, inside `make test` (R-65); the twin's evals stay the twin's spec's, with B4's cases scaffolded now (R-64); no new event kind, and §7.9 written now (R-60, R-61); the spec's cost estimate, measured by the compositor's report ([§5](#5-expected-cost-and-how-it-is-measured)); no new alert, so no runbook entry; ADR 0036 and `apps/web/room/README.md` for a cold reader | PASS, with the spec's named deviation: no production series until spec 001 |
-| III. Intent before spec, spec before code, humans merge | From the accepted intent. This plan comes before code and is carried into each line's tree. Amendments are named, never edited into specs 001 to 003 (answer 10). ADRs 0036, 0010, and 0030 (R-63). No agent merges; agents only rebase and cherry-pick (R-48) | PASS, with the inherited deviation: local until publication (ADR 0013) |
-| IV. Least privilege | Every human-only change is one of the Author's patches or commits, in FR-077's order, each landing before the risk it guards, each adding denies or checks, apart from the changes the spec approves at two enforcement points: P-5 admits the `design` source in any record (C2) and, for room files, the composite and human-made marks (C1) and "not_applicable" room confirmations and `likeness_accepted` (C4, C5); P-9 admits `room-text` approvals behind its whole-string checks (B9) ([§4](#4-the-authors-patches-and-the-merge-order)). Caps and approvals are human-only and read from `refs/heads/main` (R-13). Nothing is widened: no CSP, sandbox domain, or permission. The phone copy opens no path (Q1's option A). No host is allowlisted for IPTC's term (R-53) | PASS |
+| III. Intent before spec, spec before code, humans merge | From the accepted intent. This plan comes before code and is carried into each line's tree. Amendments are named, never edited into specs 001 to 003 (answer 10), nor into spec 000 (Z1). ADRs 0036, 0010, and 0030 (R-63). No agent merges; agents only rebase and cherry-pick (R-48) | PASS, with the inherited deviation: local until publication (ADR 0013) |
+| IV. Least privilege | Every human-only change is one of the Author's patches or commits: P-1 to P-10 in FR-077's order, each landing before the risk it guards, and P-11 before User Story 8's switch-on. Each adds denies or checks, apart from the changes the spec approves at three enforcement points: P-5 admits the `design` source in any record (C2) and, for room files, the composite and human-made marks (C1) and "not_applicable" room confirmations and `likeness_accepted` (C4, C5); P-9 admits `room-text` approvals behind its whole-string checks (B9); P-11 admits `status-harness`'s loopback port and the edge network (R-70): SC-004's dev-only harness alone, past spec 000's plan §1 port and edge-network rules, with the compose policy's disclosure rule kept whole (the spec's Amendment Z1) ([§4](#4-the-authors-patches-and-the-merge-order)). Caps and approvals are human-only and read from `refs/heads/main` (R-13). Nothing else is widened: no CSP, sandbox domain, or permission. The phone copy opens no path (Q1's option A). No host is allowlisted for IPTC's term (R-53) | PASS |
 | V. Cost is a first-class signal | $0 model spend at run time (FR-076); no budget, ceiling, or price changes; caps from `main`, which agents never raise (FR-053); the sign shows the visitor's own turn costs, marked "est.", after Confirmation 6's price check; the report in every room note (FR-073) | PASS |
 | VI. Build in public | The catalog, the scene, the work orders, the photo guide, the records, and the approved room text are public; the photos, the studio's working files, and the private denylist aren't; notes print folder names, never paths (R-52) | PASS |
 | VII. Own the whole product, and say exactly what you owned | The mark follows the record (C1); `design` sources (C2); `likeness` means the file shows the Author (C5); a step the studio's session scripted is a model step, with its service and row D4 (C8); the monitor's scripts claim nothing about the Author's role or the agents' share beyond the corpus (FR-035) | PASS |
@@ -100,7 +100,7 @@ Spec 004 makes the room data, in the Author's words: "features should be modeled
 | Security and agent governance | The implementer never reviews; P-7 gives the reviewer a sixth pass; the agent-configuration evals run after P-1, P-2, P-4, and P-7, each of which changes the behavioural tier's trigger hash, and stage E after P-1 and P-2 (R-50); agents never edit `.claude/**`, `CLAUDE.md`, `REVIEW.md`, `tools/gates/**`, `evals/agent-config/**`, or `assets/policy/**` | PASS |
 | Workflow step 7: "A feature without a graph is not done." | §7.9 is written now; its panels join the dashboard at User Story 8's switch-on (R-61) | PASS, with the spec's named deviation until spec 001 |
 | Workflow step 8 (`docs/how-we-build/` updated if the process changed) | P-2 and P-7 add behavioural cases, P-7 a sixth review pass, and P-10 a gate host step. P-2's and P-7's patches carry the case count in `docs/how-we-build/lifecycle.md`'s behavioural-tier row and in START-HERE §7. The gate's branch names the studio-settings host step in START-HERE §7. `CONTRIBUTING.md` stops counting the review passes | PASS |
-| Technology standards | No provider call, and no gateway change beyond its tests; the one compose topology, with no new service or port on prod or dev-cpu: its one addition is SC-004's harness, a dev-only profile ([Complexity Tracking](#complexity-tracking)); everything still ships as a container | PASS |
+| Technology standards | No provider call, and no gateway change beyond its tests; the one compose topology, with no new service or port on prod or dev-cpu: its one addition is SC-004's harness, a dev-only profile, which `main`'s compose policy admits only through P-11 ([Complexity Tracking](#complexity-tracking)); everything still ships as a container | PASS |
 
 Gate result: **PASS**, with the spec's named deviations only.
 
@@ -124,7 +124,7 @@ specs/004-room-composition/
 │   ├── tier-signal.md                 # the live configuration; reduceTier; causeClass; the poller; what the relay must provide
 │   ├── turn-cost.md                   # classifyTurn; the counters' readings; onTurnOutcome
 │   ├── lookdev.md                     # the page; candidates; the results; the phone copy and its probe; the five layers
-│   ├── intake-amendments.md           # P-1 to P-10; the order test; M1 to M9; the disclosure rows; the ADRs
+│   ├── intake-amendments.md           # P-1 to P-11; the order test; M1 to M9; the disclosure rows; the ADRs
 │   └── room-live-state-telemetry.md   # object_selected; the asset events; §7.9; the dashboard's test
 ├── checklists/requirements.md
 └── tasks.md                           # next: /speckit-tasks, from §3.1
@@ -132,7 +132,7 @@ specs/004-room-composition/
 
 ### Source Code (repository root)
 
-**[A]** agent-editable; **[G]** generated by `npm run room:generate` and committed, its freshness tested in `make test`; **[P]** human-only, in one of the Author's patches ([§4.1](#41-the-patches-p-1-to-p-10)); **[M]** the Author's own commit on `main`; **[S]** the studio's or the Author's files, brought in by the Author through spec 003's intake. Every branch also adds its merge-request note, `docs/merge-requests/<date>-<branch>.md`, with `make check`'s output whole, and FR-073's report when it changes the room's data or models.
+**[A]** agent-editable; **[G]** generated by `npm run room:generate` and committed, its freshness tested in `make test`; **[P]** human-only, in one of the Author's patches ([§4.1](#41-the-patches-p-1-to-p-11)); **[M]** the Author's own commit on `main`; **[S]** the studio's or the Author's files, brought in by the Author through spec 003's intake. Every branch also adds its merge-request note, `docs/merge-requests/<date>-<branch>.md`, with `make check`'s output whole, and FR-073's report when it changes the room's data or models.
 
 **Line R, the room.** Stacked on `feat/002-us6-events` (dc7f023) in story order; each branch is rebased onto `main` after M9 and merged in this order after P-10 (R-48, R-49).
 
@@ -287,20 +287,27 @@ feat/004-us8-live-tier                                Phase 10 (User Story 8, P3
   apps/web/test/room/status-poller.test.ts              [A] the cadence, the backoff, Retry-After, the resume rule, the property test (SC-012)
   its switch-on change, once spec 001 serves GET /api/status on the room's origin with Amendments A1 to A3:
   apps/web/room/scene.yaml                              [A] live.source: site, which RL2 refuses without V7's words
-  docs/data-flow-disclosure.md                          [A] Amendment A4's words on V7 (R-62)
+  docs/data-flow-disclosure.md                          [A] Amendment A4's words on V7 (R-62); status-harness named in S1's From → To cell, before
+                                                            its arrow, and S1's Default cell saying it runs only on dev while dev's environment
+                                                            selects its profile (the spec's Amendment Z1; R-70)
   deploy/grafana/dashboards/h4-runtime.json, deploy/scripts/test_dashboard.py, specs/000-local-foundations/contracts/telemetry.md
                                                         [A] the "Room live state" row; §7.9 in REQUIRED; §8's row (R-61)
-  deploy/compose.yaml, deploy/edge/status-harness.conf, deploy/env.example/dev.env.example,
+  deploy/compose.yaml, deploy/images.lock, deploy/edge/status-harness.conf, deploy/env.example/dev.env.example,
   deploy/scripts/{preflight,test_preflight,test_compose_env}.py, specs/000-local-foundations/contracts/env-files.md
                                                         [A] SC-004's harness: a status-harness service in a compose profile of that name, which
                                                             only dev's environment selects, and only for the Author's run; preflight refuses the
                                                             profile in prod's and dev-cpu's COMPOSE_PROFILES, as it refuses breach. It runs the
-                                                            pinned nginx-unprivileged image on the stack's edge and internal networks, published
-                                                            on dev's loopback port H4_STATUS_HARNESS_PORT (18106), and sends GET /api/status to
-                                                            dev's relay and everything else to edge:8087. Prod's and dev-cpu's x005 keep
+                                                            pinned nginx-unprivileged image, under an images.lock line of its own name, on the
+                                                            stack's edge and internal networks, published on dev's loopback port
+                                                            H4_STATUS_HARNESS_PORT (18106), and sends GET /api/status to dev's relay and
+                                                            everything else to edge:8087. Prod's and dev-cpu's x005 keep
                                                             location /api/ { return 404; }, which test_edge_site.py pins (the spec's "No local
                                                             status endpoint"; R-70). preflight.py runs in the Author's terminal at every make up,
                                                             so the note lists it first (ADR 0017)
+  its policy patch, on a branch of its own from main that holds only the patch and its note, once spec 001's dev relay exists:
+  docs/merge-requests/<date>-<branch>.patch             [P] P-11: tools/gates/compose_policy.py, tools/gates/test/test_compose_policy.py: status-harness
+                                                            alone admitted past the port and edge-network rules, the disclosure rule kept
+                                                            whole (§4.1; the spec's Amendment Z1)
 
 feat/004-us9-neon-sign                                Phase 11 (User Story 9, P3); now, reading "cost unavailable"
   apps/web/src/room/signals/turn-cost.ts                [A] classifyTurn and createCostChannel (R-32)
@@ -380,7 +387,7 @@ feat/004-content-check, then feat/004-gate            Phase 1 (Setup); each from
   docs/START-HERE.md                                    [A] on feat/004-gate: §7 names the gate's studio-settings host step, "once P-10 is applied"
 ```
 
-**Structure Decision**: spec 002's `apps/web` workspace grows a data folder (`apps/web/room/`), a kernel the build and the page share (`src/room/compose/`), a GLB reader the compositor and lookdev share (`src/room/glb/`), and a Node-only compositor (`build/room/`) (R-08). There is no new workspace, and no new service, compose entry, or port but SC-004's dev-only harness ([Complexity Tracking](#complexity-tracking); R-70). Governance changes travel as the Author's patches (R-50).
+**Structure Decision**: spec 002's `apps/web` workspace grows a data folder (`apps/web/room/`), a kernel the build and the page share (`src/room/compose/`), a GLB reader the compositor and lookdev share (`src/room/glb/`), and a Node-only compositor (`build/room/`) (R-08). There is no new workspace, and no new service, compose entry, or port but SC-004's dev-only harness, which P-11 admits at the compose policy ([Complexity Tracking](#complexity-tracking); R-70). Governance changes travel as the Author's patches (R-50).
 
 ---
 
@@ -397,7 +404,7 @@ feat/004-content-check, then feat/004-gate            Phase 1 (Setup); each from
 | 1 | [contracts/tier-signal.md](contracts/tier-signal.md) | the live configuration and RL1 to RL4; the tier's values; `reduceTier`; `causeClass`; the poller; the frame log; what the relay must provide (A1, A2, A4) |
 | 1 | [contracts/turn-cost.md](contracts/turn-cost.md) | the reply's two fields (B6); `classifyTurn`; a valid reply; the readings; the channel; `onTurnOutcome` |
 | 1 | [contracts/lookdev.md](contracts/lookdev.md) | the page, its controls, candidates in memory, the readouts, the results; the phone copy, its probe, and its steps; the five layers that keep it out of release builds |
-| 1 | [contracts/intake-amendments.md](contracts/intake-amendments.md) | the behaviour of P-1 to P-10; the order test; the scrubber and the credits; M1 to M9; the disclosure rows and their IDs; the ADRs |
+| 1 | [contracts/intake-amendments.md](contracts/intake-amendments.md) | the behaviour of P-1 to P-11; the order test; the scrubber and the credits; M1 to M9; the disclosure rows and their IDs; the ADRs |
 | 1 | [contracts/room-live-state-telemetry.md](contracts/room-live-state-telemetry.md) | `object_selected`, unchanged; the asset events, built and off; the relay's series; §7.9's text; the dashboard's test |
 | 1 | [quickstart.md](quickstart.md) | Q0 to Q12: each phase's agents' checks and the Author's runs, with what to expect |
 | 1 | the agent context | not updated: `CLAUDE.md` is human-only ([Agent context](#agent-context)) |
@@ -469,7 +476,7 @@ Phase 6's second part comes after Phase 12's first part: the look is recorded, a
 | Ready topics and conversations | the fixed messages, with their phrases | the twin's conversation core; the Author's corpus (hobbies and travel adventures, the mission statements with Seva, the three approach words, the dog); the twin's evals; B4's cases as live prompts |
 | The look; SC-005, SC-006's phone figure, SC-010 | the lookdev page and the phone copy | the Author's runs, with the studio's desk and one sign; the phone probe first |
 | FR-078's measured layout | estimates, marked in the data | the Author's measurements, from the photo guide's checklist |
-| SC-004, SC-012, SC-014 | their automated halves | spec 001's dev relay; the Author's failover and network log |
+| SC-004, SC-012, SC-014 | their automated halves | spec 001's dev relay; P-11 on `main`, for SC-004's harness; the Author's failover and network log |
 | SC-009's human half | the automated half | the Author's keyboard-only and screen-reader visits, and the grayscale run |
 | Spec 001's release (A5, A6) | — | spec 001 |
 
@@ -491,7 +498,8 @@ After line R:
     → feat/004-look (the look in ADR 0010; the work orders regenerated)
     → feat/004-us4-intake (the desk and one sign; P-5, P-6, P-10 on main) → the remaining pieces, each through the intake
   P-9, the Author's approvals, and the outlines (P-8)  ──→ room text ships (US5)
-  spec 001: GET /api/status with A1 to A3; row V7      ──→ US8's switch-on: live.source site; A4's words on V7; §7.9's panels
+  spec 001: GET /api/status with A1 to A3; row V7      ──→ US8's switch-on: live.source site; A4's words on V7; S1's cells; §7.9's panels
+  spec 001's dev relay; P-11's branch, then P-11       ──→ US8's switch-on rebased and gated, with SC-004's harness (§4.2)
   spec 001: POST /api/events; row V6                   ──→ the asset events on: live.asset_events site
   the twin's core: POST /api/room/turn with B6 and A5  ──→ US9 live: live.turn site; B6's words on V2; Confirmation 6 first
   the twin's core and the Author's corpus              ──→ topics ready; B4's cases as live prompts (US6)
@@ -502,7 +510,7 @@ After line R:
 
 [contracts/intake-amendments.md](contracts/intake-amendments.md) holds each patch's behaviour. Each patch is a file `docs/merge-requests/<date>-<name>.patch` beside its branch's note, which opens with what runs in the Author's terminal (ADR 0017) and names the patches that must come first. A branch that carries a patch checks the whole chain in one scratch worktree from `main`: `git apply --check` for each patch in order, then an agent's `make check ENGINE_MODE=none-yet` and `gitleaks dir` on the patched tree, both pasted whole. A patch that stops applying is regenerated from `main`, so the Author never merges human-only code by hand (R-49). CLAUDE.md: "a secret, a paid route, or a file prod reads gets its deny in the same patch that creates it, or an earlier one."
 
-### 4.1 The patches, P-1 to P-10
+### 4.1 The patches, P-1 to P-11
 
 | # | What | FR-077 | Carried on | Applied | Lands before |
 |---|---|---|---|---|---|
@@ -516,17 +524,19 @@ After line R:
 | P-8 | `tools/gates/outline_check.py`: vector paths only, no `href`, `data:`, or base64, an opaque source ID, the tool with its version and licence (the fourth clarification) | FR-032's check | `feat/004-intake` | at M8 | the first outline traced from a photo leaving the photos folder |
 | P-9 | The content check's `room-text` kind, matched as whole strings at any length (B9) | item 6 | a branch from `main` after M9 | after M9 | the first `room-text` approval; the first room text shipped |
 | P-10 | The gate: `caps.json` mounted for the content build; the `studio-settings` host step on branches that bring studio files in | items 2 and 3, at every intake | a branch from `main` after M9 | after M9 and P-9 | User Story 4's intake |
+| P-11 | `tools/gates/compose_policy.py` and `tools/gates/test/test_compose_policy.py`: admit `status-harness` alone, in its own profile, publishing only on the literal 127.0.0.1, on the `edge` and `internal` networks; every other service, and every service's disclosure row, still under the policy's rules (the spec's Amendment Z1; R-70) | — | a branch from `main` holding only the patch and its note | once spec 001's dev relay exists, before the switch-on change's rebase (T259, T260) | US8's switch-on change |
 
 - **The photos and key denies** have held at user level, for every Claude session on the machine, since the room photos were staged on 2026-10-22 (the spec's Assumptions, "Already past"). P-1 adds them to this repository's settings, where the matrix proves them.
 - **How the order is enforced:** the order test enforces items 3, 4, and 6 inside `make test` (R-58); P-10's `studio-settings` step enforces item 2 at every intake (R-52); items 1 and 5 hold by the merge order (§4.2). `make check` fails while a file exists under `assets/room/` and `main` lacks C1 and C2, or while room text is published and `main` lacks FR-030's check (FR-077).
 - **If P-5 slips,** P-7 still waits for it, and User Story 1's merge waits too: FR-077's order holds (approved with the plan; R-50).
 - **Two names collide.** "Amendment C1" is spec 004's mark that follows the record; "rule C1" is the arrival check's caption rule. Every note says which it means.
+- **P-11 sits outside FR-077's order.** It guards no risk FR-077 names. It admits SC-004's dev-only harness at the compose policy: the one admission at an enforcement point that isn't the spec's approval of a record, a mark, or a text kind. With row S1 naming it, `main`'s policy still refuses the harness on two rules: a published port, and the `edge` network, on any service but `edge`. P-11 lifts those two for `status-harness` alone, and every other rule applies to it unchanged, the disclosure rule among them (R-70; the spec's Amendment Z1 and Confirmation 22). [intake-amendments.md §18](contracts/intake-amendments.md#18-p-11-the-compose-policy-admits-sc-004s-harness) holds its behaviour.
 
 **What the Author does besides applying patches** ([intake-amendments.md §17](contracts/intake-amendments.md#17-what-the-author-does-besides-applying-patches)):
 - **Before P-1:** make the four folders, and fill P-1's placeholders with their paths.
 - **Before P-5 is generated:** confirm IPTC's digital-source-type term for media a person made with digital tools. C1 asks the plan to confirm that code against IPTC's vocabulary, and agents have no route to it; the term the plan's sources name, `digitalCreation`, is unverified (R-53).
 - **P-6:** name the `small_props`; read each licence, and fill in its terms and the date read (R-54).
-- **Before User Story 5's monitor drafts:** type a description of the photographed screen (FR-031, answer 5). It is recorded verbatim in an intent file, which both monitor blocks cite in `words_from`. The first lookdev run's vignette shows the monitor and its terminal (FR-070), so the description comes before that run if the terminal is to show words.
+- **Before User Story 5's monitor drafts:** type a description of the photographed screen (FR-031, answer 5). It is recorded verbatim in an intent file, which both monitor blocks cite in `words_from`. The whole-vignette runs that settle the look show the monitor and its terminal (FR-070), so the description comes before them if the terminal is to show words.
 - **After a patch that changes `.claude/**`:** `claude doctor`, `make git-hooks`, and new agent sessions. After P-1, P-2, P-4, and P-7, each of which changes the behavioural tier's trigger hash (`.claude/**`, `REVIEW.md`, or `evals/agent-config/**`): `make evals-agent-config REF=<branch>` from main's checkout, once the next gate shows the tier PENDING. After P-1 and P-2: `tools/gates/gate --prove <branch>`, for the matrix's stage E (R-50).
 - **Runs:** P-3 on each intake branch, its output pasted into the note; P-8 on each outline traced from a photo, inside the photos folder.
 - **Approvals by hash on `main`:** each room file in `assets/policy/approvals.json`, with the room confirmations as C4 and C5 read them, approving only the SHA-256 the lookdev page showed (FR-023, FR-068); each room-text file in `assets/policy/content-approvals.json`, kind `room-text`, only once P-9 and `feat/004-setup` are both on `main`.
@@ -549,7 +559,9 @@ No agent merges; agents only rebase and cherry-pick. The Author gates each branc
 | M9 | spec 002's line, in its notes' order up to `feat/002-us6-events` | spec 002's patches | — |
 | then | `feat/004-content-check`, then `feat/004-gate` | P-9, then P-10 | item 6 |
 | then | line R, in story order, each branch first rebased onto `main` | — | — |
+| later | P-11's branch, from `main`, once spec 001's dev relay exists | P-11 | — |
 
+- **P-11** lands before User Story 8's switch-on change is rebased onto `main` and gated: the gate's container phase runs the branch's own `tools/gates/test/`, whose real-file test refuses the harness until P-11 is on `main` (R-70).
 - **Line I first.** Its patches must reach `main` before the first studio output is brought in for intake, so M4 to M8 come before line R's merges (approved with the plan; R-49).
 - **`CHECK_GATES` at M9** resolves to `makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival evals redteam=redteam-suite matrix image`: spec 002's `content-check` right after `test`, as its Makefile test pins, and spec 003's `arrival` after `secrets`. Spec 004 adds no gate.
 - **The other conflicts** (`.PHONY`, `redteam/forbidden-actions.sh`, the ADR index, START-HERE, the README) are listed with their resolutions by the integration task, from `git merge-tree --write-tree main feat/002-us6-events`, which moves no ref. The Author makes that merge in a worktree of its own, on a scratch branch from `main`, with the list's resolutions; gates the scratch branch with `tools/gates/gate <scratch branch>`; and merges it with the command the gate prints, so `main` never takes a merged tree the gate didn't check (START-HERE §7, step 2).
@@ -619,7 +631,8 @@ What this plan adds, beyond the visitor's view:
 | The toolbar wraps at 320 px and pushes the talk button off a 568 px screen | the narrow-portrait rules; the layout test; the Author's run at 320 × 568 (R-40) |
 | Reformatting an approved file changes its hash | outlines in `.prettierignore`; room-text YAML formatted before the Author approves it (R-06) |
 | The source scan flags vocabulary, common words, or a spec-fixed ID inside another label (the gateway tests' "author-laptop") | literals only; RI5 keeps vocabulary out of IDs; distinctive IDs where the data chooses them; for the spec-fixed `laptop`, User Story 1 migrates the ten gateway tests that hold it to `fx-` IDs, the events file's IDs read at run time, and a client label with no room ID (R-02, R-16) |
-| SC-004's harness runs on a stack other than dev, or its forward reaches x005 | preflight refuses its profile on prod and dev-cpu; it publishes one loopback port of its own, and x005 keeps `location /api/ { return 404; }`, pinned by `test_edge_site.py` (R-70) |
+| SC-004's harness runs on a stack other than dev, or its forward reaches x005 | preflight refuses its profile on prod and dev-cpu; it publishes one loopback port of its own, and x005 keeps `location /api/ { return 404; }`, pinned by `test_edge_site.py`; P-11 admits `status-harness` alone, by name, in its own profile, on the literal 127.0.0.1, and its tests refuse any other shape (R-70) |
+| P-11's admission widens beyond the harness, or exempts it from the disclosure rule | P-11 lifts two rules for one service name only; row S1 names the harness, so the disclosure rule stays whole; the reviewer reads P-11's branch as the code the Author will apply (R-70; the spec's Amendment Z1) |
 | FR-077's order holds User Story 1's merge until M8, and line R's until after M9 | line R keeps building on branches, each rebased onto `main` after M9 (R-48, R-49) |
 | Spec 001 renames the relay's series, or spec 003's batch-event shape changes | §7.9 is the one place the dashboard test reads; the asset events' sender is off behind one module, tested against the contract as written (R-60, R-61) |
 | ADR 0010 is accepted before its room changes land | ADR 0037 amends it instead (R-63) |
@@ -649,10 +662,11 @@ Every functional requirement, FR-001 to FR-079, sits in at least one row of [§2
 | SC-015 | the talk tests: 0 requests, and the topic's phrase (R-33) | — | 8 |
 | SC-016 | folded into SC-001 | — | — |
 
-The amendments to specs 001 to 003:
+The amendments to specs 000 to 003:
 
 | Amendment | Where this plan carries it | Phase |
 |---|---|---|
+| Z1 | P-11, on a branch from `main` (§4.1); row S1's cells and the harness, in User Story 8's switch-on change (R-70) | 10 |
 | A1 to A3 | spec 001's relay and public view; this plan names what the room needs of them: A1 and A2 in [tier-signal.md](contracts/tier-signal.md) §7, A3 in [room-live-state-telemetry.md](contracts/room-live-state-telemetry.md) §4, and §7.9's proposed series names | US8's switch-on waits for them |
 | A4 | Amendment A4's words on V7, in the switch-on change; RL2 refuses the live source `site` without them (R-62) | 10 |
 | A5 | spec 001's release refuses fixtures, the lookdev page, and draft text, behind lookdev's five layers (R-43); the turn's body passes through for the twin's spec | 5; spec 001 |
@@ -703,7 +717,7 @@ Re-checked after Phase 1. The design adds no deviation beyond the spec's four ([
 | I. Data-local by default | Held by construction: RL2 refuses the live source `site` unless row V7 names the room's polling, so a scene that would poll without its row can't be built, not in `make test`, the image build, the gate's container, or spec 001's release (FR-074). The phone copy's policy is `connect-src 'none'`. No series carries anything about a visitor. The degraded room is built before the live pieces (§3.1) | PASS, with the spec's named deviations |
 | II. Production-grade or not shipped | Each success criterion has its proof (§8); FR-073's report measures the cost now (§5); §7.9 is written now, and its panels follow spec 001 | PASS, with the spec's named deviation |
 | III. Intent before spec, spec before code, humans merge | `plan.md` is in each line's tree from its first branch, and a departure updates it in the same commit (§10); ADR 0036 lands in Setup, ADRs 0010 and 0030 on line I; the merge order is the Author's (§4.2) | PASS, with the inherited deviation |
-| IV. Least privilege | Every human-only change adds denies or checks, apart from P-5's admissions (C1, C2, C4, C5) and P-9's `room-text` kind (B9). The order test reads `main`'s constants with `ast` and never imports human-only code (R-58). The caps, the approvals, the settings check, and the outline check stay human-only. No CSP, sandbox domain, or permission is widened, and nothing listens | PASS |
+| IV. Least privilege | Every human-only change adds denies or checks, apart from P-5's admissions (C1, C2, C4, C5), P-9's `room-text` kind (B9), and P-11's admission of `status-harness` (R-70), which admits SC-004's dev-only harness alone past spec 000's plan §1 port and edge-network rules, with the disclosure rule kept whole (the spec's Amendment Z1). The order test reads `main`'s constants with `ast` and never imports human-only code (R-58). The caps, the approvals, the settings check, and the outline check stay human-only. No CSP, sandbox domain, or permission is widened, and nothing listens beyond the host: the harness publishes on dev's 127.0.0.1 alone, during the Author's run | PASS |
 | V. Cost is a first-class signal | Agents can't raise a cap, since RK1 refuses a budget above `main`'s; the bytes counted are the bytes sent (FR-079) | PASS |
 | VI. Build in public | The generated studio documents are public, and P-7's pass reads them as it reads room text; notes print no studio path | PASS |
 | VII. Say exactly what you owned | The credits render tools and services on model steps, so a scripted step shows what drove it, and row D4 (R-53) | PASS |
@@ -711,7 +725,7 @@ Re-checked after Phase 1. The design adds no deviation beyond the spec's four ([
 | Security and agent governance | P-1, P-2, P-4, and P-7 call for the behavioural evals, and P-1 and P-2 for stage E (R-50); agent code that runs in the Author's terminal is listed first in its note (ADR 0017): the HAR checker, the Makefile's change, every `deploy/scripts/**` change, and `scripts/assets/scrub.py` and `credits.py` on `feat/004-intake` | PASS |
 | Workflow step 7: "A feature without a graph is not done." | §7.9 is written now, and the dashboard test reads it; its panels join the dashboard at User Story 8's switch-on (R-61) | PASS, with the spec's named deviation until spec 001 |
 | Workflow step 8 (`docs/how-we-build/` updated if the process changed) | P-2 and P-7 add behavioural cases, P-7 a sixth review pass, and P-10 a gate host step. P-2's and P-7's patches carry the case count in `docs/how-we-build/lifecycle.md`'s behavioural-tier row and in START-HERE §7. The gate's branch names the studio-settings host step in START-HERE §7. `CONTRIBUTING.md` stops counting the review passes | PASS |
-| Technology standards | No provider call, and no gateway change beyond its tests; the one compose topology, its one addition SC-004's dev-only harness profile, which preflight keeps off prod and dev-cpu; everything still ships as a container | PASS |
+| Technology standards | No provider call, and no gateway change beyond its tests; the one compose topology, its one addition SC-004's dev-only harness profile, which preflight keeps off prod and dev-cpu and P-11 alone admits at the compose policy; everything still ships as a container | PASS |
 
 Verdict: **PASS**.
 
@@ -737,7 +751,7 @@ The complexity the design adds:
 | pako as the one gzip | the caps and F3 count gzip-9 bytes, and the served copy must be those bytes; Node's zlib may not give Python's lengths (R-26) | Node's zlib gives lengths that aren't portable; compressing per request costs CPU on a 0.1-CPU container and sends bytes nothing counted |
 | A loader plugin that decodes GLB textures with `createImageBitmap` | neither CSP allows `blob:`, and `GLTFLoader` would turn a refused texture into an untextured material with no error (R-29) | widening two specs' CSPs for one decoder |
 | One kernel for the build, the room, and lookdev | the checks must measure what the room draws: its framing, pick areas, cables, and cap heights (R-08) | separate math in each place drifts, and a check could pass a room that fails |
-| SC-004's harness: a `status-harness` service in its own compose profile, published on one dev loopback port (18106), the plan's one exception to "no new service, compose entry, or port" | SC-004 needs the page's status requests forwarded to dev's relay, and the drafts image can't forward them: x005 answers 404 under `/api/` before `location /` reaches `web:8080`. Only dev's environment selects the profile, for the Author's run, and preflight refuses it on prod and dev-cpu, so the spec's "No local status endpoint" holds there (R-70) | a rule in `deploy/edge/nginx.conf`: one edge configuration serves every stack, so a dev-only rule can't live there; a status endpoint on the local stack, the spec's rejected alternative, with its own span, panel, and disclosure row |
+| SC-004's harness: a `status-harness` service in its own compose profile, published on one dev loopback port (18106), the plan's one exception to "no new service, compose entry, or port", which main's compose policy refuses until P-11 | SC-004 needs the page's status requests forwarded to dev's relay, and the drafts image can't forward them: x005 answers 404 under `/api/` before `location /` reaches `web:8080`. Only dev's environment selects the profile, for the Author's run, and preflight refuses it on prod and dev-cpu, so the spec's "No local status endpoint" holds there (R-70). Main's compose policy refuses a published port and the `edge` network on any service but `edge`, and P-11 lifts those two rules for `status-harness` alone (§4.1). Row S1 names it in its From → To cell, and its Default cell says it runs only on dev while dev's environment selects its profile, so the policy's disclosure rule holds with no exemption (the spec's Amendment Z1) | a rule in `deploy/edge/nginx.conf`: one edge configuration serves every stack, so a dev-only rule can't live there; a status endpoint on the local stack, the spec's rejected alternative, with its own span, panel, and disclosure row; an exemption from the compose policy's disclosure rule, which every other service keeps |
 
 ## Agent context
 

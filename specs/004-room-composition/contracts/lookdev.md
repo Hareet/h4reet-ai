@@ -187,7 +187,7 @@ So it needs no data-flow disclosure row: the site's page makes only same-origin 
 
 ## 10. After a run (FR-070; User Story 3, scenario 5)
 
-- **The look** the Author chooses becomes data: the look's file in `apps/web/room/looks/` and the scene's `look`. ADR 0010 records it (`docs/adr/0010-real-time-avatar-rig-and-art-direction.md`, on the `feat/003-*` branches; ADR 0037 amends it instead if ADR 0010 is accepted first), and `npm run room:generate` regenerates the work orders, whose freshness check fails `make test` until they are (FR-014). All of it lands before the remaining pieces are modeled (FR-070).
+- **The look** the Author chooses, on the runs that show the whole vignette on the reference phone and on the desktop (FR-070: an earlier run is preliminary, and compares looks without choosing one), becomes data: the look's file in `apps/web/room/looks/` and the scene's `look`. ADR 0010 records it (`docs/adr/0010-real-time-avatar-rig-and-art-direction.md`, on the `feat/003-*` branches; ADR 0037 amends it instead if ADR 0010 is accepted first), and `npm run room:generate` regenerates the work orders, whose freshness check fails `make test` until they are (FR-014). All of it lands before the remaining pieces are modeled (FR-070).
 - **The phone's stage and pixel ratio** the run recorded replace the estimates in `stages.ts`, with its test, in a later commit.
 - **The results,** and the copy's commit and SHA-256, go into the merge-request note; each approved hash goes into the Author's commit on `main` (§4).
 
