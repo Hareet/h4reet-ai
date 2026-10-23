@@ -117,6 +117,14 @@ function measure(bytes: Uint8Array): Measured | null {
   }
 }
 
+/** Each font's measure, once a process, by the SHA-256 its file matched fonts.lock with: a measure is the bytes' alone,
+ * and fontkit's read of a font is most of a compose's time, which RG7, RT10, and the index each ask for. */
+const MEASURED = new Map<string, Measured | null>();
+function measureOnce(bytes: Uint8Array, sha256: string): Measured | null {
+  if (!MEASURED.has(sha256)) MEASURED.set(sha256, measure(bytes));
+  return MEASURED.get(sha256) ?? null;
+}
+
 /** Each look's typefaces from the fonts the tree holds, and RT10's findings (the module's header gives the rules). */
 export function readTypefaces(tree: TreeReader, looks: readonly LookFonts[]): Typefaces {
   const findings: TypefaceFinding[] = [];
@@ -152,7 +160,7 @@ export function readTypefaces(tree: TreeReader, looks: readonly LookFonts[]): Ty
     else if (createHash("sha256").update(data).digest("hex") !== sha256) refuse(path, "-", REASON.fileDigest);
     else if (!FONT_FILE.test(name)) read = { sound: true, font: null };
     else {
-      const font = measure(data);
+      const font = measureOnce(data, sha256);
       if (font === null) refuse(path, "-", REASON.unmeasurable);
       read = { sound: font !== null, font };
     }
