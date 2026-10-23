@@ -45,7 +45,17 @@ import type { StandinEntry } from "../../build/room/schema";
 import type { Tree } from "../../build/room/source";
 import type { Look, Shape } from "../../src/room/compose/bundle";
 import type { Box } from "../../src/room/compose/framing";
-import { length, multiply, normalize, rotation, sub, transformPoint, translation } from "../../src/room/compose/math";
+import {
+  dot,
+  length,
+  multiply,
+  normalize,
+  rotation,
+  scale,
+  sub,
+  transformPoint,
+  translation,
+} from "../../src/room/compose/math";
 import type { Mat4, Vec3 } from "../../src/room/compose/math";
 import { STANDIN_SHAPES } from "../../src/room/compose/vocabulary";
 import { colourOf, createInk, lookLights, lookMaterials, outlineThickness, toonRamp } from "../../src/room/scene/look";
@@ -144,25 +154,14 @@ function expectClose(actual: ArrayLike<number>, expected: ArrayLike<number>, tol
 }
 
 /** T(at) · R(turn) · S(scale), the kernel's: a shape's frame in its piece's. */
-const frameOf = (s: Shape): Mat4 =>
-  multiply(multiply(translation(s.at), rotation(s.turn)), [
-    s.scale[0],
-    0,
-    0,
-    0,
-    0,
-    s.scale[1],
-    0,
-    0,
-    0,
-    0,
-    s.scale[2],
-    0,
-    0,
-    0,
-    0,
-    1,
-  ]);
+function frameOf(s: Shape): Mat4 {
+  const [x, y, z] = s.scale;
+  const stretch: Mat4 = [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1];
+  return multiply(multiply(translation(s.at), rotation(s.turn)), stretch);
+}
+
+/** A vertex is stored as a 32-bit float, so it lies within a micrometre of where it was computed. */
+const F32 = 1e-6;
 
 /** A geometry's vertices, in its own frame. */
 function vertices(geometry: BufferGeometry): Vec3[] {
@@ -265,23 +264,17 @@ describe("the stand-ins' nine shapes (standins.ts)", () => {
           const points = vertices(g);
           for (const end of [s.from, s.to])
             expect(
-              points.some((p) => length(sub(p, end)) < 1e-9),
+              points.some((p) => length(sub(p, end)) < F32),
               `an end at ${end.join(", ")}`,
             ).toBe(true);
           const axis = normalize(sub(s.to, s.from));
           let farthest = 0;
           for (const p of points) {
-            const along = Math.min(
-              span,
-              Math.max(0, (p[0] - s.from[0]) * axis[0] + (p[1] - s.from[1]) * axis[1] + (p[2] - s.from[2]) * axis[2]),
-            );
-            const off = length(
-              sub(p, [s.from[0] + axis[0] * along, s.from[1] + axis[1] * along, s.from[2] + axis[2] * along]),
-            );
-            farthest = Math.max(farthest, off);
+            const along = Math.min(span, Math.max(0, dot(sub(p, s.from), axis)));
+            farthest = Math.max(farthest, length(sub(sub(p, s.from), scale(axis, along))));
           }
-          expect(farthest).toBeLessThanOrEqual(s.radius + 1e-9);
-          expect(farthest).toBeGreaterThan(s.radius - 1e-9);
+          expect(farthest).toBeLessThanOrEqual(s.radius + F32);
+          expect(farthest).toBeGreaterThan(s.radius - F32);
           break;
         }
         case "polygon": {
@@ -290,15 +283,15 @@ describe("the stand-ins' nine shapes (standins.ts)", () => {
           expect((g as ExtrudeGeometry).parameters.options).toMatchObject({ depth: s.depth, bevelEnabled: false });
           const points = vertices(g);
           for (const p of points) {
-            expect(Math.abs(Math.abs(p[2]) - s.depth / 2)).toBeLessThan(1e-12);
+            expect(Math.abs(Math.abs(p[2]) - s.depth / 2)).toBeLessThan(F32);
             expect(
-              s.points.some(([x, y]) => Math.hypot(p[0] - x, p[1] - y) < 1e-12),
+              s.points.some(([x, y]) => Math.hypot(p[0] - x, p[1] - y) < F32),
               `${p.join(", ")}`,
             ).toBe(true);
           }
           for (const [x, y] of s.points)
             for (const z of [-s.depth / 2, s.depth / 2])
-              expect(points.some((p) => Math.hypot(p[0] - x, p[1] - y, p[2] - z) < 1e-12)).toBe(true);
+              expect(points.some((p) => Math.hypot(p[0] - x, p[1] - y, p[2] - z) < F32)).toBe(true);
           break;
         }
       }
@@ -334,11 +327,11 @@ describe("the stand-ins' nine shapes (standins.ts)", () => {
         const [mesh, rg] = [boundsOf(placed(standinMesh(s, materials))), shapeBox(entry)];
         for (const i of [0, 1, 2] as const) {
           const what = `${id} ${s.shape} ${k}, axis ${i}`;
-          expect(mesh.min[i], what).toBeGreaterThanOrEqual(rg.min[i] - 1e-9);
-          expect(mesh.max[i], what).toBeLessThanOrEqual(rg.max[i] + 1e-9);
+          expect(mesh.min[i], what).toBeGreaterThanOrEqual(rg.min[i] - F32);
+          expect(mesh.max[i], what).toBeLessThanOrEqual(rg.max[i] + F32);
           if (exact) {
-            expect(Math.abs(mesh.min[i] - rg.min[i]), what).toBeLessThan(1e-9);
-            expect(Math.abs(mesh.max[i] - rg.max[i]), what).toBeLessThan(1e-9);
+            expect(Math.abs(mesh.min[i] - rg.min[i]), what).toBeLessThan(F32);
+            expect(Math.abs(mesh.max[i] - rg.max[i]), what).toBeLessThan(F32);
           }
         }
       });
@@ -428,8 +421,8 @@ describe("the look (look.ts)", () => {
     expect(result.findings).toEqual([]);
     const materials = lookMaterials(result.scene.look);
     for (const s of shapes(TURNED).filter((x) => x.lit)) {
-      const material = standinMesh(s, materials).material as MeshToonMaterial;
-      expect(material.gradientMap?.image.width, s.shape).toBe(4);
+      const ramp = (standinMesh(s, materials).material as MeshToonMaterial).gradientMap as DataTexture;
+      expect(ramp.image.width, s.shape).toBe(4);
     }
   });
 
