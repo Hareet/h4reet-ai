@@ -310,6 +310,25 @@ function pick(root: HTMLElement, piece: string, data: Uint8Array): string[] {
   return touched;
 }
 
+/** Picks a file for a piece whose read the test settles: it resolves with bytes, or rejects, when the test says. */
+function pickLater(root: HTMLElement, piece: string): { resolve(data: Uint8Array): void; reject(error: Error): void } {
+  const input = root.querySelector<HTMLInputElement>(`input[type="file"][data-piece="${piece}"]`);
+  if (!input) throw new Error(`no picker for ${piece}`);
+  let settle: { resolve(data: Uint8Array): void; reject(error: Error): void } | undefined;
+  const read = new Promise<Uint8Array>((resolve, reject) => (settle = { resolve, reject }));
+  // A Blob's two reads: the whole file, and a part of it.
+  const bytes = (start?: number, end?: number): Promise<ArrayBuffer> =>
+    read.then((data) => data.slice(start, end).buffer);
+  const file = {
+    arrayBuffer: () => bytes(),
+    slice: (start?: number, end?: number) => ({ arrayBuffer: () => bytes(start, end) }),
+  };
+  Object.defineProperty(input, "files", { configurable: true, value: [file] });
+  input.dispatchEvent(new (root.ownerDocument.defaultView as TestWindow).Event("change", { bubbles: true }));
+  if (!settle) throw new Error("no read");
+  return settle;
+}
+
 const nodeSha256 = (data: Uint8Array): string => createHash("sha256").update(data).digest("hex");
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -671,6 +690,44 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
     expect(node?.children.some((c) => c.name === MODEL_NODE)).toBe(false);
     expect(node?.children.find((c) => c.name === "standin")?.visible).toBe(true);
     expect(collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent)).not.toMatch(/[0-9a-f]{64}/);
+  });
+
+  it("says a picked file that can't be read couldn't be read, and keeps nothing (the review's page-6)", async () => {
+    const { page, root, clock, inputs: given } = open();
+    const { piece } = vignettePiece(given);
+    pickLater(root, piece).reject(new Error("NotReadableError: the file moved"));
+    await settle(clock);
+    const text = collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent);
+    expect(text).toMatch(/couldn't be read/);
+    expect(text).toMatch(/nothing kept/);
+    expect(page.stage.loaded.has(piece)).toBe(false);
+  });
+
+  it("drops a read that ends after Clear, or after a newer pick of the same piece (the review's page-6)", async () => {
+    const { page, root, clock, inputs: given } = open();
+    const { piece, entry } = vignettePiece(given);
+    const row = (): string => collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent);
+    const clean = cleanModel(entry as Parameters<typeof cleanModel>[0]);
+    const pieceRow = root.querySelector(`[data-candidate="${piece}"]`)?.closest(".lookdev-piece") as HTMLElement;
+    // Picked, then cleared before the read ends: the stand-in stays.
+    const cleared = pickLater(root, piece);
+    buttonNamed(pieceRow, "Clear").click();
+    cleared.resolve(clean);
+    await settle(clock);
+    expect(page.stage.loaded.has(piece)).toBe(false);
+    expect(row()).not.toContain(nodeSha256(clean));
+    // Picked twice, the first read ending last: the second pick's file is the one shown and swapped in.
+    const older = pickLater(root, piece);
+    const newer = pickLater(root, piece);
+    const unmarked = desk({ mark: false }).bytes;
+    newer.resolve(unmarked);
+    await settle(clock);
+    older.resolve(clean);
+    await settle(clock);
+    expect(row()).toContain(nodeSha256(unmarked));
+    expect(row()).not.toContain(nodeSha256(clean));
+    expect(row()).toContain("Mark: not scrubbed");
+    expect(page.stage.loaded.has(piece)).toBe(true);
   });
 
   it("swaps in no file RX1 refuses, and says why", async () => {
