@@ -338,6 +338,46 @@ describe("the lookdev page (contracts/lookdev.md §1 to §3)", () => {
     expect(root.querySelector(".lookdev-log")).not.toBeNull();
   });
 
+  it("leaves nothing running when it throws as it's built: no frame, no timer, and its renderer released", () => {
+    // The review's page-2: a page that can't be built says why (main.ts), and keeps no stage drawing behind the note.
+    const throwing: [string, (given: LookdevDeps["inputs"], renderer: WebGLRenderer) => void][] = [
+      // After the stage: the page's controls read the looks.
+      ["the page", (given) => Object.assign(given, { lookdev: { ...given.lookdev, looks: undefined } })],
+      // Inside the stage, after its renderer: the first fit sets the pixel ratio.
+      [
+        "the stage",
+        (_, renderer) =>
+          Object.assign(renderer, {
+            setPixelRatio: () => {
+              throw new Error("no pixel ratio");
+            },
+          }),
+      ],
+    ];
+    for (const [where, breakIt] of throwing) {
+      const win = new JSDOM('<!doctype html><main id="lookdev"></main>', { pretendToBeVisual: true })
+        .window as unknown as TestWindow;
+      imageBitmaps(win);
+      const clock = new FakeClock();
+      const { renderer } = fakeRenderer();
+      const disposed = vi.spyOn(renderer, "dispose");
+      const given = inputs();
+      breakIt(given, renderer);
+      const root = win.document.getElementById("lookdev") as HTMLElement;
+      expect(
+        () =>
+          createLookdev(
+            root,
+            { phone: false, probe: null },
+            { win, clock, inputs: given, renderer: () => renderer, capability: () => ABOVE_FLOOR },
+          ),
+        where,
+      ).toThrow();
+      expect([clock.pendingFrames, clock.pendingTimers], where).toEqual([0, 0]);
+      expect(disposed, where).toHaveBeenCalled();
+    }
+  });
+
   it("draws the room after the hand-off, in the scene's look, on the real controller", () => {
     const { page, clock, renderer, inputs: given } = open();
     clock.advance(200);
