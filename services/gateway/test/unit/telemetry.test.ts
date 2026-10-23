@@ -72,7 +72,8 @@ function scriptedRun(m: GatewayMetrics): void {
   m.operatorAction("reset");
   m.operatorAuthFailure("mismatch");
   m.testMachineryRefused();
-  m.roomEvent("object_selected", "laptop");
+  // A synthetic ID: which objects there are is the room's data (spec 004, FR-007).
+  m.roomEvent("object_selected", "fx-desk");
   m.roomEvent("mode_2d", "-");
   m.roomEventRefused("kind");
   m.tokenUsage(71, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "input" });
@@ -164,10 +165,10 @@ describe("the gateway's instruments (telemetry.md §4.1, §4.2)", () => {
       model: "stand-in",
       attribution: "none",
       "client.address": "10.0.0.7",
-      "h4.client": "author-laptop",
+      "h4.client": "author-terminal",
     });
     const all = JSON.stringify(instruments(await h.collect()).map((x) => x.dataPoints.map((p) => p.attributes)));
-    for (const forbidden of ["client.address", "10.0.0.7", "h4.client", "author-laptop", "request_id", "trace_id"]) {
+    for (const forbidden of ["client.address", "10.0.0.7", "h4.client", "author-terminal", "request_id", "trace_id"]) {
       expect(all).not.toContain(forbidden);
     }
     await h.shutdown();

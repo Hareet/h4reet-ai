@@ -2,13 +2,17 @@
 // config/room-events.yaml, `{schema: 1, kinds, objects, items}`, read once at start from the mounted config/. The
 // committed file loads; a missing file and an invalid one each give a reason the startup log records, never a value
 // from the file, and the gateway then answers every event 400 (the route's tests, test/integration/room-events.test.ts).
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+// Which objects the committed file lists is the room's data (spec 004, FR-007, SC-001; its research.md R-16), so its
+// case holds the list's bounds and none of its IDs: adding, removing, or retargeting a selectable changes no source
+// file. The other cases parse lists of their own, with synthetic IDs in `fx-`, a prefix the room's data never takes.
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { parseYaml } from "../../src/config/load.js";
 import { ROOM_EVENTS_FILE, loadRoomEvents, parseRoomEvents } from "../../src/config/room-events.js";
 
 const REPO_CONFIG = fileURLToPath(new URL("../../../../config/", import.meta.url));
@@ -32,31 +36,22 @@ const VALID = [
   '  - "item_selected"',
   '  - "mode_2d"',
   "objects:",
-  '  - "laptop"',
+  '  - "fx-desk"',
   "items:",
   '  - "cht-agent"',
   "",
 ].join("\n");
 
 describe("config/room-events.yaml", () => {
-  it("is the file the build commits, and it loads: the eight kinds, the three objects, and the resume's items", async () => {
+  it("is the file the build commits, and it loads with 1 to 64 unique objects, whichever they are", async () => {
     expect(ROOM_EVENTS_FILE).toBe("room-events.yaml");
-    const loaded = await loadRoomEvents(REPO_CONFIG);
-    expect(loaded.ok).toBe(true);
-    if (!loaded.ok) return;
-    expect([...loaded.config.kinds]).toEqual([
-      "object_selected",
-      "item_selected",
-      "resume_opened",
-      "resume_kept",
-      "pdf_downloaded",
-      "turn_sent",
-      "voice_pressed",
-      "mode_2d",
-    ]);
-    expect([...loaded.config.objects]).toEqual(["snowboard", "bicycle", "laptop"]);
-    expect(loaded.config.items.size).toBeGreaterThan(0);
-    for (const id of loaded.config.items) expect(id).toMatch(/^[a-z][a-z0-9-]{1,40}$/);
+    expect(await loadRoomEvents(REPO_CONFIG)).toMatchObject({ ok: true });
+    // The list as the file writes it, since a set would hide a repeat.
+    const text = await readFile(join(REPO_CONFIG, ROOM_EVENTS_FILE), "utf8");
+    const { objects } = parseYaml(`config/${ROOM_EVENTS_FILE}`, text).data as { objects: unknown[] };
+    expect(objects.length).toBeGreaterThanOrEqual(1);
+    expect(objects.length).toBeLessThanOrEqual(64);
+    expect(new Set(objects).size).toBe(objects.length);
   });
 
   it("parses a small list into its three sets", () => {
@@ -65,7 +60,7 @@ describe("config/room-events.yaml", () => {
       ok: true,
       config: {
         kinds: new Set(["object_selected", "item_selected", "mode_2d"]),
-        objects: new Set(["laptop"]),
+        objects: new Set(["fx-desk"]),
         items: new Set(["cht-agent"]),
       },
     });
@@ -84,9 +79,9 @@ describe("config/room-events.yaml", () => {
     ["a key the contract doesn't name", `${VALID}paths:\n  - "engineer"\n`, "paths"],
     ["no kinds", VALID.replace(/kinds:\n( {2}- .*\n)+/, "kinds: []\n"), "kinds"],
     ["a kind that isn't a name", VALID.replace('"mode_2d"', '"Mode 2D"'), "kinds[2]"],
-    ["an ID that isn't an ID", VALID.replace('"laptop"', '"../laptop"'), "objects[0]"],
+    ["an ID that isn't an ID", VALID.replace('"fx-desk"', '"../fx-desk"'), "objects[0]"],
     ["a number for an ID", VALID.replace('"cht-agent"', "7"), "items[0]"],
-    ["the same ID twice", VALID.replace('  - "laptop"\n', '  - "laptop"\n  - "laptop"\n'), "objects"],
+    ["the same ID twice", VALID.replace('  - "fx-desk"\n', '  - "fx-desk"\n  - "fx-desk"\n'), "objects"],
     ["the same kind twice", VALID.replace('  - "mode_2d"\n', '  - "mode_2d"\n  - "mode_2d"\n'), "kinds"],
   ])("reads as invalid with %s, naming where and never the value", (_name, text, path) => {
     const parsed = parseRoomEvents(text);
@@ -97,7 +92,7 @@ describe("config/room-events.yaml", () => {
     const many = (n: number, prefix: string) => Array.from({ length: n }, (_, i) => `  - "${prefix}${i}"`).join("\n");
     const tooManyItems = VALID.replace('items:\n  - "cht-agent"', `items:\n${many(257, "item-")}`);
     expect(parseRoomEvents(tooManyItems)).toEqual({ ok: false, reason: "invalid", path: "items" });
-    const tooManyObjects = VALID.replace('objects:\n  - "laptop"', `objects:\n${many(65, "object-")}`);
+    const tooManyObjects = VALID.replace('objects:\n  - "fx-desk"', `objects:\n${many(65, "object-")}`);
     expect(parseRoomEvents(tooManyObjects)).toEqual({ ok: false, reason: "invalid", path: "objects" });
     const tooManyKinds = VALID.replace(/kinds:\n( {2}- .*\n)+/, `kinds:\n${many(33, "kind_")}\n`);
     expect(parseRoomEvents(tooManyKinds)).toEqual({ ok: false, reason: "invalid", path: "kinds" });
