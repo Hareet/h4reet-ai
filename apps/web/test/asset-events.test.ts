@@ -321,5 +321,7 @@ describe("while live.asset_events is site", () => {
     h.clock.advance(120_000, 1000);
     expect(h.sent.posts).toHaveLength(1);
     expect(h.sent.beacons).toEqual([]);
+    expect(h.events.queued).toEqual(range(44, 20));
+    expect(h.sent.logged).toEqual(range(70));
   });
 });
