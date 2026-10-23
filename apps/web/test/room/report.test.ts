@@ -248,13 +248,18 @@ describe("the report's findings, and what it never holds", () => {
     expect(md).not.toMatch(/(^|[\s(`])(\/home|\/tmp|\/srv|\/Users|[A-Z]:\\)/m);
   });
 
-  it("names an element by its path where RT2 refused its ID", () => {
+  it("names an element by its path where RT2 refused its ID, and a piece, which has none, by the refusal", () => {
     const tree = goodTree();
+    const refused = new Set(["fx-desk", "fx-monitor", "fx-power", "fx-cloud"]);
     const out = emit(loadRoom(tree), noPolicy(), { mode: "strict", drafts: true }, [], {
       tree,
-      printable: (v) => v !== "fx-desk" && v !== "fx-power",
+      printable: (v) => !refused.has(v),
     });
-    expect(out.report.markdown).not.toMatch(/fx-desk|fx-power/);
-    expect(out.report.markdown).toContain("| (an ID RT2 refused) | 1 | stand-in (no-model) |");
+    const md = out.report.markdown;
+    expect(md).not.toMatch(/fx-desk|fx-monitor|fx-power|fx-cloud/);
+    expect(md).toContain("| (an ID RT2 refused) | 1 | stand-in (no-model) |");
+    expect(md).toContain("| placements[2].faces.screen | yes |");
+    expect(md).toContain("| switches[0] | `fx-plugged` | switches[0].poses | `fx-resting` |");
+    expect(md).toContain("| switches[0] | `fx-plugged` / switches[0].poses |");
   });
 });

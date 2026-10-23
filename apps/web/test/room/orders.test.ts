@@ -287,7 +287,7 @@ describe("the photo guide (contracts/room-bundle.md §9.2)", () => {
       "never send one through chat, email, a cloud drive, or an assistant",
       "delete them from the phone and its trash once the studio's copy checks out",
     ])
-      expect(first.toLowerCase()).toContain(step);
+      expect(first.toLowerCase()).toContain(step.toLowerCase());
     expect(section(text, "## Where photo-derived files stay")).toContain(
       "Every file a photo touches SHALL stay inside the photos folder, which, with the blinding key, every Claude " +
         "session on the machine is denied, the studio's own included: ComfyUI's input, output, temp, and user folders " +

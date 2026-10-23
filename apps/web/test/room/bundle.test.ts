@@ -50,8 +50,8 @@ function numbers(value: unknown, at = "$", out: [string, number][] = []): [strin
   return out;
 }
 
-/** Whether a number is a whole multiple of `step` as quantizing writes it. */
-const onGrid = (n: number, step: number): boolean => Object.is(Math.round(n / step) * step, n) || Number.isInteger(n);
+/** Whether a number is on the grid of 1 ÷ `per` as quantizing writes it: rounded to a whole count, then divided. */
+const onGrid = (n: number, per: number): boolean => Math.round(n * per) / per === n;
 const near = (a: number, b: number, tolerance = 2e-4): boolean => Math.abs(a - b) <= tolerance;
 
 /** The world transforms of the 3D part's placements, resolved with the kernel from the part itself. */
@@ -75,6 +75,14 @@ function inView(result: ComposeResult, point: Vec3): { at: [number, number]; ppm
   const view = projector(flatCamera(result), 1.6);
   const [x, y] = toStage(view.project(point), VIEW);
   return { at: [x, y], ppm: 100 / (view.depth(point) * Math.tan((FOV / 2) * DEG)) };
+}
+
+/** Where a placement's drawing stands: its origin pushed back to the farthest depth of its frame box, which the 2D
+ *  camera, looking down −Z, meets at the box's least z. */
+function inPlane(result: ComposeResult, id: string): { at: [number, number]; ppm: number } {
+  const o = origin(worlds(result).world.get(id) ?? IDENTITY);
+  const box = result.scene.placements.find((p) => p.id === id)?.frame_box;
+  return inView(result, [o[0], o[1], box?.min[2] ?? o[2]]);
 }
 
 /** The world box of a piece-frame box under a transform: its eight corners' bounds. */
@@ -231,7 +239,7 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
       const [w, h] = face.screen_css;
       expect(w, face.id).toBeGreaterThan(1);
       expect(h, face.id).toBeGreaterThan(1);
-      expect(onGrid(w, 1e-4) && onGrid(h, 1e-4), face.id).toBe(true);
+      expect(onGrid(w, 1e4) && onGrid(h, 1e4), face.id).toBe(true);
     }
     const screen = index.faces[0];
     // A face square to the camera keeps its aspect on screen: 0.56 × 0.36.
@@ -331,14 +339,15 @@ describe("the 2D drawing (flat)", () => {
         if (p.primitive === "path") expect(isPathData(p.d)).toBe(true);
       }
     }
-    for (const [at, n] of numbers(flat)) expect(onGrid(n, 1e-4), `${at} = ${n}`).toBe(true);
+    // View-box units to 1e-4; a hit's depth is metres, to 1e-6.
+    for (const [at, n] of numbers(flat))
+      expect(onGrid(n, at.includes(".depths[") ? 1e6 : 1e4), `${at} = ${n}`).toBe(true);
   });
 
-  it("places each drawing at its placement's projected origin, scaled by the pixels per metre at its depth", () => {
+  it("places each drawing in its plane, its origin pushed back to its box's farthest depth, scaled for that depth", () => {
     const result = good();
-    const { world } = worlds(result);
     const desk = result.index.flat.items.find((i) => i.placement === "fx-desk");
-    const { at, ppm } = inView(result, origin(world.get("fx-desk") ?? IDENTITY));
+    const { at, ppm } = inPlane(result, "fx-desk");
     expect(desk?.matrix.map((n, i) => (i < 4 ? n : 0))).toEqual([1, 0, 0, 1, 0, 0]);
     expect(near(desk?.matrix[4] ?? 0, at[0]) && near(desk?.matrix[5] ?? 0, at[1])).toBe(true);
     // fx-desk's own drawing: a rect from (-0.6, 0), 1.2 × 0.75 m, and a line at y 0.71, in metres, y up.
@@ -357,9 +366,8 @@ describe("the 2D drawing (flat)", () => {
 
   it("scales a drawing by its piece's stylized scale", () => {
     const result = good();
-    const { world } = worlds(result);
     const sign = result.index.flat.items.find((i) => i.placement === "fx-sign");
-    const { ppm } = inView(result, origin(world.get("fx-sign") ?? IDENTITY));
+    const { ppm } = inPlane(result, "fx-sign");
     const rect = sign?.primitives[0] as { w: number; h: number } | undefined;
     // fx-sign's rect is 0.3 × 0.12 m at a stylized scale of 1.25.
     expect((rect?.w ?? 0) / ppm).toBeCloseTo(0.375, 3);
@@ -373,8 +381,7 @@ describe("the 2D drawing (flat)", () => {
       ["rect", "#1d1d1f"],
       ["rect", "#20303a"],
     ]);
-    const { world } = worlds(result);
-    const { ppm } = inView(result, origin(world.get("fx-monitor") ?? IDENTITY));
+    const { ppm } = inPlane(result, "fx-monitor");
     // Its box, 0.6 × 0.42 m centred at (0, 0.21): from (-0.3, 0) up to 0.42.
     const box = monitor?.primitives[0] as { x: number; y: number; w: number; h: number };
     expect([box.x, box.y, box.w, box.h].map((n) => n / ppm)).toEqual(
@@ -422,8 +429,7 @@ describe("the 2D drawing (flat)", () => {
     const result = good();
     const { flat } = result.index;
     expect(flat.faces.map((f) => f.face)).toEqual(result.index.faces.map((f) => f.id));
-    const { world } = worlds(result);
-    const { at, ppm } = inView(result, origin(world.get("fx-monitor") ?? IDENTITY));
+    const { at, ppm } = inPlane(result, "fx-monitor");
     const screen = flat.faces[0];
     // The screen, 0.56 × 0.36 m centred at (0, 0.22) on the monitor: its top-left at (-0.28, 0.4).
     expect(screen?.size.map((n) => n / ppm)).toEqual([0.56, 0.36].map((n) => expect.closeTo(n, 3)));
@@ -666,7 +672,7 @@ describe("what the bundle holds (contracts/room-bundle.md §11, §14)", () => {
     for (const [at, n] of [...numbers(index), ...numbers(scene)]) {
       expect(Number.isFinite(n), at).toBe(true);
       expect(Object.is(n, -0), at).toBe(false);
-      expect(onGrid(n, 1e-6), `${at} = ${n}`).toBe(true);
+      expect(onGrid(n, 1e6), `${at} = ${n}`).toBe(true);
     }
   });
 
@@ -683,7 +689,7 @@ describe("what the bundle holds (contracts/room-bundle.md §11, §14)", () => {
       "Fixture lead",
       "Fixture lamp",
       "fx-old-lamp",
-      "corner",
+      "desk_corner",
       "Fixture material notes",
       "the fixture room holds a desk",
       "fixture excluded phrase",
@@ -692,12 +698,27 @@ describe("what the bundle holds (contracts/room-bundle.md §11, §14)", () => {
       "fx-tracer",
       "Later idea",
       "corpus/90-fx-work.md",
-      "estimated",
-      "budget",
-      "work_order",
-      "survey",
     ])
       expect(text, value).not.toContain(value);
+    // Nor any of those fields by its key: a tier value's "budget", the UI key "sign.estimated", and the plug's anchor
+    // "lead" are other words; the selectable's lead is held to its value above.
+    for (const key of [
+      "estimated",
+      "work_order",
+      "survey",
+      "desk_corner",
+      "material_notes",
+      "words_from",
+      "exclude",
+      "claims",
+      "retired",
+      "intent_ref",
+      "tool",
+      "pending",
+      "about_author",
+    ])
+      expect(text, key).not.toContain(`"${key}":`);
+    expect(text).not.toContain('"budget":{');
   });
 });
 
