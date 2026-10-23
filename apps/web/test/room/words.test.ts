@@ -473,6 +473,29 @@ describe("RT8, words over their grid (FR-031, FR-033, FR-052)", () => {
       ]);
     });
 
+    it("lets the longest reading fill a grid its width sets exactly: 24 characters of 0.6 em in a region 14.4 em wide", () => {
+      // One counter on a face of 0.46 × 0.04 m: the grid's em is the width's, 0.46 ÷ 14.4, and the reading is as wide
+      // as the region, which floating point mustn't make wider.
+      const exact = {
+        ...edit(
+          "apps/web/room/catalog/fx-neon.yaml",
+          [
+            ["live_faces", 0, "size"],
+            [0.46, 0.04],
+          ],
+          [
+            ["live_faces", 0, "px"],
+            [2048, 178],
+          ],
+        ),
+        ...edit(SCENE, [
+          ["placements", 3, "faces", "panel", "regions"],
+          [{ rect: [0, 0, 1, 1], renderer: "neon", grid: { chars: 24 }, signal: "turn-cost", part: "visit" }],
+        ]),
+      };
+      expect(where("RT8", exact)).toEqual([]);
+    });
+
     it("measures their width in the counters' typeface, not the neon word's", () => {
       // Twenty-four W's fill IBM Plex Mono's 0.6-em cells exactly; in IBM Plex Sans Bold they run over the region.
       const wide = edit(UI, [["words", "sign.unavailable"], "W".repeat(24)]);
