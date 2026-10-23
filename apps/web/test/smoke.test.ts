@@ -3,9 +3,13 @@
 // on the site's own origin (FR-057, the CSP's 'self'), no inline script or style the CSP would refuse, the AI
 // disclosure and the PDF link on the first screen (FR-004, FR-018), the data-flow disclosure page beside it (FR-058),
 // and 0 axe violations on both pages.
+// T093 (spec 004; FR-075; R-67): in the release build and the drafts build alike, every typeface, data file, and
+// model the site loads is on its own origin: each stylesheet's url() and each such path a script names is relative, to
+// a file in the build, and the room's models, compose()'s as the build composed them, are relative `a/` paths whose
+// gzip copies are what `a/` holds.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import axe from "axe-core";
@@ -13,6 +17,7 @@ import { JSDOM } from "jsdom";
 import { describe, expect, inject, it } from "vitest";
 
 import { renderDisclosure } from "../build/disclosure";
+import { repositoryBundle } from "./helpers/room";
 
 const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const DISCLOSURE_MD = resolve(WEB, "../../docs/data-flow-disclosure.md");
@@ -178,5 +183,70 @@ describe("the built scripts (T060)", () => {
     const beacon = scripts.filter((s) => s.includes("/api/room/events"));
     expect(beacon).toHaveLength(1);
     expect(beacon[0]).toContain("sendBeacon");
+  });
+});
+
+/** Every file under a folder, by its path from that folder, `/`-separated. */
+function filesUnder(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  const found: string[] = [];
+  const walk = (at: string): void => {
+    for (const entry of readdirSync(at, { withFileTypes: true })) {
+      const path = join(at, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else found.push(relative(dir, path).split("\\").join("/"));
+    }
+  };
+  walk(dir);
+  return found.sort();
+}
+
+/** A path a script names for a typeface, a data file, a model, or an image: a whole string literal, quoted any way. */
+const RESOURCE = /["'`]([^"'`\s]*\.(?:json|glb|gz|woff2?|ttf|otf|png|jpe?g|webp))["'`]/g;
+
+describe.each(["release", "drafts"] as const)("what the %s build loads (spec 004, T093; FR-075)", (kind) => {
+  const root = inject("siteBuilds")[kind];
+  const files = filesUnder(root);
+
+  it("takes every typeface from its own origin: each stylesheet's url() is a relative path to a file in the build", () => {
+    const sheets = files.filter((f) => f.endsWith(".css"));
+    expect(sheets.length).toBeGreaterThan(0);
+    const urls: string[] = [];
+    for (const sheet of sheets) {
+      const css = readFileSync(join(root, sheet), "utf8");
+      for (const m of css.matchAll(/url\(\s*["']?([^"')\s]+)["']?\s*\)/g)) {
+        const url = m[1] ?? "";
+        urls.push(url);
+        expect(isRelative(url) && !url.startsWith("//"), `${sheet}: ${url}`).toBe(true);
+        expect(existsSync(join(root, dirname(sheet), url)), `${sheet}: ${url}`).toBe(true);
+      }
+    }
+    // The room's typefaces are among them: IBM Plex, and the chalkboard's hand.
+    expect(urls.filter((u) => u.endsWith(".woff")).length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("takes every data file, model, and typeface a script names from its own origin, a relative path in the build", () => {
+    const named: string[] = [];
+    for (const script of files.filter((f) => f.endsWith(".js"))) {
+      for (const m of readFileSync(join(root, script), "utf8").matchAll(RESOURCE)) {
+        const url = m[1] ?? "";
+        named.push(url);
+        expect(isRelative(url) && !url.startsWith("//"), `${script}: ${url}`).toBe(true);
+        // From the page's own folder, the site's root; a model is served from its gzip copy (contracts/serving.md).
+        const at = join(root, url.endsWith(".glb") ? `${url}.gz` : url);
+        expect(existsSync(at), `${script}: ${url}`).toBe(true);
+      }
+    }
+    // room-data.json, which the room fetches for the resume and its narration, is one.
+    expect(named.some((u) => u.endsWith("room-data.json"))).toBe(true);
+  });
+
+  it("takes the room's models from its own origin: relative a/ paths, whose gzip copies and cards are all a/ holds", () => {
+    const { models, cards } = repositoryBundle({ drafts: kind === "drafts", policy: "empty" });
+    const urls = [...models.map((m) => m.url), ...cards.map((c) => c.url)];
+    for (const url of urls) expect(url, url).toMatch(/^a\/[^/]+$/);
+    expect(filesUnder(join(root, "a"))).toEqual(
+      [...models.map((m) => `${m.url}.gz`), ...cards.map((c) => c.url)].map((u) => u.slice(2)).sort(),
+    );
   });
 });

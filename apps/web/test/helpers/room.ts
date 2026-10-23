@@ -11,6 +11,10 @@ import { JSDOM, VirtualConsole } from "jsdom";
 
 import { buildManifest, readMessages } from "../../build/manifest";
 import type { RoomContent } from "../../build/manifest";
+import { compose, formatFinding } from "../../build/room/compose";
+import type { ComposeResult } from "../../build/room/compose";
+import { policyFrom, readRoomPolicy } from "../../build/room/policy";
+import { fileTree } from "../../build/room/source";
 import { startRoom } from "../../src/room/app";
 import type { RoomHandle } from "../../src/room/app";
 import type { Clock } from "../../src/room/clock";
@@ -256,6 +260,33 @@ export function fakeScene(): FakeScene {
     },
   };
   return fake;
+}
+
+const bundles = new Map<string, ComposeResult>();
+
+/**
+ * The room's bundle as the site's build composes the repository's data (spec 004; build/room/plugin.ts): lenient, as
+ * a release build unless `drafts`, under main's policy as make test reads it (build/room/policy.ts), or with `empty`,
+ * under an empty policy directory, as the global setup's builds are (test/global-build.ts). Each is composed once a
+ * test file, and a finding that would fail the site's build fails the test that asks.
+ */
+export function repositoryBundle(
+  options: { readonly drafts?: boolean; readonly policy?: "main" | "empty" } = {},
+): ComposeResult {
+  const drafts = options.drafts ?? false;
+  const source = options.policy ?? "main";
+  const key = `${source} ${drafts ? "drafts" : "release"}`;
+  const known = bundles.get(key);
+  if (known) return known;
+  const policy =
+    source === "main"
+      ? readRoomPolicy({ env: process.env, root: REPO })
+      : policyFrom({ caps: null, approvals: null, header: null }, "policy-dir");
+  const result = compose(fileTree(REPO), policy, { mode: "lenient", drafts });
+  const refused = result.findings.filter((f) => !f.lenient).map((f) => formatFinding(f, "lenient"));
+  if (refused.length > 0) throw new Error(`the repository's room doesn't compose:\n${refused.join("\n")}`);
+  bundles.set(key, result);
+  return result;
 }
 
 /** The room's content, as the build reads it: content/messages.yaml and the manifest. */

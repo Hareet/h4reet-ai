@@ -6,20 +6,29 @@
 // directory makes its own build with `buildSite`, the same build under the policy it gives. A build reads
 // ROOM_POLICY_DIR and ROOM_DRAFTS from the environment, so builds run one at a time, each restoring both after. What a
 // build prints (spec 002's content checks say what they checked) stays quiet unless it fails, as a passing test's does.
+// Each build also gives the modules each of its chunks holds, through `inject("siteChunks")`, so the chunk test knows
+// where the room's bundle and the libraries landed without reading minified code for them (spec 004, T093).
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { build } from "vite";
 import type { TestProject } from "vitest/node";
 
 const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
+const REPO = resolve(WEB, "../..");
+
+/** Each chunk a build wrote, by its file name under the build's folder, with the modules it holds: a file by its path
+ *  from the repository's root (a package's under node_modules/), a virtual module by its ID. */
+export type SiteChunks = Readonly<Record<string, readonly string[]>>;
 
 declare module "vitest" {
   export interface ProvidedContext {
     /** The global setup's builds of the site: the release build's folder, and the drafts build's. */
     siteBuilds: { release: string; drafts: string };
+    /** The same builds' chunks, each with its modules. */
+    siteChunks: { release: SiteChunks; drafts: SiteChunks };
   }
 }
 
@@ -29,9 +38,14 @@ export interface SiteBuild {
   readonly out: string;
   /** The policy directory it was built under (ROOM_POLICY_DIR). */
   readonly policy: string;
+  /** Its chunks, each with its modules. */
+  readonly chunks: SiteChunks;
   /** Removes the folders the build made: its output, and its policy directory unless the caller gave it. */
   remove(): void;
 }
+
+/** A module's ID as SiteChunks gives it. */
+const moduleName = (id: string): string => (isAbsolute(id) ? relative(REPO, id).split("\\").join("/") : id);
 
 /** A release or drafts build of the site into a new temporary folder, under `policy`, or an empty policy directory. */
 export async function buildSite(options: { readonly drafts: boolean; readonly policy?: string }): Promise<SiteBuild> {
@@ -50,13 +64,19 @@ export async function buildSite(options: { readonly drafts: boolean; readonly po
   console.log = (...args: unknown[]): void => {
     printed.push(args.map(String).join(" "));
   };
+  const chunks: Record<string, readonly string[]> = {};
   try {
-    await build({
+    const built = await build({
       root: WEB,
       configFile: join(WEB, "vite.config.ts"),
       logLevel: "silent",
       build: { outDir: out, emptyOutDir: true },
     });
+    for (const result of Array.isArray(built) ? built : [built]) {
+      if (!("output" in result)) throw new Error("buildSite: a watching build gives no chunks");
+      for (const file of result.output)
+        if (file.type === "chunk") chunks[file.fileName] = file.moduleIds.map(moduleName);
+    }
   } catch (error) {
     for (const line of printed) log(line);
     remove();
@@ -68,7 +88,7 @@ export async function buildSite(options: { readonly drafts: boolean; readonly po
       else process.env[key] = value;
     }
   }
-  return { out, policy, remove };
+  return { out, policy, chunks, remove };
 }
 
 /** The global setup: the two builds, provided to every test file; its teardown removes them. */
@@ -82,6 +102,7 @@ export default async function setup(project: TestProject): Promise<() => void> {
     throw error;
   }
   project.provide("siteBuilds", { release: release.out, drafts: drafts.out });
+  project.provide("siteChunks", { release: release.chunks, drafts: drafts.chunks });
   return () => {
     release.remove();
     drafts.remove();

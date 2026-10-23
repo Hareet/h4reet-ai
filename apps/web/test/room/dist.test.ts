@@ -12,11 +12,21 @@
 //   placement's ID and an anchor's name, which the outputs carry by their own right, so its keys are held out instead.
 // - roomBundle()'s resolveId throws `fixtures and lookdev are drafts-only (FR-066)` for `virtual:room-fixtures` and
 //   `virtual:room-lookdev` in a release build, and resolves them in a drafts build.
-// The checks of the site's own builds (test/global-build.ts) need the room's first data in the site's build, so they
-// come with it (T093), and the lookdev page's with the page (T121).
+// T093 (spec 004; FR-012, FR-066, FR-079; Amendment C11; R-43, R-67; contracts/room-bundle.md §14): the site's own
+// builds, the global setup's release build and drafts build (test/global-build.ts), with the room's data in them.
+// - No file under either holds a † field's value or a pending line of the committed data, read the same way, a
+//   script's template literals among its whole strings, as the minifier writes most strings so. A value that a public
+//   field holds as well, a topic's phrase being its own quote, is that field's (plan.md §10).
+// - The release build holds no lookdev page, no drafts-only module, no fixture, and no draft room text.
+// - No plain .glb is anywhere, and each a/*.glb.gz is the gzip copy of a model the 3D part names, inflating to its
+//   SHA-256, with MTIME 0, its length the entry's `bytes`.
+// The lookdev page's checks come with the page (T121).
 import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
+import { gunzipSync } from "node:zlib";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, inject, it, vi } from "vitest";
 import { parse, stringify } from "yaml";
 
 import { compose } from "../../build/room/compose";
@@ -27,7 +37,9 @@ import type { LoadedRoom } from "../../build/room/load";
 import { roomBundle } from "../../build/room/plugin";
 import { noPolicy, policyFrom } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
+import { fileTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
+import { REPO, repositoryBundle } from "../helpers/room";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { callHook, hookContext } from "../helpers/vite-plugin";
 
@@ -133,6 +145,24 @@ interface Read {
   readonly strings: ReadonlySet<string>;
 }
 
+const ESCAPES: Readonly<Record<string, string>> = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", v: "\v", "0": "\0" };
+
+/** A template literal's string, with no substitution: its escapes undone, a line continuation dropped. */
+const templateText = (literal: string): string =>
+  literal
+    .slice(1, -1)
+    .replace(
+      /\\(?:u\{([0-9a-fA-F]+)\}|u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2})|([\s\S]))/g,
+      (_, point?: string, unit?: string, byte?: string, char?: string) =>
+        point !== undefined
+          ? String.fromCodePoint(parseInt(point, 16))
+          : unit !== undefined || byte !== undefined
+            ? String.fromCharCode(parseInt(unit ?? byte ?? "", 16))
+            : char === "\n"
+              ? ""
+              : (ESCAPES[char ?? ""] ?? char ?? ""),
+    );
+
 function readFile(name: string, body: string): Read {
   if (name.endsWith(".json")) {
     try {
@@ -156,6 +186,9 @@ function readFile(name: string, body: string): Read {
       // A literal JSON doesn't read isn't a JSON string.
     }
   }
+  // The minifier writes most of a script's strings as template literals: one with no substitution is a whole string.
+  if (name.endsWith(".js"))
+    for (const literal of body.match(/`(?:[^`\\$]|\\[\s\S]|\$(?!\{))*`/g) ?? []) strings.add(templateText(literal));
   return { text: collapse(text), strings };
 }
 
@@ -288,6 +321,16 @@ describe("what compose() hands the built site (FR-012; contracts/room-bundle.md 
     expect(holds(readFile("x.js", `const a = 'it\\'s ${long}';`), long)).toBe(true);
     expect(holds(readFile("x.js", `const a = ${JSON.stringify(short)};`), short)).toBe(true);
     expect(holds(readFile("x.html", `<p>${long.replaceAll(" ", "&#32;")}</p>`), long)).toBe(true);
+    // And as the minifier writes it, a template literal with no substitution, its escapes undone (T093).
+    const template = (text: string): string => `\`${text.replaceAll("\\", "\\\\").replaceAll("`", "\\`")}\``;
+    expect(holds(readFile("x.js", `const a = ${template(short)}, b = 1;`), short)).toBe(true);
+    expect(
+      holds(
+        readFile("x.js", `const a = \`\\u{${short.codePointAt(0)?.toString(16) ?? ""}}${short.slice(1)}\`;`),
+        short,
+      ),
+    ).toBe(true);
+    expect(holds(readFile("x.js", `const a = \`${short}\${b}\`;`), short)).toBe(false);
   });
 });
 
@@ -313,5 +356,103 @@ describe("the drafts-only modules (FR-066; R-43; contracts/room-bundle.md §3.3)
     vi.stubEnv("ROOM_DRAFTS", "1");
     const { plugin, context } = started();
     for (const id of MODULES) expect(callHook(plugin, "resolveId", context, id, undefined, {})).toBe(`\0${id}`);
+  });
+});
+
+// ---- The site's own builds (T093) ----
+
+const builds = inject("siteBuilds");
+const chunks = inject("siteChunks");
+
+/** Every file under a build, by its path from the build's folder, `/`-separated. */
+function builtFiles(root: string): string[] {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else found.push(relative(root, path).split("\\").join("/"));
+    }
+  };
+  walk(root);
+  return found.sort();
+}
+
+/** The committed data, as the builds read it. */
+const committed = (): LoadedRoom => loadRoom(fileTree(REPO));
+
+describe.each(["release", "drafts"] as const)("the site's %s build (contracts/room-bundle.md §14)", (kind) => {
+  const root = builds[kind];
+
+  it("holds no † field's value and no pending line of the committed data, in any file", () => {
+    const room = committed();
+    // A value a public field holds too is that field's: spec 002's topic phrase that is its own quote (plan.md §10).
+    const phrases = new Set(room.topics?.value.topics.map((t) => t.phrase));
+    const values = secrets(room).filter((s) => !phrases.has(s.value));
+    expect(values.length).toBeGreaterThan(0);
+    const survey = ["survey", ...Object.keys(room.scene?.value.survey ?? {})];
+    const leaks: string[] = [];
+    for (const name of builtFiles(root)) {
+      const file = readFile(name, readFileSync(join(root, name), "utf8"));
+      for (const s of values) if (holds(file, s.value)) leaks.push(`${name} holds a ${s.field} value`);
+      for (const key of survey) if (file.strings.has(key)) leaks.push(`${name} holds the survey's ${key}`);
+    }
+    expect(leaks).toEqual([]);
+    // The room is in the build: its index's digest is in the entry's script.
+    const digest = repositoryBundle({ drafts: kind === "drafts", policy: "empty" }).digest;
+    const scripts = builtFiles(root).filter((n) => n.endsWith(".js"));
+    expect(scripts.some((n) => readFileSync(join(root, n), "utf8").includes(digest))).toBe(true);
+  });
+
+  it("holds no plain .glb, and each a/*.glb.gz is a model's copy: its SHA-256, MTIME 0, and its length the entry's bytes", () => {
+    const files = builtFiles(root);
+    expect(files.filter((n) => n.endsWith(".glb"))).toEqual([]);
+    // Each model the 3D part names, by its copy's path; a piece only a switch's poses show is named by compose()'s
+    // models, which list every set model once.
+    const { scene, models } = repositoryBundle({ drafts: kind === "drafts", policy: "empty" });
+    const named = new Map<string, { readonly sha256: string; readonly bytes: number }>();
+    for (const p of scene.placements) if (p.model) named.set(`${p.model.url}.gz`, p.model);
+    for (const m of models)
+      if (!named.has(`${m.url}.gz`)) named.set(`${m.url}.gz`, { sha256: m.sha256, bytes: m.gz.length });
+    const copies = files.filter((n) => n.endsWith(".glb.gz"));
+    expect(copies).toEqual([...named.keys()].sort());
+    for (const name of copies) {
+      const gz = readFileSync(join(root, name));
+      const model = named.get(name);
+      expect([...gz.subarray(0, 4)], name).toEqual([0x1f, 0x8b, 0x08, 0x00]);
+      expect(gz.readUInt32LE(4), `${name}'s MTIME`).toBe(0);
+      expect(gz.length, name).toBe(model?.bytes);
+      expect(sha256(gunzipSync(gz)), name).toBe(model?.sha256);
+    }
+  });
+});
+
+describe("the site's release build (FR-066; R-43)", () => {
+  const root = builds.release;
+
+  it("holds no lookdev page, no drafts-only module, no fixture, and no draft room text", () => {
+    const files = builtFiles(root);
+    expect(files.filter((n) => n.startsWith("lookdev/"))).toEqual([]);
+    const drafts = /^(\0virtual:room-(fixtures|lookdev)|apps\/web\/(src\/)?lookdev\/)/;
+    const modules = Object.entries(chunks.release).flatMap(([chunk, ids]) =>
+      ids.filter((id) => drafts.test(id)).map((id) => `${chunk}: ${id}`),
+    );
+    expect(modules).toEqual([]);
+    // Nothing is approved under the build's empty policy directory, so every room-text file is a draft: none of its
+    // words, nor a fixture's ID, is in any file.
+    const room = committed();
+    const words = [
+      ...room.blocks.flatMap((b) => b.value.lines.map((l) => l.text)),
+      ...room.outlines.map((o) => o.value.words),
+    ];
+    const fixtures = (room.fixtures ?? []).map((f) => f.value.id);
+    const found: string[] = [];
+    for (const name of files) {
+      const file = readFile(name, readFileSync(join(root, name), "utf8"));
+      for (const w of words) if (holds(file, w)) found.push(`${name} holds a draft's line`);
+      for (const id of fixtures) if (file.strings.has(id)) found.push(`${name} holds the fixture ${id}`);
+    }
+    expect(found).toEqual([]);
+    expect(JSON.parse(readFileSync(join(root, "room-manifest.json"), "utf8"))).toMatchObject({ build_kind: "release" });
   });
 });
