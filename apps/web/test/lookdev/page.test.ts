@@ -263,6 +263,29 @@ function vignettePiece(given: LookdevDeps["inputs"]): { piece: string; placement
   throw new Error("no vignette piece takes a candidate");
 }
 
+/** Every piece the vignette shows with a live face, that takes a candidate: its catalog entry and its faces' roles. */
+function faceVignettePieces(
+  given: LookdevDeps["inputs"],
+): { piece: string; entry: unknown; roles: readonly string[] }[] {
+  const { part, lookdev } = given;
+  const takes = new Set(candidatePieces(part, lookdev.pieces));
+  const pieces = new Set(
+    lookdev.vignette.show.flatMap((id) => part.placements.filter((p) => p.id === id).map((p) => p.piece)),
+  );
+  return [...pieces].flatMap((piece) => {
+    const roles = Object.keys(part.pieces[piece]?.faces ?? {});
+    if (!takes.has(piece) || roles.length === 0) return [];
+    const entry = parse(readFileSync(join(REPO, "apps/web/room/catalog", `${piece}.yaml`), "utf8")) as unknown;
+    return [{ piece, entry, roles }];
+  });
+}
+
+/** Whether a node draws: it and every node above it visible. */
+function shows(node: Object3D): boolean {
+  for (let n: Object3D | null = node; n; n = n.parent) if (!n.visible) return false;
+  return true;
+}
+
 /** The name a picker would reveal, which must appear nowhere. */
 const PICKED_NAME = "PXL_20261023_fx-picked-name.glb";
 
@@ -410,6 +433,44 @@ describe("the scene, the look, the sample state, quality, and pause (contracts/l
       expect(node.getWorldPosition(new Vector3()).distanceTo(before.get(id) as Vector3), id).toBeLessThan(1e-9);
     choose(control<HTMLInputElement>(root, "Room"));
     for (const id of shown) expect(drawn(page, id), id).toBe(true);
+  });
+
+  it("never shows a model's own face objects, which the loader hides since the room draws the faces, in either scene", async () => {
+    // The review's page-1: the busy sign's `lettering` quad, among others, a Mesh named for its live face's role.
+    const { page, root, clock, inputs: given } = open();
+    const pieces = faceVignettePieces(given);
+    expect(pieces.map((p) => p.piece)).toContain("busy-sign");
+    for (const { piece, entry } of pieces) {
+      pick(root, piece, cleanModel(entry as Parameters<typeof cleanModel>[0]));
+      await settle(clock);
+      expect(page.stage.loaded.has(piece), piece).toBe(true);
+    }
+    /** Each piece's shown models, in every placement of it, and their face objects. */
+    const models = (): { piece: string; model: Object3D; faces: Object3D[] }[] =>
+      pieces.flatMap(({ piece, roles }) =>
+        given.part.placements
+          .filter((p) => p.piece === piece)
+          .flatMap((p) => page.stage.room.placements.get(p.id)?.children.filter((c) => c.name === MODEL_NODE) ?? [])
+          .map((model) => {
+            const faces: Object3D[] = [];
+            model.traverse((node) => {
+              if (roles.includes(node.name)) faces.push(node);
+            });
+            return { piece, model, faces };
+          }),
+      );
+    for (const scene of ["Room", "Vignette", "Room"]) {
+      choose(control<HTMLInputElement>(root, scene));
+      clock.advance(50);
+      const shown = models();
+      expect(shown.length).toBeGreaterThanOrEqual(pieces.length);
+      for (const { piece, model, faces } of shown) {
+        expect(faces.length, `${scene} ${piece}`).toBeGreaterThan(0);
+        // The model itself draws: every vignette piece shows in both scenes.
+        expect(shows(model), `${scene} ${piece}`).toBe(true);
+        for (const face of faces) expect(shows(face), `${scene} ${piece} ${face.name}`).toBe(false);
+      }
+    }
   });
 
   it("applies each look at run time: inked cel's toon materials and lines, painted's and flat's unlit ones", () => {
