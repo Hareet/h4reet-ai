@@ -1,0 +1,137 @@
+{
+  "about": "The gzip-9 parity's cases (spec 004 T064; contracts/plain-model-fit.md §7), which apps/web/test/room/gzip.test.ts checks through pako and scripts/assets/test_gzip_parity.py through Python's gzip.compress(data, 9, mtime=0). A case's bytes come from xorshift32 started at its seed: on 32 bits, x ^= x << 13, x ^= x >>> 17, x ^= x << 5, and each step's x is the next value. A draw from [lo, hi] is lo + (the next value mod (hi - lo + 1)); n random bytes are the next ceil(n / 4) values, each little-endian, the last cut short. First the pool: pool patterns, each of random bytes, its length drawn from period. Then rounds until the case holds its bytes: a run of random bytes, its length drawn from random; then, where pool isn't 0, a pattern drawn by its index from [0, pool - 1], repeated from its start to a run whose length is drawn from pattern. The whole is cut at bytes. crc32 is the bytes' CRC-32, and gzip9 their length after Python's gzip.compress(data, 9, mtime=0).",
+  "cases": [
+    {
+      "name": "empty",
+      "seed": 625341585,
+      "bytes": 0,
+      "random": [1, 4096],
+      "pattern": [0, 0],
+      "period": [1, 1],
+      "pool": 0,
+      "crc32": 0,
+      "gzip9": 20
+    },
+    {
+      "name": "random-1",
+      "seed": 2654435769,
+      "bytes": 1,
+      "random": [1, 4096],
+      "pattern": [0, 0],
+      "period": [1, 1],
+      "pool": 0,
+      "crc32": 325317158,
+      "gzip9": 21
+    },
+    {
+      "name": "random-1000",
+      "seed": 2246822507,
+      "bytes": 1000,
+      "random": [1, 4096],
+      "pattern": [0, 0],
+      "period": [1, 1],
+      "pool": 0,
+      "crc32": 1269781239,
+      "gzip9": 1023
+    },
+    {
+      "name": "random-16384",
+      "seed": 3266489909,
+      "bytes": 16384,
+      "random": [1, 4096],
+      "pattern": [0, 0],
+      "period": [1, 1],
+      "pool": 0,
+      "crc32": 596254800,
+      "gzip9": 16407
+    },
+    {
+      "name": "random-65536",
+      "seed": 668265263,
+      "bytes": 65536,
+      "random": [1, 4096],
+      "pattern": [0, 0],
+      "period": [1, 1],
+      "pool": 0,
+      "crc32": 1985186215,
+      "gzip9": 65574
+    },
+    {
+      "name": "period-1-259",
+      "seed": 374761393,
+      "bytes": 259,
+      "random": [0, 0],
+      "pattern": [259, 259],
+      "period": [1, 1],
+      "pool": 1,
+      "crc32": 3256968908,
+      "gzip9": 24
+    },
+    {
+      "name": "period-1-100000",
+      "seed": 3550635117,
+      "bytes": 100000,
+      "random": [0, 0],
+      "pattern": [100000, 100000],
+      "period": [1, 1],
+      "pool": 1,
+      "crc32": 3796172510,
+      "gzip9": 133
+    },
+    {
+      "name": "period-12-100000",
+      "seed": 4251993797,
+      "bytes": 100000,
+      "random": [0, 0],
+      "pattern": [100000, 100000],
+      "period": [12, 12],
+      "pool": 1,
+      "crc32": 2481447626,
+      "gzip9": 249
+    },
+    {
+      "name": "period-64-100000",
+      "seed": 3042594569,
+      "bytes": 100000,
+      "random": [0, 0],
+      "pattern": [100000, 100000],
+      "period": [64, 64],
+      "pool": 1,
+      "crc32": 1324992333,
+      "gzip9": 419
+    },
+    {
+      "name": "text-like-300000",
+      "seed": 1759714725,
+      "bytes": 300000,
+      "random": [1, 8],
+      "pattern": [3, 40],
+      "period": [1, 12],
+      "pool": 64,
+      "crc32": 3692008511,
+      "gzip9": 86445
+    },
+    {
+      "name": "mixed-1000000",
+      "seed": 461845907,
+      "bytes": 1000000,
+      "random": [1, 16384],
+      "pattern": [1, 16384],
+      "period": [1, 64],
+      "pool": 8,
+      "crc32": 240305045,
+      "gzip9": 498970
+    },
+    {
+      "name": "mixed-3000000",
+      "seed": 3432918353,
+      "bytes": 3000000,
+      "random": [1, 4096],
+      "pattern": [3, 2048],
+      "period": [1, 32],
+      "pool": 16,
+      "crc32": 3103429973,
+      "gzip9": 2013255
+    }
+  ]
+}
