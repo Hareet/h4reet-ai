@@ -32,6 +32,9 @@ export { PAGE_FAILED };
 /** The element the copy starts in, which vite.phone.config.ts has build/single-file.ts write into the copy's body. */
 export const PHONE_ROOT = "lookdev-phone";
 
+/** The panel's heading: the copy runs on whatever device opens it, a desktop browser among them (FR-069's option B). */
+export const PROBE_TITLE = "Lookdev on this device: the probe";
+
 /** The verdicts (lookdev.md §7.2). */
 export const CAN_RUN = "This browser can run the vignette from a local file.";
 export const CANNOT_RUN = "This browser can't run the vignette from a local file.";
@@ -127,7 +130,7 @@ export async function startPhone(win: Window, root: HTMLElement): Promise<Probe>
   const panel = make("section");
   panel.className = "lookdev-probe";
   panel.setAttribute("aria-labelledby", "lookdev-probe-title");
-  const title = make("h1", "Lookdev on this phone: the probe");
+  const title = make("h1", PROBE_TITLE);
   title.id = "lookdev-probe-title";
   const verdict = make("p", "Running the probe…");
   verdict.setAttribute("role", "status");
