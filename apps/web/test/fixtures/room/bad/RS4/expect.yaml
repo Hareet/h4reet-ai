@@ -1,0 +1,10 @@
+rule: RS4
+file: apps/web/room/scene.yaml
+path: switches[0].cases.paused
+why: paused showing a pose of its own, where the six values share one
+edits:
+  - { file: apps/web/room/catalog/fx-plug.yaml, at: [claims, poses, fx-napping], set: null }
+  - file: apps/web/room/scene.yaml
+    at: [switches, 0, poses, fx-napping]
+    set: { mount: { on: fx-desk, anchor: top, offset: [0.3, 0, 0.2] } }
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cases, paused], set: fx-napping }

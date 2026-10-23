@@ -1,0 +1,14 @@
+rule: RG7
+file: apps/web/room/scene.yaml
+path: placements[4].faces.lid.max_chars
+why: the laptop's lid, an atmosphere face, bound to words longer than its content cap
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [placements, 4, faces]
+    set:
+      lid:
+        label: label.fx-laptop
+        atmosphere: true
+        max_chars: 4
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: terminal, grid: { cols: 12, rows: 3 }, text: fx-script }

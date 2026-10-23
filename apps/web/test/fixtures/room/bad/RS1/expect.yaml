@@ -1,0 +1,6 @@
+rule: RS1
+file: apps/web/room/scene.yaml
+path: switches[0].cases
+why: a switch whose piece claims values, with no case for the tier value budget
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cases, budget], delete: true }

@@ -1,0 +1,6 @@
+rule: RG2
+file: apps/web/room/catalog/fx-board.yaml
+path: live_faces[0].up
+why: a unit up that isn't perpendicular to its face's facing
+edits:
+  - { file: apps/web/room/catalog/fx-board.yaml, at: [live_faces, 0, up], set: [0, 0.6, 0.8] }

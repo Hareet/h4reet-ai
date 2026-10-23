@@ -1,0 +1,6 @@
+rule: RS6
+file: apps/web/room/scene.yaml
+path: switches[0].cable.from
+why: a cable from an anchor the switch's piece doesn't have
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cable, from], set: fx-nowhere }

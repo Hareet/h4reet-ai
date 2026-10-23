@@ -1,0 +1,7 @@
+rule: RS1
+file: apps/web/room/scene.yaml
+path: switches[0].cases
+why: a switch whose piece claims nothing, with neither a case nor a default for paused
+edits:
+  - { file: apps/web/room/catalog/fx-plug.yaml, at: [claims], delete: true }
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cases, paused], delete: true }

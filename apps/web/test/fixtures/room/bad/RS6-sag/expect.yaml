@@ -1,0 +1,6 @@
+rule: RS6
+file: apps/web/room/scene.yaml
+path: switches[0].cable.sag
+why: a sag over half the span, refused as the scene is read
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cable, sag], set: 0.7 }

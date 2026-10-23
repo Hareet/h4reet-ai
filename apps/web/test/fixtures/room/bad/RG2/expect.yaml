@@ -1,0 +1,6 @@
+rule: RG2
+file: apps/web/room/catalog/fx-twin.yaml
+path: origin.bounds
+why: bounds that don't hold the piece's origin
+edits:
+  - { file: apps/web/room/catalog/fx-twin.yaml, at: [origin, bounds, min, 1], set: 0.02 }

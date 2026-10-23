@@ -1,0 +1,6 @@
+rule: RG2
+file: apps/web/room/catalog/fx-monitor.yaml
+path: live_faces[0]
+why: a live face standing out of its piece's bounds
+edits:
+  - { file: apps/web/room/catalog/fx-monitor.yaml, at: [live_faces, 0, at], set: [0, 0.22, 0.1] }

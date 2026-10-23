@@ -1,0 +1,6 @@
+rule: RS1
+file: apps/web/room/scene.yaml
+path: switches[0].default
+why: a default on a switch whose piece claims values
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, default], set: fx-resting }

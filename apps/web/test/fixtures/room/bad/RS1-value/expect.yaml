@@ -1,0 +1,6 @@
+rule: RS1
+file: apps/web/room/scene.yaml
+path: switches[0].cases.asleep
+why: a case for a value the tier doesn't have
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cases, asleep], set: fx-resting }
