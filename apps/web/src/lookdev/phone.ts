@@ -11,18 +11,23 @@
 // The panel shows each, the room's stage at that viewport (compose/stages.ts), and whether the phone is above ADR
 // 0010's floor for studio models as the room's loader reads it: below it the room loads no model, so a run there
 // measures stand-ins only. With WebGL 2 and createImageBitmap the copy runs: the page, T135's startLookdev, starts in
-// its own element after the panel, with the probe. Otherwise the panel says "This browser can't run the vignette from a
-// local file." and the copy stops: lookdev runs on the desktop at the phone's stage size and pixel ratio, FR-069's
-// option B. Either way the panel holds the probe as JSON, the fields the results carry (results.ts), for the note. The
-// copy imports the site's typefaces, which its build inlines as data: fonts, so the panel and the page draw in them.
+// its own element after the panel, with the probe; if it throws as it starts, the panel says why under its verdict,
+// "The page didn't start:" and the error's message (main.ts's words), since the phone has no console to say it.
+// Otherwise the panel says "This browser can't run the vignette from a local file." and the copy stops: lookdev runs
+// on the desktop at the phone's stage size and pixel ratio, FR-069's option B. Either way the panel holds the probe as
+// JSON, the fields the results carry (results.ts), for the note. The copy imports the site's typefaces, which its build
+// inlines as data: fonts, so the panel and the page draw in them.
 import "../fonts.css";
 
 import { stageFor } from "../room/compose/stages";
 import { count, fixed } from "../room/glb/rules";
 import { capability, meetsModelFloor } from "../room/quality";
 import { DECODE } from "../room/scene/gltf-images";
-import { startLookdev } from "./main";
+import { PAGE_FAILED, startLookdev } from "./main";
 import type { Probe } from "./results";
+
+/** What the panel says when the page throws as it starts: the phone has no console to say it. */
+export { PAGE_FAILED };
 
 /** The element the copy starts in, which vite.phone.config.ts has build/single-file.ts write into the copy's body. */
 export const PHONE_ROOT = "lookdev-phone";
@@ -36,8 +41,6 @@ export const OPTION_B =
 /** Where the phone stands against ADR 0010's floor for studio models, as the room's loader reads it. */
 export const FLOOR_ABOVE = "above it: the room loads studio models";
 export const FLOOR_BELOW = "below it: the room loads no model, so a run here measures stand-ins only";
-/** What the panel says when the page throws as it starts: the phone has no console to say it. */
-export const PAGE_FAILED = "The page didn't start:";
 
 /**
  * A 1 × 1 RGBA PNG, its bytes in the copy itself: the signature, IHDR, one deflated pixel in IDAT, and IEND, each

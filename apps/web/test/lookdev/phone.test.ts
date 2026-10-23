@@ -53,8 +53,9 @@ import { DECODE } from "../../src/room/scene/gltf-images";
 import { spyOnGlobals } from "../helpers/globals";
 import type { GlobalSpies } from "../helpers/globals";
 
-// The page itself is T135's: the copy's entry only hands it the probe, so a stand-in records what it was given.
-vi.mock("../../src/lookdev/main", () => ({ startLookdev: vi.fn() }));
+// The page itself is T135's: the copy's entry only hands it the probe, so a stand-in records what it was given. The
+// panel's words for a page that throws are main.ts's; start.test.ts runs the real one.
+vi.mock("../../src/lookdev/main", () => ({ startLookdev: vi.fn(), PAGE_FAILED: "The page didn't start:" }));
 
 const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 const REPO = resolve(WEB, "../..");

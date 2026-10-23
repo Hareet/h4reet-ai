@@ -94,6 +94,18 @@ function turnText(turn: RoomFixture["turns"][number]): string {
 }
 
 export function createLookdev(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps): LookdevPage {
+  // What the page has started, released if a later step throws, so a page that can't be built leaves nothing running
+  // behind the note that says why (main.ts).
+  const undo: (() => void)[] = [];
+  try {
+    return buildPage(root, options, deps, undo);
+  } catch (error) {
+    for (const step of undo.reverse()) step();
+    throw error;
+  }
+}
+
+function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps, undo: (() => void)[]): LookdevPage {
   const doc = root.ownerDocument;
   const { inputs, clock } = deps;
   const { part, index, lookdev, fixtures } = inputs;
@@ -126,6 +138,7 @@ export function createLookdev(root: HTMLElement, options: LookdevOptions, deps: 
       showReadouts();
     },
   });
+  undo.push(() => stage.dispose());
   if (options.phone && options.probe === null) {
     // A phone copy without its probe falls back to the reference phone's last measured stage.
     stage.setView("phone");
@@ -298,6 +311,7 @@ export function createLookdev(root: HTMLElement, options: LookdevOptions, deps: 
     showReadouts();
     readoutTimer = clock.setTimeout(tick, READOUT_MS);
   }, READOUT_MS);
+  undo.push(() => clock.clearTimeout(readoutTimer));
 
   // ---- The candidates ----
   const candidates = new Map<string, Candidate>();

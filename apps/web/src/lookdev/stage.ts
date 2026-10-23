@@ -134,17 +134,23 @@ const drawable = (node: Object3D): boolean => {
 };
 
 export function createStage(options: StageOptions): LookdevStage {
+  // What the stage has taken, released if a later step throws: its renderer's WebGL context.
+  const undo: (() => void)[] = [];
+  try {
+    return buildStage(options, undo);
+  } catch (error) {
+    for (const step of undo.reverse()) step();
+    throw error;
+  }
+}
+
+function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   const { win, clock, inputs } = options;
   const { part, index, lookdev, fixtures } = inputs;
   const doc = win.document;
   const canvas = doc.createElement("canvas");
   canvas.className = "lookdev-canvas";
   canvas.setAttribute("aria-hidden", "true");
-  const renderer = options.renderer(canvas);
-  renderer.outputColorSpace = SRGBColorSpace;
-  renderer.shadowMap.enabled = true;
-  // One frame's draw calls and triangles, inked cel's lines among them: reset at each frame, not at each render.
-  renderer.info.autoReset = false;
 
   const camera = new PerspectiveCamera();
   const ledger = createTextureLedger();
@@ -165,7 +171,14 @@ export function createStage(options: StageOptions): LookdevStage {
 
   let look: Look = part.look;
   let labels: Labels = createLabels(doc);
+  // The room first: a bundle the 3D reader refuses says so before a renderer takes a WebGL context.
   let room: Room3D = build(look);
+  const renderer = options.renderer(canvas);
+  undo.push(() => renderer.dispose());
+  renderer.outputColorSpace = SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  // One frame's draw calls and triangles, inked cel's lines among them: reset at each frame, not at each render.
+  renderer.info.autoReset = false;
   let ink: Ink = createInk(renderer, look);
   let view: ViewChoice = options.phone ? "phone" : "desktop";
   let scene: SceneChoice = "room";
