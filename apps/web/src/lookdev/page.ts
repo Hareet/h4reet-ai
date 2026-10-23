@@ -13,7 +13,8 @@
 //   its SHA-256, sizes, measures, mark, and findings shown under its piece, swapped in through the room's loader when
 //   RX1 and RX2 pass and it names no uri, and "Clear";
 // - the results of a run that ends, as text and one JSON block in a read-only text area (results.ts), and none for a
-//   run stopped early;
+//   run stopped early, by "Stop the run" or by the page being hidden, which draws no frames while the run's timer runs
+//   on (a screen that times out, another app or tab in front), which it says;
 // - the page's log: the loader's asset events, a pick's object_selected, and the page's own notes.
 // Nothing here makes a request but a set model's from the site's own a/ on the site's page, stores anything, or shows a
 // picked file's name (§4, §9).
@@ -63,6 +64,12 @@ export interface LookdevPage {
 
 /** How often the live readouts are redrawn, in milliseconds. */
 const READOUT_MS = 1000;
+/** What a run stopped early says: it gives no results (contracts/lookdev.md §6). */
+const STOPPED = "The run was stopped early, so it gives no results.";
+/** And one the page lost sight of, whose frames stopped (the review's page-3). */
+const HIDDEN =
+  "The run stopped early because the page was hidden, so it gives no results: a hidden page draws no frames. " +
+  "Keep the screen on and this page in front for the whole run, with a screen timeout longer than the run.";
 /** The most lines the log keeps. */
 const LOG_MAX = 500;
 
@@ -457,6 +464,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       h(doc, "p", {}, `Running for ${seconds / 60} minutes, the scripted load first.`),
     );
     void stage.loadEveryPiece();
+    doc.addEventListener("visibilitychange", onVisibility);
     run = startRun({
       clock,
       seconds,
@@ -466,6 +474,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       onEnd: (readout) => {
         run = null;
         measured = readout;
+        doc.removeEventListener("visibilitychange", onVisibility);
         setRunning(false);
         const r = results(
           {
@@ -496,16 +505,19 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     });
   }
 
-  function stop(): void {
+  function stop(why = STOPPED): void {
     if (!run) return;
     run.stop();
     run = null;
     measured = null;
+    doc.removeEventListener("visibilitychange", onVisibility);
     setRunning(false);
-    resultsPanel.replaceChildren(
-      h(doc, "h2", { id: "lookdev-results-heading" }, "Results"),
-      h(doc, "p", {}, "The run was stopped early, so it gives no results."),
-    );
+    resultsPanel.replaceChildren(h(doc, "h2", { id: "lookdev-results-heading" }, "Results"), h(doc, "p", {}, why));
+  }
+
+  /** A hidden page draws no frames while the run's timer runs on, so a run the page loses sight of stops early. */
+  function onVisibility(): void {
+    if (doc.visibilityState === "hidden") stop(HIDDEN);
   }
 
   // ---- The page ----
@@ -550,6 +562,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     stage,
     dispose() {
       run?.stop();
+      doc.removeEventListener("visibilitychange", onVisibility);
       clock.clearTimeout(readoutTimer);
       stage.dispose();
     },
