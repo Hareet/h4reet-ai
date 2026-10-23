@@ -1,0 +1,48 @@
+# The window's view: spec 002's placeholder, a sky, a fence of nine slats, and a tree, all unlit (src/room/scene.ts),
+# mounted inside the window. A generic fence and a generic tree, which locate nothing (FR-028).
+version: 1
+id: window-view
+name: Window view, a fence and a tree
+size: { w: 0.8, h: 0.6, d: 0.01 }
+stylized_scale: 1
+origin:
+  point: The centre of the sky behind the fence, just inside the window's opening
+  bounds: { min: [-0.4, -0.3, 0], max: [0.4, 0.3, 0.01] }
+standin:
+  - { shape: plane, size: [0.8, 0.6], at: [0, 0, 0], color: sky, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [-0.36, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [-0.27, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [-0.18, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [-0.09, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [0, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [0.09, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [0.18, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [0.27, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.22], at: [0.36, -0.16, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.05, 0.25], at: [0.15, -0.02, 0.008], color: bark, lit: false }
+  - { shape: circle, radius: 0.14, at: [0.15, 0.15, 0.009], color: leaf, lit: false }
+drawing:
+  primitives:
+    - { primitive: rect, x: 0.03, y: -0.191, w: 0.06, h: 0.35, fill: bark }
+    - { primitive: ellipse, cx: 0.06, cy: 0.159, rx: 0.165, ry: 0.175, fill: leaf }
+    - { primitive: rect, x: -0.42, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+    - { primitive: rect, x: -0.323, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+    - { primitive: rect, x: -0.225, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+    - { primitive: rect, x: -0.128, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+    - { primitive: rect, x: -0.03, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+    - { primitive: rect, x: 0.068, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+    - { primitive: rect, x: 0.165, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+    - { primitive: rect, x: 0.263, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+    - { primitive: rect, x: 0.36, y: -0.318, w: 0.06, h: 0.255, fill: fence }
+budget: { gzip_bytes: 500000, triangles: 2000, texture_px: 1024, texture_bytes: 5592405 }
+work_order:
+  method: >-
+    Recreate the view as a flat backdrop from the Author's typed description: a sky, a plain wooden fence, and one
+    tree, in the look's flat colours.
+  shots: []
+  measurements:
+    - How far the fence's top sits below the opening's upper edge, as a share of the opening's height.
+  studio_notes: >-
+    A generic fence and a generic tree: no building, skyline, landmark, sign, street, vehicle, or person, and nothing
+    that could locate the room (FR-028). The view is recreated, never taken or traced from a photo (spec 003's window
+    confirmation).

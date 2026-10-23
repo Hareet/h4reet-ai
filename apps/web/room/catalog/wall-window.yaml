@@ -1,0 +1,30 @@
+# The window: spec 002's placeholder, a frame of four bars (src/room/scene.ts), at LAYOUT's size
+# (src/room/framing.ts), set in the back wall. Its view, a fence and a tree, is a piece of its own mounted inside it.
+version: 1
+id: wall-window
+name: Window
+size: { w: 0.9, h: 0.7, d: 0.06 }
+stylized_scale: 1
+origin:
+  point: The centre of the window's opening, in the plane of the wall
+  bounds: { min: [-0.45, -0.35, 0], max: [0.45, 0.35, 0.06] }
+anchors:
+  view: { at: [0, 0, 0.01] }
+standin:
+  - { shape: box, size: [0.9, 0.05, 0.06], at: [0, 0.325, 0.03], color: frame-wood }
+  - { shape: box, size: [0.9, 0.05, 0.06], at: [0, -0.325, 0.03], color: frame-wood }
+  - { shape: box, size: [0.05, 0.7, 0.06], at: [-0.425, 0, 0.03], color: frame-wood }
+  - { shape: box, size: [0.05, 0.7, 0.06], at: [0.425, 0, 0.03], color: frame-wood }
+drawing:
+  primitives:
+    - { primitive: rect, x: -0.45, y: -0.35, w: 0.9, h: 0.7, fill: sky, stroke: frame-wood, stroke_width: 0.046 }
+budget: { gzip_bytes: 300000, triangles: 2000, texture_px: 512, texture_bytes: 1398101 }
+work_order:
+  method: Model the window's frame from the dimension sheet and the Author's description, with an empty opening.
+  shots:
+    - The window's frame from inside, square on, with the blind or curtain closed, so no view shows through it.
+  measurements:
+    - The opening's width and height, and the frame's width and depth.
+    - The height from the floor to the opening's lower edge.
+  studio_notes: >-
+    The frame only: the view through it is the window view's own model. No handle brand, label, or sticker (FR-016).

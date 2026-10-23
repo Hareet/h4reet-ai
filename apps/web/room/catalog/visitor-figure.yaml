@@ -1,0 +1,24 @@
+# The visitor's figure: the room draws the visitor's chosen avatar as a flat cut-out (src/choice/avatars.ts), so the
+# piece has no model; its size is LAYOUT's, the largest avatar's (src/room/framing.ts), and it gives a flat stand-in
+# and the hand the paper reaches, the first avatar's (FR-008). Its budget is nominal: the avatars carry their own.
+version: 1
+id: visitor-figure
+name: The visitor's figure
+size: { w: 1.1, h: 1.74, d: 0.05 }
+stylized_scale: 1
+origin:
+  point: On the floor, between the figure's feet
+  bounds: { min: [-0.55, 0, -0.025], max: [0.55, 1.74, 0.025] }
+anchors:
+  hand: { at: [-0.196, 0.948, 0.06] }
+standin:
+  - { shape: capsule, radius: 0.2, length: 1, at: [0, 0.7, 0], scale: [1, 1, 0.1], color: figure-grey }
+  - { shape: sphere, radius: 0.15, at: [0, 1.55, 0], scale: [1, 1, 0.1], color: figure-grey }
+drawing: { from: standin }
+budget: { gzip_bytes: 1, triangles: 1, texture_px: 1, texture_bytes: 1 }
+work_order:
+  method: >-
+    No room model: the visitor's picture is the avatar the visitor chose, which the room draws as a flat cut-out.
+  shots: []
+  measurements: []
+  studio_notes: Nothing to model for the room. The stand-in keeps the figure's place, and its hand anchor is where the paper ends.

@@ -1,0 +1,34 @@
+# The room's shell: the back wall and the floor, the root every other placement mounts under (FR-003). Spec 002's
+# planes, its scene.ts's wall and floor; the 2D drawing is its flat.ts's wall and floor bands.
+version: 1
+id: room-shell
+name: Room shell, the back wall and the floor
+size: { w: 16, h: 9, d: 20 }
+stylized_scale: 1
+origin:
+  point: On the floor, 2 m out from the back wall, on the room's centre line
+  bounds: { min: [-8, 0, -2], max: [8, 9, 18] }
+anchors:
+  floor: { at: [0, 0, 0] }
+  back-wall: { at: [0, 0, -2] }
+standin:
+  - { shape: plane, size: [16, 9], at: [0, 4.5, -2], color: wall }
+  - { shape: plane, size: [16, 20], at: [0, 0, 8], turn: { x: -90 }, color: floor }
+drawing:
+  primitives:
+    - { primitive: rect, x: -8, y: 0, w: 16, h: 9, fill: "#e9e4da" }
+    - { primitive: rect, x: -8, y: -4, w: 16, h: 4, fill: "#b9a68c" }
+budget: { gzip_bytes: 800000, triangles: 2000, texture_px: 1024, texture_bytes: 11184810 }
+work_order:
+  method: >-
+    Model two plain planes from the dimension sheet: the back wall, standing on the floor, and the floor in front of
+    it, each a flat base colour.
+  shots:
+    - The back wall square on, from the floor to the ceiling, with nothing in front of it.
+    - The floor in front of the wall, from standing height, looking down at an angle.
+  measurements:
+    - The back wall's width and height.
+    - The floor's depth from the back wall to where the room's view ends.
+  studio_notes: >-
+    Plain surfaces with no fixtures, sockets, switches, or marks. Any texture is painted or procedural, never taken
+    from a photo (FR-022).

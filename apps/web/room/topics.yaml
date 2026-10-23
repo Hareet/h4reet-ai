@@ -1,0 +1,20 @@
+# The topics the selectables open: spec 002's three, as its ROOM_OBJECTS opened them, each phrase spec 002's and each
+# quote the Author's words in spec 002's intent (W1). A topic stays unready until the twin's spec marks it ready, once
+# its corpus exists; the corpus files named here may not exist yet, and only the Author writes them.
+version: 1
+topics:
+  - id: hobbies-and-life
+    phrase: hobbies and general life
+    words_from:
+      - { file: specs/002-the-room/intent.md, quote: hobbies and my general life }
+    corpus: [corpus/04-hobbies-and-general-life.md]
+  - id: travel-adventures
+    phrase: travel adventures
+    words_from:
+      - { file: specs/002-the-room/intent.md, quote: travel adventures }
+    corpus: [corpus/05-travel-adventures.md]
+  - id: work-projects
+    phrase: work projects
+    words_from:
+      - { file: specs/002-the-room/intent.md, quote: my work projects }
+    corpus: [corpus/06-work-projects.md]

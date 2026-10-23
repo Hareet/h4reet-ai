@@ -1,0 +1,46 @@
+# The bicycle: spec 002's placeholder, two wheels, a frame of tubes, a saddle, and handlebars (src/room/scene.ts), at
+# LAYOUT's size (src/room/framing.ts), hanging on the back wall in profile.
+version: 1
+id: bicycle
+name: Bicycle
+size: { w: 1.26, h: 0.76, d: 0.1 }
+stylized_scale: 1
+origin:
+  point: Midway between the two wheels' hubs
+  bounds: { min: [-0.63, -0.31, -0.05], max: [0.63, 0.45, 0.05] }
+standin:
+  - { shape: torus, radius: 0.3, tube: 0.025, at: [-0.3, 0, 0], color: tyre }
+  - { shape: torus, radius: 0.3, tube: 0.025, at: [0.3, 0, 0], color: tyre }
+  - { shape: tube, from: [-0.3, 0, 0], to: [-0.03, 0, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: tube, from: [-0.3, 0, 0], to: [-0.13, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: tube, from: [-0.03, 0, 0], to: [-0.13, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: tube, from: [-0.13, 0.33, 0], to: [0.23, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: tube, from: [-0.03, 0, 0], to: [0.23, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: tube, from: [0.23, 0.33, 0], to: [0.3, 0, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: box, size: [0.14, 0.03, 0.06], at: [-0.15, 0.37, 0], color: ink }
+  - { shape: tube, from: [0.2, 0.4, -0.05], to: [0.2, 0.4, 0.05], radius: 0.018, at: [0, 0, 0], color: ink }
+drawing:
+  primitives:
+    - { primitive: ellipse, cx: -0.333, cy: -0.035, rx: 0.298, ry: 0.275, stroke: "#333333", stroke_width: 0.042 }
+    - { primitive: ellipse, cx: 0.333, cy: -0.035, rx: 0.298, ry: 0.275, stroke: "#333333", stroke_width: 0.042 }
+    - primitive: polyline
+      points: [[-0.333, -0.035], [-0.088, 0.321], [0.263, 0.321], [0.333, -0.035], [-0.018, -0.035], [-0.333, -0.035]]
+      stroke: "#333333"
+      stroke_width: 0.042
+    - { primitive: line, x1: -0.018, y1: -0.035, x2: -0.123, y2: 0.418, stroke: "#333333", stroke_width: 0.042 }
+    - { primitive: line, x1: 0.228, y1: 0.321, x2: 0.298, y2: 0.45, stroke: "#333333", stroke_width: 0.042 }
+budget: { gzip_bytes: 1500000, triangles: 30000, texture_px: 1024, texture_bytes: 5592405 }
+work_order:
+  method: >-
+    Model the bicycle from the dimension sheet and the Author's description: the wheels, the frame, the saddle, and
+    the handlebars as clean solid parts, with no cables.
+  shots:
+    - The bicycle in profile from its drive side, square on, the whole bicycle in frame.
+    - The bicycle from the front, square on.
+    - The frame's joints close up, for their shape.
+  measurements:
+    - The wheelbase, from hub to hub, and each wheel's diameter.
+    - The frame's height at the saddle and at the handlebars, and the handlebars' width.
+  studio_notes: >-
+    No brand, decal, model name, or tyre-wall text anywhere (FR-016); the frame is one plain colour or an original
+    pattern.

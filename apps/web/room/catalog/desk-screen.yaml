@@ -1,0 +1,31 @@
+# The screen beside the laptop: spec 002's placeholder, a foot, a neck, and a panel whose face glows
+# (src/room/scene.ts), at LAYOUT's size (src/room/framing.ts), standing on the desk's top.
+version: 1
+id: desk-screen
+name: Screen
+size: { w: 0.64, h: 0.54, d: 0.16 }
+stylized_scale: 1
+origin:
+  point: On the desk, below the centre of the screen's foot
+  bounds: { min: [-0.32, 0, -0.08], max: [0.32, 0.54, 0.08] }
+standin:
+  - { shape: box, size: [0.22, 0.015, 0.14], at: [0, 0.008, 0], color: charcoal }
+  - { shape: box, size: [0.05, 0.14, 0.05], at: [0, 0.08, 0], color: charcoal }
+  - { shape: box, size: [0.62, 0.38, 0.04], at: [0, 0.34, 0], color: screen-black }
+  - { shape: plane, size: [0.56, 0.32], at: [0, 0.34, 0.021], color: screen-glow, lit: false }
+drawing:
+  primitives:
+    - { primitive: rect, x: -0.32, y: 0.108, w: 0.64, h: 0.432, fill: "#2b2b2b", stroke: graphite, stroke_width: 0.017 }
+    - { primitive: rect, x: -0.032, y: 0, w: 0.064, h: 0.108, fill: graphite }
+budget: { gzip_bytes: 400000, triangles: 4000, texture_px: 512, texture_bytes: 1398101 }
+work_order:
+  method: Model the screen on its stand from the dimension sheet and the Author's description, as plain solid parts.
+  shots:
+    - The screen from the front, square on, switched off.
+    - The screen from its side, showing the stand.
+  measurements:
+    - The panel's width, height, and depth, and the size of its display area.
+    - The stand's foot, and the height from the desk to the panel's lower edge.
+  studio_notes: >-
+    The display area is one plain colour: nothing shows on it (spec 003's screens confirmation). No logo, label,
+    sticker, or button legend (FR-016).

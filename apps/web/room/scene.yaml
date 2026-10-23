@@ -1,0 +1,75 @@
+# The room's scene: spec 002's room exactly (R-07's first data commit). Each placement mounts so its box lands where
+# spec 002's LAYOUT put it (src/room/framing.ts): the desk on the floor, the laptop and the screen on the desk's top,
+# the snowboard, the bicycle, the window, and the artwork on the back wall, the window's view inside the window, and
+# the two figures on the floor. Spec 002's framed set is framed, its placeholders keep their labels, and its three
+# objects are the selectables, in its order.
+version: 1
+look: inked-cel
+live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
+placements:
+  - { id: room-shell, piece: room-shell }
+  - id: work-desk
+    piece: work-desk
+    mount: { on: room-shell, anchor: floor, offset: [0.1, 0, -1.45] }
+    frame: true
+    label: label.desk
+  - id: laptop
+    piece: laptop
+    mount: { on: work-desk, anchor: top, offset: [-0.35, 0, 0.1] }
+    frame: true
+    label: label.laptop
+  - id: desk-screen
+    piece: desk-screen
+    mount: { on: work-desk, anchor: top, offset: [0.3, 0, -0.17] }
+    frame: true
+    label: label.screen
+  - id: snowboard
+    piece: snowboard
+    mount: { on: room-shell, anchor: back-wall, offset: [-2.3, 1.45, 0.06] }
+    frame: true
+    label: label.snowboard
+  - id: bicycle
+    piece: bicycle
+    mount: { on: room-shell, anchor: back-wall, offset: [2.25, 1.53, 0.1] }
+    frame: true
+    label: label.bicycle
+  - id: wall-window
+    piece: wall-window
+    mount: { on: room-shell, anchor: back-wall, offset: [0.95, 1.85, 0] }
+    frame: true
+    label: label.window
+  - id: window-view
+    piece: window-view
+    mount: { on: wall-window, anchor: view }
+    label: label.view
+  - id: wall-art
+    piece: wall-art
+    mount: { on: room-shell, anchor: back-wall, offset: [0.95, 2.55, 0.01] }
+    frame: true
+    label: label.artwork
+  - id: twin-figure
+    piece: twin-figure
+    role: twin
+    mount: { on: room-shell, anchor: floor, offset: [-0.95, 0, -1.3] }
+    frame: true
+  - id: visitor-figure
+    piece: visitor-figure
+    role: visitor
+    mount: { on: room-shell, anchor: floor, offset: [1, 0, -0.35] }
+    frame: true
+selectables:
+  - id: snowboard
+    name: Snowboard
+    members: [snowboard]
+    action: { talk: { topic: hobbies-and-life } }
+  - id: bicycle
+    name: Bicycle
+    members: [bicycle]
+    action: { talk: { topic: travel-adventures } }
+  - id: laptop
+    name: Laptop and screen
+    members: [laptop, desk-screen]
+    action: { talk: { topic: work-projects } }
+handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
+survey: { desk_corner: { placement: work-desk, anchor: front-left } }
+retired: []
