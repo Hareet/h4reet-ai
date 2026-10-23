@@ -310,6 +310,23 @@ describe("compose()", () => {
     expect(result.findings.every((f) => f.rule === "RD1" || f.rule === "RD3")).toBe(true);
   });
 
+  it("never throws on data named as an object's own keys are: a file or a folder in apps/web/room/ is RD5 (core-2)", () => {
+    const tree = overlay({
+      "apps/web/room/constructor": "version: 1\n",
+      "apps/web/room/toString": "version: 1\n",
+      "apps/web/room/valueOf": "version: 1\n",
+      "apps/web/room/__proto__/fx-one.yaml": "version: 1\n",
+      "apps/web/room/hasOwnProperty/fx-one.yaml": "version: 1\n",
+    });
+    expect(lines(compose(tree, noPolicy(), { mode: "strict", drafts: true }).findings)).toEqual([
+      "RD5 apps/web/room/__proto__:-: a folder the room's data doesn't hold",
+      "RD5 apps/web/room/constructor:-: not a file of the room's data",
+      "RD5 apps/web/room/hasOwnProperty:-: a folder the room's data doesn't hold",
+      "RD5 apps/web/room/toString:-: not a file of the room's data",
+      "RD5 apps/web/room/valueOf:-: not a file of the room's data",
+    ]);
+  });
+
   it("composes the same findings twice from one tree", () => {
     const once = compose(goodTree(), noPolicy(), { mode: "strict", drafts: true });
     const twice = compose(goodTree(), noPolicy(), { mode: "strict", drafts: true });
