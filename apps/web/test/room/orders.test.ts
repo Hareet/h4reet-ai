@@ -4,9 +4,14 @@
 // catalog entry, in §9.1's sections and order; and the photo guide, §9.2's fixed template with the photo-work setup and
 // its checklist, and the layout checklist generated from the scene's anchors. None of them holds a path outside the
 // repository, a studio folder's path, a host or user name, a time, or the bundle's digest.
+import { join } from "node:path";
+
+import { format, resolveConfig } from "prettier";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
+import { roomTopicsFile } from "../../build/manifest";
+import { REPO_ROOT } from "../../build/policy";
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
@@ -129,6 +134,49 @@ describe("config/room-topics.yaml (contracts/room-bundle.md §8)", () => {
       "config/room-topics.yaml",
     );
     expect(text).toContain("    lead: null\n");
+  });
+});
+
+describe("the two YAML files, in a form Prettier accepts (contracts/room-bundle.md §13)", () => {
+  /** What the repository's Prettier writes for `text` at `path`, with the configuration make lint's run resolves. */
+  const prettier = async (path: string, text: string): Promise<string> => {
+    const filepath = join(REPO_ROOT, path);
+    const config = await resolveConfig(filepath, { editorconfig: true });
+    return format(text, { ...config, filepath });
+  };
+
+  it("are what Prettier writes, as the known-good set composes them", async () => {
+    const result = good();
+    for (const path of ["config/room-events.yaml", "config/room-topics.yaml"]) {
+      const text = file(result, path);
+      expect(await prettier(path, text), path).toBe(text);
+    }
+  });
+
+  it("stay what Prettier writes with a corpus list past the line's width, and a lead that quotes", async () => {
+    const corpus = [1, 2, 3].map((n) => `corpus/9${n}-fx-a-topic-whose-corpus-file-has-a-long-name.md`);
+    const leads = [
+      'Fixture lead with a "quoted" word.',
+      "The fixture's lead, with 'single' quotes.",
+      'It\'s the "fixture" lead, both quotes.',
+      'A backslash \\ and a quote after one: \\".',
+      "A lead without quotes, plain.",
+    ];
+    const entries = leads.map((lead, i) => ({ id: `fx-select-${i}`, topic: "fx-work", corpus, lead }));
+    const text = roomTopicsFile([
+      ...entries,
+      { id: "fx-quiet", topic: "fx-work", corpus: corpus.slice(0, 1), lead: null },
+    ]);
+    // the three paths in one flow list would run past Prettier's width of 120
+    expect(`    corpus: [${corpus.map((c) => JSON.stringify(c)).join(", ")}]`.length).toBeGreaterThan(120);
+    expect(await prettier("config/room-topics.yaml", text)).toBe(text);
+    expect(parse(text)).toEqual({
+      schema: 1,
+      selectables: [
+        ...entries.map((e) => ({ id: e.id, topic: e.topic, corpus, lead: e.lead })),
+        { id: "fx-quiet", topic: "fx-work", corpus: corpus.slice(0, 1), lead: null },
+      ],
+    });
   });
 });
 
