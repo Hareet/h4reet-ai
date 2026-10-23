@@ -392,8 +392,11 @@ const CORNERS: readonly (readonly [number, number])[] = [
  *  (v[3i], v[3i + 1], v[3i + 2]), a strip's (v[i], v[i + 1 + i % 2], v[i + 2 − i % 2]), and a fan's
  *  (v[i + 1], v[i + 2], v[0]). Null when they aren't two triangles that use all four vertices. */
 function quadTriangles(glb: Glb, p: GPrimitive): [number, number, number][] | null {
+  const accessors = glb.json.accessors ?? [];
   const position = p.attributes.POSITION;
-  if (position === undefined || glb.json.accessors?.[position]?.count !== 4) return null;
+  if (position === undefined || accessors[position]?.count !== 4) return null;
+  const count = p.indices === undefined ? 4 : (accessors[p.indices]?.count ?? 0);
+  if (count !== 4 && count !== 6) return null;
   const v = p.indices === undefined ? [0, 1, 2, 3] : Array.from(glb.accessor(p.indices));
   const at = (i: number): number => v[i] ?? -1;
   const mode = p.mode ?? 4;

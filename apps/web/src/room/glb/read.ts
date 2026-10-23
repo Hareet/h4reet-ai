@@ -928,7 +928,6 @@ export interface Bounds {
 /** A GLB whose container, JSON, structure, and values are sound. */
 export class Glb {
   private readonly data: DataView;
-  private readonly decoded = new Map<number, Float64Array>();
   private scene: readonly SceneNode[] | null = null;
 
   constructor(
@@ -980,37 +979,60 @@ export class Glb {
     return Array.from({ length: s.count }, (_, k) => this.component(s.indices.componentType, base + k * size));
   }
 
-  /** An accessor's values, element by element and component by component: read through its view's byteStride, sparse
-   *  substitutions made, normalized integers mapped as glTF maps them, other integers as they are. */
+  /** One element's components at `at`: normalized integers mapped as glTF maps them, other integers as they are. */
+  private element(a: GAccessor, offsets: readonly number[], at: number): number[] {
+    return offsets.map((offset) => {
+      const raw = this.component(a.componentType, at + offset);
+      return a.normalized === true ? normalize(a.componentType, raw) : raw;
+    });
+  }
+
+  /** Visits every element's values, read through the view's byteStride with sparse substitutions made, holding none:
+   *  an accessor without a view is zeros but where its sparse values go, so its zeros are visited once. The order is
+   *  the view's elements that keep their values, then the sparse values. */
+  each(index: number, visit: (values: readonly number[]) => void): void {
+    const a = this.accessors[index];
+    if (a === undefined) return;
+    const size = COMPONENT_SIZE[a.componentType] ?? 4;
+    const offsets = componentOffsets(a.type, size);
+    const element = elementSize(a.type, size);
+    const substituted = new Set(this.sparseIndices(a));
+    if (a.bufferView !== undefined) {
+      const view = this.views[a.bufferView];
+      const base = (view?.byteOffset ?? 0) + (a.byteOffset ?? 0);
+      const stride = view?.byteStride ?? element;
+      for (let e = 0; e < a.count; e++) if (!substituted.has(e)) visit(this.element(a, offsets, base + e * stride));
+    } else if (substituted.size < a.count) {
+      visit(offsets.map(() => 0));
+    }
+    if (a.sparse !== undefined) {
+      const values = this.views[a.sparse.values.bufferView];
+      const base = (values?.byteOffset ?? 0) + (a.sparse.values.byteOffset ?? 0);
+      for (let k = 0; k < a.sparse.count; k++) visit(this.element(a, offsets, base + k * element));
+    }
+  }
+
+  /** A small accessor's values in element order, flattened: a live face's four corners, their texture coordinates, and
+   *  their indices. Its callers know its count first. */
   accessor(index: number): Float64Array {
-    const cached = this.decoded.get(index);
-    if (cached !== undefined) return cached;
     const a = this.accessors[index];
     if (a === undefined) return new Float64Array();
     const size = COMPONENT_SIZE[a.componentType] ?? 4;
     const offsets = componentOffsets(a.type, size);
-    const element = elementSize(a.type, size);
     const n = offsets.length;
     const out = new Float64Array(a.count * n);
     if (a.bufferView !== undefined) {
       const view = this.views[a.bufferView];
       const base = (view?.byteOffset ?? 0) + (a.byteOffset ?? 0);
-      const stride = view?.byteStride ?? element;
-      for (let e = 0; e < a.count; e++) {
-        for (let c = 0; c < n; c++)
-          out[e * n + c] = this.component(a.componentType, base + e * stride + (offsets[c] ?? 0));
-      }
+      const stride = view?.byteStride ?? elementSize(a.type, size);
+      for (let e = 0; e < a.count; e++) out.set(this.element(a, offsets, base + e * stride), e * n);
     }
     if (a.sparse !== undefined) {
       const values = this.views[a.sparse.values.bufferView];
       const base = (values?.byteOffset ?? 0) + (a.sparse.values.byteOffset ?? 0);
-      this.sparseIndices(a).forEach((e, k) => {
-        for (let c = 0; c < n; c++)
-          out[e * n + c] = this.component(a.componentType, base + k * element + (offsets[c] ?? 0));
-      });
+      const element = elementSize(a.type, size);
+      this.sparseIndices(a).forEach((e, k) => out.set(this.element(a, offsets, base + k * element), e * n));
     }
-    if (a.normalized === true) for (let i = 0; i < out.length; i++) out[i] = normalize(a.componentType, out[i] ?? 0);
-    this.decoded.set(index, out);
     return out;
   }
 
@@ -1029,18 +1051,30 @@ export class Glb {
     });
     if (out.length) return out;
     const finite = new Set<number>();
+    const indexed = new Map<string, boolean>();
     (this.json.meshes ?? []).forEach((mesh, m) =>
       mesh.primitives.forEach((p, k) => {
         for (const index of Object.values(p.attributes)) {
           if (this.accessors[index]?.componentType !== FLOAT || finite.has(index)) continue;
           finite.add(index);
-          if (!this.accessor(index).every(Number.isFinite)) bad(`accessors[${index}]`, REASON.notFinite);
+          let sound = true;
+          this.each(index, (values) => {
+            if (sound && !values.every(Number.isFinite)) sound = false;
+          });
+          if (!sound) bad(`accessors[${index}]`, REASON.notFinite);
         }
         if (p.indices === undefined) return;
         const first = p.attributes.POSITION ?? Object.values(p.attributes)[0];
         const vertices = first === undefined ? 0 : (this.accessors[first]?.count ?? 0);
-        if (this.accessor(p.indices).some((v) => v >= vertices))
-          bad(`meshes[${m}].primitives[${k}].indices`, REASON.vertexIndex);
+        const key = `${p.indices} ${vertices}`;
+        if (!indexed.has(key)) {
+          let within = true;
+          this.each(p.indices, ([v]) => {
+            if (within && !((v ?? 0) < vertices)) within = false;
+          });
+          indexed.set(key, within);
+        }
+        if (indexed.get(key) === false) bad(`meshes[${m}].primitives[${k}].indices`, REASON.vertexIndex);
       }),
     );
     return out;
@@ -1068,7 +1102,7 @@ export class Glb {
   }
 
   /** The least and greatest x, y, and z over every vertex of every primitive the default scene reaches, through its
-   *  node's transform, or null when it reaches none. */
+   *  node's transform, or null when it reaches none. A value that isn't finite carries through, for RX7 to refuse. */
   bounds(): Bounds | null {
     const min = [Infinity, Infinity, Infinity];
     const max = [-Infinity, -Infinity, -Infinity];
@@ -1078,19 +1112,17 @@ export class Glb {
       if (mesh === undefined) continue;
       for (const p of this.json.meshes?.[mesh]?.primitives ?? []) {
         if (p.attributes.POSITION === undefined) continue;
-        const v = this.accessor(p.attributes.POSITION);
-        for (let i = 0; i + 2 < v.length; i += 3) {
-          const q = transform(world, v[i] ?? NaN, v[i + 1] ?? NaN, v[i + 2] ?? NaN);
-          q.forEach((value, a) => {
+        this.each(p.attributes.POSITION, ([x = NaN, y = NaN, z = NaN]) => {
+          transform(world, x, y, z).forEach((value, a) => {
             min[a] = Math.min(min[a] ?? NaN, value);
             max[a] = Math.max(max[a] ?? NaN, value);
           });
           any = true;
-        }
+        });
       }
     }
     if (!any) return null;
-    return { min: [min[0] ?? 0, min[1] ?? 0, min[2] ?? 0], max: [max[0] ?? 0, max[1] ?? 0, max[2] ?? 0] };
+    return { min: [min[0] ?? NaN, min[1] ?? NaN, min[2] ?? NaN], max: [max[0] ?? NaN, max[1] ?? NaN, max[2] ?? NaN] };
   }
 
   /** Vertices, the sum of POSITION counts, and triangles (mode 4, ⌊k / 3⌋; modes 5 and 6, max(k − 2, 0); others, none),

@@ -26,6 +26,7 @@ import {
   ModelBuilder,
   PNG_SIGNATURE,
   QUAD_INDICES,
+  QUAD_UVS,
   SHORT,
   SIGN,
   SIGN_CATALOG,
@@ -662,6 +663,85 @@ describe("the JSON, read strictly", () => {
       text.replace('"name":"fx-desk"', `"name":"fx-desk","extras":${"[".repeat(n)}${"]".repeat(n)}`);
     expect(refusal(deep(1000))).toMatch(/^its JSON nests deeper than 512, at character [\d,]+$/);
     expect(paths(read(deep(100)))).toEqual(["RX3 nodes[0].extras"]);
+  });
+});
+
+describe("a check that never throws", () => {
+  // A throw would fail the image build, where a misfit keeps its piece's stand-in (FR-013), and the lookdev page.
+  const oneSparseValue = (b: ModelBuilder, values: readonly number[]): Obj => ({
+    count: 1,
+    indices: { bufferView: b.view(encode([5], UNSIGNED_SHORT)), componentType: UNSIGNED_SHORT },
+    values: { bufferView: b.view(encode(values, FLOAT)) },
+  });
+
+  it("reads an accessor without a buffer view, a billion zeros and one sparse value, without holding them", () => {
+    const model = desk({
+      build: (b) => {
+        const zeros = b.accessor({
+          componentType: FLOAT,
+          count: 1_000_000_000,
+          type: "VEC3",
+          min: [0, 0, 0],
+          max: [0.1, 0.2, 0.3],
+          sparse: oneSparseValue(b, [0.1, 0.2, 0.3]),
+        });
+        const mesh = b.mesh([{ attributes: { POSITION: zeros }, mode: 0 }], "fx-zeros");
+        list(item(b.gltf, "nodes", 0), "children").push(b.node({ name: "fx-zeros", mesh }));
+      },
+    });
+    const start = performance.now();
+    const result = check(model.bytes);
+    expect(performance.now() - start).toBeLessThan(2000);
+    expect(result.findings).toEqual([]);
+    expect(result.measures.vertices).toBe(24 + 1_000_000_000);
+  });
+
+  it("finds a live face's quad wanting without reading a billion indices", () => {
+    const model = sign({
+      word: {
+        primitive: (b, m) => ({
+          attributes: { POSITION: b.positions(corners(WORD_QUAD)), TEXCOORD_0: b.texcoords(QUAD_UVS) },
+          indices: b.accessor({ componentType: 5125, count: 1_000_000_000, type: "SCALAR" }),
+          material: m,
+        }),
+      },
+    });
+    expect(paths(check(model.bytes, SIGN_INPUT))).toEqual([`RX8 meshes[${SIGN.meshes.word}].primitives[0]`]);
+  });
+
+  it("answers each of a thousand damaged files with findings, never a throw", () => {
+    // xorshift32 from a fixed seed, so a failure names its run
+    let state = 0x2545f491;
+    const random = (n: number): number => {
+      state ^= state << 13;
+      state ^= state >>> 17;
+      state ^= state << 5;
+      return (state >>> 0) % n;
+    };
+    const models = [desk(), sign()];
+    for (let run = 0; run < 1000; run++) {
+      const model = models[run % 2];
+      if (model === undefined) continue;
+      let damaged: Uint8Array;
+      if (run % 4 < 2) {
+        // a digit of the JSON changed: indices, counts, offsets, and lengths that name the wrong thing
+        const text = JSON.stringify(model.gltf);
+        const digits = [...text.matchAll(/\d/g)].map((m) => m.index);
+        const at = digits[random(digits.length)] ?? 0;
+        damaged = packText(`${text.slice(0, at)}${random(10)}${text.slice(at + 1)}`, model.bin);
+      } else {
+        // a byte of the file changed
+        damaged = model.bytes.slice();
+        damaged[random(damaged.length)] = random(256);
+      }
+      const input = run % 2 ? SIGN_INPUT : DESK_INPUT;
+      let result: FitResult | undefined;
+      expect(() => (result = check(damaged, input)), `run ${run}`).not.toThrow();
+      for (const f of result?.findings ?? []) {
+        expect(RX_RULES, `run ${run}`).toContain(f.rule);
+        expect(f.path.length * f.reason.length, `run ${run}`).toBeGreaterThan(0);
+      }
+    }
   });
 });
 
