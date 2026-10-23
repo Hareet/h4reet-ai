@@ -73,6 +73,8 @@ const HIDDEN =
   "Keep the screen on and this page in front for the whole run, with a screen timeout longer than the run.";
 /** The most lines the log keeps. */
 const LOG_MAX = 500;
+/** What a candidate's row says when its picked file couldn't be read. */
+const UNREADABLE = "The file couldn't be read: nothing kept.";
 
 /** The views; "This device", its own stage from its probe, in the phone copy alone (the review's page-4). */
 const VIEWS: readonly { value: ViewChoice; label: string }[] = [
@@ -328,6 +330,10 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
 
   // ---- The candidates ----
   const candidates = new Map<string, Candidate>();
+  /** Each piece's latest pick or Clear: a read that ends after a newer one is dropped (the review's page-6). */
+  const picks = new Map<string, number>();
+  /** Why a piece's latest pick kept nothing. */
+  const notes = new Map<string, string>();
   const rows = new Map<string, HTMLElement>();
   const pickers: Control[] = [];
   const clears: HTMLButtonElement[] = [];
@@ -349,7 +355,11 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     if (!row) return;
     const c = candidates.get(piece);
     if (!c) {
-      row.replaceChildren(h(doc, "p", { class: "lookdev-none" }, "No candidate: the piece shows its stand-in."));
+      const note = notes.get(piece);
+      row.replaceChildren(
+        ...(note === undefined ? [] : [h(doc, "p", { class: "lookdev-refused" }, note)]),
+        h(doc, "p", { class: "lookdev-none" }, "No candidate: the piece shows its stand-in."),
+      );
       return;
     }
     const m = c.measures;
@@ -391,6 +401,19 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
   function showCandidates(): void {
     for (const piece of rows.keys()) showCandidate(piece);
   }
+  /** A new pick or Clear for a piece, which any read still running for it then ends unseen. */
+  function nextPick(piece: string): number {
+    const n = (picks.get(piece) ?? 0) + 1;
+    picks.set(piece, n);
+    return n;
+  }
+  /** The piece back to its stand-in or set model, with why where its latest pick kept nothing. */
+  function drop(piece: string, why: string | null): void {
+    if (why === null) notes.delete(piece);
+    else notes.set(piece, why);
+    if (candidates.delete(piece)) stage.setCandidate(piece, null);
+    showCandidate(piece);
+  }
 
   const pieceSections = candidatePieces(part, lookdev.pieces).map((piece) => {
     const inputsOf = lookdev.pieces[piece];
@@ -401,23 +424,31 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       name: pieceName(piece),
       onPick: (file) => {
         if (!inputsOf) return;
-        void readCandidate(piece, file, inputsOf).then((c) => {
-          candidates.set(piece, c);
-          showCandidate(piece);
-          stage.setCandidate(
-            piece,
-            c.swappable
-              ? { piece, asset: piece, bytes: c.gzipBytes, source: { kind: "memory", read: () => loadable(c) } }
-              : null,
-          );
-        });
+        const pick = nextPick(piece);
+        const latest = (): boolean => picks.get(piece) === pick;
+        readCandidate(piece, file, inputsOf).then(
+          (c) => {
+            if (!latest()) return;
+            notes.delete(piece);
+            candidates.set(piece, c);
+            showCandidate(piece);
+            stage.setCandidate(
+              piece,
+              c.swappable
+                ? { piece, asset: piece, bytes: c.gzipBytes, source: { kind: "memory", read: () => loadable(c) } }
+                : null,
+            );
+          },
+          () => {
+            if (latest()) drop(piece, UNREADABLE);
+          },
+        );
       },
     });
     pickers.push(picker);
     const clear = actionButton(doc, "Clear", () => {
-      candidates.delete(piece);
-      stage.setCandidate(piece, null);
-      showCandidate(piece);
+      nextPick(piece);
+      drop(piece, null);
     });
     clears.push(clear);
     showCandidate(piece);
