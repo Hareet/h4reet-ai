@@ -950,6 +950,23 @@ def copied_from(line: str) -> str | None:
     return None
 
 
+def mounted_from(line: str) -> set[str]:
+    """The stages a RUN line's --mount options read from, in lower case: each spec's from= key, wherever it stands
+    among the comma-separated keys, quoted or not."""
+    word, _, _ = line.partition(" ")
+    if word.upper() != "RUN":
+        return set()
+    found: set[str] = set()
+    for token in line.split():
+        if not token.lower().startswith("--mount="):
+            continue
+        for field in token.partition("=")[2].split(","):
+            key, _, value = field.strip("\"'").partition("=")
+            if key.strip().lower() == "from":
+                found.add(value.strip("\"'").lower())
+    return found
+
+
 def lookdev_phone_stages() -> tuple[str, list[str], str, list[str]]:
     """The target's stage and the stage it copies lookdev.html from: each one's image and instructions."""
     by_name = {name: (image, body) for image, name, body in dockerfile_stages() if name}
@@ -1005,7 +1022,7 @@ def test_the_copy_is_built_with_drafts_on_the_build_stages_install() -> None:
 
 def stages_reading_the_copy(stages: list[tuple[str, str, list[str]]]) -> list[str]:
     """Each stage but the lookdev-phone target and the stage it copies lookdev.html from that builds on either or
-    reads their files, by its name (its image where it has none)."""
+    reads their files, through COPY --from or RUN --mount, by its name (its image where it has none)."""
     by_name = {name: body for _, name, body in stages if name}
     (copy,) = by_name[LOOKDEV_PHONE]
     phone = {LOOKDEV_PHONE, copied_from(copy)}
@@ -1013,7 +1030,10 @@ def stages_reading_the_copy(stages: list[tuple[str, str, list[str]]]) -> list[st
         name or image
         for image, name, steps in stages
         if name not in phone
-        and (image.lower() in phone or any(copied_from(ln) in phone for ln in steps))
+        and (
+            image.lower() in phone
+            or any(copied_from(ln) in phone or mounted_from(ln) & phone for ln in steps)
+        )
     ]
 
 
