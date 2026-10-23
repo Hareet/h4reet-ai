@@ -6,9 +6,11 @@
 # Every base is pinned by digest, as deploy/images.lock pins it (base:node, and edge's nginx-unprivileged). There is
 # no `# syntax=` line: it would pull an unpinned frontend image.
 
-# ---- policy: main's approvals and the PDF's header, as web_image.py read them on the host ----
-# web_image.py replaces this stage with the named build context `policy`, a directory holding the files main has. A
-# build that names none, such as the gate's, gets this empty stage: every content file builds as a draft, and nothing
+# ---- policy: main's approvals, the PDF's header, and the room's caps, as web_image.py read them on the host ----
+# web_image.py replaces this stage with the named build context `policy`, a directory holding the files main has:
+# content-approvals.json, resume-header.json, and spec 004's caps.json (its contracts/serving.md §3). A build that
+# names none, such as the gate's, gets this empty stage: every content file builds as a draft, the room's compositor
+# takes FR-053's starting figures with every model a stand-in, as it does whenever main lacks caps.json, and nothing
 # is pulled under that name. Nothing below runs git (contracts/web-serving.md §1).
 FROM scratch AS policy
 
