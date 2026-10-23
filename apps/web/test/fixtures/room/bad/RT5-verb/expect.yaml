@@ -1,0 +1,11 @@
+rule: RT5
+file: apps/web/content/room/fx-notes.yaml
+path: lines[0].text
+why: a line about the Author saying an ownership verb its cited sentence doesn't (spec 002's C8)
+edits:
+  - file: apps/web/content/room/fx-notes.yaml
+    at: [lines, 0]
+    set:
+      text: Built the desk
+      about_author: true
+      claims: [{ file: corpus/90-fx-work.md, quote: designed the fixture desk for the fixture room }]

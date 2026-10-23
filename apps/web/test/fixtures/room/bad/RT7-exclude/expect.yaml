@@ -1,0 +1,6 @@
+rule: RT7
+file: apps/web/content/room/fx-notes.yaml
+path: exclude
+why: a chalk block without exclude, which the loader refuses as it reads the block
+edits:
+  - { file: apps/web/content/room/fx-notes.yaml, at: [exclude], delete: true }

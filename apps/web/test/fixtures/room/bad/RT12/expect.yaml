@@ -1,0 +1,6 @@
+rule: RT12
+file: apps/web/room/ui-words.yaml
+path: words.sign.local
+why: a closed-list UI key missing
+edits:
+  - { file: apps/web/room/ui-words.yaml, at: [words, sign.local], delete: true }

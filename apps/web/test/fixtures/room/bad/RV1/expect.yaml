@@ -1,0 +1,6 @@
+rule: RV1
+file: apps/web/room/catalog/fx-desk.yaml
+path: drawing
+why: a piece with no drawing, so its placement would have none in 2D
+edits:
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [drawing], delete: true }

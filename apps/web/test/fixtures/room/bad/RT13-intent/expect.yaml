@@ -1,0 +1,6 @@
+rule: RT13
+file: apps/web/content/room/outlines/fx-sign-words.outline.json
+path: words
+why: an outline's words that its intent doesn't hold in quotation marks (strict mode)
+edits:
+  - { file: apps/web/content/room/outlines/fx-sign-words.outline.json, at: [words], set: fixture sign word }

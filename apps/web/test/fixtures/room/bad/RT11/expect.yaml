@@ -1,0 +1,6 @@
+rule: RT11
+file: apps/web/room/ui-words.yaml
+path: words.tier.cloud
+why: a tier sentence saying the twin is answering
+edits:
+  - { file: apps/web/room/ui-words.yaml, at: [words, tier.cloud], set: The fixture twin is answering }

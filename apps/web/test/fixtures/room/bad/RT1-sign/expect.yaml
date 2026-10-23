@@ -1,0 +1,6 @@
+rule: RT1
+file: apps/web/room/scene.yaml
+path: placements[6].faces.lettering.regions[0].text
+why: a sign region bound to a room-text block, where only an outline draws
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 6, faces, lettering, regions, 0, text], set: fx-script }

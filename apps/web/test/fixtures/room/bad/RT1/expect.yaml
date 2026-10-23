@@ -1,0 +1,6 @@
+rule: RT1
+file: apps/web/room/scene.yaml
+path: placements[2].faces.screen.regions[0].text
+why: a terminal region bound to a chalk block
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 2, faces, screen, regions, 0, text], set: fx-notes }

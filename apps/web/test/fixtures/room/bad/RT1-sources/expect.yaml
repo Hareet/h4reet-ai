@@ -1,0 +1,6 @@
+rule: RT1
+file: apps/web/room/scene.yaml
+path: placements[2].faces.screen.regions[0]
+why: a region with two sources, text and ui, which the loader refuses as it reads the scene
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 2, faces, screen, regions, 0, ui], set: [sign.word] }

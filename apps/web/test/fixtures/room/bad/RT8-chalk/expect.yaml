@@ -1,0 +1,6 @@
+rule: RT8
+file: apps/web/room/scene.yaml
+path: placements[5].faces.slate.regions[0]
+why: a chalk line wider than its region at the grid's size, by the chalk typeface's advance widths
+edits:
+  - { file: apps/web/content/room/fx-notes.yaml, at: [lines, 0, text], set: Plan small things daily }

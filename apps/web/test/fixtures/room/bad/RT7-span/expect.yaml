@@ -1,0 +1,7 @@
+rule: RT7
+file: apps/web/content/room/fx-notes.yaml
+path: lines[0].text
+why: a chalk line sharing a 24-character span with a corpus sentence that holds an excluded phrase
+edits:
+  - { file: apps/web/content/room/fx-notes.yaml, at: [exclude], push: Glowseva }
+  - { file: apps/web/content/room/fx-notes.yaml, at: [lines, 0, text], set: The fixture keeper founded it }

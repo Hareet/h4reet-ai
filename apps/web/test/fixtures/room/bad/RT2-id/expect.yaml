@@ -1,0 +1,7 @@
+rule: RT2
+file: apps/web/room/scene.yaml
+path: retired[0].id
+why: an ID that is the surname of main's full name
+full_name: Fixture Quillfeather
+edits:
+  - { file: apps/web/room/scene.yaml, at: [retired, 0, id], set: quillfeather }

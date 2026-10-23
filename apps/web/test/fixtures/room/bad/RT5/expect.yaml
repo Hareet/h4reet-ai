@@ -1,0 +1,6 @@
+rule: RT5
+file: apps/web/content/room/fx-notes.yaml
+path: lines[1].claims
+why: a line about the Author without claims
+edits:
+  - { file: apps/web/content/room/fx-notes.yaml, at: [lines, 1, about_author], set: true }

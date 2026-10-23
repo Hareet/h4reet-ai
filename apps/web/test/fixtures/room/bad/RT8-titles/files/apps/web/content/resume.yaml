@@ -1,0 +1,12 @@
+# A fixture resume source (spec 002's contracts/resume-source.md §1), about no one: four sections, whose titles fill a
+# resume_titles region.
+version: 1
+header:
+  room:
+    name: Fixture Keeper
+    lines: []
+sections:
+  - { id: work, title: Work, items: [] }
+  - { id: tools, title: Tools, items: [] }
+  - { id: talks, title: Talks, items: [] }
+  - { id: notes, title: Notes, items: [] }

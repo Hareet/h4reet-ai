@@ -1,0 +1,8 @@
+rule: RT2
+file: apps/web/room/ui-words.yaml
+path: words.sign.not_affiliated
+why: a UI word holding a key phrase of the corpus's Do not claim section
+edits:
+  - file: apps/web/room/ui-words.yaml
+    at: [words, sign.not_affiliated]
+    set: The fixture keeper invented the glowword
