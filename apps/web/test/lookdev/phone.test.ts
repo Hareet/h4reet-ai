@@ -43,6 +43,7 @@ import {
   PAGE_FAILED,
   PHONE_ROOT,
   PROBE_PNG,
+  PROBE_TITLE,
   canRun,
   probe,
   startPhone,
@@ -350,6 +351,20 @@ describe("the probe's panel, the copy's first (§7.2)", () => {
     }
     expect(CANNOT_RUN).toBe("This browser can't run the vignette from a local file.");
     expect(startLookdev).not.toHaveBeenCalled();
+  });
+
+  it("names the device that opened the copy in its heading, never a phone, wherever the copy is opened", async () => {
+    // The Author opened the copy in a desktop browser, under a heading that said "on this phone".
+    const desktop: Device = { ...PHONE, deviceMemory: undefined, secure: true, viewport: [1920, 1080], dpr: 1 };
+    for (const d of [PHONE, desktop, { ...desktop, webgl2: null }] as const) {
+      const phone = fakePhone(d);
+      await startPhone(phone.win, phone.root);
+      const [panel] = [...phone.root.children];
+      const heading = panel?.querySelector("h1");
+      expect(heading && text(heading), JSON.stringify(d)).toBe(PROBE_TITLE);
+      expect(panel?.getAttribute("aria-labelledby")).toBe(heading?.id);
+    }
+    expect(PROBE_TITLE).toBe("Lookdev on this device: the probe");
   });
 
   it("shows on the panel why the page didn't start, if it throws as it starts", async () => {
