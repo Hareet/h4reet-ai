@@ -15,7 +15,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { compose, formatFinding } from "../../build/room/compose";
 import { CAPS_DEFAULTS, noPolicy, PHASE3_DEFAULT, readRoomPolicy } from "../../build/room/policy";
-import { goodTree } from "../helpers/room-fixtures";
+import { goodTree, overlay } from "../helpers/room-fixtures";
+import { modelChanges } from "../helpers/room-models";
 
 const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
 const CAPS = "assets/policy/caps.json";
@@ -198,9 +199,36 @@ describe("where the caps come from (contracts/room-bundle.md §2)", () => {
     expect(readRoomPolicy({ env: {}, root: temp() })).toEqual(noPolicy());
   });
 
-  it.todo(
-    "without per_asset.room every model stays a stand-in with the reason no-caps, and the report and manifest say so (T080)",
-  );
+  it("without per_asset.room keeps every model a stand-in with the reason no-caps, and the report and manifest say so (T080)", () => {
+    const dir = temp();
+    write(dir, { "caps.json": capsText(undefined) });
+    const policies = [noPolicy(), readRoomPolicy({ env: { ROOM_POLICY_DIR: dir }, root: temp() })];
+    expect(policies.map((p) => [p.caps_source, p.caps_sha256])).toEqual([
+      ["defaults", null],
+      ["defaults", sha256(capsText(undefined))],
+    ]);
+    for (const policy of policies) {
+      const result = compose(overlay(modelChanges(["fx-board", "fx-desk", "fx-plug"])), policy, {
+        mode: "strict",
+        drafts: true,
+      });
+      expect(result.findings).toEqual([]);
+      expect([result.models, result.scene.load_order]).toEqual([[], []]);
+      for (const p of result.scene.placements) expect(p.model, p.id).toBeNull();
+      expect(result.manifest.standins.filter((s) => s.reason === "no-caps").map((s) => s.placement)).toEqual([
+        "fx-desk",
+        "fx-board",
+        "fx-power.fx-plugged",
+        "fx-power.fx-cloud",
+        "fx-power.fx-resting",
+      ]);
+      expect(result.manifest.caps).toEqual({ source: "defaults", sha256: policy.caps_sha256 });
+      expect(result.report.markdown).toContain(
+        "caps: FR-053's starting figures: main has no room caps; every model stays a stand-in\n",
+      );
+      expect(result.report.markdown).toContain("| `fx-desk` | 1 | stand-in (no-caps) |");
+    }
+  });
 });
 
 describe("a malformed room block (RK4's, reported by T078's RK family)", () => {

@@ -19,6 +19,7 @@ import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { CAPS_DEFAULTS, noPolicy, policyFrom } from "../../build/room/policy";
 import { fileTree, isTreePath, memoryTree, overlayTree } from "../../build/room/source";
 import { badCases, caseTree, goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
+import { capsPolicy, modelChanges } from "../helpers/room-models";
 
 const MODES: ComposeOptions[] = [
   { mode: "strict", drafts: true },
@@ -230,9 +231,31 @@ describe("findings", () => {
     "on an RX or RK2 finding the manifest lists that piece in standins[] with the reason findings, and placeholders is true, where the same piece's clean model is set (T080's manifest)",
   );
 
-  it.todo(
-    "the 3D part's load_order puts the framed members of selectables first, in scene order with the shown pose first, then the other framed placements, then the rest, a shared model once (T080)",
-  );
+  it("the 3D part's load_order puts the framed members of selectables first, in scene order with the shown pose first, then the other framed placements, then the rest, a shared model once (T080)", () => {
+    const scene = decoder
+      .decode(goodFiles().get("apps/web/room/scene.yaml"))
+      .replace(
+        "switches:\n",
+        "  - { id: fx-sign-two, piece: fx-sign, mount: { on: fx-desk, anchor: top, offset: [-0.2, 0, 0.2] } }\nswitches:\n",
+      );
+    const tree = overlay({
+      ...modelChanges(["fx-board", "fx-desk", "fx-laptop", "fx-monitor", "fx-neon", "fx-plug", "fx-sign"]),
+      "apps/web/room/scene.yaml": scene,
+    });
+    const result = compose(tree, capsPolicy(), { mode: "strict", drafts: true });
+    expect(lines(result.findings)).toEqual([]);
+    // fx-neon is framed but in no selectable; fx-desk and the signs aren't framed; the live source is off, so the
+    // switch shows its not-live case's pose; the second sign and the other poses share a model already listed.
+    expect(result.scene.load_order).toEqual([
+      "fx-monitor",
+      "fx-laptop",
+      "fx-board",
+      "fx-neon",
+      "fx-desk",
+      "fx-sign",
+      "fx-power.fx-resting",
+    ]);
+  });
 });
 
 describe("compose()", () => {

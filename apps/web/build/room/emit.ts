@@ -13,6 +13,7 @@ import type { ComposeOptions, Finding } from "./checks/family";
 import type { LoadedRoom } from "./load";
 import type { CapsSource, RoomCaps, RoomPolicy } from "./policy";
 import type { TurnOutcome } from "./schema";
+import type { Tree } from "./source";
 
 /** A fixture, typed by the signals: `virtual:room-fixtures` (§3.3). */
 export interface RoomFixture {
@@ -89,7 +90,7 @@ export interface RoomReport {
   readonly markdown: string;
 }
 
-/** contracts/room-bundle.md §1's ComposeResult, but its findings. */
+/** contracts/room-bundle.md §1's ComposeResult, but its findings, and with the set image cards beside the models. */
 export interface RoomOutputs {
   readonly digest: string;
   readonly index: RoomIndex;
@@ -102,19 +103,41 @@ export interface RoomOutputs {
     readonly gz: Uint8Array;
     readonly sha256: string;
   }[];
+  /** Each set image card, emitted plain at `dist/<url>` (§3.4). */
+  readonly cards: readonly {
+    readonly piece: string;
+    readonly url: string;
+    readonly bytes: Uint8Array;
+    readonly sha256: string;
+  }[];
   readonly roomText: RoomText;
   readonly manifest: RoomManifest;
   readonly generated: readonly { readonly path: string; readonly text: string }[];
   readonly report: RoomReport;
 }
 
-/** The outputs of one compose: the room as loaded, the policy as read, the options, and the findings, sorted. */
+/** What emit reads beside the loaded room: the tree, for the models, the fonts, the resume, and the room text's bytes,
+ *  and whether RT2 passed a string, so the report never prints one it refused. compose() passes its family context. */
+export interface EmitReader {
+  readonly tree: Tree;
+  printable(value: string): boolean;
+}
+
+/** The outputs of one compose: the room as loaded, the policy as read, the options, the findings, sorted, and the
+ *  reader. */
 export type Emit = (
   room: LoadedRoom,
   policy: RoomPolicy,
   options: ComposeOptions,
   findings: readonly Finding[],
+  reader: EmitReader,
 ) => RoomOutputs;
+
+/** §11's serialization: JSON with no whitespace, each object's fields in the order emit wrote them. */
+export function serialize(value: unknown): string {
+  void value;
+  return "";
+}
 
 const NO_FACE = { family: "", weight: 400 } as const;
 const NO_LOOK: Look = {
@@ -201,6 +224,7 @@ export const emit: Emit = (room, policy, options) => {
     },
     drafts: options.drafts ? { fixtures: [], lookdev } : null,
     models: [],
+    cards: [],
     roomText: { blocks: [] },
     manifest: {
       objects: [],

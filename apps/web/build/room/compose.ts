@@ -51,7 +51,7 @@ export function compose(tree: Tree, policy: RoomPolicy, options: ComposeOptions)
       return true;
     })
     .sort(compareFindings);
-  return { ...emit(room, policy, options, sorted), findings: sorted };
+  return { ...emit(room, policy, options, sorted, ctx), findings: sorted };
 }
 
 /** A finding's line (§14), `<rule> <file>:<path>: <reason>`; in a lenient build, a lenient one prefixed `warn`. */
