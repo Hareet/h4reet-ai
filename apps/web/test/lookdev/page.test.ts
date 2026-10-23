@@ -853,6 +853,22 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     expect(collapse(root.querySelector(".lookdev-results")?.textContent)).not.toContain("Lookdev results");
   });
 
+  it("starts an automatic run on a fresh controller at level 0, whatever the page stepped down to before", async () => {
+    // The review's page-7: slow frames before the run step the page's controller down.
+    const { page, root, clock } = open();
+    clock.advance(12_000, 100);
+    expect(page.stage.level).toBeGreaterThan(0);
+    buttonNamed(root, "Run 2 minutes").click();
+    expect(page.stage.level).toBe(0);
+    await settle(clock);
+    // Frames at 60 a second throughout: nothing to step down for.
+    clock.advance(120_000, 16);
+    await settle(clock);
+    const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
+    expect(results.quality).toEqual({ mode: "auto", settled: 0, step_downs: 0, step_downs_while_loading: 0 });
+    expect(results.dpr).toBe(1);
+  });
+
   it("stops a run when the page is hidden, which draws no frames, with no results, and says why", async () => {
     // The review's page-3: the phone's screen times out mid-run; its frames stop, and the run's timer runs on.
     const { root, clock, doc } = open();
