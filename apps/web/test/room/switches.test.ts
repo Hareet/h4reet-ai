@@ -279,6 +279,28 @@ describe("the switches' rules on the fixtures (RS1 to RS6)", () => {
       const twice = rs({ plug: (d) => (at(d, "claims", "poses")["fx-resting"] = "local") });
       expect(twice.seen).toContain(`RS2 ${PLUG}:claims.poses.fx-resting`);
     });
+
+    it("refuses claims that give no pose local, or none cloud, so the plugged and the cloud poses are named (words-2)", () => {
+      // The edit that would silence RS4 with the plug in the port: the plugged pose claims nothing, and the six values
+      // that share a pose show it.
+      const unplugged = rs({
+        plug: (d) => (at(d, "claims", "poses")["fx-plugged"] = null),
+        scene: (d) => {
+          for (const value of SHARED) at(power(d), "cases")[value] = "fx-plugged";
+        },
+      });
+      expect(unplugged.seen).toEqual([`RS2 ${PLUG}:claims.poses`]);
+      expect(unplugged.found[0]?.reason).toBe("no pose claims local, so none is known as the plugged pose");
+      const clouded = rs({ plug: (d) => (at(d, "claims", "poses")["fx-cloud"] = null) });
+      expect(clouded.seen).toEqual([`RS2 ${PLUG}:claims.poses`]);
+      expect(clouded.found[0]?.reason).toBe("no pose claims cloud, so none is known as the cloud pose");
+      const neither = rs({
+        plug: (d) => (at(d, "claims").poses = { "fx-plugged": null, "fx-cloud": null, "fx-resting": null }),
+      });
+      expect(neither.seen).toEqual([`RS2 ${PLUG}:claims.poses`, `RS2 ${PLUG}:claims.poses`]);
+      // Claims of the committed charger's shape, one pose local, one cloud, and one nothing, are the known-good set's.
+      expect(rs({}).seen).toEqual([]);
+    });
   });
 
   describe("RS3: only local shows the plugged pose, and only cloud the cloud pose", () => {

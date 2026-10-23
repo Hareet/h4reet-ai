@@ -1,0 +1,6 @@
+rule: RS2
+file: apps/web/room/catalog/fx-plug.yaml
+path: claims.poses
+why: claims that give no pose local, so the plugged pose could show for any value unrefused
+edits:
+  - { file: apps/web/room/catalog/fx-plug.yaml, at: [claims, poses, fx-plugged], set: null }
