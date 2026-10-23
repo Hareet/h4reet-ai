@@ -41,7 +41,7 @@ No other key is allowed: the schema refuses any key it doesn't define (FR-005).
 | RL4 | `turn: site` while the disclosure has no row `V2` whose **Carries** names the turn's estimated cost and its route | FR-075 and Amendment B6: the turn row says what the reply carries before the sign reads it. |
 
 - **Where RL2 to RL4 hold.** They read the disclosure from the tree being built, which the web image's build stage already copies. So they hold in `make test`, in the image build, in the gate's container, and in spec 001's release build (Amendment A5). A scene that would poll without its row can't be built, so it can't be deployed (FR-074).
-- **Row IDs** follow the scheme the plan records for Confirmation 17: the first row written keeps its ID. Spec 001's planned V2, "hello and the status request", is therefore `V7`.
+- **Row IDs** follow the scheme the plan records for Confirmation 17, which spec.md states as Amendment A7: the first row written keeps its ID. Spec 001's planned V2, "hello and the status request", is therefore `V7`.
 
 **Who switches each source on, and when.**
 - **`source: site`** comes in User Story 8's switch-on change. It lands only once spec 001 serves `GET /api/status` on the room's origin with Amendments A1 to A3, and it carries A4's words on `V7` and the "Room live state" panels (FR-045, FR-074). RL2 checks the row; the change's merge-request note shows the route served.
@@ -254,7 +254,7 @@ Spec 001's relay contract, `contracts/relay-http.md` on `spec/001-cloud-elevatio
 - **Export.** The relay exports its metrics every 10 s, as spec 000's gateway does ([telemetry.md §3.1](../../000-local-foundations/contracts/telemetry.md#31-sdk-setup)). That keeps the panel inside spec 000's 60-second freshness budget ([§6.5](../../000-local-foundations/contracts/telemetry.md#65-the-freshness-budget)), which SC-014 needs.
 - **No visitor in a series.** No attribute carries an address, a request ID, or anything else about a visitor ([§1](../../000-local-foundations/contracts/telemetry.md#1-rules-that-apply-to-every-signal) of spec 000's telemetry contract).
 
-**A4, spec 001's spec.md, row V2, here `V7`.** The row gains the room's trigger, its default, what the relay keeps, and how to switch it off, in the words of spec 004's Data-Flow Disclosure Entries, in the switch-on change (FR-074). RL2 refuses `source: site` without them. There is no new row.
+**A4, spec 001's spec.md, row V2, here `V7`, under Amendment A7's scheme.** The row gains the room's trigger, its default, what the relay keeps, and how to switch it off, in the words of spec 004's Data-Flow Disclosure Entries, in the switch-on change (FR-074). RL2 refuses `source: site` without them. There is no new row.
 
 ## 8. Cost, degraded mode, and data flow
 

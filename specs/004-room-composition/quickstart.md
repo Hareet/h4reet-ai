@@ -20,6 +20,8 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
   - `make matrix`, which runs stage H, and stage S inside the sandbox;
   - `make redteam`.
 - **The Author's runs** happen in the Author's terminal, on the Author's devices, or on dev. They are:
+  - the interim deny and the ComfyUI check, now (Q1);
+  - the photo guide's photo-work setup and checklist, before each photo-work session;
   - applying patches;
   - the gate;
   - the behavioural evals;
@@ -39,7 +41,7 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
 
 | Q | Proves | Agents' checks | The Author's runs | When |
 |---|---|---|---|---|
-| Q1 | the guard and the settings check; SC-013 | the matrix's rows | P-1 to P-3; the evals; the settings check | M4, M5 |
+| Q1 | the guard, the settings check, and ComfyUI's port; SC-013 | the matrix's rows | the interim deny and the ComfyUI check, now; P-1 to P-3; the evals; the settings check | now; M4, M5 |
 | Q2 | the intake amendments; FR-077 | the human-only checks' tests; the order test | P-4 to P-8; the IPTC term; P-6's readings | M6 to M8 |
 | Q3 | User Story 1; SC-001, SC-002 | yes | a look at dev | now |
 | Q4 | User Story 2; SC-003, SC-007 | yes | WebGL off, pause, the network log | now |
@@ -54,9 +56,13 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
 
 ## Q1. The guard and the settings check (M4, M5; P-1 to P-3; FR-025, FR-027, FR-077; SC-013)
 
-**Prerequisites:** M1 to M3 merged, and the four studio folders made on the Author's machine. **Where:** the Author's terminal, then an agent session started after the patches.
+**Prerequisites:** none for the runs now; for the rest, M1 to M3 merged, and the four studio folders made on the Author's machine. **Where:** the Author's terminal, then an agent session started after the patches.
 
-**The Author's runs:**
+**The Author's runs, now, before any merge** (tasks.md T290, T291; [intake-amendments.md §17](contracts/intake-amendments.md#17-what-the-author-does-besides-applying-patches)):
+- **The interim deny:** the outputs and workflows folders denied, reads and writes, in both layers, in this repository's `.claude/settings.local.json`, after `git check-ignore -v .claude/settings.local.json` shows git ignores it; then `claude doctor`, and new agent sessions started in the main checkout.
+- **The ComfyUI check:** could the studio's session reach ComfyUI's port at any time since 2026-10-22? If it could, close the route, hand ComfyUI's workflows over as files from then on (the spec's Confirmation 24), and record when and by which route, by folder and scope names, for `feat/004-guard`'s note.
+
+**The Author's runs, at M4 and M5:**
 1. **P-1, after M4.** Fill and apply spec 003's guard patch as its quickstart §1 says (`specs/003-studio-assets/quickstart.md`, on `feat/003-guards`). Then `claude doctor` and `make git-hooks`, then the behavioural tier, as step 4 runs it, when the next gate shows it PENDING.
 2. **P-2 and P-3, after M5.** Gate and merge `feat/004-guard`. Then, from main's checkout:
 
@@ -74,15 +80,15 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
    tools/gates/studio_settings_check.py
    ```
 
-   **Expected:** exit 0. The first line reads `studio-settings: PASS: …`, followed by the two folders and the settings files, by name and SHA-256, with no path ([intake-amendments.md §5](contracts/intake-amendments.md#5-p-3-the-studio-settings-check)). A FAIL names its rule; fix the studio's settings, never the check.
-4. **The behavioural tier.** P-2 changed its trigger hash, so the next gate shows it PENDING. Run `make evals-agent-config REF=<that branch>` from main's checkout (START-HERE §7, step 3). **Expected:** `reads-studio-folder` passes, with no canary printed.
+   **Expected:** exit 0. The first line reads `studio-settings: PASS: …`, followed by the two folders, the `listeners` line (no hook, MCP server, or helper command beyond the approved list; no plugin; no loopback host, local binding, local socket, or proxy of its own in the sandbox's network; no WebFetch for a loopback host), and the settings files, by name and SHA-256, with no path ([intake-amendments.md §5](contracts/intake-amendments.md#5-p-3-the-studio-settings-check)). A FAIL names its rule; fix the studio's settings, never the check.
+4. **The behavioural tier.** P-2 changed its trigger hash, so the next gate shows it PENDING. Run `make evals-agent-config REF=<that branch>` from main's checkout (START-HERE §7, step 3). **Expected:** `reads-studio-folder` passes, with no canary printed and nothing from outside the canary folder.
 5. **Stage E, once** (Heavy, with no agent session using the engine): `tools/gates/gate --prove <the first branch gated after P-2>`. **Expected:** stage E passes.
 
 **Agents' checks:**
-1. **After `feat/004-guard` merges, before its patches are applied:** `make matrix`. **Expected:** the new rows read PLANNED, since the marker isn't there yet.
+1. **After `feat/004-guard` merges, before its patches are applied:** `make matrix`. **Expected:** the new rows read PLANNED, since the marker isn't there yet, apart from stage S's two rows for ComfyUI's port, which pass already.
 2. **After the patches (step 2):** `make matrix`. **Expected:**
    - stage H: each folder is denied reads (spec 003's rows) and writes; the hook blocks an Edit in each folder, and through a `..` path, a symlink, and a case variant;
-   - stage S: each folder is unreadable and unwritable; the case-variant row is a NOTE when the mount is case-sensitive;
+   - stage S: each folder is unreadable and unwritable; the case-variant row is a NOTE when the mount is case-sensitive; a request to ComfyUI's port is refused, directly and through the session's proxy (a NOTE when the sandbox names no proxy);
    - 0 failed, and none of these rows PLANNED.
 3. `make check ENGINE_MODE=none-yet`. **Expected:** it passes, with row D4 in [docs/data-flow-disclosure.md](../../docs/data-flow-disclosure.md) ([intake-amendments.md §15](contracts/intake-amendments.md#15-disclosure-rows-and-their-ids)).
 
@@ -100,7 +106,7 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
    2. make the P-6 commit on `main`: name the `small_props`, and read each license, filling in its terms and the date read ([intake-amendments.md §8](contracts/intake-amendments.md#8-p-6-the-caps-and-the-licenses-the-authors-commit));
    3. apply P-7 and P-8;
    4. run `claude doctor` and `make git-hooks`.
-4. **The behavioural tier,** on the next gate, as in Q1. **Expected:** `reviewer-reads-room-data` passes, with the work order's brand flagged Important.
+4. **The behavioural tier,** on the next gate, as in Q1. **Expected:** `reviewer-reads-room-data` passes, with the work order's brand and the catalog entry's request for a crop of a photo and an upload each flagged Important.
 
 **Agents' checks:**
 1. **The order test, before M8.** In the scratch worktree of `feat/004-setup`, make an empty file under `assets/room/`, then run `make test`. **Expected:** it fails with `FR-077 assets/room/<file>: main's arrival check lacks Amendments C1 and C2 (spec 004)`, since the test reads main's constants, not the branch's ([intake-amendments.md §13](contracts/intake-amendments.md#13-the-agent-code-beside-the-patches)). Remove the file.
@@ -159,7 +165,7 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
 **Agents' checks:** `make test`. **Expected:**
 - **The tier's table tests** cover every row of FR-041's table, each failure, and a stale answer of each kind. The charger shows plugged in only while the tier is local, and leaves the plugged pose on the first frame after a failed request or a stale answer (SC-003; [tier-signal.md](contracts/tier-signal.md) §9).
 - **With the live source off,** no status request is made, the laptop shows its not-live pose, and the text copy says so (User Story 2 scenario 1).
-- **Paused or hidden,** the tier reads paused (not-live while the live source is off) and the charger is never plugged in. The text copy says `Paused at <time>`. On resume, the tier is reduced again before the next frame (scenario 3).
+- **Paused or hidden,** the tier reads paused (not-live while the live source is off) and the charger is never plugged in. While the room is paused, the text copy says `Paused at <time>`; a hidden page shows no such line (FR-060). On resume or return, the tier is reduced again before the next frame (scenario 3).
 - **Fault injection in jsdom** runs over each failure of FR-057 to FR-061: a model blocked, timed out, failing its integrity check, or failing to decode; no WebGL; room text failing; a typeface that never arrives; reduced motion switched on mid-visit. Every run ends usable, with the AI disclosure visible, a working text box, and the text copy equal to the drawing; 0 end blank or frozen (SC-007).
 
 **The Author's runs** (dev, `http://127.0.0.1:18105/`):
@@ -308,7 +314,7 @@ The first room files are the desk and one sign (Amendment C10). **Where:** the A
 
 **The Author's runs:**
 1. **The screen's description** (FR-031, answer 5), before the monitor's drafts, and before the whole-vignette lookdev runs that settle the look (FR-070) if its terminal is to show words: type a description of the photographed screen. It is recorded verbatim, in the Author's words, in an intent file, which both monitor blocks cite in `words_from` ([room-data-files.md](contracts/room-data-files.md) §7). **Expected:** the agents' strict build finds each quote verbatim (RT9), and the drafts follow it.
-2. **A sign traced from its photo** (FR-032, SC-013). Inside the photos folder, offline:
+2. **A sign traced from its photo** (FR-032, SC-013). With the photo guide's photo-work checklist ticked (TMPDIR inside the photos folder; the tracing tool's autosave and recent files off; FR-025), inside the photos folder, offline:
    1. trace the lettering with the local tool;
    2. run `<main's checkout>/tools/gates/outline_check.py --from-svg …` with the fields [intake-amendments.md §10](contracts/intake-amendments.md#10-p-8-the-outline-check) lists.
 

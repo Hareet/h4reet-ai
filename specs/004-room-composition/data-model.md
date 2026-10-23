@@ -95,7 +95,7 @@ work_order:                       # †
 | `drawing` | `{primitives: [...]}` or `{from: standin}` | the 2D vector drawing (FR-058; RV) |
 | `budget` | `{gzip_bytes, triangles, texture_px, texture_bytes}`, integers above 0 | `gzip_bytes` and `triangles` at or under the caps; `texture_px` a power of two, at or under `small_prop_texture_px` when the caps list the piece in `small_props`; `texture_bytes` the planned Σ w × h × 4 × 4/3. RK refuses a budget above the caps; agents never raise one (FR-053) |
 | `model` | `{file: "<piece>.glb"}` or `{card: "<piece>.png"}` (or `.jpg`, `.webp`), optional | the file's stem is the piece's ID, so the caps' `small_props`, spec 003's `files[].id`, and the asset events name pieces and files alike. The file sits under `assets/room/` with a `records.json` entry. A figure's piece (§4.1) has none |
-| `work_order` † | `{method, shots[], measurements[], studio_notes}`, strings | feeds the generated work order (§10.7); reviewed as room text is: it locates nothing and names no third party's marks (FR-014) |
+| `work_order` † | `{method, shots[], measurements[], studio_notes}`, strings | feeds the generated work order (§10.7); reviewed as room text is: it locates nothing and names no third party's marks, and asks the studio's session for nothing FR-024 excludes: a photo or a crop of one, a file outside the studio's folders, a fetch, or an upload (FR-014) |
 
 **Stand-in shapes**, a closed grammar (FR-005). Every shape also takes `at`, an optional `turn` and `scale`, `color` (a palette name of the scene's look, or `#rrggbb`), and `lit` (boolean, default true).
 
@@ -593,7 +593,7 @@ One entry per selectable whose action is `talk`, in scene order, every value quo
 ### 10.7 Generated documents (FR-014, FR-026)
 
 - **A work order**, `docs/studio/work-orders/<piece>.md`, one per catalog entry: the method, shots, and measurements; the origin point, the expected bounds at stylized scale, and the anchors; the live faces with their roles and the texture-coordinate rule; the poses; the budget against the caps; the chosen look's material notes; the export rules, from the same rule texts the fit check uses; a `records.json` template; and a "Measure" line for every estimated field (FR-002).
-- **The photo guide**, `docs/studio/photo-guide.md`: a fixed privacy template (code, naming no ID) and a layout checklist generated from the scene's anchors: each desk item's position from `survey.desk_corner` (§4.6), and the positions of the desk, the bicycle's hook, the snowboard's mount, the window, the artwork, and the chalkboard, each marked measured or estimated (FR-026).
+- **The photo guide**, `docs/studio/photo-guide.md`: a fixed privacy template (code, naming no ID), with the photo-work setup and its checklist (Blender's Temporary Files folder and TMPDIR inside the photos folder; the tracing tool's autosave and recent files off; FR-025; [contracts/room-bundle.md](contracts/room-bundle.md) §9.2), and a layout checklist generated from the scene's anchors: each desk item's position from `survey.desk_corner` (§4.6), and the positions of the desk, the bicycle's hook, the snowboard's mount, the window, the artwork, and the chalkboard, each marked measured or estimated (FR-026).
 
 Both are committed and regenerated whenever the catalog, the scene, or the look changes; `make test` fails on a stale or orphaned file. The reviewer's "Room data" pass reads them as it reads room text (FR-014, P-7). `docs/studio/handoff.md` is hand-written, and no check generates it.
 
