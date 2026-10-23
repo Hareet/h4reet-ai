@@ -902,3 +902,129 @@ def test_docker_gets_only_its_own_settings(monkeypatch: pytest.MonkeyPatch) -> N
     assert set(env) <= {*wi.DOCKER_ENV, "LC_ALL"}
     assert env["DOCKER_HOST"] == "tcp://198.18.0.1:2376"
     assert not {"HTTPS_PROXY", "AWS_PROFILE", "H4_WEB_SUFFIX"} & set(env)
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 004's lookdev-phone target (T129; FR-066, FR-069; contracts/lookdev.md §7.1, §8 layer 5):
+# the Author builds the phone's copy of the lookdev page with it, from a git archive export, and no
+# image ever holds the copy
+# --------------------------------------------------------------------------------------------------
+LOOKDEV_PHONE = "lookdev-phone"
+
+
+def dockerfile_stages() -> list[tuple[str, str, list[str]]]:
+    """apps/web/Dockerfile's stages in order: each FROM's image, the stage's name in lower case ("" for none), and
+    its other instructions as logical lines, continuations joined and comments dropped."""
+    text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+    logical: list[str] = []
+    pending = ""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        pending = f"{pending} {line}".strip()
+        if pending.endswith("\\"):
+            pending = pending[:-1]
+            continue
+        logical.append(pending)
+        pending = ""
+    stages: list[tuple[str, str, list[str]]] = []
+    for line in logical:
+        word, _, rest = line.partition(" ")
+        if word.upper() == "FROM":
+            tokens = [t for t in rest.split() if not t.startswith("--")]
+            named = len(tokens) >= 3 and tokens[1].upper() == "AS"
+            stages.append((tokens[0], tokens[2].lower() if named else "", []))
+        else:
+            assert stages, f"{line}: an instruction before the first FROM"
+            stages[-1][2].append(line)
+    return stages
+
+
+def copied_from(line: str) -> str | None:
+    """The stage a COPY or ADD line copies from, in lower case, or None."""
+    for token in line.split():
+        if token.startswith("--from="):
+            return token.removeprefix("--from=").lower()
+    return None
+
+
+def lookdev_phone_stages() -> tuple[str, list[str], str, list[str]]:
+    """The target's stage and the stage it copies lookdev.html from: each one's image and instructions."""
+    by_name = {name: (image, body) for image, name, body in dockerfile_stages() if name}
+    image, body = by_name[LOOKDEV_PHONE]
+    (copy,) = body
+    source = copied_from(copy)
+    assert source is not None and source in by_name, copy
+    return image, body, by_name[source][0], by_name[source][1]
+
+
+def test_the_lookdev_phone_target_sits_before_the_runtime_stage_which_stays_last() -> (
+    None
+):
+    # Docker builds the last stage when no --target is named, and web_image.py names none, so every image it
+    # builds is the runtime's; the drafts-only target is built only by name, by the Author (lookdev.md §7.3).
+    stages = dockerfile_stages()
+    names = [name for _, name, _ in stages]
+    assert LOOKDEV_PHONE in names
+    assert names.index(LOOKDEV_PHONE) < len(stages) - 1
+    image, _, body = stages[-1]
+    assert image.startswith("ghcr.io/nginx/nginx-unprivileged:")
+    # The runtime stage copies the built site, dist/, and nothing else from another stage.
+    assert [ln for ln in body if copied_from(ln)] == [
+        "COPY --from=build /src/apps/web/dist /usr/share/nginx/html"
+    ]
+
+
+def test_the_lookdev_phone_target_holds_only_lookdev_html_from_scratch() -> None:
+    image, body, _, _ = lookdev_phone_stages()
+    assert image == "scratch"
+    ((verb, source, *paths),) = [ln.split() for ln in body]
+    assert verb == "COPY" and source.startswith("--from=")
+    assert paths == ["/src/apps/web/dist-phone/lookdev.html", "/lookdev.html"]
+
+
+def test_the_copy_is_built_with_drafts_on_the_build_stages_install() -> None:
+    # The stage that builds the copy runs on the same installed workspace as the site's build stage, and runs only
+    # the npm script, with drafts on and the policy the named context gives (empty when the build names none).
+    _, _, base, body = lookdev_phone_stages()
+    by_name = {
+        name: (image, steps) for image, name, steps in dockerfile_stages() if name
+    }
+    assert base == by_name["build"][0]
+    assert base in by_name
+    assert any(ln.startswith("RUN npm ci ") for ln in by_name[base][1])
+    run = (
+        "RUN ROOM_DRAFTS=1 ROOM_POLICY_DIR=/src/policy npm run --ignore-scripts "
+        "build:lookdev-phone -w apps/web"
+    )
+    assert body == [run]
+    assert "git" not in run.split()
+
+
+def test_no_other_stage_copies_from_the_lookdev_phone_target() -> None:
+    _, body, _, _ = lookdev_phone_stages()
+    phone = {LOOKDEV_PHONE, copied_from(body[0])}
+    for image, name, steps in dockerfile_stages():
+        if name in phone:
+            continue
+        assert image.lower() not in phone, name
+        assert not [ln for ln in steps if copied_from(ln) in phone], name
+
+
+def test_the_phone_copy_stays_out_of_every_build_context_and_commit() -> None:
+    # npm run build:lookdev-phone writes apps/web/dist-phone/, outside dist/: .dockerignore keeps a working tree's
+    # copy out of every build context, so the runtime stage, which copies only dist/, never sees one, and .gitignore
+    # keeps it out of every commit (lookdev.md §8, layer 5).
+    ignore = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    assert "**/dist-phone" in ignore
+    gitignore = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "apps/web/dist-phone/" in gitignore
+
+
+def test_web_image_names_no_target(tmp_path: Path, export: Path, repo: Path) -> None:
+    for stack, suffix in (("prod", ""), ("dev", "-drafts")):
+        env, run = host_files(tmp_path, export, stack=stack, suffix=suffix)
+        fake = FakeDocker()
+        assert host(stack, env, run, fake, export, repo) == 0
+        assert not [a for a in built(fake) if a.startswith("--target")], stack
