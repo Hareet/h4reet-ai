@@ -36,8 +36,8 @@ describe("the load order (compose/load-order.ts)", () => {
   it("lists the shown pose before the others, and a shared model once, where it first comes", () => {
     const entries = [
       entry("fx-rest", "fx-r.glb", false, null),
-      entry("fx-pose-one", "fx-plug.glb", false, null, false),
-      entry("fx-pose-two", "fx-plug.glb", false, null, true),
+      entry("fx-pose-one", "fx-shared.glb", false, null, false),
+      entry("fx-pose-two", "fx-shared.glb", false, null, true),
       entry("fx-twin-of-a", "fx-a.glb", true, null),
       entry("fx-a", "fx-a.glb", true, 0),
     ];

@@ -29,7 +29,7 @@ describe("the cable's run (compose/cable.ts)", () => {
   const from: Vec3 = [-0.3, 0.95, -1.3];
   const to: Vec3 = [0.2, 0.75, -1.79];
 
-  it("samples 16 points from the lead's end to the anchor, lowered by sag × span × 4t(1 − t)", () => {
+  it("samples 16 points from the cable's free end to the anchor, lowered by sag × span × 4t(1 − t)", () => {
     expect(CABLE_POINTS).toBe(16);
     const run = cableRun({ from, to, sag: 0.2, radius: 0.004, scale: 1, drop: 0, rest: null });
     expect(run.points).toHaveLength(16);
@@ -53,7 +53,7 @@ describe("the cable's run (compose/cable.ts)", () => {
     expect(cableRun({ from, to, sag: 0.1, radius: 0.004, scale: 1, drop: 0, rest: null }).drop).toBeNull();
   });
 
-  it("never dips below the rest plane, so a lead lying on a surface lies on it", () => {
+  it("never dips below the rest plane, so a cable lying on a surface lies on it", () => {
     const surface = restPlane(translation([0, 0.75, -1.5]));
     expectClose(surface.point, [0, 0.75, -1.5]);
     expectClose(surface.normal, [0, 1, 0]);

@@ -84,7 +84,7 @@ describe("project (compose/project.ts)", () => {
     }
   });
 
-  it("maps the view to CSS pixels from the stage's top left, and gives a point's depth in front of the camera", () => {
+  it("maps device coordinates to CSS pixels from the stage's corner, and gives a point's depth before the camera", () => {
     const stage = { w: 368, h: 420 };
     expect(toStage([-1, 1, 0], stage)).toEqual([0, 0]);
     expect(toStage([1, -1, 0], stage)).toEqual([368, 420]);
@@ -189,7 +189,7 @@ describe("pick areas (compose/pick.ts)", () => {
     expect(pick(swapped, [125, 105])).toBe("fx-right");
   });
 
-  it("convert 44 px to view-box units in 2D at the drawing's scale, min(W ÷ 320, H ÷ 200)", () => {
+  it("convert 44 px to the 2D drawing's units at its scale, min(W ÷ 320, H ÷ 200)", () => {
     expect(flatCore({ w: 304, h: 248 })).toBeCloseTo(44 / 0.95, 12);
     expect(flatCore({ w: 640, h: 400 })).toBe(22);
     expect(flatCore({ w: 960, h: 300 })).toBe(44 / 1.5);

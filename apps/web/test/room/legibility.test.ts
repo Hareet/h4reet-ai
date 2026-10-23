@@ -54,7 +54,7 @@ describe("the fixed text grids (compose/layout.ts)", () => {
     }
   });
 
-  it("give the chalkboard's line slots and the neon panels' characters their glyph sizes", () => {
+  it("give the chalk's line slots and the neon panels' characters their glyph sizes", () => {
     const chalk = textGrid("chalk", { rows: 6 }, { w: 0.8, h: 0.6 });
     expect(chalk?.em).toBeCloseTo(0.1 / GRID_METRICS.chalk.line, 15);
     expect(chalk?.cols).toBeNull();
@@ -95,7 +95,7 @@ describe("a region's cap height on its face (compose/legibility.ts)", () => {
     expect(regionCap(FACE, region, { capRatio: 0.698 })).toBeCloseTo(0.698 * (grid?.em ?? Number.NaN), 15);
   });
 
-  it("is an outline's cap_height over its fitted view box", () => {
+  it("is an outline's cap_height, scaled as the outline is fitted", () => {
     const outline = { view_box: [0, 0, 1000, 250] as const, cap_height: 180, advance: 960 };
     const region = { rect: [0.1, 0.1, 0.6, 0.4] as const, renderer: "sign" as const, grid: null };
     const fit = fitOutline(outline, regionBox(region.rect, FACE.size));
@@ -136,39 +136,45 @@ describe("a face's smallest cap height in CSS pixels", () => {
     three.lookAt(...camera.target);
     three.updateProjectionMatrix();
     three.updateMatrixWorld(true);
-    const model = multiply(multiply(translation([-1.2, 1.1, -1.7]), rotation({ x: -10, y: 55, z: 4 })), scaling(1.5));
     const face: FaceGeometry = { at: [0.02, 0.1, 0.03], size: [0.6, 0.4], facing: [0, 0, 1], up: [0, 1, 0] };
     const regions = [
       { rect: [0, 0, 0.5, 1] as const, cap: 0.02 },
       { rect: [0.5, 0, 0.5, 0.5] as const, cap: 0.012 },
     ];
-    // The same measure, by three.js: from each region's corners, a cap-high segment into the region along the face's up.
-    const m = new Matrix4().fromArray([...model]);
     const at = new Vector3(...face.at);
     const up = new Vector3(...face.up);
     const right = new Vector3().crossVectors(up, new Vector3(...face.facing)).normalize();
-    const css = (p: Vector3): Vector3 => {
-      const n = p.clone().applyMatrix4(m).project(three);
-      return new Vector3(((n.x + 1) / 2) * stage.w, ((1 - n.y) / 2) * stage.h, 0);
-    };
-    let expected = Infinity;
-    for (const { rect, cap } of regions) {
-      const [x, y, w, h] = rect;
-      for (const [u, v, inward] of [
-        [x, y, -1],
-        [x + w, y, -1],
-        [x, y + h, 1],
-        [x + w, y + h, 1],
-      ] as const) {
-        const corner = at
-          .clone()
-          .addScaledVector(right, (u - 0.5) * face.size[0])
-          .addScaledVector(up, (0.5 - v) * face.size[1]);
-        const tip = corner.clone().addScaledVector(up, inward * cap);
-        expected = Math.min(expected, css(corner).distanceTo(css(tip)));
+    // Turned two ways: the second leans the face's top and its left away, so its top-left corner is the farthest.
+    for (const turn of [
+      { x: -10, y: 55, z: 4 },
+      { x: -25, y: -60, z: 0 },
+    ]) {
+      const model = multiply(multiply(translation([-1.2, 1.1, -1.7]), rotation(turn)), scaling(1.5));
+      // The same measure, by three.js: from each region's corners, a cap-high segment into the region along its up.
+      const m = new Matrix4().fromArray([...model]);
+      const css = (p: Vector3): Vector3 => {
+        const n = p.clone().applyMatrix4(m).project(three);
+        return new Vector3(((n.x + 1) / 2) * stage.w, ((1 - n.y) / 2) * stage.h, 0);
+      };
+      let expected = Infinity;
+      for (const { rect, cap } of regions) {
+        const [x, y, w, h] = rect;
+        for (const [u, v, inward] of [
+          [x, y, -1],
+          [x + w, y, -1],
+          [x, y + h, 1],
+          [x + w, y + h, 1],
+        ] as const) {
+          const corner = at
+            .clone()
+            .addScaledVector(right, (u - 0.5) * face.size[0])
+            .addScaledVector(up, (0.5 - v) * face.size[1]);
+          const tip = corner.clone().addScaledVector(up, inward * cap);
+          expected = Math.min(expected, css(corner).distanceTo(css(tip)));
+        }
       }
+      expect(smallestCapPx(model, face, regions, camera, stage), JSON.stringify(turn)).toBeCloseTo(expected, 9);
     }
-    expect(smallestCapPx(model, face, regions, camera, stage)).toBeCloseTo(expected, 9);
   });
 
   it("grows with the piece's stylized scale, which scales its faces, and is none without a region", () => {
