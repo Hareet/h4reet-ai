@@ -462,6 +462,20 @@ describe("single-file.ts (§7.1)", () => {
     } as unknown as Rolldown.OutputBundle;
     expect(() => generate(singleFile(PAGE), styles)).toThrow(/stylesheet/);
   });
+
+  it("refuses any other file the build wrote, naming it: the copy would ask for it by URL, which its policy refuses", () => {
+    // The review's phone-4: only the room's own files beside the bundle, room-manifest.json and a/'s, are dropped.
+    for (const name of ["decoder-0123abcd.wasm", "assets/worker-0123abcd.js", "fonts/patrick-hand.woff2", "a.json"]) {
+      const bundle = {
+        "lookdev.js": chunk("lookdev.js", "a()"),
+        "lookdev.css": asset("lookdev.css", "a{}"),
+        "room-manifest.json": asset("room-manifest.json", "{}"),
+        [name]: asset(name, new Uint8Array(3)),
+      } as unknown as Rolldown.OutputBundle;
+      expect(() => generate(singleFile(PAGE), bundle), name).toThrow(/single-file/);
+      expect(() => generate(singleFile(PAGE), bundle), name).toThrow(name);
+    }
+  });
 });
 
 // --------------------------------------------------------------------------------------------------------------------
