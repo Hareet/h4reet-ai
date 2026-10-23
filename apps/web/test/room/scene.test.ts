@@ -1076,6 +1076,22 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
     expect(s.events).toHaveLength(2);
   });
 
+  it("takes ADR 0010's floor from the room, which read it behind the choice, asking the device nothing itself", async () => {
+    const above = staged({ floor: true });
+    await vi.waitFor(() => expect(above.fetched).toHaveLength(2));
+    expect(above.probes()).toBe(0);
+    above.stage.dispose();
+    // Below it every model is skipped and nothing fetched, whatever the device would answer during the hand-off.
+    const below = staged({ floor: false });
+    await vi.waitFor(() => expect(below.events).toHaveLength(2));
+    expect(below.probes()).toBe(0);
+    expect(below.fetched).toEqual([]);
+    expect(byAsset(below.events)).toEqual(
+      SET.map((asset) => ({ asset, outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "full" })),
+    );
+    below.stage.dispose();
+  });
+
   it("fetches nothing when disposed before its loader's chunk arrives", async () => {
     const s = staged();
     s.mode = "2d";

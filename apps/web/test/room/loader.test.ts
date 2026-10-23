@@ -950,6 +950,24 @@ describe("the room's wiring (T134)", () => {
     expect(options.mode?.()).toBe("reduced");
   });
 
+  it("reads ADR 0010's floor with spec 002's WebGL 2 check, behind the choice, and hands it to the 3D stage", async () => {
+    for (const [maxTextureSize, floor] of [
+      [4096, true],
+      [2048, false],
+    ] as const) {
+      const v = start({ webgl: true, maxTextureSize });
+      await enter(v);
+      expect(v.room.visit.mode).toBe("3d");
+      expect(v.scene.created[0]?.floor, `${maxTextureSize}`).toBe(floor);
+    }
+    // A context that won't give its texture size still draws the room in 3D, as spec 002's check has it: below the
+    // floor.
+    const v = start({ webgl: true });
+    await enter(v);
+    expect(v.room.visit.mode).toBe("3d");
+    expect(v.scene.created[0]?.floor).toBe(false);
+  });
+
   it("keeps the stage's asset events in page memory while live.asset_events is off: no request, no beacon", async () => {
     const v = start({ webgl: true });
     await enter(v);

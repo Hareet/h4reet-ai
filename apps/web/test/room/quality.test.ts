@@ -331,10 +331,10 @@ describe("the capability floor for studio models (spec 004, R-28)", () => {
   const MAX_TEXTURE_SIZE = 0x0d33;
 
   /**
-   * A jsdom window whose canvases give a WebGL 2 context reporting `maxTextureSize`, give none, or throw when asked,
-   * recording each call.
+   * A jsdom window whose canvases give a WebGL 2 context reporting `maxTextureSize`, or throwing when it's read
+   * ("unreadable"), give none, or throw when asked, recording each call.
    */
-  function windowWith(maxTextureSize: number | null | "throws"): { win: Window; calls: string[] } {
+  function windowWith(maxTextureSize: number | null | "throws" | "unreadable"): { win: Window; calls: string[] } {
     const win = new JSDOM("<p>").window;
     const calls: string[] = [];
     win.HTMLCanvasElement.prototype.getContext = ((kind: string, attributes: unknown) => {
@@ -345,6 +345,7 @@ describe("the capability floor for studio models (spec 004, R-28)", () => {
         MAX_TEXTURE_SIZE,
         getParameter: (name: number) => {
           calls.push(`getParameter ${name}`);
+          if (maxTextureSize === "unreadable") throw new Error("lost");
           return name === MAX_TEXTURE_SIZE ? maxTextureSize : null;
         },
         getExtension: (name: string) => {
@@ -372,6 +373,16 @@ describe("the capability floor for studio models (spec 004, R-28)", () => {
   it("reads no WebGL 2 where there is none, or where asking throws", () => {
     expect(capability(windowWith(null).win)).toEqual({ webgl2: false, maxTextureSize: 0, deviceMemory: null });
     expect(capability(windowWith("throws").win)).toEqual({ webgl2: false, maxTextureSize: 0, deviceMemory: null });
+  });
+
+  it("keeps spec 002's WebGL 2 verdict where the context won't give its texture size: 0, below the floor", () => {
+    // The room reads its WebGL 2 check through capability() (R-28 step 1), so the size failing never sends it to 2D.
+    const { win, calls } = windowWith("unreadable");
+    const read = capability(win);
+    expect(read).toEqual({ webgl2: true, maxTextureSize: 0, deviceMemory: null });
+    expect(read.webgl2).toBe(hasWebGL2(win.document));
+    expect(meetsModelFloor(read)).toBe(false);
+    expect(calls.slice(-2)).toEqual(["getExtension WEBGL_lose_context", "loseContext"]);
   });
 
   it("is ADR 0010's floor: WebGL 2, at least 4 GB where the browser reports it, and 4096-pixel textures", () => {
