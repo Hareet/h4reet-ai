@@ -238,8 +238,14 @@ function references(ctx: Context): void {
         ri4(ctx.path("glows", k, "tone"), "no glow tone of that name in the scene's look", c.file);
     });
   }
-  if (!colour(look.value.outlines.color))
-    ri4("outlines.color", "neither #rrggbb nor a colour of the look's palette", look.file);
+}
+
+/** RI4, each look's ink: every look in looks/, the scene's or not, names its outlines' colour in its own palette or as
+ *  #rrggbb, since the lookdev page shows every look to compare them (contracts/lookdev.md). */
+function inks(ctx: Context): void {
+  for (const { file, value } of ctx.room.looks)
+    if (!HEX.test(value.outlines.color) && !has(value.palette, value.outlines.color))
+      ctx.report("RI4", file, "outlines.color", "neither #rrggbb nor a colour of the look's palette");
 }
 
 /** RI5: an ID of the four namespaces equal to a word of the closed vocabulary. */
@@ -397,6 +403,7 @@ export const ri: Family = (ctx) => {
   duplicates(ctx);
   retired(ctx);
   references(ctx);
+  inks(ctx);
   vocabulary(ctx);
   selectables(ctx);
   models(ctx);
