@@ -32,7 +32,14 @@ import { handoffDuration, runHandoff } from "./handoff";
 import type { Handoff } from "./handoff";
 import { renderRoom } from "./layout";
 import type { RoomLayout } from "./layout";
-import { SCENE_WAIT_MS, createQualityController, hasWebGL2, targetFps, watchContext } from "./quality";
+import {
+  SCENE_WAIT_MS,
+  capability,
+  createQualityController,
+  meetsModelFloor,
+  targetFps,
+  watchContext,
+} from "./quality";
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
 import type { SceneModule, Stage, Stage3D } from "./stage";
@@ -90,8 +97,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   app.replaceChildren(screen, announcer.element);
   screen.append(renderChoice(doc, { onEnter: enter, onPdf: pdfFollowed }));
 
-  // Behind the choice: the WebGL 2 check, and only then the 3D chunk (contracts/room-scene.md §4).
-  const webgl = hasWebGL2(doc);
+  // Behind the choice: the WebGL 2 check, and only then the 3D chunk (contracts/room-scene.md §4). The check also reads
+  // what ADR 0010's floor for studio models asks of the device (spec 004, R-28 step 1), once, here, so the 3D stage
+  // asks nothing during the hand-off.
+  const device = capability(win);
+  const webgl = device.webgl2;
   const loadScene = deps.loadScene ?? ((): Promise<SceneModule> => import("./scene"));
   const scene: Promise<SceneModule | null> = webgl ? loadScene().catch(() => null) : Promise.resolve(null);
 
@@ -194,6 +204,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         reducedMotion,
         select: selectObject,
         onFrame,
+        floor: meetsModelFloor(device),
         handoff: handoffDone,
         hold: holdQuality,
         level: () => controller?.quality ?? 0,

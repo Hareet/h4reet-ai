@@ -1,8 +1,9 @@
 // Loading pieces (spec 004; FR-055 to FR-057, FR-071; Amendments C9, C10, C11; research.md R-28, R-29, R-60;
 // data-model.md §11.4, §11.5; contracts/room-live-state-telemetry.md §3): the studio models a piece shows in place of
 // its stand-in, in R-28's six steps, for the room's 3D stage (scene.ts) and the lookdev page alike.
-// 1. The floor. Models load only above ADR 0010's floor (quality.ts's capability() and meetsModelFloor), read once,
-//    when the first model would load; below it every model is skipped, and the stand-ins stay.
+// 1. The floor. Models load only above ADR 0010's floor (quality.ts's capability() and meetsModelFloor), read once:
+//    the room reads it behind the choice with spec 002's WebGL 2 check and hands it to its 3D stage, the lookdev page
+//    from its own read; below it every model is skipped, and the stand-ins stay.
 // 2. The order. After the figures (a promise spec 003's avatar loader will resolve; today, at once), in the entries'
 //    order, which is the 3D part's load_order (compose/load-order.ts): a model several placements, or a switch's
 //    poses, share loads once.

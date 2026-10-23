@@ -37,6 +37,9 @@ export interface SceneOptions {
   onFrame(time: number): void;
   // What the room's loader takes from the room (spec 004, T134; R-28): absent, models load at once, unheld, at full
   // size, and their events go nowhere.
+  /** Whether studio models may load here: ADR 0010's floor, which the room reads once, behind the choice, with spec
+   *  002's WebGL 2 check (R-28 step 1). Absent, the stage reads it when its first model would load. */
+  floor?: boolean;
   /** Resolves once the hand-off has ended: models parse and swap only after it. */
   handoff?: Promise<void>;
   /** The quality controller's hold, for each model's parse and swap (FR-055). */

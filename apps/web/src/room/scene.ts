@@ -232,10 +232,12 @@ export function createScene(options: SceneOptions): Stage3D {
   const ink = createInk(renderer, part.look);
   ink.prepare(room.scene);
 
-  // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, read only when
-  // there is a model to load; after the hand-off; under the controller's holds; each outcome an asset event. The
-  // loader, with three's GLTFLoader, is a chunk of its own, imported only when the part sets a model, so the 3D chunk
-  // carries neither until the first studio piece; if that chunk can't load, the stand-ins stay.
+  // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, which the room
+  // read behind the choice (app.ts), so nothing here asks the device during the hand-off; after the hand-off; under the
+  // controller's holds; each outcome an asset event. The loader, with three's GLTFLoader, is a chunk of its own,
+  // imported only when the part sets a model, so the 3D chunk carries neither until the first studio piece; if that
+  // chunk can't load, the stand-ins stay.
+  const { floor } = options;
   let loader: Loader | null = null;
   let disposed = false;
   if (part.load_order.length > 0)
@@ -247,7 +249,7 @@ export function createScene(options: SceneOptions): Stage3D {
           clock,
           fetch: (url, init) => win.fetch(url, init),
           decode: (source, o) => win.createImageBitmap(source, o),
-          floor: () => meetsModelFloor(capability(win)),
+          floor: floor === undefined ? () => meetsModelFloor(capability(win)) : () => floor,
           figures: Promise.resolve(),
           handoff: options.handoff ?? Promise.resolve(),
           hold: options.hold ?? (() => () => undefined),

@@ -170,9 +170,19 @@ export interface Capability {
 /** ADR 0010's proposed capability floor for studio models (R-28). */
 export const MODEL_FLOOR = { deviceMemory: 4, maxTextureSize: 4096 } as const;
 
-/** Spec 002's WebGL 2 check, reading the largest texture side before it releases its context, and the device memory. */
+/**
+ * Spec 002's WebGL 2 check, reading the largest texture side before it releases its context, and the device memory.
+ * The room's check is this one, behind the choice (app.ts), so its verdict is hasWebGL2's: a side it can't read is 0,
+ * below the floor, and never takes WebGL 2 away.
+ */
 export function capability(win: Window): Capability {
-  const probe = probeWebGL2(win.document, (gl) => ({ max: gl.getParameter(gl.MAX_TEXTURE_SIZE) as unknown }));
+  const probe = probeWebGL2(win.document, (gl) => {
+    try {
+      return { max: gl.getParameter(gl.MAX_TEXTURE_SIZE) as unknown };
+    } catch {
+      return { max: 0 };
+    }
+  });
   const memory = (win.navigator as Navigator & { deviceMemory?: unknown }).deviceMemory;
   return {
     webgl2: probe !== null,
