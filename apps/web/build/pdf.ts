@@ -88,37 +88,50 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const keysAre = (v: Record<string, unknown>, keys: readonly string[]): boolean =>
   Object.keys(v).length === keys.length && keys.every((k) => k in v);
 
-/** fonts.lock, refused unless it is schema 2's shape: every family's fields, its uses among FONT_USES with none
- * twice, its source, and each file a plain name with a SHA-256, the same in every family that names it. */
+function refuseLock(why: string): never {
+  throw new Error(`fonts.lock isn't schema 2's shape (spec 004's data-model.md §7.2): ${why}`);
+}
+
+/** fonts.lock, refused unless it is schema 2's shape (parseFontsLock). */
 export function readFontsLock(dir: string = FONTS_DIR): FontsLock {
-  const refuse = (why: string): never => {
-    throw new Error(`fonts.lock isn't schema 2's shape (spec 004's data-model.md §7.2): ${why}`);
-  };
+  let text: string;
+  try {
+    text = readFileSync(join(dir, "fonts.lock"), "utf8");
+  } catch {
+    return refuseLock("it isn't there, or isn't JSON");
+  }
+  return parseFontsLock(text);
+}
+
+/** fonts.lock's text, refused unless it is schema 2's shape: every family's fields, its uses among FONT_USES with none
+ * twice, its source, and each file a plain name with a SHA-256, the same in every family that names it. Spec 004's
+ * compositor reads the text through its tree (build/room/typefaces.ts). */
+export function parseFontsLock(text: string): FontsLock {
   let doc: unknown;
   try {
-    doc = JSON.parse(readFileSync(join(dir, "fonts.lock"), "utf8")) as unknown;
+    doc = JSON.parse(text) as unknown;
   } catch {
-    return refuse("it isn't there, or isn't JSON");
+    return refuseLock("it isn't there, or isn't JSON");
   }
-  if (!isRecord(doc) || !keysAre(doc, ["schema", "families"])) return refuse("its keys aren't schema and families");
-  if (doc.schema !== 2) refuse("schema isn't 2");
-  if (!Array.isArray(doc.families) || doc.families.length === 0) refuse("families isn't a list of at least one");
+  if (!isRecord(doc) || !keysAre(doc, ["schema", "families"])) return refuseLock("its keys aren't schema and families");
+  if (doc.schema !== 2) refuseLock("schema isn't 2");
+  if (!Array.isArray(doc.families) || doc.families.length === 0) refuseLock("families isn't a list of at least one");
   const families = doc.families as unknown[];
   const names = new Set<string>();
   const digests = new Map<string, string>();
   families.forEach((family, i) => {
     const at = `families[${i}]`;
-    if (!isRecord(family)) return refuse(`${at} isn't an object`);
+    if (!isRecord(family)) return refuseLock(`${at} isn't an object`);
     if (!keysAre(family, ["family", "license", "reserved_font_name", "uses", "source", "files"])) {
-      refuse(`${at}'s keys aren't family, license, reserved_font_name, uses, source, and files`);
+      refuseLock(`${at}'s keys aren't family, license, reserved_font_name, uses, source, and files`);
     }
     if (typeof family.family !== "string" || family.family === "" || names.has(family.family)) {
-      refuse(`${at}.family is missing, or names a family twice`);
+      refuseLock(`${at}.family is missing, or names a family twice`);
     }
     names.add(family.family as string);
-    if (typeof family.license !== "string" || family.license === "") refuse(`${at}.license is missing`);
+    if (typeof family.license !== "string" || family.license === "") refuseLock(`${at}.license is missing`);
     if (family.reserved_font_name !== null && typeof family.reserved_font_name !== "string") {
-      refuse(`${at}.reserved_font_name isn't a name or null`);
+      refuseLock(`${at}.reserved_font_name isn't a name or null`);
     }
     const uses = family.uses;
     if (
@@ -127,7 +140,7 @@ export function readFontsLock(dir: string = FONTS_DIR): FontsLock {
       new Set(uses).size !== uses.length ||
       !uses.every((use) => (FONT_USES as readonly unknown[]).includes(use))
     ) {
-      refuse(`${at}.uses isn't one or more of site, pdf, and room, each once`);
+      refuseLock(`${at}.uses isn't one or more of site, pdf, and room, each once`);
     }
     const source = family.source;
     if (
@@ -137,13 +150,13 @@ export function readFontsLock(dir: string = FONTS_DIR): FontsLock {
       !SHA256_HEX.test(source.sha256 as string) ||
       !(source.integrity as string).startsWith("sha512-")
     ) {
-      refuse(`${at}.source isn't its package, version, url, sha256, integrity, and published date`);
+      refuseLock(`${at}.source isn't its package, version, url, sha256, integrity, and published date`);
     }
     const files = family.files;
-    if (!isRecord(files) || Object.keys(files).length === 0) return refuse(`${at}.files is empty`);
+    if (!isRecord(files) || Object.keys(files).length === 0) return refuseLock(`${at}.files is empty`);
     for (const [name, entry] of Object.entries(files)) {
       if (name === "" || name.includes("/") || name.includes("\\") || name.startsWith(".")) {
-        refuse(`${at}.files names ${JSON.stringify(name)}, which isn't a file name in apps/web/fonts/`);
+        refuseLock(`${at}.files names ${JSON.stringify(name)}, which isn't a file name in apps/web/fonts/`);
       }
       if (
         !isRecord(entry) ||
@@ -153,10 +166,10 @@ export function readFontsLock(dir: string = FONTS_DIR): FontsLock {
         typeof entry.from !== "string" ||
         (entry.note !== undefined && typeof entry.note !== "string")
       ) {
-        refuse(`${at}.files.${name} isn't its sha256, from, and an optional note`);
+        refuseLock(`${at}.files.${name} isn't its sha256, from, and an optional note`);
       }
       const digest = (entry as { sha256: string }).sha256;
-      if ((digests.get(name) ?? digest) !== digest) refuse(`${name} has two SHA-256s in two families`);
+      if ((digests.get(name) ?? digest) !== digest) refuseLock(`${name} has two SHA-256s in two families`);
       digests.set(name, digest);
     }
     return undefined;

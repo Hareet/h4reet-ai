@@ -161,6 +161,21 @@ describe("RT10", () => {
     ]);
   });
 
+  it("refuses a font swapped for another that fontkit would measure, since the digest is checked first", () => {
+    const root = fontsCopy();
+    cpSync(join(root, FONTS, "IBMPlexSans-Regular.woff"), join(root, FONTS, "IBMPlexMono-Regular.woff"));
+    const { looks, findings } = readTypefaces(folderTree(root), [look()]);
+    expect(findings).toEqual([
+      {
+        rule: "RT10",
+        file: `${FONTS}/IBMPlexMono-Regular.woff`,
+        path: "-",
+        reason: "its SHA-256 differs from fonts.lock's",
+      },
+    ]);
+    expect(looks).toEqual([{ file: LOOK, typefaces: null }]);
+  });
+
   it("refuses a tampered license, a vendored file like the fonts", () => {
     const root = fontsCopy();
     tamper(root, "LICENSE-PatrickHand.txt");
