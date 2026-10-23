@@ -3,9 +3,10 @@
 // passing what it doesn't. RT2 is spec 002's C9 over every string, IDs and names included, its reason ending
 // `(from <source>)` and never printing the phrase; RT3 is C6; RT4 and RT5 are C1 to C5 and C8 on claims; RT6 holds the
 // monitor's scripts; RT7 the chalkboard's excludes; RT8 words to their grid; RT9 the Author's words, verbatim; RT10 the
-// typefaces; RT11 the tier's sentences; RT12 the closed list's keys; RT13 the outlines. Spec 002's line check, read
-// through a tree as the compositor reads the corpus, agrees with checkSource on spec 002's fixtures (T074; R-15). The
-// private denylist is a file in an in-memory tree here, so no "private" fixture is ever committed.
+// typefaces; RT11 the tier's sentences; RT12 the closed list's keys; RT13 the outlines. Each committed chalk block
+// excludes "Seva" (§7). Spec 002's line check, read through a tree as the compositor reads the corpus, agrees with
+// checkSource on spec 002's fixtures (T074; R-15). The private denylist is a file in an in-memory tree here, so no
+// "private" fixture is ever committed.
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
