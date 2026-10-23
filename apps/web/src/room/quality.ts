@@ -62,7 +62,8 @@ export interface QualityController {
   readonly mode: Mode;
 }
 
-function median(values: readonly number[]): number {
+/** The middle value, or the mean of the middle two: what the controller steps on, and lookdev's median frame rate. */
+export function median(values: readonly number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = sorted.length >> 1;
   return sorted.length % 2 ? (sorted[mid] ?? 0) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;

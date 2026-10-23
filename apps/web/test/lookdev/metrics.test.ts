@@ -142,8 +142,9 @@ describe("a run on the room's clock", () => {
     until(clock, 0, 120_000);
     expect(ended[0]?.readouts).toMatchObject({ settled: 3, stepDowns: 3, stepDownsWhileLoading: 1 });
     // After its end, a level the page reports changes nothing.
+    handle.quality(2);
     handle.quality(3);
-    expect(handle.readouts()).toMatchObject({ settled: 3, stepDowns: 3 });
+    expect(handle.readouts()).toMatchObject({ settled: 3, stepDowns: 3, stepDownsWhileLoading: 1 });
   });
 
   it("starts at the level it is given, as a pinned run holds it, with no step-down", () => {

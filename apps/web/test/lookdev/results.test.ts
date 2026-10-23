@@ -186,6 +186,12 @@ describe("the results block (contracts/lookdev.md §6)", () => {
     });
     expect(exact.frames).toEqual({ count: 3, p50_ms: 16.7, p95_ms: 33.3, median_fps: 60, over_33ms_share: 0.05 });
     expect(exact.smallest_cap_css?.px).toBe(9);
+    // A figure on a step, give or take floating point's last bit, stays on it: 0.1 + 0.2 and 0.3 − 0.1.
+    const noisy = results(await setup(), {
+      ...READOUTS,
+      frames: { count: 3, p50Ms: 0.1 + 0.2, p95Ms: 33.3, medianFps: 0.3 - 0.1, over33Share: 0.05 },
+    });
+    expect([noisy.frames.p50_ms, noisy.frames.median_fps]).toEqual([0.3, 0.2]);
     expect(results(await setup({ stage: [686.44, 640] }), READOUTS).stage_css).toEqual([686.4, 640]);
   });
 
