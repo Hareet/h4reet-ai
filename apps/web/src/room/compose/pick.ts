@@ -39,8 +39,9 @@ export const CORE_PX = 44;
 /** A problem the spacing check (RG6) refuses at a stage. */
 export interface PickProblem {
   readonly selectable: string;
-  /** The core leaves the stage, so less than 44 × 44 of it shows; or it overlaps another's core, or another's member. */
-  readonly problem: "outside" | "core" | "member";
+  /** The core leaves the stage, so less than 44 × 44 of it shows; or it overlaps another's core, or another's member;
+   *  or, meeting none of its members, another's union, where `pick` sends a point that misses every member. */
+  readonly problem: "outside" | "core" | "member" | "union";
   readonly other: string | null;
 }
 
@@ -131,7 +132,10 @@ export function flatCore(stage: Stage): number {
 
 /**
  * What the spacing check (RG6) refuses, selectable by selectable in scene order: a core that leaves the view (the
- * stage, or the drawing's view box); a core over another selectable's core; a core over another's member rectangle.
+ * stage, or the drawing's view box); a core over another selectable's core; a core over another's member rectangle;
+ * and a core over another's union that meets none of its members, since `pick` sends a point that misses every member
+ * to the nearest union holding it, so the gap between another's members is that other's to pick. So each core is
+ * exclusive: no point of it picks another selectable.
  */
 export function pickProblems(areas: readonly PickArea[], view: Rect): PickProblem[] {
   const out: PickProblem[] = [];
@@ -146,6 +150,11 @@ export function pickProblems(areas: readonly PickArea[], view: Rect): PickProble
     for (const other of areas) {
       if (other !== area && other.members.some((m) => overlaps(core, m.rect)))
         out.push({ selectable: area.id, problem: "member", other: other.id });
+    }
+    for (const other of areas) {
+      if (other === area || !other.union || !overlaps(core, other.union)) continue;
+      if (!other.members.some((m) => overlaps(core, m.rect)))
+        out.push({ selectable: area.id, problem: "union", other: other.id });
     }
   }
   return out;

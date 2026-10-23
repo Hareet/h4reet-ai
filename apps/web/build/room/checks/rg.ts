@@ -7,9 +7,10 @@
 // or stand-in shape outside them, an up not square to its facing (+Y where it's absent), and a canvas off its face's
 // aspect by more than a pixel; RG4 the twin or a selectable's member not framed; RG5 a framed box's corner behind the
 // camera or outside the view at one of the six aspects; RG6 a selectable's exclusive core leaving the view, or over
-// another's core or member, at a supported stage, in 3D or 2D; RG7 a bound face under the legibility floor that isn't
-// atmosphere, atmosphere on a readable face, and an atmosphere face over its max_chars; RG9 a region outside its face,
-// or over another. RG8 is never a finding: `poseSeparations` gives the report its measures, as `faceCaps` gives RG7's.
+// another's core, member, or union, at a supported stage, in 3D or 2D; RG7 a bound face under the legibility floor
+// that isn't atmosphere, atmosphere on a readable face, and an atmosphere face over its max_chars; RG9 a region outside
+// its face, or over another. RG8 is never a finding: `poseSeparations` gives the report its measures, as `faceCaps`
+// gives RG7's.
 //
 // One production framing: `geometry` resolves the scene and frames it, once a compose (`geometryOf`), and RK3 (rk.ts)
 // and the bundle (emit.ts) take their numbers from it, so a check and the bundle can't measure two framings: the 3D
@@ -439,9 +440,10 @@ const allStages = (): readonly Stage[] => (stages ??= supportedStages());
 /** A stage's size, as a reason prints it. */
 const size = (s: Stage): string => `${Number(s.w.toFixed(1))} × ${Number(s.h.toFixed(1))}`;
 
-/** RG6: a selectable's exclusive 44 × 44 core that leaves the view, or lies over another selectable's core or member:
- *  in 3D at every supported stage, at its production framing; in 2D in the drawing's view box, at its smallest scale.
- *  Each problem is reported once, with the first stage it comes at and how many more. */
+/** RG6: a selectable's exclusive 44 × 44 core that leaves the view, or lies over another selectable's core, a member,
+ *  or its union, where a pick that misses every member goes: in 3D at every supported stage, at its production
+ *  framing; in 2D in the drawing's view box, at its smallest scale. Each problem is reported once, with the first stage
+ *  it comes at and how many more. */
 function spacing(ctx: Context, g: Geometry): void {
   const s = g.scene.value;
   // Each selectable with a member that resolves, by its index, which is its pick area's ID.
@@ -483,11 +485,12 @@ function spacing(ctx: Context, g: Geometry): void {
     flatCore(smallest),
   );
   note("2D", pickProblems(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h]), FLAT_VIEW);
+  const meets = { core: "the core of", member: "a member of", union: "the union of the members of" } as const;
   for (const { problem, mode, first, more } of found.values()) {
     const what =
       problem.problem === "outside"
         ? "its 44 × 44 core leaves the view"
-        : `its exclusive core overlaps ${problem.problem === "core" ? "the core" : "a member"} of selectables[${problem.other ?? ""}]`;
+        : `its exclusive core overlaps ${meets[problem.problem]} selectables[${problem.other ?? ""}]`;
     const where =
       mode === "2D"
         ? "in 2D, at the drawing's smallest scale"
