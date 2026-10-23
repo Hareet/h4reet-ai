@@ -591,41 +591,62 @@ describe("the JSON, read strictly", () => {
   const model = desk();
   const text = JSON.stringify(model.gltf);
   const read = (t: string | Uint8Array): FitResult => check(packText(t, model.bin));
+  /** The one finding the JSON stage gives a file it refuses, RX2 on the whole file: its reason. */
+  const refusal = (t: string | Uint8Array): string => {
+    const result = read(t);
+    expect(paths(result)).toEqual(["RX2 -"]);
+    return result.findings[0]?.reason ?? "";
+  };
   const backslash = "\\";
+  const DUPLICATE = /^its JSON holds a duplicate key, at character [\d,]+$/;
+  const NON_FINITE = /^its JSON holds NaN, Infinity, or a number past a double's range, at character [\d,]+$/;
+  const SYNTAX = /^its JSON doesn't parse, at character [\d,]+$/;
 
   it.each([
-    ["a duplicate key", text.replace('"scene":0', '"scene":0,"scene":0')],
-    ["a duplicate key behind an escape", text.replace('"scene":0', `"scene":0,"scen${backslash}u0065":0`)],
-    ["NaN", text.replace('"scene":0', '"scene":NaN')],
-    ["Infinity", text.replace('"scene":0', '"scene":Infinity')],
-    ["-Infinity", text.replace('"scene":0', '"scene":-Infinity')],
-    ["a number past a double's range", text.replace('"scene":0', '"scene":1e400')],
-    ["text after the object", `${text}x`],
-    ["a trailing comma", text.replace(/}$/, ",}")],
-    ["a control character in a string", text.replace('"fx-top"', '"fx-\ttop"')],
-    ["a key without quotes", text.replace('"scene":0', "scene:0")],
-    ["a leading zero", text.replace('"scene":0', '"scene":00')],
-    ["an array where the root object goes", "[]"],
-  ])("refuses %s as RX2", (_, t) => {
-    expect(paths(read(t))).toEqual(["RX2 -"]);
+    ["a duplicate key", text.replace('"scene":0', '"scene":0,"scene":0'), DUPLICATE],
+    ["a duplicate key behind an escape", text.replace('"scene":0', `"scene":0,"scen${backslash}u0065":0`), DUPLICATE],
+    ["NaN", text.replace('"scene":0', '"scene":NaN'), NON_FINITE],
+    ["Infinity", text.replace('"scene":0', '"scene":Infinity'), NON_FINITE],
+    ["-Infinity", text.replace('"scene":0', '"scene":-Infinity'), NON_FINITE],
+    ["a number past a double's range", text.replace('"scene":0', '"scene":1e400'), NON_FINITE],
+    ["text after the object", `${text}x`, SYNTAX],
+    ["a trailing comma", text.replace(/}$/, ",}"), SYNTAX],
+    ["a control character in a string", text.replace('"fx-top"', '"fx-\ttop"'), SYNTAX],
+    ["an escape JSON doesn't have", text.replace('"fx-top"', `"fx-${backslash}xtop"`), SYNTAX],
+    ["a key without quotes", text.replace('"scene":0', "scene:0"), SYNTAX],
+    ["a leading zero", text.replace('"scene":0', '"scene":00'), SYNTAX],
+    ["an array where the root object goes", "[]", /^its JSON isn't an object$/],
+  ] as const)("refuses %s as RX2", (_, t, reason) => {
+    expect(refusal(t)).toMatch(reason);
   });
 
-  it("refuses a byte-order mark, and bytes that aren't UTF-8, and takes UTF-8 that is", () => {
-    const [head, tail] = text.split('"fx-top"', 2) as [string, string];
+  it("refuses a byte-order mark and bytes that aren't UTF-8, and takes UTF-8 and escapes that are sound", () => {
+    // the desk top's node name, the first "fx-top", replaced by the bytes under test
+    const at = text.indexOf('"fx-top"');
+    const [head, tail] = [text.slice(0, at), text.slice(at + '"fx-top"'.length)];
     const withName = (name: Uint8Array): Uint8Array => concat(ascii(head), ascii('"'), name, ascii('"'), ascii(tail));
-    expect(paths(read(concat(bytes(0xef, 0xbb, 0xbf), ascii(text))))).toEqual(["RX2 -"]);
-    expect(paths(read(withName(concat(ascii("fx-"), bytes(0xff)))))).toEqual(["RX2 -"]);
-    expect(paths(read(withName(concat(ascii("fx-"), bytes(0xc0, 0xaf)))))).toEqual(["RX2 -"]); // an overlong "/"
-    expect(paths(read(withName(concat(ascii("fx-"), bytes(0xed, 0xa0, 0x80)))))).toEqual(["RX2 -"]); // a surrogate
-    expect(paths(read(withName(concat(ascii("fx-"), bytes(0xe2, 0x82)))))).toEqual(["RX2 -"]); // cut short
+    expect(refusal(concat(bytes(0xef, 0xbb, 0xbf), ascii(text)))).toBe("its JSON chunk starts with a byte-order mark");
+    for (const unsound of [
+      bytes(0xff), // never UTF-8
+      bytes(0xc0, 0xaf), // an overlong "/"
+      bytes(0xed, 0xa0, 0x80), // a surrogate
+      bytes(0xf4, 0x90, 0x80, 0x80), // past U+10FFFF
+      bytes(0xe2, 0x82), // cut short
+    ]) {
+      expect(refusal(withName(concat(ascii("fx-"), unsound)))).toBe("its JSON chunk isn't UTF-8");
+    }
+    // sound UTF-8, two and four bytes long, and a lone surrogate's escape, which Python's json takes too: the names
+    // are then RX6's
     const accented = `fx-caf${String.fromCodePoint(0xe9)}-${String.fromCodePoint(0x1f600)}`;
     expect(paths(read(withName(ascii(accented))))).toEqual(["RX6 nodes[1].name"]);
+    expect(paths(read(withName(ascii(`fx-${backslash}ud800`))))).toEqual(["RX6 nodes[1].name"]);
   });
 
   it("refuses a number written with a fraction or an exponent where the schema wants an integer", () => {
     expect(paths(read(text.replace(/"count":(\d+)/, '"count":$1.0')))).toEqual(["RX2 accessors[0].count"]);
     expect(paths(read(text.replace(/"count":(\d+)/, '"count":$1e0')))).toEqual(["RX2 accessors[0].count"]);
     expect(paths(read(text.replace('"scene":0', '"scene":0.0')))).toEqual(["RX2 scene"]);
+    expect(read(text.replace(/"count":(\d+)/, '"count":$1.0')).findings[0]?.reason).toBe("not an integer");
   });
 
   it("takes __proto__ and constructor as plain keys, outside the schema, and changes no prototype", () => {
@@ -639,7 +660,7 @@ describe("the JSON, read strictly", () => {
   it("refuses JSON nested past its depth limit, and reads the nesting a model has", () => {
     const deep = (n: number): string =>
       text.replace('"name":"fx-desk"', `"name":"fx-desk","extras":${"[".repeat(n)}${"]".repeat(n)}`);
-    expect(paths(read(deep(1000)))).toEqual(["RX2 -"]);
+    expect(refusal(deep(1000))).toMatch(/^its JSON nests deeper than 512, at character [\d,]+$/);
     expect(paths(read(deep(100)))).toEqual(["RX3 nodes[0].extras"]);
   });
 });
