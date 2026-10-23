@@ -680,6 +680,7 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "figures",
       "handoff",
       "load_order",
+      "scene_texture_bytes",
     ]);
     expect(Object.keys(scene.placements[0] ?? {})).toEqual([
       "id",
@@ -820,6 +821,19 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       to: { placement: "fx-visitor", anchor: "hand" },
     });
     expect(scene.load_order).toEqual([]);
+  });
+});
+
+describe("the 3D part's texture limit (FR-053; plain-model-fit.md §8.2; plan.md §10)", () => {
+  it("carries the caps' scene_texture_bytes the compose used, which the room's texture ledger holds the scene to", () => {
+    // FR-053's starting figure while main has no room block; the Author's own once it has.
+    expect(good().scene.scene_texture_bytes).toBe(CAPS_DEFAULTS.scene_texture_bytes);
+    const raised = compose(goodTree(), capsPolicy({ scene_texture_bytes: 128_000_000 }), {
+      mode: "strict",
+      drafts: true,
+    });
+    expect(raised.findings).toEqual([]);
+    expect(raised.scene.scene_texture_bytes).toBe(128_000_000);
   });
 });
 

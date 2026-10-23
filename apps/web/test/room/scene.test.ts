@@ -59,12 +59,14 @@ import {
 } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { VISITOR_TURN, visitorTurnShare } from "../../src/room/handoff";
+import { readImage } from "../../src/room/glb/images";
 import { MODEL_NODE, integrity } from "../../src/room/scene/loader";
 import { shapeGeometry } from "../../src/room/scene/standins";
 import type { SceneOptions } from "../../src/room/stage";
 import { uiWord } from "../../src/room/ui-keys";
 import { FakeClock, enter, flush, repositoryBundle, start } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
+import { PNG_SIGNATURE, bytes, chunk, concat, desk } from "../helpers/glb";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
@@ -899,6 +901,15 @@ function staged(options: Partial<SceneOptions> = {}, part?: (own: RoomScene) => 
       getExtension: () => ({ loseContext: () => undefined }),
     };
   }) as unknown as HTMLCanvasElement["getContext"];
+  // createImageBitmap, which jsdom lacks: a bitmap of the image header's size, or the resize asked for.
+  Object.defineProperty(win, "createImageBitmap", {
+    configurable: true,
+    value: async (source: Blob, o: ImageBitmapOptions = {}) => {
+      const size = readImage(new Uint8Array(await source.arrayBuffer())).header;
+      if (!size) throw new Error("undecodable");
+      return { width: o.resizeWidth ?? size.width, height: o.resizeHeight ?? size.height, close: () => undefined };
+    },
+  });
   const fetched: Fetched[] = [];
   Object.defineProperty(win, "fetch", {
     configurable: true,
@@ -1090,6 +1101,37 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
       SET.map((asset) => ({ asset, outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "full" })),
     );
     below.stage.dispose();
+  });
+
+  it("holds its texture ledger to the caps' scene_texture_bytes the compose used, raised or lowered", async () => {
+    // A PNG whose header alone says side × side, which the stand-in decoder sizes its bitmap from: no pixels to make.
+    const be = (n: number): Uint8Array => bytes((n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff);
+    const claimed = (side: number): Uint8Array =>
+      concat(
+        PNG_SIGNATURE,
+        chunk("IHDR", concat(be(side), be(side), bytes(8, 2, 0, 0, 0))),
+        chunk("IDAT", bytes(0)),
+        chunk("IEND", new Uint8Array()),
+      );
+    // Raised by the Author: a desk whose top alone is 8192 × 8192 pixels, 357,913,941 bytes, over FR-053's starting
+    // 96,000,000, loads.
+    const raised = staged({}, (own) => ({ ...own, scene_texture_bytes: 400_000_000 }));
+    await vi.waitFor(() => expect(raised.fetched).toHaveLength(2));
+    raised.fetched[0]?.answer(desk({ top: claimed(8192) }).bytes);
+    await vi.waitFor(() => expect(raised.events).toHaveLength(1));
+    expect(raised.events).toEqual([loadedEvent(raised, "fx-desk")]);
+    raised.stage.dispose();
+    // Lowered under the plain desk's three small images: it keeps its stand-in, skipped.
+    const lowered = staged({}, (own) => ({ ...own, scene_texture_bytes: 1000 }));
+    await vi.waitFor(() => expect(lowered.fetched).toHaveLength(2));
+    lowered.fetched[0]?.answer(desk().bytes);
+    await vi.waitFor(() => expect(lowered.events).toHaveLength(1));
+    expect(lowered.events).toEqual([
+      { asset: "fx-desk", outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "full" },
+    ]);
+    lowered.clock.advance(SETTLE_FRAMES * 16);
+    expect(showing(lowered.drawn().getObjectByName("fx-desk"))).toEqual({ model: false, standin: true });
+    lowered.stage.dispose();
   });
 
   it("fetches nothing when disposed before its loader's chunk arrives", async () => {
