@@ -291,7 +291,8 @@ function shows(node: Object3D): boolean {
 /** The name a picker would reveal, which must appear nowhere. */
 const PICKED_NAME = "PXL_20261023_fx-picked-name.glb";
 
-/** Picks a file for a piece: the input's files hold a file whose every property but arrayBuffer is recorded. */
+/** Picks a file for a piece: the input's files hold a file whose every property but arrayBuffer is recorded, and
+ *  each part of it read through slice, with its bounds. */
 function pick(root: HTMLElement, piece: string, data: Uint8Array): string[] {
   const input = root.querySelector<HTMLInputElement>(`input[type="file"][data-piece="${piece}"]`);
   if (!input) throw new Error(`no picker for ${piece}`);
@@ -302,6 +303,11 @@ function pick(root: HTMLElement, piece: string, data: Uint8Array): string[] {
       get(target, key) {
         if (key === "arrayBuffer") return () => Promise.resolve(data.slice().buffer);
         if (key === "then") return undefined;
+        if (key === "slice")
+          return (start?: number, end?: number) => {
+            touched.push(`slice(${start}, ${end})`);
+            return { arrayBuffer: () => Promise.resolve(data.slice(start, end).buffer) };
+          };
         touched.push(String(key));
         return (target as Record<string | symbol, unknown>)[key];
       },
@@ -639,13 +645,14 @@ describe("the scene, the look, the sample state, quality, and pause (contracts/l
 });
 
 describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
-  it("reads a picked file with arrayBuffer() alone, shows its hash, sizes, mark, and findings, and swaps it in", async () => {
+  it("reads a picked file's first 4 bytes, then the whole, alone, shows its hash, sizes, mark, and findings, and swaps it in", async () => {
     const { page, root, clock, spies, inputs: given } = open();
     const { piece, placement, entry } = vignettePiece(given);
     const data = cleanModel(entry as Parameters<typeof cleanModel>[0]);
     const touched = pick(root, piece, data);
     await settle(clock);
-    expect(touched).toEqual([]);
+    // GLB's magic, through slice(0, 4), then arrayBuffer(): nothing else about the file (the review's page-10).
+    expect(touched).toEqual(["slice(0, 4)"]);
     const row = root.querySelector(`[data-candidate="${piece}"]`);
     const text = collapse(row?.textContent);
     expect(text).toContain(nodeSha256(data));
@@ -779,7 +786,8 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
   it("swaps in no file RX1 refuses, and says why", async () => {
     const { page, root, clock, inputs: given } = open();
     const { piece } = vignettePiece(given);
-    pick(root, piece, new TextEncoder().encode("not a glTF file at all"));
+    // GLB's magic, so the file reaches RX1, which refuses the rest of its header.
+    pick(root, piece, new TextEncoder().encode("glTF, but not a glTF file at all"));
     await settle(clock);
     expect(page.stage.loaded.has(piece)).toBe(false);
     const text = collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent);

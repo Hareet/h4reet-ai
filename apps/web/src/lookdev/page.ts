@@ -27,7 +27,7 @@ import { count } from "../room/glb/rules";
 import { MODEL_FLOOR } from "../room/quality";
 import type { Capability } from "../room/quality";
 import { SCENE_TEXTURE_BYTES } from "../room/scene/ledger";
-import { candidatePieces, loadable, markReadout, readCandidate } from "./candidate";
+import { NOT_GLB, candidatePieces, loadable, markReadout, readCandidate, startsAsGlb } from "./candidate";
 import type { Candidate } from "./candidate";
 import { actionButton, filePicker, radioGroup, selectControl, toggleButton } from "./controls";
 import type { Control } from "./controls";
@@ -430,9 +430,17 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
         if (!inputsOf) return;
         const pick = nextPick(piece);
         const latest = (): boolean => picks.get(piece) === pick;
-        readCandidate(piece, file, inputsOf).then(
+        // Its first 4 bytes first: a file that isn't a GLB is read no further and kept nowhere (the review's page-10);
+        // nor is one a newer pick or Clear has made stale.
+        const read = async (): Promise<Candidate | null> =>
+          (await startsAsGlb(file)) && latest() ? readCandidate(piece, file, inputsOf) : null;
+        read().then(
           (c) => {
             if (!latest()) return;
+            if (c === null) {
+              drop(piece, NOT_GLB);
+              return;
+            }
             notes.delete(piece);
             candidates.set(piece, c);
             showCandidate(piece);

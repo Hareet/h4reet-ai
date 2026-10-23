@@ -1,12 +1,15 @@
 // A lookdev candidate (spec 004; FR-023, FR-067, FR-068, User Story 3 scenario 2; research.md R-41; contracts/lookdev.md
 // §3, §4, plain-model-fit.md §10, §11, data-model.md §11.6): a model file the Author picks for one piece, held in page
-// memory and judged by the compositor's own code. Its bytes come from `File.arrayBuffer()`, and nothing else is read of
-// the file, so its name is nowhere on the page or in the results. From the bytes: the SHA-256 (sha256.ts, in plain
-// JavaScript, since the phone's copy may not be a secure context), the length, and the gzip-9 length (glb/gzip.ts,
-// pako at level 9); the fit check (glb/fit.ts) against the piece's fit inputs, which virtual:room-lookdev carries from
-// the compose, with RK2's reasons against the piece's budget, so the findings and measures are the compositor's for the
-// same bytes and piece; and the mark's class, or "not scrubbed". Findings read `<rule> candidate:<path>: <reason>` in
-// compose()'s order: RK2's path is `-`, which sorts before every other, and RK before RX, so RK2's come first.
+// memory and judged by the compositor's own code. Its first 4 bytes are read first, through `slice(0, 4)`: a file that
+// doesn't begin with GLB's magic, "glTF", is read no further, and the page keeps nothing of it, so a photo picked by
+// mistake is never hashed, shown, or listed in the results (the review's page-10). A GLB's bytes then come from
+// `File.arrayBuffer()`, and nothing else is read of the file, so its name is nowhere on the page or in the results.
+// From the bytes: the SHA-256 (sha256.ts, in plain JavaScript, since the phone's copy may not be a secure context), the
+// length, and the gzip-9 length (glb/gzip.ts, pako at level 9); the fit check (glb/fit.ts) against the piece's fit
+// inputs, which virtual:room-lookdev carries from the compose, with RK2's reasons against the piece's budget, so the
+// findings and measures are the compositor's for the same bytes and piece; and the mark's class, or "not scrubbed".
+// Findings read `<rule> candidate:<path>: <reason>` in compose()'s order: RK2's path is `-`, which sorts before every
+// other, and RK before RX, so RK2's come first.
 // The bytes stay inside this module. `loadable` hands a copy to the room's parse path only where RX1 and RX2 pass and
 // no image or buffer has a uri (RX3), since three's GLTFLoader fetches a buffer's uri and a candidate never makes a
 // request; past that, whatever its other findings, so the Author sees a misfit at the room's framing. A reload forgets
@@ -31,6 +34,17 @@ export interface PieceFit {
 export const CANDIDATE_FILE = "candidate";
 /** FR-068's words for a file without spec 003's mark. */
 export const NOT_SCRUBBED = "not scrubbed";
+/** What a candidate's row says of a picked file that doesn't begin with GLB's magic. */
+export const NOT_GLB = "not a GLB: nothing kept";
+
+/** GLB's magic, the first 4 bytes of every GLB: "glTF". */
+const GLB_MAGIC = [0x67, 0x6c, 0x54, 0x46] as const;
+
+/** Whether a picked file begins with GLB's magic, read from its first 4 bytes alone. */
+export async function startsAsGlb(file: Pick<Blob, "slice">): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, GLB_MAGIC.length).arrayBuffer());
+  return head.length === GLB_MAGIC.length && GLB_MAGIC.every((byte, i) => head[i] === byte);
+}
 
 export interface Candidate {
   readonly piece: string;

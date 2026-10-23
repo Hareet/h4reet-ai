@@ -142,8 +142,9 @@ export function actionButton(doc: Document, label: string, onClick: () => void):
   return button;
 }
 
-/** What the picker hands the page: the picked file, of which only arrayBuffer() is ever read (§4). */
-export type PickedFile = Pick<Blob, "arrayBuffer">;
+/** What the picker hands the page: the picked file, of which only its first 4 bytes, through slice(0, 4), and then a
+ *  GLB's whole, through arrayBuffer(), are ever read (§4; the review's page-10). */
+export type PickedFile = Pick<Blob, "arrayBuffer" | "slice">;
 
 /**
  * "Load a candidate…": a file input inside its label, for one piece. The input is named for the piece, keeps its
