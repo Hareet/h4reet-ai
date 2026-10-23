@@ -6,16 +6,20 @@
 //   (a model's .glb.gz, pako at level 9; a card as stored), its triangles, its largest texture side, and its texture
 //   memory. It is lenient: a lenient build prints it prefixed `warn`, and the piece keeps its stand-in;
 // - RK3, the scene's texture memory on the reference phone over `scene_texture_bytes`, by class: each piece the scene
-//   places, by a placement or a switch, its budget's `texture_bytes` once (a set model never exceeds it); the twin's
-//   and the largest visitor avatar's measured memory, read from assets/twin/ and assets/visitors/ with the same reader,
-//   0 while they hold no model; and each bound live face's canvas, min(px, its largest on-screen size at the reference
-//   stages × the phone's pixel ratio) on each side, rounded down, so it is at most that (FR-054), as the room sizes it
-//   (R-37);
+//   places, by a placement that isn't a figure's or by a switch, its budget's `texture_bytes` once (a set model never
+//   exceeds it), split into image cards (a piece whose card is set) and models (the rest); the figures once each, by
+//   their models as measured: the twin's, every model under assets/twin/ together, and the largest visitor avatar's,
+//   each folder of assets/visitors/ one avatar, read with the same reader, a model that can't be read counting 0 and
+//   counted in `unread`, and a figure with no model counting 0, both of which the report notes; and each bound live
+//   face's canvas, min(px, its largest on-screen size at the reference stages × the phone's pixel ratio) on each side,
+//   rounded down, so it is at most that (FR-054), as the room sizes it (R-37);
 // - RK4, a malformed caps.json: each of policy.ts's problems, by its path in the file.
 // RK1, RK3, and RK4 fail every build. A reason names keys and figures, never a value from the data.
 //
-// The on-screen sizes are RG's, the index's screen_css (rg.ts's `faceScreens`), at the one production framing that the
-// checks and the bundle share (§13.3): so RK3 counts the canvases the index sizes.
+// A figure's piece isn't counted by its budget: the figure shows an avatar, which RK3 measures, and RI8 gives its piece
+// no model for that budget to bound (plan.md §10). The on-screen sizes are RG's, the index's screen_css (rg.ts's
+// `faceScreens`), at the one production framing that the checks and the bundle share (§13.3): so RK3 counts the canvases
+// the index sizes. `sceneTextureTotal` is RK3's sum over a framing and a tree, which the report prints (report.ts).
 import { REFERENCE_PHONE } from "../../../src/room/compose/stages";
 import { fit, textureMemory } from "../../../src/room/glb/fit";
 import type { FitInput } from "../../../src/room/glb/fit";
@@ -52,12 +56,19 @@ export interface FaceCanvas {
 
 /** RK3's total by class, each by ⌊16 · w · h / 3⌋. */
 export interface SceneTextureMemory {
-  /** Each placed piece's budgeted texture_bytes, once a piece. */
+  /** Each piece placed by a placement that isn't a figure's, or by a switch: its budgeted texture_bytes, once a piece. */
   readonly pieces: number;
-  /** Measured; null while assets/twin/ holds no model, which the report notes. */
+  /** Of `pieces`, the pieces whose model is a set model, or a stand-in. */
+  readonly models: number;
+  /** Of `pieces`, the pieces whose image card is set. */
+  readonly cards: number;
+  /** Every model under assets/twin/, measured together; null while it holds no model, which the report notes. */
   readonly twin: number | null;
-  /** The largest visitor avatar's, measured; null while assets/visitors/ holds no model, which the report notes. */
+  /** The largest visitor avatar's models, measured together; null while assets/visitors/ holds no model, which the
+   *  report notes. */
   readonly visitor: number | null;
+  /** The figures' models RX1 or RX2 refuses, or the tree can't read, each counted 0, which the report notes. */
+  readonly unread: { readonly twin: number; readonly visitor: number };
   readonly figures: number;
   readonly canvases: number;
   /** In scene order. */
@@ -82,50 +93,88 @@ export function faceCanvases(g: Geometry | null): FaceCanvas[] {
 // --------------------------------------------------------------------------------------------------------------------
 // The figures
 // --------------------------------------------------------------------------------------------------------------------
-/** Each .glb under `dir`, at any depth, in the tree's order. */
-function modelsUnder(tree: Tree, dir: string): Uint8Array[] {
-  const out: Uint8Array[] = [];
-  for (const name of tree.list(dir)) {
-    const path = `${dir}/${name}`;
-    const bytes = name.endsWith(".glb") ? tree.read(path) : null;
-    if (bytes !== null) out.push(bytes);
-    else out.push(...modelsUnder(tree, path));
+/** A figure's models, measured: their texture memory together, how many there are, and how many of them can't be
+ *  read, each counted 0. */
+interface Models {
+  readonly bytes: number;
+  readonly count: number;
+  readonly unread: number;
+}
+const NO_MODELS: Models = { bytes: 0, count: 0, unread: 0 };
+const together = (a: Models, b: Models): Models => ({
+  bytes: a.bytes + b.bytes,
+  count: a.count + b.count,
+  unread: a.unread + b.unread,
+});
+
+/** The models at `path`: the file itself where it is a .glb, else each .glb under the folder, at any depth, in the
+ *  tree's order. A .glb is read with the fit check's reader for its texture memory alone, by §7's measure; one that RX1
+ *  or RX2 refuses, or that the tree lists but can't read and that holds nothing, can't be read, and counts 0. */
+function modelsAt(tree: Tree, path: string): Models {
+  const model = path.endsWith(".glb");
+  const bytes = model ? tree.read(path) : null;
+  if (bytes !== null) {
+    const memory = fit(bytes, NO_FIT, { file: path, gzipBytes: 0 }).measures.textureBytes;
+    return memory === null ? { bytes: 0, count: 1, unread: 1 } : { bytes: memory, count: 1, unread: 0 };
   }
-  return out;
+  const entries = tree.list(path);
+  if (entries.length === 0) return model ? { bytes: 0, count: 1, unread: 1 } : NO_MODELS;
+  return entries.map((name) => modelsAt(tree, `${path}/${name}`)).reduce(together, NO_MODELS);
 }
 
-/** The texture memory a model's images hold, by §7's measure; 0 where RX1 or RX2 refuses it. */
-const memoryOf = (bytes: Uint8Array): number =>
-  fit(bytes, NO_FIT, { file: "-", gzipBytes: 0 }).measures.textureBytes ?? 0;
-
-/** The twin's models together, and the largest visitor avatar, each folder of assets/visitors/ (or a model directly in
- *  it) one avatar; null for either while it holds no model. */
-function figures(tree: Tree): { twin: number | null; visitor: number | null } {
-  const twin = modelsUnder(tree, TWIN_DIR);
-  const avatars = tree.list(VISITORS_DIR).flatMap((name) => {
-    const path = `${VISITORS_DIR}/${name}`;
-    const own = name.endsWith(".glb") ? tree.read(path) : null;
-    const models = own !== null ? [own] : modelsUnder(tree, path);
-    return models.length > 0 ? [sum(models.map(memoryOf))] : [];
-  });
+/** The twin's models together, and the largest visitor avatar's, each folder of assets/visitors/ (or a model directly
+ *  in it) one avatar; null for either while it holds no model; and how many of either's models can't be read. */
+function figures(tree: Tree): Pick<SceneTextureMemory, "twin" | "visitor" | "unread"> {
+  const twin = modelsAt(tree, TWIN_DIR);
+  const avatars = tree
+    .list(VISITORS_DIR)
+    .map((name) => modelsAt(tree, `${VISITORS_DIR}/${name}`))
+    .filter((avatar) => avatar.count > 0);
   return {
-    twin: twin.length > 0 ? sum(twin.map(memoryOf)) : null,
-    visitor: avatars.length > 0 ? Math.max(...avatars) : null,
+    twin: twin.count > 0 ? twin.bytes : null,
+    visitor: avatars.length > 0 ? Math.max(...avatars.map((avatar) => avatar.bytes)) : null,
+    unread: { twin: twin.unread, visitor: sum(avatars.map((avatar) => avatar.unread)) },
   };
 }
 
-/** RK3's total, by class: the scene's texture memory on the reference phone. */
-export function sceneTextureMemory(ctx: Context): SceneTextureMemory {
-  const scene = ctx.room.scene?.value;
-  const budgets = new Map<string, number>();
-  for (const c of ctx.room.catalog) if (!budgets.has(c.value.id)) budgets.set(c.value.id, c.value.budget.texture_bytes);
-  const placed = new Set([...(scene?.placements ?? []), ...(scene?.switches ?? [])].map((x) => x.piece));
-  const pieces = sum([...placed].map((id) => budgets.get(id) ?? 0));
-  const { twin, visitor } = figures(ctx.tree);
-  const faces = faceCanvases(geometryOf(ctx));
+/** RK3's total, by class, at a production framing and over a tree: the scene's texture memory on the reference phone.
+ *  The pieces are the framing's scene and catalog, a card set where the framing's `set` holds the piece with no bounds,
+ *  the figures the tree's, and the canvases the framing's faces'. RK3 sums it at RG's framing, and the report prints it
+ *  at the bundle's, which is RG's in any build whose outputs are used (emit.ts). */
+export function sceneTextureTotal(g: Geometry | null, tree: Tree): SceneTextureMemory {
+  const scene = g?.scene.value;
+  const placed = new Set([
+    ...(scene?.placements ?? []).flatMap((p) => (p.role === undefined ? [p.piece] : [])),
+    ...(scene?.switches ?? []).map((s) => s.piece),
+  ]);
+  let [models, cards] = [0, 0];
+  for (const id of placed) {
+    const budget = g?.pieces.get(id)?.budget.texture_bytes ?? 0;
+    if (g?.set.get(id) === null) cards += budget;
+    else models += budget;
+  }
+  const { twin, visitor, unread } = figures(tree);
+  const faces = faceCanvases(g);
   const canvases = sum(faces.map((f) => f.bytes));
+  const pieces = models + cards;
   const figureBytes = (twin ?? 0) + (visitor ?? 0);
-  return { pieces, twin, visitor, figures: figureBytes, canvases, faces, total: pieces + figureBytes + canvases };
+  return {
+    pieces,
+    models,
+    cards,
+    twin,
+    visitor,
+    unread,
+    figures: figureBytes,
+    canvases,
+    faces,
+    total: pieces + figureBytes + canvases,
+  };
+}
+
+/** RK3's total, by class, for a compose: at RG's production framing, its figures from the compose's tree. */
+export function sceneTextureMemory(ctx: Context): SceneTextureMemory {
+  return sceneTextureTotal(geometryOf(ctx), ctx.tree);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

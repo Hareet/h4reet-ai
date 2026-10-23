@@ -6,23 +6,23 @@
 // - a row per catalog entry: how many placements and poses show it, its source (the studio file, the stand-in and why,
 //   with the findings' rules and never their data, or the avatar a figure shows), its model's plain and gzip-9 bytes,
 //   triangles, and texture memory, and its budget; its stylized scale beside its ID where above 1;
-// - the totals: the largest set model against the caps; the scene's texture memory by class, summed as RK3 sums it
-//   (each placed piece's budget once, by its picture's class; the twin's and the largest visitor avatar's measured
-//   textures, 0 with a note while their files don't exist; every bound face's canvas at min(px, its largest on-screen
-//   size × the reference phone's pixel ratio)); the first visit, the placed models' .glb.gz and cards beside the
-//   design's estimate and the enforced phase-3 limit, and spec 003's F3 view, every file under assets/room/ at gzip-9;
-//   and a note for each small prop the caps name that the catalog doesn't have;
+// - the totals: the largest set model against the caps; the scene's texture memory by class, RK3's own sum through its
+//   own function (checks/rk.ts's `sceneTextureTotal`, at the bundle's framing): each piece placed by a placement that
+//   isn't a figure's, or by a switch, by its budget once, models and image cards by its picture's class; the twin's
+//   models and the largest visitor avatar's, measured, with a note while their files don't exist, and one counting each
+//   model that can't be read, which counts 0; every bound face's canvas at min(px, its largest on-screen size × the
+//   reference phone's pixel ratio); the first visit, the placed models' .glb.gz and cards beside the design's estimate
+//   and the enforced phase-3 limit, and spec 003's F3 view, every file under assets/room/ at gzip-9; and a note for
+//   each small prop the caps name that the catalog doesn't have;
 // - legibility: each bound face's smallest cap height on each reference stage at the production framing, with the
 //   floor, the margin, and readable, atmosphere (max <n>), or under: RG7's own measure (checks/rg.ts's `faceCaps`);
 // - the switches: each one's case-to-pose table, and for every two poses its cases show, the largest on-screen distance
 //   any part of the piece moves, or the size of a cue a pose's glow adds, on each stage: apart, or under the floor, RG8's
 //   own measure (`poseSeparations`), which only reports;
 // - the findings, each line, a lenient one marked warn in a lenient build, or "none".
-// The live-face canvases are RK3's (checks/rk.ts's `faceCanvases`). Bytes are integers with thousands separators and
-// glyph heights are to 0.1 px. Nothing in it is a time, a path outside the repository, or a data string: pieces,
+// Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path outside the repository, or a data string: pieces,
 // placements, faces, switches, and poses are named by IDs, each only where RT2 passed it.
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
-import { fit } from "../../src/room/glb/fit";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
 import type { RoomIndex } from "../../src/room/compose/bundle";
@@ -31,7 +31,7 @@ import { formatPath } from "./checks/family";
 import { faceCaps, poseSeparations } from "./checks/rg";
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
-import { faceCanvases } from "./checks/rk";
+import { sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { Switch } from "./schema";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
@@ -56,21 +56,9 @@ function filesUnder(tree: Tree, dir: string): { path: string; data: Uint8Array }
   return out;
 }
 
-/** A GLB's texture memory, Σ ⌊16 · w · h / 3⌋ over its images, as the fit check measures it; 0 where it can't. */
-function textureBytesOf(path: string, data: Uint8Array): number {
-  const input = { bounds: { min: [0, 0, 0], max: [0, 0, 0] }, faces: [], smallPropTexturePx: null } as const;
-  return fit(data, input, { file: path, gzipBytes: 0 }).measures.textureBytes ?? 0;
-}
-
-/** The figures' measured texture memory: the twin's largest GLB under assets/twin/, and the largest visitor avatar's
- *  under assets/visitors/; null for one whose files don't exist. */
-function avatars(tree: Tree): { twin: number | null; visitor: number | null } {
-  const largest = (files: { path: string; data: Uint8Array }[]): number | null => {
-    const glbs = files.filter((f) => f.path.endsWith(".glb"));
-    return glbs.length === 0 ? null : Math.max(...glbs.map((f) => textureBytesOf(f.path, f.data)));
-  };
-  return { twin: largest(filesUnder(tree, "assets/twin")), visitor: largest(filesUnder(tree, "assets/visitors")) };
-}
+/** A count of a figure's models that can't be read, as a sentence: they count 0 (RK3). */
+const unreadNote = (n: number, dir: string): string =>
+  `${n} ${n === 1 ? "model" : "models"} under ${dir}/ can't be read, so ${n === 1 ? "it counts" : "they count"} 0.`;
 
 /** What the report prints in place of an ID RT2 refused. */
 const REFUSED = "(an ID RT2 refused)";
@@ -162,17 +150,8 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   const models = set.flatMap((p) => (p.kind === "model" ? [p] : []));
   const largestGz = Math.max(0, ...models.map((m) => m.gz.length));
   const largestTriangles = Math.max(0, ...models.map((m) => m.measures.triangles ?? 0));
-  let [modelBytes, cardBytes] = [0, 0];
-  for (const id of placed) {
-    const entry = c.pieces.get(id)?.value;
-    if (!entry) continue;
-    if (c.pictures.get(id)?.kind === "card") cardBytes += entry.budget.texture_bytes;
-    else modelBytes += entry.budget.texture_bytes;
-  }
-  const canvases = faceCanvases(c.geometry).reduce((sum, f) => sum + f.bytes, 0);
-  const figures = avatars(c.reader.tree);
-  const avatarBytes = (figures.twin ?? 0) + (figures.visitor ?? 0);
-  const total = modelBytes + cardBytes + avatarBytes + canvases;
+  // RK3's own sum, by its own function, at the bundle's framing and over the compose's tree.
+  const memory = sceneTextureTotal(c.geometry, c.reader.tree);
   const share = set.reduce((sum, p) => sum + (p.kind === "model" ? p.gz.length : p.bytes.length), 0);
   // A set model's copy is already made: its length is the file's gzip-9 bytes.
   const copies = new Map<string, number>();
@@ -184,14 +163,17 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   lines.push(
     `Per piece, the largest against the caps: ${count(largestGz)} of ${count(c.caps.gzip_bytes)} gzip-9 bytes; ` +
       `${count(largestTriangles)} of ${count(c.caps.triangles)} triangles.`,
-    `Scene texture memory: ${count(total)} of ${count(c.caps.scene_texture_bytes)} bytes (models ${count(modelBytes)} · ` +
-      `image cards ${count(cardBytes)} · avatars ${count(avatarBytes)} · live-face canvases ${count(canvases)}).`,
+    `Scene texture memory: ${count(memory.total)} of ${count(c.caps.scene_texture_bytes)} bytes ` +
+      `(models ${count(memory.models)} · image cards ${count(memory.cards)} · avatars ${count(memory.figures)} · ` +
+      `live-face canvases ${count(memory.canvases)}).`,
   );
-  if (figures.twin === null && figures.visitor === null)
+  if (memory.twin === null && memory.visitor === null)
     lines.push("The twin's and the visitors' avatars have no file under assets/ yet, so they count 0.");
-  else if (figures.twin === null) lines.push("The twin has no file under assets/twin/ yet, so it counts 0.");
-  else if (figures.visitor === null)
+  else if (memory.twin === null) lines.push("The twin has no file under assets/twin/ yet, so it counts 0.");
+  else if (memory.visitor === null)
     lines.push("No visitor's avatar has a file under assets/visitors/ yet, so they count 0.");
+  if (memory.unread.twin > 0) lines.push(unreadNote(memory.unread.twin, TWIN_DIR));
+  if (memory.unread.visitor > 0) lines.push(unreadNote(memory.unread.visitor, VISITORS_DIR));
   lines.push(
     `First visit, the room's share: ${count(share)} gzip-9 bytes of placed models and cards, beside the design's ` +
       `estimate of ${count(DESIGN_ESTIMATE)}; the enforced limit is spec 003's phase-3 first visit, ` +
