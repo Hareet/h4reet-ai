@@ -31,6 +31,22 @@ const PIECE_HEADER =
 const FACE_HEADER = "| Face | Readable | Desktop | Phone | Floor | Margin | Status |";
 const PAIR_HEADER = "| Switch | Poses | Desktop | Phone | Status |";
 
+/** The changes that set `card` as fx-sign's image card, recorded with the kind room and its SHA-256 (RI7). */
+function cardChanges(card: Uint8Array): Record<string, string | Uint8Array> {
+  const entry = decoder.decode(goodFiles().get("apps/web/room/catalog/fx-sign.yaml"));
+  const record = {
+    schema: 1,
+    directory: "assets/room",
+    license: "all-rights-reserved-2026",
+    entries: [{ file: "fx-sign.png", sha256: sha256(card), kind: "room" }],
+  };
+  return {
+    "apps/web/room/catalog/fx-sign.yaml": `${entry}model: { card: fx-sign.png }\n`,
+    "assets/room/fx-sign.png": card,
+    "assets/room/records.json": `${JSON.stringify(record, null, 2)}\n`,
+  };
+}
+
 describe("the report's header and per-piece rows", () => {
   it("opens with the bundle's digest, the build's kind, and FR-053's starting figures while main has no room caps", () => {
     const result = good();
@@ -96,6 +112,18 @@ describe("the report's header and per-piece rows", () => {
     expect(sha256(desk)).toBe(result.models.find((m) => m.piece === "fx-desk")?.sha256);
   });
 
+  it("gives a set image card's bytes as served, its file as stored, never a gzip-9 length", () => {
+    // A stored PNG of 64 × 32: its gzip-9 copy is far shorter, and only its plain length is served or checked (RK2).
+    const card = png({ width: 64, height: 32, level: 0 });
+    expect(gzipBytes(card)).toBeLessThan(card.length);
+    const result = compose(overlay(cardChanges(card)), capsPolicy(), { mode: "strict", drafts: true });
+    expect(result.findings).toEqual([]);
+    expect(result.report.markdown).toContain(
+      `| \`fx-sign\` at 1.25× | 1 | studio, \`fx-sign.png\` | ${thousands(card.length)} | ` +
+        `${thousands(card.length)} as stored | – | ${thousands(textureMemory(64, 32))} | 150,000 · 1,500 · 349,525 |`,
+    );
+  });
+
   it("says why a piece with a model stays a stand-in, naming the findings' rules and never their data", () => {
     const tree = overlay(modelChanges(["fx-desk"]));
     const out = emit(
@@ -141,18 +169,8 @@ describe("the report's totals", () => {
   it("prints RK3's own total and classes, through RK3's function: the figures' models measured, a set card a card", () => {
     const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
     const signMemory = textureMemory(4, 4) + textureMemory(8, 8);
-    const card = png({ width: 8, height: 8 });
-    const signEntry = decoder.decode(goodFiles().get("apps/web/room/catalog/fx-sign.yaml"));
-    const record = {
-      schema: 1,
-      directory: "assets/room",
-      license: "all-rights-reserved-2026",
-      entries: [{ file: "fx-sign.png", sha256: sha256(card), kind: "room" }],
-    };
     const tree = overlay({
-      "apps/web/room/catalog/fx-sign.yaml": `${signEntry}model: { card: fx-sign.png }\n`,
-      "assets/room/fx-sign.png": card,
-      "assets/room/records.json": `${JSON.stringify(record, null, 2)}\n`,
+      ...cardChanges(png({ width: 8, height: 8 })),
       // The twin in two models, and three avatars: two models, one, and one that can't be read.
       "assets/twin/fx-twin.glb": desk().bytes,
       "assets/twin/fx-hands/fx-hands.glb": sign().bytes,
