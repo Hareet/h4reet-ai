@@ -40,9 +40,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
+import { ASSET_EVENTS_URL } from "../../src/asset-events";
 import type { AssetEvent } from "../../src/asset-events";
 import type { Mode } from "../../src/choice/visit";
-import type { RoomScene } from "../../src/room/compose/bundle";
+import type { RoomIndex, RoomScene } from "../../src/room/compose/bundle";
 import { readImage } from "../../src/room/glb/images";
 import { buildRoom } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
@@ -63,9 +64,10 @@ import {
 } from "../../src/room/scene/loader";
 import type { FetchLike, LoaderOptions, ModelEntry } from "../../src/room/scene/loader";
 import { lookMaterials } from "../../src/room/scene/look";
-import { SETTLE_FRAMES } from "../../src/room/quality";
+import { SCENE_WAIT_MS, SETTLE_FRAMES } from "../../src/room/quality";
 import { ascii, desk } from "../helpers/glb";
-import { FakeClock, enter, flush, start } from "../helpers/room";
+import { FakeClock, button, enter, flush, intoRoom, radio, roomIndex, start } from "../helpers/room";
+import type { Visit } from "../helpers/room";
 import { goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, cleanModel, modelChanges } from "../helpers/room-models";
 
@@ -998,5 +1000,85 @@ describe("the room's wiring (T134)", () => {
     expect(v.room.visit.mode).toBe("3d");
     v.clock.advance(1400, 200);
     expect(v.scene.quality).toEqual([1]);
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// A room in 2D before its loader has its models (T141; the lookdev review's runtime-3)
+// --------------------------------------------------------------------------------------------------------------------
+describe("a set model's event when the room is in 2D before its 3D stage's loader has it", () => {
+  /** An index with set models on a placed piece and a switch's piece, its asset events sent (`site`), so the page's
+   *  beacon shows what the room recorded. */
+  function sending(index: RoomIndex = withModels(["fx-desk", "fx-plug"]).index): RoomIndex {
+    return { ...index, live: { ...index.live, asset_events: "site" } };
+  }
+
+  /** The asset events the room recorded, as its beacon carries them when the page hides. */
+  function beaconed(v: Visit): AssetEvent[] {
+    Object.defineProperty(v.doc, "visibilityState", { configurable: true, get: () => "hidden" });
+    v.doc.dispatchEvent(new v.win.Event("visibilitychange"));
+    return v.spies.beacons
+      .filter((b) => b.url === ASSET_EVENTS_URL)
+      .flatMap((b) => (JSON.parse(b.body) as { events: AssetEvent[] }).events);
+  }
+
+  const skipped2d = (asset: string): AssetEvent => ({
+    asset,
+    outcome: "skipped",
+    ms_bucket: "<250",
+    bytes: 0,
+    mode: "2d",
+  });
+
+  it("records each set model skipped, in 2D, when the room starts there without WebGL 2", async () => {
+    const v = start({ webgl: false, index: sending() });
+    await enter(v);
+    expect(v.room.visit.mode).toBe("2d");
+    expect(beaconed(v)).toEqual([skipped2d("fx-desk"), skipped2d("fx-plug")]);
+  });
+
+  it("records each skipped when the 3D chunk comes too late, or fails, or its stage refuses the part", async () => {
+    const late = start({ webgl: true, sceneHangs: true, index: sending() });
+    await flush();
+    radio(late.doc, "path", "engineer").click();
+    radio(late.doc, "avatar", "dog").click();
+    button(late.doc, "Enter").click();
+    await flush();
+    late.clock.advance(SCENE_WAIT_MS);
+    await late.room.settled();
+    expect(late.room.visit.mode).toBe("2d");
+    expect(beaconed(late)).toEqual([skipped2d("fx-desk"), skipped2d("fx-plug")]);
+    const failed = start({ webgl: true, sceneFails: true, index: sending() });
+    await enter(failed);
+    expect(failed.room.visit.mode).toBe("2d");
+    expect(beaconed(failed)).toEqual([skipped2d("fx-desk"), skipped2d("fx-plug")]);
+    const refused = start({ webgl: true, index: sending() });
+    refused.scene.module.createScene = () => {
+      throw new Error("the 3D part's digest isn't the index's");
+    };
+    await enter(refused);
+    expect(refused.room.visit.mode).toBe("2d");
+    expect(beaconed(refused)).toEqual([skipped2d("fx-desk"), skipped2d("fx-plug")]);
+  });
+
+  it("records the rest skipped when the room goes to 2D before its 3D stage's loader had them, once each", async () => {
+    const v = start({ webgl: true, index: sending() });
+    await intoRoom(v);
+    const loaded: AssetEvent = { asset: "fx-desk", outcome: "loaded", ms_bucket: "<1000", bytes: 636, mode: "full" };
+    // The desk loaded in 3D, after a retry; the plug's load never reached the stage's loader (its chunk still on its
+    // way when the stage was disposed).
+    v.scene.created[0]?.assets?.({ ...loaded, outcome: "retried", bytes: 0 });
+    v.scene.created[0]?.assets?.(loaded);
+    button(v.doc, "2D view").click();
+    expect(v.room.visit.mode).toBe("2d");
+    expect(v.scene.disposed).toBe(1);
+    expect(beaconed(v)).toEqual([{ ...loaded, outcome: "retried", bytes: 0 }, loaded, skipped2d("fx-plug")]);
+  });
+
+  it("records nothing where the index sets no model", async () => {
+    const v = start({ webgl: false, index: sending(roomIndex()) });
+    await enter(v);
+    expect(v.room.visit.mode).toBe("2d");
+    expect(beaconed(v)).toEqual([]);
   });
 });

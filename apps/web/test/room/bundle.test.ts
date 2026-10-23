@@ -32,6 +32,7 @@ import { projector, toStage } from "../../src/room/compose/project";
 import { REFERENCE_PHONE } from "../../src/room/compose/stages";
 import { TIER_VALUES, TYPEFACE_USES } from "../../src/room/compose/vocabulary";
 import { EVENT_KINDS } from "../../src/room/events";
+import { modelEntries } from "../../src/room/scene/loader";
 import { png } from "../helpers/glb";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
@@ -122,6 +123,7 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
       "flat",
       "copy",
       "typefaces",
+      "models",
     ]);
     expect(Object.keys(index.build)).toEqual(["kind", "placeholders"]);
     expect(Object.keys(index.live)).toEqual(["source", "turn", "asset_events", "poll_ms", "freshness_ms"]);
@@ -999,6 +1001,14 @@ describe("the models (contracts/room-bundle.md §3.4)", () => {
       expect(named, m.piece).toContainEqual(expect.objectContaining({ url: m.url, sha256: m.sha256 }));
   });
 
+  it("lists in the index each set model the room's loader loads, by its asset, in load_order, for a room in 2D", () => {
+    // The entry chunk has no 3D part, so a room in 2D records these skipped from the index (FR-071; plan.md §10).
+    const result = withModels();
+    expect(result.index.models).toEqual(["fx-board", "fx-desk", "fx-plug"]);
+    expect(result.index.models).toEqual(modelEntries(result.scene).map((e) => e.asset));
+    expect(good().index.models).toEqual([]);
+  });
+
   it("emits a set image card plain, at a/<stem>.<hash16>.<ext>, measured by its image's header", () => {
     const card = png({ width: 64, height: 32 });
     const sign = decoder.decode(goodFiles().get("apps/web/room/catalog/fx-sign.yaml"));
@@ -1024,6 +1034,8 @@ describe("the models (contracts/room-bundle.md §3.4)", () => {
     expect(Buffer.compare(Buffer.from(result.cards[0]?.bytes ?? []), Buffer.from(card))).toBe(0);
     const placed = result.scene.placements.find((p) => p.id === "fx-sign");
     expect(placed?.model).toMatchObject({ bytes: card.length, texture_bytes: Math.floor((16 * 64 * 32) / 3) });
+    // The loader takes GLBs only, so a card waits for its drawing, and a room in 2D has no model of it to skip.
+    expect(result.index.models).toEqual([]);
   });
 
   it("keeps a piece whose model has a lenient finding a stand-in, with the reason findings", () => {

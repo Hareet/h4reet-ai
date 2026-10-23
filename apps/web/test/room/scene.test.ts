@@ -882,7 +882,11 @@ let composedWithModels: ComposeResult | null = null;
  * The fixture room with set models on SET, composed under main's caps, drawn by the scene module with a stand-in
  * renderer, on a window whose fetch is a spy the test answers and whose WebGL 2 context reports 16384-pixel textures.
  */
-function staged(options: Partial<SceneOptions> = {}, part?: (own: RoomScene) => RoomScene): Staged {
+function staged(
+  options: Partial<SceneOptions> = {},
+  part?: (own: RoomScene) => RoomScene,
+  make: typeof createScene = createScene,
+): Staged {
   composedWithModels ??= compose(overlay(modelChanges(SET)), capsPolicy(), { mode: "lenient", drafts: false });
   const result = composedWithModels;
   const changes = modelChanges(SET);
@@ -944,7 +948,7 @@ function staged(options: Partial<SceneOptions> = {}, part?: (own: RoomScene) => 
     drawn: r.drawn,
     disposed: r.disposed,
   };
-  s.stage = createScene({
+  s.stage = make({
     win,
     doc: win.document,
     clock,
@@ -1143,5 +1147,34 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
     await flush();
     expect(s.fetched).toEqual([]);
     expect(s.held()).toBe(0);
+  });
+
+  it("records each set model failed when its loader's chunk won't load, but for a stage the room left first", async () => {
+    // A browser keeps a failed module's failure, so there is no retry: the stand-ins stay, each model failed (FR-057).
+    vi.doMock("../../src/room/scene/loader", () => {
+      throw new Error("the loader's chunk didn't load");
+    });
+    vi.resetModules();
+    try {
+      const { createScene: blocked } = await import("../../src/room/scene");
+      const left = staged({ floor: true }, undefined, blocked);
+      left.mode = "2d";
+      left.stage.dispose();
+      const s = staged({ floor: true }, undefined, blocked);
+      await vi.waitFor(() => expect(s.events).toHaveLength(2));
+      expect(byAsset(s.events)).toEqual(
+        SET.map((asset) => ({ asset, outcome: "failed", ms_bucket: "<250", bytes: 0, mode: "full" })),
+      );
+      expect(s.fetched).toEqual([]);
+      s.clock.advance(16);
+      for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: false, standin: true });
+      s.stage.dispose();
+      // The room that went to 2D first records its own (app.ts); its stage records nothing.
+      expect(left.events).toEqual([]);
+      expect(s.events).toHaveLength(2);
+    } finally {
+      vi.doUnmock("../../src/room/scene/loader");
+      vi.resetModules();
+    }
   });
 });
