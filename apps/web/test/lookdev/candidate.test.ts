@@ -15,12 +15,14 @@ import { parse, stringify } from "yaml";
 import { compose } from "../../build/room/compose";
 import type { ComposeResult, RoomPolicy } from "../../build/room/compose";
 import {
+  NOT_GLB,
   NOT_SCRUBBED,
   candidatePieces,
   judgeCandidate,
   loadable,
   markReadout,
   readCandidate,
+  startsAsGlb,
 } from "../../src/lookdev/candidate";
 import type { Candidate, PieceFit } from "../../src/lookdev/candidate";
 import type { FitInput } from "../../src/room/glb/fit";
@@ -286,6 +288,27 @@ describe("a picked file, in memory only (FR-067, contracts/lookdev.md §4)", () 
     expect(candidate.sha256).toBe(sha);
     // Each hand-over is a copy of its own.
     expect(loadable(candidate)).not.toBe(handed);
+  });
+});
+
+describe("a picked file's first 4 bytes (the review's page-10)", () => {
+  it("are all that is read before a file is known to begin with GLB's magic, glTF", async () => {
+    const reads: string[] = [];
+    const file = (data: Uint8Array): Pick<Blob, "slice"> =>
+      ({
+        slice: (start?: number, end?: number) => {
+          reads.push(`slice(${start}, ${end})`);
+          return { arrayBuffer: () => Promise.resolve(data.slice(start, end).buffer) };
+        },
+      }) as unknown as Pick<Blob, "slice">;
+    expect(await startsAsGlb(file(desk().bytes))).toBe(true);
+    expect(await startsAsGlb(file(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10])))).toBe(false);
+    expect(await startsAsGlb(file(encoder.encode("gltf, in the wrong case")))).toBe(false);
+    expect(await startsAsGlb(file(encoder.encode("glT")))).toBe(false);
+    expect(await startsAsGlb(file(new Uint8Array(0)))).toBe(false);
+    expect(reads).toEqual(new Array<string>(5).fill("slice(0, 4)"));
+    expect(NOT_GLB).toBe("not a GLB: nothing kept");
+    expect(globals).toEqual({ network: [], storage: [] });
   });
 });
 

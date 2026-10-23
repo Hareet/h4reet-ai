@@ -732,6 +732,50 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
     expect(page.stage.loaded.has(piece)).toBe(true);
   });
 
+  it("drops a picked file that isn't a GLB, read no further than its 4 bytes, shown and listed nowhere", async () => {
+    // The review's page-10: a photo picked by mistake, its first bytes a JPEG's.
+    const { page, root, clock, inputs: given } = open();
+    const { piece } = vignettePiece(given);
+    const photo = new Uint8Array([
+      0xff,
+      0xd8,
+      0xff,
+      0xe0,
+      0x00,
+      0x10,
+      0x4a,
+      0x46,
+      0x49,
+      0x46,
+      ...new Array<number>(64).fill(7),
+    ]);
+    const reads: string[] = [];
+    const file = {
+      arrayBuffer: () => (reads.push("the whole file"), Promise.resolve(photo.slice().buffer)),
+      slice: (start?: number, end?: number) => (
+        reads.push(`slice(${start}, ${end})`),
+        { arrayBuffer: () => Promise.resolve(photo.slice(start, end).buffer) }
+      ),
+    };
+    const input = root.querySelector<HTMLInputElement>(`input[type="file"][data-piece="${piece}"]`);
+    if (!input) throw new Error(`no picker for ${piece}`);
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    input.dispatchEvent(new (root.ownerDocument.defaultView as TestWindow).Event("change", { bubbles: true }));
+    await settle(clock);
+    expect(reads).toEqual(["slice(0, 4)"]);
+    expect(collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent)).toContain(
+      "not a GLB: nothing kept",
+    );
+    expect(root.ownerDocument.documentElement.outerHTML).not.toContain(nodeSha256(photo));
+    expect(page.stage.loaded.has(piece)).toBe(false);
+    buttonNamed(root, "Run 2 minutes").click();
+    await settle(clock);
+    clock.advance(120_000, 100);
+    await settle(clock);
+    const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
+    expect(results.candidates).toEqual([]);
+  });
+
   it("swaps in no file RX1 refuses, and says why", async () => {
     const { page, root, clock, inputs: given } = open();
     const { piece } = vignettePiece(given);
