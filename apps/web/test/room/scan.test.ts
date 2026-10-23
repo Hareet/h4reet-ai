@@ -1,12 +1,14 @@
 // T069's scan half (spec 004; FR-007, SC-001; R-16; contracts/room-data-files.md §16): build/room/scan.ts, the source
 // scan, over a temporary copy of the sources and over small source trees made when the test runs. Every ID it plants
-// is the fixture set's, read when the test runs as the compositor reads it (load.ts's namespaceIds), so this file's
-// own source holds none and the committed tree's case (T107) meets none here. A planted ID gives exactly
+// is the fixture set's with its reserved prefix `fx-` made `fy-`, read when the test runs as the compositor reads it
+// (load.ts's namespaceIds), so this file's own source holds none and the committed tree's case (T107) meets none here;
+// the scan never hits a fixture ID itself (plan.md §10). A planted ID gives exactly
 // `FR-007 <file>:<line>: holds "<id>", which only the room's data defines` and exit 1. The scan reads string and
 // template literals, regular-expression literals, property names, literal types, enum members, HTML attribute values
 // and text, and CSS selectors, custom property names, and strings, and never a comment or an identifier; a hit is the
-// ID with no letter or digit beside it, case-sensitively, on the line where it stands; it reads only where §16 says,
-// sorts its output, looks for every ID of the four namespaces, and never prints an ID RT2 refused.
+// ID with no letter or digit beside it, case-sensitively, on the line where it stands, outside every token the reserved
+// prefix begins; it reads only where §16 says, sorts its output, looks for every ID of the four namespaces, and never
+// prints an ID RT2 refused.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -20,9 +22,9 @@ import type { Namespaces } from "../../build/room/load";
 import { noPolicy } from "../../build/room/policy";
 import { roomIds, scan } from "../../build/room/scan";
 import type { ScanResult } from "../../build/room/scan";
-import { fileTree, memoryTree } from "../../build/room/source";
+import { fileTree, memoryTree, overlayTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
-import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
+import { goodFiles, goodTree } from "../helpers/room-fixtures";
 
 // RT2's walk, wrapped so one test can have it refuse an ID; every other call is the walk itself.
 vi.mock("../../build/room/checks/rt", async (importOriginal) => {
@@ -34,18 +36,37 @@ const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/** The fixture set's IDs by namespace, as the compositor reads them. */
-const fixture: Namespaces = namespaceIds(loadRoom(goodTree()));
+/** The fixture set as committed data could hold it: each `fx-` in a path or a data file made `fy-`, since the scan
+ *  never hits an ID that takes the reserved prefix. */
+function unprefixed(): Tree {
+  const files = new Map<string, Uint8Array>();
+  for (const [path, bytes] of goodFiles()) {
+    const text = /\.(ya?ml|json|md)$/.test(path) ? decoder.decode(bytes).replaceAll("fx-", "fy-") : null;
+    files.set(path.replaceAll("fx-", "fy-"), text === null ? bytes : encoder.encode(text));
+  }
+  return memoryTree(files);
+}
+
+/** That set's IDs by namespace, as the compositor reads them. */
+const fixture: Namespaces = namespaceIds(loadRoom(unprefixed()));
 /** A selectable's ID: hyphenated, so no identifier can spell it. */
 const id = fixture.selectables[0] ?? "";
 /** The topic's ID, and the same without its hyphens, which `data()` makes the topic's: an ID an identifier can spell. */
 const topic = fixture.topics[0] ?? "";
 const word = topic.replaceAll("-", "");
 
-/** The fixture set with its topic's ID made `word`. */
+/** `unprefixed()` with `changes`: text replaces a path, and null removes it. */
+function changed(changes: Readonly<Record<string, string | null>>): Tree {
+  const map = new Map(
+    Object.entries(changes).map(([path, text]) => [path, text === null ? null : encoder.encode(text)]),
+  );
+  return overlayTree(unprefixed(), map);
+}
+
+/** That set with its topic's ID made `word`. */
 function data(): Tree {
-  const topics = decoder.decode(goodFiles().get(TOPICS_FILE));
-  return overlay({ [TOPICS_FILE]: topics.replace(`id: ${topic}`, `id: ${word}`) });
+  const topics = decoder.decode(unprefixed().read(TOPICS_FILE) ?? new Uint8Array());
+  return changed({ [TOPICS_FILE]: topics.replace(`id: ${topic}`, `id: ${word}`) });
 }
 
 /** A tree of source files, by repository path. */
@@ -73,15 +94,15 @@ describe("the IDs it looks for", () => {
   });
 
   it("are every ID of the four namespaces, once each in bytewise order; RT2 refuses none of the known-good set's", () => {
-    const { ids, refused } = roomIds(goodTree(), noPolicy());
+    const { ids, refused } = roomIds(unprefixed(), noPolicy());
     expect(ids).toEqual([...new Set(Object.values(fixture).flat())].sort());
     expect([...refused]).toEqual([]);
   });
 
   it("include an ID that only one namespace defines, for each of the four", () => {
     // The last placement's piece leaves the catalog, so that placement's ID is a placement's alone.
-    const last = loadRoom(goodTree()).scene?.value.placements.at(-1);
-    const tree = overlay({ [pathOf("catalog", last?.piece ?? "")]: null });
+    const last = loadRoom(unprefixed()).scene?.value.placements.at(-1);
+    const tree = changed({ [pathOf("catalog", last?.piece ?? "")]: null });
     const ns = namespaceIds(loadRoom(tree));
     const keys = ["pieces", "placements", "selectables", "topics"] as const;
     const alone = keys.map((k) => ns[k].find((x) => keys.every((o) => o === k || !ns[o].includes(x))) ?? "");
@@ -124,7 +145,7 @@ describe("over a temporary copy of the sources", () => {
   });
 
   it("finds no ID of the fixture set in the code, and exits 0", () => {
-    expect(scan(goodTree(), fileTree(root), noPolicy())).toEqual({ lines: [], code: 0 });
+    expect(scan(unprefixed(), fileTree(root), noPolicy())).toEqual({ lines: [], code: 0 });
   });
 
   it("reports one ID planted in a string literal with exactly its line, and exits 1", () => {
@@ -133,7 +154,7 @@ describe("over a temporary copy of the sources", () => {
     const planted = `${original}${original.endsWith("\n") ? "" : "\n"}export const planted = ${JSON.stringify(id)};\n`;
     writeFileSync(join(root, file), planted);
     try {
-      expect(scan(goodTree(), fileTree(root), noPolicy())).toEqual({
+      expect(scan(unprefixed(), fileTree(root), noPolicy())).toEqual({
         lines: [line(file, planted.split("\n").length - 1, id)],
         code: 1,
       });
@@ -241,6 +262,34 @@ describe("what it reads", () => {
     ]);
     expect(scan(data(), sources({ [file]: text }), noPolicy())).toEqual({ lines, code: 1 });
   });
+
+  it("never hits a token the reserved prefix fx- begins, nor an ID inside it, so a fixture ID is never a real one", () => {
+    // The prefix begins a token where the hit rule lets an ID begin, and the token runs through letters, digits, and
+    // hyphens: a fixture ID, or a per-ID class of one. Committed data never takes the prefix.
+    const file = "apps/web/src/k.ts";
+    const { text, lines } = table(file, [
+      [`export const a = "fx-${id}";`, null],
+      [`export const b = "fx-${id}-k";`, null],
+      [`export const c = "flat-hit--fx-${id}";`, null],
+      [`export const d = "k fx-${id}.k";`, null],
+      [`export const e = "fx-k ${id}";`, id],
+      [`export const f = "fx-k.${id}";`, id],
+      [`export const g = "${id}-fx-k";`, id],
+      [`export const h = "kfx-${id}";`, id],
+      [`export const i = "FX-${id}";`, id],
+      [`export const j = "fx-${id} ${id}";`, id],
+    ]);
+    expect(scan(data(), sources({ [file]: text }), noPolicy())).toEqual({ lines, code: 1 });
+  });
+
+  it("finds none of the known-good set's own IDs, each of which takes the reserved prefix", () => {
+    const { ids } = roomIds(goodTree(), noPolicy());
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.filter((x) => !x.startsWith("fx-"))).toEqual([]);
+    const file = "apps/web/src/k.ts";
+    const text = ids.map((x, i) => `export const k${i} = ["${x}", "flat-hit--${x}"];\n`).join("");
+    expect(scan(goodTree(), sources({ [file]: text }), noPolicy())).toEqual({ lines: [], code: 0 });
+  });
 });
 
 describe("where it reads", () => {
@@ -336,7 +385,7 @@ describe("its output", () => {
     vi.mocked(walkStrings).withImplementation(
       () => new Set([id]),
       () => {
-        result = scan(goodTree(), tree, noPolicy());
+        result = scan(unprefixed(), tree, noPolicy());
       },
     );
     expect(result).toEqual({
