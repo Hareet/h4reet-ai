@@ -3,8 +3,15 @@
 // focus in the CSS, the canvas and the 2D drawing hidden from assistive technology with the list as their equivalent,
 // 44-pixel targets in the CSS, polite live regions, and 0 axe violations on every screen. What jsdom can't show (layout,
 // real focus rings, a screen reader) is the Author's run, quickstart §4.
+// T105 (spec 004; FR-063; R-16, R-40): the "In the room" list is the bundle's index's: a button per selectable in scene
+// order, named by its name with a visually hidden ": " and its topic's phrase, or the resume action's UI word, under the
+// index's own heading. Expectations come from compose(), of the repository's data and of the fixture set, whose IDs
+// are synthetic fx- ones.
 import { describe, expect, it } from "vitest";
 
+import { compose } from "../../build/room/compose";
+import { noPolicy } from "../../build/room/policy";
+import type { RoomIndex } from "../../src/room/compose/bundle";
 import {
   AI_DISCLOSURE,
   axeViolations,
@@ -24,12 +31,19 @@ import {
   textOf,
 } from "../helpers/room";
 import type { CssRule, Visit } from "../helpers/room";
+import { goodTree } from "../helpers/room-fixtures";
 
-const OBJECT_BUTTONS = [
-  "Snowboard: hobbies and general life",
-  "Bicycle: travel adventures",
-  "Laptop and screen: work projects",
-];
+/** The "In the room" list's buttons by their accessible names, as the index gives them: in scene order, each name, a
+ *  ": ", and its topic's phrase, or the resume action's UI word. */
+function objectButtons(index: RoomIndex): string[] {
+  return index.selectables.map(({ name, action }) => {
+    const what =
+      action.kind === "talk" ? index.topics.find((t) => t.id === action.topic)?.phrase : index.ui["list.resume_action"];
+    return `${name}: ${what ?? ""}`;
+  });
+}
+
+const OBJECT_BUTTONS = objectButtons(roomIndex());
 
 function rules(): CssRule[] {
   return stylesheets().flatMap((sheet) => parseCss(sheet.text).rules);
@@ -195,9 +209,29 @@ describe("assistive technology", () => {
     for (const v of [v3, v2]) {
       const list = v.doc.querySelector(".room-list");
       const heading = list?.querySelector("h2");
-      expect(heading?.textContent?.trim()).toBe("In the room");
+      expect(heading?.textContent?.trim()).toBe(roomIndex().ui["list.heading"]);
       expect(list?.getAttribute("aria-labelledby")).toBe(heading?.id);
       expect([...(list?.querySelectorAll("ul > li > button") ?? [])].map(nameOf)).toEqual(OBJECT_BUTTONS);
+    }
+  });
+
+  it('builds the "In the room" list from the index: a button per selectable in scene order, with its topic or action', async () => {
+    const { index } = compose(goodTree(), noPolicy(), { mode: "strict", drafts: false });
+    expect(new Set(index.selectables.map((s) => s.action.kind))).toEqual(new Set(["talk", "resume"]));
+    const v = start({ webgl: false, room: index });
+    await intoRoom(v);
+    const list = v.doc.querySelector(".room-list");
+    expect(list?.querySelector("h2")?.textContent?.trim()).toBe(index.ui["list.heading"]);
+    const buttons = [...(list?.querySelectorAll("ul > li > button") ?? [])];
+    expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual(index.selectables.map((s) => s.id));
+    expect(buttons.map(nameOf)).toEqual(objectButtons(index));
+    // Each shows its name; the ": " and its topic or action are there for a screen reader, visually hidden.
+    for (const [k, b] of buttons.entries()) {
+      const [shown, hidden, ...rest] = [...b.children];
+      expect(rest).toEqual([]);
+      expect(textOf(shown ?? null)).toBe(index.selectables[k]?.name);
+      expect(hidden?.getAttribute("class")).toBe("visually-hidden");
+      expect(hidden?.textContent?.startsWith(": ")).toBe(true);
     }
   });
 
