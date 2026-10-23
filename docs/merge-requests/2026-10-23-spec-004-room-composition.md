@@ -178,12 +178,13 @@ From the REVIEW.md remediation, points it didn't settle, and one from the analyz
 ## Verification
 
 Commands run:
-- `make check ENGINE_MODE=none-yet` at `d5e8ec3`, in the worktree `/tmp/claude-1000/wt-004-spec`. Its whole output is below. Result: 10 PASS, 1 SKIP (`image`: no agents' engine yet, tasks.md T046), and 1 FAIL (`toolchain-check`). `make lint`, `make test`, and `make evals` run inside it, and all three PASS.
-- The FAIL is environment drift on this machine, not this branch. The branch changes only documents: 17 files, all under `specs/004-room-composition/`, against `main` at `58bd2327212e`. Claude Code 2.1.309 is installed against a 2.1.296 pin. The Author's gate's toolchain step will show the same drift until the pin is updated under the Claude Code pin rule (For the Author, item 15).
-- `gitleaks dir` on the worktree: no leaks found. The first scan flagged six findings in `__pycache__/*.pyc` files that `make check`'s pytest run had written. Those are compiled copies of test files that hold fake tokens. They are untracked, and they were removed before the scan pasted below.
-- This note, after it was written: `evals/docs_links.py` reports 0 failed, 1158 relative links in 100 files, the note's links included. `ruff format --check` on this file reports already formatted (1 file). `gitleaks dir` on this file reports no leaks found (about 50.83 KB scanned).
+- `make check ENGINE_MODE=none-yet` at `19d14b0`, the tree with every fix and this note before this section, in the worktree `/tmp/claude-1000/wt-004-spec`. Its whole output is below. Result: 10 PASS, 1 SKIP (`image`: no agents' engine yet, tasks.md T046), and 1 FAIL (`toolchain-check`). `make lint`, `make test`, and `make evals` run inside it, and all three PASS. The run at `d5e8ec3`, before the review, gave the same result.
+- The FAIL is environment drift on this machine, not this branch. The branch changes only documents: 18 files, 17 under `specs/004-room-composition/` and this note, against `main` at `58bd2327212e`. Claude Code 2.1.309 is installed against a 2.1.296 pin. The Author's gate's toolchain step will show the same drift until the pin is updated under the Claude Code pin rule (For the Author, item 15).
+- `gitleaks dir` on the worktree at `19d14b0`: no leaks found. `make check`'s pytest run writes `__pycache__/*.pyc` files, compiled copies of test files that hold fake tokens; they are untracked, and they were removed before the scan.
+- The M1 to M3 dry runs at `19d14b0`, read-only: `refs/heads/main` is an ancestor of `spec/003-studio-assets`, which is an ancestor of `spec/002-the-room`, so M1 and M2 fast-forward; `git merge-tree --write-tree refs/heads/spec/002-the-room` with this branch reports no conflict.
+- This note, after this section was written: `evals/docs_links.py` and `gitleaks dir` were run again; their results are in the commit that adds this section.
 
-**`make check ENGINE_MODE=none-yet`, whole output, at `d5e8ec3`:**
+**`make check ENGINE_MODE=none-yet`, whole output, at `19d14b0`:**
 
 ```text
 == makefiles-check
@@ -233,7 +234,7 @@ All matched files use Prettier code style!
 ruff check .
 All checks passed!
 ruff format --check --no-cache --extend-exclude corpus .
-207 files already formatted
+208 files already formatted
 { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
 -> PASS lint
@@ -251,8 +252,8 @@ npm test --workspaces --if-present
 
  Test Files  49 passed (49)
       Tests  747 passed | 12 skipped (759)
-   Start at  06:51:16
-   Duration  56.51s (tests 95%, import 3%, transform 2%)
+   Start at  08:24:07
+   Duration  70.66s (tests 92%, import 5%, transform 3%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  2%]
@@ -290,27 +291,27 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 96%]
 ........................................................................ [ 99%]
 .........                                                                [100%]
-2457 passed in 158.60s (0:02:38)
+2457 passed in 157.41s (0:02:37)
 -> PASS test
 == secrets
 bash tools/gates/secrets.sh
 secrets: gitleaks with /home/h4reet/h4reet-ai/h4reet-ai/.gitleaks.toml, over /tmp/claude-1000/wt-004-spec
 == gitleaks: unstaged changes
-6:55AM INF 0 commits scanned.
-6:55AM INF scanned ~0 bytes (0) in 25.1ms
-6:55AM INF no leaks found
+8:28AM INF 0 commits scanned.
+8:28AM INF scanned ~0 bytes (0) in 27ms
+8:28AM INF no leaks found
 -> PASS unstaged changes
 == gitleaks: staged changes
-6:55AM INF 0 commits scanned.
-6:55AM INF scanned ~0 bytes (0) in 27.4ms
-6:55AM INF no leaks found
+8:28AM INF 0 commits scanned.
+8:28AM INF scanned ~0 bytes (0) in 25.2ms
+8:28AM INF no leaks found
 -> PASS staged changes
-== gitleaks: 12 commits since main (58bd2327212e..HEAD)
-6:55AM INF 12 commits scanned.
-6:55AM INF scanned ~1179471 bytes (1.18 MB) in 175ms
-6:55AM INF no leaks found
--> PASS 12 commits since main (58bd2327212e..HEAD)
-secrets: PASS (unstaged changes, staged changes, 12 commits since main)
+== gitleaks: 16 commits since main (58bd2327212e..HEAD)
+8:28AM INF 16 commits scanned.
+8:28AM INF scanned ~1388196 bytes (1.39 MB) in 189ms
+8:28AM INF no leaks found
+-> PASS 16 commits since main (58bd2327212e..HEAD)
+secrets: PASS (unstaged changes, staged changes, 16 commits since main)
 -> PASS secrets
 == evals
 python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER:-}" = local ] && echo --stack prod)
@@ -338,11 +339,11 @@ behavioral tier: 13 cases (10 enforcement, 3 conduct), 3 runs each; trigger hash
 PASS  behavioral tier: 2026-10-12T184140Z-fix-000-gate-on-main-4907f2bf42e8 passed for trigger hash 3f4caf1b916a, the newest run for it
 agent-config behavioral: pass, 0 planned
 python3 -I -B -X pycache_prefix=/dev/null evals/docs_links.py
-PASS  every relative link resolves: 1136 links in 99 files
+PASS  every relative link resolves: 1164 links in 100 files
 PASS  README.md links the ADR index (docs/adr/)
 PASS  the ADR index links every ADR file: 17 of 17
 PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
-docs links: 0 failed, 1136 relative links in 99 files
+docs links: 0 failed, 1164 relative links in 100 files
 -> PASS evals
 == redteam
 python3 -I -B -X pycache_prefix=/dev/null redteam/run.py
@@ -435,14 +436,13 @@ PASS     matrix
 SKIP     image  no agents' engine yet: tasks.md T046
 make check: 10 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: toolchain-check FAIL
 make: *** [Makefile:146: check] Error 1
-make check ENGINE_MODE=none-yet  576.45s user 159.39s system 240% cpu 5:06.07 total
 ```
 
-**`gitleaks dir`, at `d5e8ec3`** (terminal colour codes removed):
+**`gitleaks dir`, at `19d14b0`** (terminal colour codes removed):
 
 ```text
-6:57AM INF scanned ~8233249 bytes (8.23 MB) in 609ms
-6:57AM INF no leaks found
+8:29AM INF scanned ~8349484 bytes (8.35 MB) in 454ms
+8:29AM INF no leaks found
 ```
 
 ## Cost and data-flow impact
