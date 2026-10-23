@@ -379,10 +379,16 @@ describe("the capability floor for studio models (spec 004, R-28)", () => {
     // The room reads its WebGL 2 check through capability() (R-28 step 1), so the size failing never sends it to 2D.
     const { win, calls } = windowWith("unreadable");
     const read = capability(win);
+    // The context it made is released all the same.
+    expect(calls).toEqual([
+      'getContext webgl2 {"failIfMajorPerformanceCaveat":true}',
+      `getParameter ${MAX_TEXTURE_SIZE}`,
+      "getExtension WEBGL_lose_context",
+      "loseContext",
+    ]);
     expect(read).toEqual({ webgl2: true, maxTextureSize: 0, deviceMemory: null });
     expect(read.webgl2).toBe(hasWebGL2(win.document));
     expect(meetsModelFloor(read)).toBe(false);
-    expect(calls.slice(-2)).toEqual(["getExtension WEBGL_lose_context", "loseContext"]);
   });
 
   it("is ADR 0010's floor: WebGL 2, at least 4 GB where the browser reports it, and 4096-pixel textures", () => {
