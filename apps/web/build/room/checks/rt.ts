@@ -457,6 +457,10 @@ function excludes(ctx: Context, line: LineContext): void {
 
 // ---- RT8: words over their grid ----
 
+/** Room for floating point at a region's edge, in metres: words that fill a grid its width sets, such as a counter's
+ *  24 characters of 0.6 em in a region 14.4 em wide, are as wide as the region, not wider. */
+const EDGE_M = 1e-9;
+
 /** The largest amount a counter reads below $100, and a local reply's (contracts/turn-cost.md §5): amounts are live
  *  values, so these are the contract's figures, never data. */
 const MOST = "$99.999999";
@@ -555,7 +559,7 @@ function grids(ctx: Context, resume: ResumeSource | null, faces: Faces): void {
       }
       const ems = use !== null && look !== undefined ? faces.advance(look, use, text) : null;
       const wide = ems === null ? 0 : ems * grid.em;
-      if (wide > box.w)
+      if (wide > box.w + EDGE_M)
         rt8(`${what} is ${wide.toFixed(3)} m wide at the grid's size, wider than the region's ${box.w.toFixed(3)} m`);
     }
   }
