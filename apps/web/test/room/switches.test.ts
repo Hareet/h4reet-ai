@@ -1,14 +1,15 @@
 // T066's switch half (spec 004; FR-020, FR-043, FR-051, FR-058; R-22; data-model.md §4.4; contracts/room-data-files.md
 // §5.4, §13.4): the kernel's cable (T072), and the compositor's RS1 to RS6 on the fixtures' laptop switch (T078).
 // - The run the room draws from the shown case's lead end to the `to` anchor: 16 points along the straight line
-//   lowered by sag × span × 4t(1 − t), clamped above the `rest` plane, then the `drop` behind the edge, its radius
-//   times the switch piece's stylized scale. Moving the parent, the laptop's stand, or the desk needs no re-export: only
-//   the pose decides where the lead's end is.
+//   lowered by sag × span × 4t(1 − t), its centreline clamped a tube's radius above the `rest` plane, then the `drop`
+//   behind the edge, its radius times the switch piece's stylized scale. Moving the parent, the laptop's stand, or the
+//   desk needs no re-export: only the pose decides where the lead's end is.
 // - The rules: a case for every tier value and no default on a piece that claims values, a default covering the rest
-//   on one that claims none (RS1); the poses its claims name, and no placement of the switch's piece (RS2); only local
-//   showing the plugged pose and only cloud the cloud pose (RS3); the six other values on one shared pose that claims
-//   nothing (RS4); nothing but the local case sitting where the plug goes in, nor two poses with different claims
-//   within 1 mm and 1° (RS5); a cable from an anchor of the switch's piece (RS6). No reason names a pose.
+//   on one that claims none (RS1); the poses its claims name, one pose claiming local and one cloud, and no placement
+//   of the switch's piece (RS2); only local showing the plugged pose and only cloud the cloud pose (RS3); the six other
+//   values on one shared pose that claims nothing (RS4); nothing but the local case sitting where the plug goes in, nor
+//   two poses with different claims within 1 mm and 1° where the world places them (RS5); a cable from an anchor of the
+//   switch's piece (RS6). No reason names a pose.
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 

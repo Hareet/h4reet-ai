@@ -13,9 +13,9 @@
 // - RT7, the chalkboard's excludes (a chalk block without one is the loader's); RT8, words over their grid
 //   (compose/layout.ts), a turn-cost counter's readings among them (contracts/turn-cost.md §5), the section titles' fit
 //   in strict mode only; RT9, the Author's words, verbatim, in strict mode only; RT10, the looks' typefaces
-//   (typefaces.ts); RT11, the tier's sentences; RT12, the closed list's keys and slots
-//   (src/room/ui-keys.ts); RT13, an outline's strings and, in strict mode only, its words in its intent's quotation
-//   marks (its keys, cap height, and path data are the loader's).
+//   (typefaces.ts); RT11, the tier's sentences; RT12, the closed list's keys and slots (src/room/ui-keys.ts); RT13, an
+//   outline's strings and, in strict mode only, its words in its intent's quotation marks (its keys, cap height, and
+//   path data are the loader's).
 // The room's name, which C8 and C9's key phrases read as spec 002 reads them, is the resume source's, through the
 // tree. A reference that doesn't resolve is RI4's, and a file the loader refused meets none of these. A reason holds
 // keys, indices, measured numbers, and the rules' own words, never a value from the data.
