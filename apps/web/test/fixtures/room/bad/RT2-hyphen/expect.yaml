@@ -1,0 +1,7 @@
+rule: RT2
+file: apps/web/room/scene.yaml
+path: retired[0].id
+why: an ID whose hyphen joins the surname of main's full name to another word
+full_name: Fixture Quillfeather
+edits:
+  - { file: apps/web/room/scene.yaml, at: [retired, 0, id], set: quillfeather-lamp }

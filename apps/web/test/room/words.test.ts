@@ -125,6 +125,34 @@ describe("RT2, spec 002's C9 over every string (FR-009, FR-035)", () => {
     expect(found.join("\n")).not.toMatch(/quillfeather/i);
   });
 
+  it("reads an ID, a name, and a map key with - and . as spaces too, so the surname inside a hyphenated one is refused (words-4)", () => {
+    const hyphenated = {
+      ...edit(SCENE, [["retired", 0, "id"], "quillfeather-lamp"], [["switches", 0, "id"], "fx-quillfeather"]),
+      ...edit(SHELL, [["anchors", "fx-quillfeather-top"], { at: [0, 0, 0] }]),
+      ...edit(UI, [["words", "label.quillfeather-desk"], "fixture desk"]),
+    };
+    const found = lines(hyphenated, STRICT, named("Fixture Quillfeather"));
+    expect(of("RT2", found)).toEqual([
+      `RT2 ${SHELL}:anchors: forbidden phrase (from the surname rule)`,
+      `RT2 ${SCENE}:retired[0].id: forbidden phrase (from the surname rule)`,
+      `RT2 ${SCENE}:switches[0].id: forbidden phrase (from the surname rule)`,
+      `RT2 ${UI}:words: forbidden phrase (from the surname rule)`,
+    ]);
+    expect(found.join("\n")).not.toMatch(/quillfeather/i);
+    // Without main's full name, nothing; and a word the surname merely begins stays a word of its own.
+    expect(of("RT2", lines(hyphenated))).toEqual([]);
+    const longer = edit(SCENE, [["retired", 0, "id"], "quillfeathers-lamp"]);
+    expect(of("RT2", lines(longer, STRICT, named("Fixture Quillfeather")))).toEqual([]);
+  });
+
+  it("refuses a private denylist phrase that an ID's words spell, joined by - (words-4)", () => {
+    const changes = edit(SCENE, [["retired", 0, "id"], "quartz-lantern"]);
+    expect(of("RT2", lines(changes))).toEqual([]);
+    expect(of("RT2", lines({ ...changes, [DENYLIST]: "# fixture phrases\n\nquartz lantern\n" }))).toEqual([
+      `RT2 ${SCENE}:retired[0].id: forbidden phrase (from the private denylist)`,
+    ]);
+  });
+
   it("has no surname rule without main's full name, and never refuses the name's first word", () => {
     expect(of("RT2", lines(surname))).toEqual([]);
     expect(of("RT2", lines({}, STRICT, named("Fixture Quillfeather")))).toEqual([]);
