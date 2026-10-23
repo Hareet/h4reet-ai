@@ -36,7 +36,7 @@ import type { Probe } from "../../src/lookdev/results";
 import { framing } from "../../src/room/compose/framing";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../../src/room/compose/stages";
 import { readImage } from "../../src/room/glb/images";
-import { count } from "../../src/room/glb/rules";
+import { REASON, count } from "../../src/room/glb/rules";
 import { MODEL_FLOOR } from "../../src/room/quality";
 import type { Capability } from "../../src/room/quality";
 import { qualitySettings } from "../../src/room/scene";
@@ -44,7 +44,7 @@ import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
 import { MODEL_NODE } from "../../src/room/scene/loader";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
-import { desk } from "../helpers/glb";
+import { asExported, desk, item } from "../helpers/glb";
 import { cleanModel } from "../helpers/room-models";
 
 afterEach(() => {
@@ -781,6 +781,57 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
     await settle(clock);
     const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
     expect(results.candidates).toEqual([]);
+  });
+
+  it("swaps in an export as Blender writes it, as a preview of an unscrubbed file, measured, every finding listed", async () => {
+    // The Author's first run (plan.md §10): each studio file was refused with one finding, RX2's for asset.generator,
+    // which Blender writes into every export and spec 003's scrub drops, so nothing was measured or shown.
+    const { page, root, clock, spies, inputs: given } = open();
+    const { piece, placement, entry } = vignettePiece(given);
+    const data = cleanModel(entry as Parameters<typeof cleanModel>[0], { mark: false, edit: asExported });
+    pick(root, piece, data);
+    await settle(clock);
+    expect(page.stage.loaded.has(piece)).toBe(true);
+    expect(page.stage.room.placements.get(placement)?.children.some((c) => c.name === MODEL_NODE)).toBe(true);
+    const text = collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent);
+    expect(text).toContain(nodeSha256(data));
+    expect(text).toContain("A preview of an unscrubbed file");
+    expect(text).toContain("Mark: not scrubbed");
+    expect(text).toContain("Findings: 3");
+    for (const finding of [
+      `RX2 candidate:asset.generator: ${REASON.outsideAsset}`,
+      `RX5 candidate:extensions: ${REASON.notScrubbed}`,
+      `RX3 candidate:nodes[0].extras: ${REASON.extras}`,
+    ])
+      expect(text).toContain(finding);
+    expect(text).toMatch(/[\d,]+ triangles; [\d,]+ bytes of texture memory/);
+    expect(text).not.toMatch(/No measures|Not swapped in/);
+    // A scrubbed file with no finding is no preview: its hash is one to approve.
+    pick(root, piece, cleanModel(entry as Parameters<typeof cleanModel>[0]));
+    await settle(clock);
+    expect(collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent)).not.toContain("preview");
+    expect(spies.network).toEqual([]);
+  });
+
+  it("swaps in no file whose RX2 problem keeps the reader from reading it, a property the scrub drops beside it", async () => {
+    const { page, root, clock, inputs: given } = open();
+    const { piece, entry } = vignettePiece(given);
+    const data = cleanModel(entry as Parameters<typeof cleanModel>[0], {
+      mark: false,
+      edit: (g) => {
+        asExported(g);
+        item(g, "nodes", 1).mesh = 99;
+      },
+    });
+    pick(root, piece, data);
+    await settle(clock);
+    expect(page.stage.loaded.has(piece)).toBe(false);
+    const text = collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent);
+    expect(text).toContain(`RX2 candidate:asset.generator: ${REASON.outsideAsset}`);
+    expect(text).toContain("RX2 candidate:nodes[1].mesh: names no element of meshes");
+    expect(text).toContain("No measures: RX2 refuses the file.");
+    expect(text).toContain("Not swapped in: RX2 refuses the file.");
+    expect(text).not.toContain("preview");
   });
 
   it("swaps in no file RX1 refuses, and says why", async () => {

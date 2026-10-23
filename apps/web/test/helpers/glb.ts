@@ -302,6 +302,17 @@ export function addMark(gltf: Obj, term: string = MODEL_TERM): void {
   obj(gltf.asset).extensions = { KHR_xmp_json_ld: { packet: 0 } };
 }
 
+/** The generator Blender's glTF exporter writes into every file's asset, a property outside the arrival check's schema,
+ *  which spec 003's scrub drops. */
+export const BLENDER_GENERATOR = "Khronos glTF Blender I/O v4.2.70";
+
+/** A file as Blender exports it, before the scrub, as an `edit` for any builder here: the asset's generator, and a
+ *  custom property as `extras` on the first node. With `mark: false`, the studio's file as the Author picks it. */
+export function asExported(gltf: Obj): void {
+  obj(gltf.asset).generator = BLENDER_GENERATOR;
+  item(gltf, "nodes", 0).extras = { "fx-note": "fx-from-the-studio" };
+}
+
 export interface GlbOptions {
   /** The mark's term, true for spec 003's, or false for none. */
   readonly mark?: boolean | string;

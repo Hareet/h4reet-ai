@@ -5,7 +5,10 @@
 // piece, in compose()'s order, with `candidate` for the file, RK2's among them; and compose()'s measures. An unmarked
 // file reads "not scrubbed"; the SHA-256 is Node's; the picked file is read with arrayBuffer() and nothing else, so its
 // name appears nowhere; and nothing is requested or stored. A candidate reaches three's GLTFLoader only past RX1 and
-// RX2 and with no RX3 uri, since three's parser fetches a buffer's uri: the last describe shows it doing so.
+// RX2 and with no RX3 uri, since three's parser fetches a buffer's uri: the last describe shows it doing so. RX2's
+// properties the reader never reads (Blender's asset.generator, which spec 003's scrub drops) don't keep it out: an
+// unscrubbed export is measured and swapped in as a preview of an unscrubbed file, every finding listed, and the
+// compositor still refuses it (plan.md §10).
 import { createHash } from "node:crypto";
 
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -17,6 +20,7 @@ import type { ComposeResult, RoomPolicy } from "../../build/room/compose";
 import {
   NOT_GLB,
   NOT_SCRUBBED,
+  REFUSAL,
   candidatePieces,
   judgeCandidate,
   loadable,
@@ -27,7 +31,20 @@ import {
 import type { Candidate, PieceFit } from "../../src/lookdev/candidate";
 import type { FitInput } from "../../src/room/glb/fit";
 import { MARK_VALUES, REASON, count } from "../../src/room/glb/rules";
-import { DESK_INPUT, ModelBuilder, SIGN_INPUT, desk, item, rxVariants, sign } from "../helpers/glb";
+import {
+  BLENDER_GENERATOR,
+  DESK_INPUT,
+  ModelBuilder,
+  SIGN_INPUT,
+  asExported,
+  desk,
+  item,
+  list,
+  obj,
+  rxVariants,
+  sign,
+} from "../helpers/glb";
+import type { Obj } from "../helpers/glb";
 import { spyOnGlobals } from "../helpers/globals";
 import type { GlobalSpies } from "../helpers/globals";
 import { badCases, goodTree, overlay } from "../helpers/room-fixtures";
@@ -41,6 +58,11 @@ const nodeSha256 = (data: Uint8Array): string => createHash("sha256").update(dat
 const PICKED_NAME = "PXL_20261023_fx-picked-name.glb";
 /** A finding as the page prints it. */
 const FINDING = /^R[XK]\d+ candidate:\S+: \S/;
+/** The variants whose one finding is RX2's for a property the reader never reads, a key outside the glTF 2.0 schema:
+ *  measured, and swapped in, where every other RX1 and RX2 variant is refused (plan.md §10). */
+const READ_PAST = new Set(["rx2-outside-the-schema", "rx2-generator"]);
+/** The variants a candidate is refused on: RX1's, RX2's but those, and RX3's uri. */
+const refusedVariant = (id: string): boolean => id === "rx3-uri" || (/^rx[12]-/.test(id) && !READ_PAST.has(id));
 
 let globals: GlobalSpies;
 
@@ -157,7 +179,8 @@ describe("a candidate's findings and measures are compose()'s for the same bytes
       const candidate = judgeCandidate(c.piece, v.bytes, c.fit);
       expect(candidate.findings, v.id).toEqual(composeFindings(c));
       const rk2 = candidate.findings.filter((f) => f.startsWith("RK2 "));
-      // A file RX1 or RX2 refuses has no measures, so nothing to hold to a budget.
+      // A file RX1 or RX2 refuses has no measures, so nothing to hold to a budget; a property the reader never reads
+      // (READ_PAST's variants) stops nothing, so its file is held to it.
       expect(rk2.length > 0, v.id).toBe(candidate.measures.triangles !== null);
       if (rk2.length > 0 && rk2.length < candidate.findings.length) both += 1;
     }
@@ -334,19 +357,26 @@ describe("what the room's parse path may take (contracts/lookdev.md §4; a candi
     const candidate = judgeCandidate(c.piece, data, c.fit);
     expect(candidate.findings).toEqual([`RX3 candidate:buffers[0].uri: ${REASON.uri}`]);
     expect([candidate.swappable, loadable(candidate)]).toEqual([false, null]);
-    const refused = rxVariants().filter((v) => v.id === "rx3-uri" || /^rx[12]-/.test(v.id));
+    expect([candidate.refusal, candidate.preview]).toEqual(["uri", false]);
+    const refused = rxVariants().filter((v) => refusedVariant(v.id));
     expect(refused.length).toBeGreaterThan(20);
     for (const v of refused) {
       const composed = composedWith(v.bytes, v.input);
       const one = judgeCandidate(composed.piece, v.bytes, composed.fit);
       expect([one.swappable, loadable(one)], v.id).toEqual([false, null]);
+      expect(one.refusal, v.id).toBe(v.id === "rx3-uri" ? "uri" : v.rule);
     }
+    expect(REFUSAL).toEqual({
+      RX1: "RX1 refuses the file",
+      RX2: "RX2 refuses the file",
+      uri: "it names a uri, which the page never fetches",
+    });
     expect(globals.network).toEqual([]);
   });
 
   it("hands over any other candidate whatever its findings, so the Author sees a misfit at the room's framing", () => {
-    const others = rxVariants().filter((v) => v.id !== "rx3-uri" && !/^rx[12]-/.test(v.id));
-    expect(others.map((v) => v.id)).toContain("rx3-camera");
+    const others = rxVariants().filter((v) => !refusedVariant(v.id));
+    expect(others.map((v) => v.id)).toEqual(expect.arrayContaining(["rx3-camera", ...READ_PAST]));
     for (const v of others) {
       const c = composedWith(v.bytes, v.input);
       const candidate = judgeCandidate(c.piece, v.bytes, c.fit);
@@ -355,12 +385,106 @@ describe("what the room's parse path may take (contracts/lookdev.md §4; a candi
       const handed = loadable(candidate);
       expect(handed, v.id).toBeInstanceOf(ArrayBuffer);
       expect(new Uint8Array(handed ?? new ArrayBuffer(0)), v.id).toEqual(v.bytes);
+      expect(candidate.refusal, v.id).toBeNull();
     }
     // A copy of a candidate isn't one: only the candidate the module made hands its bytes over.
     const model = desk();
     const c = composedWith(model.bytes, DESK_INPUT);
     const candidate = judgeCandidate(c.piece, model.bytes, c.fit);
     expect(loadable({ ...candidate })).toBeNull();
+  });
+});
+
+describe('an unscrubbed file, as a preview (plan.md §10; contracts/lookdev.md §4\'s "whatever its other findings")', () => {
+  /** The desk as Blender exports it, before the scrub: the asset's generator, a custom property, and no mark. */
+  const exported = (): Uint8Array => desk({ mark: false, edit: asExported }).bytes;
+
+  it("is measured and swapped in, every finding listed, the properties the scrub drops among them", () => {
+    const data = exported();
+    const c = composedWith(data, DESK_INPUT);
+    const candidate = judgeCandidate(c.piece, data, c.fit);
+    expect(candidate.findings).toEqual(composeFindings(c));
+    expect(candidate.findings).toEqual([
+      `RX2 candidate:asset.generator: ${REASON.outsideAsset}`,
+      `RX5 candidate:extensions: ${REASON.notScrubbed}`,
+      `RX3 candidate:nodes[0].extras: ${REASON.extras}`,
+    ]);
+    // The clean desk's measures: the generator and the custom property change no geometry and no texture.
+    const clean = judgeCandidate(c.piece, desk().bytes, c.fit);
+    const shape = (x: Candidate): Candidate["measures"] => ({ ...x.measures, bytes: 0, gzipBytes: 0 });
+    expect(shape(candidate)).toEqual(shape(clean));
+    expect(candidate.measures.triangles).toBe(36);
+    expect([candidate.scrubbed, candidate.mark, markReadout(candidate)]).toEqual([false, null, NOT_SCRUBBED]);
+    expect([candidate.swappable, candidate.refusal, candidate.preview]).toEqual([true, null, true]);
+    expect(new Uint8Array(loadable(candidate) ?? new ArrayBuffer(0))).toEqual(data);
+    // Under a budget of one triangle, RK2 holds its measures as the compositor does.
+    const tight = composedWith(data, DESK_INPUT, 1);
+    expect(judgeCandidate(tight.piece, data, tight.fit).findings).toEqual([
+      `RK2 candidate:-: 36 triangles, over the piece's budget of 1; the piece keeps its stand-in`,
+      ...candidate.findings,
+    ]);
+    expect(composeFindings(tight)[0]).toMatch(/^RK2 candidate:-: 36 triangles/);
+  });
+
+  it("is a model the compositor still refuses: the finding stands, so the piece keeps its stand-in", () => {
+    const data = exported();
+    const c = composedWith(data, DESK_INPUT);
+    const generator = c.result.findings.find((f) => f.rule === "RX2");
+    expect(generator).toMatchObject({ file: c.file, path: "asset.generator", reason: REASON.outsideAsset });
+    expect(c.result.models.map((m) => m.piece)).not.toContain(c.piece);
+    const placed = c.result.scene.placements.filter((p) => p.piece === c.piece).map((p) => p.id);
+    expect(placed.length).toBeGreaterThan(0);
+    for (const id of placed) expect(c.result.manifest.standins).toContainEqual({ placement: id, reason: "findings" });
+  });
+
+  it("is labelled a preview only where it is unscrubbed or holds what the scrub drops", () => {
+    const cases: [string, Uint8Array, boolean][] = [
+      ["scrubbed, no finding", desk().bytes, false],
+      ["scrubbed, a misfit", desk({ edit: (g) => (item(g, "nodes", 0).translation = [0.05, 0, 0]) }).bytes, false],
+      ["scrubbed, a mark RX5 refuses", desk({ mark: "digitalCapture" }).bytes, false],
+      ["not scrubbed", desk({ mark: false }).bytes, true],
+      ["as exported, not scrubbed", exported(), true],
+      [
+        "marked, but holding the generator",
+        desk({ edit: (g) => (obj(g.asset).generator = BLENDER_GENERATOR) }).bytes,
+        true,
+      ],
+    ];
+    for (const [what, data, preview] of cases) {
+      const c = composedWith(data, DESK_INPUT);
+      const candidate = judgeCandidate(c.piece, data, c.fit);
+      expect([candidate.swappable, candidate.preview], what).toEqual([true, preview]);
+    }
+  });
+
+  it("is still refused beside an RX2 problem that keeps the reader from reading it, or a uri", () => {
+    const exportedWith = (edit: (g: Obj) => void): Uint8Array =>
+      desk({
+        mark: false,
+        edit: (g) => {
+          asExported(g);
+          edit(g);
+        },
+      }).bytes;
+    const cases: [string, Uint8Array, "RX2" | "uri"][] = [
+      ["an index that names no element", exportedWith((g) => (item(g, "nodes", 2).mesh = 40)), "RX2"],
+      [
+        "an image's uri",
+        exportedWith((g) => list(g, "images").push({ uri: "fx-top.png", mimeType: "image/png" })),
+        "uri",
+      ],
+    ];
+    for (const [what, data, refusal] of cases) {
+      const c = composedWith(data, DESK_INPUT);
+      const candidate = judgeCandidate(c.piece, data, c.fit);
+      expect([candidate.swappable, candidate.refusal, candidate.preview, loadable(candidate)], what).toEqual([
+        false,
+        refusal,
+        false,
+        null,
+      ]);
+      expect(candidate.findings, what).toContain(`RX2 candidate:asset.generator: ${REASON.outsideAsset}`);
+    }
   });
 });
 
