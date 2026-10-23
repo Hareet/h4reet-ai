@@ -11,11 +11,14 @@
 //   types; enum members; in HTML, attribute values and text, a <script>'s body as a script and a <style>'s as a style
 //   sheet; in CSS, selectors, custom property names, and strings. Never a comment, and never an identifier.
 // - A hit: a text in which `(?<![a-z0-9])<id>(?![a-z0-9])` matches, case-sensitively, so `flat-hit--<id>` is caught,
-//   placed on the line where the ID stands.
+//   placed on the line where the ID stands; but never inside a token the reserved prefix `fx-` begins (contracts/
+//   room-data-files.md §3.1), from the prefix where the hit rule lets an ID begin through its run of lowercase letters,
+//   digits, and hyphens. That token is a test's synthetic ID, or a per-ID class of one, which committed data never
+//   takes, so neither it nor an ID inside it (`laptop` in `fx-laptop`) is a real ID (plan.md §10).
 // - The output: `FR-007 <file>:<line>: holds "<id>", which only the room's data defines`, one line per hit, sorted by
 //   file, line, then ID, and exit 1 on any. An ID RT2 refused never prints: its line says so in the ID's place.
 // There is no allowlist, since one would hold the ID itself: the fix is in the code, which takes the value from the
-// bundle, or from compose() in a test.
+// bundle, or from compose() in a test. The reserved prefix lists no ID: it is the data's own namespace for fixtures.
 import ts from "typescript";
 
 import { createContext } from "./checks/family";
@@ -270,10 +273,27 @@ function cssTexts(text: string, at = 0): Text[] {
   return out;
 }
 
-/** §16's hit rule for one ID, `(?<![a-z0-9])<id>(?![a-z0-9])`, case-sensitively. An ID passed RI1's grammar as it was
- *  read, so it holds no character a pattern treats specially; any such is escaped all the same. */
+/** §16's hit rule for one ID, `(?<![a-z0-9])<id>(?![a-z0-9])`, case-sensitively, global so every match is tried. An ID
+ *  passed RI1's grammar as it was read, so it holds no character a pattern treats specially; any such is escaped all
+ *  the same. */
 function pattern(id: string): RegExp {
-  return new RegExp(`(?<![a-z0-9])${id.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")}(?![a-z0-9])`);
+  return new RegExp(`(?<![a-z0-9])${id.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")}(?![a-z0-9])`, "g");
+}
+
+/** A token the reserved prefix begins: `fx-` where the hit rule lets an ID begin, through its run of ID characters. */
+const FIXTURE = /(?<![a-z0-9])fx-[a-z0-9-]*/g;
+
+/** Where each token the reserved prefix begins lies in a text, as [start, end). */
+const fixtureSpans = (text: string): (readonly [number, number])[] =>
+  [...text.matchAll(FIXTURE)].map((m) => [m.index, m.index + m[0].length] as const);
+
+/** Where `re` first matches `text` outside every span of `spans`, or -1: an ID inside a fixture token isn't a hit. */
+function hitAt(text: string, re: RegExp, spans: readonly (readonly [number, number])[]): number {
+  for (const m of text.matchAll(re)) {
+    const [from, to] = [m.index, m.index + m[0].length];
+    if (!spans.some(([start, end]) => start <= from && to <= end)) return from;
+  }
+  return -1;
 }
 
 /** The line, counted from 1, that holds the character at `offset`. */
@@ -286,12 +306,14 @@ function scanFile(source: Source, patterns: readonly (readonly [string, RegExp])
   const texts =
     kind === "html" ? htmlTexts(file, text) : kind === "css" ? cssTexts(text) : scriptTexts(file, text, kind);
   const hits = new Map<string, Hit>();
-  for (const t of texts)
+  for (const t of texts) {
+    const [inValue, inSource] = [fixtureSpans(t.value), fixtureSpans(t.source)];
     for (const [id, re] of patterns) {
-      if (!re.test(t.value)) continue;
-      const line = lineAt(text, t.at + (re.exec(t.source)?.index ?? 0));
+      if (hitAt(t.value, re, inValue) < 0) continue;
+      const line = lineAt(text, t.at + Math.max(0, hitAt(t.source, re, inSource)));
       hits.set(`${line} ${id}`, { file, line, id });
     }
+  }
   return [...hits.values()];
 }
 
