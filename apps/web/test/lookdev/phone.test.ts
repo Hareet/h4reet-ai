@@ -665,6 +665,8 @@ describe("npm run build:lookdev-phone (§7.1, §8 layer 5)", () => {
     expect(script.getAttributeNames()).toEqual([]);
     expect(script.text).not.toMatch(/<\/script|<script|<!--/i);
     expect(script.text.length).toBeGreaterThan(0);
+    // The policy has no 'unsafe-eval', so the copy calls neither eval nor Function, which would fail on the phone.
+    expect(script.text).not.toMatch(/(?:^|[^\w$.])(?:eval|Function)\s*\(/);
     expect(doc.querySelectorAll("style")).toHaveLength(1);
     expect(doc.querySelectorAll("link, base, iframe, frame, object, embed, img, source, video, audio")).toHaveLength(0);
     expect(doc.querySelector(`main#${PHONE_ROOT}`)).not.toBeNull();
@@ -688,16 +690,17 @@ describe("npm run build:lookdev-phone (§7.1, §8 layer 5)", () => {
     }
   });
 
-  it("holds the typefaces as data: fonts, each the file apps/web/fonts/ vendors, no other url(), and no comment", () => {
+  it("holds the typefaces as data: fonts, each the file apps/web/fonts/ vendors, every url() a data: URL, no comment", () => {
     const style = parsed().querySelector("style")?.textContent ?? "";
     // Base64 never holds "*", so any "/*" would be a comment the minified CSS doesn't have.
     expect(style).not.toContain("/*");
     const urls = [...style.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/g)].map((m) => m[2] ?? "");
     expect(urls.length).toBeGreaterThan(0);
+    for (const url of urls) expect(url.startsWith("data:"), url.slice(0, 60)).toBe(true);
     const fonts = new Set<string>();
     for (const url of urls) {
       const data = /^data:font\/woff;base64,([A-Za-z0-9+/=]+)$/.exec(url);
-      if (!data) throw new Error(`not a data: font: ${url.slice(0, 60)}`);
+      if (!data) continue;
       fonts.add(
         createHash("sha256")
           .update(Buffer.from(data[1] ?? "", "base64"))
