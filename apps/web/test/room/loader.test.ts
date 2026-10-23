@@ -761,10 +761,55 @@ describe("the 3D part's load order as entries", () => {
     expect(assetOf("elsewhere.glb", "fx-other")).toBe("fx-other");
   });
 
-  it("leaves out a pose whose piece no placement shows, since the 3D part names no model for it", () => {
-    const { scene } = withModels(["fx-plug"]);
-    expect(scene.load_order.some((id) => id.includes("."))).toBe(true);
-    expect(modelEntries(scene)).toEqual([]);
+  it("resolves a switch's pose, <switch>.<pose>, to the switch's own model, its piece's record's file the asset", () => {
+    const { scene, models } = withModels(["fx-plug"]);
+    const sw = scene.switches.find((s) => s.piece === "fx-plug");
+    const plug = models.find((m) => m.piece === "fx-plug");
+    // RS2 lets no placement place a switch's piece: the switch carries its model (contracts/room-bundle.md §3.2).
+    expect(scene.placements.some((p) => p.piece === "fx-plug")).toBe(false);
+    expect(scene.load_order).toEqual([`${sw?.id ?? ""}.fx-resting`]);
+    expect(modelEntries(scene, "../")).toEqual([
+      {
+        piece: "fx-plug",
+        asset: "fx-plug",
+        bytes: plug?.gz.length,
+        source: { kind: "url", url: `../${sw?.model?.url ?? ""}`, sha256: sw?.model?.sha256 },
+      },
+    ]);
+  });
+
+  it("loads a switch's model into each case of the switch, its event's bytes the .gz copy's length", async () => {
+    const { scene: part, index, models } = withModels(["fx-plug"]);
+    const label = (text: string): Object3D => Object.assign(new Object3D(), { name: `label:${text}` });
+    const room = buildRoom(part, { avatar: "dog", label, index });
+    const h = harness();
+    const loader = createLoader({ ...optionsOf(h), swap: (piece, model) => showModel(room, part, piece, model) });
+    const done = loader.load(modelEntries(part));
+    await settle();
+    const sw = part.switches.find((s) => s.piece === "fx-plug");
+    expect(h.fetch.calls.map((c) => c.url)).toEqual([sw?.model?.url]);
+    h.fetch.calls[0]?.answer({ body: modelChanges(["fx-plug"])["assets/room/fx-plug.glb"] });
+    await settle();
+    h.clock.advance(32);
+    await done;
+    const cases = [...(room.switches.get(sw?.id ?? "")?.values() ?? [])];
+    expect(cases.map((c) => c.name)).toEqual(Object.keys(sw?.poses ?? {}).map((pose) => `${sw?.id ?? ""}.${pose}`));
+    for (const group of cases) {
+      expect(
+        group.children.filter((c) => c.name === MODEL_NODE),
+        group.name,
+      ).toHaveLength(1);
+      expect(group.children.find((c) => c.name === "standin")?.visible, group.name).toBe(false);
+    }
+    expect(h.events).toEqual([
+      {
+        asset: "fx-plug",
+        outcome: "loaded",
+        ms_bucket: "<250",
+        bytes: models.find((m) => m.piece === "fx-plug")?.gz.length,
+        mode: "full",
+      },
+    ]);
   });
 });
 
