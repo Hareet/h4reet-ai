@@ -16,14 +16,18 @@ bakes in what the gateway's doesn't:
   - It builds on every run and reuses no tag: the image holds main's policy as it stood at build time, so an approval
     on main reaches the next make up, and prod and dev at one commit run two images.
   - The policy comes from main, read on the host: `git -C <repo> cat-file blob refs/heads/main:<path>`, with
-    GIT_NO_REPLACE_OBJECTS=1, for assets/policy/content-approvals.json and assets/policy/resume-header.json, where
-    <repo> is the working tree make names (as it names preflight's --repo). The full ref, as spec 003 reads its
-    policy: a bare "main" resolves to refs/tags/main before refs/heads/main, and an agent session can make that tag. It writes them to a fresh 0700 temporary directory, outside the tree being built, and
-    hands that to the build as the named build context `policy`, then removes it. A file main lacks is absent from
-    it, so every content file builds as a draft and the PDF gets the room's header. The build stage reads only that
+    GIT_NO_REPLACE_OBJECTS=1, for assets/policy/content-approvals.json, assets/policy/resume-header.json, and
+    assets/policy/caps.json (spec 004, FR-053; its research.md R-13), where <repo> is the working tree make names (as
+    it names preflight's --repo). The full ref, as spec 003 reads its policy: a bare "main" resolves to refs/tags/main
+    before refs/heads/main, and an agent session can make that tag. It writes them to a fresh 0700 temporary
+    directory, outside the tree being built, and hands that to the build as the named build context `policy`, then
+    removes it. A file main lacks is absent from it: without the approvals every content file builds as a draft,
+    without the header the PDF gets the room's, and without the caps the room's compositor takes FR-053's starting
+    figures, with every model a stand-in, so a branch never raises its own caps. The build stage reads only that
     directory and runs no git: a host stack builds a git archive export, and .dockerignore drops .git anyway. The
-    two files' digest is the image's label org.h4reet.web.policy: SHA-256 over "<name>:<the file's SHA-256 or
-    absent>\\n" for content-approvals.json, then resume-header.json.
+    three files' digest is the image's label org.h4reet.web.policy: SHA-256 over "<name>:<the file's SHA-256 or
+    absent>\\n" for content-approvals.json, then resume-header.json, then caps.json, as apps/web/build/approvals.ts's
+    policyDigest computes room-data.json's built_from.
 
 Otherwise as the gateway's: a host stack builds the export its run file names, and only in the Author's terminal;
 dev-cpu builds the working tree on the agents' engine only. The build is `docker buildx build --load` with this tree's
@@ -56,10 +60,13 @@ HOST_STACKS = ("prod", "dev")
 # H4_WEB_SUFFIX per stack (contracts/web-serving.md §4): the drafts flag, in the tag.
 SUFFIX = {"prod": "", "dev": "-drafts", "dev-cpu": "-drafts"}
 DRAFTS_SUFFIX = "-drafts"
-# main's policy files, by their path on main and their name in the context (contracts/resume-source.md §5).
+# main's policy files, by their path on main and their name in the context (contracts/resume-source.md §5), the caps
+# third (spec 004's contracts/serving.md §3), in the order of apps/web/build/approvals.ts's POLICY_FILES and
+# apps/web/build/policy.ts's POLICY_PATHS, so the label and room-data.json's built_from digest the same files.
 POLICY_FILES = (
     ("assets/policy/content-approvals.json", "content-approvals.json"),
     ("assets/policy/resume-header.json", "resume-header.json"),
+    ("assets/policy/caps.json", "caps.json"),
 )
 POLICY_LABEL = "org.h4reet.web.policy"
 RELAY_HOST = "tcp://127.0.0.1:2376"
