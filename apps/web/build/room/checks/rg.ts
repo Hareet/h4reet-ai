@@ -483,23 +483,25 @@ function capOf(
   return ratio === undefined ? null : regionCap(face, region, { capRatio: ratio });
 }
 
-/** Each bound face of each placement, in scene order, measured. */
+/** Each bound face of each placement whose piece has it, in scene order, measured where its placement resolves. */
 function measureFaces(room: LoadedRoom, g: Geometry, typefaces: readonly CapRatio[]): FaceCaps[] {
   const ratios = new Map(typefaces.map((t) => [t.use, t.cap_ratio]));
   const cameras = REFERENCE.map(([, stage]) => ({ stage, camera: cameraAt(g, stage.w / stage.h).camera }));
   const out: FaceCaps[] = [];
   g.scene.value.placements.forEach((p, i) => {
-    const on = g.index.get(p.id) === i ? placed(g, p.id) : null;
+    const entry = g.pieces.get(p.piece);
+    // A second placement of one ID is RI2's: the resolver places the first.
+    const model = g.index.get(p.id) === i ? g.resolved.model.get(p.id) : undefined;
     for (const [role, binding] of Object.entries(p.faces ?? {})) {
-      const live = on?.entry.live_faces.find((f) => f.role === role);
-      if (!on || !live) continue;
+      const live = entry?.live_faces.find((f) => f.role === role);
+      if (!live) continue;
       const face = faceOf(live);
       const regions: CapRegion[] = binding.regions.flatMap((r) => {
         const cap = capOf(room, face, r, ratios);
         return cap === null ? [] : [{ rect: r.rect, cap }];
       });
       const [desktop, phone] = cameras.map(({ stage, camera }) =>
-        regions.length > 0 ? smallestCapPx(on.model, face, regions, camera, stage) : null,
+        model && regions.length > 0 ? smallestCapPx(model, face, regions, camera, stage) : null,
       );
       out.push({
         face: `${p.id}.${role}`,

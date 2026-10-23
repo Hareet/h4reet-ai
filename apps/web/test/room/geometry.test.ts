@@ -262,6 +262,20 @@ describe("RG7: legibility at the production framing on both reference stages", (
     expect(where(lid({}))).toEqual([`RG7 ${SCENE}:placements[4].faces.lid`, `RG7 ${SCENE}:placements[4].faces.lid`]);
   });
 
+  it("refuses atmosphere on a readable face where its placement doesn't resolve too, and measures nothing there", () => {
+    const t = tree({
+      [SCENE]: (d) => {
+        at(d, "placements", 1).mount = { on: "fx-monitor", anchor: "top-edge" };
+        Object.assign(at(d, "placements", 2, "faces", "screen"), { atmosphere: true, max_chars: 40 });
+      },
+    });
+    expect(where(rg(t).filter((f) => f.rule === "RG7"))).toEqual([
+      `RG7 ${SCENE}:placements[2].faces.screen.atmosphere`,
+    ]);
+    const screen = faceCaps(loadRoom(t), []).find((f) => f.face === "fx-monitor.screen");
+    expect([screen?.atmosphere, screen?.desktop, screen?.phone]).toEqual([true, null, null]);
+  });
+
   it("lets an atmosphere face fall under the floor, and holds it to its max_chars", () => {
     // fx-script's lines are "fx run" and "fx ok": 11 characters.
     expect(lid({ atmosphere: true, max_chars: 11 })).toEqual([]);
