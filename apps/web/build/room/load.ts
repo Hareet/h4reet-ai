@@ -7,7 +7,9 @@
 // - The walk: apps/web/room/ holds scene.yaml, topics.yaml, ui-words.yaml, lookdev.yaml, the folders catalog/, looks/,
 //   and fixtures/ of `<stem>.yaml` files, and README.md, which is prose and never read; apps/web/content/room/ holds
 //   `<block>.yaml` files and outlines/ of `<sign>.outline.json` files. Anything else there is RD5, and so is a stem that
-//   differs from the ID or name its file holds. The scene and the UI words are required; a room without either is RD3.
+//   differs from the ID or name its file holds, and a data folder's place holding a file, a link, or an empty folder.
+//   Names are looked up in Maps, so one such as `constructor` is RD5 too. The scene and the UI words are required; a
+//   room without either is RD3.
 // - The loaded room: each file that passed, parsed and schema-checked, with its path; each that didn't, in `failed`,
 //   so a reference into it isn't reported again; and the problems, sorted, which the RD family reports.
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from "yaml";
@@ -274,11 +276,21 @@ export function loadRoom(tree: Tree): LoadedRoom {
     found.set(kind, [...(found.get(kind) ?? []), { file, value: read.value }]);
   };
 
+  /** A data folder's place, listed in its parent: a folder of files is walked; a file there is RD5, and so is what is
+   *  neither a file nor a folder of files. The tree follows no link, so a link there reads as nothing, and git keeps no
+   *  empty folder, so in a committed tree that is a link, whose files would otherwise go unread with no finding. */
+  const folderAt = (file: string, kind: FolderKind): void => {
+    if (tree.read(file) !== null) rd5(file, "a file where a folder belongs");
+    else if (tree.list(file).length === 0)
+      rd5(file, "neither a file nor a folder of files: a link, or an empty folder");
+    else walk(kind);
+  };
+
   const walk = (kind: FolderKind): void => {
     const { dir, ending } = FOLDERS[kind];
     for (const name of tree.list(dir)) {
       const file = `${dir}/${name}`;
-      if (kind === "room-text" && name === "outlines") walk("outline");
+      if (kind === "room-text" && name === "outlines") folderAt(file, "outline");
       else if (name.endsWith(ending) && name.length > ending.length) take(kind, file);
       else rd5(file, folder(file) ? "a folder inside a data folder" : `not a ${ending} file of this folder's kind`);
     }
@@ -290,10 +302,8 @@ export function loadRoom(tree: Tree): LoadedRoom {
     const kind = ROOM_FOLDERS.get(name);
     if (name === "README.md") continue;
     if (single !== undefined) take(single, file);
-    else if (kind !== undefined) {
-      if (tree.read(file) !== null) rd5(file, "a file where a folder belongs");
-      else walk(kind);
-    } else rd5(file, folder(file) ? "a folder the room's data doesn't hold" : "not a file of the room's data");
+    else if (kind !== undefined) folderAt(file, kind);
+    else rd5(file, folder(file) ? "a folder the room's data doesn't hold" : "not a file of the room's data");
   }
   for (const required of [SCENE_FILE, UI_WORDS_FILE]) {
     if (!files.includes(required) && !failed.has(required)) {
