@@ -312,10 +312,9 @@ function models(ctx: Context): void {
       continue;
     }
     const bytes = ctx.tree.read(`${MODELS_DIR}/${name}`);
-    if (bytes === null) {
-      ri7("no such file under assets/room/");
-      continue;
-    }
+    // A model the tree doesn't hold has no SHA-256 to record: it is RX1's, lenient, so an image build without the
+    // room-assets context keeps every piece's stand-in and still builds (contracts/serving.md §3).
+    if (bytes === null) continue;
     recorded ??= records(ctx);
     const entry = recorded?.get(name);
     if (!entry) ri7("assets/room/records.json doesn't record it");

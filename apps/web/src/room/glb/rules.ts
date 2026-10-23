@@ -402,6 +402,7 @@ export const REASON = {
   mimeMissing: "no mimeType",
   mimeOther: `a mimeType other than ${series(Object.keys(TEXTURE_TYPES), "or")}`,
   mimeMismatch: "a mimeType its bytes don't match",
+  extensionMismatch: "an image card whose bytes don't match its file's extension",
   notAnImage: "bytes that aren't a PNG, JPEG, or WebP",
   imageUnreadable: (format: string): string => `a ${format.toUpperCase()} whose header can't be read`,
   png: "a PNG other than 8 bits a channel in RGB or RGBA",

@@ -13,13 +13,15 @@ import { parse, stringify } from "yaml";
 
 import { createContext } from "../../build/room/checks/family";
 import type { Context } from "../../build/room/checks/family";
-import { sceneTextureMemory } from "../../build/room/checks/rk";
+import { frameBoxes, sceneTextureMemory } from "../../build/room/checks/rk";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { loadRoom } from "../../build/room/load";
 import { CAPS_DEFAULTS, noPolicy, policyFrom } from "../../build/room/policy";
 import type { RoomCaps, RoomPolicy } from "../../build/room/policy";
 import type { Tree } from "../../build/room/source";
+import { LABEL_HEIGHT, LABEL_LIFT } from "../../src/room/compose/framing";
+import type { Box } from "../../src/room/compose/framing";
 import { REFERENCE_PHONE } from "../../src/room/compose/stages";
 import { textureMemory } from "../../src/room/glb/fit";
 import { gzipBytes } from "../../src/room/glb/gzip";
@@ -68,10 +70,12 @@ interface Budget {
   texture_bytes: number;
 }
 
-/** The known-good set with `model` set on fx-desk, its bounds the clean desk's, and its budget changed by `budget`. */
-function deskTree(model: Uint8Array, budget: Partial<Budget> = {}): Tree {
+/** The known-good set with `model` set on fx-desk, its bounds the clean desk's, its budget changed by `budget`, and
+ *  the files of `more`. */
+function deskTree(model: Uint8Array, budget: Partial<Budget> = {}, more: Record<string, string> = {}): Tree {
   return overlay(
     withRecords({
+      ...more,
       "assets/room/fx-desk.glb": model,
       [catalog("fx-desk")]: edited(catalog("fx-desk"), (v) => {
         at(v, "origin").bounds = DESK_BOUNDS;
@@ -292,6 +296,31 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     expect(large[0]).toBeLessThan(2048);
     expect(large[1]).toBeLessThan(1495);
     expect(board([1536, 1121])).toEqual(large);
+  });
+
+  it("frames a set model by its measured bounds, and a stand-in by its expected bounds raised for its label", () => {
+    const model = desk().bytes;
+    const fits = { gzip_bytes: gzipBytes(model), triangles: 36, texture_px: 16, texture_bytes: 1108 };
+    // The desk framed: on the shell's floor anchor, 0.6 m back, its catalog bounds the clean desk's own (float32).
+    const framed = {
+      [SCENE]: edited(SCENE, (v) => {
+        const [, placement] = v.placements as Data[];
+        if (placement) placement.frame = true;
+      }),
+    };
+    const box = (budget: Partial<Budget>, policy: RoomPolicy): Box | undefined =>
+      frameBoxes(contextOf(deskTree(model, budget, framed), policy)).get("fx-desk");
+    const expectBox = (actual: Box | undefined, min: number[], max: number[]): void => {
+      for (let a = 0; a < 3; a++) {
+        expect(actual?.min[a]).toBeCloseTo(min[a] ?? NaN, 6);
+        expect(actual?.max[a]).toBeCloseTo(max[a] ?? NaN, 6);
+      }
+    };
+    const raised = 0.75 + LABEL_LIFT + LABEL_HEIGHT;
+    expectBox(box(fits, caps()), [-0.8, 0, -1], [0.8, 0.75, -0.2]);
+    // Without main's caps, or over its budget, the piece keeps its stand-in, whose label floats over it.
+    expectBox(box(fits, noPolicy()), [-0.8, 0, -1], [0.8, raised, -0.2]);
+    expectBox(box({ ...fits, triangles: 35 }, caps()), [-0.8, 0, -1], [0.8, raised, -0.2]);
   });
 
   it("refuses a total over scene_texture_bytes in every build, and passes one at it", () => {

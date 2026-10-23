@@ -9,8 +9,10 @@
 // RX7's tolerance is the larger of 2 cm and 3% of the expected extent at the stylized scale: FR-019's "the larger of
 // 2 cm and 3%", with the catalog's lengths times the scale and the 2 cm the studio's own. RX8 finds a face's corners by
 // their texture coordinates and prints its measured plane. A comparison counts as off unless it holds, so a number that
-// isn't finite never passes. Pure: no Node, DOM, or three.js.
+// isn't finite never passes. An image card meets RX9's texture rules through the same code (§7, `fitCard`). Pure: no
+// Node, DOM, or three.js.
 import { readImage } from "./images";
+import type { ImageFormat, ImageHeader, ImageRead } from "./images";
 import type { Json } from "./json";
 import { isObject } from "./json";
 import { NAME_RULE, isNeutralKind, nameProblem, neutralId, printableKey } from "./names";
@@ -591,6 +593,34 @@ export function textureMemory(width: number, height: number): number {
   return Number((16n * BigInt(width) * BigInt(height)) / 3n);
 }
 
+/** RX9's rules on one image, an embedded texture or a card, at `at`: its bytes a PNG, JPEG, or WebP whose header reads;
+ *  a PNG 8 bits a channel in RGB or RGBA; a JPEG Huffman-coded, 8-bit, with three components; a WebP still; its sides
+ *  powers of two, and on a small prop at most `limit`. Its header, for the measures, or null where it has none. */
+function imageRules(read: ImageRead, at: string, limit: number | null, out: Problem[]): ImageHeader | null {
+  const bad = (reason: string): void => {
+    out.push({ rule: "RX9", path: at, reason });
+  };
+  if (read.format === null) {
+    bad(REASON.notAnImage);
+    return null;
+  }
+  const h = read.header;
+  if (h === null) {
+    bad(REASON.imageUnreadable(read.format));
+    return null;
+  }
+  if (h.format === "png" && (h.bitDepth !== 8 || !PNG_COLOUR_TYPES.includes(h.colorType))) bad(REASON.png);
+  if (h.format === "jpeg") {
+    if (!JPEG_HUFFMAN_FRAMES.includes(h.sof)) bad(REASON.jpegCoding);
+    if (h.precision !== 8) bad(REASON.jpegPrecision);
+    if (h.components !== 3) bad(REASON.jpegComponents);
+  }
+  if (h.format === "webp" && h.animated) bad(REASON.animated);
+  if (!powerOfTwo(h.width) || !powerOfTwo(h.height)) bad(REASON.powerOfTwo(h.width, h.height));
+  if (limit !== null && !(Math.max(h.width, h.height) <= limit)) bad(REASON.smallProp(h.width, h.height, limit));
+  return h;
+}
+
 function rx9(glb: Glb, input: FitInput, out: Problem[]): { textureBytes: number; maxTexturePx: number | null } {
   let textureBytes = 0;
   let maxTexturePx: number | null = null;
@@ -608,23 +638,55 @@ function rx9(glb: Glb, input: FitInput, out: Problem[]): { textureBytes: number;
     if (image.mimeType === undefined) bad(at, REASON.mimeMissing);
     else if (declared === undefined) bad(`${at}.mimeType`, REASON.mimeOther);
     else if (read.format !== null && read.format !== declared) bad(`${at}.mimeType`, REASON.mimeMismatch);
-    if (read.format === null) return bad(at, REASON.notAnImage);
-    const h = read.header;
-    if (h === null) return bad(at, REASON.imageUnreadable(read.format));
-    if (h.format === "png" && (h.bitDepth !== 8 || !PNG_COLOUR_TYPES.includes(h.colorType))) bad(at, REASON.png);
-    if (h.format === "jpeg") {
-      if (!JPEG_HUFFMAN_FRAMES.includes(h.sof)) bad(at, REASON.jpegCoding);
-      if (h.precision !== 8) bad(at, REASON.jpegPrecision);
-      if (h.components !== 3) bad(at, REASON.jpegComponents);
-    }
-    if (h.format === "webp" && h.animated) bad(at, REASON.animated);
-    if (!powerOfTwo(h.width) || !powerOfTwo(h.height)) bad(at, REASON.powerOfTwo(h.width, h.height));
-    const limit = input.smallPropTexturePx;
-    if (limit !== null && !(Math.max(h.width, h.height) <= limit)) bad(at, REASON.smallProp(h.width, h.height, limit));
+    const h = imageRules(read, at, input.smallPropTexturePx, out);
+    if (h === null) return;
     textureBytes += textureMemory(h.width, h.height);
     maxTexturePx = Math.max(maxTexturePx ?? 0, h.width, h.height);
   });
   return { textureBytes, maxTexturePx };
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// An image card (§7): RX9's rules on its file, its format the one its extension names
+// --------------------------------------------------------------------------------------------------------------------
+/** The formats an image card's extension names: `model.card` takes `.png`, `.jpg`, or `.webp`. */
+export const CARD_FORMATS: Readonly<Record<string, ImageFormat>> = { png: "png", jpg: "jpeg", webp: "webp" };
+
+/** A card's measures: its bytes, which the site serves as stored, and its texture memory and largest side, by the same
+ *  reader and formula as a model's; null where its header can't be read. */
+export interface CardMeasures {
+  readonly bytes: number;
+  readonly textureBytes: number | null;
+  readonly maxTexturePx: number | null;
+}
+
+export interface CardResult {
+  readonly findings: readonly GlbFinding[];
+  readonly measures: CardMeasures;
+}
+
+/** RX9 on an image card, `<piece>.<extension>`, as on an embedded texture, its findings at `-`, the whole file: its
+ *  bytes the format its extension names, and the texture rules, the small props' limit among them. */
+export function fitCard(
+  bytes: Uint8Array,
+  extension: string,
+  input: Pick<FitInput, "smallPropTexturePx">,
+  options: Pick<FitOptions, "file">,
+): CardResult {
+  const problems: Problem[] = [];
+  const read = readImage(bytes);
+  const declared = Object.hasOwn(CARD_FORMATS, extension) ? CARD_FORMATS[extension] : undefined;
+  if (read.format !== null && read.format !== declared)
+    problems.push({ rule: "RX9", path: "-", reason: REASON.extensionMismatch });
+  const h = imageRules(read, "-", input.smallPropTexturePx, problems);
+  return {
+    findings: findings(problems, options.file),
+    measures: {
+      bytes: bytes.length,
+      textureBytes: h === null ? null : textureMemory(h.width, h.height),
+      maxTexturePx: h === null ? null : Math.max(h.width, h.height),
+    },
+  };
 }
 
 // --------------------------------------------------------------------------------------------------------------------
