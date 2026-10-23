@@ -180,6 +180,8 @@ export function createStage(options: StageOptions): LookdevStage {
   let disposed = false;
   let last: FrameSample = { drawCalls: 0, triangles: 0, textureBytes: 0 };
   let controller: QualityController | null = makeController();
+  /** The drawables the vignette hid, which it alone shows again. */
+  const hiddenByScene = new WeakSet<Object3D>();
 
   function build(next: Look): Room3D {
     labels = createLabels(doc);
@@ -245,18 +247,28 @@ export function createStage(options: StageOptions): LookdevStage {
     options.onLevel(next);
   }
 
-  /** The scene: in the vignette, only vignette.show's placements draw; the paper, which no placement holds, neither. */
+  /**
+   * The scene: in the vignette, only vignette.show's placements draw; the paper, which no placement holds, neither. It
+   * hides only drawables that show, and shows again only those it hid, so a node other code hides stays hidden: a
+   * model's own face objects, which prepareModel hides since the room draws the faces (the review's page-1).
+   */
   function applyScene(): void {
     const nodes = new Set(room.placements.values());
+    const set = (node: Object3D, on: boolean): void => {
+      if (!on && node.visible) {
+        node.visible = false;
+        hiddenByScene.add(node);
+      } else if (on && hiddenByScene.delete(node)) node.visible = true;
+    };
     const mark = (node: Object3D, on: boolean): void => {
       for (const child of node.children) {
         if (nodes.has(child)) continue;
-        if (drawable(child)) child.visible = on;
+        if (drawable(child)) set(child, on);
         mark(child, on);
       }
     };
     for (const [id, node] of room.placements) mark(node, scene === "room" || vignette.has(id));
-    for (const child of room.scene.children) if (!nodes.has(child) && drawable(child)) child.visible = scene === "room";
+    for (const child of room.scene.children) if (!nodes.has(child) && drawable(child)) set(child, scene === "room");
   }
 
   /** The sample state: each tier switch shows the case of the fixture's tier. */
