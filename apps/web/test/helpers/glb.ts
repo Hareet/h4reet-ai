@@ -556,7 +556,8 @@ export class ModelBuilder {
     return concat(...this.parts);
   }
 
-  /** The file: the buffer, the mark unless `mark` is false, then `edit`. */
+  /** The file: the buffer, empty lists dropped, the mark unless `mark` is false, then `edit`. It changes `gltf` in
+   *  place, so a builder packs once. */
   pack(o: PackOptions = {}): Model {
     const bin = this.binary();
     list(this.gltf, "buffers").push({ byteLength: bin.length });
