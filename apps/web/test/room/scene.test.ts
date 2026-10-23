@@ -8,9 +8,16 @@
 // not-live's shown; and the camera frames the framed boxes with compose/framing.ts at the six aspects of
 // compose/stages.ts. Expectations come from compose() over the fixture set and its overlays: every ID is a synthetic
 // fx- one, never the room's data.
+// T098 (spec 004; FR-008, FR-011; R-11, R-27; contracts/room-bundle.md §3.2): the paper ends in the chosen avatar's own
+// hand, spec 002's per-avatar placement offset from the scene's anchor, the first avatar's hand; buildRoom refuses a
+// part whose digest isn't the index's; and src/room/scene.ts draws the site's own 3D part (the repository's, which
+// vitest.config.ts gives the tests as `virtual:room-scene`), refusing it before it makes a renderer when the digest
+// differs, so the room falls to 2D as for a chunk that fails to load.
+import { JSDOM } from "jsdom";
 import { Box3, Mesh, Object3D, PerspectiveCamera, ShapeGeometry, Vector3 } from "three";
 import type { BufferGeometry, Color, Material, MeshBasicMaterial, Texture } from "three";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import roomScene from "virtual:room-scene";
 
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
@@ -19,12 +26,13 @@ import { AVATARS, AVATAR_SHAPES } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import type { RoomIndex, RoomScene } from "../../src/room/compose/bundle";
 import { LABEL_HEIGHT, framing } from "../../src/room/compose/framing";
-import { IDENTITY, multiply, origin, scaling } from "../../src/room/compose/math";
+import { IDENTITY, multiply, origin, scaling, transformDirection } from "../../src/room/compose/math";
 import type { Mat4, Vec3 } from "../../src/room/compose/math";
 import { anchorWorld, mountWorld, resolveMounts } from "../../src/room/compose/mount";
 import type { Resolved } from "../../src/room/compose/mount";
 import { projector } from "../../src/room/compose/project";
 import { ASPECTS } from "../../src/room/compose/stages";
+import { createScene } from "../../src/room/scene";
 import {
   buildRoom,
   disposeRoom,
@@ -35,6 +43,7 @@ import {
 } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { shapeGeometry } from "../../src/room/scene/standins";
+import { FakeClock, enter, repositoryBundle, start } from "../helpers/room";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
@@ -290,11 +299,13 @@ describe("the object tree (buildRoom)", () => {
     expect(sizes.size).toBe(AVATARS.length);
   });
 
-  it("takes the hand-off's two anchors from the scene's handoff", () => {
+  it("takes the hand-off's two anchors from the scene's handoff, the visitor's being the first avatar's hand", () => {
+    // The scene's visitor anchor is where the first avatar holds the paper; the next case moves it for the others.
+    const first = AVATARS[0].id;
     const check = (result: ComposeResult): Room3D => {
       expect(result.findings).toEqual([]);
       const part = result.scene;
-      const room = build(result);
+      const room = build(result, first);
       expectClose(room.anchors.twinHand.toArray(), anchorPoint(part, part.handoff.from), 1e-9, "the twin's hand");
       expectClose(room.anchors.visitorHand.toArray(), anchorPoint(part, part.handoff.to), 1e-9, "the visitor's hand");
       expect(part.handoff.from.placement).toBe(part.figures.twin);
@@ -308,6 +319,52 @@ describe("the object tree (buildRoom)", () => {
     const after = check(compose(overlay({ [file]: moved }), noPolicy(), strict));
     expectClose(after.anchors.visitorHand.clone().sub(before.anchors.visitorHand).toArray(), [-0.02, 0.05, 0.01]);
     expectClose(after.anchors.twinHand.toArray(), before.anchors.twinHand.toArray(), 1e-12);
+  });
+
+  it("ends the paper in each avatar's own hand, as spec 002 placed it from the avatar's size, offset from the anchor", () => {
+    // Spec 002's hand: left of the figure's centre by 35% of its width, at 60% of its height but never above 0.95 m.
+    const hand = (avatar: AvatarId): Vec3 => {
+      const { width, height } = AVATAR_SHAPES[avatar];
+      return [-width * 0.35, Math.min(0.95, height * 0.6), 0];
+    };
+    const first = hand(AVATARS[0].id);
+    // The visitor turned a little on its mount, so the offset is the visitor's own, not the world's.
+    const turned = text(SCENE).replace(
+      "mount: { on: fx-shell, anchor: floor, offset: [0, 0, 0.8] }",
+      "mount: { on: fx-shell, anchor: floor, offset: [0, 0, 0.8] }\n    turn: { y: 20 }",
+    );
+    for (const result of [good(), compose(overlay({ [SCENE]: turned }), noPolicy(), strict)]) {
+      expect(result.findings).toEqual([]);
+      const part = result.scene;
+      const visitor = resolved(part).world.get(part.figures.visitor) ?? IDENTITY;
+      const at = anchorPoint(part, part.handoff.to);
+      for (const { id } of AVATARS) {
+        const own = hand(id);
+        const offset = transformDirection(visitor, [own[0] - first[0], own[1] - first[1], own[2] - first[2]]);
+        const room = build(result, id);
+        expectClose(
+          room.anchors.visitorHand.toArray(),
+          [at[0] + offset[0], at[1] + offset[1], at[2] + offset[2]],
+          1e-9,
+          id,
+        );
+        // The paper ends there: the kept sheet waits at the hand, and the travelling one arrives at it.
+        showHandoff(room, 1, false);
+        expectClose(position(room.paper.sheet), room.anchors.visitorHand.toArray(), 1e-9, `${id}'s paper`);
+      }
+    }
+    // The dog's hand is 576 mm below the first avatar's, which a single anchor would leave in the air.
+    expect(hand("dog")[1] - first[1]).toBeCloseTo(-0.576, 9);
+  });
+
+  it("refuses a 3D part whose digest isn't the index's, so the room falls to 2D as for a failed load", () => {
+    const result = good();
+    const options = { avatar: "dog" as const, label: named, index: result.index };
+    expect(result.scene.digest).toBe(result.index.digest);
+    const other = [...result.index.digest].reverse().join("");
+    expect(other).not.toBe(result.index.digest);
+    expect(() => buildRoom({ ...result.scene, digest: other }, options)).toThrow(/digest/);
+    expect(() => buildRoom(result.scene, { ...options, index: { ...result.index, digest: other } })).toThrow(/digest/);
   });
 
   it("makes one group per switch case, at its pose's mount, holding its piece's stand-in, only not-live's shown", () => {
@@ -446,4 +503,49 @@ describe("the camera's framing", () => {
             }
     });
   }
+});
+
+describe("the scene module (src/room/scene.ts, T098)", () => {
+  /** What createScene fails with, or null; jsdom draws no WebGL, so a part it accepts fails only at its renderer, which
+   *  says so on the console too. */
+  function failure(room: RoomIndex): string | null {
+    const win = new JSDOM("<main></main>", { pretendToBeVisual: true }).window as unknown as Window;
+    win.HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const stage = createScene({
+        win,
+        doc: win.document,
+        clock: new FakeClock(),
+        room,
+        avatar: "dog",
+        reducedMotion: false,
+        select: () => undefined,
+        onFrame: () => undefined,
+      });
+      stage.dispose();
+      return null;
+    } catch (error) {
+      return String(error);
+    }
+  }
+
+  it("draws the site's 3D part, refusing it before it makes a renderer when its digest isn't the index's", () => {
+    // The tests' virtual:room-scene is the repository's 3D part, as the site's build bundles it (vitest.config.ts).
+    const { index } = repositoryBundle();
+    expect(roomScene.digest).toBe(index.digest);
+    expect(failure({ ...index, digest: [...index.digest].reverse().join("") })).toMatch(/digest/);
+    expect(failure(index) ?? "").not.toMatch(/digest/);
+  });
+
+  it("leaves the room in 2D when it refuses, as for a chunk that fails to load", async () => {
+    const v = start({ webgl: true });
+    v.scene.module.createScene = () => {
+      throw new Error("the 3D part's digest isn't the index's");
+    };
+    await enter(v);
+    expect(v.room.visit.mode).toBe("2d");
+    expect(v.doc.querySelector(".flat")).not.toBeNull();
+    expect(v.events.filter((e) => e.kind === "mode_2d")).toHaveLength(1);
+  });
 });

@@ -1,136 +1,226 @@
-// T039 (spec 002; FR-020, FR-043–FR-045; contracts/room-scene.md §2): the three ways to select an object (a raycast hit
-// from a mouse, a touch, and the "In the room" list's button) each call selectObject with the same ID, and the 2D
-// drawing's buttons do too. The scene is built without a renderer: Three.js raycasts against geometry alone.
+// T039 (spec 002; FR-020, FR-043–FR-045; contracts/room-scene.md §2): the three ways to select an object (a pick from a
+// mouse, a touch, and the "In the room" list's button) each call selectObject with the same ID, and the 2D drawing's
+// buttons do too.
+// T092 (spec 004; FR-064; R-20): the 3D pick goes through compose/pick.ts as the compositor's spacing check (RG6)
+// measures it: each selectable's members' frame boxes, projected with the camera's framing into CSS-pixel rectangles
+// on the stage, with their union and exclusive core, recomputed when the stage's size changes (the 3D room's
+// selectablePicker, src/room/scene/bundle3d.ts), here held to three.js's own projection, with no renderer. The
+// selectables and their IDs come from compose() over the repository, never from a list in the test, and the room
+// takes a selection only for an ID its index lists (src/room/app.ts).
 import { JSDOM } from "jsdom";
-import { Box3, PerspectiveCamera, Vector3 } from "three";
-import type { Object3D } from "three";
+import { PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderObjectList } from "../../src/room/a11y";
+import type { Box } from "../../src/room/compose/bundle";
+import { pick, pickAreas } from "../../src/room/compose/pick";
+import type { MemberRect, PickArea } from "../../src/room/compose/pick";
+import { REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST } from "../../src/room/compose/stages";
+import type { Stage } from "../../src/room/compose/stages";
 import { renderFlat } from "../../src/room/flat";
-import { ROOM_OBJECTS, bindPointerSelection } from "../../src/room/objects";
-import type { ObjectId } from "../../src/room/objects";
-import { buildWorkArea, createPicker, fitCamera } from "../../src/room/scene";
+import { bindPointerSelection } from "../../src/room/objects";
+import { frameCamera, framedBoxes, selectablePicker } from "../../src/room/scene/bundle3d";
+import { intoRoom, repositoryBundle, roomIndex, start, talkLog } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
 
-const WIDTH = 300;
-const HEIGHT = 200;
+type Point = readonly [number, number];
 
-function setup(): {
-  pick: ReturnType<typeof createPicker>;
-  camera: PerspectiveCamera;
-  area: ReturnType<typeof buildWorkArea>;
-} {
-  const area = buildWorkArea({ avatar: "dog" });
+/** The reference stages and the smallest, where the compositor holds every selectable's core in view (RG6). */
+const STAGES: readonly Stage[] = [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage, ...SMALLEST.map((s) => s.stage)];
+/** How far apart the points are that the pick is checked at, in CSS pixels. */
+const STEP = 6;
+
+/**
+ * Each selectable's pick area on a stage, by three.js: its members' frame boxes, never loaded geometry, projected by a
+ * camera framed as the room frames it, each the bounds of its corners in the stage's CSS pixels, at the depth of its
+ * nearest corner; then compose/pick.ts's union and core.
+ */
+function threeAreas(stage: Stage): PickArea[] {
+  const { scene: part, index } = repositoryBundle();
   const camera = new PerspectiveCamera();
-  fitCamera(camera, WIDTH / HEIGHT);
-  area.scene.updateMatrixWorld(true);
-  return { area, camera, pick: createPicker(camera, area) };
+  frameCamera(camera, stage.w / stage.h, framedBoxes(part));
+  const boxes = new Map<string, Box>();
+  for (const p of part.placements) if (!boxes.has(p.id)) boxes.set(p.id, p.frame_box);
+  const member = ({ min, max }: Box): MemberRect => {
+    let [x0, y0, x1, y1, depth] = [Infinity, Infinity, -Infinity, -Infinity, Infinity];
+    for (const x of [min[0], max[0]])
+      for (const y of [min[1], max[1]])
+        for (const z of [min[2], max[2]]) {
+          const corner = new Vector3(x, y, z);
+          depth = Math.min(depth, -corner.clone().applyMatrix4(camera.matrixWorldInverse).z);
+          corner.project(camera);
+          const [px, py] = [((corner.x + 1) / 2) * stage.w, ((1 - corner.y) / 2) * stage.h];
+          [x0, y0, x1, y1] = [Math.min(x0, px), Math.min(y0, py), Math.max(x1, px), Math.max(y1, py)];
+        }
+    return { rect: [x0, y0, x1 - x0, y1 - y0], depth };
+  };
+  return pickAreas(
+    index.selectables.map((s) => ({
+      id: s.id,
+      members: s.members.flatMap((m) => {
+        const box = boxes.get(m);
+        return box ? [member(box)] : [];
+      }),
+    })),
+  );
 }
 
-function centerNdc(object: Object3D, camera: PerspectiveCamera): { x: number; y: number } {
-  const c = new Box3().setFromObject(object).getCenter(new Vector3()).project(camera);
-  return { x: c.x, y: c.y };
+/** A point of a stage in normalized device coordinates, as bindPointerSelection hands the picker one. */
+const ndcOf = ([x, y]: Point, stage: Stage): { x: number; y: number } => ({
+  x: (x / stage.w) * 2 - 1,
+  y: 1 - (y / stage.h) * 2,
+});
+
+/** The centre of a selectable's exclusive core. */
+function centre(area: PickArea): Point {
+  if (!area.core) throw new Error(`${area.id} has no core`);
+  const [x, y, w, h] = area.core;
+  return [x + w / 2, y + h / 2];
 }
 
-function surface(): { doc: Document; win: TestWindow; canvas: HTMLCanvasElement } {
+/** Points across a stage, STEP apart. */
+function grid(stage: Stage): Point[] {
+  const points: Point[] = [];
+  for (let y = STEP / 2; y < stage.h; y += STEP) for (let x = STEP / 2; x < stage.w; x += STEP) points.push([x, y]);
+  return points;
+}
+
+/** Where a picker over `stage` picks otherwise than compose/pick.ts over `areas`, the first few. */
+function disagreements(picked: (p: Point) => string | null, areas: readonly PickArea[], stage: Stage): string[] {
+  const out: string[] = [];
+  for (const p of grid(stage)) {
+    const [got, want] = [picked(p), pick(areas, p)];
+    if (got !== want && out.length < 5) out.push(`${p.join(", ")}: ${String(got)}, not ${String(want)}`);
+  }
+  return out;
+}
+
+function surface(stage: Stage): { doc: Document; win: TestWindow; canvas: HTMLCanvasElement } {
   const win = new JSDOM("<main></main>", { pretendToBeVisual: true }).window as unknown as TestWindow;
   const doc = win.document;
   const canvas = doc.createElement("canvas");
   doc.body.append(canvas);
   canvas.getBoundingClientRect = () =>
-    ({ left: 0, top: 0, right: WIDTH, bottom: HEIGHT, width: WIDTH, height: HEIGHT, x: 0, y: 0 }) as DOMRect;
+    ({ left: 0, top: 0, right: stage.w, bottom: stage.h, width: stage.w, height: stage.h, x: 0, y: 0 }) as DOMRect;
   return { doc, win, canvas };
 }
 
-function tap(win: TestWindow, el: Element, ndc: { x: number; y: number }, pointerType: string, drag = 0): void {
-  const clientX = ((ndc.x + 1) / 2) * WIDTH;
-  const clientY = ((1 - ndc.y) / 2) * HEIGHT;
+function tap(win: TestWindow, el: Element, [clientX, clientY]: Point, pointerType: string, drag = 0): void {
   const init = { bubbles: true, pointerType, clientX, clientY, button: 0 };
   el.dispatchEvent(new win.PointerEvent("pointerdown", init));
   el.dispatchEvent(new win.PointerEvent("pointerup", { ...init, clientX: clientX + drag }));
 }
 
-describe("the room's objects", () => {
-  it("are the snowboard, the bicycle, and the laptop and screen, with their topics", () => {
-    expect(ROOM_OBJECTS.map((o) => [o.id, o.name, o.topic])).toEqual([
-      ["snowboard", "Snowboard", "hobbies and general life"],
-      ["bicycle", "Bicycle", "travel adventures"],
-      ["laptop", "Laptop and screen", "work projects"],
-    ]);
-  });
+describe("the 3D pick (compose/pick.ts)", () => {
+  it.each(STAGES.map((s) => [`${s.w} × ${s.h}`, s] as const))(
+    "picks as three.js projects the members' frame boxes, on the %s stage",
+    (_, stage) => {
+      const { scene: part, index } = repositoryBundle();
+      const picker = selectablePicker(part, index);
+      picker.resize(stage);
+      const areas = threeAreas(stage);
+      expect(areas.map((a) => a.id)).toEqual(index.selectables.map((s) => s.id));
+      // Each selectable at its core's centre; then everywhere, as the kernel picks over three.js's rectangles: the
+      // frontmost member under the point, else the nearest area that holds it, else none.
+      for (const area of areas) expect(picker.pick(ndcOf(centre(area), stage)), area.id).toBe(area.id);
+      expect(disagreements((p) => picker.pick(ndcOf(p, stage)), areas, stage)).toEqual([]);
+      expect(grid(stage).some((p) => pick(areas, p) === null)).toBe(true);
+    },
+  );
 
-  it("carry their ID on their meshes as userData.objectId", () => {
-    const { area } = setup();
-    for (const { id } of ROOM_OBJECTS) {
-      const ids: unknown[] = [];
-      area.objects.get(id)?.traverse((o) => ids.push(o.userData.objectId));
-      expect(ids.filter((x) => x === id).length, id).toBeGreaterThan(0);
-    }
-  });
-
-  it("raycast from each object's center to its ID, and from the bare wall to nothing", () => {
-    const { area, camera, pick } = setup();
-    for (const { id } of ROOM_OBJECTS) {
-      const object = area.objects.get(id);
-      if (!object) throw new Error(`no ${id}`);
-      expect(pick(centerNdc(object, camera)), id).toBe(id);
-    }
-    // The wall's top corner, far from every object.
-    expect(pick({ x: -0.98, y: 0.98 })).toBeNull();
+  it("picks nothing before it knows the stage's size, and recomputes the areas whenever the size changes", () => {
+    const { scene: part, index } = repositoryBundle();
+    const picker = selectablePicker(part, index);
+    expect(picker.pick({ x: 0, y: 0 })).toBeNull();
+    const [wide, narrow] = [REFERENCE_DESKTOP.stage, SMALLEST[0]?.stage ?? REFERENCE_PHONE.stage];
+    expect(wide.w / wide.h).not.toBeCloseTo(narrow.w / narrow.h, 2);
+    picker.resize(wide);
+    expect(disagreements((p) => picker.pick(ndcOf(p, wide)), threeAreas(wide), wide)).toEqual([]);
+    picker.resize(narrow);
+    const areas = threeAreas(narrow);
+    expect(disagreements((p) => picker.pick(ndcOf(p, narrow)), areas, narrow)).toEqual([]);
+    // Areas kept from the wide stage would pick otherwise somewhere on the narrow one.
+    const stale = threeAreas(wide);
+    const kept = (p: Point): string | null => pick(stale, [(p[0] / narrow.w) * wide.w, (p[1] / narrow.h) * wide.h]);
+    expect(disagreements(kept, areas, narrow)).not.toEqual([]);
   });
 });
 
 describe("selectObject", () => {
-  it("is called with the same ID from a raycast hit, a touch, and the list's button", () => {
-    const { area, camera, pick } = setup();
-    const { doc, win, canvas } = surface();
-    const selectObject = vi.fn<(id: ObjectId) => void>();
-    bindPointerSelection(canvas, pick, selectObject);
-    const list = renderObjectList(doc, selectObject);
-    doc.body.append(list);
-    for (const { id } of ROOM_OBJECTS) {
-      selectObject.mockClear();
-      const object = area.objects.get(id);
-      if (!object) throw new Error(`no ${id}`);
-      tap(win, canvas, centerNdc(object, camera), "mouse");
-      tap(win, canvas, centerNdc(object, camera), "touch");
-      list.querySelector<HTMLButtonElement>(`button[data-object-id="${id}"]`)?.click();
-      expect(selectObject.mock.calls, id).toEqual([[id], [id], [id]]);
+  it("is called with the same ID from a 3D pick, a touch, and the list's button", () => {
+    const { scene: part, index } = repositoryBundle();
+    for (const stage of [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage]) {
+      const picker = selectablePicker(part, index);
+      picker.resize(stage);
+      const { doc, win, canvas } = surface(stage);
+      const selectObject = vi.fn<(id: string) => void>();
+      bindPointerSelection(canvas, picker.pick, selectObject);
+      const list = renderObjectList(doc, selectObject);
+      doc.body.append(list);
+      const areas = threeAreas(stage);
+      expect(areas).toHaveLength(index.selectables.length);
+      for (const area of areas) {
+        selectObject.mockClear();
+        tap(win, canvas, centre(area), "mouse");
+        tap(win, canvas, centre(area), "touch");
+        list.querySelector<HTMLButtonElement>(`button[data-object-id="${area.id}"]`)?.click();
+        expect(selectObject.mock.calls, area.id).toEqual([[area.id], [area.id], [area.id]]);
+      }
     }
   });
 
-  it("isn't called by a drag, or a press off every object", () => {
-    const { area, camera, pick } = setup();
-    const { win, canvas } = surface();
-    const selectObject = vi.fn<(id: ObjectId) => void>();
-    bindPointerSelection(canvas, pick, selectObject);
-    const snowboard = area.objects.get("snowboard");
-    if (!snowboard) throw new Error("no snowboard");
-    tap(win, canvas, centerNdc(snowboard, camera), "touch", 40);
-    tap(win, canvas, { x: -0.98, y: 0.98 }, "mouse");
+  it("isn't called by a drag, or a press off every selectable", () => {
+    const { scene: part, index } = repositoryBundle();
+    const stage = REFERENCE_DESKTOP.stage;
+    const picker = selectablePicker(part, index);
+    picker.resize(stage);
+    const { win, canvas } = surface(stage);
+    const selectObject = vi.fn<(id: string) => void>();
+    bindPointerSelection(canvas, picker.pick, selectObject);
+    const areas = threeAreas(stage);
+    const [first] = areas;
+    if (!first) throw new Error("no selectable");
+    tap(win, canvas, centre(first), "touch", 40);
+    const off = grid(stage).find((p) => pick(areas, p) === null);
+    if (!off) throw new Error("no point off every selectable");
+    tap(win, canvas, off, "mouse");
     expect(selectObject).not.toHaveBeenCalled();
   });
 
   it("labels every piece of the 2D drawing as a placeholder, its buttons too", () => {
-    const { doc } = surface();
+    const { doc } = surface(REFERENCE_PHONE.stage);
     const flat = renderFlat(doc, { avatar: "dinosaur", select: () => undefined });
     const texts = [...flat.element.querySelectorAll("text, button")].map((t) =>
       (t.textContent ?? "").replace(/\s+/g, " ").trim(),
     );
-    expect(flat.element.querySelectorAll("button")).toHaveLength(3);
+    expect(flat.element.querySelectorAll("button")).toHaveLength(roomIndex().selectables.length);
     expect(texts.length).toBeGreaterThan(6);
     for (const text of texts) expect(text).toMatch(/ \(placeholder\)$/);
   });
 
   it("is called with the same IDs from the 2D drawing's buttons", () => {
-    const { doc } = surface();
-    const selectObject = vi.fn<(id: ObjectId) => void>();
+    const { doc } = surface(REFERENCE_PHONE.stage);
+    const selectObject = vi.fn<(id: string) => void>();
     const flat = renderFlat(doc, { avatar: "woman", select: selectObject });
     doc.body.append(flat.element);
-    for (const { id } of ROOM_OBJECTS) {
-      flat.element.querySelector<HTMLButtonElement>(`button[data-object-id="${id}"]`)?.click();
+    const ids = roomIndex().selectables.map((s) => s.id);
+    for (const id of ids) flat.element.querySelector<HTMLButtonElement>(`button[data-object-id="${id}"]`)?.click();
+    expect(selectObject.mock.calls).toEqual(ids.map((id) => [id]));
+  });
+
+  it("is the room's only for an ID its index lists, whatever calls it", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    const scene = v.scene.created[0];
+    if (!scene) throw new Error("the room built no 3D scene");
+    // The 3D scene gets the index the page bundles, and calls the room's selectObject.
+    expect(scene.room).toBe(roomIndex());
+    for (const { id } of roomIndex().selectables) {
+      scene.select(id);
+      expect(v.events.at(-1)).toEqual({ kind: "object_selected", id });
     }
-    expect(selectObject.mock.calls).toEqual(ROOM_OBJECTS.map((o) => [o.id]));
+    const [events, messages] = [v.events.length, talkLog(v.doc).children.length];
+    scene.select("fx-elsewhere");
+    expect([v.events.length, talkLog(v.doc).children.length]).toEqual([events, messages]);
   });
 });
