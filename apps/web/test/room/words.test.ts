@@ -362,7 +362,7 @@ describe("RT6, the monitor's scripts (FR-031)", () => {
   });
 });
 
-describe("RT7, the chalkboard's excludes (FR-033)", () => {
+describe("RT7, a chalk block's excludes (FR-033)", () => {
   const excluding = (blockLines: unknown[]): Changes =>
     edit(NOTES, [["exclude"], ["fixture excluded phrase", "Glowseva"]], [["lines"], blockLines]);
 
@@ -397,7 +397,8 @@ describe("RT7, the chalkboard's excludes (FR-033)", () => {
     expect(where("RT7", edit(NOTES, [["exclude"], undefined]))).toEqual([`RT7 ${NOTES}:exclude`]);
   });
 
-  it('holds each committed chalk block to excluding "Seva", the Author\'s "leave it off the chalkboard"', () => {
+  it('holds each committed chalk block to excluding "Seva", as the Author asked in answer 3 (FR-033)', () => {
+    // The Author's words, answer 3: "leave it off the chalkboard".
     const repository = loadRoom(fileTree(fileURLToPath(new URL("../../../../", import.meta.url))));
     for (const block of repository.blocks.filter((b) => b.value.renderer === "chalk"))
       expect(

@@ -381,10 +381,14 @@ describe("the photo guide (contracts/room-bundle.md §9.2)", () => {
   it("measures each desk item from the desk's corner, then each piece on the shell by its anchor and offset", () => {
     const layout = section(guide(), "## The layout checklist");
     const rows = layout.split("\n").filter((l) => l.startsWith("- [ ] "));
+    // A placement with a label is named by its label word. The laptop's is read from the fixture set's words: spelled
+    // here, it would hold an ID the room's own data defines, which the source scan refuses (FR-007).
+    const laptop = good().index.ui["label.fx-laptop"] ?? "";
+    expect(laptop).toMatch(/^fixture \S/);
     expect(rows).toEqual([
       "- [ ] fixture monitor: x 0.32, y 0, z -0.5 (estimated)",
       "- [ ] `fx-neon`: x 0.32, y 0.42, z -0.5 (estimated)",
-      "- [ ] fixture laptop: x 0.77, y 0, z -0.3 (estimated)",
+      `- [ ] ${laptop}: x 0.77, y 0, z -0.3 (estimated)`,
       "- [ ] `fx-sign`: x 0.2, y 0, z -0.15 (estimated)",
       "- [ ] fixture desk: on the anchor `floor`, offset x 0, y 0, z -0.6 (estimated)",
       "- [ ] `fx-board`: on the anchor `wall`, offset x 0, y 0.35, z 0 (measured)",

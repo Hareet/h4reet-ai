@@ -87,10 +87,12 @@ describe("the known-good set", () => {
       .decode(goodFiles().get("apps/web/room/scene.yaml"))
       .replace(/^live: .*$/m, "live: { source: site, poll_s: 30, freshness_s: 35, turn: site, asset_events: site }");
     // Amendment A4's words on V7, B6's on V2, and spec 003's asset events on V6 (spec.md's Data-Flow Disclosure Entries).
+    // V7's Why cell, which no RL rule reads, names the fixture set's laptop where the spec names the room's: the room's
+    // own ID would hit the source scan (FR-007).
     const rows: Record<string, string> = {
       V2: "| V2 | the stack → the visitor's browser, in each turn's reply | a conversation turn | the turn's estimated cost and its route | anything new leaving the device | the neon sign (FR-048) and the failover cue (FR-041 row 7) | with the conversation | close the conversation | FR-075 |",
       V6: "| V6 | the visitor's browser → the site's own origin, `POST /api/events` | a piece's model loading | the asset's kind and bytes | the visitor's address | spec 003's transfer panel | off | `asset_events: off` | FR-071 |",
-      V7: "| V7 | the visitor's browser → the edge → the relay, `GET /api/status` | as before, and now the room: every 30 s while the visitor has entered, the page is visible, the room isn't paused, and the live source is on, and once on resume or return, at most once an interval | the request; the IP address; the user agent | anything typed or said | the laptop shows whether the Author's machine is serving (FR-041) | on once the live source is | \"Pause the room\", or block the path | FR-074 |",
+      V7: "| V7 | the visitor's browser → the edge → the relay, `GET /api/status` | as before, and now the room: every 30 s while the visitor has entered, the page is visible, the room isn't paused, and the live source is on, and once on resume or return, at most once an interval | the request; the IP address; the user agent | anything typed or said | the fx-laptop shows whether the Author's machine is serving (FR-041) | on once the live source is | \"Pause the room\", or block the path | FR-074 |",
     };
     const disclosure = (ids: readonly string[]): string =>
       [
