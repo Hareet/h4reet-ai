@@ -2,7 +2,8 @@
 // draws, from the 3D part's `look`, which lookdev chooses and ADR 0010 records. Inked cel, the default (the Author's
 // answer 2, "Inked cel is fine"), is lit at run time: MeshToonMaterial over a ramp of `shading.steps` bands, and
 // three.js's OutlineEffect drawing the ink lines in the look's outline colour and width. `painted` and `flat` draw
-// unlit, in base colours; a model's textures, which `painted` draws, are the loader's to apply (R-28). The lights are
+// unlit, in base colours; a model's materials take the look through `model()`, which the loader applies (R-28):
+// `painted` draws its textures, `flat` its base colours alone, and inked cel both on its ramp. The lights are
 // the look's: a hemisphere of its sky and ground for the ambient, and a directional key shining from `from`, which
 // casts shadows when the look says so. Nothing is baked (FR-022): no light, shadow, or occlusion map, no emissive
 // colour, and no outline geometry; every shade comes from the lights and the ramp as each frame is drawn.
@@ -27,7 +28,7 @@ import {
   NearestFilter,
   RedFormat,
 } from "three";
-import type { Camera, Material, Mesh, Object3D, Scene, Side, WebGLRenderer } from "three";
+import type { Camera, Material, Mesh, MeshStandardMaterial, Object3D, Scene, Side, WebGLRenderer } from "three";
 import { OutlineEffect } from "three/examples/jsm/effects/OutlineEffect.js";
 
 import type { Look } from "../compose/bundle";
@@ -70,6 +71,12 @@ export interface Materials {
   readonly shaded: boolean;
   /** The material for a colour (a palette name of the look or #rrggbb), lit or unlit, on a side: one of each, shared. */
   of(color: string, lit: boolean, side?: Side): Material;
+  /**
+   * A model's material in the look, from the one GLTFLoader made (R-28's "the look applied"): inked cel's toon
+   * material over its base colour and texture, on the shared ramp; painted's unlit, its texture kept; flat's unlit, in
+   * its base colour alone. Never shared or kept here: it goes with the model, its textures the model's own.
+   */
+  model(source: Material): Material;
   /** Releases every material made, and the ramp. */
   dispose(): void;
 }
@@ -93,6 +100,25 @@ export function lookMaterials(look: Look): Materials {
         made.set(key, material);
       }
       return material;
+    },
+    model(source) {
+      const s = source as Partial<MeshStandardMaterial>;
+      const base = {
+        name: source.name,
+        color: s.color?.clone() ?? new Color("#ffffff"),
+        side: source.side,
+        transparent: source.transparent,
+        opacity: source.opacity,
+        alphaTest: source.alphaTest,
+        vertexColors: source.vertexColors,
+      };
+      if (look.method === "inked-cel")
+        return new MeshToonMaterial({
+          ...base,
+          map: s.map ?? null,
+          gradientMap: (ramp ??= toonRamp(look.shading.steps)),
+        });
+      return new MeshBasicMaterial(look.method === "painted" ? { ...base, map: s.map ?? null } : base);
     },
     dispose() {
       for (const material of made.values()) material.dispose();

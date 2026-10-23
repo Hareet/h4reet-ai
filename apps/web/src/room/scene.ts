@@ -25,6 +25,7 @@ import type { Material, Mesh } from "three";
 import part from "virtual:room-scene";
 
 import { bindPointerSelection } from "./objects";
+import { capability, meetsModelFloor } from "./quality";
 import {
   buildRoom,
   disposeRoom,
@@ -34,6 +35,8 @@ import {
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
 import type { LabelFactory } from "./scene/bundle3d";
+import { createTextureLedger } from "./scene/ledger";
+import { createLoader, modelEntries, prepareModel, showModel } from "./scene/loader";
 import { createInk } from "./scene/look";
 import type { SceneOptions, Stage3D } from "./stage";
 
@@ -229,6 +232,33 @@ export function createScene(options: SceneOptions): Stage3D {
   const ink = createInk(renderer, part.look);
   ink.prepare(room.scene);
 
+  // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, read only when
+  // there is a model to load; after the hand-off; under the controller's holds; each outcome an asset event.
+  const loader = createLoader({
+    clock,
+    fetch: (url, init) => win.fetch(url, init),
+    decode: (source, o) => win.createImageBitmap(source, o),
+    floor: () => meetsModelFloor(capability(win)),
+    figures: Promise.resolve(),
+    handoff: options.handoff ?? Promise.resolve(),
+    hold: options.hold ?? (() => () => undefined),
+    level: options.level ?? (() => 0),
+    mode: options.mode ?? (() => "3d"),
+    record: options.assets ?? (() => undefined),
+    ledger: createTextureLedger(),
+    uploader: renderer,
+    prepare: (piece, model) => {
+      const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
+      if (own) prepareModel(model, own, part.look, room.materials);
+    },
+    swap: (piece, model) => showModel(room, part, piece, model),
+  });
+  const entries = modelEntries(part);
+  if (entries.length > 0) void loader.load(entries);
+  // A restored context lost the models' textures, whose bitmaps were closed: back to stand-ins, and loaded again.
+  const restored = (): void => void loader.reload();
+  canvas.addEventListener("webglcontextrestored", restored);
+
   let settings = qualitySettings(0);
   const camera = new PerspectiveCamera();
   const boxes = framedBoxes(part);
@@ -277,6 +307,7 @@ export function createScene(options: SceneOptions): Stage3D {
       const before = settings.shadows;
       settings = qualitySettings(level);
       renderer.shadowMap.enabled = settings.shadows;
+      ink.setOutlines(settings.outlines);
       labels.setScale(settings.textureScale);
       if (before !== settings.shadows) {
         room.scene.traverse((node) => {
@@ -292,6 +323,8 @@ export function createScene(options: SceneOptions): Stage3D {
       disposed = true;
       clock.cancelFrame(frame);
       unbind();
+      loader.stop();
+      canvas.removeEventListener("webglcontextrestored", restored);
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();

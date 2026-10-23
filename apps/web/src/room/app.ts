@@ -13,6 +13,7 @@
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
+import { createAssetEvents } from "../asset-events";
 import { renderChoice } from "../choice/choice";
 import type { Choice } from "../choice/choice";
 import { newVisit } from "../choice/visit";
@@ -105,8 +106,26 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     });
   }
 
-  // A hidden page draws no frames; when it shows again, the quality controller starts a new window (R-04).
-  doc.addEventListener("visibilitychange", () => controller?.restart());
+  // Spec 003's asset events from the 3D stage's loader (spec 004, T134; R-60): queued in page memory, and sent only
+  // while the index's live.asset_events is `site`, which spec 001's route turns on.
+  const assets = createAssetEvents({
+    live: deps.room.live.asset_events,
+    clock,
+    fetch: (url, init) => win.fetch(url, init),
+    nav: win.navigator,
+  });
+  // The hand-off's end, after which the 3D stage parses and swaps studio models (R-28).
+  let handoffEnded = (): void => undefined;
+  const handoffDone = new Promise<void>((resolve) => (handoffEnded = resolve));
+  const holdQuality = (): (() => void) => controller?.hold() ?? (() => undefined);
+
+  // A hidden page draws no frames; when it shows again, the quality controller starts a new window (R-04). Hidden, the
+  // asset events' beacon goes, once, while they're sent at all.
+  doc.addEventListener("visibilitychange", () => {
+    controller?.restart();
+    if (doc.visibilityState === "hidden") assets.hide();
+    else assets.show();
+  });
   const onFrame = (time: number): void => {
     if (doc.visibilityState === "hidden") controller?.restart();
     else controller?.frame(time);
@@ -175,6 +194,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         reducedMotion,
         select: selectObject,
         onFrame,
+        handoff: handoffDone,
+        hold: holdQuality,
+        level: () => controller?.quality ?? 0,
+        mode: () => visit.mode,
+        assets: (event) => assets.record(event),
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -192,7 +216,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       },
       onFlat: toFlat,
     });
-    unwatch = watchContext(scene3d.canvas, clock, () => toFlat("context_lost"));
+    // A lost context holds the controller until two frames after its restore (R-35).
+    unwatch = watchContext(scene3d.canvas, clock, () => toFlat("context_lost"), { hold: holdQuality });
   }
 
   function show(next: Stage): void {
@@ -231,6 +256,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   function offerResume(): void {
+    handoffEnded();
     const layout = room;
     if (!layout) return;
     visit.stage = "room";

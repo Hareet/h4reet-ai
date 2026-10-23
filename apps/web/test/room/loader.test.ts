@@ -243,7 +243,7 @@ function harness(
     options.figures === "pending" ? new Promise<void>((resolve) => (figures = resolve)) : Promise.resolve();
   const handoffDone =
     options.handoff === "pending" ? new Promise<void>((resolve) => (handoff = resolve)) : Promise.resolve();
-  const harnessed = {
+  const harnessed: Omit<Harness, "loader"> & { loader: Harness["loader"] | null } = {
     clock,
     fetch: f,
     decoder: d,
@@ -254,8 +254,9 @@ function harness(
     ledger,
     figures: () => figures(),
     handoff: () => handoff(),
-    mode: "3d" as Mode,
+    mode: "3d",
     level: 0,
+    loader: null,
   };
   const loaderOptions: LoaderOptions = {
     clock,
@@ -273,7 +274,9 @@ function harness(
     prepare: () => undefined,
     swap: (piece, model) => swaps.push({ piece, model, at: clock.now() }),
   };
-  return { ...harnessed, loader: createLoader(loaderOptions) } as Harness;
+  // The options read the harness itself, so a test's change to its mode or level reaches the loader.
+  harnessed.loader = createLoader(loaderOptions);
+  return harnessed as Harness;
 }
 
 /** Lets the loader's promises settle: fetches answered, models parsed, each through several turns of the loop. */
@@ -283,14 +286,12 @@ async function settle(): Promise<void> {
 
 const SHA = "26f62e29fefa1fc8e5ba6da6ce7fcf09e59a515a87953fdbdc955219c60d1e7e";
 
+/** A model's a/ URL, as the 3D part names one. */
+const urlOf = (piece: string): string => `a/${piece}.${SHA.slice(0, 16)}.glb`;
+
 /** An entry fetched from the site, as modelEntries makes one. */
 function urlEntry(piece: string, bytes = 1234): ModelEntry {
-  return {
-    piece,
-    asset: piece,
-    bytes,
-    source: { kind: "url", url: `a/${piece}.${SHA.slice(0, 16)}.glb`, sha256: SHA },
-  };
+  return { piece, asset: piece, bytes, source: { kind: "url", url: urlOf(piece), sha256: SHA } };
 }
 
 /** An entry read from page memory, as lookdev's candidates and the phone copy's models are. */
@@ -329,10 +330,10 @@ describe("the order and the fetch (R-28 steps 2 and 3)", () => {
     h.figures();
     await settle();
     expect(MAX_FETCHES).toBe(4);
-    expect(h.fetch.calls.map((c) => c.url)).toEqual(pieces.slice(0, 4).map((p) => urlEntry(p).source.url));
+    expect(h.fetch.calls.map((c) => c.url)).toEqual(pieces.slice(0, 4).map((p) => urlOf(p)));
     h.fetch.calls[1]?.answer({ body: DESK_GLB });
     await settle();
-    expect(h.fetch.calls.map((c) => c.url)).toEqual(pieces.slice(0, 5).map((p) => urlEntry(p).source.url));
+    expect(h.fetch.calls.map((c) => c.url)).toEqual(pieces.slice(0, 5).map((p) => urlOf(p)));
     for (const c of h.fetch.calls) c.answer({ body: DESK_GLB });
     await settle();
     h.fetch.calls[5]?.answer({ body: DESK_GLB });
@@ -348,7 +349,7 @@ describe("the order and the fetch (R-28 steps 2 and 3)", () => {
     void h.loader.load([urlEntry("fx-desk")]);
     await settle();
     const call = h.fetch.calls[0];
-    expect(call?.url).toBe(urlEntry("fx-desk").source.url);
+    expect(call?.url).toBe(urlOf("fx-desk"));
     expect(call?.init).toMatchObject({
       integrity: integrity(SHA),
       redirect: "error",
@@ -397,6 +398,8 @@ describe("the order and the fetch (R-28 steps 2 and 3)", () => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await settle();
       h.clock.advance(300);
+      // A failed parse's hold settles over the frames just drawn before its retry is fetched.
+      await settle();
       h.fetch.calls[attempt]?.answer(answer);
     }
     await settle();
@@ -606,7 +609,7 @@ describe("memory and a lost context (R-28 step 6)", () => {
     expect(h.loader.loaded).toEqual(new Set());
     await settle();
     // Fetched again, as the HTTP cache answers it.
-    expect(h.fetch.calls.map((c) => c.url)).toEqual([urlEntry("fx-desk").source.url, urlEntry("fx-desk").source.url]);
+    expect(h.fetch.calls.map((c) => c.url)).toEqual([urlOf("fx-desk"), urlOf("fx-desk")]);
     h.fetch.calls[1]?.answer({ body: DESK_GLB });
     await settle();
     expect(h.holds.held()).toBe(1);
