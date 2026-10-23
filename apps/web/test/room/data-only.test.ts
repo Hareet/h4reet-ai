@@ -14,8 +14,8 @@
 // - a switch case for a value its signal already has, on a fixture switch whose piece claims nothing and uses default.
 // Where a change needs room in the scene, the test looks for it in the committed layout, so a later data edit that
 // takes one spot leaves the proof standing. The runtime half: a bundle with an added selectable gets a stand-in and a
-// pick area in 3D, and a list button, a 2D cue, and its fixed message, the last three it.fails cases until T110 builds
-// the list and the message, and T109 the 2D room, from the bundle. And apps/web/room/README.md, which says how to make
+// pick area in 3D, and a list button, a 2D cue, and its fixed message, from the list and the message T110 builds and
+// the 2D room T109 draws from the bundle. And apps/web/room/README.md, which says how to make
 // each change, names no ID the data defines (T114). Synthetic IDs take the reserved prefix fx-; every other ID is read
 // from the data, never written here.
 import { readFileSync } from "node:fs";
@@ -588,8 +588,7 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
     }
   });
 
-  // RED until T110 builds the "In the room" list from the bundle's selectables.
-  it.fails("gets a button in the list, which selects it (until T110)", async () => {
+  it("gets a button in the list, which selects it", async () => {
     const v = visit(addition().result);
     await intoRoom(v);
     const found = [...v.doc.querySelectorAll("button")].filter((b) => nameOf(b).startsWith(ADDED_NAME));
@@ -598,8 +597,7 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
     expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: ADDED_PICK });
   });
 
-  // RED until T109 draws the 2D room from the bundle's drawing, each selectable's cue with its name tag.
-  it.fails("gets a cue in the 2D room, with its name (until T109)", async () => {
+  it("gets a cue in the 2D room, with its name", async () => {
     const v = visit(addition().result);
     await intoRoom(v);
     button(v.doc, "2D view").click();
@@ -607,8 +605,7 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
     expect(textOf(v.doc.querySelector(".flat"))).toContain(ADDED_NAME);
   });
 
-  // RED until T110 has the talk panel fill the fixed message with the topic's phrase from the bundle.
-  it.fails("says the twin can't talk about its topic yet, in its phrase, and calls no model (until T110)", async () => {
+  it("says the twin can't talk about its topic yet, in its phrase, and calls no model", async () => {
     const v = visit(addition().result);
     await intoRoom(v);
     const created = must(v.scene.created[0], "3D scene");
