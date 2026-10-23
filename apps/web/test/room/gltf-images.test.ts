@@ -235,6 +235,26 @@ describe("the room's image step (R-29)", () => {
     expect(model.textureBytes).toBe(textureBytes(8, 8) + textureBytes(16, 8) + textureBytes(4, 4));
   });
 
+  it("sets flipY false and the MIME type itself, on a texture ready to upload", async () => {
+    // GLTFLoader's texture step sets flipY on what the image-source step returns, so the step is asked here directly,
+    // for a fourth image no texture names, which the parse never asked for.
+    const spare = desk({ build: (b) => void b.image(png({ width: 2, height: 2 }), "image/png") });
+    const seen: GLTFParser[] = [];
+    const images = roomImages({ reduced: false, decode: decoder().decode });
+    const loader = new GLTFLoader().register((parser) => {
+      seen.push(parser);
+      return images.plugin(parser);
+    });
+    await loader.parseAsync(buffer(spare.bytes), "");
+    const parser = seen[0] as GLTFParser;
+    expect(images.requested.has(3)).toBe(false);
+    const texture = await parser.loadImageSource(3, parser.textureLoader);
+    expect(texture.flipY).toBe(false);
+    expect(texture.userData.mimeType).toBe("image/png");
+    expect(texture.version).toBe(1);
+    expect(images.decoded.get(3)).toEqual({ width: 2, height: 2, mimeType: "image/png" });
+  });
+
   it("decodes at half size when reduced, closing each full-size bitmap", async () => {
     const { decode, calls } = decoder();
     const model = await parseModel(buffer(DESK), { reduced: true, decode });
@@ -324,9 +344,9 @@ describe("the room's image step (R-29)", () => {
         "decoded 2 of the 3 images its materials use",
       );
       expect(
-        again.calls.every((c) => c.made?.closed),
+        again.calls.map((c) => c.made?.closed),
         uri,
-      ).toBe(true);
+      ).toEqual([true, true]);
       expect(request, uri).not.toHaveBeenCalled();
     }
   });
@@ -414,6 +434,23 @@ describe("the texture ledger (FR-053, SC-006)", () => {
     sharing.dispose();
     expect(ledger.bytes).toBe(textureBytes(32, 16));
     b.dispose();
+    b.dispose();
+    expect(ledger.bytes).toBe(0);
+  });
+
+  it("closes the bitmaps handed to it even when an upload throws, and the loader's dispose takes them off", () => {
+    const ledger = createTextureLedger();
+    const a = new Texture(new FakeBitmap(4, 4) as unknown as ImageBitmap);
+    const b = new Texture(new FakeBitmap(4, 4) as unknown as ImageBitmap);
+    const lost: Uploader = {
+      initTexture: () => {
+        throw new Error("context lost");
+      },
+    };
+    expect(() => ledger.upload(lost, [a, b])).toThrow("context lost");
+    expect([a, b].map((t) => bitmapOf(t).closed)).toEqual([true, true]);
+    expect(ledger.bytes).toBe(textureBytes(4, 4));
+    a.dispose();
     b.dispose();
     expect(ledger.bytes).toBe(0);
   });
