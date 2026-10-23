@@ -75,15 +75,19 @@ const FOLDERS = {
 } as const;
 type FolderKind = keyof typeof FOLDERS;
 
-/** The single files of apps/web/room/, by name. */
-const SINGLES: Readonly<Record<string, DataKind>> = {
-  "scene.yaml": "scene",
-  "topics.yaml": "topics",
-  "ui-words.yaml": "ui-words",
-  "lookdev.yaml": "lookdev",
-};
+/** The single files of apps/web/room/, by name: a Map, so a name such as `constructor` finds nothing. */
+const SINGLES: ReadonlyMap<string, DataKind> = new Map([
+  ["scene.yaml", "scene"],
+  ["topics.yaml", "topics"],
+  ["ui-words.yaml", "ui-words"],
+  ["lookdev.yaml", "lookdev"],
+]);
 /** The folders of apps/web/room/, by name. */
-const ROOM_FOLDERS: Readonly<Record<string, FolderKind>> = { catalog: "catalog", looks: "look", fixtures: "fixture" };
+const ROOM_FOLDERS: ReadonlyMap<string, FolderKind> = new Map([
+  ["catalog", "catalog"],
+  ["looks", "look"],
+  ["fixtures", "fixture"],
+]);
 
 /** Where a file of a folder kind with this stem lives: the path a reference to it would read. */
 export function pathOf(kind: FolderKind, stem: string): string {
@@ -282,8 +286,8 @@ export function loadRoom(tree: Tree): LoadedRoom {
 
   for (const name of tree.list(ROOM_DIR)) {
     const file = `${ROOM_DIR}/${name}`;
-    const single = SINGLES[name];
-    const kind = ROOM_FOLDERS[name];
+    const single = SINGLES.get(name);
+    const kind = ROOM_FOLDERS.get(name);
     if (name === "README.md") continue;
     if (single !== undefined) take(single, file);
     else if (kind !== undefined) {
