@@ -112,6 +112,9 @@ async function cli(root: string, args: readonly string[], cwd = root, env = { RO
   return { code, out, err };
 }
 
+/** A finding no compose makes, in place of one a test expected and didn't find. */
+const noFinding = { rule: "none", file: "-", path: "-", reason: "no such finding", lenient: false };
+
 /** The compose a command makes over `root` with no policy. */
 const composed = (root: string, mode: "strict" | "lenient", drafts: boolean): ComposeResult =>
   compose(fileTree(root), noPolicy(), { mode, drafts });
@@ -242,6 +245,23 @@ describe("check (contracts/room-bundle.md §12, §13; contracts/room-data-files.
     expect(out.join("\n")).not.toContain("made stale");
     expect(fresh).not.toBe("");
     expect(out.join("\n")).not.toContain(fresh);
+  });
+
+  it("calls no work order orphaned while its piece's catalog file is there, refused: that file's finding comes first", async () => {
+    const root = repository();
+    expect((await cli(root, ["generate"])).code).toBe(0);
+    const rd4 = badCase("RD4");
+    write(root, rd4.changes);
+    const order = `docs/studio/work-orders/${rd4.file.slice(rd4.file.lastIndexOf("/") + 1, -".yaml".length)}.md`;
+    const checked = await cli(root, ["check"]);
+    expect(checked.code).toBe(1);
+    expect(checked.out).toContain(
+      formatFinding(composed(root, "strict", true).findings.find((f) => f.rule === "RD4") ?? noFinding, "strict"),
+    );
+    expect(checked.out.filter((line) => line.includes(order))).toEqual([]);
+    const generated = await cli(root, ["generate"]);
+    expect(generated.code).toBe(1);
+    expect(existsSync(join(root, order))).toBe(true);
   });
 });
 
