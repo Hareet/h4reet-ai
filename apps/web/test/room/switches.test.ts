@@ -68,7 +68,7 @@ describe("the cable's run (compose/cable.ts)", () => {
     const surface = restPlane(translation([0, 0.75, -1.5]));
     expectClose(surface.point, [0, 0.75, -1.5]);
     expectClose(surface.normal, [0, 1, 0]);
-    // Both ends on the surface: the whole run lies on it.
+    // Both ends on the surface: the whole tube lies on it, its centreline the tube's radius above it (0.004 m × 1).
     const flat = cableRun({
       from: [-0.3, 0.75, -1.3],
       to,
@@ -78,7 +78,7 @@ describe("the cable's run (compose/cable.ts)", () => {
       drop: 0.12,
       rest: surface,
     });
-    for (const p of flat.points) expect(p[1]).toBeCloseTo(0.75, 15);
+    for (const p of flat.points) expect(p[1]).toBeCloseTo(0.754, 15);
     // The drop still falls behind the edge, below the surface.
     expect(flat.drop?.[1]).toBeCloseTo(0.63, 15);
     // From above it: the sag reaches the surface and goes no lower; the points above it keep their sag.
@@ -87,12 +87,44 @@ describe("the cable's run (compose/cable.ts)", () => {
     let clamped = 0;
     high.points.forEach((p, i) => {
       const f = free.points[i] ?? [0, 0, 0];
-      if (f[1] < 0.75) {
+      if (f[1] < 0.754) {
         clamped += 1;
-        expectClose(p, [f[0], 0.75, f[2]], 1e-12, `clamped ${i}`);
+        expectClose(p, [f[0], 0.754, f[2]], 1e-12, `clamped ${i}`);
       } else expectClose(p, f, 0, `free ${i}`);
     });
     expect(clamped).toBeGreaterThan(0);
+  });
+
+  it("holds the centreline a tube's radius off the rest plane, the binding's times the piece's scale (words-6)", () => {
+    // Lying on a level surface: 0.004 m × 2.5 above it, so the tube rests on it rather than sinking half into it.
+    const surface = restPlane(translation([0, 0.75, -1.5]));
+    const lying = cableRun({
+      from: [-0.3, 0.75, -1.3],
+      to,
+      sag: 0.3,
+      radius: 0.004,
+      scale: 2.5,
+      drop: 0,
+      rest: surface,
+    });
+    for (const p of lying.points) expect(p[1]).toBeCloseTo(0.76, 15);
+    // Along a tilted plane's normal: never under the radius, and resting on the plane where the sag reaches it.
+    const tilted = restPlane(multiply(translation([0, 0.8, -1.5]), rotation({ x: 20, y: 0, z: 0 })));
+    const n = tilted.normal;
+    const run = cableRun({
+      from: [-0.4, 1.2, -1.2],
+      to: [0.4, 0.9, -1.8],
+      sag: 0.5,
+      radius: 0.004,
+      scale: 2.5,
+      drop: 0,
+      rest: tilted,
+    });
+    const heights = run.points.map(
+      (p) => (p[0] - tilted.point[0]) * n[0] + (p[1] - tilted.point[1]) * n[1] + (p[2] - tilted.point[2]) * n[2],
+    );
+    for (const d of heights) expect(d).toBeGreaterThanOrEqual(0.01 - 1e-12);
+    expect(Math.min(...heights)).toBeCloseTo(0.01, 12);
   });
 
   it("clamps along a tilted rest plane's normal", () => {
