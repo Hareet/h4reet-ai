@@ -1,0 +1,6 @@
+rule: RK1
+file: apps/web/room/catalog/fx-desk.yaml
+path: budget.gzip_bytes
+why: a budget above FR-053's starting figure of 2,500,000 gzip-9 bytes, the caps while main has no room block
+edits:
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [budget, gzip_bytes], set: 2600000 }

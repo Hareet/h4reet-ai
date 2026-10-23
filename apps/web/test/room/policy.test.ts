@@ -13,7 +13,9 @@ import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { compose, formatFinding } from "../../build/room/compose";
 import { CAPS_DEFAULTS, noPolicy, PHASE3_DEFAULT, readRoomPolicy } from "../../build/room/policy";
+import { goodTree } from "../helpers/room-fixtures";
 
 const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
 const CAPS = "assets/policy/caps.json";
@@ -252,5 +254,14 @@ describe("a malformed room block (RK4's, reported by T078's RK family)", () => {
     expect(read(`${JSON.stringify({ schema: 1, per_asset: { room: ROOM } })}\n`).phase3_bytes).toBe(25000000);
   });
 
-  it.todo("a malformed block is RK4 and fails strict and lenient builds alike (T078)");
+  it("is RK4, by its path in caps.json, and fails strict and lenient builds alike", () => {
+    const policy = read(capsText({ ...ROOM, triangles: undefined }));
+    for (const mode of ["strict", "lenient"] as const) {
+      const rk4 = compose(goodTree(), policy, { mode, drafts: true }).findings.filter((f) => f.rule === "RK4");
+      expect(rk4.map((f) => formatFinding(f, mode))).toEqual([
+        expect.stringMatching(/^RK4 assets\/policy\/caps\.json:per_asset\.room\.triangles: /),
+      ]);
+      expect(rk4.every((f) => !f.lenient)).toBe(true);
+    }
+  });
 });

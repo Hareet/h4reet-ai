@@ -1,0 +1,6 @@
+rule: RL2
+file: apps/web/room/scene.yaml
+path: live.source
+why: the status source at site while the tree holds no disclosure, so no row V7 names the room's polling
+edits:
+  - { file: apps/web/room/scene.yaml, at: [live, source], set: site }

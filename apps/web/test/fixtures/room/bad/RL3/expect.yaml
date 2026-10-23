@@ -1,0 +1,6 @@
+rule: RL3
+file: apps/web/room/scene.yaml
+path: live.asset_events
+why: the asset events at site while row V6 names another route than POST /api/events
+edits:
+  - { file: apps/web/room/scene.yaml, at: [live, asset_events], set: site }

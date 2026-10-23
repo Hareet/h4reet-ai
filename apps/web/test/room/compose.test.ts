@@ -16,7 +16,7 @@ import { parse } from "yaml";
 import { compareFindings, RULE_IDS, RULES } from "../../build/room/checks/family";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, Finding } from "../../build/room/compose";
-import { noPolicy } from "../../build/room/policy";
+import { CAPS_DEFAULTS, noPolicy, policyFrom } from "../../build/room/policy";
 import { fileTree, isTreePath, memoryTree, overlayTree } from "../../build/room/source";
 import { badCases, caseTree, goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 
@@ -72,6 +72,39 @@ describe("the known-good set", () => {
     expect(tree.log.length).toBeGreaterThan(0);
     expect(tree.log.filter((p) => !allowed.some((re) => re.test(p)))).toEqual([]);
     expect(tree.log.some((p) => p.startsWith("assets/policy"))).toBe(false);
+  });
+
+  it("switches each live source on beside its disclosure row, in the spec's words, and each row is needed (RL2 to RL4)", () => {
+    const scene = decoder
+      .decode(goodFiles().get("apps/web/room/scene.yaml"))
+      .replace(/^live: .*$/m, "live: { source: site, poll_s: 30, freshness_s: 35, turn: site, asset_events: site }");
+    // Amendment A4's words on V7, B6's on V2, and spec 003's asset events on V6 (spec.md's Data-Flow Disclosure Entries).
+    const rows: Record<string, string> = {
+      V2: "| V2 | the stack → the visitor's browser, in each turn's reply | a conversation turn | the turn's estimated cost and its route | anything new leaving the device | the neon sign (FR-048) and the failover cue (FR-041 row 7) | with the conversation | close the conversation | FR-075 |",
+      V6: "| V6 | the visitor's browser → the site's own origin, `POST /api/events` | a piece's model loading | the asset's kind and bytes | the visitor's address | spec 003's transfer panel | off | `asset_events: off` | FR-071 |",
+      V7: "| V7 | the visitor's browser → the edge → the relay, `GET /api/status` | as before, and now the room: every 30 s while the visitor has entered, the page is visible, the room isn't paused, and the live source is on, and once on resume or return, at most once an interval | the request; the IP address; the user agent | anything typed or said | the laptop shows whether the Author's machine is serving (FR-041) | on once the live source is | \"Pause the room\", or block the path | FR-074 |",
+    };
+    const disclosure = (ids: readonly string[]): string =>
+      [
+        "# Data-flow disclosure",
+        "",
+        "| ID | From → To | Trigger | Carries | Never carries | Why | Default | How to switch it off | FR |",
+        "|---|---|---|---|---|---|---|---|---|",
+        ...ids.map((id) => rows[id] ?? ""),
+        "",
+      ].join("\n");
+    const live = (ids: readonly string[]): string[] =>
+      compose(
+        overlay({ "apps/web/room/scene.yaml": scene, "docs/data-flow-disclosure.md": disclosure(ids) }),
+        noPolicy(),
+        { mode: "strict", drafts: true },
+      )
+        .findings.filter((f) => f.rule.startsWith("RL"))
+        .map((f) => `${f.rule} ${f.file}:${f.path}`);
+    expect(live(["V2", "V6", "V7"])).toEqual([]);
+    expect(live(["V2", "V6"])).toEqual(["RL2 apps/web/room/scene.yaml:live.source"]);
+    expect(live(["V2", "V7"])).toEqual(["RL3 apps/web/room/scene.yaml:live.asset_events"]);
+    expect(live(["V6", "V7"])).toEqual(["RL4 apps/web/room/scene.yaml:live.turn"]);
   });
 });
 
@@ -161,8 +194,40 @@ describe("findings", () => {
     expect(compose(tree(), noPolicy(), { mode: "strict", drafts: true }).findings.map((f) => f.rule)).toEqual(["RI10"]);
   });
 
+  it("fail a strict build and only warn, prefixed warn, in a lenient one on the same RX or RK2 finding; that piece keeps its stand-in", () => {
+    // Main's caps, so the piece keeps its stand-in for its findings, not for want of caps.
+    const text = new TextEncoder().encode(`${JSON.stringify({ schema: 1, per_asset: { room: CAPS_DEFAULTS } })}\n`);
+    const policy = policyFrom({ caps: text, approvals: null, header: null }, "policy-dir");
+    for (const [name, path] of [
+      ["RX10", "materials[0].emissiveFactor"],
+      ["RK2", "-"],
+    ] as const) {
+      const c = badCases().find((x) => x.name === name);
+      if (!c) throw new Error(`no bad/${name}/`);
+      const strict = compose(caseTree(c), policy, { mode: "strict", drafts: true });
+      const lenient = compose(caseTree(c), policy, { mode: "lenient", drafts: true });
+      expect(strict.findings.map((f) => `${f.rule} ${f.file}:${f.path}`)).toEqual([
+        `${name} assets/room/fx-desk.glb:${path}`,
+      ]);
+      expect(lenient.findings).toEqual(strict.findings);
+      // Strict fails on any finding; lenient fails only on one it doesn't tolerate, and prints the rest prefixed warn.
+      expect(strict.findings.every((f) => f.lenient)).toBe(true);
+      expect(strict.findings.map((f) => formatFinding(f, "strict"))).toEqual([
+        `${name} assets/room/fx-desk.glb:${path}: ${strict.findings[0]?.reason}`,
+      ]);
+      expect(lenient.findings.map((f) => formatFinding(f, "lenient"))).toEqual([
+        `warn ${name} assets/room/fx-desk.glb:${path}: ${lenient.findings[0]?.reason}`,
+      ]);
+      // The piece keeps its stand-in: no model on its placement in the 3D part, and no .gz copy.
+      for (const result of [strict, lenient]) {
+        expect(result.scene.placements.find((p) => p.piece === "fx-desk")?.model ?? null).toBeNull();
+        expect(result.models.some((m) => m.piece === "fx-desk")).toBe(false);
+      }
+    }
+  });
+
   it.todo(
-    "strict mode fails and lenient mode warns, prefixed warn, on the same RX or RK2 finding; that piece keeps its stand-in, and the manifest lists it in standins[] with the reason findings (T078's RX and RK families; T080's manifest)",
+    "on an RX or RK2 finding the manifest lists that piece in standins[] with the reason findings, and placeholders is true, where the same piece's clean model is set (T080's manifest)",
   );
 
   it.todo(

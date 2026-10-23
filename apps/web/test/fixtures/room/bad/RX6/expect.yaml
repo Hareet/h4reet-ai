@@ -1,0 +1,10 @@
+rule: RX6
+file: assets/room/fx-desk.glb
+path: nodes[3].name
+why: a node named with a camera's file stem, refused by its index and never its name
+generate: { assets/room/fx-desk.glb: glb:rx6-camera-stem, assets/room/records.json: records }
+edits:
+  - file: apps/web/room/catalog/fx-desk.yaml
+    at: [origin, bounds]
+    set: { min: [-0.8, 0, -0.4], max: [0.8, 0.75, 0.4] }
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [model], set: { file: fx-desk.glb } }

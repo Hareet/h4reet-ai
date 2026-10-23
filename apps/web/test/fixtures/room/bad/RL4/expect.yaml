@@ -1,0 +1,6 @@
+rule: RL4
+file: apps/web/room/scene.yaml
+path: live.turn
+why: the turn route at site while row V2 doesn't say the reply carries the turn's estimated cost and its route
+edits:
+  - { file: apps/web/room/scene.yaml, at: [live, turn], set: site }

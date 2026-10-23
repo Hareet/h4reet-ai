@@ -1,0 +1,10 @@
+rule: RX1
+file: assets/room/fx-desk.glb
+path: "-"
+why: a model whose header isn't glTF's, so no other rule reads it
+generate: { assets/room/fx-desk.glb: glb:rx1-not-gltf, assets/room/records.json: records }
+edits:
+  - file: apps/web/room/catalog/fx-desk.yaml
+    at: [origin, bounds]
+    set: { min: [-0.8, 0, -0.4], max: [0.8, 0.75, 0.4] }
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [model], set: { file: fx-desk.glb } }
