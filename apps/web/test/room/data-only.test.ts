@@ -341,13 +341,22 @@ describe("the proof set, each change a data edit (FR-006, SC-001)", () => {
   });
 
   it("a removal: a selectable and its members go, their IDs join retired[], and the selectable's ID can't come back", () => {
-    // The last selectable whose members nothing else mounts on: its pieces go with it.
-    const mounted = new Set([
+    // The last selectable whose members nothing else in the data names: no mount, pose, glow, cable, hand-off,
+    // survey, or lookdev view. Its pieces go with it, if nothing else places them.
+    const lookdev = committed.lookdev?.value;
+    const named = new Set([
       ...SCENE.placements.flatMap((p) => (p.mount ? [p.mount.on] : [])),
-      ...SCENE.switches.flatMap((s) => Object.values(s.poses).map((pose) => pose.mount.on)),
+      ...SCENE.switches.flatMap((s) => [
+        ...Object.values(s.poses).flatMap((pose) => [pose.mount.on, ...pose.glows.map((g) => g.placement)]),
+        ...(s.cable ? [s.cable.to.placement, s.cable.rest?.placement ?? ""] : []),
+      ]),
+      SCENE.handoff.from.placement,
+      SCENE.handoff.to.placement,
+      SCENE.survey.desk_corner.placement,
+      ...(lookdev ? [...lookdev.vignette.show, ...lookdev.close_up.frame] : []),
     ]);
     const gone = must(
-      [...SCENE.selectables].reverse().find((s) => s.members.every((m) => !mounted.has(m))),
+      [...SCENE.selectables].reverse().find((s) => s.members.every((m) => !named.has(m))),
       "selectable with free members",
     );
     const members = SCENE.placements.filter((p) => gone.members.includes(p.id));
@@ -372,8 +381,15 @@ describe("the proof set, each change a data edit (FR-006, SC-001)", () => {
         reason: "Fixture reason for the removal.",
       })),
     );
+    // The label words only the removed placements referenced go too (RI11).
+    const labels = (s: Scene): Set<string> =>
+      new Set([
+        ...s.placements.flatMap((p) => [p.label ?? "", ...Object.values(p.faces ?? {}).map((f) => f.label)]),
+        ...s.switches.map((w) => w.label),
+      ]);
+    const still = labels(scene);
     const ui = copy(WORDS);
-    for (const p of members) if (p.label !== undefined) delete ui.words[p.label];
+    for (const key of labels(SCENE)) if (key !== "" && !still.has(key)) delete ui.words[key];
     const files: Record<string, unknown> = { [SCENE_FILE]: scene, [UI_WORDS_FILE]: ui };
     for (const piece of pieces) files[pathOf("catalog", piece)] = null;
     const removed = change(files);
