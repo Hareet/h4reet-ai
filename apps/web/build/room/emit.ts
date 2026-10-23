@@ -158,6 +158,8 @@ export interface RoomOutputs {
   readonly scene: RoomScene;
   /** Null unless the options say drafts. */
   readonly drafts: { readonly fixtures: readonly RoomFixture[]; readonly lookdev: RoomLookdev } | null;
+  /** Each set model a placement or pose shows, once, by piece: `url` is the 3D part's `a/<stem>.<hash16>.glb`, and
+   *  `gz`, its gzip-9 copy, lands at `dist/<url>.gz`, never beside a plain copy (§3.4); `sha256` is the plain file's. */
   readonly models: readonly {
     readonly piece: string;
     readonly url: string;
