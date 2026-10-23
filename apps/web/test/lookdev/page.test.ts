@@ -42,6 +42,7 @@ import { qualitySettings } from "../../src/room/scene";
 import { MODEL_NODE } from "../../src/room/scene/loader";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
+import { desk } from "../helpers/glb";
 import { cleanModel } from "../helpers/room-models";
 
 afterEach(() => {
@@ -488,8 +489,9 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
     const row = root.querySelector(`[data-candidate="${piece}"]`);
     const text = collapse(row?.textContent);
     expect(text).toContain(nodeSha256(data));
-    expect(text).toContain("not scrubbed");
-    expect(text).toMatch(/RX5 candidate:extensions: not scrubbed/);
+    // The clean model is in the scrubbed form, with spec 003's model mark and no finding: a hash the Author may approve.
+    expect(text).toContain("Mark: model");
+    expect(text).toContain("Findings: none");
     expect(page.stage.loaded.has(piece)).toBe(true);
     const node = page.stage.room.placements.get(placement);
     expect(node?.children.some((c) => c.name === MODEL_NODE)).toBe(true);
@@ -500,6 +502,21 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
     expect(collapse(root.querySelector(".lookdev-log")?.textContent)).toMatch(new RegExp(`${piece} loaded`));
     expect(spies.network).toEqual([]);
     expect(spies.storage).toEqual([]);
+  });
+
+  it('reads "not scrubbed" for a file without spec 003\'s mark, lists its findings, and still swaps it in', async () => {
+    const { page, root, clock, inputs: given } = open();
+    const { piece } = vignettePiece(given);
+    const data = desk({ mark: false }).bytes;
+    pick(root, piece, data);
+    await settle(clock);
+    const text = collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent);
+    expect(text).toContain(nodeSha256(data));
+    expect(text).toContain("Mark: not scrubbed");
+    expect(text).toMatch(/RX5 candidate:extensions: not scrubbed/);
+    // Swapped in whatever its other findings, its textures decoded with no object URL, so a misfit shows at the framing.
+    expect(page.stage.loaded.has(piece)).toBe(true);
+    expect(page.stage.textureBytes).toBeGreaterThan(0);
   });
 
   it("restores the stand-in on Clear", async () => {
@@ -614,7 +631,9 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     expect(results.stage_css).toEqual([REFERENCE_DESKTOP.stage.w, REFERENCE_DESKTOP.stage.h]);
     expect((results.frames as { count: number }).count).toBeGreaterThan(1000);
     expect(results.draw_calls).toBeGreaterThan(0);
-    expect(results.candidates).toEqual([expect.objectContaining({ piece, sha256: nodeSha256(data), scrubbed: false })]);
+    expect(results.candidates).toEqual([
+      expect.objectContaining({ piece, sha256: nodeSha256(data), scrubbed: true, mark: "model", findings: [] }),
+    ]);
     expect(area?.value).not.toContain(PICKED_NAME);
     expect(collapse(root.querySelector(".lookdev-results")?.textContent)).toContain("Lookdev results");
     expect(control<HTMLSelectElement>(root, "Look").disabled).toBe(false);
