@@ -82,10 +82,11 @@ placements:
     mount: { on: room-shell, anchor: back-wall, offset: [1.3, 2.3, 0], estimated: true }
     frame: true
     label: label.window
+  # The view has no label of its own: it stands inside the window, whose label stands for both. Its own label drew over
+  # the window's, in 2D and in 3D.
   - id: window-view
     piece: window-view
     mount: { on: wall-window, anchor: view }
-    label: label.view
   - id: wall-art
     piece: wall-art
     mount: { on: room-shell, anchor: back-wall, offset: [1.3, 2.85, 0.01], estimated: true }
