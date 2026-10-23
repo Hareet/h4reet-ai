@@ -316,7 +316,11 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       ["Frames over 33 ms", f ? `${(f.over33Share * 100).toFixed(1)}%` : "measured during a run"],
       ["Draw calls", count(measured?.drawCalls ?? frame.drawCalls)],
       ["Triangles", count(measured?.triangles ?? frame.triangles)],
-      ["Texture memory", `${count(stage.textureBytes)} of ${count(SCENE_TEXTURE_BYTES)} bytes`],
+      // The largest over the run while its figures show, as the draw calls and triangles (§5; the review's page-8).
+      [
+        "Texture memory",
+        `${count(measured?.textureBytes ?? stage.textureBytes)} of ${count(SCENE_TEXTURE_BYTES)} bytes`,
+      ],
       ["Smallest cap height", "none yet: the faces are drawn with User Story 5"],
     ];
     readoutList.replaceChildren(...rows.flatMap(([term, value]) => [h(doc, "dt", {}, term), h(doc, "dd", {}, value)]));
