@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 
 import { formatPath } from "../../build/room/checks/family";
-import { loadRoom, readFile, readJson, readYaml } from "../../build/room/load";
+import { loadRoom, namespaceIds, readFile, readJson, readYaml } from "../../build/room/load";
 import type { DataKind } from "../../build/room/load";
 import { goodFiles, overlay } from "../helpers/room-fixtures";
 
@@ -784,6 +784,36 @@ describe("RD5: the data folders hold only their kinds", () => {
     const room = loadRoom(tree);
     expect(room.problems).toEqual([]);
     expect(tree.log).not.toContain("apps/web/room/README.md");
+  });
+
+  it("gives the four namespaces' IDs the data defines, for the source scan", () => {
+    expect(namespaceIds(loadRoom(overlay({})))).toEqual({
+      pieces: [
+        "fx-board",
+        "fx-desk",
+        "fx-laptop",
+        "fx-monitor",
+        "fx-neon",
+        "fx-plug",
+        "fx-shell",
+        "fx-sign",
+        "fx-twin",
+        "fx-visitor",
+      ],
+      placements: [
+        "fx-shell",
+        "fx-desk",
+        "fx-monitor",
+        "fx-neon",
+        "fx-laptop",
+        "fx-board",
+        "fx-sign",
+        "fx-twin",
+        "fx-visitor",
+      ],
+      selectables: ["fx-workstation", "fx-board"],
+      topics: ["fx-work"],
+    });
   });
 
   it("leaves a file that fails RD out of the model, and lists it as failed", () => {

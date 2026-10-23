@@ -1,0 +1,626 @@
+// The room's data files as zod strictObjects (spec 004; FR-002 to FR-005, FR-020, FR-029 to FR-033, FR-036, FR-040,
+// FR-043, FR-049; R-01; data-model.md §3 to §8; contracts/room-data-files.md §2 to §12), the constraints T076 and T077
+// give quoted beside each. An unknown key, a missing key, or a value outside its type or range refuses the file
+// (checks/rd.ts maps each issue to RD2, RD3, or RD4). A constraint that a rule of another family names carries that
+// rule in its message, `<rule>: <reason>` (`own`), so the file is refused with that rule instead: RI1's grammars, RI9's
+// corpus form, RG2's unit vectors, RG3's stylized scale, RS1's signal, RS6's cable figures, RL1's poll and freshness,
+// RT1's region sources, RT7's missing exclude, RT13's outline keys, cap height, and path data, RV2's point counts, path
+// data, and finite numbers, and RV3's stroke width. Relations between values, within a file or across files, are the
+// families' (checks/). Nothing here is evaluated: values are only compared.
+import { z } from "zod";
+
+import {
+  GLOW_MOTIONS,
+  LIVE_SWITCHES,
+  LOOK_METHODS,
+  RENDERERS,
+  ROLES,
+  TIER_VALUES,
+  TURN_COST_PARTS,
+  TYPEFACE_USES,
+} from "../../src/room/compose/vocabulary";
+import { isUiKey } from "../../src/room/ui-keys";
+
+/** IDs `^[a-z][a-z0-9-]{1,40}$` (§3.1), and every other name (§3.2). */
+export const ID = /^[a-z][a-z0-9-]{1,40}$/;
+/** A live face's role, FR-018's object-name rule (§3.2). */
+export const ROLE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+/** A colour by value, `#rrggbb` in lowercase (§2). */
+export const HEX = /^#[0-9a-f]{6}$/;
+export const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** A topic's corpus file, `corpus/NN-<topic>.md` at the corpus's top level, spec 002's C1 form (§6; RI9). */
+export const CORPUS_FILE = /^corpus\/\d{2}-[a-z0-9-]+\.md$/;
+/** An outline's `intent_ref`, `intent-NNN` (§8). */
+export const INTENT_REF = /^intent-\d{3}$/;
+/** An outline's `source.id`, spec 003's source-ID form (§8). */
+export const SOURCE_ID = /^[A-Za-z0-9-]{3,40}$/;
+/** A retired ID's kinds (§3.3). */
+export const NAMESPACES = ["piece", "placement", "selectable", "topic"] as const;
+
+const OWNED = /^(R[A-Z]\d+): (.+)$/s;
+
+/** A check's message naming the rule that refuses it, `<rule>: <reason>`. */
+export function own(rule: string, reason: string): { error: string } {
+  return { error: `${rule}: ${reason}` };
+}
+
+/** The rule and reason an `own` message carries, or null for zod's own messages. */
+export function owner(message: string): { rule: string; reason: string } | null {
+  const m = OWNED.exec(message);
+  return m ? { rule: m[1] as string, reason: m[2] as string } : null;
+}
+
+// ---- Values every file shares (§2) ----
+
+const num = z.number();
+const positive = z.number().gt(0);
+const count = z.number().int().min(1);
+const vec3 = z.tuple([num, num, num]);
+const pair = z.tuple([num, num]);
+const line = (reason: string) => z.string().regex(/^[^\n\r]*$/, own("RD3", reason));
+/** A name: the ID grammar, RI1's. */
+const name = (what: string) => z.string().regex(ID, own("RI1", `${what} outside the grammar ${ID.source}`));
+/** "A turn: {x, y, z} in degrees, each 0 when absent and at most 360 in size." */
+const degrees = z.number().min(-360).max(360).default(0);
+const turn = z.strictObject({ x: degrees, y: degrees, z: degrees }).default(() => ({ x: 0, y: 0, z: 0 }));
+/** "A box: {min: [x, y, z], max: [x, y, z]}, min below max on every axis." */
+const box = z.strictObject({ min: vec3, max: vec3 }).superRefine((b, ctx) => {
+  if (!b.min.every((v, i) => v < (b.max[i] as number)))
+    ctx.addIssue({ code: "custom", message: "RD3: min isn't below max on every axis" });
+});
+const version = () => z.literal(1, own("RD4", "a version other than 1"));
+/** A `{file, quote}`: an intent's words (`words_from`), or a corpus citation (`claims`). */
+const quoteRef = z.strictObject({ file: z.string(), quote: z.string() });
+/** A placement's anchor, `{placement, anchor}`. */
+const anchorRef = z.strictObject({ placement: z.string(), anchor: z.string() });
+const labelKey = z.string().startsWith("label.", own("RD3", "not a UI word key label.<name>"));
+const isPowerOfTwo = (n: number): boolean => Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0;
+
+/** A unit vector within 1e-6: RG2's. */
+const unit = z
+  .tuple([num, num, num])
+  .refine((v) => Math.abs(Math.hypot(v[0], v[1], v[2]) - 1) <= 1e-6, own("RG2", "not a unit vector within 1e-6"));
+
+/**
+ * Path data, §8's grammar: SVG's path commands `M m Z z L l H h V v C c S s Q q T t A a`, finite numbers (an optional
+ * sign, digits with at most one decimal point, an optional exponent), commas, and spaces, and nothing else, opening
+ * with a move as SVG's own grammar does.
+ */
+export function isPathData(d: string): boolean {
+  const token = /([MmZzLlHhVvCcSsQqTtAa])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)|([ ,]+)/y;
+  let commands = 0;
+  for (let at = 0; at < d.length;) {
+    token.lastIndex = at;
+    const m = token.exec(d);
+    if (m === null) return false;
+    if (m[1] !== undefined) {
+      if (commands === 0 && m[1] !== "M" && m[1] !== "m") return false;
+      commands++;
+    } else if (m[2] !== undefined && (commands === 0 || !Number.isFinite(Number(m[2])))) return false;
+    at = token.lastIndex;
+  }
+  return commands > 0;
+}
+
+const pathData = (rule: string) => z.string().refine(isPathData, own(rule, "path data outside §8's grammar"));
+
+// ---- The catalog (§4; T076) ----
+
+const anchor = z.strictObject({ at: vec3, turn, estimated: z.boolean().default(false) });
+
+/** `live_faces[]`: `role` FR-018's rule; `size` "[w, h] in metres, each above 0"; `facing` and `up` unit vectors, `up`
+ *  required when `facing` is ±Y; `px` "[w, h], integers 16 to 2048"; `readable` required. */
+const liveFace = z
+  .strictObject({
+    role: z.string().regex(ROLE, own("RI1", `a live face's role outside the object-name rule ${ROLE.source}`)),
+    at: vec3,
+    size: z.tuple([positive, positive]),
+    facing: unit,
+    up: unit.optional(),
+    px: z.tuple([z.number().int().min(16).max(2048), z.number().int().min(16).max(2048)]),
+    readable: z.boolean(),
+  })
+  .superRefine((f, ctx) => {
+    if (f.up === undefined && f.facing[0] === 0 && f.facing[2] === 0)
+      ctx.addIssue({ code: "custom", message: "RD3: up is required where facing is ±Y", path: ["up"] });
+  });
+
+/** `glows[]`: `radius` "metres above 0"; `motion` flicker, breathe, or steady; `level` "0 to 1, default 1". */
+const glow = z.strictObject({
+  id: name("a glow's name"),
+  at: vec3,
+  radius: positive,
+  tone: z.string(),
+  motion: z.enum(GLOW_MOTIONS),
+  level: z.number().min(0).max(1).default(1),
+});
+
+/** `claims`: `{signal: tier, poses}`, each pose to the tier value it claims, or null. */
+const claims = z.strictObject({
+  signal: z.literal("tier"),
+  poses: z.record(name("a pose's name"), z.enum(TIER_VALUES).nullable()),
+});
+
+/** Every stand-in shape takes `at`, an optional `turn` and `scale`, `color`, and `lit` (default true) (§4.1). */
+const shaped = {
+  at: vec3,
+  turn,
+  scale: z.union([num, vec3]).optional(),
+  color: z.string(),
+  lit: z.boolean().default(true),
+};
+/** `standin[]`: "at least one", from the closed shape grammar. */
+const standin = z.discriminatedUnion("shape", [
+  z.strictObject({ shape: z.literal("box"), size: vec3, ...shaped }),
+  z.strictObject({ shape: z.literal("cylinder"), radius: num, height: num, ...shaped }),
+  z.strictObject({ shape: z.literal("capsule"), radius: num, length: num, ...shaped }),
+  z.strictObject({ shape: z.literal("sphere"), radius: num, ...shaped }),
+  z.strictObject({ shape: z.literal("torus"), radius: num, tube: num, ...shaped }),
+  z.strictObject({ shape: z.literal("plane"), size: pair, ...shaped }),
+  z.strictObject({ shape: z.literal("circle"), radius: num, ...shaped }),
+  z.strictObject({ shape: z.literal("tube"), from: vec3, to: vec3, radius: num, ...shaped }),
+  z.strictObject({ shape: z.literal("polygon"), points: z.array(pair).min(3), depth: num, ...shaped }),
+]);
+
+/** A drawing's number: finite, RV2's. */
+const drawn = z.number({
+  error: (iss) => (typeof iss.input === "number" ? "RV2: a number that isn't finite" : undefined),
+});
+const drawnPair = z.tuple([drawn, drawn]);
+/** "2 to 256 [x, y] pairs", RV2's. */
+const points = z
+  .array(drawnPair)
+  .min(2, own("RV2", "fewer than 2 points"))
+  .max(256, own("RV2", "more than 256 points"));
+/** Each primitive takes `fill` and `stroke` (colours, or none) and `stroke_width` ("metres, at least 0", RV3's). */
+const paint = {
+  fill: z.string().default("none"),
+  stroke: z.string().default("none"),
+  stroke_width: drawn.min(0, own("RV3", "a negative stroke width")).default(0),
+};
+const primitive = z.discriminatedUnion("primitive", [
+  z.strictObject({ primitive: z.literal("rect"), x: drawn, y: drawn, w: drawn, h: drawn, ...paint }),
+  z.strictObject({ primitive: z.literal("circle"), cx: drawn, cy: drawn, r: drawn, ...paint }),
+  z.strictObject({ primitive: z.literal("ellipse"), cx: drawn, cy: drawn, rx: drawn, ry: drawn, ...paint }),
+  z.strictObject({ primitive: z.literal("line"), x1: drawn, y1: drawn, x2: drawn, y2: drawn, ...paint }),
+  z.strictObject({ primitive: z.literal("polyline"), points, ...paint }),
+  z.strictObject({ primitive: z.literal("polygon"), points, ...paint }),
+  z.strictObject({ primitive: z.literal("path"), d: pathData("RV2"), ...paint }),
+]);
+/** `drawing`: `{primitives: [...]}` or `{from: standin}`. */
+const drawing = z
+  .strictObject({ primitives: z.array(primitive).optional(), from: z.literal("standin").optional() })
+  .superRefine((d, ctx) => {
+    if ((d.primitives === undefined) === (d.from === undefined))
+      ctx.addIssue({ code: "custom", message: "RD3: a drawing is primitives or from: standin, one of the two" });
+  });
+
+/** `budget`: `{gzip_bytes, triangles, texture_px, texture_bytes}`, "integers above 0"; `texture_px` a power of two. */
+const budget = z.strictObject({
+  gzip_bytes: count,
+  triangles: count,
+  texture_px: count.refine(isPowerOfTwo, own("RD3", "not a power of two")),
+  texture_bytes: count,
+});
+
+/** `model`: `{file: "<piece>.glb"}` or `{card: "<piece>.png"}` (or `.jpg`, `.webp`). */
+const model = z
+  .strictObject({
+    file: z
+      .string()
+      .regex(/\.glb$/, own("RD3", "not a .glb file"))
+      .optional(),
+    card: z
+      .string()
+      .regex(/\.(png|jpg|webp)$/, own("RD3", "not a .png, .jpg, or .webp file"))
+      .optional(),
+  })
+  .superRefine((m, ctx) => {
+    if ((m.file === undefined) === (m.card === undefined))
+      ctx.addIssue({ code: "custom", message: "RD3: a model is a file or a card, one of the two" });
+  });
+
+/** `work_order`: `{method, shots[], measurements[], studio_notes}`. */
+const workOrder = z.strictObject({
+  method: z.string(),
+  shots: z.array(z.string()),
+  measurements: z.array(z.string()),
+  studio_notes: z.string(),
+});
+
+/** `apps/web/room/catalog/<piece>.yaml` (§4). */
+export const catalogSchema = z.strictObject({
+  version: version(),
+  id: name("a piece's ID"),
+  /** "string, 1 to 60 characters" */
+  name: z.string().min(1).max(60),
+  /** "{w, h, d}, each above 0", with `estimated` a boolean */
+  size: z.strictObject({ w: positive, h: positive, d: positive, estimated: z.boolean().default(false) }),
+  /** "number, 1 to 4, default 1", RG3's */
+  stylized_scale: z
+    .number()
+    .min(1, own("RG3", "a stylized scale under 1"))
+    .max(4, own("RG3", "a stylized scale over 4"))
+    .default(1),
+  origin: z.strictObject({ point: z.string(), bounds: box }),
+  /** "map of anchor name to {at, turn?, estimated?}" */
+  anchors: z.record(name("an anchor's name"), anchor).default(() => ({})),
+  live_faces: z.array(liveFace).default(() => []),
+  glows: z.array(glow).default(() => []),
+  claims: claims.optional(),
+  standin: z.array(standin).min(1),
+  /** Optional in the schema: a piece with none is RV1's. */
+  drawing: drawing.optional(),
+  budget,
+  model: model.optional(),
+  work_order: workOrder,
+});
+
+// ---- The scene (§5; T076) ----
+
+/** A mount: `offset` "default [0, 0, 0]"; `turn` 0 each by default; `estimated` "default false". */
+const mount = z.strictObject({
+  on: z.string(),
+  anchor: z.string(),
+  offset: vec3.default((): [number, number, number] => [0, 0, 0]),
+  turn,
+  estimated: z.boolean().default(false),
+});
+
+const fraction = z.number().min(0).max(1);
+const extent = z.number().gt(0).max(1);
+const grid = z.strictObject({ cols: count.optional(), rows: count.optional(), chars: count.optional() });
+
+/** The grid each renderer takes (§5.3): `{cols, rows}`, `{rows}`, `{chars}`, or none for a sign. */
+function gridFits(renderer: string, g: { cols?: unknown; rows?: unknown; chars?: unknown } | undefined): boolean {
+  const has = (k: "cols" | "rows" | "chars"): boolean => g !== undefined && g[k] !== undefined;
+  switch (renderer) {
+    case "terminal":
+    case "desktop-session":
+      return has("cols") && has("rows") && !has("chars");
+    case "chalk":
+      return has("rows") && !has("cols") && !has("chars");
+    case "neon":
+      return has("chars") && !has("cols") && !has("rows");
+    default:
+      return g === undefined;
+  }
+}
+
+/** A region: `rect` "[x, y, w, h], fractions of the face" (w and h above 0), with exactly one of `text`,
+ *  `resume_titles` (chalk only), `ui`, and `signal` with `part` (neon only), RT1's. */
+const region = z
+  .strictObject({
+    rect: z.tuple([fraction, fraction, extent, extent]),
+    renderer: z.enum(RENDERERS),
+    grid: grid.optional(),
+    text: z.string().optional(),
+    resume_titles: z.literal(true).optional(),
+    ui: z.array(z.string()).optional(),
+    signal: z.literal("turn-cost").optional(),
+    part: z.enum(TURN_COST_PARTS).optional(),
+  })
+  .superRefine((r, ctx) => {
+    const sources = [r.text, r.resume_titles, r.ui, r.signal].filter((s) => s !== undefined).length;
+    const rt1 = (reason: string): void => ctx.addIssue({ code: "custom", message: `RT1: ${reason}` });
+    if (sources !== 1) rt1("a region with none, or more than one, of text, resume_titles, ui, and signal");
+    else if (r.resume_titles !== undefined && r.renderer !== "chalk") rt1("resume_titles off a chalk region");
+    else if ((r.ui !== undefined || r.signal !== undefined) && r.renderer !== "neon")
+      rt1("ui or signal off a neon region");
+    if ((r.signal === undefined) !== (r.part === undefined))
+      ctx.addIssue({ code: "custom", message: "RD3: part comes with signal, and only with it", path: ["part"] });
+    if (!gridFits(r.renderer, r.grid))
+      ctx.addIssue({ code: "custom", message: `RD3: not the grid a ${r.renderer} region takes`, path: ["grid"] });
+  });
+
+/** A face binding: `atmosphere` "default false"; `max_chars` "integer, at least 1", required with `atmosphere`;
+ *  `regions[]` "at least one". */
+const faceBinding = z
+  .strictObject({
+    label: labelKey,
+    atmosphere: z.boolean().default(false),
+    max_chars: count.optional(),
+    regions: z.array(region).min(1),
+  })
+  .superRefine((f, ctx) => {
+    if (f.atmosphere && f.max_chars === undefined)
+      ctx.addIssue({ code: "custom", message: "RD3: max_chars is required with atmosphere", path: ["max_chars"] });
+  });
+
+/** A placement: `frame` "default false"; `label` a `label.<name>` key; `role` twin or visitor; `faces`. */
+const placement = z.strictObject({
+  id: name("a placement's ID"),
+  piece: z.string(),
+  mount: mount.optional(),
+  frame: z.boolean().default(false),
+  label: labelKey.optional(),
+  role: z.enum(ROLES).optional(),
+  faces: z.record(z.string(), faceBinding).optional(),
+});
+
+/** A pose: its mount, and the glow levels it sets on other placements. */
+const pose = z.strictObject({
+  mount,
+  glows: z
+    .array(z.strictObject({ placement: z.string(), glow: z.string(), level: z.number().min(0).max(1) }))
+    .default(() => []),
+});
+
+/** A cable: `sag` "0 to 0.5 of the span", `radius` "metres above 0", and `drop` "default 0", RS6's. */
+const cable = z.strictObject({
+  from: z.string(),
+  to: anchorRef,
+  sag: z.number().min(0, own("RS6", "a sag outside 0 to 0.5")).max(0.5, own("RS6", "a sag outside 0 to 0.5")),
+  radius: z.number().gt(0, own("RS6", "a radius not above 0")),
+  drop: z.number().min(0, own("RS6", "a negative drop")).default(0),
+  rest: anchorRef.optional(),
+});
+
+/** A switch: `signal` tier, RS1's; `poses`; `cases`; `default`; `cable`. */
+const switchSchema = z.strictObject({
+  id: name("a switch's name"),
+  signal: z.literal("tier", own("RS1", "a switch on a signal other than tier")),
+  piece: z.string(),
+  label: labelKey,
+  poses: z.record(name("a pose's name"), pose),
+  /** Any key: a case for a value the signal doesn't have is RS1's. */
+  cases: z.record(z.string(), z.string()),
+  default: z.string().optional(),
+  cable: cable.optional(),
+});
+
+/** A selectable: `name` "string, 1 to 40 characters"; `members` "at least one"; `action` `{talk: {topic, lead?}}` or
+ *  `{resume: {}}`; `lead` "one line of at most 120 characters". */
+const selectable = z.strictObject({
+  id: name("a selectable's ID"),
+  name: z.string().min(1).max(40),
+  members: z.array(z.string()).min(1),
+  action: z
+    .strictObject({
+      talk: z
+        .strictObject({ topic: z.string(), lead: line("a lead of more than one line").max(120).optional() })
+        .optional(),
+      resume: z.strictObject({}).optional(),
+    })
+    .superRefine((a, ctx) => {
+      if ((a.talk === undefined) === (a.resume === undefined))
+        ctx.addIssue({ code: "custom", message: "RD3: an action is talk or resume, one of the two" });
+    }),
+});
+
+/** `retired[]`: `kinds` defaulting to all four; `retired` YYYY-MM-DD. */
+const retired = z.strictObject({
+  id: name("a retired ID"),
+  kinds: z.array(z.enum(NAMESPACES)).default(() => [...NAMESPACES]),
+  retired: z.string().regex(DATE, own("RD3", "not a date, YYYY-MM-DD")),
+  reason: z.string(),
+});
+
+const LIVE_OFF = { source: "off", poll_s: 30, freshness_s: 35, turn: "off", asset_events: "off" } as const;
+/** `live`: `source` off or site, default off; `poll_s` "integer, 30 to 120", default 30; `freshness_s` "integer, at
+ *  least poll_s + 5", default 35; `turn` and `asset_events` off or site, default off. The figures are RL1's. */
+const live = z
+  .strictObject({
+    source: z.enum(LIVE_SWITCHES).default("off"),
+    poll_s: z
+      .number()
+      .int(own("RL1", "a poll interval that isn't an integer"))
+      .min(30, own("RL1", "a poll interval outside 30 to 120"))
+      .max(120, own("RL1", "a poll interval outside 30 to 120"))
+      .default(30),
+    freshness_s: z.number().int(own("RL1", "a freshness window that isn't an integer")).default(35),
+    turn: z.enum(LIVE_SWITCHES).default("off"),
+    asset_events: z.enum(LIVE_SWITCHES).default("off"),
+  })
+  .superRefine((l, ctx) => {
+    const sound = (n: number): boolean => Number.isInteger(n);
+    if (sound(l.poll_s) && l.poll_s >= 30 && l.poll_s <= 120 && sound(l.freshness_s) && l.freshness_s < l.poll_s + 5)
+      ctx.addIssue({ code: "custom", message: "RL1: a freshness window under poll_s + 5", path: ["freshness_s"] });
+  })
+  .default(() => ({ ...LIVE_OFF }));
+
+/** `apps/web/room/scene.yaml` (§5). */
+export const sceneSchema = z.strictObject({
+  version: version(),
+  look: z.string(),
+  live,
+  placements: z.array(placement),
+  switches: z.array(switchSchema).default(() => []),
+  selectables: z.array(selectable).default(() => []),
+  handoff: z.strictObject({ from: anchorRef, to: anchorRef }),
+  survey: z.strictObject({ desk_corner: anchorRef }),
+  retired: z.array(retired).default(() => []),
+});
+
+// ---- Topics, room text, outlines, UI words, looks, fixtures, and lookdev.yaml (§6 to §12; T077) ----
+
+/** `apps/web/room/topics.yaml` (§6): `phrase` "string, 1 to 60 characters"; `words_from` a "list of {file, quote}, at
+ *  least one"; `corpus` a "list of paths, corpus/NN-<topic>.md", the form RI9's. */
+export const topicsSchema = z.strictObject({
+  version: version(),
+  topics: z.array(
+    z.strictObject({
+      id: name("a topic's ID"),
+      phrase: z.string().min(1).max(60),
+      words_from: z.array(quoteRef).min(1),
+      corpus: z
+        .array(z.string().regex(CORPUS_FILE, own("RI9", "a corpus path outside the form corpus/NN-<topic>.md")))
+        .min(1),
+    }),
+  ),
+});
+
+/** A line: `text` with no line break; `about_author` and `pending` default false; `claims`, whose absence on a line
+ *  about the Author is RT5's. */
+const textLine = z.strictObject({
+  text: line("a line break in a line"),
+  about_author: z.boolean().default(false),
+  claims: z.array(quoteRef).optional(),
+  pending: z.boolean().default(false),
+});
+
+/** `apps/web/content/room/<block>.yaml` (§7): `block` the file's stem; `renderer` terminal, desktop-session, or chalk;
+ *  `words_from` "at least one on a terminal or desktop-session block"; `exclude` required on a chalk block, RT7's;
+ *  `lines[]` "at least one". No other key is named `text`, `name`, or `title`. */
+export const roomTextSchema = z
+  .strictObject({
+    version: version(),
+    block: name("a room-text block's name"),
+    renderer: z.enum(["terminal", "desktop-session", "chalk"]),
+    words_from: z.array(quoteRef).optional(),
+    exclude: z.array(z.string()).min(1).optional(),
+    lines: z.array(textLine).min(1),
+  })
+  .superRefine((b, ctx) => {
+    if (b.renderer !== "chalk" && (b.words_from === undefined || b.words_from.length === 0))
+      ctx.addIssue({
+        code: "custom",
+        message: "RD3: at least one words_from on a terminal or desktop-session block",
+        path: ["words_from"],
+      });
+    if (b.renderer === "chalk" && b.exclude === undefined)
+      ctx.addIssue({ code: "custom", message: "RT7: a chalk block without exclude", path: ["exclude"] });
+  });
+
+/** An outline's object refuses another key as RT13 (§8: "exactly these keys"). */
+const outlineKeys = {
+  error: (iss: { code?: string }) => (iss.code === "unrecognized_keys" ? "RT13: a key §8 doesn't give" : undefined),
+};
+
+/** `apps/web/content/room/outlines/<sign>.outline.json` (§8): exactly `schema`, `sign`, `words`, `intent_ref`
+ *  (intent-NNN), `source` (`type` design or photo; `id` `[A-Za-z0-9-]{3,40}`), `tool` (`name`, `version`, `license`),
+ *  `view_box`, `cap_height` "number above 0, at most the view box's height", `advance` (optional, above 0), and
+ *  `paths` ("at least one"). */
+export const outlineSchema = z
+  .strictObject(
+    {
+      schema: z.literal(1, own("RD4", "an outline's schema other than 1")),
+      sign: name("a sign's name"),
+      words: z.string(),
+      intent_ref: z.string().regex(INTENT_REF, own("RD3", "not intent-NNN")),
+      source: z.strictObject(
+        {
+          type: z.enum(["design", "photo"]),
+          id: z.string().regex(SOURCE_ID, own("RD3", "not an opaque source ID")),
+        },
+        outlineKeys,
+      ),
+      tool: z.strictObject({ name: z.string(), version: z.string(), license: z.string() }, outlineKeys),
+      view_box: z.tuple([num, num, positive, positive]),
+      cap_height: z.number().gt(0, own("RT13", "a cap height not above 0")),
+      advance: positive.optional(),
+      paths: z.array(pathData("RT13")).min(1),
+    },
+    outlineKeys,
+  )
+  .superRefine((o, ctx) => {
+    if (o.cap_height > o.view_box[3])
+      ctx.addIssue({ code: "custom", message: "RT13: a cap height above the view box's height", path: ["cap_height"] });
+  });
+
+/** A UI word's key: one of `src/room/ui-keys.ts`'s, or `label.<name>`; any other is RD2's, a label's name RI1's. */
+const uiKey = z.string().superRefine((key, ctx) => {
+  if (key.startsWith("label.")) {
+    if (!ID.test(key.slice("label.".length)))
+      ctx.addIssue({ code: "custom", message: `RI1: a label's name outside the grammar ${ID.source}` });
+  } else if (!isUiKey(key)) {
+    ctx.addIssue({ code: "custom", message: "RD2: a UI word key outside the closed list and label.<name>" });
+  }
+});
+
+/** `apps/web/room/ui-words.yaml` (§9): `{version: 1, words}`, each value a string or `{text, about_author: true,
+ *  claims}`. */
+export const uiWordsSchema = z.strictObject({
+  version: version(),
+  words: z.record(
+    uiKey,
+    z.union([
+      z.string(),
+      z.strictObject({ text: z.string(), about_author: z.literal(true), claims: z.array(quoteRef).optional() }),
+    ]),
+  ),
+});
+
+const hex = z.string().regex(HEX, own("RD3", "not a colour #rrggbb in lowercase"));
+const intensity = z.number().min(0);
+const typeface = z.strictObject({ family: z.string(), weight: z.number().int() });
+
+/** `apps/web/room/looks/<look>.yaml` (§10): `method` inked-cel, painted, or flat; `palette` to `#rrggbb`; `lights`;
+ *  `shading.steps` "integer 2 to 5"; `outlines`; `glow_tones`; `typefaces` for each use; `material_notes`. */
+export const lookSchema = z.strictObject({
+  version: version(),
+  id: name("a look's name"),
+  method: z.enum(LOOK_METHODS),
+  palette: z.record(name("a palette colour's name"), hex),
+  lights: z.strictObject({
+    ambient: z.strictObject({ sky: hex, ground: hex, intensity }),
+    key: z.strictObject({ color: hex, intensity, from: vec3, shadows: z.boolean() }),
+  }),
+  shading: z.strictObject({ steps: z.number().int().min(2).max(5) }),
+  outlines: z.strictObject({ color: z.string(), width: z.number().min(0) }),
+  glow_tones: z.record(name("a glow tone's name"), z.strictObject({ color: hex, intensity })),
+  typefaces: z.strictObject({
+    terminal: typeface,
+    "desktop-session": typeface,
+    chalk: typeface,
+    neon: typeface,
+    counters: typeface,
+  } satisfies Record<(typeof TYPEFACE_USES)[number], typeof typeface>),
+  material_notes: z.string(),
+});
+
+/** A turn's outcome (turn-cost.md): a reply may be invalid on purpose, so `route` is any string and `cost_micro_usd`
+ *  any number or string; a refused turn's `status` "400 to 499". */
+const turnOutcome = z.discriminatedUnion("outcome", [
+  z.strictObject({ outcome: z.literal("reply"), route: z.string(), cost_micro_usd: z.union([num, z.string()]) }),
+  z.strictObject({ outcome: z.literal("degraded") }),
+  z.strictObject({ outcome: z.literal("failed") }),
+  z.strictObject({ outcome: z.literal("lost") }),
+  z.strictObject({ outcome: z.literal("refused"), status: z.number().int().min(400).max(499) }),
+]);
+
+/** `apps/web/room/fixtures/<fixture>.yaml` (§11): `tier` a tier value; `turns[]`. */
+export const fixtureSchema = z.strictObject({
+  version: version(),
+  id: name("a fixture's name"),
+  tier: z.enum(TIER_VALUES),
+  turns: z.array(turnOutcome),
+});
+
+/** `apps/web/room/lookdev.yaml` (§12): `vignette.show` and `close_up.frame`, each "at least one". */
+export const lookdevSchema = z.strictObject({
+  version: version(),
+  vignette: z.strictObject({ show: z.array(z.string()).min(1) }),
+  close_up: z.strictObject({ frame: z.array(z.string()).min(1) }),
+});
+
+export type CatalogEntry = z.output<typeof catalogSchema>;
+export type Anchor = CatalogEntry["anchors"][string];
+export type LiveFace = CatalogEntry["live_faces"][number];
+export type Glow = CatalogEntry["glows"][number];
+export type StandinEntry = CatalogEntry["standin"][number];
+export type Drawing = NonNullable<CatalogEntry["drawing"]>;
+export type DrawingPrimitive = NonNullable<Drawing["primitives"]>[number];
+export type Scene = z.output<typeof sceneSchema>;
+export type Placement = Scene["placements"][number];
+export type Mount = NonNullable<Placement["mount"]>;
+export type FaceBinding = NonNullable<Placement["faces"]>[string];
+export type Region = FaceBinding["regions"][number];
+export type Switch = Scene["switches"][number];
+export type Pose = Switch["poses"][string];
+export type Cable = NonNullable<Switch["cable"]>;
+export type Selectable = Scene["selectables"][number];
+export type Retired = Scene["retired"][number];
+export type Live = Scene["live"];
+export type AnchorRef = Scene["handoff"]["from"];
+export type Topics = z.output<typeof topicsSchema>;
+export type Topic = Topics["topics"][number];
+export type RoomTextBlock = z.output<typeof roomTextSchema>;
+export type TextLine = RoomTextBlock["lines"][number];
+export type Outline = z.output<typeof outlineSchema>;
+export type UiWords = z.output<typeof uiWordsSchema>;
+export type UiWord = UiWords["words"][string];
+export type LookFile = z.output<typeof lookSchema>;
+export type Fixture = z.output<typeof fixtureSchema>;
+export type TurnOutcome = Fixture["turns"][number];
+export type Lookdev = z.output<typeof lookdevSchema>;

@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse, stringify } from "yaml";
 
-import type { ComposeOptions } from "../../build/room/compose";
+import type { ComposeOptions } from "../../build/room/checks/family";
 import { memoryTree, overlayTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
 import { desk, rxVariants, sign } from "./glb";
@@ -114,22 +114,24 @@ function applyEdit(root: Json, edit: Edit, where: string): Json {
     if (node === undefined) throw new Error(`${where}: an edit's at leaves the file at ${String(step)}`);
   }
   if (!isRecord(node) && !Array.isArray(node)) throw new Error(`${where}: an edit's at ends below a value`);
-  const holder = node as Record<string, unknown> & unknown[];
+  const holder = node as Record<string, unknown>;
+  const key = String(last);
   if (edit.delete) {
-    if (Array.isArray(holder)) holder.splice(Number(last), 1);
-    else delete holder[String(last)];
+    if (Array.isArray(node)) node.splice(Number(last), 1);
+    else delete holder[key];
   } else if (edit.push !== undefined) {
-    const list = holder[String(last)];
-    if (!Array.isArray(list)) throw new Error(`${where}: push needs a list at ${String(last)}`);
+    const list = holder[key];
+    if (!Array.isArray(list)) throw new Error(`${where}: push needs a list at ${key}`);
     list.push(edit.push);
   } else if (edit.rename !== undefined) {
-    if (Array.isArray(holder) || !Object.hasOwn(holder, String(last)))
-      throw new Error(`${where}: rename needs a map key at ${String(last)}`);
-    const entries = Object.entries(holder).map(([k, v]) => [k === String(last) ? edit.rename : k, v] as const);
+    if (Array.isArray(node) || !Object.hasOwn(holder, key))
+      throw new Error(`${where}: rename needs a map key at ${key}`);
+    const renamed = edit.rename;
+    const entries = Object.entries(holder).map(([k, v]) => [k === key ? renamed : k, v] as const);
     for (const k of Object.keys(holder)) delete holder[k];
-    for (const [k, v] of entries) holder[k as string] = v;
+    for (const [k, v] of entries) holder[k] = v;
   } else if (edit.set !== undefined) {
-    holder[String(last)] = edit.set;
+    holder[key] = edit.set;
   } else {
     throw new Error(`${where}: an edit needs one of set, delete, push, or rename`);
   }
