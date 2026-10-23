@@ -550,8 +550,8 @@ describe("one production framing: the bundle and the report carry what RG and RK
       }
       const pairs = poseSeparations(g, policy);
       expect(pairs).not.toHaveLength(0);
-      const at = rows.indexOf("| Switch | Poses | Desktop | Phone | Status |");
-      expect(rows.slice(at + 2, rows.indexOf("", at))).toEqual(
+      const header = rows.indexOf("| Switch | Poses | Desktop | Phone | Status |");
+      expect(rows.slice(header + 2, rows.indexOf("", header))).toEqual(
         pairs.map(
           (p) =>
             `| \`${p.id}\` | \`${p.poses[0]}\` / \`${p.poses[1]}\` | ${px(p.desktop)} | ${px(p.phone)} | ${p.status} |`,
