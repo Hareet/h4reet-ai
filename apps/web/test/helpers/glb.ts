@@ -160,6 +160,13 @@ export function png(o: PngOptions = {}): Uint8Array {
   );
 }
 
+/** A PNG whose header names `width` × `height`, 8-bit RGB, over a single byte of data: the fit check and the lookdev
+ *  tests' decoder read headers alone, so a texture past any cap costs nothing to build. */
+export function pngHeader(width: number, height: number): Uint8Array {
+  const ihdr = chunk("IHDR", concat(u32be(width), u32be(height), bytes(8, 2, 0, 0, 0)));
+  return concat(PNG_SIGNATURE, ihdr, chunk("IDAT", deflateSync(new Uint8Array(1))), chunk("IEND", new Uint8Array()));
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 // JPEG
 // --------------------------------------------------------------------------------------------------------------------

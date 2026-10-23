@@ -44,7 +44,8 @@ import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
 import { MODEL_NODE } from "../../src/room/scene/loader";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
-import { asExported, desk, item } from "../helpers/glb";
+import { asExported, ascii, desk, item, pngHeader } from "../helpers/glb";
+import type { PackOptions } from "../helpers/glb";
 import { cleanModel } from "../helpers/room-models";
 
 afterEach(() => {
@@ -338,6 +339,19 @@ function pickLater(root: HTMLElement, piece: string): { resolve(data: Uint8Array
 }
 
 const nodeSha256 = (data: Uint8Array): string => createHash("sha256").update(data).digest("hex");
+
+/** A piece's word as the page names it: its labelled placement's label word, or its switch's, from the index. */
+function wordOf(given: LookdevDeps["inputs"], piece: string): string {
+  const { part, index } = given;
+  const key =
+    part.placements.find((p) => p.piece === piece && p.label !== null)?.label ??
+    index.switches.find((s) => part.switches.some((x) => x.id === s.id && x.piece === piece))?.label;
+  return (key ? index.ui[key] : undefined) ?? piece;
+}
+
+/** The status line by the canvas, in the stage's panel. */
+const statusLine = (root: HTMLElement): string =>
+  collapse(root.querySelector(".lookdev-stage-panel .lookdev-status")?.textContent);
 
 // --------------------------------------------------------------------------------------------------------------------
 // The page
@@ -874,6 +888,123 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
     await settle(clock);
     expect(page.stage.loaded.has(piece)).toBe(false);
     expect(collapse(root.querySelector(".lookdev-log")?.textContent)).toMatch(new RegExp(`${piece} skipped`));
+  });
+});
+
+describe("the status line by the canvas (the Author's first lookdev run; plan.md §10)", () => {
+  // The Author's first run: a refusal showed only far down the page, under Candidates, so a pick looked as if nothing
+  // had happened. The line says what became of the latest pick or Clear beside the canvas; the details stay below.
+  it("says what became of each pick, by its piece's word, the details staying under Candidates", async () => {
+    const { root, clock, inputs: given } = open();
+    const line = root.querySelector(".lookdev-stage-panel .lookdev-status");
+    expect(line?.getAttribute("role")).toBe("status");
+    expect(statusLine(root)).toBe("");
+    const { piece, entry } = vignettePiece(given);
+    const name = wordOf(given, piece);
+    expect(name).not.toBe(piece);
+    const model = (o?: PackOptions): Uint8Array => cleanModel(entry as Parameters<typeof cleanModel>[0], o);
+    const row = (): string => collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent);
+    // The Author's desk as Blender exported it.
+    pick(root, piece, model({ mark: false, edit: asExported }));
+    await settle(clock);
+    expect(statusLine(root)).toBe(`${name}: swapped in (preview of an unscrubbed file, 3 findings)`);
+    expect(row()).toContain(`RX2 candidate:asset.generator: ${REASON.outsideAsset}`);
+    // Scrubbed, with one finding, and with none.
+    pick(root, piece, model({ edit: (g) => (item(g, "nodes", 1).name = "Body") }));
+    await settle(clock);
+    expect(statusLine(root)).toBe(`${name}: swapped in (1 finding)`);
+    pick(root, piece, model());
+    await settle(clock);
+    expect(statusLine(root)).toBe(`${name}: swapped in (no finding)`);
+    // Refused, each saying why; the row keeps its findings.
+    const photo = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 0, 0, 0]);
+    for (const [data, what] of [
+      [ascii("glTF, but not a glTF file at all"), "not swapped in: RX1 refuses the file"],
+      [
+        model({
+          mark: false,
+          edit: (g) => {
+            asExported(g);
+            item(g, "nodes", 1).mesh = 99;
+          },
+        }),
+        "not swapped in: RX2 refuses the file",
+      ],
+      [
+        model({ edit: (g) => (item(g, "buffers", 0).uri = "fx-model.bin") }),
+        "not swapped in: it names a uri, which the page never fetches",
+      ],
+      [photo, "not a GLB: nothing kept"],
+    ] as const) {
+      pick(root, piece, data);
+      await settle(clock);
+      expect(statusLine(root), what).toBe(`${name}: ${what}`);
+    }
+    pickLater(root, piece).reject(new Error("NotReadableError: the file moved"));
+    await settle(clock);
+    expect(statusLine(root)).toBe(`${name}: the file couldn't be read: nothing kept`);
+    pick(root, piece, model());
+    await settle(clock);
+    const pieceRow = root.querySelector(`[data-candidate="${piece}"]`)?.closest(".lookdev-piece") as HTMLElement;
+    buttonNamed(pieceRow, "Clear").click();
+    await settle(clock);
+    expect(statusLine(root)).toBe(`${name}: cleared`);
+  });
+
+  it("speaks of the latest pick, whichever load ends last, and of a piece the vignette doesn't show", async () => {
+    const { page, root, clock, inputs: given } = open();
+    const { piece, entry } = vignettePiece(given);
+    const sign = "busy-sign";
+    // The desk's load ends after the sign's refusal, and leaves the line to the sign, the latest pick.
+    pick(root, piece, cleanModel(entry as Parameters<typeof cleanModel>[0]));
+    pick(root, sign, ascii("glTF, but not a glTF file at all"));
+    await settle(clock);
+    expect(page.stage.loaded.has(piece)).toBe(true);
+    expect(statusLine(root)).toBe(`${wordOf(given, sign)}: not swapped in: RX1 refuses the file`);
+    // A piece only the room scene shows, picked in the vignette.
+    const shown = new Set(given.lookdev.vignette.show);
+    const roomOnly = candidatePieces(given.part, given.lookdev.pieces).find(
+      (p) =>
+        !given.part.switches.some((s) => s.piece === p) &&
+        given.part.placements.some((x) => x.piece === p && x.label !== null) &&
+        given.part.placements.every((x) => x.piece !== p || !shown.has(x.id)),
+    );
+    if (roomOnly === undefined) throw new Error("no piece only the room scene shows");
+    const roomOnlyEntry = parse(
+      readFileSync(join(REPO, "apps/web/room/catalog", `${roomOnly}.yaml`), "utf8"),
+    ) as Parameters<typeof cleanModel>[0];
+    choose(control<HTMLInputElement>(root, "Vignette"));
+    pick(root, roomOnly, cleanModel(roomOnlyEntry));
+    await settle(clock);
+    expect(statusLine(root)).toBe(
+      `${wordOf(given, roomOnly)}: swapped in (no finding); not in the vignette: the room scene shows it`,
+    );
+  });
+
+  it("says when the room's loader keeps the stand-in: below the floor, past the texture cap, or failing on the file", async () => {
+    const low = open({ capability: { webgl2: true, maxTextureSize: 2048, deviceMemory: 2 } });
+    const lowPiece = vignettePiece(low.inputs);
+    pick(low.root, lowPiece.piece, cleanModel(lowPiece.entry as Parameters<typeof cleanModel>[0]));
+    await settle(low.clock);
+    expect(statusLine(low.root)).toBe(
+      `${wordOf(low.inputs, lowPiece.piece)}: not swapped in: this device is below ADR 0010's floor for studio models`,
+    );
+    const { page, root, clock, inputs: given } = open();
+    const { piece } = vignettePiece(given);
+    const name = wordOf(given, piece);
+    // A texture whose header names 8192 × 8192: more than the scene's cap alone, which the fit check holds to the
+    // piece's budget (RK2) without refusing it.
+    pick(root, piece, desk({ mark: false, top: pngHeader(8192, 8192) }).bytes);
+    await settle(clock);
+    await settle(clock);
+    expect(page.stage.loaded.has(piece)).toBe(false);
+    expect(statusLine(root)).toBe(`${name}: not swapped in: its textures would pass the scene's texture memory cap`);
+    // An image the fit check reads no header of (RX9), which the room's image step can't decode.
+    pick(root, piece, desk({ top: ascii("fx-not an image at all") }).bytes);
+    await settle(clock);
+    await settle(clock);
+    expect(page.stage.loaded.has(piece)).toBe(false);
+    expect(statusLine(root)).toBe(`${name}: not swapped in: the room's loader failed on it`);
   });
 });
 
