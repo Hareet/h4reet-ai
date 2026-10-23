@@ -72,7 +72,7 @@ interface Device {
   /** The WebGL 2 context's largest texture side, or null where the browser makes no context. */
   readonly webgl2: number | null;
   /** `navigator.deviceMemory`; absent where the browser doesn't give it. */
-  readonly deviceMemory?: number;
+  readonly deviceMemory?: number | undefined;
   /** How createImageBitmap answers: it decodes the PNG at its size, is missing, rejects, or gives another size. */
   readonly decode: "decodes" | "missing" | "rejects" | "another size";
   readonly secure: boolean;
@@ -221,7 +221,8 @@ describe("the probe (contracts/lookdev.md §7.2)", () => {
     // The PNG itself: a signature, then IHDR (1 × 1, 8-bit RGBA), IDAT inflating to one unfiltered pixel, and IEND.
     const chunks = pngChunks(PROBE_PNG);
     expect(chunks.map((c) => c.type)).toEqual(["IHDR", "IDAT", "IEND"]);
-    const [ihdr, idat, iend] = chunks as [{ body: Buffer }, { body: Buffer }, { body: Buffer }];
+    const [ihdr, idat, iend] = chunks;
+    if (!ihdr || !idat || !iend) throw new Error("not three chunks");
     expect([ihdr.body.readUInt32BE(0), ihdr.body.readUInt32BE(4), ...ihdr.body.subarray(8)]).toEqual([
       1, 1, 8, 6, 0, 0, 0,
     ]);
@@ -409,7 +410,7 @@ describe("single-file.ts (§7.1)", () => {
     if (!handler) throw new Error("no generateBundle");
     const context = {
       emitFile(file: { type: string; fileName: string; source: string }): string {
-        (bundle as Record<string, unknown>)[file.fileName] = { type: "asset", ...file };
+        (bundle as Record<string, unknown>)[file.fileName] = { ...file };
         return file.fileName;
       },
       error(message: string): never {
@@ -430,10 +431,11 @@ describe("single-file.ts (§7.1)", () => {
 
   it("ends the build with one file, lookdev.html, from its one chunk and its CSS, dropping what else it wrote", () => {
     const code = 'var h4LookdevPhone=function(){"use strict";return{a:"</script>"}}();\n';
-    const css = "body{font-family:x}";
+    const css = "body{font-family:x}\n";
     const bundle = {
       "lookdev.js": chunk("lookdev.js", code),
-      "lookdev.css": asset("lookdev.css", new TextEncoder().encode(css)),
+      // As Vite's library mode extracts it: with its own hash marker, a comment its app builds strip.
+      "lookdev.css": asset("lookdev.css", new TextEncoder().encode(`${css}/*$vite$:1*/`)),
       "room-manifest.json": asset("room-manifest.json", "{}"),
       "a/desk.0123456789abcdef.glb.gz": asset("a/desk.0123456789abcdef.glb.gz", new Uint8Array(3)),
     } as unknown as Rolldown.OutputBundle;
@@ -686,8 +688,10 @@ describe("npm run build:lookdev-phone (§7.1, §8 layer 5)", () => {
     }
   });
 
-  it("holds the typefaces as data: fonts, each the file apps/web/fonts/ vendors, and no other url()", () => {
+  it("holds the typefaces as data: fonts, each the file apps/web/fonts/ vendors, no other url(), and no comment", () => {
     const style = parsed().querySelector("style")?.textContent ?? "";
+    // Base64 never holds "*", so any "/*" would be a comment the minified CSS doesn't have.
+    expect(style).not.toContain("/*");
     const urls = [...style.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/g)].map((m) => m[2] ?? "");
     expect(urls.length).toBeGreaterThan(0);
     const fonts = new Set<string>();

@@ -1,7 +1,7 @@
 # The room's image (spec 002, plan §1; contracts/web-serving.md §1 and §3; tasks.md T006). Built outside compose by
 # deploy/scripts/web_image.py, with the repository root as its context: on a host stack the run's export of the
 # commit, on dev-cpu the working tree. deploy/compose.yaml names it h4reet-web:<ref><suffix> and never builds or pulls
-# it. .dockerignore keeps .git, env files, node_modules, and dist out.
+# it. .dockerignore keeps .git, env files, node_modules, dist, and dist-phone out.
 #
 # Every base is pinned by digest, as deploy/images.lock pins it (base:node, and edge's nginx-unprivileged). There is
 # no `# syntax=` line: it would pull an unpinned frontend image.
@@ -14,8 +14,8 @@
 # is pulled under that name. Nothing below runs git (contracts/web-serving.md §1).
 FROM scratch AS policy
 
-# ---- build: the workspace's dependencies from the lockfile, then the static site ----
-FROM public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS build
+# ---- install: the workspace's dependencies from the lockfile, and what the builds read ----
+FROM public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS install
 # On the agents' engine npm reaches the registry only through the egress proxy: web_image.py passes H4_BUILD_PROXY as
 # the HTTP_PROXY and HTTPS_PROXY build arguments, Docker's predefined proxy arguments, which RUN sees without an ARG
 # line and which stay out of the image history. On host stacks they are empty.
@@ -32,6 +32,9 @@ COPY docs/data-flow-disclosure.md docs/
 COPY corpus corpus
 COPY apps/web apps/web
 COPY --from=policy / /src/policy/
+
+# ---- build: the static site ----
+FROM install AS build
 # ROOM_DRAFTS is 1 for the -drafts images of dev and dev-cpu, and empty for prod's (contracts/web-serving.md §1).
 # ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else. --ignore-scripts keeps a checkout's
 # prebuild (build/policy.ts, which reads main with git) from running here: the context already holds main's policy.
@@ -42,7 +45,21 @@ RUN ROOM_DRAFTS="$ROOM_DRAFTS" ROOM_POLICY_DIR=/src/policy npm run --ignore-scri
  && printf 'ok\n' > apps/web/dist/healthz \
  && rm -f apps/web/dist/*.pdf.txt
 
-# ---- runtime: nginx, unprivileged, with the built site and its own configuration ----
+# ---- lookdev-phone: the lookdev page's phone copy, drafts only (spec 004; FR-066, FR-069; contracts/lookdev.md §7) ----
+# Built only by name, in the Author's terminal, from a commit's git archive export (contracts/lookdev.md §7.3):
+#   git --no-replace-objects archive <commit> | docker build -f apps/web/Dockerfile --target lookdev-phone \
+#     --output type=local,dest=<a new, empty folder outside the repository> -
+# The first stage builds the copy on the install the site's build runs on, with drafts on, reading the policy from
+# the named context, which a build that names none gets empty (the room's starting figures, every model a stand-in);
+# the second holds only lookdev.html, which --output type=local exports as the folder's one file. No other stage
+# copies from either, and web_image.py names no target, so its images end at the runtime stage below and never hold
+# the copy (contracts/lookdev.md §8, layer 5).
+FROM install AS lookdev-phone-build
+RUN ROOM_DRAFTS=1 ROOM_POLICY_DIR=/src/policy npm run --ignore-scripts build:lookdev-phone -w apps/web
+FROM scratch AS lookdev-phone
+COPY --from=lookdev-phone-build /src/apps/web/dist-phone/lookdev.html /lookdev.html
+
+# ---- runtime: nginx, unprivileged, with the built site and its own configuration; last, so the default target ----
 FROM ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
 COPY apps/web/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /src/apps/web/dist /usr/share/nginx/html
