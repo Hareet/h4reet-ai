@@ -12,6 +12,9 @@
 //   (§3.2); the digest over both (§4); each set model's gzip-9 copy and each set card (§3.4); the drafts modules (§3.3);
 //   room_text (§5); B7's manifest (§6, build/manifest.ts); the generated files, sorted by path (§7 and §8 from
 //   build/manifest.ts, §9 from orders.ts), which compose() never writes; and the report (§10, report.ts).
+// - The geometry is RG's production framing (checks/rg.ts's `geometry`, over the pieces this compose shows set): the
+//   world transforms, the frame boxes, the cameras, the faces' screen_css, the 2D hit rectangles, and the cap ratios
+//   are the numbers RG and RK3 checked, so the bundle can't carry a framing the checks didn't measure.
 // Readings beside the contract's words:
 // - A switch's pose is named `<switch>.<pose>` where a list names placements (`load_order`, the manifest's `standins`),
 //   which no ID can equal. The shown pose is the case of the tier the room starts on: not-live while the live source is
@@ -22,8 +25,9 @@
 //   box ("its depth"), so the shell's stands at its wall: at its origin pushed back to that depth, scaled by the
 //   view-box units a metre takes there times its stylized scale, turned by its tilt in the view (its x axis against the
 //   horizontal), and drawn back to front by that depth, placement order breaking ties. A selectable's 2D hit rectangles
-//   are its members' drawings' bounds; their depths, the nearest point of each member's frame box. A stand-in's label
-//   sits LABEL_LIFT above its drawing's top; the visitor's cut-out stands at its placement's origin.
+//   are RG6's: its members' frame boxes projected through framing(1.6), which hold their drawings, with the depth of
+//   each box's nearest corner. A stand-in's label sits LABEL_LIFT above its drawing's top; the visitor's cut-out stands
+//   at its placement's origin.
 import { createHash } from "node:crypto";
 
 import { parse } from "yaml";
@@ -31,7 +35,7 @@ import { parse } from "yaml";
 import { AVATARS } from "../../src/choice/avatars";
 import type { Look, Matrix2D, Prim, RoomIndex, RoomScene, Shape } from "../../src/room/compose/bundle";
 import { cableControl } from "../../src/room/compose/cable";
-import { FOV, framing, LABEL_LIFT, withLabel } from "../../src/room/compose/framing";
+import { FOV, framing, LABEL_LIFT } from "../../src/room/compose/framing";
 import type { Box } from "../../src/room/compose/framing";
 import { facePoint } from "../../src/room/compose/legibility";
 import type { FaceGeometry } from "../../src/room/compose/legibility";
@@ -39,11 +43,10 @@ import { loadOrder } from "../../src/room/compose/load-order";
 import type { LoadEntry } from "../../src/room/compose/load-order";
 import { DEG, multiply, origin, rotation, scaling, transformPoint, translation } from "../../src/room/compose/math";
 import type { Mat4, Turn, Vec3 } from "../../src/room/compose/math";
-import { anchorWorld, mountWorld, resolveMounts } from "../../src/room/compose/mount";
+import { anchorWorld, mountWorld } from "../../src/room/compose/mount";
 import { projector, toStage } from "../../src/room/compose/project";
 import type { Camera, Projector } from "../../src/room/compose/project";
-import { FLAT_VIEW, REFERENCE_DESKTOP, REFERENCE_PHONE } from "../../src/room/compose/stages";
-import type { Stage } from "../../src/room/compose/stages";
+import { FLAT_VIEW } from "../../src/room/compose/stages";
 import { TIER_VALUES, TYPEFACE_USES } from "../../src/room/compose/vocabulary";
 import type { TierValue, TypefaceUse } from "../../src/room/compose/vocabulary";
 import { atScale, fit, textureMemory } from "../../src/room/glb/fit";
@@ -53,6 +56,8 @@ import { readImage } from "../../src/room/glb/images";
 import { roomEventsFile, roomManifest, roomTopicsFile } from "../manifest";
 import { RULE_IDS } from "./checks/family";
 import type { ComposeOptions, Finding } from "./checks/family";
+import { faceScreens, flatMembers, geometry, lookTypefaces } from "./checks/rg";
+import type { Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import type { Loaded, LoadedRoom } from "./load";
 import { PHOTO_GUIDE, photoGuide, workOrder, WORK_ORDERS_DIR } from "./orders";
@@ -73,7 +78,6 @@ import type {
 } from "./schema";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
-import { readTypefaces } from "./typefaces";
 import type { Typeface } from "./typefaces";
 
 /** A fixture, typed by the signals: `virtual:room-fixtures` (§3.3). */
@@ -254,14 +258,6 @@ export type Picture =
       readonly rules: readonly string[];
     };
 
-/** A reference stage, its pixel ratio, and the production camera at its aspect. */
-export interface StageView {
-  readonly name: "desktop" | "phone";
-  readonly stage: Stage;
-  readonly dpr: number;
-  readonly camera: Camera;
-}
-
 /** The composition every output reads: the room, the policy, and what emit computed once from them. */
 export interface Composed {
   readonly room: LoadedRoom;
@@ -280,15 +276,16 @@ export interface Composed {
   readonly pictures: ReadonlyMap<string, Picture>;
   /** The placements whose `role` makes them figures. */
   readonly figures: ReadonlySet<string>;
-  /** Each resolved placement's world transform, and its model transform, World · S(its stylized scale). */
+  /** RG's geometry over the pieces set here, whose numbers RG and RK3 checked, its reference cameras among them; null
+   *  without a scene. */
+  readonly geometry: Geometry | null;
+  /** Each resolved placement's world transform. */
   readonly world: ReadonlyMap<string, Mat4>;
-  readonly model: ReadonlyMap<string, Mat4>;
-  /** Each placement's frame box (§3.2), quantized. */
+  /** Each resolved placement's frame box (§3.2). */
   readonly frames: ReadonlyMap<string, Box>;
-  /** The reference stages, desktop first, and the 2D drawing's camera, framing(1.6) over the framed boxes. */
-  readonly stages: readonly StageView[];
+  /** The 2D drawing's camera, framing(1.6) over the framed boxes. */
   readonly flatCamera: Camera;
-  /** The index's typefaces, their cap ratios quantized. */
+  /** The index's typefaces, their cap ratios to 1e-6. */
   readonly typefaces: readonly Typeface[];
   /** Whether a placement shows its piece's stand-in: no set picture, and not a figure. */
   standin(placement: Placement): boolean;
@@ -392,42 +389,15 @@ function prepare(
   const pictures = new Map<string, Picture>();
   for (const [id, c] of pieces) pictures.set(id, pictureOf(c, policy, findings, reader.tree));
   const figures = new Set((scene?.placements ?? []).filter((p) => p.role !== undefined).map((p) => p.id));
-
-  const { world, model } = resolveMounts(
-    (scene?.placements ?? []).map((p) => ({
-      id: p.id,
-      piece: p.piece,
-      mount: p.mount ? { on: p.mount.on, anchor: p.mount.anchor } : null,
-      offset: p.mount?.offset ?? [0, 0, 0],
-      turn: p.mount?.turn ?? { x: 0, y: 0, z: 0 },
-    })),
-    Object.fromEntries([...pieces].map(([id, c]) => [id, { scale: c.value.stylized_scale, anchors: c.value.anchors }])),
-  );
   const standin = (p: Placement): boolean =>
     !figures.has(p.id) && (pictures.get(p.piece)?.kind ?? "stand-in") === "stand-in";
 
-  const frames = new Map<string, Box>();
-  for (const p of placements.values()) {
-    const entry = pieces.get(p.piece)?.value;
-    const picture = pictures.get(p.piece);
-    const [w, m] = [world.get(p.id), model.get(p.id)];
-    let box = entry ? scaled(entry.origin.bounds, entry.stylized_scale) : ZERO_BOX;
-    if (picture?.kind === "model" && w) box = worldBox(w, picture.bounds);
-    else if (entry && m) box = worldBox(m, entry.origin.bounds);
-    if (w && standin(p) && p.label !== undefined) box = withLabel(box);
-    frames.set(p.id, boxOf(box));
-  }
-  const framed = [...placements.values()].filter((p) => p.frame && world.has(p.id)).map((p) => frames.get(p.id) as Box);
-  const stages: StageView[] = [REFERENCE_DESKTOP, REFERENCE_PHONE].map((r, i) => ({
-    name: i === 0 ? "desktop" : "phone",
-    stage: r.stage,
-    dpr: r.dpr,
-    camera: framing(r.stage.w / r.stage.h, framed),
-  }));
-
-  const typefaces = look
-    ? (readTypefaces(reader.tree, [{ file: look.file, typefaces: look.value.typefaces }]).looks[0]?.typefaces ?? [])
-    : [];
+  // RG's geometry over the pieces this compose shows set, which are rx.ts's `setModels` in any build whose outputs are
+  // used: a model frames by its measured bounds, a card by its expected ones.
+  const set = new Map<string, Box | null>();
+  for (const [id, p] of pictures) if (p.kind !== "stand-in") set.set(id, p.kind === "model" ? p.bounds : null);
+  const g = geometry(room, set);
+  const world = g?.resolved.world ?? new Map<string, Mat4>();
 
   const anchorPoint = (id: string, name: string): Vec3 | null => {
     const p = placements.get(id);
@@ -459,12 +429,11 @@ function prepare(
     placements,
     pictures,
     figures,
+    geometry: g,
     world,
-    model,
-    frames,
-    stages,
-    flatCamera: framing(FLAT_VIEW.w / FLAT_VIEW.h, framed),
-    typefaces: typefaces.map((t) => ({ ...t, cap_ratio: m6(t.cap_ratio) })),
+    frames: g?.boxes ?? new Map<string, Box>(),
+    flatCamera: g?.flat ?? framing(FLAT_VIEW.w / FLAT_VIEW.h, []),
+    typefaces: lookTypefaces(room, reader.tree),
     standin,
     poseWorld,
     anchorPoint,
@@ -896,20 +865,15 @@ function flatOf(c: Composed, faces: readonly RoomIndex["faces"][number][]): Room
     frames.push({ face: face.id, matrix: matrix.map(u4) as Matrix2D, size: [u4(size[0]), u4(size[1])] });
   }
 
-  const hits = (c.scene?.selectables ?? []).map((x) => {
-    const members = x.members.flatMap((m) => {
-      const d = drawn.get(m);
-      return d ? [{ d, near: depths(view, c.frames.get(m) ?? ZERO_BOX).near }] : [];
-    });
-    return {
-      selectable: x.id,
-      rects: members.map(({ d }) => {
-        const [x0, y0, x1, y1] = d.bounds;
-        return [u4(x0), u4(y0), u4(x1 - x0), u4(y1 - y0)] as [number, number, number, number];
-      }),
-      depths: members.map(({ near }) => m6(near)),
-    };
-  });
+  // The member rectangles RG6 checked, already on the bundle's grid.
+  const members = c.geometry ? flatMembers(c.geometry) : [];
+  const hits = (c.scene?.selectables ?? []).map((x, k) => ({
+    selectable: x.id,
+    rects: (members[k] ?? []).map(
+      ({ rect }) => [rect[0], rect[1], rect[2], rect[3]] as [number, number, number, number],
+    ),
+    depths: (members[k] ?? []).map(({ depth }) => depth),
+  }));
 
   const labels: RoomIndex["flat"]["labels"] = [];
   for (const p of c.scene?.placements ?? []) {
@@ -948,22 +912,6 @@ const PAPER_ARC = 0.35;
 
 // ---- The index (§3.1) ----
 
-/** A face's largest on-screen size at the reference stages, in CSS pixels: its projected edges' longest. */
-function screenSize(c: Composed, model: Mat4, face: FaceGeometry): [number, number] {
-  let [w, h] = [0, 0];
-  for (const { stage, camera } of c.stages) {
-    const view = projector(camera, stage.w / stage.h);
-    const css = (u: number, v: number): readonly [number, number] =>
-      toStage(view.project(transformPoint(model, facePoint(face, u, v))), stage);
-    const [tl, tr, bl, br] = [css(0, 0), css(1, 0), css(0, 1), css(1, 1)];
-    const span = (a: readonly [number, number], b: readonly [number, number]): number =>
-      Math.hypot(b[0] - a[0], b[1] - a[1]);
-    w = Math.max(w, span(tl, tr), span(bl, br));
-    h = Math.max(h, span(tl, bl), span(tr, br));
-  }
-  return [u4(w), u4(h)];
-}
-
 type Region = NonNullable<Placement["faces"]>[string]["regions"][number];
 type IndexRegion = RoomIndex["faces"][number]["regions"][number];
 
@@ -988,27 +936,27 @@ function regionOf(r: Region): IndexRegion {
   return { rect: [m6(r.rect[0]), m6(r.rect[1]), m6(r.rect[2]), m6(r.rect[3])], renderer: r.renderer, grid, source };
 }
 
+/** Each bound face, in RG's order, with RG's on-screen size, by which RK3 sized its canvas; [0, 0] where a corner falls
+ *  behind a reference camera, where RK3 counts its whole canvas. */
 function facesOf(c: Composed): RoomIndex["faces"] {
   const out: RoomIndex["faces"] = [];
-  for (const p of c.placements.values()) {
-    const entry = c.pieces.get(p.piece)?.value;
-    const model = c.model.get(p.id);
-    for (const [role, binding] of Object.entries(p.faces ?? {})) {
-      const live = entry?.live_faces.find((f) => f.role === role);
-      if (!live) continue;
-      out.push({
-        id: `${p.id}.${role}`,
-        placement: p.id,
-        role,
-        readable: live.readable,
-        label: binding.label,
-        atmosphere: binding.atmosphere,
-        max_chars: binding.max_chars ?? null,
-        px: [live.px[0], live.px[1]],
-        screen_css: model ? screenSize(c, model, faceGeometry(live)) : [0, 0],
-        regions: binding.regions.map(regionOf),
-      });
-    }
+  for (const { placement, role, screen } of c.geometry ? faceScreens(c.geometry) : []) {
+    const p = c.placements.get(placement);
+    const binding = p?.faces?.[role];
+    const live = p && c.pieces.get(p.piece)?.value.live_faces.find((f) => f.role === role);
+    if (!binding || !live) continue;
+    out.push({
+      id: `${placement}.${role}`,
+      placement,
+      role,
+      readable: live.readable,
+      label: binding.label,
+      atmosphere: binding.atmosphere,
+      max_chars: binding.max_chars ?? null,
+      px: [live.px[0], live.px[1]],
+      screen_css: screen ? point(screen) : [0, 0],
+      regions: binding.regions.map(regionOf),
+    });
   }
   return out;
 }
@@ -1233,7 +1181,7 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       offset: vec(p.mount?.offset ?? [0, 0, 0]),
       turn: turnOf(p.mount?.turn),
       framed: p.frame,
-      frame_box: c.frames.get(p.id) ?? ZERO_BOX,
+      frame_box: boxOf(c.frames.get(p.id) ?? ZERO_BOX),
       label: p.label ?? null,
       model: modelOf(c, p),
     })),

@@ -13,29 +13,26 @@
 //   design's estimate and the enforced phase-3 limit, and spec 003's F3 view, every file under assets/room/ at gzip-9;
 //   and a note for each small prop the caps name that the catalog doesn't have;
 // - legibility: each bound face's smallest cap height on each reference stage at the production framing, with the
-//   floor, the margin, and readable, atmosphere (max <n>), or under (RG7's measure);
-// - the switches: each one's case-to-pose table, and for every two poses that show different placements, the largest
-//   on-screen distance any corner of the piece moves, or the largest glow a pose changes, on each stage: apart, or under
-//   the floor (RG8, which only reports);
+//   floor, the margin, and readable, atmosphere (max <n>), or under: RG7's own measure (checks/rg.ts's `faceCaps`);
+// - the switches: each one's case-to-pose table, and for every two poses its cases show, the largest on-screen distance
+//   any part of the piece moves, or the size of a cue a pose's glow adds, on each stage: apart, or under the floor, RG8's
+//   own measure (`poseSeparations`), which only reports;
 // - the findings, each line, a lenient one marked warn in a lenient build, or "none".
-// Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path
-// outside the repository, or a data string: pieces, placements, faces, switches, and poses are named by IDs, each only
-// where RT2 passed it.
-import type { Box } from "../../src/room/compose/framing";
-import { regionCap, smallestCapPx, typefaceFor } from "../../src/room/compose/legibility";
-import type { CapRegion, CapSource } from "../../src/room/compose/legibility";
-import { transformPoint } from "../../src/room/compose/math";
-import type { Mat4, Vec3 } from "../../src/room/compose/math";
-import { projector, toStage } from "../../src/room/compose/project";
+// The live-face canvases are RK3's (checks/rk.ts's `faceCanvases`). Bytes are integers with thousands separators and
+// glyph heights are to 0.1 px. Nothing in it is a time, a path outside the repository, or a data string: pieces,
+// placements, faces, switches, and poses are named by IDs, each only where RT2 passed it.
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
-import { fit, textureMemory } from "../../src/room/glb/fit";
+import { fit } from "../../src/room/glb/fit";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
 import type { RoomIndex } from "../../src/room/compose/bundle";
-import type { Composed, RoomReport, StageView } from "./emit";
+import type { Composed, RoomReport } from "./emit";
 import { formatPath } from "./checks/family";
+import { faceCaps, poseSeparations } from "./checks/rg";
+import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
-import type { Pose, Switch } from "./schema";
+import { faceCanvases } from "./checks/rk";
+import type { Switch } from "./schema";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
 
@@ -73,14 +70,6 @@ function avatars(tree: Tree): { twin: number | null; visitor: number | null } {
     return glbs.length === 0 ? null : Math.max(...glbs.map((f) => textureBytesOf(f.path, f.data)));
   };
   return { twin: largest(filesUnder(tree, "assets/twin")), visitor: largest(filesUnder(tree, "assets/visitors")) };
-}
-
-/** A box's eight corners. */
-function corners(b: Box): Vec3[] {
-  const out: Vec3[] = [];
-  for (const x of [b.min[0], b.max[0]])
-    for (const y of [b.min[1], b.max[1]]) for (const z of [b.min[2], b.max[2]]) out.push([x, y, z]);
-  return out;
 }
 
 /** What the report prints in place of an ID RT2 refused. */
@@ -180,13 +169,7 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
     if (c.pictures.get(id)?.kind === "card") cardBytes += entry.budget.texture_bytes;
     else modelBytes += entry.budget.texture_bytes;
   }
-  const phone = c.stages.find((s) => s.name === "phone");
-  const canvases = index.faces.reduce((sum, f) => {
-    const dpr = phone?.dpr ?? 1;
-    const w = Math.min(f.px[0], Math.floor(f.screen_css[0] * dpr));
-    const h = Math.min(f.px[1], Math.floor(f.screen_css[1] * dpr));
-    return sum + textureMemory(w, h);
-  }, 0);
+  const canvases = faceCanvases(c.geometry).reduce((sum, f) => sum + f.bytes, 0);
   const figures = avatars(c.reader.tree);
   const avatarBytes = (figures.twin ?? 0) + (figures.visitor ?? 0);
   const total = modelBytes + cardBytes + avatarBytes + canvases;
@@ -241,39 +224,19 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   return { markdown: `${lines.join("\n")}\n` };
 }
 
-/** Each bound face's smallest cap height on each reference stage, with the floor, the margin, and its status. */
+/** Each bound face's smallest cap height on each reference stage, RG7's, with the floor, the margin, and its status. */
 function legibility(c: Composed, index: RoomIndex): string[] {
   if (index.faces.length === 0) return ["No face is bound."];
   const floor = c.caps.legibility_floor_css_px;
-  const outlines = new Map(c.room.outlines.map((o) => [o.value.sign, o.value]));
-  const ratio = new Map(c.typefaces.map((t) => [t.use, t.cap_ratio]));
+  // RG7's measure of each face, the first placement of its ID's, as the index lists them.
+  const measured = new Map<string, FaceCaps>();
+  for (const f of faceCaps(c.geometry, c.typefaces)) if (!measured.has(f.face)) measured.set(f.face, f);
   const out = ["| Face | Readable | Desktop | Phone | Floor | Margin | Status |", "|---|---|---:|---:|---:|---:|---|"];
   for (const face of index.faces) {
-    const p = c.placements.get(face.placement);
-    const live = p && c.pieces.get(p.piece)?.value.live_faces.find((f) => f.role === face.role);
-    const model = c.model.get(face.placement);
-    let sizes: (number | null)[] = c.stages.map(() => null);
-    if (live && model) {
-      const geometry = { at: live.at, size: live.size, facing: live.facing, up: live.up ?? ([0, 1, 0] as const) };
-      // A sign's region measures its outline; any other, its typeface's cap ratio.
-      const sourceOf = (r: (typeof face.regions)[number]): CapSource | null => {
-        if (r.renderer === "sign") {
-          const outline = "room_text" in r.source ? outlines.get(r.source.room_text) : undefined;
-          return outline ? { outline } : null;
-        }
-        const use = typefaceFor(r.renderer, r.source);
-        const capRatio = use === null ? undefined : ratio.get(use);
-        return capRatio === undefined ? null : { capRatio };
-      };
-      const regions: CapRegion[] = face.regions.flatMap((r) => {
-        const source = sourceOf(r);
-        const cap = source && regionCap(geometry, { rect: r.rect, renderer: r.renderer, grid: r.grid }, source);
-        return cap ? [{ rect: r.rect, cap }] : [];
-      });
-      sizes = c.stages.map((s) => smallestCapPx(model, geometry, regions, s.camera, s.stage));
-    }
+    const caps = measured.get(face.id);
+    const sizes = [caps?.desktop ?? null, caps?.phone ?? null];
     const known = sizes.filter((s): s is number => s !== null);
-    const smallest = known.length === sizes.length && known.length > 0 ? Math.min(...known) : null;
+    const smallest = known.length === sizes.length ? Math.min(...known) : null;
     const status = face.atmosphere
       ? `atmosphere (max ${face.max_chars ?? 0})`
       : smallest !== null && smallest >= floor
@@ -292,64 +255,11 @@ function legibility(c: Composed, index: RoomIndex): string[] {
   return out;
 }
 
-/** The world corners of a switch's piece at a pose: a set model's measured bounds, or the expected ones at its scale. */
-function poseCorners(c: Composed, sw: Switch, pose: Pose): Vec3[] | null {
-  const world = c.poseWorld(pose);
-  const entry = c.pieces.get(sw.piece)?.value;
-  if (!world || !entry) return null;
-  const picture = c.pictures.get(sw.piece);
-  const s = entry.stylized_scale;
-  const box: Box =
-    picture?.kind === "model"
-      ? picture.bounds
-      : {
-          min: [entry.origin.bounds.min[0] * s, entry.origin.bounds.min[1] * s, entry.origin.bounds.min[2] * s],
-          max: [entry.origin.bounds.max[0] * s, entry.origin.bounds.max[1] * s, entry.origin.bounds.max[2] * s],
-        };
-  return corners(box).map((p) => transformPoint(world, p));
-}
-
-/** The glows a pose sets, by placement and glow, at their levels, beside every glow either pose names. */
-function glowLevel(c: Composed, pose: Pose, placement: string, glow: string): number {
-  const set = pose.glows.find((g) => g.placement === placement && g.glow === glow);
-  if (set) return set.level;
-  const p = c.placements.get(placement);
-  return (p && c.pieces.get(p.piece)?.value.glows.find((g) => g.id === glow)?.level) ?? 1;
-}
-
-/** The largest on-screen separation of two poses on a stage: any corner's move, or a changed glow's diameter. */
-function separation(c: Composed, sw: Switch, a: Pose, b: Pose, view: StageView): number | null {
-  const [ca, cb] = [poseCorners(c, sw, a), poseCorners(c, sw, b)];
-  if (!ca || !cb) return null;
-  const v = projector(view.camera, view.stage.w / view.stage.h);
-  const css = (p: Vec3): readonly [number, number] => toStage(v.project(p), view.stage);
-  let largest = 0;
-  ca.forEach((p, i) => {
-    const [x, y] = [css(p), css(cb[i] as Vec3)];
-    largest = Math.max(largest, Math.hypot(y[0] - x[0], y[1] - x[1]));
-  });
-  const named = [...a.glows, ...b.glows].map((g) => [g.placement, g.glow] as const);
-  for (const [placement, glow] of named) {
-    if (glowLevel(c, a, placement, glow) === glowLevel(c, b, placement, glow)) continue;
-    const p = c.placements.get(placement);
-    const entry = p && c.pieces.get(p.piece)?.value;
-    const g = entry?.glows.find((x) => x.id === glow);
-    const model: Mat4 | undefined = c.model.get(placement);
-    if (!entry || !g || !model) continue;
-    const centre = transformPoint(model, g.at);
-    const edge = transformPoint(model, [g.at[0] + g.radius, g.at[1], g.at[2]]);
-    const [x, y] = [css(centre), css(edge)];
-    largest = Math.max(largest, 2 * Math.hypot(y[0] - x[0], y[1] - x[1]));
-  }
-  return largest;
-}
-
-/** Each switch's case-to-pose table, and every two of its poses that show different placements, apart or not. A switch
- *  or a pose whose name RT2 refused is named by its path. */
+/** Each switch's case-to-pose table, and RG8's separation of every two poses its cases show, apart or not. A switch or
+ *  a pose whose name RT2 refused is named by its path. */
 function switches(c: Composed): string[] {
   const list = c.scene?.switches ?? [];
   if (list.length === 0) return ["Switches: none."];
-  const floor = c.caps.legibility_floor_css_px;
   const printable = (key: string): boolean => c.reader.printable(key);
   const switchName = (sw: Switch, i: number): string =>
     printable(sw.id) ? `\`${sw.id}\`` : formatPath(["switches", i]);
@@ -364,26 +274,14 @@ function switches(c: Composed): string[] {
     out.push(`| ${switchName(sw, i)} | ${cells.join(" | ")} |`);
   });
   out.push("", "| Switch | Poses | Desktop | Phone | Status |", "|---|---|---:|---:|---|");
-  const same = (a: Pose, b: Pose): boolean =>
-    a.mount.on === b.mount.on &&
-    a.mount.anchor === b.mount.anchor &&
-    a.mount.offset.every((v, i) => v === b.mount.offset[i]) &&
-    a.mount.turn.x === b.mount.turn.x &&
-    a.mount.turn.y === b.mount.turn.y &&
-    a.mount.turn.z === b.mount.turn.z;
-  list.forEach((sw, s) => {
-    const poses = Object.entries(sw.poses);
-    poses.forEach(([nameA, a], i) => {
-      for (const [nameB, b] of poses.slice(i + 1)) {
-        if (same(a, b)) continue;
-        const sizes = c.stages.map((view) => separation(c, sw, a, b, view));
-        const apart = sizes.every((size) => size !== null && size >= floor);
-        out.push(
-          `| ${switchName(sw, s)} | ${poseName(nameA, s)} / ${poseName(nameB, s)} | ${sizes.map(px).join(" | ")} | ` +
-            `${apart ? "apart" : "under the floor"} |`,
-        );
-      }
-    });
-  });
+  for (const pair of poseSeparations(c.geometry, c.policy)) {
+    const sw = list[pair.switch];
+    if (!sw) continue;
+    const [a, b] = pair.poses;
+    out.push(
+      `| ${switchName(sw, pair.switch)} | ${poseName(a, pair.switch)} / ${poseName(b, pair.switch)} | ` +
+        `${px(pair.desktop)} | ${px(pair.phone)} | ${pair.status} |`,
+    );
+  }
   return out;
 }

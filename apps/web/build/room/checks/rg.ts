@@ -11,13 +11,21 @@
 // atmosphere, atmosphere on a readable face, and an atmosphere face over its max_chars; RG9 a region outside its face,
 // or over another. RG8 is never a finding: `poseSeparations` gives the report its measures, as `faceCaps` gives RG7's.
 //
+// One production framing: `geometry` resolves the scene and frames it, once a compose (`geometryOf`), and RK3 (rk.ts)
+// and the bundle (emit.ts) take their numbers from it, so a check and the bundle can't measure two framings: the 3D
+// part's frame_box (`frameBoxes`), the index's flat hits (`flatMembers`) and screen_css (`faceScreens`), RK3's
+// canvases, the report's cap heights (`faceCaps`) and separations (`poseSeparations`), and the index's cap ratios
+// (`lookTypefaces`). The hit rectangles, the faces' sizes, and the cap ratios are quantized here as the index carries
+// them, so RG6, RK3, and RG7 hold exactly its numbers; emit.ts quantizes the frame boxes as it writes them.
+//
 // Readings:
-// - A framed box is the catalog's expected bounds at the stylized scale through the placement's world transform, as the
-//   axis-aligned box of its eight corners, its top raised by framing.ts's `withLabel` where the placement has a label.
-//   A set model's measured bounds aren't read here (plan.md §10).
+// - A framed box is a set model's measured bounds through the placement's world transform, or the catalog's expected
+//   bounds at the stylized scale through it, as the axis-aligned box of its eight corners, its top raised by framing.ts's
+//   `withLabel` where the placement shows a stand-in with a label: never over a set piece, nor over a figure, which shows
+//   its avatar. A model is set when main's caps exist and it has no RX or RK2 finding (rx.ts's `setModels`).
 // - The production framing on a stage is framing(W ÷ H) over the framed placements' boxes. The 2D drawing's is
 //   framing(1.6) into the 320 × 200 view box, where a core's 44 px are taken at the smallest scale a supported stage
-//   gives the drawing.
+//   gives the drawing, and a selectable's member rectangles are its members' frame boxes projected there.
 // - A stand-in shape's extent is the support of its own geometry through T(at) · R(turn) · S(scale) along each axis, so
 //   a turned round shape counts its true size; a tube's `from` and `to` and a polygon's points are in that frame, and a
 //   polygon's depth is centred on its plane, as a box's is.
@@ -39,7 +47,7 @@ import type { Mat4, Vec3 } from "../../../src/room/compose/math";
 import { anchorWorld, modelOf, mountWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountAnchor, MountPlacement, Resolved } from "../../../src/room/compose/mount";
 import { flatCore, memberRect, pickAreas, pickProblems } from "../../../src/room/compose/pick";
-import type { PickInput, PickProblem } from "../../../src/room/compose/pick";
+import type { MemberRect, PickInput, PickProblem } from "../../../src/room/compose/pick";
 import { projector, toStage } from "../../../src/room/compose/project";
 import type { Camera, Projector } from "../../../src/room/compose/project";
 import {
@@ -60,6 +68,7 @@ import type { AnchorRef, CatalogEntry, FaceBinding, LiveFace, Region, Scene, Sta
 import { readTypefaces } from "../typefaces";
 import type { TreeReader, Typeface } from "../typefaces";
 import type { Context, Family } from "./family";
+import { setModels } from "./rx";
 
 /** Room for floating point at a boundary, in metres or fractions of a face. */
 const EPS = 1e-9;
@@ -70,26 +79,43 @@ const ASPECT_PX = 1;
 /** An absent up's default (contracts/room-data-files.md §4). */
 const UP: Vec3 = [0, 1, 0];
 const NO_TURN = { x: 0, y: 0, z: 0 } as const;
-/** RG7's and RG8's stages, by the name a reason gives them. */
-const REFERENCE = [
-  ["desktop", REFERENCE_DESKTOP.stage],
-  ["phone", REFERENCE_PHONE.stage],
-] as const;
 
 const has = (o: object, key: string): boolean => Object.hasOwn(o, key);
 
-/** The scene as the kernel resolves it. */
-interface Geometry {
+/** A number on the grid of 1 ÷ `per`, −0 as 0, as the bundle carries it (contracts/room-bundle.md §11): view-box units
+ *  and CSS pixels to 1e-4, and every other measure to 1e-6. */
+function onGrid(n: number, per: number): number {
+  const q = Math.round(n * per) / per;
+  return Number.isFinite(q) && q !== 0 ? q : 0;
+}
+
+/** A reference stage, by the name a reason and the report give it, with its pixel ratio and its production camera. */
+export interface ReferenceView {
+  readonly name: "desktop" | "phone";
+  readonly stage: Stage;
+  readonly dpr: number;
+  readonly camera: Camera;
+}
+
+/** The scene as the kernel resolves it, and its production framing. */
+export interface Geometry {
+  readonly room: LoadedRoom;
   readonly scene: Loaded<Scene>;
   /** The catalog's first entry for each piece ID (a second is RI2's). */
   readonly pieces: ReadonlyMap<string, CatalogEntry>;
   /** The scene's first placement for each ID, by its index. */
   readonly index: ReadonlyMap<string, number>;
   readonly resolved: Resolved;
+  /** Each piece whose model or card is set: a model's measured bounds, or null for a card. */
+  readonly set: ReadonlyMap<string, Box | null>;
   /** Each resolved placement's framed box. */
   readonly boxes: ReadonlyMap<string, Box>;
   /** The framed placements' boxes, in scene order: what every camera frames. */
   readonly framed: readonly Box[];
+  /** The production camera on each reference stage, the desktop's first. */
+  readonly reference: readonly ReferenceView[];
+  /** The 2D drawing's camera, framing(1.6). */
+  readonly flat: Camera;
 }
 
 /** A box's eight corners. */
@@ -110,8 +136,10 @@ function worldBox(m: Mat4, b: { readonly min: Vec3; readonly max: Vec3 }): Box {
   };
 }
 
-/** The scene's placements resolved through mount.ts, their framed boxes, and the framed set; null without a scene. */
-function geometry(room: LoadedRoom): Geometry | null {
+/** The scene's placements resolved through mount.ts, their framed boxes, the framed set, and the cameras that frame it,
+ *  with `set` the pieces whose model or card is set; null without a scene. The bundle calls it with the pieces it shows
+ *  set, which are `setModels`' in any build whose outputs are used. */
+export function geometry(room: LoadedRoom, set: ReadonlyMap<string, Box | null>): Geometry | null {
   const scene = room.scene;
   if (!scene) return null;
   const pieces = new Map<string, CatalogEntry>();
@@ -136,14 +164,32 @@ function geometry(room: LoadedRoom): Geometry | null {
   for (const [id, i] of index) {
     const p = scene.value.placements[i];
     const entry = p && pieces.get(p.piece);
+    const world = resolved.world.get(id);
     const model = resolved.model.get(id);
-    if (!p || !entry || !model) continue;
-    const box = worldBox(model, entry.origin.bounds);
-    const framedBox = p.label !== undefined ? withLabel(box) : box;
+    if (!p || !entry || !world || !model) continue;
+    const measured = set.get(p.piece);
+    const box = measured ? worldBox(world, measured) : worldBox(model, entry.origin.bounds);
+    // Only a stand-in shows its label: a set piece shows its model or card, and a figure its avatar.
+    const framedBox = p.label !== undefined && p.role === undefined && !set.has(p.piece) ? withLabel(box) : box;
     boxes.set(id, framedBox);
     if (p.frame) framed.push(framedBox);
   }
-  return { scene, pieces, index, resolved, boxes, framed };
+  const reference = ([REFERENCE_DESKTOP, REFERENCE_PHONE] as const).map(({ stage, dpr }, k): ReferenceView => ({
+    name: k === 0 ? "desktop" : "phone",
+    stage,
+    dpr,
+    camera: framing(stage.w / stage.h, framed),
+  }));
+  const flat = framing(FLAT_VIEW.w / FLAT_VIEW.h, framed);
+  return { room, scene, pieces, index, resolved, set, boxes, framed, reference, flat };
+}
+
+const geometries = new WeakMap<Context, Geometry | null>();
+
+/** A compose's geometry, made once: its models set as `setModels` reads them. */
+export function geometryOf(ctx: Context): Geometry | null {
+  if (!geometries.has(ctx)) geometries.set(ctx, geometry(ctx.room, setModels(ctx)));
+  return geometries.get(ctx) ?? null;
 }
 
 /** A placement of the scene by ID, with its piece's entry and its world transform, when all three resolve. */
@@ -409,10 +455,14 @@ function spacing(ctx: Context, g: Geometry): void {
     const { camera } = cameraAt(g, stage.w / stage.h);
     note("3D", pickProblems(pickAreas(inputs(camera, stage)), [0, 0, stage.w, stage.h]), stage);
   }
-  // In 2D the view box is fixed, and a core's 44 px are the most view-box units at the drawing's smallest scale.
+  // In 2D the view box is fixed, and a core's 44 px are the most view-box units at the drawing's smallest scale. The
+  // member rectangles are the index's flat hits, which the 2D room picks from.
   const smallest = allStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
-  const flat = cameraAt(g, FLAT_VIEW.w / FLAT_VIEW.h).camera;
-  const areas = pickAreas(inputs(flat, FLAT_VIEW), flatCore(smallest));
+  const flat = flatMembers(g);
+  const areas = pickAreas(
+    selectables.map(({ id }) => ({ id, members: flat[Number(id)] ?? [] })),
+    flatCore(smallest),
+  );
   note("2D", pickProblems(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h]), FLAT_VIEW);
   for (const { problem, mode, first, more } of found.values()) {
     const what =
@@ -456,12 +506,14 @@ function sourceOf(r: Region): RegionSourceRef {
 /** A typeface use's cap ratio, as the index's typefaces[] carries it (contracts/room-bundle.md §3.1). */
 export type CapRatio = Pick<Typeface, "use" | "cap_ratio">;
 
-/** The scene's look's typefaces, read after fonts.lock's check (typefaces.ts); none while an RT10 finding stands on the
- *  look, which is the one to fix. */
-function lookTypefaces(room: LoadedRoom, look: string, tree: TreeReader): readonly CapRatio[] {
-  const file = room.looks.find((l) => l.value.id === look);
+/** The scene's look's typefaces, read after fonts.lock's check (typefaces.ts), each cap ratio to 1e-6 as the index's
+ *  typefaces[] carries it, so RG7, the report, and the page measure with one ratio; none while an RT10 finding stands on
+ *  the look, which is the one to fix. */
+export function lookTypefaces(room: LoadedRoom, tree: TreeReader): readonly Typeface[] {
+  const file = room.looks.find((l) => l.value.id === room.scene?.value.look);
   if (!file) return [];
-  return readTypefaces(tree, [{ file: file.file, typefaces: file.value.typefaces }]).looks[0]?.typefaces ?? [];
+  const read = readTypefaces(tree, [{ file: file.file, typefaces: file.value.typefaces }]).looks[0]?.typefaces ?? [];
+  return read.map((t) => ({ ...t, cap_ratio: onGrid(t.cap_ratio, 1e6) }));
 }
 
 /** A region's cap height on its face, in the face's units at scale 1: its outline's for a sign, else its typeface's cap
@@ -484,9 +536,8 @@ function capOf(
 }
 
 /** Each bound face of each placement whose piece has it, in scene order, measured where its placement resolves. */
-function measureFaces(room: LoadedRoom, g: Geometry, typefaces: readonly CapRatio[]): FaceCaps[] {
+function measureFaces(g: Geometry, typefaces: readonly CapRatio[]): FaceCaps[] {
   const ratios = new Map(typefaces.map((t) => [t.use, t.cap_ratio]));
-  const cameras = REFERENCE.map(([, stage]) => ({ stage, camera: cameraAt(g, stage.w / stage.h).camera }));
   const out: FaceCaps[] = [];
   g.scene.value.placements.forEach((p, i) => {
     const entry = g.pieces.get(p.piece);
@@ -497,10 +548,10 @@ function measureFaces(room: LoadedRoom, g: Geometry, typefaces: readonly CapRati
       if (!live) continue;
       const face = faceOf(live);
       const regions: CapRegion[] = binding.regions.flatMap((r) => {
-        const cap = capOf(room, face, r, ratios);
+        const cap = capOf(g.room, face, r, ratios);
         return cap === null ? [] : [{ rect: r.rect, cap }];
       });
-      const [desktop, phone] = cameras.map(({ stage, camera }) =>
+      const [desktop, phone] = g.reference.map(({ stage, camera }) =>
         model && regions.length > 0 ? smallestCapPx(model, face, regions, camera, stage) : null,
       );
       out.push({
@@ -519,12 +570,11 @@ function measureFaces(room: LoadedRoom, g: Geometry, typefaces: readonly CapRati
 }
 
 /** Each bound face's smallest cap height on both reference stages at the production framing, in scene order, as RG7
- *  measures it, from each typeface use's cap ratio as the index's typefaces[] carries it: for the report's Legibility
- *  table, which sets each beside the floor (contracts/room-bundle.md §10). A text region whose use has no ratio there
- *  is left out of its face's measure. */
-export function faceCaps(room: LoadedRoom, typefaces: readonly CapRatio[]): FaceCaps[] {
-  const g = geometry(room);
-  return g ? measureFaces(room, g, typefaces) : [];
+ *  measures it, from each typeface use's cap ratio as the index's typefaces[] carries it (`lookTypefaces`): for the
+ *  report's Legibility table, which sets each beside the floor (contracts/room-bundle.md §10). A text region whose use
+ *  has no ratio there is left out of its face's measure. */
+export function faceCaps(g: Geometry | null, typefaces: readonly CapRatio[]): FaceCaps[] {
+  return g ? measureFaces(g, typefaces) : [];
 }
 
 /** The characters an atmosphere face draws from the data: its blocks' lines but pending ones, its outlines' words, and
@@ -550,7 +600,7 @@ function characters(room: LoadedRoom, binding: FaceBinding): number {
  *  atmosphere on a face the catalog marks readable; an atmosphere face whose words run over its max_chars. */
 function legibility(ctx: Context, g: Geometry): void {
   const floor = capsOf(ctx.policy).legibility_floor_css_px;
-  for (const f of measureFaces(ctx.room, g, lookTypefaces(ctx.room, g.scene.value.look, ctx.tree))) {
+  for (const f of measureFaces(g, lookTypefaces(ctx.room, ctx.tree))) {
     const at = (...more: string[]): string => ctx.path("placements", f.placement, "faces", f.role, ...more);
     const binding = g.scene.value.placements[f.placement]?.faces?.[f.role];
     if (f.atmosphere) {
@@ -599,8 +649,9 @@ export interface PoseSeparation {
   readonly status: "apart" | "under the floor";
 }
 
-/** What moves with a pose: the piece's bounds' corners at its stylized scale and the cable's run, in the world, and the
- *  glow levels it sets on other placements, by placement and glow. */
+/** What moves with a pose: the corners of the piece's bounds, its set model's measured ones or the expected ones at its
+ *  stylized scale, and the cable's run, in the world; and the glow levels it sets on other placements, by placement and
+ *  glow. */
 interface Parts {
   readonly points: readonly Vec3[];
   readonly glows: ReadonlyMap<string, number>;
@@ -635,8 +686,10 @@ function partsOf(g: Geometry, sw: Switch, piece: CatalogEntry, name: string): Pa
   const anchor = pose && on && anchorOf(on.entry, pose.mount.anchor);
   if (!pose || !on || !anchor) return null;
   const world = mountWorld(on.world, on.entry.stylized_scale, anchor, pose.mount.offset, pose.mount.turn);
-  const model = modelOf(world, piece.stylized_scale);
-  const points = corners(piece.origin.bounds).map((c) => transformPoint(model, c));
+  const measured = g.set.get(sw.piece);
+  const points = measured
+    ? corners(measured).map((c) => transformPoint(world, c))
+    : corners(piece.origin.bounds).map((c) => transformPoint(modelOf(world, piece.stylized_scale), c));
   points.push(...(runAt(g, sw, piece, world)?.points ?? []));
   return { points, glows: new Map(pose.glows.map((x) => [glowKey(x.placement, x.glow), x.level])) };
 }
@@ -668,13 +721,13 @@ function separation(g: Geometry, a: Parts, b: Parts, view: Projector, stage: Sta
   return most;
 }
 
-/** RG8's measures: for each switch, every two poses a tier value shows, through its case or the default, in the order
- *  the switch gives its poses, apart by the floor of main's caps (or 9) on both reference stages, or under it. */
-export function poseSeparations(room: LoadedRoom, policy: RoomPolicy): PoseSeparation[] {
-  const g = geometry(room);
+/** RG8's measures, which the report prints: for each switch, every two poses a tier value shows, through its case or
+ *  the default, in the order the switch gives its poses, apart by the floor of main's caps (or 9) on both reference
+ *  stages, or under it. */
+export function poseSeparations(g: Geometry | null, policy: RoomPolicy): PoseSeparation[] {
   if (!g) return [];
   const floor = capsOf(policy).legibility_floor_css_px;
-  const views = REFERENCE.map(([, stage]) => ({ stage, view: cameraAt(g, stage.w / stage.h).view }));
+  const views = g.reference.map(({ stage, camera }) => ({ stage, view: projector(camera, stage.w / stage.h) }));
   const out: PoseSeparation[] = [];
   g.scene.value.switches.forEach((sw, i) => {
     const piece = g.pieces.get(sw.piece);
@@ -721,16 +774,84 @@ function regions(ctx: Context, g: Geometry): void {
   });
 }
 
-/** Each resolved placement's framed box by its ID (contracts/room-data-files.md §13.3), as RG4 to RG8 measure it: the
- *  catalog's expected bounds at the stylized scale through its world transform, raised where it has a label. */
-export function frameBoxes(room: LoadedRoom): ReadonlyMap<string, Box> {
-  return geometry(room)?.boxes ?? new Map();
+// ---- What the bundle carries ----
+
+/** Each resolved placement's framed box by its ID (contracts/room-data-files.md §13.3), as RG4 to RG8 measure it and the
+ *  3D part's frame_box carries it: a set model's measured bounds through its world transform, or the catalog's expected
+ *  bounds at the stylized scale through it, raised where it shows a stand-in with a label. */
+export function frameBoxes(ctx: Context): ReadonlyMap<string, Box> {
+  return geometryOf(ctx)?.boxes ?? new Map();
+}
+
+/** Each selectable's members in the 2D drawing, in scene order: each member's frame box projected through framing(1.6)
+ *  into the 320 × 200 view box, its rectangle to 1e-4 view-box units and its depth to 1e-6 m, as the index's flat hits
+ *  carry them (contracts/room-bundle.md §3.1), so RG6 holds to their cores the rectangles the 2D room picks from. A
+ *  member that doesn't resolve, or has a corner behind the camera, is left out. */
+export function flatMembers(g: Geometry): MemberRect[][] {
+  return g.scene.value.selectables.map((selectable) =>
+    selectable.members.flatMap((m) => {
+      const box = g.boxes.get(m);
+      const member = box && memberRect(box, g.flat, FLAT_VIEW);
+      if (!member) return [];
+      const [x, y, w, h] = member.rect;
+      const rect = [onGrid(x, 1e4), onGrid(y, 1e4), onGrid(w, 1e4), onGrid(h, 1e4)] as const;
+      return [{ rect, depth: onGrid(member.depth, 1e6) }];
+    }),
+  );
+}
+
+/** A bound face's canvas size and its largest on-screen size at the reference stages: the index's faces[] px and
+ *  screen_css (contracts/room-bundle.md §3.1), by which RK3 sizes its canvas on the reference phone (FR-054). */
+export interface FaceScreen {
+  readonly placement: string;
+  readonly role: string;
+  readonly px: readonly [number, number];
+  /** In CSS pixels to 1e-4: the longer of its top and bottom edges, and of its two sides, on either reference stage; null
+   *  where a corner falls behind a camera, or its placement doesn't resolve. */
+  readonly screen: readonly [number, number] | null;
+}
+
+/** A face's on-screen size on a stage, in CSS pixels: the longer of its top and bottom edges, and of its two sides;
+ *  null where a corner isn't in front of the camera. */
+function screenSize(model: Mat4, face: FaceGeometry, camera: Camera, stage: Stage): readonly [number, number] | null {
+  const view = projector(camera, stage.w / stage.h);
+  const points = FACE_CORNERS.map(([u, v]) => transformPoint(model, facePoint(face, u, v)));
+  if (points.some((p) => !(view.depth(p) > camera.near))) return null;
+  // Its corners in reading order: top left, top right, bottom left, bottom right.
+  const css = points.map((p) => toStage(view.project(p), stage));
+  const apart = (i: number, j: number): number => {
+    const [a, b] = [css[i], css[j]];
+    return a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) : Number.NaN;
+  };
+  return [Math.max(apart(0, 1), apart(2, 3)), Math.max(apart(0, 2), apart(1, 3))];
+}
+
+/** Each bound face of each placement, the first of its ID, in scene order, with its sizes, as the index lists them. */
+export function faceScreens(g: Geometry): FaceScreen[] {
+  const out: FaceScreen[] = [];
+  for (const [id, i] of g.index) {
+    const p = g.scene.value.placements[i];
+    const entry = p && g.pieces.get(p.piece);
+    const model = g.resolved.model.get(id);
+    for (const role of Object.keys(p?.faces ?? {})) {
+      // A binding to a role its piece lacks is RI4's.
+      const live = entry?.live_faces.find((f) => f.role === role);
+      if (!live) continue;
+      const sizes = g.reference.map(({ stage, camera }) =>
+        model ? screenSize(model, faceOf(live), camera, stage) : null,
+      );
+      const largest = (k: 0 | 1): number => onGrid(Math.max(...sizes.map((s) => s?.[k] ?? 0)), 1e4);
+      const screen = sizes.every((s) => s !== null) ? ([largest(0), largest(1)] as const) : null;
+      out.push({ placement: id, role, px: live.px, screen });
+    }
+  }
+  return out;
 }
 
 /** RG: every rule of the family, in its order; RG3 is the loader's, and RG8 the report's. */
 export const rg: Family = (ctx) => {
   bounds(ctx);
-  const g = geometry(ctx.room);
+  const g = geometryOf(ctx);
   if (!g) return;
   cycles(ctx, g);
   framedSet(ctx, g);
