@@ -142,6 +142,7 @@ feat/004-setup                                        Phase 1 (Setup); now
   apps/web/build/approvals.ts                           [A] accepts the kind room-text; POLICY_FILES gains assets/policy/caps.json (R-57, R-13)
   apps/web/build/policy.ts                              [A] POLICY_PATHS gains caps.json, in the same order (R-13)
   apps/web/test/approvals.test.ts                       [A] a room-text approval on main breaks no build (R-57)
+  apps/web/test/smoke.test.ts                           [A] the built room-data.json's policy digest, over three files (R-13; §10)
   deploy/scripts/{web_image,test_web_image}.py          [A] POLICY_FILES gains caps.json; the image's label digests three files (R-13);
                                                             web_image.py runs in the Author's terminal, so the note lists it first (ADR 0017)
   apps/web/fonts/fonts.lock                             [A] schema 2: families[], each with its uses (R-38, B10)
@@ -152,6 +153,9 @@ feat/004-setup                                        Phase 1 (Setup); now
   apps/web/build/pdf.ts, apps/web/test/{fonts,pdf}.test.ts
                                                         [A] the PDF takes the families whose uses hold pdf, Plex Sans alone; the font test loops over families
   apps/web/package.json                                 [A] the script fonts:lock
+  apps/web/build/fonts-lock.ts, apps/web/test/fonts-lock.test.ts
+                                                        [A] its code: the families declared, the tarballs found by their integrity, the lock
+                                                            written with every digest computed; and its tests on tarballs made at run time
   docs/adr/0036-the-room-composed-from-data.md, docs/adr/README.md
                                                         [A] ADR 0036, proposed, and its row in the index (R-63)
   specs/000-local-foundations/contracts/telemetry.md    [A] §7.9 "Room live state" (R-61)
@@ -320,7 +324,8 @@ feat/004-us9-neon-sign                                Phase 11 (User Story 9, P3
 **From `main`, after line R's merges.**
 
 ```text
-feat/004-look                                         Phase 12 (Polish), first part: after the Author's first lookdev run, before US4's intake
+feat/004-look                                         User Story 3's scenario 5 (T149; §10): once line R has merged through feat/004-us3-lookdev and the
+                                                        Author has chosen the look on the whole vignette (T193); before US4's intake
   docs/adr/0010-real-time-avatar-rig-and-art-direction.md, docs/adr/README.md
                                                         [A] the chosen look; a new ADR 0037 instead if ADR 0010 is accepted first (R-44, R-63)
   apps/web/room/looks/<look>.yaml, apps/web/room/scene.yaml
@@ -436,7 +441,7 @@ Each row is detailed in the decisions and the contract it names. Every FR, FR-00
 
 ### 3.1 Task phases, for `/speckit-tasks`
 
-User Story 1 is the MVP: it ships on today's stand-ins, and every later story builds on it. User Story 2, the degraded mode, sits below User Stories 8 and 9, as Principle I requires: "Every user-facing capability MUST define its degraded mode before its happy path."
+User Story 1 is the MVP: it ships on today's stand-ins, and every later story builds on it. User Story 3, the lookdev page, comes right after it, on the Author's overnight direction ([§10](#10-departures-from-this-plan)), and the phases follow tasks.md's order. User Story 2, the degraded mode, still sits below User Stories 8 and 9, as Principle I requires: "Every user-facing capability MUST define its degraded mode before its happy path."
 
 | Phase | Branch, and its base | What | Starts | Merges | Proof |
 |---|---|---|---|---|---|
@@ -446,19 +451,20 @@ User Story 1 is the MVP: it ships on today's stand-ins, and every later story bu
 | 1 Setup | `feat/004-intake`, from `main` | P-5 (once the IPTC term is confirmed), P-7, P-8, and P-6's draft; the scrubber and the credits; ADRs 0010 and 0030 | after M7 | M8 | Q2 |
 | 1 Setup | `feat/004-content-check`, then `feat/004-gate`, from `main` | P-9; P-10 | after M9 | before line R's merges | Q7, Q6 |
 | 2 Foundational | `feat/004-foundation` | the schemas and the closed kinds; the kernel; the compositor's core (refusals, determinism, the policy's sources, the report, the generators); the GLB reader and fit check; the bundle's parts; the source scan; the built-site checks; the fixtures; the gzip parity | now | after Setup | Q3 |
-| 3 US1 (P1), the MVP | `feat/004-us1-composition` | spec 002's room as data, then FR-078's; the generated files; the 3D room, the 2D room, the list, and the text copy from the bundle; the pinned tests migrated | now | after M8, for P-7 | Q3 |
-| 4 US2 (P1) | `feat/004-us2-degraded` | the tier's reducer, with the live source off; the laptop's switch and its cable; pause, reduced motion, and hidden; the fault-injection suite | now | after US1 | Q4 |
-| 5 US3 (P1) | `feat/004-us3-lookdev` | the page and the fixtures, drafts only (B11); the phone copy and its probe; the loader and its image plugin; the quality holds; the asset events, off | now; the Author's runs need the studio's desk and one sign | after US2 | Q5 |
-| 6 US4 (P2), first part | `feat/004-us4-studio` | the handoff; gzip serving (B14); the `room-assets` context; the "Credits" link (C9) | now | after US3 | Q6's serving checks |
-| 6 US4 (P2), second part | `feat/004-us4-intake`, from `main` | the first room files, the desk and one sign (C10): spec 002's T078, which B13 moves here | after P-5, P-6, P-10, line R's merges, and Phase 12's first part | after its gate | Q6 |
-| 7 US5 (P2) | `feat/004-us5-words` | the renderers; room text as drafts; the text copy equal to the drawing; the chalkboard's rules; the legibility report | now, as drafts | after US4's first part | Q7 |
+| 3 US1 (P1), the MVP | `feat/004-us1-composition` | spec 002's room as data, then FR-078's; `roomBundle()` in the site with the first data; the generated files; the 3D room, the 2D room, the list, and the text copy from the bundle; the pinned tests migrated | now | after M8, for P-7 | Q3 |
+| 4 US3 (P1) | `feat/004-us3-lookdev` | the page and the fixtures, drafts only (B11); the phone copy and its probe; the loader and its image plugin; the quality holds; the asset events, off | now; the Author's runs need the studio's desk and one sign | after US1 | Q5 |
+| 4 US3 (P1), its scenario 5 | `feat/004-look`, from `main` | the look in ADR 0010, and the work orders regenerated | once line R's branches through `feat/004-us3-lookdev` have merged, and the Author has chosen the look on the whole vignette (T193) | after its gate | Q5 |
+| 5 US2 (P1) | `feat/004-us2-degraded` | the tier's reducer, with the live source off; the laptop's switch and its cable; pause, reduced motion, and hidden; the fault-injection suite; the lookdev page's pause and cable states | now | after US3 | Q4 |
+| 6 US7 (P2) | `feat/004-us7-access` | the list; "Around the room" in its place; the hit areas; the 320 × 568 layout, sized for five controls; the axe check | now | after US2 | Q9 |
+| 7 US5 (P2) | `feat/004-us5-words` | the renderers; room text as drafts; the text copy equal to the drawing; the chalkboard's rules; the legibility report; the lookdev page's faces, glows, and glyph readout, and the whole vignette's run | now, as drafts | after US7 | Q7 |
 | 8 US6 (P2) | `feat/004-us6-topics` | the selectables' actions; the fixed messages with their phrases; FR-038's turn; B4's scaffold cases | now | after US5 | Q8 |
-| 9 US7 (P2) | `feat/004-us7-access` | the list; "Around the room" in its place; the hit areas; the 320 × 568 layout; the axe check | now | after US6 | Q9 |
-| 10 US8 (P3) | `feat/004-us8-live-tier` | the poller, with the live source off; the frame log; the HAR checker; later, the switch-on | the poller now; the switch-on after spec 001 | after US7; the switch-on after spec 001 | Q10 |
-| 11 US9 (P3) | `feat/004-us9-neon-sign` | the cost channel; the counters reading "cost unavailable" | now | after US8 | Q11 |
-| 12 Polish | `feat/004-look`, then `feat/004-close`, each from `main` | the look in ADR 0010, and the work orders regenerated; then FR-078's measured layout, the phone's measured stage, the success-criteria table, and converge | after the Author's first lookdev run; last | — | Q5, Q12 |
+| 9 US4 (P2), first part | `feat/004-us4-studio` | the handoff; gzip serving (B14); the `room-assets` context; the "Credits" link (C9) | now | after US6 | Q6's serving checks |
+| 9 US4 (P2), second part | `feat/004-us4-intake`, from `main` | the first room files, the desk and one sign (C10): spec 002's T078, which B13 moves here | after P-5, P-6, P-10, line R's merges through `feat/004-us4-studio`, and the look | after its gate | Q6 |
+| 10 US8 (P3) | `feat/004-us8-live-tier` | the poller, with the live source off; the frame log; the HAR checker; later, the switch-on | the poller now; the switch-on after spec 001 | after US4's first part; the switch-on after spec 001 | Q10 |
+| 11 US9 (P3) | `feat/004-us9-neon-sign` | the cost channel; the counters reading "cost unavailable"; the lookdev page's sample figures | now | after US8 | Q11 |
+| 12 Polish | `feat/004-close`, from `main` | FR-078's measured layout, the phone's measured stage, the success-criteria table, and converge | last | — | Q12 |
 
-Phase 6's second part comes after Phase 12's first part: the look is recorded, and the work orders follow it, before the first room files come in (FR-070; the intent's order).
+Phase 9's second part comes after the look, Phase 4's `feat/004-look`: the look is recorded, and the work orders follow it, before the first room files come in (FR-070; the intent's order).
 
 ### 3.2 Now, and what waits
 
@@ -490,13 +496,15 @@ The Author's merges and patches (§4), in order:
   feat/004-intake           from main after M7      ──→ merged at M8
   M4 with P-1 is recommended at once: until P-1, this repository's sessions can read the outputs and workflows folders
 
-Line R (now, on feat/002-us6-events; rebased onto main after M9; merged in this order after P-10):
-  setup → foundation → US1 → US2 → US3 → US4 (studio docs, serving) → US5 → US6 → US7 → US8 (poller) → US9 (counters)
+Line R (now, on feat/002-us6-events; rebased onto main after M9; merged in this order after P-10; tasks.md's order, §10):
+  setup → foundation → US1 → US3 (lookdev) → US2 → US7 → US5 → US6 → US4 (studio docs, serving) → US8 (poller) → US9 (counters)
 
-After line R:
-  the Author's first lookdev run (US3's page; the studio's desk and one sign as candidates; the phone probe first)
-    → feat/004-look (the look in ADR 0010; the work orders regenerated)
-    → feat/004-us4-intake (the desk and one sign; P-5, P-6, P-10 on main) → the remaining pieces, each through the intake
+From main, beside line R's merges:
+  the Author's morning lookdev runs (US3's page; the studio's desk and one sign as candidates; the phone probe first)
+    → the whole vignette's run on US5's branch (T193), where the Author chooses the look
+    → feat/004-look, once line R has merged through feat/004-us3-lookdev (the look in ADR 0010; the work orders regenerated)
+    → feat/004-us4-intake, once line R has merged through feat/004-us4-studio (the desk and one sign; P-5, P-6, P-10 on main)
+    → the remaining pieces, each through the intake
   P-9, the Author's approvals, and the outlines (P-8)  ──→ room text ships (US5)
   spec 001: GET /api/status with A1 to A3; row V7      ──→ US8's switch-on: live.source site; A4's words on V7; S1's cells; §7.9's panels
   spec 001's dev relay; P-11's branch, then P-11       ──→ US8's switch-on rebased and gated, with SC-004's harness (§4.2)
@@ -704,9 +712,25 @@ The amendments to specs 000 to 003:
 
 ## 10. Departures from this plan
 
-None yet. CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the same commit." Line R carries this file from its first branch, so a departure updates it there.
+CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the same commit." Line R carries this file from its first branch, so a departure updates it there, in the commit that makes it.
 
-One departure is foreseen, and conditional. If the phone probe stops ("This browser can't run the vignette from a local file."), lookdev runs on the desktop at the phone's stage size and pixel ratio, FR-069's option B. This section then records, for the Author and with the probe's results, that departure from the intent's order ("Lookdev settles the look on a small vignette, at the room's real framing, on a reference phone"). SC-005, SC-006's phone figure, and SC-010's phone judgment then wait for the first release build after publication (R-42).
+**Recorded:**
+- **Line R follows tasks.md's order, so the lookdev page comes first** (T003, 2026-10-23). This plan stacked the stories in number order. Line R stacks setup → foundation → `feat/004-us1-composition` → `feat/004-us3-lookdev` → `feat/004-us2-degraded` → `feat/004-us7-access` → `feat/004-us5-words` → `feat/004-us6-topics` → `feat/004-us4-studio` → `feat/004-us8-live-tier` → `feat/004-us9-neon-sign`, and merges in that order, on the Author's overnight direction, which tasks.md's Prerequisites quote: "I want you to keep going! that way i can do the merges and lookdev with the studio input in the morning". [§3.1](#31-task-phases-for-speckit-tasks)'s table and [§3.3](#33-dependencies)'s line R chain carry the order. The phase numbers elsewhere in this plan (§2's and §8's tables, and the Project Structure's labels) are the story order's; tasks.md numbers its phases in this order. Its consequences, each with the task that carries it:
+  - `roomBundle()` replaces `roomContentModule` in User Story 1, with the first data (T096), not in the foundation, which proves the compositor and its plugin on fixture trees.
+  - The source scan's committed-tree case turns on at the end of User Story 1's migration (T107, T112).
+  - FR-078's data lands in two commits: its pieces first, with spec 002's three selectables (T100), and the chalkboard's selectable with FR-036's topics after the migration (T113).
+  - The lookdev page ships before the motion store, the faces, and the cost channel, so User Story 2 wires its pause and the cable states into it (T162), User Story 5 its faces, glows, and glyph readout (T192), and User Story 9 its sample figures (T267).
+  - The morning runs (T143 to T145) show the vignette without the terminal, the neon glow, and the cable tube. FR-070's runs with the whole vignette ("the desk, the monitor and its terminal, the neon sign's glow, the laptop's cable states, one sign, a corner of the chalkboard, and a bicycle wheel"), where the Author chooses the look, are T193 on the desktop, on User Story 5's branch, and T287 on the reference phone. FR-070's first wording, "THE FIRST LOOKDEV RUN SHALL use the intent's vignette", didn't allow that: the first runs come earlier, with part of it.
+    **Not accepted yet: the Author decides before the morning runs** (the review of `feat/004-setup`, finding F1, 2026-10-23). This consequence departs from a requirement, not only from this plan, and CLAUDE.md's rule covers the plan alone. The `/speckit-analyze` remediation (d5e8ec3, now cherry-picked onto line R) amends FR-070 in spec.md: the look is chosen on runs that show the whole vignette, and earlier runs may show part of it and are preliminary. It records the amendment as Confirmation 21, which waits for the Author's yes, since the direction quoted above doesn't accept a partial first run by itself. So branch `feat/004-setup`'s merge-request note puts the decision first under "For the Author":
+    - **On a yes,** FR-070's amendment stands, and this entry is marked accepted.
+    - **On a no,** FR-070 keeps its first wording, and the morning runs judge no look (Confirmation 21). Either User Stories 2 and 5 go back ahead of User Story 3, or T144 and T145 wait for T193's branch, the probe (T143), which loads no model, still coming first.
+  - `feat/004-look` moves from Polish to User Story 3's phase (its scenario 5), and branches from `main` once line R's branches through `feat/004-us3-lookdev` have merged (T149); `feat/004-us4-intake` waits for line R's merges through `feat/004-us4-studio` (T231). The Project Structure's `feat/004-look` line, contracts/intake-amendments.md §16's row for ADR 0010's look, and quickstart.md Q5's step 7 say so (the review of `feat/004-setup`, finding N3); research.md's R-44 and R-63 still say "a Polish branch", and this entry supersedes them.
+  - The "Credits" link stays in User Story 4's first part, now after User Story 7, whose narrow-portrait rules are sized for five controls (T171, T223).
+  - User Story 2's Author run sees no neon counters or glow cards yet (T165), and User Story 7's screen-reader run hears no face's words or sign's figures (T174), so Q9's screen-reader run is made again on User Story 5's branch (T197).
+  - A later task that departs further updates this section in its own commit (CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the same commit").
+- **`apps/web/test/smoke.test.ts` changes on `feat/004-setup`** (T004, 2026-10-23). The smoke test pins the built `room-data.json`'s policy digest over spec 002's two policy files, so taking `caps.json` into the digest (R-13) changes its expected value on this branch, before the foundation's own changes to that file. The Project Structure lists it.
+
+**Foreseen, and conditional.** If the phone probe stops ("This browser can't run the vignette from a local file."), lookdev runs on the desktop at the phone's stage size and pixel ratio, FR-069's option B. This section then records, for the Author and with the probe's results, that departure from the intent's order ("Lookdev settles the look on a small vignette, at the room's real framing, on a reference phone"). SC-005, SC-006's phone figure, and SC-010's phone judgment then wait for the first release build after publication (R-42).
 
 ## Constitution Check (post-design)
 

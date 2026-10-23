@@ -693,7 +693,7 @@ Spec 001's cloud rows, C1 to C11, keep their IDs.
 |---|---|---|---|
 | 0036, "The room composed from data" | New. The decision: the catalog and the scene compile into one deterministic bundle, which the 3D room, the 2D room, and the text copy all read. Behaviour kinds are a closed list in code. Plain models pass one fit check, shared with the lookdev page. Every word is drawn live from approved room text, UI words, or live values. Caps are read from `main`. Alternatives: the hand-coded scene; glTF `extras` for behaviour, which rule M4 refuses and which would let data steer code; a scripting layer; and text baked into textures | `feat/004-setup` | proposed |
 | 0010, spec 003's real-time avatar rig and art direction | gains the room caps (Amendment C7) | `feat/004-intake` | stays proposed until lookdev |
-| 0010 | records the look the lookdev run chooses (FR-070) | a Polish branch from `main` | — |
+| 0010 | records the look the lookdev run chooses (FR-070) | `feat/004-look`, from `main` once line R has merged through `feat/004-us3-lookdev` (tasks.md T149; plan.md §10) | — |
 | 0030, spec 003's media license and AI mark | takes Amendment C1: the mark follows the record | `feat/004-intake` | proposed |
 | 0037 | needed only if the Author accepts ADR 0010 before one of its changes above lands; it then amends ADR 0010 with that change instead | that change's branch | — |
 

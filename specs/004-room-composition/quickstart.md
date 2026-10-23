@@ -230,7 +230,7 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
 5. **The results:** the JSON block ([lookdev.md](contracts/lookdev.md) §6) goes into the note. It holds no file name, path, or device identifier beyond the viewport and pixel ratio.
 6. **Approve** only the SHA-256 the page showed (FR-023, FR-068), at the intake (Q6).
 7. **The look** (FR-070, User Story 3 scenario 5):
-   - the chosen look goes into ADR 0010, on a Polish branch, or into ADR 0037 if ADR 0010 is accepted first;
+   - the chosen look goes into ADR 0010, on `feat/004-look` from `main` once line R has merged through `feat/004-us3-lookdev` (tasks.md T149; plan.md §10), or into ADR 0037 if ADR 0010 is accepted first;
    - the agents then run `npm run room:generate -w apps/web`, so the work orders regenerate before the remaining pieces are modeled.
 
 ## Q6. User Story 4: the first room files, through the intake (FR-015 to FR-028, FR-073, FR-079; SC-006, SC-013; Amendments C1 to C11)
