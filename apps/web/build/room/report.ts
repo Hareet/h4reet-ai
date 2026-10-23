@@ -4,8 +4,9 @@
 // - the header: the bundle's digest (its first 16 hex), the build's kind, and the caps' source and SHA-256, or FR-053's
 //   starting figures while main has no room block;
 // - a row per catalog entry: how many placements and poses show it, its source (the studio file, the stand-in and why,
-//   with the findings' rules and never their data, or the avatar a figure shows), its model's plain and gzip-9 bytes,
-//   triangles, and texture memory, and its budget; its stylized scale beside its ID where above 1;
+//   with the findings' rules and never their data, or the avatar a figure shows), its model's plain and gzip-9 bytes
+//   (a card's plain length in both, "as stored", since it is served and checked so), triangles, and texture memory, and
+//   its budget; its stylized scale beside its ID where above 1;
 // - the totals: the largest set model against the caps; the scene's texture memory by class, RK3's own sum through its
 //   own function (checks/rk.ts's `sceneTextureTotal`, at the bundle's framing): each piece placed by a placement that
 //   isn't a figure's, or by a switch, by its budget once, models and image cards by its picture's class; the twin's
@@ -121,10 +122,11 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
         count(m.textureBytes ?? 0),
       ];
     } else if (picture.kind === "card") {
+      // A card is served as stored, and RK2 and the first visit count it so: its plain length, never a gzip-9 copy's.
       cells = [
         `studio, ${file(picture.file)}`,
         count(picture.bytes.length),
-        count(gzipBytes(picture.bytes)),
+        `${count(picture.bytes.length)} as stored`,
         DASH,
         count(picture.textureBytes),
       ];
