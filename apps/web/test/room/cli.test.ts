@@ -276,9 +276,17 @@ describe("report and scan (contracts/room-bundle.md §10, §12; contracts/room-d
   });
 
   it("scan prints each hit and exits 1, and exits 0 on none", async () => {
-    const id = namespaceIds(loadRoom(goodTree())).selectables[0] ?? "";
-    expect(id).not.toBe("");
-    const root = repository([["apps/web/src/planted.ts", `export const planted = "${id}";\n`]]);
+    // The scan never hits an ID with the reserved prefix fx-, so the repository's data holds the set's IDs as
+    // committed data could: each fx- made fy-, in paths and in data files.
+    const unprefixed = [...goodFiles()].map(([path, bytes]): readonly [string, string | Uint8Array] => [
+      path.replaceAll("fx-", "fy-"),
+      /\.(ya?ml|json|md)$/.test(path) ? new TextDecoder().decode(bytes).replaceAll("fx-", "fy-") : bytes,
+    ]);
+    const root = temp("room-cli-");
+    write(root, unprefixed);
+    const id = namespaceIds(loadRoom(fileTree(root))).selectables[0] ?? "";
+    expect(id.startsWith("fy-")).toBe(true);
+    write(root, [["apps/web/src/planted.ts", `export const planted = "${id}";\n`]]);
     expect(await cli(root, ["scan"])).toEqual({
       code: 1,
       out: [`FR-007 apps/web/src/planted.ts:1: holds "${id}", which only the room's data defines`, "room: 1 hit"],
