@@ -290,6 +290,11 @@ describe("the drawing (drawFlat)", () => {
     for (const bad of refused) expect(() => drawFlat(doc, withItem(bad), "dog"), JSON.stringify(bad)).toThrow();
     expect(() => drawFlat(doc, withItem(rect, [1, 0, 0, 1, Number.POSITIVE_INFINITY, 0]), "dog")).toThrow();
     expect(() => drawFlat(doc, withItem(rect, [1, 0, 0, 1, 0]), "dog")).toThrow();
+    // The visitor's place and scale, which the avatar's polygons are drawn at, are the index's numbers too.
+    for (const key of ["x", "baseline", "scale"] as const) {
+      const visitor = { ...index.flat.visitor, [key]: Number.NaN };
+      expect(() => drawFlat(doc, { ...index, flat: { ...index.flat, visitor } }, "dog"), key).toThrow();
+    }
     // A word is text: a label made of markup draws as its characters, and makes no element.
     const ui = { ...index.ui, "standin.label": "<img src=x onerror=alert(1)> {name}" };
     const { root } = drawFlat(doc, { ...index, ui }, "dog");
