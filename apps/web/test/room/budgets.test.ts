@@ -209,7 +209,9 @@ describe("RK2: a model over its piece's budget", () => {
 });
 
 describe("RK3: the scene's texture memory on the reference phone, by class", () => {
-  /** The known-good set's budgets of texture_bytes for every piece the scene places, its switch's plug included. */
+  /** The known-good set's budgets of texture_bytes for every piece the scene places, its switch's plug included, but
+   *  the figures' pieces, fx-twin and fx-visitor: a figure shows an avatar, which RK3 measures, so its piece's budget,
+   *  349,525 bytes each, bounds no file and counts nothing. */
   const PLACED = {
     "fx-shell": 1_398_101,
     "fx-desk": 5_592_405,
@@ -218,13 +220,11 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     "fx-laptop": 1_398_101,
     "fx-board": 5_592_405,
     "fx-sign": 349_525,
-    "fx-twin": 349_525,
-    "fx-visitor": 349_525,
     "fx-plug": 87_381,
   };
   const sum = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0);
 
-  it("adds each piece the scene places once, by its budget, the switch's piece among them", () => {
+  it("adds each piece the scene places once, by its budget, the switch's piece among them and the figures' not", () => {
     const memory = sceneTextureMemory(contextOf(goodTree()));
     expect(memory.pieces).toBe(sum(Object.values(PLACED)));
     // A second placement of a piece shares its textures.
@@ -241,11 +241,37 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     // A piece no placement or switch places adds nothing.
     const unswitched = overlay({ [SCENE]: edited(SCENE, (v) => (v.switches = [])) });
     expect(sceneTextureMemory(contextOf(unswitched)).pieces).toBe(memory.pieces - PLACED["fx-plug"]);
+    // A figure's piece that a placement without a role places too counts once, by its budget, for that placement.
+    const statue = overlay({
+      [SCENE]: edited(SCENE, (v) => {
+        (v.placements as Data[]).push({
+          id: "fx-statue",
+          piece: "fx-twin",
+          mount: { on: "fx-shell", anchor: "wall" },
+        });
+      }),
+    });
+    expect(sceneTextureMemory(contextOf(statue)).pieces).toBe(memory.pieces + 349_525);
   });
 
   it("counts the figures 0 while assets/twin/ and assets/visitors/ hold no model", () => {
     const memory = sceneTextureMemory(contextOf(goodTree()));
     expect([memory.twin, memory.visitor, memory.figures]).toEqual([null, null, 0]);
+    expect(memory.unread).toEqual({ twin: 0, visitor: 0 });
+    expect(memory.total).toBe(memory.pieces + memory.canvases);
+  });
+
+  it("counts a figure's model that can't be read 0, and says how many there are, never as a model measured at 0", () => {
+    const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
+    const unreadable = desk().bytes.subarray(0, 40);
+    const tree = overlay({
+      "assets/twin/fx-twin.glb": desk().bytes,
+      "assets/twin/fx-twin-hands.glb": unreadable,
+      "assets/visitors/fx-dog/fx-dog.glb": unreadable,
+    });
+    const memory = sceneTextureMemory(contextOf(tree));
+    expect([memory.twin, memory.visitor, memory.figures]).toEqual([deskMemory, 0, deskMemory]);
+    expect(memory.unread).toEqual({ twin: 1, visitor: 1 });
   });
 
   it("adds the twin's measured texture memory and the largest visitor avatar's", () => {
@@ -259,6 +285,21 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
     expect(textureMemory(4, 4) + textureMemory(8, 8)).toBeLessThan(deskMemory);
     expect([memory.twin, memory.visitor, memory.figures]).toEqual([deskMemory, deskMemory, 2 * deskMemory]);
+  });
+
+  it("measures the twin's models together, and each avatar's together, the largest avatar counting", () => {
+    const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
+    const signMemory = textureMemory(4, 4) + textureMemory(8, 8);
+    const tree = overlay({
+      "assets/twin/fx-twin.glb": desk().bytes,
+      "assets/twin/fx-hands/fx-hands.glb": sign().bytes,
+      "assets/visitors/fx-dog/fx-dog.glb": desk().bytes,
+      "assets/visitors/fx-dog/fx-collar.glb": sign().bytes,
+      "assets/visitors/fx-cat/fx-cat.glb": desk().bytes,
+    });
+    const memory = sceneTextureMemory(contextOf(tree));
+    expect([memory.twin, memory.visitor]).toEqual([deskMemory + signMemory, deskMemory + signMemory]);
+    expect(memory.figures).toBe(2 * (deskMemory + signMemory));
   });
 
   it("sizes each bound face's canvas at min(px, its largest on-screen size × the reference phone's ratio), at most", () => {

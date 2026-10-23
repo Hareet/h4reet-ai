@@ -8,12 +8,16 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
+import { createContext } from "../../build/room/checks/family";
+import { sceneTextureMemory } from "../../build/room/checks/rk";
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { emit } from "../../build/room/emit";
 import { loadRoom } from "../../build/room/load";
 import { noPolicy } from "../../build/room/policy";
+import { textureMemory } from "../../src/room/glb/fit";
 import { gzipBytes } from "../../src/room/glb/gzip";
+import { desk, png, sign } from "../helpers/glb";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
@@ -132,6 +136,48 @@ describe("the report's totals", () => {
     expect(result.report.markdown).toContain(
       "Per piece, the largest against the caps: 0 of 2,500,000 gzip-9 bytes; 0 of 40,000 triangles.",
     );
+  });
+
+  it("prints RK3's own total and classes, through RK3's function: the figures' models measured, a set card a card", () => {
+    const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
+    const signMemory = textureMemory(4, 4) + textureMemory(8, 8);
+    const card = png({ width: 8, height: 8 });
+    const signEntry = decoder.decode(goodFiles().get("apps/web/room/catalog/fx-sign.yaml"));
+    const record = {
+      schema: 1,
+      directory: "assets/room",
+      license: "all-rights-reserved-2026",
+      entries: [{ file: "fx-sign.png", sha256: sha256(card), kind: "room" }],
+    };
+    const tree = overlay({
+      "apps/web/room/catalog/fx-sign.yaml": `${signEntry}model: { card: fx-sign.png }\n`,
+      "assets/room/fx-sign.png": card,
+      "assets/room/records.json": `${JSON.stringify(record, null, 2)}\n`,
+      // The twin in two models, and three avatars: two models, one, and one that can't be read.
+      "assets/twin/fx-twin.glb": desk().bytes,
+      "assets/twin/fx-hands/fx-hands.glb": sign().bytes,
+      "assets/visitors/fx-dog/fx-dog.glb": desk().bytes,
+      "assets/visitors/fx-dog/fx-collar.glb": sign().bytes,
+      "assets/visitors/fx-cat/fx-cat.glb": desk().bytes,
+      "assets/visitors/fx-owl/fx-owl.glb": desk().bytes.subarray(0, 40),
+    });
+    const policy = capsPolicy();
+    const options = { mode: "strict", drafts: true } as const;
+    const result = compose(tree, policy, options);
+    expect(result.findings).toEqual([]);
+    const rk3 = sceneTextureMemory(createContext(loadRoom(tree), policy, options, tree).ctx);
+    expect([rk3.figures, rk3.unread]).toEqual([2 * (deskMemory + signMemory), { twin: 0, visitor: 1 }]);
+    expect(rk3.cards).toBe(349_525);
+    expect(rk3.models + rk3.cards).toBe(rk3.pieces);
+    expect(rk3.total).toBe(rk3.pieces + rk3.figures + rk3.canvases);
+    const md = result.report.markdown;
+    expect(md).toContain(
+      `Scene texture memory: ${thousands(rk3.total)} of 96,000,000 bytes (models ${thousands(rk3.models)} · ` +
+        `image cards ${thousands(rk3.cards)} · avatars ${thousands(rk3.figures)} · ` +
+        `live-face canvases ${thousands(rk3.canvases)}).`,
+    );
+    expect(md).toContain("1 model under assets/visitors/ can't be read, so it counts 0.");
+    expect(md).not.toMatch(/have no file under assets/);
   });
 
   it("notes a small prop the caps name that the catalog doesn't have, by its index", () => {
