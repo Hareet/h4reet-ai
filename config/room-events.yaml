@@ -16,6 +16,7 @@ objects:
   - "snowboard"
   - "bicycle"
   - "laptop"
+  - "chalkboard"
 items:
   - "ai-strategy"
   - "change-management"

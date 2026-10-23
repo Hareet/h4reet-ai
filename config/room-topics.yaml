@@ -18,3 +18,8 @@ selectables:
     corpus:
       - "corpus/06-work-projects.md"
     lead: null
+  - id: "chalkboard"
+    topic: "mission"
+    corpus:
+      - "corpus/05-mission.md"
+    lead: null

@@ -130,8 +130,7 @@ switches:
       radius: 0.002
       drop: 0.1
       rest: { placement: work-desk, anchor: top }
-# FR-036's topics (B3, B4). The chalkboard's own selectable, opening the Author's mission, comes with the list and the
-# 2D room drawn from the bundle (T109, T110; plan.md §10).
+# FR-036's topics (B3, B4), and FR-078's chalkboard, which opens the Author's mission (answer 3).
 selectables:
   - id: snowboard
     name: Snowboard
@@ -146,6 +145,10 @@ selectables:
     name: Laptop and screen
     members: [laptop, laptop-stand, desk-screen]
     action: { talk: { topic: work-projects } }
+  - id: chalkboard
+    name: Chalkboard
+    members: [chalkboard]
+    action: { talk: { topic: mission } }
 handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
 survey: { desk_corner: { placement: work-desk, anchor: front-left } }
 retired:
