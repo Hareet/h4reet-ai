@@ -250,7 +250,10 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     root.append(group);
   }
 
-  const visitor = avatarPolygons(doc, avatar, flat.visitor.x, flat.visitor.baseline, flat.visitor.scale);
+  // The avatar's polygons are code's; where they stand, and at what scale, is the index's.
+  const { x: feet, baseline, scale } = flat.visitor;
+  if (![feet, baseline, scale].every(isNumber)) throw new Error("the 2D room refuses the visitor's place");
+  const visitor = avatarPolygons(doc, avatar, feet, baseline, scale);
   root.append(visitor);
 
   const labels = new Map<string, SVGElement>();
