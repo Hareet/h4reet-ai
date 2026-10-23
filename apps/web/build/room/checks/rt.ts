@@ -325,7 +325,7 @@ const SCRIPT_RULES: readonly (readonly [RegExp, string])[] = [
     /(?<![\w.~:/@-])\/[\w.-]+\/|(?<!\w)[A-Za-z]:[\\/]|\\\\[\w.-]+\\|(?<![\w.])\.\.?\//,
     "a local, absolute, or home path",
   ],
-  [/[\w.%+-]+@[\w-]+(?:\.[\w-]+)*/, "user@host or an email address"],
+  [/(?<![\w.%+-])[\w.%+-]+@[\w-]+(?:\.[\w-]+)*/, "user@host or an email address"],
   [/(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\.?\d)/, "an IP address"],
   [
     new RegExp(
@@ -338,7 +338,7 @@ const SCRIPT_RULES: readonly (readonly [RegExp, string])[] = [
 
 /** A URL's host: after a scheme, `www.`, or a domain with a path. */
 const URLS = [
-  /\b[a-z][a-z0-9+.-]*:\/\/(?:[^\s/?#@]*@)?([^\s/?#:]*)/gi,
+  /\b[a-z][a-z0-9+.-]{0,31}:\/\/(?:[^\s/?#@]{0,256}@)?([^\s/?#:@]{0,256})/gi,
   /(?<![\w.-])(www\.[\w.-]+)/gi,
   /(?<![\w.@/-])((?:[a-z0-9-]+\.)+[a-z]{2,})(?=\/)/gi,
 ];

@@ -16,6 +16,7 @@ import type { Item, ResumeSource } from "../../build/content";
 import { outlineProblem, scriptProblem } from "../../build/room/checks/rt";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, RoomPolicy } from "../../build/room/compose";
+import { loadRoom } from "../../build/room/load";
 import { noPolicy, policyFrom } from "../../build/room/policy";
 import { fileTree, overlayTree } from "../../build/room/source";
 import { TYPING_CHARS_PER_S, TYPING_LIMIT_S } from "../../src/room/compose/layout";
@@ -365,6 +366,15 @@ describe("RT7, the chalkboard's excludes (FR-033)", () => {
 
   it("holds a chalk block's exclude as the loader reads it", () => {
     expect(where("RT7", edit(NOTES, [["exclude"], undefined]))).toEqual([`RT7 ${NOTES}:exclude`]);
+  });
+
+  it('holds each committed chalk block to excluding "Seva", the Author\'s "leave it off the chalkboard"', () => {
+    const repository = loadRoom(fileTree(fileURLToPath(new URL("../../../../", import.meta.url))));
+    for (const block of repository.blocks.filter((b) => b.value.renderer === "chalk"))
+      expect(
+        block.value.exclude?.map((p) => p.trim().toLowerCase()),
+        block.file,
+      ).toContain("seva");
   });
 });
 
