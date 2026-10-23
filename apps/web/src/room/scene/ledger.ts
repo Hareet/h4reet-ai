@@ -1,7 +1,8 @@
 // The room's texture ledger (spec 004; FR-053, SC-006; research.md R-28, R-29; contracts/plain-model-fit.md §8.2):
 // every texture the room uploads, counted by FR-053's formula, width × height × 4 bytes and a third more for mipmaps,
-// against the whole scene's 96,000,000 bytes on a phone, the cap the compositor's RK3 holds the scene to before it
-// ships. An image counts once however many textures share it (GLTFLoader's clones, a piece's several placements), at
+// against the whole scene's cap on a phone, the caps' scene_texture_bytes the 3D part carries (FR-053's starting
+// 96,000,000 bytes until the Author sets another), the cap the compositor's RK3 holds the scene to before it ships.
+// An image counts once however many textures share it (GLTFLoader's clones, a piece's several placements), at
 // the size of its latest upload, until the last texture sharing it is disposed. The loader asks fits() before it swaps
 // a piece in, and a piece that wouldn't fit keeps its stand-in. A decoded bitmap is closed once uploaded: the GPU holds
 // its pixels, and keeping them would come close to doubling a phone's texture memory (R-28).

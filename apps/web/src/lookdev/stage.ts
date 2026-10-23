@@ -154,7 +154,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   canvas.setAttribute("aria-hidden", "true");
 
   const camera = new PerspectiveCamera();
-  const ledger = createTextureLedger();
+  const ledger = createTextureLedger(part.scene_texture_bytes);
   const floor = meetsModelFloor(options.capability);
   const framed = framedBoxes(part);
   const byId = new Map(part.placements.map((p) => [p.id, p]));

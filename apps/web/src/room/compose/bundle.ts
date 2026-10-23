@@ -208,4 +208,7 @@ export interface RoomScene {
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */
   load_order: string[];
+  /** The caps' scene_texture_bytes the compose used, FR-053's starting figure while main has no room block: the room's
+   *  texture ledger's limit, as RK3's at build time (plain-model-fit.md §8.2; an addition to §3.2, plan.md §10). */
+  scene_texture_bytes: number;
 }

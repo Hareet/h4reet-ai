@@ -1222,6 +1222,7 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       to: { placement: scene?.handoff.to.placement ?? "", anchor: scene?.handoff.to.anchor ?? "" },
     },
     load_order: loadOrder(entries),
+    scene_texture_bytes: c.caps.scene_texture_bytes,
   };
 }
 

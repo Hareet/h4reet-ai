@@ -256,7 +256,7 @@ export function createScene(options: SceneOptions): Stage3D {
           level: options.level ?? (() => 0),
           mode: options.mode ?? (() => "3d"),
           record: options.assets ?? (() => undefined),
-          ledger: createTextureLedger(),
+          ledger: createTextureLedger(part.scene_texture_bytes),
           uploader: renderer,
           prepare: (piece, model) => {
             const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
