@@ -585,7 +585,11 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     await settle(clock);
     buttonNamed(root, "Run 2 minutes").click();
     await settle(clock);
+    // While it measures, nothing changes its setting: the controls, the pickers, and Clear are off.
     expect(control<HTMLSelectElement>(root, "Look").disabled).toBe(true);
+    expect(root.querySelector<HTMLInputElement>(`input[data-piece="${piece}"]`)?.disabled).toBe(true);
+    const pieceRow = root.querySelector(`[data-candidate="${piece}"]`)?.closest(".lookdev-piece") as HTMLElement;
+    expect(buttonNamed(pieceRow, "Clear").disabled).toBe(true);
     clock.advance(120_000, 100);
     await settle(clock);
     const area = root.querySelector("textarea");
