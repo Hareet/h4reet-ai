@@ -13,7 +13,7 @@ import { parse } from "yaml";
 
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
-import { emit, serialize } from "../../build/room/emit";
+import { emit, pathExtent, serialize, viewPath } from "../../build/room/emit";
 import { loadRoom } from "../../build/room/load";
 import { CAPS_DEFAULTS, noPolicy, policyFrom } from "../../build/room/policy";
 import { isPathData } from "../../build/room/schema";
@@ -480,6 +480,156 @@ describe("the 2D drawing (flat)", () => {
     expect(flat.visitor.x).toBeCloseTo(feet.at[0], 3);
     expect(flat.visitor.baseline).toBeCloseTo(feet.at[1], 3);
     expect(flat.visitor.scale).toBeCloseTo(feet.ppm, 3);
+  });
+});
+
+describe("the 2D drawing's primitives", () => {
+  it("take path data to view-box units, y flipped: relative and implicit commands, and an arc's rotation and sweep", () => {
+    expect(viewPath("M 0 0 L 1 2 Z", 10)).toBe("M 0 0 L 10 -20 Z");
+    expect(viewPath("m 1 1 l 2 -1 h 3 v 4 z", 10)).toBe("m 10 -10 l 20 10 h 30 v -40 z");
+    expect(viewPath("M 0 0 1 1 2 2", 10)).toBe("M 0 0 10 -10 20 -20");
+    expect(viewPath("C 1 2 3 4 5 6 S 1 1 2 2 Q 1 1 2 2 T 3 3", 10)).toBe(
+      "C 10 -20 30 -40 50 -60 S 10 -10 20 -20 Q 10 -10 20 -20 T 30 -30",
+    );
+    expect(viewPath("M 0 0 A 1 2 30 0 1 3 4", 10)).toBe("M 0 0 A 10 20 -30 0 0 30 -40");
+    // An arc's flags read as single digits, as SVG reads them.
+    expect(viewPath("M0,0a1,1 0 0110,10", 10)).toBe("M 0 0 a 10 10 0 0 0 100 -100");
+    expect(viewPath("M 0 0 L 1e-7 0.00004", 10)).toBe("M 0 0 L 0 -0.0004");
+    expect(isPathData(viewPath("M 0.123456 -2 l 1.5e2 .5", 3.3) ?? "")).toBe(true);
+  });
+
+  it("bound a path by its end and control points, and an arc by its ellipse", () => {
+    expect(pathExtent("M 1 1 L 3 2 H 0 V 5 Z")).toEqual([0, 1, 3, 5]);
+    expect(pathExtent("m 1 1 l 1 1 l 1 -3")).toEqual([1, -1, 3, 2]);
+    expect(pathExtent("M 0 0 C 0 -2 4 -2 4 0")).toEqual([0, -2, 4, 0]);
+    // A half circle of radius 1 from (0, 0) to (2, 0): its circle's bounds, a radius too small grown to fit.
+    expect(pathExtent("M 0 0 A 1 1 0 0 1 2 0")).toEqual([0, -1, 2, 1]);
+    expect(pathExtent("M 0 0 A 0.5 0.5 0 0 1 2 0")).toEqual([0, -1, 2, 1]);
+    expect(pathExtent("")).toBeNull();
+  });
+
+  it("derive each stand-in shape's front elevation: turned and scaled, a torus as a ring and a tube as a line", () => {
+    const laptop = decoder
+      .decode(goodFiles().get("apps/web/room/catalog/fx-laptop.yaml"))
+      .replace(
+        /standin:\n( {2}- .*\n)+/,
+        [
+          "standin:",
+          "  - { shape: torus, radius: 0.05, tube: 0.01, at: [0, 0.1, 0], color: fx-ink }",
+          "  - { shape: tube, from: [-0.1, 0, 0], to: [0.1, 0.1, 0], radius: 0.005, at: [0, 0.05, 0], color: fx-ink }",
+          "  - { shape: polygon, points: [[0, 0], [0.1, 0], [0.05, 0.1]], depth: 0.01, at: [-0.15, 0, 0], color: fx-ink }",
+          "  - { shape: box, size: [0.2, 0.02, 0.1], at: [0, 0.01, 0], turn: { y: 90 }, color: fx-ink }",
+          "  - { shape: sphere, radius: 0.02, scale: [2, 1, 1], at: [0.1, 0.15, 0], color: fx-ink }",
+          "  - { shape: cylinder, radius: 0.02, height: 0.1, at: [0, 0.05, 0], color: fx-ink }",
+          "  - { shape: capsule, radius: 0.02, length: 0.1, at: [0, 0.07, 0], color: fx-ink }",
+          "  - { shape: circle, radius: 0.03, at: [0, 0.1, 0.1], color: fx-ink, lit: false }",
+          "",
+        ].join("\n"),
+      );
+    const result = compose(overlay({ "apps/web/room/catalog/fx-laptop.yaml": laptop }), noPolicy(), {
+      mode: "lenient",
+      drafts: true,
+    });
+    const item = result.index.flat.items.find((i) => i.placement === "fx-laptop");
+    const { ppm } = inPlane(result, "fx-laptop");
+    // Each primitive's numbers back in the drawing's metres, y up, its colours and kind beside them.
+    const metres = (item?.primitives ?? []).map((p) => {
+      const { fill, stroke, stroke_width, primitive, ...rest } = p as unknown as Record<string, unknown> & {
+        fill: string;
+        stroke: string;
+        stroke_width: number;
+        primitive: string;
+      };
+      const back = (v: unknown, key: string): unknown =>
+        Array.isArray(v)
+          ? v.map((pair: number[]) => [(pair[0] ?? 0) / ppm, -(pair[1] ?? 0) / ppm])
+          : /^(y|y1|y2|cy)$/.test(key)
+            ? -(v as number) / ppm
+            : (v as number) / ppm;
+      return {
+        primitive,
+        fill,
+        stroke,
+        stroke_width: stroke_width / ppm,
+        ...Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, back(v, k)])),
+      };
+    });
+    const ink = "#1d1d1f";
+    const close = (n: number): unknown => expect.closeTo(n, 3);
+    expect(metres).toEqual([
+      {
+        primitive: "circle",
+        fill: "none",
+        stroke: ink,
+        stroke_width: close(0.02),
+        cx: close(0),
+        cy: close(0.1),
+        r: close(0.05),
+      },
+      {
+        primitive: "line",
+        fill: "none",
+        stroke: ink,
+        stroke_width: close(0.01),
+        x1: close(-0.1),
+        y1: close(0.05),
+        x2: close(0.1),
+        y2: close(0.15),
+      },
+      {
+        primitive: "polygon",
+        fill: ink,
+        stroke: "none",
+        stroke_width: 0,
+        points: [
+          [close(-0.15), close(0)],
+          [close(-0.05), close(0)],
+          [close(-0.1), close(0.1)],
+        ],
+      },
+      // A rect's y is its top: the drawing's y + h, flipped.
+      {
+        primitive: "rect",
+        fill: ink,
+        stroke: "none",
+        stroke_width: 0,
+        x: close(-0.05),
+        y: close(0.02),
+        w: close(0.1),
+        h: close(0.02),
+      },
+      {
+        primitive: "ellipse",
+        fill: ink,
+        stroke: "none",
+        stroke_width: 0,
+        cx: close(0.1),
+        cy: close(0.15),
+        rx: close(0.04),
+        ry: close(0.02),
+      },
+      {
+        primitive: "rect",
+        fill: ink,
+        stroke: "none",
+        stroke_width: 0,
+        x: close(-0.02),
+        y: close(0.1),
+        w: close(0.04),
+        h: close(0.1),
+      },
+      {
+        primitive: "rect",
+        fill: ink,
+        stroke: "none",
+        stroke_width: 0,
+        x: close(-0.02),
+        y: close(0.14),
+        w: close(0.04),
+        h: close(0.14),
+      },
+      { primitive: "circle", fill: ink, stroke: "none", stroke_width: 0, cx: close(0), cy: close(0.1), r: close(0.03) },
+    ]);
   });
 });
 

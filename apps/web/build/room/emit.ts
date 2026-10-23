@@ -510,8 +510,8 @@ function pathTokens(d: string): (string | number)[] | null {
 }
 
 /** Path data scaled by `k` with y flipped, in view-box units: a drawing's metres, y up, to the view box's y down. An
- *  arc's radii scale, its rotation turns the other way, and its sweep flips. */
-function viewPath(d: string, k: number): string | null {
+ *  arc's radii scale, its rotation turns the other way, and its sweep flips. Null off §8's grammar. */
+export function viewPath(d: string, k: number): string | null {
   const tokens = pathTokens(d);
   if (tokens === null) return null;
   const parts: string[] = [];
@@ -627,6 +627,13 @@ function pathBounds(d: string, b: Bounds2): void {
       else if (command === "m") command = "l";
     }
   }
+}
+
+/** Path data's bounds, `[x0, y0, x1, y1]`, as a hit rectangle takes them; null for data that draws nothing. */
+export function pathExtent(d: string): [number, number, number, number] | null {
+  const b: Bounds2 = [Infinity, Infinity, -Infinity, -Infinity];
+  pathBounds(d, b);
+  return Number.isFinite(b[0]) ? b : null;
 }
 
 /** A primitive's bounds in its own view-box units. */
