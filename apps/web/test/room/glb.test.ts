@@ -6,7 +6,7 @@
 // and matrix nodes, and quantized, sparse, and strided positions.
 import { describe, expect, it } from "vitest";
 
-import { atScale, compareFindings, fit, render, unreadable } from "../../src/room/glb/fit";
+import { atScale, compareFindings, fit, fitCard, render, textureMemory, unreadable } from "../../src/room/glb/fit";
 import type { FitInput, FitResult, GlbFinding, Vec3 } from "../../src/room/glb/fit";
 import { readImage } from "../../src/room/glb/images";
 import { strictJson } from "../../src/room/glb/json";
@@ -14,6 +14,7 @@ import { NAME_RULE, nameProblem, neutralId } from "../../src/room/glb/names";
 import {
   ADMITTED_EXTENSIONS,
   MARK_VALUES,
+  REASON,
   REFUSED_MATERIALS,
   RULE_TEXT,
   RX_RULES,
@@ -850,5 +851,42 @@ describe("the parts", () => {
     expect(printed(1024)).toContain(NAME_RULE.source);
     expect(exportRules(1024)).toHaveLength(9);
     expect(Object.values(MARK_VALUES)).toEqual(["trainedAlgorithmicMedia", "compositeWithTrainedAlgorithmicMedia"]);
+  });
+});
+
+describe("an image card, held to RX9's texture rules (contracts/plain-model-fit.md §7)", () => {
+  const card = (data: Uint8Array, extension: string, smallPropTexturePx: number | null = null) =>
+    fitCard(data, extension, { smallPropTexturePx }, { file: FILE });
+  const at = (result: ReturnType<typeof card>): string[] => result.findings.map((f) => `${f.rule} ${f.path}`);
+
+  it("passes a PNG, a JPEG, and a still WebP of power-of-two sides, measured as served, as stored", () => {
+    for (const [data, extension, w, h] of [
+      [png({ width: 8, height: 4 }), "png", 8, 4],
+      [jpeg({ width: 16, height: 8 }), "jpg", 16, 8],
+      [webp({ width: 4, height: 4 }), "webp", 4, 4],
+    ] as const) {
+      const result = card(data, extension);
+      expect(at(result)).toEqual([]);
+      expect(result.measures).toEqual({ bytes: data.length, textureBytes: textureMemory(w, h), maxTexturePx: w });
+    }
+  });
+
+  it("refuses bytes its extension doesn't name, and each texture rule, for the whole file", () => {
+    const misnamed = card(jpeg(), "png");
+    expect(at(misnamed)).toEqual(["RX9 -"]);
+    expect(misnamed.findings[0]?.reason).toBe(REASON.extensionMismatch);
+    expect(at(card(png({ width: 6, height: 4 }), "png"))).toEqual(["RX9 -"]);
+    expect(at(card(png({ width: 8, height: 8, colorType: 3, fill: 0 }), "png"))).toEqual(["RX9 -"]);
+    expect(at(card(webp({ animated: true }), "webp"))).toEqual(["RX9 -"]);
+    const large = png({ width: 2048, height: 1024, fill: 0, level: 1 });
+    expect(at(card(large, "png", 1024))).toEqual(["RX9 -"]);
+    expect(at(card(large, "png", 2048))).toEqual([]);
+  });
+
+  it("measures no texture where its header can't be read", () => {
+    const data = ascii("fx-not an image");
+    const result = card(data, "png");
+    expect(at(result)).toEqual(["RX9 -"]);
+    expect(result.measures).toEqual({ bytes: data.length, textureBytes: null, maxTexturePx: null });
   });
 });
