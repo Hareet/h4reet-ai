@@ -288,7 +288,7 @@ describe("where it reads", () => {
     "apps/web/test/fixtures/room/k.yaml",
     "apps/web/test/k.md",
     "config/room-events.yaml",
-    "docs/studio/work-orders/k.md",
+    "docs/studio/k.md",
     "services/gateway/k.ts",
     "services/gateway/config/k.ts",
     "services/relay/src/k.ts",
