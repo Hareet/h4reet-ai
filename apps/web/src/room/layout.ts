@@ -1,8 +1,9 @@
 // The room's screen (spec 002, T044; contracts/room-scene.md §1, §5, §6): its heading, the toolbar ("Resume", "2D view",
-// the data-flow disclosure link), the stage, the "In the room" list, the conversation panel, and the resume's panel,
-// in that order, which is the Tab order. While the hand-off plays, every part a visitor acts on is inert; the offer of
-// "Read the resume now" and "Keep it for later" comes when it ends. The layout's CSS (room.css) frames it from 320 CSS
-// pixels wide, with the stage, the list, the text box, and the talk button on screen in portrait.
+// the data-flow disclosure link), the stage, the "In the room" list, the conversation panel, "Around the room" (spec
+// 004, FR-063), and the resume's panel, in that order, which is the Tab order. While the hand-off plays, every part a
+// visitor acts on is inert; the offer of "Read the resume now" and "Keep it for later" comes when it ends. The layout's
+// CSS (room.css) frames it from 320 CSS pixels wide, with the stage, the list, the text box, and the talk button on
+// screen in portrait. The stage's placeholder note, the UI word standin.note, shows only while stand-ins are in use.
 import { h } from "./dom";
 
 export interface RoomLayout {
@@ -23,9 +24,21 @@ export interface RoomLayout {
   offer(now: () => void, later: () => void): () => void;
   /** The room is in 2D for the rest of the visit: "2D view" stays, marked unavailable. */
   markFlat(): void;
+  /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. */
+  setPlaceholders(on: boolean): void;
 }
 
-export function renderRoom(doc: Document, parts: { list: HTMLElement; talk: HTMLElement }): RoomLayout {
+export function renderRoom(
+  doc: Document,
+  parts: {
+    list: HTMLElement;
+    talk: HTMLElement;
+    /** "Around the room", after the conversation panel and outside the stage (spec 004, FR-063). */
+    around: HTMLElement;
+    /** The placeholder note's words: the UI word standin.note. */
+    note: string;
+  },
+): RoomLayout {
   const heading = h(doc, "h1", { class: "visually-hidden", tabindex: -1 }, "The Author's work area");
   const resumeButton = h(doc, "button", { type: "button" }, "Resume");
   const flatButton = h(doc, "button", { type: "button" }, "2D view");
@@ -39,13 +52,8 @@ export function renderRoom(doc: Document, parts: { list: HTMLElement; talk: HTML
   );
   // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
   const view = h(doc, "div", { class: "room-stage-view" }, h(doc, "p", { class: "room-loading" }, "Loading the room…"));
-  const stage = h(
-    doc,
-    "div",
-    { class: "room-stage" },
-    view,
-    h(doc, "p", { class: "room-note" }, "Placeholder shapes stand in for the room's real objects."),
-  );
+  const note = h(doc, "p", { class: "room-note", hidden: true }, parts.note);
+  const stage = h(doc, "div", { class: "room-stage" }, view, note);
   const resumeHeading = h(doc, "h2", { id: "resume-heading", tabindex: -1 }, "The resume");
   const resumeBody = h(doc, "div", { class: "resume-body" });
   const resumePanel = h(
@@ -55,7 +63,18 @@ export function renderRoom(doc: Document, parts: { list: HTMLElement; talk: HTML
     resumeHeading,
     resumeBody,
   );
-  const element = h(doc, "div", { class: "room" }, heading, toolbar, stage, parts.list, parts.talk, resumePanel);
+  const element = h(
+    doc,
+    "div",
+    { class: "room" },
+    heading,
+    toolbar,
+    stage,
+    parts.list,
+    parts.talk,
+    parts.around,
+    resumePanel,
+  );
   const controls = [toolbar, view, parts.list, parts.talk, resumePanel];
 
   return {
@@ -89,6 +108,9 @@ export function renderRoom(doc: Document, parts: { list: HTMLElement; talk: HTML
     },
     markFlat() {
       flatButton.setAttribute("aria-disabled", "true");
+    },
+    setPlaceholders(on) {
+      note.hidden = !on || parts.note === "";
     },
   };
 }

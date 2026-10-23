@@ -16,7 +16,7 @@ import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { renderTextCopy } from "../../src/room/text-copy";
-import { enter, intoRoom, start, textOf } from "../helpers/room";
+import { button, flush, intoRoom, radio, start, textOf } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 
 let composed: ComposeResult | null = null;
@@ -119,11 +119,16 @@ describe("in the room", () => {
     }
   });
 
-  it("is in the page from Enter, while the 3D chunk hasn't loaded", async () => {
+  it("is whole from Enter, while the 3D chunk hasn't loaded and neither drawing is on the stage", async () => {
     const { index } = fixture();
     const v = start({ webgl: true, sceneHangs: true, room: index });
-    await enter(v);
-    expect(v.room.visit.mode).not.toBe("3d");
+    await flush();
+    radio(v.doc, "path", "engineer").click();
+    radio(v.doc, "avatar", "dog").click();
+    button(v.doc, "Enter").click();
+    await flush();
+    expect(v.room.visit.stage).toBe("handoff");
+    expect(v.doc.querySelector(".flat, canvas")).toBeNull();
     const around = v.doc.querySelector(".room-around");
     expect(linesOf(around ?? v.doc.body)).toEqual(expectedLines(index, "not-live"));
   });

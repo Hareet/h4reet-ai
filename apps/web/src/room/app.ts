@@ -35,6 +35,8 @@ import { SCENE_WAIT_MS, createQualityController, hasWebGL2, targetFps, watchCont
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
 import type { SceneModule, Stage, Stage3D } from "./stage";
+import { renderTextCopy } from "./text-copy";
+import { uiWord } from "./ui-keys";
 
 export interface RoomDeps {
   win: Window;
@@ -119,8 +121,16 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   async function arrive(choice: Choice): Promise<void> {
     const list = renderObjectList(doc, deps.room, selectObject);
     talk = renderTalk(doc, { messages: content.messages, clock, emit, enabled: open, openResume, pdfFollowed });
-    const layout = renderRoom(doc, { list, talk: talk.element });
+    // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
+    const around = renderTextCopy(doc, deps.room);
+    const layout = renderRoom(doc, {
+      list,
+      talk: talk.element,
+      around: around.element,
+      note: uiWord(deps.room.ui, "standin.note") ?? "",
+    });
     room = layout;
+    layout.setPlaceholders(deps.room.build.placeholders);
     layout.setInteractive(false);
     layout.resumeButton.addEventListener("click", openResume);
     layout.flatButton.addEventListener("click", () => {

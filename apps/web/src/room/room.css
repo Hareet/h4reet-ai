@@ -241,6 +241,18 @@ body.in-room .disclosure p {
   paint-order: stroke;
 }
 
+/* "Around the room" (spec 004, FR-063; R-40): the drawn words and states as text, after the conversation panel and
+   outside the stage, open to every visitor. Its place in the grid and its narrow-portrait rules come with T171. */
+.room-around h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.room-around ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
 .resume-panel {
   grid-area: resume;
   padding: 0.5rem 0.75rem;
