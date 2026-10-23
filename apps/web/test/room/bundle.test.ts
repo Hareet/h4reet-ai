@@ -11,6 +11,8 @@ import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
+import { createContext } from "../../build/room/checks/family";
+import { sceneTextureMemory } from "../../build/room/checks/rk";
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { emit, pathExtent, serialize, viewPath } from "../../build/room/emit";
@@ -27,6 +29,7 @@ import { DEG, IDENTITY, origin, transformPoint } from "../../src/room/compose/ma
 import type { Mat4, Vec3 } from "../../src/room/compose/math";
 import { memberRect } from "../../src/room/compose/pick";
 import { projector, toStage } from "../../src/room/compose/project";
+import { REFERENCE_PHONE } from "../../src/room/compose/stages";
 import { TIER_VALUES, TYPEFACE_USES } from "../../src/room/compose/vocabulary";
 import { EVENT_KINDS } from "../../src/room/events";
 import { png } from "../helpers/glb";
@@ -245,6 +248,30 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
     const screen = index.faces[0];
     // A face square to the camera keeps its aspect on screen: 0.56 × 0.36.
     expect(near((screen?.screen_css[0] ?? 0) / (screen?.screen_css[1] ?? 1), 0.56 / 0.36, 0.05)).toBe(true);
+  });
+
+  it("gives a face with a corner behind a reference camera its pixels for its size, the canvas RK3 counts", () => {
+    // The sign moved from 0.15 to 3.6 m toward the viewer from the desk's top anchor, to z = 3: past the reference
+    // cameras, which both stand at z ≈ 1.51 looking down −Z, so all four of its face's corners fall behind them.
+    const scene = decoder
+      .decode(goodFiles().get("apps/web/room/scene.yaml"))
+      .replace("offset: [-0.4, 0, 0.15]", "offset: [-0.4, 0, 3.6]");
+    const tree = overlay({ "apps/web/room/scene.yaml": scene });
+    const options = { mode: "strict", drafts: true } as const;
+    const face = compose(tree, noPolicy(), options).index.faces.find((f) => f.id === "fx-sign.lettering");
+    const counted = sceneTextureMemory(createContext(loadRoom(tree), noPolicy(), options, tree).ctx).faces.find(
+      (f) => f.placement === "fx-sign",
+    );
+    // RK3 found a corner behind a camera, so it counts the face's whole canvas, its px.
+    expect(counted?.screen).toBeNull();
+    expect(counted?.canvas).toEqual(face?.px);
+    // The index gives a size that leaves a canvas at its px: min(px, screen_css × the device's pixel ratio) on the
+    // reference phone is RK3's canvas, and never 0 × 0.
+    expect(face?.screen_css).toEqual(face?.px);
+    const px = face?.px ?? [0, 0];
+    const css = face?.screen_css ?? [0, 0];
+    const canvas = [0, 1].map((i) => Math.min(px[i] ?? 0, Math.floor((css[i] ?? 0) * REFERENCE_PHONE.dpr)));
+    expect(canvas).toEqual(counted?.canvas);
   });
 
   it("maps every tier value to its pose, in the vocabulary's order", () => {
