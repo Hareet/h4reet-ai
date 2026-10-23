@@ -2,9 +2,12 @@
 FR-037).
 
 The expected panels and their exact queries are read from the contract's own tables, so a query changes in the
-contract first and here never. Each of §7's sections is all or nothing, and every one must be whole: US1's three
-(§7.3 requests, §7.4 the model server, §7.6 telemetry health), US2's three (§7.1 state, §7.2 spend, §7.5 audit and
-alerts), US3's dev-time row (§7.7, tasks.md T094), and spec 002's room row (§7.8, its tasks.md T061).
+contract first and here never. Each of §7's sections is all or nothing, and every required one must be whole: US1's
+three (§7.3 requests, §7.4 the model server, §7.6 telemetry health), US2's three (§7.1 state, §7.2 spend, §7.5 audit
+and alerts), US3's dev-time row (§7.7, tasks.md T094), and spec 002's room row (§7.8, its tasks.md T061). Spec 004's
+"Room live state" (§7.9, its tasks.md T007) is a section, so a partial row fails, but not yet a required one: its
+series are spec 001's relay's, and the change that switches the room's live source on adds its panels and requires it
+(spec 004, FR-072; contracts/room-live-state-telemetry.md §6).
 
 How a row of the contract becomes panels:
   - a type that names two visualizations, "time series and stat" or "stat, and a state timeline", is two panels
@@ -42,7 +45,8 @@ US2 = ("7.1", "7.2", "7.5")
 US3 = ("7.7",)
 ROOM = ("7.8",)  # spec 002's usage events (contracts/room-events.md §4)
 REQUIRED = US1 + US2 + US3 + ROOM
-SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "7.8")
+# §7.9, spec 004's "Room live state": all or nothing now, required at its User Story 8 switch-on.
+SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "7.8", "7.9")
 DATASOURCES = {
     "prom": "prometheus",
     "loki": "loki",
@@ -268,6 +272,24 @@ def test_each_panels_type_is_the_contracts() -> None:
             pytest.fail(f"{panel['title']}: no rule for the contract's type {kind!r}")
 
 
+def metric_names(expr: str) -> set[str]:
+    """The metric names a PromQL query reads: what's left once label values, ranges, label lists, matchers' names, and
+    functions are taken out."""
+    stripped = re.sub(r'"[^"]*"', '""', expr)  # label values
+    stripped = re.sub(r"\[[^\]]*\]", "", stripped)  # ranges
+    stripped = re.sub(
+        r"\b(?:by|without|ignoring|on)\s*\([^)]*\)", "", stripped
+    )  # label lists
+    stripped = re.sub(
+        r"[A-Za-z_][A-Za-z0-9_]*\s*(?:=~|!~|!=|=)", "", stripped
+    )  # matchers' names
+    return {
+        name
+        for name in re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", stripped)
+        if name not in FUNCTIONS
+    }
+
+
 def test_every_metric_name_is_the_contracts() -> None:
     """telemetry.md §8: every metric name the dashboard queries appears in the contract, or is one of the "the same
     for" names it spells with _metric_points_total or _log_records_total in place of _spans_total (the collector's
@@ -278,17 +300,7 @@ def test_every_metric_name_is_the_contracts() -> None:
         if panel["datasource"]["uid"] != "prom":
             continue
         for expr in queries(panel):
-            stripped = re.sub(r'"[^"]*"', '""', expr)  # label values
-            stripped = re.sub(r"\[[^\]]*\]", "", stripped)  # ranges
-            stripped = re.sub(
-                r"\b(?:by|without|ignoring|on)\s*\([^)]*\)", "", stripped
-            )  # label lists
-            stripped = re.sub(
-                r"[A-Za-z_][A-Za-z0-9_]*\s*(?:=~|!~|!=|=)", "", stripped
-            )  # matchers' names
-            for name in re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", stripped):
-                if name not in FUNCTIONS:
-                    names.add(name)
+            names |= metric_names(expr)
     assert names
     for name in names:
         spelled = re.sub(r"_(metric_points|log_records)_total$", "_spans_total", name)
@@ -298,12 +310,14 @@ def test_every_metric_name_is_the_contracts() -> None:
 FUNCTIONS = {
     "sum",
     "max",
+    "avg",
     "rate",
     "increase",
     "histogram_quantile",
     "time",
     "timestamp",
     "max_over_time",
+    "avg_over_time",
     "le",
 }
 
@@ -777,3 +791,78 @@ def test_the_studio_row_sits_above_the_dev_time_row() -> None:
     rows = [p for p in DASHBOARD["panels"] if p["type"] == "row"]
     titles = [r["title"] for r in rows]
     assert titles.index("Studio GPU windows") == titles.index(dev_time_row()) - 1
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 004's "Room live state" (telemetry.md §7.9; FR-072, SC-014; its contracts/room-live-state-telemetry.md §5
+# and §6; its tasks.md T007)
+# --------------------------------------------------------------------------------------------------
+
+LIVE_SERIES = {
+    "h4_relay_requests_total",
+    "h4_relay_cap_refusals_total",
+    "h4_relay_status_class",
+}
+
+
+def test_room_live_state_is_a_section_but_not_yet_required() -> None:
+    # Its series are spec 001's relay's (Amendment A2): until the room's live source is switched on, the section is
+    # held all or nothing, and the dashboard has none of it.
+    assert "7.9" in SECTIONS
+    assert REQUIRED == US1 + US2 + US3 + ROOM
+    assert "7.9" not in REQUIRED
+
+
+def test_room_live_state_parses_as_three_panels_each_with_one_query() -> None:
+    expected = contract_panels("7.9")
+    assert list(expected) == [
+        "Status requests a minute",
+        "Status 429s a minute",
+        "Time in each class",
+    ]
+    assert [kind for kind, _ in expected.values()] == [
+        "time series",
+        "time series",
+        "bar chart",
+    ]
+    assert [found for _, found in expected.values()] == [
+        [
+            'sum(rate(h4_relay_requests_total{h4_relay_route="status"}[$__rate_interval])) * 60'
+        ],
+        [
+            'sum(rate(h4_relay_cap_refusals_total{h4_relay_route="status"}[$__rate_interval])) * 60'
+        ],
+        ["avg by (h4_class) (avg_over_time(h4_relay_status_class[$__range]))"],
+    ]
+
+
+def test_room_live_states_metrics_are_named_in_the_contracts_text() -> None:
+    words = set(re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", CONTRACT))
+    names: set[str] = set()
+    for _, found in contract_panels("7.9").values():
+        (query,) = found
+        names |= metric_names(query)
+    assert names == LIVE_SERIES
+    assert names <= words
+    # Every matcher is the route, and every grouping the class: nothing about a visitor can split a series.
+    for _, found in contract_panels("7.9").values():
+        for query in found:
+            for label in re.findall(
+                r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:=~|!~|!=|=)", query
+            ):
+                assert label == "h4_relay_route", query
+            for group in re.findall(r"\bby\s*\(([^)]*)\)", query):
+                assert {g.strip() for g in group.split(",")} == {"h4_class"}, query
+
+
+def test_the_dashboard_holds_none_of_room_live_state_yet() -> None:
+    # The section is all or nothing (test_each_section_is_all_or_nothing), and nothing yet: no panel by its titles,
+    # no query of its series, and no row named for it.
+    assert not set(contract_panels("7.9")) & set(by_title())
+    for panel in panels():
+        for expr in queries(panel):
+            assert not LIVE_SERIES & set(re.findall(r"\bh4_[a-z_]+\b", expr)), panel[
+                "title"
+            ]
+    rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
+    assert "Room live state" not in rows

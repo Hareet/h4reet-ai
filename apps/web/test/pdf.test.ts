@@ -3,7 +3,8 @@
 // header and the section titles. Its catalog is tagged (MarkInfo/Marked, a StructTreeRoot in reading order), in
 // en-US, with DisplayDocTitle; its Info holds Title and Author only, with no dates, producer, or creator, and there is
 // no XMP stream. The same source and policy build the same bytes. The header follows FR-017 from the policy
-// directory's resume-header.json, main's copy.
+// directory's resume-header.json, main's copy. Spec 004's T006 (Amendment B10): the PDF stays one family, the one
+// fonts.lock gives the pdf use, IBM Plex Sans, however many families the room adds.
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,7 +16,7 @@ import { stringify } from "yaml";
 
 import { readPolicy } from "../build/approvals";
 import { parseResume, readFacts, renderResume, type Rendered } from "../build/content";
-import { DRAFT_NOTICE, pdfInput, renderPdf } from "../build/pdf";
+import { DRAFT_NOTICE, FONTS_DIR, pdfInput, readFontsLock, renderPdf } from "../build/pdf";
 
 const ROOT = fileURLToPath(new URL("./fixtures", import.meta.url));
 const FILE = "corpus/01-fixture.md";
@@ -201,6 +202,19 @@ describe("the PDF's catalog and properties (FR-019)", () => {
       for (const font of fonts) expect(font).toMatch(/^[A-Z]{6}\+IBMPlexSans(-Bold)?$/);
       expect(raw(pdf)).toContain("/FontFile2");
     });
+  });
+
+  it("embeds only the families whose uses hold pdf in fonts.lock: IBM Plex Sans alone (spec 004, B10)", async () => {
+    const lock = readFontsLock(FONTS_DIR);
+    const forPdf = lock.families.filter((f) => f.uses.includes("pdf")).map((f) => f.family);
+    expect(forPdf).toEqual(["IBM Plex Sans"]);
+    const others = lock.families.filter((f) => !f.uses.includes("pdf")).map((f) => f.family);
+    expect(others).toEqual(["IBM Plex Mono", "Patrick Hand"]);
+    const text = raw(await renderPdf(pdfInput(RENDERED, policy(), "approved")));
+    const fonts = [...text.matchAll(/\/BaseFont \/([A-Za-z0-9+_-]+)/g)].map((m) => m[1] as string);
+    const names = forPdf.map((family) => family.replace(/ /g, "")).join("|");
+    for (const font of fonts) expect(font).toMatch(new RegExp(`^[A-Z]{6}\\+(?:${names})(?:-Bold)?$`));
+    for (const family of others) expect(text).not.toContain(family.replace(/ /g, ""));
   });
 
   it("is the same bytes from the same source and policy", async () => {

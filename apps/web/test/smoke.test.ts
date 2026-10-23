@@ -116,9 +116,10 @@ describe("the built disclosure page", () => {
 describe("the built room-data.json", () => {
   it("names the policy and the lock it was built with, and lists the drafts it left out", () => {
     // Nothing is approved in an empty policy directory, so the resume's source is a draft, withheld without drafts.
+    // The policy's digest covers its three files, caps.json third, each absent here (spec 004, T004; R-13).
     const data = JSON.parse(readFileSync(join(out, "room-data.json"), "utf8")) as unknown;
     const absent = createHash("sha256")
-      .update("content-approvals.json:absent\nresume-header.json:absent\n")
+      .update("content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\n")
       .digest("hex");
     const lock = createHash("sha256")
       .update(readFileSync(join(WEB, "content/resume.lock.json")))

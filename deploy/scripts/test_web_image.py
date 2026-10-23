@@ -6,11 +6,15 @@ they stood at build time. So, unlike gateway_image.py (tasks.md T184):
     and h4reet-web:<ref>-drafts on dev and dev-cpu, with ROOM_DRAFTS=1; a prod build with drafts is refused;
   - it rebuilds on every make up and never reuses a tag, so a dev build never runs as prod's, and an approval on main
     reaches the next make up;
-  - main's assets/policy/content-approvals.json and resume-header.json are read on the host with git show, from the
-    repository make names, and handed to the build as the named build context `policy`; a file main lacks is absent
-    from it. The build stage reads only that, and never runs git.
+  - main's assets/policy/content-approvals.json, resume-header.json, and caps.json are read on the host with git
+    cat-file, from the repository make names, and handed to the build as the named build context `policy`; a file
+    main lacks is absent from it. The build stage reads only that, and never runs git.
 The rest is the gateway's rule: a host stack builds the export its run file names; dev-cpu builds the working tree on
 the agents' engine only. deploy/compose.yaml names that image and never pulls it.
+
+Spec 004's T005 (FR-053; research.md R-13; contracts/serving.md §3): caps.json joins the policy third, so the room's
+compositor reads main's caps, never a branch's, and the image's label org.h4reet.web.policy digests the three files
+in that order, as apps/web/build/approvals.ts's policyDigest does for room-data.json's built_from.
 """
 
 from __future__ import annotations
@@ -46,6 +50,9 @@ SHA = "0123456789abcdef0123456789abcdef01234567"
 PROXY = "http://198.18.0.1:3128"  # dev-cpu.vars' H4_BUILD_PROXY
 APPROVALS = "assets/policy/content-approvals.json"
 HEADER = "assets/policy/resume-header.json"
+CAPS = "assets/policy/caps.json"
+# The policy's names in the context, in the order its digest takes them (spec 004, R-13).
+NAMES = ("content-approvals.json", "resume-header.json", "caps.json")
 # Stand-ins for the Author's files, as main would hold them. Not real approvals: the digest is made here, at run time.
 MAIN_APPROVALS = (
     '{"schema": 1, "approvals": [{"id": "C-0001", "sha256": "'
@@ -53,6 +60,7 @@ MAIN_APPROVALS = (
     + '"}]}\n'
 )
 MAIN_HEADER = '{"schema": 1, "full_name": null, "contact": null}\n'
+MAIN_CAPS = '{"schema": 1, "per_asset": {}, "fixture": "made by the test"}\n'
 
 
 def git(repo: Path, *args: str) -> str:
@@ -97,10 +105,11 @@ def make_repo(
 
 
 def digest(files: dict[str, bytes | None]) -> str:
-    """The policy's digest, as the contract defines it: each file's name and SHA-256 (or "absent"), in order."""
+    """The policy's digest, as the contract defines it: each file's name and SHA-256 (or "absent"), in order, over
+    the three files; a name the dict lacks is absent."""
     text = "".join(
-        f"{name}:{hashlib.sha256(files[name]).hexdigest() if files[name] is not None else 'absent'}\n"
-        for name in ("content-approvals.json", "resume-header.json")
+        f"{name}:{hashlib.sha256(data).hexdigest() if data is not None else 'absent'}\n"
+        for name, data in ((n, files.get(n)) for n in NAMES)
     )
     return hashlib.sha256(text.encode()).hexdigest()
 
@@ -247,6 +256,8 @@ BOTH = {
     "content-approvals.json": MAIN_APPROVALS.encode(),
     "resume-header.json": MAIN_HEADER.encode(),
 }
+# main once the Author's caps commit (P-6) is on it: the three files.
+ALL_THREE = BOTH | {"caps.json": MAIN_CAPS.encode()}
 
 
 # --------------------------------------------------------------------------------------------------
@@ -458,6 +469,88 @@ def test_the_policy_context_holds_mains_two_files_exactly(
     assert fake.contexts == [BOTH]
 
 
+def test_the_policy_files_are_the_approvals_the_header_and_the_caps_in_order() -> None:
+    # Spec 004, R-13: the caps join third, so the room's compositor reads main's caps from the same context.
+    assert wi.POLICY_FILES == (
+        (APPROVALS, "content-approvals.json"),
+        (HEADER, "resume-header.json"),
+        (CAPS, "caps.json"),
+    )
+
+
+def test_mains_caps_join_the_context_and_the_label_digests_the_three_in_order(
+    tmp_path: Path, export: Path
+) -> None:
+    repo = make_repo(
+        tmp_path / "repo",
+        {APPROVALS: MAIN_APPROVALS, HEADER: MAIN_HEADER, CAPS: MAIN_CAPS},
+    )
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.contexts == [ALL_THREE]
+    # The label is apps/web/build/approvals.ts's policyDigest over the same bytes: "<name>:<SHA-256>\n" for the
+    # approvals, the header, then the caps, hashed once more.
+    lines = "".join(f"{n}:{hashlib.sha256(ALL_THREE[n]).hexdigest()}\n" for n in NAMES)
+    argv = built(fake)
+    assert (
+        argv[argv.index("--label") + 1]
+        == f"org.h4reet.web.policy={hashlib.sha256(lines.encode()).hexdigest()}"
+    )
+
+
+def test_caps_main_lacks_are_absent_and_the_label_says_so(
+    tmp_path: Path, export: Path, repo: Path
+) -> None:
+    # Before the Author's caps commit (P-6), main has no caps.json: the context holds the other two, and the
+    # compositor takes FR-053's starting figures (contracts/serving.md §3).
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.contexts == [BOTH]
+    lines = (
+        f"content-approvals.json:{hashlib.sha256(MAIN_APPROVALS.encode()).hexdigest()}\n"
+        f"resume-header.json:{hashlib.sha256(MAIN_HEADER.encode()).hexdigest()}\n"
+        "caps.json:absent\n"
+    )
+    argv = built(fake)
+    assert (
+        argv[argv.index("--label") + 1]
+        == f"org.h4reet.web.policy={hashlib.sha256(lines.encode()).hexdigest()}"
+    )
+
+
+def test_the_caps_are_mains_never_a_branchs_or_a_tags_named_main(
+    tmp_path: Path, export: Path
+) -> None:
+    # A branch that could raise its own caps would make them the branch's, not the Author's (FR-053; R-13).
+    raised = '{"schema": 1, "per_asset": {"room": "raised by the branch"}}\n'
+    repo = make_repo(tmp_path / "repo", {CAPS: MAIN_CAPS}, branch_files={CAPS: raised})
+    git(repo, "tag", "main", "feature")
+    assert "raised by the branch" in git(repo, "show", f"main:{CAPS}")
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.contexts == [{"caps.json": MAIN_CAPS.encode()}]
+
+
+def test_the_three_lists_name_the_policy_files_in_one_order() -> None:
+    # R-13: POLICY_PATHS in apps/web/build/policy.ts, POLICY_FILES in apps/web/build/approvals.ts, and POLICY_FILES
+    # here, so the image's label and room-data.json's built_from digest the same files in the same order.
+    approvals_ts = (REPO / "apps/web/build/approvals.ts").read_text(encoding="utf-8")
+    policy_ts = (REPO / "apps/web/build/policy.ts").read_text(encoding="utf-8")
+    files = re.search(
+        r"export const POLICY_FILES = \[(.*?)\] as const;", approvals_ts, re.DOTALL
+    )
+    paths = re.search(
+        r"export const POLICY_PATHS = \[(.*?)\] as const;", policy_ts, re.DOTALL
+    )
+    assert files and paths
+    assert tuple(re.findall(r'"([^"]+)"', files.group(1))) == NAMES
+    pairs = tuple(re.findall(r'\[\s*"([^"]+)",\s*"([^"]+)",?\s*\]', paths.group(1)))
+    assert pairs == wi.POLICY_FILES
+
+
 def test_the_branchs_copy_is_never_read(tmp_path: Path, export: Path) -> None:
     # A branch can't approve its own content: the working tree's copy says otherwise, and main's is what's used.
     repo = make_repo(
@@ -486,7 +579,11 @@ def test_a_file_main_lacks_is_absent_from_the_context(
     assert fake.contexts == [{"content-approvals.json": MAIN_APPROVALS.encode()}]
     argv = built(fake)
     expected = digest(
-        {"content-approvals.json": MAIN_APPROVALS.encode(), "resume-header.json": None}
+        {
+            "content-approvals.json": MAIN_APPROVALS.encode(),
+            "resume-header.json": None,
+            "caps.json": None,
+        }
     )
     assert argv[argv.index("--label") + 1] == f"org.h4reet.web.policy={expected}"
 
@@ -505,7 +602,10 @@ def test_no_policy_on_main_is_an_empty_context(
     assert host("prod", env, run, fake, export, repo) == 0
     assert fake.contexts == [{}]
     argv = built(fake)
-    absent = digest({"content-approvals.json": None, "resume-header.json": None})
+    absent = hashlib.sha256(
+        b"content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\n"
+    ).hexdigest()
+    assert absent == digest({})
     assert argv[argv.index("--label") + 1] == f"org.h4reet.web.policy={absent}"
     assert "every content file builds as a draft" in capsys.readouterr().out
 
@@ -560,6 +660,7 @@ def test_git_reads_main_without_replace_objects_or_the_callers_config(
     assert [a for a, _ in seen] == [
         ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{APPROVALS}"],
         ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{HEADER}"],
+        ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{CAPS}"],
     ]
     for _, git_env in seen:
         assert git_env.get("GIT_NO_REPLACE_OBJECTS") == "1"
