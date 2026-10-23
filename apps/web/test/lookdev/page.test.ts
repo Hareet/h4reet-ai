@@ -439,6 +439,44 @@ describe("the views (contracts/lookdev.md §3)", () => {
     expect(collapse(root.querySelector(".lookdev-readouts")?.textContent)).toMatch(/close-up/);
   });
 
+  it("in the copy opened on a desktop, offers the reference phone's stage as the site's page does, and claims no phone", () => {
+    // The review's page-4 and phone-2: the copy in a desktop browser, a 1920 × 1080 viewport at a pixel ratio of 1.
+    const probe: Probe = {
+      webgl2: true,
+      max_texture_size: 16384,
+      device_memory: 8,
+      create_image_bitmap: true,
+      secure_context: true,
+      viewport: [1920, 1080],
+      dpr: 1,
+    };
+    const { page, clock, root, renderer, inputs: given } = open({ phone: true, probe });
+    clock.advance(50);
+    const caption = (): string => collapse(root.querySelector(".lookdev-caption")?.textContent);
+    // The default view is this device's own stage, labelled as this device, never as a phone.
+    const own = stageFor({ w: 1920, h: 1080 });
+    expect(caption()).not.toMatch(/phone/i);
+    expect(caption()).toMatch(/^This device: /);
+    expect(control<HTMLInputElement>(root, "This device").checked).toBe(true);
+    expect(renderer.size).toEqual([own.w, own.h]);
+    expect(renderer.ratio).toBe(1);
+    // The reference phone: stages.ts's last measured stage at its pixel ratio, as the site's page draws it.
+    choose(control<HTMLInputElement>(root, "Reference phone"));
+    clock.advance(50);
+    const { w, h } = REFERENCE_PHONE.stage;
+    expect(page.stage.view).toBe("phone");
+    expect(renderer.size).toEqual([w, h]);
+    expect(renderer.ratio).toBe(Math.min(REFERENCE_PHONE.dpr, qualitySettings(0).pixelRatio));
+    expectFramed(
+      page,
+      w / h,
+      given.part.placements.filter((p) => p.framed).map((p) => p.frame_box),
+    );
+    expect(caption()).not.toMatch(/own/);
+    // The site's page has no probe, so no view of the device's own stage.
+    expect(collapse(open().root.textContent)).not.toContain("This device");
+  });
+
   it("in the phone copy, draws the phone view at the probe's own viewport and pixel ratio", () => {
     const probe: Probe = {
       webgl2: true,
