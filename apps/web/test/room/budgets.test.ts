@@ -321,6 +321,21 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     // Without main's caps, or over its budget, the piece keeps its stand-in, whose label floats over it.
     expectBox(box(fits, noPolicy()), [-0.8, 0, -1], [0.8, raised, -0.2]);
     expectBox(box({ ...fits, triangles: 35 }, caps()), [-0.8, 0, -1], [0.8, raised, -0.2]);
+    // A set image card keeps its piece's expected bounds, with no label over it.
+    const card = png({ width: 8, height: 8 });
+    const cardTree = overlay(
+      withRecords({
+        "assets/room/fx-monitor.png": card,
+        [catalog("fx-monitor")]: edited(catalog("fx-monitor"), (v) => (v.model = { card: "fx-monitor.png" })),
+      }),
+    );
+    const shown = frameBoxes(contextOf(cardTree, caps())).get("fx-monitor");
+    const standin = frameBoxes(contextOf(cardTree, noPolicy())).get("fx-monitor");
+    expectBox(
+      standin,
+      [...(shown?.min ?? [])],
+      [shown?.max[0] ?? NaN, (shown?.max[1] ?? NaN) + LABEL_LIFT + LABEL_HEIGHT, shown?.max[2] ?? NaN],
+    );
   });
 
   it("refuses a total over scene_texture_bytes in every build, and passes one at it", () => {

@@ -108,13 +108,14 @@ function overBudget(check: ModelCheck): string[] {
   return out;
 }
 
-/** The measured bounds of each piece whose model is set: main's caps exist, and it has no RX or RK2 finding. */
-function setModels(ctx: Context): Map<string, Box> {
-  const out = new Map<string, Box>();
+/** Each piece whose model is set, main's caps existing and the model having no RX or RK2 finding, with a model's
+ *  measured bounds, or null for an image card, which keeps its expected bounds. */
+function setModels(ctx: Context): Map<string, Box | null> {
+  const out = new Map<string, Box | null>();
   if (ctx.policy.caps === null) return out;
   for (const check of modelChecks(ctx)) {
-    const bounds = check.measures?.bounds;
-    if (bounds && check.findings.length === 0 && overBudget(check).length === 0) out.set(check.entry.value.id, bounds);
+    if (check.measures === null || check.findings.length > 0 || overBudget(check).length > 0) continue;
+    out.set(check.entry.value.id, check.measures.bounds);
   }
   return out;
 }
@@ -184,18 +185,16 @@ function boxesOf(ctx: Context, layout: Layout): Map<string, Box> {
     const model = layout.resolved.model.get(p.id);
     if (!entry || !world || !model || out.has(p.id)) continue;
     const measured = set.get(p.piece);
-    if (measured) out.set(p.id, worldBox(world, measured));
-    else {
-      const box = worldBox(model, entry.origin.bounds);
-      out.set(p.id, p.label === undefined ? box : withLabel(box));
-    }
+    const box = measured ? worldBox(world, measured) : worldBox(model, entry.origin.bounds);
+    // Only a stand-in shows its label.
+    out.set(p.id, set.has(p.piece) || p.label === undefined ? box : withLabel(box));
   }
   return out;
 }
 
 /** Each resolved placement's frame box in the world, by its ID (contracts/room-data-files.md §13.3): its piece's
- *  expected bounds at the stylized scale, its top raised for its stand-in's label where it has one; or its set model's
- *  measured bounds (FR-019). */
+ *  expected bounds at the stylized scale, its top raised for its stand-in's label where it has one; its set model's
+ *  measured bounds (FR-019); or, for a set image card, the expected bounds alone. */
 export function frameBoxes(ctx: Context): ReadonlyMap<string, Box> {
   const layout = layoutOf(ctx);
   return layout ? boxesOf(ctx, layout) : new Map();
