@@ -26,10 +26,11 @@ const sha256 = (data: Uint8Array): string => createHash("sha256").update(data).d
 const integrityOf = (data: Uint8Array): string => `sha512-${createHash("sha512").update(data).digest("base64")}`;
 
 /** A gzipped POSIX ustar archive of the entries, in order, as npm pack writes one; a path over 100 bytes is split
- * into the header's prefix and name. */
-function tarball(entries: [string, string | Buffer][]): Buffer {
+ * into the header's prefix and name. An entry's third item is its type flag: "0", a regular file, unless it says
+ * "x", a pax extended header, or "L", a GNU long name, either of which names the entry after it. */
+function tarball(entries: [string, string | Buffer, string?][]): Buffer {
   const blocks: Buffer[] = [];
-  for (const [path, content] of entries) {
+  for (const [path, content, type = "0"] of entries) {
     const body = typeof content === "string" ? Buffer.from(content) : content;
     const header = Buffer.alloc(512);
     const cut = path.length > 100 ? path.lastIndexOf("/", 155) : -1;
@@ -41,7 +42,7 @@ function tarball(entries: [string, string | Buffer][]): Buffer {
     header.write(`${body.length.toString(8).padStart(11, "0")}\0`, 124);
     header.write("00000000000\0", 136);
     header.write("        ", 148);
-    header.write("0", 156);
+    header.write(type, 156);
     header.write("ustar\0", 257);
     header.write("00", 263);
     let sum = 0;
@@ -51,6 +52,21 @@ function tarball(entries: [string, string | Buffer][]): Buffer {
   }
   blocks.push(Buffer.alloc(1024));
   return gzipSync(Buffer.concat(blocks));
+}
+
+/** A pax extended header's body: each record "<length> <key>=<value>\n", its length in bytes counting its own digits. */
+function pax(records: [string, string][]): string {
+  return records
+    .map(([key, value]) => {
+      const rest = ` ${key}=${value}\n`;
+      let length = Buffer.byteLength(rest);
+      for (;;) {
+        const next = String(length).length + Buffer.byteLength(rest);
+        if (next === length) return `${length}${rest}`;
+        length = next;
+      }
+    })
+    .join("");
 }
 
 const manifest = (pkg: string, version: string): [string, string] => [
@@ -104,6 +120,44 @@ describe("untar", () => {
     expect(files.get("package/a.txt")?.toString("utf8")).toBe("a\n");
     expect(files.get("package/dir/b.bin")).toEqual(FONT);
     expect(files.get(long)?.toString("utf8")).toBe("long\n");
+  });
+
+  it("takes a long path from a pax header or a GNU long name, for the file after it alone", () => {
+    // Each path is too long for ustar's prefix and name, so only the extended header can carry it; the file's own
+    // header holds a stand-in name, which untar must not use.
+    const viaPax = `package/${"p".repeat(300)}/IBMPlexMono-Regular.woff`;
+    const viaGnu = `package/${"g".repeat(300)}/LICENSE.txt`;
+    const files = untar(
+      tarball([
+        [
+          "PaxHeader/IBMPlexMono-Regular.woff",
+          pax([
+            ["mtime", "1700000000"],
+            ["path", viaPax],
+          ]),
+          "x",
+        ],
+        ["package/stand-in-for-the-pax-path", FONT],
+        ["././@LongLink", `${viaGnu}\0`, "L"],
+        ["package/stand-in-for-the-gnu-path", "licence\n"],
+        ["package/after.txt", "after\n"],
+      ]),
+    );
+    expect([...files.keys()]).toEqual([viaPax, viaGnu, "package/after.txt"]);
+    expect(files.get(viaPax)).toEqual(FONT);
+    expect(files.get(viaGnu)?.toString("utf8")).toBe("licence\n");
+    expect(files.get("package/after.txt")?.toString("utf8")).toBe("after\n");
+  });
+
+  it("refuses a pax record with no length", () => {
+    expect(() =>
+      untar(
+        tarball([
+          ["PaxHeader/a.txt", "path=package/a.txt\n", "x"],
+          ["package/a.txt", "a\n"],
+        ]),
+      ),
+    ).toThrow(/a pax header's record has no length/);
   });
 
   it("refuses a header that fails its checksum, and a path given twice", () => {
