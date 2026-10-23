@@ -788,7 +788,7 @@ describe("the 3D part's load order as entries", () => {
     await settle();
     const sw = part.switches.find((s) => s.piece === "fx-plug");
     expect(h.fetch.calls.map((c) => c.url)).toEqual([sw?.model?.url]);
-    h.fetch.calls[0]?.answer({ body: modelChanges(["fx-plug"])["assets/room/fx-plug.glb"] });
+    h.fetch.calls[0]?.answer({ body: modelChanges(["fx-plug"])["assets/room/fx-plug.glb"] as Uint8Array });
     await settle();
     h.clock.advance(32);
     await done;
