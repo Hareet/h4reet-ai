@@ -187,6 +187,23 @@ describe("a face's smallest cap height in CSS pixels", () => {
     expect(smallestCapPx(WALL, FACE, [], camera, stage)).toBeNull();
   });
 
+  it("is none where a point it measures is at or behind the camera's near plane, as a member's rectangle is (words-7)", () => {
+    const stage = REFERENCE_PHONE.stage;
+    const camera = productionCamera(stage);
+    const z = camera.position[2];
+    const regions = [{ rect: [0.1, 0.1, 0.8, 0.8] as const, cap: 0.03 }];
+    // In front, past the near plane: a measure.
+    expect(smallestCapPx(translation([0, 1.5, z - 1]), FACE, regions, camera, stage)).toBeGreaterThan(0);
+    // Behind the camera; between it and its near plane; and turned to face +X astride the camera's plane, so some
+    // corners are before it and some behind.
+    for (const model of [
+      translation([0, 1.5, z + 2]),
+      translation([0, 1.5, z - camera.near / 2]),
+      multiply(translation([0.3, 1.5, z]), rotation({ x: 0, y: 90, z: 0 })),
+    ])
+      expect(smallestCapPx(model, FACE, regions, camera, stage)).toBeNull();
+  });
+
   it("finds a face's points from its centre, size, facing, and up, in the piece's frame", () => {
     const face: FaceGeometry = { at: [1, 2, 3], size: [0.4, 0.2], facing: [1, 0, 0], up: [0, 1, 0] };
     // Facing +X with +Y up, the face's right runs along −Z.

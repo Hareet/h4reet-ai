@@ -301,6 +301,14 @@ describe("RG7: legibility at the production framing on both reference stages", (
     expect([screen?.atmosphere, screen?.desktop, screen?.phone]).toEqual([true, null, null]);
   });
 
+  it("measures nothing of a face behind the production camera, so neither RG7 nor the report holds a number (words-7)", () => {
+    // The sign, which the camera doesn't frame, mounted 30 m behind it.
+    const t = tree({ [SCENE]: (d) => (at(d, "placements", 6, "mount").offset = [-0.4, 0, 30]) });
+    const sign = faceCaps(geometryOf(contextOf(t)), []).find((f) => f.face === "fx-sign.lettering");
+    expect([sign?.desktop, sign?.phone]).toEqual([null, null]);
+    expect(rg(t).filter((f) => f.rule === "RG7")).toEqual([]);
+  });
+
   it("lets an atmosphere face fall under the floor, and holds it to its max_chars", () => {
     // fx-script's lines are "fx run" and "fx ok": 11 characters.
     expect(lid({ atmosphere: true, max_chars: 11 })).toEqual([]);
