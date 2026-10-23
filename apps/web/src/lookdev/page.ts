@@ -303,6 +303,7 @@ export function createLookdev(root: HTMLElement, options: LookdevOptions, deps: 
   const candidates = new Map<string, Candidate>();
   const rows = new Map<string, HTMLElement>();
   const pickers: Control[] = [];
+  const clears: HTMLButtonElement[] = [];
   const pieceName = (piece: string): string => {
     const placed = part.placements.find((p) => p.piece === piece && p.label !== null);
     const sw = index.switches.find((s) => part.switches.some((x) => x.id === s.id && x.piece === piece));
@@ -391,6 +392,7 @@ export function createLookdev(root: HTMLElement, options: LookdevOptions, deps: 
       stage.setCandidate(piece, null);
       showCandidate(piece);
     });
+    clears.push(clear);
     showCandidate(piece);
     return h(
       doc,
@@ -427,7 +429,7 @@ export function createLookdev(root: HTMLElement, options: LookdevOptions, deps: 
 
   function setRunning(on: boolean): void {
     for (const c of [...controls, ...pickers]) c.setEnabled(!on);
-    loadEvery.disabled = on;
+    for (const b of [loadEvery, ...clears]) b.disabled = on;
     for (const b of runButtons) b.disabled = on;
     stopButton.disabled = !on;
   }
