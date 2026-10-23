@@ -1,5 +1,5 @@
 # Intent: the room, my work area, where my avatar hands visitors my resume
-Author: the Author. Status: draft. Created: 2026-10-08. Revised: 2026-10-08, with the Author's answers to the open questions. Extends the room and avatars in [intent 000](000-ai-twin-portfolio.md); for a later phase, not spec 000.
+Author: the Author. Status: accepted on 2026-10-17 (the Author: "Yeah, they are accepted. We can always revise them later"). Created: 2026-10-08. Revised: 2026-10-08, with the Author's answers to the open questions; 2026-10-12, with where the studio's pipeline lives (answer 10). Extends the room and avatars in [intent 000](../../intent/000-ai-twin-portfolio.md); for a later phase, not spec 000.
 
 ## Problem
 Intent 000 puts visitors in "a shared 3D room" with my twin, but it doesn't say what the room is or what a visitor does in it. Without that, the room is a backdrop: nothing in it leads a visitor to my resume, my work, or the person behind them.
@@ -28,7 +28,7 @@ Read as a list, for the spec. This is Claude's reading of the quote above, to co
 - **Visitors**, on both paths, on desktop and phone.
 - **Me:** the photos, and new corpus material for hobbies, life, and travel.
 - **`apps/web`:** the 3D room in Three.js, the clickable objects, the hand-off, the interactive resume, and the PDF download.
-- **The studio asset pipeline,** which already makes the avatars and their animations, extended to take my photos.
+- **The studio asset pipeline,** outside this repository, which will make the avatars and their animations, extended to take my photos. Only its outputs come in (answer 10; [intent 003](../003-studio-assets/intent.md)).
 - **The twin:** persona, corpus, facts, and voice.
 - **The gateway,** for chat, with each step's model and fallback set by configuration.
 - **The local tier,** for speech recognition.
@@ -47,8 +47,8 @@ Read as a list, for the spec. This is Claude's reading of the quote above, to co
 - **Models, in my words (2026-10-08):** "the GPU budget shouldn't be that big of a constraint. We can also fallback to calling API to claude if we can't run that model locally at that spec or a smaller quant model still won't fullfill our "act like a twin who has these experiences and go through a normal chat conversation with someone" pipeline. Which model and fallback is being used across steps, should be configurable by environment variable."
 
   Claude's reading:
-  - Each step names its model and its fallback in configuration, with an environment variable choosing them per environment: speech recognition, the twin's conversation, its voice, and the studio's asset steps. Changing a model is never a code change.
-  - Every call still goes through the gateway, local-first, and a paid fallback stays inside prod's ceilings and the fallback sub-budget (the constitution; spec 000's FR-021, FR-022, and FR-030).
+  - Each step names its model and its fallback in configuration, with an environment variable choosing them per environment: speech recognition, the twin's conversation, and its voice. Changing a model is never a code change. The studio's asset steps choose their models in the studio's pipeline, outside this repository (answer 10).
+  - Every call this repository makes still goes through the gateway, local-first, and a paid fallback stays inside prod's ceilings and the fallback sub-budget (the constitution; spec 000's FR-021, FR-022, and FR-030).
   - "Calling API to claude" reads as Claude through the gateway's paid adapter, which is Bedrock in spec 000. Calling Anthropic's API directly would need a new adapter and an ADR.
 - **Cost, in my words (2026-10-08):** "we may consider bumping the cost up as deemed necessary after testing, and that is why we want the cost to be easily configurable throughout, and tracing/telemetry on cost behavior to be seen. This will allow us to change per-cost features at a later time, if we see the room as being higher value and requiring more interaction or so forth."
 
@@ -61,7 +61,7 @@ Read as a list, for the spec. This is Claude's reading of the quote above, to co
   - The room, the photos, the resume, and its PDF are static assets at the edge (spec 001), so they cost close to nothing.
   - Chat costs what the twin's routing costs: local first, with Claude as the capped fallback. If the twin's model can't run locally at the quality the twin needs, Claude carries more of the chat. That spend stays inside prod's ceilings, so the twin degrades instead of overspending, until testing shows the room is worth a larger budget (the cost constraint above, and answer 9).
 - **Local:**
-  - Processing the photos is a one-time job on my machine, in the studio pipeline.
+  - Processing the photos is a one-time job on my machine, in the studio pipeline, outside this repository.
   - Speech recognition and a cloned voice (ADR 0011) run on the local tier beside the twin's model. Where one doesn't fit, that step falls back as configured.
 - **Dev time:** the Claude Team plan.
 
@@ -71,11 +71,12 @@ Read as a list, for the spec. This is Claude's reading of the quote above, to co
 - **Object and resume clicks** are telemetry events, with no payloads.
 - **Chat text** goes to the gateway, as the twin's does.
 
-## Answers, in my words (2026-10-08)
+## Answers, in my words (2026-10-08; answer 10, 2026-10-12)
 Each answer is quoted as I gave it, with Claude's reading beside it.
 
 1. **Which pipeline processes the photos?** "Whichever existing pipeline that we are going to render our avatar or animations should be re-usable for the rest of the assets, so likely studio asset pipeline."
-   - Reading: the studio asset pipeline (intent 000), the one that renders the avatars and their animations, also makes the room's assets.
+   - Reading: the studio asset pipeline, the one that will render the avatars and their animations, also makes the room's assets.
+   - Corrected 2026-10-12: this reading first credited intent 000 with that pipeline and said it already made the avatars. Intent 000 names the studio's asset pipeline only in the rickshaw-walla story, and the studio has no workflow for these assets yet (answer 10).
 2. **What the photos show, and the rights.** "Everything around the window and desk is owned by me, and will be shown in photos. Our studio pipeline should take an input of a photo and identify which specific part to focus on and recreate in our artistic asset."
    - Reading: everything shown is mine. The pipeline takes a photo, identifies the part to focus on (the desk, the snowboard, the bicycle, the window and its artwork), and recreates that part in the room's art direction.
 3. **The resume's source and form.** "Yes it will match the corpus and facts, and we can define the interactivity later. There is no existing pdf version, so we can add that to download as well."
@@ -88,12 +89,14 @@ Each answer is quoted as I gave it, with Claude's reading beside it.
 7. **Which phase builds it?** "Use your recommendation."
    - **Claude's recommendation, for me to confirm:**
      - **Phase 1, the PDF resume, with the corpus.** It needs only the corpus and its facts, and it helps the interviews this portfolio is for (intent 000) before the room exists.
-     - **Phase 2, the studio pipeline's photo step, with the avatars.** It is the same pipeline that makes the avatars.
+     - **Phase 2, the avatars, with the studio pipeline's photo step.** The pipeline and its photo step run in the studio, outside this repository; Phase 2 takes in their outputs (answer 10; intent 003).
      - **Phase 3, the room itself, as its own spec.** It needs Phase 1's persona and corpus, Phase 2's voice and avatar rig, and spec 001's edge.
 8. **The view through the window.** "We want to recreate a similar view, it's a small window that largely see's an immediate neighboring fence and tree, there won't be any defining information present."
    - Reading: the pipeline recreates a similar view, the neighboring fence and a tree, with nothing in it that could locate me.
 9. **A twin that needs Claude most of the time.** "Yes, that's fine. You can put it in the room spec", along with the cost answer under Constraints.
    - Reading: if no local model meets the twin's bar, Claude may be the twin's usual route. The room's spec names that against Principle I's local-first default, with an ADR, and sizes its budget by the testing above.
+10. **Where the pipeline lives** (2026-10-12). Claude asked whether the studio's pipeline already exists outside this repository (a) or doesn't exist yet (b). "Let's go with (a). The studio already has a pipeline outside this repo. We may want to update the models if possible if newer releases have been made for our particular use-case. Only the outputs should come in". Then: "We don't have a workflow yet for this, so there would be nothing to export, but it is worth checking what models we already have and what tools are installed like blender".
+    - Reading: the studio's pipeline, its tools, and its models stay outside this repository, and it has no workflow for these assets yet. The studio builds that workflow, checking its models against newer releases first. This repository receives only the outputs, under [intent 003](../003-studio-assets/intent.md).
 
 ## Still open
 - **Local-tier recognition against intent 000.** Intent 000 lets audio leave the browser "only when the twin's brain or speech cannot run in the browser". Local-tier recognition means audio always leaves while the button is held. The spec states the reason (for example, one recognizer of known quality for every browser), or intent 000's wording changes.
