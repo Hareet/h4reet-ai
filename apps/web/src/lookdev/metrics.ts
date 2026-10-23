@@ -16,9 +16,9 @@ import { median } from "../room/quality";
 
 /** A frame interval over this many milliseconds counts as over (SC-005). */
 export const OVER_MS = 33;
-/** The live figures' steps in a millisecond, and the longest interval a step of its own holds; longer ones share the
- *  last, read as the longest the run measured. */
+/** The live figures' steps in a millisecond. */
 const STEPS_PER_MS = 10;
+/** The longest interval with a step of its own: longer ones share the last, read as the longest the run measured. */
 const LIVE_MAX_MS = 1000;
 /** Room for floating point at a step's edge. */
 const EPS = 1e-9;
