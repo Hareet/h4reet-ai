@@ -1,5 +1,5 @@
 # Intent: my work area's pieces, composed from data
-Author: the Author. Status: accepted (2026-10-22). Created: 2026-10-21. Revised: 2026-10-22, with the Author's answers to the open questions. Revises the scene of [intent 002](002-the-room.md) and adds pieces that show the system's live state; their models arrive through [intent 003](003-studio-assets.md)'s intake. Comes before the avatar's photos.
+Author: the Author. Status: accepted (2026-10-22). Created: 2026-10-21. Revised: 2026-10-22, with the Author's answers to the open questions. Revises the scene of intent 002 (`specs/002-the-room/intent.md` on `spec/002-the-room`) and adds pieces that show the system's live state; their models arrive through intent 003's intake (`specs/003-studio-assets/intent.md` on `spec/003-studio-assets`). Comes before the avatar's photos.
 
 ## Problem
 - **The room is code.** Intent 002 listed the scene: the snowboard, the bicycle, the laptop and screen, the window and its artwork. Spec 002 built it with each piece's position, shape, and topic written into the room's code (`objects.ts`, `framing.ts`, `scene.ts`). Adding a piece, moving one, or changing what it opens is a code change.
