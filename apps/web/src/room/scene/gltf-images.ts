@@ -10,14 +10,18 @@
 // test/room/gltf-images.test.ts pins the loader's internals this relies on, in three 0.186.1, whose EXT_texture_webp
 // makes no support probe that the plugin would have to mark supported first.
 //
-// It belongs to the room's 3D chunk, which never imports the GLB reader in src/room/glb/ (R-08): it reads no header.
+// It belongs to the room's 3D chunk, which never imports the GLB reader in src/room/glb/ (R-08), so it reads no image
+// header: a reduced image is decoded, then resized to half its decoded sides, and the full-size bitmap closed.
 import { Texture } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { GLTF, GLTFLoaderPlugin, GLTFParser } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 import { textureBytes } from "./ledger";
 
-/** createImageBitmap's options for every decode: the pixels as stored, neither premultiplied nor colour-converted. */
+/**
+ * createImageBitmap's options for every decode: the pixels as stored, neither premultiplied nor colour-converted, as
+ * three's own ImageBitmapLoader decodes a glTF image (GLTFLoader sets it no orientation, so none is flipped).
+ */
 export const DECODE: Readonly<ImageBitmapOptions> = { premultiplyAlpha: "none", colorSpaceConversion: "none" };
 
 /** createImageBitmap, which the page takes from its window, or a stand-in for it. */
