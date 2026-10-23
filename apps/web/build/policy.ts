@@ -1,8 +1,10 @@
 // A checkout's prebuild (spec 002, T017; contracts/resume-source.md §5): fills the policy directory with main's
-// assets/policy/content-approvals.json and resume-header.json, read with `git cat-file blob refs/heads/main:<path>` from
-// the repository this workspace sits in, never from the branch's working tree. The branch's full ref, as spec 003 reads
-// its policy: a bare `main` resolves to refs/tags/main before refs/heads/main, and an agent session can make that tag. A file main doesn't hold, or a checkout with no main
-// (an exported tree), leaves it out, so every content file builds as a draft.
+// assets/policy/content-approvals.json, resume-header.json, and caps.json (spec 004, R-13), read with
+// `git cat-file blob refs/heads/main:<path>` from the repository this workspace sits in, never from the branch's
+// working tree, so a branch can neither approve its own content nor raise its own caps. The branch's full ref, as
+// spec 003 reads its policy: a bare `main` resolves to refs/tags/main before refs/heads/main, and an agent session can
+// make that tag. A file main doesn't hold, or a checkout with no main (an exported tree), leaves it out, so every
+// content file builds as a draft, and the room's compositor takes FR-053's starting caps.
 //
 // It never runs in the image: the Dockerfile runs the build with --ignore-scripts, and ROOM_POLICY_DIR there names the
 // named context's copy, which web_image.py read from main on the host. With ROOM_POLICY_DIR set, this does nothing.
@@ -10,10 +12,11 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** main's paths, and their names in the policy directory. */
+/** main's paths, and their names in the policy directory, in approvals.ts's POLICY_FILES order: the caps third. */
 export const POLICY_PATHS = [
   ["assets/policy/content-approvals.json", "content-approvals.json"],
   ["assets/policy/resume-header.json", "resume-header.json"],
+  ["assets/policy/caps.json", "caps.json"],
 ] as const;
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -77,10 +80,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (done === "given") {
     console.log(`policy: ROOM_POLICY_DIR names the policy directory (${process.env.ROOM_POLICY_DIR}); nothing to fill`);
   } else {
-    const names = readdirSync(DEFAULT_POLICY_DIR);
+    const written = readdirSync(DEFAULT_POLICY_DIR);
+    const names = POLICY_PATHS.map(([, name]) => name).filter((name) => written.includes(name));
+    const listed = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
     console.log(
       names.length
-        ? `policy: main's ${names.join(" and ")} into ${DEFAULT_POLICY_DIR}`
+        ? `policy: main's ${listed} into ${DEFAULT_POLICY_DIR}`
         : "policy: main has no assets/policy files here, so every content file builds as a draft",
     );
   }
