@@ -1,26 +1,9 @@
-// The room's selectable objects (spec 002, FR-020; contracts/room-scene.md §2): their IDs, names, and topics, and the
-// pointer and touch handling that turns a tap on the scene into selectObject(id). Three.js stays out of this file: the
-// list, the 2D drawing, and the manifest use it too, and the 3D chunk (scene.ts) supplies the picker, which picks a
-// selectable's ID from the bundle's pick areas (spec 004, T098). A mouse, a touch, and the "In the room" list's button
-// all end in the same selectObject, so the paths can't drift.
-export const ROOM_OBJECTS = [
-  { id: "snowboard", name: "Snowboard", topic: "hobbies and general life" },
-  { id: "bicycle", name: "Bicycle", topic: "travel adventures" },
-  { id: "laptop", name: "Laptop and screen", topic: "work projects" },
-] as const;
-
-export type RoomObject = (typeof ROOM_OBJECTS)[number];
-export type ObjectId = RoomObject["id"];
-
-export function isObjectId(value: unknown): value is ObjectId {
-  return ROOM_OBJECTS.some((o) => o.id === value);
-}
-
-export function objectById(id: ObjectId): RoomObject {
-  const found = ROOM_OBJECTS.find((o) => o.id === id);
-  if (!found) throw new Error(`no room object ${String(id)}`);
-  return found;
-}
+// The pointer's selection (spec 002, FR-020; contracts/room-scene.md §2): the pointer and touch handling that turns a
+// tap on the scene into selectObject(id), over the selectables' IDs as strings. The selectables, their names, and their
+// topics are the bundle's index's since spec 004 (T110, T112), so no list of them stands here. Three.js stays out of
+// this file: the 2D drawing uses it too, and the 3D chunk (scene.ts) supplies the picker, which picks a selectable's
+// ID from the bundle's pick areas (spec 004, T098). A mouse, a touch, and the "In the room" list's button all end in
+// the same selectObject, so the paths can't drift.
 
 /** A point in normalized device coordinates: x and y from -1 to 1, y up. */
 export interface Ndc {

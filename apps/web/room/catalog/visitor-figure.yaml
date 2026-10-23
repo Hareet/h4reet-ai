@@ -1,6 +1,7 @@
 # The visitor's figure: the room draws the visitor's chosen avatar as a flat cut-out (src/choice/avatars.ts), so the
-# piece has no model; its size is LAYOUT's, the largest avatar's (src/room/framing.ts), and it gives a flat stand-in
-# and the hand the paper reaches, the first avatar's (FR-008). Its budget is nominal: the avatars carry their own.
+# piece has no model; its size is spec 002's LAYOUT's, the largest avatar's (its src/room/framing.ts), and it gives a
+# flat stand-in and the hand the paper reaches, the first avatar's (FR-008). Its budget is nominal: the avatars carry
+# their own.
 version: 1
 id: visitor-figure
 name: The visitor's figure

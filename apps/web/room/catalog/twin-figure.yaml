@@ -1,7 +1,7 @@
-# The twin's figure: spec 002's placeholder, a body, a head, and an arm held out (src/room/scene.ts), at LAYOUT's size
-# (src/room/framing.ts), widened to hold the arm. Its picture is the twin's avatar (spec 003), so the piece has no
-# model; it gives the stand-in, the size, and the hand the paper leaves from (FR-008). Its budget is nominal: the
-# avatar's files carry their own.
+# The twin's figure: spec 002's placeholder, a body, a head, and an arm held out (its src/room/scene.ts), at LAYOUT's
+# size (its src/room/framing.ts), widened to hold the arm. Its picture is the twin's avatar (spec 003), so the piece
+# has no model; it gives the stand-in, the size, and the hand the paper leaves from (FR-008). Its budget is nominal:
+# the avatar's files carry their own.
 version: 1
 id: twin-figure
 name: The twin's figure
