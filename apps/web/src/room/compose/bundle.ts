@@ -99,7 +99,8 @@ export interface RoomIndex {
     max_chars: number | null;
     /** The catalog's px. */
     px: [number, number];
-    /** Its largest on-screen size at the reference stages. */
+    /** Its largest on-screen size at the reference stages; its px where a corner of it falls behind a reference
+     *  camera, so its canvas, min(px, screen_css × the pixel ratio), is its px, as RK3 counts it (plan.md §10). */
     screen_css: [number, number];
     regions: {
       rect: [number, number, number, number];

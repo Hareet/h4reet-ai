@@ -937,8 +937,10 @@ function regionOf(r: Region): IndexRegion {
   return { rect: [m6(r.rect[0]), m6(r.rect[1]), m6(r.rect[2]), m6(r.rect[3])], renderer: r.renderer, grid, source };
 }
 
-/** Each bound face, in RG's order, with RG's on-screen size, by which RK3 sized its canvas; [0, 0] where a corner falls
- *  behind a reference camera, where RK3 counts its whole canvas. */
+/** Each bound face, in RG's order, with RG's on-screen size, by which RK3 sized its canvas. Where a corner falls behind
+ *  a reference camera, or its placement doesn't resolve, its size is unknown and RK3 counts its whole canvas, its px:
+ *  its screen_css is then its px, so a runtime's min(px, screen_css × the pixel ratio) is px at any ratio of 1 or more,
+ *  as RK3's canvas is (plan.md §10). */
 function facesOf(c: Composed): RoomIndex["faces"] {
   const out: RoomIndex["faces"] = [];
   for (const { placement, role, screen } of c.geometry ? faceScreens(c.geometry) : []) {
@@ -955,7 +957,7 @@ function facesOf(c: Composed): RoomIndex["faces"] {
       atmosphere: binding.atmosphere,
       max_chars: binding.max_chars ?? null,
       px: [live.px[0], live.px[1]],
-      screen_css: screen ? point(screen) : [0, 0],
+      screen_css: screen ? point(screen) : [live.px[0], live.px[1]],
       regions: binding.regions.map(regionOf),
     });
   }

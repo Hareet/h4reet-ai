@@ -47,7 +47,8 @@ export interface FaceCanvas {
   readonly role: string;
   readonly px: readonly [number, number];
   /** Its largest on-screen size at the reference stages, in CSS pixels, the index's screen_css; null where a corner
-   *  falls behind the camera or its placement doesn't resolve, so the canvas is its px. */
+   *  falls behind the camera or its placement doesn't resolve, so the canvas is its px, as the index's screen_css, its
+   *  px there, gives it to the runtime. */
   readonly screen: readonly [number, number] | null;
   /** min(px, ⌊screen × the phone's pixel ratio⌋) on each side. */
   readonly canvas: readonly [number, number];
