@@ -12,12 +12,13 @@
 // - a retarget: a selectable opens another topic and keeps its ID and its event;
 // - a rewording: a selectable's name, a topic's phrase, and a label's word;
 // - a switch case for a value its signal already has, on a fixture switch whose piece claims nothing and uses default.
-// Where a change needs room in the scene, the test looks for it in the committed layout, so a later data edit that
-// takes one spot leaves the proof standing. The runtime half: a bundle with an added selectable gets a stand-in and a
-// pick area in 3D, and a list button, a 2D cue, and its fixed message, from the list and the message T110 builds and
-// the 2D room T109 draws from the bundle. And apps/web/room/README.md, which says how to make
-// each change, names no ID the data defines (T114). Synthetic IDs take the reserved prefix fx-; every other ID is read
-// from the data, never written here.
+// Where a change needs room in the scene, the test finds it in the committed layout, so a later data edit that takes
+// one spot leaves the proof standing: the addition's spot by the kernel's own measures before it composes (see "The
+// added piece's spot"), the move and the regroup by composing their few steps. The runtime half: a bundle with an
+// added selectable gets a stand-in and a pick area in 3D, and a list button, a 2D cue, and its fixed message, from the
+// list and the message T110 builds and the 2D room T109 draws from the bundle. And apps/web/room/README.md, which says
+// how to make each change, names no ID the data defines (T114). Synthetic IDs take the reserved prefix fx-; every other
+// ID is read from the data, never written here.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -36,11 +37,22 @@ import type { Tree } from "../../build/room/source";
 import { AVATARS } from "../../src/choice/avatars";
 import { startRoom } from "../../src/room/app";
 import type { RoomScene } from "../../src/room/compose/bundle";
-import { framing } from "../../src/room/compose/framing";
-import { origin, sub } from "../../src/room/compose/math";
+import { framing, withLabel } from "../../src/room/compose/framing";
+import type { Box } from "../../src/room/compose/framing";
+import { IDENTITY, invert, origin, sub, transformPoint } from "../../src/room/compose/math";
 import type { Vec3 } from "../../src/room/compose/math";
-import { resolveMounts } from "../../src/room/compose/mount";
-import { REFERENCE_DESKTOP, REFERENCE_PHONE } from "../../src/room/compose/stages";
+import { anchorWorld, mountWorld, resolveMounts } from "../../src/room/compose/mount";
+import { CORE_PX, flatCore, memberRect, pickAreas } from "../../src/room/compose/pick";
+import type { PickArea, Rect } from "../../src/room/compose/pick";
+import type { Camera } from "../../src/room/compose/project";
+import {
+  FLAT_VIEW,
+  REFERENCE_DESKTOP,
+  REFERENCE_PHONE,
+  flatScale,
+  supportedStages,
+} from "../../src/room/compose/stages";
+import type { Stage } from "../../src/room/compose/stages";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import type { RoomEvent } from "../../src/room/events";
 import { resumeView } from "../../src/room/resume-port";
@@ -173,6 +185,8 @@ const ADDED_NAME = "Fixture selectable";
 const ADDED_WORD = "Fixture stand-in";
 const ADDED_PHRASE = "fixture topic";
 const SIDE = 0.3;
+/** The added piece's expected bounds, around the centre of its back. */
+const BOUNDS: Box = { min: [-SIDE / 2, -SIDE / 2, 0], max: [SIDE / 2, SIDE / 2, 0.04] };
 const addedPiece = {
   version: 1,
   id: ADDED,
@@ -181,7 +195,7 @@ const addedPiece = {
   stylized_scale: 1,
   origin: {
     point: "Fixture point at the centre of the piece's back.",
-    bounds: { min: [-SIDE / 2, -SIDE / 2, 0], max: [SIDE / 2, SIDE / 2, 0.04] },
+    bounds: BOUNDS,
   },
   standin: [{ shape: "box", size: [SIDE, SIDE, 0.04], at: [0, 0, 0.02], color: "#808080" }],
   drawing: { from: "standin" },
@@ -194,66 +208,192 @@ const addedPiece = {
   },
 };
 
-/** Spots for the added piece on the wall anchor, in its frame, inside the committed framed boxes' span, the farthest
- *  from every selectable's members first. */
-function spots(): [number, number][] {
-  const boxes = base.scene.placements.filter((p) => p.framed).map((p) => p.frame_box);
-  const members = new Set(base.index.selectables.flatMap((s) => s.members));
-  const taken = base.scene.placements.filter((p) => members.has(p.id)).map((p) => p.frame_box);
-  const at = base.scene.pieces[root.piece]?.anchors[wallAnchor]?.at ?? [0, 0, 0];
-  const [x0, x1] = [Math.min(...boxes.map((b) => b.min[0])) + SIDE, Math.max(...boxes.map((b) => b.max[0])) - SIDE];
-  const [y0, y1] = [Math.min(...boxes.map((b) => b.min[1])) + SIDE, Math.max(...boxes.map((b) => b.max[1])) - 2 * SIDE];
-  const out: { spot: [number, number]; room: number }[] = [];
-  for (let x = Math.ceil(x0 * 4) / 4; x <= x1; x += 0.25)
-    for (let y = Math.ceil(y0 * 4) / 4; y <= y1; y += 0.25) {
-      const [wx, wy] = [at[0] + x, at[1] + y];
-      const gap = (b: (typeof taken)[number]): number =>
-        Math.hypot(Math.max(b.min[0] - wx, 0, wx - b.max[0]), Math.max(b.min[1] - wy, 0, wy - b.max[1]));
-      out.push({ spot: [x, y], room: Math.min(...taken.map(gap)) });
-    }
-  return out.sort((a, b) => b.room - a.room).map((o) => o.spot);
+// ---- The added piece's spot ----
+// The spot is chosen by the kernel's own measures, the ones RG5 to RG7 take, so the test knows it is free before it
+// composes, whatever the committed layout: the added piece's frame box keeps every camera where the committed room
+// puts it (each supported stage's aspect and the 2D drawing's), so no other piece moves on screen and no face's cap
+// height changes; and at every supported stage, in 3D and in 2D, its 44 × 44 core stays in the view and clear of every
+// other selectable's union and core, and no other core meets its rectangle, which is all pick.ts's `pickProblems`
+// refuses. A room the rules accept, with room on its wall for one more core, takes the addition clean; one without it
+// fails here, where an addition would need a move too, as the regroup's does.
+const NO_TURN = { x: 0, y: 0, z: 0 } as const;
+/** How far the added piece stands out from the wall anchor's plane, in metres. */
+const OUT = 0.02;
+/** A grid step over the wall, in metres, and the least clearance kept, in CSS pixels or view-box units. */
+const STEP = 0.05;
+const CLEAR = 1;
+
+/** The added piece's frame box at an offset on the wall anchor, as the compositor frames it: its bounds through the
+ *  kernel's mount, the top raised for the label its stand-in shows (framing.ts's withLabel). */
+function addedBox(x: number, y: number): Box {
+  const shell = must(base.scene.pieces[root.piece], "root's piece");
+  const anchor = must(shell.anchors[wallAnchor], "wall anchor");
+  const world = mountWorld(IDENTITY, shell.scale, anchor, [x, y, OUT], NO_TURN);
+  const { min, max } = BOUNDS;
+  const points: Vec3[] = [];
+  for (const px of [min[0], max[0]])
+    for (const py of [min[1], max[1]])
+      for (const pz of [min[2], max[2]]) points.push(transformPoint(world, [px, py, pz]));
+  const along = (k: 0 | 1 | 2): number[] => points.map((p) => p[k]);
+  return withLabel({
+    min: [Math.min(...along(0)), Math.min(...along(1)), Math.min(...along(2))],
+    max: [Math.max(...along(0)), Math.max(...along(1)), Math.max(...along(2))],
+  });
 }
 
-/** The addition: a catalog entry, a placement, a selectable, and a topic, at the first spot that composes clean. */
+/** How far apart two rectangles are: above 0 apart, 0 touching, under 0 overlapping (pick.ts lets edges touch). */
+const apart = (a: Rect, b: Rect): number =>
+  Math.max(b[0] - (a[0] + a[2]), a[0] - (b[0] + b[2]), b[1] - (a[1] + a[3]), a[1] - (b[1] + b[3]));
+
+/** The added piece's clearance in one view: its core's margin inside the view and from every other selectable's union
+ *  and core, and every other core's from its rectangle; under 0 where pickProblems would refuse it. */
+function clearance(rect: Rect, others: readonly PickArea[], core: number, view: Rect): number {
+  const c = must(pickAreas([{ id: ADDED_PICK, members: [{ rect, depth: 0 }] }], core)[0]?.core, "core");
+  let least = Math.min(
+    c[0] - view[0],
+    c[1] - view[1],
+    view[0] + view[2] - c[0] - c[2],
+    view[1] + view[3] - c[1] - c[3],
+  );
+  for (const o of others) {
+    if (o.union) least = Math.min(least, apart(c, o.union));
+    if (o.core) least = Math.min(least, apart(c, o.core), apart(o.core, rect));
+  }
+  return least;
+}
+
+/** One view the spacing check (RG6) measures: a supported stage's at its production framing, or the 2D drawing's. */
+interface View {
+  readonly camera: Camera;
+  readonly stage: Stage;
+  readonly others: readonly PickArea[];
+  readonly core: number;
+  /** The 2D drawing's rectangles are on the index's grid, 1e-4 view-box units. */
+  readonly grid: boolean;
+}
+
+/** Every view RG6 measures, framed over the committed room's framed boxes, and each with the committed selectables'
+ *  pick areas there: in 3D as bundle3d.ts's pickAreasOn gives them, in 2D from the index's flat hits. */
+function views(): View[] {
+  const framed = framedBoxes(base.scene);
+  const out: View[] = supportedStages().map((stage) => {
+    const camera = framing(stage.w / stage.h, framed);
+    return { camera, stage, others: pickAreasOn(base.scene, base.index, camera, stage), core: CORE_PX, grid: false };
+  });
+  const smallest = supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
+  const others = pickAreas(
+    base.index.flat.hits.map((h) => ({
+      id: h.selectable,
+      members: h.rects.map((rect, k) => ({ rect, depth: h.depths[k] ?? 0 })),
+    })),
+    flatCore(smallest),
+  );
+  out.push({
+    camera: framing(FLAT_VIEW.w / FLAT_VIEW.h, framed),
+    stage: FLAT_VIEW,
+    others,
+    core: flatCore(smallest),
+    grid: true,
+  });
+  return out;
+}
+
+/** The added piece's least clearance over these views, -Infinity where it moves a camera or falls behind one. */
+function clearanceOver(box: Box, over: readonly View[]): number {
+  let least = Infinity;
+  for (const v of over) {
+    if (framing(v.stage.w / v.stage.h, [box]).position[2] > v.camera.position[2]) return -Infinity;
+    const member = memberRect(box, v.camera, v.stage);
+    if (!member) return -Infinity;
+    const q = (n: number): number => (v.grid ? Math.round(n * 1e4) / 1e4 : n);
+    const rect: Rect = [q(member.rect[0]), q(member.rect[1]), q(member.rect[2]), q(member.rect[3])];
+    least = Math.min(least, clearance(rect, v.others, v.core, [0, 0, v.stage.w, v.stage.h]));
+  }
+  return least;
+}
+
+/** The added piece's offset on the wall anchor: over a grid that covers the committed framed boxes' span, the spot
+ *  whose least clearance at every view is the largest, so long as it is at least CLEAR; the smallest stages, the
+ *  reference ones, and the 2D drawing rank the spots, and every view then holds the best of them. */
+function freeSpot(): [number, number] {
+  const all = views();
+  const smallest = all.reduce((a, b) => (b.stage.w * b.stage.h < a.stage.w * a.stage.h ? b : a));
+  const reference = [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage];
+  const ranking = all.filter(
+    (v) =>
+      v.grid ||
+      v === smallest ||
+      v.stage.h <= smallest.stage.h ||
+      v.stage.w <= smallest.stage.w ||
+      reference.some((s) => s.w === v.stage.w && s.h === v.stage.h),
+  );
+  // The framed boxes' span, in the wall anchor's frame.
+  const shell = must(base.scene.pieces[root.piece], "root's piece");
+  const frame = must(
+    invert(anchorWorld(IDENTITY, shell.scale, must(shell.anchors[wallAnchor], "wall anchor"))),
+    "frame",
+  );
+  const boxes = framedBoxes(base.scene);
+  const local = boxes.flatMap((b) =>
+    [b.min[0], b.max[0]].flatMap((x) =>
+      [b.min[1], b.max[1]].flatMap((y) => [b.min[2], b.max[2]].map((z) => transformPoint(frame, [x, y, z]))),
+    ),
+  );
+  const [x0, x1] = [Math.min(...local.map((p) => p[0])), Math.max(...local.map((p) => p[0]))];
+  const [y0, y1] = [Math.min(...local.map((p) => p[1])), Math.max(...local.map((p) => p[1]))];
+  const ranked: { spot: [number, number]; room: number }[] = [];
+  for (let x = Math.ceil(x0 / STEP) * STEP; x <= x1; x += STEP)
+    for (let y = Math.ceil(y0 / STEP) * STEP; y <= y1; y += STEP) {
+      const spot: [number, number] = [Math.round(x * 1e6) / 1e6, Math.round(y * 1e6) / 1e6];
+      const room = clearanceOver(addedBox(...spot), ranking);
+      if (room >= CLEAR) ranked.push({ spot, room });
+    }
+  ranked.sort((a, b) => b.room - a.room || a.spot[0] - b.spot[0] || a.spot[1] - b.spot[1]);
+  for (const { spot } of ranked) if (clearanceOver(addedBox(...spot), all) >= CLEAR) return spot;
+  throw new Error(
+    `the committed room has no spot on its wall anchor where a 44 × 44 core stays exclusive at every supported stage ` +
+      `and in 2D without moving a camera (${ranked.length} spots passed the smallest stages)`,
+  );
+}
+
+/** The addition's files: a catalog entry, a placement at an offset on the wall anchor, a selectable, and a topic. */
+function additionFiles(x: number, y: number): Readonly<Record<string, unknown>> {
+  const scene = copy(SCENE);
+  scene.placements.push({
+    id: ADDED,
+    piece: ADDED,
+    mount: { on: root.id, anchor: wallAnchor, offset: [x, y, OUT], turn: NO_TURN, estimated: true },
+    frame: true,
+    label: ADDED_LABEL,
+  });
+  scene.selectables.push({
+    id: ADDED_PICK,
+    name: ADDED_NAME,
+    members: [ADDED],
+    action: { talk: { topic: ADDED_TOPIC } },
+  });
+  const topics = copy(TOPICS);
+  const words = must(TOPICS.topics[0], "topic").words_from;
+  topics.topics.push({
+    id: ADDED_TOPIC,
+    phrase: ADDED_PHRASE,
+    words_from: copy(words),
+    corpus: ["corpus/99-fx-added-topic.md"],
+  });
+  const ui = copy(WORDS);
+  ui.words[ADDED_LABEL] = ADDED_WORD;
+  return {
+    [SCENE_FILE]: scene,
+    [TOPICS_FILE]: topics,
+    [UI_WORDS_FILE]: ui,
+    [pathOf("catalog", ADDED)]: addedPiece,
+  };
+}
+
+/** The addition at the free spot, composed once. */
 const addition = ((): (() => Change) => {
   let made: Change | null = null;
-  return () => {
-    made ??= firstClean(
-      spots().map(([x, y]) => {
-        const scene = copy(SCENE);
-        scene.placements.push({
-          id: ADDED,
-          piece: ADDED,
-          mount: { on: root.id, anchor: wallAnchor, offset: [x, y, 0.02], turn: { x: 0, y: 0, z: 0 }, estimated: true },
-          frame: true,
-          label: ADDED_LABEL,
-        });
-        scene.selectables.push({
-          id: ADDED_PICK,
-          name: ADDED_NAME,
-          members: [ADDED],
-          action: { talk: { topic: ADDED_TOPIC } },
-        });
-        const topics = copy(TOPICS);
-        const words = must(TOPICS.topics[0], "topic").words_from;
-        topics.topics.push({
-          id: ADDED_TOPIC,
-          phrase: ADDED_PHRASE,
-          words_from: copy(words),
-          corpus: ["corpus/99-fx-added-topic.md"],
-        });
-        const ui = copy(WORDS);
-        ui.words[ADDED_LABEL] = ADDED_WORD;
-        return {
-          [SCENE_FILE]: scene,
-          [TOPICS_FILE]: topics,
-          [UI_WORDS_FILE]: ui,
-          [pathOf("catalog", ADDED)]: addedPiece,
-        };
-      }),
-    );
-    return made;
-  };
+  return () => (made ??= change(additionFiles(...freeSpot())));
 })();
 
 describe("the committed data (R-68)", () => {
