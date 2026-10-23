@@ -1,20 +1,29 @@
-# The topics the selectables open: spec 002's three, as its ROOM_OBJECTS opened them, each phrase spec 002's and each
-# quote the Author's words in spec 002's intent (W1). A topic stays unready until the twin's spec marks it ready, once
-# its corpus exists; the corpus files named here may not exist yet, and only the Author writes them.
+# The topics the selectables open: FR-036's defaults, Amendment B4's three. Each phrase fills the fixed message's
+# {topic}, and each quote is the Author's words the topic came from, verbatim. Hobbies and travel adventures is one
+# topic with one corpus, which the bicycle opens and the snowboard opens with its lead (answer 1); the chalkboard opens
+# the Author's mission (answer 3); work projects stays the laptop's. A topic stays unready until the twin's spec marks
+# it ready, once its corpus exists; the corpus files named here may not exist yet, and only the Author writes them.
 version: 1
 topics:
-  - id: hobbies-and-life
-    phrase: hobbies and general life
+  - id: hobbies-and-travel
+    phrase: hobbies and travel adventures
     words_from:
-      - { file: specs/002-the-room/intent.md, quote: hobbies and my general life }
-    corpus: [corpus/04-hobbies-and-general-life.md]
-  - id: travel-adventures
-    phrase: travel adventures
+      - file: specs/004-room-composition/intent.md
+        quote: >-
+          bicycle opens hobbies and travel adventures, and snowboarding opens the same but has a bias to talking more
+          about winter hobbies first, pulling from the same hobby and travel adventure corpus.
+    corpus: [corpus/04-hobbies-and-travel.md]
+  - id: mission
+    phrase: the Author's mission
     words_from:
-      - { file: specs/002-the-room/intent.md, quote: travel adventures }
-    corpus: [corpus/05-travel-adventures.md]
+      - file: specs/004-room-composition/intent.md
+        quote: pointing out the chalkboard will cover more mission statements from a corpus
+    corpus: [corpus/05-mission.md]
   - id: work-projects
     phrase: work projects
+    # Answer 10 took the intent's open question 12 as recommended: the monitor stays part of "Laptop and screen", so the
+    # laptop's ID and topic stay. The topic's own words are spec 002's intent's.
     words_from:
+      - { file: specs/004-room-composition/intent.md, quote: "10-16) are okay?." }
       - { file: specs/002-the-room/intent.md, quote: my work projects }
     corpus: [corpus/06-work-projects.md]

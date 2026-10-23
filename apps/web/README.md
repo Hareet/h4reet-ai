@@ -29,7 +29,7 @@ From the repository root, in an agent session or the devcontainer:
 | The resume's and the scripts' checks, the lock, and the eval cases | `npm run content:check -w apps/web` (C1–C9 and N1–N5, then whether the lock and `evals/narration/cases/` are current) |
 | Rewrite the lock and the eval cases after a change | `npm run content:lock -w apps/web`, which refuses while a check fails |
 | The narration's eval cases | `make evals`, which runs the `narration` suite on the fake adapter only |
-| Rewrite `config/room-events.yaml` after the room's objects or the resume's items change | `npm run manifest -w apps/web` (`make test` fails while it's stale) |
+| Rewrite the room's generated files (`config/room-events.yaml`, `config/room-topics.yaml`, and `docs/studio/`'s work orders and photo guide) after the room's data or the resume's items change | `npm run room:generate -w apps/web`, or its alias `npm run manifest -w apps/web` (`make test` fails while one is stale; [room/README.md](room/README.md)) |
 | Vendor a font, or rewrite `fonts/fonts.lock` | `npm run fonts:lock -w apps/web -- [--copy] <tarball>...`, one `npm pack` tarball per family ([fonts/README.md](fonts/README.md)) |
 
 The build writes `apps/web/dist/`: `index.html`, hashed files under `assets/` (the fonts among them), `disclosure/`, `room-data.json`, and `resume.pdf`. Every URL in it is relative, and nothing loads from another host (FR-057). The citation check and the narration's checks run on every build and fail it on any problem, naming the item or the script; a stale lock only warns there, and fails `make test`, so a corpus edit on `main` never stops `make up`.

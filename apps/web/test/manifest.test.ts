@@ -6,24 +6,16 @@
 // the selectables in scene order, each with its action, its topic's ID, and its readiness; `placeholders` is computed;
 // `standins[]` names each placement and pose that shows a stand-in, and why; `live_source` is the scene's, `off`;
 // `build_kind` the build's; and `caps` where the policy read them, beside spec 002's free talk, items, avatars, and
-// event kinds. config/room-events.yaml stays byte for byte spec 002's file, its objects now the selectables' IDs, until
-// its generator moves to `room:generate` (T108). Spec 002's item reader stays tested while its `manifest` script does.
+// event kinds. config/room-events.yaml is room:generate's since T108, its objects the selectables' IDs, and
+// test/room/generated.test.ts holds the committed file fresh; spec 002's generator and its item reader went with it.
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
-import {
-  ROOM_EVENTS_PATH,
-  firstDifference,
-  itemIds,
-  parseMessages,
-  readMessages,
-  roomEventsYaml,
-} from "../build/manifest";
+import { ROOM_EVENTS_PATH, firstDifference, parseMessages, readMessages, roomEventsFile } from "../build/manifest";
 import { compose } from "../build/room/compose";
 import type { ComposeResult } from "../build/room/compose";
 import { loadRoom } from "../build/room/load";
@@ -33,21 +25,6 @@ import { fileTree, overlayTree } from "../build/room/source";
 import { AVATARS } from "../src/choice/avatars";
 import { EVENT_KINDS } from "../src/room/events";
 import { REPO, WEB } from "./helpers/room";
-
-const made: string[] = [];
-afterEach(() => {
-  while (made.length) rmSync(made.pop() as string, { recursive: true, force: true });
-});
-
-function tree(resume?: string): string {
-  const root = mkdtempSync(join(tmpdir(), "h4-manifest-"));
-  made.push(root);
-  if (resume !== undefined) {
-    mkdirSync(join(root, "apps/web/content"), { recursive: true });
-    writeFileSync(join(root, "apps/web/content/resume.yaml"), resume);
-  }
-  return root;
-}
 
 const RESUME = `version: 1
 sections:
@@ -170,43 +147,18 @@ describe("room-manifest.json (Amendment B7)", () => {
   });
 });
 
-describe("spec 002's item reader, which its manifest script still uses (T108)", () => {
-  it("takes the items from the resume's source, in order", () => {
-    expect(itemIds(tree(RESUME))).toEqual(["work-one", "work-two", "oss-one"]);
-  });
-
-  it("has no items while the tree has no resume source", () => {
-    expect(itemIds(tree())).toEqual([]);
-  });
-
-  it("refuses a resume source whose item IDs it can't read, or that repeats one", () => {
-    expect(() => itemIds(tree("sections: [{ items: [{ text: no id }] }]\n"))).toThrow(/item/);
-    expect(() => itemIds(tree("sections:\n  - items: [{ id: a-one }, { id: a-one }]\n"))).toThrow(/a-one/);
-    expect(() => itemIds(tree("sections:\n  - items: [{ id: Bad_ID }]\n"))).toThrow(/Bad_ID/);
-  });
-});
-
 describe("config/room-events.yaml", () => {
   it("holds the kinds, the selectables' IDs, and the item IDs, from the same source", () => {
-    const { index, manifest } = composed({ resume: RESUME });
-    expect(parse(roomEventsYaml(manifest))).toEqual({
+    const { index, manifest, generated } = composed({ resume: RESUME });
+    const text = roomEventsFile(manifest);
+    expect(parse(text)).toEqual({
       schema: 1,
       kinds: manifest.event_kinds,
       objects: index.selectables.map((s) => s.id),
       items: ["work-one", "work-two", "oss-one"],
     });
-  });
-
-  it("is current: make test fails when the committed file differs from what the build would write", () => {
-    const committed = readFileSync(join(REPO, ROOM_EVENTS_PATH), "utf8");
-    const { manifest, generated } = composed();
-    // `npm run manifest -w apps/web` rewrites it, in spec 002's words until room:generate takes it over (T108).
-    expect(firstDifference(committed, roomEventsYaml(manifest))).toBeNull();
-    // What room:generate will write differs in its header alone.
-    const body = (text: string): string => text.replace(/^(#[^\n]*\n)+/, "");
-    const fresh = generated.find((g) => g.path === ROOM_EVENTS_PATH)?.text ?? "";
-    expect(fresh).not.toBe("");
-    expect(firstDifference(body(committed), body(fresh))).toBeNull();
+    // What room:generate writes, which test/room/generated.test.ts holds the committed file to.
+    expect(generated.find((g) => g.path === ROOM_EVENTS_PATH)?.text).toBe(text);
   });
 
   it("names the first line that differs", () => {

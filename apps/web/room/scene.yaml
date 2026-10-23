@@ -130,19 +130,30 @@ switches:
       radius: 0.002
       drop: 0.1
       rest: { placement: work-desk, anchor: top }
+# FR-036's topics (B3, B4). The chalkboard's own selectable, opening the Author's mission, comes with the list and the
+# 2D room drawn from the bundle (T109, T110; plan.md §10).
 selectables:
   - id: snowboard
     name: Snowboard
     members: [snowboard]
-    action: { talk: { topic: hobbies-and-life } }
+    # Answer 1: the snowboard opens the bicycle's topic, but "has a bias to talking more about winter hobbies first".
+    action: { talk: { topic: hobbies-and-travel, lead: Winter hobbies first. } }
   - id: bicycle
     name: Bicycle
     members: [bicycle]
-    action: { talk: { topic: travel-adventures } }
+    action: { talk: { topic: hobbies-and-travel } }
   - id: laptop
     name: Laptop and screen
     members: [laptop, laptop-stand, desk-screen]
     action: { talk: { topic: work-projects } }
 handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
 survey: { desk_corner: { placement: work-desk, anchor: front-left } }
-retired: []
+retired:
+  - id: hobbies-and-life
+    kinds: [topic]
+    retired: 2026-10-23
+    reason: Amendment B4 made hobbies and travel adventures one topic, by the Author's answer 1.
+  - id: travel-adventures
+    kinds: [topic]
+    retired: 2026-10-23
+    reason: Amendment B4 made hobbies and travel adventures one topic, by the Author's answer 1.

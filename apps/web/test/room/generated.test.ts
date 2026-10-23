@@ -102,6 +102,20 @@ describe("the committed generated files (contracts/room-bundle.md §13)", () => 
   });
 });
 
+describe("what they hold (contracts/room-bundle.md §9)", () => {
+  it("is no path outside the repository, no host or user name, no time, and not the bundle's digest", () => {
+    const { generated, digest } = repositoryBundle();
+    for (const { path } of generated) {
+      const text = committed(path);
+      expect(text, path).not.toBe("");
+      expect(text, path).not.toContain(digest.slice(0, 16));
+      expect(text, path).not.toMatch(/(^|[\s(`"])(\/home|\/tmp|\/srv|\/mnt|\/Users|~\/|[A-Z]:\\)/m);
+      expect(text, path).not.toMatch(/\b\d{1,2}:\d{2}(:\d{2})?\b/);
+      expect(text, path).not.toMatch(/\b[\w.-]+@[\w-]+(\.[\w-]+)*\b/);
+    }
+  });
+});
+
 describe("config/room-events.yaml (contracts/room-bundle.md §7; Amendment B7)", () => {
   it("is what compose() writes, line for line", () => {
     expect(firstLine(committed(EVENTS), fresh(EVENTS)), `${GENERATE} rewrites ${EVENTS}`).toBeNull();
@@ -170,11 +184,11 @@ describe("the two YAML files (contracts/room-bundle.md §13)", () => {
 
 describe("the work orders (contracts/room-bundle.md §9.1; FR-014)", () => {
   it("are one for each catalog entry, by its piece's ID, and no other", () => {
-    const pieces = data()
-      .catalog.map((c) => c.value.id)
+    const orders = data()
+      .catalog.map((c) => `${c.value.id}.md`)
       .sort(compareBytewise);
-    expect(pieces.length).toBeGreaterThan(0);
-    expect(repo().list(WORK_ORDERS_DIR)).toEqual(pieces.map((p) => `${p}.md`));
+    expect(orders.length).toBeGreaterThan(0);
+    expect(repo().list(WORK_ORDERS_DIR)).toEqual(orders);
   });
 
   it("are each what compose() writes for its piece", () => {
