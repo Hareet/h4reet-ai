@@ -4,7 +4,8 @@
 // 1. The floor. Models load only above ADR 0010's floor (quality.ts's capability() and meetsModelFloor), read once,
 //    when the first model would load; below it every model is skipped, and the stand-ins stay.
 // 2. The order. After the figures (a promise spec 003's avatar loader will resolve; today, at once), in the entries'
-//    order, which is the 3D part's load_order (compose/load-order.ts): a model several placements share loads once.
+//    order, which is the 3D part's load_order (compose/load-order.ts): a model several placements, or a switch's
+//    poses, share loads once.
 // 3. The fetch. At most 4 at once, same-origin, with `integrity` the plain file's SHA-256, no redirect, and a
 //    10-second timeout on the room's clock that covers the body. A model the page holds in memory (lookdev's
 //    candidates, every model in the phone copy) is read from there, and nothing is fetched.
@@ -28,8 +29,8 @@
 //
 // Readings beside the research's words (plan.md §10):
 // - An image card (a set model whose URL isn't a .glb) waits for its drawing: the loader takes GLBs only.
-// - A switch's pose in load_order loads its piece's model only where a placement shows that piece too, since the 3D
-//   part carries a model's URL on placements alone.
+// - A switch's pose in load_order, `<switch>.<pose>`, loads the switch's own model, its `switches[].model`, an
+//   addition to room-bundle.md §3.2, since RS2 lets no placement place a switch's piece; it shows in every case.
 // - Parsing waits for the hand-off as the swap does, since a parse stalls frames in the one animation nothing skips.
 // - A failed attempt's hold, like a swap's, is released two frames after it.
 import type { Light, Material, Mesh, Object3D, Texture } from "three";
@@ -141,18 +142,16 @@ export function modelEntries(part: Pick<RoomScene, "placements" | "switches" | "
   const seen = new Set<string>();
   const out: ModelEntry[] = [];
   for (const id of part.load_order) {
-    let placement = byId.get(id);
-    if (!placement) {
-      // A switch's pose, `<switch>.<pose>`: its piece's model, where a placement shows that piece too.
-      const sw = part.switches.find((s) => id.startsWith(`${s.id}.`));
-      placement = sw && part.placements.find((p) => p.piece === sw.piece && p.model !== null);
-    }
-    const model = placement?.model;
-    if (!placement || !model || !GLB_URL.test(model.url) || seen.has(placement.piece)) continue;
-    seen.add(placement.piece);
+    // A placement's ID, or a switch's pose, `<switch>.<pose>`, which shows the switch's own model: RS2 lets no
+    // placement place a switch's piece, so the 3D part carries that model on the switch (room-bundle.md §3.2).
+    const dot = id.indexOf(".");
+    const shows = dot < 0 ? byId.get(id) : part.switches.find((s) => s.id === id.slice(0, dot));
+    const model = shows?.model;
+    if (!shows || !model || !GLB_URL.test(model.url) || seen.has(shows.piece)) continue;
+    seen.add(shows.piece);
     out.push({
-      piece: placement.piece,
-      asset: assetOf(model.url, placement.piece),
+      piece: shows.piece,
+      asset: assetOf(model.url, shows.piece),
       bytes: model.bytes,
       source: { kind: "url", url: `${base}${model.url}`, sha256: model.sha256 },
     });
