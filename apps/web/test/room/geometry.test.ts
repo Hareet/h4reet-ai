@@ -236,6 +236,34 @@ describe("RG6: an exclusive 44 × 44 core for each selectable at every supported
       /^its exclusive core overlaps a member of selectables\[0\] in 2D, at the drawing's smallest scale$/,
     );
   });
+
+  it("refuses a core in another selectable's union, between its members, where a pick that misses them goes (words-1)", () => {
+    // The monitor and the board grouped, and the laptop, moved right, a selectable of its own in the gap between them:
+    // its core meets neither of their members nor their core, at any stage.
+    const found = rg(
+      tree({
+        [SCENE]: (d) => {
+          at(d, "selectables", 0).members = ["fx-monitor", "fx-board"];
+          (d.selectables as Doc[])[1] = {
+            id: "fx-lap",
+            name: "Fixture lap",
+            members: ["fx-laptop"],
+            action: { resume: {} },
+          };
+          at(d, "placements", 4, "mount").offset = [0.3, 0, 0];
+        },
+      }),
+    );
+    const union = "its exclusive core overlaps the union of the members of selectables[0]";
+    expect(found.map((f) => `${f.rule} ${f.path}: ${f.reason}`)).toEqual([
+      expect.stringMatching(
+        new RegExp(
+          `^RG6 selectables\\[1\\]: ${union.replace(/[[\]]/g, "\\$&")} in 3D at the \\d+(\\.\\d)? × \\d+(\\.\\d)? stage and \\d+ other supported stages$`,
+        ),
+      ),
+      `RG6 selectables[1]: ${union} in 2D, at the drawing's smallest scale`,
+    ]);
+  });
 });
 
 describe("RG7: legibility at the production framing on both reference stages", () => {

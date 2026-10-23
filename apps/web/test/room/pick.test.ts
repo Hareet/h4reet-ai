@@ -221,4 +221,22 @@ describe("pick areas (compose/pick.ts)", () => {
     ]);
     expect(pickProblems(apart, view)).toEqual([]);
   });
+
+  it("report a core over another selectable's union, where a pick that misses every member goes to it (words-1)", () => {
+    // fx-small's core [83, 83, 44, 44] meets neither fx-split's members nor its core [68, 133, 44, 44], but lies in
+    // the gap between its members, inside its union [85, 0, 10, 310].
+    const areas = pickAreas([
+      { id: "fx-small", members: [member(100, 100, 10, 10)] },
+      { id: "fx-split", members: [member(85, 0, 10, 10), member(85, 300, 10, 10)] },
+    ]);
+    expect(areas.map((a) => a.core)).toEqual([
+      [83, 83, 44, 44],
+      [68, 133, 44, 44],
+    ]);
+    // A point of fx-small's core off its member goes to fx-split, whose union holds it.
+    expect(pick(areas, [90, 100])).toBe("fx-split");
+    expect(pickProblems(areas, [0, 0, 400, 400])).toEqual([
+      { selectable: "fx-small", problem: "union", other: "fx-split" },
+    ]);
+  });
 });
