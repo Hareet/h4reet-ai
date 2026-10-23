@@ -8,16 +8,19 @@
 // the local pose sits; RS6 a cable from an anchor the switch's piece lacks.
 // Readings: a pose the claims don't name is RS2's alone, so RS3 and RS5 judge only the poses the claims name; RS4's
 // shared pose is the one most of the six values show, ties to the earliest in §13.4's order, and each value showing
-// another is reported where its pose comes from, its case or the default; RS5 compares two mounts on one placement and
-// anchor by the distance between their offsets and the angle between their turns. A pose, a case, or a piece that
-// doesn't resolve is RI4's, and a piece whose file the loader refused is that file's finding: neither is judged again.
+// another is reported where its pose comes from, its case or the default; RS5 compares two poses where the world puts
+// them (rg.ts's `mountedWorld`), by the distance between their origins and the angle between their frames, so a pose
+// on another placement or anchor that lands where the plugged pose sits is refused too (§17). A pose, a case, or a
+// piece that doesn't resolve is RI4's, and a piece whose file the loader refused is that file's finding: neither is
+// judged again.
 // No reason holds a pose's name or any other value from the data.
-import { length, rotation, sub } from "../../../src/room/compose/math";
-import type { Turn } from "../../../src/room/compose/math";
+import { length, origin, sub } from "../../../src/room/compose/math";
+import type { Mat4 } from "../../../src/room/compose/math";
 import { TIER_VALUES } from "../../../src/room/compose/vocabulary";
 import type { TierValue } from "../../../src/room/compose/vocabulary";
-import type { CatalogEntry, Mount, Switch } from "../schema";
+import type { CatalogEntry, Switch } from "../schema";
 import type { Context, Family } from "./family";
+import { geometryOf, mountedWorld } from "./rg";
 
 /** The six values FR-043 and Q2 give one shared pose, in contracts/room-data-files.md §13.4's order. */
 const SHARED: readonly TierValue[] = ["unknown", "paused", "not-live", "resting", "budget", "unavailable"];
@@ -139,22 +142,17 @@ function sharedPose(ctx: Context, file: string, { sw, i, claims }: Judged): void
     ctx.report("RS4", file, shared.path, `the pose ${SIX} share claims ${claim}, where it claims nothing`);
 }
 
-/** The angle between two turns, in degrees: of the rotation that takes one to the other. */
-function turnAngle(a: Turn, b: Turn): number {
-  const [p, q] = [rotation(a), rotation(b)];
+/** The angle between two frames' rotations, in degrees: of the rotation that takes one to the other. */
+function angleBetween(p: Mat4, q: Mat4): number {
   let trace = 0;
   for (const k of [0, 1, 2, 4, 5, 6, 8, 9, 10] as const) trace += p[k] * q[k];
   return (Math.acos(Math.min(1, Math.max(-1, (trace - 1) / 2))) * 180) / Math.PI;
 }
 
-/** Two mounts that place a piece the same: on one placement and anchor, offsets within 1 mm, turns within 1°. */
-function samePlace(a: Mount, b: Mount): boolean {
-  return (
-    a.on === b.on &&
-    a.anchor === b.anchor &&
-    length(sub(a.offset, b.offset)) <= SAME_OFFSET_M + EPS &&
-    turnAngle(a.turn, b.turn) <= SAME_TURN_DEG + EPS
-  );
+/** Two poses that place the piece the same, where the world puts them (mount.ts's World, which carries no scale): their
+ *  origins within 1 mm, their frames within 1°, whatever placement and anchor each mounts on. */
+function samePlace(a: Mat4, b: Mat4): boolean {
+  return length(sub(origin(a), origin(b))) <= SAME_OFFSET_M + EPS && angleBetween(a, b) <= SAME_TURN_DEG + EPS;
 }
 
 /** RS5: a pose that claims nothing or cloud on the placement and anchor of the pose that claims local; two poses with
@@ -182,9 +180,13 @@ function plugged(ctx: Context, file: string, { sw, i, claims }: Judged): void {
       );
     }
   }
-  named.forEach(([a, pa], k) => {
-    for (const [b, pb] of named.slice(k + 1)) {
-      if (claimOf(a) === claimOf(b) || !samePlace(pa.mount, pb.mount)) continue;
+  // Where the world puts each pose; a mount that doesn't resolve is RI4's or RG1's, and judged with nothing here.
+  const g = geometryOf(ctx);
+  const worlds = new Map(named.map(([name, pose]) => [name, g ? mountedWorld(g, pose.mount) : null]));
+  named.forEach(([a], k) => {
+    for (const [b] of named.slice(k + 1)) {
+      const [wa, wb] = [worlds.get(a), worlds.get(b)];
+      if (claimOf(a) === claimOf(b) || !wa || !wb || !samePlace(wa, wb)) continue;
       // The local pose and one already reported on its port: that finding stands for this pair.
       if ((a === local?.[0] && onPort.has(b)) || (b === local?.[0] && onPort.has(a))) continue;
       const at = b === local?.[0] ? a : b;

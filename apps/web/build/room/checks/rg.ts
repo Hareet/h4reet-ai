@@ -64,7 +64,17 @@ import type { TypefaceUse } from "../../../src/room/compose/vocabulary";
 import type { Loaded, LoadedRoom } from "../load";
 import { capsOf } from "../policy";
 import type { RoomPolicy } from "../policy";
-import type { AnchorRef, CatalogEntry, FaceBinding, LiveFace, Region, Scene, StandinEntry, Switch } from "../schema";
+import type {
+  AnchorRef,
+  CatalogEntry,
+  FaceBinding,
+  LiveFace,
+  Mount,
+  Region,
+  Scene,
+  StandinEntry,
+  Switch,
+} from "../schema";
 import { readTypefaces } from "../typefaces";
 import type { TreeReader, Typeface } from "../typefaces";
 import type { Context, Family } from "./family";
@@ -215,6 +225,15 @@ function anchorFrame(g: Geometry, ref: AnchorRef): Mat4 | null {
   const on = placed(g, ref.placement);
   const anchor = on && anchorOf(on.entry, ref.anchor);
   return on && anchor ? anchorWorld(on.world, on.entry.stylized_scale, anchor) : null;
+}
+
+/** Where a mount puts what it places, a switch's pose among them: World(on) · T(s_on · anchor.at) · R(anchor.turn) ·
+ *  T(offset) · R(turn), mount.ts's World; null when its placement, that placement's piece, or the anchor doesn't
+ *  resolve. RS5 compares two poses by it. */
+export function mountedWorld(g: Geometry, mount: Mount): Mat4 | null {
+  const on = placed(g, mount.on);
+  const anchor = on && anchorOf(on.entry, mount.anchor);
+  return on && anchor ? mountWorld(on.world, on.entry.stylized_scale, anchor, mount.offset, mount.turn) : null;
 }
 
 /** Every framed box at this aspect: the production framing's camera, and its projection. */
@@ -682,10 +701,8 @@ function runAt(g: Geometry, sw: Switch, piece: CatalogEntry, world: Mat4): Cable
 /** A pose's parts; null when its mount doesn't resolve. */
 function partsOf(g: Geometry, sw: Switch, piece: CatalogEntry, name: string): Parts | null {
   const pose = has(sw.poses, name) ? sw.poses[name] : undefined;
-  const on = pose && placed(g, pose.mount.on);
-  const anchor = pose && on && anchorOf(on.entry, pose.mount.anchor);
-  if (!pose || !on || !anchor) return null;
-  const world = mountWorld(on.world, on.entry.stylized_scale, anchor, pose.mount.offset, pose.mount.turn);
+  const world = pose && mountedWorld(g, pose.mount);
+  if (!pose || !world) return null;
   const measured = g.set.get(sw.piece);
   const points = measured
     ? corners(measured).map((c) => transformPoint(world, c))
