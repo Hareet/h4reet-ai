@@ -24,4 +24,6 @@ declare module "virtual:room-lookdev" {
   /** The lookdev page's inputs (§3.3), drafts builds only. */
   const lookdev: import("../../build/room/emit").RoomLookdev;
   export default lookdev;
+  /** The index (§3.1), the page's own copy: importing virtual:room-content would move it out of the room's entry. */
+  export const room: import("./compose/bundle").RoomIndex;
 }

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
 
-import { roomDataFile } from "./build/approvals";
+import { draftsOn, roomDataFile } from "./build/approvals";
 import { resumePart } from "./build/content";
 import { disclosurePage } from "./build/disclosure";
 import { narrationPart } from "./build/narration";
@@ -28,6 +28,11 @@ export default defineConfig({
     assetsInlineLimit: 0,
     // The 3D chunk is Three.js, about 580 KB (150 KB compressed), loaded behind the choice screen (spec 002, T041).
     chunkSizeWarningLimit: 640,
+    // The lookdev page is an input of a drafts build only (spec 004, T131; its contracts/lookdev.md §8, layer 1), so a
+    // release build has no lookdev/ at all. The room's page keeps the input name "index" in both.
+    ...(draftsOn(process.env)
+      ? { rolldownOptions: { input: { index: here("index.html"), lookdev: here("lookdev/index.html") } } }
+      : {}),
   },
   plugins: [
     disclosurePage({ source: here("../../docs/data-flow-disclosure.md") }),

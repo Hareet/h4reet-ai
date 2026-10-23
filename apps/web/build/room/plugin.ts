@@ -9,8 +9,10 @@
 // - resolveId and load give `virtual:room-content`, spec 002's `content` (its fixed messages, and the manifest, now
 //   B7's from the compose) and the index as `room`, for the entry chunk; `virtual:room-scene`, the 3D part as its
 //   default export, which only the scene module imports, so it lands in the lazy 3D chunk; and, in a drafts build
-//   only, `virtual:room-fixtures` and `virtual:room-lookdev`. A release build that reaches either fails: resolveId
-//   throws "fixtures and lookdev are drafts-only (FR-066)" rather than ship them.
+//   only, `virtual:room-fixtures` and `virtual:room-lookdev`, which also gives the lookdev page its own copy of the
+//   index as `room`, so the page never imports `virtual:room-content` and the index stays in the room's entry chunk.
+//   A release build that reaches either fails: resolveId throws "fixtures and lookdev are drafts-only (FR-066)"
+//   rather than ship them.
 // - generateBundle emits each set model's `a/<stem>.<hash16>.glb.gz`, each set card plain, and room-manifest.json,
 //   each through this.emitFile, so under dist/. The plugin writes nothing else, anywhere: the committed generated files
 //   are `room:generate`'s alone (cli.ts), and room_text reaches room-data.json through roomTextPart (T186).
@@ -87,9 +89,11 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
           return `export default ${serialize(result().scene)};\n`;
         case resolved(ROOM_FIXTURES):
         case resolved(ROOM_LOOKDEV): {
-          const drafts = result().drafts;
+          const { drafts, index } = result();
           if (drafts === null) throw new Error(DRAFTS_ONLY);
-          return `export default ${serialize(id === resolved(ROOM_FIXTURES) ? drafts.fixtures : drafts.lookdev)};\n`;
+          if (id === resolved(ROOM_FIXTURES)) return `export default ${serialize(drafts.fixtures)};\n`;
+          // The page's own copy of the index: importing virtual:room-content would take it out of the room's entry.
+          return `export default ${serialize(drafts.lookdev)};\nexport const room = ${serialize(index)};\n`;
         }
         default:
           return null;
