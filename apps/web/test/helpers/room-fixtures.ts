@@ -1,8 +1,9 @@
 // The compositor's fixtures, loaded (spec 004, T065; contracts/room-data-files.md §13 to §15; research.md R-66):
 // test/fixtures/room/README.md gives the layout. `goodFiles()` is the known-good set, rooted like the repository, with
 // the repository's own apps/web/fonts/ added for the typeface rules; `badCases()` reads every bad/<RULE>/ folder into an
-// overlay of that set and the finding it must produce. A case is data: adding a folder adds a case, with no change here.
-// Models are made when the test runs (test/helpers/glb.ts), since spec 003's rule A1 refuses a committed one.
+// overlay of that set, the policy it composes under, and the finding it must produce. A case is data: adding a folder
+// adds a case, with no change here. Models are made when the test runs (test/helpers/glb.ts), since spec 003's rule A1
+// refuses a committed one.
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -11,6 +12,8 @@ import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
 
 import type { ComposeOptions } from "../../build/room/checks/family";
+import { noPolicy, policyFrom } from "../../build/room/policy";
+import type { RoomPolicy } from "../../build/room/policy";
 import { memoryTree, overlayTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
 import { desk, rxVariants, sign } from "./glb";
@@ -65,6 +68,9 @@ export interface BadCase {
   readonly path: string;
   readonly why: string | null;
   readonly options: ComposeOptions;
+  /** No policy at all, unless the case gives main's caps.json or the PDF header's full name: then that policy, as a
+   *  policy directory would hold it. */
+  readonly policy: RoomPolicy;
   /** A path's new bytes, or null where the case takes the path out. */
   readonly changes: ReadonlyMap<string, Uint8Array | null>;
 }
@@ -183,6 +189,8 @@ const CASE_KEYS = new Set([
   "remove",
   "raw",
   "generate",
+  "caps",
+  "full_name",
 ]);
 const stringMap = (v: unknown, where: string): Record<string, string> => {
   if (v === undefined) return {};
@@ -240,6 +248,21 @@ function readCase(name: string): BadCase {
   }
   for (const [p, list] of byFile) changes.set(p, edited(current(p), p, list, where));
 
+  // The policy: caps.json as text (written byte for byte) or as a value (written as JSON), and the header's name.
+  const { caps, full_name: fullName } = spec;
+  if (fullName !== undefined && typeof fullName !== "string") throw new Error(`${where}: full_name is a string`);
+  const policy =
+    caps === undefined && fullName === undefined
+      ? noPolicy()
+      : policyFrom(
+          {
+            caps: caps === undefined ? null : bytes(typeof caps === "string" ? caps : `${JSON.stringify(caps)}\n`),
+            approvals: null,
+            header: fullName === undefined ? null : bytes(`${JSON.stringify({ schema: 1, full_name: fullName })}\n`),
+          },
+          "policy-dir",
+        );
+
   return {
     name,
     rule,
@@ -247,6 +270,7 @@ function readCase(name: string): BadCase {
     path,
     why: typeof spec.why === "string" ? spec.why : null,
     options: { mode, drafts },
+    policy,
     changes,
   };
 }

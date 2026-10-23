@@ -77,7 +77,7 @@ describe("the known-good set", () => {
 
 describe("each known-bad case", () => {
   it.each(badCases().map((c) => [c.name, c] as const))("bad/%s", (_, c) => {
-    const result = compose(caseTree(c), noPolicy(), c.options);
+    const result = compose(caseTree(c), c.policy, c.options);
     const hit = result.findings.find((f) => f.rule === c.rule && f.file === c.file && f.path === c.path);
     expect(hit, `expected ${c.rule} ${c.file}:${c.path}, got:\n${lines(result.findings).join("\n")}`).toBeDefined();
     if (!hit) return;
