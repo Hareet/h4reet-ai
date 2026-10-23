@@ -29,12 +29,14 @@ A failure names files, never hashes:
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -57,12 +59,204 @@ ROOM_TEXT_FINDING = (
 )
 
 
+# --------------------------------------------------------------------------------------------------
+# Reading main's constants: parsed, never imported or run
+# --------------------------------------------------------------------------------------------------
+def binds(node: ast.AST, name: str) -> bool:
+    """Whether a statement binds or unbinds the name anywhere inside it: as a target, a walrus, a loop's or a with's
+    name, an import (a star import binding anything), a def or a class, an except's name, a match's capture, or a
+    global or nonlocal declaration. Any of these leaves the name something other than a constant bound once."""
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and sub.id == name:
+            if isinstance(sub.ctx, (ast.Store, ast.Del)):
+                return True
+        elif isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if sub.name == name:
+                return True
+        elif isinstance(sub, ast.alias):
+            if sub.name == "*" or (sub.asname or sub.name.split(".")[0]) == name:
+                return True
+        elif isinstance(sub, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)):
+            if sub.name == name:
+                return True
+        elif isinstance(sub, ast.MatchMapping):
+            if sub.rest == name:
+                return True
+        elif isinstance(sub, (ast.Global, ast.Nonlocal)) and name in sub.names:
+            return True
+    return False
+
+
 def constant(source: bytes | None, name: str) -> tuple[str, ...] | None:
-    raise NotImplementedError("T014: tests first")
+    """A module-level constant that is a tuple of strings, bound once by a plain or annotated assignment, read with
+    ast.parse and ast.literal_eval. None when the file is missing or doesn't parse, or when the name is unbound,
+    bound twice, bound anywhere else in the module, or bound to anything but a literal tuple of strings."""
+    if source is None:
+        return None
+    try:
+        module = ast.parse(source)
+    except (SyntaxError, ValueError, UnicodeDecodeError):
+        return None
+    values: list[ast.expr] = []
+    for node in module.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, value = node.targets[0], node.value
+        elif isinstance(node, ast.AnnAssign):
+            target, value = node.target, node.value
+        else:
+            target, value = None, None
+        if (
+            isinstance(target, ast.Name)
+            and target.id == name
+            and value is not None
+            and not binds(value, name)
+        ):
+            values.append(value)
+        elif binds(node, name):
+            return None
+    if len(values) != 1:
+        return None
+    try:
+        value = ast.literal_eval(values[0])
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return None
+    if isinstance(value, tuple) and all(isinstance(item, str) for item in value):
+        return value
+    return None
+
+
+def git_env(root: Path) -> dict[str, str]:
+    """git's own minimum: none of the caller's GIT_* settings, no replace objects, no system or global config, the C
+    locale, and no climbing out of the tree to a repository above it."""
+    return {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "HOME": os.environ.get("HOME", "/nonexistent"),
+        "LC_ALL": "C",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_CEILING_DIRECTORIES": str(root.resolve().parent),
+    }
+
+
+def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            check=False,
+            timeout=60,
+            env=git_env(root),
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def main_reader(root: Path) -> Callable[[str], bytes | None]:
+    """How main's files are read: by main's full ref where the tree is a repository; else, as in the gate's container,
+    the tree's own copies, a link counting as missing. A file that isn't there is None."""
+    found = run_git(root, "rev-parse", "--git-dir")
+    if found is not None and found.returncode == 0:
+
+        def from_main(path: str) -> bytes | None:
+            shown = run_git(root, "cat-file", "blob", f"refs/heads/main:{path}")
+            return shown.stdout if shown is not None and shown.returncode == 0 else None
+
+        return from_main
+
+    def from_tree(path: str) -> bytes | None:
+        copy = root / path
+        return copy.read_bytes() if copy.is_file() and not copy.is_symlink() else None
+
+    return from_tree
+
+
+# --------------------------------------------------------------------------------------------------
+# What the tree holds
+# --------------------------------------------------------------------------------------------------
+def room_files(root: Path) -> list[str]:
+    """Every file under assets/room/, by its path from the tree's root, nested ones, dotfiles, and links included,
+    in path order; or assets/room itself when it is there and isn't a folder."""
+    base = root / ROOM_ASSETS
+    if base.is_symlink() or (base.exists() and not base.is_dir()):
+        return [ROOM_ASSETS]
+    if not base.is_dir():
+        return []
+    found: list[str] = []
+    folders = [base]
+    while folders:
+        with os.scandir(folders.pop()) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    folders.append(Path(entry.path))
+                else:
+                    found.append(Path(entry.path).relative_to(root).as_posix())
+    return sorted(found)
+
+
+def room_text_files(root: Path) -> list[str]:
+    """The room's text, as a release build reads it: apps/web/content/room/*.yaml and
+    apps/web/content/room/outlines/*.outline.json, regular files only (the build refuses a link), in path order."""
+    found: list[str] = []
+    text = root / ROOM_TEXT
+    for folder, suffix in ((text, ".yaml"), (text / "outlines", ".outline.json")):
+        if not folder.is_dir():
+            continue
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if entry.name.endswith(suffix) and entry.is_file(follow_symlinks=False):
+                    found.append(Path(entry.path).relative_to(root).as_posix())
+    return sorted(found)
+
+
+def approved_room_text(data: bytes | None) -> set[str]:
+    """The SHA-256s main's content approvals approve with the kind room-text. A file that isn't JSON, or isn't the
+    approvals' shape, approves nothing: apps/web/build/approvals.ts refuses it, so no build would publish."""
+    if data is None:
+        return set()
+    try:
+        doc = json.loads(data)
+    except ValueError:
+        return set()
+    entries = doc.get("approvals") if isinstance(doc, dict) else None
+    if not isinstance(entries, list):
+        return set()
+    return {
+        entry["sha256"]
+        for entry in entries
+        if isinstance(entry, dict)
+        and entry.get("kind") == ROOM_TEXT_KIND
+        and isinstance(entry.get("sha256"), str)
+    }
 
 
 def findings(root: Path) -> list[str]:
-    raise NotImplementedError("T014: tests first")
+    """FR-077's failures for the tree at root, one line per file, case 1's before case 2's, each in path order; none
+    while the order holds."""
+    read = main_reader(root)
+    found: list[str] = []
+    files = room_files(root)
+    if files:
+        amendments = constant(read(ARRIVAL_CHECK), "AMENDMENTS") or ()
+        if not all(needed in amendments for needed in NEEDED_AMENDMENTS):
+            found += [ROOM_FILE_FINDING.format(path=path) for path in files]
+    texts = room_text_files(root)
+    if texts:
+        approved = approved_room_text(read(CONTENT_APPROVALS))
+        published = [
+            path
+            for path in texts
+            if hashlib.sha256((root / path).read_bytes()).hexdigest() in approved
+        ]
+        if published:
+            source = read(CONTENT_CHECK)
+            kinds = constant(source, "KINDS") or ()
+            any_length = constant(source, "ANY_LENGTH") or ()
+            if ROOM_TEXT_KIND not in kinds or ROOM_TEXT_KIND not in any_length:
+                found += [ROOM_TEXT_FINDING.format(path=path) for path in published]
+    return found
 
 
 # --------------------------------------------------------------------------------------------------
