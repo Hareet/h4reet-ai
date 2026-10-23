@@ -384,7 +384,7 @@ export const REASON = {
   faceChildren: "a live face's node with children",
   faceNoMesh: "a live face's node with no mesh",
   faceSharedMesh: "a live face's mesh, which another node also uses",
-  facePrimitives: "a live face's mesh with more than one primitive",
+  facePrimitives: "a live face's mesh without exactly one primitive",
   faceNotQuad: "a primitive other than four vertices forming two triangles",
   faceNoTexcoord: "a live face with no TEXCOORD_0",
   faceTexcoord: `a texture coordinate off the quad's corners by more than ${TOLERANCE.texcoord}`,

@@ -517,6 +517,16 @@ describe("the rules' readings", () => {
     ]);
   });
 
+  it("refuses a live face's mesh without exactly one primitive, none or two", () => {
+    const line = `RX8 candidate:meshes[${SIGN.meshes.word}].primitives: a live face's mesh without exactly one primitive`;
+    const none = sign({ edit: (g) => (item(g, "meshes", SIGN.meshes.word).primitives = []) });
+    expect(check(none.bytes, SIGN_INPUT).findings.map(render)).toEqual([line]);
+    const two = sign({
+      build: (b) => list(item(b.gltf, "meshes", SIGN.meshes.word), "primitives").push(b.quad(WORD_QUAD, 2)),
+    });
+    expect(check(two.bytes, SIGN_INPUT).findings.map(render)).toEqual([line]);
+  });
+
   it("finds a face's corners by their texture coordinates within 0.001, quantized or not, as strips and fans too", () => {
     const within = sign({
       word: {
@@ -780,6 +790,22 @@ describe("the parts", () => {
     expect(readImage(webp({ animated: true })).header).toMatchObject({ animated: true });
     expect(readImage(ascii("GIF89a and the rest"))).toEqual({ format: null, header: null });
     expect(readImage(concat(PNG_SIGNATURE, ascii("no header")))).toEqual({ format: "png", header: null });
+  });
+
+  it("builds spec 003's 8 × 8 grey JPEG byte for byte, its mark aside (arrival_fixtures.jpeg(mark=False))", () => {
+    const segment = (marker: number, body: readonly number[]): number[] => [0xff, marker, 0, body.length + 2, ...body];
+    const expected = [
+      ...[0xff, 0xd8],
+      ...segment(0xe0, [0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]),
+      ...segment(0xdb, [0, ...new Array<number>(64).fill(1)]),
+      ...segment(0xc0, [8, 0, 8, 0, 8, 1, 1, 0x11, 0]),
+      ...segment(0xc4, [0x00, 1, ...new Array<number>(15).fill(0), 0]),
+      ...segment(0xc4, [0x10, 1, ...new Array<number>(15).fill(0), 0]),
+      ...segment(0xda, [1, 1, 0, 0, 0x3f, 0]),
+      0x3f,
+      ...[0xff, 0xd9],
+    ];
+    expect([...jpeg({ components: 1 })]).toEqual(expected);
   });
 
   it("ports spec 003's M8: a path, a file name, or a camera's file stem, Blender's side suffixes aside", () => {
