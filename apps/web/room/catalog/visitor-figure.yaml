@@ -11,7 +11,7 @@ origin:
   point: on the floor, between the figure's feet.
   bounds: { min: [-0.55, 0, -0.025], max: [0.55, 1.74, 0.025] }
 anchors:
-  hand: { at: [-0.196, 0.948, 0.06] }
+  hand: { at: [0.196, 0.948, 0.06] }
 standin:
   - { shape: capsule, radius: 0.2, length: 1, at: [0, 0.7, 0], scale: [1, 1, 0.1], color: figure-grey }
   - { shape: sphere, radius: 0.15, at: [0, 1.55, 0], scale: [1, 1, 0.1], color: figure-grey }

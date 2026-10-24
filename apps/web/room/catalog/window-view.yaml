@@ -1,25 +1,29 @@
 # The window's view: spec 002's placeholder, a sky, a fence of slats, and a tree, all unlit (src/room/scene.ts),
-# mounted inside the window. A generic fence and a generic tree, which locate nothing (FR-028): recreated, so there is
-# nothing to measure.
+# mounted inside the window and sized to fill the large window's opening. A generic fence and a generic tree, which
+# locate nothing (FR-028): recreated, so there is nothing to measure.
 version: 1
 id: window-view
 name: Window view, a fence and a tree
-size: { w: 0.62, h: 0.42, d: 0.01 }
+size: { w: 1.92, h: 1.22, d: 0.01 }
 stylized_scale: 1
 origin:
   point: the centre of the sky behind the fence, just inside the window's opening.
-  bounds: { min: [-0.31, -0.21, 0], max: [0.31, 0.21, 0.01] }
+  bounds: { min: [-0.96, -0.61, 0], max: [0.96, 0.61, 0.01] }
 standin:
-  - { shape: plane, size: [0.62, 0.42], at: [0, 0, 0], color: sky, lit: false }
-  - { shape: plane, size: [0.05, 0.16], at: [-0.27, -0.12, 0.01], color: fence, lit: false }
-  - { shape: plane, size: [0.05, 0.16], at: [-0.18, -0.12, 0.01], color: fence, lit: false }
-  - { shape: plane, size: [0.05, 0.16], at: [-0.09, -0.12, 0.01], color: fence, lit: false }
-  - { shape: plane, size: [0.05, 0.16], at: [0, -0.12, 0.01], color: fence, lit: false }
-  - { shape: plane, size: [0.05, 0.16], at: [0.09, -0.12, 0.01], color: fence, lit: false }
-  - { shape: plane, size: [0.05, 0.16], at: [0.18, -0.12, 0.01], color: fence, lit: false }
-  - { shape: plane, size: [0.05, 0.16], at: [0.27, -0.12, 0.01], color: fence, lit: false }
-  - { shape: plane, size: [0.04, 0.18], at: [0.12, -0.02, 0.008], color: bark, lit: false }
-  - { shape: circle, radius: 0.11, at: [0.12, 0.1, 0.009], color: leaf, lit: false }
+  - { shape: plane, size: [1.92, 1.22], at: [0, 0, 0], color: sky, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [-0.88, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [-0.704, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [-0.528, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [-0.352, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [-0.176, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [0, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [0.176, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [0.352, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [0.528, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [0.704, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.46], at: [0.88, -0.38, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.13, 0.49], at: [0.38, -0.05, 0.008], color: bark, lit: false }
+  - { shape: circle, radius: 0.31, at: [0.38, 0.29, 0.009], color: leaf, lit: false }
 drawing: { from: standin }
 budget: { gzip_bytes: 500000, triangles: 2000, texture_px: 1024, texture_bytes: 5592405 }
 work_order:

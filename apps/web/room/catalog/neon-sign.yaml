@@ -2,13 +2,15 @@
 # tube tracing its outline, and the clip that grips the edge, with no tube shaped like a letter or a digit. Its four
 # live faces are plain panels the room draws on: the word, the two counters, and the second line (FR-049), which isn't
 # a readable face, so its words go to the text copy (FR-052). A designed prop with nothing to measure, enlarged as a
-# readable prop (FR-051): stylized scale 4 and the panels' sizes hold the word and the counters at the legibility
-# floor on both reference stages; lookdev sets them again (Confirmation 8).
+# readable prop (FR-051): stylized scale 2.6, the smallest that holds the word and the counters at the legibility
+# floor on the reference desktop (the floor is met first at 2.5429), where the sign stands 1.534 m wide, inside the
+# window's opening; on the reference phone the counters are exempt from the floor, their figures in the text copy
+# (FR-052; the Author, 2026-10-23: "Take both recommendations."); lookdev sets it again (Confirmation 8).
 version: 1
 id: neon-sign
 name: Neon arrow sign
 size: { w: 0.59, h: 0.263, d: 0.05 }
-stylized_scale: 4
+stylized_scale: 2.6
 origin:
   point: the middle of the clip, where it sits on the monitor's top edge.
   bounds: { min: [-0.255, -0.02, -0.015], max: [0.335, 0.243, 0.035] }

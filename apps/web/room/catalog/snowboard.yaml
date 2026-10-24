@@ -1,6 +1,7 @@
 # The snowboard (W1's left side; Amendment B1): spec 002's placeholder, a flattened capsule with two bindings
-# (src/room/scene.ts), hung flat on the back wall. Its size and where it hangs are estimates until measured; the
-# bounds hold the bindings, which stand proud of the board.
+# (src/room/scene.ts), hung flat and upright on its tail on the cube's left wall, beside the chalkboard (the Author,
+# 2026-10-23: "The snowboard would hang on the left side brick wall, next to the chalkboard"). Its size and where it
+# hangs are estimates until measured; the bounds hold the bindings, which stand proud of the board.
 version: 1
 id: snowboard
 name: Snowboard
@@ -29,7 +30,7 @@ work_order:
   measurements:
     - The board's length, its width at the widest point, and its thickness.
     - Each binding's footprint, height, and position along the board.
-    - Where the board hangs, from the floor and from the room's left side.
+    - Where the board hangs, from the floor and from the back wall.
   studio_notes: >-
     The graphic is original, or a plain finish: never the board's own printed graphic (FR-028). No logo, word, digit,
     or sticker on the board or the bindings (FR-016).

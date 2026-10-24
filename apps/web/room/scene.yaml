@@ -1,21 +1,23 @@
-# The room's scene: FR-078's work area (R-07's second data commit, B1, B2). The desk stands against the back wall with
-# the ultrawide monitor, the neon sign clipped to its top edge, the laptop on its stand, and the two signs; the
-# chalkboard hangs beside the twin, the snowboard on the left above it, and the bicycle on the right next to the desk,
-# with the window and the artwork above it. Every position in the Author's room is an estimate until measured. The
+# The room's scene: the cube the Author laid out on 2026-10-23 (plan.md §10). The camera frames the shell, so the
+# view looks straight into its open front. The desk stands against the back wall, the ultrawide monitor on it with the
+# neon sign clipped to its top edge, the large window behind them, the artwork hanging over part of the window, and
+# the laptop on its stand at the desk's right end; the chalkboard hangs on the left wall with the snowboard upright
+# beside it, and the bicycle hangs upright by its front wheel on the right wall, next to the laptop; the twin stands
+# right of the desk, by the laptop, and the visitor in the middle. Every position is an estimate until measured. The
 # charger is the laptop's switch on the tier: plugged in only while the tier is local (FR-043).
 version: 1
 look: inked-cel
 live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
 placements:
-  - { id: room-shell, piece: room-shell }
+  - { id: room-shell, piece: room-shell, frame: true }
   - id: work-desk
     piece: work-desk
-    mount: { on: room-shell, anchor: floor, offset: [0.1, 0, -1.55], estimated: true }
+    mount: { on: room-shell, anchor: back-wall, offset: [0, 0, 0.4], estimated: true }
     frame: true
     label: label.desk
   - id: desk-screen
     piece: desk-screen
-    mount: { on: work-desk, anchor: top, offset: [-0.22, 0, -0.22], estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [-0.154, 0, -0.22], estimated: true }
     frame: true
     label: label.monitor
   - id: neon-sign
@@ -44,7 +46,7 @@ placements:
           - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 43 }, ui: [sign.second_line] }
   - id: laptop-stand
     piece: laptop-stand
-    mount: { on: work-desk, anchor: top, offset: [0.47, 0, -0.1], estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [0.55, 0, -0.1], estimated: true }
     frame: true
     label: label.stand
   - id: laptop
@@ -54,7 +56,7 @@ placements:
     label: label.laptop
   - id: busy-sign
     piece: busy-sign
-    mount: { on: work-desk, anchor: top, offset: [-0.45, 0, 0.27], turn: { y: 12 }, estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [-0.5, 0, 0.27], turn: { y: 12 }, estimated: true }
     frame: true
     label: label.busy-sign
   - id: dog-sign
@@ -64,22 +66,22 @@ placements:
     label: label.dog-sign
   - id: chalkboard
     piece: chalkboard
-    mount: { on: room-shell, anchor: back-wall, offset: [-1.42, 1.45, 0], estimated: true }
+    mount: { on: room-shell, anchor: left-wall, offset: [-0.3096, 1.45, 0], estimated: true }
     frame: true
     label: label.chalkboard
   - id: snowboard
     piece: snowboard
-    mount: { on: room-shell, anchor: back-wall, offset: [-0.95, 2.76, 0.035], turn: { z: 90 }, estimated: true }
+    mount: { on: room-shell, anchor: left-wall, offset: [0.4496, 1, 0.035], estimated: true }
     frame: true
     label: label.snowboard
   - id: bicycle
     piece: bicycle
-    mount: { on: room-shell, anchor: back-wall, offset: [1.35, 1.13, 0.05], turn: { z: 90 }, estimated: true }
+    mount: { on: room-shell, anchor: right-wall, offset: [0.2221, 1.5, 0.05], turn: { z: 90 }, estimated: true }
     frame: true
     label: label.bicycle
   - id: wall-window
     piece: wall-window
-    mount: { on: room-shell, anchor: back-wall, offset: [1.3, 2.3, 0], estimated: true }
+    mount: { on: room-shell, anchor: back-wall, offset: [0, 1.45, 0], estimated: true }
     frame: true
     label: label.window
   # The view has no label of its own: it stands inside the window, whose label stands for both. Its own label drew over
@@ -89,18 +91,18 @@ placements:
     mount: { on: wall-window, anchor: view }
   - id: wall-art
     piece: wall-art
-    mount: { on: room-shell, anchor: back-wall, offset: [1.3, 2.85, 0.01], estimated: true }
+    mount: { on: room-shell, anchor: back-wall, offset: [0.54, 1.14, 0.065], estimated: true }
     frame: true
     label: label.artwork
   - id: twin-figure
     piece: twin-figure
     role: twin
-    mount: { on: room-shell, anchor: floor, offset: [-0.95, 0, -1.45] }
+    mount: { on: room-shell, anchor: floor, offset: [0.55, 0, 0.395] }
     frame: true
   - id: visitor-figure
     piece: visitor-figure
     role: visitor
-    mount: { on: room-shell, anchor: floor, offset: [0, 0, -0.95] }
+    mount: { on: room-shell, anchor: floor, offset: [0, 0, 0.58] }
     frame: true
 switches:
   - id: laptop-power

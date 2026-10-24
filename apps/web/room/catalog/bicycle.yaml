@@ -1,6 +1,7 @@
 # The bicycle (W1's right side; FR-078: hanging next to the desk): spec 002's placeholder, two wheels, a frame of
-# tubes, a saddle, and handlebars (src/room/scene.ts), hung in profile on the back wall by its front wheel. Its size
-# and where it hangs are estimates until measured; the bounds hold the wheels.
+# tubes, a saddle, and handlebars (src/room/scene.ts), hung upright by its front wheel, flat on the cube's right wall,
+# next to the laptop (the Author, 2026-10-23: "along a brick wall that is the right side of the cube, next to the
+# laptop"). Its size and where it hangs are estimates until measured; the bounds hold the wheels.
 version: 1
 id: bicycle
 name: Bicycle
@@ -42,7 +43,7 @@ work_order:
   measurements:
     - The wheelbase, from hub to hub, and each wheel's diameter.
     - The frame's height at the saddle and at the handlebars, and the handlebars' width.
-    - Where the hook it hangs from is, from the floor and from the desk's right end.
+    - Where the hook it hangs from is, from the floor and from the back wall.
   studio_notes: >-
     No brand, decal, model name, or tyre-wall text anywhere (FR-016); the frame is one plain colour or an original
     pattern.

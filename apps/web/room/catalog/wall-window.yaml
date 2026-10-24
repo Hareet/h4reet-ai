@@ -1,20 +1,21 @@
-# The window (FR-078): a frame of four bars set in the back wall, spec 002's placeholder at the size estimated for the
-# Author's window until measured. Its view, a fence and a tree, is a piece of its own mounted inside it.
+# The window (FR-078): a frame of four bars set in the back wall, large, behind the monitor and the neon sign (the
+# Author, 2026-10-23: "The window is large and should encompass around the neon sign"), at a size estimated until
+# measured. Its view, a fence and a tree, is a piece of its own mounted inside it.
 version: 1
 id: wall-window
 name: Window
-size: { w: 0.7, h: 0.5, d: 0.06, estimated: true }
+size: { w: 2.0, h: 1.3, d: 0.06, estimated: true }
 stylized_scale: 1
 origin:
   point: the centre of the window's opening, in the plane of the wall.
-  bounds: { min: [-0.35, -0.25, 0], max: [0.35, 0.25, 0.06] }
+  bounds: { min: [-1.0, -0.65, 0], max: [1.0, 0.65, 0.06] }
 anchors:
   view: { at: [0, 0, 0.01], estimated: true }
 standin:
-  - { shape: box, size: [0.7, 0.04, 0.06], at: [0, 0.23, 0.03], color: frame-wood }
-  - { shape: box, size: [0.7, 0.04, 0.06], at: [0, -0.23, 0.03], color: frame-wood }
-  - { shape: box, size: [0.04, 0.5, 0.06], at: [-0.33, 0, 0.03], color: frame-wood }
-  - { shape: box, size: [0.04, 0.5, 0.06], at: [0.33, 0, 0.03], color: frame-wood }
+  - { shape: box, size: [2.0, 0.04, 0.06], at: [0, 0.63, 0.03], color: frame-wood }
+  - { shape: box, size: [2.0, 0.04, 0.06], at: [0, -0.63, 0.03], color: frame-wood }
+  - { shape: box, size: [0.04, 1.3, 0.06], at: [-0.98, 0, 0.03], color: frame-wood }
+  - { shape: box, size: [0.04, 1.3, 0.06], at: [0.98, 0, 0.03], color: frame-wood }
 drawing: { from: standin }
 budget: { gzip_bytes: 300000, triangles: 2000, texture_px: 512, texture_bytes: 1398101 }
 work_order:

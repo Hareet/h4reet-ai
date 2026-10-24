@@ -1,5 +1,6 @@
-# The artwork above the window (FR-028, FR-078): spec 002's placeholder, a framed canvas with a sun and a hill, unlit
-# (src/room/scene.ts), at the size estimated for the Author's frame until measured, hanging on the back wall.
+# The artwork (FR-028, FR-078): spec 002's placeholder, a framed canvas with a sun and a hill, unlit
+# (src/room/scene.ts), at the size estimated for the Author's frame until measured, hanging on the back wall over part
+# of the window (the Author, 2026-10-23: "Have it hanging and maybe covering partial window").
 version: 1
 id: wall-art
 name: Artwork
