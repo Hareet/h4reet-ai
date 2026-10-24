@@ -584,7 +584,7 @@ describe("the 2D stage (renderFlat)", () => {
     (_, stage) => {
       const { index } = fixture();
       const size = box(stage);
-      const picker = flatPicker(index.flat.hits);
+      const picker = flatPicker(index.flat.hits, index);
       picker.resize(size);
       const areas: PickArea[] = pickAreas(inputs(index), CORE_PX / flatScale(stage));
       expect(areas.map((a) => a.id)).toEqual(index.selectables.map((s) => s.id));
@@ -609,14 +609,14 @@ describe("the 2D stage (renderFlat)", () => {
       { selectable: "fx-back", rects: [[50, 30, 60, 40]], depths: [2] },
     ];
     // Before it knows its size, it picks nothing.
-    expect(flatPicker(hits).pick({ x: 0, y: 0 })).toBeNull();
+    expect(flatPicker(hits, { selectables: [] }).pick({ x: 0, y: 0 })).toBeNull();
     // Two boxes room.css gives the drawing, and a wider one, which the view box sits centred in.
     for (const size of [
       box(REFERENCE_PHONE.stage),
       box(SMALLEST[0]?.stage ?? REFERENCE_PHONE.stage),
       { w: 900, h: 300 },
     ]) {
-      const picker = flatPicker(hits);
+      const picker = flatPicker(hits, { selectables: [] });
       picker.resize(size);
       const half = CORE_PX / 2 / flatScale(size);
       const [cx, cy] = [152, 92];

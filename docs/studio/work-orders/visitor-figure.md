@@ -28,7 +28,7 @@ At the model's scale, in the piece's frame (FR-003):
 
 | Anchor | Position (m) | Turn (°) |
 |---|---|---|
-| `hand` | (-0.196, 0.948, 0.06) | (0, 0, 0) |
+| `hand` | (0.196, 0.948, 0.06) | (0, 0, 0) |
 
 ## Live faces
 

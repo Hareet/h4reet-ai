@@ -43,7 +43,7 @@ import { LABEL_HEIGHT, framing } from "../compose/framing";
 import { IDENTITY, add, invert, origin, transformDirection, transformPoint } from "../compose/math";
 import type { Mat4, Turn, Vec3 } from "../compose/math";
 import { anchorWorld, mountWorld, resolveMounts } from "../compose/mount";
-import { memberRect, pick, pickAreas } from "../compose/pick";
+import { memberRect, pick, pickAreas, pickProblems } from "../compose/pick";
 import type { PickArea } from "../compose/pick";
 import { toStage } from "../compose/project";
 import type { Camera } from "../compose/project";
@@ -338,16 +338,25 @@ export interface SelectablePicker {
   readonly pick: (ndc: Ndc) => string | null;
 }
 
-/** Picks the index's selectables from the part's frame boxes, framed as frameCamera frames them (compose/pick.ts). */
+/** Picks the index's selectables from the part's frame boxes, framed as frameCamera frames them (compose/pick.ts).
+ *  A side-wall selectable the stage can't give its exclusive core to is left out of the areas (FR-064's amendment,
+ *  2026-10-23): the room draws no pick area for it there, and the "In the room" list reaches it. */
 export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "selectables">): SelectablePicker {
   const boxes = framedBoxes(part);
+  const sideWalls = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
   let stage: Stage | null = null;
   let areas: readonly PickArea[] = [];
   return {
     resize(next) {
       if (stage !== null && next.w === stage.w && next.h === stage.h) return;
       stage = { w: next.w, h: next.h };
-      areas = next.w > 0 && next.h > 0 ? pickAreasOn(part, index, framing(next.w / next.h, boxes), stage) : [];
+      if (next.w <= 0 || next.h <= 0) {
+        areas = [];
+        return;
+      }
+      const all = pickAreasOn(part, index, framing(next.w / next.h, boxes), stage);
+      const flagged = new Set(pickProblems(all, [0, 0, next.w, next.h]).map((p) => p.selectable));
+      areas = all.filter((a) => !(sideWalls.has(a.id) && flagged.has(a.id)));
     },
     pick: (ndc) => (stage === null ? null : pick(areas, toStage([ndc.x, ndc.y, 0], stage))),
   };

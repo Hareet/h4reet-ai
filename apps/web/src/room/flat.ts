@@ -27,9 +27,9 @@
 import { avatarPolygons } from "../choice/avatars";
 import type { AvatarId } from "../choice/avatars";
 import type { Matrix2D, Prim, RoomIndex } from "./compose/bundle";
-import { flatCore, pick, pickAreas, unionOf } from "./compose/pick";
+import { flatCore, pick, pickAreas, pickProblems, unionOf } from "./compose/pick";
 import type { PickArea, PickInput } from "./compose/pick";
-import { FLAT_VIEW, flatScale } from "./compose/stages";
+import { FLAT_VIEW, flatScale, supportedStages } from "./compose/stages";
 import type { Stage as Size } from "./compose/stages";
 import { SVG_NS, h, svg } from "./dom";
 import { FLAT_FRAMES, VISITOR_TURN, flatFrame, handOffset, sideOf, visitorTurnShare } from "./handoff";
@@ -328,11 +328,14 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     return paper;
   });
 
+  // FR-064's amendment (2026-10-23): a side-wall selectable the drawing's smallest scale can't give its
+  // exclusive core to is list-only there, reached from the "In the room" list: the drawing draws no cue for it.
+  const heldOut = listOnlyIds(flat.hits, room.selectables);
   const cues = new Map<string, { area: SVGElement; name: SVGElement }>();
   for (const hit of flat.hits) {
     const union = unionOf(hit.rects);
     const selectable = room.selectables.find((s) => s.id === hit.selectable);
-    if (!union || !selectable || cues.has(hit.selectable)) continue;
+    if (!union || !selectable || cues.has(hit.selectable) || heldOut.has(hit.selectable)) continue;
     const [x, y, w, h] = union;
     const area = node(doc, "rect", { x, y, width: w, height: h, class: "flat-cue", fill: "none" });
     const name = node(
@@ -373,18 +376,44 @@ export interface FlatPicker {
   readonly pick: (ndc: Ndc) => string | null;
 }
 
-export function flatPicker(hits: FlatIndex["flat"]["hits"]): FlatPicker {
+let allStages: readonly Size[] | null = null;
+/** Every supported stage (compose/stages.ts), computed once. */
+const everyStage = (): readonly Size[] => (allStages ??= supportedStages());
+
+/** FR-064's amendment (2026-10-23): the selectables the 2D drawing reaches only from the "In the room" list: the
+ *  side-wall ones whose exclusive core the drawing's smallest scale can't hold, as the compositor's 2D check
+ *  (RG6) measures them. The drawing draws no cue for them, and the picker leaves them out of its areas. */
+function listOnlyIds(
+  hits: FlatIndex["flat"]["hits"],
+  selectables: readonly { readonly id: string; readonly side_wall: boolean }[],
+): Set<string> {
+  const smallest = everyStage().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
+  const areas = pickAreas(
+    hits.map((hit) => ({
+      id: hit.selectable,
+      members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
+    })),
+    flatCore(smallest),
+  );
+  const flagged = new Set(pickProblems(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h]).map((p) => p.selectable));
+  const side = new Set(selectables.filter((s) => s.side_wall).map((s) => s.id));
+  return new Set(areas.filter((a) => side.has(a.id) && flagged.has(a.id)).map((a) => a.id));
+}
+
+export function flatPicker(hits: FlatIndex["flat"]["hits"], selectables: Pick<RoomIndex, "selectables">): FlatPicker {
   const inputs: PickInput[] = hits.map((hit) => ({
     id: hit.selectable,
     members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
   }));
+  // The areas the drawing holds out at every size (FR-064's amendment, 2026-10-23).
+  const heldOut = listOnlyIds(hits, selectables.selectables);
   let size: Size | null = null;
   let areas: readonly PickArea[] = [];
   return {
     resize(next) {
       if (size !== null && next.w === size.w && next.h === size.h) return;
       size = { w: next.w, h: next.h };
-      areas = next.w > 0 && next.h > 0 ? pickAreas(inputs, flatCore(size)) : [];
+      areas = next.w > 0 && next.h > 0 ? pickAreas(inputs, flatCore(size)).filter((a) => !heldOut.has(a.id)) : [];
     },
     pick(ndc) {
       if (size === null || areas.length === 0) return null;
@@ -406,7 +435,7 @@ export function renderFlat(
 ): FlatStage {
   const drawing = drawFlat(doc, options.room, options.avatar);
   const element = h(doc, "div", { class: "flat", "aria-hidden": "true" }, drawing.root);
-  const picker = flatPicker(options.room.flat.hits);
+  const picker = flatPicker(options.room.flat.hits, options.room);
   const unbind = bindPointerSelection(
     element,
     (ndc) => {

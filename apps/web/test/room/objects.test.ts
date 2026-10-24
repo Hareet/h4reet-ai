@@ -17,7 +17,14 @@ import { renderObjectList } from "../../src/room/a11y";
 import type { Box } from "../../src/room/compose/bundle";
 import { flatCore, pick, pickAreas, pickProblems } from "../../src/room/compose/pick";
 import type { MemberRect, PickArea } from "../../src/room/compose/pick";
-import { REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, flatScale } from "../../src/room/compose/stages";
+import {
+  FLAT_VIEW,
+  REFERENCE_DESKTOP,
+  REFERENCE_PHONE,
+  SMALLEST,
+  flatScale,
+  supportedStages,
+} from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import { renderFlat } from "../../src/room/flat";
 import { bindPointerSelection } from "../../src/room/objects";
@@ -213,7 +220,7 @@ describe("selectObject", () => {
     expect(selectObject).not.toHaveBeenCalled();
   });
 
-  it("is called with the same IDs from a 2D pick at each selectable, the drawing's own pick areas", () => {
+  it("is called with the same IDs from a 2D pick at each selectable the drawing holds, the drawing's own pick areas", () => {
     // The drawing has no buttons since spec 004 (T109): a pointer picks through compose/pick.ts, in flat.test.ts.
     const stage = REFERENCE_PHONE.stage;
     const { doc, win } = surface(stage);
@@ -232,8 +239,31 @@ describe("selectObject", () => {
       })),
       flatCore(stage),
     );
-    for (const area of areas) tap(win, flat.element, [centre(area)[0] * s, centre(area)[1] * s], "touch");
-    expect(selectObject.mock.calls).toEqual(index.selectables.map((x) => [x.id]));
+    // FR-064's amendment (2026-10-23): a side-wall selectable the drawing's smallest scale can't give its
+    // exclusive core to is list-only in the drawing: no pick area, no cue, and the "In the room" list reaches it.
+    const smallest = supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
+    const smallestAreas = pickAreas(
+      index.flat.hits.map((hit) => ({
+        id: hit.selectable,
+        members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
+      })),
+      flatCore(smallest),
+    );
+    const flagged = new Set(pickProblems(smallestAreas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h]).map((p) => p.selectable));
+    const heldOut = new Set(
+      smallestAreas
+        .filter((a) => index.selectables.find((x) => x.id === a.id)?.side_wall && flagged.has(a.id))
+        .map((a) => a.id),
+    );
+    const held = areas.filter((a) => !heldOut.has(a.id));
+    for (const area of held) tap(win, flat.element, [centre(area)[0] * s, centre(area)[1] * s], "touch");
+    expect(selectObject.mock.calls).toEqual(held.map((a) => [a.id]));
+    // Where a held-out selectable's area used to be, a tap never selects it: the list is its road in.
+    for (const area of areas.filter((a) => heldOut.has(a.id))) {
+      selectObject.mockClear();
+      tap(win, flat.element, [centre(area)[0] * s, centre(area)[1] * s], "touch");
+      expect(selectObject.mock.calls.map((c) => c[0])).not.toContain(area.id);
+    }
   });
 
   it("is the room's only for an ID its index lists, whatever calls it", async () => {

@@ -22,7 +22,7 @@ Model the desk from the dimension sheet and the Author's description, as plain s
 - Measure: the anchor `top`, now estimated at (0, 0.75, 0) m in the piece's frame.
 - Measure: the anchor `front-left`, now estimated at (-0.75, 0.75, 0.4) m in the piece's frame.
 - Measure: the anchor `back-edge`, now estimated at (0.4, 0.75, -0.4) m in the piece's frame.
-- Measure: where `work-desk` sits, now estimated: on `room-shell`'s anchor `floor`, offset (0.1, 0, -1.55) m.
+- Measure: where `work-desk` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (0, 0, 0.4) m.
 
 ## Size, origin, and bounds
 

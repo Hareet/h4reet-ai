@@ -16,11 +16,11 @@ None.
 
 ## Size, origin, and bounds
 
-- The size: 0.62 × 0.42 × 0.01 m (w × h × d), measured.
-- The stylized scale: 1, so the model is made at 0.62 × 0.42 × 0.01 m (FR-051).
+- The size: 1.92 × 1.22 × 0.01 m (w × h × d), measured.
+- The stylized scale: 1, so the model is made at 1.92 × 1.22 × 0.01 m (FR-051).
 - The origin: the centre of the sky behind the fence, just inside the window's opening.
-- The expected bounds at that scale: from (-0.31, -0.21, 0) to (0.31, 0.21, 0.01) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.02 m, z 0.02 m (FR-019).
+- The expected bounds at that scale: from (-0.96, -0.61, 0) to (0.96, 0.61, 0.01) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.0576 m, y 0.0366 m, z 0.02 m (FR-019).
 
 ## Anchors
 

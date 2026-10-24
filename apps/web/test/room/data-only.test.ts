@@ -446,7 +446,7 @@ describe("the committed data (R-68)", () => {
     expect(at).toBeGreaterThan(0);
     const framed = framedBoxes(base.scene);
     const size = (s: Stage): string => `${Number(s.w.toFixed(1))} × ${Number(s.h.toFixed(1))}`;
-    const rows = SCENE.selectables.flatMap((sel, k) => {
+    const rows = SCENE.selectables.flatMap((sel) => {
       if (!SIDE_WALLS.has(sel.id)) return [];
       const walls = [
         ...new Set(
@@ -456,10 +456,12 @@ describe("the committed data (R-68)", () => {
         ),
       ];
       const stages = supportedStages().filter((stage) =>
-        pickProblems(
-          pickAreasOn(base.scene, base.index, framing(stage.w / stage.h, framed), stage),
-          [0, 0, stage.w, stage.h],
-        ).some((p) => p.selectable === sel.id),
+        pickProblems(pickAreasOn(base.scene, base.index, framing(stage.w / stage.h, framed), stage), [
+          0,
+          0,
+          stage.w,
+          stage.h,
+        ]).some((p) => p.selectable === sel.id),
       );
       const flat = pickProblems(
         pickAreas(
@@ -467,7 +469,12 @@ describe("the committed data (R-68)", () => {
             id: hit.selectable,
             members: hit.rects.map((rect, i) => ({ rect, depth: hit.depths[i] ?? Number.POSITIVE_INFINITY })),
           })),
-          flatCore(must(supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a)), "stage")),
+          flatCore(
+            must(
+              supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a)),
+              "stage",
+            ),
+          ),
         ),
         [0, 0, FLAT_VIEW.w, FLAT_VIEW.h],
       ).some((p) => p.selectable === sel.id);
@@ -547,6 +554,7 @@ describe("the proof set, each change a data edit (FR-006, SC-001)", () => {
       name: ADDED_NAME,
       members: [ADDED],
       action: { kind: "talk", topic: ADDED_TOPIC },
+      side_wall: false,
     });
     expect(index.flat.hits.map((h) => h.selectable)).toContain(ADDED_PICK);
     expect(index.topics).toContainEqual({ id: ADDED_TOPIC, phrase: ADDED_PHRASE, ready: false });
@@ -853,7 +861,10 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
         const core = a.core;
         if (!core) continue;
         const [x, y] = [core[0] + core[2] / 2, core[1] + core[3] / 2];
-        const expected = pick(areas.filter((o) => !excluded.has(o.id)), [x, y]);
+        const expected = pick(
+          areas.filter((o) => !excluded.has(o.id)),
+          [x, y],
+        );
         expect(picker.pick({ x: (x / stage.w) * 2 - 1, y: 1 - (y / stage.h) * 2 })).toBe(expected);
         // Where the stage holds the core, the room still draws it: the point in the core picks its own selectable.
         if (!excluded.has(a.id)) expect(expected).toBe(a.id);
@@ -867,7 +878,10 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
     button(v.doc, "2D view").click();
     await flush();
     // The drawing's smallest scale, where the compositor's 2D check holds the cores.
-    const stage = must(supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a)), "stage");
+    const stage = must(
+      supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a)),
+      "stage",
+    );
     const areas = pickAreas(
       base.index.flat.hits.map((hit) => ({
         id: hit.selectable,
@@ -882,16 +896,22 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
     const names = [...v.doc.querySelectorAll(".flat-cue-name")].map((el) => textOf(el));
     for (const s of base.index.selectables) expect(names.includes(s.name)).toBe(!excluded.has(s.id));
     // The picker agrees with the kernel's pick over the areas the drawing holds.
-    const picker = flatPicker(base.index.flat.hits);
+    const picker = flatPicker(base.index.flat.hits, base.index);
     picker.resize(stage);
     for (const a of areas) {
       const core = a.core;
       if (!core || excluded.has(a.id)) continue;
       const [vx, vy] = [core[0] + core[2] / 2, core[1] + core[3] / 2];
       const scale = flatScale(stage);
-      const [x, y] = [vx * scale + (stage.w - FLAT_VIEW.w * scale) / 2, vy * scale + (stage.h - FLAT_VIEW.h * scale) / 2];
+      const [x, y] = [
+        vx * scale + (stage.w - FLAT_VIEW.w * scale) / 2,
+        vy * scale + (stage.h - FLAT_VIEW.h * scale) / 2,
+      ];
       expect(picker.pick({ x: (x / stage.w) * 2 - 1, y: 1 - (y / stage.h) * 2 })).toBe(
-        pick(areas.filter((o) => !excluded.has(o.id)), [vx, vy]),
+        pick(
+          areas.filter((o) => !excluded.has(o.id)),
+          [vx, vy],
+        ),
       );
     }
   });

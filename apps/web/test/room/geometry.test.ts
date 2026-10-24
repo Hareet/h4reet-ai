@@ -397,7 +397,11 @@ describe("RG7: legibility at the production framing on both reference stages", (
     const status = (face: string): string => {
       const line = report.split("\n").find((l) => l.startsWith(`| \`${face}\` `));
       if (line === undefined) throw new Error(`the report has no legibility row for ${face}`);
-      const cell = line.slice(2, -1).split(" | ").map((c) => c.trim()).at(-1);
+      const cell = line
+        .slice(2, -1)
+        .split(" | ")
+        .map((c) => c.trim())
+        .at(-1);
       if (cell === undefined) throw new Error(`the report's row for ${face} has no status`);
       return cell;
     };

@@ -86,6 +86,10 @@ export interface RoomIndex {
     name: string;
     members: string[];
     action: { kind: "talk"; topic: string } | { kind: "resume" };
+    /** Every member hangs on the room's shell, on a side-wall anchor (FR-064's amendment, 2026-10-23): where a
+     *  stage can't hold its exclusive core, the room draws no pick area for it, and the "In the room" list
+     *  reaches it. */
+    side_wall: boolean;
   }[];
   topics: { id: string; phrase: string; ready: false }[];
   faces: {

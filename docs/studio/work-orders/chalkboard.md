@@ -14,9 +14,9 @@ Model the framed board from the dimension sheet and the Author's description. Th
 ## Measurements
 
 - The board's outer width, height, and depth, and the slate's width and height inside the frame.
-- Where the board hangs, from the floor and from the room's left side.
+- Where the board hangs, from the floor and from the back wall.
 - Measure: the size, now estimated at 0.48 × 0.64 × 0.026 m (w × h × d).
-- Measure: where `chalkboard` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (-1.42, 1.45, 0) m.
+- Measure: where `chalkboard` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (-0.3096, 1.45, 0) m.
 
 ## Size, origin, and bounds
 

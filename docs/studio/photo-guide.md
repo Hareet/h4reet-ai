@@ -56,18 +56,18 @@ From `apps/web/room/scene.yaml`, in the scene's axes: x to the right, y up, z to
 
 On the desk, from its front-left corner:
 
-- [ ] Monitor: x 0.53, y 0, z -0.62 (estimated)
-- [ ] Neon sign: x 0.53, y 0.624, z -0.668 (estimated)
-- [ ] Laptop stand: x 1.22, y 0, z -0.5 (estimated)
-- [ ] Laptop: x 1.22, y 0.12, z -0.5 (estimated)
-- [ ] Desk sign, busy: x 0.3, y 0, z -0.13 (estimated)
+- [ ] Monitor: x 0.596, y 0, z -0.62 (estimated)
+- [ ] Neon sign: x 0.596, y 0.624, z -0.668 (estimated)
+- [ ] Laptop stand: x 1.3, y 0, z -0.5 (estimated)
+- [ ] Laptop: x 1.3, y 0.12, z -0.5 (estimated)
+- [ ] Desk sign, busy: x 0.25, y 0, z -0.13 (estimated)
 - [ ] Desk sign, dog: x 0.97, y 0, z -0.11 (estimated)
 
 On the shell, at its anchors:
 
-- [ ] Desk: on the anchor `floor`, offset x 0.1, y 0, z -1.55 (estimated)
-- [ ] Chalkboard: on the anchor `back-wall`, offset x -1.42, y 1.45, z 0 (estimated)
-- [ ] Snowboard: on the anchor `back-wall`, offset x -0.95, y 2.76, z 0.035 (estimated)
-- [ ] Bicycle: on the anchor `back-wall`, offset x 1.35, y 1.13, z 0.05 (estimated)
-- [ ] Window: on the anchor `back-wall`, offset x 1.3, y 2.3, z 0 (estimated)
-- [ ] Artwork: on the anchor `back-wall`, offset x 1.3, y 2.85, z 0.01 (estimated)
+- [ ] Desk: on the anchor `back-wall`, offset x 0, y 0, z 0.4 (estimated)
+- [ ] Chalkboard: on the anchor `left-wall`, offset x -0.3096, y 1.45, z 0 (estimated)
+- [ ] Snowboard: on the anchor `left-wall`, offset x 0.4496, y 1, z 0.035 (estimated)
+- [ ] Bicycle: on the anchor `right-wall`, offset x 0.2221, y 1.5, z 0.05 (estimated)
+- [ ] Window: on the anchor `back-wall`, offset x 0, y 1.45, z 0 (estimated)
+- [ ] Artwork: on the anchor `back-wall`, offset x 0.54, y 1.14, z 0.065 (estimated)

@@ -12,6 +12,8 @@ import { describe, expect, it } from "vitest";
 import { compose } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import { flatCore, pickAreas, pickProblems } from "../../src/room/compose/pick";
+import { FLAT_VIEW, flatScale, supportedStages } from "../../src/room/compose/stages";
 import {
   AI_DISCLOSURE,
   axeViolations,
@@ -243,10 +245,27 @@ describe("assistive technology", () => {
     const flat = v.doc.querySelector(".flat");
     expect(flat?.getAttribute("aria-hidden")).toBe("true");
     expect(flat?.querySelectorAll("button, a, input, [tabindex]")).toHaveLength(0);
-    // Each selectable is cued in the drawing (spec 004, T109), and has its button in the list.
-    const count = roomIndex().selectables.length;
-    expect(flat?.querySelectorAll(".flat-cue")).toHaveLength(count);
+    // Each selectable the drawing holds is cued in the drawing (spec 004, T109), and every selectable has its
+    // button in the list; a side-wall selectable the drawing's smallest scale can't give its exclusive core to is
+    // list-only there, its cue going with its pick area (FR-064's amendment, 2026-10-23).
+    const index = roomIndex();
+    const count = index.selectables.length;
     expect(v.doc.querySelectorAll(".room-list button")).toHaveLength(count);
+    const smallest = supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
+    const areas = pickAreas(
+      index.flat.hits.map((hit) => ({
+        id: hit.selectable,
+        members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
+      })),
+      flatCore(smallest),
+    );
+    const flagged = new Set(pickProblems(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h]).map((p) => p.selectable));
+    const listOnly = new Set(
+      areas
+        .filter((a) => index.selectables.find((x) => x.id === a.id)?.side_wall && flagged.has(a.id))
+        .map((a) => a.id),
+    );
+    expect(flat?.querySelectorAll(".flat-cue")).toHaveLength(count - listOnly.size);
   });
 
   it("has polite live regions for the hand-off line and the twin's words, in the page before either speaks", () => {

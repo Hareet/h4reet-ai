@@ -17,10 +17,10 @@ None.
 ## Size, origin, and bounds
 
 - The size: 0.59 × 0.263 × 0.05 m (w × h × d), measured.
-- The stylized scale: 4, so the model is made at 2.36 × 1.052 × 0.2 m (FR-051).
+- The stylized scale: 2.6, so the model is made at 1.534 × 0.6838 × 0.13 m (FR-051).
 - The origin: the middle of the clip, where it sits on the monitor's top edge.
-- The expected bounds at that scale: from (-1.02, -0.08, -0.06) to (1.34, 0.972, 0.14) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.0708 m, y 0.03156 m, z 0.02 m (FR-019).
+- The expected bounds at that scale: from (-0.663, -0.052, -0.039) to (0.871, 0.6318, 0.091) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.04602 m, y 0.020514 m, z 0.02 m (FR-019).
 
 ## Anchors
 
@@ -32,10 +32,10 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `word` | (0, 0.792, 0.098) | 0.8 × 0.16 | (0, 0, 1) | (0, 1, 0) |
-| `call` | (0, 0.6, 0.098) | 1.84 × 0.16 | (0, 0, 1) | (0, 1, 0) |
-| `visit` | (0, 0.408, 0.098) | 1.84 × 0.16 | (0, 0, 1) | (0, 1, 0) |
-| `second-line` | (0, 0.256, 0.098) | 1.84 × 0.08 | (0, 0, 1) | (0, 1, 0) |
+| `word` | (0, 0.5148, 0.0637) | 0.52 × 0.104 | (0, 0, 1) | (0, 1, 0) |
+| `call` | (0, 0.39, 0.0637) | 1.196 × 0.104 | (0, 0, 1) | (0, 1, 0) |
+| `visit` | (0, 0.2652, 0.0637) | 1.196 × 0.104 | (0, 0, 1) | (0, 1, 0) |
+| `second-line` | (0, 0.1664, 0.0637) | 1.196 × 0.052 | (0, 0, 1) | (0, 1, 0) |
 
 ## States
 

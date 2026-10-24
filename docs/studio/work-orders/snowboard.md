@@ -15,9 +15,9 @@ Model the board and its bindings from the dimension sheet and the Author's descr
 
 - The board's length, its width at the widest point, and its thickness.
 - Each binding's footprint, height, and position along the board.
-- Where the board hangs, from the floor and from the room's left side.
+- Where the board hangs, from the floor and from the back wall.
 - Measure: the size, now estimated at 0.32 × 1.55 × 0.07 m (w × h × d).
-- Measure: where `snowboard` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (-0.95, 2.76, 0.035) m.
+- Measure: where `snowboard` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (0.4496, 1, 0.035) m.
 
 ## Size, origin, and bounds
 
