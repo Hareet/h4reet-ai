@@ -79,14 +79,15 @@ The readings follow FR-048:
 | `live.turn` is `off` (today) | cost unavailable | cost unavailable |
 | the route exists, before the visit's first counted turn | no call yet | $0 |
 | a valid reply with route `local` and cost 0 | local · $0 | unchanged |
-| a paid reply: any other valid reply, with a cost above 0 or route `fallback` | its cost to six decimals, "est." | the cost added exactly; to six decimals, "est.", from then on |
+| a paid reply: any other valid reply, with a cost above 0 or route `fallback` | its cost to six decimals, "est.", or `$99.99+` at or above the $99.99 cap (the cap bullet below) | the cost added exactly; to six decimals, "est.", from then on, or `$99.99+` at or above the cap |
 | `degraded`, `failed`, `lost`, or an invalid reply | cost unavailable | the sum unchanged, marked "at least" from then until the page reloads |
 | `refused` | unchanged | unchanged |
 
 - **Exact sums.** The visit's total is a `bigint` of micro-dollars, and each valid cost is added as `BigInt(cost_micro_usd)`. Amounts are formatted with integer arithmetic: `$`, the micro-dollars divided by 1,000,000, a point, then the remainder in six digits. So 950 reads `$0.000950`, and dev's synthetic 100,000 reads `$0.100000`. "This visit" is the exact integer sum of the valid costs (SC-011).
-- **"At least" persists.** Once set, a later paid turn adds its cost and the mark stays: `at least $0.000950 est.` Only a reload clears it, and a reload makes a new channel, which reads "no call yet" and "$0" (User Story 9, scenarios 3 and 5).
+- **"At least" persists.** Once set, a later paid turn adds its cost and the mark stays: `at least $0.000950 est.`, or `at least $99.99+` at or above the cap. Only a reload clears it, and a reload makes a new channel, which reads "no call yet" and "$0" (User Story 9, scenarios 3 and 5).
 - **A fallback reply that costs 0** counts as paid and reads `$0.000000 est.`: it took the paid path, and its figure is the gateway's estimate. Only a local answer reads "local · $0".
-- **Within the grid.** The neon renderer's counter regions are sized for the longest readings below $100: "cost unavailable" and `at least $99.999999 est.`. The compositor checks the grid (rule family RT, [room-data-files.md](room-data-files.md)). A call of $100 or more reads "cost unavailable", and a visit of $100 or more reads `at least $99.999999 est.`. Both stay true, and the meter's ceilings, $5 a day and $20 a month ([budgets.yaml](../../../config/budgets.yaml)), keep them far out of reach.
+- **The $99.99 cap** (Clarifications, 2026-10-23: "a. yes shorter longest reading is fine."). An amount at or above $99.99 — a call's cost or the visit's total — reads `$99.99+` instead of its six decimals: the "+" says the amount is at least what is shown, so the reading stays true. The "est." mark is dropped for a capped reading: the cap already withholds the figure, and "est." marks an estimate of a shown one. The "at least" mark, once set, still prefixes the capped reading: `at least $99.99+`. The exact sum is unchanged (SC-011); the cap is the display's, and "cost unavailable" is now only the reading for a turn with no valid cost (FR-048, answer 7) — a call of $100 or more no longer reads it. The meter's ceilings, $5 a day and $20 a month ([budgets.yaml](../../../config/budgets.yaml)), keep the cap far out of reach.
+- **Within the grid.** The neon renderer's counter regions are sized for the longest readings: "cost unavailable" (16 characters) and `at least $99.989999 est.` (24) — the largest amount below the cap, with the "at least" mark and the "est." mark. The compositor checks the grid (rule family RT, [room-data-files.md](room-data-files.md)), so a reword can't overflow it (RT8).
 - **Amounts are live values, never UI words** (FR-048). Every digit the sign shows comes from a slot, so spec 002's C6 holds for the UI words below (FR-035).
 
 **Drafts builds and fixtures** (FR-049):
@@ -183,7 +184,7 @@ renderTalk(doc, {
 |---|---|---|
 | Classification | `apps/web/test/room/turn-cost.test.ts`: each row of §3 | FR-048 |
 | Validity | each invalid form of §4, `"metered"` among them | FR-048, SC-011 |
-| Readings | each row of §5's table; every sequence of up to 4 outcomes from a fresh channel, against a reference model; "at least" after a later paid turn; the $100 bound; "test" in a drafts build, and "Sample" from a fixture | FR-048, FR-049, SC-011, User Story 9 scenarios 1 to 5 and 7 |
+| Readings | each row of §5's table; every sequence of up to 4 outcomes from a fresh channel, against a reference model; "at least" after a later paid turn; the $99.99 cap; "test" in a drafts build, and "Sample" from a fixture | FR-048, FR-049, SC-011, User Story 9 scenarios 1 to 5 and 7 |
 | Exact sums | 10,000 random valid costs, up to 2^53 − 1, against a `bigint` reference sum | FR-047, SC-011 |
 | No request, no storage | spies on `fetch`, `XMLHttpRequest`, `navigator.sendBeacon`, `WebSocket`, `EventSource`, `Image`, Web Storage, IndexedDB, the Cache API, `document.cookie`, and `history`: 0 calls across the suite | FR-047, FR-050, SC-011 |
 | Not configured | with `live.turn` `off`, both counters read "cost unavailable" before and after reports | FR-048, SC-011, User Story 9 scenario 7 |
