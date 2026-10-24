@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { renderObjectList } from "../../src/room/a11y";
 import type { Box } from "../../src/room/compose/bundle";
-import { flatCore, pick, pickAreas } from "../../src/room/compose/pick";
+import { flatCore, pick, pickAreas, pickProblems } from "../../src/room/compose/pick";
 import type { MemberRect, PickArea } from "../../src/room/compose/pick";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, flatScale } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
@@ -87,6 +87,19 @@ function grid(stage: Stage): Point[] {
   return points;
 }
 
+/** The areas the room draws at a stage (FR-064's amendment, 2026-10-23): all of them but the side-wall selectables
+ *  the stage can't give its exclusive core to, which the room draws no pick area for and the "In the room" list
+ *  reaches. */
+function held(
+  areas: readonly PickArea[],
+  index: { readonly selectables: readonly { readonly id: string; readonly side_wall: boolean }[] },
+  stage: Stage,
+): PickArea[] {
+  const flagged = new Set(pickProblems(areas, [0, 0, stage.w, stage.h]).map((p) => p.selectable));
+  const side = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
+  return areas.filter((a) => !(side.has(a.id) && flagged.has(a.id)));
+}
+
 /** Where a picker over `stage` picks otherwise than compose/pick.ts over `areas`, the first few. */
 function disagreements(picked: (p: Point) => string | null, areas: readonly PickArea[], stage: Stage): string[] {
   const out: string[] = [];
@@ -122,11 +135,15 @@ describe("the 3D pick (compose/pick.ts)", () => {
       picker.resize(stage);
       const areas = threeAreas(stage);
       expect(areas.map((a) => a.id)).toEqual(index.selectables.map((s) => s.id));
-      // Each selectable at its core's centre; then everywhere, as the kernel picks over three.js's rectangles: the
-      // frontmost member under the point, else the nearest area that holds it, else none.
-      for (const area of areas) expect(picker.pick(ndcOf(centre(area), stage)), area.id).toBe(area.id);
-      expect(disagreements((p) => picker.pick(ndcOf(p, stage)), areas, stage)).toEqual([]);
-      expect(grid(stage).some((p) => pick(areas, p) === null)).toBe(true);
+      // FR-064's amendment (2026-10-23): a side-wall selectable the stage can't give its exclusive core to is
+      // list-only there, the room drawing no pick area for it; the pointer picks the rest as the kernel does over
+      // the areas the room holds.
+      const kept = held(areas, index, stage);
+      // Each held selectable at its core's centre; then everywhere, as the kernel picks over three.js's rectangles:
+      // the frontmost member under the point, else the nearest area that holds it, else none.
+      for (const area of kept) expect(picker.pick(ndcOf(centre(area), stage)), area.id).toBe(area.id);
+      expect(disagreements((p) => picker.pick(ndcOf(p, stage)), kept, stage)).toEqual([]);
+      expect(grid(stage).some((p) => pick(kept, p) === null)).toBe(true);
     },
   );
 
@@ -137,10 +154,10 @@ describe("the 3D pick (compose/pick.ts)", () => {
     const [wide, narrow] = [REFERENCE_DESKTOP.stage, SMALLEST[0]?.stage ?? REFERENCE_PHONE.stage];
     expect(wide.w / wide.h).not.toBeCloseTo(narrow.w / narrow.h, 2);
     picker.resize(wide);
-    expect(disagreements((p) => picker.pick(ndcOf(p, wide)), threeAreas(wide), wide)).toEqual([]);
+    expect(disagreements((p) => picker.pick(ndcOf(p, wide)), held(threeAreas(wide), index, wide), wide)).toEqual([]);
     picker.resize(narrow);
     const areas = threeAreas(narrow);
-    expect(disagreements((p) => picker.pick(ndcOf(p, narrow)), areas, narrow)).toEqual([]);
+    expect(disagreements((p) => picker.pick(ndcOf(p, narrow)), held(areas, index, narrow), narrow)).toEqual([]);
     // Areas kept from the wide stage would pick otherwise somewhere on the narrow one.
     const stale = threeAreas(wide);
     const kept = (p: Point): string | null => pick(stale, [(p[0] / narrow.w) * wide.w, (p[1] / narrow.h) * wide.h]);
@@ -161,12 +178,19 @@ describe("selectObject", () => {
       doc.body.append(list);
       const areas = threeAreas(stage);
       expect(areas).toHaveLength(index.selectables.length);
-      for (const area of areas) {
+      const kept = held(areas, index, stage);
+      for (const area of kept) {
         selectObject.mockClear();
         tap(win, canvas, centre(area), "mouse");
         tap(win, canvas, centre(area), "touch");
         list.querySelector<HTMLButtonElement>(`button[data-object-id="${area.id}"]`)?.click();
         expect(selectObject.mock.calls, area.id).toEqual([[area.id], [area.id], [area.id]]);
+      }
+      // A side-wall selectable the stage can't hold (FR-064's amendment, 2026-10-23) is reached from the list alone.
+      for (const area of areas.filter((a) => !kept.includes(a))) {
+        selectObject.mockClear();
+        list.querySelector<HTMLButtonElement>(`button[data-object-id="${area.id}"]`)?.click();
+        expect(selectObject.mock.calls, area.id).toEqual([[area.id]]);
       }
     }
   });

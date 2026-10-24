@@ -269,18 +269,26 @@ describe("RG6: an exclusive 44 × 44 core for each selectable at every supported
 describe("RG7: legibility at the production framing on both reference stages", () => {
   const PANEL = "placements[3].faces.panel";
 
-  it("prints a face's cap height to 0.1 px, the stage, and the floor", () => {
+  it("holds the neon word to the floor on the desktop stage, and lets it fall under it on the phone", () => {
+    // The word is a readable face of a piece with a turn-cost region: on the reference phone its words and figures
+    // also appear as text in the "Around the room" copy, so RG7 exempts it there (FR-052's amendment, 2026-10-23).
+    expect(
+      rg(tree({ [SCENE]: (d) => (at(d, "placements", 3, "faces", "panel", "regions", 0, "grid").chars = 20) })),
+    ).toEqual([]);
     const wide = rg(
-      tree({ [SCENE]: (d) => (at(d, "placements", 3, "faces", "panel", "regions", 0, "grid").chars = 20) }),
+      tree({ [SCENE]: (d) => (at(d, "placements", 3, "faces", "panel", "regions", 0, "grid").chars = 40) }),
     );
     expect(where(wide)).toEqual([`RG7 ${SCENE}:${PANEL}`]);
-    expect(wide[0]?.reason).toMatch(/^cap height \d\.\d px on the phone stage, under the floor of 9$/);
+    expect(wide[0]?.reason).toMatch(/^cap height \d\.\d px on the desktop stage, under the floor of 9$/);
   });
 
   it("takes the floor from main's caps", () => {
-    const raised = rg(goodTree(), floorOf(11));
-    expect(where(raised)).toEqual([`RG7 ${SCENE}:${PANEL}`]);
-    expect(raised[0]?.reason).toMatch(/^cap height 10\.\d px on the phone stage, under the floor of 11$/);
+    // At 11 px the monitor's phone cap, 12.0 px, still meets the floor, and the neon panel's is under it but exempt
+    // on the phone (FR-052's amendment, 2026-10-23), so nothing is refused.
+    expect(rg(goodTree(), floorOf(11))).toEqual([]);
+    const raised = rg(goodTree(), floorOf(13));
+    expect(where(raised)).toEqual([`RG7 ${SCENE}:placements[2].faces.screen`]);
+    expect(raised[0]?.reason).toMatch(/^cap height 12\.\d px on the phone stage, under the floor of 13$/);
     expect(rg(goodTree(), floorOf(10))).toEqual([]);
   });
 
@@ -365,8 +373,13 @@ describe("RG7: legibility at the production framing on both reference stages", (
       expect(f.phone).toBeGreaterThan(9);
       expect(f.phone).toBeLessThan(f.desktop ?? 0);
     }
-    // A floor just over the smallest of them refuses that face alone, with its own number.
-    const least = faces.reduce((a, b) => ((b.phone ?? Infinity) < (a.phone ?? Infinity) ? b : a));
+    // A floor just over the smallest of them refuses that face alone, with its own number. The neon panel, exempt on
+    // the phone (FR-052's amendment, 2026-10-23), is left out of the measure: at 11 px nothing is refused, and the
+    // floor just over the monitor's phone cap refuses the monitor alone.
+    expect(rg(goodTree(), floorOf(11))).toEqual([]);
+    const least = faces
+      .filter((f) => f.face !== "fx-neon.panel")
+      .reduce((a, b) => ((b.phone ?? Infinity) < (a.phone ?? Infinity) ? b : a));
     const floor = Math.ceil(((least.phone ?? 0) + 0.01) * 100) / 100;
     const refused = rg(goodTree(), floorOf(floor));
     expect(where(refused)).toEqual([`RG7 ${SCENE}:placements[${least.placement}].faces.${least.role}`]);
@@ -375,6 +388,23 @@ describe("RG7: legibility at the production framing on both reference stages", (
     );
     // Without a use's ratio its text regions go unmeasured; a sign's outline needs none.
     expect(faceCaps(g, []).map((f) => f.phone !== null)).toEqual([false, false, false, true]);
+  });
+
+  it("names a phone-exempt face, and what carries it, in the report's legibility table", () => {
+    // At 13 px the neon panel's phone cap is under the floor and the monitor's too: the panel is exempt there, its
+    // words and figures carried by the text copy (FR-052's amendment, 2026-10-23), the monitor is refused.
+    const report = compose(goodTree(), floorOf(13), { mode: "strict", drafts: true }).report.markdown;
+    const status = (face: string): string => {
+      const line = report.split("\n").find((l) => l.startsWith(`| \`${face}\` `));
+      if (line === undefined) throw new Error(`the report has no legibility row for ${face}`);
+      const cell = line.slice(2, -1).split(" | ").map((c) => c.trim()).at(-1);
+      if (cell === undefined) throw new Error(`the report's row for ${face} has no status`);
+      return cell;
+    };
+    expect(status("fx-neon.panel")).toBe('exempt on the phone, carried by the text copy\'s "Around the room"');
+    expect(status("fx-monitor.screen")).toBe("under");
+    expect(status("fx-board.slate")).toBe("readable");
+    expect(status("fx-sign.lettering")).toBe("readable");
   });
 });
 

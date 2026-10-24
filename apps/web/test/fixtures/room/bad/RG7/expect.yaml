@@ -1,6 +1,6 @@
 rule: RG7
 file: apps/web/room/scene.yaml
 path: placements[3].faces.panel
-why: the neon word's grid widened to 20 characters, its glyphs under the floor on the phone stage
+why: the neon word's grid widened to 40 characters, its cap height under the floor on the desktop stage; on the phone stage the amendment exempts it, its word and figures carried by the text copy
 edits:
-  - { file: apps/web/room/scene.yaml, at: [placements, 3, faces, panel, regions, 0, grid, chars], set: 20 }
+  - { file: apps/web/room/scene.yaml, at: [placements, 3, faces, panel, regions, 0, grid, chars], set: 40 }
