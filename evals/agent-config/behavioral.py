@@ -39,8 +39,8 @@ path (HUMAN_ONLY; plan §15, ADR 0017), read as text and cleaned for the termina
 yes at a terminal. Then it runs each case three times, each run a real Claude Code session on the Team plan, in a
 fresh clone of the branch with the git hooks installed:
 
-    claude -p PROMPT [--agent ROLE] --setting-sources project --output-format stream-json --verbose
-           --include-hook-events --no-session-persistence
+    claude -p PROMPT [--agent ROLE] --setting-sources project --permission-mode auto --output-format stream-json
+           --verbose --include-hook-events --no-session-persistence
 
 with a 180 s timeout, in an environment built from an allowlist, never the Author's whole environment: PATH, HOME,
 LANG, LC_*, TERM, and CLAUDE_CONFIG_DIR, where Claude Code finds its login, plus a fresh canary value for every
@@ -1627,6 +1627,9 @@ def prepare(
 
 
 def session_argv(claude: str, case: Case) -> list[str]:
+    # The permission mode is named, not inherited: Claude Code's default for a headless session moved from auto
+    # (2.1.296, the baseline's runs) to default (2.1.310), where no one can grant an edit, so every case that edits
+    # would measure the mode instead of the agent.
     return [
         claude,
         "-p",
@@ -1634,6 +1637,8 @@ def session_argv(claude: str, case: Case) -> list[str]:
         *(["--agent", case.agent] if case.agent else []),
         "--setting-sources",
         "project",
+        "--permission-mode",
+        "auto",
         "--output-format",
         "stream-json",
         "--verbose",

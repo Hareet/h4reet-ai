@@ -1760,6 +1760,8 @@ def test_each_session_runs_in_its_own_clone_of_the_branch_tip(
         "implementer",
         "--setting-sources",
         "project",
+        "--permission-mode",
+        "auto",
         "--output-format",
         "stream-json",
         "--verbose",
@@ -1767,6 +1769,14 @@ def test_each_session_runs_in_its_own_clone_of_the_branch_tip(
         "--no-session-persistence",
     ]
     assert agent.calls[0]["timeout"] == 180
+
+
+def test_the_session_names_its_permission_mode_whatever_claude_codes_default() -> None:
+    # 2.1.310 started headless sessions in default mode, where an edit waits for a grant no one can give; the
+    # baseline's runs (2.1.296) started in auto. The mode is part of what a run measures, so it's named.
+    argv = bh.session_argv("/usr/bin/claude", bh.parse_case(with_(), "c"))
+    i = argv.index("--permission-mode")
+    assert argv[i + 1] == "auto" and argv.count("--permission-mode") == 1
 
 
 def test_the_main_session_runs_without_an_agent_flag() -> None:
