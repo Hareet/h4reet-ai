@@ -2,14 +2,16 @@
 # camera frames the shell, so the view looks straight into its open front. The desk stands against the back wall, the
 # ultrawide monitor on it with the neon sign clipped to its top edge, the large window behind them, the artwork
 # hanging over the window's upper right corner, and the laptop on its stand at the desk's right side; on the left wall
-# the chalkboard hangs with the snowboard upright on its tail beside it (T301 re-lays them, D1); the
+# the chalkboard hangs high and the snowboard stands low on its tail, with small gaps at the wall's corners (D1); the
 # bicycle hangs upright by its front wheel on the right wall, next to the laptop; the twin stands a little right of
 # the desk, by the laptop, and the visitor central, at the floor's open front and a little left (D3). Every position is
 # an estimate until measured. The charger is the laptop's switch on the tier: plugged in only while the tier is local
 # (FR-043).
 # Offsets are in the anchor's frame, so on the side walls they read along the wall: the shell turns `left-wall` +90°
 # about Y, so its +x points toward the back wall, and `right-wall` −90°, so its +x points toward the open front; y is
-# the height, and z the distance out from the wall.
+# the height, and z the distance out from the wall. The side walls' offsets are derived from the cube's depth: on the
+# left wall the chalkboard's −0.26 leaves about 5 cm to the front corner (0.6096 − 0.26 − 0.30) and the snowboard's
+# 0.4 about 5 cm to the back corner (0.6096 − 0.4 − 0.16).
 version: 1
 look: inked-cel
 live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
@@ -71,12 +73,12 @@ placements:
     label: label.dog-sign
   - id: chalkboard
     piece: chalkboard
-    mount: { on: room-shell, anchor: left-wall, offset: [-0.3096, 1.45, 0], estimated: true }
+    mount: { on: room-shell, anchor: left-wall, offset: [-0.26, 1.65, 0], estimated: true }
     frame: true
     label: label.chalkboard
   - id: snowboard
     piece: snowboard
-    mount: { on: room-shell, anchor: left-wall, offset: [0.4496, 1, 0.035], estimated: true }
+    mount: { on: room-shell, anchor: left-wall, offset: [0.4, 0.775, 0.035], estimated: true }
     frame: true
     label: label.snowboard
   - id: bicycle

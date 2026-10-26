@@ -17,7 +17,7 @@ Model the board and its bindings from the dimension sheet and the Author's descr
 - Each binding's footprint, height, and position along the board.
 - Where the board hangs, from the floor and from the back wall.
 - Measure: the size, now estimated at 0.32 × 1.55 × 0.07 m (w × h × d).
-- Measure: where `snowboard` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (0.4496, 1, 0.035) m.
+- Measure: where `snowboard` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (0.4, 0.775, 0.035) m.
 
 ## Size, origin, and bounds
 
