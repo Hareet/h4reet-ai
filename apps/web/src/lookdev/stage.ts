@@ -195,6 +195,8 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   // One frame's draw calls and triangles, inked cel's lines among them: reset at each frame, not at each render.
   renderer.info.autoReset = false;
   let ink: Ink = createInk(renderer, look);
+  // The lines' one set of parameters, shared once (scene/look.ts), so the view's height reaches every line.
+  ink.prepare(room.scene);
   let view: ViewChoice = options.device ? "device" : "desktop";
   let scene: SceneChoice = "room";
   let sample: RoomFixture | null = fixtures[0] ?? null;
@@ -356,7 +358,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     uploader: renderer,
     prepare: (piece, model) => {
       const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
-      if (own) prepareModel(model, own, look, room.materials);
+      if (!own) return;
+      prepareModel(model, own, look, room.materials);
+      ink.prepare(model);
     },
     swap: (piece, model) => {
       showModel(room, part, piece, model);
@@ -503,6 +507,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       look = next;
       room = build(look);
       ink = createInk(renderer, look);
+      ink.prepare(room.scene);
       applySettings();
       applySample();
       applyScene();

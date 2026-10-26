@@ -263,7 +263,10 @@ export function createScene(options: SceneOptions): Stage3D {
           uploader: renderer,
           prepare: (piece, model) => {
             const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
-            if (own) prepareModel(model, own, part.look, room.materials);
+            if (!own) return;
+            prepareModel(model, own, part.look, room.materials);
+            // The lines' one set of parameters, the stand-ins', so the stage's height reaches the model's too.
+            ink.prepare(model);
           },
           swap: (piece, model) => showModel(room, part, piece, model),
         });
