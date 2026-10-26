@@ -283,6 +283,13 @@ function faceVignettePieces(
   });
 }
 
+/** The vignette's piece with a live `lettering` face that takes a candidate (the busy sign's role), from the data. */
+function letteringPiece(given: LookdevDeps["inputs"]): string {
+  const piece = faceVignettePieces(given).find((p) => p.roles.includes("lettering"))?.piece;
+  if (piece === undefined) throw new Error("no vignette piece with a lettering face takes a candidate");
+  return piece;
+}
+
 /** Whether a node draws: it and every node above it visible. */
 function shows(node: Object3D): boolean {
   for (let n: Object3D | null = node; n; n = n.parent) if (!n.visible) return false;
@@ -558,7 +565,7 @@ describe("the scene, the look, the sample state, quality, and pause (contracts/l
     // The review's page-1: the busy sign's `lettering` quad, among others, a Mesh named for its live face's role.
     const { page, root, clock, inputs: given } = open();
     const pieces = faceVignettePieces(given);
-    expect(pieces.map((p) => p.piece)).toContain("busy-sign");
+    expect(pieces.some((p) => p.roles.includes("lettering"))).toBe(true);
     for (const { piece, entry } of pieces) {
       pick(root, piece, cleanModel(entry as Parameters<typeof cleanModel>[0]));
       await settle(clock);
@@ -954,7 +961,7 @@ describe("the status line by the canvas (the Author's first lookdev run; plan.md
   it("speaks of the latest pick, whichever load ends last, and of a piece the vignette doesn't show", async () => {
     const { page, root, clock, inputs: given } = open();
     const { piece, entry } = vignettePiece(given);
-    const sign = "busy-sign";
+    const sign = letteringPiece(given);
     // The desk's load ends after the sign's refusal, and leaves the line to the sign, the latest pick.
     pick(root, piece, cleanModel(entry as Parameters<typeof cleanModel>[0]));
     pick(root, sign, ascii("glTF, but not a glTF file at all"));
