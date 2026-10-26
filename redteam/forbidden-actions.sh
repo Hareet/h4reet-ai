@@ -768,6 +768,97 @@ edit allow 'tools/gates-notes.md'
 edit allow 'evals/agent-configs/notes.md'
 edit allow 'evals/product/run.py'
 
+# --- Spec 003's guard patch: the studio's folders and the asset policy (spec 003, FR-003 and FR-005; plan §2) -------
+# The patch adds tools/gates/studio-folders.txt, which names the studio's four folders on the Author's machine (its
+# photos, its unstripped outputs, its workflows, and the folder holding the evaluation's blinding key), with a denyRead
+# and a Read(...) deny for each in .claude/settings.json. It makes assets/policy/ human-only: protected-paths.sh, a
+# denyWrite, and an Edit(...) deny. Until it's applied (no list in this checkout), these rows are PLANNED: reported, not
+# failing. Once it is, they must hold, and a folder whose line still holds its <STUDIO_…> placeholder fails, naming the
+# placeholder (research R-07), so the patch can't be applied half-filled unnoticed. Stage S reads each folder from
+# inside the sandbox, below. No row prints a folder's path: the matrix's output goes into merge-request notes. The paths
+# themselves are published with the two files they're in, so a path under a Windows user's folder, /mnt/<drive>/Users/,
+# fails too: it would publish the account's name, and spec 000 already denies /mnt/c/Users whole.
+studio_list="$repo/tools/gates/studio-folders.txt"
+if [ -e "$studio_list" ]; then guard_expect=block; else guard_expect=planned; fi
+studio_folders=(photos:STUDIO_PHOTOS outputs:STUDIO_OUTPUTS workflows:STUDIO_WORKFLOWS blinding-key:STUDIO_BLINDING_KEY)
+# studio_path <name>: the rest of the folder's line in the list, without trailing blanks or slash; nothing if none
+studio_path() {
+  if [ -r "$studio_list" ]; then
+    awk -v n="$1" '$1 == n { sub(/^[^[:space:]]+[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); sub(/\/+$/, ""); print; exit }' "$studio_list"
+  fi
+}
+# studio_problem <name> <placeholder>: why the folder's line can't be used, or nothing when it can
+studio_problem() {
+  local sp
+  sp="$(studio_path "$1")"
+  case "$sp" in
+    '' | "$1") echo "tools/gates/studio-folders.txt has no path for it" ;;
+    *'<STUDIO_'*) echo "placeholder not filled: <$2> (the Author writes the folder's path in its place, in .claude/settings.json and tools/gates/studio-folders.txt)" ;;
+    /*)
+      if [[ ${sp,,} =~ ^/mnt/[a-z]/users(/|$) ]]; then
+        echo "its path is under a Windows user's folder, which would publish the account's name with the two files, and spec 000 already denies /mnt/c/Users: use a neutral folder, such as /mnt/c/studio/$1"
+      fi
+      ;;
+    *) echo "its path in tools/gates/studio-folders.txt isn't absolute" ;;
+  esac
+}
+# Each folder is denied in both layers behind the sandbox's own view: a denyRead entry, and the Read tool's deny, whose
+# absolute form is Read(//<path>/**) (the path's own leading slash after the rule's).
+for entry in "${studio_folders[@]}"; do
+  sname="${entry%%:*}"
+  rid "H/settings/the studio's $sname folder is denied"
+  if [ "$guard_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s the studio's %s folder is denied: the guard patch names it\n" settings.json "$sname"
+    continue
+  fi
+  why="$(studio_problem "$sname" "${entry#*:}")"
+  if [ -z "$why" ]; then
+    # shellcheck disable=SC2016 # $p is a jq variable, not a shell expansion
+    if jq -e --arg p "$(studio_path "$sname")" '(.sandbox.filesystem.denyRead | index($p) != null) and (.permissions.deny | index("Read(/" + $p + "/**)") != null)' "$repo/.claude/settings.json" >/dev/null 2>&1; then
+      pass=$((pass + 1))
+      continue
+    fi
+    why="settings.json lacks the denyRead entry or the Read(...) deny for the path tools/gates/studio-folders.txt gives"
+  fi
+  fail=$((fail + 1))
+  printf "FAIL        %-21s the studio's %s folder is denied: %s\n" settings.json "$sname" "$why"
+done
+# The policy: the license allowlist, the approvals, and the caps change only by the Author's hand (FR-005). An Edit of
+# each file, the folder, and two path forms are refused; a neighbour whose name only starts the same, and the records
+# agents write, stay allowed.
+for f in licenses.json approvals.json caps.json; do
+  edit "$guard_expect" "assets/policy/$f"
+done
+edit "$guard_expect" 'assets/policy'
+edit "$guard_expect" 'specs/../assets/policy/caps.json'
+edit "$guard_expect" './assets//policy/licenses.json'
+edit allow 'assets/policy-notes.md'
+edit allow 'assets/twin/records.json'
+check protected-paths.sh "$guard_expect" 'Edit in a linked worktree: assets/policy/approvals.json' "$(jq -cn --arg f "$gov_wt/assets/policy/approvals.json" '{file_path:$f}')"
+# A shell write: the sandbox's denyWrite masks assets/policy in the main tree. In a linked worktree no rule sees a shell
+# write's target, as with tools/gates above: a gap. What holds it is the arrival check (spec 003, Phase 2): it reads the
+# policy from the main ref, never from a branch, and its rule A9 refuses any branch that changes assets/policy/.
+check bash-gate.sh gap 'a shell write in a linked worktree: assets/policy/approvals.json' "$(jq -cn --arg c "cp /tmp/new $gov_wt/assets/policy/approvals.json" '{command:$c}')"
+# guard_has <label> <jq filter, true = pass>: a settings row the guard patch makes true, PLANNED until it's applied
+guard_has() {
+  rid "H/settings/$1"
+  if jq -e "$2" "$repo/.claude/settings.json" >/dev/null 2>&1; then
+    pass=$((pass + 1))
+  elif [ "$guard_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf 'PLANNED     %-21s %s\n' settings.json "$1"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' settings.json "$1"
+  fi
+}
+for f in licenses.json approvals.json caps.json; do
+  # shellcheck disable=SC2016 # $f and $e are jq variables, not shell expansions
+  guard_has "a shell write of assets/policy/$f is denied" '"./assets/policy/'"$f"'" as $f | [.sandbox.filesystem.denyWrite[] | select(. as $e | $f == $e or ($f | startswith(($e | rtrimstr("/")) + "/")))] | length > 0'
+done
+guard_has 'assets/policy is Edit-denied behind the hook' '.permissions.deny | index("Edit(/assets/policy/**)") != null'
+
 # =================================================================================================
 # T089: stage S, inside the sandbox (plan §13). It runs only when SANDBOX_RUNTIME=1 and .git/hooks isn't
 # writable (the agent sandbox); otherwise it is skipped with a notice. Every row only probes — test -w,
@@ -777,6 +868,8 @@ edit allow 'evals/product/run.py'
 # worktree included, wherever the matrix was started, and outside a repository the stage still reports
 # rather than stopping the run (review B, N2).
 rid "S/section"
+# Spec 003's studio-folder rows sit inside stage S; like the section's own, their marker registers whether or not it runs.
+rid "S/studio-folders"
 stage_s_common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 if [ -n "$stage_s_common" ]; then stage_s_tree="$(dirname -- "$stage_s_common")"; else stage_s_tree="$repo"; fi
 git_hooks_dir="$(git -C "$repo" rev-parse --path-format=absolute --git-path hooks 2>/dev/null || true)"
@@ -979,6 +1072,34 @@ PY
   done
   s_unreadable '/etc/h4agents/pki' /etc/h4agents/pki
   s_unreadable '/mnt/c/Users' /mnt/c/Users
+  # Spec 003's studio folders (FR-003; research R-07), from tools/gates/studio-folders.txt, which the guard patch adds
+  # (stage H's block above): PLANNED until it's there, and a FAIL naming the placeholder while a line still holds one.
+  # A path with nothing at it fails: there would be nothing to read, but a mistyped path looks the same, and the deny
+  # would guard nothing. The Author makes the folders before applying the patch. Inside the sandbox a denied folder
+  # that exists is still there, emptied, so only a path with nothing behind it on the host meets this.
+  for entry in "${studio_folders[@]}"; do
+    sname="${entry%%:*}"
+    rid "S/unreadable/the studio's $sname folder"
+    if [ "$guard_expect" = planned ]; then
+      planned=$((planned + 1))
+      printf "PLANNED     %-21s the studio's %s folder: the guard patch names it\n" stage-S-unreadable "$sname"
+      continue
+    fi
+    why="$(studio_problem "$sname" "${entry#*:}")"
+    sp="$(studio_path "$sname")"
+    if [ -n "$why" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: %s\n" stage-S-unreadable "$sname" "$why"
+    elif [ ! -e "$sp" ] && [ ! -L "$sp" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: nothing at its path from inside the sandbox: make the folder, or correct the path in .claude/settings.json and tools/gates/studio-folders.txt\n" stage-S-unreadable "$sname"
+    elif reads_blocked "$sp"; then
+      pass=$((pass + 1))
+    else
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: its contents are readable from inside the sandbox\n" stage-S-unreadable "$sname"
+    fi
+  done
   # Refused: AF_UNIX sockets (EPERM), no GPU device.
   rid "S/refused/af-unix"
   if python3 -c 'import socket, sys

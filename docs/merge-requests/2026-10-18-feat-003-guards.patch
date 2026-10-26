@@ -1,0 +1,135 @@
+--- a/.claude/hooks/protected-paths.sh
++++ b/.claude/hooks/protected-paths.sh
+@@ -1,6 +1,7 @@
+ #!/usr/bin/env bash
+ # PreToolUse(Edit|Write|MultiEdit|NotebookEdit): agents may not modify the enforcement layer, the constitution,
+-# the review policy, git internals, cost/edge/kill-switch configuration, or test files during a fix task.
++# the review policy, git internals, cost/edge/kill-switch configuration, the asset policy, or test files during a fix
++# task.
+ set -Eeuo pipefail
+ # Fail closed: in Claude Code only exit 2 blocks, so a missing dependency or an unexpected
+ # error must become exit 2 — otherwise the gate silently disappears. -E carries the trap into
+@@ -57,6 +58,7 @@
+     .mcp.json | */.mcp.json) block "MCP server configuration (it gives every session new tools)" ;;
+     tools/gates | tools/gates/* | evals/agent-config | evals/agent-config/*) block "the local gates or the agent-config evals (the gate runs in the Author's terminal, and the evals decide what merges; plan §15's governance patch)" ;;
+     deploy/env/* | *.env) block "environment file (it holds secrets and selects what a stack runs; spec 000 FR-007)" ;;
++    assets/policy | assets/policy/*) block "the asset policy: the license allowlist, the likeness approvals, and the caps, which only the Author changes (spec 003 FR-005)" ;;
+   esac
+   if [ "${FIX_TASK:-0}" = "1" ]; then
+     case "$1" in
+--- a/.claude/settings.json
++++ b/.claude/settings.json
+@@ -66,7 +66,12 @@
+       "Edit(/.git/refs/heads/main)",
+       "Edit(/.git/refs/replace/**)",
+       "Edit(~/.aws/**)",
+-      "Edit(~/.local/share/h4reet/**)"
++      "Edit(~/.local/share/h4reet/**)",
++      "Read(/<STUDIO_PHOTOS>/**)",
++      "Read(/<STUDIO_OUTPUTS>/**)",
++      "Read(/<STUDIO_WORKFLOWS>/**)",
++      "Read(/<STUDIO_BLINDING_KEY>/**)",
++      "Edit(/assets/policy/**)"
+     ],
+     "allow": [
+       "Bash(git status*)",
+@@ -125,7 +130,8 @@
+         "./.github/workflows",
+         "~/.config/h4reet-ai",
+         "~/.aws",
+-        "~/.local/state/h4reet"
++        "~/.local/state/h4reet",
++        "./assets/policy"
+       ],
+       "denyRead": [
+         "./corpus/intake/private",
+@@ -141,7 +147,11 @@
+         "~/.python_history",
+         "~/.node_repl_history",
+         "/mnt/c/Users",
+-        "/etc/h4agents/pki"
++        "/etc/h4agents/pki",
++        "<STUDIO_PHOTOS>",
++        "<STUDIO_OUTPUTS>",
++        "<STUDIO_WORKFLOWS>",
++        "<STUDIO_BLINDING_KEY>"
+       ]
+     },
+     "network": {
+--- /dev/null
++++ b/assets/policy/approvals.json
+@@ -0,0 +1,4 @@
++{
++  "schema": 1,
++  "approvals": []
++}
+--- /dev/null
++++ b/assets/policy/caps.json
+@@ -0,0 +1,10 @@
++{
++  "schema": 1,
++  "adr_0010": "not-accepted",
++  "per_asset": {},
++  "first_visit_bytes": {
++    "phase2": 10000000,
++    "phase3": 25000000
++  },
++  "history_bytes": 500000000
++}
+--- /dev/null
++++ b/assets/policy/licenses.json
+@@ -0,0 +1,4 @@
++{
++  "schema": 1,
++  "licenses": []
++}
+--- a/tools/gates/matrix-required.txt
++++ b/tools/gates/matrix-required.txt
+@@ -183,3 +183,22 @@
+ H/role/red-teamer/make redteam -f Makefile -f /tmp/x.mk
+ H/role/reviewer/git log >/dev/null; git log -p > x
+ H/role/id-no-type/git log -p > /tmp/x.log
++
++# --- spec 003's guard patch (FR-003, FR-005; plan §2): the studio's folders, and the asset policy human-only ---
++S/studio-folders
++H/settings/the studio's photos folder is denied
++H/settings/the studio's outputs folder is denied
++H/settings/the studio's workflows folder is denied
++H/settings/the studio's blinding-key folder is denied
++H/protected-paths.sh/assets/policy/licenses.json
++H/protected-paths.sh/assets/policy/approvals.json
++H/protected-paths.sh/assets/policy/caps.json
++H/protected-paths.sh/assets/policy
++H/protected-paths.sh/assets/policy-notes.md
++H/protected-paths.sh/assets/twin/records.json
++H/protected-paths.sh/Edit in a linked worktree: assets/policy/approvals.json
++H/bash-gate.sh/a shell write in a linked worktree: assets/policy/approvals.json
++H/settings/a shell write of assets/policy/licenses.json is denied
++H/settings/a shell write of assets/policy/approvals.json is denied
++H/settings/a shell write of assets/policy/caps.json is denied
++H/settings/assets/policy is Edit-denied behind the hook
+--- /dev/null
++++ b/tools/gates/studio-folders.txt
+@@ -0,0 +1,22 @@
++# The studio's folders on the Author's machine (spec 003, FR-003; plan §2; research R-07). Human-only.
++#
++# Agent sessions run on the machine the studio runs on, so the sandbox denies them each folder below, and the
++# forbidden-action matrix reads this list to prove it: stage H checks that .claude/settings.json denies each path in both
++# layers (a denyRead entry, and the Read tool's deny, Read(/<path>/**), which an absolute path makes Read(//...)), and
++# stage S tries to read it from inside the sandbox. One folder per line: its name, then its absolute path, the rest of
++# the line. The blinding key's line names the folder that holds the key.
++#
++# The guard patch carries the paths as placeholders. Before applying it, the Author makes the four folders and replaces
++# each <STUDIO_…> with its real path everywhere it appears in the patch: here, and twice in .claude/settings.json. While a
++# line still holds a placeholder, or names a folder that isn't there, the matrix fails, naming it. The matrix never
++# prints a path.
++#
++# These paths are published: this file and .claude/settings.json are committed, and the history goes public from its
++# first commit (ADR 0013). Use neutral folders, such as /mnt/c/studio/photos, /mnt/c/studio/outputs,
++# /mnt/c/studio/workflows, and /mnt/c/studio/key, with no person, employer, account, or place in any name. Not a folder
++# under /mnt/c/Users/<account>/: it would publish the account's name and add no protection, since spec 000 already
++# denies /mnt/c/Users; the matrix fails such a path.
++photos <STUDIO_PHOTOS>
++outputs <STUDIO_OUTPUTS>
++workflows <STUDIO_WORKFLOWS>
++blinding-key <STUDIO_BLINDING_KEY>

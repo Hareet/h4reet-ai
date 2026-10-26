@@ -94,6 +94,7 @@ tools/gates/test/test_arrival_check.py, arrival_fixtures.py   [P] new: tests, wi
 tools/gates/gate, run_checks.py, publish_check.py      [P] changed: the arrival step, and the history scan
 .claude/git-hooks/pre-commit          [P] changed: the arrival check after gitleaks
 .claude/settings.json, .claude/hooks/protected-paths.sh   [P] changed: the studio's folders, assets/policy/**
+tools/gates/studio-folders.txt        [P] new: the studio's folders by name, which the matrix reads (§2)
 REVIEW.md                             [P] changed: an "Arriving assets" pass (FR-017, FR-037)
 tools/gates/matrix-required.txt       [P] changed: the new rows
 redteam/forbidden-actions.sh          [A] changed: the rows
@@ -128,7 +129,8 @@ README.md                             [A] changed: the license line (FR-015)
 - **`.claude/settings.json`:** `denyRead` and `Read(...)` denies for the studio's folders, written as `<STUDIO_PHOTOS>`, `<STUDIO_OUTPUTS>`, `<STUDIO_WORKFLOWS>`, and `<STUDIO_BLINDING_KEY>`, which the Author replaces with the real paths before applying (R-07); `denyWrite` and `Edit(...)` on `assets/policy/**`.
 - **`.claude/hooks/protected-paths.sh`:** `assets/policy/**`.
 - **`assets/policy/licenses.json`** with no entries, **`approvals.json`** with no entries, and **`caps.json`** saying ADR 0010 isn't accepted ([data-model.md](data-model.md)).
-- **`tools/gates/matrix-required.txt`** and the rows in `redteam/forbidden-actions.sh`: a read of each studio folder (stage S), an Edit and a write of each policy file (stage H).
+- **`tools/gates/studio-folders.txt`** (human-only, added in implementation): the four folders by name, each with the same placeholder, which the Author fills with the same path. The matrix reads its paths from this list, since nothing in `.claude/settings.json` marks which entries are the studio's. Stage H checks that the settings deny each listed path in both layers; stage S tries to read it. The rows never print a path.
+- **`tools/gates/matrix-required.txt`** and the rows in `redteam/forbidden-actions.sh`: a read of each studio folder (stage S), each folder denied in both layers, and an Edit and a write of each policy file (stage H). The rows are PLANNED until the patch is applied, which they detect by the list's presence; after that, a line still holding a placeholder fails, naming it.
 
 ## 3. The arrival check (FR-001, FR-002, FR-004, FR-006 to FR-020)
 
