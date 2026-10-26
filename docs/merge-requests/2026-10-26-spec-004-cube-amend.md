@@ -342,7 +342,7 @@ None: documents only. No model call, request, flow, or byte leaving a device is 
 ## For the Author
 
 1. **Merge after M3, on `main`, before line R's US1.** Documents only.
-2. **Three readings wait for your yes** (spec.md, "Open after the cube amendment"). Each is written beside your words, not in their place, and the build uses its default until you answer:
+2. **Three readings, whose defaults you accepted on 2026-10-26** ("Yes to defaults there"; spec.md, Clarifications, Session 2026-10-26, and "Open after the cube amendment"). Each is written beside your words, not in their place:
    - **R1, which screens are "too small for wall taps":** default, every phone-sized stage (every upright 320-wide screen, every landscape stage 208 px high, and the 2D drawing at those stages); on a no, only 304 × 208, 304 × 640, and the 2D drawing at its smallest scale.
    - **R2, the bicycle:** default, the rule covers both side walls, so the bicycle too; on a no, only the left wall.
    - **R3, a tap on a list-only board:** default, it selects nothing on those screens, and the list reaches it; on a no, a tap on its frontmost part selects it.
