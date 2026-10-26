@@ -229,7 +229,9 @@ switches:
 | `members` | list of placement IDs, at least one | each framed; a placement belongs to at most one selectable (RI) |
 | `action` | `{talk: {topic, lead?}}` or `{resume: {}}` | `topic`, a topic ID; `lead`, one line of at most 120 characters, passing C9, published only in `config/room-topics.yaml` (FR-036, FR-038) |
 
-At most 64 selectables, the gateway's limit for event objects (B7). **Pick area** (FR-064): the union of the members' projected boxes, with an exclusive core of at least 44 × 44 CSS pixels. RG refuses a scene where any core is smaller or overlaps another at any supported stage (the two reference stages; 304 × 248, a 320 × 568 screen in portrait; 326 × 208, 568 × 320 in landscape; and a sweep of screens from 320 × 568 to 1920 × 1200 through `room.css`'s stage formulas), in 3D and in 2D, where 44 pixels convert at the drawing's smallest scale, min(W ÷ 320, H ÷ 200). A side-wall selectable — its members all mounted on the room shell's `left-wall` or `right-wall` anchor — that can't keep its exclusive core at a stage is list-only there: the room draws no pick area for it at that stage, the "In the room" list (FR-063) reaches it, and the report names it (FR-064's carve-out, Clarifications 2026-10-23). A regroup of adjacent pieces therefore needs a move too. The runtime picks with the same function (`compose/pick.ts`), leaving a stage's list-only selectables out of its areas.
+At most 64 selectables, the gateway's limit for event objects (B7). **Pick area** (FR-064): the union of the members' projected boxes, with an exclusive core of at least 44 × 44 CSS pixels. RG refuses a scene where any core is smaller or overlaps another at any supported stage (the two reference stages; 304 × 248, a 320 × 568 screen in portrait; 326 × 208, 568 × 320 in landscape; and a sweep of screens from 320 × 568 to 1920 × 1200 through `room.css`'s stage formulas), in 3D and in 2D, where 44 pixels convert at the drawing's smallest scale, min(W ÷ 320, H ÷ 200). A regroup of adjacent pieces therefore needs a move too. The runtime picks with the same function (`compose/pick.ts`).
+
+**The side-wall carve-out** (FR-064, as the Author approved it on 2026-10-23 and kept it on 2026-10-26, D1; the spec's Clarifications). A side-wall selectable is one whose members are all mounted directly on the shell's `left-wall` or `right-wall` anchor; the compositor reads that from the scene's mounts, never from an ID, and the index flags it with `side_wall` (§10.1). Its smallest stages are 304 × 208 (a 568 × 320 screen in landscape; R-19's "326 × 208" is that screen's stage), 304 × 640 (a 320 × 960 screen held upright), and the 2D drawing at its smallest scale, 0.95. At one of those where it can't keep its exclusive core, it is **list-only**: the room draws no pick area or 2D cue for it, a pick whose frontmost member rectangle is one of its members selects nothing, and the "In the room" list (FR-063) reaches it. Another selectable's core still may not overlap its members there. At every other supported stage it is held to its core as any selectable is, in 3D, and in 2D at that stage's scale; RG refuses the scene where it isn't, and the choice goes back to the Author (D1's condition). The runtime finds a stage's list-only selectables with `compose/pick.ts`, from the index's `side_wall` and the stage it has, in 3D and in 2D. The report names each, with its wall and its stages (§10.9).
 
 ### 4.6 The hand-off's anchors, and the survey
 
@@ -266,24 +268,28 @@ RI refuses any piece, placement, selectable, or topic of a listed kind that take
 
 ### 4.9 The default scene
 
-The first data commit reproduces spec 002's room within 1 mm per box; the second lays out FR-078's room, every estimated size and position marked. What the second holds (B2, FR-036, FR-040, FR-046, FR-051, FR-078):
+The first data commit reproduces spec 002's room within 1 mm per box; the second lays out FR-078's room as it first stood; the third lays out the Author's cube, as FR-078 now has it (the spec's Clarifications, Sessions 2026-10-23 and 2026-10-26), every estimated size and position marked. What the third holds (B2, FR-036, FR-040, FR-046, FR-051, FR-078):
+
+The shell is a brick cube, 7 ft wide, 7 ft high, and 4 ft deep (2.1336 × 2.1336 × 1.2192 m), open at the front, with no ceiling, on a cement floor, and the view looks straight into the open front, from a camera lower and closer than the kernel's first 1.5 m eye height (D1; plan.md §10 records the new figures). The desk stands against the back wall, the ultrawide monitor on it with the neon sign clipped to its top edge, and the laptop on its stand at the desk's right side. The window, large, is around the sign, and the artwork hangs, maybe covering part of the window. On the left wall the chalkboard hangs high and the snowboard, upright on its tail, low beside it, with small gaps at the wall's corners (D1); the bicycle hangs upright by its front wheel on the right wall, next to the laptop. The twin stands a little right of the desk, by the laptop. The visitor stands central, but nearer the open front and a little left (D3), its `hand` anchor on the side nearer the twin (FR-008).
 
 | Piece | Mounted on | Stylized scale | Selectable | Faces, switch |
 |---|---|---|---|---|
-| The shell (walls and floor) | – (the root) | 1 | – | – |
-| The desk | the floor | 1 | – | – |
+| The shell (the brick cube: open front, no ceiling, cement floor) | – (the root) | 1 | – | – |
+| The desk | the shell's back wall | 1 | – | – |
 | The ultrawide monitor | the desk | set in lookdev, for its screen | `laptop` | the screen: a terminal half and a desktop half (FR-031) |
-| The neon sign | the monitor's top edge | set in lookdev | – | the word panel; the two counter panels (FR-021) |
-| The laptop's stand | the desk | 1 | `laptop` | – |
+| The neon sign | the monitor's top edge | set in lookdev; the sign about 1.5 m wide (D2) | – | the word panel, larger inside the sign so the word meets the floor on both reference stages (D2); the two counter panels, exempt from the reference phone's floor alone (FR-021, FR-052) |
+| The laptop's stand | the desk, at its right side | 1 | `laptop` | – |
 | The laptop | the stand | 1 | `laptop` | its screen, a plain glow unless approved room text is bound to it (FR-031) |
 | The charger (a plug and a short lead) | per pose: the laptop's port (plugged); the cloud pose; resting on the desk | set in lookdev | – | the laptop's switch on the tier |
-| The snowboard | the shell (a wall) | 1 | `snowboard` | – |
-| The bicycle | the shell (a wall), hanging next to the desk | 1 | `bicycle` | – |
-| The window and its view | the shell (a wall) | 1 | – | – |
-| The artwork | the shell (a wall), above the window | 1 | – | – |
-| The chalkboard | the shell, beside the twin | set in lookdev, for its slate | `chalkboard` | the slate: the resume's section titles, mission statements, and how the Author thinks about problems (FR-033) |
+| The snowboard, upright on its tail | the shell's left wall, low | 1 | `snowboard` | – |
+| The bicycle, upright by its front wheel | the shell's right wall, next to the laptop | 1 | `bicycle` | – |
+| The window and its view | the shell's back wall, large, around the neon sign | 1 | – | – |
+| The artwork | the shell's back wall, maybe covering part of the window | 1 | – | – |
+| The chalkboard | the shell's left wall, high | set in lookdev, for its slate | `chalkboard` | the slate: the resume's section titles, mission statements, and how the Author thinks about problems (FR-033) |
 | The two desk signs | the desk | set in lookdev | – | the lettering: "I am very busy" and "my dog thinks i'm cool" (FR-032) |
-| The twin; the visitor | the floor | 1 | – | the roles `twin` and `visitor` |
+| The twin; the visitor | the shell's floor: the twin a little right of the desk, by the laptop; the visitor central, nearer the open front and a little left (D3) | 1 | – | the roles `twin` and `visitor` |
+
+The snowboard, the chalkboard, and the bicycle are side-wall selectables (§4.5): at FR-064's smallest stages, each that can't keep its exclusive core there is list-only there, and the report names it. At every other supported stage each keeps its core, or RG refuses the scene (D1's condition).
 
 ## 5. Topics
 
@@ -376,7 +382,7 @@ Two kinds of key:
   |---|---|---|---|
   | `tier.<value>`, one per tier value | the tier's sentences, about the machine: "The Author's machine is serving", "The cloud fallback is serving", "Status unknown", and the rest | none | FR-035, FR-043 |
   | `pause.*` | "Pause the room"; "Paused at {time}" | `{time}` | FR-060 |
-  | `sign.*` | the neon word, "Langfuse"; the second line, "metered by the gateway · traced in Langfuse"; the labels "this call" and "this visit"; the readings ("no call yet", "local · {amount}", "{amount} est.", "at least {amount}", "$99.99+", "at least $99.99+", "cost unavailable"); the marks "test" and "Sample"; the line saying the project isn't affiliated with or endorsed by Langfuse or its owner | `{amount}` | FR-046 to FR-049, Confirmation 1 |
+  | `sign.*` | the neon word, "Langfuse"; the second line, "metered by the gateway · traced in Langfuse"; the labels "this call" and "this visit"; the readings ("no call yet", "local · {amount}", "{amount} est.", "at least {amount}", "cost unavailable"); the marks "test" and "Sample"; the line saying the project isn't affiliated with or endorsed by Langfuse or its owner | `{amount}` | FR-046 to FR-049, Confirmation 1 |
   | `around.*` | the text copy's heading, "Around the room"; "a scripted illustration"; the sign's figures as sentences | `{amount}` | FR-031, FR-063 |
   | `list.*`, `toolbar.*` | the list's heading, "In the room"; the phrase for a resume action; "Credits" | none | FR-063, FR-065, C9 |
   | `standin.*`, `draft.*` | a stand-in's label; the note that placeholder shapes are in use; the badge "Draft" | `{name}` | FR-013, FR-029, FR-030 |
@@ -518,7 +524,7 @@ In the entry chunk, at most 16 KB gzipped, inside the entry's 150 KB budget. It 
 | `build` | `{kind: "release" or "drafts", placeholders: boolean}` |
 | `live` | `{source, turn, asset_events, poll_ms, freshness_ms}`, from §4.7 |
 | `ui` | the UI words, by key |
-| `selectables[]` | in scene order: `{id, name, members, action}`, where `action` is `{kind: "talk", topic}` or `{kind: "resume"}`; no lead (FR-038) |
+| `selectables[]` | in scene order: `{id, name, members, action, side_wall}`, where `action` is `{kind: "talk", topic}` or `{kind: "resume"}`; no lead (FR-038). `side_wall` is true when every member is mounted directly on the shell's `left-wall` or `right-wall` anchor (FR-064's carve-out, §4.5) |
 | `topics[]` | `{id, phrase, ready}`; `ready` is false until the twin's spec |
 | `faces[]` | `{id: "<placement>.<role>", placement, role, readable, label, atmosphere, max_chars, px, screen_css, regions}`. Each region is `{rect, renderer, grid, source}`, with `source` one of `{room_text: <id>}`, `{resume_titles: true}`, `{ui: [<key>…]}`, and `{signal: "turn-cost", part}`. `screen_css` is the face's largest on-screen size at the reference stages: the canvas is at most `min(px, screen_css × the device's pixel ratio)`, scaled down by the quality level (FR-054) |
 | `switches[]` | `{id, signal: "tier", label, cases: {<tier value>: <pose>}}` |
@@ -611,7 +617,8 @@ Markdown from `npm run room:report`, deterministic, pasted into each merge-reque
 | Per piece | its source (the studio file's stem, or "stand-in" with its reason); bytes, gzip bytes, triangles, and texture memory, beside its budget |
 | Totals | the largest per-piece figures against the caps; texture memory by class (models, image cards, avatars, live-face canvases at the reference phone's pixel ratio) against 96,000,000 |
 | First visit | the room's share in gzip-9 bytes (the placed models' `.glb.gz` and the cards), beside the design's estimate of 12,000,000 and the enforced 25,000,000; and F3's view, every file under `assets/room/` |
-| Legibility | per face and per reference stage: the smallest cap height in CSS pixels, the floor, and the margin; whether the face is readable or atmosphere |
+| Legibility | per face and per reference stage: the smallest cap height in CSS pixels, the floor, and the margin; whether the face is readable, atmosphere, or exempt on the phone (a counter face under the floor on the reference phone alone, its figures carried by the text copy's "Around the room"; FR-052) |
+| Side-wall selectables | each side-wall selectable that is list-only somewhere (§4.5): its wall, and the stages, in 3D and in the 2D drawing, where only the "In the room" list reaches it; or "none" (FR-064) |
 | Switches | the case-to-pose table; for each two poses that show different placements, the largest on-screen displacement, or the size of the cue the look adds, per stage, flagged when under the floor |
 | Findings | every finding; in the image build, the lenient ones marked `warn` |
 
@@ -857,7 +864,9 @@ selectable IDs ──► config/room-events.yaml objects · config/room-topics.y
 | 0.45, 0.6, 0.8, 1.15, 1.5, 2.4 | the framing aspects, spec 002's | FR-009 |
 | ≈ 686 × 640 CSS px at pixel ratio 1 | the reference desktop's stage, from a 1920 × 1200 window | FR-052; the spec's Terms |
 | ≈ 368 × 420 CSS px, pixel ratio ≈ 2.8 | the reference phone's stage, re-measured in the first lookdev run | FR-052, FR-067 |
-| 304 × 248; 326 × 208 | the smallest supported stages: 320 × 568 in portrait and in landscape | FR-064, FR-065 |
+| 304 × 248; 326 × 208 | the smallest supported stages: 320 × 568 in portrait and in landscape (the foundation's `compose/stages.ts` computes the landscape one as 304 × 208) | FR-064, FR-065 |
+| 304 × 208; 304 × 640; 0.95 | FR-064's smallest stages, where a side-wall selectable may be list-only: a 568 × 320 screen in landscape, a 320 × 960 screen held upright, and the 2D drawing's smallest scale | FR-064, SC-009 |
+| 7 ft × 7 ft × 4 ft | the cube: 2.1336 m wide, 2.1336 m high, 1.2192 m deep | FR-078 |
 | 44 × 44 CSS px | a hit area and a selectable's exclusive pick core | FR-064, SC-009 |
 | 9 CSS px of cap height | the legibility floor, on both reference stages | FR-052, C7, SC-010 |
 | 2,500,000 bytes at gzip 9 | per piece | FR-053, C7 |
