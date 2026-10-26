@@ -3,8 +3,9 @@
 // committed file loads; a missing file and an invalid one each give a reason the startup log records, never a value
 // from the file, and the gateway then answers every event 400 (the route's tests, test/integration/room-events.test.ts).
 // Which objects the committed file lists is the room's data (spec 004, FR-007, SC-001; its research.md R-16), so its
-// case holds the list's bounds and none of its IDs: adding or removing a selectable changes no source file. The other
-// cases parse lists of their own, with synthetic IDs in `fx-`, a prefix the room's data never takes.
+// case holds the list's bounds, the eight kinds, and the IDs' format, and none of its IDs: adding or removing a
+// selectable changes no source file. The other cases parse lists of their own, with synthetic IDs in `fx-`, a prefix
+// the room's data never takes.
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,7 +46,23 @@ const VALID = [
 describe("config/room-events.yaml", () => {
   it("is the file the build commits, and it loads with 1 to 64 unique objects, whichever they are", async () => {
     expect(ROOM_EVENTS_FILE).toBe("room-events.yaml");
-    expect(await loadRoomEvents(REPO_CONFIG)).toMatchObject({ ok: true });
+    const loaded = await loadRoomEvents(REPO_CONFIG);
+    expect(loaded).toMatchObject({ ok: true });
+    if (!loaded.ok) return;
+    // The eight kinds and the IDs' format are code's (contracts/room-events.md §1, §3), not the room's data, so they
+    // stay pinned; which objects and items the file lists is data, and stays unnamed.
+    expect([...loaded.config.kinds]).toEqual([
+      "object_selected",
+      "item_selected",
+      "resume_opened",
+      "resume_kept",
+      "pdf_downloaded",
+      "turn_sent",
+      "voice_pressed",
+      "mode_2d",
+    ]);
+    expect(loaded.config.items.size).toBeGreaterThan(0);
+    for (const id of [...loaded.config.items, ...loaded.config.objects]) expect(id).toMatch(/^[a-z][a-z0-9-]{1,40}$/);
     // The list as the file writes it, since a set would hide a repeat.
     const text = await readFile(join(REPO_CONFIG, ROOM_EVENTS_FILE), "utf8");
     const { objects } = parseYaml(`config/${ROOM_EVENTS_FILE}`, text).data as { objects: unknown[] };
