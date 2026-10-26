@@ -16,8 +16,6 @@ import {
   SMALLEST,
   SWEEP_STEP,
   flatScale,
-  fr064SmallestStages,
-  isFr064Smallest,
   smallestFlatStage,
   stageFor,
   supportedStages,
@@ -208,46 +206,16 @@ describe("the stages (compose/stages.ts)", () => {
   });
 });
 
-// T292 (spec 004; FR-064, SC-009; contracts/room-data-files.md §13.3): FR-064's smallest stages, one named set beside
-// the supported stages, under Reading R1's default, the class of phone-sized stages: every stage of a 320-wide screen
-// held upright, every landscape stage 208 px high, and the 2D drawing at those stages. The exact reading's three
-// stages, 304 × 208, 304 × 640, and the 2D drawing at 0.95, are inside it. The Author's answer to R1 changes the set and
-// this pin, and nothing else.
-describe("FR-064's smallest stages (compose/stages.ts)", () => {
-  const key = (s: { w: number; h: number }): string => `${Number(s.w.toFixed(1))} × ${Number(s.h.toFixed(1))}`;
-
-  it("are every supported stage of a 320-wide screen held upright and every landscape stage 208 px high", () => {
-    const set = fr064SmallestStages();
-    const upright = [248, 256, ...Array.from({ length: 24 }, (_, k) => 272 + 16 * k)].map((h) => `304 × ${h}`);
-    expect(upright.at(-1)).toBe("304 × 640");
-    expect(set.filter((s) => s.w === 304 && s.h !== 208).map(key)).toEqual(upright);
-    const sideways = set.filter((s) => s.h === 208).map(key);
-    expect(sideways).toHaveLength(39);
-    expect(sideways.slice(0, 5)).toEqual(["304 × 208", "312 × 208", "328 × 208", "344 × 208", "360 × 208"]);
-    expect(sideways.at(-1)).toBe("686.4 × 208");
-    expect(set).toHaveLength(upright.length + sideways.length);
-    // Each from its screen by room.css's formulas.
-    expect(stageFor({ w: 320, h: 960 })).toEqual({ w: 304, h: 640 });
-    expect(stageFor({ w: 568, h: 320 })).toEqual({ w: 304, h: 208 });
-    expect(stageFor({ w: 1920, h: 320 }).h).toBe(208);
-  });
-
-  it("hold the exact reading's three stages, and no stage outside the class", () => {
-    expect(isFr064Smallest({ w: 304, h: 208 })).toBe(true);
-    expect(isFr064Smallest({ w: 304, h: 640 })).toBe(true);
+// T303 (spec 004; FR-064; spec.md's Clarifications, 2026-10-26, T302): FR-064's smallest stages no longer bound the
+// carve-out, so the named set left stages.ts; the stage of the 2D drawing's smallest scale stays, which RG6's reasons
+// name.
+describe("the 2D drawing's smallest scale (compose/stages.ts)", () => {
+  it("comes first at 304 × 208, at 0.95, and only at stages 304 px wide", async () => {
     expect(smallestFlatStage()).toEqual({ w: 304, h: 208 });
     expect(flatScale(smallestFlatStage())).toBeCloseTo(0.95, 12);
-    for (const s of [
-      { w: 312, h: 224 },
-      { w: 320, h: 248 },
-      { w: 368, h: 420 },
-      { w: 686.4, h: 640 },
-      { w: 304, h: 224 },
-    ])
-      expect(isFr064Smallest(s), key(s)).toBe(false);
-    // In supportedStages()'s order, the set is the supported stages the predicate holds.
-    expect(fr064SmallestStages()).toEqual(supportedStages().filter(isFr064Smallest));
-    // The 2D drawing's smallest scale comes only at stages of the set.
-    for (const s of supportedStages()) if (flatScale(s) <= 0.95 + 1e-12) expect(isFr064Smallest(s), key(s)).toBe(true);
+    for (const s of supportedStages()) if (flatScale(s) <= 0.95 + 1e-12) expect(s.w).toBe(304);
+    const module = await import("../../src/room/compose/stages");
+    expect(Object.keys(module)).not.toContain("isFr064Smallest");
+    expect(Object.keys(module)).not.toContain("fr064SmallestStages");
   });
 });

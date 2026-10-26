@@ -301,7 +301,7 @@ describe("the side-wall selectables' road in (FR-064's carve-out)", () => {
     ]) {
       const flat = renderFlat(doc, { room: index, avatar: "dog", select });
       const s = Math.min(stage.w / 320, stage.h / 200);
-      flat.resize({ w: 320 * s, h: 200 * s }, stage);
+      flat.resize({ w: 320 * s, h: 200 * s });
       expect(flat.element.getAttribute("aria-hidden")).toBe("true");
       expect(flat.element.querySelectorAll("button, a, input, [tabindex]")).toHaveLength(0);
       const hidden = [...flat.drawing.cues].filter(([, c]) => c.area.getAttribute("visibility") === "hidden");

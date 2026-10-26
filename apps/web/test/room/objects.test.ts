@@ -20,7 +20,7 @@ import { renderObjectList } from "../../src/room/a11y";
 import type { Box } from "../../src/room/compose/bundle";
 import { flatCore, listOnly, pick, pickAreas } from "../../src/room/compose/pick";
 import type { MemberRect, PickArea } from "../../src/room/compose/pick";
-import { REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, flatScale } from "../../src/room/compose/stages";
+import { FLAT_VIEW, REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, flatScale } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import { renderFlat } from "../../src/room/flat";
 import { bindPointerSelection } from "../../src/room/objects";
@@ -29,7 +29,7 @@ import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import type { RoomIndex, RoomScene } from "../../src/room/compose/bundle";
 import { intoRoom, repositoryBundle, roomIndex, start, talkLog } from "../helpers/room";
-import { sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
+import { sideWallFiles, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 import type { TestWindow } from "../helpers/room";
 
 type Point = readonly [number, number];
@@ -97,7 +97,7 @@ function grid(stage: Stage): Point[] {
 /** The selectables FR-064's carve-out holds at a stage, by the kernel's own function (compose/pick.ts listOnly). */
 function heldAt(areas: readonly PickArea[], index: Pick<RoomIndex, "selectables">, stage: Stage): ReadonlySet<string> {
   const sideWall = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
-  return listOnly(areas, [0, 0, stage.w, stage.h], sideWall, stage);
+  return listOnly(areas, [0, 0, stage.w, stage.h], sideWall);
 }
 
 /** Where a picker over `stage` picks otherwise than compose/pick.ts over `areas`, the first few. */
@@ -140,7 +140,7 @@ describe("the 3D pick (compose/pick.ts)", () => {
       picker.resize(stage);
       const areas = threeAreas(stage);
       expect(areas.map((a) => a.id)).toEqual(index.selectables.map((s) => s.id));
-      // FR-064's carve-out (see listOnly) holds a side-wall selectable at a smallest stage where it can't keep its core.
+      // FR-064's carve-out (see listOnly) holds a side-wall selectable wherever it can't keep its core.
       const held = heldAt(areas, index, stage);
       // Each selectable it doesn't hold at its core's centre; then everywhere, as the kernel picks over three.js's
       // rectangles: the frontmost member under the point, else the nearest area that holds it, else none.
@@ -222,6 +222,39 @@ describe("the 3D room's side-wall selectables (FR-064's carve-out)", () => {
     expect(selectObject.mock.calls).toEqual([["fx-workstation"], ["fx-board"]]);
   });
 
+  // T303: T302's answer holds a side-wall selectable at any stage where its core can't fit.
+  it("holds no pick area for them on a larger stage where their cores can't fit, and keeps it where they can", () => {
+    const text = (path: string): string => new TextDecoder().decode(sideWallFiles().get(path));
+    const variant = compose(
+      sideWallTree({
+        "apps/web/room/catalog/fx-shell.yaml": text("apps/web/room/catalog/fx-shell.yaml").replace(
+          "left-wall: { at: [-0.9, 0, -0.8]",
+          "left-wall: { at: [-0.9, 0, -0.5]",
+        ),
+        "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
+          "offset: [0, 1.0456, 0], turn: { y: -90 }",
+          "offset: [0, 1.09, 0], turn: { y: -90 }",
+        ),
+      }),
+      sideWallPolicy(),
+      { mode: "strict", drafts: false },
+    );
+    expect(variant.findings).toEqual([]);
+    built = variant;
+    try {
+      const narrow = stageAt({ w: 312, h: 288 });
+      for (const id of ["fx-upper", "fx-lower"]) tap(narrow.win, narrow.canvas, narrow.member(id), "touch");
+      expect(narrow.selectObject).not.toHaveBeenCalled();
+      for (const id of ["fx-upper", "fx-lower"]) narrow.button(id)?.click();
+      expect(narrow.selectObject.mock.calls).toEqual([["fx-upper"], ["fx-lower"]]);
+      const wide = stageAt(REFERENCE_DESKTOP.stage);
+      for (const id of ["fx-upper", "fx-lower"]) tap(wide.win, wide.canvas, wide.core(id), "touch");
+      expect(wide.selectObject.mock.calls).toEqual([["fx-upper"], ["fx-lower"]]);
+    } finally {
+      built = undefined;
+    }
+  });
+
   it("gives them their pick areas at the reference desktop's stage and on a stage 312 px wide", () => {
     for (const stage of [REFERENCE_DESKTOP.stage, { w: 312, h: 224 }]) {
       const { win, canvas, selectObject, core, button } = stageAt(stage);
@@ -249,12 +282,18 @@ describe("selectObject", () => {
       doc.body.append(list);
       const areas = threeAreas(stage);
       expect(areas).toHaveLength(index.selectables.length);
+      // FR-064's carve-out (see listOnly): a side-wall selectable whose core can't fit is reached by the list alone.
+      const held = heldAt(areas, index, stage);
       for (const area of areas) {
         selectObject.mockClear();
         tap(win, canvas, centre(area), "mouse");
         tap(win, canvas, centre(area), "touch");
         list.querySelector<HTMLButtonElement>(`button[data-object-id="${area.id}"]`)?.click();
-        expect(selectObject.mock.calls, area.id).toEqual([[area.id], [area.id], [area.id]]);
+        const picked = held.has(area.id) ? [] : [[area.id], [area.id]];
+        expect(
+          selectObject.mock.calls.filter((c) => c[0] === area.id),
+          area.id,
+        ).toEqual([...picked, [area.id]]);
       }
     }
   });
@@ -296,8 +335,13 @@ describe("selectObject", () => {
       })),
       flatCore(stage),
     );
+    // FR-064's carve-out (see listOnly): a side-wall selectable whose core can't fit has no pick area in the drawing.
+    const sideWall = new Set(index.selectables.filter((x) => x.side_wall).map((x) => x.id));
+    const held = listOnly(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h], sideWall);
     for (const area of areas) tap(win, flat.element, [centre(area)[0] * s, centre(area)[1] * s], "touch");
-    expect(selectObject.mock.calls).toEqual(index.selectables.map((x) => [x.id]));
+    expect(selectObject.mock.calls.map((c) => c[0])).toEqual(
+      index.selectables.map((x) => x.id).filter((id) => !held.has(id)),
+    );
   });
 
   it("is the room's only for an ID its index lists, whatever calls it", async () => {

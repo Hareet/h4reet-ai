@@ -50,7 +50,7 @@ import {
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
   flatScale,
-  fr064SmallestStages,
+  smallestFlatStage,
   supportedStages,
 } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
@@ -302,7 +302,7 @@ function views(): View[] {
   const out: View[] = supportedStages().map((stage) => {
     const camera = framing(stage.w / stage.h, framed);
     const others = pickAreasOn(base.scene, base.index, camera, stage);
-    const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall, stage);
+    const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall);
     return { camera, stage, others, core: CORE_PX, grid: false, held };
   });
   const flat = framing(FLAT_VIEW.w / FLAT_VIEW.h, framed);
@@ -315,7 +315,7 @@ function views(): View[] {
       })),
       flatCore(stage),
     );
-    const held = listOnly(others, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h], sideWall, stage);
+    const held = listOnly(others, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h], sideWall);
     const key = `${flatScale(stage)}\n${[...held].join("\n")}`;
     if (!seen.has(key))
       seen.set(key, { camera: flat, stage: FLAT_VIEW, others, core: flatCore(stage), grid: true, held });
@@ -773,13 +773,13 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
     }
   });
 
-  it("holds side-wall selectables at FR-064's smallest stages alone, and picks every other as the kernel does", () => {
+  it("holds side-wall selectables where their cores can't fit, and picks every other as the kernel does", () => {
     const framed = framedBoxes(base.scene);
     const sideWall = sideWallIds();
     let heldSomewhere = 0;
-    for (const stage of [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage, ...fr064SmallestStages().slice(0, 3)]) {
+    for (const stage of [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage, smallestFlatStage(), { w: 304, h: 640 }]) {
       const areas = pickAreasOn(base.scene, base.index, framing(stage.w / stage.h, framed), stage);
-      const held = listOnly(areas, [0, 0, stage.w, stage.h], sideWall, stage);
+      const held = listOnly(areas, [0, 0, stage.w, stage.h], sideWall);
       heldSomewhere += held.size;
       for (const id of held) expect(sideWall.has(id), id).toBe(true);
       const picker = selectablePicker(base.scene, base.index);
@@ -791,19 +791,16 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
         if (!held.has(a.id)) expect(pick(areas, [x, y], held), a.id).toBe(a.id);
       }
     }
-    // The committed cube leaves its left wall's boards to the list on the smallest stages.
+    // The committed cube leaves its left wall's boards to the list somewhere among these stages.
     expect(heldSomewhere).toBeGreaterThan(0);
   });
 
-  it("hides a held side-wall selectable's 2D cue on the smallest stage, and only there", () => {
-    const stage = must(fr064SmallestStages()[0], "stage");
+  it("holds side-wall selectables in 2D where their cores can't fit, and only side-wall ones", () => {
     const picker = flatPicker(base.index.flat.hits, base.index);
-    const box = (s: Stage): Stage => ({ w: FLAT_VIEW.w * flatScale(s), h: FLAT_VIEW.h * flatScale(s) });
-    picker.resize(box(stage), stage);
+    const box = (st: Stage): Stage => ({ w: FLAT_VIEW.w * flatScale(st), h: FLAT_VIEW.h * flatScale(st) });
+    picker.resize(box(smallestFlatStage()));
     expect(picker.held().size).toBeGreaterThan(0);
     for (const id of picker.held()) expect(sideWallIds().has(id), id).toBe(true);
-    picker.resize(box(REFERENCE_DESKTOP.stage), REFERENCE_DESKTOP.stage);
-    expect([...picker.held()]).toEqual([]);
   });
 
   it('reaches every selectable from the "In the room" list', async () => {

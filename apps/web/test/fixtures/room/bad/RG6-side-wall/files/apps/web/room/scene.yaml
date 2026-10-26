@@ -75,7 +75,11 @@ placements:
     frame: true
   - id: fx-lower
     piece: fx-sign
-    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.09, 0], turn: { y: -90 } }
+    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.0456, 0], turn: { y: -90 } }
+    frame: true
+  - id: fx-probe
+    piece: fx-sign
+    mount: { on: fx-shell, anchor: floor, offset: [-0.7, 1.0456, -0.75] }
     frame: true
 switches:
   - id: fx-power
@@ -112,6 +116,7 @@ selectables:
   - { id: fx-board, name: Fixture board, members: [fx-board], action: { resume: {} } }
   - { id: fx-upper, name: Fixture upper sign, members: [fx-upper], action: { resume: {} } }
   - { id: fx-lower, name: Fixture lower sign, members: [fx-lower], action: { resume: {} } }
+  - { id: fx-probe, name: Fixture probe, members: [fx-probe], action: { resume: {} } }
 handoff: { from: { placement: fx-twin, anchor: hand }, to: { placement: fx-visitor, anchor: hand } }
 survey: { desk_corner: { placement: fx-desk, anchor: corner } }
 retired:

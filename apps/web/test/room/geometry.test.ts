@@ -268,9 +268,10 @@ describe("RG6: an exclusive 44 × 44 core for each selectable at every supported
   });
 });
 
-// T292 (spec 004; FR-064, SC-009; data-model.md §4.5; contracts/room-data-files.md §13.3): FR-064's carve-out, over the
-// side-wall overlay (test/fixtures/room/README.md): two signs hung on the shell's left-wall anchor, whose cores overlap
-// at the 27 stages 304 px wide, in 3D and in 2D at 0.95, which are FR-064's smallest stages, and nowhere else.
+// T292, T303 (spec 004; FR-064, SC-009; data-model.md §4.5; contracts/room-data-files.md §13.3): FR-064's carve-out,
+// over the side-wall overlay (test/fixtures/room/README.md): two signs hung on the shell's left-wall anchor, whose
+// cores overlap at the 27 stages 304 px wide, in 3D and in 2D at 0.95, and nowhere else. T302's answer lets a side-wall
+// selectable go without its core at any stage, list-only there; other selectables are refused as before.
 describe("RG6: FR-064's carve-out for side-wall selectables", () => {
   const SIDE = { upper: 10, lower: 11 } as const;
   /** The side-wall overlay with its scene, its shell, and the desk changed as values. */
@@ -335,31 +336,45 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
     ]);
   });
 
-  it("refuses a side-wall selectable short of its core at a stage outside FR-064's smallest, in 3D, naming it", () => {
-    // The signs 0.3 m nearer the camera and closer together: their cores overlap from 312 × 288, in 3D alone.
+  // T303: T302's answer, "tap where it fits, list where it doesn't". A side-wall selectable short of its core at any
+  // stage is list-only there, never refused; the report lists those stages.
+  const listed = (t: Tree): string[] =>
+    picks(t).map(
+      (p) =>
+        `${p.id}: 3D ${p.stages.length > 0 ? `${p.stages[0]} and ${p.stages.length - 1} others` : "–"}, ` +
+        `2D ${p.flat.length > 0 ? `${p.flat[0]} and ${p.flat.length - 1} others` : "–"}`,
+    );
+
+  it("lists a side-wall selectable short of its core at larger stages there too, in 3D, and refuses nothing", () => {
+    // The signs 0.3 m nearer the camera and closer together: their cores overlap on the 304 px stages from 304 × 248,
+    // and from 312 × 288 on, in 3D alone.
     const t = sideWall((scene, shell) => {
       (at(shell, "anchors", "left-wall").at as number[])[2] = -0.5;
       (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.09;
     });
-    expect(reasons(t)).toEqual([
-      "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 312 × 288 and 26 others",
-      "selectables[3]: its exclusive core overlaps the core of selectables[2] in 3D at 312 × 288 and 26 others",
+    expect(reasons(t)).toEqual([]);
+    expect(listed(t)).toEqual([
+      "fx-upper: 3D 304 × 248 and 52 others, 2D –",
+      "fx-lower: 3D 304 × 248 and 52 others, 2D –",
     ]);
+    expect(picks(t)[0]?.stages).toContain("312 × 288");
   });
 
-  it("refuses one short of its core in 2D at the scale of a stage outside FR-064's smallest", () => {
-    // The signs 0.15 m further from the camera and a little closer together: in 2D their cores overlap at 0.975.
+  it("lists one short of its core in 2D at the scale of larger stages, and refuses nothing", () => {
+    // The signs 0.15 m further from the camera and a little closer together: in 2D their cores overlap at 0.975 too.
     const t = sideWall((scene, shell) => {
       (at(shell, "anchors", "left-wall").at as number[])[2] = -0.95;
       (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.025;
     });
-    expect(reasons(t)).toEqual([
-      "selectables[2]: its exclusive core overlaps the core of selectables[3] in 2D, at the drawing's scale on 312 × 224 and 14 others",
-      "selectables[3]: its exclusive core overlaps the core of selectables[2] in 2D, at the drawing's scale on 312 × 224 and 14 others",
+    expect(reasons(t)).toEqual([]);
+    expect(listed(t)).toEqual([
+      "fx-upper: 3D 304 × 208 and 11 others, 2D 304 × 208 and 42 others",
+      "fx-lower: 3D 304 × 208 and 11 others, 2D 304 × 208 and 42 others",
     ]);
+    expect(picks(t)[0]?.flat).toContain("312 × 224");
   });
 
-  /** RG6 at FR-064's smallest stages, for the two signs, once neither is a side-wall selectable. */
+  /** RG6 on the stages 304 px wide, for the two signs, once neither is a side-wall selectable. */
   const NOT_SIDE_WALL = [
     "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 304 × 208 and 26 others",
     "selectables[2]: its exclusive core overlaps the core of selectables[3] in 2D, at the drawing's smallest scale",

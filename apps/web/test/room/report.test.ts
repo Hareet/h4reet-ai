@@ -18,7 +18,15 @@ import { noPolicy } from "../../build/room/policy";
 import { textureMemory } from "../../src/room/glb/fit";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { desk, png, sign } from "../helpers/glb";
-import { countersTree, goodFiles, goodTree, overlay, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
+import {
+  countersTree,
+  goodFiles,
+  goodTree,
+  overlay,
+  sideWallFiles,
+  sideWallPolicy,
+  sideWallTree,
+} from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
 const decoder = new TextDecoder();
@@ -359,6 +367,26 @@ describe("the report's exempt faces and side-wall selectables", () => {
     ]);
     // The legibility table's last row is right above it.
     expect(rows[at - 2]).toMatch(/^\| `fx-sign\.lettering` \| /);
+  });
+
+  it("lists a side-wall selectable at every stage where its core can't fit, larger stages among them (T303)", () => {
+    const text = (path: string): string => decoder.decode(sideWallFiles().get(path));
+    const tree = sideWallTree({
+      "apps/web/room/catalog/fx-shell.yaml": text("apps/web/room/catalog/fx-shell.yaml").replace(
+        "left-wall: { at: [-0.9, 0, -0.8]",
+        "left-wall: { at: [-0.9, 0, -0.5]",
+      ),
+      "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
+        "offset: [0, 1.0456, 0], turn: { y: -90 }",
+        "offset: [0, 1.09, 0], turn: { y: -90 }",
+      ),
+    });
+    const result = compose(tree, sideWallPolicy(), { mode: "strict", drafts: true });
+    expect(result.findings).toEqual([]);
+    const rows = lines(result);
+    expect(rows).toContain("| `fx-upper` (left-wall) | list-only at 304 × 248 and 52 others | – |");
+    expect(rows).toContain("| `fx-lower` (left-wall) | list-only at 304 × 248 and 52 others | – |");
+    expect(rows).toContain("Findings: none.");
   });
 
   it("reads Side-wall selectables: none. where none is list-only anywhere", () => {

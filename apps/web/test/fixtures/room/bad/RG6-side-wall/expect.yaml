@@ -1,7 +1,7 @@
 rule: RG6
 file: apps/web/room/scene.yaml
-path: selectables[2]
-why: the side-wall overlay's signs nearer the camera and closer together, their cores overlapping from 312 × 288, a stage outside FR-064's smallest, where no side-wall selectable goes without its core
+path: selectables[4]
+why: a sign of its own, 5 cm in front of the side-wall overlay's lower sign and 0.2 m to its right, its core over the side-wall sign's member, which RG6 refuses at any stage
 caps:
   schema: 1
   per_asset:

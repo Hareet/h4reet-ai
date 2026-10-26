@@ -244,14 +244,13 @@ describe("pick areas (compose/pick.ts)", () => {
   });
 });
 
-// T292 (spec 004; FR-064, SC-009; data-model.md §4.5; contracts/room-data-files.md §13.3): FR-064's carve-out in the
-// kernel. At one of FR-064's smallest stages, `listOnly` gives the side-wall selectables that can't keep their exclusive
-// core there; at every other stage, none. A held selectable has no area: a pick whose frontmost member is one of its
+// T292, T303 (spec 004; FR-064, SC-009; data-model.md §4.5; contracts/room-data-files.md §13.3): FR-064's carve-out in
+// the kernel, as T302's answer has it: at any stage, `listOnly` gives the side-wall selectables that can't keep their
+// exclusive core there, and none that can. A held selectable has no area: a pick whose frontmost member is one of its
 // members selects nothing (Reading R3), its core and union hold no point, and it is no problem's subject, nor its core
 // or union another's problem; its members still are.
 describe("FR-064's carve-out (compose/pick.ts listOnly)", () => {
-  const SMALL = { w: 304, h: 208 };
-  const view: Rect = [0, 0, SMALL.w, SMALL.h];
+  const view: Rect = [0, 0, 304, 208];
   const inputs: PickInput[] = [
     // Two side-wall selectables whose cores overlap, and one far off that keeps its core.
     { id: "fx-side-a", members: [member(60, 40, 8, 30)] },
@@ -264,24 +263,21 @@ describe("FR-064's carve-out (compose/pick.ts listOnly)", () => {
   const areas = pickAreas(inputs);
   const sideWall: ReadonlySet<string> = new Set(["fx-side-a", "fx-side-b", "fx-side-c"]);
 
-  it("holds, at one of FR-064's smallest stages, the side-wall selectables that can't keep their core there", () => {
-    expect([...listOnly(areas, view, sideWall, SMALL)]).toEqual(["fx-side-a", "fx-side-b"]);
-    expect([...listOnly(areas, [0, 0, 304, 640], sideWall, { w: 304, h: 640 })]).toEqual(["fx-side-a", "fx-side-b"]);
-    expect([...listOnly(areas, [0, 0, 686.4, 208], sideWall, { w: 686.4, h: 208 })]).toEqual([
-      "fx-side-a",
-      "fx-side-b",
-    ]);
+  it("holds the side-wall selectables that can't keep their core, whatever the stage", () => {
+    expect([...listOnly(areas, view, sideWall)]).toEqual(["fx-side-a", "fx-side-b"]);
+    // The same rectangles on a desktop-sized stage: the stage's size bounds nothing.
+    expect([...listOnly(areas, [0, 0, 686.4, 640], sideWall)]).toEqual(["fx-side-a", "fx-side-b"]);
   });
 
-  it("holds none at any other stage, and none that the index doesn't flag side_wall", () => {
-    for (const stage of [
-      { w: 312, h: 224 },
-      { w: 320, h: 248 },
-      { w: 686.4, h: 640 },
-    ])
-      expect([...listOnly(areas, [0, 0, stage.w, stage.h], sideWall, stage)], `${stage.w} × ${stage.h}`).toEqual([]);
-    expect([...listOnly(areas, view, new Set(), SMALL)]).toEqual([]);
-    expect([...listOnly(areas, view, new Set(["fx-desk-a"]), SMALL)]).toEqual(["fx-desk-a"]);
+  it("holds none that keeps its core, and none that the index doesn't flag side_wall", () => {
+    // Apart, on a larger stage, every core fits.
+    const apart = pickAreas([
+      { id: "fx-side-a", members: [member(60, 40, 8, 30)] },
+      { id: "fx-side-b", members: [member(60, 140, 8, 30)] },
+    ]);
+    expect([...listOnly(apart, [0, 0, 686.4, 640], sideWall)]).toEqual([]);
+    expect([...listOnly(areas, view, new Set())]).toEqual([]);
+    expect([...listOnly(areas, view, new Set(["fx-desk-a"]))]).toEqual(["fx-desk-a"]);
   });
 
   it("picks nothing where a held selectable's member is frontmost, and gives its core and union no point", () => {

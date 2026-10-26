@@ -30,7 +30,7 @@ import { FLAT_FRAMES, VISITOR_TURN } from "../../src/room/handoff";
 import { standinLabel } from "../../src/room/scene/bundle3d";
 import { enter, parseCss, start, stylesheets } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
-import { goodFiles, goodTree, overlay, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
+import { goodFiles, goodTree, overlay, sideWallFiles, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 
 type Point = readonly [number, number];
 
@@ -706,20 +706,16 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
     (built ??= compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: false }));
   const LIST_ONLY = ["fx-upper", "fx-lower"];
   /** The 2D stage at a stage's size: the drawing's box inside it, as room.css's .flat keeps it. */
-  function stageAt(stage: Stage) {
-    const { index } = sideWall();
+  function stageAt(stage: Stage, built: ComposeResult = sideWall()) {
+    const { index } = built;
     const { doc, win } = page();
     const select = vi.fn<(id: string) => void>();
     const flat = renderFlat(doc, { room: index, avatar: "woman", select });
-    const view = doc.createElement("div");
-    view.append(flat.element);
-    doc.body.append(view);
+    doc.body.append(flat.element);
     const size = box(stage);
     flat.element.getBoundingClientRect = () =>
       ({ left: 0, top: 0, right: size.w, bottom: size.h, width: size.w, height: size.h, x: 0, y: 0 }) as DOMRect;
-    view.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, right: stage.w, bottom: stage.h, width: stage.w, height: stage.h, x: 0, y: 0 }) as DOMRect;
-    flat.resize(size, stage);
+    flat.resize(size);
     const shown = (id: string): string | null =>
       flat.drawing.cues.get(id)?.area.getAttribute("visibility") ?? "visible";
     const at = (id: string): Point => {
@@ -760,15 +756,40 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
     }
   });
 
-  it("holds them at one size and not the next, as the drawing's box and its stage change", () => {
+  it("holds them at one size and not the next, as the drawing's box changes", () => {
     const { index } = sideWall();
     const picker = flatPicker(index.flat.hits, index);
-    picker.resize(box({ w: 304, h: 248 }), { w: 304, h: 248 });
+    picker.resize(box({ w: 304, h: 248 }));
     expect([...picker.held()]).toEqual(LIST_ONLY);
-    picker.resize(box({ w: 320, h: 248 }), { w: 320, h: 248 });
+    picker.resize(box({ w: 320, h: 248 }));
     expect([...picker.held()]).toEqual([]);
-    // A picker given the drawing's box alone takes it for the stage.
-    picker.resize({ w: 304, h: 190 });
-    expect([...picker.held()]).toEqual([]);
+  });
+
+  // T303: T302's answer holds a side-wall selectable wherever its core can't fit, at any scale.
+  it("holds a side-wall selectable at any scale where its core can't fit, 312 px wide among them", () => {
+    const text = (path: string): string => new TextDecoder().decode(sideWallFiles().get(path));
+    const variant = compose(
+      sideWallTree({
+        "apps/web/room/catalog/fx-shell.yaml": text("apps/web/room/catalog/fx-shell.yaml").replace(
+          "left-wall: { at: [-0.9, 0, -0.8]",
+          "left-wall: { at: [-0.9, 0, -0.95]",
+        ),
+        "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
+          "offset: [0, 1.0456, 0], turn: { y: -90 }",
+          "offset: [0, 1.025, 0], turn: { y: -90 }",
+        ),
+      }),
+      sideWallPolicy(),
+      { mode: "strict", drafts: false },
+    );
+    expect(variant.findings).toEqual([]);
+    const narrow = stageAt({ w: 312, h: 224 }, variant);
+    expect(narrow.index.selectables.map((x) => narrow.shown(x.id))).toEqual(["visible", "visible", "hidden", "hidden"]);
+    for (const id of LIST_ONLY) tap(narrow.win, narrow.flat.element, narrow.at(id), "touch");
+    expect(narrow.select).not.toHaveBeenCalled();
+    const wide = stageAt(REFERENCE_DESKTOP.stage, variant);
+    expect(wide.index.selectables.map((x) => wide.shown(x.id))).toEqual(["visible", "visible", "visible", "visible"]);
+    for (const id of LIST_ONLY) tap(wide.win, wide.flat.element, wide.at(id), "touch");
+    expect(wide.select.mock.calls).toEqual([["fx-upper"], ["fx-lower"]]);
   });
 });
