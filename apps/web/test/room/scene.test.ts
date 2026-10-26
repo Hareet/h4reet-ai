@@ -1091,6 +1091,32 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
     expect(s.events).toHaveLength(2);
   });
 
+  it("gives every model it swaps in inked cel's one set of line parameters, the stand-ins' (US1's ink.prepare)", async () => {
+    // The review of T116, R3, shares the lines' parameters once after the room is built, not on each frame, "and again
+    // when a model swaps in" (scene/look.ts), so the stage's height reaches a model's lines as it does the stand-ins'.
+    const s = staged();
+    expect(s.result.scene.look.method).toBe("inked-cel");
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
+    await answerAll(s, 0);
+    s.clock.advance(SETTLE_FRAMES * 16);
+    const lines = new Set<unknown>();
+    let models = 0;
+    s.drawn().traverse((node) => {
+      const mesh = node as Mesh;
+      if (!mesh.isMesh) return;
+      for (let n: Object3D | null = node; n; n = n.parent)
+        if (n.name === MODEL_NODE) {
+          models += 1;
+          break;
+        }
+      for (const m of ([] as Material[]).concat(mesh.material)) lines.add(m.userData.outlineParameters);
+    });
+    expect(models).toBeGreaterThan(0);
+    expect(lines.size).toBe(1);
+    expect([...lines][0]).toBeDefined();
+    s.stage.dispose();
+  });
+
   it("takes ADR 0010's floor from the room, which read it behind the choice, asking the device nothing itself", async () => {
     const above = staged({ floor: true });
     await vi.waitFor(() => expect(above.fetched).toHaveLength(2));

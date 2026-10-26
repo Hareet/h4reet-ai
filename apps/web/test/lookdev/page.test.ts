@@ -42,6 +42,7 @@ import type { Capability } from "../../src/room/quality";
 import { qualitySettings } from "../../src/room/scene";
 import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
 import { MODEL_NODE } from "../../src/room/scene/loader";
+import { outlineThickness } from "../../src/room/scene/look";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
 import { asExported, ascii, desk, item, pngHeader } from "../helpers/glb";
@@ -619,6 +620,42 @@ describe("the scene, the look, the sample state, quality, and pause (contracts/l
       const passes = renderer.passes;
       clock.advance(16);
       expect(renderer.passes - passes, look.id).toBe(look.method === "inked-cel" ? 2 : 1);
+    }
+  });
+
+  it("gives inked cel's lines one set of parameters, the room's and every model's, at each look and view's height", async () => {
+    // US1's ink.prepare (the review of T116, R3) shares the lines' parameters once, not on each frame: the stage
+    // prepares each room it builds, in each look, and each model it swaps in, so the view's height reaches every line.
+    const { page, root, clock, inputs: given } = open();
+    const cel = given.lookdev.looks.find((l) => l.method === "inked-cel");
+    const other = given.lookdev.looks.find((l) => l.method !== "inked-cel");
+    if (!cel || !other) throw new Error("lookdev lists no inked-cel look, or no other");
+    const select = control<HTMLSelectElement>(root, "Look");
+    choose(select, other.id);
+    choose(select, cel.id);
+    const { piece, entry } = vignettePiece(given);
+    pick(root, piece, cleanModel(entry as Parameters<typeof cleanModel>[0]));
+    await settle(clock);
+    expect(page.stage.loaded.has(piece)).toBe(true);
+    for (const view of [null, "Reference phone"]) {
+      if (view) choose(control<HTMLInputElement>(root, view));
+      const lines = new Set<unknown>();
+      let models = 0;
+      page.stage.room.scene.traverse((node) => {
+        const mesh = node as Mesh;
+        if (!mesh.isMesh) return;
+        for (let n: Object3D | null = node; n; n = n.parent)
+          if (n.name === MODEL_NODE) {
+            models += 1;
+            break;
+          }
+        for (const m of ([] as Material[]).concat(mesh.material)) lines.add(m.userData.outlineParameters);
+      });
+      expect(models, view ?? "desktop").toBeGreaterThan(0);
+      expect(lines.size, view ?? "desktop").toBe(1);
+      expect([...lines][0], view ?? "desktop").toEqual({
+        thickness: outlineThickness(cel.outlines.width, page.stage.stage.h),
+      });
     }
   });
 
