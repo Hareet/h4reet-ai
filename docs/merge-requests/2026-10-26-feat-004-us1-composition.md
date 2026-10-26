@@ -774,6 +774,7 @@ At −0.5 a human visitor still hides about a quarter to a third of the monitor 
    - The twin covers about 63% of the bicycle, by the review's measure. The two overlap.
    - The 1.5 m neon sign covers much of the window's tree.
    - The chalkboard is list-only in 2D even on the desktop. Its 2D shortfall runs from 0.975 to 2.25 (T301), the desktop's 2.145 among them.
+   - The chalkboard's slate is seen at a steep angle on the side wall, so its chalk writing comes out about a third as wide as seen square on (T301's measurement above). It passes the cap-height floor; whether it reads well is your call.
 
 4. **The T118 rebase plan (I4).** The resolution is under Rebase plan above. Say if you would rather the agents skip the spec commits and take `main`'s spec files whole.
 
