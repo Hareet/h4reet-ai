@@ -446,7 +446,7 @@
             "showPoints": "never"
           },
           "unit": "currencyUSD",
-          "decimals": 2
+          "decimals": 6
         },
         "overrides": [
           {
@@ -455,6 +455,10 @@
               "options": "B"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -477,6 +481,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -565,7 +573,7 @@
           },
           "mappings": [],
           "unit": "currencyUSD",
-          "decimals": 2,
+          "decimals": 6,
           "noValue": "no data"
         },
         "overrides": [
@@ -575,6 +583,10 @@
               "options": "B"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -590,6 +602,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -673,7 +689,7 @@
             "showPoints": "never"
           },
           "unit": "currencyUSD",
-          "decimals": 2
+          "decimals": 6
         },
         "overrides": [
           {
@@ -682,6 +698,10 @@
               "options": "B"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -704,6 +724,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -792,7 +816,7 @@
           },
           "mappings": [],
           "unit": "currencyUSD",
-          "decimals": 2,
+          "decimals": 6,
           "noValue": "no data"
         },
         "overrides": [
@@ -802,6 +826,10 @@
               "options": "B"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -817,6 +845,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {
@@ -1043,6 +1075,10 @@
                 "value": "none"
               },
               {
+                "id": "decimals",
+                "value": 0
+              },
+              {
                 "id": "custom.axisPlacement",
                 "value": "right"
               },
@@ -1065,6 +1101,10 @@
               "options": "C"
             },
             "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "color",
                 "value": {

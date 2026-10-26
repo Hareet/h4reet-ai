@@ -420,6 +420,50 @@ def test_the_sub_budget_reads_to_the_micro_dollar(title: str) -> None:
 
 @pytest.mark.parametrize(
     "title",
+    [
+        "Spend today",
+        "Spend today (stat)",
+        "Spend month-to-date",
+        "Spend month-to-date (stat)",
+    ],
+)
+def test_spend_reads_to_the_micro_dollar(title: str) -> None:
+    # FR-028's spend panels read the meter, which keeps integer micro-USD, and one Bedrock fallback call cost 27
+    # micro-dollars (the Author's run, 2026-10-12): at two decimals, a day or a month of a few such calls read $0.00
+    # (docs/000-closeout's backlog). Six, as the sub-budget and the cost table read.
+    defaults = by_title()[title]["fieldConfig"]["defaults"]
+    assert defaults["unit"] == "currencyUSD" and defaults["decimals"] == 6
+
+
+def test_the_renewal_flag_reads_as_a_whole_number() -> None:
+    # The time series' B is 0 or 1, on its own right axis. The panel's 6 decimals are for dollars and would label
+    # that axis 0.000000 to 1.000000, so B's override sets its own (docs/000-closeout's review).
+    panel = by_title()["Fallback sub-budget remaining (time series)"]
+    assert overrides(panel)["B"]["decimals"] == 0
+
+
+@pytest.mark.parametrize(
+    ("title", "ref"),
+    [
+        ("Spend today", "B"),
+        ("Spend today", "C"),
+        ("Spend today (stat)", "B"),
+        ("Spend today (stat)", "C"),
+        ("Spend month-to-date", "B"),
+        ("Spend month-to-date", "C"),
+        ("Spend month-to-date (stat)", "B"),
+        ("Spend month-to-date (stat)", "C"),
+        ("Fallback sub-budget remaining (time series)", "C"),
+    ],
+)
+def test_the_warning_and_ceiling_lines_read_in_cents(title: str, ref: str) -> None:
+    # The warning and ceiling lines are whole cents ($3.50, $5, $14, $20). With the panels at 6 decimals for the
+    # meter's micro-dollars they read $3.500000, so their own overrides keep 2 (fix/000-spend-decimals's review).
+    assert overrides(by_title()[title])[ref]["decimals"] == 2
+
+
+@pytest.mark.parametrize(
+    "title",
     ["Fallback sub-budget remaining", "Fallback sub-budget remaining (time series)"],
 )
 def test_awaiting_renewal_reads_in_red(title: str) -> None:
