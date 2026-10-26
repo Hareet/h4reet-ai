@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse(Edit|Write|MultiEdit|NotebookEdit): agents may not modify the enforcement layer, the constitution,
-# the review policy, git internals, cost/edge/kill-switch configuration, or test files during a fix task.
+# the review policy, git internals, cost/edge/kill-switch configuration, the asset policy, or test files during a fix
+# task.
 set -Eeuo pipefail
 # Fail closed: in Claude Code only exit 2 blocks, so a missing dependency or an unexpected
 # error must become exit 2 — otherwise the gate silently disappears. -E carries the trap into
@@ -57,6 +58,7 @@ check() {
     .mcp.json | */.mcp.json) block "MCP server configuration (it gives every session new tools)" ;;
     tools/gates | tools/gates/* | evals/agent-config | evals/agent-config/*) block "the local gates or the agent-config evals (the gate runs in the Author's terminal, and the evals decide what merges; plan §15's governance patch)" ;;
     deploy/env/* | *.env) block "environment file (it holds secrets and selects what a stack runs; spec 000 FR-007)" ;;
+    assets/policy | assets/policy/*) block "the asset policy: the license allowlist, the likeness approvals, and the caps, which only the Author changes (spec 003 FR-005)" ;;
   esac
   if [ "${FIX_TASK:-0}" = "1" ]; then
     case "$1" in

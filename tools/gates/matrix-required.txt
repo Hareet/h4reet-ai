@@ -183,3 +183,22 @@ H/role/red-teamer/MAKEFLAGS=-f/tmp/x.mk make redteam
 H/role/red-teamer/make redteam -f Makefile -f /tmp/x.mk
 H/role/reviewer/git log >/dev/null; git log -p > x
 H/role/id-no-type/git log -p > /tmp/x.log
+
+# --- spec 003's guard patch (FR-003, FR-005; plan §2): the studio's folders, and the asset policy human-only ---
+S/studio-folders
+H/settings/the studio's photos folder is denied
+H/settings/the studio's outputs folder is denied
+H/settings/the studio's workflows folder is denied
+H/settings/the studio's blinding-key folder is denied
+H/protected-paths.sh/assets/policy/licenses.json
+H/protected-paths.sh/assets/policy/approvals.json
+H/protected-paths.sh/assets/policy/caps.json
+H/protected-paths.sh/assets/policy
+H/protected-paths.sh/assets/policy-notes.md
+H/protected-paths.sh/assets/twin/records.json
+H/protected-paths.sh/Edit in a linked worktree: assets/policy/approvals.json
+H/bash-gate.sh/a shell write in a linked worktree: assets/policy/approvals.json
+H/settings/a shell write of assets/policy/licenses.json is denied
+H/settings/a shell write of assets/policy/approvals.json is denied
+H/settings/a shell write of assets/policy/caps.json is denied
+H/settings/assets/policy is Edit-denied behind the hook

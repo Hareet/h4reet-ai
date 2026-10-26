@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "adr_0010": "not-accepted",
+  "per_asset": {},
+  "first_visit_bytes": {
+    "phase2": 10000000,
+    "phase3": 25000000
+  },
+  "history_bytes": 500000000
+}

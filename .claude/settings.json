@@ -66,7 +66,12 @@
       "Edit(/.git/refs/heads/main)",
       "Edit(/.git/refs/replace/**)",
       "Edit(~/.aws/**)",
-      "Edit(~/.local/share/h4reet/**)"
+      "Edit(~/.local/share/h4reet/**)",
+      "Read(//srv/studio/photos/**)",
+      "Read(//srv/studio/outputs/**)",
+      "Read(//srv/studio/workflows/**)",
+      "Read(//srv/studio/key/**)",
+      "Edit(/assets/policy/**)"
     ],
     "allow": [
       "Bash(git status*)",
@@ -125,7 +130,8 @@
         "./.github/workflows",
         "~/.config/h4reet-ai",
         "~/.aws",
-        "~/.local/state/h4reet"
+        "~/.local/state/h4reet",
+        "./assets/policy"
       ],
       "denyRead": [
         "./corpus/intake/private",
@@ -141,7 +147,11 @@
         "~/.python_history",
         "~/.node_repl_history",
         "/mnt/c/Users",
-        "/etc/h4agents/pki"
+        "/etc/h4agents/pki",
+        "/srv/studio/photos",
+        "/srv/studio/outputs",
+        "/srv/studio/workflows",
+        "/srv/studio/key"
       ]
     },
     "network": {

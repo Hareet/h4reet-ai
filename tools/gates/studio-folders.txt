@@ -1,0 +1,22 @@
+# The studio's folders on the Author's machine (spec 003, FR-003; plan §2; research R-07). Human-only.
+#
+# Agent sessions run on the machine the studio runs on, so the sandbox denies them each folder below, and the
+# forbidden-action matrix reads this list to prove it: stage H checks that .claude/settings.json denies each path in both
+# layers (a denyRead entry, and the Read tool's deny, Read(/<path>/**), which an absolute path makes Read(//...)), and
+# stage S tries to read it from inside the sandbox. One folder per line: its name, then its absolute path, the rest of
+# the line. The blinding key's line names the folder that holds the key.
+#
+# The guard patch carries the paths as placeholders. Before applying it, the Author makes the four folders and replaces
+# each <STUDIO_…> with its real path everywhere it appears in the patch: here, and twice in .claude/settings.json. While a
+# line still holds a placeholder, or names a folder that isn't there, the matrix fails, naming it. The matrix never
+# prints a path.
+#
+# These paths are published: this file and .claude/settings.json are committed, and the history goes public from its
+# first commit (ADR 0013). Use neutral folders, such as /mnt/c/studio/photos, /mnt/c/studio/outputs,
+# /mnt/c/studio/workflows, and /mnt/c/studio/key, with no person, employer, account, or place in any name. Not a folder
+# under /mnt/c/Users/<account>/: it would publish the account's name and add no protection, since spec 000 already
+# denies /mnt/c/Users; the matrix fails such a path.
+photos /srv/studio/photos
+outputs /srv/studio/outputs
+workflows /srv/studio/workflows
+blinding-key /srv/studio/key
