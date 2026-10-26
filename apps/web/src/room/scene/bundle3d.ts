@@ -351,7 +351,7 @@ export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "select
       if (stage !== null && next.w === stage.w && next.h === stage.h) return;
       stage = { w: next.w, h: next.h };
       areas = next.w > 0 && next.h > 0 ? pickAreasOn(part, index, framing(next.w / next.h, boxes), stage) : [];
-      held = listOnly(areas, [0, 0, next.w, next.h], sideWall, stage);
+      held = listOnly(areas, [0, 0, next.w, next.h], sideWall);
     },
     pick: (ndc) => (stage === null ? null : pick(areas, toStage([ndc.x, ndc.y, 0], stage), held)),
   };

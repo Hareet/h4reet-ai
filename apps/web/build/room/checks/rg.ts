@@ -8,7 +8,7 @@
 // aspect by more than a pixel; RG4 the twin or a selectable's member not framed; RG5 a framed box's corner behind the
 // camera or outside the view at one of the six aspects; RG6 a selectable's exclusive core leaving the view, or over
 // another's core, member, or union, at a supported stage, in 3D or 2D, but FR-064's carve-out for a side-wall
-// selectable at FR-064's smallest stages (see listOnly); RG7 a bound face under the legibility floor that isn't
+// selectable at any stage where its core can't fit (see listOnly); RG7 a bound face under the legibility floor that isn't
 // atmosphere, but FR-052's one exemption on the reference phone (`phoneExempt`), atmosphere on a readable face, and an
 // atmosphere face over its max_chars; RG9 a region outside
 // its face, or over another. RG8 is never a finding: `poseSeparations` gives the report its measures, as `faceCaps`
@@ -571,14 +571,14 @@ export function pickSweep(g: Geometry): PickSweep {
       })),
     );
     const view: Rect = [0, 0, stage.w, stage.h];
-    const held = listOnly(areas, view, sideWall, stage);
+    const held = listOnly(areas, view, sideWall);
     note("3D", pickProblems(areas, view, held), stage);
     for (const id of held) picks.get(id)?.stages.push(stage);
     // In 2D the view box is fixed, and a core's 44 px are view-box units at the stage's scale.
     const scale = flatScale(stage);
     let drawn = flatAreas.get(scale);
     if (!drawn) flatAreas.set(scale, (drawn = pickAreas(flatInputs, flatCore(stage))));
-    const flatHeld = listOnly(drawn, flatView, sideWall, stage);
+    const flatHeld = listOnly(drawn, flatView, sideWall);
     note("2D", pickProblems(drawn, flatView, flatHeld), stage);
     for (const id of flatHeld) picks.get(id)?.flat.push(stage);
   }

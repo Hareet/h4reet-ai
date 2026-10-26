@@ -65,10 +65,10 @@ export interface FlatDrawing {
 export interface FlatStage extends Stage {
   readonly mode: "2d";
   readonly drawing: FlatDrawing;
-  /** Fits the picker and the cues to the drawing's size in CSS pixels and the stage's it sits in (its own by
-   *  default): a cue shows only where its selectable has a pick area. The stage calls it on each pick, and on each
-   *  change of the drawing's size where the browser reports one. */
-  resize(size: Size, stage?: Size): void;
+  /** Fits the picker and the cues to the drawing's size in CSS pixels: a cue shows only where its selectable has a
+   *  pick area. The stage calls it on each pick, and on each change of the drawing's size where the browser reports
+   *  one. */
+  resize(size: Size): void;
 }
 
 // ---- The allowlist ----
@@ -371,9 +371,9 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
 
 /** The 2D room's picker over the index's hit rectangles (R-20). */
 export interface FlatPicker {
-  /** The drawing's size on screen, in CSS pixels, and the stage's it sits in, its own by default: the cores are 44 px at
-   *  its scale, recomputed when either changes, and the stage is the one FR-064's carve-out reads (see listOnly). */
-  resize(size: Size, stage?: Size): void;
+  /** The drawing's size on screen, in CSS pixels: the cores are 44 px at its scale, recomputed when it changes, and
+   *  FR-064's carve-out (see listOnly) holds the side-wall selectables whose cores can't fit at it. */
+  resize(size: Size): void;
   /** The selectable under a point of the drawing's box, in normalized device coordinates, or null; none before a
    *  size. */
   readonly pick: (ndc: Ndc) => string | null;
@@ -391,24 +391,14 @@ export function flatPicker(hits: FlatIndex["flat"]["hits"], index: Pick<RoomInde
   }));
   const sideWall = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
   let size: Size | null = null;
-  let on: Size | null = null;
   let areas: readonly PickArea[] = [];
   let held: ReadonlySet<string> = new Set();
   return {
-    resize(next, stage = next) {
-      if (
-        size !== null &&
-        on !== null &&
-        next.w === size.w &&
-        next.h === size.h &&
-        stage.w === on.w &&
-        stage.h === on.h
-      )
-        return;
+    resize(next) {
+      if (size !== null && next.w === size.w && next.h === size.h) return;
       size = { w: next.w, h: next.h };
-      on = { w: stage.w, h: stage.h };
       areas = next.w > 0 && next.h > 0 ? pickAreas(inputs, flatCore(size)) : [];
-      held = listOnly(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h], sideWall, on);
+      held = listOnly(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h], sideWall);
     },
     held: () => held,
     pick(ndc) {
@@ -432,19 +422,18 @@ export function renderFlat(
   const drawing = drawFlat(doc, options.room, options.avatar);
   const element = h(doc, "div", { class: "flat", "aria-hidden": "true" }, drawing.root);
   const picker = flatPicker(options.room.flat.hits, options.room);
-  const resize = (size: Size, stage: Size = size): void => {
-    picker.resize(size, stage);
+  const resize = (size: Size): void => {
+    picker.resize(size);
     const held = picker.held();
     for (const [id, cue] of drawing.cues) {
       show(cue.area, !held.has(id));
       show(cue.name, !held.has(id));
     }
   };
-  /** The drawing's box and the stage's view it is centred in, room.css's `.room-stage-view`. */
+  /** The drawing's box on screen. */
   const measure = (): void => {
     const box = element.getBoundingClientRect();
-    const stage = (element.parentElement ?? element).getBoundingClientRect();
-    resize({ w: box.width, h: box.height }, { w: stage.width, h: stage.height });
+    resize({ w: box.width, h: box.height });
   };
   const unbind = bindPointerSelection(
     element,

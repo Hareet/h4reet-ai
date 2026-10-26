@@ -10,7 +10,7 @@
 import type { Box } from "./framing";
 import { projector, toStage } from "./project";
 import type { Camera } from "./project";
-import { flatScale, isFr064Smallest } from "./stages";
+import { flatScale } from "./stages";
 import type { Stage } from "./stages";
 
 /** A rectangle from its top left, y down: CSS pixels on a stage, or view-box units in the 2D drawing. */
@@ -172,22 +172,17 @@ export function pickProblems(areas: readonly PickArea[], view: Rect, held: Reado
 }
 
 /**
- * FR-064's carve-out, the one function that holds it (spec.md, FR-064; data-model.md §4.5): at one of FR-064's
- * smallest stages (`isFr064Smallest`), a side-wall selectable that can't keep its exclusive core there is list-only
- * there: the room draws no pick area for it, a pick whose frontmost member is one of its members selects nothing
- * (`pick`), and the "In the room" list reaches it. At every other stage none is: a side-wall selectable is held to its
- * core as any selectable is, and the compositor refuses the scene where it isn't (RG6). `areas` are the stage's, in 3D
- * on the stage or in 2D in the drawing's view box, `view` the stage's or the view box's rectangle, `sideWall` the IDs
- * the index flags `side_wall`, and `stage` the stage's size in CSS pixels. Gives the IDs held, for `pick` and
+ * FR-064's carve-out, the one function that holds it (spec.md, FR-064, as T302's answer amended it; data-model.md
+ * §4.5): at any stage, a side-wall selectable that can't keep its exclusive core there is list-only there: the room
+ * draws no pick area for it, a pick whose frontmost member is one of its members selects nothing (`pick`; Reading R3),
+ * and the "In the room" list reaches it. Wherever its core fits, it is picked as any selectable is. The compositor
+ * refuses no side-wall selectable for a missing core, but still refuses another selectable's core over its members
+ * (RG6). `areas` are the stage's, in 3D on the stage or in 2D in the drawing's view box, `view` the stage's or the view
+ * box's rectangle, and `sideWall` the IDs the index flags `side_wall`. Gives the IDs held, for `pick` and
  * `pickProblems`.
  */
-export function listOnly(
-  areas: readonly PickArea[],
-  view: Rect,
-  sideWall: ReadonlySet<string>,
-  stage: Stage,
-): ReadonlySet<string> {
-  if (sideWall.size === 0 || !isFr064Smallest(stage)) return NONE;
+export function listOnly(areas: readonly PickArea[], view: Rect, sideWall: ReadonlySet<string>): ReadonlySet<string> {
+  if (sideWall.size === 0) return NONE;
   const short = new Set(pickProblems(areas, view).map((p) => p.selectable));
   return new Set(areas.filter((a) => sideWall.has(a.id) && short.has(a.id)).map((a) => a.id));
 }
