@@ -53,6 +53,7 @@ import {
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { VISITOR_TURN, visitorTurnShare } from "../../src/room/handoff";
 import { shapeGeometry } from "../../src/room/scene/standins";
+import { uiWord } from "../../src/room/ui-keys";
 import { FakeClock, enter, repositoryBundle, start } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
@@ -272,6 +273,11 @@ describe("the object tree (buildRoom)", () => {
     });
     expect(count).toBe(labelled.length);
     expect(standinLabel(ui, "label.fx-absent")).toBeNull();
+    // The review of T116, R3: the same words as the 2D room's, through uiWord, which fills a slot with the label's word
+    // as it is, where String.replaceAll would read "$&" in it as the slot itself.
+    const odd = { "standin.label": "Fixture {name} stand-in", "label.fx-odd": "Fixture $& sign" };
+    expect(standinLabel(odd, "label.fx-odd")).toBe(uiWord(odd, "standin.label", { name: "Fixture $& sign" }));
+    expect(standinLabel(odd, "label.fx-odd")).toBe("Fixture Fixture $& sign stand-in");
 
     // A set model takes its placement's label away; its stand-in stays, for a failed load (FR-057).
     const set = compose(overlay(modelChanges(["fx-desk"])), capsPolicy(), strict);

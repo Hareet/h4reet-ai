@@ -276,8 +276,9 @@ describe("assistive technology", () => {
 });
 
 // T295 (spec 004; FR-063, FR-064, SC-009): over T292's side-wall overlay (test/fixtures/room/README.md), the "In the
-// room" list reaches every selectable at every stage, the list-only side-wall ones among them, by a named button; the
-// 2D drawing, aria-hidden, hides their cues where they have no pick area and shows the rest.
+// room" list reaches every selectable at every stage, the list-only side-wall one among them, by a named button; the
+// 2D drawing, aria-hidden, hides its cue where it has no pick area and shows the rest, the upper sign's among them,
+// which `listOnly`'s release pass keeps.
 describe("the side-wall selectables' road in (FR-064's carve-out)", () => {
   it("gives every selectable its named button, and hides only the list-only ones' cues on a 304 px stage", () => {
     const { index } = compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: false });
@@ -308,7 +309,7 @@ describe("the side-wall selectables' road in (FR-064's carve-out)", () => {
       expect(
         hidden.map(([id]) => id),
         `${stage.w} × ${stage.h}`,
-      ).toEqual(stage.w === 304 ? ["fx-upper", "fx-lower"] : []);
+      ).toEqual(stage.w === 304 ? ["fx-lower"] : []);
     }
   });
 });

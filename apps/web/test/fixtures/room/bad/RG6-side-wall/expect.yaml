@@ -1,7 +1,7 @@
 rule: RG6
 file: apps/web/room/scene.yaml
 path: selectables[4]
-why: a sign of its own, 5 cm in front of the side-wall overlay's lower sign and 0.2 m to its right, its core over the side-wall sign's member, which RG6 refuses at any stage
+why: a sign of its own on the floor, at the lower side-wall sign's height, 0.1 m out from the left wall and 0.15 m in front of that sign's centre, its core over the side-wall sign's member, which RG6 refuses at any stage
 caps:
   schema: 1
   per_asset:

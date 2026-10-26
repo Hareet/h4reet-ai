@@ -28,7 +28,7 @@ import type { Stage } from "../../src/room/compose/stages";
 import { drawFlat, flatPicker, renderFlat } from "../../src/room/flat";
 import { FLAT_FRAMES, VISITOR_TURN } from "../../src/room/handoff";
 import { standinLabel } from "../../src/room/scene/bundle3d";
-import { enter, parseCss, start, stylesheets } from "../helpers/room";
+import { enter, intoRoom, parseCss, start, stylesheets } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
 import { goodFiles, goodTree, overlay, sideWallFiles, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 
@@ -551,6 +551,75 @@ describe("the drawing (drawFlat)", () => {
 });
 
 describe("the 2D stage (renderFlat)", () => {
+  // The review of T116, R3.
+  it("doesn't turn the visitor under reduced motion, as the 3D room doesn't", () => {
+    const { doc } = page();
+    const stage = renderFlat(doc, {
+      room: fixture().index,
+      avatar: "man",
+      select: () => undefined,
+      reducedMotion: true,
+    });
+    expect(stage.drawing.turns).toEqual([null, null, null]);
+    for (const progress of [0, 0.5, 1]) {
+      stage.showHandoff(progress);
+      expect(stage.drawing.visitor.getAttribute("transform"), String(progress)).toBeNull();
+    }
+    // Without it, the middle frame turns the visitor.
+    const moving = renderFlat(doc, { room: fixture().index, avatar: "man", select: () => undefined });
+    moving.showHandoff(0.5);
+    expect(moving.drawing.visitor.getAttribute("transform")).not.toBeNull();
+  });
+
+  it("sets its cues' visibility again only when the drawing's size changes, not on every pointer move", () => {
+    const { win, doc } = page();
+    const { index } = fixture();
+    const stage = renderFlat(doc, { room: index, avatar: "man", select: () => undefined });
+    doc.body.append(stage.element);
+    let size = box(REFERENCE_DESKTOP.stage);
+    stage.element.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: size.w, bottom: size.h, width: size.w, height: size.h, x: 0, y: 0 }) as DOMRect;
+    stage.resize(size);
+    const cue = [...stage.drawing.cues.values()][0];
+    if (!cue) throw new Error("no cue");
+    const set = vi.spyOn(cue.area, "setAttribute");
+    for (let k = 0; k < 5; k += 1) {
+      const init = { bubbles: true, pointerType: "mouse", clientX: 10 + 20 * k, clientY: 40 };
+      stage.element.dispatchEvent(new win.PointerEvent("pointermove", init));
+    }
+    stage.resize(size);
+    expect(set).not.toHaveBeenCalled();
+    size = box(REFERENCE_PHONE.stage);
+    stage.element.dispatchEvent(new win.PointerEvent("pointermove", { bubbles: true, pointerType: "mouse" }));
+    expect(set).toHaveBeenCalled();
+    stage.dispose();
+  });
+
+  it("picks in the index's own view box", () => {
+    // The index's hit rectangles and view box at twice the size: the same picks at the same points of the box.
+    const { index } = fixture();
+    const twice = (r: Rect): [number, number, number, number] => [r[0] * 2, r[1] * 2, r[2] * 2, r[3] * 2];
+    const doubled = {
+      ...index,
+      flat: {
+        ...index.flat,
+        view_box: [0, 0, FLAT_VIEW.w * 2, FLAT_VIEW.h * 2] as unknown as RoomIndex["flat"]["view_box"],
+        hits: index.flat.hits.map((h) => ({ ...h, rects: h.rects.map(twice) })),
+      },
+    };
+    const size = box(REFERENCE_DESKTOP.stage);
+    const [plain, big] = [flatPicker(index.flat.hits, index), flatPicker(doubled.flat.hits, doubled)];
+    plain.resize(size);
+    big.resize(size);
+    const differ: string[] = [];
+    for (let y = 1; y < FLAT_VIEW.h; y += 4)
+      for (let x = 1; x < FLAT_VIEW.w; x += 4) {
+        const ndc = ndcOf([x, y], size);
+        if (plain.pick(ndc) !== big.pick(ndc) && differ.length < 5) differ.push(`${x}, ${y}`);
+      }
+    expect(differ).toEqual([]);
+  });
+
   it("is aria-hidden, with nothing in it to focus or press", () => {
     const { doc } = page();
     const stage = renderFlat(doc, { room: fixture().index, avatar: "man", select: () => undefined });
@@ -608,15 +677,20 @@ describe("the 2D stage (renderFlat)", () => {
       { selectable: "fx-front", rects: [[20, 20, 60, 40]], depths: [1] },
       { selectable: "fx-back", rects: [[50, 30, 60, 40]], depths: [2] },
     ];
+    // The index's selectables and view box, as the picker reads them.
+    const index: Pick<RoomIndex, "selectables"> & { flat: Pick<RoomIndex["flat"], "view_box"> } = {
+      selectables: [],
+      flat: { view_box: [0, 0, FLAT_VIEW.w, FLAT_VIEW.h] },
+    };
     // Before it knows its size, it picks nothing.
-    expect(flatPicker(hits, { selectables: [] }).pick({ x: 0, y: 0 })).toBeNull();
+    expect(flatPicker(hits, index).pick({ x: 0, y: 0 })).toBeNull();
     // Two boxes room.css gives the drawing, and a wider one, which the view box sits centred in.
     for (const size of [
       box(REFERENCE_PHONE.stage),
       box(SMALLEST[0]?.stage ?? REFERENCE_PHONE.stage),
       { w: 900, h: 300 },
     ]) {
-      const picker = flatPicker(hits, { selectables: [] });
+      const picker = flatPicker(hits, index);
       picker.resize(size);
       const half = CORE_PX / 2 / flatScale(size);
       const [cx, cy] = [152, 92];
@@ -682,6 +756,46 @@ describe("the 2D stage (renderFlat)", () => {
 });
 
 describe("in the room", () => {
+  // The review of T116, R1: drawFlat throws on anything off its allowlist, and the room still opens (FR-062: never a
+  // blank or frozen scene). The drawing is a picture of what the list holds, so the list and "Around the room" carry
+  // the room without it.
+  it("opens the room with its list and text copy when the 2D drawing refuses the index's drawing", async () => {
+    const { index } = fixture();
+    // A view box off the drawing's allowlist, as a malformed bundle could carry it.
+    const viewBox = [0, 0, Number.NaN, 200] as unknown as RoomIndex["flat"]["view_box"];
+    const broken: RoomIndex = { ...index, flat: { ...index.flat, view_box: viewBox } };
+    const draw = () =>
+      renderFlat(new JSDOM("").window.document, { room: broken, avatar: "dog", select: () => undefined });
+    expect(draw).toThrow();
+    const v = start({ webgl: false, room: broken });
+    await intoRoom(v);
+    expect(v.room.visit.mode).toBe("2d");
+    expect(v.room.visit.stage).toBe("room");
+    expect(v.events).toContainEqual({ kind: "mode_2d" });
+    const view = v.doc.querySelector(".room-stage-view");
+    expect(view?.querySelector(".flat")).toBeNull();
+    expect(view?.querySelector(".room-loading")).toBeNull();
+    expect(v.doc.body.textContent).toContain(index.ui["around.heading"] ?? "Around the room");
+    const first = index.selectables[0];
+    if (!first) throw new Error("no selectable");
+    v.doc.querySelector<HTMLButtonElement>(`button[data-object-id="${first.id}"]`)?.click();
+    expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: first.id });
+  });
+
+  it("hands the paper over without turning the visitor under reduced motion", async () => {
+    const transformed = (v: ReturnType<typeof start>): number => v.doc.querySelectorAll(".flat [transform]").length;
+    const still = start({ webgl: false, reducedMotion: true });
+    await enter(still);
+    const end = transformed(still);
+    still.clock.advance(1500);
+    expect(still.doc.querySelector(".flat")?.getAttribute("data-handoff-frame")).toBe("1");
+    expect(transformed(still)).toBe(end);
+    const moving = start({ webgl: false });
+    await enter(moving);
+    moving.clock.advance(1500);
+    expect(transformed(moving)).toBe(end + 1);
+  });
+
   it("draws the index's room at Enter without WebGL, never loading the 3D chunk", async () => {
     const { index } = fixture();
     const v = start({ webgl: false, room: index });
@@ -697,14 +811,18 @@ describe("in the room", () => {
 });
 
 // T295 (spec 004; FR-063, FR-064, SC-009; R-20, R-39): FR-064's carve-out in the 2D room, over T292's side-wall overlay
-// (test/fixtures/room/README.md), whose two side-wall signs, fx-upper and fx-lower, are list-only at the drawing's
-// smallest scale, on the stages 304 px wide. There the drawing draws no cue for them and a pick on them selects nothing;
-// at a larger scale their cues and pick areas come back; the overlay's other selectables keep theirs at every size.
+// (test/fixtures/room/README.md), whose two side-wall signs, fx-upper and fx-lower, can't both keep their cores at the
+// drawing's smallest scale, on the stages 304 px wide, where their cores meet only each other's: `listOnly`'s release
+// pass gives fx-upper, first in scene order, its tap, and fx-lower is list-only there. There the drawing draws no cue
+// for it and a pick on it selects nothing; at a larger scale its cue and pick area come back; the overlay's other
+// selectables keep theirs at every size.
 describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
   let built: ComposeResult | undefined;
   const sideWall = (): ComposeResult =>
     (built ??= compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: false }));
-  const LIST_ONLY = ["fx-upper", "fx-lower"];
+  const LIST_ONLY = ["fx-lower"];
+  /** The side-wall sign that keeps its tap where the other is list-only (C1's release pass). */
+  const KEPT = "fx-upper";
   /** The 2D stage at a stage's size: the drawing's box inside it, as room.css's .flat keeps it. */
   function stageAt(stage: Stage, built: ComposeResult = sideWall()) {
     const { index } = built;
@@ -735,15 +853,15 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
       expect(index.selectables.map((x) => [x.id, shown(x.id)])).toEqual([
         ["fx-workstation", "visible"],
         ["fx-board", "visible"],
-        ["fx-upper", "hidden"],
+        ["fx-upper", "visible"],
         ["fx-lower", "hidden"],
       ]);
-      expect(flat.drawing.cues.get("fx-upper")?.name.getAttribute("visibility")).toBe("hidden");
+      expect(flat.drawing.cues.get("fx-lower")?.name.getAttribute("visibility")).toBe("hidden");
       for (const id of LIST_ONLY) tap(win, flat.element, at(id), "touch");
       expect(select).not.toHaveBeenCalled();
-      // The selectables that aren't side-wall keep their pick areas.
-      for (const id of ["fx-workstation", "fx-board"]) tap(win, flat.element, at(id), "touch");
-      expect(select.mock.calls).toEqual([["fx-workstation"], ["fx-board"]]);
+      // The side-wall sign the release pass keeps, and the selectables that aren't side-wall, keep their pick areas.
+      for (const id of [KEPT, "fx-workstation", "fx-board"]) tap(win, flat.element, at(id), "touch");
+      expect(select.mock.calls).toEqual([[KEPT], ["fx-workstation"], ["fx-board"]]);
     }
   });
 
@@ -751,7 +869,7 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
     for (const stage of [{ w: 312, h: 224 }, REFERENCE_PHONE.stage, REFERENCE_DESKTOP.stage]) {
       const { index, flat, win, select, shown, at } = stageAt(stage);
       expect(index.selectables.map((x) => shown(x.id))).toEqual(["visible", "visible", "visible", "visible"]);
-      for (const id of [...LIST_ONLY, "fx-workstation", "fx-board"]) tap(win, flat.element, at(id), "touch");
+      for (const id of [KEPT, ...LIST_ONLY, "fx-workstation", "fx-board"]) tap(win, flat.element, at(id), "touch");
       expect(select.mock.calls).toEqual([["fx-upper"], ["fx-lower"], ["fx-workstation"], ["fx-board"]]);
     }
   });
@@ -775,8 +893,8 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
           "left-wall: { at: [-0.9, 0, -0.95]",
         ),
         "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
-          "offset: [0, 1.0456, 0], turn: { y: -90 }",
-          "offset: [0, 1.025, 0], turn: { y: -90 }",
+          "offset: [0, 1.0515, 0] }",
+          "offset: [0, 1.0375, 0] }",
         ),
       }),
       sideWallPolicy(),
@@ -784,12 +902,19 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
     );
     expect(variant.findings).toEqual([]);
     const narrow = stageAt({ w: 312, h: 224 }, variant);
-    expect(narrow.index.selectables.map((x) => narrow.shown(x.id))).toEqual(["visible", "visible", "hidden", "hidden"]);
+    expect(narrow.index.selectables.map((x) => narrow.shown(x.id))).toEqual([
+      "visible",
+      "visible",
+      "visible",
+      "hidden",
+    ]);
     for (const id of LIST_ONLY) tap(narrow.win, narrow.flat.element, narrow.at(id), "touch");
     expect(narrow.select).not.toHaveBeenCalled();
+    tap(narrow.win, narrow.flat.element, narrow.at(KEPT), "touch");
+    expect(narrow.select.mock.calls).toEqual([[KEPT]]);
     const wide = stageAt(REFERENCE_DESKTOP.stage, variant);
     expect(wide.index.selectables.map((x) => wide.shown(x.id))).toEqual(["visible", "visible", "visible", "visible"]);
-    for (const id of LIST_ONLY) tap(wide.win, wide.flat.element, wide.at(id), "touch");
+    for (const id of [KEPT, ...LIST_ONLY]) tap(wide.win, wide.flat.element, wide.at(id), "touch");
     expect(wide.select.mock.calls).toEqual([["fx-upper"], ["fx-lower"]]);
   });
 });

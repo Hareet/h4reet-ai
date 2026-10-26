@@ -404,14 +404,73 @@ describe("the photo guide (contracts/room-bundle.md §9.2)", () => {
     );
     const layout = section(text, "## The layout checklist");
     expect(layout).toContain(
-      "A piece on a turned anchor of the shell, a side wall's, reads as it is measured: its origin's distance from the " +
-        "back wall, its height above the floor, and how far it stands out from the wall.",
+      "A piece on a side wall's anchor of the shell reads as it is measured: its origin, as its catalog entry describes " +
+        "it, that origin's distance from the back wall, its height above the floor, and how far it stands out from the " +
+        "wall.",
     );
     const rows = layout.split("\n").filter((l) => l.startsWith("- [ ] `fx-"));
+    // The review of T116, D4: a side-wall row names the piece's origin as its catalog entry describes it, so the guide
+    // asks for the point the work order and the model share.
     expect(rows.slice(-3)).toEqual([
       "- [ ] `fx-edge`: on the anchor `floor`, offset x -1.3125, y 1.5, z -0.8 (measured)",
-      "- [ ] `fx-upper`: on the anchor `left-wall`, its origin 0.45 from the back wall and 1.55 above the floor, 0 out from the wall (measured)",
-      "- [ ] `fx-lower`: on the anchor `left-wall`, its origin 0.45 from the back wall and 1.0956 above the floor, 0 out from the wall (measured)",
+      "- [ ] `fx-upper`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.55 above the floor, 0 out from the wall (measured)",
+      "- [ ] `fx-lower`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.1015 above the floor, 0 out from the wall (measured)",
+    ]);
+  });
+
+  // The review of T116, C4: the photo guide reads a side wall by RG6's own test (checks/rg.ts's sideWallFrame), not
+  // by any turn of the anchor, and takes the distance out from the wall from where the piece stands in the world.
+  const guideRows = (shell: (text: string) => string, scene: (text: string) => string): string[] => {
+    const SHELL = "apps/web/room/catalog/fx-shell.yaml";
+    const SCENE = "apps/web/room/scene.yaml";
+    const text = (path: string): string => decoder.decode(sideWallTree().read(path) ?? new Uint8Array());
+    const tree = sideWallTree({ [SHELL]: shell(text(SHELL)), [SCENE]: scene(text(SCENE)) });
+    const guide = file(compose(tree, sideWallPolicy(), { mode: "strict", drafts: true }), "docs/studio/photo-guide.md");
+    return section(guide, "## The layout checklist")
+      .split("\n")
+      .filter((l) => l.startsWith("- [ ] `fx-"));
+  };
+  const addSign = (id: string, mount: string) => (scene: string) =>
+    scene.replace("switches:\n", `  - { id: ${id}, piece: fx-sign, mount: ${mount} }\nswitches:\n`);
+
+  it("reads a turned anchor of the shell that isn't a side wall's by its offset", () => {
+    const rows = guideRows(
+      (shell) =>
+        shell.replace(
+          "  floor: { at: [0, 0, 0] }\n",
+          "  floor: { at: [0, 0, 0] }\n  nook: { at: [1, 0, 0], turn: { y: 30 } }\n",
+        ),
+      addSign("fx-nook", "{ on: fx-shell, anchor: nook, offset: [0.1, 1, 0.2] }"),
+    );
+    expect(rows).toContain("- [ ] `fx-nook`: on the anchor `nook`, offset x 0.1, y 1, z 0.2 (measured)");
+  });
+
+  it("reads a side-wall anchor turned about X as well as Y by its offset", () => {
+    const rows = guideRows(
+      (shell) =>
+        shell.replace(
+          "left-wall: { at: [-0.9, 0, -0.8], turn: { y: 90 } }",
+          "left-wall: { at: [-0.9, 0, -0.8], turn: { x: 90, y: 90 } }",
+        ),
+      (scene) => scene,
+    );
+    expect(rows.filter((r) => r.includes("`left-wall`"))).toEqual([
+      "- [ ] `fx-upper`: on the anchor `left-wall`, offset x 0, y 1.5, z 0 (measured)",
+      "- [ ] `fx-lower`: on the anchor `left-wall`, offset x 0, y 1.0515, z 0 (measured)",
+    ]);
+  });
+
+  it("takes the distance out from either wall from the piece's place in the world", () => {
+    // The left wall's anchor 0.8 mm inside the shell's bounds, which RG6 still takes for the wall; and a sign on the
+    // right wall, whose anchor is at the bounds' max x.
+    const rows = guideRows(
+      (shell) => shell.replace("left-wall: { at: [-0.9, 0, -0.8]", "left-wall: { at: [-0.8992, 0, -0.8]"),
+      addSign("fx-right", "{ on: fx-shell, anchor: right-wall, offset: [0.1, 1.2, 0.02] }"),
+    );
+    expect(rows.filter((r) => r.includes("-wall`"))).toEqual([
+      "- [ ] `fx-upper`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.55 above the floor, 0.0008 out from the wall (measured)",
+      "- [ ] `fx-lower`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.1015 above the floor, 0.0008 out from the wall (measured)",
+      "- [ ] `fx-right`: on the anchor `right-wall`, its origin (Fixture point at the centre of the sign's foot) 0.55 from the back wall and 1.25 above the floor, 0.02 out from the wall (measured)",
     ]);
   });
 

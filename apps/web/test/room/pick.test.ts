@@ -326,4 +326,40 @@ describe("FR-064's carve-out (compose/pick.ts listOnly)", () => {
     ]);
     expect(pickProblems(split, [0, 0, 400, 400], new Set(["fx-split"]))).toEqual([]);
   });
+  // The review of T116, C1: a deterministic release pass, in scene order. A held selectable keeps its pick area after
+  // all where releasing it alone gives no problem with it as subject and no problem that wasn't there before.
+  it("releases the first of two side-wall selectables whose cores meet only each other's core", () => {
+    const column = (ids: readonly string[]) =>
+      pickAreas(ids.map((id, k) => ({ id, members: [member(60, 40 + 40 * k, 4, 10)] })));
+    const both = new Set(["fx-side-a", "fx-side-b", "fx-side-c"]);
+    // Each core meets the next one's core and no member.
+    expect(pickProblems(column(["fx-side-a", "fx-side-b"]), view).map((p) => p.problem)).toEqual(["core", "core"]);
+    expect([...listOnly(column(["fx-side-a", "fx-side-b"]), view, both)]).toEqual(["fx-side-b"]);
+    // Scene order decides which keeps its tap.
+    expect([...listOnly(column(["fx-side-b", "fx-side-a"]), view, both)]).toEqual(["fx-side-a"]);
+    // Three in a column: the first keeps its tap, the second is held, and the third, whose core meets only the held
+    // second's, keeps its tap too.
+    const three = column(["fx-side-a", "fx-side-b", "fx-side-c"]);
+    expect([...listOnly(three, view, both)]).toEqual(["fx-side-b"]);
+    expect(pickProblems(three, view, listOnly(three, view, both))).toEqual([]);
+  });
+
+  it("keeps a selectable held where releasing it would give another selectable a problem it didn't have", () => {
+    // fx-side-a's two members stand far apart, so a core in the gap between them meets its union; fx-desk-a's does
+    // once fx-side-a has an area. fx-side-b's core meets fx-side-a's core alone.
+    const gap = pickAreas([
+      { id: "fx-side-a", members: [member(85, 0, 10, 10), member(85, 300, 10, 10)] },
+      { id: "fx-side-b", members: [member(130, 150, 4, 4)] },
+      { id: "fx-desk-a", members: [member(100, 100, 10, 10)] },
+    ]);
+    const square: Rect = [0, 0, 400, 400];
+    const both = new Set(["fx-side-a", "fx-side-b"]);
+    expect([...listOnly(gap, square, both)]).toEqual(["fx-side-a"]);
+    expect(pickProblems(gap, square, new Set(["fx-side-a"]))).toEqual([]);
+    expect(pickProblems(gap, square, new Set(["fx-side-b"]))).toContainEqual({
+      selectable: "fx-desk-a",
+      problem: "union",
+      other: "fx-side-a",
+    });
+  });
 });

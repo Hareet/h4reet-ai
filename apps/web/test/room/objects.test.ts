@@ -174,7 +174,9 @@ describe("the 3D pick (compose/pick.ts)", () => {
 });
 
 // T295 (spec 004; FR-063, FR-064, SC-009; R-20): FR-064's carve-out in the 3D room, over T292's side-wall overlay
-// (test/fixtures/room/README.md), whose side-wall signs fx-upper and fx-lower are list-only on the stages 304 px wide.
+// (test/fixtures/room/README.md), whose side-wall signs fx-upper and fx-lower can't both keep their cores on the stages
+// 304 px wide, where their cores meet only each other's: `listOnly`'s release pass keeps fx-upper's tap, the first in
+// scene order, and fx-lower is list-only there.
 describe("the 3D room's side-wall selectables (FR-064's carve-out)", () => {
   let built: ComposeResult | undefined;
   const sideWall = (): ComposeResult =>
@@ -204,26 +206,27 @@ describe("the 3D room's side-wall selectables (FR-064's carve-out)", () => {
   it.each([
     ["304 × 208", { w: 304, h: 208 }],
     ["304 × 640", { w: 304, h: 640 }],
-  ] as const)("holds no pick area for them on the %s stage, and the list's buttons reach them", (_, stage) => {
-    const { win, canvas, selectObject, member, core, button } = stageAt(stage);
-    for (const id of ["fx-upper", "fx-lower"]) {
-      tap(win, canvas, member(id), "mouse");
-      tap(win, canvas, member(id), "touch");
-      tap(win, canvas, core(id), "touch");
-    }
-    expect(selectObject.mock.calls.flat()).not.toContain("fx-upper");
-    expect(selectObject.mock.calls.flat()).not.toContain("fx-lower");
-    selectObject.mockClear();
-    for (const id of ["fx-upper", "fx-lower"]) button(id)?.click();
-    expect(selectObject.mock.calls).toEqual([["fx-upper"], ["fx-lower"]]);
-    // The selectables that aren't side-wall keep their areas.
-    selectObject.mockClear();
-    for (const id of ["fx-workstation", "fx-board"]) tap(win, canvas, core(id), "touch");
-    expect(selectObject.mock.calls).toEqual([["fx-workstation"], ["fx-board"]]);
-  });
+  ] as const)(
+    "holds no pick area for the lower sign on the %s stage, and the list's buttons reach both",
+    (_, stage) => {
+      const { win, canvas, selectObject, member, core, button } = stageAt(stage);
+      tap(win, canvas, member("fx-lower"), "mouse");
+      tap(win, canvas, member("fx-lower"), "touch");
+      tap(win, canvas, core("fx-lower"), "touch");
+      expect(selectObject.mock.calls.flat()).not.toContain("fx-lower");
+      selectObject.mockClear();
+      for (const id of ["fx-upper", "fx-lower"]) button(id)?.click();
+      expect(selectObject.mock.calls).toEqual([["fx-upper"], ["fx-lower"]]);
+      // The upper sign, which the release pass keeps, and the selectables that aren't side-wall keep their areas.
+      selectObject.mockClear();
+      for (const id of ["fx-upper", "fx-workstation", "fx-board"]) tap(win, canvas, core(id), "touch");
+      tap(win, canvas, member("fx-upper"), "touch");
+      expect(selectObject.mock.calls).toEqual([["fx-upper"], ["fx-workstation"], ["fx-board"], ["fx-upper"]]);
+    },
+  );
 
   // T303: T302's answer holds a side-wall selectable at any stage where its core can't fit.
-  it("holds no pick area for them on a larger stage where their cores can't fit, and keeps it where they can", () => {
+  it("holds no pick area for one on a larger stage where both cores can't fit, and keeps it where they can", () => {
     const text = (path: string): string => new TextDecoder().decode(sideWallFiles().get(path));
     const variant = compose(
       sideWallTree({
@@ -232,8 +235,8 @@ describe("the 3D room's side-wall selectables (FR-064's carve-out)", () => {
           "left-wall: { at: [-0.9, 0, -0.5]",
         ),
         "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
-          "offset: [0, 1.0456, 0], turn: { y: -90 }",
-          "offset: [0, 1.09, 0], turn: { y: -90 }",
+          "offset: [0, 1.0515, 0] }",
+          "offset: [0, 1.09, 0] }",
         ),
       }),
       sideWallPolicy(),
@@ -242,9 +245,12 @@ describe("the 3D room's side-wall selectables (FR-064's carve-out)", () => {
     expect(variant.findings).toEqual([]);
     built = variant;
     try {
-      const narrow = stageAt({ w: 312, h: 288 });
-      for (const id of ["fx-upper", "fx-lower"]) tap(narrow.win, narrow.canvas, narrow.member(id), "touch");
+      const narrow = stageAt({ w: 320, h: 432 });
+      tap(narrow.win, narrow.canvas, narrow.member("fx-lower"), "touch");
       expect(narrow.selectObject).not.toHaveBeenCalled();
+      tap(narrow.win, narrow.canvas, narrow.member("fx-upper"), "touch");
+      expect(narrow.selectObject.mock.calls).toEqual([["fx-upper"]]);
+      narrow.selectObject.mockClear();
       for (const id of ["fx-upper", "fx-lower"]) narrow.button(id)?.click();
       expect(narrow.selectObject.mock.calls).toEqual([["fx-upper"], ["fx-lower"]]);
       const wide = stageAt(REFERENCE_DESKTOP.stage);

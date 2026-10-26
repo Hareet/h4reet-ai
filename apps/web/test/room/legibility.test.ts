@@ -277,6 +277,46 @@ describe("RG7's per-face exemption on the reference phone", () => {
     );
   });
 
+  // The review of T116, C5: `phoneExempt`'s two other conjuncts. Only a readable face is exempt, and never one bound
+  // as atmosphere, which RG7 holds to its own rules instead.
+  const NEON = "apps/web/room/catalog/fx-neon.yaml";
+  const SCENE = "apps/web/room/scene.yaml";
+  const counters = (change: { readable?: string; binding?: string }): Tree => {
+    const files = new Map<string, string>();
+    const read = (path: string): string => new TextDecoder().decode(countersTree().read(path) ?? new Uint8Array());
+    if (change.readable !== undefined) {
+      const neon = read(NEON);
+      const at = neon.indexOf("  - role: counters");
+      files.set(NEON, neon.slice(0, at) + neon.slice(at).replace("readable: true", change.readable));
+    }
+    if (change.binding !== undefined)
+      files.set(SCENE, read(SCENE).replace("      counters:\n        label: label.fx-neon\n", change.binding));
+    return countersTree(Object.fromEntries(files));
+  };
+  const counterCaps = (t: Tree) => caps(t).find((f) => f.face === "fx-neon.counters");
+
+  it("holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable", () => {
+    const t = counters({ readable: "readable: false" });
+    expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop: 12.4, phone: 7.1, phone_exempt: false });
+    expect(rg7(t)).toEqual([
+      "placements[3].faces.counters: cap height 7.1 px on the phone stage, under the floor of 9",
+    ]);
+  });
+
+  it("gives no exemption to a face bound as atmosphere, which the floor doesn't hold", () => {
+    const binding = "      counters:\n        label: label.fx-neon\n        atmosphere: true\n        max_chars: 60\n";
+    // Not readable: atmosphere, so no floor holds it, and no exemption is needed or given.
+    const plain = counters({ readable: "readable: false", binding });
+    expect(counterCaps(plain)?.phone_exempt).toBe(false);
+    expect(rg7(plain)).toEqual([]);
+    // Readable: still no exemption, and atmosphere on a readable face is refused.
+    const readable = counters({ binding });
+    expect(counterCaps(readable)?.phone_exempt).toBe(false);
+    expect(rg7(readable)).toEqual([
+      "placements[3].faces.counters.atmosphere: atmosphere on a face the catalog marks readable",
+    ]);
+  });
+
   it("holds a face with a ui region and a turn-cost region to the floor on the phone", () => {
     // The known-good set's panel binds the word and both counters to one face.
     expect(caps(goodTree()).find((f) => f.face === "fx-neon.panel")?.phone_exempt).toBe(false);

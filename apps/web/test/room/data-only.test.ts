@@ -438,6 +438,48 @@ describe("the committed data (R-68)", () => {
       }
   });
 
+  // The review of T116, C3: the Author took T302's (b) on the session's words "You keep both taps in 3D on desktop"
+  // (spec.md's Clarifications, Session 2026-10-26, D1's condition). A data edit that leaves a side-wall selectable to
+  // the list in 3D on the reference desktop breaks that premise, so it fails here.
+  it("keeps every side-wall selectable's tap in 3D on the reference desktop, the premise T302's answer stands on", () => {
+    const stage = REFERENCE_DESKTOP.stage;
+    const areas = pickAreasOn(base.scene, base.index, framing(stage.w / stage.h, framedBoxes(base.scene)), stage);
+    expect(sideWallIds().size).toBeGreaterThan(0);
+    expect([...listOnly(areas, [0, 0, stage.w, stage.h], sideWallIds())]).toEqual([]);
+  });
+
+  // The review of T116, D2: the shell's 2D drawing is the cube as the 2D camera sees it, drawn in the back wall's
+  // plane, so its side walls and floor end where that camera projects the cube's open front onto the plane.
+  it("draws the shell's open front where the 2D camera projects the cube's front corners onto the back wall", () => {
+    const shell = must(
+      committed.catalog.find((c) => c.value.id === root.piece),
+      "shell",
+    ).value;
+    const { min, max } = shell.origin.bounds;
+    const camera = framing(FLAT_VIEW.w / FLAT_VIEW.h, framedBoxes(base.scene));
+    const [cx, cy, cz] = camera.position;
+    /** A point projected from the camera onto the back wall's plane, z = min z, in the drawing's x and y. */
+    const onBack = ([x, y, z]: Vec3): [number, number] => {
+      const t = (min[2] - cz) / (z - cz);
+      return [cx + t * (x - cx), cy + t * (y - cy)];
+    };
+    const front = (x: number, y: number) => onBack([x, y, max[2]]);
+    const polygons = (shell.drawing?.primitives ?? []).flatMap((p) => (p.primitive === "polygon" ? [p.points] : []));
+    const corners = new Set(polygons.flat().map(([x, y]) => `${x.toFixed(4)}, ${y.toFixed(4)}`));
+    const at = ([x, y]: readonly [number, number]): string => `${x.toFixed(4)}, ${y.toFixed(4)}`;
+    for (const [name, x, y] of [
+      ["the front of the floor, left", min[0], min[1]],
+      ["the front of the floor, right", max[0], min[1]],
+      ["the front of the left wall's top", min[0], max[1]],
+      ["the front of the right wall's top", max[0], max[1]],
+    ] as const)
+      expect(corners, name).toContain(at(front(x, y)));
+    // Every other corner is the back wall's own, where it meets the floor and the side walls.
+    const back = new Set([min[0], max[0]].flatMap((x) => [min[1], max[1]].map((y) => at([x, y]))));
+    const projected = new Set([min[0], max[0]].flatMap((x) => [min[1], max[1]].map((y) => at(front(x, y)))));
+    for (const c of corners) expect(back.has(c) || projected.has(c), c).toBe(true);
+  });
+
   it("names only side-wall selectables in the report's side-wall section", () => {
     const rows = base.report.markdown
       .split("\n")

@@ -34,7 +34,7 @@ import {
   Vector3,
 } from "three";
 import type { BufferGeometry, Camera, Color, Material, Object3D, WebGLRenderer } from "three";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { shapeBox } from "../../build/room/checks/rg";
 import { compose } from "../../build/room/compose";
@@ -516,6 +516,9 @@ describe("the look (look.ts)", () => {
     scene.add(standin(result.scene.pieces["fx-desk"]?.standin ?? [], materials));
     const camera = new PerspectiveCamera();
 
+    // The review of T116, R3: the materials share the lines' parameters once, before the first frame, not each frame.
+    ink.prepare(scene);
+
     // The width is CSS pixels of the stage's height: the effect's thickness, in normalized device units, is 2w ÷ H.
     expect(outlineThickness(look.outlines.width, 420)).toBeCloseTo((2 * look.outlines.width) / 420, 15);
     for (const height of [420, 640]) {
@@ -542,6 +545,40 @@ describe("the look (look.ts)", () => {
     const before = passes.length;
     ink.render(scene, camera);
     expect(passes.length - before).toBe(1);
+  });
+
+  it("shares the lines' parameters through prepare, once, and never walks the scene to draw a frame", () => {
+    const { result } = good();
+    const look = result.scene.look;
+    const { renderer } = fakeRenderer();
+    const ink = createInk(renderer, look);
+    const scene = new Scene();
+    const materials = lookMaterials(look);
+    scene.add(standin(result.scene.pieces["fx-desk"]?.standin ?? [], materials));
+    const shared = (): unknown[] => {
+      const out: unknown[] = [];
+      scene.traverse((node) => {
+        const mesh = node as Mesh;
+        if (mesh.isMesh)
+          for (const m of ([] as Material[]).concat(mesh.material)) out.push(m.userData.outlineParameters);
+      });
+      return out;
+    };
+    expect(shared().length).toBeGreaterThan(0);
+    // A frame shares nothing: drawing walks no material of the scene to set it.
+    ink.render(scene, new PerspectiveCamera());
+    expect(shared().every((p) => p === undefined)).toBe(true);
+    const walks = vi.spyOn(scene, "traverse");
+    ink.prepare(scene);
+    expect(walks).toHaveBeenCalledTimes(1);
+    walks.mockRestore();
+    const lines = shared();
+    expect(new Set(lines).size).toBe(1);
+    expect(lines[0]).toBeDefined();
+    // A model swapped in later (US4) shares them once prepare runs again.
+    scene.add(standin(result.scene.pieces["fx-desk"]?.standin ?? [], lookMaterials(look)));
+    ink.prepare(scene);
+    expect(new Set(shared())).toEqual(new Set(lines));
   });
 
   it("draws painted and flat with the renderer alone, with no lines", () => {

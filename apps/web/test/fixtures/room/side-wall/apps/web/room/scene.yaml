@@ -1,7 +1,8 @@
 # The side-wall overlay's scene (README.md): the known-good scene with fx-board moved right, a sign far left that sets the
-# frame's left edge, and two signs on the shell's left-wall anchor, one over the other, each a selectable. The framing is
-# width-bound at every aspect up to the 2D drawing's 1.6, so on every stage the signs' gap scales with the stage's width:
-# their cores overlap at the 27 stages 304 px wide and in 2D at 0.95, FR-064's smallest stages, and nowhere else.
+# frame's left edge, and two signs flat on the shell's left-wall anchor, one over the other, each a selectable. The
+# framing is width-bound at every aspect up to the 2D drawing's 1.6, so on every stage the signs' gap scales with the
+# stage's width: their cores overlap, each over the other's alone, at the 27 stages 304 px wide and in 2D at 0.95, and
+# nowhere else.
 #   0 fx-shell  1 fx-desk  2 fx-monitor  3 fx-neon  4 fx-laptop  5 fx-board  6 fx-sign  7 fx-twin  8 fx-visitor
 #   9 fx-edge  10 fx-upper  11 fx-lower; selectables 0 fx-workstation  1 fx-board  2 fx-upper  3 fx-lower
 version: 1
@@ -71,11 +72,11 @@ placements:
     frame: true
   - id: fx-upper
     piece: fx-sign
-    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.5, 0], turn: { y: -90 } }
+    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.5, 0] }
     frame: true
   - id: fx-lower
     piece: fx-sign
-    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.0456, 0], turn: { y: -90 } }
+    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.0515, 0] }
     frame: true
 switches:
   - id: fx-power

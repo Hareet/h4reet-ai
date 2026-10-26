@@ -355,13 +355,12 @@ describe("the report's exempt faces and side-wall selectables", () => {
     const rows = lines(compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: true }));
     const at = rows.indexOf(SIDE_HEADING);
     expect(at).toBeGreaterThan(rows.indexOf(FACE_HEADER));
-    expect(rows.slice(at - 1, at + 7)).toEqual([
+    expect(rows.slice(at - 1, at + 6)).toEqual([
       "",
       SIDE_HEADING,
       "",
       "| Selectable | 3D | 2D |",
       "|---|---|---|",
-      "| `fx-upper` (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
       "| `fx-lower` (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
       "",
     ]);
@@ -377,15 +376,18 @@ describe("the report's exempt faces and side-wall selectables", () => {
         "left-wall: { at: [-0.9, 0, -0.5]",
       ),
       "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
-        "offset: [0, 1.0456, 0], turn: { y: -90 }",
-        "offset: [0, 1.09, 0], turn: { y: -90 }",
+        "offset: [0, 1.0515, 0] }",
+        "offset: [0, 1.09, 0] }",
       ),
     });
     const result = compose(tree, sideWallPolicy(), { mode: "strict", drafts: true });
     expect(result.findings).toEqual([]);
     const rows = lines(result);
-    expect(rows).toContain("| `fx-upper` (left-wall) | list-only at 304 × 248 and 52 others | – |");
-    expect(rows).toContain("| `fx-lower` (left-wall) | list-only at 304 × 248 and 52 others | – |");
+    // The upper sign keeps its tap there (`listOnly`'s release pass), so the lower alone is listed.
+    expect(rows.filter((r) => r.startsWith("| `fx-"))).toContain(
+      "| `fx-lower` (left-wall) | list-only at 304 × 248 and 48 others | – |",
+    );
+    expect(rows.some((r) => r.startsWith("| `fx-upper` (left-wall)"))).toBe(false);
     expect(rows).toContain("Findings: none.");
   });
 
@@ -399,11 +401,11 @@ describe("the report's exempt faces and side-wall selectables", () => {
     const tree = sideWallTree();
     const out = emit(loadRoom(tree), sideWallPolicy(), { mode: "strict", drafts: true }, [], {
       tree,
-      printable: (v) => v !== "fx-upper",
+      printable: (v) => v !== "fx-lower",
     });
-    expect(out.report.markdown).not.toContain("fx-upper");
+    expect(out.report.markdown).not.toContain("fx-lower");
     expect(out.report.markdown).toContain(
-      "| selectables[2] (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
+      "| selectables[3] (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
     );
   });
 });
