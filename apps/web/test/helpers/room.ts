@@ -338,10 +338,8 @@ export interface SceneOptionsForTest {
   narration?: unknown;
   /** The 3D chunk's import settles only when the test calls scene.release(). */
   sceneLate?: boolean;
-  /** The bundle's index the room starts with: by default the repository's, as the site's build bundles it;
-   *  `index` is the same option, as the lookdev's line names it. */
+  /** The bundle's index the room starts with: by default the repository's, as the site's build bundles it. */
   room?: RoomIndex;
-  index?: RoomIndex;
 }
 
 /** An approved resume of fixture words, under the first two item IDs the manifest lists. */
@@ -367,7 +365,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
   const room = startRoom({
     win,
     content: roomContent(),
-    room: options.room ?? options.index ?? roomIndex(),
+    room: options.room ?? roomIndex(),
     // The real resume view (Phase 3), its room-data.json from the test, never from the network.
     resume: resumeView(
       () => {

@@ -1031,14 +1031,14 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
   });
 
   it("records each set model skipped, in 2D, when the room starts there without WebGL 2", async () => {
-    const v = start({ webgl: false, index: sending() });
+    const v = start({ webgl: false, room: sending() });
     await enter(v);
     expect(v.room.visit.mode).toBe("2d");
     expect(beaconed(v)).toEqual([skipped2d("fx-desk"), skipped2d("fx-plug")]);
   });
 
   it("records each skipped when the 3D chunk comes too late, or fails, or its stage refuses the part", async () => {
-    const late = start({ webgl: true, sceneHangs: true, index: sending() });
+    const late = start({ webgl: true, sceneHangs: true, room: sending() });
     await flush();
     radio(late.doc, "path", "engineer").click();
     radio(late.doc, "avatar", "dog").click();
@@ -1048,11 +1048,11 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
     await late.room.settled();
     expect(late.room.visit.mode).toBe("2d");
     expect(beaconed(late)).toEqual([skipped2d("fx-desk"), skipped2d("fx-plug")]);
-    const failed = start({ webgl: true, sceneFails: true, index: sending() });
+    const failed = start({ webgl: true, sceneFails: true, room: sending() });
     await enter(failed);
     expect(failed.room.visit.mode).toBe("2d");
     expect(beaconed(failed)).toEqual([skipped2d("fx-desk"), skipped2d("fx-plug")]);
-    const refused = start({ webgl: true, index: sending() });
+    const refused = start({ webgl: true, room: sending() });
     refused.scene.module.createScene = () => {
       throw new Error("the 3D part's digest isn't the index's");
     };
@@ -1062,7 +1062,7 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
   });
 
   it("records the rest skipped when the room goes to 2D before its 3D stage's loader had them, once each", async () => {
-    const v = start({ webgl: true, index: sending() });
+    const v = start({ webgl: true, room: sending() });
     await intoRoom(v);
     const loaded: AssetEvent = { asset: "fx-desk", outcome: "loaded", ms_bucket: "<1000", bytes: 636, mode: "full" };
     // The desk loaded in 3D, after a retry; the plug's load never reached the stage's loader (its chunk still on its
@@ -1076,7 +1076,7 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
   });
 
   it("records nothing where the index sets no model", async () => {
-    const v = start({ webgl: false, index: sending(roomIndex()) });
+    const v = start({ webgl: false, room: sending(roomIndex()) });
     await enter(v);
     expect(v.room.visit.mode).toBe("2d");
     expect(beaconed(v)).toEqual([]);
