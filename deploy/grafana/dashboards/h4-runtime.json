@@ -2296,7 +2296,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_spans[5m]))",
+          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "spans {{exporter}}"
@@ -2307,7 +2307,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points[5m]))",
+          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "metric points {{exporter}}"
@@ -2318,7 +2318,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records[5m]))",
+          "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "log records {{exporter}}"
@@ -2370,7 +2370,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans[5m]))",
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "spans {{exporter}}"
@@ -2381,7 +2381,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_metric_points[5m]))",
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_metric_points_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "metric points {{exporter}}"
@@ -2392,7 +2392,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_log_records[5m]))",
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_log_records_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "log records {{exporter}}"
@@ -2496,7 +2496,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum(rate(otelcol_exporter_sent_spans{exporter=\"otlphttp/langfuse\"}[5m]))",
+          "expr": "sum(rate(otelcol_exporter_sent_spans_total{exporter=\"otlphttp/langfuse\"}[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "spans"
@@ -2548,7 +2548,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_spans[5m]))",
+          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_spans_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "spans {{receiver}}"
@@ -2559,7 +2559,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_metric_points[5m]))",
+          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_metric_points_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "metric points {{receiver}}"
@@ -2570,7 +2570,7 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_log_records[5m]))",
+          "expr": "sum by (receiver) (rate(otelcol_receiver_refused_log_records_total[5m]))",
           "range": true,
           "instant": false,
           "legendFormat": "log records {{receiver}}"

@@ -70,13 +70,14 @@ def expand(cell: str, previous: list[str]) -> list[str]:
             codes[0],
             codes[0].replace("histogram_quantile(0.50,", "histogram_quantile(0.95,"),
         ]
-    # The collector's counters carry no _total (telemetry.md §4.3; T065 found the panels empty with it).
-    if "and the same for" in cell and re.search(r"_spans\b", codes[0]):
+    # The collector's counters are pushed over OTLP, so they carry _total, as the gateway's do (telemetry.md §4.3,
+    # T185). Scraped, they had none (T065).
+    if "and the same for" in cell and re.search(r"_spans_total\b", codes[0]):
         base = codes[0]
         return [
             base,
-            re.sub(r"_spans\b", "_metric_points", base),
-            re.sub(r"_spans\b", "_log_records", base),
+            re.sub(r"_spans_total\b", "_metric_points_total", base),
+            re.sub(r"_spans_total\b", "_log_records_total", base),
         ]
     if cell.startswith("the same three with "):
         (label,) = codes
@@ -165,6 +166,12 @@ def test_the_contract_parses_as_this_file_reads_it() -> None:
     assert expected["Alert log"][1] == [
         '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed)"'
     ]
+    # The collector's "and the same for" shorthand, spelled out with its pushed names (T185).
+    assert expected["Export failures"][1] == [
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))",
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points_total[5m]))",
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]))",
+    ]
     for _, found in expected.values():
         assert found, "a panel parsed with no query"
 
@@ -232,7 +239,8 @@ def test_each_panels_type_is_the_contracts() -> None:
 
 def test_every_metric_name_is_the_contracts() -> None:
     """telemetry.md §8: every metric name the dashboard queries appears in the contract, or is one of the "the same
-    for" names it spells with _metric_points or _log_records in place of _spans. The PromQL panels hold them all."""
+    for" names it spells with _metric_points_total or _log_records_total in place of _spans_total (the collector's
+    counters, pushed with _total since T185). The PromQL panels hold them all."""
     words = set(re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", CONTRACT))
     names = set()
     for panel in panels():
@@ -252,7 +260,7 @@ def test_every_metric_name_is_the_contracts() -> None:
                     names.add(name)
     assert names
     for name in names:
-        spelled = re.sub(r"_(metric_points|log_records)$", "_spans", name)
+        spelled = re.sub(r"_(metric_points|log_records)_total$", "_spans_total", name)
         assert name in words or spelled in words, name
 
 
@@ -267,6 +275,29 @@ FUNCTIONS = {
     "max_over_time",
     "le",
 }
+
+
+# The collector's two gauges; every other otelcol_ metric a panel reads is a counter.
+COLLECTOR_GAUGES = {"otelcol_exporter_queue_size", "otelcol_exporter_queue_capacity"}
+
+
+def test_the_collectors_counters_are_the_pushed_ones() -> None:
+    """T185: the collector pushes its own metrics over OTLP, and its scrape keeps only up (telemetry.md §4.3, §6.6).
+    So each otelcol_ counter a panel reads has the _total that Prometheus's OTLP translation appends, and no otelcol_
+    query selects the scrape's job, which no longer holds one."""
+    found = set()
+    for panel in panels():
+        if panel["datasource"]["uid"] != "prom":
+            continue
+        for expr in queries(panel):
+            names = set(re.findall(r"\botelcol_[a-z_]+", expr))
+            for name in names - COLLECTOR_GAUGES:
+                assert name.endswith("_total"), (panel["title"], name)
+            assert not names or "job" not in expr, (panel["title"], expr)
+            found |= names
+    # Every panel of §7.6 that reads the collector: three failures, three drops, two gauges, one sent, three refused.
+    assert len(found) == 12, sorted(found)
+    assert COLLECTOR_GAUGES <= found
 
 
 def test_every_datasource_is_the_one_its_query_language_needs() -> None:

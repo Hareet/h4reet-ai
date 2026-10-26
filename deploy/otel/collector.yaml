@@ -242,7 +242,19 @@ service:
   telemetry:
     logs:
       level: info
-    # The collector's own metrics, which Prometheus scrapes as job otel-collector (telemetry.md §4.3).
+    # The collector's own metrics carry the stack's labels, as the gateway's do (telemetry.md §2), and a stable
+    # instance, so a restart reads as a counter reset in the same series.
+    resource:
+      attributes:
+        - { name: service.name, value: otel-collector }
+        - { name: service.namespace, value: h4reet }
+        - { name: deployment.environment.name, value: "${env:H4_STACK}" }
+        - { name: service.instance.id, value: "${env:H4_STACK}-otel-collector" }
+    # The collector's own metrics (telemetry.md §4.3, T185). Pushed every 10 s to Prometheus's OTLP receiver, where
+    # the gateway's metrics arrive, so each series carries its start time and Prometheus writes the 0 there: a fresh
+    # collector's first batch counts in rate() and increase(). Straight to Prometheus, not through this collector's
+    # own pipelines, so the counters that report a refusing receiver or a full queue never wait in either. The pull
+    # reader on 8888 stays for the scrape, which keeps only up (deploy/prometheus/prometheus.yml).
     metrics:
       level: normal
       readers:
@@ -251,6 +263,14 @@ service:
               prometheus:
                 host: 0.0.0.0
                 port: 8888
+        - periodic:
+            interval: 10000
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://prometheus:9090/api/v1/otlp/v1/metrics
+                compression: gzip
+                temporality_preference: cumulative
   pipelines:
     traces:
       receivers: [otlp]
