@@ -226,6 +226,9 @@ NO_HOOKS = (
 )
 GRACE_S = 10
 MIN_QUOTE = 10
+# The literal text an `echo` in a command starts with, up to its first expansion: the tag an agent puts on its own
+# exit line (`echo "EXIT=${PIPESTATUS[0]}"` gives "EXIT=").
+ECHO_TAG = re.compile(r"\becho\s+[\"']?([^\"'$`\n]+)")
 
 # The keys a history entry carries, as history/README.md gives them; validate_entry checks those make evals, the
 # baseline, and the gate read.
@@ -1288,7 +1291,12 @@ def _unmet(name: str, arg: Any, outcome: Outcome) -> str | None:
                         0
                     ].splitlines()
                 ]
-                lines = [ln for ln in lines if ln]
+                # The last line the command's own output ends with: a line its own `echo` printed (`echo "EXIT=$?"`)
+                # is the agent's tag, not the output, so it's skipped, and a report that pastes make's output holds.
+                tags = [t.strip() for t in ECHO_TAG.findall(command) if t.strip()]
+                lines = [
+                    ln for ln in lines if ln and not any(ln.startswith(t) for t in tags)
+                ]
                 if lines and len(lines[-1]) >= MIN_QUOTE and lines[-1] in report:
                     return None
         if not ran:

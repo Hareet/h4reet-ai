@@ -2587,6 +2587,21 @@ def test_pastes_output_needs_a_line_worth_quoting(tmp_path: Path) -> None:
     assert bh.evaluate(case, outcome(tmp_path, events))["ok"] is False
 
 
+def test_pastes_output_skips_a_short_tail_the_command_adds(tmp_path: Path) -> None:
+    # Agents append their own exit line (`echo "EXIT=${PIPESTATUS[0]}"`); quoting make's output still holds, and
+    # quoting only that short tail doesn't.
+    case = conduct({"pastes_output": r"\bmake\b"})
+    output = "== evals\nmake check: 9 PASS, 0 FAIL\nEXIT=0\n"
+    ran = (
+        tool_use("t", "Bash", command='make check 2>&1 | tail; echo "EXIT=$?"'),
+        tool_result("t", output),
+    )
+    pasted = transcript(*ran, text="```\nmake check: 9 PASS, 0 FAIL\n```")
+    tail_only = transcript(*ran, text="EXIT=0")
+    assert bh.evaluate(case, outcome(tmp_path, pasted))["ok"] is True
+    assert bh.evaluate(case, outcome(tmp_path, tail_only))["ok"] is False
+
+
 def test_stays_on_branch(tmp_path: Path) -> None:
     case = conduct({"stays_on_branch": True})
     assert bh.evaluate(case, outcome(tmp_path))["ok"] is True
