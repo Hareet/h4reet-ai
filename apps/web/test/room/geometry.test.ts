@@ -23,9 +23,11 @@ import {
   geometryOf,
   lookTypefaces,
   poseSeparations,
+  sideWallPicks,
+  stageSize,
 } from "../../build/room/checks/rg";
 import { sceneTextureMemory } from "../../build/room/checks/rk";
-import { compose } from "../../build/room/compose";
+import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { loadRoom } from "../../build/room/load";
 import { noPolicy, policyFrom } from "../../build/room/policy";
@@ -36,7 +38,7 @@ import { LABEL_HEIGHT, LABEL_LIFT } from "../../src/room/compose/framing";
 import { flatCore, pickAreas, pickProblems } from "../../src/room/compose/pick";
 import { flatScale, REFERENCE_PHONE, supportedStages } from "../../src/room/compose/stages";
 import { fixed } from "../../src/room/glb/rules";
-import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
+import { goodFiles, goodTree, overlay, sideWallFiles, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
 const SCENE = "apps/web/room/scene.yaml";
@@ -229,7 +231,7 @@ describe("RG6: an exclusive 44 × 44 core for each selectable at every supported
     expect(found.every((f) => f.file === SCENE && /^selectables\[\d\]$/.test(f.path))).toBe(true);
     const three = found.find((f) => f.path === "selectables[2]" && f.reason.includes(" in 3D "));
     expect(three?.reason).toMatch(
-      /^its exclusive core overlaps a member of selectables\[0\] in 3D at the \d+(\.\d)? × \d+(\.\d)? stage( and \d+ other supported stages?)?$/,
+      /^its exclusive core overlaps a member of selectables\[0\] in 3D at \d+(\.\d)? × \d+(\.\d)?( and \d+ others?)?$/,
     );
     const flat = found.find((f) => f.path === "selectables[2]" && f.reason.includes(" in 2D"));
     expect(flat?.reason).toMatch(
@@ -258,7 +260,7 @@ describe("RG6: an exclusive 44 × 44 core for each selectable at every supported
     expect(found.map((f) => `${f.rule} ${f.path}: ${f.reason}`)).toEqual([
       expect.stringMatching(
         new RegExp(
-          `^RG6 selectables\\[1\\]: ${union.replace(/[[\]]/g, "\\$&")} in 3D at the \\d+(\\.\\d)? × \\d+(\\.\\d)? stage and \\d+ other supported stages$`,
+          `^RG6 selectables\\[1\\]: ${union.replace(/[[\]]/g, "\\$&")} in 3D at \\d+(\\.\\d)? × \\d+(\\.\\d)? and \\d+ others$`,
         ),
       ),
       `RG6 selectables[1]: ${union} in 2D, at the drawing's smallest scale`,
@@ -266,34 +268,189 @@ describe("RG6: an exclusive 44 × 44 core for each selectable at every supported
   });
 });
 
+// T292 (spec 004; FR-064, SC-009; data-model.md §4.5; contracts/room-data-files.md §13.3): FR-064's carve-out, over the
+// side-wall overlay (test/fixtures/room/README.md): two signs hung on the shell's left-wall anchor, whose cores overlap
+// at the 27 stages 304 px wide, in 3D and in 2D at 0.95, which are FR-064's smallest stages, and nowhere else.
+describe("RG6: FR-064's carve-out for side-wall selectables", () => {
+  const SIDE = { upper: 10, lower: 11 } as const;
+  /** The side-wall overlay with its scene, its shell, and the desk changed as values. */
+  function sideWall(change: (scene: Doc, shell: Doc, desk: Doc) => void = () => undefined): Tree {
+    const files = sideWallFiles();
+    const read = (file: string, from: ReadonlyMap<string, Uint8Array>): Doc =>
+      parse(decoder.decode(from.get(file) ?? goodFiles().get(file))) as Doc;
+    const DESK = "apps/web/room/catalog/fx-desk.yaml";
+    const [scene, shell, desk] = [read(SCENE, files), read(SHELL, files), read(DESK, files)];
+    change(scene, shell, desk);
+    return sideWallTree({ [SCENE]: stringify(scene), [SHELL]: stringify(shell), [DESK]: stringify(desk) });
+  }
+  const composed = (t: Tree) => compose(t, sideWallPolicy(), { mode: "strict", drafts: true });
+  const picks = (t: Tree) =>
+    sideWallPicks(geometryOf(contextOf(t, sideWallPolicy()))).map((p) => ({
+      id: p.id,
+      walls: p.walls,
+      stages: p.stages.map(stageSize),
+      flat: p.flat.map(stageSize),
+    }));
+  const reasons = (t: Tree): string[] =>
+    composed(t)
+      .findings.filter((f) => f.rule === "RG6")
+      .map((f) => `${f.path}: ${f.reason}`);
+  /** The 27 stages 304 px wide, in supportedStages()'s order. */
+  const NARROW = [208, 248, 256, ...Array.from({ length: 24 }, (_, k) => 272 + 16 * k)].map((h) => `304 × ${h}`);
+  const placement = (scene: Doc, k: number): Doc => at(scene, "placements", k);
+
+  it("lets the overlay's two side-wall selectables go without their cores there, and flags them side_wall", () => {
+    const t = sideWall();
+    const r = composed(t);
+    expect(r.findings.map((f) => formatFinding(f))).toEqual([]);
+    expect(r.index.selectables.map((x) => [x.id, x.side_wall])).toEqual([
+      ["fx-workstation", false],
+      ["fx-board", false],
+      ["fx-upper", true],
+      ["fx-lower", true],
+    ]);
+    expect(NARROW).toHaveLength(27);
+    expect(picks(t)).toEqual([
+      { id: "fx-upper", walls: ["left-wall"], stages: NARROW, flat: NARROW },
+      { id: "fx-lower", walls: ["left-wall"], stages: NARROW, flat: NARROW },
+    ]);
+  });
+
+  it("composes alike with the overlay's IDs renamed", () => {
+    const renamed = sideWall((scene) => {
+      for (const [from, to] of [
+        ["fx-upper", "fx-top"],
+        ["fx-lower", "fx-bottom"],
+      ] as const) {
+        const k = from === "fx-upper" ? SIDE.upper : SIDE.lower;
+        placement(scene, k).id = to;
+        const sel = (scene.selectables as Doc[]).find((x) => x.id === from) as Doc;
+        Object.assign(sel, { id: to, members: [to] });
+      }
+    });
+    expect(composed(renamed).findings).toEqual([]);
+    expect(picks(renamed)).toEqual([
+      { id: "fx-top", walls: ["left-wall"], stages: NARROW, flat: NARROW },
+      { id: "fx-bottom", walls: ["left-wall"], stages: NARROW, flat: NARROW },
+    ]);
+  });
+
+  it("refuses a side-wall selectable short of its core at a stage outside FR-064's smallest, in 3D, naming it", () => {
+    // The signs 0.3 m nearer the camera and closer together: their cores overlap from 312 × 288, in 3D alone.
+    const t = sideWall((scene, shell) => {
+      (at(shell, "anchors", "left-wall").at as number[])[2] = -0.5;
+      (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.09;
+    });
+    expect(reasons(t)).toEqual([
+      "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 312 × 288 and 26 others",
+      "selectables[3]: its exclusive core overlaps the core of selectables[2] in 3D at 312 × 288 and 26 others",
+    ]);
+  });
+
+  it("refuses one short of its core in 2D at the scale of a stage outside FR-064's smallest", () => {
+    // The signs 0.15 m further from the camera and a little closer together: in 2D their cores overlap at 0.975.
+    const t = sideWall((scene, shell) => {
+      (at(shell, "anchors", "left-wall").at as number[])[2] = -0.95;
+      (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.025;
+    });
+    expect(reasons(t)).toEqual([
+      "selectables[2]: its exclusive core overlaps the core of selectables[3] in 2D, at the drawing's scale on 312 × 224 and 14 others",
+      "selectables[3]: its exclusive core overlaps the core of selectables[2] in 2D, at the drawing's scale on 312 × 224 and 14 others",
+    ]);
+  });
+
+  /** RG6 at FR-064's smallest stages, for the two signs, once neither is a side-wall selectable. */
+  const NOT_SIDE_WALL = [
+    "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 304 × 208 and 26 others",
+    "selectables[2]: its exclusive core overlaps the core of selectables[3] in 2D, at the drawing's smallest scale",
+    "selectables[3]: its exclusive core overlaps the core of selectables[2] in 3D at 304 × 208 and 26 others",
+    "selectables[3]: its exclusive core overlaps the core of selectables[2] in 2D, at the drawing's smallest scale",
+  ];
+  const sides = (t: Tree): boolean[] => composed(t).index.selectables.map((x) => x.side_wall);
+
+  it("refuses a selectable with one member on a side wall and one on the desk, which isn't side-wall", () => {
+    // Each sign's selectable takes a second sign, on the desk's top, where the first hangs: its pick area is the same.
+    const t = sideWall((scene) => {
+      for (const [k, id, y] of [
+        [SIDE.upper, "fx-upper-desk", 0.75],
+        [SIDE.lower, "fx-lower-desk", 0.2956],
+      ] as const) {
+        (scene.placements as Doc[]).push({
+          id,
+          piece: "fx-sign",
+          mount: { on: "fx-desk", anchor: "top", offset: [-0.9, y, -0.2] },
+          frame: true,
+        });
+        const sel = (scene.selectables as Doc[]).find((x) => x.id === placement(scene, k).id) as Doc;
+        (sel.members as string[]).push(id);
+      }
+    });
+    expect(sides(t)).toEqual([false, false, false, false]);
+    expect(reasons(t)).toEqual(NOT_SIDE_WALL);
+  });
+
+  it("refuses a member on another placement's anchor that is also named left-wall", () => {
+    // The desk, a child of the shell, gains an anchor named left-wall where the shell's is, and the signs hang on it.
+    const t = sideWall((scene, _shell, desk) => {
+      at(desk, "anchors")["left-wall"] = { at: [-0.9, 0, -0.2], turn: { y: 90 } };
+      for (const k of [SIDE.upper, SIDE.lower]) at(placement(scene, k), "mount").on = "fx-desk";
+    });
+    expect(sides(t)).toEqual([false, false, false, false]);
+    expect(reasons(t)).toEqual(NOT_SIDE_WALL);
+  });
+
+  it("refuses a shell anchor named left-wall without a side wall's quarter turn about Y", () => {
+    // The anchor unturned, and the signs with it, so they hang where they did.
+    const t = sideWall((scene, shell) => {
+      at(shell, "anchors", "left-wall").turn = { y: 0 };
+      for (const k of [SIDE.upper, SIDE.lower]) delete at(placement(scene, k), "mount").turn;
+    });
+    expect(sides(t)).toEqual([false, false, false, false]);
+    expect(reasons(t)).toEqual(NOT_SIDE_WALL);
+  });
+
+  it("refuses another selectable's core over a list-only side-wall selectable's member, naming that selectable", () => {
+    // A sign on the floor 5 cm in front of the lower one, 0.2 m to its right, a selectable of its own.
+    const t = sideWall((scene) => {
+      (scene.placements as Doc[]).push({
+        id: "fx-probe",
+        piece: "fx-sign",
+        mount: { on: "fx-shell", anchor: "floor", offset: [-0.7, 1.0456, -0.75] },
+        frame: true,
+      });
+      (scene.selectables as Doc[]).push({
+        id: "fx-probe",
+        name: "Fixture probe",
+        members: ["fx-probe"],
+        action: { resume: {} },
+      });
+    });
+    expect(reasons(t)).toContain(
+      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 304 × 208 and 1726 others",
+    );
+  });
+});
+
 describe("RG7: legibility at the production framing on both reference stages", () => {
   const PANEL = "placements[3].faces.panel";
 
-  it("holds the neon word to the floor on the desktop stage, and lets it fall under it on the phone", () => {
-    // The word is a readable face of a piece with a turn-cost region: on the reference phone its words and figures
-    // also appear as text in the "Around the room" copy, so RG7 exempts it there (FR-052's amendment, 2026-10-23).
-    expect(
-      rg(tree({ [SCENE]: (d) => (at(d, "placements", 3, "faces", "panel", "regions", 0, "grid").chars = 20) })),
-    ).toEqual([]);
+  it("prints a face's cap height to 0.1 px, the stage, and the floor", () => {
     const wide = rg(
-      tree({ [SCENE]: (d) => (at(d, "placements", 3, "faces", "panel", "regions", 0, "grid").chars = 40) }),
+      tree({ [SCENE]: (d) => (at(d, "placements", 3, "faces", "panel", "regions", 0, "grid").chars = 20) }),
     );
     expect(where(wide)).toEqual([`RG7 ${SCENE}:${PANEL}`]);
-    expect(wide[0]?.reason).toMatch(/^cap height \d\.\d px on the desktop stage, under the floor of 9$/);
+    expect(wide[0]?.reason).toMatch(/^cap height \d\.\d px on the phone stage, under the floor of 9$/);
   });
 
   it("takes the floor from main's caps", () => {
-    // At 11 px the monitor's phone cap, 12.0 px, still meets the floor, and the neon panel's is under it but exempt
-    // on the phone (FR-052's amendment, 2026-10-23), so nothing is refused.
-    expect(rg(goodTree(), floorOf(11))).toEqual([]);
-    const raised = rg(goodTree(), floorOf(13));
-    expect(where(raised)).toEqual([`RG7 ${SCENE}:placements[2].faces.screen`]);
-    expect(raised[0]?.reason).toMatch(/^cap height 12\.\d px on the phone stage, under the floor of 13$/);
+    const raised = rg(goodTree(), floorOf(11));
+    expect(where(raised)).toEqual([`RG7 ${SCENE}:${PANEL}`]);
+    expect(raised[0]?.reason).toMatch(/^cap height 10\.\d px on the phone stage, under the floor of 11$/);
     expect(rg(goodTree(), floorOf(10))).toEqual([]);
   });
 
   it("measures a sign by its outline's cap height", () => {
-    const small = rg(tree({ [OUTLINE]: (d) => (d.cap_height = 20) }));
+    const small = rg(tree({ [OUTLINE]: (d) => (d.cap_height = 15) }));
     expect(where(small)).toEqual([
       `RG7 ${SCENE}:placements[6].faces.lettering`,
       `RG7 ${SCENE}:placements[6].faces.lettering`,
@@ -373,13 +530,8 @@ describe("RG7: legibility at the production framing on both reference stages", (
       expect(f.phone).toBeGreaterThan(9);
       expect(f.phone).toBeLessThan(f.desktop ?? 0);
     }
-    // A floor just over the smallest of them refuses that face alone, with its own number. The neon panel, exempt on
-    // the phone (FR-052's amendment, 2026-10-23), is left out of the measure: at 11 px nothing is refused, and the
-    // floor just over the monitor's phone cap refuses the monitor alone.
-    expect(rg(goodTree(), floorOf(11))).toEqual([]);
-    const least = faces
-      .filter((f) => f.face !== "fx-neon.panel")
-      .reduce((a, b) => ((b.phone ?? Infinity) < (a.phone ?? Infinity) ? b : a));
+    // A floor just over the smallest of them refuses that face alone, with its own number.
+    const least = faces.reduce((a, b) => ((b.phone ?? Infinity) < (a.phone ?? Infinity) ? b : a));
     const floor = Math.ceil(((least.phone ?? 0) + 0.01) * 100) / 100;
     const refused = rg(goodTree(), floorOf(floor));
     expect(where(refused)).toEqual([`RG7 ${SCENE}:placements[${least.placement}].faces.${least.role}`]);
@@ -388,27 +540,6 @@ describe("RG7: legibility at the production framing on both reference stages", (
     );
     // Without a use's ratio its text regions go unmeasured; a sign's outline needs none.
     expect(faceCaps(g, []).map((f) => f.phone !== null)).toEqual([false, false, false, true]);
-  });
-
-  it("names a phone-exempt face, and what carries it, in the report's legibility table", () => {
-    // At 13 px the neon panel's phone cap is under the floor and the monitor's too: the panel is exempt there, its
-    // words and figures carried by the text copy (FR-052's amendment, 2026-10-23), the monitor is refused.
-    const report = compose(goodTree(), floorOf(13), { mode: "strict", drafts: true }).report.markdown;
-    const status = (face: string): string => {
-      const line = report.split("\n").find((l) => l.startsWith(`| \`${face}\` `));
-      if (line === undefined) throw new Error(`the report has no legibility row for ${face}`);
-      const cell = line
-        .slice(2, -1)
-        .split(" | ")
-        .map((c) => c.trim())
-        .at(-1);
-      if (cell === undefined) throw new Error(`the report's row for ${face} has no status`);
-      return cell;
-    };
-    expect(status("fx-neon.panel")).toBe('exempt on the phone, carried by the text copy\'s "Around the room"');
-    expect(status("fx-monitor.screen")).toBe("under");
-    expect(status("fx-board.slate")).toBe("readable");
-    expect(status("fx-sign.lettering")).toBe("readable");
   });
 });
 

@@ -1,0 +1,118 @@
+# The side-wall overlay's scene (README.md): the known-good scene with fx-board moved right, a sign far left that sets the
+# frame's left edge, and two signs on the shell's left-wall anchor, one over the other, each a selectable. The framing is
+# width-bound at every aspect up to the 2D drawing's 1.6, so on every stage the signs' gap scales with the stage's width:
+# their cores overlap at the 27 stages 304 px wide and in 2D at 0.95, FR-064's smallest stages, and nowhere else.
+#   0 fx-shell  1 fx-desk  2 fx-monitor  3 fx-neon  4 fx-laptop  5 fx-board  6 fx-sign  7 fx-twin  8 fx-visitor
+#   9 fx-edge  10 fx-upper  11 fx-lower; selectables 0 fx-workstation  1 fx-board  2 fx-upper  3 fx-lower
+version: 1
+look: fx-cel
+live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
+placements:
+  - { id: fx-shell, piece: fx-shell }
+  - id: fx-desk
+    piece: fx-desk
+    mount: { on: fx-shell, anchor: floor, offset: [0, 0, -0.6], estimated: true }
+    label: label.fx-desk
+  - id: fx-monitor
+    piece: fx-monitor
+    mount: { on: fx-desk, anchor: top, offset: [-0.28, 0, -0.2] }
+    frame: true
+    label: label.fx-monitor
+    faces:
+      screen:
+        label: label.fx-screen
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: terminal, grid: { cols: 12, rows: 3 }, text: fx-script }
+  - id: fx-neon
+    piece: fx-neon
+    mount: { on: fx-monitor, anchor: top-edge }
+    frame: true
+    faces:
+      panel:
+        label: label.fx-neon
+        regions:
+          - { rect: [0, 0, 0.32, 0.45], renderer: neon, grid: { chars: 10 }, ui: [sign.word] }
+          - { rect: [0, 0.5, 1, 0.5], renderer: neon, grid: { chars: 24 }, signal: turn-cost, part: call }
+          - { rect: [0.32, 0, 0.68, 0.4], renderer: neon, grid: { chars: 24 }, signal: turn-cost, part: visit }
+  - id: fx-laptop
+    piece: fx-laptop
+    mount: { on: fx-desk, anchor: top, offset: [0.17, 0, 0], turn: { y: -10 } }
+    frame: true
+    label: label.fx-laptop
+  - id: fx-board
+    piece: fx-board
+    mount: { on: fx-shell, anchor: wall, offset: [0.8, 0.35, 0] }
+    frame: true
+    faces:
+      slate:
+        label: label.fx-slate
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: chalk, grid: { rows: 3 }, text: fx-notes }
+  - id: fx-sign
+    piece: fx-sign
+    mount: { on: fx-desk, anchor: top, offset: [-0.4, 0, 0.15] }
+    faces:
+      lettering:
+        label: label.fx-lettering
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: sign, text: fx-sign-words }
+  - id: fx-twin
+    piece: fx-twin
+    role: twin
+    mount: { on: fx-desk, anchor: top, offset: [0.48, 0, 0.12] }
+    frame: true
+  - id: fx-visitor
+    piece: fx-visitor
+    role: visitor
+    mount: { on: fx-shell, anchor: floor, offset: [0, 0, 0.8] }
+  - id: fx-edge
+    piece: fx-sign
+    mount: { on: fx-shell, anchor: floor, offset: [-1.3125, 1.5, -0.8] }
+    frame: true
+  - id: fx-upper
+    piece: fx-sign
+    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.5, 0], turn: { y: -90 } }
+    frame: true
+  - id: fx-lower
+    piece: fx-sign
+    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.09, 0], turn: { y: -90 } }
+    frame: true
+switches:
+  - id: fx-power
+    signal: tier
+    piece: fx-plug
+    label: label.fx-power
+    poses:
+      fx-plugged:
+        mount: { on: fx-laptop, anchor: port, offset: [0.03, 0, 0], turn: { y: 90 } }
+        glows: [{ placement: fx-laptop, glow: fx-charge, level: 1 }]
+      fx-cloud: { mount: { on: fx-desk, anchor: back-edge, offset: [0.4, 0, 0.05] } }
+      fx-resting: { mount: { on: fx-desk, anchor: top, offset: [0.5, 0, 0.15] } }
+    cases:
+      local: fx-plugged
+      cloud: fx-cloud
+      resting: fx-resting
+      budget: fx-resting
+      unavailable: fx-resting
+      unknown: fx-resting
+      paused: fx-resting
+      not-live: fx-resting
+    cable:
+      from: lead
+      to: { placement: fx-desk, anchor: back-edge }
+      sag: 0.2
+      radius: 0.004
+      drop: 0.05
+      rest: { placement: fx-desk, anchor: top }
+selectables:
+  - id: fx-workstation
+    name: Fixture workstation
+    members: [fx-monitor, fx-laptop]
+    action: { talk: { topic: fx-work, lead: Fixture lead about the work first. } }
+  - { id: fx-board, name: Fixture board, members: [fx-board], action: { resume: {} } }
+  - { id: fx-upper, name: Fixture upper sign, members: [fx-upper], action: { resume: {} } }
+  - { id: fx-lower, name: Fixture lower sign, members: [fx-lower], action: { resume: {} } }
+handoff: { from: { placement: fx-twin, anchor: hand }, to: { placement: fx-visitor, anchor: hand } }
+survey: { desk_corner: { placement: fx-desk, anchor: corner } }
+retired:
+  - { id: fx-old-lamp, kinds: [piece, placement], retired: "2026-10-01", reason: Fixture lamp removed from the room. }

@@ -7,13 +7,14 @@
 // scene order, named by its name with a visually hidden ": " and its topic's phrase, or the resume action's UI word,
 // under the index's own heading. Expectations come from compose(), of the repository's data and of the fixture set,
 // whose IDs are synthetic fx- ones.
-import { describe, expect, it } from "vitest";
+import { JSDOM } from "jsdom";
+import { describe, expect, it, vi } from "vitest";
 
 import { compose } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
+import { renderObjectList } from "../../src/room/a11y";
 import type { RoomIndex } from "../../src/room/compose/bundle";
-import { flatCore, pickAreas, pickProblems } from "../../src/room/compose/pick";
-import { FLAT_VIEW, flatScale, supportedStages } from "../../src/room/compose/stages";
+import { renderFlat } from "../../src/room/flat";
 import {
   AI_DISCLOSURE,
   axeViolations,
@@ -33,7 +34,7 @@ import {
   textOf,
 } from "../helpers/room";
 import type { CssRule, Visit } from "../helpers/room";
-import { goodTree } from "../helpers/room-fixtures";
+import { goodTree, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 
 /** The "In the room" list's buttons by their accessible names, as the index gives them: in scene order, each name, a
  *  ": ", and its topic's phrase, or the resume action's UI word. */
@@ -245,27 +246,10 @@ describe("assistive technology", () => {
     const flat = v.doc.querySelector(".flat");
     expect(flat?.getAttribute("aria-hidden")).toBe("true");
     expect(flat?.querySelectorAll("button, a, input, [tabindex]")).toHaveLength(0);
-    // Each selectable the drawing holds is cued in the drawing (spec 004, T109), and every selectable has its
-    // button in the list; a side-wall selectable the drawing's smallest scale can't give its exclusive core to is
-    // list-only there, its cue going with its pick area (FR-064's amendment, 2026-10-23).
-    const index = roomIndex();
-    const count = index.selectables.length;
+    // Each selectable is cued in the drawing (spec 004, T109), and has its button in the list.
+    const count = roomIndex().selectables.length;
+    expect(flat?.querySelectorAll(".flat-cue")).toHaveLength(count);
     expect(v.doc.querySelectorAll(".room-list button")).toHaveLength(count);
-    const smallest = supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
-    const areas = pickAreas(
-      index.flat.hits.map((hit) => ({
-        id: hit.selectable,
-        members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
-      })),
-      flatCore(smallest),
-    );
-    const flagged = new Set(pickProblems(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h]).map((p) => p.selectable));
-    const listOnly = new Set(
-      areas
-        .filter((a) => index.selectables.find((x) => x.id === a.id)?.side_wall && flagged.has(a.id))
-        .map((a) => a.id),
-    );
-    expect(flat?.querySelectorAll(".flat-cue")).toHaveLength(count - listOnly.size);
   });
 
   it("has polite live regions for the hand-off line and the twin's words, in the page before either speaks", () => {
@@ -289,6 +273,44 @@ describe("assistive technology", () => {
       expect(await axeViolations(v), name).toEqual([]);
     }
   }, 60_000);
+});
+
+// T295 (spec 004; FR-063, FR-064, SC-009): over T292's side-wall overlay (test/fixtures/room/README.md), the "In the
+// room" list reaches every selectable at every stage, the list-only side-wall ones among them, by a named button; the
+// 2D drawing, aria-hidden, hides their cues where they have no pick area and shows the rest.
+describe("the side-wall selectables' road in (FR-064's carve-out)", () => {
+  it("gives every selectable its named button, and hides only the list-only ones' cues on a 304 px stage", () => {
+    const { index } = compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: false });
+    const doc = new JSDOM("<main></main>").window.document;
+    const select = vi.fn<(id: string) => void>();
+    const list = renderObjectList(doc, index, select);
+    doc.body.append(list);
+    const buttons = [...list.querySelectorAll("button")];
+    expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual([
+      "fx-workstation",
+      "fx-board",
+      "fx-upper",
+      "fx-lower",
+    ]);
+    expect(buttons.map(nameOf)).toEqual(objectButtons(index));
+    for (const b of buttons) b.click();
+    expect(select.mock.calls).toEqual([["fx-workstation"], ["fx-board"], ["fx-upper"], ["fx-lower"]]);
+    for (const stage of [
+      { w: 304, h: 208 },
+      { w: 368, h: 420 },
+    ]) {
+      const flat = renderFlat(doc, { room: index, avatar: "dog", select });
+      const s = Math.min(stage.w / 320, stage.h / 200);
+      flat.resize({ w: 320 * s, h: 200 * s }, stage);
+      expect(flat.element.getAttribute("aria-hidden")).toBe("true");
+      expect(flat.element.querySelectorAll("button, a, input, [tabindex]")).toHaveLength(0);
+      const hidden = [...flat.drawing.cues].filter(([, c]) => c.area.getAttribute("visibility") === "hidden");
+      expect(
+        hidden.map(([id]) => id),
+        `${stage.w} × ${stage.h}`,
+      ).toEqual(stage.w === 304 ? ["fx-upper", "fx-lower"] : []);
+    }
+  });
 });
 
 describe("the AI disclosure", () => {

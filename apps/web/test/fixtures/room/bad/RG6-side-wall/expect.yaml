@@ -1,0 +1,14 @@
+rule: RG6
+file: apps/web/room/scene.yaml
+path: selectables[2]
+why: the side-wall overlay's signs nearer the camera and closer together, their cores overlapping from 312 × 288, a stage outside FR-064's smallest, where no side-wall selectable goes without its core
+caps:
+  schema: 1
+  per_asset:
+    room:
+      gzip_bytes: 2500000
+      triangles: 40000
+      small_props: []
+      small_prop_texture_px: 1024
+      scene_texture_bytes: 96000000
+      legibility_floor_css_px: 5

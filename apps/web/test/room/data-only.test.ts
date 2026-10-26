@@ -42,7 +42,7 @@ import type { Box } from "../../src/room/compose/framing";
 import { IDENTITY, invert, origin, sub, transformPoint } from "../../src/room/compose/math";
 import type { Vec3 } from "../../src/room/compose/math";
 import { anchorWorld, mountWorld, resolveMounts } from "../../src/room/compose/mount";
-import { CORE_PX, flatCore, memberRect, pick, pickAreas, pickProblems } from "../../src/room/compose/pick";
+import { CORE_PX, flatCore, listOnly, memberRect, pick, pickAreas } from "../../src/room/compose/pick";
 import type { PickArea, Rect } from "../../src/room/compose/pick";
 import type { Camera } from "../../src/room/compose/project";
 import {
@@ -50,10 +50,11 @@ import {
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
   flatScale,
+  fr064SmallestStages,
   supportedStages,
 } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
-import { TIER_VALUES } from "../../src/room/compose/vocabulary";
+import { TIER_VALUES, isSideWallAnchor } from "../../src/room/compose/vocabulary";
 import type { RoomEvent } from "../../src/room/events";
 import { flatPicker } from "../../src/room/flat";
 import { resumeView } from "../../src/room/resume-port";
@@ -176,21 +177,6 @@ const wallAnchor = must(
   "anchor on the root",
 );
 
-/** The side-wall selectables (FR-064's amendment, 2026-10-23): each member mounted on the room's shell, on the
- *  shell's side-wall anchors. Where a stage can't hold their exclusive core, the room draws no pick area for them
- *  and the "In the room" list reaches them. */
-const SIDE_WALLS = new Set(
-  SCENE.selectables.flatMap((sel) =>
-    sel.members.length > 0 &&
-    sel.members.every((m) => {
-      const p = SCENE.placements.find((x) => x.id === m);
-      return p?.mount?.on === root.id && (p.mount.anchor === "left-wall" || p.mount.anchor === "right-wall");
-    })
-      ? [sel.id]
-      : [],
-  ),
-);
-
 // The added piece, its placement, its selectable, its topic, and its label: synthetic IDs, a name and a label word
 // apart, so the 2D cue's name tag and the stand-in's label can't be taken for each other.
 const ADDED = "fx-added";
@@ -229,10 +215,9 @@ const addedPiece = {
 // composes, whatever the committed layout: the added piece's frame box keeps every camera where the committed room
 // puts it (each supported stage's aspect and the 2D drawing's), so no other piece moves on screen and no face's cap
 // height changes; and at every supported stage, in 3D and in 2D, its 44 × 44 core stays in the view and clear of every
-// other selectable's union and core, and no other core meets its rectangle, a side-wall selectable's core apart,
-// which the amendment of 2026-10-23 holds list-only, which is all pick.ts's `pickProblems` refuses. A room the rules
-// accept, with room on its wall for one more core, takes the addition clean; one without it fails here, where an
-// addition would need a move too, as the regroup's does.
+// other selectable's union and core, and no other core meets its rectangle, which is all pick.ts's `pickProblems`
+// refuses. A room the rules accept, with room on its wall for one more core, takes the addition clean; one without it
+// fails here, where an addition would need a move too, as the regroup's does.
 const NO_TURN = { x: 0, y: 0, z: 0 } as const;
 /** How far the added piece stands out from the wall anchor's plane, in metres. */
 const OUT = 0.02;
@@ -263,15 +248,15 @@ const apart = (a: Rect, b: Rect): number =>
   Math.max(b[0] - (a[0] + a[2]), a[0] - (b[0] + b[2]), b[1] - (a[1] + a[3]), a[1] - (b[1] + b[3]));
 
 /** The added piece's clearance in one view: its core's margin inside the view and from every other selectable's union
- *  and core, and every other core's from its rectangle; under 0 where pickProblems would refuse it. A side-wall
- *  selectable's core (FR-064's amendment, 2026-10-23) is never the subject of a problem over the rectangle, so it
- *  doesn't count. */
+ *  and core, and every other core's from its rectangle; under 0 where pickProblems would refuse it. A selectable the
+ *  view holds (FR-064's carve-out, see listOnly) has no union or core there, only its members, which the core must
+ *  clear. */
 function clearance(
   rect: Rect,
   others: readonly PickArea[],
   core: number,
   view: Rect,
-  sideWalls: ReadonlySet<string>,
+  held: ReadonlySet<string>,
 ): number {
   const c = must(pickAreas([{ id: ADDED_PICK, members: [{ rect, depth: 0 }] }], core)[0]?.core, "core");
   let least = Math.min(
@@ -281,16 +266,18 @@ function clearance(
     view[1] + view[3] - c[1] - c[3],
   );
   for (const o of others) {
-    if (o.union) least = Math.min(least, apart(c, o.union));
-    if (o.core) {
-      least = Math.min(least, apart(c, o.core));
-      if (!sideWalls.has(o.id)) least = Math.min(least, apart(o.core, rect));
+    if (held.has(o.id)) {
+      for (const m of o.members) least = Math.min(least, apart(c, m.rect));
+      continue;
     }
+    if (o.union) least = Math.min(least, apart(c, o.union));
+    if (o.core) least = Math.min(least, apart(c, o.core), apart(o.core, rect));
   }
   return least;
 }
 
-/** One view the spacing check (RG6) measures: a supported stage's at its production framing, or the 2D drawing's. */
+/** One view the spacing check (RG6) measures: a supported stage's at its production framing, or the 2D drawing's at
+ *  a supported stage's scale. */
 interface View {
   readonly camera: Camera;
   readonly stage: Stage;
@@ -298,32 +285,42 @@ interface View {
   readonly core: number;
   /** The 2D drawing's rectangles are on the index's grid, 1e-4 view-box units. */
   readonly grid: boolean;
+  /** The selectables FR-064's carve-out holds there, by the kernel's listOnly. */
+  readonly held: ReadonlySet<string>;
 }
 
+/** The index's side-wall selectables. */
+const sideWallIds = (): ReadonlySet<string> =>
+  new Set(base.index.selectables.filter((s) => s.side_wall).map((s) => s.id));
+
 /** Every view RG6 measures, framed over the committed room's framed boxes, and each with the committed selectables'
- *  pick areas there: in 3D as bundle3d.ts's pickAreasOn gives them, in 2D from the index's flat hits. */
+ *  pick areas there: in 3D as bundle3d.ts's pickAreasOn gives them, in 2D from the index's flat hits at each supported
+ *  stage's scale, once a scale. */
 function views(): View[] {
   const framed = framedBoxes(base.scene);
+  const sideWall = sideWallIds();
   const out: View[] = supportedStages().map((stage) => {
     const camera = framing(stage.w / stage.h, framed);
-    return { camera, stage, others: pickAreasOn(base.scene, base.index, camera, stage), core: CORE_PX, grid: false };
+    const others = pickAreasOn(base.scene, base.index, camera, stage);
+    const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall, stage);
+    return { camera, stage, others, core: CORE_PX, grid: false, held };
   });
-  const smallest = supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
-  const others = pickAreas(
-    base.index.flat.hits.map((h) => ({
-      id: h.selectable,
-      members: h.rects.map((rect, k) => ({ rect, depth: h.depths[k] ?? 0 })),
-    })),
-    flatCore(smallest),
-  );
-  out.push({
-    camera: framing(FLAT_VIEW.w / FLAT_VIEW.h, framed),
-    stage: FLAT_VIEW,
-    others,
-    core: flatCore(smallest),
-    grid: true,
-  });
-  return out;
+  const flat = framing(FLAT_VIEW.w / FLAT_VIEW.h, framed);
+  const seen = new Map<string, View>();
+  for (const stage of supportedStages()) {
+    const others = pickAreas(
+      base.index.flat.hits.map((h) => ({
+        id: h.selectable,
+        members: h.rects.map((rect, k) => ({ rect, depth: h.depths[k] ?? 0 })),
+      })),
+      flatCore(stage),
+    );
+    const held = listOnly(others, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h], sideWall, stage);
+    const key = `${flatScale(stage)}\n${[...held].join("\n")}`;
+    if (!seen.has(key))
+      seen.set(key, { camera: flat, stage: FLAT_VIEW, others, core: flatCore(stage), grid: true, held });
+  }
+  return [...out, ...seen.values()];
 }
 
 /** The added piece's least clearance over these views, -Infinity where it moves a camera or falls behind one. */
@@ -335,7 +332,7 @@ function clearanceOver(box: Box, over: readonly View[]): number {
     if (!member) return -Infinity;
     const q = (n: number): number => (v.grid ? Math.round(n * 1e4) / 1e4 : n);
     const rect: Rect = [q(member.rect[0]), q(member.rect[1]), q(member.rect[2]), q(member.rect[3])];
-    least = Math.min(least, clearance(rect, v.others, v.core, [0, 0, v.stage.w, v.stage.h], SIDE_WALLS));
+    least = Math.min(least, clearance(rect, v.others, v.core, [0, 0, v.stage.w, v.stage.h], v.held));
   }
   return least;
 }
@@ -430,67 +427,23 @@ describe("the committed data (R-68)", () => {
     expect(base.index.selectables.length).toBeGreaterThan(0);
   });
 
-  it("flags the side-wall selectables in the index, by the structure the room hangs them", () => {
-    expect(base.index.selectables.map((s) => [s.id, s.side_wall])).toEqual(
-      SCENE.selectables.map((sel) => [sel.id, SIDE_WALLS.has(sel.id)]),
-    );
+  it("flags side-wall selectables in the index, each member hung on the shell's side-wall anchors", () => {
+    const flagged = SCENE.selectables.filter((sel) => base.index.selectables.find((x) => x.id === sel.id)?.side_wall);
+    expect(flagged.length).toBeGreaterThan(0);
+    for (const sel of flagged)
+      for (const m of sel.members) {
+        const mount = SCENE.placements.find((p) => p.id === m)?.mount;
+        expect(mount?.on, m).toBe(root.id);
+        expect(isSideWallAnchor(mount?.anchor ?? ""), m).toBe(true);
+      }
   });
 
-  it("names the side-wall selectables, and the stages the room reaches them from the list", () => {
-    // FR-064's amendment (2026-10-23): the report names each side-wall selectable, and the stages, in 3D and in the
-    // 2D drawing, where the room draws no pick area for it.
-    const lines = base.report.markdown.split("\n");
-    const at = lines.indexOf(
-      'Side-wall selectables (FR-064): the room draws no pick area for them at the stages named, and the "In the room" list reaches them.',
-    );
-    expect(at).toBeGreaterThan(0);
-    const framed = framedBoxes(base.scene);
-    const size = (s: Stage): string => `${Number(s.w.toFixed(1))} × ${Number(s.h.toFixed(1))}`;
-    const rows = SCENE.selectables.flatMap((sel) => {
-      if (!SIDE_WALLS.has(sel.id)) return [];
-      const walls = [
-        ...new Set(
-          sel.members
-            .map((m) => SCENE.placements.find((x) => x.id === m)?.mount?.anchor)
-            .filter((a): a is "left-wall" | "right-wall" => a === "left-wall" || a === "right-wall"),
-        ),
-      ];
-      const stages = supportedStages().filter((stage) =>
-        pickProblems(pickAreasOn(base.scene, base.index, framing(stage.w / stage.h, framed), stage), [
-          0,
-          0,
-          stage.w,
-          stage.h,
-        ]).some((p) => p.selectable === sel.id),
-      );
-      const flat = pickProblems(
-        pickAreas(
-          base.index.flat.hits.map((hit) => ({
-            id: hit.selectable,
-            members: hit.rects.map((rect, i) => ({ rect, depth: hit.depths[i] ?? Number.POSITIVE_INFINITY })),
-          })),
-          flatCore(
-            must(
-              supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a)),
-              "stage",
-            ),
-          ),
-        ),
-        [0, 0, FLAT_VIEW.w, FLAT_VIEW.h],
-      ).some((p) => p.selectable === sel.id);
-      const first = stages[0];
-      const cell =
-        first === undefined
-          ? "–"
-          : stages.length === 1
-            ? `list-only at ${size(first)}`
-            : `list-only at ${size(first)} and ${stages.length - 1} other supported stage${stages.length - 1 === 1 ? "" : "s"}`;
-      return [`| \`${sel.id}\` (${walls.join(" / ")}) | ${cell} | ${flat ? "list-only" : "–"} |`];
-    });
-    expect(rows.length).toBeGreaterThan(0);
-    expect(lines).toContain("| Selectable | 3D | 2D |");
-    expect(lines).toContain("|---|---|---|");
-    for (const row of rows) expect(lines).toContain(row);
+  it("names only side-wall selectables in the report's side-wall section", () => {
+    const rows = base.report.markdown
+      .split("\n")
+      .filter((l) => /^\| `[^`]+` \((left-wall|right-wall)(, right-wall)?\) \|/.test(l));
+    const named = rows.map((r) => must(/^\| `([^`]+)`/.exec(r)?.[1], "row"));
+    for (const id of named) expect(base.index.selectables.find((x) => x.id === id)?.side_wall, id).toBe(true);
   });
 });
 
@@ -820,6 +773,50 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
     }
   });
 
+  it("holds side-wall selectables at FR-064's smallest stages alone, and picks every other as the kernel does", () => {
+    const framed = framedBoxes(base.scene);
+    const sideWall = sideWallIds();
+    let heldSomewhere = 0;
+    for (const stage of [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage, ...fr064SmallestStages().slice(0, 3)]) {
+      const areas = pickAreasOn(base.scene, base.index, framing(stage.w / stage.h, framed), stage);
+      const held = listOnly(areas, [0, 0, stage.w, stage.h], sideWall, stage);
+      heldSomewhere += held.size;
+      for (const id of held) expect(sideWall.has(id), id).toBe(true);
+      const picker = selectablePicker(base.scene, base.index);
+      picker.resize(stage);
+      for (const a of areas) {
+        const core = must(a.core, "core");
+        const [x, y] = [core[0] + core[2] / 2, core[1] + core[3] / 2];
+        expect(picker.pick({ x: (x / stage.w) * 2 - 1, y: 1 - (y / stage.h) * 2 })).toBe(pick(areas, [x, y], held));
+        if (!held.has(a.id)) expect(pick(areas, [x, y], held), a.id).toBe(a.id);
+      }
+    }
+    // The committed cube leaves its left wall's boards to the list on the smallest stages.
+    expect(heldSomewhere).toBeGreaterThan(0);
+  });
+
+  it("hides a held side-wall selectable's 2D cue on the smallest stage, and only there", () => {
+    const stage = must(fr064SmallestStages()[0], "stage");
+    const picker = flatPicker(base.index.flat.hits, base.index);
+    const box = (s: Stage): Stage => ({ w: FLAT_VIEW.w * flatScale(s), h: FLAT_VIEW.h * flatScale(s) });
+    picker.resize(box(stage), stage);
+    expect(picker.held().size).toBeGreaterThan(0);
+    for (const id of picker.held()) expect(sideWallIds().has(id), id).toBe(true);
+    picker.resize(box(REFERENCE_DESKTOP.stage), REFERENCE_DESKTOP.stage);
+    expect([...picker.held()]).toEqual([]);
+  });
+
+  it('reaches every selectable from the "In the room" list', async () => {
+    const v = visit(base);
+    await intoRoom(v);
+    for (const s of base.index.selectables) {
+      const found = [...v.doc.querySelectorAll("button")].filter((b) => b.getAttribute("data-object-id") === s.id);
+      expect(found).toHaveLength(1);
+      found[0]?.click();
+      expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: s.id });
+    }
+  });
+
   it("gets a button in the list, which selects it", async () => {
     const v = visit(addition().result);
     await intoRoom(v);
@@ -845,86 +842,6 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
     expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: ADDED_PICK });
     expect(textOf(talkLog(v.doc).lastElementChild)).toBe(MESSAGES.topic_not_ready.replace("{topic}", ADDED_PHRASE));
     expect(v.spies.network).toEqual([]);
-  });
-
-  it("draws no pick area for a side-wall selectable the stage can't hold, and picks the rest as the kernel does", () => {
-    // FR-064's amendment (2026-10-23): at a stage where the wall's strip can't hold the selectable's exclusive core,
-    // the room draws no pick area for it, and the pointer picks elsewhere as before.
-    const framed = framedBoxes(base.scene);
-    for (const stage of [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage]) {
-      const areas = pickAreasOn(base.scene, base.index, framing(stage.w / stage.h, framed), stage);
-      const flagged = new Set(pickProblems(areas, [0, 0, stage.w, stage.h]).map((p) => p.selectable));
-      const excluded = new Set(areas.filter((a) => SIDE_WALLS.has(a.id) && flagged.has(a.id)).map((a) => a.id));
-      const picker = selectablePicker(base.scene, base.index);
-      picker.resize(stage);
-      for (const a of areas) {
-        const core = a.core;
-        if (!core) continue;
-        const [x, y] = [core[0] + core[2] / 2, core[1] + core[3] / 2];
-        const expected = pick(
-          areas.filter((o) => !excluded.has(o.id)),
-          [x, y],
-        );
-        expect(picker.pick({ x: (x / stage.w) * 2 - 1, y: 1 - (y / stage.h) * 2 })).toBe(expected);
-        // Where the stage holds the core, the room still draws it: the point in the core picks its own selectable.
-        if (!excluded.has(a.id)) expect(expected).toBe(a.id);
-      }
-    }
-  });
-
-  it("draws no cue for a side-wall selectable the drawing holds list-only, and picks the rest", async () => {
-    const v = visit(base);
-    await intoRoom(v);
-    button(v.doc, "2D view").click();
-    await flush();
-    // The drawing's smallest scale, where the compositor's 2D check holds the cores.
-    const stage = must(
-      supportedStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a)),
-      "stage",
-    );
-    const areas = pickAreas(
-      base.index.flat.hits.map((hit) => ({
-        id: hit.selectable,
-        members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
-      })),
-      flatCore(stage),
-    );
-    const flagged = new Set(pickProblems(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h]).map((p) => p.selectable));
-    const excluded = new Set(areas.filter((a) => SIDE_WALLS.has(a.id) && flagged.has(a.id)).map((a) => a.id));
-    expect(excluded.size).toBeGreaterThan(0);
-    // The cues: a cue for every selectable the drawing holds, none for those it reaches from the list.
-    const names = [...v.doc.querySelectorAll(".flat-cue-name")].map((el) => textOf(el));
-    for (const s of base.index.selectables) expect(names.includes(s.name)).toBe(!excluded.has(s.id));
-    // The picker agrees with the kernel's pick over the areas the drawing holds.
-    const picker = flatPicker(base.index.flat.hits, base.index);
-    picker.resize(stage);
-    for (const a of areas) {
-      const core = a.core;
-      if (!core || excluded.has(a.id)) continue;
-      const [vx, vy] = [core[0] + core[2] / 2, core[1] + core[3] / 2];
-      const scale = flatScale(stage);
-      const [x, y] = [
-        vx * scale + (stage.w - FLAT_VIEW.w * scale) / 2,
-        vy * scale + (stage.h - FLAT_VIEW.h * scale) / 2,
-      ];
-      expect(picker.pick({ x: (x / stage.w) * 2 - 1, y: 1 - (y / stage.h) * 2 })).toBe(
-        pick(
-          areas.filter((o) => !excluded.has(o.id)),
-          [vx, vy],
-        ),
-      );
-    }
-  });
-
-  it('reaches every selectable from the "In the room" list, where the room draws no pick area for it', async () => {
-    const v = visit(base);
-    await intoRoom(v);
-    for (const s of base.index.selectables) {
-      const found = [...v.doc.querySelectorAll("button")].filter((b) => b.getAttribute("data-object-id") === s.id);
-      expect(found).toHaveLength(1);
-      found[0]?.click();
-      expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: s.id });
-    }
   });
 });
 

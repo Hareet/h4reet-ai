@@ -18,7 +18,7 @@ import { noPolicy } from "../../build/room/policy";
 import { textureMemory } from "../../src/room/glb/fit";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { desk, png, sign } from "../helpers/glb";
-import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
+import { countersTree, goodFiles, goodTree, overlay, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
 const decoder = new TextDecoder();
@@ -325,5 +325,57 @@ describe("the report's findings, and what it never holds", () => {
     expect(md).toContain("| placements[2].faces.screen | yes |");
     expect(md).toContain("| switches[0] | `fx-plugged` | switches[0].poses | `fx-resting` |");
     expect(md).toContain("| switches[0] | `fx-plugged` / switches[0].poses |");
+  });
+});
+
+// T294 (spec 004; FR-073, FR-052, FR-064; contracts/room-bundle.md §10; data-model.md §10.9): the legibility table's
+// exempt status, and the side-wall section after the legibility table, over T292's and T293's overlays
+// (test/fixtures/room/README.md).
+describe("the report's exempt faces and side-wall selectables", () => {
+  const SIDE_HEADING =
+    'Side-wall selectables (FR-064): the room draws no pick area for them at the stages named, and the "In the room" list reaches them.';
+
+  it("marks the counter face exempt on the phone, and the word face readable", () => {
+    const rows = lines(compose(countersTree(), noPolicy(), { mode: "strict", drafts: true }));
+    expect(rows).toContain(
+      '| `fx-neon.counters` | yes | 12.5 px | 7.2 px | 9 | -1.8 px | exempt on the phone, carried by the text copy\'s "Around the room" |',
+    );
+    expect(rows).toContain("| `fx-neon.panel` | yes | 28.1 px | 16.2 px | 9 | 7.2 px | readable |");
+  });
+
+  it("names each list-only side-wall selectable, its wall, and its 3D and 2D stages, after the legibility table", () => {
+    const rows = lines(compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: true }));
+    const at = rows.indexOf(SIDE_HEADING);
+    expect(at).toBeGreaterThan(rows.indexOf(FACE_HEADER));
+    expect(rows.slice(at - 1, at + 7)).toEqual([
+      "",
+      SIDE_HEADING,
+      "",
+      "| Selectable | 3D | 2D |",
+      "|---|---|---|",
+      "| `fx-upper` (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
+      "| `fx-lower` (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
+      "",
+    ]);
+    // The legibility table's last row is right above it.
+    expect(rows[at - 2]).toMatch(/^\| `fx-sign\.lettering` \| /);
+  });
+
+  it("reads Side-wall selectables: none. where none is list-only anywhere", () => {
+    const rows = lines(good());
+    expect(rows).toContain("Side-wall selectables: none.");
+    expect(rows).not.toContain(SIDE_HEADING);
+  });
+
+  it("names a side-wall selectable RT2 refused by its path", () => {
+    const tree = sideWallTree();
+    const out = emit(loadRoom(tree), sideWallPolicy(), { mode: "strict", drafts: true }, [], {
+      tree,
+      printable: (v) => v !== "fx-upper",
+    });
+    expect(out.report.markdown).not.toContain("fx-upper");
+    expect(out.report.markdown).toContain(
+      "| selectables[2] (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
+    );
   });
 });

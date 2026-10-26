@@ -8,6 +8,14 @@ Rooted like the repository: `good/apps/web/room/scene.yaml` is the tree's `apps/
 
 The scene's placements are, by index: 0 `fx-shell`, 1 `fx-desk`, 2 `fx-monitor`, 3 `fx-neon`, 4 `fx-laptop`, 5 `fx-board`, 6 `fx-sign`, 7 `fx-twin`, 8 `fx-visitor`. The known-bad cases name them so; a change to that order changes them too.
 
+## `side-wall/`: the side-wall overlay
+
+FR-064's carve-out's known-good overlay (T292; contracts/room-data-files.md §13.3), rooted like the repository: its two files replace the known-good set's (`test/helpers/room-fixtures.ts`'s `sideWallTree()`), and it composes with no finding under main's caps with a 5 px legibility floor (`sideWallPolicy()`), since the frame it widens makes the known-good set's faces smaller. The shell gains its `left-wall` and `right-wall` anchors, each a quarter turn about Y; `fx-board` moves right; a sign far left, `fx-edge`, sets the frame's left edge, so the framing is width-bound at every aspect up to the 2D drawing's 1.6; and two signs, `fx-upper` and `fx-lower`, hang on `left-wall`, one over the other, facing the room, each a selectable of its own. Their gap scales with the stage's width alone, so their cores overlap at the 27 supported stages 304 px wide and in 2D at 0.95, all FR-064's smallest stages, and nowhere else: each is list-only there. Its placements add 9 `fx-edge`, 10 `fx-upper`, and 11 `fx-lower`, and its selectables 2 `fx-upper` and 3 `fx-lower`. `bad/RG6-side-wall/` brings the signs nearer the camera and closer together, so RG6 refuses them at stages outside FR-064's smallest.
+
+## `counters/`: the counters overlay
+
+FR-052's exemption's known-good overlay (T293; contracts/room-data-files.md §13.3), rooted like the repository: its two files replace the known-good set's (`countersTree()`), and it composes with no finding. The neon panel `fx-neon` becomes two readable faces side by side: `panel`, bound to the UI word alone, and `counters`, bound to the two turn-cost regions alone. Under the floor of 9 px, the counter face falls under it on the reference phone alone, where RG7 exempts it, and meets it on the reference desktop; the word face meets it on both.
+
 ## `bad/<RULE>/`: one known-bad case each
 
 A case's folder is named by its rule, alone or with a suffix (`bad/RI4/`, `bad/RI4-label/`). It holds `expect.yaml`, and optionally `files/`, rooted like the repository, whose files replace or join the known-good set's. Adding a case is adding a folder: no test or helper changes.

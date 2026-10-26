@@ -19,7 +19,9 @@ import {
   TIER_VALUES,
   TURN_COST_PARTS,
   TYPEFACE_USES,
+  SIDE_WALL_ANCHORS,
   VOCABULARY,
+  isSideWallAnchor,
   isVocabulary,
 } from "../../src/room/compose/vocabulary";
 import { LABEL_KEY, SLOTS, UI_KEYS, isUiKey, slotsIn } from "../../src/room/ui-keys";
@@ -152,5 +154,17 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
     expect(LABEL_KEY.test(`label.a${"b".repeat(40)}`)).toBe(true);
     expect(LABEL_KEY.test(`label.a${"b".repeat(41)}`)).toBe(false);
     expect(LABEL_KEY.test("sign.word")).toBe(false);
+  });
+});
+
+// T292 (spec 004; FR-064; contracts/room-data-files.md §13.3): the shell's side-wall anchors are reserved names, both
+// side walls under Reading R2's default, with a type guard; they name anchors, not IDs, so RI5 doesn't hold them.
+describe("the side-wall anchors (compose/vocabulary.ts)", () => {
+  it("are left-wall and right-wall, outside the IDs' vocabulary", () => {
+    expect(SIDE_WALL_ANCHORS).toEqual(["left-wall", "right-wall"]);
+    expect(SIDE_WALL_ANCHORS.map(isSideWallAnchor)).toEqual([true, true]);
+    for (const other of ["back-wall", "wall", "floor", "Left-wall", "left-wall "])
+      expect(isSideWallAnchor(other), other).toBe(false);
+    for (const name of SIDE_WALL_ANCHORS) expect(isVocabulary(name)).toBe(false);
   });
 });

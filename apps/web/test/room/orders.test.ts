@@ -17,7 +17,7 @@ import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import { exportRules, RULE_TEXT } from "../../src/room/glb/rules";
 import { EVENT_KINDS } from "../../src/room/events";
-import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
+import { goodFiles, goodTree, overlay, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 import { capsPolicy } from "../helpers/room-models";
 
 const decoder = new TextDecoder();
@@ -392,6 +392,26 @@ describe("the photo guide (contracts/room-bundle.md §9.2)", () => {
       "- [ ] `fx-sign`: x 0.2, y 0, z -0.15 (estimated)",
       "- [ ] fixture desk: on the anchor `floor`, offset x 0, y 0, z -0.6 (estimated)",
       "- [ ] `fx-board`: on the anchor `wall`, offset x 0, y 0.35, z 0 (measured)",
+    ]);
+  });
+
+  it("reads a piece on a turned anchor of the shell as it is measured: from the back wall, and above the floor", () => {
+    // T300: the side-wall overlay's signs hang on the shell's left-wall anchor, a quarter turn about Y; the shell's
+    // bounds put its back wall at z -1.25 and its floor at y -0.05 (test/fixtures/room/README.md).
+    const text = file(
+      compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: true }),
+      "docs/studio/photo-guide.md",
+    );
+    const layout = section(text, "## The layout checklist");
+    expect(layout).toContain(
+      "A piece on a turned anchor of the shell, a side wall's, reads as it is measured: its origin's distance from the " +
+        "back wall, its height above the floor, and how far it stands out from the wall.",
+    );
+    const rows = layout.split("\n").filter((l) => l.startsWith("- [ ] `fx-"));
+    expect(rows.slice(-3)).toEqual([
+      "- [ ] `fx-edge`: on the anchor `floor`, offset x -1.3125, y 1.5, z -0.8 (measured)",
+      "- [ ] `fx-upper`: on the anchor `left-wall`, its origin 0.45 from the back wall and 1.55 above the floor, 0 out from the wall (measured)",
+      "- [ ] `fx-lower`: on the anchor `left-wall`, its origin 0.45 from the back wall and 1.0956 above the floor, 0 out from the wall (measured)",
     ]);
   });
 

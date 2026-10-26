@@ -14,7 +14,7 @@ import { noPolicy } from "../../build/room/policy";
 import { framing } from "../../src/room/compose/framing";
 import type { Box } from "../../src/room/compose/framing";
 import type { Vec3 } from "../../src/room/compose/math";
-import { CORE_PX, flatCore, memberRect, pick, pickAreas, pickProblems } from "../../src/room/compose/pick";
+import { CORE_PX, flatCore, listOnly, memberRect, pick, pickAreas, pickProblems } from "../../src/room/compose/pick";
 import type { MemberRect, PickInput, Rect } from "../../src/room/compose/pick";
 import { project, toStage, viewDepth } from "../../src/room/compose/project";
 import type { Camera } from "../../src/room/compose/project";
@@ -241,5 +241,93 @@ describe("pick areas (compose/pick.ts)", () => {
     expect(pickProblems(areas, [0, 0, 400, 400])).toEqual([
       { selectable: "fx-small", problem: "union", other: "fx-split" },
     ]);
+  });
+});
+
+// T292 (spec 004; FR-064, SC-009; data-model.md §4.5; contracts/room-data-files.md §13.3): FR-064's carve-out in the
+// kernel. At one of FR-064's smallest stages, `listOnly` gives the side-wall selectables that can't keep their exclusive
+// core there; at every other stage, none. A held selectable has no area: a pick whose frontmost member is one of its
+// members selects nothing (Reading R3), its core and union hold no point, and it is no problem's subject, nor its core
+// or union another's problem; its members still are.
+describe("FR-064's carve-out (compose/pick.ts listOnly)", () => {
+  const SMALL = { w: 304, h: 208 };
+  const view: Rect = [0, 0, SMALL.w, SMALL.h];
+  const inputs: PickInput[] = [
+    // Two side-wall selectables whose cores overlap, and one far off that keeps its core.
+    { id: "fx-side-a", members: [member(60, 40, 8, 30)] },
+    { id: "fx-side-b", members: [member(60, 70, 8, 30)] },
+    { id: "fx-side-c", members: [member(250, 40, 8, 30)] },
+    // Two selectables that aren't side-wall, whose cores overlap too.
+    { id: "fx-desk-a", members: [member(150, 150, 10, 10)] },
+    { id: "fx-desk-b", members: [member(170, 150, 10, 10)] },
+  ];
+  const areas = pickAreas(inputs);
+  const sideWall: ReadonlySet<string> = new Set(["fx-side-a", "fx-side-b", "fx-side-c"]);
+
+  it("holds, at one of FR-064's smallest stages, the side-wall selectables that can't keep their core there", () => {
+    expect([...listOnly(areas, view, sideWall, SMALL)]).toEqual(["fx-side-a", "fx-side-b"]);
+    expect([...listOnly(areas, [0, 0, 304, 640], sideWall, { w: 304, h: 640 })]).toEqual(["fx-side-a", "fx-side-b"]);
+    expect([...listOnly(areas, [0, 0, 686.4, 208], sideWall, { w: 686.4, h: 208 })]).toEqual([
+      "fx-side-a",
+      "fx-side-b",
+    ]);
+  });
+
+  it("holds none at any other stage, and none that the index doesn't flag side_wall", () => {
+    for (const stage of [
+      { w: 312, h: 224 },
+      { w: 320, h: 248 },
+      { w: 686.4, h: 640 },
+    ])
+      expect([...listOnly(areas, [0, 0, stage.w, stage.h], sideWall, stage)], `${stage.w} × ${stage.h}`).toEqual([]);
+    expect([...listOnly(areas, view, new Set(), SMALL)]).toEqual([]);
+    expect([...listOnly(areas, view, new Set(["fx-desk-a"]), SMALL)]).toEqual(["fx-desk-a"]);
+  });
+
+  it("picks nothing where a held selectable's member is frontmost, and gives its core and union no point", () => {
+    const held = new Set(["fx-side-a"]);
+    // On fx-side-a's member.
+    expect(pick(areas, [64, 55])).toBe("fx-side-a");
+    expect(pick(areas, [64, 55], held)).toBeNull();
+    // In both side-wall cores, off both members: the nearer union without the hold, the other with it.
+    expect(pick(areas, [50, 66])).toBe("fx-side-a");
+    expect(pick(areas, [50, 66], held)).toBe("fx-side-b");
+    // A member in front of a held one still picks.
+    const stacked = pickAreas([
+      { id: "fx-wall", members: [member(0, 0, 100, 100, 6)] },
+      { id: "fx-shelf", members: [member(40, 40, 20, 20, 2)] },
+    ]);
+    expect(pick(stacked, [50, 50], new Set(["fx-wall"]))).toBe("fx-shelf");
+    expect(pick(stacked, [10, 10], new Set(["fx-wall"]))).toBeNull();
+  });
+
+  it("keeps a held selectable out of the spacing check, but not another's core over its members", () => {
+    expect(pickProblems(areas, view)).toEqual([
+      { selectable: "fx-side-a", problem: "core", other: "fx-side-b" },
+      { selectable: "fx-side-a", problem: "member", other: "fx-side-b" },
+      { selectable: "fx-side-b", problem: "core", other: "fx-side-a" },
+      { selectable: "fx-side-b", problem: "member", other: "fx-side-a" },
+      { selectable: "fx-desk-a", problem: "core", other: "fx-desk-b" },
+      { selectable: "fx-desk-a", problem: "member", other: "fx-desk-b" },
+      { selectable: "fx-desk-b", problem: "core", other: "fx-desk-a" },
+      { selectable: "fx-desk-b", problem: "member", other: "fx-desk-a" },
+    ]);
+    // fx-side-a held: it is no subject, and fx-side-b's core over its core goes; over its member stays.
+    expect(pickProblems(areas, view, new Set(["fx-side-a"]))).toEqual([
+      { selectable: "fx-side-b", problem: "member", other: "fx-side-a" },
+      { selectable: "fx-desk-a", problem: "core", other: "fx-desk-b" },
+      { selectable: "fx-desk-a", problem: "member", other: "fx-desk-b" },
+      { selectable: "fx-desk-b", problem: "core", other: "fx-desk-a" },
+      { selectable: "fx-desk-b", problem: "member", other: "fx-desk-a" },
+    ]);
+    // A held selectable's union holds no point, so a core in the gap between its members is no problem.
+    const split = pickAreas([
+      { id: "fx-small", members: [member(100, 100, 10, 10)] },
+      { id: "fx-split", members: [member(85, 0, 10, 10), member(85, 300, 10, 10)] },
+    ]);
+    expect(pickProblems(split, [0, 0, 400, 400])).toEqual([
+      { selectable: "fx-small", problem: "union", other: "fx-split" },
+    ]);
+    expect(pickProblems(split, [0, 0, 400, 400], new Set(["fx-split"]))).toEqual([]);
   });
 });

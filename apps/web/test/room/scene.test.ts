@@ -172,11 +172,12 @@ describe("the object tree (buildRoom)", () => {
 
   it("moves what's mounted on a parent's anchor with its stylized scale, never scaling it", () => {
     const monitor = "apps/web/room/catalog/fx-monitor.yaml";
-    const scaled = text(monitor).replace("size: { w: 0.6, h: 0.42, d: 0.05 }\n", "$&stylized_scale: 1.1\n");
+    // 1.02: the production camera's lower eye (D1) leaves the known-good set's board no room for a larger monitor.
+    const scaled = text(monitor).replace("size: { w: 0.6, h: 0.42, d: 0.05 }\n", "$&stylized_scale: 1.02\n");
     const result = compose(overlay({ [monitor]: scaled }), noPolicy(), strict);
     expect(result.findings).toEqual([]);
     const part = result.scene;
-    expect(part.pieces["fx-monitor"]?.scale).toBe(1.1);
+    expect(part.pieces["fx-monitor"]?.scale).toBe(1.02);
     const room = build(result);
     const { world, model } = resolved(part);
     for (const p of part.placements) {

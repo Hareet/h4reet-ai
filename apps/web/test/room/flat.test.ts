@@ -30,7 +30,7 @@ import { FLAT_FRAMES, VISITOR_TURN } from "../../src/room/handoff";
 import { standinLabel } from "../../src/room/scene/bundle3d";
 import { enter, parseCss, start, stylesheets } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
-import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
+import { goodFiles, goodTree, overlay, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 
 type Point = readonly [number, number];
 
@@ -693,5 +693,82 @@ describe("in the room", () => {
     expect([...(flat?.querySelectorAll("text.flat-cue-name") ?? [])].map((t) => t.textContent)).toEqual(
       index.selectables.map((s) => s.name),
     );
+  });
+});
+
+// T295 (spec 004; FR-063, FR-064, SC-009; R-20, R-39): FR-064's carve-out in the 2D room, over T292's side-wall overlay
+// (test/fixtures/room/README.md), whose two side-wall signs, fx-upper and fx-lower, are list-only at the drawing's
+// smallest scale, on the stages 304 px wide. There the drawing draws no cue for them and a pick on them selects nothing;
+// at a larger scale their cues and pick areas come back; the overlay's other selectables keep theirs at every size.
+describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
+  let built: ComposeResult | undefined;
+  const sideWall = (): ComposeResult =>
+    (built ??= compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: false }));
+  const LIST_ONLY = ["fx-upper", "fx-lower"];
+  /** The 2D stage at a stage's size: the drawing's box inside it, as room.css's .flat keeps it. */
+  function stageAt(stage: Stage) {
+    const { index } = sideWall();
+    const { doc, win } = page();
+    const select = vi.fn<(id: string) => void>();
+    const flat = renderFlat(doc, { room: index, avatar: "woman", select });
+    const view = doc.createElement("div");
+    view.append(flat.element);
+    doc.body.append(view);
+    const size = box(stage);
+    flat.element.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: size.w, bottom: size.h, width: size.w, height: size.h, x: 0, y: 0 }) as DOMRect;
+    view.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: stage.w, bottom: stage.h, width: stage.w, height: stage.h, x: 0, y: 0 }) as DOMRect;
+    flat.resize(size, stage);
+    const shown = (id: string): string | null =>
+      flat.drawing.cues.get(id)?.area.getAttribute("visibility") ?? "visible";
+    const at = (id: string): Point => {
+      const hit = index.flat.hits.find((h) => h.selectable === id);
+      return onBox(centreOf(hit?.rects[0] ?? null), size);
+    };
+    return { index, flat, win, select, shown, at };
+  }
+
+  it("draws no cue for a list-only side-wall selectable on a 304 px stage, and a pick on it selects nothing", () => {
+    for (const stage of [
+      { w: 304, h: 208 },
+      { w: 304, h: 640 },
+    ]) {
+      const { index, flat, win, select, shown, at } = stageAt(stage);
+      expect(flatScale(stage)).toBeCloseTo(0.95, 12);
+      expect(index.selectables.map((x) => [x.id, shown(x.id)])).toEqual([
+        ["fx-workstation", "visible"],
+        ["fx-board", "visible"],
+        ["fx-upper", "hidden"],
+        ["fx-lower", "hidden"],
+      ]);
+      expect(flat.drawing.cues.get("fx-upper")?.name.getAttribute("visibility")).toBe("hidden");
+      for (const id of LIST_ONLY) tap(win, flat.element, at(id), "touch");
+      expect(select).not.toHaveBeenCalled();
+      // The selectables that aren't side-wall keep their pick areas.
+      for (const id of ["fx-workstation", "fx-board"]) tap(win, flat.element, at(id), "touch");
+      expect(select.mock.calls).toEqual([["fx-workstation"], ["fx-board"]]);
+    }
+  });
+
+  it("gives them their cues and pick areas back at a larger scale", () => {
+    for (const stage of [{ w: 312, h: 224 }, REFERENCE_PHONE.stage, REFERENCE_DESKTOP.stage]) {
+      const { index, flat, win, select, shown, at } = stageAt(stage);
+      expect(index.selectables.map((x) => shown(x.id))).toEqual(["visible", "visible", "visible", "visible"]);
+      for (const id of [...LIST_ONLY, "fx-workstation", "fx-board"]) tap(win, flat.element, at(id), "touch");
+      expect(select.mock.calls).toEqual([["fx-upper"], ["fx-lower"], ["fx-workstation"], ["fx-board"]]);
+    }
+  });
+
+  it("holds them at one size and not the next, as the drawing's box and its stage change", () => {
+    const { index } = sideWall();
+    const picker = flatPicker(index.flat.hits, index);
+    picker.resize(box({ w: 304, h: 248 }), { w: 304, h: 248 });
+    expect([...picker.held()]).toEqual(LIST_ONLY);
+    picker.resize(box({ w: 320, h: 248 }), { w: 320, h: 248 });
+    expect([...picker.held()]).toEqual([]);
+    // A picker given the drawing's box alone takes it for the stage.
+    picker.resize({ w: 304, h: 190 });
+    expect([...picker.held()]).toEqual([]);
   });
 });
