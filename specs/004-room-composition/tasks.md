@@ -250,7 +250,7 @@ Added by the cube amendment of 2026-10-26. Tests first, T292 to T295, each RED b
 
 **Independent Test**: in a drafts build, open the lookdev page on stand-ins plus the studio's desk and one sign, switch looks and sample states, load a scrubbed candidate, and read its findings at the production framing; a release build has no lookdev page (Q5).
 
-- [ ] T120 [US3] Create `feat/004-us3-lookdev` from `feat/004-us1-composition`'s tip; on the MVP path (Implementation Strategy), from T100's commit instead, then rebase it onto `feat/004-us1-composition`'s tip once User Story 1 is done and re-run `make check ENGINE_MODE=none-yet` (line R: feat/004-us3-lookdev)
+- [X] T120 [US3] Create `feat/004-us3-lookdev` from `feat/004-us1-composition`'s tip; on the MVP path (Implementation Strategy), from T100's commit instead, then rebase it onto `feat/004-us1-composition`'s tip once User Story 1 is done and re-run `make check ENGINE_MODE=none-yet` (line R: feat/004-us3-lookdev)
 
 ### Tests for User Story 3 (first)
 
