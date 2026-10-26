@@ -140,6 +140,9 @@ export function outlineThickness(width: number, stageHeight: number): number {
 export interface Ink {
   /** Whether the look draws ink lines: inked cel's. */
   readonly outlined: boolean;
+  /** Gives every drawn material in the scene the lines' one set of parameters, so a resize reaches them all: once
+   *  after the room is built, and again when a model swaps in (User Story 4), never on each frame. */
+  prepare(scene: Object3D): void;
   /** Draws a frame: the scene, then for inked cel its lines. */
   render(scene: Scene, camera: Camera): void;
   /** Keeps the lines the look's width on a stage this many CSS pixels high, from the next frame. */
@@ -152,11 +155,13 @@ export function createInk(renderer: WebGLRenderer, look: Look): Ink {
   if (look.method !== "inked-cel")
     return {
       outlined: false,
+      prepare: () => undefined,
       render: (scene, camera) => renderer.render(scene, camera),
       setStageHeight: () => undefined,
       setOutlines: () => undefined,
     };
-  // One set of parameters every drawn material shares, a model's swapped in later included, so a resize reaches all.
+  // One set of parameters every drawn material shares once `prepare` has run, a model's swapped in later included, so
+  // a resize reaches all.
   const lines = { thickness: outlineThickness(look.outlines.width, REFERENCE_DESKTOP.stage.h) };
   const effect = new OutlineEffect(renderer, {
     defaultThickness: lines.thickness,
@@ -170,8 +175,10 @@ export function createInk(renderer: WebGLRenderer, look: Look): Ink {
   };
   return {
     outlined: true,
-    render(scene, camera) {
+    prepare(scene) {
       scene.traverse(share);
+    },
+    render(scene, camera) {
       effect.render(scene, camera);
     },
     setStageHeight(height) {

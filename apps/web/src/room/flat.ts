@@ -27,9 +27,8 @@
 import { avatarPolygons } from "../choice/avatars";
 import type { AvatarId } from "../choice/avatars";
 import type { Matrix2D, Prim, RoomIndex } from "./compose/bundle";
-import { flatCore, listOnly, pick, pickAreas, unionOf } from "./compose/pick";
+import { CORE_PX, listOnly, pick, pickAreas, unionOf } from "./compose/pick";
 import type { PickArea, PickInput } from "./compose/pick";
-import { FLAT_VIEW, flatScale } from "./compose/stages";
 import type { Stage as Size } from "./compose/stages";
 import { SVG_NS, h, svg } from "./dom";
 import { FLAT_FRAMES, VISITOR_TURN, flatFrame, handOffset, sideOf, visitorTurnShare } from "./handoff";
@@ -246,7 +245,7 @@ function cable(doc: Document, run: NonNullable<FlatIndex["flat"]["poses"][number
  * the hand-off's paper, and the cues, in that order, so no piece hides a label or a cue. It throws on anything the
  * allowlist refuses.
  */
-export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): FlatDrawing {
+export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId, reducedMotion = false): FlatDrawing {
   const { flat, ui } = room;
   if (flat.view_box.length !== 4 || !flat.view_box.every(isNumber)) throw new Error("the 2D room refuses its view box");
   const root = svg(doc, "svg", {
@@ -358,10 +357,13 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     root.append(area, name);
   }
 
-  // In each frame, the visitor turns toward the paper's side as the 3D room turns it at that frame's progress.
+  // In each frame, the visitor turns toward the paper's side as the 3D room turns it at that frame's progress; under
+  // reduced motion it doesn't turn, as in 3D.
   const towardTwin = sideOf(toTwin[0] - feet);
   const turns = flat.papers.map((_, k) =>
-    visitorTurn(feet, baseline, towardTwin, VISITOR_TURN * visitorTurnShare(k / (FLAT_FRAMES - 1))),
+    reducedMotion
+      ? null
+      : visitorTurn(feet, baseline, towardTwin, VISITOR_TURN * visitorTurnShare(k / (FLAT_FRAMES - 1))),
   );
 
   return { root, items, switches, labels, cues, visitor, papers, turns };
@@ -372,8 +374,9 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
 /** The 2D room's picker over the index's hit rectangles (R-20). */
 export interface FlatPicker {
   /** The drawing's size on screen, in CSS pixels: the cores are 44 px at its scale, recomputed when it changes, and
-   *  FR-064's carve-out (see listOnly) holds the side-wall selectables whose cores can't fit at it. */
-  resize(size: Size): void;
+   *  FR-064's carve-out (see listOnly) holds the side-wall selectables whose cores can't fit at it. Whether the size
+   *  changed, so the stage recomputes what follows from it only then. */
+  resize(size: Size): boolean;
   /** The selectable under a point of the drawing's box, in normalized device coordinates, or null; none before a
    *  size. */
   readonly pick: (ndc: Ndc) => string | null;
@@ -381,33 +384,40 @@ export interface FlatPicker {
   readonly held: () => ReadonlySet<string>;
 }
 
-/** The 2D room's picker over the index's hit rectangles, with the index's selectables, whose `side_wall` FR-064's
- *  carve-out reads (see listOnly): at each size it holds the side-wall selectables the drawing leaves to the list
- *  there, at the size's scale. */
-export function flatPicker(hits: FlatIndex["flat"]["hits"], index: Pick<RoomIndex, "selectables">): FlatPicker {
+/** The 2D room's picker over the index's hit rectangles, in the index's view box, with the index's selectables, whose
+ *  `side_wall` FR-064's carve-out reads (see listOnly): at each size it holds the side-wall selectables the drawing
+ *  leaves to the list there, at the size's scale, the view box shown whole in the box (xMidYMid meet). */
+export function flatPicker(
+  hits: FlatIndex["flat"]["hits"],
+  index: Pick<RoomIndex, "selectables"> & { readonly flat: Pick<RoomIndex["flat"], "view_box"> },
+): FlatPicker {
   const inputs: PickInput[] = hits.map((hit) => ({
     id: hit.selectable,
     members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
   }));
   const sideWall = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
+  const [vx, vy, vw, vh] = index.flat.view_box;
+  /** The drawing's scale in a box this size: CSS pixels per view-box unit. */
+  const scaleIn = (box: Size): number => Math.min(box.w / vw, box.h / vh);
   let size: Size | null = null;
   let areas: readonly PickArea[] = [];
   let held: ReadonlySet<string> = new Set();
   return {
     resize(next) {
-      if (size !== null && next.w === size.w && next.h === size.h) return;
+      if (size !== null && next.w === size.w && next.h === size.h) return false;
       size = { w: next.w, h: next.h };
-      areas = next.w > 0 && next.h > 0 ? pickAreas(inputs, flatCore(size)) : [];
-      held = listOnly(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h], sideWall);
+      areas = next.w > 0 && next.h > 0 ? pickAreas(inputs, CORE_PX / scaleIn(size)) : [];
+      held = listOnly(areas, [vx, vy, vw, vh], sideWall);
+      return true;
     },
     held: () => held,
     pick(ndc) {
       if (size === null || areas.length === 0) return null;
       // The box's CSS pixels, less the margin xMidYMid meet leaves around the view box, at the drawing's scale.
-      const s = flatScale(size);
-      const x = ((ndc.x + 1) / 2) * size.w - (size.w - FLAT_VIEW.w * s) / 2;
-      const y = ((1 - ndc.y) / 2) * size.h - (size.h - FLAT_VIEW.h * s) / 2;
-      return pick(areas, [x / s, y / s], held);
+      const s = scaleIn(size);
+      const x = ((ndc.x + 1) / 2) * size.w - (size.w - vw * s) / 2;
+      const y = ((1 - ndc.y) / 2) * size.h - (size.h - vh * s) / 2;
+      return pick(areas, [vx + x / s, vy + y / s], held);
     },
   };
 }
@@ -417,13 +427,14 @@ export function flatPicker(hits: FlatIndex["flat"]["hits"], index: Pick<RoomInde
 /** The 2D stage: the drawing, its pointer's picks, and the hand-off's still frames. */
 export function renderFlat(
   doc: Document,
-  options: { room: FlatIndex; avatar: AvatarId; select(id: string): void },
+  options: { room: FlatIndex; avatar: AvatarId; select(id: string): void; reducedMotion?: boolean },
 ): FlatStage {
-  const drawing = drawFlat(doc, options.room, options.avatar);
+  const drawing = drawFlat(doc, options.room, options.avatar, options.reducedMotion ?? false);
   const element = h(doc, "div", { class: "flat", "aria-hidden": "true" }, drawing.root);
   const picker = flatPicker(options.room.flat.hits, options.room);
   const resize = (size: Size): void => {
-    picker.resize(size);
+    // A pointer's move measures the box too; the cues follow the held set only when the size changes it.
+    if (!picker.resize(size)) return;
     const held = picker.held();
     for (const [id, cue] of drawing.cues) {
       show(cue.area, !held.has(id));

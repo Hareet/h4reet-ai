@@ -179,6 +179,7 @@ export function createScene(options: SceneOptions): Stage3D {
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   const ink = createInk(renderer, part.look);
+  ink.prepare(room.scene);
 
   let settings = qualitySettings(0);
   const camera = new PerspectiveCamera();

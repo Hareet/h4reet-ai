@@ -4,12 +4,17 @@
 // RI2 a duplicate ID or name; RI3 a retired ID taken again; RI4 a reference that doesn't resolve; RI5 an ID equal to
 // a vocabulary word; RI6 too many selectables, a repeated member, or a placement in two; RI7 a model not directly under
 // assets/room/, off its piece's ID, or not recorded with the kind room and its SHA-256; RI8 the root, the figures, and
-// the hand-off; RI10 lookdev.yaml's placements, in a drafts build; RI11 a label nothing references.
+// the hand-off, each hand on the side the other figure's lies on; RI10 lookdev.yaml's placements, in a drafts build;
+// RI11 a label nothing references.
 // A reference into a file the loader refused (or a required file that is missing) isn't reported again: that file's
 // finding is the one to fix. No reason holds a value from the data.
 import { createHash } from "node:crypto";
 
+import { invert, origin, transformPoint } from "../../../src/room/compose/math";
+import { anchorWorld, resolveMounts } from "../../../src/room/compose/mount";
+import type { MountPiece } from "../../../src/room/compose/mount";
 import { isVocabulary } from "../../../src/room/compose/vocabulary";
+import { sideOf } from "../../../src/room/handoff";
 import { isObject, strictJson } from "../../../src/room/glb/json";
 import { pathOf, TOPICS_FILE } from "../load";
 import type { Loaded } from "../load";
@@ -354,6 +359,7 @@ function figures(ctx: Context): void {
     }
   }
 
+  const sound = { from: false, to: false };
   for (const [end, role] of [
     ["from", "twin"],
     ["to", "visitor"],
@@ -366,8 +372,57 @@ function figures(ctx: Context): void {
       const entry = pieces.get(own.piece);
       if (entry && !has(entry.value.anchors, ref.anchor))
         ri8(ctx.path("handoff", end, "anchor"), `no anchor of that name on the ${role}'s piece`);
+      else sound[end] = entry !== undefined;
     }
   }
+  if (sound.from && sound.to) handSides(ctx, ri8);
+}
+
+/**
+ * RI8's nearer hands (FR-008; the Author's direction of 2026-10-23, plan.md §10): the paper goes from the twin's hand
+ * to the visitor's nearer hand, so each figure's hand anchor lies, in its own frame, on the side the other figure's
+ * hand lies on: the visitor's toward the twin's hand, the twin's toward the visitor's. The hand-off reads the sides
+ * from the anchors (handoff.ts's `sideOf`), so a scene that moved one figure across the other without moving its hand
+ * would hand the paper across both figures. Placements that don't resolve are RI4's or RG1's to report.
+ */
+function handSides(ctx: Context, ri8: (path: string, reason: string) => void): void {
+  const s = ctx.room.scene?.value;
+  if (!s) return;
+  const pieces = new Map<string, MountPiece>();
+  for (const c of ctx.room.catalog)
+    if (!pieces.has(c.value.id)) pieces.set(c.value.id, { scale: c.value.stylized_scale, anchors: c.value.anchors });
+  const resolved = resolveMounts(
+    s.placements.map((p) => ({
+      id: p.id,
+      piece: p.piece,
+      mount: p.mount ? { on: p.mount.on, anchor: p.mount.anchor } : null,
+      offset: p.mount?.offset ?? [0, 0, 0],
+      turn: p.mount?.turn ?? { x: 0, y: 0, z: 0 },
+    })),
+    Object.fromEntries(pieces),
+  );
+  /** A hand-off end's anchor: its point in the world, its x in its own figure's frame, and the frame's inverse. */
+  const hand = (ref: AnchorRef) => {
+    const placement = s.placements.find((p) => p.id === ref.placement);
+    const piece = placement && pieces.get(placement.piece);
+    const anchor = piece && has(piece.anchors, ref.anchor) ? piece.anchors[ref.anchor] : undefined;
+    const world = resolved.world.get(ref.placement);
+    const back = world && invert(world);
+    if (!piece || !anchor || !world || !back) return null;
+    return { x: anchor.at[0], point: origin(anchorWorld(world, piece.scale, anchor)), back };
+  };
+  const [twin, visitor] = [hand(s.handoff.from), hand(s.handoff.to)];
+  if (!twin || !visitor) return;
+  for (const [end, own, other, role, toward] of [
+    ["to", visitor, twin, "visitor", "twin"],
+    ["from", twin, visitor, "twin", "visitor"],
+  ] as const)
+    if (sideOf(own.x) !== sideOf(transformPoint(own.back, other.point)[0]))
+      ri8(
+        ctx.path("handoff", end, "anchor"),
+        `the ${role}'s hand isn't on the side of the ${role} the ${toward}'s hand lies on, so the paper would cross the ` +
+          `${role} to its farther hand`,
+      );
 }
 
 /** RI10: in a drafts build, lookdev.yaml naming a placement the scene doesn't have. */

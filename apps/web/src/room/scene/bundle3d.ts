@@ -51,6 +51,7 @@ import type { Stage } from "../compose/stages";
 import { VISITOR_TURN, handOffset, sideOf, visitorTurnShare } from "../handoff";
 import type { Side } from "../handoff";
 import type { Ndc } from "../objects";
+import { uiWord } from "../ui-keys";
 import type { UiKey } from "../ui-keys";
 import { lookLights, lookMaterials } from "./look";
 import type { Materials } from "./look";
@@ -108,9 +109,9 @@ export interface Room3D {
 /** A stand-in's label: the UI word `standin.label` with its `{name}` filled by the placement's label word; null when
  *  the index lacks either word. */
 export function standinLabel(ui: Readonly<Record<string, string>>, key: string): string | null {
-  const word = (k: string): string | undefined => (Object.hasOwn(ui, k) ? ui[k] : undefined);
-  const [label, name] = [word(STANDIN_LABEL), word(key)];
-  return label === undefined || name === undefined ? null : label.replaceAll("{name}", name);
+  const name = Object.hasOwn(ui, key) ? ui[key] : undefined;
+  // The same words the 2D room draws (flat.ts), through the one function that fills a UI word's slots.
+  return name === undefined ? null : uiWord(ui, STANDIN_LABEL, { name });
 }
 
 /** Puts an object at a rigid transform of the kernel's: its position and its rotation, at scale 1. */

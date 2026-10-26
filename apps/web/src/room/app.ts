@@ -76,6 +76,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   let handoff: Handoff | null = null;
   let offering = false;
   let resumeOpen = false;
+  /** The visitor's reduced-motion setting, read at "Enter", for whichever stage the room draws (3D or 2D). */
+  let reducedMotion = false;
 
   /** The room takes input only after the hand-off and its offer. */
   const open = (): boolean => visit.stage === "room" && !offering;
@@ -149,7 +151,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
     const loaded = await sceneOrLate();
     const module = loaded === "late" ? null : loaded;
-    const reducedMotion = media("(prefers-reduced-motion: reduce)");
+    reducedMotion = media("(prefers-reduced-motion: reduce)");
     if (module) mount3d(module, choice, reducedMotion);
     if (!module || !stage) toFlat(!webgl ? "no_webgl2" : loaded === "late" ? "load_timeout" : "load_failed");
     handoff = runHandoff({
@@ -199,7 +201,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     room?.view.replaceChildren(next.element);
   }
 
-  /** Into 2D for the rest of the visit, once, by any road, keeping everything else (FR-042). */
+  /** Into 2D for the rest of the visit, once, by any road, keeping everything else (FR-042). If the 2D drawing refuses
+   *  the index's (flat.ts throws on anything off its allowlist), the view shows no picture and the room goes on: the
+   *  list, "Around the room", and the conversation carry it, and the hand-off still ends in the room (FR-062). */
   function toFlat(reason: FlatReason): void {
     if (visit.mode === "2d" || !room || !visit.avatar) return;
     visit.mode = "2d";
@@ -207,11 +211,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     unwatch?.();
     unwatch = null;
     const old = stage;
-    const flat = renderFlat(doc, { room: deps.room, avatar: visit.avatar, select: selectObject });
+    let flat: Stage | null;
+    try {
+      flat = renderFlat(doc, { room: deps.room, avatar: visit.avatar, select: selectObject, reducedMotion });
+    } catch {
+      flat = null;
+    }
     stage = flat;
-    show(flat);
+    if (flat) show(flat);
+    else room.view.replaceChildren();
     old?.dispose();
-    flat.showHandoff(handoff && !handoff.finished ? handoff.progress() : 1);
+    flat?.showHandoff(handoff && !handoff.finished ? handoff.progress() : 1);
     room.markFlat();
     emit({ kind: "mode_2d" });
   }
