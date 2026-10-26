@@ -21,7 +21,7 @@ From the repository's root:
 |---|---|
 | `npm run room:generate -w apps/web` | writes the generated files from the data: `config/room-events.yaml`, `config/room-topics.yaml`, and `docs/studio/`'s work orders and photo guide, removing a work order whose piece is gone. It writes nothing while the data has a finding a lenient build doesn't tolerate. `npm run manifest -w apps/web` is its alias |
 | `npm run room:check -w apps/web` | composes in strict mode, prints every finding, and fails on any, or on a generated file that is stale, missing, or orphaned. `make test` holds the same rules |
-| `npm run room:report -w apps/web` | prints the room's report: each piece's bytes, triangles, and texture memory against its budget and the caps, the faces' legibility, the switches' poses, and the findings. A merge-request note whose branch changes the room's data or models pastes it whole |
+| `npm run room:report -w apps/web` | prints the room's report: each piece's bytes, triangles, and texture memory against its budget and the caps, the faces' legibility, its Side-wall section (each side-wall selectable the room leaves to the "In the room" list, its wall, and the stages where, in 3D and in 2D), the switches' poses, and the findings. A merge-request note whose branch changes the room's data or models pastes it whole |
 | `npm run room:scan -w apps/web` | the source scan: no ID the data defines may stand in the code (FR-007) |
 | `npm run room:fit -w apps/web -- <glb> --piece <id>` | the fit check of one model file in the tree against one catalog entry |
 
@@ -31,7 +31,7 @@ Every change ends the same way: run `npm run room:generate -w apps/web`, then `n
 
 - **YAML, read strictly.** One document, `version: 1`, UTF-8 with LF line ends, no anchor, alias, merge key, or tag, and no key the schema doesn't define (RD). Prettier formats every YAML file here (`make fmt`).
 - **IDs.** `^[a-z][a-z0-9-]{1,40}$`, unique within their namespace (pieces, placements, selectables, topics), never a word of the closed vocabulary in `apps/web/src/room/compose/vocabulary.ts`, and never an ID `retired[]` lists for that namespace (RI). The prefix `fx-` belongs to the tests' fixtures.
-- **Geometry.** Metres and degrees, +Y up, the front facing +Z. The mounts form one tree rooted at the shell (RG1); every framed box stays in view at spec 002's six aspects (RG5); each selectable keeps an exclusive core of at least 44 × 44 CSS pixels at every supported stage, in 3D and in 2D (RG6); each readable face stays at or above the legibility floor on both reference stages (RG7).
+- **Geometry.** Metres and degrees, +Y up, the front facing +Z. The mounts form one tree rooted at the shell (RG1); every framed box stays in view at spec 002's six aspects (RG5); each selectable keeps an exclusive core of at least 44 × 44 CSS pixels at every supported stage, in 3D and in 2D (RG6), except a side-wall selectable, every member mounted directly on the shell's `left-wall` or `right-wall` anchor, which is list-only wherever its core can't fit; `room:report`'s Side-wall section lists where; each readable face stays at or above the legibility floor on both reference stages (RG7), except a face whose regions are all bound to the turn-cost signal, the neon sign's counter faces, which may fall under it on the reference phone alone, since "Around the room" carries their figures, and the report marks them exempt there.
 - **Words.** Every string passes spec 002's C9, so no "Do not claim" phrase of the corpus, nothing the surname rule refuses, and no private-denylist phrase appears (RT2); no UI word holds a digit outside a slot (RT3); a closed-list UI word keeps exactly its slots (RT12).
 - **Budgets.** A piece's budget stays at or under `main`'s caps, or FR-053's starting figures while `main` has none (RK1). Agents never raise a cap.
 - **Unmeasured figures.** A size, an anchor, or a mount not measured yet carries `estimated: true`, so its work order and the photo guide ask for the measurement (FR-002, FR-026).
@@ -41,6 +41,8 @@ A finding prints as `<rule> <file>:<path>: <reason>` (contracts/room-data-files.
 ## Move a piece
 
 Change its placement's `mount` in `scene.yaml`: `on`, the placement it mounts on; `anchor`, one of that placement's piece's anchors; `offset`, in metres in the anchor's frame; and `turn`. Everything mounted on the placement moves with it, in 3D and in 2D. Mark the mount `estimated: true` until its position is measured. A move can change what the camera frames, or bring one selectable's core onto another's, so RG5 to RG7 decide whether it stands.
+
+On a side wall, mount the piece directly on the shell's `left-wall` or `right-wall` anchor. Each turns a quarter about Y, so its `offset` reads along the wall: on the left wall +x points toward the back wall, and on the right wall toward the open front; y is the height above the floor; z is the distance out from the wall. A piece hung there flat, its mount turned about z alone if at all (not about x or y) and out from the wall by no more than its own depth, is on the wall; RG6 then counts its selectable as a side-wall selectable if every member hangs so, and leaves it to the "In the room" list at any stage where its core can't fit, rather than refusing the scene. The anchor itself must stand on the shell's bounds' left or right edge, within 1 mm, at that quarter turn. The photo guide asks for a side-wall piece's origin from the back wall, above the floor, and out from the wall, as it is measured.
 
 ## Add a piece
 
@@ -57,6 +59,8 @@ Delete its placements, its catalog entry if no other placement uses it, its labe
 ## Regroup pieces
 
 Change a selectable's `members`. Its pick area is the union of its members' boxes with an exclusive core centred on it (RG6), so regrouping pieces that stand side by side usually needs a move too, until each core is clear of the others' members and areas.
+
+A selectable whose members all hang on the side walls, as "Move a piece" says, is a side-wall selectable: list-only wherever its core can't fit, picked wherever it can. Of two such selectables whose cores overlap only each other's core, the first in `selectables` keeps its pick area and the list reaches the other. A selectable with members on a side wall and elsewhere isn't side-wall, so RG6 holds it to the full rule; another selectable's core over a side-wall member is refused at any stage.
 
 ## Retarget a selectable
 
