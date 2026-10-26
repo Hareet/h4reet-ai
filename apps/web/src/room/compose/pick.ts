@@ -89,8 +89,8 @@ const inside = (inner: Rect, outer: Rect): boolean =>
 const NONE: ReadonlySet<string> = new Set();
 
 /** The selectable a pointer at this point picks, or null. A held selectable (`listOnly`) has no area: a point whose
- *  frontmost member rectangle is one of its members picks nothing (FR-064's carve-out; the reading R3 of 2026-10-26,
- *  which waits for the Author: on a no, such a point picks it), and its union and core hold no point. */
+ *  frontmost member rectangle is one of its members picks nothing (FR-064's carve-out; Reading R3, whose default the
+ *  Author accepted on 2026-10-26), and its union and core hold no point. */
 export function pick(
   areas: readonly PickArea[],
   point: readonly [number, number],
@@ -175,14 +175,29 @@ export function pickProblems(areas: readonly PickArea[], view: Rect, held: Reado
  * FR-064's carve-out, the one function that holds it (spec.md, FR-064, as T302's answer amended it; data-model.md
  * §4.5): at any stage, a side-wall selectable that can't keep its exclusive core there is list-only there: the room
  * draws no pick area for it, a pick whose frontmost member is one of its members selects nothing (`pick`; Reading R3),
- * and the "In the room" list reaches it. Wherever its core fits, it is picked as any selectable is. The compositor
+ * and the "In the room" list reaches it. Wherever its core fits, it is picked as any selectable is: a side-wall
+ * selectable short of its core only for another held one's core keeps its pick area, the first in scene order, so two
+ * boards whose cores overlap only each other's keep one tap between them (the release pass, below). The compositor
  * refuses no side-wall selectable for a missing core, but still refuses another selectable's core over its members
  * (RG6). `areas` are the stage's, in 3D on the stage or in 2D in the drawing's view box, `view` the stage's or the view
  * box's rectangle, and `sideWall` the IDs the index flags `side_wall`. Gives the IDs held, for `pick` and
- * `pickProblems`.
+ * `pickProblems`; deterministic, since the pass goes in scene order.
  */
 export function listOnly(areas: readonly PickArea[], view: Rect, sideWall: ReadonlySet<string>): ReadonlySet<string> {
   if (sideWall.size === 0) return NONE;
   const short = new Set(pickProblems(areas, view).map((p) => p.selectable));
-  return new Set(areas.filter((a) => sideWall.has(a.id) && short.has(a.id)).map((a) => a.id));
+  const held = new Set(areas.filter((a) => sideWall.has(a.id) && short.has(a.id)).map((a) => a.id));
+  // The release pass, in scene order: a held selectable keeps its pick area after all where releasing it alone gives
+  // no problem with it as subject and none that wasn't there before. So of two side-wall selectables whose cores meet
+  // only each other's core, the first keeps its tap, and the list reaches the other.
+  const key = (p: PickProblem): string => `${p.selectable}\n${p.problem}\n${p.other ?? ""}`;
+  for (const area of areas) {
+    if (!held.has(area.id)) continue;
+    const before = new Set(pickProblems(areas, view, held).map(key));
+    const rest = new Set(held);
+    rest.delete(area.id);
+    if (pickProblems(areas, view, rest).every((p) => p.selectable !== area.id && before.has(key(p))))
+      held.delete(area.id);
+  }
+  return held;
 }

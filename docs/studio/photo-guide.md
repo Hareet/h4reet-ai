@@ -52,7 +52,7 @@ With every line of the photo-work checklist ticked (FR-032):
 
 ## The layout checklist
 
-From `apps/web/room/scene.yaml`, in the scene's axes: x to the right, y up, z toward the room's front, in metres. A piece on a turned anchor of the shell, a side wall's, reads as it is measured: its origin's distance from the back wall, its height above the floor, and how far it stands out from the wall. Each row reads measured or estimated, from the data's `estimated` marks; measure each estimated one (FR-026, FR-078).
+From `apps/web/room/scene.yaml`, in the scene's axes: x to the right, y up, z toward the room's front, in metres. A piece on a side wall's anchor of the shell reads as it is measured: its origin, as its catalog entry describes it, that origin's distance from the back wall, its height above the floor, and how far it stands out from the wall. Each row reads measured or estimated, from the data's `estimated` marks; measure each estimated one (FR-026, FR-078).
 
 On the desk, from its front-left corner:
 
@@ -66,8 +66,8 @@ On the desk, from its front-left corner:
 On the shell, at its anchors:
 
 - [ ] Desk: on the anchor `back-wall`, offset x 0, y 0, z 0.4 (estimated)
-- [ ] Chalkboard: on the anchor `left-wall`, its origin 0.8696 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
-- [ ] Snowboard: on the anchor `left-wall`, its origin 0.2096 from the back wall and 0.775 above the floor, 0.035 out from the wall (estimated)
-- [ ] Bicycle: on the anchor `right-wall`, its origin 0.6096 from the back wall and 1.35 above the floor, 0.05 out from the wall (estimated)
+- [ ] Chalkboard: on the anchor `left-wall`, its origin (the centre of the board's back, against the wall) 0.8696 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
+- [ ] Snowboard: on the anchor `left-wall`, its origin (the centre of the board, midway along its length and across its width, in the middle of its thickness) 0.2096 from the back wall and 0.775 above the floor, 0.035 out from the wall (estimated)
+- [ ] Bicycle: on the anchor `right-wall`, its origin (midway between the two wheels' hubs) 0.6096 from the back wall and 1.35 above the floor, 0.05 out from the wall (estimated)
 - [ ] Window: on the anchor `back-wall`, offset x -0.05, y 1.475, z 0 (estimated)
 - [ ] Artwork: on the anchor `back-wall`, offset x 0.8, y 1.9, z 0.065 (estimated)

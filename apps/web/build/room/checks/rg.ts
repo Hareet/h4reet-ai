@@ -46,7 +46,7 @@ import type { Grid } from "../../../src/room/compose/layout";
 import { facePoint, regionCap, smallestCapPx, typefaceFor } from "../../../src/room/compose/legibility";
 import type { CapRegion, FaceGeometry, RegionSourceRef } from "../../../src/room/compose/legibility";
 import { dot, normalize, origin, rotation, sub, transformPoint } from "../../../src/room/compose/math";
-import type { Mat4, Vec3 } from "../../../src/room/compose/math";
+import type { Mat4, Turn, Vec3 } from "../../../src/room/compose/math";
 import { anchorWorld, modelOf, mountWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountAnchor, MountPlacement, Resolved } from "../../../src/room/compose/mount";
 import { flatCore, listOnly, memberRect, pickAreas, pickProblems } from "../../../src/room/compose/pick";
@@ -450,18 +450,63 @@ export const stageSize = (s: Stage): string => `${Number(s.w.toFixed(1))} × ${N
 export const stagesPhrase = (first: Stage, more: number): string =>
   `${stageSize(first)}${more > 0 ? ` and ${more} other${more === 1 ? "" : "s"}` : ""}`;
 
-/** Whether a shell's anchor stands a quarter turn about Y, as a side wall's does: its x and z turns none. */
-const quarterTurnY = (anchor: MountAnchor): boolean =>
-  anchor.turn.x === 0 && anchor.turn.z === 0 && Math.abs(anchor.turn.y) === 90;
+/** An angle in degrees, mod 360, in [0, 360). */
+const mod360 = (deg: number): number => ((deg % 360) + 360) % 360;
 
-/** The side-wall anchor a placement hangs on directly: one of SIDE_WALL_ANCHORS on the scene's shell, the placement
- *  without a mount, which the shell's piece turns a quarter about Y; null for any other mount. */
+/** Whether a turn is a quarter turn about Y alone, as a side wall's anchor is: its x and z turns none and its y ±90,
+ *  each mod 360, so `y: 270` and `y: -270` count. */
+export const quarterTurnY = (turn: Turn): boolean =>
+  mod360(turn.x) === 0 && mod360(turn.z) === 0 && (mod360(turn.y) === 90 || mod360(turn.y) === 270);
+
+/** How far a side wall's anchor may stand off the shell's bounds along x, in metres. */
+const WALL_MM = 0.001;
+
+/** A side-wall anchor of the shell's piece, and the side of the shell's bounds its wall stands at. */
+export interface SideWallFrame {
+  readonly anchor: SideWallAnchor;
+  /** The wall's x, the bounds' min or max x at the shell's stylized scale, in the shell's frame. */
+  readonly side: "min" | "max";
+  readonly x: number;
+}
+
+/**
+ * The side-wall test of one of the shell's anchors, which RG6 (`sideWallsOf`) and the photo guide (orders.ts) share:
+ * one of SIDE_WALL_ANCHORS by name, at a quarter turn about Y alone (`quarterTurnY`), whose `at[0]` stands within 1 mm
+ * of the shell's bounds' min or max x, so the anchor is on a wall of the shell and not inside it. Null otherwise.
+ */
+export function sideWallFrame(shell: CatalogEntry, name: string): SideWallFrame | null {
+  if (!isSideWallAnchor(name)) return null;
+  const anchor = anchorOf(shell, name);
+  if (!anchor || !quarterTurnY(anchor.turn)) return null;
+  const s = shell.stylized_scale;
+  const { min, max } = shell.origin.bounds;
+  const at = anchor.at[0] * s;
+  for (const [side, x] of [
+    ["min", min[0] * s],
+    ["max", max[0] * s],
+  ] as const)
+    if (Math.abs(at - x) <= WALL_MM + EPS) return { anchor: name, side, x };
+  return null;
+}
+
+/**
+ * The side-wall anchor a placement hangs on directly, or null (FR-064's carve-out; the spec's Reading R2): it mounts
+ * on the scene's shell, the placement without a mount, at an anchor `sideWallFrame` takes for a wall's; its own mount
+ * turns it about z alone, if at all (a turn about x or y would stand it out of the wall's plane, as a sign turned to
+ * face the camera does); and its offset out from the wall, `|offset[2]|`, is at most its piece's depth along its own z
+ * at its stylized scale, so it hangs on the wall and doesn't stand in the room.
+ */
 function sideWallOf(g: Geometry, root: Placement | undefined, p: Placement | undefined): SideWallAnchor | null {
-  const name = p?.mount?.anchor;
-  if (root === undefined || p?.mount?.on !== root.id || name === undefined || !isSideWallAnchor(name)) return null;
+  const mount = p?.mount;
+  if (root === undefined || p === undefined || mount === undefined || mount.on !== root.id) return null;
   const shell = g.pieces.get(root.piece);
-  const anchor = shell && anchorOf(shell, name);
-  return anchor && quarterTurnY(anchor) ? name : null;
+  const frame = shell && sideWallFrame(shell, mount.anchor);
+  const piece = g.pieces.get(p.piece);
+  if (!frame || !piece) return null;
+  if (mod360(mount.turn.x) !== 0 || mod360(mount.turn.y) !== 0) return null;
+  const { min, max } = piece.origin.bounds;
+  const depth = (max[2] - min[2]) * piece.stylized_scale;
+  return Math.abs(mount.offset[2]) <= depth + EPS ? frame.anchor : null;
 }
 
 /** The scene's placements by ID, the first of each (a second is RI2's), and its shell. */
@@ -474,8 +519,9 @@ function byIdOf(g: Geometry): { readonly byId: ReadonlyMap<string, Placement>; r
   return { byId, root: g.scene.value.placements.find((p) => p.mount === undefined) };
 }
 
-/** Each selectable, in scene order: whether it is a side-wall selectable, every member hung directly on the shell's
- *  side-wall anchors (FR-064's carve-out, see listOnly), as the index's `side_wall` flags it. */
+/** Each selectable, in scene order: whether it is a side-wall selectable, every member hung directly on a side wall
+ *  of the shell (`sideWallOf`; FR-064's carve-out, see listOnly), as the index's `side_wall` flags it. A selectable
+ *  with members on a side wall and elsewhere isn't one. */
 export function sideWallsOf(g: Geometry): boolean[] {
   const { byId, root } = byIdOf(g);
   return g.scene.value.selectables.map(

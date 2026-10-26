@@ -20,6 +20,7 @@ import { origin } from "../../src/room/compose/math";
 import type { Vec3 } from "../../src/room/compose/math";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { count, exportRules, RULE_TEXT, TOLERANCE } from "../../src/room/glb/rules";
+import { sideWallFrame } from "./checks/rg";
 import type { Composed } from "./emit";
 import type { Loaded } from "./load";
 import type { CatalogEntry, Placement } from "./schema";
@@ -376,8 +377,9 @@ function layout(c: Composed): string[] {
     "## The layout checklist",
     "",
     "From `apps/web/room/scene.yaml`, in the scene's axes: x to the right, y up, z toward the room's front, in metres. " +
-      "A piece on a turned anchor of the shell, a side wall's, reads as it is measured: its origin's distance from the " +
-      "back wall, its height above the floor, and how far it stands out from the wall. Each row reads measured or " +
+      "A piece on a side wall's anchor of the shell reads as it is measured: its origin, as its catalog entry describes " +
+      "it, that origin's distance from the back wall, its height above the floor, and how far it stands out from the " +
+      "wall. Each row reads measured or " +
       "estimated, from the data's `estimated` marks; measure each estimated one (FR-026, FR-078).",
     "",
   ];
@@ -418,13 +420,19 @@ function layout(c: Composed): string[] {
           const m = p.mount as NonNullable<Placement["mount"]>;
           const estimated = m.estimated || anchorEstimated(c, m.on, m.anchor);
           const mark = `(${estimated ? "estimated" : "measured"})`;
-          const turn = shell && c.pieces.get(shell.piece)?.value.anchors[m.anchor]?.turn;
+          // A side wall's anchor by RG6's own test (checks/rg.ts's sideWallFrame), and the distance out from that
+          // wall from where the piece stands, against the wall's x in the shell's bounds.
+          const shellEntry = shell && c.pieces.get(shell.piece)?.value;
+          const wall = shellEntry && sideWallFrame(shellEntry, m.anchor);
           const world = c.world.get(p.id);
-          if (turn && (turn.x !== 0 || turn.y !== 0 || turn.z !== 0) && bounds && world) {
+          const point = c.pieces.get(p.piece)?.value.origin.point.replace(/\.$/, "");
+          if (wall && bounds && world && point !== undefined) {
             const o: Vec3 = origin(world);
+            const out = wall.side === "min" ? o[0] - wall.x : wall.x - o[0];
             return (
-              `- [ ] ${nameOf(c, p)}: on the anchor ${code(m.anchor)}, its origin ${n(o[2] - bounds.min[2])} from the ` +
-              `back wall and ${n(o[1] - bounds.min[1])} above the floor, ${n(m.offset[2])} out from the wall ${mark}`
+              `- [ ] ${nameOf(c, p)}: on the anchor ${code(m.anchor)}, its origin (${point}) ` +
+              `${n(o[2] - bounds.min[2])} from the back wall and ${n(o[1] - bounds.min[1])} above the floor, ` +
+              `${n(out)} out from the wall ${mark}`
             );
           }
           return (
