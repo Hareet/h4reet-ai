@@ -157,7 +157,7 @@ Phase 1 output of `/speckit-plan`: the runs that prove each phase and each succe
 **The Author's runs** (dev, `http://127.0.0.1:18105/`, after `make up ENV=dev`, which is Heavy):
 1. **Expected, until FR-078's layout lands:** the room looks and behaves as spec 002's did (User Story 1 scenario 5).
 2. **Expected, after it:** the room is the Author's cube, as FR-078 lays it out (the spec's Clarifications, 2026-10-23 and 2026-10-26): seen straight into its open front; the desk and what stands on it as the Author's work area has them, the laptop at the desk's right side; the window around the neon sign; the chalkboard high and the snowboard low on the left wall; the bicycle on the right wall, next to the laptop; the twin by the laptop; and the visitor central, nearer the open front and a little left, with the monitor, the sign, and the laptop in view. Each estimated size and position is marked in the data, and its work order asks for the measurement (FR-002, FR-078).
-3. **Tap areas, after it** (FR-064, SC-009): on the desktop, click the snowboard, the chalkboard, and the bicycle. **Expected:** each opens its topic's message. Then, in the browser's device mode, at the screens of FR-064's smallest stages the branch's report lists ([room-data-files.md](contracts/room-data-files.md) §13.3; 568 × 320 and 320 × 960 among them): **Expected:** a board the report lists as list-only there selects nothing when tapped and is chosen from "In the room"; every other piece is tapped as on the desktop.
+3. **Tap areas, after it** (FR-064, SC-009): on the desktop, click the snowboard, the chalkboard, and the bicycle. **Expected:** each opens its topic's message. Then, in the browser's device mode and in the 2D room, at screens where the branch's report lists a board as list-only (for the re-laid cube, the chalkboard at tablet-sized screens and in 2D): **Expected:** that board selects nothing when tapped there and is chosen from "In the room"; at screens where the report doesn't list it, it is tapped as on the desktop; every other piece is tapped as on the desktop (T302).
 
 ## Q4. User Story 2: the room tells no lie, and never stops (FR-041 to FR-045, FR-057 to FR-062; SC-003, SC-007)
 
@@ -283,7 +283,7 @@ The first room files are the desk and one sign (Amendment C10). **Where:** the A
    - the totals against the caps, with the caps' source and SHA-256;
    - the room's share of the first visit, beside 12,000,000 bytes and spec 003's 25,000,000-byte limit;
    - each live face's smallest glyph, with the counter faces marked exempt on the phone where they fall under the floor there (FR-052);
-   - the side-wall selectables list-only at FR-064's smallest stages, or "none".
+   - the side-wall selectables, each with the stages where it is list-only, or "none".
 3. **The fit check's variants** in `make test`: a live face missing or off its plane, a misplaced origin, a light, camera, or animation, a name off the rule, a refused extension, and a mark that disagrees with its record. **Expected:** each refused, naming its rule (User Story 4 scenario 2; [plain-model-fit.md](contracts/plain-model-fit.md) §12; [intake-amendments.md](contracts/intake-amendments.md) §7).
 4. **Serving** in `make test`. **Expected:** `dist/a/` holds only `.glb.gz` copies; each inflates to its record's SHA-256, equals a deterministic level-9 gzip, and has its length as the bundle's `bytes` (FR-079, C11; [serving.md](contracts/serving.md) §8).
 5. **The in-network probe on dev-cpu,** on the agents' engine, after `make up ENV=dev-cpu`: the probe [serving.md](contracts/serving.md) §8 describes. **Expected:** §2.2's headers, header by header; and the `.gz` URL answers 404.
@@ -356,7 +356,7 @@ The first room files are the desk and one sign (Amendment C10). **Where:** the A
 - axe reports 0 WCAG 2.2 AA violations;
 - the Tab order runs: the toolbar, with "Pause the room" carrying `aria-pressed`; the "In the room" list; the conversation; then "Around the room";
 - every hit area the room draws is at least 44 × 44 CSS pixels at 304 × 248, at the 568 × 320 screen's landscape stage (326 × 208 in R-19, 304 × 208 by `compose/stages.ts`), and across the sweep of screen sizes, in 3D and 2D, each selectable with its exclusive pick area, except a side-wall selectable FR-064 leaves to the list there (FR-064);
-- at FR-064's smallest stages ([room-data-files.md](contracts/room-data-files.md) §13.3), a side-wall selectable that can't keep its exclusive pick area draws none, a pick on its members selects nothing, and its "In the room" button selects it; at every other stage it has its pick area (FR-064, SC-009);
+- at any stage where a side-wall selectable can't keep its exclusive pick area, in 3D or in 2D, it draws none, a pick on its members selects nothing, and its "In the room" button selects it; at every stage where it keeps its pick area, a pick on its core selects it (FR-064, SC-009; T302);
 - the 320 × 568 layout keeps the twin, the desk, every selectable's pieces, the text box, and the talk button on screen, with five toolbar controls, "Credits" among them (FR-065);
 - no meaning rests on colour alone: each tier value has its own sentence in "Around the room", each badge is a word, and each 2D cue has a name tag (FR-065; [research.md](research.md) R-40).
 
