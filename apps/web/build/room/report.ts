@@ -28,9 +28,10 @@ import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import type { Stage } from "../../src/room/compose/stages";
 import type { Composed, RoomReport } from "./emit";
 import { formatPath } from "./checks/family";
-import { faceCaps, poseSeparations, sideWallPicks, stageSize } from "./checks/rg";
+import { faceCaps, poseSeparations, sideWallPicks, stagesPhrase } from "./checks/rg";
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
@@ -191,7 +192,7 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // Legibility, RG7's measure, on both reference stages.
   lines.push(...legibility(c, index), "");
 
-  // The side-wall selectables, FR-064's amendment, and the stages the room reaches them from the list.
+  // The side-wall selectables FR-064's carve-out (see listOnly) leaves to the list, and where.
   lines.push(...sideWalls(c), "");
 
   // The switches: their cases, and their poses' separation (RG8).
@@ -225,13 +226,10 @@ function legibility(c: Composed, index: RoomIndex): string[] {
     const sizes = [caps?.desktop ?? null, caps?.phone ?? null];
     const known = sizes.filter((s): s is number => s !== null);
     const smallest = known.length === sizes.length ? Math.min(...known) : null;
-    // FR-052's amendment (2026-10-23): a readable face of a turn-cost piece under the floor on the phone, meeting
-    // it on the desktop: exempt there, its words and figures carried by the text copy's "Around the room".
+    // RG7's one exemption (FR-052): a phone-exempt face under the floor on the phone alone, meeting it on the desktop.
     const exempt =
-      !face.atmosphere &&
-      face.readable &&
       caps !== undefined &&
-      caps.turn_cost &&
+      caps.phone_exempt &&
       caps.desktop !== null &&
       caps.desktop >= floor &&
       caps.phone !== null &&
@@ -256,12 +254,14 @@ function legibility(c: Composed, index: RoomIndex): string[] {
   return out;
 }
 
-/** FR-064's amendment (2026-10-23): the side-wall selectables, and the stages, in 3D and in the 2D drawing, where
- *  the room draws no pick area for them, the "In the room" list reaching them there. */
+/** FR-064's carve-out (see listOnly): each side-wall selectable the room leaves to the "In the room" list somewhere,
+ *  its walls, and the stages where it does, in 3D and in the 2D drawing at each stage's scale, each run as its first
+ *  stage by size and how many others (contracts/room-bundle.md §10). A selectable RT2 refused is named by its path. */
 function sideWalls(c: Composed): string[] {
-  const picks = sideWallPicks(c.geometry).filter((p) => p.stages.length > 0 || p.flat);
+  const picks = sideWallPicks(c.geometry);
   if (picks.length === 0) return ["Side-wall selectables: none."];
-  const name = (id: string): string => (c.reader.printable(id) ? `\`${id}\`` : REFUSED);
+  const cell = (stages: readonly Stage[]): string =>
+    stages[0] === undefined ? DASH : `list-only at ${stagesPhrase(stages[0], stages.length - 1)}`;
   const out = [
     'Side-wall selectables (FR-064): the room draws no pick area for them at the stages named, and the "In the room" list reaches them.',
     "",
@@ -269,15 +269,10 @@ function sideWalls(c: Composed): string[] {
     "|---|---|---|",
   ];
   for (const p of picks) {
-    const cell =
-      p.stages.length === 0
-        ? DASH
-        : p.stages.length === 1
-          ? `list-only at ${stageSize(p.stages[0]!)}`
-          : `list-only at ${stageSize(p.stages[0]!)} and ${p.stages.length - 1} other supported stage${
-              p.stages.length - 1 === 1 ? "" : "s"
-            }`;
-    out.push(`| ${name(p.id)} (${p.walls.join(" / ")}) | ${cell} | ${p.flat ? "list-only" : DASH} |`);
+    const name = c.reader.printable(p.id)
+      ? `\`${p.id}\``
+      : formatPath(["selectables", p.index], (key) => c.reader.printable(key));
+    out.push(`| ${name} (${p.walls.join(", ")}) | ${cell(p.stages)} | ${cell(p.flat)} |`);
   }
   return out;
 }

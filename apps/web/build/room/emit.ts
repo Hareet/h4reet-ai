@@ -1002,8 +1002,8 @@ function indexBody(c: Composed, placeholders: boolean): Omit<RoomIndex, "digest"
     label: sw.label,
     cases: casesOf(sw),
   }));
-  // FR-064's amendment (2026-10-23): the side-wall selectables, by the structure the room hangs them.
-  const sideWall = scene === null ? [] : sideWallsOf(scene);
+  // FR-064's carve-out (see listOnly): the side-wall selectables, read from the scene's mounts.
+  const sideWall = c.geometry === null ? [] : sideWallsOf(c.geometry);
   return {
     schema: 1,
     build: { kind: c.options.drafts ? "drafts" : "release", placeholders },

@@ -376,8 +376,9 @@ function layout(c: Composed): string[] {
     "## The layout checklist",
     "",
     "From `apps/web/room/scene.yaml`, in the scene's axes: x to the right, y up, z toward the room's front, in metres. " +
-      "Each row reads measured or estimated, from the data's `estimated` marks; measure each estimated one (FR-026, " +
-      "FR-078).",
+      "A piece on a turned anchor of the shell, a side wall's, reads as it is measured: its origin's distance from the " +
+      "back wall, its height above the floor, and how far it stands out from the wall. Each row reads measured or " +
+      "estimated, from the data's `estimated` marks; measure each estimated one (FR-026, FR-078).",
     "",
   ];
   const corner = c.scene?.survey.desk_corner;
@@ -408,15 +409,27 @@ function layout(c: Composed): string[] {
   out.push(...(rows.length === 0 ? ["None."] : rows), "", "On the shell, at its anchors:", "");
   const shell = placements.find((p) => p.mount === undefined);
   const onShell = shell ? placements.filter((p) => p.mount?.on === shell.id) : [];
+  // The shell's bounds: the floor is their bottom, and the back wall their back.
+  const bounds = shell ? c.pieces.get(shell.piece)?.value.origin.bounds : undefined;
   out.push(
     ...(onShell.length === 0
       ? ["None."]
       : onShell.map((p) => {
           const m = p.mount as NonNullable<Placement["mount"]>;
           const estimated = m.estimated || anchorEstimated(c, m.on, m.anchor);
+          const mark = `(${estimated ? "estimated" : "measured"})`;
+          const turn = shell && c.pieces.get(shell.piece)?.value.anchors[m.anchor]?.turn;
+          const world = c.world.get(p.id);
+          if (turn && (turn.x !== 0 || turn.y !== 0 || turn.z !== 0) && bounds && world) {
+            const o: Vec3 = origin(world);
+            return (
+              `- [ ] ${nameOf(c, p)}: on the anchor ${code(m.anchor)}, its origin ${n(o[2] - bounds.min[2])} from the ` +
+              `back wall and ${n(o[1] - bounds.min[1])} above the floor, ${n(m.offset[2])} out from the wall ${mark}`
+            );
+          }
           return (
             `- [ ] ${nameOf(c, p)}: on the anchor ${code(m.anchor)}, offset x ${n(m.offset[0])}, y ${n(m.offset[1])}, ` +
-            `z ${n(m.offset[2])} (${estimated ? "estimated" : "measured"})`
+            `z ${n(m.offset[2])} ${mark}`
           );
         })),
     "",

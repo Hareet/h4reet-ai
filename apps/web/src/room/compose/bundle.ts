@@ -86,9 +86,8 @@ export interface RoomIndex {
     name: string;
     members: string[];
     action: { kind: "talk"; topic: string } | { kind: "resume" };
-    /** Every member hangs on the room's shell, on a side-wall anchor (FR-064's amendment, 2026-10-23): where a
-     *  stage can't hold its exclusive core, the room draws no pick area for it, and the "In the room" list
-     *  reaches it. */
+    /** Every member hangs directly on the shell's side-wall anchors: FR-064's carve-out (see listOnly) may leave it
+     *  to the "In the room" list at FR-064's smallest stages. */
     side_wall: boolean;
   }[];
   topics: { id: string; phrase: string; ready: false }[];

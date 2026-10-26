@@ -16,8 +16,10 @@ export interface Box {
 
 /** The vertical field of view, in degrees. */
 export const FOV = 45;
-/** The camera's height, the middle of the floor-to-artwork span. */
-export const EYE_Y = 1.5;
+/** The camera's height: about the middle of the cube's framed span, from the floor to the labels over its highest
+ *  hangings (0 to about 2.33 m), so the view leaves no empty band over the room and the framing brings the camera as
+ *  close as the boxes allow (spec.md's Clarifications, 2026-10-26, D1; plan.md §10). Spec 002's was 1.5 m. */
+export const EYE_Y = 1.15;
 /** A margin around the boxes, as a share of the view: 6%. */
 export const MARGIN = 1.06;
 /** A stand-in's label floats this far above its piece's top... */

@@ -157,3 +157,41 @@ export const FLAT_VIEW = { w: 320, h: 200 } as const;
 export function flatScale(stage: Stage): number {
   return Math.min(stage.w / FLAT_VIEW.w, stage.h / FLAT_VIEW.h);
 }
+
+let supported: readonly Stage[] | null = null;
+/** supportedStages(), computed once for the functions below. */
+const everyStage = (): readonly Stage[] => (supported ??= supportedStages());
+
+let flatSmallest: Stage | null = null;
+/** The supported stage that gives the 2D drawing its smallest scale, the first in supportedStages()'s order (304 × 208:
+ *  0.95). Computed once. */
+export function smallestFlatStage(): Stage {
+  flatSmallest ??= everyStage().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
+  return flatSmallest;
+}
+
+/** Two lengths in CSS pixels that room.css's formulas give alike. */
+const same = (a: number, b: number): boolean => Math.abs(a - b) < 1e-6;
+/** The stage of a 320-wide screen held upright, at its shortest (304 × 248), and of a 320-high screen held sideways
+ *  (304 × 208): the two ends FR-064's smallest stages are read from. */
+const [UPRIGHT, SIDEWAYS] = [stageFor({ w: 320, h: 568 }), stageFor({ w: 568, h: 320 })];
+
+/**
+ * FR-064's smallest stages, the one place their reading lives (spec.md, FR-064; the reading of 2026-10-26, which
+ * waits for the Author): the class of phone-sized stages, every stage of a 320-wide screen held upright (304 × 248 to
+ * 304 × 640) and every stage of a screen held sideways that room.css gives 208 px of height (304 × 208 to 686.4 × 208
+ * in the sweep). The 2D drawing is held to the same stages, at each one's scale. The reading the Author may take
+ * instead, the three exact stages (304 × 208, 304 × 640, and the 2D drawing at its smallest scale), changes only this
+ * function: `same(stage.w, 304) && (same(stage.h, 208) || same(stage.h, 640))`, the 2D drawing following the stages.
+ * The compositor (RG6), the kernel's `listOnly`, and the room's two pickers all ask it.
+ */
+export function isFr064Smallest(stage: Stage): boolean {
+  return same(stage.h, SIDEWAYS.h) || (same(stage.w, UPRIGHT.w) && stage.h >= UPRIGHT.h - 1e-6);
+}
+
+let smallestStages: readonly Stage[] | null = null;
+/** The supported stages FR-064's smallest stages are, in supportedStages()'s order. Computed once. */
+export function fr064SmallestStages(): readonly Stage[] {
+  smallestStages ??= everyStage().filter(isFr064Smallest);
+  return smallestStages;
+}
