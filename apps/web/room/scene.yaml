@@ -1,10 +1,15 @@
-# The room's scene: the cube the Author laid out on 2026-10-23 (plan.md §10). The camera frames the shell, so the
-# view looks straight into its open front. The desk stands against the back wall, the ultrawide monitor on it with the
-# neon sign clipped to its top edge, the large window behind them, the artwork hanging over part of the window, and
-# the laptop on its stand at the desk's right end; the chalkboard hangs on the left wall with the snowboard upright
-# beside it, and the bicycle hangs upright by its front wheel on the right wall, next to the laptop; the twin stands
-# right of the desk, by the laptop, and the visitor in the middle. Every position is an estimate until measured. The
-# charger is the laptop's switch on the tier: plugged in only while the tier is local (FR-043).
+# The room's scene: the cube the Author laid out on 2026-10-23 and 2026-10-26 (spec.md's Clarifications; FR-078). The
+# camera frames the shell, so the view looks straight into its open front. The desk stands against the back wall, the
+# ultrawide monitor on it with the neon sign clipped to its top edge, the large window behind them, the artwork
+# hanging over the window's upper right corner, and the laptop on its stand at the desk's right side; on the left wall
+# the chalkboard hangs with the snowboard upright on its tail beside it (T301 re-lays them, D1); the
+# bicycle hangs upright by its front wheel on the right wall, next to the laptop; the twin stands a little right of
+# the desk, by the laptop, and the visitor central, at the floor's open front and a little left (D3). Every position is
+# an estimate until measured. The charger is the laptop's switch on the tier: plugged in only while the tier is local
+# (FR-043).
+# Offsets are in the anchor's frame, so on the side walls they read along the wall: the shell turns `left-wall` +90°
+# about Y, so its +x points toward the back wall, and `right-wall` −90°, so its +x points toward the open front; y is
+# the height, and z the distance out from the wall.
 version: 1
 look: inked-cel
 live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
@@ -17,7 +22,7 @@ placements:
     label: label.desk
   - id: desk-screen
     piece: desk-screen
-    mount: { on: work-desk, anchor: top, offset: [-0.154, 0, -0.22], estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [-0.18, 0, -0.22], estimated: true }
     frame: true
     label: label.monitor
   - id: neon-sign
@@ -46,7 +51,7 @@ placements:
           - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 43 }, ui: [sign.second_line] }
   - id: laptop-stand
     piece: laptop-stand
-    mount: { on: work-desk, anchor: top, offset: [0.55, 0, -0.1], estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [0.44, 0, -0.1], estimated: true }
     frame: true
     label: label.stand
   - id: laptop
@@ -76,12 +81,12 @@ placements:
     label: label.snowboard
   - id: bicycle
     piece: bicycle
-    mount: { on: room-shell, anchor: right-wall, offset: [0.2221, 1.5, 0.05], turn: { z: 90 }, estimated: true }
+    mount: { on: room-shell, anchor: right-wall, offset: [0, 1.35, 0.05], turn: { z: 90 }, estimated: true }
     frame: true
     label: label.bicycle
   - id: wall-window
     piece: wall-window
-    mount: { on: room-shell, anchor: back-wall, offset: [0, 1.45, 0], estimated: true }
+    mount: { on: room-shell, anchor: back-wall, offset: [-0.05, 1.475, 0], estimated: true }
     frame: true
     label: label.window
   # The view has no label of its own: it stands inside the window, whose label stands for both. Its own label drew over
@@ -91,18 +96,18 @@ placements:
     mount: { on: wall-window, anchor: view }
   - id: wall-art
     piece: wall-art
-    mount: { on: room-shell, anchor: back-wall, offset: [0.54, 1.14, 0.065], estimated: true }
+    mount: { on: room-shell, anchor: back-wall, offset: [0.8, 1.9, 0.065], estimated: true }
     frame: true
     label: label.artwork
   - id: twin-figure
     piece: twin-figure
     role: twin
-    mount: { on: room-shell, anchor: floor, offset: [0.55, 0, 0.395] }
+    mount: { on: room-shell, anchor: floor, offset: [0.78, 0, 0.395] }
     frame: true
   - id: visitor-figure
     piece: visitor-figure
     role: visitor
-    mount: { on: room-shell, anchor: floor, offset: [0, 0, 0.58] }
+    mount: { on: room-shell, anchor: floor, offset: [-0.4, 0, 0.58] }
     frame: true
 switches:
   - id: laptop-power
@@ -116,7 +121,7 @@ switches:
       unplugged:
         mount: { on: work-desk, anchor: top, offset: [0.5, 0.007, 0.16], turn: { y: 160 } }
       resting:
-        mount: { on: work-desk, anchor: top, offset: [0.32, 0.007, -0.3], turn: { y: 90 } }
+        mount: { on: work-desk, anchor: top, offset: [0.05, 0.007, -0.2], turn: { y: 90 } }
     cases:
       local: plugged
       cloud: unplugged

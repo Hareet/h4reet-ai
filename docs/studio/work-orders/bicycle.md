@@ -18,7 +18,7 @@ Model the bicycle from the dimension sheet and the Author's description: the whe
 - The frame's height at the saddle and at the handlebars, and the handlebars' width.
 - Where the hook it hangs from is, from the floor and from the back wall.
 - Measure: the size, now estimated at 1.26 × 0.775 × 0.1 m (w × h × d).
-- Measure: where `bicycle` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (0.2221, 1.5, 0.05) m.
+- Measure: where `bicycle` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (0, 1.35, 0.05) m.
 
 ## Size, origin, and bounds
 

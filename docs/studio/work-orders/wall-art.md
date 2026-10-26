@@ -15,7 +15,7 @@ Model a framed canvas from the dimension sheet; paint an original picture for it
 - The frame's outer width, height, and depth.
 - Where the frame hangs, from the floor to its lower edge and from the window's centre.
 - Measure: the size, now estimated at 0.5 × 0.3 × 0.04 m (w × h × d).
-- Measure: where `wall-art` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (0.54, 1.14, 0.065) m.
+- Measure: where `wall-art` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (0.8, 1.9, 0.065) m.
 
 ## Size, origin, and bounds
 

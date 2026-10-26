@@ -27,14 +27,18 @@ drawing:
   primitives:
     - primitive: polygon
       points: [[-1.0668, 0], [1.0668, 0], [1.4056, -0.4764], [-1.4056, -0.4764]]
-      fill: "#c9c6bf"
+      fill: cement
     - primitive: polygon
       points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.4056, 2.3348], [-1.4056, -0.4764]]
-      fill: "#c98f78"
+      fill: brick
+      stroke: ink
+      stroke_width: 0.01
     - primitive: polygon
       points: [[1.0668, 0], [1.0668, 2.1336], [1.4056, 2.3348], [1.4056, -0.4764]]
-      fill: "#c98f78"
-    - { primitive: rect, x: -1.0668, y: 0, w: 2.1336, h: 2.1336, fill: "#dba48e" }
+      fill: brick
+      stroke: ink
+      stroke_width: 0.01
+    - { primitive: rect, x: -1.0668, y: 0, w: 2.1336, h: 2.1336, fill: brick, stroke: ink, stroke_width: 0.01 }
 budget: { gzip_bytes: 800000, triangles: 2000, texture_px: 1024, texture_bytes: 11184810 }
 work_order:
   method: >-

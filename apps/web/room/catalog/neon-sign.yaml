@@ -2,10 +2,12 @@
 # tube tracing its outline, and the clip that grips the edge, with no tube shaped like a letter or a digit. Its four
 # live faces are plain panels the room draws on: the word, the two counters, and the second line (FR-049), which isn't
 # a readable face, so its words go to the text copy (FR-052). A designed prop with nothing to measure, enlarged as a
-# readable prop (FR-051): stylized scale 2.6, the smallest that holds the word and the counters at the legibility
-# floor on the reference desktop (the floor is met first at 2.5429), where the sign stands 1.534 m wide, inside the
-# window's opening; on the reference phone the counters are exempt from the floor, their figures in the text copy
-# (FR-052; the Author, 2026-10-23: "Take both recommendations."); lookdev sets it again (Confirmation 8).
+# readable prop (FR-051): stylized scale 2.6, where the sign stands about 1.53 m wide, inside the window's opening, as
+# the Author chose on 2026-10-26 (D2: "Keep the 1.5 m sign, and give the word a larger panel inside it"). The word's
+# panel, 0.29 × 0.058 between the counters and the tube, holds the word at the legibility floor on both reference
+# stages; only the two counter faces are exempt from the floor, on the reference phone alone, their figures in the
+# text copy's "Around the room" (FR-052; the Author, 2026-10-23: "Take both recommendations."). Lookdev sets the scale
+# again (Confirmation 8).
 version: 1
 id: neon-sign
 name: Neon arrow sign
@@ -16,11 +18,11 @@ origin:
   bounds: { min: [-0.255, -0.02, -0.015], max: [0.335, 0.243, 0.035] }
 live_faces:
   - role: word
-    at: [0, 0.198, 0.0245]
-    size: [0.2, 0.04]
+    at: [0, 0.2, 0.0245]
+    size: [0.29, 0.058]
     facing: [0, 0, 1]
     up: [0, 1, 0]
-    px: [1024, 205]
+    px: [1485, 297]
     readable: true
   - role: call
     at: [0, 0.15, 0.0245]

@@ -18,7 +18,7 @@ Model the monitor on its stand from the dimension sheet and the Author's descrip
 - Where the foot stands on the desk, from the desk's front-left corner.
 - Measure: the size, now estimated at 0.82 × 0.52 × 0.24 m (w × h × d).
 - Measure: the anchor `top-edge`, now estimated at (0, 0.52, -0.04) m in the piece's frame.
-- Measure: where `desk-screen` sits, now estimated: on `work-desk`'s anchor `top`, offset (-0.154, 0, -0.22) m.
+- Measure: where `desk-screen` sits, now estimated: on `work-desk`'s anchor `top`, offset (-0.18, 0, -0.22) m.
 
 ## Size, origin, and bounds
 

@@ -19,7 +19,7 @@ None.
 - The size: 0.65 × 1.75 × 0.4 m (w × h × d), measured.
 - The stylized scale: 1, so the model is made at 0.65 × 1.75 × 0.4 m (FR-051).
 - The origin: on the floor, between the figure's feet.
-- The expected bounds at that scale: from (-0.28, 0, -0.2) to (0.37, 1.75, 0.2) m.
+- The expected bounds at that scale: from (-0.37, 0, -0.2) to (0.28, 1.75, 0.2) m.
 - Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.0525 m, z 0.02 m (FR-019).
 
 ## Anchors
@@ -28,7 +28,7 @@ At the model's scale, in the piece's frame (FR-003):
 
 | Anchor | Position (m) | Turn (°) |
 |---|---|---|
-| `hand` | (0.33, 1.02, 0.2) | (0, 0, 0) |
+| `hand` | (-0.33, 1.02, 0.2) | (0, 0, 0) |
 
 ## Live faces
 

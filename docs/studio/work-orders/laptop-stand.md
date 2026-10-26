@@ -17,7 +17,7 @@ Model the stand from the dimension sheet and the Author's description, as plain 
 - Where the stand stands on the desk, from the desk's front-left corner.
 - Measure: the size, now estimated at 0.26 × 0.12 × 0.24 m (w × h × d).
 - Measure: the anchor `top`, now estimated at (0, 0.12, 0) m in the piece's frame.
-- Measure: where `laptop-stand` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.55, 0, -0.1) m.
+- Measure: where `laptop-stand` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.44, 0, -0.1) m.
 
 ## Size, origin, and bounds
 
