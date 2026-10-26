@@ -3,9 +3,9 @@ Spec: [specs/004-room-composition/spec.md](../../specs/004-room-composition/spec
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`; this branch's worktree is `/tmp/claude-1000/wt-004-cube-amend`, on `spec/004-cube-amend`, cut from `main` at ed3799d · Repo hooks active: yes for this rework (Claude Code's hooks; `.claude/audit/hooks.log`, 2026-10-26T14:37:45Z: `subagent OK checked the handback: clean :: agent_type: spec-writer`). The local agent's five commits ran under opencode, where only git's own hooks run.
 Authorized by: the Author's decisions of 2026-10-23 and 2026-10-26, quoted verbatim, once, in spec.md's Clarifications (Sessions 2026-10-23 and 2026-10-26), and the spec and plan in `specs/004-room-composition/`.
 
-**Status: awaiting review.** Documents only: seven files under `specs/004-room-composition/`, this note, and the removal of the local agent's note. No code, bundle, gate, Makefile, disclosure, or human-only path changes.
+**Status: reviewed, ready to merge by hand** (documents only). Against `main`, seven files under `specs/004-room-composition/` change (spec.md, data-model.md, quickstart.md, tasks.md, plan.md, contracts/room-data-files.md, contracts/room-bundle.md), plus this note. FR-048, contracts/turn-cost.md, data-model.md §6.3, and T263 end equal to `main`'s text. The local agent's note was added and removed within the branch. No code, bundle, gate, Makefile, disclosure, or human-only path changes.
 
-**Commits:** the local opencode agent's five commits from `oc/004-spec-amend`, cherry-picked onto `main` (ed3799d), then this rework's commit.
+**Commits:** the local opencode agent's five commits from `oc/004-spec-amend`, cherry-picked onto `main` (ed3799d) as 9005c7c, 3719f5d, 0f8b69e, 934c9dc, and 9267b24, then this rework's commits. 0f8b69e's subject ("…as Confirmation 25") is superseded: no Confirmation 25 exists in the merged text.
 
 ## What changed and why
 
@@ -32,14 +32,14 @@ The Author laid the room out as a small brick cube on 2026-10-23, then took two 
 - [data-model.md](../../specs/004-room-composition/data-model.md): §4.5's carve-out; §4.9's default scene, the cube; §6.3's `sign.*` words back to `main`'s; §10.1's `side_wall`; §10.9's legibility status and side-wall row; §13's key numbers.
 - [contracts/room-data-files.md](../../specs/004-room-composition/contracts/room-data-files.md): §5.5's pick area; §13.3's stages, RG6, and RG7.
 - [contracts/room-bundle.md](../../specs/004-room-composition/contracts/room-bundle.md): §3.1's `side_wall`; §10's report, its example and its parts.
-- [contracts/turn-cost.md](../../specs/004-room-composition/contracts/turn-cost.md): §5 and §10 back to `main`'s text.
 - [quickstart.md](../../specs/004-room-composition/quickstart.md): Q3's Author runs; Q5's report; Q7's SC-010 half; Q9's checks.
-- [tasks.md](../../specs/004-room-composition/tasks.md): Prerequisites; T100, T117, T119, T170, and T263; T292 to T302; the dependencies, the graph, and the parallel examples.
+- [tasks.md](../../specs/004-room-composition/tasks.md): Prerequisites; T100, T117, T119, and T170; T292 to T302; the dependencies, the graph, and the parallel examples.
+- [plan.md](../../specs/004-room-composition/plan.md): FR-078's data in three commits, and a §10 "Foreseen" entry for the camera change and the cube's data commits.
 
 ### The merge
 
 - **Position:** after M3, on `main`, before line R's User Story 1 (`feat/004-us1-composition`), so US1's tasks T292 to T302 are written against the amended spec. Line R carries a cherry-picked copy, as it carries the rest of spec 004.
-- **The code branch `oc/004-us3-cube`** implements the local agent's wider draft (the carve-out at every stage, the word face exempt). It is not to merge: T292 to T302 hold the code to this amendment, test-first, on `feat/004-us1-composition`, taking that branch's code where it already agrees.
+- **The code branch `oc/004-us3-cube`** implements the local agent's wider draft (the carve-out at every stage, the word face exempt). It is not to merge. `feat/004-us1-composition` also carries its three code commits for now (bc897a6, d8b9c2e, 4aa2e0a, cherry-picked as the starting point), and T292 to T302 rework them to this amendment, test-first, before US1's review (T116).
 
 ## Acceptance criteria
 
@@ -65,7 +65,18 @@ No deviation is added.
 
 ## Review
 
-Pending: `REVIEW.md`'s passes (bugs, security, compliance, cost and telemetry) by an agent that wrote none of this branch, over this branch's diff from `main`. The findings the reviews of `oc/004-spec-amend` raised, and what this rework did about each, are listed under "What changed and why".
+`REVIEW.md`'s four passes, by a reviewer agent that wrote none of this branch, over its diff from `main` at 0a043e3: no blocker. It checked every quote of the Author character for character against its source, and every relative link. Its findings and what was done:
+
+- **S1, Important:** the carve-out named three exact stages while the build sweeps stages every 16 px, so the neighbouring stages would refuse by construction, and 304 × 248 was held to the full rule unseen. Fixed: "FR-064's smallest stages" is defined once, in contracts/room-data-files.md §13.3, as Reading R1 (default: the class of phone-sized stages), waiting for the Author's yes. T301 reports the margins at the neighbouring stages.
+- **S2, Important:** the two readings (the bicycle covered; a tap on a list-only board selects nothing) are decisions, not consequences. Fixed: Readings R2 and R3, each with its default and what changes on a no, in spec.md's "Open after the cube amendment".
+- **S3:** SC-009, quickstart Q9, and T170 now carry FR-064's exception.
+- **S4:** citations of plan.md §10 that didn't exist now cite T300 and T301; plan.md gains its third data commit and a "Foreseen" entry.
+- **S5:** this note's file list and commit list corrected (above).
+- **S6:** T301 also reports the chalkboard slate's horizontal foreshortening on the side wall.
+- **S7:** `feat/004-us1-composition` carries the wide draft's code for now (see "The merge").
+- **Nits:** RG7's exemption in its own sentence; "mounted directly on"; SC-010 split; `left-wall` and `right-wall` declared reserved shell anchor names; T300 names its check; "304 × 640, the narrowest aspect"; spec.md quotes the session's "No depth from 4 ft to 7 ft solves it".
+
+The findings the reviews of `oc/004-spec-amend` raised, and what this rework did about each, are listed under "What changed and why".
 
 ## Verification
 
@@ -82,9 +93,10 @@ None: documents only. No model call, request, flow, or byte leaving a device is 
 ## For the Author
 
 1. **Merge after M3, on `main`, before line R's US1.** Documents only.
-2. **Nothing to answer now.** The amendment records your decisions of 2026-10-23 and 2026-10-26 as you gave them. Two things stay open as conditions (spec.md, "Open after the cube amendment"):
-   - **D1's condition.** If the re-laid left wall and the lower, closer camera still leave a side-wall board without its own tap area at a stage larger than the smallest, the build refuses the room, and you choose between (b), (c), and (d) with the numbers (T301, T302).
+2. **Three readings wait for your yes** (spec.md, "Open after the cube amendment"). Each is written beside your words, not in their place, and the build uses its default until you answer:
+   - **R1, which screens are "too small for wall taps":** default, every phone-sized stage (every upright 320-wide screen, every landscape stage 208 px high, and the 2D drawing at those stages); on a no, only 304 × 208, 304 × 640, and the 2D drawing at its smallest scale.
+   - **R2, the bicycle:** default, the rule covers both side walls, so the bicycle too; on a no, only the left wall.
+   - **R3, a tap on a list-only board:** default, it selects nothing on those screens, and the list reaches it; on a no, a tap on its frontmost part selects it.
+3. **Two things stay open as conditions:**
+   - **D1's condition.** If the re-laid left wall and the lower, closer camera still leave a side-wall board without its own tap area at any stage outside FR-064's smallest, the build refuses the room, and you choose between (b), (c), and (d) with the numbers (T301, T302).
    - **D4** is a new intent (`intent/005-full-window-room.md`, a draft), for spec 002's layout. It will move the stages the tap-area rule measures, so that work re-measures them.
-3. **Two readings to check.** Each is written beside your words, not in their place:
-   - The rule names no piece, so it covers any board hung on a side wall, the bicycle on the right wall included, not only "the snowboard and chalkboard" your recommendation named.
-   - A tap on a list-only board's picture selects nothing at the smallest stages, so it can't open the piece behind it.
