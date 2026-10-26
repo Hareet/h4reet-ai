@@ -4,7 +4,8 @@
 # wall's inner face, midway along it, each turned so that a piece mounted there faces into the room with its x to the
 # viewer's right. The scene frames the shell, so the camera looks straight into the open front. The 2D drawing is the
 # cube as framing(1.6) sees it, drawn in the back wall's plane: the floor and the two side walls in perspective, then
-# the back wall; it holds while the shell's open front binds the 2D camera.
+# the back wall, their front corners where the 2D camera projects the cube's open front onto that plane (a test holds
+# them to the camera); it holds while the shell's open front binds the 2D camera.
 version: 1
 id: room-shell
 name: Room shell, a brick cube open at the front
@@ -26,15 +27,15 @@ standin:
 drawing:
   primitives:
     - primitive: polygon
-      points: [[-1.0668, 0], [1.0668, 0], [1.4056, -0.4764], [-1.4056, -0.4764]]
+      points: [[-1.0668, 0], [1.0668, 0], [1.5047, -0.4721], [-1.5047, -0.4721]]
       fill: cement
     - primitive: polygon
-      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.4056, 2.3348], [-1.4056, -0.4764]]
+      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.5047, 2.5374], [-1.5047, -0.4721]]
       fill: brick
       stroke: ink
       stroke_width: 0.01
     - primitive: polygon
-      points: [[1.0668, 0], [1.0668, 2.1336], [1.4056, 2.3348], [1.4056, -0.4764]]
+      points: [[1.0668, 0], [1.0668, 2.1336], [1.5047, 2.5374], [1.5047, -0.4721]]
       fill: brick
       stroke: ink
       stroke_width: 0.01
