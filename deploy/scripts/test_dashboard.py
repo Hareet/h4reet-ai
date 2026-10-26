@@ -411,6 +411,17 @@ def test_the_degraded_cause_reads_none_in_green() -> None:
     "title",
     ["Fallback sub-budget remaining", "Fallback sub-budget remaining (time series)"],
 )
+def test_the_sub_budget_reads_to_the_micro_dollar(title: str) -> None:
+    # quickstart.md §4.2 (SC-005) reads a fallback call's cost off this panel, and a Bedrock call costs a fraction
+    # of a cent: at two decimals, $2.00 less 27 micro-dollars still read $2.00 (the Author's run, 2026-10-12).
+    defaults = by_title()[title]["fieldConfig"]["defaults"]
+    assert defaults["unit"] == "currencyUSD" and defaults["decimals"] == 6
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Fallback sub-budget remaining", "Fallback sub-budget remaining (time series)"],
+)
 def test_awaiting_renewal_reads_in_red(title: str) -> None:
     # §7.2: "B maps 1 to "awaiting renewal" in red".
     panel = by_title()[title]
