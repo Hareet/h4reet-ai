@@ -15,7 +15,7 @@ Standard library plus PyYAML.
 then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, and evals/agent-config/** (without
 history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
 but not ignored (every file there, in a git archive export), with their executable bits, plus the Claude Code pin
-in .devcontainer/toolchain.vars. The gate calls status(export=True) on its export, which walks the tree and never
+in .devcontainer/toolchain.vars, a floor (ADR 0023). The gate calls status(export=True) on its export, which walks the tree and never
 runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. An entry
 counts only when this machine attests its exact bytes: `run` writes their SHA-256, as a file of that name, under
 ~/.local/state/h4reet/evals/attested/, which agent sessions can't write. Of the counted entries with that hash, the
@@ -32,8 +32,9 @@ main's tree, with no change git is told to hide, and nothing untracked, ignored 
 where it loads code (an entry an earlier run left in history/ aside); untracked files elsewhere, like an editor's
 .idea/, don't matter (review D1, 6). It clones the
 repository into a scratch folder and checks the branch out there, and that tree's cases, thresholds, roles,
-settings, and Claude Code pin are data; the runner, its checks, and the FR-007 list are main's. Before any session
-starts it prints the branch's diff against main under .claude/, CLAUDE.md, REVIEW.md, and every other human-only
+settings, and Claude Code pin are data; the runner, its checks, and the FR-007 list are main's. The claude that
+runs must be at that pin or newer, since the pin is a floor (ADR 0023), and the entry records its version. Before
+any session starts it prints the branch's diff against main under .claude/, CLAUDE.md, REVIEW.md, and every other human-only
 path (HUMAN_ONLY; plan §15, ADR 0017), read as text and cleaned for the terminal, and waits for the Author to type
 yes at a terminal. Then it runs each case three times, each run a real Claude Code session on the Team plan, in a
 fresh clone of the branch with the git hooks installed:
@@ -670,6 +671,17 @@ def trigger_files(repo: Path, *, export: bool = False) -> list[str]:
     return sorted(n for n in names if not _skipped(n))
 
 
+def at_least(pin: str, version: str) -> bool:
+    """Whether the Claude Code that runs is at the pin, a floor (ADR 0023): the pin itself, a release in its series, or
+    a later release, number by number. A pin that isn't dotted numbers takes only itself and its series."""
+    if version == pin or version.startswith(pin + "."):
+        return True
+    try:
+        return tuple(map(int, version.split("."))) > tuple(map(int, pin.split(".")))
+    except ValueError:
+        return False
+
+
 def read_pin(repo: Path) -> str:
     try:
         text = (repo / PIN_FILE).read_text(encoding="utf-8")
@@ -982,9 +994,13 @@ def status(
     named = f"{', '.join(unattested)} {'is' if len(unattested) == 1 else 'are'}"
     failed = bool(found)
     if counted and counted[-1].entry["verdict"] == "pass":
+        # The pin is a floor (ADR 0023), so the line names the Claude Code the run used, beside toolchain-check's
+        # row. Only a version's digits and dots are printed: an entry is a file, and this reaches a terminal.
+        used = counted[-1].entry["claude_code_version"]
+        shown = used if re.fullmatch(r"\d+(?:\.\d+)+", used) else "of unknown version"
         print(
             f"PASS  behavioral tier: {counted[-1].run} passed for trigger hash {digest[:12]}, the newest run for "
-            "it"
+            f"it, on Claude Code {shown}"
         )
         state = "pass"
     elif counted:
@@ -2228,11 +2244,11 @@ def run(
                     )
                 cases = [c for c in cases if c.id in wanted]
             version, pin = claude_version(claude), read_pin(tree)
-            if version is None or not (version == pin or version.startswith(pin + ".")):
+            if version is None or not at_least(pin, version):
                 raise Abort(
-                    f"the trigger hash names Claude Code {pin} ({PIN_FILE} on {ref}), but {claude} is "
-                    f"{version or 'unreadable'}: install the pin, or move the pin in a commit (which triggers the "
-                    "evals again)"
+                    f"the trigger hash names Claude Code {pin} ({PIN_FILE} on {ref}), a floor (ADR 0023), but "
+                    f"{claude} is {version or 'unreadable'}: update Claude Code, or lower the floor in a commit "
+                    "(which triggers the evals again)"
                 )
             digest = trigger_hash(tree, export=True)
             baseline, skipped = (

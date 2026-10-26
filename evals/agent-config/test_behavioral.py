@@ -910,6 +910,26 @@ def test_status_passes_with_a_passing_entry_for_the_hash(
     assert classify(out) == "PASS"
 
 
+def test_status_names_the_claude_code_the_deciding_run_used(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # ADR 0023: beside toolchain-check's row for the host's Claude Code, make evals names the one the run used.
+    (here_of(repo) / "cases" / "docs.yaml").unlink()
+    put(repo, {**entry(repo), "claude_code_version": "2.1.301"})
+    assert bh.status(repo, here_of(repo)) == 0
+    out = capsys.readouterr().out
+    (line,) = [ln for ln in out.splitlines() if ln.startswith("PASS")]
+    assert line.endswith(", the newest run for it, on Claude Code 2.1.301")
+    # An entry is a file: only a version's digits and dots reach the terminal.
+    later = entry(repo, run_name="2026-10-11T120000Z-feat-x-abcdef012345")
+    put(repo, {**later, "claude_code_version": "2.1\x1b[2J"})
+    assert bh.status(repo, here_of(repo)) == 0
+    out = capsys.readouterr().out
+    (line,) = [ln for ln in out.splitlines() if ln.startswith("PASS")]
+    assert line.endswith(", on Claude Code of unknown version")
+    assert "\x1b" not in out
+
+
 def test_a_passing_entry_for_another_hash_leaves_it_pending(
     repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1390,14 +1410,40 @@ def test_mains_code_reads_the_branchs_cases_and_thresholds_as_data(
     assert (here_of(repo) / "cases" / "docs.yaml").is_file()
 
 
-def test_run_refuses_a_claude_code_off_the_pin(
+def test_run_refuses_a_claude_code_below_the_floor(
     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    # ADR 0023: the pin is a floor. An older Claude Code never starts a session.
     agent = Agent()
-    assert run(repo, agent, tmp_path, version="2.1.296") == 2
+    assert run(repo, agent, tmp_path, version="2.1.294") == 2
     err = capsys.readouterr().err
-    assert "2.1.296" in err and PIN in err and "toolchain.vars" in err
+    assert "2.1.294" in err and PIN in err and "toolchain.vars" in err
+    assert "a floor" in err
+    assert run(repo, agent, tmp_path, version="2.1.29") == 2
     assert agent.calls == []
+
+
+def test_run_takes_a_claude_code_above_the_floor_and_records_it(
+    repo: Path, tmp_path: Path
+) -> None:
+    # ADR 0023: Claude Code updates itself from the Author's other projects. A newer one runs, and the entry records
+    # the version that ran beside the pin.
+    assert run(repo, Agent(), tmp_path, version="2.1.301") == 0
+    record = only_entry(repo)
+    assert record["claude_code_version"] == "2.1.301"
+    assert record["claude_code_pin"] == PIN
+    # The hash names the pin, not the version that ran, so an update alone doesn't move it.
+    assert record["trigger_hash"] == bh.trigger_hash(repo)
+
+
+def test_at_least_takes_the_pin_its_series_and_later_releases() -> None:
+    assert bh.at_least("2.1.295", "2.1.295")
+    assert bh.at_least("2.1", "2.1.7")
+    assert bh.at_least("2.1.295", "2.1.301")
+    assert bh.at_least("2.1.295", "2.2.0")
+    assert not bh.at_least("2.1.295", "2.1.294")
+    assert not bh.at_least("2.1.295", "2.1.29")
+    assert not bh.at_least("latest", "2.1.301")
 
 
 def test_the_pin_is_the_branchs(

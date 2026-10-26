@@ -1261,6 +1261,42 @@ def test_a_planned_policy_still_builds(fx: Fixture) -> None:
     assert len(by_kind(fx.docker(), "compose")) == 1
 
 
+# ADR 0023: Claude Code's pin is a floor, and toolchain_check passes a newer one with a "WARN:" line.
+FLOOR_WARN = (
+    "WARN: claude code 2.1.301 is newer than its floor, 2.1.295 (ADR 0023): the agent-config evals record the "
+    "version each run used, and moving the floor runs them again"
+)
+
+
+def test_a_claude_code_above_its_floor_is_a_warn_the_merge_doesnt_wait_on(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "toolchain_check.control").write_text(
+        f"0\n{FLOOR_WARN}\ntoolchain-check: all 15 match their pins, 1 newer than its floor (claude code)",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "toolchain") == "WARN"
+    assert f"-> WARN toolchain ({FLOOR_WARN})" in done.stdout
+    line = summary(done)
+    assert ", 1 WARN, " in line and "failing" not in line
+    assert "merge --no-ff" in done.stdout
+
+
+def test_a_warn_line_never_hides_a_failing_toolchain(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "toolchain_check.control").write_text(
+        f"1\n{FLOOR_WARN}\ntoolchain-check: 1 of 15 differ from their pins (jq); see tasks.md T013",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "toolchain") == "FAIL"
+    assert "failing: toolchain FAIL" in summary(done)
+
+
 def test_no_engine_certificate_fails_the_image_step_without_calling_docker(
     fx: Fixture,
 ) -> None:

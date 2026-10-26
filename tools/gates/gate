@@ -36,7 +36,8 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
 4. Host phase:
    - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
      gc.packRefs is false, and main is a loose ref, as `make githooks-check` has it;
-   - toolchain: tools/gates/toolchain_check.py against the export's pins;
+   - toolchain: tools/gates/toolchain_check.py against the export's pins; a Claude Code newer than its pin, a floor
+     (ADR 0023), passes the check with a "WARN:" line, which makes the step WARN;
    - policy: tools/gates/compose_policy.py --root <export>;
    - corpus: corpus/tools/check_corpus.py over the export's corpus, with the Author's denylist, which must exist;
      loaded into this process, which runs with PY_HOST's flags, since the script reads only its own tree;
@@ -84,7 +85,8 @@ DEGRADED. Lint, tests, the scaffolds, and stage H then run nowhere: never on the
 with H4_CONTRACT_RECORDING set and --network none. It passes only when the replay passed tests under the
 recording's own name ("recorded live: <adapter>"), so a replay that never read FILE can't pass.
 
-Statuses are make check's (PASS, SKIP, PLANNED, PENDING, FAIL), plus WARN for telemetry that didn't arrive.
+Statuses are make check's (PASS, SKIP, PLANNED, PENDING, FAIL), plus WARN for telemetry that didn't arrive and for
+a Claude Code above its floor.
 Exit 0 with no FAIL or PENDING; 1 otherwise, or when the export's proof fails; 2 when the gate refuses to start.
 """
 
@@ -847,7 +849,13 @@ def toolchain(repo: Path, export_dir: Path, tmp: Path) -> Step:
         env,
         tmp,
     )
-    return classify(Step("toolchain"), rc, out)
+    step = classify(Step("toolchain"), rc, out)
+    # A Claude Code newer than its floor passes the check with a WARN line (ADR 0023): the step is WARN, which the
+    # summary line counts, so the merge commit records it, and which the merge doesn't wait on.
+    warned = [ln for ln in out.splitlines() if ln.startswith("WARN:")]
+    if step.status == "PASS" and warned:
+        step.status, step.notes = "WARN", warned
+    return step
 
 
 def policy(repo: Path, export_dir: Path, tmp: Path) -> Step:
