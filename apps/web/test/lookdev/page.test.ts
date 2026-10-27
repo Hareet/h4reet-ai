@@ -55,8 +55,6 @@ import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
 import { CABLE_NODE } from "../../src/room/scene/cables";
 import { MODEL_NODE, modelEntries } from "../../src/room/scene/loader";
 import { caseFor } from "../../src/room/signals/tier";
-import { costReadings, createCostChannel } from "../../src/room/signals/turn-cost";
-import type { TurnOutcome } from "../../src/room/signals/turn-cost";
 import { outlineThickness } from "../../src/room/scene/look";
 import { compose } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
@@ -1515,18 +1513,16 @@ describe("User Story 5's faces on the page (T192; FR-067, FR-070)", () => {
 // User Story 9's sample figures (T267)
 // --------------------------------------------------------------------------------------------------------------------
 describe("User Story 9's sample figures on the page (T267; FR-049)", () => {
-  /** A fixture's turn as the outcome it stands for (contracts/turn-cost.md §3). */
-  const outcome = (turn: LookdevDeps["inputs"]["fixtures"][number]["turns"][number]): TurnOutcome => {
-    switch (turn.outcome) {
-      case "reply":
-        return { kind: "reply", route: turn.route, cost_micro_usd: turn.cost_micro_usd };
-      case "refused":
-        return { kind: "refused", status: turn.status };
-      case "degraded":
-        return { kind: "degraded", cause: "" };
-      default:
-        return { kind: turn.outcome };
-    }
+  /** The repository's fixtures' readings, worked by hand from their turns and contracts/turn-cost.md §5 (the review of
+   *  T268, nit 2): each counter's words as drawn, the badge in brackets. sample-budget: a paid fallback reply of 2,400,
+   *  then the metered route, a cost written as a string, a degraded turn, and a refused one. sample-cloud: a local
+   *  reply costing 0, then fallback replies of 950 and 1,840. sample-local: two local replies costing 0.
+   *  sample-unknown: a degraded turn, then a refused one. */
+  const READINGS: Readonly<Record<string, { call: string[]; visit: string[] }>> = {
+    "sample-budget": { call: ["cost unavailable"], visit: ["at least $0.002400 est.", "[Sample]"] },
+    "sample-cloud": { call: ["$0.001840 est.", "[Sample]"], visit: ["$0.002790 est.", "[Sample]"] },
+    "sample-local": { call: ["local · $0", "[Sample]"], visit: ["$0", "[Sample]"] },
+    "sample-unknown": { call: ["cost unavailable"], visit: ["at least $0", "[Sample]"] },
   };
 
   it("draws each fixture's figures on the counters, badged \"Sample\", and its tier on the switch, never row 7's", () => {
@@ -1537,18 +1533,17 @@ describe("User Story 9's sample figures on the page (T267; FR-049)", () => {
       return r && face.regions.length === 1 && "signal" in r.source ? [{ face, part: r.source.part }] : [];
     });
     expect(counters).toHaveLength(2);
+    // sample-budget and sample-cloud at least: an "at least" visit and a paid call.
+    expect(given.fixtures.map((f) => f.id)).toEqual(expect.arrayContaining(["sample-budget", "sample-cloud"]));
     let amounts = 0;
     for (const fixture of given.fixtures) {
       choose(select, fixture.id);
       clock.advance(50);
-      const channel = createCostChannel({ configured: true, clock });
-      for (const turn of fixture.turns) channel.report(outcome(turn), "fixture");
-      const readings = costReadings(channel.state, { ui: given.index.ui, drafts: true });
+      const want = READINGS[fixture.id];
+      expect(want, `${fixture.id}: a fixture without its readings worked by hand here`).toBeDefined();
       for (const { face, part } of counters) {
         const list = page.stage.faces.lists.get(face.id);
-        const reading = readings[part];
-        const badge = reading?.badge ? [`[${reading.badge.text}]`] : [];
-        expect(list ? drawnWords(list.ops) : [], `${fixture.id} ${part}`).toEqual([reading?.text, ...badge]);
+        expect(list ? drawnWords(list.ops) : [], `${fixture.id} ${part}`).toEqual(want?.[part]);
         const kinds = (list?.ops ?? []).flatMap((o) => (o.op === "badge" ? [o.kind] : []));
         expect(
           kinds.every((k) => k === "sample"),

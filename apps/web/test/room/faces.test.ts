@@ -741,6 +741,8 @@ describe("the neon sign's counters (T264; contracts/turn-cost.md §5, §6)", () 
     faces.setCost(state([reply("fallback", 950)]));
     expect(words()).toContain("$0.000950 est.");
     expect(words()).toContain(`[${index.ui["sign.test"]}]`);
+    // The call region itself was drawn again (the review of T268, nit 4).
+    expect(words()).not.toContain(index.ui["sign.no_call_yet"]);
     faces.setCost(state([reply("fallback", 950), { kind: "failed" }]));
     expect(words()).toContain(index.ui["sign.unavailable"]);
     expect(words()).toContain("at least $0.000950 est.");
