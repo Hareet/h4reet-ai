@@ -61,9 +61,6 @@ export interface FlatDrawing {
   readonly visitor: SVGElement;
   /** The hand-off's paper in its three still frames: in the twin's hand, between the hands, in the visitor's. */
   readonly papers: readonly SVGElement[];
-  /** For each of those frames, the visitor's turn toward the twin as a matrix about its feet, or null where it stands
-   *  square to the view. */
-  readonly turns: readonly (Matrix2D | null)[];
 }
 
 export interface FlatStage extends Stage {
@@ -264,7 +261,7 @@ function cable(doc: Document, run: NonNullable<FlatIndex["flat"]["poses"][number
  * the hand-off's paper, and the cues, in that order, so no piece hides a label or a cue. It throws on anything the
  * allowlist refuses.
  */
-export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId, reducedMotion = false): FlatDrawing {
+export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): FlatDrawing {
   const { flat, ui } = room;
   if (flat.view_box.length !== 4 || !flat.view_box.every(isNumber)) throw new Error("the 2D room refuses its view box");
   const root = svg(doc, "svg", {
@@ -376,18 +373,17 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId, reduc
     root.append(area, name);
   }
 
-  return { root, items, switches, labels, cues, visitor, papers, turns: turnsOf(flat, reducedMotion) };
+  return { root, items, switches, labels, cues, visitor, papers };
 }
 
 /** In each of the hand-off's frames, the visitor's turn toward the paper's side, as the 3D room turns it at that frame's
- *  progress; under reduced motion it doesn't turn, as in 3D. */
-function turnsOf(flat: FlatIndex["flat"], reducedMotion: boolean): (Matrix2D | null)[] {
+ *  progress, a matrix about its feet, or null where it stands square to the view. The stage leaves it out under reduced
+ *  motion, read as each frame shows, as in 3D. */
+function turnsOf(flat: FlatIndex["flat"]): (Matrix2D | null)[] {
   const { x: feet, baseline } = flat.visitor;
   const towardTwin = sideOf(flat.papers[0][0] - feet);
   return flat.papers.map((_, k) =>
-    reducedMotion
-      ? null
-      : visitorTurn(feet, baseline, towardTwin, VISITOR_TURN * visitorTurnShare(k / (FLAT_FRAMES - 1))),
+    visitorTurn(feet, baseline, towardTwin, VISITOR_TURN * visitorTurnShare(k / (FLAT_FRAMES - 1))),
   );
 }
 
@@ -460,8 +456,8 @@ export function renderFlat(
   },
 ): FlatStage {
   const reduced = (): boolean => options.motion?.reducedMotion ?? options.reducedMotion ?? false;
-  const drawing = drawFlat(doc, options.room, options.avatar, reduced());
-  const moving = turnsOf(options.room.flat, false);
+  const drawing = drawFlat(doc, options.room, options.avatar);
+  const moving = turnsOf(options.room.flat);
   const element = h(doc, "div", { class: "flat", "aria-hidden": "true" }, drawing.root);
   const picker = flatPicker(options.room.flat.hits, options.room);
   const resize = (size: Size): void => {

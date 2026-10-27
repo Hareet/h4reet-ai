@@ -112,8 +112,9 @@ export function createMotionStore(options: { readonly win: Window; readonly wall
     get hidden() {
       return hidden;
     },
+    // Read on every frame, so it builds no state object.
     get animate() {
-      return state().animate;
+      return !paused && !reducedMotion && !hidden;
     },
     get pausedAt() {
       return pausedAt;
