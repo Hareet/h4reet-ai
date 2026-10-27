@@ -4,6 +4,8 @@
 # passes an empty ignore path and --ignore-gitleaks-allow, and refuses while a .gitleaksignore sits at its source,
 # or one that an agent could fill sits in the main tree, so nothing an agent writes can switch a rule off. Without
 # gitleaks or the config it refuses the commit: the hook fails closed.
+# Then the arrival check (spec 003 FR-004; research R-06): the main working tree's tools/gates/arrival_check.py over the
+# staged files, reading the policy from the main branch, refs/heads/main. Without the check or Python, it refuses too.
 set -euo pipefail
 fail() {
   echo "pre-commit: $1; the commit is refused" >&2
@@ -50,3 +52,12 @@ fi
 GIT_DIR="$git_dir" GIT_WORK_TREE="$top" gitleaks git --pre-commit --staged --no-banner --redact --config "$config" \
   --gitleaks-ignore-path "$empty" --ignore-gitleaks-allow "$empty" \
   || fail "gitleaks found something shaped like a secret in the staged changes, or couldn't run"
+# The arrival check: the main working tree's copy, as the gitleaks config above, so a branch can't weaken the check
+# that guards its own commits. It runs under PY_HOST's flags, so no planted bytecode loads, over the index git hands
+# this hook (GIT_INDEX_FILE, resolved above, for a partial commit's). Exit 1 is a finding and 2 a check that couldn't
+# run; both refuse the commit, and the check's own lines name the rule, the file, and why, never what it matched.
+arrival="$main_tree/tools/gates/arrival_check.py"
+[ -f "$arrival" ] || fail "the main working tree has no tools/gates/arrival_check.py (spec 003), so the staged files can't be checked"
+command -v python3 >/dev/null 2>&1 || fail "python3 isn't installed, so the arrival check can't run"
+python3 -I -B -X pycache_prefix=/dev/null "$arrival" --repo "$top" --staged \
+  || fail "the arrival check refused a staged file, or couldn't run (contracts/arrival-check.md)"

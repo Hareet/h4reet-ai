@@ -31,7 +31,8 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
 3. Container phase, on this machine's engine (plan §11: the devcontainer build needs Ubuntu's mirrors). The
    devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
    the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
-   validate-config, test, evals, redteam-suite, and matrix (stage H). Every container drops all capabilities, sets
+   validate-config, test, evals, redteam-suite, matrix (stage H), and credits-check (spec 003's credits and records,
+   SKIP for a branch from before them). Every container drops all capabilities, sets
    no-new-privileges, and runs as the Author's uid on that copy.
 4. Host phase:
    - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
@@ -54,6 +55,11 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
      git log shows no diff for. Anything at the export's root named .gitleaksignore refuses it first, since dir mode
      obeys one at the folder it scans (R-36). Its log is read as the range scan's, and a "WRN skipping" line, a file
      it couldn't read, fails it too; it must say how many bytes it scanned, more than none of a tree with content;
+   - arrival: spec 003's arrival check, the main tree's tools/gates/arrival_check.py, over $(git merge-base main
+     SHA)..SHA: each commit's added and changed files as it had them, what each merge's resolution adds, and SHA's
+     whole tree, read as git data, with the license allowlist, the approvals, and the caps read from refs/heads/main
+     (contracts/arrival-check.md). The branch's credits renderer is agent-editable, so its check, make credits-check,
+     runs in the container phase;
    - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
      only after the policy passed, because an unvetted build could read host files into the engine: first the
      gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
@@ -157,6 +163,9 @@ CONTAINER_TARGETS = (
     ("evals", "evals"),
     ("redteam", "redteam-suite"),
     ("matrix-h", "matrix"),
+    # Spec 003: the branch's own credits renderer, scripts/assets/credits.py --check, which is agent-editable, so it
+    # runs here and never on the host. SKIP for a branch from before spec 003, with neither the script nor assets/.
+    ("credits", "credits-check"),
 )
 STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
 # gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
@@ -755,6 +764,17 @@ def container_phase(report: Report, data: bytes, export_dir: Path, tmp: Path) ->
         return
     docker, image, work = ready
     for name, target in CONTAINER_TARGETS:
+        if target == "credits-check" and not (
+            (export_dir / "scripts" / "assets" / "credits.py").is_file()
+            or (export_dir / "assets").is_dir()
+        ):
+            report.add(
+                Step(name).set(
+                    "SKIP",
+                    "the branch has neither scripts/assets/credits.py nor assets/ (spec 003)",
+                )
+            )
+            continue
         begin(name, f"make {target}, --network none")
         rc, out = stream(
             container(
@@ -1106,6 +1126,33 @@ def gitleaks_tree(repo: Path, export_dir: Path, tmp: Path) -> Step:
     elif int(scanned.group(1)) == 0 and holds_content(export_dir):
         problems.append("gitleaks scanned 0 bytes of a tree that holds some")
     return scan_verdict(step, findings, problems)
+
+
+def arrival(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
+    """Spec 003's arrival check over the branch's commits: the main tree's own code, the commits read as git data
+    (contracts/arrival-check.md §1). The branch's credits renderer runs in the container phase, never here."""
+    begin(
+        "arrival",
+        "the studio's files in every commit since main, against the main branch's policy",
+    )
+    step = Step("arrival")
+    checker = repo / "tools" / "gates" / "arrival_check.py"
+    if not checker.is_file():
+        return step.fail(f"{checker} is missing (spec 003, Phase 2)")
+    if base is None:
+        return step.fail(
+            "no merge base with main, so the commits since main can't be named"
+        )
+    rc, out = stream(
+        py_host(checker, "--repo", str(repo), "--range", f"{base}..{sha}"),
+        tool_env(GIT_NO_REPLACE_OBJECTS="1"),
+        tmp,
+    )
+    if rc not in (0, 1):
+        return step.fail(
+            f"the arrival check exited {rc}: it couldn't check, which counts as a failure"
+        )
+    return classify(step, rc, out)
 
 
 def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
@@ -1580,6 +1627,7 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
         report.add(corpus(repo, export_dir))
         report.add(gitleaks(repo, sha, base, tmp))
         report.add(gitleaks_tree(repo, export_dir, tmp))
+        report.add(arrival(repo, sha, base, tmp))
         report.add(image(export_dir, policy_step, tmp, sha))
         report.add(stage_e(repo, paths, prove, ref))
         report.add(agent_config_evals(repo, export_dir, base, paths))

@@ -46,7 +46,15 @@ sys.modules["h4_gate"] = gm  # dataclasses look their module up here
 _LOADER.exec_module(gm)
 CHECK_CORPUS = REPO / "corpus" / "tools" / "check_corpus.py"
 SYSTEM_PATH = "/usr/local/bin:/usr/bin:/bin"
-TARGETS = ["lint", "validate-config", "test", "evals", "redteam-suite", "matrix"]
+TARGETS = [
+    "lint",
+    "validate-config",
+    "test",
+    "evals",
+    "redteam-suite",
+    "matrix",
+    "credits-check",
+]
 ENGINE = "tcp://198.18.0.1:2376"
 RECORDING = "/run/h4-contract/recording.json"
 PHRASE = "zebra quartz lantern"  # the fixture denylist's one phrase
@@ -392,7 +400,7 @@ def fx(tmp_path: Path) -> Fixture:
         ".devcontainer/Dockerfile": "FROM scratch\n",
         ".devcontainer/toolchain.vars": "NODE_VERSION=24.21.0\nCLAUDE_CODE_VERSION=2.1.295\n",
         "CLAUDE.md": "# fixture\n",
-        "Makefile": f"lint test evals redteam-suite matrix validate-config:\n\t@touch {logs}/EXPORT-make\n",
+        "Makefile": f"lint test evals redteam-suite matrix validate-config credits-check:\n\t@touch {logs}/EXPORT-make\n",
         "corpus/00-profile.md": "A public corpus file.\n",
         "deploy/compose.yaml": "services: {}\n",
         "deploy/env.agents/dev-cpu.vars": "H4_STACK=dev-cpu\n",
@@ -415,6 +423,21 @@ def fx(tmp_path: Path) -> Fixture:
         main / "deploy/agents-engine/engine.sh",
         STUB_SCRIPT.format(depth=3, name="engine", ok="E1-E16: PASS"),
         0o755,
+    )
+    # Spec 003's arrival step: the main tree's arrival check and credits renderer, stand-ins that log how they ran.
+    write(
+        main / "tools/gates/arrival_check.py",
+        STUB_SCRIPT.format(
+            depth=3, name="arrival_check", ok="arrival-check: 0 findings in 0 files"
+        ),
+    )
+    write(
+        main / "scripts/assets/credits.py",
+        STUB_SCRIPT.format(
+            depth=3,
+            name="credits",
+            ok="credits: OK: the renderings and the records' form",
+        ),
     )
     git(main, "add", "-A")
     git(main, "commit", "-qm", "init")
@@ -597,6 +620,19 @@ def test_a_clean_branch_passes_and_each_phase_runs_where_and_how_plan_11_says(
         != (tree_argv[tree_argv.index("--gitleaks-ignore-path") + 1])
     )
 
+    # Spec 003's arrival check over the commits since main: the main tree's, through PY_HOST's flags. The credits'
+    # check is the branch's own code, so it ran in the container (make credits-check, above), never here.
+    (arrival_run,) = fx.logged("arrival_check")
+    assert arrival_run["argv"] == ["--repo", str(fx.main), "--range", f"{base}..{sha}"]
+    assert (
+        arrival_run["isolated"],
+        arrival_run["no_bytecode"],
+        arrival_run["pycache_prefix"],
+    ) == (1, 1, "/dev/null")
+    assert fx.logged("credits") == []
+    assert status_of(done, "arrival") == "PASS"
+    assert status_of(done, "credits") == "PASS"
+
     # The image build on the agents' engine, with the Author's certificate.
     (compose,) = by_kind(calls, "compose")
     assert compose["argv"] == [
@@ -639,6 +675,8 @@ def hostile_copies(fx: Fixture) -> dict[str, str]:
             "tools/gates/compose_policy.py",
             "tools/gates/toolchain_check.py",
             "tools/gates/gate",
+            "tools/gates/arrival_check.py",
+            "scripts/assets/credits.py",
             "corpus/tools/check_corpus.py",
             "deploy/agents-engine/engine.sh",
             "evals/agent-config/behavioral.py",
@@ -1563,6 +1601,64 @@ def test_a_secret_a_merge_adds_is_found_in_the_tree(fx: Fixture) -> None:
     assert status_of(done, "gitleaks-tree") == "FAIL", done.stdout
     assert "\n  probe-token in docs/merged.txt:1\n" in done.stdout
     assert TOKEN not in done.stdout + done.stderr
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 003's arrival step (contracts/arrival-check.md §1)
+# --------------------------------------------------------------------------------------------------
+def test_an_arrival_finding_fails_the_step_and_the_gate(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "arrival_check.control").write_text(
+        "1\nM1 assets/twin/still.png @abc1234: chunk tEXt at byte 33, outside the allowlist\n"
+        "arrival-check: 1 finding in 1 file (1 commit)",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "arrival") == "FAIL"
+    assert "M1 assets/twin/still.png @abc1234" in done.stdout
+    assert (
+        fx.logged("credits") == []
+    )  # the host never runs the branch's credits renderer
+
+
+def test_an_arrival_check_that_couldnt_run_fails_the_step(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "arrival_check.control").write_text(
+        "2\narrival-check: can't check: the main branch has no assets/policy/caps.json",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "arrival") == "FAIL"
+    assert "couldn't check" in row(done, "arrival")
+
+
+def test_a_stale_credits_rendering_fails_its_container_step(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.control(fail=["credits-check"])
+    done = gate(fx, "feature")
+    assert status_of(done, "credits") == "FAIL"
+    assert status_of(done, "arrival") == "PASS"
+    assert fx.logged("credits") == []
+
+
+def test_a_branch_from_before_spec_003_skips_the_credits_step(fx: Fixture) -> None:
+    git(fx.main, "rm", "-q", "scripts/assets/credits.py")
+    git(fx.main, "commit", "-qm", "main from before spec 003")
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert status_of(done, "credits") == "SKIP"
+    assert "neither scripts/assets/credits.py nor assets/" in row(done, "credits")
+    assert [c["command"][-1] for c in make_runs(fx.docker())] == TARGETS[:-1]
+
+
+def test_without_mains_arrival_check_the_step_fails(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    git(fx.main, "rm", "-q", "tools/gates/arrival_check.py")
+    git(fx.main, "commit", "-qm", "main without the check")
+    done = gate(fx, "feature")
+    assert status_of(done, "arrival") == "FAIL"
+    assert "arrival_check.py is missing" in row(done, "arrival")
 
 
 def test_missing_gitleaks_fails_closed(fx: Fixture) -> None:

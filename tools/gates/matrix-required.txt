@@ -219,3 +219,8 @@ H/settings/a shell write of assets/policy/licenses.json is denied
 H/settings/a shell write of assets/policy/approvals.json is denied
 H/settings/a shell write of assets/policy/caps.json is denied
 H/settings/assets/policy is Edit-denied behind the hook
+
+# --- spec 003's arrival check before each commit (FR-004; research R-06): the pre-commit hook runs it after gitleaks ---
+H/pre-commit/a staged PNG with a tEXt chunk under assets/ (arrival check)
+H/pre-commit/a staged JPEG with EXIF outside the asset roots (arrival A1, A4)
+H/pre-commit/the arrival check missing from the main tree (fails closed)
