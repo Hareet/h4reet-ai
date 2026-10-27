@@ -14,7 +14,10 @@
 // - Room text failing to load (and its retry), or withheld, and a typeface that never arrives (spec 004, T182; FR-061):
 //   the faces bound to room text stay plain with their text-copy entries left out, the faces drawn from UI words are
 //   drawn with the fallback typeface after 2 seconds, and the text copy equals the 2D drawing face by face.
-// Later stories add their faults here: the turn-cost channel's (T244).
+// - With the poller wired (User Story 8, T244; contracts/tier-signal.md §5, §6): each failure kind, a stale answer,
+//   and pause and hide with an answer in flight, every result coming from the room's own GET /api/status, in 3D and
+//   2D; each ends usable, and the page asks for nothing but the status.
+// Later stories add their faults here: the turn-cost channel's (T264).
 import { Object3D } from "three";
 import type { Scene } from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -312,6 +315,120 @@ describe("pause and hide while an answer is in flight (FR-042, FR-060; scenario 
         await expectUsable(v, index, `after ${how}, ${webgl ? "3D" : "2D"}`);
       });
     }
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// With the poller wired (User Story 8; T244)
+// --------------------------------------------------------------------------------------------------------------------
+type Reply = { status: number; body: string | null; after?: number } | "reject" | "hang";
+const VALID_BODY = JSON.stringify({ local_tier: "up", state: "normal", cause_now: null });
+const OK: Reply = { status: 200, body: VALID_BODY };
+
+/** The page's fetch for /api/status, answering from `replies` in turn, then a valid answer at once; each URL asked is
+ *  kept. The visit's clock delays a late answer. */
+function statusFetch(replies: Reply[], urls: string[], clock: () => Visit["clock"] | null) {
+  return (url: string): Promise<Response> => {
+    urls.push(url);
+    const reply = replies.shift() ?? OK;
+    if (reply === "reject") return Promise.reject(new TypeError("Failed to fetch"));
+    if (reply === "hang") return new Promise<Response>(() => undefined);
+    const { body } = reply;
+    const res = {
+      status: reply.status,
+      ok: reply.status === 200,
+      headers: new Headers(),
+      text: () => (body === null ? new Promise<string>(() => undefined) : Promise.resolve(body)),
+    } as unknown as Response;
+    const late = reply.after;
+    const at = clock();
+    if (late === undefined || !at) return Promise.resolve(res);
+    return new Promise<Response>((resolve) => at.setTimeout(() => resolve(res), late));
+  };
+}
+
+/** The fixture room with its live source on and the page's fetch answering the poller. */
+function polledVisit(webgl: boolean, replies: Reply[]): { v: Visit; index: RoomIndex; urls: string[] } {
+  const { index } = fixture();
+  const urls: string[] = [];
+  let visit: Visit | null = null;
+  const v = start({ webgl, room: site(index), fetch: statusFetch(replies, urls, () => visit?.clock ?? null) });
+  visit = v;
+  return { v, index, urls };
+}
+
+/** Moves the clock in steps, letting the page's fetches settle after each. */
+async function steps(v: Visit, ms: number, step = 100): Promise<void> {
+  await flush();
+  for (let left = ms; left > 0; left -= step) {
+    v.clock.advance(Math.min(step, left));
+    await flush();
+  }
+}
+
+describe("with the poller wired: each failure, a stale answer, and pause and hide (User Story 8; T244)", () => {
+  for (const webgl of [true, false]) {
+    const mode = webgl ? "3D" : "2D";
+    for (const [why, reply] of [
+      ["network", "reject"],
+      ["timeout", "hang"],
+      ["status 404", { status: 404, body: "{}" }],
+      ["status 429", { status: 429, body: '{"retry_after_s": 40}' }],
+      ["status 503", { status: 503, body: "{}" }],
+      ["shape", { status: 200, body: '{"local_tier": "up"}' }],
+    ] as const) {
+      it(`takes the plugged case away after a ${why} failure of the room's own request, and ends usable, in ${mode}`, async () => {
+        const { v, index, urls } = polledVisit(webgl, [OK, reply]);
+        await intoRoom(v);
+        expect(v.room.live.tier.tier).toBe("local");
+        expect(drawnCase(v, index)).toBe(index.switches[0]?.claims?.local);
+        await steps(v, 30_000);
+        expect(urls).toEqual(["/api/status", "/api/status"]);
+        expect(v.room.live.tier).toEqual({ tier: "unknown", row: 3, recheckAt: null });
+        expect(drawnCase(v, index)).not.toBe(index.switches[0]?.claims?.local);
+        await expectUsable(v, index, `polled ${why}, ${mode}`);
+        expect(new Set(v.spies.network)).toEqual(new Set(["fetch /api/status"]));
+      });
+    }
+
+    it(`reads unknown once the answer is stale, its resume's request in flight, and ends usable, in ${mode}`, async () => {
+      const { v, index } = polledVisit(webgl, [OK, "hang"]);
+      await intoRoom(v);
+      const pause = button(v.doc, index.ui["pause.button"] ?? "Pause the room");
+      pause.click();
+      await steps(v, 29_000, 500);
+      pause.click();
+      expect(v.room.live.tier.tier).toBe("local");
+      v.clock.advance(1_000);
+      expect(v.room.live.tier).toEqual({ tier: "unknown", row: 4, recheckAt: null });
+      expect(drawnCase(v, index)).not.toBe(index.switches[0]?.claims?.local);
+      await expectUsable(v, index, `polled stale, ${mode}`);
+    });
+
+    for (const how of ["pause", "hide"] as const) {
+      it(`stays paused when the answer in flight lands while ${how === "pause" ? "paused" : "hidden"}, asks nothing more, and ends usable on return, in ${mode}`, async () => {
+        const { v, index, urls } = polledVisit(webgl, [OK, { status: 200, body: VALID_BODY, after: 2_000 }]);
+        await intoRoom(v);
+        await steps(v, 26_000);
+        expect(urls).toHaveLength(2);
+        const set = (on: boolean): void => {
+          if (how === "hide") setHidden(v.win, on);
+          else if (v.room.motion.paused !== on) button(v.doc, index.ui["pause.button"] ?? "Pause the room").click();
+        };
+        set(true);
+        await steps(v, 2_000);
+        expect(v.room.live.tier.tier).toBe("paused");
+        expect(drawnCase(v, index)).not.toBe(index.switches[0]?.claims?.local);
+        if (how === "pause") await expectUsable(v, index, `polled, paused, ${mode}`);
+        await steps(v, 5 * 60_000, 1_000);
+        expect(urls).toHaveLength(2);
+        set(false);
+        expect(urls).toHaveLength(3);
+        await steps(v, 100);
+        expect(v.room.live.tier.tier).toBe("local");
+        await expectUsable(v, index, `polled, after ${how}, ${mode}`);
+      });
+    }
+  }
 });
 
 // --------------------------------------------------------------------------------------------------------------------

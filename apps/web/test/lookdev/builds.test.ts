@@ -10,12 +10,19 @@
 //   `release`; the drafts build's entry chunk, and every chunk it loads statically, never reach src/lookdev/**, the GLB
 //   reader (src/room/glb/), or pako, and nothing the room loads, even behind its dynamic import, reaches the page's code.
 // The fixtures and the draft text come from compose() over the repository, as the drafts build composed it.
+//
+// T244 (spec 004; R-31, R-70; contracts/tier-signal.md §5, §6, §9's "Drafts only"): the status poller sits in the room's
+// entry, its chunk or a chunk the entry loads statically, in both builds; the frame log, src/room/signals/frame-log.ts,
+// is drafts-only like the fixtures: the drafts build's entry loads it statically and holds the console's h4FrameLog
+// and the log's marker, `h4-frame-log`, and the release build holds the module in no chunk and neither name in any
+// file.
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { JSDOM } from "jsdom";
 import { describe, expect, inject, it } from "vitest";
 
+import { FRAME_LOG_KIND } from "../../src/room/signals/frame-log";
 import { repositoryBundle } from "../helpers/room";
 
 const builds = inject("siteBuilds");
@@ -104,6 +111,49 @@ function modulesIn(kind: "release" | "drafts", files: readonly string[], pattern
 }
 
 const drafts = (): ReturnType<typeof repositoryBundle> => repositoryBundle({ drafts: true, policy: "empty" });
+
+/** The poller and the frame log, as the builds' chunks name their modules, and the frame log's two names: the console's
+ *  function, and the marker its JSON carries. */
+const POLLER = "apps/web/src/room/signals/status-poller.ts";
+const FRAME_LOG = "apps/web/src/room/signals/frame-log.ts";
+const FRAME_LOG_NAMES = ["h4FrameLog", "h4-frame-log"];
+
+describe("the status poller and the frame log (R-31, R-70; contracts/tier-signal.md §6)", () => {
+  it("puts the poller in the room's entry, in both builds", () => {
+    for (const kind of ["release", "drafts"] as const) {
+      const root = builds[kind];
+      const loaded = graph(root).staticGraph(entryOf(root, "index.html"));
+      expect(modulesIn(kind, loaded, /signals\/status-poller\.ts$/), kind).toEqual(
+        expect.arrayContaining([expect.stringContaining(POLLER)]) as unknown,
+      );
+    }
+  });
+
+  it("keeps the frame log out of the release build: no chunk holds it, and no file names it or carries its marker", () => {
+    expect(FRAME_LOG_KIND).toBe("h4-frame-log");
+    const root = builds.release;
+    const held = Object.entries(chunks.release).flatMap(([chunk, modules]) =>
+      modules.filter((m) => m === FRAME_LOG).map((m) => `${chunk}: ${m}`),
+    );
+    expect(held).toEqual([]);
+    const named = builtFiles(root).flatMap((f) => {
+      const text = readFileSync(join(root, f), "latin1");
+      return FRAME_LOG_NAMES.filter((name) => text.includes(name)).map((name) => `${f}: ${name}`);
+    });
+    expect(named).toEqual([]);
+  });
+
+  it("keeps the frame log in the drafts build's entry, which loads it statically, with h4FrameLog and its marker", () => {
+    const root = builds.drafts;
+    const g = graph(root);
+    const loaded = g.staticGraph(entryOf(root, "index.html"));
+    expect(modulesIn("drafts", loaded, /signals\/frame-log\.ts$/)).toEqual([
+      expect.stringContaining(FRAME_LOG) as unknown,
+    ]);
+    const text = loaded.map((rel) => g.read(rel)).join("\n");
+    for (const name of FRAME_LOG_NAMES) expect(text.includes(name), name).toBe(true);
+  });
+});
 
 describe("the release build (contracts/lookdev.md §8)", () => {
   const root = builds.release;

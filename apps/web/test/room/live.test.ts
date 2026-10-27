@@ -7,6 +7,14 @@
 // plugged case is drawn only for local, even from a bundle that maps another value to it. Status results are injected
 // directly through `complete`, since the poller comes in T245. Then the same in the room (src/room/app.ts), on its
 // stand-in 3D stage and in its 2D drawing. Every ID is a synthetic fx- one or the composed data's, read at run time.
+//
+// T244 (spec 004; FR-042, SC-003; contracts/tier-signal.md §5.4, §6): then with the poller wired (T245, T246) and
+// live.source `site`, results coming only from the room's own fetch of /api/status: each failure kind takes the plugged
+// case away on the first frame after it, a stale answer on the first frame at `recheckAt`, and pause and hide with an
+// answer in flight leave the tier paused, with no request while paused or hidden. And the drafts build's frame log
+// (T246; R-70): the newest 10,000 entries of {t, wall, frame, event, …} in page memory, each event §6 lists, each new
+// switch case with the frame on which the 3D room first drew it (in 2D, the time it was applied), and h4FrameLog() on
+// the window returning it as JSON; a room without the log (a release build) has no h4FrameLog.
 import { describe, expect, it } from "vitest";
 
 import { compose } from "../../build/room/compose";
@@ -15,6 +23,8 @@ import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { TierValue } from "../../src/room/compose/vocabulary";
 import type { MotionState } from "../../src/room/motion";
+import { FRAME_LOG_KIND, FRAME_LOG_LIMIT, createFrameLog } from "../../src/room/signals/frame-log";
+import type { FrameLogEntry } from "../../src/room/signals/frame-log";
 import { createLiveSignals } from "../../src/room/signals/live";
 import type { LiveSignals } from "../../src/room/signals/live";
 import { caseFor } from "../../src/room/signals/tier";
@@ -23,6 +33,7 @@ import {
   FakeClock,
   WALL0,
   button,
+  flush,
   intoRoom,
   roomIndex,
   setHidden,
@@ -546,5 +557,358 @@ describe("in the room: a reading reaches the stage and the text copy at once (sc
     button(v.doc, "2D view").click();
     expect(v.room.visit.mode).toBe("2d");
     expect(shown2d(v, index)).toBe(sw?.cases.cloud);
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// With the poller wired (T244; T245, T246)
+// --------------------------------------------------------------------------------------------------------------------
+const VALID: StatusAnswer = { local_tier: "up", state: "normal", cause_now: null };
+
+/** One answer of the page's fetch for /api/status: a response, at once or `after` ms later on the visit's clock; a
+ *  rejected fetch; or one that never settles. */
+type Reply =
+  { status: number; body: string | null; headers?: Record<string, string>; after?: number } | "reject" | "hang";
+const OK: Reply = { status: 200, body: JSON.stringify(VALID) };
+
+/** A response as the poller reads it; a `null` body never arrives. */
+function response(status: number, body: string | null, headers: Record<string, string> = {}): Response {
+  const text = (): Promise<string> => (body === null ? new Promise<string>(() => undefined) : Promise.resolve(body));
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    headers: new Headers(headers),
+    text,
+    json: async () => JSON.parse(await text()) as unknown,
+  } as unknown as Response;
+}
+
+interface Polled {
+  v: Visit;
+  index: RoomIndex;
+  /** Each fetch the page made: its URL and init, at its time on the visit's clock. */
+  calls: { url: string; init: RequestInit; at: number }[];
+}
+
+/** The fixture room with its live source on, the page's fetch answering from `replies` in turn (then a valid answer
+ *  at once), and the drafts build's frame log. */
+function polled(replies: Reply[], o: { webgl?: boolean; log?: boolean } = {}): Polled {
+  const { index } = fixture();
+  const calls: Polled["calls"] = [];
+  const clock: { now(): number } = { now: () => -1 };
+  const v = start({
+    webgl: o.webgl ?? true,
+    room: site(index),
+    ...(o.log === false ? {} : { frameLog: createFrameLog }),
+    fetch: (url, init) => {
+      calls.push({ url, init, at: clock.now() });
+      const reply = replies.shift() ?? OK;
+      if (reply === "reject") return Promise.reject(new TypeError("Failed to fetch"));
+      if (reply === "hang") return new Promise<Response>(() => undefined);
+      const res = response(reply.status, reply.body, reply.headers);
+      const { after } = reply;
+      if (after === undefined) return Promise.resolve(res);
+      return new Promise<Response>((resolve) => v.clock.setTimeout(() => resolve(res), after));
+    },
+  });
+  clock.now = () => v.clock.now();
+  return { v, index, calls };
+}
+
+/** Moves the visit's clock in steps, letting each step's promises settle (the page's fetches, the poller's reads). */
+async function run(v: Visit, ms: number, step = 100): Promise<void> {
+  await flush();
+  for (let left = ms; left > 0; left -= step) {
+    v.clock.advance(Math.min(step, left));
+    await flush();
+  }
+}
+
+interface LogFile {
+  kind: string;
+  version: number;
+  origin: string;
+  limit: number;
+  dropped: number;
+  entries: FrameLogEntry[];
+}
+
+/** The frame log, as the console's h4FrameLog() gives it in a drafts build. */
+function frameLog(v: Visit): LogFile {
+  const fn = (v.win as unknown as { h4FrameLog?: () => string }).h4FrameLog;
+  if (typeof fn !== "function") throw new Error("no h4FrameLog on the window");
+  const json = fn();
+  expect(typeof json).toBe("string");
+  return JSON.parse(json) as LogFile;
+}
+
+const events = (log: LogFile, event: string): FrameLogEntry[] => log.entries.filter((e) => e.event === event);
+
+/** The pause control, by its UI word. */
+const pauseOf = (v: Visit, index: RoomIndex): HTMLButtonElement =>
+  button(v.doc, index.ui["pause.button"] ?? "Pause the room");
+
+describe("with the poller wired: the requests (FR-044, FR-045; T246)", () => {
+  it("asks nothing before Enter, then GET /api/status at Enter and every poll interval, and nothing else", async () => {
+    const { v, index, calls } = polled([]);
+    expect(index.live).toMatchObject({ poll_ms: 30_000, freshness_ms: 35_000 });
+    await run(v, 60_000, 1_000);
+    expect(v.spies.network).toEqual([]);
+    await intoRoom(v);
+    expect(calls.map((c) => c.at)).toEqual([60_000]);
+    await run(v, 95_000, 500);
+    expect(calls.map((c) => c.at)).toEqual([60_000, 90_000, 120_000, 150_000]);
+    expect(calls.every((c) => c.url === "/api/status")).toBe(true);
+    expect(calls[0]?.init).toMatchObject({
+      method: "GET",
+      mode: "same-origin",
+      credentials: "omit",
+      cache: "no-store",
+    });
+    expect(new Set(v.spies.network)).toEqual(new Set(["fetch /api/status"]));
+    expect(v.spies.beacons).toEqual([]);
+    expect(v.spies.history).toEqual([]);
+    expect(v.room.live.tier).toMatchObject({ tier: "local", row: 8 });
+  });
+
+  it("asks nothing while the live source is off, though the room has entered", async () => {
+    const calls: string[] = [];
+    const v = start({ webgl: true, frameLog: createFrameLog, fetch: (url) => (calls.push(url), Promise.reject()) });
+    await intoRoom(v);
+    await run(v, 120_000, 1_000);
+    expect(calls).toEqual([]);
+    expect(v.room.live.tier.tier).toBe("not-live");
+  });
+});
+
+describe("with the poller wired: the first frame after a failure or a stale answer (SC-003; T244)", () => {
+  it.each([
+    ["network", "reject" as Reply, undefined],
+    ["timeout", "hang" as Reply, undefined],
+    ["status", { status: 404, body: "{}" } as Reply, 404],
+    ["status", { status: 429, body: '{"retry_after_s": 40}', headers: { "Retry-After": "40" } } as Reply, 429],
+    ["status", { status: 502, body: "{}" } as Reply, 502],
+    ["shape", { status: 200, body: "[]" } as Reply, undefined],
+  ])("takes the plugged case away on the first frame after a %s failure (%s)", async (why, reply, status) => {
+    const { v, index, calls } = polled([OK, reply]);
+    const plugged = index.switches[0]?.claims?.local;
+    expect(plugged).toBeTruthy();
+    await intoRoom(v);
+    await run(v, 20_000);
+    expect(v.room.live.tier.tier).toBe("local");
+    // To the second request's end: its answer at 30 s, or its timeout at 35 s.
+    for (let k = 0; k < 200 && v.room.live.tier.tier === "local"; k += 1) await run(v, 100);
+    expect(calls).toHaveLength(2);
+    expect(v.room.live.tier).toEqual({ tier: "unknown", row: 3, recheckAt: null });
+    const applied = v.scene.applied.at(-1);
+    expect(applied?.value).toBe("unknown");
+    const landed = v.clock.now();
+    // The result, the reduction, and the case to come, in the frame log, before the next frame.
+    let log = frameLog(v);
+    expect(events(log, "result").at(-1)).toMatchObject({ outcome: why, ...(status ? { status } : {}) });
+    expect(events(log, "tier").at(-1)).toMatchObject({ tier: "unknown", row: 3 });
+    v.clock.advance(16);
+    log = frameLog(v);
+    const [before, after] = events(log, "case").slice(-2);
+    expect(before).toMatchObject({ pose: plugged, plugged: true, mode: "3d" });
+    expect(after).toMatchObject({ plugged: false, mode: "3d", frame: (applied?.frame ?? Number.NaN) + 1 });
+    expect((after?.t ?? Number.NaN) - landed).toBeLessThanOrEqual(16);
+  });
+
+  it("takes it away on the first frame at recheckAt, when a resume's request is still in flight", async () => {
+    const { v, index, calls } = polled([OK, "hang"]);
+    await intoRoom(v);
+    pauseOf(v, index).click();
+    await run(v, 29_000, 500);
+    expect(v.clock.now()).toBe(34_000);
+    expect(calls).toHaveLength(1);
+    // Resume: reduced first (the answer at 0 is 34 s old), then a request at once, since nextAt (30 s) has passed.
+    pauseOf(v, index).click();
+    expect(v.room.live.tier).toEqual({ tier: "local", row: 8, recheckAt: 35_000 });
+    expect(calls.map((c) => c.at)).toEqual([0, 34_000]);
+    v.clock.advance(1_000);
+    expect(v.room.live.tier).toEqual({ tier: "unknown", row: 4, recheckAt: null });
+    const log = frameLog(v);
+    expect(events(log, "tier").at(-1)).toMatchObject({ tier: "unknown", row: 4, t: 35_000 });
+    const left = events(log, "case").at(-1);
+    expect(left).toMatchObject({ plugged: false, mode: "3d" });
+    expect(left?.t).toBeGreaterThanOrEqual(35_000);
+    expect((left?.t ?? Number.NaN) - 35_000).toBeLessThan(16);
+    expect(events(log, "case").at(-2)).toMatchObject({ plugged: true });
+  });
+});
+
+describe("with the poller wired: pause and hide with an answer in flight (FR-042, FR-060; T244)", () => {
+  for (const how of ["pause", "hide"] as const) {
+    const set = (p: Polled, on: boolean): void => {
+      if (how === "hide") setHidden(p.v.win, on);
+      else if (p.v.room.motion.paused !== on) pauseOf(p.v, p.index).click();
+    };
+
+    for (const webgl of [true, false])
+      it(`leaves the tier paused when the answer lands, asks nothing while ${how === "pause" ? "paused" : "hidden"}, and reduces before the next frame on return, in ${webgl ? "3D" : "2D"}`, async () => {
+        const p = polled([OK, { status: 200, body: JSON.stringify(VALID), after: 2_000 }], { webgl });
+        const { v, calls } = p;
+        await intoRoom(v);
+        await run(v, 26_000);
+        expect(calls.map((c) => c.at)).toEqual([0, 30_000]);
+        set(p, true);
+        expect(v.room.live.tier.tier).toBe("paused");
+        await run(v, 1_000);
+        // The answer in flight landed at 32 s: recorded, and paused still wins.
+        let log = frameLog(v);
+        expect(events(log, "result").at(-1)).toMatchObject({ outcome: "ok", status: 200, t: 32_000 });
+        expect(v.room.live.tier.tier).toBe("paused");
+        await run(v, 10 * 60_000, 1_000);
+        expect(calls).toHaveLength(2);
+        expect(v.room.live.tier.tier).toBe("paused");
+        // Return: the tier reduced first, by FR-041's table (the answer is 10 minutes old: unknown), then one request.
+        const frames = v.scene.frames;
+        const returned = v.clock.now();
+        set(p, false);
+        expect(calls.map((c) => c.at)).toEqual([0, 30_000, returned]);
+        expect(v.room.live.tier).toEqual({ tier: "unknown", row: 4, recheckAt: null });
+        if (webgl) expect(v.scene.applied.at(-1)).toEqual({ value: "unknown", frame: frames, at: returned });
+        await run(v, 100);
+        expect(v.room.live.tier.tier).toBe("local");
+        // The frame log: no plugged case between the pause or hide and its return.
+        log = frameLog(v);
+        const off = how === "pause" ? "pause" : "hide";
+        const on = how === "pause" ? "resume" : "show";
+        const from = events(log, off).at(-1)?.t ?? Number.NaN;
+        const to = events(log, on).at(-1)?.t ?? Number.NaN;
+        expect(to).toBe(returned);
+        // In 3D the shared case is first drawn on the frame after the pause or hide; in 2D it is applied with it.
+        const shown = events(log, "case").filter((e) => e.t >= from && e.t < to);
+        expect(shown.length).toBeGreaterThan(0);
+        expect(shown.every((e) => e.plugged === false)).toBe(true);
+        expect(
+          events(log, "case")
+            .filter((e) => e.t < from)
+            .at(-1),
+        ).toMatchObject({ plugged: true });
+        const paused = events(log, off).at(-1);
+        expect(shown[0]).toMatchObject(
+          webgl ? { mode: "3d", frame: (paused?.frame ?? Number.NaN) + 1 } : { mode: "2d", t: from },
+        );
+      });
+  }
+});
+
+describe("the frame log (R-70; contracts/tier-signal.md §6; T246)", () => {
+  it("logs Enter, each request and its result, each reduction, pause, resume, hide, show, and each fallback cue", async () => {
+    const { v, index } = polled([OK, { status: 503, body: "{}" }]);
+    await intoRoom(v);
+    await run(v, 30_000);
+    pauseOf(v, index).click();
+    pauseOf(v, index).click();
+    setHidden(v.win, true);
+    setHidden(v.win, false);
+    await run(v, 100);
+    v.room.live.fallbackReply();
+    const log = frameLog(v);
+    expect(log).toMatchObject({ kind: FRAME_LOG_KIND, version: 1, origin: "http://127.0.0.1:18105", limit: 10_000 });
+    expect(FRAME_LOG_KIND).toBe("h4-frame-log");
+    expect(FRAME_LOG_LIMIT).toBe(10_000);
+    for (const entry of log.entries) {
+      expect(Number.isFinite(entry.t)).toBe(true);
+      expect(entry.wall).toBe(WALL0 + entry.t);
+      expect(Number.isInteger(entry.frame)).toBe(true);
+      expect(typeof entry.event).toBe("string");
+    }
+    const kinds = log.entries.map((e) => e.event);
+    for (const event of ["enter", "request", "result", "tier", "case", "pause", "resume", "hide", "show", "fallback"])
+      expect(kinds, event).toContain(event);
+    expect(events(log, "enter")).toEqual([
+      expect.objectContaining({ t: 0, source: "site", poll_ms: 30_000 }) as unknown,
+    ]);
+    expect(events(log, "request").map((e) => e.t)).toEqual([0, 30_000]);
+    expect(events(log, "result").map((e) => [e.outcome, e.status])).toEqual([
+      ["ok", 200],
+      ["status", 503],
+    ]);
+    expect(events(log, "fallback")).toHaveLength(1);
+    expect(events(log, "tier").at(-1)).toMatchObject({ tier: "unknown", row: 3 });
+    // In order: Enter before its request, each request before its result, and every entry in time order.
+    expect(kinds.indexOf("enter")).toBeLessThan(kinds.indexOf("request"));
+    expect(kinds.indexOf("request")).toBeLessThan(kinds.indexOf("result"));
+    const ts = log.entries.map((e) => e.t);
+    expect(ts).toEqual([...ts].sort((a, b) => a - b));
+  });
+
+  it("logs each new case in 3D with the frame that first drew it, and only a new one", async () => {
+    const { v, index } = polled([]);
+    await intoRoom(v);
+    const sw = index.switches[0];
+    const log = frameLog(v);
+    const cases = events(log, "case");
+    // The answer at Enter may land before or after the stage is made, so the shared case may or may not come first.
+    expect(cases.at(-1)).toMatchObject({ switch: sw?.id, pose: sw?.claims?.local, plugged: true, mode: "3d" });
+    for (const entry of cases.slice(0, -1))
+      expect(entry).toMatchObject({ switch: sw?.id, pose: caseFor(sw ?? { cases: {} }, "unknown"), plugged: false });
+    // Drawn first on the frame after it was applied.
+    const local = v.scene.applied.filter((a) => a.value === "local").at(-1);
+    expect(cases.at(-1)?.frame).toBe((local?.frame ?? Number.NaN) + 1);
+    // Reductions that keep the case log no case.
+    const count = cases.length;
+    await run(v, 60_000);
+    expect(events(frameLog(v), "case")).toHaveLength(count);
+    expect(events(frameLog(v), "tier").length).toBeGreaterThan(events(log, "tier").length);
+  });
+
+  it("logs each new case in 2D at the time it was applied", async () => {
+    const { v, index } = polled([OK, "reject"], { webgl: false });
+    await intoRoom(v);
+    await run(v, 30_000);
+    const cases = events(frameLog(v), "case");
+    expect(cases.length).toBeGreaterThan(1);
+    expect(cases.every((e) => e.mode === "2d")).toBe(true);
+    expect(cases.at(-2)).toMatchObject({ pose: index.switches[0]?.claims?.local, plugged: true });
+    // The failure at 30 s: applied, and so logged, at that time.
+    expect(cases.at(-1)).toMatchObject({ plugged: false, t: 30_000 });
+  });
+
+  it("keeps the newest 10,000 entries in page memory, and says how many it dropped", () => {
+    const clock = new FakeClock();
+    const log = createFrameLog({ clock, wall: () => WALL0 + clock.now(), origin: "http://127.0.0.1:18105" });
+    for (let k = 0; k < FRAME_LOG_LIMIT + 5; k += 1) {
+      clock.advance(1, 1_000_000);
+      log.record("tier", { tier: "unknown", row: 3, k });
+    }
+    const file = JSON.parse(log.json()) as LogFile;
+    expect(file.entries).toHaveLength(FRAME_LOG_LIMIT);
+    expect(file.dropped).toBe(5);
+    expect(file.entries[0]).toMatchObject({ k: 5, t: 6, wall: WALL0 + 6, frame: 0, event: "tier" });
+    expect(file.entries.at(-1)).toMatchObject({ k: FRAME_LOG_LIMIT + 4 });
+  });
+
+  it("counts frames, and logs a 3D case only on the frame after it was applied, the last applied winning", () => {
+    const clock = new FakeClock();
+    const log = createFrameLog({ clock, wall: () => WALL0 + clock.now(), origin: "o" });
+    log.frame(16);
+    log.applied("sw", "a", false, "3d");
+    log.applied("sw", "b", true, "3d");
+    expect(JSON.parse(log.json()).entries).toEqual([]);
+    clock.advance(32, 1_000_000);
+    log.frame(32);
+    log.frame(48);
+    log.applied("sw", "b", true, "3d");
+    log.frame(64);
+    log.applied("sw", "b", true, "2d");
+    const entries = (JSON.parse(log.json()) as LogFile).entries;
+    expect(entries).toEqual([
+      { t: 32, wall: WALL0 + 32, frame: 2, event: "case", switch: "sw", pose: "b", plugged: true, mode: "3d" },
+      { t: 32, wall: WALL0 + 32, frame: 4, event: "case", switch: "sw", pose: "b", plugged: true, mode: "2d" },
+    ]);
+  });
+
+  it("exposes h4FrameLog() on the window in a drafts build, and a room without the log has none", async () => {
+    const { v } = polled([]);
+    await intoRoom(v);
+    expect(Array.isArray(frameLog(v).entries)).toBe(true);
+    const release = polled([], { log: false });
+    await intoRoom(release.v);
+    expect("h4FrameLog" in release.v.win).toBe(false);
+    expect(release.v.spies.storage).toEqual([]);
   });
 });
