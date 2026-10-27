@@ -23,6 +23,9 @@
 // motion store (motion.ts), which the page gives, so the idle sway stops as the room's does; and the sample state
 // applies the laptop switch's case through the room's apply (scene/cables.ts), by the claims rule, its cable tube shown
 // with it and its pose's glows set.
+// T192 (spec 004; FR-067, FR-070; the wiring T003 records): the page draws the room's live faces and glow cards through
+// the room's own modules (scene/faces3d.ts, scene/glows.ts), in the room and in the vignette, with the drafts build's
+// room text; and its "Smallest cap height" readout measures the bound faces at the current view, as RG7 measures them.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -50,7 +53,16 @@ import { CABLE_NODE } from "../../src/room/scene/cables";
 import { MODEL_NODE, modelEntries } from "../../src/room/scene/loader";
 import { caseFor } from "../../src/room/signals/tier";
 import { outlineThickness } from "../../src/room/scene/look";
+import { compose } from "../../build/room/compose";
+import { noPolicy } from "../../build/room/policy";
+import { regionCap, smallestCapPx, typefaceFor } from "../../src/room/compose/legibility";
+import type { CapRegion } from "../../src/room/compose/legibility";
+import { modelOf, resolveMounts } from "../../src/room/compose/mount";
+import { drawnWords } from "../../src/room/faces/display-list";
+import { roomTextOf } from "../../src/room/faces/words";
+import type { RoomText } from "../../src/room/faces/words";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
+import { goodTree } from "../helpers/room-fixtures";
 import type { TestWindow } from "../helpers/room";
 import { asExported, ascii, desk, item, pngHeader } from "../helpers/glb";
 import type { PackOptions } from "../helpers/glb";
@@ -195,9 +207,15 @@ interface Opened {
 }
 
 /** The page on its own window, as /lookdev/ serves it, with every spy in place first; with `standins`, on the room
- *  before its models were set (`inputs`). */
+ *  before its models were set (`inputs`); with `inputs`, on those. */
 function open(
-  options: { phone?: boolean; probe?: Probe | null; capability?: Capability; standins?: boolean } = {},
+  options: {
+    phone?: boolean;
+    probe?: Probe | null;
+    capability?: Capability;
+    standins?: boolean;
+    inputs?: LookdevDeps["inputs"];
+  } = {},
 ): Opened {
   const dom = new JSDOM('<!doctype html><html lang="en"><head></head><body><main id="lookdev"></main></body></html>', {
     url: "http://127.0.0.1:18105/lookdev/",
@@ -208,7 +226,7 @@ function open(
   imageBitmaps(win);
   const clock = new FakeClock();
   const { renderer, state } = fakeRenderer();
-  const given = inputs({ standins: options.standins ?? false });
+  const given = options.inputs ?? inputs({ standins: options.standins ?? false });
   const root = win.document.getElementById("lookdev") as HTMLElement;
   const page = createLookdev(
     root,
@@ -1372,5 +1390,111 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     expect(results.view).toBe("device");
     const own = stageFor({ w: 384, h: 740 });
     expect(results.stage_css).toEqual([own.w, own.h]);
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// User Story 5's faces (T192)
+// --------------------------------------------------------------------------------------------------------------------
+describe("User Story 5's faces on the page (T192; FR-067, FR-070)", () => {
+  /** The fixture set's drafts inputs, its room text among them, as the drafts build gives the page. */
+  function fixtureInputs(): LookdevDeps["inputs"] {
+    const bundle = compose(goodTree(), noPolicy(), { mode: "strict", drafts: true });
+    if (!bundle.drafts) throw new Error("no drafts modules");
+    const text: RoomText = roomTextOf({ room_text: bundle.roomText });
+    return {
+      part: bundle.scene,
+      index: bundle.index,
+      lookdev: bundle.drafts.lookdev,
+      fixtures: bundle.drafts.fixtures,
+      text,
+    };
+  }
+
+  it("draws each bound face through the room's face quads, and in the vignette only its placements' faces", () => {
+    const { page, root, clock, inputs: given } = open();
+    clock.advance(50);
+    const quads = page.stage.faces.quads;
+    expect([...quads.keys()].sort()).toEqual(given.index.faces.map((f) => f.id).sort());
+    for (const [id, quad] of quads) expect(shows(quad), id).toBe(true);
+    choose(control<HTMLInputElement>(root, "Vignette"));
+    clock.advance(50);
+    const shown = new Set(given.lookdev.vignette.show);
+    for (const face of given.index.faces)
+      expect(shows(quads.get(face.id) as Object3D), face.id).toBe(shown.has(face.placement));
+    choose(control<HTMLInputElement>(root, "Room"));
+    clock.advance(50);
+    for (const [id, quad] of quads) expect(shows(quad), id).toBe(true);
+  });
+
+  it("draws the glow cards, the neon sign's glow among them, in the room and in the vignette", () => {
+    const { page, root, clock, inputs: given } = open();
+    clock.advance(50);
+    const cards = page.stage.glows.cards;
+    const lit = [...cards].filter(([, card]) => shows(card)).map(([key]) => key);
+    expect(lit.length).toBeGreaterThan(0);
+    choose(control<HTMLInputElement>(root, "Vignette"));
+    clock.advance(50);
+    const shown = new Set(given.lookdev.vignette.show);
+    for (const key of lit) {
+      const placement = key.slice(0, key.lastIndexOf("."));
+      expect(shows(cards.get(key) as Object3D), key).toBe(shown.has(placement));
+    }
+    // Every vignette placement whose piece glows shows its glow there, the neon sign's included.
+    for (const p of given.part.placements.filter((x) => shown.has(x.id)))
+      for (const [glow, g] of Object.entries(given.part.pieces[p.piece]?.glows ?? {}))
+        if (g.level > 0) expect(shows(cards.get(`${p.id}.${glow}`) as Object3D), `${p.id}.${glow}`).toBe(true);
+  });
+
+  it("draws the drafts build's room text: the terminal's words, after its typing", () => {
+    const given = fixtureInputs();
+    const { page, clock } = open({ inputs: given });
+    clock.advance(6_000);
+    const terminal = given.index.faces.find((f) => f.regions.some((r) => r.renderer === "terminal"));
+    const list = page.stage.faces.lists.get(terminal?.id ?? "");
+    expect(list ? drawnWords(list.ops) : []).toEqual(["fx run", "fx ok", "[Draft]"]);
+  });
+
+  it("reads the smallest cap height of the bound faces at the current view, as RG7 measures them", () => {
+    const { page, root, inputs: given } = open();
+    /** The smallest cap height over the bound faces but atmosphere ones, at a view's camera and stage, and its face. */
+    const expected = (): string => {
+      const { part, index } = given;
+      const { world } = resolveMounts(part.placements, part.pieces);
+      const camera = framing(
+        page.stage.stage.w / page.stage.stage.h,
+        part.placements.filter((p) => p.framed).map((p) => p.frame_box),
+      );
+      let best: { px: number; label: string } | null = null;
+      for (const face of index.faces) {
+        if (face.atmosphere) continue;
+        const p = part.placements.find((x) => x.id === face.placement);
+        const piece = p ? part.pieces[p.piece] : undefined;
+        const geometry = piece?.faces[face.role];
+        const w = p ? world.get(p.id) : undefined;
+        if (!p || !piece || !geometry || !w) continue;
+        const regions: CapRegion[] = face.regions.flatMap((r) => {
+          const use = typefaceFor(r.renderer, r.source);
+          const ratio = index.typefaces.find((t) => t.use === use)?.cap_ratio;
+          const cap = ratio === undefined ? null : regionCap(geometry, r, { capRatio: ratio });
+          return cap === null ? [] : [{ rect: r.rect, cap }];
+        });
+        const px = smallestCapPx(modelOf(w, piece.scale), geometry, regions, camera, page.stage.stage);
+        if (px !== null && (best === null || px < best.px)) best = { px, label: index.ui[face.label] ?? face.id };
+      }
+      if (best === null) throw new Error("no face measured");
+      return `${(Math.floor(best.px * 10) / 10).toFixed(1)} px, ${best.label}`;
+    };
+    const readout = (): string => {
+      const dt = [...root.querySelectorAll(".lookdev-readouts dt")].find(
+        (e) => collapse(e.textContent) === "Smallest cap height",
+      );
+      return collapse(dt?.nextElementSibling?.textContent);
+    };
+    choose(control<HTMLInputElement>(root, "Reference desktop"));
+    expect(readout()).toBe(expected());
+    choose(control<HTMLInputElement>(root, "Reference phone"));
+    expect(readout()).toBe(expected());
+    expect(readout()).not.toBe("");
   });
 });
