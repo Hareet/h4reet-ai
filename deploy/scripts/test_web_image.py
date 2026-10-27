@@ -726,6 +726,15 @@ def test_the_dockerfile_runs_no_git_and_takes_the_policy_from_its_named_context(
     )
     assert "FROM scratch AS policy" in instructions
     assert [ln for ln in instructions if "--from=policy" in ln]
+    # The build runs with --ignore-scripts, so a checkout's prebuild (build/policy.ts, which runs git show main:)
+    # never runs in the image, and ROOM_POLICY_DIR names the context's copy (T017).
+    (build,) = [
+        ln
+        for ln in instructions
+        if ln.startswith("RUN ") and " build -w apps/web" in ln
+    ]
+    assert "npm run --ignore-scripts build -w apps/web" in build
+    assert "ROOM_POLICY_DIR=/src/policy" in build
 
 
 def test_docker_gets_only_its_own_settings(monkeypatch: pytest.MonkeyPatch) -> None:

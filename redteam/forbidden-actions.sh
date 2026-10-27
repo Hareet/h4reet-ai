@@ -1034,6 +1034,25 @@ studio_list_row 'an Edit in a studio folder the list names through a symlink' \
   "${studio_whole/"photos $studio_fake/photos"/photos $studio_fake/photos-link}" \
   "$studio_fake/photos-link/h4-matrix-probe.txt" "$studio_fake/photos-real/h4-matrix-probe.txt"
 
+# --- Spec 002's content policy (T015; contracts/resume-source.md §5): the approvals and the PDF's header -----------
+# Human-only from the approvals patch on (T016): the Author approves a content file by putting its SHA-256 on main,
+# and fills the PDF's header there, so no agent may write either file, by Edit or Write, in any path form, in the main
+# tree or a linked worktree. The content itself stays agent-editable. Each row is "planned" until that patch is
+# applied, and the patch switches it to "block"; stage S and the settings row below follow the same rule.
+content_policy_planned=$planned
+edit planned 'assets/policy/content-approvals.json'
+edit planned 'assets/policy/resume-header.json'
+edit planned 'apps/../assets/policy/content-approvals.json'
+edit planned './assets//policy/resume-header.json'
+edit allow 'apps/web/content/resume.yaml'
+edit allow 'apps/web/build/approvals.ts'
+# In a linked worktree (the governance worktree above): its Edit is the hook's to refuse; its shell write is a gap,
+# as tools/gates' is, held by the gate, which reads approvals from main, never the branch.
+mkdir -p "$gov_wt/assets/policy"
+: >"$gov_wt/assets/policy/content-approvals.json"
+check protected-paths.sh planned "Edit in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg f "$gov_wt/assets/policy/content-approvals.json" '{file_path:$f}')"
+check bash-gate.sh gap "a shell write in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg c "cp /tmp/new $gov_wt/assets/policy/content-approvals.json" '{command:$c}')"
+
 # =================================================================================================
 # T089: stage S, inside the sandbox (plan §13). It runs only when SANDBOX_RUNTIME=1 and .git/hooks isn't
 # writable (the agent sandbox); otherwise it is skipped with a notice. Every row only probes — test -w,
@@ -1199,6 +1218,9 @@ PY
   # The gates and the agent-config evals, denied by the governance patch (T098).
   s_unwritable 'tools/gates' block "$stage_s_tree/tools/gates"
   s_unwritable 'evals/agent-config' block "$stage_s_tree/evals/agent-config"
+  # Spec 002's content policy (T015, T016): planned until the approvals patch creates and denies both files.
+  s_unwritable 'assets/policy/content-approvals.json' planned "$stage_s_tree/assets/policy/content-approvals.json"
+  s_unwritable 'assets/policy/resume-header.json' planned "$stage_s_tree/assets/policy/resume-header.json"
   # main can't move (plan §13): test -w on the ref's path, and nothing more. The row never runs update-ref, so the matrix
   # itself can't move main before the closing patch denies the ref.
   # A main that isn't a loose ref (packed, or no path) would make test -w say nothing, so that fails instead.
@@ -2262,6 +2284,22 @@ if sort -- "$req_seen" | uniq -d | grep -q .; then
   printf 'FAIL        %-21s row IDs repeat: %s\n' matrix "$(sort -- "$req_seen" | uniq -d | head -n 3 | paste -sd '|' -)"
 else
   pass=$((pass + 1))
+fi
+# Spec 002's content policy (T016): both files, in both layers behind the hook. Planned until the approvals patch, which
+# switches this row to set_has; it sits above the recap, which counts it, with the content-policy rows above.
+content_policy_label="the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)"
+# shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
+content_policy_filter='(.sandbox.filesystem.denyWrite as $w | ["./assets/policy/content-approvals.json", "./assets/policy/resume-header.json"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/assets/policy/content-approvals.json)", "Edit(/assets/policy/resume-header.json)"] | all(. as $p | $d | index($p) != null))'
+rid "H/settings/$content_policy_label"
+if jq -e "$content_policy_filter" "$settings" >/dev/null 2>&1; then
+  pass=$((pass + 1))
+  printf 'ENFORCED    %-21s %s (a planned row: make it set_has)\n' settings.json "$content_policy_label"
+else
+  planned=$((planned + 1))
+  printf 'PLANNED     %-21s %s\n' settings.json "$content_policy_label"
+fi
+if [ "$planned" -gt "$content_policy_planned" ]; then
+  printf 'PLANNED (T016): %d content-policy rows wait for the approvals patch, which protects assets/policy/content-approvals.json and resume-header.json\n' "$((planned - content_policy_planned))"
 fi
 # The planned/skipped recap (plan §13's report), beside the summary line. It sits above the blank line, so the settings
 # rows other branches add before the summary line still merge cleanly; those print nothing when they pass, and add no
