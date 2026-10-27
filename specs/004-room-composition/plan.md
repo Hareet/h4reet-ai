@@ -757,6 +757,8 @@ CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the sam
   - C1 holds every record, not the room's alone: spec 003's fixtures' default record becomes one model step, as their `trainedAlgorithmicMedia` mark calls for;
   - P-7 also changes `evals/agent-config/thresholds.yaml`'s comment, which counted three conduct cases; its thresholds don't move;
   - P-8 refuses an SVG with a document type declaration, and its conversion's refusals (a transform, no viewBox, an output name with a folder) exit 2 with nothing written.
+- **After the review** (T041, 2026-10-27; [intake-amendments.md](contracts/intake-amendments.md) §7, §10, and research R-53, R-55, amended at f23da2e; each patch regenerated in its own commit):
+  - P-5's P1 asks the Author's approval of the file's SHA-256 for any record whose steps call for a mark but `trainedAlgorithmicMedia`, wherever the file lives (part 1, I1), the stricter reading; C5's `"not_applicable"` stays a room file's alone.
 
 **Foreseen, and conditional.** If the phone probe stops ("This browser can't run the vignette from a local file."), lookdev runs on the desktop at the phone's stage size and pixel ratio, FR-069's option B. This section then records, for the Author and with the probe's results, that departure from the intent's order ("Lookdev settles the look on a small vignette, at the room's real framing, on a reference phone"). SC-005, SC-006's phone figure, and SC-010's phone judgment then wait for the first release build after publication (R-42).
 
