@@ -79,6 +79,8 @@ interface FaceState {
   typed: boolean;
   /** The step of its typing last drawn, so a frame redraws only when the rate moves it on. */
   step: number;
+  /** How far into its typing it was last drawn, in milliseconds, so a redraw keeps its place. */
+  at: number;
 }
 
 /** The face quads for the index's bound faces. */
@@ -137,7 +139,7 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     holder.add(quad);
     node.add(holder);
     quads.set(face.id, quad);
-    states.set(face.id, { face, quad, canvas, texture, start: null, typed: false, step: -1 });
+    states.set(face.id, { face, quad, canvas, texture, start: null, typed: false, step: -1, at: 0 });
   }
 
   /** Sizes a face's canvas for the device and the level; whether its size changed. */
@@ -164,9 +166,9 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     s.quad.visible = true;
   };
 
-  /** Draws every face as it stands now: its final frame once typed, else the first of its typing. */
+  /** Draws every face as it stands now: its final frame once typed, else where its typing has reached. */
   const redraw = (): void => {
-    for (const s of states.values()) draw(s, s.typed || s.start === null ? (s.typed ? Infinity : 0) : 0);
+    for (const s of states.values()) draw(s, s.typed ? Infinity : s.at);
   };
 
   /** Moves a face's typing on to `now`, ending it at once while the room is still or the level types nothing. */
@@ -190,7 +192,8 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     const step = Math.floor((ms * rate) / 1000);
     if (step === s.step) return;
     s.step = step;
-    draw(s, (step * 1000) / rate);
+    s.at = (step * 1000) / rate;
+    draw(s, s.at);
   };
 
   for (const s of states.values()) size(s);
