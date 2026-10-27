@@ -149,7 +149,7 @@ function createCostChannel(options: { configured: boolean; clock: Clock }): Cost
 
 ## 7. The hookup for the twin's spec: `onTurnOutcome`
 
-Spec 002's talk panel never sends a turn today. This spec adds the seam the twin's spec plugs into, so the sign needs no change when conversations arrive:
+Spec 002's talk panel sends no turn in any build today: User Story 6 added a sender seam (below), but no build gives a sender. This spec adds the seam the twin's spec plugs into, so the sign needs no change when conversations arrive:
 
 ```ts
 renderTalk(doc, {
@@ -163,6 +163,12 @@ renderTalk(doc, {
 - **The talk panel's own messages** read the same outcome. A `degraded` turn shows spec 002's `cannot_talk` message for its cause's class, through the shared `causeClass` ([tier-signal.md](tier-signal.md) §4).
 - **Nothing flows the other way.** The channel's state never reaches the turn request, the twin's context, or its voice (FR-038, FR-050).
 - **Until the twin's spec,** nothing calls `onTurnOutcome`, `live.turn` is `off`, and both counters read "cost unavailable" (answer 7; User Story 9, scenario 7).
+
+**The sender, `sendTurn`, is provisional** (User Story 6, T207; plan.md §10). `startRoom`'s `RoomDeps` and `renderTalk` take an optional `sendTurn(request: TurnRequest): void`, which a typed turn reaches as spec 002's body, `{feature, path, turns}`, only while the conversation is ready, `live.turn` is `site`, and a sender was given. No build gives one. It is one-way: it returns nothing, and the panel has already appended the visitor's turn to the visit's `turns` and cleared the text box when it calls it. The twin's spec owns, and may change `sendTurn`'s signature and T205's assertions in `apps/web/test/ui/talk.test.ts` for:
+- appending the twin's turn to the log and to the visit's `turns`, so a later turn carries the conversation in both voices (today a second turn's `turns` holds visitor turns only, as T205 pins);
+- calling `onTurnOutcome` once for each turn it sent, as above;
+- mapping a degraded reply's cause to its `cannot_talk` message through `causeClass`;
+- guarding a turn in flight (no second send until the first ends), and what a sender that throws leaves: today the box is cleared and the turn recorded.
 
 ## 8. The text copy
 
