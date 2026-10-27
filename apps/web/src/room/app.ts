@@ -26,6 +26,11 @@
 //   nothing is asked of the network and the tier is not-live (FR-045). With it `site`, the status poller asks the
 //   page's own GET /api/status from Enter, while the page is visible and the room isn't paused (spec 004, User Story
 //   8; signals/status-poller.ts).
+// - The neon sign's counters (spec 004, User Story 9; signals/turn-cost.ts): one cost channel per page, configured by
+//   the index's live.turn, fed each sent turn's end through the talk panel's onTurnOutcome, its fallback cue reaching
+//   the tier (row 7), and each of its states drawn on the stage and said in "Around the room" at once, paused or not.
+//   With live.turn off, as until the twin's spec, both read "cost unavailable" and nothing reports to it. It makes no
+//   request and stores nothing; a reload makes a new one.
 // - A drafts build's frame log (spec 004, R-70; signals/frame-log.ts), when main.ts gives its factory: the live
 //   signal's events, each frame the 3D stage draws, and each new switch case, with h4FrameLog() on the window. A
 //   release build gives none, so the room keeps no log.
@@ -73,6 +78,8 @@ import { createLiveSignals } from "./signals/live";
 import type { LiveSignals } from "./signals/live";
 import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
+import { classifyTurn, createCostChannel } from "./signals/turn-cost";
+import type { CostChannel } from "./signals/turn-cost";
 import type { SceneModule, Stage, Stage3D } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
@@ -112,6 +119,8 @@ export interface RoomHandle {
   readonly live: LiveSignals;
   /** The motion store: "Pause the room", reduced motion, and a hidden page (spec 004, motion.ts). */
   readonly motion: MotionStore;
+  /** The page's one cost channel (spec 004, signals/turn-cost.ts), which the neon sign's counters read. */
+  readonly cost: CostChannel;
   /** Resolves when the last step the visitor started has settled (the stage built after "Enter"). */
   settled(): Promise<void>;
 }
@@ -163,6 +172,16 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       ? { status: { fetch: (url: string, init: RequestInit) => win.fetch(url, init), pollMs: deps.room.live.poll_ms } }
       : {}),
     ...(log ? { log } : {}),
+  });
+
+  // The cost channel (spec 004, FR-047, FR-048): one per page, configured while the index's live.turn is `site`. Its
+  // fallback cue is row 7's (FR-041); each state reaches the stage and the text copy at once, the motion store's pause
+  // stopping only the glow's motion (FR-060).
+  const cost = createCostChannel({ configured: deps.room.live.turn === "site", clock });
+  cost.onFallbackReply(() => live.fallbackReply());
+  cost.subscribe((state) => {
+    stage?.setCost?.(state);
+    copy?.setCost(state);
   });
 
   /** A tier on a stage, and in the frame log each switch's case as the claims rule gives it: in 3D drawn on the next
@@ -259,9 +278,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       freeTalkReady: content.manifest.free_talk.ready,
       turnRoute: deps.room.live.turn === "site",
       ...(deps.sendTurn ? { sendTurn: deps.sendTurn } : {}),
+      onTurnOutcome: (result) => cost.report(classifyTurn(result), "turn"),
     });
     // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
     const around = renderTextCopy(doc, deps.room);
+    around.setCost(cost.state);
     copy = around;
     const layout = renderRoom(doc, {
       list,
@@ -364,6 +385,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         assets: recordAsset,
         ...(typefaces ? { typefaces } : {}),
         text,
+        cost: cost.state,
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -411,6 +433,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         select: selectObject,
         motion,
         text,
+        cost: cost.state,
         ...(typefaces ? { typefaces } : {}),
       });
       showTier(flat, live.tier.tier);
@@ -511,6 +534,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     },
     live,
     motion,
+    cost,
     settled: () => settled,
   };
 }

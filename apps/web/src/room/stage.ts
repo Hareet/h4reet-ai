@@ -10,6 +10,7 @@ import type { TierValue } from "./compose/vocabulary";
 import type { TypefaceLoader } from "./faces/fonts";
 import type { RoomText } from "./faces/words";
 import type { MotionState } from "./motion";
+import type { CostState } from "./signals/turn-cost";
 
 export interface Stage {
   readonly mode: "3d" | "2d";
@@ -23,6 +24,9 @@ export interface Stage {
   /** The room text, once room-data.json has loaded at Enter (spec 004, FR-029, FR-061): the faces it words are drawn;
    *  null leaves them plain. A stage made after it loaded is given it at once. */
   setText?(text: RoomText | null): void;
+  /** The cost channel's state (spec 004, FR-047, FR-048): the neon sign's counters are drawn again at once, paused or
+   *  not (FR-060). A stage made after a report is given the state at its making. */
+  setCost?(state: CostState): void;
   dispose(): void;
 }
 
@@ -72,6 +76,8 @@ export interface SceneOptions {
   typefaces?: TypefaceLoader;
   /** The room text, where room-data.json loaded before the stage was made. */
   text?: RoomText | null;
+  /** The cost channel's state when the stage was made (spec 004, FR-048). */
+  cost?: CostState;
 }
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */

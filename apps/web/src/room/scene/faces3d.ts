@@ -10,6 +10,8 @@
 // - The screens type once, from the first frame after their words come, redrawn at the quality level's typing rate,
 //   and hold. While the room doesn't animate (reduced motion, paused, or hidden; the motion store) or at quality 3,
 //   whose rate is 0, a screen shows its final frame, and never types again (FR-059; R-35).
+// - The neon sign's counters are drawn again at once on each new state of the cost channel (setCost), whatever the
+//   motion store says: a pause stops only the glow's motion (FR-060).
 import {
   CanvasTexture,
   Group,
@@ -31,6 +33,7 @@ import type { TypefaceLoader } from "../faces/fonts";
 import { faceCanvasSize, rasterize } from "../faces/raster";
 import { faceLayout, faceList } from "../faces/words";
 import type { FaceIndex, FaceSources, IndexFace, RoomText } from "../faces/words";
+import type { CostState } from "../signals/turn-cost";
 import type { MotionView } from "../stage";
 import { qualitySettings } from "./levels";
 
@@ -44,6 +47,8 @@ export interface FaceQuads {
   readonly lists: ReadonlyMap<string, DisplayList>;
   /** The room text, once room-data.json has loaded: the faces it words are drawn, and the screens begin to type. */
   setText(text: RoomText | null): void;
+  /** The cost channel's state: the counters are drawn again at once, paused or not (FR-048, FR-060). */
+  setCost(state: CostState): void;
   /** The quality level: its canvas size and typing rate. */
   setLevel(level: number): void;
   /** A frame of the room: the screens' typing moves on. */
@@ -98,6 +103,7 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
   const { part, index, doc } = options;
   let level = options.level;
   let text: RoomText | null = null;
+  let cost: CostState | null = null;
   const states = new Map<string, FaceState>();
   const quads = new Map<string, Mesh>();
   const lists = new Map<string, DisplayList>();
@@ -105,6 +111,7 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
   const sources = (): FaceSources => ({
     index,
     text,
+    ...(cost ? { cost } : {}),
     ...(options.typefaces ? { family: (use) => options.typefaces?.family(use) ?? "sans-serif" } : {}),
   });
   /** Whether every typeface the face draws in has a family to draw with yet. */
@@ -227,6 +234,12 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     setText(next) {
       text = next;
       redraw();
+    },
+    setCost(next) {
+      cost = next;
+      // Only the counters read it: each is drawn again, at its final frame, which is its only one.
+      for (const s of states.values())
+        if (s.face.regions.some((r) => "signal" in r.source)) draw(s, s.typed ? Infinity : s.at);
     },
     setLevel(next) {
       if (next === level) return;

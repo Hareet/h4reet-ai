@@ -11,7 +11,10 @@
 //   sender was given, which only the twin's spec gives; otherwise it answers cannot_talk.unavailable, pointing to the
 //   resume and the PDF, and leaves the text in the box;
 // - the talk button announces voice_unavailable and moves focus to the text box, without asking for the microphone
-//   (the image's Permissions-Policy keeps microphone=() until push-to-talk's group).
+//   (the image's Permissions-Policy keeps microphone=() until push-to-talk's group);
+// - each sent turn's end, which the sender reports through the callback it is given, reaches onTurnOutcome exactly
+//   once (spec 004, contracts/turn-cost.md §7), where the room's cost channel reads it; a turn the panel didn't send
+//   reports nothing.
 import "./talk.css";
 
 import type { Turn, VisitPath } from "../choice/visit";
@@ -19,6 +22,7 @@ import type { Clock } from "../room/clock";
 import type { RoomIndex } from "../room/compose/bundle";
 import { h } from "../room/dom";
 import type { EventSink } from "../room/events";
+import type { TurnResult } from "../room/signals/turn-cost";
 import { fill, pointsToResume } from "./messages";
 import type { MessageId, Messages } from "./messages";
 
@@ -37,9 +41,10 @@ export interface TurnRequest {
   turns: Turn[];
 }
 
-/** The twin's sender: the twin's spec gives it, and reports each turn's end through its own seam (contracts/
- *  turn-cost.md §7). Until then the room has none, and no turn goes anywhere. */
-export type SendTurn = (request: TurnRequest) => void;
+/** The twin's sender: the twin's spec gives it, and reports each turn's end through `ended`, once the whole answer, a
+ *  failure, or an abort is in (contracts/turn-cost.md §7); the panel passes it on to `onTurnOutcome`, once. Until then
+ *  the room has none, and no turn goes anywhere. */
+export type SendTurn = (request: TurnRequest, ended: (result: TurnResult) => void) => void;
 
 export interface TalkPanel {
   readonly element: HTMLElement;
@@ -70,6 +75,9 @@ export function renderTalk(
     turnRoute: boolean;
     /** The twin's sender; absent until the twin's spec. */
     sendTurn?: SendTurn;
+    /** Each sent turn's end, once, when the sender reports it (spec 004, contracts/turn-cost.md §7): the room's cost
+     *  channel reads it. Never called for a turn the panel didn't send. */
+    onTurnOutcome?(result: TurnResult): void;
   },
 ): TalkPanel {
   const log = h(doc, "div", {
@@ -134,7 +142,14 @@ export function renderTalk(
     }
     options.turns.push({ role: "visitor", text: textBox.value });
     textBox.value = "";
-    send({ feature, path, turns: options.turns.map((t) => ({ role: t.role, text: t.text })) });
+    // The turn's end, reported once: a second report of the same turn is the sender's mistake, and counts nothing.
+    let ended = false;
+    const end = (result: TurnResult): void => {
+      if (ended) return;
+      ended = true;
+      options.onTurnOutcome?.(result);
+    };
+    send({ feature, path, turns: options.turns.map((t) => ({ role: t.role, text: t.text })) }, end);
   });
 
   // One press is one gesture, however long it's held. A pointer press ends in the click it fires, which belongs to

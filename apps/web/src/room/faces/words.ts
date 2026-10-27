@@ -7,8 +7,9 @@
 // - The published resume's section titles, from the same file, for a `resume_titles` region: withheld whenever the
 //   resume is (FR-033, Confirmation 11).
 // - UI words, from the index: the neon sign's word and second line.
-// - Live values: a counter's reading, "cost unavailable" while the room's live configuration has no turn route, as
-//   today (FR-048); the channel that reads its turns comes with T266.
+// - Live values: a counter's reading, from the room's cost channel's state (signals/turn-cost.ts's costReadings), so
+//   "cost unavailable" while the room's live configuration has no turn route, as today (FR-048); without a state, the
+//   one a new channel starts with.
 // A region whose source has no words, room text not loaded or failed (FR-061) or a block the build withheld, draws
 // nothing, and a face none of whose regions has words stays plain, its text-copy entry left out.
 import { asRoomResume } from "../../resume/data";
@@ -17,6 +18,8 @@ import { regionBox } from "../compose/layout";
 import type { Grid } from "../compose/layout";
 import { typefaceFor } from "../compose/legibility";
 import type { TypefaceUse } from "../compose/vocabulary";
+import { costReadings, initialCostState } from "../signals/turn-cost";
+import type { CostState } from "../signals/turn-cost";
 import { uiWord } from "../ui-keys";
 import type { DisplayList, Op } from "./display-list";
 import { REGISTRY } from "./registry";
@@ -94,6 +97,9 @@ export interface FaceSources {
   readonly index: FaceIndex;
   readonly text: RoomText | null;
   readonly family?: (use: TypefaceUse) => string;
+  /** The cost channel's state, which the counters read (FR-047, FR-048); absent, a new channel's, from the index's
+   *  live.turn. */
+  readonly cost?: CostState;
 }
 
 /** The typeface a region draws in, from the index's typefaces; a sign, which draws its lettering's paths, has none, and
@@ -110,21 +116,13 @@ function draftBadge(sources: FaceSources, draft: boolean): RegionInput["badge"] 
   return text === null ? null : { kind: "draft", text };
 }
 
-/** A counter's reading: "cost unavailable" while the live configuration has no turn route (FR-048); "no call yet" and
- *  "$0" once it has, before any turn, its amount marked "test" in a drafts build (FR-049). T266's channel feeds the
- *  turns' readings. */
+/** A counter's reading: the cost channel's state in the UI words (contracts/turn-cost.md §5), its amount badged "test" in
+ *  a drafts build or "Sample" from a fixture (FR-049). */
 function counterReading(sources: FaceSources, part: "call" | "visit"): Pick<RegionInput, "lines" | "badge"> | null {
   const { ui, live, build } = sources.index;
-  if (live.turn === "off") {
-    const text = uiWord(ui, "sign.unavailable");
-    return text === null ? null : { lines: [text], badge: null };
-  }
-  if (part === "call") {
-    const text = uiWord(ui, "sign.no_call_yet");
-    return text === null ? null : { lines: [text], badge: null };
-  }
-  const test = build.kind === "drafts" ? uiWord(ui, "sign.test") : null;
-  return { lines: ["$0"], badge: test === null ? null : { kind: "test", text: test } };
+  const state = sources.cost ?? initialCostState(live.turn === "site");
+  const reading = costReadings(state, { ui, drafts: build.kind === "drafts" })[part];
+  return reading === null ? null : { lines: [reading.text], badge: reading.badge };
 }
 
 /** One region's input, or null where its source has no words now. */

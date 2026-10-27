@@ -49,6 +49,7 @@ import { faceList } from "./faces/words";
 import type { RoomText } from "./faces/words";
 import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
+import type { CostState } from "./signals/turn-cost";
 import type { MotionView, Stage } from "./stage";
 import { uiWord } from "./ui-keys";
 
@@ -88,6 +89,8 @@ export interface FlatStage extends Stage {
   resize(size: Size): void;
   /** The room text, once room-data.json has loaded: the faces it words are drawn. */
   setText(text: RoomText | null): void;
+  /** The cost channel's state: the neon sign's counters are drawn again (spec 004, FR-048). */
+  setCost(state: CostState): void;
 }
 
 // ---- The allowlist ----
@@ -420,6 +423,7 @@ function drawFaces(
   room: FlatIndex,
   drawing: FlatDrawing,
   text: RoomText | null,
+  cost: CostState | null,
   typefaces: TypefaceLoader | undefined,
   drawn: Map<string, string>,
 ): void {
@@ -436,6 +440,7 @@ function drawFaces(
       ? faceList(face, {
           index: room,
           text,
+          ...(cost ? { cost } : {}),
           ...(typefaces ? { family: (use) => typefaces.family(use) ?? "sans-serif" } : {}),
         })
       : null;
@@ -527,6 +532,8 @@ export function renderFlat(
     text?: RoomText | null;
     /** The live faces' typefaces: absent, each face draws at once. */
     typefaces?: TypefaceLoader;
+    /** The cost channel's state when the 2D room was drawn (spec 004, FR-048). */
+    cost?: CostState;
   },
 ): FlatStage {
   const reduced = (): boolean => options.motion?.reducedMotion ?? options.reducedMotion ?? false;
@@ -568,8 +575,9 @@ export function renderFlat(
   frame(FLAT_FRAMES - 1);
   // The faces: drawn now, again when the room text comes, and again when a typeface's family changes.
   let text = options.text ?? null;
+  let cost = options.cost ?? null;
   const drawn = new Map<string, string>();
-  const faces = (): void => drawFaces(doc, options.room, drawing, text, options.typefaces, drawn);
+  const faces = (): void => drawFaces(doc, options.room, drawing, text, cost, options.typefaces, drawn);
   faces();
   const unwatch = options.typefaces?.onChange(faces);
   return {
@@ -582,6 +590,11 @@ export function renderFlat(
     resize,
     setText(next) {
       text = next;
+      faces();
+    },
+    // The counters, drawn again at once, paused or not; each face redraws only where its words changed (FR-058, FR-060).
+    setCost(next) {
+      cost = next;
       faces();
     },
     dispose: () => {
