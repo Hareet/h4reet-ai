@@ -2,20 +2,35 @@
 
 Agent code that runs in the Author's terminal (ADR 0017), standard library only, as
 
-    python3 -I scripts/room/har_check.py <visit.har> <frame-log.json> <path-change-time>
+    python3 -I scripts/room/har_check.py <visit.har> <frame-log.json> <path-change-time> [--relay-offset-ms N]
 
 with the browser's exported network log of one visit (a HAR file, which stays on the Author's machine), the drafts
 build's frame log (the console's h4FrameLog(), copied to a file), and the time of the relay's `relay.path.change` log
-line, in ISO 8601 with its UTC offset.
+line, in ISO 8601 with its UTC offset. It needs Python 3.11 or later (datetime.fromisoformat with a `Z` suffix).
+
+The failover check compares two machines' clocks: the relay's log line is stamped by the engine's clock (WSL's, or a
+container's), and the frame log by the browser's. WSL2's clock can drift from Windows' after the laptop sleeps, by more
+than the margin between the 30-second poll and the 40-second limit. So, just before the run, compare them: in WSL,
+`date -u +%FT%T.%3NZ`, and at the same moment in the browser's console, `new Date().toISOString()`. Resync WSL if they
+differ (`sudo hwclock -s`), or pass the difference as `--relay-offset-ms`: the relay's clock minus the browser's, in
+milliseconds (positive when the relay's runs ahead), which the checker subtracts from the path change's time.
 
 From the HAR it reads only each request's URL, method, start time, and status, never a header, cookie, query value, or
 body, and it prints only counts and verdicts, never a URL, a host, or anything a request carried:
-- third-party: 0 requests to any origin but the page's own (data: and blob: URLs reach no host);
+- third-party: 0 requests to any origin but the page's own (data: and blob: URLs reach no host; a browser extension's
+  chrome-extension: or moz-extension: requests are a NOTE of their own, not counted here, so record in a browser profile
+  without extensions);
 - before-enter, paused, hidden: 0 status requests (GET /api/status on the page's origin) before Enter, between a pause
   and its resume, or between a hide and its show;
 - interval: no two status requests closer together than the poll interval;
 - failover: the first frame off the plugged pose within 40 seconds of the relay's path change (SC-004);
-- plugged-paused, plugged-hidden: 0 frames of the plugged pose while paused or hidden (SC-004).
+- plugged-paused, plugged-hidden: 0 frames of the plugged pose while paused or hidden (SC-004). A 2D case its pause's or
+  hide's own reduction logged (only `tier` entries, or that reduction's other 2D cases, between them) replaces the case
+  before it at the event's time, since the room reads its Clock once for the event and again for the case.
+
+"Plugged" is what the room logged: app.ts logs each case as the claims rule, `caseFor`, gives it with its default
+`drawn`, so where a model lacks the claimed pose and the stage draws another, the log over-reports the plugged pose
+(plan.md §10). An over-report can only fail a check, never pass one.
 
 The HAR's start times are the browser's network clock, the frame log's the page's: two readings of the wall clock that
 can differ by a few milliseconds. So each HAR check against the frame log, and the HAR's own interval check, allows
@@ -28,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -42,6 +58,8 @@ FRAME_LOG_KIND = "h4-frame-log"
 FAILOVER_LIMIT_MS = 40_000
 SLACK_MS = 50
 NO_HOST = ("data", "blob")
+EXTENSIONS = ("chrome-extension", "moz-extension")
+REDUCING = ("pause", "resume", "hide", "show")
 DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
 
 
@@ -78,6 +96,16 @@ def parse_time(text: str, what: str) -> float:
     return when.timestamp() * 1000
 
 
+def checked_url(url: str, what: str) -> str:
+    """A URL urlsplit reads whole, host and port included; its error would hold the host, so it is never shown."""
+    try:
+        parts = urlsplit(url)
+        _ = (parts.hostname, parts.port)
+    except ValueError:
+        raise Unreadable(f"{what} isn't a URL") from None
+    return url
+
+
 def read_har(data: Any) -> list[Request]:
     """Each HAR entry's URL, method, start time, and status, and nothing else of it."""
     log = data["log"] if isinstance(data, Mapping) and "log" in data else None
@@ -108,7 +136,10 @@ def read_har(data: Any) -> list[Request]:
             raise Unreadable("a HAR entry lacks its URL, method, start time, or status")
         requests.append(
             Request(
-                url, method, parse_time(started, "a HAR entry's start time"), status
+                checked_url(url, "a HAR entry's URL"),
+                method,
+                parse_time(started, "a HAR entry's start time"),
+                status,
             )
         )
     return requests
@@ -119,7 +150,7 @@ def read_frame_log(data: Any) -> FrameLog:
     if isinstance(data, str):
         try:
             data = json.loads(data)
-        except ValueError:
+        except (ValueError, RecursionError):
             raise Unreadable("the frame log isn't JSON") from None
     if not isinstance(data, Mapping) or data.get("kind") != FRAME_LOG_KIND:
         raise Unreadable(f"the frame log isn't an {FRAME_LOG_KIND}")
@@ -128,18 +159,21 @@ def read_frame_log(data: Any) -> FrameLog:
         data.get("entries"),
         data.get("dropped", 0),
     )
-    if (
-        not isinstance(origin, str)
-        or not isinstance(entries, list)
-        or not isinstance(dropped, int)
-    ):
+    if not isinstance(origin, str) or not isinstance(entries, list):
         raise Unreadable("the frame log lacks its origin or its entries")
+    checked_url(origin, "the frame log's origin")
+    if not isinstance(dropped, int) or isinstance(dropped, bool) or dropped < 0:
+        raise Unreadable("the frame log's dropped isn't a count")
     for entry in entries:
         if not isinstance(entry, Mapping) or not isinstance(entry.get("event"), str):
             raise Unreadable("a frame log entry lacks its event")
         for key in ("t", "wall", "frame"):
             value = entry.get(key)
-            if not isinstance(value, int | float) or isinstance(value, bool):
+            if (
+                not isinstance(value, int | float)
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+            ):
                 raise Unreadable("a frame log entry lacks its t, wall, or frame")
     enter = next((e for e in entries if e["event"] == "enter"), None)
     if enter is None:
@@ -158,7 +192,7 @@ def origin_of(url: str) -> tuple[str, str, int | None] | None:
     """A URL's scheme, host, and port, the default port spelled out; None for a URL that reaches no host."""
     parts = urlsplit(url)
     scheme = parts.scheme.lower()
-    if scheme in NO_HOST:
+    if scheme in NO_HOST or scheme in EXTENSIONS:
         return None
     try:
         port = parts.port
@@ -204,13 +238,47 @@ class Shown:
     until_t: float
 
 
+def shown_at(entries: list[dict[str, Any]]) -> dict[int, float]:
+    """When each case replaced the one before, by the case's index in the log: its own `t`, except a 2D case its
+    pause's, resume's, hide's, or show's own reduction logged, which replaces at that event's `t` (I-2 of T248's
+    review): the room reads its Clock once for the event and again for the case. A reduction's cases follow its event
+    with only `tier` entries and its other switches' 2D cases between, at most one for each switch; any other entry, a
+    3D case, or a second case for a switch ends the reduction."""
+    at: dict[int, float] = {}
+    anchor: dict[str, Any] | None = None
+    anchored: set[str] = set()
+    for k, entry in enumerate(entries):
+        event = entry["event"]
+        if event == "tier":
+            continue
+        if event != "case":
+            anchor = entry if event in REDUCING else None
+            anchored = set()
+            continue
+        at_switch = str(entry.get("switch"))
+        if (
+            anchor is not None
+            and entry.get("mode") == "2d"
+            and at_switch not in anchored
+        ):
+            anchored.add(at_switch)
+            at[k] = anchor["t"]
+        else:
+            anchor = None
+            at[k] = entry["t"]
+    return at
+
+
 def shown_cases(entries: list[dict[str, Any]]) -> list[Shown]:
     """Each switch's cases, in order, with the frames that drew each (3D) or the time it showed (2D)."""
     last_frame = max((e["frame"] for e in entries), default=0)
+    at = shown_at(entries)
     by_switch: dict[str, list[dict[str, Any]]] = {}
-    for entry in entries:
+    for k, entry in enumerate(entries):
         if entry["event"] == "case":
-            by_switch.setdefault(str(entry.get("switch")), []).append(entry)
+            by_switch.setdefault(str(entry.get("switch")), []).append(
+                {**entry, "t": at[k]}
+            )
     out: list[Shown] = []
     for cases in by_switch.values():
         for k, case in enumerate(cases):
@@ -377,7 +445,7 @@ def load_json(path: str, what: str) -> Any:
         raise Unreadable(f"can't read {what}") from None
     try:
         return json.loads(text)
-    except ValueError:
+    except (ValueError, RecursionError):
         raise Unreadable(f"{what} isn't JSON") from None
 
 
@@ -400,11 +468,20 @@ def main(
         "path_change",
         help="the time of the relay's relay.path.change log line, ISO 8601 with offset",
     )
+    parser.add_argument(
+        "--relay-offset-ms",
+        type=int,
+        default=0,
+        help="the relay's clock minus the browser's, in ms (positive when the relay's runs ahead)",
+    )
     args = parser.parse_args(argv)
     try:
         requests = read_har(load_json(args.har, "the HAR"))
         log = read_frame_log(load_json(args.frame_log, "the frame log"))
-        change_ms = parse_time(args.path_change, "the path change's time")
+        change_ms = (
+            parse_time(args.path_change, "the path change's time")
+            - args.relay_offset_ms
+        )
     except Unreadable as error:
         err(f"har_check: {error}")
         return 2
@@ -418,6 +495,11 @@ def main(
         f"har_check: {plural(len(requests), 'request', 'requests')} in the HAR, {status} of them status requests; "
         f"{len(log.entries)} frame log entries"
     )
+    if args.relay_offset_ms:
+        out(
+            "har_check: the path change read on the browser's clock, "
+            f"relay offset {args.relay_offset_ms} ms"
+        )
     verdicts = [(log.dropped == 0, f"frame-log: {log.dropped} entries dropped")]
     if log.dropped:
         verdicts = [
@@ -429,6 +511,12 @@ def main(
     verdicts += check(requests, log, change_ms)
     for passed, line in verdicts:
         out(f"{'PASS' if passed else 'FAIL'}  {line}")
+    extensions = sum(
+        1 for r in requests if urlsplit(r.url).scheme.lower() in EXTENSIONS
+    )
+    out(
+        f"NOTE  extensions: {plural(extensions, 'request', 'requests')} from a browser extension, not counted above"
+    )
     passed = all(ok for ok, _ in verdicts)
     out(f"har_check: {'PASS' if passed else 'FAIL'}")
     return 0 if passed else 1

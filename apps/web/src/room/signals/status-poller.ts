@@ -195,8 +195,12 @@ export function createStatusPoller(options: StatusPollerOptions): StatusPoller {
         };
       }
       nextAt = started + wait;
-      options.onResult(result);
-      arm();
+      // A listener that throws still leaves the next request armed (the review of T248, nit 2).
+      try {
+        options.onResult(result);
+      } finally {
+        arm();
+      }
     }
 
     let request: Promise<Response>;
