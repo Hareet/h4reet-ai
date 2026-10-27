@@ -16,23 +16,30 @@ P-6 commit, P-7, and P-8 (docs/merge-requests/2026-10-27-feat-004-intake.md). gi
 It changes three files:
 - tools/gates/arrival_check.py: M5 (C1, the mark the record's steps call for, and trainedAlgorithmicMedia alone
   under assets/twin/ and docs/research/images/), R1 (C2, design), P2 (C4, screens_plain_live_face, true or
-  not_applicable), P1 (C5, likeness_accepted not_applicable for a room file with no likeness), F3 (C6, every room
-  file at gzip-9, phase 3 once assets/room/ holds one), F2 (C7, per_asset.room's six keys, exit 2 otherwise), and
-  AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7").
+  not_applicable), P1 (C1, main's approval of the hash of any file whose record's steps call for a mark but
+  trainedAlgorithmicMedia, wherever it lives; C5, likeness_accepted not_applicable for a room file with no likeness),
+  F3 (C6, every room file at gzip-9, phase 3 once assets/room/ holds one), F2 (C7, per_asset.room's six keys, exit 2
+  otherwise), and AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7").
 - tools/gates/test/test_arrival_check.py and tools/gates/test/arrival_fixtures.py: §7's cases, built at run time.
+  Spec 003's R7 case, whose visitors' still mixes a model step and a hand step, gets main's approval of its hash.
+
+Regenerated after T041's review (part 1, I1 and nit 5): the P1 clause above, and its tests; a non-room kind under
+assets/room/ is tested against P1, P2, and F2.
 
 diff --git a/tools/gates/arrival_check.py b/tools/gates/arrival_check.py
-index cf6451d..39a0d1c 100644
+index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f620e064bf 100644
 --- a/tools/gates/arrival_check.py
 +++ b/tools/gates/arrival_check.py
-@@ -24,6 +24,21 @@ Standard library only. Human-only: the hook, make check, and the gate each run t
+@@ -24,6 +24,23 @@ Standard library only. Human-only: the hook, make check, and the gate each run t
    main branch as the gate reads it: `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:assets/policy/<file>`,
    never `main:` (a tag named main would answer first), never a branch, never a checked-out copy (research R-05).
  
 +Spec 004's amendments (its contracts/intake-amendments.md §7; AMENDMENTS below names them):
 +- C1, on M5: the mark follows the record. Its term is trainedAlgorithmicMedia when every step of the file's record is
 +  by a model, compositeWithTrainedAlgorithmicMedia when model and hand steps mix, and MARK_HUMAN when every step is by
-+  hand; under assets/twin/ and docs/research/images/, trainedAlgorithmicMedia alone, whatever the steps say.
++  hand; under assets/twin/ and docs/research/images/, trainedAlgorithmicMedia alone, whatever the steps say. On P1:
++  wherever a file lives, a record whose steps call for any other term needs main's approval of the file's hash, its
++  five confirmations true unless C5 lets a room file's likeness_accepted read "not_applicable".
 +- C2, on R1: a source may be a `design`, its ID held to the opaque-ID rule.
 +- C4, on P2: a room file's room confirmations, window_view_recreated, screens_plain_live_face (once
 +  screens_plain_glow), and artwork_original_or_absent, each read true or "not_applicable".
@@ -47,7 +54,7 @@ index cf6451d..39a0d1c 100644
  The modes: --staged checks the index's added and changed files, and the directories they touch. --range A..B checks
  each commit in it: the files it added or changed, as it had them, and their directories; for a merge, what it holds
  that differs from every parent, so a conflict's resolution is checked; then B's whole tree, so a deletion is judged
-@@ -71,6 +86,13 @@ NOTICE = "LICENSE.md"
+@@ -71,6 +88,13 @@ NOTICE = "LICENSE.md"
  DISCLOSURE = "docs/data-flow-disclosure.md"
  MEDIA_LICENSE = "all-rights-reserved-2026"
  MAIN = "refs/heads/main"
@@ -61,7 +68,7 @@ index cf6451d..39a0d1c 100644
  
  ADMITTED = {
      ".png": "png",
-@@ -116,15 +138,32 @@ BY_EXTENSION = {
+@@ -116,15 +140,32 @@ BY_EXTENSION = {
      **{ext: "a model" for ext in MODEL_EXT},
  }
  
@@ -100,7 +107,7 @@ index cf6451d..39a0d1c 100644
  XPACKET_BEGIN = re.compile(
      rb"\A\s*<\?xpacket begin=([\"'])(?:\xef\xbb\xbf)?\1 id=([\"'])W5M0MpCehiHzreSzNTczkc9d\2\?>"
  )
-@@ -454,6 +493,24 @@ class Size:
+@@ -454,6 +495,24 @@ class Size:
      texture: int | None = None
  
  
@@ -125,7 +132,7 @@ index cf6451d..39a0d1c 100644
  @dataclass
  class Parsed:
      """What a container's parse found: problems by rule, the parts that hold text, and the mark's byte ranges."""
-@@ -466,6 +523,10 @@ class Parsed:
+@@ -466,6 +525,10 @@ class Parsed:
      vertices: int | None = None
      triangles: int | None = None
      texture: int | None = None
@@ -136,7 +143,7 @@ index cf6451d..39a0d1c 100644
  
      def bad(self, rule: str, reason: str) -> None:
          self.problems.append((rule, reason))
-@@ -475,38 +536,47 @@ class Parsed:
+@@ -475,38 +538,47 @@ class Parsed:
  # The mark's packet (M5)
  # --------------------------------------------------------------------------------------------------
  def mark_problems(packet: bytes) -> list[str]:
@@ -192,7 +199,7 @@ index cf6451d..39a0d1c 100644
      rdf = root[0]
      if (
          len(rdf) != 1
-@@ -514,19 +584,19 @@ def mark_problems(packet: bytes) -> list[str]:
+@@ -514,19 +586,19 @@ def mark_problems(packet: bytes) -> list[str]:
          or not blank(rdf.tail)
          or rdf[0].tag != f"{{{RDF_NS}}}Description"
      ):
@@ -217,7 +224,7 @@ index cf6451d..39a0d1c 100644
          value = attrs[prop]
      else:
          if (
-@@ -537,17 +607,18 @@ def mark_problems(packet: bytes) -> list[str]:
+@@ -537,17 +609,18 @@ def mark_problems(packet: bytes) -> list[str]:
          ):
              return [
                  "the mark's packet holds a property other than Iptc4xmpExt:DigitalSourceType"
@@ -241,7 +248,7 @@ index cf6451d..39a0d1c 100644
  
  
  # --------------------------------------------------------------------------------------------------
-@@ -759,8 +830,10 @@ def parse_png(data: bytes, out: Parsed) -> None:
+@@ -759,8 +832,10 @@ def parse_png(data: bytes, out: Parsed) -> None:
                      start = end - len(text)
                      out.marks.append((start, end))
                      out.texts.append(("the mark's packet", start, text))
@@ -253,7 +260,7 @@ index cf6451d..39a0d1c 100644
          elif kind == b"iCCP":
              name_bytes, _, rest = body.partition(b"\0")
              out.texts.append(("the ICC profile's name", pos + 8, name_bytes))
-@@ -859,8 +932,10 @@ def parse_jpeg(data: bytes, out: Parsed) -> None:
+@@ -859,8 +934,10 @@ def parse_jpeg(data: bytes, out: Parsed) -> None:
                  # The segment's identifier, the XMP namespace A4 searches for, is part of the mark.
                  out.marks.append((body_at, text_at + len(text)))
                  out.texts.append(("the mark's packet", text_at, text))
@@ -265,7 +272,7 @@ index cf6451d..39a0d1c 100644
              else:
                  out.bad("M2", f"an APP1 segment at byte {start} that isn't the mark")
          elif marker == 0xE2 and body.startswith(b"ICC_PROFILE\x00") and len(body) >= 14:
-@@ -945,8 +1020,10 @@ def parse_webp(data: bytes, out: Parsed) -> None:
+@@ -945,8 +1022,10 @@ def parse_webp(data: bytes, out: Parsed) -> None:
              start = at + 8
              out.marks.append((start, start + len(body)))
              out.texts.append(("the mark's packet", start, body))
@@ -277,7 +284,7 @@ index cf6451d..39a0d1c 100644
          elif kind == b"ICCP":
              check_icc(body, out)
          elif kind == b"VP8 " and len(body) >= 10 and not out.width:
-@@ -1447,11 +1524,14 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
+@@ -1447,11 +1526,14 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
              or set(packets) != {"packets"}
          ):
              out.bad("M5", "the mark's KHR_xmp_json_ld holds more than one packet")
@@ -294,7 +301,7 @@ index cf6451d..39a0d1c 100644
          if asset_ext.get("KHR_xmp_json_ld") != {"packet": 0}:
              out.bad("M5", "the asset doesn't reference the mark's packet")
          others = [
-@@ -1544,6 +1624,7 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
+@@ -1544,6 +1626,7 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
          lo, hi = ranges[index]
          inner = inspect_image(binary_chunk[lo:hi])
          out.texture += inner.width * inner.height * 4 * 4 // 3
@@ -302,7 +309,7 @@ index cf6451d..39a0d1c 100644
          for rule, reason in inner.problems:
              if rule == "M9":
                  out.bad("M9", f"images[{i}], embedded: {reason}")
-@@ -1619,11 +1700,61 @@ CONFIRMS = (
+@@ -1619,11 +1702,61 @@ CONFIRMS = (
      "recreation_not_photo",
      "record_complete",
  )
@@ -365,7 +372,7 @@ index cf6451d..39a0d1c 100644
  
  
  def parse_policy(texts: dict[str, bytes]) -> Policy:
-@@ -1682,6 +1813,10 @@ def parse_policy(texts: dict[str, bytes]) -> Policy:
+@@ -1682,6 +1815,10 @@ def parse_policy(texts: dict[str, bytes]) -> Policy:
          caps.get("per_asset"), dict
      ):
          raise PolicyError("caps.json has no adr_0010 or per_asset")
@@ -376,7 +383,7 @@ index cf6451d..39a0d1c 100644
      if not isinstance(visit, dict) or not all(
          isinstance(visit.get(k), int) for k in ("phase2", "phase3")
      ):
-@@ -1863,6 +1998,7 @@ class Record:
+@@ -1863,6 +2000,7 @@ class Record:
              or item.get("kind") == "room"
              or self.directory == "assets/twin"
              or self.directory.startswith("assets/twin/")
@@ -384,7 +391,7 @@ index cf6451d..39a0d1c 100644
          ):
              required.append("approval")
          if self.published:
-@@ -1905,9 +2041,13 @@ class Record:
+@@ -1905,9 +2043,13 @@ class Record:
          source = item.get("source")
          if isinstance(source, dict):
              self.keys(source, ("type", "id"), ("type", "id"), f"{where}.source")
@@ -400,16 +407,22 @@ index cf6451d..39a0d1c 100644
                  )
              sid = source.get("id")
              if isinstance(sid, str) and r5_problem(sid):
-@@ -2032,6 +2172,30 @@ def disclosure_rows(text: bytes | None) -> set[str]:
+@@ -2032,6 +2174,36 @@ def disclosure_rows(text: bytes | None) -> set[str]:
      )
  
  
 +def expected_term(path: str, entry: dict) -> str | None:
-+    """The mark's term the file's record calls for (spec 004, Amendment C1): every step by a model, MARK_MODEL; model
-+    and hand mixed, MARK_COMPOSITE; every step by hand, MARK_HUMAN. Under assets/twin/ and docs/research/images/,
-+    MARK_MODEL whatever the steps say. None while the steps can't say, which R1 refuses on its own."""
++    """The mark's term the file must carry (spec 004, Amendment C1): the one its record's steps call for, and under
++    assets/twin/ and docs/research/images/, MARK_MODEL whatever the steps say. None while the steps can't say, which
++    R1 refuses on its own."""
 +    if path.startswith(MODEL_ONLY):
 +        return MARK_MODEL
++    return steps_term(entry)
++
++
++def steps_term(entry: dict) -> str | None:
++    """The term the record's steps call for, wherever the file lives: every step by a model, MARK_MODEL; model and
++    hand mixed, MARK_COMPOSITE; every step by hand, MARK_HUMAN. None while the steps can't say."""
 +    steps = entry.get("steps")
 +    if not isinstance(steps, list) or not steps:
 +        return None
@@ -431,7 +444,7 @@ index cf6451d..39a0d1c 100644
  def licenses_of(entry: dict) -> list[tuple[str, str, str, str | None]]:
      """(what, license, version, commercial license) for each model, tool, and service an entry names."""
      found = []
-@@ -2081,6 +2245,8 @@ class Checker:
+@@ -2081,6 +2253,8 @@ class Checker:
          self._seen: set[tuple[str, str, str]] = set()
          self._files: dict[tuple[str, str], None] = {}
          self.sizes: dict[str, Size] = {}
@@ -440,7 +453,7 @@ index cf6451d..39a0d1c 100644
          self.reasons: list[str] = []
          self._policy: Policy | None = None
          self._policy_tried = False
-@@ -2121,7 +2287,13 @@ class Checker:
+@@ -2121,7 +2295,13 @@ class Checker:
              try:
                  self._policy = parse_policy(texts)
              except PolicyError as exc:
@@ -455,7 +468,7 @@ index cf6451d..39a0d1c 100644
          return self._policy
  
      # -- one file ------------------------------------------------------------------------------
-@@ -2225,6 +2397,9 @@ class Checker:
+@@ -2225,6 +2405,9 @@ class Checker:
                  parsed.triangles,
                  parsed.texture,
              )
@@ -465,7 +478,7 @@ index cf6451d..39a0d1c 100644
              return
          if path.startswith(POLICY):
              return
-@@ -2337,6 +2512,18 @@ class Checker:
+@@ -2337,6 +2520,18 @@ class Checker:
                  tree, f"{directory}/{name}", item, record, policy, published, commit
              )
  
@@ -484,7 +497,7 @@ index cf6451d..39a0d1c 100644
      def check_entry(
          self,
          tree: Tree,
-@@ -2357,6 +2544,19 @@ class Checker:
+@@ -2357,6 +2552,19 @@ class Checker:
              self.add(
                  "N2", path, "its media_license differs from the directory's", commit
              )
@@ -504,7 +517,7 @@ index cf6451d..39a0d1c 100644
          if policy is None:
              return
          for what, lid, version, commercial in licenses_of(entry):
-@@ -2401,22 +2601,31 @@ class Checker:
+@@ -2401,22 +2609,34 @@ class Checker:
                      commit,
                  )
          kind = entry.get("kind")
@@ -526,13 +539,16 @@ index cf6451d..39a0d1c 100644
 +            )
 +
 +        # Every file of the twin, and of the room, needs its own approval, whatever its record says: the record is the
-+        # branch's, and a record calling a twin's still no likeness, from a prompt, mustn't skip the Author.
++        # branch's, and a record calling a twin's still no likeness, from a prompt, mustn't skip the Author. So does any
++        # file whose steps call for a mark but the model's, wherever it lives: a mistaken record mustn't claim a hand
++        # in a model's file with no human looking (spec 004, Amendment C1; contracts/intake-amendments.md §7, As built).
          if (
              entry.get("likeness") is True
              or source.get("type") == "photo"
 -            or kind == "room"
 +            or room
              or path.startswith("assets/twin/")
++            or steps_term(entry) not in (None, MARK_MODEL)
          ):
              matches = [a for a in policy.approvals if a.get("sha256") == actual]
 -            good = [
@@ -544,7 +560,7 @@ index cf6451d..39a0d1c 100644
              approval = good[0] if good else None
              if approval is None:
                  why = (
-@@ -2438,14 +2647,19 @@ class Checker:
+@@ -2438,14 +2658,19 @@ class Checker:
                      "its record's approval ID isn't the one the main branch's approval of this hash carries",
                      commit,
                  )
@@ -567,7 +583,7 @@ index cf6451d..39a0d1c 100644
                      commit,
                  )
          if path.startswith("assets/twin/"):
-@@ -2471,11 +2685,15 @@ class Checker:
+@@ -2471,11 +2696,15 @@ class Checker:
                  f"an {kind} while caps.json says ADR 0010 isn't accepted (FR-018)",
                  commit,
              )
@@ -588,7 +604,7 @@ index cf6451d..39a0d1c 100644
          size = self.sizes.get(path)
          measured = {
              "bytes": len(data),
-@@ -2495,6 +2713,49 @@ class Checker:
+@@ -2495,6 +2724,49 @@ class Checker:
          if published and arm in ("B", "D"):
              self.check_caption(tree, path, entry, commit)
  
@@ -638,7 +654,7 @@ index cf6451d..39a0d1c 100644
      def check_caption(
          self, tree: Tree, path: str, entry: dict, commit: str | None
      ) -> None:
-@@ -2561,10 +2822,21 @@ class Checker:
+@@ -2561,10 +2833,21 @@ class Checker:
          self.first_visit_total(tree, commit)
  
      def first_visit_total(self, tree: Tree, commit: str | None) -> None:
@@ -664,7 +680,7 @@ index cf6451d..39a0d1c 100644
              return
          policy = self.policy()
          if policy is None:
-@@ -2578,12 +2850,10 @@ class Checker:
+@@ -2578,12 +2861,10 @@ class Checker:
                  )
              return self.sizes[path].gzip
  
@@ -681,7 +697,7 @@ index cf6451d..39a0d1c 100644
          for p in glbs:
              if p.startswith("assets/visitors/"):
 diff --git a/tools/gates/test/arrival_fixtures.py b/tools/gates/test/arrival_fixtures.py
-index 148abc5..b3ec08e 100644
+index 148abc5e6498e4d2f313ad21269e7ac0c60e3096..b3ec08e4173f0b4edb9af2b5523eaa195d2fa952 100644
 --- a/tools/gates/test/arrival_fixtures.py
 +++ b/tools/gates/test/arrival_fixtures.py
 @@ -30,11 +30,18 @@ from pathlib import Path
@@ -763,7 +779,7 @@ index 148abc5..b3ec08e 100644
  
  def caps(
 diff --git a/tools/gates/test/test_arrival_check.py b/tools/gates/test/test_arrival_check.py
-index 8e1aee8..4c61aa5 100644
+index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..974a016bab26b729b3c7999ff132bdc0a9580c9d 100644
 --- a/tools/gates/test/test_arrival_check.py
 +++ b/tools/gates/test/test_arrival_check.py
 @@ -4,6 +4,10 @@ contracts/arrival-check.md §5).
@@ -777,19 +793,26 @@ index 8e1aee8..4c61aa5 100644
  """
  
  from __future__ import annotations
-@@ -654,7 +658,10 @@ def test_r6_a_model_step_without_its_refresh_date_or_after_made(
+@@ -653,8 +657,16 @@ def test_r6_a_model_step_without_its_refresh_date_or_after_made(
+     assert run.code == 1 and run.has("R6", f"{DOG}/records.json"), run.out
  
  
- def test_r7_a_service_whose_disclosure_row_doesnt_exist(repo: fx.Repo) -> None:
+-def test_r7_a_service_whose_disclosure_row_doesnt_exist(repo: fx.Repo) -> None:
 -    data = fx.png()
-+    # A model step and a hand step: the composite mark (spec 004, Amendment C1).
++def test_r7_a_service_whose_disclosure_row_doesnt_exist(tmp_path: Path) -> None:
++    # A model step and a hand step: the composite mark, which needs the Author's approval of the file's hash wherever
++    # it lives (spec 004, Amendment C1; contracts/intake-amendments.md §7, As built), so main approves it.
 +    data = fx.png(
 +        packet=fx.xmp(value=fx.SOURCE_TYPES + "compositeWithTrainedAlgorithmicMedia")
++    )
++    repo = fx.repository(
++        tmp_path,
++        approvals=[fx.approval("A-0003", data, f"{DOG}/still.png", kind="still")],
 +    )
      step = {
          "name": "upscale",
          "by": "hand",
-@@ -1209,3 +1216,496 @@ def test_a_path_outside_the_repository_is_refused_without_naming_it(
+@@ -1209,3 +1221,642 @@ def test_a_path_outside_the_repository_is_refused_without_naming_it(
      run = check(repo, str(stray))
      assert run.code == 2 and "arrival-check: can't check" in run.out, run.out
      assert "private-name" not in run.out and "elsewhere" not in run.out
@@ -1142,6 +1165,152 @@ index 8e1aee8..4c61aa5 100644
 +    repo.directory(ROOM, {"desk.glb": data}, [record])
 +    run = check_room(repo, "desk.glb")
 +    assert run.code == 1 and run.has("P1", f"{ROOM}/desk.glb"), run.out
++
++
++# A room file is a record of kind room, or any file under assets/room/, whatever its record says (§7, As built).
++def test_a_non_room_kind_under_assets_room_needs_its_approval(tmp_path: Path) -> None:
++    data = fx.png()
++    repo = fx.repository(tmp_path, limits=fx.caps(per_asset={"room": fx.ROOM_CAPS}))
++    record = fx.entry("card.png", data, kind="still", source=("design", "D-0001"))
++    repo.directory(ROOM, {"card.png": data}, [record])
++    run = check_room(repo, "card.png")
++    assert run.code == 1 and run.has("P1", f"{ROOM}/card.png"), run.out
++
++
++def test_a_non_room_kind_under_assets_room_needs_the_room_confirmations(
++    tmp_path: Path,
++) -> None:
++    data = fx.png()
++    repo = fx.repository(
++        tmp_path,
++        approvals=[fx.approval("A-0101", data, f"{ROOM}/card.png", kind="still")],
++        limits=fx.caps(per_asset={"room": fx.ROOM_CAPS}),
++    )
++    record = fx.entry(
++        "card.png",
++        data,
++        kind="still",
++        source=("design", "D-0001"),
++        approval="A-0101",
++    )
++    repo.directory(ROOM, {"card.png": data}, [record])
++    run = check_room(repo, "card.png")
++    assert run.code == 1 and run.has("P2", f"{ROOM}/card.png"), run.out
++    assert not run.has("P1", f"{ROOM}/card.png"), run.out
++
++
++def test_a_non_room_kind_under_assets_room_is_held_to_the_room_caps(
++    tmp_path: Path,
++) -> None:
++    data = fx.png()
++    repo = fx.repository(
++        tmp_path,
++        approvals=[
++            fx.approval(
++                "A-0101", data, f"{ROOM}/card.png", kind="still", room=dict(fx.ROOM_YES)
++            )
++        ],
++    )
++    record = fx.entry(
++        "card.png",
++        data,
++        kind="still",
++        source=("design", "D-0001"),
++        approval="A-0101",
++    )
++    repo.directory(ROOM, {"card.png": data}, [record])
++    run = check_room(repo, "card.png")
++    assert run.code == 1 and run.has("F2", f"{ROOM}/card.png"), run.out
++    assert run.rules(f"{ROOM}/card.png") == {"F2"}, run.out
++
++
++# C1 and P1: a hand or composite mark needs the Author's approval of its hash wherever the file lives (§7, As built).
++@pytest.mark.parametrize("which", ["composite", "hand"])
++@pytest.mark.parametrize("kind", ["glb", "png"])
++def test_c1_p1_a_hand_or_composite_mark_outside_the_room_needs_an_approval(
++    tmp_path: Path, which: str, kind: str
++) -> None:
++    name = f"still.{kind}"
++    data = marked(kind, TERMS[which])
++    repo = fx.repository(tmp_path)
++    record = fx.entry(name, data, steps=STEPS[which]())
++    run = in_dog(repo, name, data, [record])
++    assert run.code == 1 and run.has("P1", f"{DOG}/{name}"), run.out
++    assert run.rules(f"{DOG}/{name}") == {"P1"}, run.out
++    assert "no approval names this file's hash" in run.out
++
++
++@pytest.mark.parametrize("which", ["composite", "hand"])
++@pytest.mark.parametrize("kind", ["glb", "png"])
++def test_c1_p1_a_hand_or_composite_mark_outside_the_room_passes_once_approved(
++    tmp_path: Path, which: str, kind: str
++) -> None:
++    name = f"still.{kind}"
++    data = marked(kind, TERMS[which])
++    repo = fx.repository(
++        tmp_path,
++        approvals=[fx.approval("A-0201", data, f"{DOG}/{name}", kind="still")],
++    )
++    record = fx.entry(name, data, steps=STEPS[which](), approval="A-0201")
++    run = in_dog(repo, name, data, [record])
++    assert run.code == 0, run.out
++
++
++@pytest.mark.parametrize("kind", ["glb", "png"])
++def test_c1_p1_one_model_step_outside_the_room_needs_no_approval(
++    tmp_path: Path, kind: str
++) -> None:
++    # No likeness, a prompt source, and one model step: spec 003's reading, unchanged.
++    name = f"still.{kind}"
++    data = marked(kind, TERMS["model"])
++    repo = fx.repository(tmp_path)
++    record = fx.entry(
++        name, data, steps=STEPS["model"](), likeness=False, source=("prompt", "P-0001")
++    )
++    run = in_dog(repo, name, data, [record])
++    assert run.code == 0, run.out
++
++
++@pytest.mark.parametrize("which", ["composite", "hand"])
++def test_c1_p1_outside_the_room_not_applicable_stays_refused(
++    tmp_path: Path, which: str
++) -> None:
++    # C5's "not_applicable" is a room file's alone: such an approval outside the room holds all five confirms true.
++    data = marked("png", TERMS[which])
++    repo = fx.repository(
++        tmp_path,
++        approvals=[
++            fx.approval(
++                "A-0202",
++                data,
++                f"{DOG}/still.png",
++                kind="still",
++                likeness_accepted="not_applicable",
++            )
++        ],
++    )
++    record = fx.entry("still.png", data, steps=STEPS[which](), approval="A-0202")
++    run = in_dog(repo, "still.png", data, [record])
++    assert run.code == 1 and run.has("P1", f"{DOG}/still.png"), run.out
++
++
++def test_c1_p1_a_research_image_whose_steps_mix_needs_an_approval(
++    repo: fx.Repo,
++) -> None:
++    # It carries the model's mark, as M5 holds it there, but its steps call for another, so the Author approves it.
++    grid = fx.jpeg()
++    record = fx.entry(
++        "t1-grid.jpg",
++        grid,
++        kind="published-image",
++        steps=[fx.model_step(), fx.hand_step()],
++        arm="A",
++        note=NOTE,
++    )
++    repo.directory(NOTE_DIR, {"t1-grid.jpg": grid}, [record])
++    run = check(repo, *paths(repo, f"{NOTE_DIR}/t1-grid.jpg"))
++    assert run.code == 1 and run.has("P1", f"{NOTE_DIR}/t1-grid.jpg"), run.out
++    assert not run.has("M5", f"{NOTE_DIR}/t1-grid.jpg"), run.out
 +
 +
 +# C6: every file under assets/room/ in the first visit, and phase 3 once it holds one.
