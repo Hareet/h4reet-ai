@@ -167,7 +167,8 @@ export interface Ink {
   /** Whether the look draws ink lines: inked cel's. */
   readonly outlined: boolean;
   /** Gives every drawn material in the scene the lines' one set of parameters, so a resize reaches them all: once
-   *  after the room is built, and again when a model swaps in (User Story 4), never on each frame. */
+   *  after the room is built, and again when a model swaps in (User Story 3's loader in scene.ts, and the lookdev
+   *  stage), never on each frame. */
   prepare(scene: Object3D): void;
   /** Draws a frame: the scene, then for inked cel its lines. */
   render(scene: Scene, camera: Camera): void;
