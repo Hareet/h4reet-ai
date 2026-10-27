@@ -132,10 +132,13 @@ export function createLiveSignals(options: LiveOptions): LiveSignals {
     if (state.hidden !== hidden) log?.record(state.hidden ? "hide" : "show");
     paused = state.paused;
     hidden = state.hidden;
-    // Reduced first, in the same event, before the next frame; then the poller's resume rule (§5.4).
+    // Reduced first, in the same event, before the next frame; then the poller's resume rule (§5.4). What stops it goes
+    // first, so a change that resumes the room and hides the page together never lets it start on a hidden page.
     reduce();
-    poller?.setPaused(paused);
-    poller?.setHidden(hidden);
+    if (paused) poller?.setPaused(true);
+    if (hidden) poller?.setHidden(true);
+    if (!paused) poller?.setPaused(false);
+    if (!hidden) poller?.setHidden(false);
   });
 
   return {
