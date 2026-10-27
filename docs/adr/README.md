@@ -26,7 +26,7 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0020](0020-gateway-state-store-and-meter.md) | The gateway's state store is its own Postgres, and the meter counts integer micro-USD | proposed | 000 |
 | [0021](0021-internal-network-prometheus-loki-edge.md) | Prometheus and Loki on an internal-only network, with edge as the only publisher | proposed | 000 |
 | [0022](0022-seaweedfs-for-langfuse.md) | SeaweedFS as Langfuse's object store, because MinIO's community images are gone | proposed | 000 |
-| [0023](0023-claude-code-pin-is-a-floor.md) | Claude Code's pin is a floor: a newer host warns, and the evals record the version they ran (replaces one Decision point and one Consequence of 0018) | proposed | 000 |
+| [0023](0023-claude-code-pin-is-a-floor.md) | Claude Code's pin is a floor: a newer host warns, and the evals record the version they ran (replaces one Decision point and one Consequence of 0018) | accepted | 000 |
 | [0030](0030-media-license-and-ai-mark.md) | The assets' media license (all rights reserved, viewing and linking welcome) and the AI-likeness mark | proposed | 003 |
 | [0031](0031-assets-in-plain-git.md) | Assets in plain git, under fixed roots, served under content-derived names, with a 500 MB history cap | proposed | 003 |
 | [0032](0032-pre-publication-cleanup-for-assets.md) | ADR 0013's pre-publication cleanup extends to an asset that locates the Author or breaks a license (extends one Decision of 0013) | proposed | 003 |

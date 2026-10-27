@@ -1,6 +1,6 @@
 # ADR 0023: Claude Code's pin is a floor; a newer host warns, and the evals record the version they ran
 
-Status: proposed, 2026-10-18 · Spec: 000 (FR-005, FR-011; SC-008) · If accepted, replaces one Decision point of [ADR 0018](0018-agent-sessions-on-wsl.md), "`make toolchain-check` compares installed versions with the pins and fails on any drift, Claude Code included", for Claude Code alone, and the one Consequence quoted below; the rest of ADR 0018 stands.
+Status: accepted, 2026-10-26 (proposed 2026-10-18; the Author applied its patch and merged its branch) · Spec: 000 (FR-005, FR-011; SC-008) · If accepted, replaces one Decision point of [ADR 0018](0018-agent-sessions-on-wsl.md), "`make toolchain-check` compares installed versions with the pins and fails on any drift, Claude Code included", for Claude Code alone, and the one Consequence quoted below; the rest of ADR 0018 stands.
 
 ## Context
 
