@@ -108,7 +108,7 @@ No GREEN commit changes a test. **GREEN at the tip:** `npx vitest run` gives 74 
 **T163, the review of the branch** (in a session that wrote none of it), as its fix commits record it:
 - **I1, Important.** The runtime read the plugged and the cloud poses from `cases`, so a swapped mapping drew the plugged pose for unknown. **Fixed** by the claims amendment, option (a): 8ccbe12 (the contracts), 0edcf56 (RED), 2d754c6 (GREEN).
 - **N1.** `motion.ts`'s `animate` getter built a state object on every frame. **Fixed** in 40e7227 (it changes no behaviour, so it has no test case).
-- **N2.** "Pause the room" showed its pressed state by colour alone. **Fixed** in 40e7227: an inset ring and an underline (WCAG 1.4.1), tested in `a11y.test.ts`.
+- **N2.** "Pause the room" had no visible pressed state in the room (only `aria-pressed`). **Fixed** in 40e7227: an inset ring and an underline (WCAG 1.4.1), tested in `a11y.test.ts`.
 - **N3.** "Pause the room" is inert while the resume offer shows. **Not changed:** a decision for the Author (For the Author, item 1).
 - **N4.** `FlatDrawing.turns` was computed once from reduced motion and read by nothing. **Removed** in 40e7227.
 - **N5.** `degraded.test.ts` read the 2D case by group position. **Fixed** in 0edcf56: it reads the case by the pose's name.
@@ -117,8 +117,10 @@ No GREEN commit changes a test. **GREEN at the tip:** `npx vitest run` gives 74 
 - **I1, Important.** Claims present but not whole, crossed with swapped cases, still drew the plugged pose (or the cloud pose) for every value, because the fallback took the first `SHARED_ORDER` case. **Fixed:** 99d64ff (RED, an `it.each` of 7 faulty claim shapes × 5 mappings, plus the count's case) and d1edce1 (GREEN: the not-live path takes RS4's shared pose by count; the whole-claims path is unchanged; room-bundle.md §3.1 and tier-signal.md §2 say how).
 - **N-a.** `live.test.ts`'s tangled case had a stale title. **Renamed** in 99d64ff.
 - **N-b.** `bundle.test.ts` checked only the claims' keys. **Fixed** in 99d64ff: each value is a pose of that switch's cases.
-- **N-c.** No compose test covered claims without `local`. **Added** in 99d64ff: RS3's finding on the switch's cases, beside `claims.local === ""` in the index.
+- **N-c.** No test pinned emit's `""` for a missing claim. **Added** in 99d64ff: RS3's finding on the switch's cases, beside `claims.local === ""` in the index.
 - **N-d.** T160's task text said `switches.test.ts` refuses claims that "name one pose for both", which the catalog can't write. **Aligned** with the test's explanation in 83c0022.
+
+**The last look over 40e7227..7a4d5ee: APPROVE.** It re-ran RED (21 of 183 failing, as recorded) and the tip, and confirmed `mostShown` is used only when claims are present but not whole. Its three nits were on this note's own record: N2's and N-c's wording (above, corrected) and N3's citation (For the Author, item 1, corrected).
 
 ## Measurements
 
@@ -548,7 +550,7 @@ make check exit 2
 
 ## For the Author
 
-1. **N3, a backlog decision: "Pause the room" is inert while the resume offer shows.** The toolbar stays inert from Enter until the visitor answers "Read the resume now" or "Keep it for later", as spec 002's layout makes it. The hand-off and the offer play first, so a visitor who wants the room still can't pause until they answer the offer. WCAG 2.2.2 asks for a way to pause moving content. The hand-off ends within its own few seconds, but the room's idle motion is already running behind the offer. You could keep it as it is, or make the pause button alone usable during the offer (a change to spec 002's layout contract, room-scene.md §5). This branch keeps it as it is.
+1. **N3, a backlog decision: "Pause the room" is inert while the resume offer shows.** The toolbar stays inert from Enter until the visitor answers "Read the resume now" or "Keep it for later", as spec 002's layout makes it. The hand-off and the offer play first, so a visitor who wants the room still can't pause until they answer the offer. WCAG 2.2.2 asks for a way to pause moving content. The hand-off ends within its own few seconds, but the room's idle motion is already running behind the offer. You could keep it as it is, or make the pause button alone usable during the offer. The offer's inertness comes from code, not a contract: `apps/web/src/room/app.ts` sets `layout.setInteractive(false)` at Enter and turns it back on only in `settle()`, and the pause click is guarded by `open()` (`visit.stage === "room" && !offering`). So that change is code only. A contract change, to spec 002's room-scene.md §3 ("keys and clicks during it do nothing but move focus"), is needed only if you want pausing during the hand-off itself. This branch keeps it as it is.
 2. **Merge order.** Line R: M8, M9, P-10, then User Story 1 (T118, T119), User Story 3 (T147, T148), then this branch (T166, T167), then `feat/004-us7-access` (T175).
 3. **The claims amendment changes contracts.** T163's option (a) changes contracts/room-bundle.md §3.1, room-data-files.md §13.4 (RS3), tier-signal.md §2, and data-model.md: the index carries a tier switch's claims. The delta review's fix adds how the not-live fallback picks its pose. When a bundle's claims are faulty (which only a bundle the compositor refuses can be), the text copy states the reduced tier while the laptop shows the shared pose. room-bundle.md §3.1 accepts that as defence in depth.
 4. **`make check`'s four FAILs**, the same as `feat/004-us3-lookdev`'s note:
