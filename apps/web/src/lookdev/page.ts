@@ -3,7 +3,8 @@
 // inputs, renderer, clock, and capability it's given; main.ts's startLookdev gives it the drafts build's own, and the
 // tests their stand-ins. The page holds:
 // - one canvas (stage.ts), the production runtime at the production framing;
-// - the controls of §3: the view, the scene, the look, the sample state, quality, pause, "Load every piece", and
+// - the controls of §3: the view, the scene, the look, the sample state, quality, pause (the room's motion store, User
+//   Story 2's, T162), "Load every piece", and
 //   "Run 2 minutes" and "Run 10 minutes" (each starting with the scripted load), which turn the other settings off
 //   while they measure, so the results describe one setting throughout; and "Labels", on by default, which hides the
 //   stand-ins' labels from the page's view alone, and which a run turns on while it measures, so its figures are the
@@ -28,6 +29,8 @@ import type { WebGLRenderer } from "three";
 
 import type { RoomFixture } from "../../build/room/emit";
 import type { AssetEvent } from "../asset-events";
+import { createMotionStore } from "../room/motion";
+import type { MotionStore } from "../room/motion";
 import type { Clock } from "../room/clock";
 import { h } from "../room/dom";
 import { count } from "../room/glb/rules";
@@ -72,10 +75,14 @@ export interface LookdevDeps {
   readonly renderer: (canvas: HTMLCanvasElement) => WebGLRenderer;
   /** What the device offers models: ADR 0010's floor reads it. */
   readonly capability: () => Capability;
+  /** The wall clock, for the motion store; by default Date.now. */
+  readonly wall?: () => number;
 }
 
 export interface LookdevPage {
   readonly stage: LookdevStage;
+  /** The room's motion store, which "Pause" drives (User Story 2, T162). */
+  readonly motion: MotionStore;
   dispose(): void;
 }
 
@@ -216,9 +223,14 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
   let run: Run | null = null;
   const device = options.phone && options.probe ? { viewport: options.probe.viewport, dpr: options.probe.dpr } : null;
   const views = VIEWS.filter((v) => v.value !== "device" || device !== null);
+  // The room's motion store: "Pause" stops the typing, the glows' motion, and idle motion, as "Pause the room" does in
+  // the room, and reduced motion and a hidden page do too (contracts/lookdev.md §3; FR-060).
+  const motion = createMotionStore({ win: deps.win, ...(deps.wall ? { wall: deps.wall } : {}) });
+  undo.push(() => motion.dispose());
   const stage = createStage({
     win: deps.win,
     clock,
+    motion,
     inputs,
     renderer: deps.renderer,
     capability,
@@ -338,7 +350,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       showReadouts();
     },
   });
-  const pause = toggleButton(doc, { label: "Pause", pressed: false, onChange: (on) => stage.setPaused(on) });
+  const pause = toggleButton(doc, { label: "Pause", pressed: motion.paused, onChange: (on) => motion.setPaused(on) });
   /** The Author's choice for the stand-ins' labels, which a run sets aside while it measures. */
   let labelsOn = true;
   const labelToggle = toggleButton(doc, {
@@ -720,11 +732,13 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
 
   return {
     stage,
+    motion,
     dispose() {
       run?.stop();
       doc.removeEventListener("visibilitychange", onVisibility);
       clock.clearTimeout(readoutTimer);
       stage.dispose();
+      motion.dispose();
     },
   };
 }

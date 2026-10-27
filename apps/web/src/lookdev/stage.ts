@@ -14,9 +14,11 @@
 //   switch cases among it, so the laptop's switch shows where the placements its poses mount on show.
 // - The look, applied at run time: the room rebuilt in it, and every model it showed loaded again (its decoded bitmaps
 //   were closed once uploaded, R-28).
-// - The sample state: a fixture's tier picks each tier switch's case, as the tier signal will (User Story 2).
+// - The sample state: a fixture's tier applied to each tier switch through the room's own apply (scene/cables.ts), its
+//   case by the claims rule, its cable tube, and its glows, as the tier signal applies a reading (User Story 2, T162).
 // - Quality: automatic, a controller of its own on the device's target, or pinned at a level for a measurement.
-// - Pause: the idle sway stops (the motion store of User Story 2 joins it, T162).
+// - Pause: the room's motion store (motion.ts), which the page's Pause drives: the idle sway stops while it doesn't
+//   animate, as the room's does, the frame loop drawing still frames (User Story 2, T162).
 // - Labels: the stand-ins' labels, each saying "placeholder", draw on a layer of their own, which the page's camera
 //   sees while Labels is on, so turning it off hides them from the page's view alone: the room's own 3D stage
 //   (scene.ts) makes its labels as it did (the Author's first lookdev run; plan.md §10).
@@ -34,6 +36,7 @@ import type { AssetEvent } from "../asset-events";
 import { AVATARS } from "../choice/avatars";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "../room/clock";
+import type { MotionStore } from "../room/motion";
 import type { Box, Look, RoomIndex, RoomScene } from "../room/compose/bundle";
 import { loadOrder } from "../room/compose/load-order";
 import type { LoadEntry } from "../room/compose/load-order";
@@ -55,6 +58,7 @@ import {
 import type { Room3D } from "../room/scene/bundle3d";
 import { createTextureLedger } from "../room/scene/ledger";
 import { createLoader, modelEntries, prepareModel, showModel } from "../room/scene/loader";
+import { caseFor } from "../room/signals/tier";
 import type { ModelEntry } from "../room/scene/loader";
 import { createInk } from "../room/scene/look";
 import type { Ink } from "../room/scene/look";
@@ -78,6 +82,8 @@ export interface LogEntry {
 export interface StageOptions {
   readonly win: Window;
   readonly clock: Clock;
+  /** The room's motion store: idle motion only while it animates; "Pause" sets its pause. */
+  readonly motion: Pick<MotionStore, "animate" | "paused" | "setPaused">;
   readonly inputs: LookdevInputs;
   /** Makes the page's one renderer on its canvas. */
   readonly renderer: (canvas: HTMLCanvasElement) => WebGLRenderer;
@@ -203,7 +209,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   let quality: QualityChoice = "auto";
   let level = 0;
   let settings: QualitySettings = qualitySettings(0);
-  let paused = false;
+  const { motion } = options;
   let stage: Stage = REFERENCE_DESKTOP.stage;
   let ratio = 1;
   let holds = 0;
@@ -313,12 +319,10 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     for (const child of room.scene.children) if (!nodes.has(child) && drawable(child)) set(child, scene === "room");
   }
 
-  /** The sample state: each tier switch shows the case of the fixture's tier. */
+  /** The sample state: the fixture's tier applied to each tier switch through the room's own apply, its case by the
+   *  claims rule with its cable tube and glows; without a fixture, not-live's, as the room shows before a reading. */
   function applySample(): void {
-    for (const sw of index.switches) {
-      const shown = sample ? sw.cases[sample.tier] : undefined;
-      for (const [pose, group] of room.switches.get(sw.id) ?? []) group.visible = pose === shown;
-    }
+    room.cases.apply(sample?.tier ?? "not-live");
   }
 
   const hold = (): (() => void) => {
@@ -397,7 +401,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
           model: wanted(sw.piece),
           framed: false,
           selectable: null,
-          shown: Boolean(sample && cases?.[sample.tier] === pose),
+          shown: Boolean(
+            cases && caseFor(cases, sample?.tier ?? "not-live", (p) => Object.hasOwn(sw.poses, p)) === pose,
+          ),
         });
       }
     }
@@ -426,7 +432,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     if (disposed) return;
     if (doc.visibilityState === "hidden") controller?.restart();
     else controller?.frame(time);
-    room.twin.rotation.z = settings.animations && !paused ? Math.sin(time / 900) * IDLE_SWAY : 0;
+    room.twin.rotation.z = settings.animations && motion.animate ? Math.sin(time / 900) * IDLE_SWAY : 0;
     renderer.info.reset();
     ink.render(room.scene, camera);
     last = {
@@ -474,7 +480,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       return level;
     },
     get paused() {
-      return paused;
+      return motion.paused;
     },
     floor,
     get busy() {
@@ -523,7 +529,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       applyLevel(choice === "auto" ? 0 : choice);
     },
     setPaused(on) {
-      paused = on;
+      motion.setPaused(on);
     },
     setLabels(on) {
       if (on) camera.layers.enable(LABEL_LAYER);
