@@ -10,7 +10,10 @@
 // - a fixed line: its UI word (`sign.not_affiliated` with the neon sign, `around.illustration` once the monitor's face
 //   is bound), but `pause.paused_at` only while the room is paused, "Paused at HH:MM", its {time} the live value
 //   setPausedAt gives (motion.ts; FR-060), in its place in copy[]'s order, and gone on resume; a hidden page shows none.
-// Updates replace text in place, in no live region, so a poll announces nothing (FR-063).
+// Updates replace text in place, in no live region, so a poll announces nothing (FR-063). The section is a Tab stop,
+// the last of the room's before the resume (FR-065; Amendment B8), and every tier value has its own sentence, so no state
+// rests on the charger's pose or a colour alone (R-40). Badges ("Draft", "Sample", "test") are UI words, and come in
+// with the faces' words (T183, T184).
 import type { RoomIndex } from "./compose/bundle";
 import type { TierValue } from "./compose/vocabulary";
 import { h } from "./dom";
@@ -59,7 +62,15 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
     }
     // A face's words and the sign's figures come from the renderers' own word lists (T183, T184): none yet.
   }
-  const element = h(doc, "section", { class: "room-around", "aria-labelledby": "room-around-heading" }, heading, list);
+  // A Tab stop of its own, after the conversation (FR-065; Amendment B8): a keyboard reaches it, with the room's focus
+  // ring, and a screen reader hears its heading as its name.
+  const element = h(
+    doc,
+    "section",
+    { class: "room-around", "aria-labelledby": "room-around-heading", tabindex: 0 },
+    heading,
+    list,
+  );
   let paused: HTMLElement | null = null;
   return {
     element,

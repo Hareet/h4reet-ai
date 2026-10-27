@@ -86,12 +86,13 @@ body.in-room .disclosure p {
   font-size: 0.875rem;
 }
 
-/* Portrait first: the toolbar, the stage, the list, the conversation, then the resume when it's open. */
+/* Portrait first: the toolbar, the stage, the list, the conversation, "Around the room" (spec 004, FR-063), then the
+   resume when it's open. */
 .room {
   display: grid;
   gap: 0.5rem;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "toolbar" "stage" "list" "talk" "resume";
+  grid-template-areas: "toolbar" "stage" "list" "talk" "around" "resume";
 }
 
 .room-toolbar {
@@ -109,7 +110,8 @@ body.in-room .disclosure p {
 }
 
 /* The stage leaves room, on a 320 by 568 screen, for the disclosure, the toolbar, the list, the text box, and the
-   talk button without scrolling (FR-047); dvh follows a phone's browser bars. */
+   talk button without scrolling (FR-047); dvh follows a phone's browser bars. Below a portrait width of 25rem the
+   reserve grows by one toolbar row (the narrow-portrait rules, below). */
 .room-stage {
   grid-area: stage;
   position: relative;
@@ -258,7 +260,12 @@ body.in-room .disclosure p {
 }
 
 /* "Around the room" (spec 004, FR-063; R-40): the drawn words and states as text, after the conversation panel and
-   outside the stage, open to every visitor. Its place in the grid and its narrow-portrait rules come with T171. */
+   outside the stage, open to every visitor, its own area of the grid; a Tab stop after the conversation (layout.ts),
+   its focus ring the room's. */
+.room-around {
+  grid-area: around;
+}
+
 .room-around h2 {
   margin: 0 0 0.25rem;
   font-size: 1rem;
@@ -293,11 +300,27 @@ body.in-room .disclosure p {
   align-items: center;
 }
 
-/* Landscape, on a phone turned sideways or a desktop: the stage beside the list and the conversation (FR-046). */
+/* A narrow phone held upright, below a portrait width of 25rem (spec 004, FR-065; R-40): the toolbar's five controls,
+   spec 003's "Credits" link among them once it lands, take two rows at 0.875rem, so the stage gives up one toolbar row,
+   a 44 px control and the toolbar's 0.5rem gap, 3.25rem, and the text box and the talk button stay on a 320 by 568
+   screen. compose/stages.ts follows this rule (test/room/stages.test.ts pins it). */
+@media (orientation: portrait) and (width < 25rem) {
+  .room-toolbar {
+    font-size: 0.875rem;
+  }
+
+  .room-stage {
+    height: calc(100vh - 23.25rem);
+    height: calc(100dvh - 23.25rem);
+  }
+}
+
+/* Landscape, on a phone turned sideways or a desktop: the stage beside the list and the conversation, then "Around the
+   room" across both columns before the resume (FR-046; spec 004, FR-063). */
 @media (orientation: landscape) and (min-width: 32rem) {
   .room {
     grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
-    grid-template-areas: "toolbar toolbar" "stage list" "stage talk" "resume resume";
+    grid-template-areas: "toolbar toolbar" "stage list" "stage talk" "around around" "resume resume";
     align-items: start;
   }
 
