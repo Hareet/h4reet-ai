@@ -1,9 +1,11 @@
 // The room's screen (spec 002, T044; contracts/room-scene.md §1, §5, §6): its heading, the toolbar ("Resume", "2D view",
-// the data-flow disclosure link), the stage, the "In the room" list, the conversation panel, "Around the room" (spec
+// "Pause the room", the data-flow disclosure link), the stage, the "In the room" list, the conversation panel, "Around the room" (spec
 // 004, FR-063), and the resume's panel, in that order, which is the Tab order. While the hand-off plays, every part a
 // visitor acts on is inert; the offer of "Read the resume now" and "Keep it for later" comes when it ends. The layout's
 // CSS (room.css) frames it from 320 CSS pixels wide, with the stage, the list, the text box, and the talk button on
 // screen in portrait. The stage's placeholder note, the UI word standin.note, shows only while stand-ins are in use.
+// "Pause the room" (spec 004, FR-060, FR-065; Amendment B8; R-34), the UI word pause.button, is a toggle whose state
+// is in aria-pressed; the room's motion store holds what it sets (motion.ts).
 import { h } from "./dom";
 
 export interface RoomLayout {
@@ -12,6 +14,8 @@ export interface RoomLayout {
   readonly heading: HTMLElement;
   readonly resumeButton: HTMLButtonElement;
   readonly flatButton: HTMLButtonElement;
+  /** "Pause the room", a toggle: its state in aria-pressed (spec 004, FR-060). */
+  readonly pauseButton: HTMLButtonElement;
   /** Where the canvas or the 2D drawing goes. */
   readonly view: HTMLElement;
   readonly resumePanel: HTMLElement;
@@ -26,6 +30,8 @@ export interface RoomLayout {
   markFlat(): void;
   /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. */
   setPlaceholders(on: boolean): void;
+  /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
+  setPaused(on: boolean): void;
 }
 
 export function renderRoom(
@@ -37,17 +43,21 @@ export function renderRoom(
     around: HTMLElement;
     /** The placeholder note's words: the UI word standin.note. */
     note: string;
+    /** "Pause the room": the UI word pause.button. */
+    pause: string;
   },
 ): RoomLayout {
   const heading = h(doc, "h1", { class: "visually-hidden", tabindex: -1 }, "The Author's work area");
   const resumeButton = h(doc, "button", { type: "button" }, "Resume");
   const flatButton = h(doc, "button", { type: "button" }, "2D view");
+  const pauseButton = h(doc, "button", { type: "button", "aria-pressed": "false" }, parts.pause);
   const toolbar = h(
     doc,
     "div",
     { class: "room-toolbar", role: "group", "aria-label": "The room's controls" },
     resumeButton,
     flatButton,
+    pauseButton,
     h(doc, "a", { href: "./disclosure/" }, "How data flows"),
   );
   // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
@@ -82,6 +92,7 @@ export function renderRoom(
     heading,
     resumeButton,
     flatButton,
+    pauseButton,
     view,
     resumePanel,
     resumeHeading,
@@ -111,6 +122,9 @@ export function renderRoom(
     },
     setPlaceholders(on) {
       note.hidden = !on || parts.note === "";
+    },
+    setPaused(on) {
+      pauseButton.setAttribute("aria-pressed", String(on));
     },
   };
 }

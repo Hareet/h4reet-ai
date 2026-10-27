@@ -11,6 +11,11 @@
 // - Every selectable, the text box, and the talk button answer with the fixed messages and call nothing (R-14). The
 //   selectables, the list, and the 2D drawing are the bundle's index's (spec 004, FR-011): no ID of the room's is here.
 // - Usage events go to the EventSink: the page's sends beacons (src/events.ts); by default, nothing is sent.
+// - The tier (spec 004, User Story 2; signals/live.ts) is reduced at Enter, on pause, resume, hide, and show, and when
+//   an answer turns stale, each reduction showing the switch's case on the stage and the tier's sentence in "Around
+//   the room" in the same call; "Pause the room" and the motion store (motion.ts), read throughout the visit, stop the
+//   room's motion, and only the pause shows "Paused at". With live.source off, as until spec 001 serves the status,
+//   nothing is asked of the network and the tier is not-live (FR-045).
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
@@ -30,6 +35,8 @@ import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
 import { renderFlat } from "./flat";
+import { createMotionStore } from "./motion";
+import type { MotionStore } from "./motion";
 import { handoffDuration, runHandoff } from "./handoff";
 import type { Handoff } from "./handoff";
 import { renderRoom } from "./layout";
@@ -44,8 +51,11 @@ import {
 } from "./quality";
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
+import { createLiveSignals } from "./signals/live";
+import type { LiveSignals } from "./signals/live";
 import type { SceneModule, Stage, Stage3D } from "./stage";
 import { renderTextCopy } from "./text-copy";
+import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
 
 export interface RoomDeps {
@@ -59,12 +69,19 @@ export interface RoomDeps {
   /** Where usage events go (Phase 6's beacon); by default nowhere. */
   events?: EventSink;
   clock?: Clock;
+  /** The wall clock, in milliseconds since the epoch: "Paused at", and an answer's wall-clock age; by default
+   *  Date.now. */
+  wall?: () => number;
   /** Imports the 3D chunk; the tests give a stand-in, since jsdom has no WebGL. */
   loadScene?: () => Promise<SceneModule>;
 }
 
 export interface RoomHandle {
   readonly visit: Readonly<Visit>;
+  /** The tier signal (spec 004, signals/live.ts): what the poller (T245) and the cost channel (T266) feed. */
+  readonly live: LiveSignals;
+  /** The motion store: "Pause the room", reduced motion, and a hidden page (spec 004, motion.ts). */
+  readonly motion: MotionStore;
   /** Resolves when the last step the visitor started has settled (the stage built after "Enter"). */
   settled(): Promise<void>;
 }
@@ -73,6 +90,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   const { win, content, resume } = deps;
   const doc = win.document;
   const clock = deps.clock ?? windowClock(win);
+  const wall = deps.wall ?? ((): number => Date.now());
   const emit = deps.events ?? noEvents;
   const media = (query: string): boolean => typeof win.matchMedia === "function" && win.matchMedia(query).matches;
   const visit = newVisit();
@@ -86,12 +104,29 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   let handoff: Handoff | null = null;
   let offering = false;
   let resumeOpen = false;
-  /** The visitor's reduced-motion setting, read at "Enter", for whichever stage the room draws (3D or 2D). */
-  let reducedMotion = false;
+  let copy: TextCopy | null = null;
 
   /** The room takes input only after the hand-off and its offer. */
   const open = (): boolean => visit.stage === "room" && !offering;
   const pdfFollowed = (): void => emit({ kind: "pdf_downloaded" });
+
+  // The motion store, read throughout the visit by whichever stage the room draws (3D or 2D), and the tier signal, which
+  // shows each reading on the stage and in the text copy at once (spec 004, FR-042, FR-059, FR-060).
+  const motion = createMotionStore({ win, wall });
+  const live = createLiveSignals({
+    live: deps.room.live,
+    clock,
+    wall,
+    motion,
+    apply: (reading) => {
+      stage?.apply(reading.tier);
+      copy?.setTier(reading.tier);
+    },
+  });
+  motion.subscribe((state) => {
+    room?.setPaused(state.paused);
+    copy?.setPausedAt(state.paused ? state.pausedAt : null);
+  });
 
   const app = doc.getElementById("app") ?? doc.body;
   const screen = h(doc, "div", { class: "screen" });
@@ -162,13 +197,21 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     talk = renderTalk(doc, { messages: content.messages, clock, emit, enabled: open, openResume, pdfFollowed });
     // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
     const around = renderTextCopy(doc, deps.room);
+    copy = around;
     const layout = renderRoom(doc, {
       list,
       talk: talk.element,
       around: around.element,
       note: uiWord(deps.room.ui, "standin.note") ?? "",
+      pause: uiWord(deps.room.ui, "pause.button") ?? "",
     });
     room = layout;
+    layout.setPaused(motion.paused);
+    around.setPausedAt(motion.paused ? motion.pausedAt : null);
+    layout.pauseButton.addEventListener("click", () => {
+      if (!open()) return;
+      motion.setPaused(!motion.paused);
+    });
     layout.setPlaceholders(deps.room.build.placeholders);
     layout.setInteractive(false);
     layout.resumeButton.addEventListener("click", openResume);
@@ -185,22 +228,23 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     screen.replaceChildren(layout.element);
     doc.body.classList.add("in-room");
     layout.heading.focus();
+    // Enter (contracts/tier-signal.md §5.4): the tier reduced, and shown in the text copy, before the stage is drawn.
+    live.enter();
 
     const loaded = await sceneOrLate();
     const module = loaded === "late" ? null : loaded;
-    reducedMotion = media("(prefers-reduced-motion: reduce)");
-    if (module) mount3d(module, choice, reducedMotion);
+    if (module) mount3d(module, choice);
     if (!module || !stage) toFlat(!webgl ? "no_webgl2" : loaded === "late" ? "load_timeout" : "load_failed");
     handoff = runHandoff({
       clock,
-      durationMs: handoffDuration(visit.mode === "2d" ? "2d" : "3d", reducedMotion),
+      durationMs: handoffDuration(visit.mode === "2d" ? "2d" : "3d", motion.reducedMotion),
       announce: (text) => announcer.say(text),
       show: (progress) => stage?.showHandoff(progress),
       onDone: offerResume,
     });
   }
 
-  function mount3d(module: SceneModule, choice: Choice, reducedMotion: boolean): void {
+  function mount3d(module: SceneModule, choice: Choice): void {
     let scene3d: Stage3D;
     try {
       scene3d = module.createScene({
@@ -209,7 +253,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         clock,
         room: deps.room,
         avatar: choice.avatar,
-        reducedMotion,
+        get reducedMotion() {
+          return motion.reducedMotion;
+        },
+        motion,
         select: selectObject,
         onFrame,
         floor: meetsModelFloor(device),
@@ -225,6 +272,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     }
     stage = scene3d;
     visit.mode = "3d";
+    scene3d.apply(live.tier.tier);
     show(scene3d);
     controller = createQualityController({
       target: targetFps(media("(pointer: coarse)")),
@@ -258,7 +306,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     const old = stage;
     let flat: Stage | null;
     try {
-      flat = renderFlat(doc, { room: deps.room, avatar: visit.avatar, select: selectObject, reducedMotion });
+      flat = renderFlat(doc, { room: deps.room, avatar: visit.avatar, select: selectObject, motion });
+      flat.apply(live.tier.tier);
     } catch {
       flat = null;
     }
@@ -349,6 +398,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     get visit() {
       return visit;
     },
+    live,
+    motion,
     settled: () => settled,
   };
 }
