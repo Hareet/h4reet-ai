@@ -525,6 +525,33 @@ describe("Enter, the live source, pause, and hide (§5.4, §5.5)", () => {
   });
 });
 
+describe("a result's listener that throws (the review of T248, nit 2)", () => {
+  it("keeps the schedule: the next request is armed though the listener threw", () => {
+    const clock = new FakeClock();
+    const calls: number[] = [];
+    let thrown = 0;
+    const poller = createStatusPoller({
+      source: "site",
+      pollMs: POLL,
+      clock,
+      wall: () => WALL0 + clock.now(),
+      fetch: () => (calls.push(clock.now()), new Promise<Response>(() => undefined)),
+      onResult: () => {
+        thrown += 1;
+        throw new Error("a listener that throws");
+      },
+    });
+    poller.enter();
+    // The timeout's result reaches the listener inside the Clock's timer, so its throw surfaces there.
+    expect(() => clock.advance(STATUS_TIMEOUT_MS, 1_000_000)).toThrow("a listener that throws");
+    expect(thrown).toBe(1);
+    expect(poller.schedule).toMatchObject({ inFlight: false, nextAt: 60_000 });
+    clock.advance(55_000, 1_000_000);
+    expect(calls).toEqual([0, 60_000]);
+    poller.dispose();
+  });
+});
+
 describe("what it never does (§5.5)", () => {
   it("touches no cookie, Web Storage, IndexedDB, or Cache API", async () => {
     for (const name of ["localStorage", "sessionStorage", "indexedDB", "caches", "document", "cookieStore"])

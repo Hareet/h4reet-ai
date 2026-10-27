@@ -649,12 +649,64 @@ def test_it_runs_as_the_author_runs_it_python3_dash_I(tmp_path: Path) -> None:
             "the path change's time needs its UTC offset",
         ),
         (None, None, f"yesterday {CANARY}", "the path change's time isn't ISO 8601"),
+        # The review of T248, I-1: a URL urlsplit refuses, whose error would hold its host, and nesting past the parser's
+        # recursion limit, each a traceback and exit 1 before.
+        (
+            json.dumps(har([har_entry(f"http://[{CANARY}]/", 0)])),
+            None,
+            PATH_CHANGE,
+            "a HAR entry's URL isn't a URL",
+        ),
+        (
+            json.dumps(har([har_entry("http://127.0.0.1:99999/", 0)])),
+            None,
+            PATH_CHANGE,
+            "a HAR entry's URL isn't a URL",
+        ),
+        ("[" * 200_000 + "]" * 200_000, None, PATH_CHANGE, "the HAR isn't JSON"),
+        (None, "[" * 200_000 + "]" * 200_000, PATH_CHANGE, "the frame log isn't JSON"),
+        (
+            None,
+            {**good_visit().file(), "origin": f"http://[{CANARY}]"},
+            PATH_CHANGE,
+            "the frame log's origin isn't a URL",
+        ),
+        # Nit 1: t and wall finite, and dropped a count.
+        (None, "NAN_T", PATH_CHANGE, "a frame log entry lacks its t, wall, or frame"),
+        (
+            None,
+            "INF_WALL",
+            PATH_CHANGE,
+            "a frame log entry lacks its t, wall, or frame",
+        ),
+        (
+            None,
+            {**good_visit().file(), "dropped": -1},
+            PATH_CHANGE,
+            "the frame log's dropped isn't a count",
+        ),
+        (
+            None,
+            {**good_visit().file(), "dropped": True},
+            PATH_CHANGE,
+            "the frame log's dropped isn't a count",
+        ),
     ],
+    ids=lambda value: value[:40] if isinstance(value, str) else type(value).__name__,
 )
 def test_input_it_cant_read_exits_2_and_echoes_none_of_it(
     tmp_path: Path, har_text: str | None, log: Any, change: str, says: str
 ) -> None:
+    if log in ("NAN_T", "INF_WALL"):
+        file = good_visit().file()
+        file["entries"][3] = {
+            **file["entries"][3],
+            **({"t": float("nan")} if log == "NAN_T" else {"wall": float("inf")}),
+        }
+        log = file
     paths = write(tmp_path, good_visit(), log=log)
+    if isinstance(log, str) and log.startswith("["):
+        Path(paths[1]).write_text(log, encoding="utf-8")
     if har_text is not None:
         Path(paths[0]).write_text(har_text, encoding="utf-8")
     out: list[str] = []
@@ -692,3 +744,99 @@ def test_the_fixture_has_canaries_everywhere_it_should(tmp_path: Path) -> None:
     entry = copy.deepcopy(har_entry(f"{ORIGIN}/api/status", 0))
     text = json.dumps(entry)
     assert text.count(CANARY) >= 8
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# The review of T248
+# ---------------------------------------------------------------------------------------------------------------------
+def test_a_2d_case_its_pauses_reduction_logs_a_tick_later_replaces_at_the_pause(
+    tmp_path: Path,
+) -> None:
+    """I-2: live.ts logs the pause, then reduces, and the 2D case reads the Clock again, so with performance.now() it
+    can land a fraction of a millisecond after the pause; it is still the pause's own case."""
+    v = Visit(mode="2d")
+    v.enter(0)
+    v.request(0)
+    v.case(40, plugged=True)
+    for opening, closing, start, end in (
+        ("pause", "resume", 100_000, 700_000),
+        ("hide", "show", 760_000, 1_360_000),
+    ):
+        v.log(opening, start)
+        v.log("tier", start, tier="paused", row=2)
+        v.case(start + 0.1, plugged=False)
+        v.log(closing, end)
+        v.log("tier", end, tier="local", row=8)
+        v.case(end + 0.1, plugged=True)
+        v.request(end)
+    v.request(1_390_000)
+    v.request(1_420_000)
+    v.case(1_420_040, plugged=False)
+    code, text = run(tmp_path, v)
+    assert verdict(text, "plugged-paused").startswith("PASS"), text
+    assert verdict(text, "plugged-hidden").startswith("PASS"), text
+    assert code == 0, text
+
+
+def test_a_2d_case_later_than_its_pauses_reduction_still_counts(tmp_path: Path) -> None:
+    """I-2's reading is the log's order, not a window: a plugged 2D case that isn't the pause's reduction's still
+    counts."""
+    v = good_visit("2d")
+    v.log("request", 400_000)
+    v.case(400_000.1, plugged=True)
+    v.case(400_000.2, plugged=False)
+    _, text = run(tmp_path, v)
+    assert verdict(text, "plugged-paused").startswith("FAIL  plugged-paused: 1 "), text
+
+
+def run_with(tmp: Path, v: Visit, change: str, *more: str) -> tuple[int, str]:
+    out: list[str] = []
+    code = har_check.main(
+        [*write(tmp, v), change, *more], out=out.append, err=out.append
+    )
+    return code, "\n".join(out)
+
+
+def test_the_relay_offset_moves_the_path_change_onto_the_browsers_clock(
+    tmp_path: Path,
+) -> None:
+    """I-3 (b): with the relay's clock 30 s ahead of the browser's, its log line reads 30 s late."""
+    late = iso(1_400_000 + 30_000)
+    code, text = run_with(tmp_path, good_visit(), late)
+    assert code == 1
+    assert verdict(text, "failover").startswith("FAIL"), text
+    code, text = run_with(tmp_path, good_visit(), late, "--relay-offset-ms", "30000")
+    assert code == 0, text
+    assert "came 20.0 s after the path change" in verdict(text, "failover")
+    assert "relay offset 30000 ms" in text
+    early = iso(1_400_000 - 5_000)
+    code, text = run_with(tmp_path, good_visit(), early, "--relay-offset-ms", "-5000")
+    assert code == 0, text
+    assert "came 20.0 s after the path change" in verdict(text, "failover")
+
+
+def test_the_docstring_says_how_to_compare_the_clocks_and_which_python() -> None:
+    doc = har_check.__doc__ or ""
+    assert "date -u +%FT%T.%3NZ" in doc
+    assert "new Date().toISOString()" in doc
+    assert "--relay-offset-ms" in doc
+    assert "Python 3.11" in doc
+    assert "caseFor" in doc
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["chrome-extension://abcdefghij/content.js", "moz-extension://1234-5678/x.js"],
+)
+def test_an_extensions_request_is_counted_apart_from_other_origins(
+    tmp_path: Path, url: str
+) -> None:
+    """Nit 3: a browser extension's request isn't the page's, and isn't a host it reached."""
+    code, text = run(tmp_path, good_visit(), extra=[har_entry(url, 50_000)])
+    assert code == 0, text
+    assert verdict(text, "third-party").startswith("PASS")
+    assert (
+        verdict(text, "extensions")
+        == "NOTE  extensions: 1 request from a browser extension, not counted above"
+    )
+    assert "abcdefghij" not in text and "1234-5678" not in text
