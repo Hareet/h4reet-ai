@@ -22,9 +22,10 @@ and refuses, in what compose rendered:
   - an image without a digest, or one that differs from deploy/images.lock. One exception, reported PLANNED rather
     than refused: a service of OPEN_PINS whose lock line is still open (tag and digest "-") and whose image is that
     line's bare repository, until make pin-images pins it. Once the lock holds a digest the ordinary check applies,
-    so the mark expires with the pin (plan §11). And one name that is no registry's: the image of SHARED_IMAGES,
-    make up's own build of the gateway (tasks.md T184), on that service alone, as written there, with pull_policy:
-    never, so compose never pulls an image by that name;
+    so the mark expires with the pin (plan §11). And two names that are no registry's: the images of SHARED_IMAGES,
+    make up's own builds of the gateway (tasks.md T184) and of the room's site (spec 002, contracts/web-serving.md
+    §1), each on its service alone, as written there, with pull_policy: never, so compose never pulls an image by
+    either name;
   - a build context that is absolute, interpolated, or outside the compose file's tree; a built service that
     names an image; inline Dockerfiles, extra contexts, host networking, and entitlements in a build;
   - plan §1's rules for every service: no container_name, no env_file, no external resource, no extra_hosts or
@@ -179,8 +180,14 @@ PLANNED_RULE = "planned"
 # The gateway's one image per commit (tasks.md T184): make up builds it outside compose (deploy/scripts/
 # gateway_image.py), h4reet-gateway:<commit> from a host stack's export, or h4reet-gateway:working-tree on dev-cpu, and
 # the compose file names it, exactly as written here, with pull_policy: never. No registry has it, so no lock line
-# pins it; never pulled, a missing one stops the stack instead of fetching another by the same name.
-SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
+# pins it; never pulled, a missing one stops the stack instead of fetching another by the same name. The room's web
+# image is the same kind of name (spec 002, contracts/web-serving.md §1 and §4): deploy/scripts/web_image.py builds it
+# on every make up, its tag ending in the env file's H4_WEB_SUFFIX, empty on prod and -drafts on dev and dev-cpu.
+# x005, its publication on edge, needs nothing here: the port rule already takes any edge publication on 127.0.0.1.
+SHARED_IMAGES = {
+    "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
+    "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+}
 
 
 @dataclass(frozen=True)

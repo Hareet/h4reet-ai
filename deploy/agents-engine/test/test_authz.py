@@ -392,7 +392,8 @@ def test_a21_ports_off_the_loopback_refused(entry: object) -> None:
 
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "::1"])
-@pytest.mark.parametrize("port", [*range(18300, 18305), 18999])
+# dev-cpu's x000 to x005 (x005, the room's site, since spec 002), and row E15's port.
+@pytest.mark.parametrize("port", [*range(18300, 18306), 18999])
 def test_a21_dev_cpus_ports_and_the_proofs_allowed(address: str, port: int) -> None:
     host = {"PortBindings": {"80/tcp": [{"HostIp": address, "HostPort": str(port)}]}}
     assert create(host).allow
@@ -403,12 +404,12 @@ def test_a21_dev_cpus_ports_and_the_proofs_allowed(address: str, port: int) -> N
     "port",
     [
         *(
-            str(p) for p in range(18000, 18005)
-        ),  # prod's: api, Langfuse, Grafana, admin, OTLP
-        *(str(p) for p in range(18100, 18105)),  # dev's
+            str(p) for p in range(18000, 18006)
+        ),  # prod's: api, Langfuse, Grafana, admin, OTLP, and the room's site (spec 002)
+        *(str(p) for p in range(18100, 18106)),  # dev's
         "8080",
         "18299",
-        "18305",
+        "18306",
         "18998",
         "",  # the daemon would choose one
         "18300-18304",  # a range: the daemon would choose within it

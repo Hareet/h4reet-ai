@@ -63,7 +63,8 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
    - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
      only after the policy passed, because an unvetted build could read host files into the engine: first the
      gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
-     proxy; then the compose images;
+     proxy; then, when the export has apps/web/Dockerfile, the room's, as make up builds prod's (spec 002), as
+     h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
    - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
@@ -1156,7 +1157,10 @@ def arrival(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
 
 
 def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
-    begin("image", "the gateway's and the compose images, built on the agents' engine")
+    begin(
+        "image",
+        "the gateway's, the room's, and the compose images, built on the agents' engine",
+    )
     step = Step("image")
     if policy_step.status not in ("PASS", "PLANNED"):
         return step.fail(
@@ -1201,6 +1205,38 @@ def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
         return step.fail(
             "the agents' engine didn't build the gateway's image; if it's down: deploy/agents-engine/engine.sh up"
         )
+    # The room's image (spec 002, contracts/web-serving.md §1), as make up builds prod's: h4reet-web:<SHA>, with no
+    # drafts. The gate names no `policy` context, so the Dockerfile's own empty policy stage applies: every content
+    # file builds as a draft, which a build without drafts leaves out. That proves the image builds; what main
+    # approves is make up's to read. A commit from before spec 002 has no apps/web/Dockerfile and no web image.
+    web_dockerfile = export_dir / "apps" / "web" / "Dockerfile"
+    if web_dockerfile.is_file():
+        rc, web = stream(
+            [
+                docker,
+                "buildx",
+                "build",
+                "--load",
+                "--file",
+                str(web_dockerfile),
+                "--tag",
+                f"h4reet-web:{sha}",
+                "--build-arg",
+                f"HTTP_PROXY={AGENTS_PROXY}",
+                "--build-arg",
+                f"HTTPS_PROXY={AGENTS_PROXY}",
+                "--build-arg",
+                "ROOM_DRAFTS=",
+                str(export_dir),
+            ],
+            engine,
+            tmp,
+        )
+        if rc != 0:
+            return step.fail(
+                "the agents' engine didn't build the room's image; if it's down: deploy/agents-engine/engine.sh up"
+            )
+        out += web
     rc, more = stream(
         [
             docker,

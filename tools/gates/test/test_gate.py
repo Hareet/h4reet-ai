@@ -2444,3 +2444,84 @@ def test_a_gateway_image_that_doesnt_build_fails_the_step_before_compose(
     assert "deploy/agents-engine/engine.sh up" in done.stdout
     assert len(by_kind(fx.docker(), "buildx")) == 1
     assert by_kind(fx.docker(), "compose") == []
+
+
+# --------------------------------------------------------------------------------------------------
+# The room's image (spec 002, contracts/web-serving.md §1), after the gateway's, when the export has its Dockerfile
+# --------------------------------------------------------------------------------------------------
+WEB_BRANCH = {**CHANGE, "apps/web/Dockerfile": "FROM scratch\n"}
+
+
+def test_the_image_step_builds_the_rooms_image_as_prods_after_the_gateways(
+    fx: Fixture,
+) -> None:
+    sha = fx.branch(WEB_BRANCH)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+    (devcontainer,) = by_kind(calls, "build")
+    export = devcontainer["argv"][-1]
+    gateway, web = by_kind(calls, "buildx")
+    assert f"h4reet-gateway:{sha}" in gateway["argv"]
+    # prod's variant: no drafts, and no policy context, so the Dockerfile's own empty policy stage applies.
+    assert web["argv"] == [
+        "buildx",
+        "build",
+        "--load",
+        "--file",
+        f"{export}/apps/web/Dockerfile",
+        "--tag",
+        f"h4reet-web:{sha}",
+        "--build-arg",
+        f"HTTP_PROXY={GATEWAY_PROXY}",
+        "--build-arg",
+        f"HTTPS_PROXY={GATEWAY_PROXY}",
+        "--build-arg",
+        "ROOM_DRAFTS=",
+        export,
+    ]
+    assert web["docker_env"] == gateway["docker_env"]
+    (compose,) = by_kind(calls, "compose")
+    assert calls.index(gateway) < calls.index(web) < calls.index(compose)
+    assert status_of(done, "image") == "PASS"
+
+
+def test_a_commit_without_the_rooms_dockerfile_builds_the_gateway_alone(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    (gateway,) = by_kind(fx.docker(), "buildx")
+    assert not [a for a in gateway["argv"] if "h4reet-web" in a]
+
+
+BUILDX_WEB_FAILS = r"""#!/usr/bin/env python3
+import json, os, sys
+here = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+if args[:1] == ["buildx"]:
+    with open(os.path.join(here, "docker.calls"), "a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"argv": args, "env_keys": [], "docker_env": {}}) + "\n")
+    if any(a.startswith("h4reet-web:") for a in args):
+        print("buildx: a step failed")
+        sys.exit(1)
+    sys.exit(0)
+real = os.path.join(here, "docker.real")
+os.execv(real, [real, *args])
+"""
+
+
+def test_a_web_image_that_doesnt_build_fails_the_step_before_compose(
+    fx: Fixture,
+) -> None:
+    fx.branch(WEB_BRANCH)
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    (fx.stubs / "docker").write_text(BUILDX_WEB_FAILS, encoding="utf-8")
+    (fx.stubs / "docker").chmod(0o755)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "image") == "FAIL"
+    assert "didn't build the room's image" in done.stdout
+    assert len(by_kind(fx.docker(), "buildx")) == 2
+    assert by_kind(fx.docker(), "compose") == []
