@@ -90,11 +90,11 @@ description: "Task list for spec 003, Studio Assets"
 
 **Independent test**: quickstart §3, after the evaluation's runs.
 
-- [ ] T027 [US5] **Patch** for `tools/gates/test/test_arrival_check.py`: rule C1, an arm-B grid with and without its caption on the line after its link; and L1 in a published-image folder, a grid whose license reads `no` on research display refused and one reading `yes` passing without FR-013's three terms, while the same license in an asset directory is still refused, per research R-09 and FR-036 as clarified
-- [ ] T028 [US5] `docs/research/images/2026-10-12-image-model-evaluation/`, with its `LICENSE.md` and an empty `records.json`; `docs/research/images/CREDITS.md` rendered, per plan §5
-- [ ] T029 [US5] Update `docs/research/2026-10-12-image-model-evaluation.md` where the clarification settled what it left open: the license chosen, the mark settled, the record table's rows as `records.json` entries with the arm, each license's research-display reading, and `make assets-scrub` in "Making a grid", per FR-036. (Its preconditions, the guard patch before any photo and the arrival check before any commit, came in with the plan's review on 2026-10-18.)
+- [x] T027 [US5] **Patch** for `tools/gates/test/test_arrival_check.py`: rule C1, an arm-B grid with and without its caption on the line after its link; and L1 in a published-image folder, a grid whose license reads `no` on research display refused and one reading `yes` passing without FR-013's three terms, while the same license in an asset directory is still refused, per research R-09 and FR-036 as clarified (as built: Phase 2's patch already carries every case, so Phase 3 adds no patch; its note maps each to its test)
+- [x] T028 [US5] `docs/research/images/2026-10-12-image-model-evaluation/`, with its `LICENSE.md` and an empty `records.json`; `docs/research/images/CREDITS.md` rendered, per plan §5
+- [x] T029 [US5] Update `docs/research/2026-10-12-image-model-evaluation.md` where the clarification settled what it left open: the license chosen, the mark settled, the record table's rows as `records.json` entries with the arm, each license's research-display reading, and `make assets-scrub` in "Making a grid", per FR-036. (Its preconditions, the guard patch before any photo and the arrival check before any commit, came in with the plan's review on 2026-10-18.)
 - [ ] T030 [US5] **Author**: after the evaluation's runs, scrub, record, add each license with its research-display reading and the approvals on `main`, and commit the grids, per quickstart §3
-- [ ] T031 [US5] Merge-request note `docs/merge-requests/<date>-feat-003-us5-comparison.md`, with `make check` and the reviewer's passes
+- [x] T031 [US5] Merge-request note `docs/merge-requests/<date>-feat-003-us5-comparison.md`, with `make check` and the reviewer's passes
 
 ---
 

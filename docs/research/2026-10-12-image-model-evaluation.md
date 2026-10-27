@@ -34,7 +34,7 @@ Arms B and D make nothing that ships. Unless the studio first holds that model's
 - **Outputs.** Outputs aren't "Materials" (1(e) and 1(f)).
   - The only clause on using outputs is 4(b). It covers using "the Materials or any outputs or results therefrom to create, train, fine-tune, or improve an AI model that is distributed or made available". This evaluation does none of that.
   - Arm B's outputs come only from evaluation runs, which 1(i) allows.
-  - Publishing them here as evaluation results is our reading of the license. The license itself doesn't say so.
+  - Publishing them here as evaluation results is our reading of the license. The license itself doesn't say so. The Author records the reading that counts ("Research display" below).
 - **6(d):** "You will defend, indemnify and hold harmless us from and against any claim by any third party arising out of or related to your use or distribution of the Materials."
   - So the inputs keep out what that could reach: screens off, logos and the snowboard's graphic covered or cropped, and the artwork above the window covered or out of frame (step 5).
   - The prompts name no game, studio, or artist.
@@ -51,13 +51,18 @@ So re-read the license before running arm D, and again before committing any arm
 
 **Apache-2.0** (arms A and C) puts no limit on use or outputs.
 
+**Research display** (spec 003's clarification of 2026-10-18; its [FR-036](../../specs/003-studio-assets/spec.md)). The clarification defines it as "the Author's reading, per license, of whether its outputs may be shown publicly as evaluation results, not used in the site". Reading: the reading is recorded per license and version, as `research_display` in `assets/policy/licenses.json` on `main`. The arrival check refuses a grid whose model's license doesn't read `yes` there (its rule L1).
+- **Arms B and D:** the Author reads the Qwen Research License from its clauses above, and the FLUX [dev] license from its own, once "Results" quotes them. A `yes` lets that arm's grids in, each with its caption ("Captions" below). A `no` keeps them in the studio, and "Results" describes them in words.
+- **Arms A and C,** the style anchor's model, and ImageMagick, which assembles the grids, need their entries too: the check reads every license a record names.
+- FR-013's three terms and FR-014's commercial license hold for the site's assets, not for these images. So a `yes` here lets no output of arm B or D into an asset ("The arms" above).
+
 ## Before the runs
 
 **Two preconditions, before anything else** (spec 003's [plan](../../specs/003-studio-assets/plan.md); added on 2026-10-18 by that plan's review):
 - **Before any photo is taken or staged on this machine,** spec 003's guard patch (its task group 1, FR-003) is applied, with the studio's folders filled in. From then on, agent sessions can't read the photos, the outputs, the workflows, or the blinding key. Every file this note makes before publishing, the photos, `out/`, `blind/`, and `key.csv` among them, stays inside those denied folders.
-- **Before any image is committed,** spec 003's arrival check (its task group 2, FR-004) is applied. From then on, the pre-commit hook and the gate refuse a grid with metadata, a missing record, a missing approval, or a missing caption, whatever this note's own checks miss.
+- **Before any image is committed,** spec 003's arrival check (its task group 2, FR-004) is applied. From then on, the pre-commit hook and the gate refuse a grid with metadata, a missing record, a missing approval, a missing caption, or a license that doesn't read `yes` on research display ("Research display" above), whatever this note's own checks miss.
 
-1. **Freeze this plan.** The tasks, prompts, seeds, precisions, criteria, and decision rule stay fixed once a run starts. Before then, the Author confirms the decision rule. Intent 003's question 6, on machine-readable marking, is settled: spec 003's clarification of 2026-10-18 chose the IPTC mark, which `scripts/assets/scrub.py` adds. A change after the first run restarts the evaluation, and "Deviations" records it.
+1. **Freeze this plan.** The tasks, prompts, seeds, precisions, criteria, and decision rule stay fixed once a run starts. Before then, the Author confirms the decision rule. Intent 003's question 6, on machine-readable marking, is settled: spec 003's clarification of 2026-10-18 chose a visible line and one IPTC mark per file ("Machine-readable marking" below), and `make assets-scrub` adds the mark. A change after the first run restarts the evaluation, and "Deviations" records it.
 2. **Make room.**
    - Take each model's download size from its card.
    - Check free space the way [spec 000's research, R-32](../../specs/000-local-foundations/research.md#r-32-host-disk-space-is-the-windows-drives) does: on the Windows drive that holds WSL's disk and inside WSL, for the downloads plus a 20 GB margin.
@@ -188,22 +193,25 @@ Set before the runs. The Author confirms or changes it before the first run.
   - the style anchor;
   - the scores, the measurements, and a record table.
 - **What stays in the studio:** the full-resolution outputs, every input photo, the blinding key, and the studio's workflows. Only the workflows' hashes come in.
-- **Making a grid:** build it with ImageMagick, stripping as it writes (`montage … -strip grid.jpg`). Then run `exiftool -all= -overwrite_original grid.jpg`. Without `-overwrite_original`, exiftool keeps an unstripped copy beside the file, named `grid.jpg_original`.
+- **Making a grid:** build it from one arm's outputs ("The record table" below) with ImageMagick, stripping as it writes (`montage … -strip grid.jpg`). Then, while it is still in the studio's folders, run `make assets-scrub FILE=<the grid's path>` from this repository's checkout: it keeps only what the arrival check admits, adds the mark ("Machine-readable marking" below), and never re-encodes the pixels. Run nothing after it that rewrites the file's metadata: `exiftool -all=` would remove the mark, and without `-overwrite_original` exiftool also keeps an unstripped copy beside the file, named `grid.jpg_original`. Only then copy the grid into [its folder](images/2026-10-12-image-model-evaluation/).
 - **Checking:** the arrival check is applied before the first image is committed (the second precondition above), and its pre-commit hook and the gate check every grid. The checks below stay as the Author's own look before each commit:
-  - `exiftool -a -G1 -s` on each image shows no EXIF, XMP, IPTC, or GPS tags and no comment, apart from any marking that question 6 settles;
+  - `exiftool -a -G1 -s` on each image shows no EXIF, XMP, IPTC, or GPS tags and no comment, apart from the mark, one `DigitalSourceType` tag in the `XMP-iptcExt` group;
   - `strings` on each image, piped to `grep -i -E 'prompt|workflow|safetensors|/home/'`, prints nothing;
   - `git status --porcelain` lists only the files meant to come in.
-- **Approval:** each grid is committed only after the Author has approved it. That covers the T3 grids for the likeness, and the T1 grids for anything that locates the Author or shows a screen, a logo, or someone else's art.
-- **The record table:**
-  - one row per output in each grid: the grid's file and the output's position in it, and the output's ID, arm, model and revision, license, task, seed, settings, and source (the input photos' opaque IDs, or the prompt's ID);
-  - each grid file's sha256.
+- **Approval:** each grid is committed only after the Author has approved it. That covers the T3 grids for the likeness, and the T1 grids for anything that locates the Author or shows a screen, a logo, or someone else's art. The approval is the Author's entry for the grid's sha256 in `assets/policy/approvals.json`, committed on `main` before the grid is committed anywhere: the arrival check reads it from `main`, and requires one for every grid that shows the likeness or is made from photos, so every T1 and T3 grid (its rule P1; spec 003's clarification keeps FR-016's approval for these images).
+- **The record table,** in two parts (spec 003's [plan, §5](../../specs/003-studio-assets/plan.md#5-the-comparisons-images-fr-036-user-story-5)):
+  - **One entry per grid file,** and one for the style anchor, in the folder's [`records.json`](images/2026-10-12-image-model-evaluation/records.json), in [spec 003's record form](../../specs/003-studio-assets/contracts/asset-record.md): the file's sha256; `kind` `published-image`; the day it was made; its source by one opaque ID, `photo` for a grid made from photos (T1 and T3) and `prompt` otherwise; whether it shows the likeness; its steps (the model, with its repository, revision, license, and the license's version, and the day the step's models were last checked; then the grid's assembly by hand, with ImageMagick's version and license); the media license; the approval's ID, where one is needed; its `arm` (none for the anchor); and its `note`, this note's path. An entry names one arm, so each grid holds one arm's outputs, and arm B's and arm D's grids carry their caption. `make assets-credits` renders the entries into [`images/CREDITS.md`](images/CREDITS.md).
+  - **One row per output in each grid,** in "Results": the grid's file and the output's position in it, and the output's ID, task, seed, and settings, which the record has no field for.
 - **License.** The images aren't MIT.
-  - They come in under the media license that intent 003 calls for.
-  - Until that license is chosen, they come in under an "all rights reserved" notice in their folder.
+  - They come in under the media license that intent 003 calls for. Spec 003's clarification of 2026-10-18 chose it, in the option's words: "All rights reserved, with a plain notice that viewing and linking are welcome".
+  - Its notice is the folder's [`LICENSE.md`](images/2026-10-12-image-model-evaluation/LICENSE.md), which is also the "all rights reserved" notice this note set for the meantime, so the images need no second one. The Author writes its copyright line, in place of `<YEAR>` and `<HOLDER>`, before the first grid comes in; the arrival check refuses a file under an unfilled line.
   - That notice can be loosened later, while an MIT grant, once published, can't be taken back.
-- **Machine-readable marking.** Settled by spec 003's clarification (2026-10-18): after stripping, each image carries the IPTC digital source type for AI-generated media (`trainedAlgorithmicMedia`) and nothing else, which `scripts/assets/scrub.py` adds. This settles the gate this note set ("Settle intent 003's question 6 before the first image is committed"), but the two preconditions at the top of "Before the runs" still come first.
+- **Machine-readable marking.** Settled by spec 003's clarification (2026-10-18). The option it took read: "Both: a visible line in the twin's disclosure that the avatar is an AI-made, stylized likeness of the Author, published by the Author's choice; and one machine-readable mark in every published image and model file (the IPTC digital source type for AI-generated media), with nothing else in the file".
+  - **The mark:** after stripping, each image carries one XMP packet holding only `Iptc4xmpExt:DigitalSourceType`, set to `http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia`, which `make assets-scrub` adds. The arrival check refuses a grid without it, or with anything else in the packet.
+  - **The visible line** is the twin's, on the site, in wording the Author approves before the first likeness file is published. Reading: this note presents every grid, and the anchor, as a model's output, so its own text discloses them to people.
+  - This settles the gate this note set ("Settle intent 003's question 6 before the first image is committed"), but the two preconditions at the top of "Before the runs" still come first.
 - **The likeness.** The Author chose this on 2026-10-12: "that's fine with the likeness too." Git keeps every published image for good, since [ADR 0013](../adr/0013-local-until-publication.md) publishes the history from its first commit. So the T3 grids are committed only after the Author has approved them.
-- **Captions.** Every arm B and arm D image says "Evaluation output; not used in the site's assets."
+- **Captions.** Every arm B and arm D image says "Evaluation output; not used in the site's assets." The caption goes on the line right after the image's link, where the arrival check looks for it for every grid whose record names arm B or D (its rule C1).
 
 ## Results
 

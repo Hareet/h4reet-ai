@@ -170,6 +170,8 @@ The patch that brings it is group 2's. Its tests build their fixtures at run tim
 
 The arrival check's rule C reads the note for each arm-B or arm-D image's caption.
 
+**As built** (Phase 3): a record entry describes one file and names one arm, so the record table's rows split. Each grid file, and the style anchor, gets one entry, and each published grid holds one arm's outputs; the per-output columns the record has no field for (the output's position in its grid, its ID, task, seed, and settings) stay in the note's "Results". The note also gives the research-display reading each license needs (FR-036 as clarified), the approval on `main` that rule P asks of every grid made from photos, `make assets-scrub` in "Making a grid", and where arms B and D's caption goes: on the line right after the image's link, where rule C1 looks for it.
+
 ## 6. The studio's GPU window (FR-035; User Story 6)
 
 [contracts/gpu-window.md](contracts/gpu-window.md). `make studio-window ENV=prod STATE=start|end REASON="…"`, the Author's, calls the operator CLI's new command:
