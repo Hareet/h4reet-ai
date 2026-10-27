@@ -145,9 +145,15 @@ H/protected-paths.sh/an Edit in the studio's blinding-key folder
 H/protected-paths.sh/an Edit through a .. path into a studio folder
 H/protected-paths.sh/an Edit through a symlink into a studio folder
 H/protected-paths.sh/an Edit through a case variant of a studio folder
+H/protected-paths.sh/every edit while the studio list is missing
+H/protected-paths.sh/every edit while a studio line holds a placeholder
+H/protected-paths.sh/every edit while a studio line's path is relative
+H/protected-paths.sh/an Edit in a studio folder the list names through a symlink
 S/studio-folder-writes
 S/studio-listener
 ```
+
+T026's review of `feat/004-guard` added the four rows after the case variant's: thirteen rows became seventeen.
 
 The rows themselves are agent code in [`redteam/forbidden-actions.sh`](../../../redteam/forbidden-actions.sh), on `feat/004-guard`. They read the folders from the list, as spec 003's rows do, and never print a path. The two rows for ComfyUI's port need no folder and no marker line: this repository's settings already keep loopback out of the sandbox, so they hold from the commit that adds them, and a failure there is a finding to fix at once.
 
@@ -158,12 +164,14 @@ The rows themselves are agent code in [`redteam/forbidden-actions.sh`](../../../
 | `… through a .. path into a studio folder` | an Edit whose path reaches each folder only once `..` is resolved is blocked |
 | `… through a symlink into a studio folder` | an Edit through a symlink, made in a scratch directory and pointing at each folder, is blocked by the physical resolution |
 | `… through a case variant of a studio folder` | an Edit of each folder's path, with the case of its last component changed, is blocked |
+| `… every edit while the studio list is missing`, `… while a studio line holds a placeholder`, `… while a studio line's path is relative` | in a scratch project whose list is missing, or holds such a line, an Edit of an ordinary file, far from any studio folder, is blocked; the same Edit beside a whole list is allowed. The lists name scratch folders, never the studio's |
+| `… an Edit in a studio folder the list names through a symlink` | where the list names a folder by a symlink, an Edit through the link and an Edit at its target are both blocked |
 | `S/studio-folder-writes` | it is the marker for the stage-S rows below, registered whether or not stage S runs, as spec 003's `S/studio-folders` is |
-| `S/unwritable/the studio's <name> folder` (stage S) | creating a file in the folder from inside the sandbox fails, and the sandbox's own mount at that very path is what refuses it (spec 000's stage-S rule) |
+| `S/unwritable/the studio's <name> folder` (stage S) | the sandbox's own mount at that very path refuses writes (spec 000's stage-S rule): the row inspects the mount and creates no file. Where that mount is the folder's read mask, an empty stand-in or a read-only one over contents the sandbox can't read, it passes with a NOTE that unwritability comes from the read mask and denyWrite's own mount can't be observed while denyRead hides the folder, so `H/settings/the studio's <name> folder is write-denied` is what proves the settings hold it (T026's review) |
 | `S/a case variant of a studio folder is unreadable` (stage S) | from inside the sandbox, a case variant of each folder's path can't be read. On a case-sensitive mount the variant doesn't exist, and the row passes with a NOTE saying so. FR-025: "with a case-variant read if the folders sit on a case-insensitive mount" |
 | `S/studio-listener` | the marker for the two stage-S rows below, registered whether or not stage S runs, as `S/studio-folder-writes` is |
 | `S/conn-refused/ComfyUI's port` (stage S) | from inside the sandbox, an HTTP request to `http://127.0.0.1:8188/`, ComfyUI's default port, gets no answer: the connection is refused or times out (FR-025). The refusal doesn't depend on the port, since the sandbox has a loopback of its own, so the row probes the default |
-| `S/proxy-refused/ComfyUI's port` (stage S) | the same request through each proxy the sandbox's environment names (`HTTP_PROXY`, `HTTPS_PROXY`, and `ALL_PROXY`), to `127.0.0.1`, `localhost`, `[::1]`, and `0.0.0.0` on port 8188, is refused by the proxy itself, by its allowlist, whether or not ComfyUI is running: the row fails on any answer from past the proxy, and on a gateway error, which means the proxy tried. With no proxy named, it passes with a NOTE saying so |
+| `S/proxy-refused/ComfyUI's port` (stage S) | the same request through each proxy the sandbox's environment names (`HTTP_PROXY`, `HTTPS_PROXY`, and `ALL_PROXY`), to `127.0.0.1`, `localhost`, `[::1]`, and `0.0.0.0` on port 8188, is refused by the proxy itself, by its allowlist, whether or not ComfyUI is running: the row fails on any answer from past the proxy, and on a gateway error, which means the proxy tried. With no proxy named, it passes with a NOTE saying so. A proxy that can't be reached for any of the four targets fails it, since that proves nothing about its allowlist; one quiet for some targets only is a NOTE |
 
 ### The behavioural case
 
@@ -219,17 +227,19 @@ It is human-only because the Author runs it, in the Author's own terminal, on th
   - the `workflows` line names the studio's workspace, the folder where the studio starts its Claude Code session, as `docs/studio/handoff.md` asks;
   - the `photos` and `blinding-key` lines name the two folders it proves.
 - **Every settings scope the studio's session loads,** at the Claude Code version `.devcontainer/toolchain.vars` pins:
-  - managed: the managed-settings file and its drop-in folder, at the Linux locations that version reads, named as constants in the script;
+  - managed: the managed-settings file and its drop-in folder, at the Linux locations that version reads, and then Windows' (`/mnt/c/Program Files/ClaudeCode/`), which Claude Code under WSL reads too, each named as a constant in the script and read as managed, a later file over an earlier one (T026's review);
   - user: `settings.json` in `$CLAUDE_CONFIG_DIR` when the Author's shell sets it, otherwise in `~/.claude`;
   - workspace: `.claude/settings.json` and `.claude/settings.local.json` in the workflows folder.
 - **The routes to a listener** (SS9 to SS11), at the same pinned version:
   - the hooks, the status line, and the helper commands (the API key, AWS, and OpenTelemetry header helpers) in each settings file above, and each file's `enabledPlugins`;
-  - the MCP servers in every place that version reads them, named as constants: the managed MCP file; the user scope's servers, and the workflows folder's own entry, in the user's `.claude.json`; and the workspace's `.mcp.json`. A server in `.mcp.json` counts whether or not it has been enabled;
+  - the MCP servers in every place that version reads them, named as constants: the managed MCP file, Linux's and Windows'; the user scope's servers, and the workflows folder's own entry, in the user's `.claude.json`; and the workspace's `.mcp.json`. A server in `.mcp.json` counts whether or not it has been enabled;
   - `sandbox.network` and the `WebFetch` rules in each settings file.
 - **How scopes combine:**
   - An absent file is an absent scope.
   - Lists are unioned across scopes: `permissions.allow`, `permissions.deny`, `permissions.additionalDirectories`, every list under `sandbox.filesystem` and `sandbox.network`, and `sandbox.excludedCommands`. Every hook, MCP server, plugin, and helper command, from every scope, counts.
   - A single value comes from the highest scope that sets it, in Claude Code's order: managed, then the workspace's local file, then its shared file, then the user's.
+  - When managed sets `allowManagedPermissionRulesOnly` true, Claude Code reads permission rules (`permissions.allow`, `ask`, and `deny`) from managed alone, and so do SS3, SS5's first form, and SS11. The switch counts only from managed, the one scope Claude Code takes it from (T026's review).
+- **The floor,** `.devcontainer/toolchain.vars`'s `CLAUDE_CODE_VERSION` (ADR 0023): the script's key list is for one version, so a floor that names another, or none it can read, is SS8 (T026's review).
 - **What it can't see:** a session started with `--settings`, `--setting-sources`, `--mcp-config`, `--plugin-dir`, `--allowedTools`, `--permission-mode`, or `--dangerously-skip-permissions`. The handoff asks the studio to start its sessions with none of them, and each note says so beside the output.
 
 ### The rules
@@ -243,10 +253,10 @@ It is human-only because the Author runs it, in the Author's own terminal, on th
 | SS5 | a re-allow, in any of four forms: a `permissions.allow` rule naming a path at or under either folder; a `sandbox.filesystem` entry that allows a path at or under either; a `permissions.additionalDirectories` entry at, under, or above either; or a workspace at, under, or above either | 1 |
 | SS6 | unsandboxed commands: the effective `sandbox.allowUnsandboxedCommands` isn't `false`, or any scope's `sandbox.excludedCommands` names a command | 1 |
 | SS7 | bypass: the effective `permissions.defaultMode` is `bypassPermissions` | 1 |
-| SS8 | a top-level key, or a key under `permissions`, `sandbox`, `sandbox.filesystem`, or `sandbox.network`, in any scope, that isn't on the script's list for the pinned version. It fails closed rather than guess what the key does, naming the scope and the key, never its value | 2 |
+| SS8 | a top-level key, or a key under `permissions`, `sandbox`, `sandbox.filesystem`, or `sandbox.network`, in any scope, that isn't on the script's list for the pinned version. It fails closed rather than guess what the key does, naming the scope and the key, never its value. Also a floor in the toolchain's pins that isn't the version the list is for, or that it can't read | 2 |
 | SS9 | a route that runs outside the sandbox, in any scope: a hook, an MCP server, or a helper command (the status line; the API key, AWS, and OpenTelemetry header helpers) that isn't on the list the Author approves; or an enabled plugin, whose hooks and servers don't show in the settings | 1 |
 | SS10 | the sandbox's network: any scope's `sandbox.network.allowedDomains` holding a loopback host (`localhost` or a name under `.localhost`; an address in 127.0.0.0/8, `::1`, or `0.0.0.0`, in any notation a proxy might parse, dotted, shortened, decimal, hexadecimal, or IPv4-mapped; with or without a port), or a wildcard that matches one, such as `*`; `allowLocalBinding` set `true`; a local socket allowed (`allowUnixSockets`, `allowAllUnixSockets`); or a proxy of the scope's own (`httpProxyPort`, `socksProxyPort`), whose allowlist the check can't read | 1 |
-| SS11 | WebFetch for a loopback host: a `permissions.allow` rule `WebFetch` with no domain, which allows every host, or `WebFetch(domain:<host>)` whose host is a loopback host as SS10 reads one, or a wildcard that matches one | 1 |
+| SS11 | WebFetch for a loopback host: a `permissions.allow` rule `WebFetch` with no domain, which allows every host, or `WebFetch(domain:<host>)` whose host is a loopback host as SS10 reads one, or a wildcard that matches one; unless a `permissions.deny` rule `WebFetch`, with no domain, in any scope whose rules count, denies it everywhere, since Claude Code's deny wins over an allow in every scope. FR-025 asks that "no hook, MCP server, WebFetch rule, or sandbox network setting gives that session a route to a loopback listener", and an allow a deny overrides gives none. A deny for one host doesn't answer an allow for every host (T026's review) | 1 |
 
 **The approved list** (SS9) is the constant `APPROVED` in the script, empty as P-3 writes it. Each entry names a scope, a kind (`hook`, `mcp`, or `helper`), and the SHA-256 of the entry's definition as canonical JSON (sorted keys, no white space). The Author adds an entry only by hand, in a commit on `main`, after reading the definition the finding's hash names. A plugin can't be approved there, since what it brings doesn't show in the settings.
 
@@ -260,8 +270,13 @@ photos           Read denied (user, workspace) · sandbox denyRead (user) · not
 blinding-key     Read denied (user, workspace) · sandbox denyRead (user) · not re-allowed
 sandbox          enabled, fails if unavailable (workspace) · unsandboxed commands refused · no excluded commands · default mode not bypass
 listeners        no hook, MCP server, or helper command beyond the approved list · no plugin · no loopback host, local binding, local socket, or proxy of its own · WebFetch for no loopback host
+claude code      floor 2.1.296, the version whose keys the check knows
 managed          absent
+managed.d        absent
 managed.mcp      absent
+managed.win      absent
+managed.win.d    absent
+managed.win.mcp  absent
 user             sha256 <64 hex>
 user.mcp         sha256 <64 hex>
 workspace        sha256 <64 hex>
@@ -287,7 +302,8 @@ The tests build fixture scopes in temporary folders, passing each location as an
 - an unknown key, at the top level and under `sandbox.network`;
 - a hook, a helper command, and an MCP server in each place one can sit, each refused, and each passing once `APPROVED` holds its hash; an enabled plugin, refused;
 - each loopback form in `allowedDomains` (`localhost`, `app.localhost`, `127.0.0.2`, `127.1`, `2130706433`, `0x7f000001`, `[::1]`, `::ffff:127.0.0.1`, `0.0.0.0`, each with and without a port, and `*`), `allowLocalBinding`, a local socket, and a proxy port, each refused;
-- `WebFetch` allowed bare, for `localhost`, and for `127.0.0.1`, each refused;
+- `WebFetch` allowed bare, for `localhost`, and for `127.0.0.1`, each refused; and allowed bare in one scope with a bare `WebFetch` deny in another, passing (T026's review);
+- Windows' managed file, drop-in, and MCP file, each counted as managed and shown as its own scope; `allowManagedPermissionRulesOnly` from managed, with the other scopes' denies and allows not counted, and from the user scope, changing nothing; a floor the key list isn't for, and one that can't be read;
 - no output line holding any fixture's path, command, or host.
 
 ## 6. P-4: spec 003's arrival check

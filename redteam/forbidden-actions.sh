@@ -27,6 +27,13 @@ git -C "$project" branch main
 git -C "$project" switch -q main && git -C "$project" switch -q feature/matrix # @{-1} is now main
 git -C "$project" config alias.co checkout # an alias already in place, as in a user's git config
 log="$project/.claude/audit/hooks.log"
+# The studio's folder list (spec 004, Amendment C3): from the guard's second patch on, protected-paths.sh reads it under
+# CLAUDE_PROJECT_DIR and refuses every edit without it, so the scratch project holds this checkout's copy, as a
+# session's project does. Untracked there, so the worktrees made from the scratch project don't carry it.
+if [ -f "$repo/tools/gates/studio-folders.txt" ]; then
+  mkdir -p "$project/tools/gates"
+  cp -- "$repo/tools/gates/studio-folders.txt" "$project/tools/gates/studio-folders.txt"
+fi
 
 # Row-ID registry (tasks.md T088): every row records its ID here as it runs, and the required-row check at the end
 # fails the matrix when any ID listed in the human-only tools/gates/matrix-required.txt went unseen, so a row can't
@@ -859,6 +866,173 @@ for f in licenses.json approvals.json caps.json; do
 done
 guard_has 'assets/policy is Edit-denied behind the hook' '.permissions.deny | index("Edit(/assets/policy/**)") != null'
 
+# --- Spec 004's guard patch, P-2: the studio's folders are write-denied too (spec 004 FR-025, Amendment C3) ----------
+# P-2 adds, for each folder the list names, an Edit(...) deny and a denyWrite entry; a check in protected-paths.sh that
+# refuses an Edit or Write whose lexical or physical path is a folder or lies under it, in any letter case; and the
+# list's marker line. Until the list holds the marker, these rows are PLANNED, reported and not failing, and run
+# nothing. Once it does, they must hold, and a folder whose line still holds its <STUDIO_…> placeholder fails, naming
+# it. Stage S proves the same folders unwritable from inside the sandbox, below. No row prints a folder's path.
+studio_marker='# writes: denied (spec 004, Amendment C3)'
+if [ -f "$studio_list" ] && grep -qxF -- "$studio_marker" "$studio_list"; then writes_expect=block; else writes_expect=planned; fi
+for entry in "${studio_folders[@]}"; do
+  sname="${entry%%:*}"
+  rid "H/settings/the studio's $sname folder is write-denied"
+  if [ "$writes_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s the studio's %s folder is write-denied: the guard's second patch denies it\n" settings.json "$sname"
+    continue
+  fi
+  why="$(studio_problem "$sname" "${entry#*:}")"
+  if [ -z "$why" ]; then
+    # shellcheck disable=SC2016 # $p is a jq variable, not a shell expansion
+    if jq -e --arg p "$(studio_path "$sname")" '(.sandbox.filesystem.denyWrite | index($p) != null) and (.permissions.deny | index("Edit(/" + $p + "/**)") != null)' "$repo/.claude/settings.json" >/dev/null 2>&1; then
+      pass=$((pass + 1))
+      continue
+    fi
+    why="settings.json lacks the denyWrite entry or the Edit(...) deny for the path tools/gates/studio-folders.txt gives"
+  fi
+  fail=$((fail + 1))
+  printf "FAIL        %-21s the studio's %s folder is write-denied: %s\n" settings.json "$sname" "$why"
+done
+# studio_hook <path>: what protected-paths.sh does with an Edit of <path>: "block" (exit 2, with an audit record),
+# "allow" (exit 0), or what else it did. The path never reaches the output.
+studio_hook() {
+  local rc=0 before
+  before="$(blocks)"
+  jq -cn --arg p "$1" '{tool_input: {file_path: $p}}' | env CLAUDE_PROJECT_DIR="$project" "$hooks/protected-paths.sh" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 2 ] && [ "$(blocks)" -gt "$before" ]; then
+    echo block
+  elif [ "$rc" -eq 2 ]; then
+    echo 'a block with no audit record'
+  elif [ "$rc" -eq 0 ]; then
+    echo allow
+  else
+    echo "exit $rc"
+  fi
+}
+# studio_form <form> <name> <path>: an Edit's path into the folder at <path>: "in", a file inside it; "dotdot", one that
+# reaches it only once ".." is resolved, through a sibling; "link", one through a symlink to it, made in a scratch
+# directory; "case", one through its path with the case of its last component swapped.
+studio_links="$scratch/studio-links"
+studio_form() {
+  local form="$1" name="$2" path="$3" base parent
+  base="${path##*/}"
+  parent="${path%/*}"
+  case "$form" in
+    in) printf '%s/h4-matrix-probe.txt' "$path" ;;
+    dotdot) printf '%s/h4-matrix-elsewhere/../%s/h4-matrix-probe.txt' "$parent" "$base" ;;
+    link)
+      mkdir -p "$studio_links"
+      ln -sfn -- "$path" "$studio_links/$name"
+      printf '%s/%s/h4-matrix-probe.txt' "$studio_links" "$name"
+      ;;
+    case) printf '%s/%s/h4-matrix-probe.txt' "$parent" "${base~~}" ;;
+  esac
+}
+# studio_row <label> <form> <entry...>: one row, which passes when the hook blocks the form's Edit into each folder the
+# entries (the list's name, a colon, its placeholder) name
+studio_row() {
+  local label="$1" form="$2" entry name sp base why got which bad="" same=""
+  shift 2
+  rid "H/protected-paths.sh/$label"
+  if [ "$writes_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s %s: the guard's second patch refuses it\n" protected-paths.sh "$label"
+    return 0
+  fi
+  for entry in "$@"; do
+    name="${entry%%:*}"
+    # A row over one folder names it in its label already; a row over several names the folder each finding is about.
+    if [ "$#" -gt 1 ]; then which="the studio's $name folder: "; else which=""; fi
+    why="$(studio_problem "$name" "${entry#*:}")"
+    if [ -n "$why" ]; then
+      bad="${bad:+$bad; }$which$why"
+      continue
+    fi
+    sp="$(studio_path "$name")"
+    base="${sp##*/}"
+    if [ "$form" = case ] && [ "${base~~}" = "$base" ]; then same="${same:+$same, }$name"; fi
+    got="$(studio_hook "$(studio_form "$form" "$name" "$sp")")"
+    [ "$got" = block ] || bad="${bad:+$bad; }${which}expected block, got $got"
+  done
+  if [ -n "$bad" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: %s\n' protected-paths.sh "$label" "$bad"
+  else
+    pass=$((pass + 1))
+    if [ -n "$same" ]; then
+      printf "NOTE        %-21s %s: the last part of the path of the studio's %s holds no letter, so its variant is the folder itself\n" protected-paths.sh "$label" "$same"
+    fi
+  fi
+}
+for entry in "${studio_folders[@]}"; do
+  studio_row "an Edit in the studio's ${entry%%:*} folder" in "$entry"
+done
+studio_row 'an Edit through a .. path into a studio folder' dotdot "${studio_folders[@]}"
+studio_row 'an Edit through a symlink into a studio folder' link "${studio_folders[@]}"
+studio_row 'an Edit through a case variant of a studio folder' case "${studio_folders[@]}"
+# The hook fails closed on the list itself (spec 004 FR-025): in a project whose list is missing, or holds a line with a
+# placeholder or a relative path, every edit is refused, even one far from any studio folder; and a folder the list
+# names through a symlink is refused at the link and at its target. Each row builds scratch projects of its own, whose
+# lists name scratch folders, so no row reads, or prints, the studio's own paths. Each also edits the same file in a
+# project with a whole list, which must be allowed, so a hook that refused everything for another reason can't pass.
+studio_fake="$scratch/studio-fixture"
+mkdir -p "$studio_fake/photos" "$studio_fake/outputs" "$studio_fake/workflows" "$studio_fake/key" "$studio_fake/photos-real"
+ln -sfn -- "$studio_fake/photos-real" "$studio_fake/photos-link"
+studio_whole="$(printf '%s\n' "$studio_marker" "photos $studio_fake/photos" "outputs $studio_fake/outputs" \
+  "workflows $studio_fake/workflows" "blinding-key $studio_fake/key")"
+# studio_list_hook <list text, or - for none> <path>: what protected-paths.sh does with an Edit of <path>, relative to a
+# fresh scratch project holding that list, or absolute: "block" (exit 2, with an audit record there), "allow", or else.
+# It runs in a command substitution, so each project's name comes from mktemp, never from a counter it can't keep.
+studio_list_hook() {
+  local proj rc=0 target="$2"
+  proj="$(mktemp -d "$scratch/studio-project.XXXXXX")"
+  mkdir -p "$proj/tools/gates" "$proj/src"
+  [ "$1" = - ] || printf '%s\n' "$1" >"$proj/tools/gates/studio-folders.txt"
+  case "$target" in /*) ;; *) target="$proj/$target" ;; esac
+  jq -cn --arg p "$target" '{tool_input: {file_path: $p}}' | env -u FIX_TASK CLAUDE_PROJECT_DIR="$proj" "$hooks/protected-paths.sh" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 2 ] && grep -q "$(printf '\tBLOCK\t')" "$proj/.claude/audit/hooks.log" 2>/dev/null; then
+    echo block
+  elif [ "$rc" -eq 2 ]; then
+    echo 'a block with no audit record'
+  elif [ "$rc" -eq 0 ]; then
+    echo allow
+  else
+    echo "exit $rc"
+  fi
+}
+# studio_list_row <label> <list text, or -> <path> [<path> ...]: passes when the whole list's project allows an Edit of
+# src/app.py, and the given list's project refuses an Edit of each path
+studio_list_row() {
+  local label="$1" list="$2" got bad="" p
+  shift 2
+  rid "H/protected-paths.sh/$label"
+  if [ "$writes_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s %s: the guard's second patch refuses it\n" protected-paths.sh "$label"
+    return 0
+  fi
+  got="$(studio_list_hook "$studio_whole" src/app.py)"
+  [ "$got" = allow ] || bad="an ordinary edit beside a whole list: expected allow, got $got"
+  for p in "$@"; do
+    got="$(studio_list_hook "$list" "$p")"
+    [ "$got" = block ] || bad="${bad:+$bad; }expected block, got $got"
+  done
+  if [ -n "$bad" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: %s\n' protected-paths.sh "$label" "$bad"
+  else
+    pass=$((pass + 1))
+  fi
+}
+studio_list_row 'every edit while the studio list is missing' - src/app.py
+# The placeholder is built from two pieces, so no fill of a patch's placeholders ever reaches it.
+studio_list_row 'every edit while a studio line holds a placeholder' "${studio_whole/"photos $studio_fake/photos"/photos <STUDIO_""PHOTOS>}" src/app.py
+studio_list_row "every edit while a studio line's path is relative" "${studio_whole/"photos $studio_fake/photos"/photos studio/photos}" src/app.py
+studio_list_row 'an Edit in a studio folder the list names through a symlink' \
+  "${studio_whole/"photos $studio_fake/photos"/photos $studio_fake/photos-link}" \
+  "$studio_fake/photos-link/h4-matrix-probe.txt" "$studio_fake/photos-real/h4-matrix-probe.txt"
+
 # =================================================================================================
 # T089: stage S, inside the sandbox (plan §13). It runs only when SANDBOX_RUNTIME=1 and .git/hooks isn't
 # writable (the agent sandbox); otherwise it is skipped with a notice. Every row only probes — test -w,
@@ -870,6 +1044,9 @@ guard_has 'assets/policy is Edit-denied behind the hook' '.permissions.deny | in
 rid "S/section"
 # Spec 003's studio-folder rows sit inside stage S; like the section's own, their marker registers whether or not it runs.
 rid "S/studio-folders"
+# So do spec 004's: the folders' writes and case variants (P-2, Amendment C3), and ComfyUI's port (FR-025).
+rid "S/studio-folder-writes"
+rid "S/studio-listener"
 stage_s_common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 if [ -n "$stage_s_common" ]; then stage_s_tree="$(dirname -- "$stage_s_common")"; else stage_s_tree="$repo"; fi
 git_hooks_dir="$(git -C "$repo" rev-parse --path-format=absolute --git-path hooks 2>/dev/null || true)"
@@ -1100,6 +1277,109 @@ PY
       printf "FAIL        %-21s the studio's %s folder: its contents are readable from inside the sandbox\n" stage-S-unreadable "$sname"
     fi
   done
+  # Spec 004's guard patch, P-2 (FR-025, Amendment C3): no write from inside the sandbox reaches a studio folder, by
+  # spec 000's rule above: the sandbox's own mask at exactly the folder's path keeps it off (a read-only mount over the
+  # folder passes with a NOTE). PLANNED until the list holds P-2's marker, like stage H's rows, and no row prints a
+  # path, so the mount's own point is left out of every line. While denyRead hides a folder, the mask at its path is the
+  # read mask, an empty stand-in, or a read-only one over contents the sandbox can't read: it refuses writes too, but
+  # denyWrite's own mount can't be observed beneath it, so the row passes with a NOTE saying so, and stage H's
+  # write-denied row is what proves the settings hold the folder's denyWrite entry (T026, I6).
+  for entry in "${studio_folders[@]}"; do
+    sname="${entry%%:*}"
+    rid "S/unwritable/the studio's $sname folder"
+    if [ "$writes_expect" = planned ]; then
+      planned=$((planned + 1))
+      printf "PLANNED     %-21s the studio's %s folder: the guard's second patch denies it\n" stage-S-unwritable "$sname"
+      continue
+    fi
+    why="$(studio_problem "$sname" "${entry#*:}")"
+    sp="$(studio_path "$sname")"
+    if [ -n "$why" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: %s\n" stage-S-unwritable "$sname" "$why"
+      continue
+    elif [ ! -e "$sp" ] && [ ! -L "$sp" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: nothing at its path from inside the sandbox: make the folder, or correct the path in .claude/settings.json and tools/gates/studio-folders.txt\n" stage-S-unwritable "$sname"
+      continue
+    fi
+    how="$(python3 -I "$mount_of" "$sp" 2>/dev/null)" || true
+    read_mask=""
+    case "$how" in
+      "mask an-empty-tmpfs "* | "mask /dev/null "*) read_mask=1 ;;
+      "mask read-only "*) if reads_blocked "$sp"; then read_mask=1; fi ;;
+    esac
+    case "$how" in
+      "mask "*)
+        pass=$((pass + 1))
+        if [ -n "$read_mask" ]; then
+          printf "NOTE        %-21s the studio's %s folder: unwritable through its read mask; denyWrite's own mount can't be observed while denyRead hides the folder, so H/settings/the studio's %s folder is write-denied is what proves the settings hold it\n" stage-S-unwritable "$sname" "$sname"
+        fi
+        ;;
+      "covered "*)
+        pass=$((pass + 1))
+        printf "NOTE        %-21s the studio's %s folder: no mask of its own, but it sits on a read-only mount\n" stage-S-unwritable "$sname"
+        ;;
+      *)
+        fail=$((fail + 1))
+        printf "FAIL        %-21s the studio's %s folder has no mask, so the sandbox's own mount doesn't refuse a create there (%s)\n" stage-S-unwritable "$sname" "${how%% /*}"
+        ;;
+    esac
+  done
+  # A case variant of each folder's path (FR-025: "with a case-variant read if the folders sit on a case-insensitive
+  # mount"): the last part of the path with its letters' case swapped. On a case-sensitive mount the variant doesn't
+  # exist, and the row passes with a NOTE. Where it does exist, its contents must be unreadable, unless it is another
+  # folder: the variant's device and inode against the folder's entry in its parent's listing, which a mask over the
+  # folder doesn't hide, tell which.
+  rid "S/a case variant of a studio folder is unreadable"
+  if [ "$writes_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s a case variant of a studio folder is unreadable: the guard's second patch proves it\n" stage-S-case
+  else
+    cv_bad="" cv_missing="" cv_other="" cv_same=""
+    for entry in "${studio_folders[@]}"; do
+      sname="${entry%%:*}"
+      why="$(studio_problem "$sname" "${entry#*:}")"
+      if [ -n "$why" ]; then
+        cv_bad="${cv_bad:+$cv_bad; }the studio's $sname folder: $why"
+        continue
+      fi
+      sp="$(studio_path "$sname")"
+      base="${sp##*/}"
+      if [ "${base~~}" = "$base" ]; then
+        cv_same="${cv_same:+$cv_same, }$sname"
+        continue
+      fi
+      variant="${sp%/*}/${base~~}"
+      if [ ! -e "$variant" ] && [ ! -L "$variant" ]; then
+        cv_missing="${cv_missing:+$cv_missing, }$sname"
+        continue
+      fi
+      which="$(python3 -I -c 'import os, sys
+folder, variant = sys.argv[1], sys.argv[2]
+parent, name = os.path.split(folder)
+try:
+    entry = [e for e in os.scandir(parent or "/") if e.name == name][0]
+    st, top = os.stat(variant), os.stat(parent or "/")
+    print("same" if (st.st_dev, st.st_ino) == (top.st_dev, entry.inode()) else "other")
+except (OSError, IndexError):
+    print("unknown")' "$sp" "$variant" 2>/dev/null)" || which=unknown
+      if [ "$which" = other ]; then
+        cv_other="${cv_other:+$cv_other, }$sname"
+      elif ! reads_blocked "$variant"; then
+        cv_bad="${cv_bad:+$cv_bad; }the studio's $sname folder: a case variant of its path is readable from inside the sandbox"
+      fi
+    done
+    if [ -n "$cv_bad" ]; then
+      fail=$((fail + 1))
+      printf 'FAIL        %-21s %s\n' stage-S-case "$cv_bad"
+    else
+      pass=$((pass + 1))
+      [ -z "$cv_missing" ] || printf "NOTE        %-21s no case variant of the studio's %s exists: a case-sensitive mount\n" stage-S-case "$cv_missing"
+      [ -z "$cv_other" ] || printf "NOTE        %-21s another folder sits at the case variant of the studio's %s\n" stage-S-case "$cv_other"
+      [ -z "$cv_same" ] || printf "NOTE        %-21s the last part of the path of the studio's %s holds no letter to vary\n" stage-S-case "$cv_same"
+    fi
+  fi
   # Refused: AF_UNIX sockets (EPERM), no GPU device.
   rid "S/refused/af-unix"
   if python3 -c 'import socket, sys
@@ -1198,6 +1478,170 @@ except OSError:
   for port in 18000 18001 18002 18003 18004 18100 18101 18102 18103 18104 18300 18301 18302 18303 18304; do
     s_refused_conn "127.0.0.1:$port" 127.0.0.1 "$port"
   done
+  # ComfyUI's port (spec 004 FR-025; research R-51). Its server serves the photos folder whatever the file denies say,
+  # its files at /view and its previews over a websocket, so no Claude session may reach it: not directly, and not
+  # through the session's proxy. The sandbox has a loopback of its own and the proxy's allowlist names hosts, so the
+  # refusal doesn't depend on the port, and the rows probe ComfyUI's default, 8188. Neither needs the studio's list:
+  # this repository's settings already keep loopback out of the sandbox, so both are in force from the commit that adds
+  # them. The proxy row sends only a CONNECT and a GET of /, never /view, so even a proxy that let it through would hand
+  # back no photo; it reads the proxy's status line alone, and prints neither the proxy's address nor its credentials.
+  # A proxy that can't be reached for any target fails the row, since that proves nothing about its allowlist.
+  s_refused_conn "ComfyUI's port" 127.0.0.1 8188
+  rid "S/proxy-refused/ComfyUI's port"
+  proxy_verdict="$(python3 -I - <<'PY' 2>/dev/null || echo 'FAIL the probe itself failed'
+import base64
+import ipaddress
+import os
+import socket
+import urllib.parse
+
+PORT = 8188
+TARGETS = ("127.0.0.1", "localhost", "[::1]", "0.0.0.0")
+NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy")
+
+
+def http_status(sock):
+    data = b""
+    while b"\r\n" not in data and len(data) < 8192:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    parts = data.split(b"\r\n", 1)[0].decode("latin-1").split()
+    if len(parts) >= 2 and parts[0].startswith("HTTP/") and parts[1].isdigit():
+        return int(parts[1])
+    return None
+
+
+def recv_exact(sock, n):
+    data = b""
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        if not chunk:
+            raise ConnectionError("closed")
+        data += chunk
+    return data
+
+
+def http_probes(host, port, url, target):
+    auth = ""
+    if url.username is not None:
+        pair = f"{urllib.parse.unquote(url.username)}:{urllib.parse.unquote(url.password or '')}"
+        auth = f"Proxy-Authorization: Basic {base64.b64encode(pair.encode()).decode()}\r\n"
+    found = []
+    for request in (
+        f"CONNECT {target}:{PORT} HTTP/1.1\r\nHost: {target}:{PORT}\r\n{auth}\r\n",
+        f"GET http://{target}:{PORT}/ HTTP/1.1\r\nHost: {target}:{PORT}\r\n{auth}Connection: close\r\n\r\n",
+    ):
+        with socket.create_connection((host, port), timeout=5) as sock:
+            sock.settimeout(5)
+            sock.sendall(request.encode())
+            found.append((request.split(" ", 1)[0], http_status(sock)))
+    return found
+
+
+def socks_probe(host, port, url, target):
+    name = target.strip("[]")
+    try:
+        ip = ipaddress.ip_address(name)
+        address = (b"\x01" if ip.version == 4 else b"\x04") + ip.packed
+    except ValueError:
+        address = b"\x03" + bytes([len(name)]) + name.encode()
+    with socket.create_connection((host, port), timeout=5) as sock:
+        sock.settimeout(5)
+        user = urllib.parse.unquote(url.username) if url.username is not None else None
+        sock.sendall(b"\x05\x02\x00\x02" if user is not None else b"\x05\x01\x00")
+        version, method = recv_exact(sock, 2)
+        if version != 5:
+            return [("SOCKS", "not a SOCKS5 answer")]
+        if method == 2 and user is not None:
+            u, p = user.encode(), urllib.parse.unquote(url.password or "").encode()
+            sock.sendall(b"\x01" + bytes([len(u)]) + u + bytes([len(p)]) + p)
+            if recv_exact(sock, 2)[1] != 0:
+                return [("SOCKS", "the proxy refused the credentials, so its allowlist wasn't reached")]
+        elif method != 0:
+            return [("SOCKS", "the proxy offered no method the probe can use")]
+        sock.sendall(b"\x05\x01\x00" + address + PORT.to_bytes(2, "big"))
+        return [("SOCKS", recv_exact(sock, 2)[1])]
+
+
+def judge(kind, got):
+    """None when the proxy itself refused; otherwise what it did instead."""
+    if kind == "SOCKS":
+        if isinstance(got, str):
+            return got
+        if got in (2, 7, 8):  # not allowed by its ruleset; a command or an address type it doesn't take
+            return None
+        if got == 0:
+            return "the proxy connected"
+        return f"the proxy tried to connect (SOCKS reply {got})"
+    if got in (400, 403, 405):  # its allowlist's 403, or a request it can't take
+        return None
+    if got is None:
+        return "no HTTP status line came back"
+    if got == 407:
+        return "the proxy asked for credentials, so its allowlist wasn't reached"
+    if 500 <= got <= 599:
+        return f"a gateway error ({got}): the proxy tried to connect"
+    return f"an answer from past the proxy ({got})"
+
+
+proxies = {}
+for name in NAMES:
+    value = os.environ.get(name, "").strip()
+    if value:
+        proxies.setdefault(value, []).append(name)
+if not proxies:
+    print("NOTE no proxy is named in HTTP_PROXY, HTTPS_PROXY, or ALL_PROXY")
+    raise SystemExit(0)
+bad, quiet = [], []
+for value, names in proxies.items():
+    label = "/".join(names)
+    url = urllib.parse.urlsplit(value if "://" in value else "http://" + value)
+    scheme = url.scheme.lower()
+    try:
+        host, port = url.hostname, url.port or (1080 if scheme.startswith("socks") else 3128)
+    except ValueError:
+        bad.append(f"{label}: a proxy address the probe can't read")
+        continue
+    if not host or scheme not in ("http", "socks5", "socks5h"):
+        bad.append(f"{label}: a {scheme or 'schemeless'} proxy, which the probe can't speak to")
+        continue
+    silent = []
+    for target in TARGETS:
+        try:
+            found = (http_probes if scheme == "http" else socks_probe)(host, port, url, target)
+        except OSError:
+            silent.append(f"{label} for {target}")
+            continue
+        for kind, got in found:
+            why = judge(kind, got)
+            if why:
+                bad.append(f"{label}, {kind} {target}:{PORT}: {why}")
+    # A proxy that answered no target at all couldn't be reached, so the row proved nothing about it (T026, nit 5).
+    if len(silent) == len(TARGETS):
+        bad.append(f"{label}: the proxy couldn't be reached for any target, so nothing about its allowlist was proved")
+    else:
+        quiet += silent
+if bad:
+    print("FAIL " + "; ".join(bad))
+elif quiet:
+    print("NOTE no answer from the proxy named by " + ", ".join(quiet) + ", so nothing passed through it there")
+else:
+    print("PASS")
+PY
+)"
+  case "$proxy_verdict" in
+    PASS) pass=$((pass + 1)) ;;
+    "NOTE "*)
+      pass=$((pass + 1))
+      printf 'NOTE        %-21s %s\n' stage-S-proxy "${proxy_verdict#NOTE }"
+      ;;
+    *)
+      fail=$((fail + 1))
+      printf "FAIL        %-21s ComfyUI's port through the proxy: %s\n" stage-S-proxy "${proxy_verdict#FAIL }"
+      ;;
+  esac
   rid "S/conn-control/loopback"
   if python3 -c 'import socket, sys
 srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(1)
