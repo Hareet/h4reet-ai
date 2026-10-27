@@ -681,6 +681,38 @@ describe("with the poller wired: the requests (FR-044, FR-045; T246)", () => {
   });
 });
 
+describe("with the poller wired: one change that resumes the room and hides the page (FR-044; T246)", () => {
+  it("asks nothing while hidden, though the same change resumed the room, and asks on show", () => {
+    const clock = new FakeClock();
+    const motion = fakeMotion();
+    const calls: number[] = [];
+    const live = createLiveSignals({
+      live: { source: "site", freshness_ms: FRESH },
+      clock,
+      wall: () => WALL0 + clock.now(),
+      motion,
+      apply: () => undefined,
+      status: {
+        pollMs: 30_000,
+        fetch: () => (calls.push(clock.now()), new Promise<Response>(() => undefined)),
+      },
+    });
+    live.enter();
+    expect(calls).toEqual([0]);
+    clock.advance(5_000, FRAME);
+    motion.set({ paused: true });
+    clock.advance(60_000, FRAME);
+    // One notification: paused off and hidden on together.
+    motion.set({ paused: false, hidden: true });
+    expect(live.tier.tier).toBe("paused");
+    clock.advance(120_000, FRAME);
+    expect(calls).toEqual([0]);
+    motion.set({ hidden: false });
+    expect(calls).toEqual([0, clock.now()]);
+    live.dispose();
+  });
+});
+
 describe("with the poller wired: the first frame after a failure or a stale answer (SC-003; T244)", () => {
   it.each([
     ["network", "reject" as Reply, undefined],
