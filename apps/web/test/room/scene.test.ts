@@ -61,6 +61,7 @@ import type { Room3D } from "../../src/room/scene/bundle3d";
 import { VISITOR_TURN, visitorTurnShare } from "../../src/room/handoff";
 import { readImage } from "../../src/room/glb/images";
 import { MODEL_NODE, integrity } from "../../src/room/scene/loader";
+import { outlineThickness } from "../../src/room/scene/look";
 import { shapeGeometry } from "../../src/room/scene/standins";
 import type { SceneOptions } from "../../src/room/stage";
 import { uiWord } from "../../src/room/ui-keys";
@@ -1099,6 +1100,11 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
     await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
     await answerAll(s, 0);
     s.clock.advance(SETTLE_FRAMES * 16);
+    // A sized stage, which the next frame reads: every line follows its height.
+    const [w, h] = [800, 500];
+    Object.defineProperty(s.stage.canvas, "clientWidth", { configurable: true, value: w });
+    Object.defineProperty(s.stage.canvas, "clientHeight", { configurable: true, value: h });
+    s.clock.advance(16);
     const lines = new Set<unknown>();
     let models = 0;
     s.drawn().traverse((node) => {
@@ -1113,7 +1119,7 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
     });
     expect(models).toBeGreaterThan(0);
     expect(lines.size).toBe(1);
-    expect([...lines][0]).toBeDefined();
+    expect([...lines][0]).toEqual({ thickness: outlineThickness(s.result.scene.look.outlines.width, h) });
     s.stage.dispose();
   });
 

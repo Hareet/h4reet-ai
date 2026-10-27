@@ -630,6 +630,18 @@ describe("the scene, the look, the sample state, quality, and pause (contracts/l
     const cel = given.lookdev.looks.find((l) => l.method === "inked-cel");
     const other = given.lookdev.looks.find((l) => l.method !== "inked-cel");
     if (!cel || !other) throw new Error("lookdev lists no inked-cel look, or no other");
+    // The room the page opens on, before any look is chosen: prepared once it is built, so the phone's height reaches
+    // the set's lines too.
+    expect(page.stage.look.id).toBe(cel.id);
+    choose(control<HTMLInputElement>(root, "Reference phone"));
+    const set = new Set<unknown>();
+    page.stage.room.scene.traverse((node) => {
+      const mesh = node as Mesh;
+      if (mesh.isMesh) for (const m of ([] as Material[]).concat(mesh.material)) set.add(m.userData.outlineParameters);
+    });
+    expect(set.size).toBe(1);
+    expect([...set][0]).toEqual({ thickness: outlineThickness(cel.outlines.width, REFERENCE_PHONE.stage.h) });
+    choose(control<HTMLInputElement>(root, "Reference desktop"));
     const select = control<HTMLSelectElement>(root, "Look");
     choose(select, other.id);
     choose(select, cel.id);
