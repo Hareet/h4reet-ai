@@ -1,0 +1,1192 @@
+P-8: the outline check (tasks.md T038; contracts/intake-amendments.md §10; FR-024, FR-025, FR-032, FR-052, SC-013;
+the fourth clarification; research R-56). Made on feat/004-intake against main a964494; apply after P-7
+(docs/merge-requests/2026-10-27-feat-004-intake.md). git apply skips this header.
+
+It adds two files:
+- tools/gates/outline_check.py (mode 100755), standard library only, which the Author runs directly from main's
+  checkout, with the working folder inside the photos folder; its shebang and re-exec guard give it PY_HOST's flags.
+  Two forms: --from-svg <trace>.svg --sign ... (writes <sign>.outline.json from each <path>'s d and the root's
+  viewBox, says how many other elements it left behind and how many were images, refuses a path under a transform,
+  a document type declaration, and an output name with a folder), and <sign>.outline.json (checks a file). Rules O1
+  to O10 as §10 gives them, paths 1 to 512 strings and at most 262,144 characters. Output: `<rule> <file name>:
+  <reason>` lines, then `outline-check: PASS: <file name>, <n> paths, sha256 <64 hex>` or `outline-check: <n>
+  findings`, never a value or a path. Exit 0 PASS, 1 findings, 2 a file or the SVG it can't read.
+- tools/gates/test/test_outline_check.py: §10's cases, every file built at run time.
+
+diff --git a/tools/gates/outline_check.py b/tools/gates/outline_check.py
+new file mode 100755
+index 0000000..2f53981
+--- /dev/null
++++ b/tools/gates/outline_check.py
+@@ -0,0 +1,588 @@
++#!/usr/bin/env -S python3 -I -B -X pycache_prefix=/dev/null
++"""The outline check (spec 004 FR-024, FR-025, FR-032, FR-052, SC-013; contracts/intake-amendments.md §10; R-56).
++
++    tools/gates/outline_check.py --from-svg <trace>.svg --sign <id> --words <words> --source-type photo
++        --source-id <opaque id> --tool-name <name> --tool-version <version> --tool-license <id>
++        --cap-height <n> [--advance <n>] [--intent-ref intent-<NNN>]
++    tools/gates/outline_check.py <sign>.outline.json
++
++The Author runs it in the Author's own terminal, with the working folder inside the photos folder, calling this file
++in main's checkout directly, never through make; its first line and the guard below give it PY_HOST's flags. It is
++the only code from this repository that runs there, on data traced from a photo, so agents can't change it (ADR 0017).
++It reads only the files it is given: no network, and no repository. Standard library only.
++
++--from-svg writes <sign>.outline.json in the working folder from the local tracing tool's SVG: each <path>'s d, in
++document order, and the root's viewBox, and nothing else; it says how many other elements it left behind, and how
++many of them were images, never what they held. It refuses a path under a transform (it doesn't apply transforms:
++export with them applied), an SVG with a document type declaration, and an output name with a folder in it or outside
++the room's ID grammar. The file is UTF-8 JSON with LF line ends, two-space indents, the schema's field order, and a
++final newline, so the same inputs give the same bytes. Then it checks the file, as the second form does.
++
++The rules, O1 to O10 (contracts/intake-amendments.md §10; data-model.md §6.2):
++  O1  not a regular file, not UTF-8, not strict JSON (a duplicate key, NaN, Infinity, a byte-order mark, trailing
++      data), or not an object
++  O2  a key outside the schema, at any level, or a required key missing
++  O3  schema, view_box, cap_height, or advance of the wrong type or out of range
++  O4  sign outside the ID grammar, or a file not named <sign>.outline.json
++  O5  words empty, longer than 200 characters, or holding a control character
++  O6  intent_ref not intent-NNN
++  O7  source.type other than photo or design; source.id not opaque, holding a camera file stem or a date finer than a
++      day
++  O8  a tool field empty, longer than 64 characters, or not printable
++  O9  paths empty, more than 512, more than 262,144 characters in all, or an entry that isn't SVG path data
++  O10 a string outside paths holding href, data:, url(, a run of 40 or more base64 characters, a slash or a
++      backslash, a file extension, a camera file stem, or a date-time finer than a day
++
++Output: one line per finding, `<rule> <file name>: <reason>`, then `outline-check: PASS: <file name>, <n> paths,
++sha256 <64 hex>` or `outline-check: <n> findings`. It never prints a value from the file, from the SVG, or from the
++folder, and never a path. Exit 0 PASS; 1 findings; 2 a file or the SVG it can't read, or a usage error.
++"""
++
++from __future__ import annotations
++
++import os
++import sys
++
++# PY_HOST's flags (spec 000 plan §4; research.md R-35), before anything else is imported. The first line sets them; a
++# bare `python3 tools/gates/outline_check.py` starts again with them, so neither PYTHONPATH nor a planted __pycache__
++# in the photos folder reaches it. Imported (its tests), it runs nothing.
++REEXEC = ["-I", "-B", "-X", "pycache_prefix=/dev/null"]
++if __name__ == "__main__" and not (
++    sys.flags.isolated
++    and sys.flags.dont_write_bytecode
++    and sys.pycache_prefix == "/dev/null"
++):
++    os.execv(
++        sys.executable,
++        [sys.executable, *REEXEC, os.path.abspath(__file__), *sys.argv[1:]],
++    )
++
++import argparse
++import hashlib
++import json
++import math
++import re
++import stat
++import tempfile
++import unicodedata
++from pathlib import Path
++from xml.etree import ElementTree as ET
++
++# --------------------------------------------------------------------------------------------------
++# The schema (data-model.md §6.2) and this contract's bounds, which change only by the Author's patch
++# --------------------------------------------------------------------------------------------------
++FIELDS = (
++    "schema",
++    "sign",
++    "words",
++    "intent_ref",
++    "source",
++    "tool",
++    "view_box",
++    "cap_height",
++    "advance",
++    "paths",
++)
++REQUIRED = tuple(f for f in FIELDS if f != "advance")
++SOURCE_FIELDS = ("type", "id")
++TOOL_FIELDS = ("name", "version", "license")
++MAX_PATHS = 512
++MAX_PATH_CHARS = 262_144
++MAX_WORDS = 200
++MAX_TOOL = 64
++SUFFIX = ".outline.json"
++
++SIGN = re.compile(r"[a-z][a-z0-9-]{1,40}")
++INTENT = re.compile(r"intent-\d{3}")
++OPAQUE = re.compile(r"[A-Za-z0-9-]{3,40}")
++# Spec 003's camera and phone file stems (its arrival check's M8 list): IMG_, PXL_, MVIMG_, DSC and DSCN,
++# Screenshot, WhatsApp's IMG-YYYYMMDD-WA, and Samsung's YYYYMMDD_HHMMSS.
++CAMERA_STEM = re.compile(
++    r"(?i)(?<![a-z0-9])(?:img_|img-\d{8}-wa|pxl_|mvimg_|dscn?(?=[_\d])|screenshot)"
++    r"|(?<!\d)(?:19|20)\d{6}_\d{6}(?!\d)"
++)
++# A time of day, as spec 003's R5 reads one, or a date run on into an hour and a minute.
++DATE_TIME = re.compile(
++    r"\d{1,2}:\d{2}|(?<!\d)(?:19|20)\d{2}-?[01]\d-?[0-3]\d[T_ \-]?[0-2]\d[:\-]?[0-5]\d"
++)
++LINKISH = re.compile(r"(?i)href|data:|url\(")
++# Base64's own alphabet: a hyphenated ID, which the grammars allow up to 40 or 41 characters, isn't a blob.
++BASE64_RUN = re.compile(r"[A-Za-z0-9+/=]{40,}")
++EXTENSION = re.compile(r"\.[A-Za-z]{1,5}(?![A-Za-z])")
++# SVG path data: the commands, numbers, commas, and white space.
++PATH_TOKEN = re.compile(
++    r"\s+|,|[MmLlHhVvCcSsQqTtAaZz]|[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?"
++)
++SVG_NS = "{http://www.w3.org/2000/svg}"
++
++
++class CannotRead(Exception):
++    """Exit 2: a file or the SVG it can't read, or an output it won't write; the reason names no value."""
++
++
++# --------------------------------------------------------------------------------------------------
++# Strict JSON (O1)
++# --------------------------------------------------------------------------------------------------
++def _pairs(pairs: list[tuple[str, object]]) -> dict:
++    out: dict = {}
++    for key, value in pairs:
++        if key in out:
++            raise ValueError("a duplicate key")
++        out[key] = value
++    return out
++
++
++def _constant(name: str) -> object:
++    raise ValueError("NaN or Infinity")
++
++
++def strict_json(data: bytes) -> object:
++    if data.startswith(b"\xef\xbb\xbf"):
++        raise ValueError("a byte-order mark")
++    text = data.decode("utf-8")
++    return json.loads(text, object_pairs_hook=_pairs, parse_constant=_constant)
++
++
++# --------------------------------------------------------------------------------------------------
++# The rules
++# --------------------------------------------------------------------------------------------------
++def number(value: object) -> bool:
++    return (
++        isinstance(value, (int, float))
++        and not isinstance(value, bool)
++        and math.isfinite(value)
++    )
++
++
++def path_data(text: str) -> bool:
++    """SVG path data: only commands, finite numbers, commas, and white space, starting with a moveto."""
++    pos, first = 0, None
++    while pos < len(text):
++        match = PATH_TOKEN.match(text, pos)
++        if not match:
++            return False
++        token = match.group()
++        pos = match.end()
++        if token.strip(" \t\r\n,") == "":
++            continue
++        if first is None:
++            first = token
++        if token[0] not in "MmLlHhVvCcSsQqTtAaZz" and not math.isfinite(float(token)):
++            return False
++    return first is not None and first in "Mm"
++
++
++def strings_outside_paths(doc: dict) -> list[tuple[str, str]]:
++    """(field, value) for each string O10 reads: every string field but paths."""
++    found = []
++    for key in ("sign", "words", "intent_ref"):
++        if isinstance(doc.get(key), str):
++            found.append((key, doc[key]))
++    for parent, fields in (("source", SOURCE_FIELDS), ("tool", TOOL_FIELDS)):
++        part = doc.get(parent)
++        if isinstance(part, dict):
++            for key in fields:
++                if isinstance(part.get(key), str):
++                    found.append((f"{parent}.{key}", part[key]))
++    return found
++
++
++def o10_problem(value: str) -> str | None:
++    if LINKISH.search(value):
++        return "a link (href, data:, or url()"
++    if BASE64_RUN.search(value):
++        return "a run of 40 or more base64 characters"
++    if "/" in value or "\\" in value:
++        return "a slash or a backslash"
++    if EXTENSION.search(value):
++        return "a file extension"
++    if CAMERA_STEM.search(value):
++        return "a camera file stem"
++    if DATE_TIME.search(value):
++        return "a date-time finer than a day"
++    return None
++
++
++def findings(name: str, data: bytes | None) -> list[tuple[str, str]]:
++    """(rule, reason) for a file's name and bytes; None bytes for a file that isn't a regular file (O1)."""
++    if data is None:
++        return [("O1", "it isn't a regular file")]
++    try:
++        doc = strict_json(data)
++    except UnicodeDecodeError:
++        return [("O1", "it isn't UTF-8")]
++    except (ValueError, RecursionError) as exc:
++        why = (
++            str(exc)
++            if str(exc) in ("a duplicate key", "NaN or Infinity", "a byte-order mark")
++            else None
++        )
++        return [("O1", f"it isn't strict JSON{f': {why}' if why else ''}")]
++    if not isinstance(doc, dict):
++        return [("O1", "it isn't a JSON object")]
++    out: list[tuple[str, str]] = []
++
++    # O2: the schema's keys, at every level.
++    def keys(
++        item: dict, allowed: tuple[str, ...], required: tuple[str, ...], where: str
++    ) -> None:
++        unknown = [k for k in item if k not in allowed]
++        missing = [k for k in required if k not in item]
++        if unknown:
++            out.append(
++                ("O2", f"{where} holds {len(unknown)} key(s) outside the schema")
++            )
++        if missing:
++            out.append(("O2", f"{where} lacks {', '.join(missing)}"))
++
++    keys(doc, FIELDS, REQUIRED, "the file")
++    for parent, fields in (("source", SOURCE_FIELDS), ("tool", TOOL_FIELDS)):
++        if isinstance(doc.get(parent), dict):
++            keys(doc[parent], fields, fields, parent)
++
++    # O3: the numbers.
++    if "schema" in doc and (doc["schema"] != 1 or isinstance(doc["schema"], bool)):
++        out.append(("O3", "schema isn't 1"))
++    box = doc.get("view_box")
++    good_box = (
++        isinstance(box, list)
++        and len(box) == 4
++        and all(number(v) for v in box)
++        and box[2] > 0
++        and box[3] > 0
++    )
++    if "view_box" in doc and not good_box:
++        out.append(
++            (
++                "O3",
++                "view_box isn't four finite numbers with a width and a height above 0",
++            )
++        )
++    if "cap_height" in doc:
++        cap = doc["cap_height"]
++        if not number(cap) or cap <= 0 or (good_box and cap > box[3]):
++            out.append(
++                (
++                    "O3",
++                    "cap_height isn't a finite number above 0, at most the view box's height",
++                )
++            )
++    if "advance" in doc:
++        advance = doc["advance"]
++        if not number(advance) or advance <= 0 or (good_box and advance > box[2]):
++            out.append(
++                (
++                    "O3",
++                    "advance isn't a finite number above 0, at most the view box's width",
++                )
++            )
++
++    # O4: the sign and the file's name.
++    sign = doc.get("sign")
++    if "sign" in doc and not (isinstance(sign, str) and SIGN.fullmatch(sign)):
++        out.append(("O4", "sign isn't a piece ID (^[a-z][a-z0-9-]{1,40}$)"))
++    elif isinstance(sign, str) and name != f"{sign}{SUFFIX}":
++        out.append(("O4", f"the file isn't named after its sign, <sign>{SUFFIX}"))
++
++    # O5: the words.
++    if "words" in doc:
++        words = doc["words"]
++        if not isinstance(words, str) or not words:
++            out.append(("O5", "words isn't text"))
++        elif len(words) > MAX_WORDS:
++            out.append(("O5", f"words is longer than {MAX_WORDS} characters"))
++        elif any(
++            unicodedata.category(c).startswith("C")
++            or unicodedata.category(c) in ("Zl", "Zp")
++            for c in words
++        ):
++            out.append(("O5", "words holds a control character"))
++
++    # O6: the intent.
++    if "intent_ref" in doc and not (
++        isinstance(doc["intent_ref"], str) and INTENT.fullmatch(doc["intent_ref"])
++    ):
++        out.append(("O6", "intent_ref isn't intent-NNN"))
++
++    # O7: the source.
++    source = doc.get("source")
++    if "source" in doc and not isinstance(source, dict):
++        out.append(("O7", "source isn't an object"))
++    elif isinstance(source, dict):
++        if "type" in source and source["type"] not in ("photo", "design"):
++            out.append(("O7", "source.type isn't photo or design"))
++        if "id" in source:
++            sid = source["id"]
++            if not (isinstance(sid, str) and OPAQUE.fullmatch(sid)):
++                out.append(("O7", "source.id isn't an opaque ID ([A-Za-z0-9-]{3,40})"))
++            elif CAMERA_STEM.search(sid):
++                out.append(("O7", "source.id holds a camera file stem"))
++            elif DATE_TIME.search(sid):
++                out.append(("O7", "source.id holds a date finer than a day"))
++
++    # O8: the tool.
++    tool = doc.get("tool")
++    if "tool" in doc and not isinstance(tool, dict):
++        out.append(("O8", "tool isn't an object"))
++    elif isinstance(tool, dict):
++        for key in TOOL_FIELDS:
++            if key not in tool:
++                continue
++            value = tool[key]
++            if not isinstance(value, str) or not value:
++                out.append(("O8", f"tool.{key} isn't text"))
++            elif len(value) > MAX_TOOL:
++                out.append(("O8", f"tool.{key} is longer than {MAX_TOOL} characters"))
++            elif not value.isprintable():
++                out.append(("O8", f"tool.{key} isn't printable"))
++
++    # O9: the paths.
++    if "paths" in doc:
++        paths = doc["paths"]
++        if not isinstance(paths, list) or not paths:
++            out.append(("O9", "paths isn't a list of at least one path"))
++        elif len(paths) > MAX_PATHS:
++            out.append(("O9", f"paths holds more than {MAX_PATHS} paths"))
++        elif not all(isinstance(p, str) for p in paths):
++            out.append(("O9", "a path isn't text"))
++        elif sum(map(len, paths)) > MAX_PATH_CHARS:
++            out.append(
++                ("O9", f"paths hold more than {MAX_PATH_CHARS:,} characters in all")
++            )
++        else:
++            bad = [i for i, p in enumerate(paths) if not path_data(p)]
++            if bad:
++                out.append(
++                    (
++                        "O9",
++                        (
++                            f"paths[{bad[0]}] isn't SVG path data (commands, finite numbers, commas, and white space, "
++                            f"starting with a moveto){f', and {len(bad) - 1} more' if len(bad) > 1 else ''}"
++                        ),
++                    )
++                )
++
++    # O10: every other string.
++    for where, value in strings_outside_paths(doc):
++        problem = o10_problem(value)
++        if problem:
++            out.append(("O10", f"{where} holds {problem}"))
++    return out
++
++
++def shown(name: str) -> str:
++    """A file name as the output shows it: printable, at most 120 characters."""
++    return "".join(c if c.isprintable() else "?" for c in name)[:120]
++
++
++def check(path: Path) -> int:
++    """Check one outline file, print the findings and the summary, and return the exit code."""
++    name = path.name
++    try:
++        mode = os.lstat(path).st_mode
++    except OSError:
++        raise CannotRead(f"{shown(name)} can't be read") from None
++    data = None
++    if stat.S_ISREG(mode):
++        try:
++            data = path.read_bytes()
++        except OSError:
++            raise CannotRead(f"{shown(name)} can't be read") from None
++    found = findings(name, data)
++    for rule, reason in found:
++        print(f"{rule} {shown(name)}: {reason}")
++    if found:
++        print(f"outline-check: {len(found)} findings")
++        return 1
++    count = len(json.loads(data)["paths"])
++    print(
++        f"outline-check: PASS: {shown(name)}, {count} path{'s' if count != 1 else ''}, "
++        f"sha256 {hashlib.sha256(data).hexdigest()}"
++    )
++    return 0
++
++
++# --------------------------------------------------------------------------------------------------
++# --from-svg
++# --------------------------------------------------------------------------------------------------
++def figure(text: str) -> int | float:
++    """A number as the command line or the SVG writes it: an int when it has no fraction, so the bytes stay the same."""
++    value = float(text)
++    if not math.isfinite(value):
++        raise ValueError("not finite")
++    return (
++        int(value)
++        if value == int(value) and re.fullmatch(r"[+-]?\d+(?:\.0*)?", text.strip())
++        else value
++    )
++
++
++def local(tag: object) -> str:
++    """An element's name without the SVG namespace; another namespace's element keeps it, so it's never a path."""
++    text = tag if isinstance(tag, str) else ""
++    return text.removeprefix(SVG_NS)
++
++
++def from_svg(svg: Path) -> tuple[list[int | float], list[str], int, int]:
++    """The root's viewBox, each path's d in document order, how many other elements were left behind, and how many of
++    those were images. CannotRead for an SVG it can't read or a path under a transform."""
++    try:
++        data = svg.read_bytes()
++    except OSError:
++        raise CannotRead("the SVG can't be read") from None
++    if b"<!DOCTYPE" in data or b"<!ENTITY" in data:
++        raise CannotRead(
++            "the SVG has a document type declaration, which the check doesn't read; export a plain SVG"
++        )
++    try:
++        root = ET.fromstring(data)
++    except (ET.ParseError, ValueError):
++        raise CannotRead("the SVG isn't well-formed XML") from None
++    if local(root.tag) != "svg":
++        raise CannotRead("the file's root isn't an svg element")
++    parts = re.split(r"[\s,]+", (root.get("viewBox") or "").strip())
++    try:
++        view_box = [figure(p) for p in parts] if len(parts) == 4 else []
++    except ValueError:
++        view_box = []
++    if len(view_box) != 4:
++        raise CannotRead("the SVG's root has no viewBox of four numbers")
++    paths: list[str] = []
++    other = images = 0
++
++    def walk(element: ET.Element, transformed: bool) -> None:
++        nonlocal other, images
++        for child in element:
++            under = transformed or child.get("transform") is not None
++            kind = local(child.tag)
++            if kind == "path" and child.get("d") is not None:
++                if under:
++                    raise CannotRead(
++                        "a path sits under a transform, which the check doesn't apply; export with transforms applied"
++                    )
++                paths.append(child.get("d"))
++            else:
++                other += 1
++                images += kind == "image"
++            walk(child, under)
++
++    if root.get("transform") is not None:
++        raise CannotRead(
++            "the svg element carries a transform, which the check doesn't apply"
++        )
++    walk(root, False)
++    return view_box, paths, other, images
++
++
++def write_outline(folder: Path, doc: dict, name: str) -> Path:
++    """The file, UTF-8 with LF line ends, two-space indents, the schema's field order, and a final newline."""
++    text = (
++        json.dumps(
++            {k: doc[k] for k in FIELDS if k in doc}, indent=2, ensure_ascii=False
++        )
++        + "\n"
++    )
++    target = folder / name
++    with tempfile.NamedTemporaryFile(
++        dir=folder, prefix=".outline-", suffix=".tmp", delete=False
++    ) as tmp:
++        tmp.write(text.encode("utf-8"))
++    os.chmod(tmp.name, 0o644)
++    os.replace(tmp.name, target)
++    return target
++
++
++# --------------------------------------------------------------------------------------------------
++# The command line
++# --------------------------------------------------------------------------------------------------
++class Parser(argparse.ArgumentParser):
++    """argparse, but a usage error names no value the Author typed."""
++
++    def error(self, message: str) -> None:  # type: ignore[override]
++        print("outline-check: can't read the command line; see --help", file=sys.stderr)
++        raise SystemExit(2)
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = Parser(
++        description="The outline check (spec 004, FR-032): run it inside the photos folder."
++    )
++    parser.add_argument("file", nargs="?", help="<sign>.outline.json, to check")
++    parser.add_argument(
++        "--from-svg", metavar="SVG", help="the tracing tool's SVG, to convert and check"
++    )
++    for option in (
++        "--sign",
++        "--words",
++        "--source-type",
++        "--source-id",
++        "--tool-name",
++        "--tool-version",
++        "--tool-license",
++        "--cap-height",
++        "--advance",
++        "--intent-ref",
++    ):
++        parser.add_argument(option)
++    args = parser.parse_args(argv)
++    try:
++        if args.from_svg is None:
++            if args.file is None:
++                parser.error("a file")
++            return check(Path(args.file))
++        needed = (
++            "sign",
++            "words",
++            "source_type",
++            "source_id",
++            "tool_name",
++            "tool_version",
++            "tool_license",
++            "cap_height",
++        )
++        if args.file is not None or any(getattr(args, n) is None for n in needed):
++            parser.error("the --from-svg form")
++        sign = args.sign
++        if "/" in sign or "\\" in sign or not SIGN.fullmatch(sign):
++            raise CannotRead(
++                "--sign isn't a piece ID, so the output's name would hold a folder or break the grammar"
++            )
++        try:
++            cap_height = figure(args.cap_height)
++            advance = None if args.advance is None else figure(args.advance)
++        except ValueError:
++            raise CannotRead(
++                "--cap-height or --advance isn't a finite number"
++            ) from None
++        view_box, paths, other, images = from_svg(Path(args.from_svg))
++        doc = {
++            "schema": 1,
++            "sign": sign,
++            "words": args.words,
++            "intent_ref": args.intent_ref or "intent-004",
++            "source": {"type": args.source_type, "id": args.source_id},
++            "tool": {
++                "name": args.tool_name,
++                "version": args.tool_version,
++                "license": args.tool_license,
++            },
++            "view_box": view_box,
++            "cap_height": cap_height,
++            "paths": paths,
++        }
++        if advance is not None:
++            doc["advance"] = advance
++        target = write_outline(Path.cwd(), doc, f"{sign}{SUFFIX}")
++        print(
++            f"outline-check: from the SVG: copied {len(paths)} path{'s' if len(paths) != 1 else ''} and its viewBox; "
++            f"left behind {other} other element{'s' if other != 1 else ''}, "
++            f"{images} of them image{'s' if images != 1 else ''}"
++        )
++        return check(target)
++    except CannotRead as exc:
++        print(f"outline-check: can't check: {exc}")
++        return 2
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tools/gates/test/test_outline_check.py b/tools/gates/test/test_outline_check.py
+new file mode 100644
+index 0000000..75a9a08
+--- /dev/null
++++ b/tools/gates/test/test_outline_check.py
+@@ -0,0 +1,577 @@
++"""Tests for tools/gates/outline_check.py (spec 004 FR-024, FR-025, FR-032, FR-052, SC-013; contracts/intake-amendments.md
++§10; tasks.md T038).
++
++Every SVG and outline file here is written at run time into a temporary folder, which stands for the photos folder;
++the check runs there as the Author runs it, by path, with the working folder inside it. Each fixture's own values
++(its words, IDs, tool fields, and the SVG's other content) are marked, so a test can show that no output line holds
++one.
++"""
++
++from __future__ import annotations
++
++import hashlib
++import json
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++
++HERE = Path(__file__).resolve().parent
++SCRIPT = HERE.parent / "outline_check.py"
++
++WORDS = "I am very busy"
++SVG_NS = "http://www.w3.org/2000/svg"
++PATH_A = "M 10 10 L 90 10 L 90 60 Z"
++PATH_B = "m100,10 c5,0 10,5 10,10 s-5,10 -10,10 z"
++# A value no output line may hold: each fixture's fields carry it.
++MARK = "h4fixturevalue"
++
++
++def run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
++    """The check as the Author runs it: by path, in the working folder; its first line and guard give it PY_HOST."""
++    return subprocess.run(
++        [sys.executable, str(SCRIPT), *args],
++        cwd=cwd,
++        capture_output=True,
++        text=True,
++        check=False,
++        timeout=60,
++        env={"PATH": "/usr/bin:/bin", "LC_ALL": "C.UTF-8"},
++    )
++
++
++def svg(body: str, *, view_box: str = "0 0 400 120", extra: str = "") -> str:
++    return (
++        '<?xml version="1.0" encoding="UTF-8"?>\n'
++        f'<svg xmlns="{SVG_NS}" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="{view_box}"{extra}>\n'
++        f"{body}\n</svg>\n"
++    )
++
++
++TRACE = svg(
++    f'  <metadata id="{MARK}-meta">{MARK} traced over a photo</metadata>\n'
++    f'  <g id="{MARK}-layer">\n'
++    f'    <path id="{MARK}-a" style="fill:#000" d="{PATH_A}"/>\n'
++    f'    <path d="{PATH_B}"/>\n'
++    "  </g>"
++)
++FIELDS = [
++    "--sign",
++    "busy-sign",
++    "--words",
++    WORDS,
++    "--source-type",
++    "photo",
++    "--source-id",
++    "PH-0042",
++    "--tool-name",
++    "Inkscape",
++    "--tool-version",
++    "1.4",
++    "--tool-license",
++    "GPL-2.0-or-later",
++    "--cap-height",
++    "80",
++]
++
++
++def from_svg(
++    folder: Path, text: str = TRACE, *extra: str
++) -> subprocess.CompletedProcess[str]:
++    (folder / "trace.svg").write_text(text, encoding="utf-8")
++    return run(folder, "--from-svg", "trace.svg", *FIELDS, *extra)
++
++
++def outline(**over: object) -> dict:
++    doc: dict = {
++        "schema": 1,
++        "sign": "busy-sign",
++        "words": WORDS,
++        "intent_ref": "intent-004",
++        "source": {"type": "design", "id": "D-0001"},
++        "tool": {"name": "Inkscape", "version": "1.4", "license": "GPL-2.0-or-later"},
++        "view_box": [0, 0, 400, 120],
++        "cap_height": 80,
++        "advance": 380,
++        "paths": [PATH_A, PATH_B],
++    }
++    doc.update(over)
++    return {k: v for k, v in doc.items() if v is not None}
++
++
++def write(folder: Path, doc: object, name: str = "busy-sign.outline.json") -> Path:
++    target = folder / name
++    text = doc if isinstance(doc, str) else json.dumps(doc, indent=2) + "\n"
++    target.write_bytes(text.encode("utf-8") if isinstance(text, str) else text)
++    return target
++
++
++def check_file(folder: Path, doc: object, name: str = "busy-sign.outline.json"):
++    write(folder, doc, name)
++    return run(folder, name)
++
++
++def rules(done: subprocess.CompletedProcess[str]) -> set[str]:
++    return {
++        line.split(" ", 1)[0]
++        for line in done.stdout.splitlines()
++        if line[:1] == "O" and line[1:2].isdigit()
++    }
++
++
++# --------------------------------------------------------------------------------------------------
++# --from-svg: the conversion
++# --------------------------------------------------------------------------------------------------
++def test_a_clean_photo_traced_file_passes(tmp_path: Path) -> None:
++    done = from_svg(tmp_path)
++    assert done.returncode == 0, done.stdout + done.stderr
++    written = tmp_path / "busy-sign.outline.json"
++    data = written.read_bytes()
++    digest = hashlib.sha256(data).hexdigest()
++    assert done.stdout.splitlines()[-1] == (
++        f"outline-check: PASS: busy-sign.outline.json, 2 paths, sha256 {digest}"
++    )
++    doc = json.loads(data)
++    assert list(doc) == [
++        "schema",
++        "sign",
++        "words",
++        "intent_ref",
++        "source",
++        "tool",
++        "view_box",
++        "cap_height",
++        "paths",
++    ]
++    assert doc == {
++        "schema": 1,
++        "sign": "busy-sign",
++        "words": WORDS,
++        "intent_ref": "intent-004",
++        "source": {"type": "photo", "id": "PH-0042"},
++        "tool": {"name": "Inkscape", "version": "1.4", "license": "GPL-2.0-or-later"},
++        "view_box": [0, 0, 400, 120],
++        "cap_height": 80,
++        "paths": [PATH_A, PATH_B],
++    }
++    # UTF-8 JSON, LF line ends, two-space indents, a final newline.
++    assert b"\r" not in data and data.endswith(b"}\n") and not data.endswith(b"\n\n")
++    assert data.startswith(b'{\n  "schema": 1,\n  "sign": "busy-sign",\n')
++
++
++def test_the_same_inputs_give_the_same_bytes(tmp_path: Path) -> None:
++    one, two = tmp_path / "one", tmp_path / "two"
++    one.mkdir()
++    two.mkdir()
++    assert from_svg(one).returncode == 0
++    assert from_svg(two).returncode == 0
++    first = (one / "busy-sign.outline.json").read_bytes()
++    assert first == (two / "busy-sign.outline.json").read_bytes()
++    # And again in place, over the first.
++    assert from_svg(one).returncode == 0
++    assert (one / "busy-sign.outline.json").read_bytes() == first
++
++
++def test_advance_and_the_intent_are_taken_when_given(tmp_path: Path) -> None:
++    done = from_svg(tmp_path, TRACE, "--advance", "372.5", "--intent-ref", "intent-005")
++    assert done.returncode == 0, done.stdout + done.stderr
++    doc = json.loads((tmp_path / "busy-sign.outline.json").read_text(encoding="utf-8"))
++    assert doc["advance"] == 372.5 and doc["intent_ref"] == "intent-005"
++    assert list(doc)[-3:] == ["cap_height", "advance", "paths"]
++
++
++def test_it_reports_what_it_left_behind_an_embedded_image_among_it(
++    tmp_path: Path,
++) -> None:
++    image = (
++        f'  <image xlink:href="data:image/png;base64,{"QUJD" * 40}" width="400" height="120"/>\n'
++        f'  <image href="{MARK}.jpg" width="400" height="120"/>\n'
++        f'  <text x="0" y="10">{MARK}</text>\n'
++        f'  <path d="{PATH_A}"/>'
++    )
++    done = from_svg(tmp_path, svg(image))
++    assert done.returncode == 0, done.stdout + done.stderr
++    doc = json.loads((tmp_path / "busy-sign.outline.json").read_text(encoding="utf-8"))
++    assert doc["paths"] == [PATH_A]
++    assert (
++        "outline-check: from the SVG: copied 1 path and its viewBox; left behind 3 other elements, 2 of them images"
++        in done.stdout
++    )
++    assert "base64" not in done.stdout and MARK not in done.stdout
++
++
++@pytest.mark.parametrize(
++    "body",
++    [
++        f'<path transform="translate(5 0)" d="{PATH_A}"/>',
++        f'<g transform="scale(2)"><g><path d="{PATH_A}"/></g></g>',
++    ],
++    ids=["on-the-path", "on-a-group-above"],
++)
++def test_a_path_under_a_transform_is_refused(tmp_path: Path, body: str) -> None:
++    done = from_svg(tmp_path, svg(body))
++    assert done.returncode == 2, done.stdout + done.stderr
++    assert "transform" in done.stdout
++    assert not (tmp_path / "busy-sign.outline.json").exists()
++
++
++@pytest.mark.parametrize(
++    "sign", ["nested/busy-sign", "../busy-sign", "busy\\sign", "Busy Sign"]
++)
++def test_an_output_name_with_a_folder_or_outside_the_grammar_is_refused(
++    tmp_path: Path, sign: str
++) -> None:
++    (tmp_path / "trace.svg").write_text(TRACE, encoding="utf-8")
++    (tmp_path / "nested").mkdir()
++    args = list(FIELDS)
++    args[args.index("busy-sign")] = sign
++    done = run(tmp_path, "--from-svg", "trace.svg", *args)
++    assert done.returncode == 2, done.stdout + done.stderr
++    assert sorted(p.name for p in tmp_path.rglob("*.json")) == []
++    assert sign not in done.stdout + done.stderr
++
++
++@pytest.mark.parametrize(
++    "text",
++    [
++        "not xml at all",
++        svg(f'<path d="{PATH_A}"/>', view_box=""),
++        svg(f'<path d="{PATH_A}"/>', view_box="0 0 400"),
++        (
++            '<?xml version="1.0"?>\n<!DOCTYPE svg [<!ENTITY a "aaaa">]>\n'
++            f'<svg xmlns="{SVG_NS}" viewBox="0 0 10 10"><path d="{PATH_A}"/></svg>\n'
++        ),
++        f'<html xmlns="{SVG_NS}"><path d="{PATH_A}"/></html>',
++    ],
++    ids=["not-xml", "no-viewbox", "short-viewbox", "doctype", "not-svg"],
++)
++def test_an_svg_it_cant_read_exits_2_and_writes_nothing(
++    tmp_path: Path, text: str
++) -> None:
++    done = from_svg(tmp_path, text)
++    assert done.returncode == 2, done.stdout + done.stderr
++    assert not (tmp_path / "busy-sign.outline.json").exists()
++
++
++def test_a_missing_svg_or_file_exits_2(tmp_path: Path) -> None:
++    assert run(tmp_path, "--from-svg", "absent.svg", *FIELDS).returncode == 2
++    assert run(tmp_path, "absent.outline.json").returncode == 2
++
++
++def test_usage_errors_exit_2_without_echoing_a_value(tmp_path: Path) -> None:
++    done = run(tmp_path, "--from-svg", "trace.svg", "--sign", f"{MARK}-x")
++    assert done.returncode == 2
++    assert MARK not in done.stdout + done.stderr
++    done = run(tmp_path, f"--{MARK}", "x")
++    assert done.returncode == 2 and MARK not in done.stdout + done.stderr
++
++
++# --------------------------------------------------------------------------------------------------
++# The file: O1 to O10
++# --------------------------------------------------------------------------------------------------
++def test_a_design_traced_file_passes(tmp_path: Path) -> None:
++    done = check_file(tmp_path, outline())
++    assert done.returncode == 0, done.stdout
++    assert done.stdout.startswith(
++        "outline-check: PASS: busy-sign.outline.json, 2 paths"
++    )
++
++
++def test_o1_not_a_regular_file(tmp_path: Path) -> None:
++    write(tmp_path, outline(), "real.json")
++    (tmp_path / "busy-sign.outline.json").symlink_to(tmp_path / "real.json")
++    done = run(tmp_path, "busy-sign.outline.json")
++    assert done.returncode == 1 and rules(done) == {"O1"}, done.stdout
++    (tmp_path / "dir.outline.json").mkdir()
++    done = run(tmp_path, "dir.outline.json")
++    assert done.returncode == 1 and rules(done) == {"O1"}, done.stdout
++
++
++@pytest.mark.parametrize(
++    "raw",
++    [
++        b"\xef\xbb\xbf" + json.dumps(outline()).encode(),
++        json.dumps(outline()).encode() + b" {}",
++        b'{"schema": 1, "schema": 1}',
++        json.dumps(outline()).replace("80", "NaN").encode(),
++        json.dumps(outline()).replace("80", "Infinity").encode(),
++        b"\xff\xfe not utf-8",
++        b"[1, 2]",
++        b"{not json",
++    ],
++    ids=[
++        "bom",
++        "trailing",
++        "duplicate",
++        "nan",
++        "infinity",
++        "not-utf8",
++        "array",
++        "broken",
++    ],
++)
++def test_o1_not_strict_json_or_not_an_object(tmp_path: Path, raw: bytes) -> None:
++    (tmp_path / "busy-sign.outline.json").write_bytes(raw)
++    done = run(tmp_path, "busy-sign.outline.json")
++    assert done.returncode == 1 and rules(done) == {"O1"}, done.stdout
++
++
++@pytest.mark.parametrize(
++    "doc",
++    [
++        {**outline(), MARK: 1},
++        {**outline(), "source": {"type": "photo", "id": "PH-0001", "file": "x"}},
++        {
++            **outline(),
++            "tool": {
++                "name": "Inkscape",
++                "version": "1.4",
++                "license": "MIT",
++                "url": "x",
++            },
++        },
++        outline(paths=None),
++        outline(words=None),
++        {**outline(), "source": {"type": "photo"}},
++    ],
++    ids=["top", "source", "tool", "no-paths", "no-words", "no-source-id"],
++)
++def test_o2_a_key_outside_the_schema_or_one_missing(tmp_path: Path, doc: dict) -> None:
++    done = check_file(tmp_path, doc)
++    assert done.returncode == 1 and "O2" in rules(done), done.stdout
++
++
++@pytest.mark.parametrize(
++    "over",
++    [
++        {"schema": 2},
++        {"schema": True},
++        {"view_box": [0, 0, 400]},
++        {"view_box": [0, 0, 0, 120]},
++        {"view_box": [0, 0, 400, "120"]},
++        {"view_box": [0, 0, 400, 1e309]},
++        {"cap_height": 0},
++        {"cap_height": 121},
++        {"cap_height": "80"},
++        {"advance": 401},
++        {"advance": -1},
++    ],
++    ids=[
++        "schema",
++        "schema-bool",
++        "viewbox-short",
++        "viewbox-zero",
++        "viewbox-text",
++        "viewbox-infinite",
++        "cap-zero",
++        "cap-over",
++        "cap-text",
++        "advance-over",
++        "advance-negative",
++    ],
++)
++def test_o3_a_value_of_the_wrong_type_or_out_of_range(
++    tmp_path: Path, over: dict
++) -> None:
++    doc = outline(**over)
++    raw = json.dumps(doc).replace("Infinity", "1e309")
++    done = check_file(tmp_path, raw + "\n")
++    assert done.returncode == 1 and "O3" in rules(done), done.stdout
++
++
++def test_o4_a_sign_outside_the_grammar_or_a_file_named_otherwise(
++    tmp_path: Path,
++) -> None:
++    done = check_file(tmp_path, outline(sign="Busy Sign"))
++    assert done.returncode == 1 and "O4" in rules(done), done.stdout
++    done = check_file(tmp_path, outline(), name="other-sign.outline.json")
++    assert done.returncode == 1 and rules(done) == {"O4"}, done.stdout
++
++
++@pytest.mark.parametrize(
++    "words",
++    ["", "x" * 201, "I am\nvery busy", "I am\x07busy", 14],
++    ids=["empty", "long", "newline", "bell", "number"],
++)
++def test_o5_words_empty_long_or_holding_a_control_character(
++    tmp_path: Path, words: object
++) -> None:
++    done = check_file(tmp_path, outline(words=words))
++    assert done.returncode == 1 and "O5" in rules(done), done.stdout
++
++
++@pytest.mark.parametrize(
++    "ref",
++    ["intent-4", "intent/004.md", "004", "intent-0042", 4],
++)
++def test_o6_an_intent_ref_not_intent_nnn(tmp_path: Path, ref: object) -> None:
++    done = check_file(tmp_path, outline(intent_ref=ref))
++    assert done.returncode == 1 and "O6" in rules(done), done.stdout
++
++
++@pytest.mark.parametrize(
++    "source",
++    [
++        {"type": "prompt", "id": "P-0001"},
++        {"type": "photo", "id": "IMG_4521"},
++        {"type": "photo", "id": "IMG-20261022-WA0001"},
++        {"type": "photo", "id": "20261022_143000"},
++        {"type": "photo", "id": "2026-10-22T14-30"},
++        {"type": "photo", "id": "my photo"},
++        {"type": "photo", "id": "ab"},
++        {"type": "photo", "id": 42},
++    ],
++    ids=["type", "camera", "whatsapp", "samsung", "time", "space", "short", "number"],
++)
++def test_o7_a_source_type_or_an_id_that_isnt_opaque(
++    tmp_path: Path, source: dict
++) -> None:
++    done = check_file(tmp_path, outline(source=source))
++    assert done.returncode == 1 and "O7" in rules(done), done.stdout
++
++
++@pytest.mark.parametrize(
++    "tool",
++    [
++        {"name": "", "version": "1.4", "license": "MIT"},
++        {"name": "x" * 65, "version": "1.4", "license": "MIT"},
++        {"name": "Inkscape", "version": "1.4\n", "license": "MIT"},
++        {"name": "Inkscape", "version": 1.4, "license": "MIT"},
++    ],
++    ids=["empty", "long", "not-printable", "number"],
++)
++def test_o8_a_tool_field_empty_long_or_not_printable(
++    tmp_path: Path, tool: dict
++) -> None:
++    done = check_file(tmp_path, outline(tool=tool))
++    assert done.returncode == 1 and "O8" in rules(done), done.stdout
++
++
++@pytest.mark.parametrize(
++    "paths",
++    [
++        [],
++        [PATH_A] * 513,
++        ["M0 0 " + "L1 1 " * 52429],
++        ["L 10 10 Z"],
++        ["M 10 10 <image/>"],
++        ["M 10 10 L 1e999 2"],
++        ["M 10 10 url(#a)"],
++        "M 10 10",
++        [12],
++    ],
++    ids=[
++        "empty",
++        "too-many",
++        "too-long",
++        "no-moveto",
++        "markup",
++        "infinite",
++        "url",
++        "not-a-list",
++        "not-a-string",
++    ],
++)
++def test_o9_paths_empty_beyond_a_bound_or_not_path_data(
++    tmp_path: Path, paths: object
++) -> None:
++    done = check_file(tmp_path, outline(paths=paths))
++    assert done.returncode == 1 and "O9" in rules(done), done.stdout
++
++
++def test_o9_the_bounds_themselves_pass(tmp_path: Path) -> None:
++    unit = "M0 0 L1 1 "
++    total = 262_144
++    paths = [unit] * 511 + ["M0 0" + " " * (total - 511 * len(unit) - 4)]
++    assert len(paths) == 512 and sum(map(len, paths)) == total
++    assert check_file(tmp_path, outline(paths=paths)).returncode == 0
++
++
++@pytest.mark.parametrize(
++    "over",
++    [
++        {"words": "see href here"},
++        {"words": "data:image/png"},
++        {"words": "url(x)"},
++        {"tool": {"name": "Q" * 40, "version": "1.4", "license": "MIT"}},
++        {"words": "my dog/thinks"},
++        {"words": "my dog\\thinks"},
++        {"tool": {"name": "Inkscape", "version": "1.4", "license": "license.txt"}},
++        {"words": "IMG_4521 is cool"},
++        {"words": "busy at 14:30"},
++    ],
++    ids=[
++        "href",
++        "data",
++        "url",
++        "base64",
++        "slash",
++        "backslash",
++        "extension",
++        "camera-stem",
++        "time",
++    ],
++)
++def test_o10_a_string_outside_paths_holding_a_link_a_blob_a_name_or_a_time(
++    tmp_path: Path, over: dict
++) -> None:
++    done = check_file(tmp_path, outline(**over))
++    assert done.returncode == 1 and "O10" in rules(done), done.stdout
++
++
++def test_the_signs_words_and_a_tools_version_pass_o10(tmp_path: Path) -> None:
++    for words in ("I am very busy", "my dog thinks i'm cool"):
++        done = check_file(
++            tmp_path,
++            outline(
++                words=words,
++                tool={
++                    "name": "Inkscape",
++                    "version": "1.4.2",
++                    "license": "GPL-2.0-or-later",
++                },
++            ),
++        )
++        assert done.returncode == 0, done.stdout
++
++
++# --------------------------------------------------------------------------------------------------
++# Output
++# --------------------------------------------------------------------------------------------------
++def test_findings_then_a_count_and_no_output_line_holds_a_fixtures_value(
++    tmp_path: Path,
++) -> None:
++    doc = outline(
++        words=f"{MARK}\x07",
++        intent_ref=f"{MARK}-1",
++        source={"type": "photo", "id": f"{MARK}_IMG_1"},
++        tool={"name": f"{MARK}/x", "version": f"{MARK}.jpeg", "license": f"{MARK}" * 6},
++        paths=[f"M0 0 {MARK}"],
++        **{MARK: MARK},
++    )
++    done = check_file(tmp_path, doc)
++    assert done.returncode == 1
++    lines = done.stdout.splitlines()
++    assert lines[-1] == f"outline-check: {len(lines) - 1} findings"
++    for line in lines[:-1]:
++        assert line.split(" ", 2)[1] == "busy-sign.outline.json:", line
++    assert MARK not in done.stdout + done.stderr
++    assert str(tmp_path) not in done.stdout + done.stderr
++    assert rules(done) >= {"O2", "O5", "O6", "O7", "O8", "O9", "O10"}
++
++
++def test_the_svgs_content_and_path_never_reach_the_output(tmp_path: Path) -> None:
++    done = from_svg(tmp_path)
++    assert done.returncode == 0
++    assert MARK not in done.stdout + done.stderr
++    assert str(tmp_path) not in done.stdout + done.stderr
++    assert "trace.svg" not in done.stdout + done.stderr
++
++
++def test_a_long_hyphenated_sign_and_id_arent_a_blob(tmp_path: Path) -> None:
++    sign = "a" + "-b" * 20
++    assert len(sign) == 41
++    doc = outline(sign=sign, source={"type": "design", "id": "D-" + "0a" * 19})
++    done = check_file(tmp_path, doc, name=f"{sign}.outline.json")
++    assert done.returncode == 0, done.stdout
