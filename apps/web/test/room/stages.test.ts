@@ -4,8 +4,10 @@
 // window at a pixel ratio of 1, the phone's 368 × 368 at 2.8125, ≈ 368 × 420 before T171's narrow-portrait rules); the
 // smallest stages, a 320 × 568 screen in portrait and in landscape; and the sweep of screens from 320 × 568 to
 // 1920 × 1200, each through room.css's formulas.
-// T170 and T171 (spec 004; FR-064, FR-065; R-40): below a portrait width of 25rem the stage's reserve grows by one toolbar
-// row, 3.25rem, so the 320 × 568 screen's stage is 304 × 196, and the reference phone's, 384 wide, is 368 × 368.
+// T170 and T171 (spec 004; FR-064, FR-065; R-40), and the review of T171 (B1, FR-047): below a portrait width of 35rem,
+// where the toolbar's five controls wrap at 1rem, the stage's reserve grows by one toolbar row, 3.25rem, so the 320 × 568
+// screen's stage is 304 × 196, and the reference phone's, 384 wide, is 368 × 368. The toolbar's type drop, below 25rem,
+// doesn't move the stage.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -70,7 +72,8 @@ function rules(css: string): Rule[] {
 
 const RULES = rules(CSS);
 const LANDSCAPE = "(orientation: landscape) and (min-width: 32rem)";
-const NARROW = "(orientation: portrait) and (width < 25rem)";
+/** Where the stage's reserve grows: portrait, below 35rem, in max-width (Safari reads range syntax only from 16.4). */
+const RESERVE = "(orientation: portrait) and (max-width: 34.99rem)";
 
 function decl(selector: string, property: string, media: string | null = null): string {
   const found = RULES.filter((r) => r.selector === selector && r.media === media && r.decls.has(property));
@@ -108,9 +111,12 @@ describe("the stages (compose/stages.ts)", () => {
       `minmax(0, ${ROOM_CSS.stageFr}fr) minmax(${ROOM_CSS.listMinRem}rem, ${ROOM_CSS.listFr}fr)`,
     );
     expect(decl(".room-stage", "height", LANDSCAPE)).toBe(`calc(100dvh - ${ROOM_CSS.landscapeReserveRem}rem)`);
-    // Narrow portrait, below 25rem: the reserve and one toolbar row, a 44 px control and the toolbar's 0.5rem gap.
-    expect(ROOM_CSS.narrowMaxWidthRem).toBe(25);
-    expect(decl(".room-stage", "height", NARROW)).toBe(`calc(100dvh - ${ROOM_CSS.narrowReserveRem}rem)`);
+    // Portrait below 35rem: the reserve and one toolbar row, a 44 px control and the toolbar's 0.5rem gap. The media
+    // query's bound is 34.99rem, so a screen of a whole number of pixels is under it exactly when it is under 35rem.
+    expect(ROOM_CSS.reserveMaxWidthRem).toBe(35);
+    expect(ROOM_CSS.reserveMaxWidthRem * 16 - 34.99 * 16).toBeLessThan(1);
+    expect(decl(".room-stage", "height", RESERVE)).toBe(`calc(100dvh - ${ROOM_CSS.narrowReserveRem}rem)`);
+    expect(RULES.some((r) => r.media === RESERVE && r.decls.has("font-size"))).toBe(false);
     const target = Number(/^(\d+)px$/.exec(decl(".room button", "min-height"))?.[1]);
     const row = (target + 16 * rem(decl(".room-toolbar", "gap"))) / 16;
     expect(ROOM_CSS.narrowReserveRem).toBe(ROOM_CSS.portraitReserveRem + row);
@@ -149,9 +155,11 @@ describe("the stages (compose/stages.ts)", () => {
 
   it("follow room.css between the two layouts: clamped heights, the page's 72rem, the list's 15rem", () => {
     // Portrait: the page's width less its padding; the height less 20rem, at least 9rem and at most 40rem; below
-    // 25rem wide, less 23.25rem.
+    // 35rem wide, less 23.25rem.
     expect(stageFor({ w: 390, h: 844 })).toEqual({ w: 374, h: 472 });
-    expect(stageFor({ w: 400, h: 844 })).toEqual({ w: 384, h: 524 });
+    expect(stageFor({ w: 412, h: 915 })).toEqual({ w: 396, h: 543 });
+    expect(stageFor({ w: 559, h: 900 })).toEqual({ w: 543, h: 528 });
+    expect(stageFor({ w: 560, h: 900 })).toEqual({ w: 544, h: 580 });
     expect(stageFor({ w: 360, h: 420 })).toEqual({ w: 344, h: 144 });
     expect(stageFor({ w: 1024, h: 1366 })).toEqual({ w: 1008, h: 640 });
     // A square is portrait in CSS.

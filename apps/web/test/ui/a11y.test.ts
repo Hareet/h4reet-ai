@@ -25,7 +25,7 @@ import { renderObjectList } from "../../src/room/a11y";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { framing } from "../../src/room/compose/framing";
 import { memberRect } from "../../src/room/compose/pick";
-import { stageFor } from "../../src/room/compose/stages";
+import { stageFor, sweepScreens } from "../../src/room/compose/stages";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { renderFlat } from "../../src/room/flat";
 import { framedBoxes } from "../../src/room/scene/bundle3d";
@@ -620,10 +620,12 @@ function mediaApplies(prelude: string, screen: { w: number; h: number }): boolea
   });
 }
 
+let parsedSheets: ReturnType<typeof parseCss>[] | null = null;
+
 function cssAt(screen: { w: number; h: number }): CssAt {
   const ordered: CssRule[] = [];
-  for (const sheet of stylesheets()) {
-    const parsed = parseCss(sheet.text);
+  parsedSheets ??= stylesheets().map((sheet) => parseCss(sheet.text));
+  for (const parsed of parsedSheets) {
     ordered.push(...parsed.rules);
     for (const at of parsed.atRules) if (mediaApplies(at.prelude, screen)) ordered.push(...parseCss(at.body).rules);
   }
@@ -822,17 +824,77 @@ describe("320 × 568 (FR-065; User Story 7 scenario 4)", () => {
     expect(stage.top + stage.h).toBeLessThanOrEqual(SCREEN.h);
   });
 
-  it("drops the toolbar's type to 0.875rem below a portrait width of 25rem, and grows the stage's reserve by one row", () => {
+  it("drops the toolbar's type to 0.875rem below a portrait width of 25rem, and grows the stage's reserve below 35rem", () => {
     const narrow = cssAt(SCREEN);
-    const wide = cssAt({ w: 400, h: 800 });
+    const between = cssAt({ w: 400, h: 800 });
+    const wide = cssAt({ w: 560, h: 900 });
     expect(narrow.get(".room-toolbar", "font-size")).toBe("0.875rem");
+    expect(between.get(".room-toolbar", "font-size")).toBeUndefined();
     expect(wide.get(".room-toolbar", "font-size")).toBeUndefined();
     // One toolbar row: a 44 px control and the toolbar's 0.5rem gap, 3.25rem.
     const rowRem = (length(wide.get(".room button", "min-height")) + length(wide.get(".room-toolbar", "gap"))) / 16;
     expect(rowRem).toBe(3.25);
-    expect(wide.get(".room-stage", "height")).toBe("calc(100dvh - 20rem)");
+    // Wherever the five controls wrap to two rows at 1rem, below 35rem (the review of T171, B1; FR-047).
     expect(narrow.get(".room-stage", "height")).toBe(`calc(100dvh - ${20 + rowRem}rem)`);
+    expect(between.get(".room-stage", "height")).toBe(`calc(100dvh - ${20 + rowRem}rem)`);
+    expect(cssAt({ w: 559, h: 900 }).get(".room-stage", "height")).toBe(`calc(100dvh - ${20 + rowRem}rem)`);
+    expect(wide.get(".room-stage", "height")).toBe("calc(100dvh - 20rem)");
     // Portrait only: a landscape phone keeps the landscape layout's reserve.
     expect(cssAt({ w: 568, h: 320 }).get(".room-stage", "height")).toBe("calc(100dvh - 7rem)");
+    // Both bounds in max-width, not range syntax, which Safari reads only from 16.4 (the review of T171, N1).
+    const preludes = stylesheets().flatMap((sheet) => parseCss(sheet.text).atRules.map((a) => a.prelude));
+    expect(preludes).toContain("@media (orientation: portrait) and (max-width: 24.99rem)");
+    expect(preludes).toContain("@media (orientation: portrait) and (max-width: 34.99rem)");
+    expect(preludes.some((m) => /\(\s*width\s*[<>]/.test(m))).toBe(false);
+  });
+});
+
+// The review of T171, B1 (spec 002's FR-047, as Amendment B8 extends it): "Pause the room" wraps the toolbar to two
+// rows at 1rem on every portrait screen below about 35rem, and below about 447 px the "In the room" list wraps too, so
+// the same model holds every portrait screen from 320 px to 35rem wide whose stage isn't at its 9rem minimum: the
+// common phones by name, and the sweep's portrait screens (compose/stages.ts) in that band.
+describe("every portrait screen to 35rem wide (FR-047; the review of T171, B1)", () => {
+  const PHONES = [
+    [320, 568],
+    [360, 640],
+    [360, 800],
+    [375, 667],
+    [375, 812],
+    [384, 740],
+    [390, 844],
+    [393, 852],
+    [412, 915],
+    [414, 896],
+    [428, 926],
+    [430, 932],
+  ] as const;
+
+  /** The band's portrait screens: the phones above and the sweep's screens from 320 to 560 wide, at least as tall as
+   *  wide, whose stage isn't at the 9rem minimum, where the room gives up its stage first. */
+  function band(): { w: number; h: number }[] {
+    const out = new Map<string, { w: number; h: number }>();
+    for (const [w, h] of PHONES) out.set(`${w}x${h}`, { w, h });
+    for (const s of sweepScreens()) if (s.w <= 560 && s.h >= s.w) out.set(`${s.w}x${s.h}`, s);
+    return [...out.values()].filter((s) => stageFor(s).h > 9 * 16);
+  }
+
+  it("keeps the talk button's foot on screen when the room shows, and the stage stages.ts gives", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    const screens = band();
+    for (const [w, h] of PHONES)
+      expect(
+        screens.some((s) => s.w === w && s.h === h),
+        `${w} × ${h}`,
+      ).toBe(true);
+    expect(screens.some((s) => s.w === 560)).toBe(true);
+    for (const screen of screens) {
+      const page = portraitPage(v.doc, screen);
+      const where = `${screen.w} × ${screen.h}`;
+      expect(page.talkBottom, `${where}: the talk button's foot, ${page.talkBottom.toFixed(1)} px`).toBeLessThanOrEqual(
+        screen.h,
+      );
+      expect({ w: page.stage.w, h: page.stage.h }, where).toEqual(stageFor(screen));
+    }
   });
 });

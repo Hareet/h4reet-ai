@@ -520,7 +520,7 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       });
     });
     expect(reasons(t)).toContain(
-      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 304 × 196 and 1746 others",
+      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 304 × 196 and 1786 others",
     );
   });
 });
