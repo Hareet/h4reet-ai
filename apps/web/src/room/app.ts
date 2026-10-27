@@ -8,8 +8,11 @@
 //   which nothing skips; its end offers the resume now or later and opens the room.
 // - The quality controller, a lost context, or the visitor's "2D view" moves the room to 2D, once, keeping the visit;
 //   each studio model whose load hadn't recorded its end is skipped then (spec 004, FR-071).
-// - Every selectable, the text box, and the talk button answer with the fixed messages and call nothing (R-14). The
-//   selectables, the list, and the 2D drawing are the bundle's index's (spec 004, FR-011): no ID of the room's is here.
+// - Every selectable runs its action from the bundle's index (spec 004, FR-036 to FR-038; R-33): an unready topic
+//   answers with its fixed message and calls nothing; a ready one makes the conversation's feature the selectable's ID;
+//   a resume action opens the resume. The text box and the talk button answer with the fixed messages and call nothing
+//   (R-14) until the twin's spec gives the sender and turns the route on. The selectables, the list, and the 2D drawing
+//   are the bundle's index's (spec 004, FR-011): no ID of the room's is here.
 // - Usage events go to the EventSink: the page's sends beacons (src/events.ts); by default, nothing is sent.
 // - Room text (spec 004, User Story 5): room-data.json is loaded once at Enter, through the loader the resume and its
 //   narration share (resume-port.ts), and once more ROOM_TEXT_RETRY_MS later if that load failed; its room text and the
@@ -31,7 +34,7 @@ import type { Choice } from "../choice/choice";
 import { newVisit } from "../choice/visit";
 import type { Visit } from "../choice/visit";
 import { renderTalk } from "../talk/talk";
-import type { TalkPanel } from "../talk/talk";
+import type { SendTurn, TalkPanel } from "../talk/talk";
 import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
@@ -87,6 +90,9 @@ export interface RoomDeps {
    *  for a load that failed. The room loads it at Enter for its room text (spec 004, FR-061); absent, nothing loads and
    *  every face bound to room text stays plain. */
   roomData?: () => Promise<unknown>;
+  /** The twin's sender for a conversation turn, which the twin's spec gives (spec 004, FR-038; R-33): absent, as until
+   *  then, every turn answers with its fixed message and goes nowhere. */
+  sendTurn?: SendTurn;
 }
 
 export interface RoomHandle {
@@ -210,7 +216,19 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   async function arrive(choice: Choice): Promise<void> {
     const list = renderObjectList(doc, deps.room, selectObject);
-    talk = renderTalk(doc, { messages: content.messages, clock, emit, enabled: open, openResume, pdfFollowed });
+    talk = renderTalk(doc, {
+      messages: content.messages,
+      clock,
+      emit,
+      enabled: open,
+      openResume,
+      pdfFollowed,
+      path: () => visit.path,
+      turns: visit.turns,
+      freeTalkReady: content.manifest.free_talk.ready,
+      turnRoute: deps.room.live.turn === "site",
+      ...(deps.sendTurn ? { sendTurn: deps.sendTurn } : {}),
+    });
     // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
     const around = renderTextCopy(doc, deps.room);
     copy = around;
@@ -438,17 +456,22 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   /**
    * A selectable picked in 3D or 2D, or pressed in the list, the one path for every input (spec 004, FR-004, FR-071;
-   * R-33): object_selected with the selectable's ID, only for one the index lists; then, while no topic is ready, the
-   * fixed message naming its topic by the topic's own phrase, and no call (FR-037). Running the action is T207's.
+   * R-33): object_selected with the selectable's ID, only for one the index lists; then its action, from the index.
+   * `talk`: an unready topic shows the fixed message naming it by its own phrase and calls nothing (FR-037); a ready
+   * one makes the conversation's feature the selectable's ID (FR-038). The lead stays in config/room-topics.yaml for
+   * the twin's spec, so nothing here sends it. `resume`: the resume opens.
    */
   function selectObject(id: string): void {
     const selectable = deps.room.selectables.find((s) => s.id === id);
     if (!open() || !talk || !selectable) return;
     emit({ kind: "object_selected", id: selectable.id });
     const { action } = selectable;
-    if (action.kind !== "talk") return;
+    if (action.kind === "resume") {
+      openResume();
+      return;
+    }
     const topic = deps.room.topics.find((t) => t.id === action.topic);
-    if (topic) talk.objectSelected(topic);
+    if (topic) talk.topicSelected(selectable.id, topic);
   }
 
   return {

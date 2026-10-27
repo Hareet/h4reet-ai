@@ -2,13 +2,19 @@
 // §3; research.md R-14): the text box, "Send", the talk button, and the log where the twin's words and the fixed
 // messages appear. Until the twin's conversation core exists (Phase 7), every surface answers with a fixed message and
 // sends nothing anywhere:
-// - a selectable answers topic_not_ready, its {topic} the topic's own phrase from the bundle's index (spec 004,
-//   FR-037), never the visitor's words;
-// - a typed turn answers cannot_talk.unavailable, pointing to the resume and the PDF, and leaves the text in the box;
+// - a selectable whose topic isn't ready answers topic_not_ready, its {topic} the topic's own phrase from the bundle's
+//   index (spec 004, FR-037), never the visitor's words, and calls nothing;
+// - a selectable whose topic is ready makes the conversation's feature its ID and starts a new conversation (spec 004,
+//   FR-038; R-33): no message, since the twin's spec opens it;
+// - a typed turn goes to the twin's sender as {feature, path, turns} and nothing else (FR-038), but only while the
+//   conversation is ready (its topic, or free talk), the turn route exists (the index's live.turn is `site`), and a
+//   sender was given, which only the twin's spec gives; otherwise it answers cannot_talk.unavailable, pointing to the
+//   resume and the PDF, and leaves the text in the box;
 // - the talk button announces voice_unavailable and moves focus to the text box, without asking for the microphone
 //   (the image's Permissions-Policy keeps microphone=() until push-to-talk's group).
 import "./talk.css";
 
+import type { Turn, VisitPath } from "../choice/visit";
 import type { Clock } from "../room/clock";
 import type { RoomIndex } from "../room/compose/bundle";
 import { h } from "../room/dom";
@@ -19,12 +25,29 @@ import type { MessageId, Messages } from "./messages";
 /** The log keeps the last few messages; older ones leave the page. */
 const LOG_LIMIT = 20;
 
+/** The conversation's feature before any ready topic is selected (spec 002's contracts/room-conversation.md §2). */
+export const FREE_TALK = "free_talk";
+
+/** A conversation turn, exactly spec 002's request body (contracts/room-conversation.md §2): the selectable's ID or
+ *  free_talk, the visitor's path, and the turns, newest last. Never a lead, a live value, a face's words, or a cost
+ *  (spec 004, FR-038). */
+export interface TurnRequest {
+  feature: string;
+  path: VisitPath;
+  turns: Turn[];
+}
+
+/** The twin's sender: the twin's spec gives it, and reports each turn's end through its own seam (contracts/
+ *  turn-cost.md §7). Until then the room has none, and no turn goes anywhere. */
+export type SendTurn = (request: TurnRequest) => void;
+
 export interface TalkPanel {
   readonly element: HTMLElement;
   readonly textBox: HTMLInputElement;
-  /** A selectable was selected whose topic isn't ready (FR-023; spec 004, FR-037): the fixed message names the topic by
-   *  its own phrase, from the bundle's index. */
-  objectSelected(topic: Pick<RoomIndex["topics"][number], "phrase">): void;
+  /** A selectable whose action is talk was selected (FR-023; spec 004, FR-037, FR-038): an unready topic shows the
+   *  fixed message naming it by its own phrase, from the bundle's index; a ready one makes `feature` the
+   *  conversation's and starts it anew. */
+  topicSelected(feature: string, topic: Pick<RoomIndex["topics"][number], "phrase" | "ready">): void;
 }
 
 export function renderTalk(
@@ -37,6 +60,16 @@ export function renderTalk(
     enabled(): boolean;
     openResume(): void;
     pdfFollowed(): void;
+    /** The visitor's path, set at the choice. */
+    path(): VisitPath | null;
+    /** The visit's conversation so far, which the panel keeps (choice/visit.ts). */
+    turns: Turn[];
+    /** Whether free talk is ready (room-manifest.json's free_talk.ready). */
+    freeTalkReady: boolean;
+    /** Whether the turn route exists: the index's live.turn is `site` (contracts/tier-signal.md §1). */
+    turnRoute: boolean;
+    /** The twin's sender; absent until the twin's spec. */
+    sendTurn?: SendTurn;
   },
 ): TalkPanel {
   const log = h(doc, "div", {
@@ -84,12 +117,24 @@ export function renderTalk(
     while (log.children.length > LOG_LIMIT) log.firstElementChild?.remove();
   };
 
+  // The conversation: its feature, and whether it's ready. It starts as free talk, ready as the manifest says.
+  let feature = FREE_TALK;
+  let ready = options.freeTalkReady;
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!options.enabled() || textBox.value.trim() === "") return;
-    // Free talk isn't ready (room-manifest.json): the turn goes nowhere, and the text stays with the visitor.
     options.emit({ kind: "turn_sent" });
-    show("cannot_talk.unavailable");
+    const path = options.path();
+    const send = options.sendTurn;
+    if (!ready || !options.turnRoute || !send || !path) {
+      // Not ready, or no route or sender: the turn goes nowhere, and the text stays with the visitor.
+      show("cannot_talk.unavailable");
+      return;
+    }
+    options.turns.push({ role: "visitor", text: textBox.value });
+    textBox.value = "";
+    send({ feature, path, turns: options.turns.map((t) => ({ role: t.role, text: t.text })) });
   });
 
   // One press is one gesture, however long it's held. A pointer press ends in the click it fires, which belongs to
@@ -139,8 +184,14 @@ export function renderTalk(
   return {
     element,
     textBox,
-    objectSelected(topic) {
-      show("topic_not_ready", { topic: topic.phrase });
+    topicSelected(id, topic) {
+      if (!topic.ready) {
+        show("topic_not_ready", { topic: topic.phrase });
+        return;
+      }
+      feature = id;
+      ready = true;
+      options.turns.length = 0;
     },
   };
 }
