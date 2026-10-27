@@ -135,7 +135,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test secrets arrival evals redteam=redteam-suite matrix image
+CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -251,6 +251,19 @@ test-fast: ## The quick subset
 	$(call NPM_WS,run test:unit)
 	$(PYTEST) $(PYTEST_ARGS) -m "not slow" $(PYTEST_DIRS)
 
+# The published-content check (spec 002, T080; contracts/resume-source.md §5): the room built without drafts, whatever
+# the shell's ROOM_DRAFTS, its prebuild reading main's policy; then tools/gates/content_check.py, human-only, which
+# reads main's approvals itself and fails when the build publishes a content file main doesn't approve, by its own
+# account in room-data.json or in the text of any file in dist/. The build's approvals code is agent-editable; the
+# check isn't. PLANNED until the approvals patch adds the script. The Author's gate runs the same check from main's
+# tree, over a build in its container phase.
+content-check: ## The room's published content against main's approvals, after a build without drafts (spec 002, T080)
+	$(CONTAINED)
+	@# One shell: the PLANNED exit must end the recipe, not only its own line.
+	@if [ ! -f tools/gates/content_check.py ]; then echo "PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch"; exit 0; fi; \
+	set -x; ROOM_DRAFTS= npm run build -w apps/web && \
+	$(PY_HOST) tools/gates/content_check.py --tree . --dist apps/web/dist --repo .
+
 corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local denylist
 	$(PY_HOST) corpus/tools/check_corpus.py
 
@@ -338,7 +351,7 @@ GATEWAY_IMAGE = if [ -f $(1)/deploy/scripts/gateway_image.py ]; then $(PY_HOST) 
   else echo "gateway image: the commit being run has no deploy/scripts/gateway_image.py, so its compose file builds the gateway"; fi
 # The room's image (spec 002, contracts/web-serving.md §1): deploy/scripts/web_image.py, from $(1), the tree being
 # started, builds h4reet-web:<ref><H4_WEB_SUFFIX> outside compose, on every run, with ROOM_DRAFTS only in a -drafts
-# build, and main's policy files read from this working tree (--repo, as preflight's) with git show. A commit older
+# build, and main's policy files read from this working tree (--repo, as preflight's) by refs/heads/main. A commit older
 # than the script, which a rollback can run, has no web service either.
 WEB_IMAGE = if [ -f $(1)/deploy/scripts/web_image.py ]; then $(PY_HOST) $(1)/deploy/scripts/web_image.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR); \
   else echo "web image: the commit being run has no deploy/scripts/web_image.py, and no web service"; fi
@@ -593,7 +606,7 @@ endif
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
-.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
+.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 

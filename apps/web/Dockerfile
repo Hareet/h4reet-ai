@@ -28,9 +28,10 @@ COPY docs/data-flow-disclosure.md docs/
 COPY apps/web apps/web
 COPY --from=policy / /src/policy/
 # ROOM_DRAFTS is 1 for the -drafts images of dev and dev-cpu, and empty for prod's (contracts/web-serving.md §1).
-# ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else.
+# ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else. --ignore-scripts keeps a checkout's
+# prebuild (build/policy.ts, which reads main with git) from running here: the context already holds main's policy.
 ARG ROOM_DRAFTS=
-RUN ROOM_DRAFTS="$ROOM_DRAFTS" ROOM_POLICY_DIR=/src/policy npm run build -w apps/web \
+RUN ROOM_DRAFTS="$ROOM_DRAFTS" ROOM_POLICY_DIR=/src/policy npm run --ignore-scripts build -w apps/web \
  && printf 'ok\n' > apps/web/dist/healthz
 
 # ---- runtime: nginx, unprivileged, with the built site and its own configuration ----

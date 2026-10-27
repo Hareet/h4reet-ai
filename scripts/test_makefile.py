@@ -674,3 +674,51 @@ def test_lint_typechecks_the_room_as_a_workspace(tmp_path: Path) -> None:
     )
     assert done.returncode == 0, done.stderr
     assert "for ws in services/gateway apps/web;" in done.stdout
+
+
+# --------------------------------------------------------------------------------------------------
+# The published-content check (spec 002, T080; contracts/resume-source.md §5): make check builds the room without
+# drafts, then runs tools/gates/content_check.py, human-only, which reads main's approvals itself. Until the approvals
+# patch adds that script, the gate says PLANNED, as the runner reads it.
+# --------------------------------------------------------------------------------------------------
+def test_make_check_runs_the_content_check_right_after_the_tests() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+    (line,) = re.findall(r"^CHECK_GATES := (.*)$", text, re.MULTILINE)
+    gates = line.split()
+    assert gates.index("content-check") == gates.index("test") + 1
+    assert re.search(r"^\.PHONY:.*\bcontent-check\b", text, re.MULTILINE | re.DOTALL)
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+def test_the_content_check_builds_without_drafts_then_runs_mains_check(
+    tmp_path: Path,
+) -> None:
+    done = subprocess.run(
+        ["make", "--no-print-directory", "-n", "-C", str(ROOT), "content-check"],
+        env={
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+            "LC_ALL": "C",
+            "SANDBOX_RUNTIME": "1",
+            "ROOM_DRAFTS": "1",  # an agent's shell with drafts on: the gate's build still has none
+        },
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    recipe = done.stdout
+    assert (
+        'echo "PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch"'
+        in recipe
+    )
+    build = recipe.index("ROOM_DRAFTS= npm run build -w apps/web")
+    check = recipe.index(
+        "tools/gates/content_check.py --tree . --dist apps/web/dist --repo ."
+    )
+    assert build < check
+    assert (
+        "python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py"
+        in recipe
+    )
