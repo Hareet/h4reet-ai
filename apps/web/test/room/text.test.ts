@@ -31,7 +31,8 @@ import { ROOM_TEXT_RETRY_MS, roomTextOf } from "../../src/room/faces/words";
 import { compose } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
-import { REPO, flush, intoRoom, start, textOf } from "../helpers/room";
+import type { SceneModule } from "../../src/room/stage";
+import { REPO, fakeScene, flush, intoRoom, start, textOf } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 import { GOOD_DIR, goodTree } from "../helpers/room-fixtures";
 
@@ -279,6 +280,34 @@ describe("room-data.json at Enter (FR-061; R-11)", () => {
     expect(textEntries(v, fixtureIndex())).toEqual([]);
     const flat = v.doc.querySelector(".flat svg");
     if (flat) for (const word of ["fx run", "Plan small"]) expect(flat.textContent).not.toContain(word);
+  });
+
+  it("words the text copy even when the stage's setText throws (the review's nit 4)", async () => {
+    const fake = fakeScene();
+    const throwing: SceneModule = {
+      createScene(options) {
+        const stage = fake.module.createScene(options);
+        return {
+          ...stage,
+          setText() {
+            throw new Error("the stage refused the room text");
+          },
+        };
+      },
+    };
+    // The load at Enter fails, so the retry's words reach a stage already made, through its setText.
+    const v = start({
+      webgl: true,
+      room: fixtureIndex(),
+      roomData: [null, fixtureData()],
+      loadScene: async () => throwing,
+    });
+    await intoRoom(v);
+    expect(v.room.visit.mode).toBe("3d");
+    v.clock.advance(ROOM_TEXT_RETRY_MS);
+    await flush();
+    expect(v.roomDataLoads()).toBe(2);
+    expect(textEntries(v, fixtureIndex()).length).toBe(3);
   });
 
   it("reads a room_text that isn't the build's shape as none: the faces plain", () => {

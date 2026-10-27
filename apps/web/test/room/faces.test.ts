@@ -312,7 +312,9 @@ describe("the faces in 3D (R-37; FR-054)", () => {
   const doc = (): Document => new JSDOM("<main></main>").window.document;
 
   /** The fixture's part, built with no renderer, and its faces' quads at a quality level. */
-  function quads(options: { level?: number; animate?: boolean; text?: RoomText | null; index?: RoomIndex } = {}) {
+  function quads(
+    options: { level?: number; animate?: boolean; text?: RoomText | null; index?: RoomIndex; dpr?: number } = {},
+  ) {
     const { scene: part } = fixture();
     const index = options.index ?? fixture().index;
     const room = buildRoom(part, { avatar: "dog", label: () => new Object3D(), index });
@@ -324,7 +326,7 @@ describe("the faces in 3D (R-37; FR-054)", () => {
       placements: room.placements,
       doc: doc(),
       clock,
-      dpr: 2,
+      dpr: options.dpr ?? 2,
       level: options.level ?? 0,
       motion: () => motion,
     });
@@ -378,6 +380,48 @@ describe("the faces in 3D (R-37; FR-054)", () => {
     paused.motion.animate = true;
     paused.faces.frame(paused.clock.now());
     expect(shown(paused.faces.lists.get(terminal()))).toEqual(words);
+  });
+
+  it("gives a face a new texture when a level resizes its canvas, and keeps it when the size stays (the review's I1)", () => {
+    // three allocates a texture's storage once, at its first size: a canvas resized under it would draw into a corner
+    // of the old storage, or fail outright, so a resized face takes a new texture and the old one is released.
+    const resized = quads({ dpr: 2 });
+    const before = new Map([...resized.faces.quads].map(([id, q]) => [id, (q.material as MeshBasicMaterial).map]));
+    const disposed = new Set<string>();
+    for (const [id, map] of before) map?.addEventListener("dispose", () => disposed.add(id));
+    resized.faces.setLevel(1);
+    for (const [id, quad] of resized.faces.quads) {
+      const map = (quad.material as MeshBasicMaterial).map;
+      expect(map, id).not.toBe(before.get(id));
+      expect(disposed.has(id), id).toBe(true);
+      const canvas = map?.image as HTMLCanvasElement;
+      const face = resized.index.faces.find((f) => f.id === id);
+      if (!face) throw new Error(id);
+      expect([canvas.width, canvas.height], id).toEqual(faceCanvasSize(face, 2, qualitySettings(1)));
+      expect(map?.generateMipmaps, id).toBe(false);
+    }
+    // At a pixel ratio of 1, levels 0 to 2 draw every face at one size: its texture stays.
+    const same = quads({ dpr: 1 });
+    const kept = new Map([...same.faces.quads].map(([id, q]) => [id, (q.material as MeshBasicMaterial).map]));
+    const released: string[] = [];
+    for (const [id, map] of kept) map?.addEventListener("dispose", () => released.push(id));
+    same.faces.setLevel(1);
+    same.faces.setLevel(2);
+    for (const [id, quad] of same.faces.quads) expect((quad.material as MeshBasicMaterial).map, id).toBe(kept.get(id));
+    expect(released).toEqual([]);
+  });
+
+  it("keeps a typing screen's place when the room text redraws it mid-typing (cab31c7)", () => {
+    const terminal = fixture().index.faces.find((f) => f.regions[0]?.renderer === "terminal")?.id ?? "";
+    const typing = quads();
+    typing.faces.frame(typing.clock.now());
+    typing.clock.advance(100);
+    typing.faces.frame(typing.clock.now());
+    const mid = shown(typing.faces.lists.get(terminal)).join("");
+    expect(mid.length).toBeGreaterThan(0);
+    expect(mid.length).toBeLessThan("fx runfx ok".length);
+    typing.faces.setText(fixtureText());
+    expect(shown(typing.faces.lists.get(terminal)).join("")).toBe(mid);
   });
 
   it("keeps a face bound to room text plain until its words come, and an unbound screen a plain glow", () => {
@@ -483,6 +527,19 @@ describe("typefaces (FR-061; R-37)", () => {
     await flush();
     expect(loader.family("chalk")).toBe(`${chalk.family}, ${chalk.fallback}`);
     expect(changes).toHaveLength(2);
+  });
+
+  it("calls every listener when a family changes, though one of them throws (the review's nit 4)", () => {
+    const clock = new FakeClock();
+    const loader = loadTypefaces({} as Document, clock, typefaces());
+    const called: string[] = [];
+    loader.onChange(() => {
+      called.push("first");
+      throw new Error("a listener that throws");
+    });
+    loader.onChange(() => called.push("second"));
+    expect(() => clock.advance(TYPEFACE_WAIT_MS)).not.toThrow();
+    expect(called).toEqual(["first", "second"]);
   });
 
   it("counts no document.fonts as late: the fallback after 2 s, and nothing after", () => {
