@@ -22,6 +22,12 @@ a FIFO, or a device) of at most MAX_SVG_BYTES, 16 MiB, in UTF-8 with no byte-ord
 no document type declaration or processing instruction, and no element nested deeper than 256; it walks the tree
 without recursion. A write that fails exits 2, naming no path, and leaves no temporary file.
 
+Again after the re-review (part 2): a style's transform is the transform property, read from the parsed
+declarations, or `transform:` in a style element, so Inkscape's text-transform:none (Object to Path, Stroke to Path)
+converts; a path its paint leaves undrawn (no fill: none, transparent, or fill-opacity 0; and no stroke: none,
+absent, transparent, of opacity 0, or of width 0; fill and stroke inherited) is refused, as is a style element with
+fill none; and the size cap's refusal says to delete the embedded photo before saving.
+
 diff --git a/tools/gates/outline_check.py b/tools/gates/outline_check.py
 new file mode 100755
 index 0000000000000000000000000000000000000000..a0047656ef2f4c9a3cbc37778ba99961ee4f2721
