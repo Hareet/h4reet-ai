@@ -475,15 +475,28 @@ describe("room text failing to load or withheld, and a typeface that never arriv
     );
   }
 
-  /** The 2D drawing's words for a face, its tube's glow pass left out, and the family it draws them in. */
-  function drawn(v: Visit, face: string): { words: string[]; families: string[] } {
+  /** The 2D drawing's words for a face, in its order, its tube's glow pass left out, a group of paths read as the
+   *  words of the outline whose paths they are; and the families it draws its text in. */
+  function drawn(v: Visit, face: string, text: RoomText | null): { words: string[]; families: string[] } {
     const group = flats.at(-1)?.drawing.faces.get(face);
     if (!group || !v.doc.querySelector(".flat svg")?.contains(group)) return { words: [], families: [] };
-    const texts = [...group.querySelectorAll("text")].filter((t) => !t.hasAttribute("opacity"));
-    return {
-      words: texts.map((t) => t.textContent ?? ""),
-      families: [...new Set(texts.map((t) => t.getAttribute("font-family") ?? ""))],
-    };
+    const words: string[] = [];
+    const families = new Set<string>();
+    for (const el of group.querySelectorAll("text, g")) {
+      if (el.localName === "text") {
+        if (el.hasAttribute("opacity")) continue;
+        words.push(el.textContent ?? "");
+        families.add(el.getAttribute("font-family") ?? "");
+        continue;
+      }
+      const paths = [...el.children].filter((c) => c.localName === "path").map((p) => p.getAttribute("d"));
+      if (paths.length === 0) continue;
+      const outline = [...(text?.blocks.values() ?? [])].find(
+        (b) => JSON.stringify(b.outline?.paths ?? null) === JSON.stringify(paths),
+      );
+      words.push(outline?.lines[0] ?? "(paths of no outline)");
+    }
+    return { words, families: [...families] };
   }
 
   /** The text copy equals the 2D drawing, face by face: an entry left out is a face drawn plain. */
@@ -495,7 +508,7 @@ describe("room text failing to load or withheld, and a typeface that never arriv
       expect(entries.get(face.id), `${what}: ${face.id}`).toBe(words === null ? null : `${label}: ${words.join(" ")}`);
       const badge = index.ui["draft.badge"];
       expect(
-        drawn(v, face.id).words.map((w) => (w === badge ? `[${w}]` : w)),
+        drawn(v, face.id, text).words.map((w) => (w === badge ? `[${w}]` : w)),
         `${what}: ${face.id} drawn`,
       ).toEqual(words ?? []);
     }
@@ -542,7 +555,7 @@ describe("room text failing to load or withheld, and a typeface that never arriv
     v.clock.advance(TYPEFACE_WAIT_MS);
     await flush();
     for (const face of index.faces) {
-      const { families } = drawn(v, face.id);
+      const { families } = drawn(v, face.id, roomTextOf(data));
       const fallbacks = new Set(index.typefaces.map((t) => t.fallback));
       for (const family of families) expect(fallbacks.has(family), `${face.id}: ${family}`).toBe(true);
     }

@@ -303,7 +303,8 @@ describe("typing (FR-031; R-37)", () => {
     const ops = REGISTRY["desktop-session"].draw(desktop.input);
     expect(ops.filter((o) => o.op === "path")).toEqual([]);
     expect(ops.filter((o) => o.op === "rect").length).toBeGreaterThan(0);
-    expect(new Set(ops.map((o) => o.op))).toEqual(new Set(["fill", "rect", "text", "badge"]));
+    // The face's fill is its list's (words.ts's faceList), under its regions' drawings.
+    expect(new Set(ops.map((o) => o.op))).toEqual(new Set(["rect", "text", "badge"]));
   });
 });
 

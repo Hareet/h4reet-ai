@@ -53,15 +53,27 @@ const entry = (index: RoomIndex, face: RoomIndex["faces"][number], text: RoomTex
   return words === null ? null : `${index.ui[face.label] ?? ""}: ${words.join(" ")}`;
 };
 
-/** The words the 2D drawing draws for a face: its group's text runs, the neon tube's glow pass (drawn under the tube,
- *  at an opacity) left out, so each word counts once. */
-function drawn2d(v: Visit, face: string): string[] {
+/** The words the 2D drawing draws for a face, in its order: each text run, the neon tube's glow pass (drawn under the
+ *  tube, at an opacity) left out so each word counts once; and for a sign's traced lettering, a group of paths, the
+ *  words of the outline whose paths they are. */
+function drawn2d(v: Visit, face: string, text: RoomText): string[] {
   const group = flats.at(-1)?.drawing.faces.get(face);
   // The drawing this visit shows, which the room put on its stage.
   if (!group || !v.doc.querySelector(".flat svg")?.contains(group)) return [];
-  return [...(group?.querySelectorAll("text") ?? [])]
-    .filter((t) => !t.hasAttribute("opacity"))
-    .map((t) => t.textContent ?? "");
+  const words: string[] = [];
+  for (const el of group.querySelectorAll("text, g")) {
+    if (el.localName === "text") {
+      if (!el.hasAttribute("opacity")) words.push(el.textContent ?? "");
+      continue;
+    }
+    const paths = [...el.children].filter((c) => c.localName === "path").map((p) => p.getAttribute("d"));
+    if (paths.length === 0) continue;
+    const outline = [...text.blocks.values()].find(
+      (b) => JSON.stringify(b.outline?.paths ?? null) === JSON.stringify(paths),
+    );
+    words.push(outline?.lines[0] ?? "(paths of no outline)");
+  }
+  return words;
 }
 
 describe('"Around the room" (FR-034, FR-063)', () => {
@@ -107,7 +119,7 @@ describe('"Around the room" (FR-034, FR-063)', () => {
     for (const face of index.faces) {
       const words = faceWords(face, { index, text: fixtureText() });
       expect(
-        drawn2d(v, face.id).map((w) => (w === index.ui["draft.badge"] ? `[${w}]` : w)),
+        drawn2d(v, face.id, fixtureText()).map((w) => (w === index.ui["draft.badge"] ? `[${w}]` : w)),
         face.id,
       ).toEqual(words);
     }
