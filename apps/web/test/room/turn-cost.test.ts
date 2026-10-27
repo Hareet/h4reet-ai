@@ -580,6 +580,24 @@ describe("the channel (§6)", () => {
     expect(channel.state.visitMicro).toBe(950n);
   });
 
+  it("runs every cue and listener though one throws, and never throws back to the reporter (the review of T268, nit 1)", () => {
+    const channel = createCostChannel({ configured: true, clock: clock(3_000) });
+    const cues: number[] = [];
+    const seen: bigint[] = [];
+    channel.onFallbackReply(() => {
+      throw new Error("a cue that throws");
+    });
+    channel.onFallbackReply((at) => cues.push(at));
+    channel.subscribe(() => {
+      throw new Error("a listener that throws, as a stage's raster might");
+    });
+    channel.subscribe((s) => seen.push(s.visitMicro));
+    expect(() => channel.report(reply("fallback", 950), "turn")).not.toThrow();
+    expect(cues).toEqual([3_000]);
+    expect(seen).toEqual([950n]);
+    expect(channel.state.visitMicro).toBe(950n);
+  });
+
   it("keeps each state it gave: a later report makes a new one", () => {
     const channel = createCostChannel({ configured: true, clock: clock() });
     const first = channel.state;
