@@ -294,9 +294,42 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
           paused: "fx-resting",
           "not-live": "fx-resting",
         },
+        claims: { local: "fx-plugged", cloud: "fx-cloud" },
       },
     ]);
     expect(Object.keys(switches[0]?.cases ?? {})).toEqual([...TIER_VALUES]);
+  });
+
+  // T163 (contracts/room-bundle.md §3.1): the plugged and the cloud poses, from the catalog, so the runtime never reads
+  // them from the cases.
+  it("carries a switch's claims from its piece's catalog entry, local then cloud, and none for a claimless piece", () => {
+    const [sw] = good().index.switches;
+    expect(Object.keys(sw ?? {})).toEqual(["id", "signal", "label", "cases", "claims"]);
+    expect(Object.keys(sw?.claims ?? {})).toEqual(["local", "cloud"]);
+    // The catalog's order doesn't move them.
+    const plug = decoder
+      .decode(goodFiles().get("apps/web/room/catalog/fx-plug.yaml"))
+      .replace(
+        "poses: { fx-plugged: local, fx-cloud: cloud, fx-resting: null }",
+        "poses: { fx-resting: null, fx-cloud: cloud, fx-plugged: local }",
+      );
+    const reordered = compose(overlay({ "apps/web/room/catalog/fx-plug.yaml": plug }), noPolicy(), {
+      mode: "strict",
+      drafts: true,
+    });
+    expect(reordered.findings).toEqual([]);
+    expect(JSON.stringify(reordered.index.switches[0]?.claims)).toBe('{"local":"fx-plugged","cloud":"fx-cloud"}');
+    // A piece that claims nothing: no claims in the index, the cases as the scene and its default give them.
+    const claimless = decoder
+      .decode(goodFiles().get("apps/web/room/catalog/fx-plug.yaml"))
+      .replace(/^claims:\n(?: {2}.*\n)+/m, "");
+    expect(claimless).not.toMatch(/^claims:/m);
+    const { index } = compose(overlay({ "apps/web/room/catalog/fx-plug.yaml": claimless }), noPolicy(), {
+      mode: "lenient",
+      drafts: true,
+    });
+    expect(index.switches[0] && Object.hasOwn(index.switches[0], "claims")).toBe(false);
+    expect(index.switches[0]?.cases.local).toBe("fx-plugged");
   });
 
   it("fills a value its cases leave out with the switch's default", () => {
@@ -903,7 +936,15 @@ describe("what the bundle holds (contracts/room-bundle.md §11, §14)", () => {
     ])
       expect(text, value).not.toContain(value);
     // Nor any of those fields by its key: a tier value's "budget", the UI key "sign.estimated", and the plug's anchor
-    // "lead" are other words; the selectable's lead is held to its value above.
+    // "lead" are other words; the selectable's lead is held to its value above. A switch's `claims` in the index is the
+    // catalog's, its plugged and cloud poses' names, which the site holds (contracts/room-bundle.md §3.1; T163), not a
+    // line's or a word's † citations, so it is held to those two names and taken out before the keys are read.
+    for (const sw of index.switches)
+      expect(Object.keys(sw.claims ?? {}).every((k) => k === "local" || k === "cloud")).toBe(true);
+    const keyed = JSON.stringify([
+      { ...index, switches: index.switches.map((sw) => ({ ...sw, claims: undefined })) },
+      scene,
+    ]);
     for (const key of [
       "estimated",
       "work_order",
@@ -919,7 +960,7 @@ describe("what the bundle holds (contracts/room-bundle.md §11, §14)", () => {
       "pending",
       "about_author",
     ])
-      expect(text, key).not.toContain(`"${key}":`);
+      expect(keyed, key).not.toContain(`"${key}":`);
     expect(text).not.toContain('"budget":{');
   });
 });

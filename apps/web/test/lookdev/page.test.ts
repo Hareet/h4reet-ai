@@ -745,7 +745,7 @@ describe("User Story 2's runtime on the page (T162; contracts/lookdev.md §3)", 
     for (const fixture of given.fixtures) {
       choose(select, fixture.id);
       for (const sw of given.index.switches) {
-        const pose = caseFor(sw.cases, fixture.tier);
+        const pose = caseFor(sw, fixture.tier);
         expect(page.stage.room.cases.shown(sw.id), fixture.id).toBe(pose);
         const group = page.stage.room.switches.get(sw.id)?.get(pose ?? "");
         expect(group?.visible, fixture.id).toBe(true);

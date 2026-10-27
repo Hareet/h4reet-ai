@@ -18,7 +18,7 @@ import type { MotionState } from "../../src/room/motion";
 import { createLiveSignals } from "../../src/room/signals/live";
 import type { LiveSignals } from "../../src/room/signals/live";
 import { caseFor } from "../../src/room/signals/tier";
-import type { StatusAnswer, StatusResult, TierReading } from "../../src/room/signals/tier";
+import type { StatusAnswer, StatusResult, SwitchRule, TierReading } from "../../src/room/signals/tier";
 import {
   FakeClock,
   WALL0,
@@ -49,6 +49,10 @@ const CASES: Cases = {
   paused: "fx-resting",
   "not-live": "fx-resting",
 };
+/** The plugged and the cloud poses, as the bundle's claims name them (contracts/room-bundle.md §3.1; T163). */
+const CLAIMS = { local: "fx-plugged", cloud: "fx-cloud" } as const;
+/** A switch with those claims and these cases, as the claims rule reads it. */
+const claimed = (cases: Cases): SwitchRule => ({ cases, claims: CLAIMS });
 
 /** The motion store's pause and visibility, set by the test. */
 function fakeMotion() {
@@ -100,7 +104,7 @@ class FakeScene {
   }
   apply(value: TierValue): void {
     this.applied.push({ value, frame: this.frames, at: this.clock.now() });
-    this.pending = caseFor(this.cases, value);
+    this.pending = caseFor(claimed(this.cases), value);
   }
   /** The frames on which the pose was drawn: from each first drawing until the next change. */
   framesOf(pose: string): [number, number][] {
@@ -378,13 +382,13 @@ describe("the claims rule at run time (FR-043, FR-062)", () => {
     expect(h.scene.framesOf(PLUGGED)).toHaveLength(1);
     // Every other value falls to the shared case, so the room is never left without one.
     expect(h.scene.log.every((entry) => entry.pose !== null)).toBe(true);
-    expect(caseFor(faulty, "budget")).toBe(SHARED);
+    expect(caseFor(claimed(faulty), "budget")).toBe(SHARED);
   });
 
   it("trusts neither claim where local's and cloud's cases name one pose: both fall to the shared case", () => {
     const tangled: Cases = { ...CASES, cloud: PLUGGED };
-    expect(caseFor(tangled, "local")).toBe(SHARED);
-    expect(caseFor(tangled, "cloud")).toBe(SHARED);
+    expect(caseFor(claimed(tangled), "local")).toBe(SHARED);
+    expect(caseFor(claimed(tangled), "cloud")).toBe(SHARED);
     const h = harness({ cases: tangled });
     h.live.enter();
     h.live.complete(h.answer());

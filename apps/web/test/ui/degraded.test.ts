@@ -67,9 +67,25 @@ vi.mock("three", async (importOriginal) => {
   return { ...three, WebGLRenderer };
 });
 
+/** The 2D stages the room draws, the latest last, so a case is read by its pose's name from the drawing's switches. */
+const flats = vi.hoisted(() => [] as { drawing: { switches: ReadonlyMap<string, ReadonlyMap<string, Element>> } }[]);
+
+vi.mock("../../src/room/flat", async (importOriginal) => {
+  const flat = await importOriginal<typeof import("../../src/room/flat")>();
+  return {
+    ...flat,
+    renderFlat(...args: Parameters<typeof flat.renderFlat>) {
+      const stage = flat.renderFlat(...args);
+      flats.push(stage);
+      return stage;
+    },
+  };
+});
+
 afterEach(() => {
   swapped.part = null;
   swapped.renderer = null;
+  flats.length = 0;
 });
 
 let composed: ComposeResult | null = null;
@@ -90,17 +106,22 @@ function copiedTier(v: Visit, index: RoomIndex): TierValue | null {
   return TIER_VALUES.find((value) => index.ui[`tier.${value}`] === sentence) ?? null;
 }
 
-/** The case the stage shows of the index's first switch: the 2D drawing's visible case group, the real 3D stage's
- *  visible case in the scene it last drew, or the case the claims rule gives for the tier last applied to the stand-in
- *  3D stage. */
+/** The case the stage shows of the index's first switch: the 2D drawing's visible case, by its pose's name in the
+ *  drawing's switches, the real 3D stage's visible case in the scene it last drew, or the case the claims rule gives
+ *  for the tier last applied to the stand-in 3D stage. */
 function drawnCase(v: Visit, index: RoomIndex, real?: Real): string | null {
   const sw = index.switches[0];
   if (!sw) return null;
   if (v.room.visit.mode === "2d") {
-    const poses = index.flat.poses.filter((p) => p.switch === sw.id).map((p) => p.pose);
-    const groups = [...v.doc.querySelectorAll(".flat svg > g[visibility]")];
-    const k = groups.findIndex((g) => g.getAttribute("visibility") === "visible");
-    return k < 0 ? null : (poses[k] ?? null);
+    const drawing = flats.at(-1)?.drawing;
+    const element = v.doc.querySelector(".flat svg");
+    // The drawing this visit shows, which the room put on its stage.
+    if (!drawing || !element || ![...(drawing.switches.get(sw.id)?.values() ?? [])].every((g) => element.contains(g)))
+      return null;
+    const shown = [...(drawing.switches.get(sw.id) ?? [])]
+      .filter(([, g]) => g.getAttribute("visibility") === "visible")
+      .map(([pose]) => pose);
+    return shown.length === 1 ? (shown[0] ?? null) : null;
   }
   if (real) {
     const scene = real.drawn();
@@ -111,7 +132,7 @@ function drawnCase(v: Visit, index: RoomIndex, real?: Real): string | null {
     return shown.length === 1 ? (shown[0] ?? null) : null;
   }
   const last = v.scene.applied.at(-1)?.value;
-  return last === undefined ? null : caseFor(sw.cases, last);
+  return last === undefined ? null : caseFor(sw, last);
 }
 
 /** Every run's end: usable, the disclosure visible, the text box answering, the stage neither blank nor frozen, and
@@ -141,7 +162,7 @@ async function expectUsable(v: Visit, index: RoomIndex, what: string, real?: Rea
   const sw = index.switches[0];
   expect(tier, `${what}: the text copy's tier`).not.toBeNull();
   expect(tier, what).toBe(v.room.live.tier.tier);
-  expect(drawnCase(v, index, real), `${what}: the drawn case`).toBe(caseFor(sw?.cases ?? {}, tier ?? "unknown"));
+  expect(drawnCase(v, index, real), `${what}: the drawn case`).toBe(caseFor(sw ?? { cases: {} }, tier ?? "unknown"));
   // A working text box: a typed turn answers with its fixed message, and a selectable from the list answers too.
   const box = v.doc.querySelector<HTMLInputElement>("#talk-text");
   if (!box) throw new Error(`${what}: no text box`);

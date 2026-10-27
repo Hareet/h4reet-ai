@@ -345,6 +345,42 @@ describe("the AI disclosure", () => {
   });
 });
 
+describe('"Pause the room" pressed (WCAG 1.4.1)', () => {
+  /** The value a property ends with on an element, from the top-level rules that match it, in order. */
+  function last(el: Element, property: string, all: CssRule[]): string {
+    let value = "";
+    for (const rule of all)
+      if (matchesRule(el, rule.selector) && rule.declarations.has(property))
+        value = rule.declarations.get(property) ?? "";
+    return value;
+  }
+
+  it("shows the toggle pressed by more than colour: an inset border or an underline only the pressed state has", async () => {
+    const all = rules();
+    for (const webgl of [true, false]) {
+      const v = start({ webgl });
+      await intoRoom(v);
+      const pause = button(v.doc, roomIndex().ui["pause.button"] ?? "Pause the room");
+      const cue = (): { inset: boolean; underline: boolean } => ({
+        inset: /\binset\b/.test(last(pause, "box-shadow", all)),
+        underline: /\bunderline\b/.test(
+          `${last(pause, "text-decoration", all)} ${last(pause, "text-decoration-line", all)}`,
+        ),
+      });
+      expect(pause.getAttribute("aria-pressed")).toBe("false");
+      const before = cue();
+      pause.click();
+      await flush();
+      expect(pause.getAttribute("aria-pressed")).toBe("true");
+      const after = cue();
+      const what = webgl ? "3D" : "2D";
+      expect(after.inset || after.underline, `${what}: pressed`).toBe(true);
+      expect(before.inset && after.inset, `${what}: the inset border only when pressed`).toBe(false);
+      expect(before.underline && after.underline, `${what}: the underline only when pressed`).toBe(false);
+    }
+  });
+});
+
 describe("touch and small screens", () => {
   it("gives every target at least 44 by 44 CSS pixels in the CSS, on every screen", async () => {
     const all = rules();

@@ -568,7 +568,8 @@ describe("the 2D stage (renderFlat)", () => {
       select: () => undefined,
       reducedMotion: true,
     });
-    expect(stage.drawing.turns).toEqual([null, null, null]);
+    // The drawing holds no turns of its own: the stage turns the visitor as each frame shows (T163's N4).
+    expect(Object.hasOwn(stage.drawing, "turns")).toBe(false);
     for (const progress of [0, 0.5, 1]) {
       stage.showHandoff(progress);
       expect(stage.drawing.visitor.getAttribute("transform"), String(progress)).toBeNull();

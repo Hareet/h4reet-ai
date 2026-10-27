@@ -1,7 +1,9 @@
 // T160's own test (spec 004; FR-020, FR-043, FR-051, FR-058, FR-062; R-22; contracts/tier-signal.md §2): the tier
 // switch's cases as the room draws them, which T155's fake scene stands in for.
-// - The claims rule, tier.ts's caseFor: a value's own case, unless it names the pose local's case names and the value
-//   isn't local, or the pose cloud's and the value isn't cloud, or a pose not drawn, or none; then the shared pose.
+// - The claims rule, tier.ts's caseFor: a value's own case, unless it names the pose the switch's claims give local and
+//   the value isn't local, or the one they give cloud and the value isn't cloud, or a pose not drawn, or none; then the
+//   shared pose. The claims are the index's, never read from the cases; claims that lack local or cloud, name a pose
+//   the cases don't have, or name one pose for both read as not-live; a switch without claims draws its cases (T163).
 // - In 3D, src/room/scene/cables.ts through buildRoom: each case's group holds the cable's tube along compose/cable.ts's
 //   16 points and its drop, from the lead's free end where the pose puts it to the `to` anchor, at the charger's
 //   stylized scale, computed here from the kernel's world transforms; one tube made per pose, kept across every change
@@ -29,6 +31,7 @@ import { CABLE_NODE } from "../../src/room/scene/cables";
 import { buildRoom } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { SHARED_ORDER, caseFor } from "../../src/room/signals/tier";
+import type { SwitchRule } from "../../src/room/signals/tier";
 import { goodTree } from "../helpers/room-fixtures";
 
 let composed: ComposeResult | null = null;
@@ -49,6 +52,8 @@ const DEFAULT: Cases = {
   paused: "fx-resting",
   "not-live": "fx-resting",
 };
+/** The fixture plug's claims (fx-plug.yaml). */
+const CLAIMS = { local: "fx-plugged", cloud: "fx-cloud" } as const;
 
 /** The fixture's index with the first switch's cases changed. */
 function remapped(change: Partial<Cases>): RoomIndex {
@@ -59,16 +64,34 @@ function remapped(change: Partial<Cases>): RoomIndex {
   };
 }
 
+/** The fixture's index with the first switch's claims replaced; undefined takes them out. */
+function reclaimed(claims: unknown, change: Partial<Cases> = {}): RoomIndex {
+  const index = remapped(change);
+  return {
+    ...index,
+    switches: index.switches.map((s, i) => {
+      if (i !== 0) return s;
+      const rest: Partial<typeof s> = { ...s };
+      delete rest.claims;
+      return (claims === undefined ? rest : { ...rest, claims }) as RoomIndex["switches"][number];
+    }),
+  };
+}
+
 function expectClose(actual: readonly number[], expected: readonly number[], eps: number, what: string): void {
   expect(actual.length, what).toBe(expected.length);
   actual.forEach((a, i) => expect(Math.abs(a - (expected[i] ?? Number.NaN)), `${what}[${i}]`).toBeLessThan(eps));
 }
 
 describe("the claims rule (tier.ts's caseFor)", () => {
-  it("gives each value its own case where the cases claim as the compositor requires", () => {
-    for (const value of TIER_VALUES) expect(caseFor(DEFAULT, value), value).toBe(DEFAULT[value]);
+  /** A switch whose piece claims fx-plugged for local and fx-cloud for cloud, as the fixture's does. */
+  const claimed = (cases: Partial<Cases>, claims: unknown = CLAIMS): SwitchRule =>
+    ({ cases, claims }) as unknown as SwitchRule;
+
+  it("gives each value its own case where the claims are whole and the cases claim as the compositor requires", () => {
+    for (const value of TIER_VALUES) expect(caseFor(claimed(DEFAULT), value), value).toBe(DEFAULT[value]);
     // A value with a pose of its own that claims nothing keeps it: splitting the shared pose is a data edit.
-    const split = { ...DEFAULT, budget: "fx-budget" };
+    const split = claimed({ ...DEFAULT, budget: "fx-budget" });
     expect(caseFor(split, "budget")).toBe("fx-budget");
     expect(caseFor(split, "unknown")).toBe("fx-resting");
   });
@@ -76,16 +99,60 @@ describe("the claims rule (tier.ts's caseFor)", () => {
   it("shows the plugged pose only for local and the cloud pose only for cloud, whatever else maps to them", () => {
     for (const value of TIER_VALUES) {
       if (value === "local" || value === "cloud") continue;
-      expect(caseFor({ ...DEFAULT, [value]: DEFAULT.local }, value), `${value} → plugged`).toBe("fx-resting");
-      expect(caseFor({ ...DEFAULT, [value]: DEFAULT.cloud }, value), `${value} → cloud`).toBe("fx-resting");
+      expect(caseFor(claimed({ ...DEFAULT, [value]: DEFAULT.local }), value), `${value} → plugged`).toBe("fx-resting");
+      expect(caseFor(claimed({ ...DEFAULT, [value]: DEFAULT.cloud }), value), `${value} → cloud`).toBe("fx-resting");
     }
-    expect(caseFor({ ...DEFAULT, local: DEFAULT.cloud }, "cloud")).toBe("fx-resting");
-    expect(caseFor({ ...DEFAULT, cloud: DEFAULT.local }, "local")).toBe("fx-resting");
+    expect(caseFor(claimed({ ...DEFAULT, local: DEFAULT.cloud }), "cloud")).toBe("fx-resting");
+    expect(caseFor(claimed({ ...DEFAULT, cloud: DEFAULT.local }), "local")).toBe("fx-resting");
+  });
+
+  // T163: the plugged and the cloud poses come from the claims, never from the cases.
+  it("takes the plugged pose from the claims: a swapped mapping never shows it for unknown", () => {
+    const swapped = claimed({ ...DEFAULT, local: "fx-resting", unknown: "fx-plugged" });
+    expect(caseFor(swapped, "unknown")).toBe("fx-resting");
+    expect(caseFor(swapped, "local")).toBe("fx-plugged");
+    expect(caseFor(swapped, "cloud")).toBe("fx-cloud");
+    for (const value of TIER_VALUES)
+      if (value !== "local") expect(caseFor(swapped, value), value).not.toBe("fx-plugged");
+  });
+
+  it("never leaves the switch blank where local's case names the shared pose", () => {
+    // The plugged pose no case names: the claims are faulty, so every value, local too, shows the shared pose.
+    const resting = claimed({ ...DEFAULT, local: "fx-resting" });
+    for (const value of TIER_VALUES) expect(caseFor(resting, value), value).toBe("fx-resting");
+    // The plugged pose named by another value's case: only local shows it, from the claims.
+    const moved = claimed({ ...DEFAULT, local: "fx-resting", budget: "fx-plugged" });
+    expect(caseFor(moved, "local")).toBe("fx-plugged");
+    for (const value of TIER_VALUES)
+      if (value !== "local" && value !== "cloud") expect(caseFor(moved, value), value).toBe("fx-resting");
+  });
+
+  it.each([
+    ["lack local", { cloud: "fx-cloud" }],
+    ["lack cloud", { local: "fx-plugged" }],
+    ["name a pose the cases don't have", { local: "fx-gone", cloud: "fx-cloud" }],
+    ["name one pose for both", { local: "fx-plugged", cloud: "fx-plugged" }],
+    ["aren't an object", null],
+  ])("reads claims that %s as not-live: the shared pose for every value, never a claimed one", (_, claims) => {
+    const faulty = claimed(DEFAULT, claims);
+    for (const value of TIER_VALUES) expect(caseFor(faulty, value), value).toBe("fx-resting");
+  });
+
+  it("draws a switch without claims straight from its cases, since no pose is plugged", () => {
+    for (const value of TIER_VALUES) expect(caseFor({ cases: DEFAULT }, value), value).toBe(DEFAULT[value]);
+    const own = { cases: { ...DEFAULT, unknown: "fx-plugged", local: "fx-cloud" } };
+    expect(caseFor(own, "unknown")).toBe("fx-plugged");
+    expect(caseFor(own, "local")).toBe("fx-cloud");
+    // A value with no case, or one not drawn, still finds the shared pose.
+    const missing: Partial<Cases> = { ...DEFAULT };
+    delete missing.budget;
+    expect(caseFor({ cases: missing }, "budget")).toBe("fx-resting");
+    expect(caseFor({ cases: DEFAULT }, "budget", (pose) => pose !== "fx-resting")).toBeNull();
   });
 
   it("finds the shared pose by SHARED_ORDER, past values that map to a claimed pose", () => {
     expect(SHARED_ORDER).toEqual(["unknown", "not-live", "paused", "resting", "budget", "unavailable"]);
-    const faulty = { ...DEFAULT, unknown: DEFAULT.local, "not-live": DEFAULT.cloud, paused: "fx-paused" };
+    const faulty = claimed({ ...DEFAULT, unknown: DEFAULT.local, "not-live": DEFAULT.cloud, paused: "fx-paused" });
     expect(caseFor(faulty, "unknown")).toBe("fx-paused");
     expect(caseFor(faulty, "resting")).toBe("fx-resting");
   });
@@ -93,11 +160,13 @@ describe("the claims rule (tier.ts's caseFor)", () => {
   it("falls to the shared pose for a missing case or a pose not drawn, and gives null where none is left", () => {
     const missing: Partial<Cases> = { ...DEFAULT };
     delete missing.budget;
-    expect(caseFor(missing, "budget")).toBe("fx-resting");
-    expect(caseFor(DEFAULT, "budget", (pose) => pose !== "fx-resting")).toBeNull();
-    expect(caseFor({ ...DEFAULT, resting: "fx-gone" }, "resting", (pose) => pose !== "fx-gone")).toBe("fx-resting");
-    expect(caseFor({}, "local")).toBeNull();
-    expect(caseFor({ local: "fx-plugged", cloud: "fx-cloud" }, "unknown")).toBeNull();
+    expect(caseFor(claimed(missing), "budget")).toBe("fx-resting");
+    expect(caseFor(claimed(DEFAULT), "budget", (pose) => pose !== "fx-resting")).toBeNull();
+    expect(caseFor(claimed({ ...DEFAULT, resting: "fx-gone" }), "resting", (pose) => pose !== "fx-gone")).toBe(
+      "fx-resting",
+    );
+    expect(caseFor(claimed({}), "local")).toBeNull();
+    expect(caseFor(claimed({ local: "fx-plugged", cloud: "fx-cloud" }), "unknown")).toBeNull();
   });
 });
 
@@ -186,8 +255,8 @@ describe("the cases in 3D (scene/cables.ts)", () => {
     for (const value of TIER_VALUES) {
       room.cases.apply(value);
       const visible = [...(cases?.entries() ?? [])].filter(([, g]) => g.visible).map(([name]) => name);
-      expect(visible, value).toEqual([caseFor(sw.cases, value)]);
-      expect(room.cases.shown(sw.id), value).toBe(caseFor(sw.cases, value));
+      expect(visible, value).toEqual([caseFor(sw, value)]);
+      expect(room.cases.shown(sw.id), value).toBe(caseFor(sw, value));
       const group = cases?.get(visible[0] ?? "");
       expect(group?.children.find((x) => x.name === CABLE_NODE)?.visible, value).toBe(true);
     }
@@ -214,6 +283,30 @@ describe("the cases in 3D (scene/cables.ts)", () => {
     const room = build(remapped({ "not-live": sw.cases.local }));
     const visible = [...(room.switches.get(sw.id)?.entries() ?? [])].filter(([, g]) => g.visible);
     expect(visible.map(([name]) => name)).toEqual([sw.cases.unknown]);
+  });
+
+  // T163 (contracts/room-bundle.md §3.1): the index's claims, never its cases, name the plugged and the cloud poses.
+  it("takes the plugged and the cloud poses from the index's claims, faulty claims read as not-live", () => {
+    const { index } = fixture();
+    const [sw] = index.switches;
+    if (!sw) throw new Error("the fixture has no switch");
+    expect(sw.claims).toEqual(CLAIMS);
+    const shown = (room: Room3D, value: TierValue): string | null => {
+      room.cases.apply(value);
+      return room.cases.shown(sw.id);
+    };
+    const swapped = build(remapped({ local: "fx-resting", unknown: "fx-plugged" }));
+    expect(shown(swapped, "unknown")).toBe("fx-resting");
+    expect(shown(swapped, "local")).toBe("fx-plugged");
+    expect(shown(swapped, "cloud")).toBe("fx-cloud");
+    for (const claims of [{ cloud: "fx-cloud" }, { local: "fx-plugged", cloud: "fx-plugged" }, { local: "fx-gone" }]) {
+      const faulty = build(reclaimed(claims));
+      for (const value of TIER_VALUES)
+        expect(shown(faulty, value), `${JSON.stringify(claims)} ${value}`).toBe("fx-resting");
+    }
+    // A switch without claims draws its cases as they are.
+    const claimless = build(reclaimed(undefined, { unknown: "fx-plugged" }));
+    expect(shown(claimless, "unknown")).toBe("fx-plugged");
   });
 
   it("sets a pose's glows while it shows, and puts the pieces' own levels back when another case shows", () => {
@@ -253,11 +346,11 @@ describe("the cases in 2D (flat.ts's apply)", () => {
     const [sw] = index.switches;
     if (!sw) throw new Error("the fixture has no switch");
     const stage = renderFlat(page(), { room: index, avatar: "dog", select: () => undefined });
-    expect(visibleCases(index, stage, sw.id)).toEqual([caseFor(sw.cases, "not-live")]);
+    expect(visibleCases(index, stage, sw.id)).toEqual([caseFor(sw, "not-live")]);
     for (const value of TIER_VALUES) {
       stage.apply(value);
       const shown = visibleCases(index, stage, sw.id);
-      expect(shown, value).toEqual([caseFor(sw.cases, value)]);
+      expect(shown, value).toEqual([caseFor(sw, value)]);
       const group = stage.drawing.switches.get(sw.id)?.get(shown[0] ?? "");
       expect(group?.querySelector("path[fill='none']"), value).not.toBeNull();
     }
@@ -277,5 +370,24 @@ describe("the cases in 2D (flat.ts's apply)", () => {
         expect(visibleCases(faulty, stage, sw.id), `${value} → ${claimed}`).toEqual([sw.cases["not-live"]]);
         stage.dispose();
       }
+  });
+
+  it("takes the plugged pose from the index's claims, faulty claims read as not-live, a claimless switch as it is", () => {
+    const { index } = fixture();
+    const [sw] = index.switches;
+    if (!sw) throw new Error("the fixture has no switch");
+    const shownIn = (room: RoomIndex, value: TierValue): string[] => {
+      const stage = renderFlat(page(), { room, avatar: "dog", select: () => undefined });
+      stage.apply(value);
+      const shown = visibleCases(room, stage, sw.id);
+      stage.dispose();
+      return shown;
+    };
+    const swapped = remapped({ local: "fx-resting", unknown: "fx-plugged" });
+    expect(shownIn(swapped, "unknown")).toEqual(["fx-resting"]);
+    expect(shownIn(swapped, "local")).toEqual(["fx-plugged"]);
+    const faulty = reclaimed({ local: "fx-plugged" });
+    for (const value of TIER_VALUES) expect(shownIn(faulty, value), value).toEqual(["fx-resting"]);
+    expect(shownIn(reclaimed(undefined, { unknown: "fx-plugged" }), "unknown")).toEqual(["fx-plugged"]);
   });
 });
