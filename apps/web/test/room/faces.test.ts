@@ -636,23 +636,33 @@ describe("a switch pose's glows (contracts/room-data-files.md §5.4)", () => {
 describe("the neon sign's counters (T264; contracts/turn-cost.md §5, §6)", () => {
   /** The fixture's index with the turn route on. */
   const routed = (): RoomIndex => ({ ...fixture().index, live: { ...fixture().index.live, turn: "site" } });
-  /** Each counter face of an index, with the part it reads. */
-  const counterFaces = (index: RoomIndex): { face: RoomIndex["faces"][number]; part: "call" | "visit" }[] =>
-    index.faces.flatMap((face) => {
-      const r = face.regions[0];
-      return r && face.regions.length === 1 && "signal" in r.source ? [{ face, part: r.source.part }] : [];
-    });
+  /** Each counter region of an index: its face, its place among the face's regions, and the part it reads. The
+   *  fixture's neon panel holds the word and both counters in one face. */
+  const counterRegions = (
+    index: RoomIndex,
+  ): { face: RoomIndex["faces"][number]; k: number; part: "call" | "visit" }[] =>
+    index.faces.flatMap((face) =>
+      face.regions.flatMap((r, k) => ("signal" in r.source ? [{ face, k, part: r.source.part }] : [])),
+    );
   const state = (outcomes: TurnOutcome[], from: "turn" | "fixture" = "turn"): CostState => {
     const channel = createCostChannel({ configured: true, clock: new FakeClock() });
     for (const o of outcomes) channel.report(o, from);
     return channel.state;
   };
   const reply = (route: string, cost: number): TurnOutcome => ({ kind: "reply", route, cost_micro_usd: cost });
+  const counter = (index: RoomIndex, part: "call" | "visit") => {
+    const found = counterRegions(index).find((c) => c.part === part);
+    if (!found) throw new Error(`no ${part} counter`);
+    return found;
+  };
 
   it("draws each reading of the channel's state, its badge beside it, its text copy equal to its drawn words", () => {
     const index = routed();
-    const found = counterFaces(index);
-    expect(found.map((f) => f.part).sort()).toEqual(["call", "visit"]);
+    expect(
+      counterRegions(index)
+        .map((c) => c.part)
+        .sort(),
+    ).toEqual(["call", "visit"]);
     const states = [
       state([]),
       state([reply("local", 0)]),
@@ -663,10 +673,10 @@ describe("the neon sign's counters (T264; contracts/turn-cost.md §5, §6)", () 
     ];
     for (const cost of states) {
       const readings = costReadings(cost, { ui: index.ui, drafts: index.build.kind === "drafts" });
-      for (const { face, part } of found) {
-        const what = `${face.id} ${JSON.stringify(cost, (_, v: unknown) => (typeof v === "bigint" ? String(v) : v))}`;
+      for (const { face, k, part } of counterRegions(index)) {
+        const what = `${face.id} ${part} ${JSON.stringify(cost, (_, v: unknown) => (typeof v === "bigint" ? String(v) : v))}`;
         const reading = readings[part];
-        const [input] = regionInputs(face, { index, text: null, cost });
+        const input = regionInputs(face, { index, text: null, cost })[k];
         expect(input?.lines, what).toEqual([reading?.text]);
         expect(input?.badge ?? null, what).toEqual(reading?.badge ?? null);
         expect(input?.counter, what).toBe(true);
@@ -679,10 +689,13 @@ describe("the neon sign's counters (T264; contracts/turn-cost.md §5, §6)", () 
   it('reads "Sample" for a fixture\'s figures and "test" for a turn\'s in a drafts build, as badges of their kinds', () => {
     const index = routed();
     expect(index.build.kind).toBe("drafts");
-    const [call] = counterFaces(index).filter((f) => f.part === "call");
-    if (!call) throw new Error("no call counter");
-    const kinds = (cost: CostState): string[] =>
-      (faceList(call.face, { index, text: null, cost })?.ops ?? []).flatMap((o) => (o.op === "badge" ? [o.kind] : []));
+    const { face, k } = counter(index, "call");
+    const region = face.regions[k];
+    if (!region) throw new Error("no call region");
+    const kinds = (cost: CostState): string[] => {
+      const input = regionInputs(face, { index, text: null, cost })[k];
+      return input ? REGISTRY[region.renderer].draw(input).flatMap((o) => (o.op === "badge" ? [o.kind] : [])) : [];
+    };
     expect(kinds(state([reply("fallback", 950)]))).toEqual(["test"]);
     expect(kinds(state([reply("fallback", 950)], "fixture"))).toEqual(["sample"]);
     expect(kinds(state([]))).toEqual([]);
@@ -690,13 +703,18 @@ describe("the neon sign's counters (T264; contracts/turn-cost.md §5, §6)", () 
 
   it("reads the index without a state: cost unavailable while live.turn is off, no call yet and $0 once it's on", () => {
     const off = fixture().index;
-    for (const { face } of counterFaces(off))
-      expect(faceWords(face, { index: off, text: null }), face.id).toEqual([off.ui["sign.unavailable"]]);
+    for (const { face, k } of counterRegions(off))
+      expect(regionInputs(face, { index: off, text: null })[k]?.lines, face.id).toEqual([off.ui["sign.unavailable"]]);
     const on = routed();
-    const words = counterFaces(on).map(({ face, part }) => [part, faceWords(face, { index: on, text: null })]);
-    expect(Object.fromEntries(words)).toEqual({
-      call: [on.ui["sign.no_call_yet"]],
-      visit: ["$0", `[${on.ui["sign.test"]}]`],
+    const call = counter(on, "call");
+    const visit = counter(on, "visit");
+    expect(regionInputs(call.face, { index: on, text: null })[call.k]).toMatchObject({
+      lines: [on.ui["sign.no_call_yet"]],
+      badge: null,
+    });
+    expect(regionInputs(visit.face, { index: on, text: null })[visit.k]).toMatchObject({
+      lines: ["$0"],
+      badge: { kind: "test", text: on.ui["sign.test"] },
     });
   });
 
@@ -714,16 +732,18 @@ describe("the neon sign's counters (T264; contracts/turn-cost.md §5, §6)", () 
       level: 0,
       motion: () => ({ animate: false }),
     });
-    const [call] = counterFaces(index).filter((f) => f.part === "call");
+    const { face } = counter(index, "call");
     const words = (): string[] => {
-      const list = faces.lists.get(call?.face.id ?? "");
+      const list = faces.lists.get(face.id);
       return list ? drawnWords(list.ops) : [];
     };
-    expect(words()).toEqual([index.ui["sign.no_call_yet"]]);
+    expect(words()).toContain(index.ui["sign.no_call_yet"]);
     faces.setCost(state([reply("fallback", 950)]));
-    expect(words()).toEqual(["$0.000950 est.", `[${index.ui["sign.test"]}]`]);
+    expect(words()).toContain("$0.000950 est.");
+    expect(words()).toContain(`[${index.ui["sign.test"]}]`);
     faces.setCost(state([reply("fallback", 950), { kind: "failed" }]));
-    expect(words()).toEqual([index.ui["sign.unavailable"]]);
-    expect(faces.quads.get(call?.face.id ?? "")?.visible).toBe(true);
+    expect(words()).toContain(index.ui["sign.unavailable"]);
+    expect(words()).toContain("at least $0.000950 est.");
+    expect(faces.quads.get(face.id)?.visible).toBe(true);
   });
 });
