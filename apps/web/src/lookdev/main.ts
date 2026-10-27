@@ -2,7 +2,8 @@
 // to §6), drafts builds only. startLookdev builds the whole page inside its root: the site's page calls it with no probe
 // (lookdev/index.html, through site.ts), and the phone copy's entry (phone.ts) after its probe. It hands page.ts the
 // drafts build's own inputs, the 3D part (virtual:room-scene), the fixtures (virtual:room-fixtures), and the lookdev
-// inputs with the page's own copy of the index (virtual:room-lookdev), which a release build refuses to resolve
+// inputs with the page's own copy of the index and the build's room text, its faces' words, which the phone copy can't
+// fetch (virtual:room-lookdev; spec 004, T192), which a release build refuses to resolve
 // (FR-066); a WebGLRenderer on the page's one canvas; the window's clock; and capability(), which ADR 0010's floor
 // reads. Where the page can't be built, it says why in its root and builds nothing else: that lookdev needs WebGL 2
 // only where the renderer can't make its WebGL context, and otherwise "The page didn't start:" with the error's
@@ -12,10 +13,11 @@ import "./lookdev.css";
 
 import { WebGLRenderer } from "three";
 import fixtures from "virtual:room-fixtures";
-import lookdev, { room } from "virtual:room-lookdev";
+import lookdev, { room, text } from "virtual:room-lookdev";
 import part from "virtual:room-scene";
 
 import { windowClock } from "../room/clock";
+import { roomTextOf } from "../room/faces/words";
 import { capability } from "../room/quality";
 import { createLookdev } from "./page";
 import type { LookdevOptions } from "./page";
@@ -38,7 +40,7 @@ export function startLookdev(root: HTMLElement, options: LookdevOptions): void {
     createLookdev(root, options, {
       win,
       clock: windowClock(win),
-      inputs: { part, index: room, lookdev, fixtures },
+      inputs: { part, index: room, lookdev, fixtures, text: roomTextOf({ room_text: text }) },
       renderer: (canvas) => {
         try {
           return new WebGLRenderer({ canvas, antialias: true });

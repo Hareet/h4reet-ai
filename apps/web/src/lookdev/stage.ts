@@ -22,6 +22,10 @@
 // - Labels: the stand-ins' labels, each saying "placeholder", draw on a layer of their own, which the page's camera
 //   sees while Labels is on, so turning it off hides them from the page's view alone: the room's own 3D stage
 //   (scene.ts) makes its labels as it did (the Author's first lookdev run; plan.md §10).
+// - The live faces and the glow cards (spec 004, T192): the room's own face quads (scene/faces3d.ts), with the drafts
+//   build's room text, typing as the room's do, and glow cards (scene/glows.ts), both stilled by Pause, shown in the
+//   vignette only on its placements. A face draws at once in its typeface's family list and again as each typeface
+//   arrives: the page judges a look, so it never shows a face blank while a typeface loads.
 // - Candidates, from page memory, through the loader; the site's page also loads each set model from ../a/, and the
 //   phone copy, which makes no request, every model from memory.
 // It never polls the status, sends a turn or an event, or stores anything: its asset events go to the page's log with
@@ -38,8 +42,13 @@ import type { Mode } from "../choice/visit";
 import type { Clock } from "../room/clock";
 import type { MotionStore } from "../room/motion";
 import type { Box, Look, RoomIndex, RoomScene } from "../room/compose/bundle";
+import type { Camera } from "../room/compose/project";
+import { loadTypefaces } from "../room/faces/fonts";
+import type { TypefaceLoader } from "../room/faces/fonts";
+import type { RoomText } from "../room/faces/words";
 import { loadOrder } from "../room/compose/load-order";
 import type { LoadEntry } from "../room/compose/load-order";
+import { framing } from "../room/compose/framing";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../room/compose/stages";
 import type { Stage } from "../room/compose/stages";
 import { bindPointerSelection } from "../room/objects";
@@ -56,6 +65,10 @@ import {
   showHandoff,
 } from "../room/scene/bundle3d";
 import type { Room3D } from "../room/scene/bundle3d";
+import { buildFaceQuads } from "../room/scene/faces3d";
+import type { FaceQuads } from "../room/scene/faces3d";
+import { buildGlows } from "../room/scene/glows";
+import type { GlowCards } from "../room/scene/glows";
 import { createTextureLedger } from "../room/scene/ledger";
 import { createLoader, modelEntries, prepareModel, showModel } from "../room/scene/loader";
 import { caseFor } from "../room/signals/tier";
@@ -65,12 +78,14 @@ import type { Ink } from "../room/scene/look";
 import type { FrameSample } from "./metrics";
 import type { QualityChoice, SceneChoice, ViewChoice } from "./results";
 
-/** The drafts build's inputs: the 3D part, the index, the lookdev inputs, and the fixtures. */
+/** The drafts build's inputs: the 3D part, the index, the lookdev inputs, the fixtures, and the room text. */
 export interface LookdevInputs {
   readonly part: RoomScene;
   readonly index: RoomIndex;
   readonly lookdev: RoomLookdev;
   readonly fixtures: readonly RoomFixture[];
+  /** The drafts build's room text (spec 004, T192); absent, the faces bound to room text stay plain. */
+  readonly text?: RoomText | null;
 }
 
 /** A line of the page's log: an asset event, a usage event, or the page's own note. */
@@ -102,7 +117,12 @@ export interface StageOptions {
 export interface LookdevStage {
   readonly canvas: HTMLCanvasElement;
   readonly room: Room3D;
+  /** The room's live faces and glow cards (spec 004, T192), rebuilt with the room in each look. */
+  readonly faces: FaceQuads;
+  readonly glows: GlowCards;
   readonly camera: PerspectiveCamera;
+  /** The kernel's camera the view is framed with, which the readouts measure through. */
+  readonly framing: Camera;
   readonly look: Look;
   readonly view: ViewChoice;
   /** The stage drawn, in CSS pixels. */
@@ -146,6 +166,9 @@ const AVATAR = AVATARS[0].id;
 const IDLE_SWAY = 0.015;
 /** The layer the stand-ins' labels draw on, which the page's camera sees beside its own, layer 0, while Labels is on. */
 const LABEL_LAYER = 1;
+
+/** The groups that hold a placement's face quads and glow cards (scene/faces3d.ts, scene/glows.ts). */
+const HOLDER = /^(faces|glows):/;
 
 /** Whether an object draws: a mesh, a sprite, a line, or points. */
 const drawable = (node: Object3D): boolean => {
@@ -192,6 +215,23 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
 
   let look: Look = part.look;
   let labels: Labels = createLabels(doc);
+  // The faces' typefaces, loaded as the room loads them; the page draws each face at once in its family list, and
+  // again when a typeface arrives (T192).
+  const fonts = loadTypefaces(doc, clock, index.typefaces);
+  undo.push(() => fonts.dispose());
+  const eager: TypefaceLoader = {
+    family: (use) => {
+      const t = index.typefaces.find((x) => x.use === use);
+      return t ? `${t.family}, ${t.fallback}` : "sans-serif";
+    },
+    onChange: (fn) => fonts.onChange(fn),
+    dispose: () => fonts.dispose(),
+  };
+  let faces: FaceQuads | null = null;
+  let glows: GlowCards | null = null;
+  let level = 0;
+  let settings: QualitySettings = qualitySettings(0);
+  const { motion } = options;
   // The room first: a bundle the 3D reader refuses says so before a renderer takes a WebGL context.
   let room: Room3D = build(look);
   const renderer = options.renderer(canvas);
@@ -207,10 +247,8 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   let scene: SceneChoice = "room";
   let sample: RoomFixture | null = fixtures[0] ?? null;
   let quality: QualityChoice = "auto";
-  let level = 0;
-  let settings: QualitySettings = qualitySettings(0);
-  const { motion } = options;
   let stage: Stage = REFERENCE_DESKTOP.stage;
+  let spec: Camera = framing(stage.w / stage.h, framed);
   let ratio = 1;
   let holds = 0;
   let disposed = false;
@@ -231,6 +269,26 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     const built = buildRoom({ ...part, look: next }, { avatar: AVATAR, label, index });
     // The room as a visitor has it after the hand-off.
     showHandoff(built, 1, false);
+    // Its live faces, with the drafts build's room text, and its glow cards (T192).
+    faces = buildFaceQuads({
+      part,
+      index,
+      placements: built.placements,
+      doc,
+      clock,
+      dpr: win.devicePixelRatio || 1,
+      level,
+      motion: () => motion,
+      typefaces: eager,
+    });
+    faces.setText(inputs.text ?? null);
+    glows = buildGlows({
+      part: { ...part, look: next },
+      placements: built.placements,
+      glow: built.cases.glow,
+      motion: () => motion,
+    });
+    glows.setEnabled(settings.glowCards);
     return built;
   }
 
@@ -270,7 +328,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     canvas.style.height = `${stage.h}px`;
     renderer.setPixelRatio(ratio);
     renderer.setSize(stage.w, stage.h, false);
-    frameCamera(camera, stage.w / stage.h, view === "close-up" ? closeUp : framed);
+    spec = frameCamera(camera, stage.w / stage.h, view === "close-up" ? closeUp : framed);
     picker.resize(stage);
     ink.setStageHeight(stage.h);
   }
@@ -281,6 +339,8 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     renderer.shadowMap.enabled = settings.shadows;
     ink.setOutlines(settings.outlines);
     labels.setScale(settings.textureScale);
+    faces?.setLevel(level);
+    glows?.setEnabled(settings.glowCards);
     if (before !== settings.shadows)
       room.scene.traverse((node) => {
         for (const m of ([] as Material[]).concat((node as Partial<Mesh>).material ?? [])) m.needsUpdate = true;
@@ -311,6 +371,12 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     const mark = (node: Object3D, on: boolean): void => {
       for (const child of node.children) {
         if (nodes.has(child)) continue;
+        // The faces' and the glows' holders show with their placement: what's inside them, the faces and the glows
+        // show or hide themselves, by their words and their levels (T192).
+        if (HOLDER.test(child.name)) {
+          child.visible = on;
+          continue;
+        }
         if (drawable(child)) set(child, on);
         mark(child, on);
       }
@@ -431,6 +497,8 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     if (doc.visibilityState === "hidden") controller?.restart();
     else controller?.frame(time);
     room.twin.rotation.z = settings.animations && motion.animate ? Math.sin(time / 900) * IDLE_SWAY : 0;
+    faces?.frame(time);
+    glows?.frame(time);
     renderer.info.reset();
     ink.render(room.scene, camera);
     last = {
@@ -452,7 +520,16 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     get room() {
       return room;
     },
+    get faces() {
+      return faces as FaceQuads;
+    },
+    get glows() {
+      return glows as GlowCards;
+    },
     camera,
+    get framing() {
+      return spec;
+    },
     get look() {
       return look;
     },
@@ -507,6 +584,8 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       // Every model shown goes back to its stand-in and is released with the old room, then loads again in the look.
       const shown = new Set(loader.loaded);
       for (const piece of shown) loader.remove(piece);
+      faces?.dispose();
+      glows?.dispose();
       disposeRoom(room);
       look = next;
       room = build(look);
@@ -557,6 +636,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       unbind();
       unwatch();
       canvas.removeEventListener("webglcontextrestored", restored);
+      faces?.dispose();
+      glows?.dispose();
+      fonts.dispose();
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();

@@ -10,7 +10,8 @@
 //   B7's from the compose) and the index as `room`, for the entry chunk; `virtual:room-scene`, the 3D part as its
 //   default export, which only the scene module imports, so it lands in the lazy 3D chunk; and, in a drafts build
 //   only, `virtual:room-fixtures` and `virtual:room-lookdev`, which also gives the lookdev page its own copy of the
-//   index as `room`, so the page never imports `virtual:room-content` and the index stays in the room's entry chunk.
+//   index as `room`, so the page never imports `virtual:room-content` and the index stays in the room's entry chunk,
+//   and the drafts build's room_text as `text`, for the page's faces (spec 004, T192).
 //   A release build that reaches either fails: resolveId throws "fixtures and lookdev are drafts-only (FR-066)"
 //   rather than ship them.
 // - generateBundle emits each set model's `a/<stem>.<hash16>.glb.gz`, each set card plain, and room-manifest.json,
@@ -92,8 +93,12 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
           const { drafts, index } = result();
           if (drafts === null) throw new Error(DRAFTS_ONLY);
           if (id === resolved(ROOM_FIXTURES)) return `export default ${serialize(drafts.fixtures)};\n`;
-          // The page's own copy of the index: importing virtual:room-content would take it out of the room's entry.
-          return `export default ${serialize(drafts.lookdev)};\nexport const room = ${serialize(index)};\n`;
+          // The page's own copy of the index: importing virtual:room-content would take it out of the room's entry. And
+          // the build's room_text, so the page, and the phone copy that makes no request, draw the faces' words (T192).
+          return (
+            `export default ${serialize(drafts.lookdev)};\nexport const room = ${serialize(index)};\n` +
+            `export const text = ${serialize(result().roomText)};\n`
+          );
         }
         default:
           return null;
