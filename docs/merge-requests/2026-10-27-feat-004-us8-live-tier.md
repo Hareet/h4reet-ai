@@ -130,10 +130,14 @@ No GREEN commit changes a test. **GREEN at the tip:** vitest 79 files and 2,185 
 - **Nit 4.** The docstring says the log's `caseFor` uses the default `drawn`, so it can over-report "plugged". **Done.**
 - **Nit 5.** The docstring states Python 3.11 or later. **Done.**
 
+**The last look over 237ad98..6c3955d (the same reviewer): APPROVE.** It re-ran RED (pytest 14 of 56 and vitest 1 of 85, each for the right reason, the I-1 cases on the real ValueError and RecursionError) and the tip (pytest 56, vitest 2,185, tsc clean), and confirmed no GREEN commit touched a test. It found I-2's log-order rule right, with no false PASS today: anchoring only moves a 2D case earlier, every reduction while paused or hidden that isn't the event's own logs a non-`tier` entry first, and the recheck timer can't fire while paused or hidden. It confirmed the offset's sign, this note's account, and that backlog item 2 is acceptable as backlog. Two nits, both backlog (items 3 and 4 below).
+
 ## Backlog
 
 1. **The switch-on change** (T252 to T261, T289) waits for spec 001 serving `GET /api/status` on the room's origin with Amendments A1 to A3, and for P-11 (For the Author, item 2).
 2. **A throwing result listener in the response path** leaves an unhandled rejection in the console, though polling goes on (nit 2's `finally`); the timer path rethrows to the Clock. Neither can happen with today's only listener, `live.ts`'s `complete`.
+3. **An integer past float range still exits 1.** In `read_frame_log`, `math.isfinite` (and `float(poll_ms)`) raises OverflowError on such a `t`, `wall`, `frame`, or `poll_ms`, giving a traceback that doesn't echo the input. `JSON.stringify` never writes one, so only a hand-edited log meets it. So I-1's "all are exit 2" holds except here. Fix: catch OverflowError beside the type checks and raise `Unreadable`.
+4. **`shown_at` allows any number of `tier` entries between an event and its case,** where a reduction logs exactly one. Requiring exactly one would keep the I-2 rule from being fooled if a future reduction logs only `tier` while paused.
 
 ## Verification
 
