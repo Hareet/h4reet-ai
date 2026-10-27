@@ -54,7 +54,7 @@ Applied against the [constitution](../../.specify/memory/constitution.md) 1.0.1.
 | V. Cost is a first-class signal | Yes | $0 model spend (R-33); caps from `main`, never raised by agents (R-13, R-25); the visitor's own turn costs (R-32); the report in every room note (R-24) |
 | VI. Build in public | Yes | the catalog, work orders, photo guide, and room text are public (R-14); notes print folder names, never paths (R-52) |
 | VII. Say exactly what you owned | Yes | the mark follows the record, the `design` source, `likeness` read per file, scripted steps credited as model steps (R-53); row D4 (R-62) |
-| VIII. Honest AI | Yes | word checks (R-15); unready topics call nothing (R-33); the tier's sentences speak about the machine (R-30); the red team's cases (R-64) |
+| VIII. Honest AI | Yes | a hand or composite mark only with the Author's approval, wherever the file lives (R-53); word checks (R-15); unready topics call nothing (R-33); the tier's sentences speak about the machine (R-30); the red team's cases (R-64) |
 | Security and agent governance | Yes | the agent-configuration evals after P-1, P-2, P-4, and P-7, and stage E after P-1 and P-2 (R-50, R-51, R-55); the order test (R-58) |
 
 **Deviations:** none beyond the spec's own (its Assumptions, "Deviations"). FR-069's option B, Q1's named fallback, departs from the intent's order, not from the constitution, and is recorded only if the phone probe fails (R-42). The expected cost and the degraded modes stay the spec's tables; R-24 measures the cost.
@@ -816,7 +816,7 @@ The patches' behaviour: [contracts/intake-amendments.md](contracts/intake-amendm
 
 | Amendment | Rule | Change |
 |---|---|---|
-| C1 | M5 | The mark follows the record's steps: every step by a model, `trainedAlgorithmicMedia`; model and hand steps mixed, `compositeWithTrainedAlgorithmicMedia`; every step by hand, IPTC's human-made code. A step the studio's session scripted is a model step. Under `assets/twin/` and `docs/research/images/`, only `trainedAlgorithmicMedia` passes. |
+| C1 | M5 | The mark follows the record's steps: every step by a model, `trainedAlgorithmicMedia`; model and hand steps mixed, `compositeWithTrainedAlgorithmicMedia`; every step by hand, IPTC's human-made code. A step the studio's session scripted is a model step. Under `assets/twin/` and `docs/research/images/`, only `trainedAlgorithmicMedia` passes. Wherever a file lives, a record that calls for any other mark needs the Author's approval of the file's hash (P1). |
 | C2 | R1 | Admits the source type `design`. |
 | C4 | P2 | Each room confirmation is `true` or `"not_applicable"`; `screens_plain_glow` becomes `screens_plain_live_face`, free while `approvals.json` holds no room entry. |
 | C5 | P1 | A room file whose `likeness` is false takes `likeness_accepted: "not_applicable"`; the approval stays required. |
@@ -825,6 +825,7 @@ The patches' behaviour: [contracts/intake-amendments.md](contracts/intake-amendm
 
 - The patch adds the constant `AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7")`, which R-58's order test reads.
 - C8 needs data only: the studio's session appears on a step as its models and its `service`, with `disclosure_row` `D4`, which R7 and L1 already check. C11 changes no rule: it is the bundle's and the events' `bytes` (R-26).
+- A hand or composite mark needs the Author's approval of the file's hash wherever the file lives, as a room file's does. Otherwise a mistaken `records.json` outside the room, under `assets/visitors/` for one, could over-claim human authorship with no human looking (Principle VIII). This is the main session's hardening from the review (T041, part 1, I1), not the Author's decision, and the Author may relax it ([contracts/intake-amendments.md](contracts/intake-amendments.md) §7, "As built").
 - IPTC's human-made code is unverified (the exploration's guess is `digitalCreation`). The Author confirms the term at cv.iptc.org before P-5, and the scrubber, M5, and RX5 use exactly that one term.
 - Agent code on `feat/004-intake`: `scripts/assets/scrub.py` takes the mark's value from the record's steps; `scripts/assets/credits.py` renders the `design` source, and renders `tools` and `service` on model steps (today it renders `tools` on hand steps only).
 
@@ -846,7 +847,7 @@ The patches' behaviour: [contracts/intake-amendments.md](contracts/intake-amendm
 - `REVIEW.md` gains a sixth pass, "Room data", for any diff touching the catalog, the scene, topics, room text, UI words, work orders, studio notes, or `docs/studio/`: they locate nothing; name no third party's marks (plain product names as FR-031 and FR-046 allow); pass spec 002's C9, C6, and C8 readings; claim nothing about the Author's role beyond the corpus (FR-035); and, in what the studio's session acts on (the work orders, the studio notes, and the handoff), ask it for nothing FR-024 and its disclosure row exclude: a photo or a crop of one, a file outside the studio's folders, a fetch, or an upload (FR-014, as the `REVIEW.md` pass of 2026-10-23 amended it).
 - "Do not report: Generated files" gains "except work orders, which the Room data pass reads (FR-014)"; the "Arriving assets" pass's room bullet follows C4 and C5; `.claude/agents/reviewer.md` says "the passes in `REVIEW.md`" instead of "the four passes".
 - One behavioural case, with two planted files, each flagged Important: a generated work order that names a brand, and a catalog entry whose studio notes ask the studio for a crop of a photo and an upload.
-- It is generated after P-4, which rewrites the same lines of `REVIEW.md`; applying it calls for the Author's agent-configuration evals on `feat/004-intake`.
+- It is generated after P-4, which rewrites the same lines of `REVIEW.md`. Applying it calls for the Author's agent-configuration evals on the first branch built on `main` after P-7, not on `feat/004-intake`. That branch carries P-7 only as a patch file, so its tree's trigger hash is the one `main` had before P-7, and the new case isn't in it. The gate's `evals` step reads the branch tree's trigger hash, and a branch built on `main` after P-7 carries P-7's configuration. So that branch shows the tier PENDING until the Author runs `make evals-agent-config REF=<that branch>` from main's checkout. The branch's note gives the Author's steps.
 
 **Rationale.** FR-014 has the reviewer read work orders, studio notes, and the photo guide as it reads room text, and the generated-files rule would otherwise skip them.
 
