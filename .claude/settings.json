@@ -68,9 +68,13 @@
       "Edit(~/.aws/**)",
       "Edit(~/.local/share/h4reet/**)",
       "Read(//srv/studio/photos/**)",
+      "Edit(//srv/studio/photos/**)",
       "Read(//srv/studio/outputs/**)",
+      "Edit(//srv/studio/outputs/**)",
       "Read(//srv/studio/workflows/**)",
+      "Edit(//srv/studio/workflows/**)",
       "Read(//srv/studio/key/**)",
+      "Edit(//srv/studio/key/**)",
       "Edit(/assets/policy/**)"
     ],
     "allow": [
@@ -131,7 +135,11 @@
         "~/.config/h4reet-ai",
         "~/.aws",
         "~/.local/state/h4reet",
-        "./assets/policy"
+        "./assets/policy",
+        "/srv/studio/photos",
+        "/srv/studio/outputs",
+        "/srv/studio/workflows",
+        "/srv/studio/key"
       ],
       "denyRead": [
         "./corpus/intake/private",

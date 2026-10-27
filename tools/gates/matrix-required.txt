@@ -190,6 +190,23 @@ H/settings/the studio's photos folder is denied
 H/settings/the studio's outputs folder is denied
 H/settings/the studio's workflows folder is denied
 H/settings/the studio's blinding-key folder is denied
+H/settings/the studio's photos folder is write-denied
+H/settings/the studio's outputs folder is write-denied
+H/settings/the studio's workflows folder is write-denied
+H/settings/the studio's blinding-key folder is write-denied
+H/protected-paths.sh/an Edit in the studio's photos folder
+H/protected-paths.sh/an Edit in the studio's outputs folder
+H/protected-paths.sh/an Edit in the studio's workflows folder
+H/protected-paths.sh/an Edit in the studio's blinding-key folder
+H/protected-paths.sh/an Edit through a .. path into a studio folder
+H/protected-paths.sh/an Edit through a symlink into a studio folder
+H/protected-paths.sh/an Edit through a case variant of a studio folder
+H/protected-paths.sh/every edit while the studio list is missing
+H/protected-paths.sh/every edit while a studio line holds a placeholder
+H/protected-paths.sh/every edit while a studio line's path is relative
+H/protected-paths.sh/an Edit in a studio folder the list names through a symlink
+S/studio-folder-writes
+S/studio-listener
 H/protected-paths.sh/assets/policy/licenses.json
 H/protected-paths.sh/assets/policy/approvals.json
 H/protected-paths.sh/assets/policy/caps.json
