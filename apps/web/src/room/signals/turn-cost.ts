@@ -53,7 +53,8 @@ export interface CostState {
 }
 
 export interface CostChannel {
-  /** Applies §5's table to one outcome, then notifies each subscriber once; while not configured, nothing at all. */
+  /** Applies §5's table to one outcome, then notifies each subscriber once; while not configured, nothing at all. A
+   *  cue or a listener that throws is passed over, and `report` never throws. */
   report(outcome: TurnOutcome, from: "turn" | "fixture"): void;
   readonly state: CostState;
   /** Called with each new state; returns what unsubscribes. */
@@ -154,9 +155,22 @@ export function createCostChannel(options: { configured: boolean; clock: Pick<Cl
       // Row 7's cue: a turn's 200 by the fallback, whatever its cost says; never a fixture's.
       if (from === "turn" && outcome.kind === "reply" && outcome.route === "fallback") {
         const at = options.clock.now();
-        for (const cue of [...cues]) cue(at);
+        for (const cue of [...cues]) {
+          try {
+            cue(at);
+          } catch {
+            // One that throws neither stops the rest nor reaches the sender's end report.
+          }
+        }
       }
-      for (const listener of [...listeners]) listener(state);
+      const next = state;
+      for (const listener of [...listeners]) {
+        try {
+          listener(next);
+        } catch {
+          // As above: a stage that can't draw a state leaves the text copy and the others to take it.
+        }
+      }
     },
     subscribe(listener) {
       listeners.add(listener);
