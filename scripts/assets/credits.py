@@ -6,9 +6,11 @@
 
 It renders assets/CREDITS.md from every records.json under assets/ (but assets/policy/), and
 docs/research/images/CREDITS.md from those under docs/research/images/, when that folder exists: one section per
-directory, and in it one per file, with its kind, its source's type (never its ID, whose meaning stays in the studio),
-each step by a model or by hand, each model with its repository, revision, and license, each hand tool, any hosted
-service, and the media license. Rendering also writes each records.json back in its canonical form: entries sorted by
+directory, and in it one per file, with its kind, its source's type (never its ID, whose meaning stays in the studio,
+but for an original design, shown with its opaque ID: spec 004, Amendment C2), each step by a model or by hand, each
+model with its repository, revision, and license, each step's tools, model steps' included, any hosted service (a
+step the studio's agent session scripted shows the tools it drove and the session, with its disclosure row: spec 004,
+Amendment C8), and the media license. Rendering also writes each records.json back in its canonical form: entries sorted by
 file, keys in data-model.md's order, two-space indentation, and a trailing newline.
 
 --check writes nothing. It exits 1, naming each file, when a rendering differs from the records or a records.json
@@ -133,6 +135,11 @@ def steps_lines(steps: list) -> list[str]:
         if not isinstance(step, dict):
             continue
         name = code(step.get("name", ""))
+        tools = [
+            f"{code(t.get('name'))} {code(t.get('version'))}, under {code(t.get('license'))} {code(t.get('license_version'))}"
+            for t in step.get("tools") or []
+            if isinstance(t, dict)
+        ]
         if step.get("by") == "model":
             parts = []
             for model in step.get("models") or []:
@@ -146,11 +153,11 @@ def steps_lines(steps: list) -> list[str]:
                     )
                 )
             line = f"- Step {n}, {name}, by a model: {'; '.join(parts)}"
+            # A model step's tools too (spec 004, Amendment C8): a step the studio's agent session scripted shows the
+            # tools it drove, then the session as its service.
+            if tools:
+                line += f"; with {'; '.join(tools)}"
         else:
-            tools = [
-                f"{code(t.get('name'))} {code(t.get('version'))}, under {code(t.get('license'))} {code(t.get('license_version'))}"
-                for t in step.get("tools") or []
-            ]
             line = f"- Step {n}, {name}, by hand" + (
                 f": {'; '.join(tools)}" if tools else ""
             )
@@ -164,13 +171,21 @@ def steps_lines(steps: list) -> list[str]:
     return lines
 
 
+def source_text(source: dict) -> str:
+    """A source by its type alone, its ID staying in the studio; an original design with its opaque ID (spec 004,
+    Amendment C2)."""
+    if source.get("type") == "design":
+        return f"an original design, {code(source.get('id'))}"
+    return SOURCES.get(source.get("type"), "not recorded")
+
+
 def entry_lines(entry: dict) -> list[str]:
     source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
     lines = [
         f"### {code(entry.get('file'))}",
         "",
         f"- Kind: {entry.get('kind')}",
-        f"- Source: {SOURCES.get(source.get('type'), 'not recorded')}",
+        f"- Source: {source_text(source)}",
         f"- Made: {entry.get('made')}",
         f"- A likeness of the Author: {'yes' if entry.get('likeness') is True else 'no'}",
     ]

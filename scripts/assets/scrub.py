@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Make a studio file pass the arrival check's container rules (spec 003 FR-006, FR-007, FR-034; research R-03).
 
-    python3 -I -B -X pycache_prefix=/dev/null scripts/assets/scrub.py [--out OUT] FILE
-    make assets-scrub FILE=<path>
+    python3 -I -B -X pycache_prefix=/dev/null scripts/assets/scrub.py [--record RECORDS] [--out OUT] FILE
+    make assets-scrub FILE=<path> [RECORD=<records.json>]
 
 It rewrites a PNG, JPEG, WebP, or GLB, keeping only what research R-03 admits, and adds the one mark: an XMP packet
-holding only the IPTC digital source type, trainedAlgorithmicMedia (KHR_xmp_json_ld's, in a GLB). It never decodes or
-re-encodes pixels: the image data is copied byte for byte. Standard library only.
+holding only the IPTC digital source type (KHR_xmp_json_ld's, in a GLB). It never decodes or re-encodes pixels: the
+image data is copied byte for byte. Standard library only.
+
+The mark follows the record (spec 004, Amendment C1). With --record, it reads the entry of that records.json whose
+file is the output's name, and only that entry's steps' `by`: every step by a model, trainedAlgorithmicMedia; model
+and hand steps mixed, compositeWithTrainedAlgorithmicMedia; every step by hand, MARK_HUMAN. A step the studio's
+session scripted is recorded as a model step. It never reads the entry's sha256, which the Author fills in after the
+scrub. Without --record, the mark is trainedAlgorithmicMedia, which the twin's files and the research images keep.
 
 - PNG: IHDR, PLTE, IDAT, tRNS, gAMA, cHRM, sRGB, pHYs, and IEND stay; the mark's iTXt goes after IHDR; text chunks,
   eXIf, iCCP, tIME, and anything after IEND go.
@@ -22,7 +28,9 @@ re-encodes pixels: the image data is copied byte for byte. Standard library only
   A GLB that requires an extension outside the list, or names an image by uri, is refused.
 
 ICC profiles go: the studio's outputs are sRGB. It prints what it dropped, by chunk or segment name, never content.
-Exit 0 written; 1 a file it can't make pass, with the reason, and nothing written; 2 a usage error.
+Exit 0 written; 1 a file it can't make pass, with the reason, and nothing written; 2 a usage error, or a record it
+can't take the mark from (no entry names the output, two do, the entry has no steps, or a step's `by` isn't model or
+hand), with nothing written.
 """
 
 from __future__ import annotations
@@ -37,20 +45,40 @@ import zlib
 from pathlib import Path
 
 MARK_NS = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
-MARK_VALUE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"
-MARK_PACKET = (
-    '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
-    '<x:xmpmeta xmlns:x="adobe:ns:meta/">\n'
-    ' <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
-    f'  <rdf:Description rdf:about="" xmlns:Iptc4xmpExt="{MARK_NS}" Iptc4xmpExt:DigitalSourceType="{MARK_VALUE}"/>\n'
-    " </rdf:RDF>\n"
-    "</x:xmpmeta>\n"
-    '<?xpacket end="w"?>'
-).encode()
-MARK_JSON = {
-    "@context": {"Iptc4xmpExt": MARK_NS},
-    "Iptc4xmpExt:DigitalSourceType": MARK_VALUE,
-}
+SOURCE_TYPES = "http://cv.iptc.org/newscodes/digitalsourcetype/"
+# The three marks a record's steps call for (spec 004, Amendment C1), each a term of IPTC's digital source type.
+MARK_MODEL = "trainedAlgorithmicMedia"
+MARK_COMPOSITE = "compositeWithTrainedAlgorithmicMedia"
+# Media a person made with digital tools. The Author confirms IPTC's term before P-5 (tasks.md T031), and this one line
+# takes it; digitalCreation is the plan's candidate, unverified (research R-53).
+MARK_HUMAN = "digitalCreation"
+MARK_VALUE = SOURCE_TYPES + MARK_MODEL
+
+
+def mark_packet(term: str) -> bytes:
+    """The mark's XMP packet: the one property, set to IPTC's `term`."""
+    return (
+        '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/">\n'
+        ' <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
+        f'  <rdf:Description rdf:about="" xmlns:Iptc4xmpExt="{MARK_NS}" '
+        f'Iptc4xmpExt:DigitalSourceType="{SOURCE_TYPES}{term}"/>\n'
+        " </rdf:RDF>\n"
+        "</x:xmpmeta>\n"
+        '<?xpacket end="w"?>'
+    ).encode()
+
+
+def mark_json(term: str) -> dict:
+    """The mark as KHR_xmp_json_ld's packet, in a GLB."""
+    return {
+        "@context": {"Iptc4xmpExt": MARK_NS},
+        "Iptc4xmpExt:DigitalSourceType": SOURCE_TYPES + term,
+    }
+
+
+MARK_PACKET = mark_packet(MARK_MODEL)
+MARK_JSON = mark_json(MARK_MODEL)
 KINDS = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg", ".webp": "webp", ".glb": "glb"}
 
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
@@ -70,6 +98,10 @@ NEUTRAL = {
 
 class ScrubError(Exception):
     """A file this tool can't make pass: nothing is written."""
+
+
+class RecordError(Exception):
+    """A record it can't take the mark from: exit 2, and nothing is written."""
 
 
 def printable(raw: bytes) -> str:
@@ -92,7 +124,9 @@ def png_chunk(kind: bytes, body: bytes) -> bytes:
     )
 
 
-def scrub_png(data: bytes, *, mark: bool, dropped: list[str]) -> bytes:
+def scrub_png(
+    data: bytes, *, mark: bool, dropped: list[str], packet: bytes = MARK_PACKET
+) -> bytes:
     if not data.startswith(PNG_SIG):
         raise ScrubError("it isn't a PNG")
     pos, kept, ended = 8, [], False
@@ -118,7 +152,7 @@ def scrub_png(data: bytes, *, mark: bool, dropped: list[str]) -> bytes:
     if pos < len(data):
         dropped.append(f"{len(data) - pos} bytes after IEND")
     marks = (
-        [png_chunk(b"iTXt", b"XML:com.adobe.xmp\x00\x00\x00\x00\x00" + MARK_PACKET)]
+        [png_chunk(b"iTXt", b"XML:com.adobe.xmp\x00\x00\x00\x00\x00" + packet)]
         if mark
         else []
     )
@@ -153,7 +187,9 @@ def scan_end(data: bytes, pos: int) -> int:
             return at
 
 
-def scrub_jpeg(data: bytes, *, mark: bool, dropped: list[str]) -> bytes:
+def scrub_jpeg(
+    data: bytes, *, mark: bool, dropped: list[str], packet: bytes = MARK_PACKET
+) -> bytes:
     if not data.startswith(b"\xff\xd8"):
         raise ScrubError("it isn't a JPEG")
     pos, jfif, body_parts = 2, None, []
@@ -217,7 +253,7 @@ def scrub_jpeg(data: bytes, *, mark: bool, dropped: list[str]) -> bytes:
         dropped.append(f"{len(data) - pos} bytes after EOI")
     head = [jfif] if jfif else []
     if mark:
-        head.append(segment(0xE1, XMP_APP1 + MARK_PACKET))
+        head.append(segment(0xE1, XMP_APP1 + packet))
     return b"\xff\xd8" + b"".join(head) + b"".join(body_parts) + b"\xff\xd9"
 
 
@@ -233,7 +269,9 @@ def riff_chunk(fourcc: bytes, body: bytes) -> bytes:
     )
 
 
-def scrub_webp(data: bytes, *, mark: bool, dropped: list[str]) -> bytes:
+def scrub_webp(
+    data: bytes, *, mark: bool, dropped: list[str], packet: bytes = MARK_PACKET
+) -> bytes:
     if len(data) < 12 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
         raise ScrubError("it isn't a WebP")
     end = 8 + struct.unpack("<I", data[4:8])[0]
@@ -283,9 +321,7 @@ def scrub_webp(data: bytes, *, mark: bool, dropped: list[str]) -> bytes:
             + (width - 1).to_bytes(3, "little")
             + (height - 1).to_bytes(3, "little"),
         )
-        payload = (
-            vp8x + alph + image + (riff_chunk(b"XMP ", MARK_PACKET) if mark else b"")
-        )
+        payload = vp8x + alph + image + (riff_chunk(b"XMP ", packet) if mark else b"")
     else:
         payload = image
     riff = b"WEBP" + payload
@@ -337,7 +373,7 @@ def clean_json(value: object, path: tuple[str, ...], dropped: list[str]) -> obje
     return out
 
 
-def scrub_glb(data: bytes, *, dropped: list[str]) -> bytes:
+def scrub_glb(data: bytes, *, dropped: list[str], term: str = MARK_MODEL) -> bytes:
     if len(data) < 20 or data[:4] != b"glTF" or struct.unpack("<I", data[4:8])[0] != 2:
         raise ScrubError("it isn't a glTF 2.0 GLB")
     pos, chunks = 12, []
@@ -407,7 +443,9 @@ def scrub_glb(data: bytes, *, dropped: list[str]) -> bytes:
         gltf["buffers"][0]["byteLength"] = len(out)
     # The mark, once, on the asset.
     gltf["extensionsUsed"] = [*gltf["extensionsUsed"], "KHR_xmp_json_ld"]
-    gltf.setdefault("extensions", {})["KHR_xmp_json_ld"] = {"packets": [MARK_JSON]}
+    gltf.setdefault("extensions", {})["KHR_xmp_json_ld"] = {
+        "packets": [mark_json(term)]
+    }
     gltf["asset"]["extensions"] = {"KHR_xmp_json_ld": {"packet": 0}}
     text = json.dumps(gltf, separators=(",", ":"), ensure_ascii=False).encode()
     text += b" " * (-len(text) % 4)
@@ -429,19 +467,57 @@ def image_kind(data: bytes) -> str:
 
 
 def scrub_bytes(
-    data: bytes, kind: str, *, mark: bool = True, dropped: list[str] | None = None
+    data: bytes,
+    kind: str,
+    *,
+    mark: bool = True,
+    dropped: list[str] | None = None,
+    term: str = MARK_MODEL,
 ) -> bytes:
-    """The scrubbed file. `mark` is False for an image embedded in a GLB, whose one mark is the model's."""
+    """The scrubbed file, marked with IPTC's `term`. `mark` is False for an image embedded in a GLB, whose one mark is
+    the model's."""
     dropped = [] if dropped is None else dropped
+    packet = mark_packet(term)
     if kind == "png":
-        return scrub_png(data, mark=mark, dropped=dropped)
+        return scrub_png(data, mark=mark, dropped=dropped, packet=packet)
     if kind == "jpeg":
-        return scrub_jpeg(data, mark=mark, dropped=dropped)
+        return scrub_jpeg(data, mark=mark, dropped=dropped, packet=packet)
     if kind == "webp":
-        return scrub_webp(data, mark=mark, dropped=dropped)
+        return scrub_webp(data, mark=mark, dropped=dropped, packet=packet)
     if kind == "glb":
-        return scrub_glb(data, dropped=dropped)
+        return scrub_glb(data, dropped=dropped, term=term)
     raise ScrubError(f"{kind} isn't a format the arrival check admits")
+
+
+def term_from_record(records: Path, name: str) -> str:
+    """The mark the steps of the entry naming `name` call for (spec 004, Amendment C1). It reads each step's `by`
+    and nothing else of the entry: never its sha256, which the Author fills in after the scrub."""
+    try:
+        doc = json.loads(records.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        raise RecordError(f"{records.name} can't be read, or isn't JSON") from None
+    entries = doc.get("entries") if isinstance(doc, dict) else None
+    if not isinstance(entries, list):
+        raise RecordError(f"{records.name} has no list of entries")
+    found = [e for e in entries if isinstance(e, dict) and e.get("file") == name]
+    if len(found) != 1:
+        which = "no entry" if not found else "more than one entry"
+        raise RecordError(f"{records.name} has {which} for {name}")
+    steps = found[0].get("steps")
+    if not isinstance(steps, list) or not steps:
+        raise RecordError(f"the entry for {name} has no steps")
+    by = set()
+    for step in steps:
+        if not isinstance(step, dict) or step.get("by") not in ("model", "hand"):
+            raise RecordError(
+                f"a step of the entry for {name} isn't by a model or by hand"
+            )
+        by.add(step["by"])
+    if by == {"model"}:
+        return MARK_MODEL
+    if by == {"hand"}:
+        return MARK_HUMAN
+    return MARK_COMPOSITE
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -449,6 +525,10 @@ def main(argv: list[str] | None = None) -> int:
         description="Make a studio file pass the arrival check's container rules (spec 003)."
     )
     parser.add_argument("--out", help="write here instead of rewriting FILE")
+    parser.add_argument(
+        "--record",
+        help="the records.json whose entry for the output's name sets the mark (spec 004, Amendment C1)",
+    )
     parser.add_argument("file")
     args = parser.parse_args(argv)
     source = Path(args.file)
@@ -459,9 +539,17 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    target = Path(args.out) if args.out else source
+    term = MARK_MODEL
+    if args.record:
+        try:
+            term = term_from_record(Path(args.record), target.name)
+        except RecordError as exc:
+            print(f"scrub: {exc}; nothing written", file=sys.stderr)
+            return 2
     dropped: list[str] = []
     try:
-        clean = scrub_bytes(source.read_bytes(), kind, dropped=dropped)
+        clean = scrub_bytes(source.read_bytes(), kind, dropped=dropped, term=term)
     except (ScrubError, ValueError, struct.error, IndexError, KeyError) as exc:
         reason = (
             str(exc)
@@ -470,7 +558,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"scrub: {source.name}: {reason}; nothing written", file=sys.stderr)
         return 1
-    target = Path(args.out) if args.out else source
     with tempfile.NamedTemporaryFile(
         dir=target.parent, prefix=".scrub-", delete=False
     ) as tmp:
@@ -479,7 +566,7 @@ def main(argv: list[str] | None = None) -> int:
     os.chmod(tmp.name, (target.stat().st_mode if target.exists() else 0o644) & 0o777)
     os.replace(tmp.name, target)
     print(
-        f"scrub: {target.name}: dropped {', '.join(dropped) if dropped else 'nothing'}; added the mark"
+        f"scrub: {target.name}: dropped {', '.join(dropped) if dropped else 'nothing'}; added the mark, {term}"
     )
     return 0
 
