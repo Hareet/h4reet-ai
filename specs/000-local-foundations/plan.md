@@ -289,11 +289,13 @@ CLAUDE.md                        [P] the lines §15 lists
   - The compose project name `h4reet-<stack>` prefixes every container, network, and volume.
   - Each stack has its own port range, bound to the literal `127.0.0.1`, which no env file can change:
 
-    | Stack | x000 api | x001 Langfuse | x002 Grafana | x003 admin | x004 OTLP |
-    |---|---|---|---|---|---|
-    | prod | 18000 | 18001 | 18002 | 18003 | 18004 |
-    | dev | 18100 | 18101 | 18102 | 18103 | 18104 |
-    | dev-cpu | 18300 | 18301 | 18302 | 18303 | 18304 |
+    | Stack | x000 api | x001 Langfuse | x002 Grafana | x003 admin | x004 OTLP | x005 site |
+    |---|---|---|---|---|---|---|
+    | prod | 18000 | 18001 | 18002 | 18003 | 18004 | 18005 |
+    | dev | 18100 | 18101 | 18102 | 18103 | 18104 | 18105 |
+    | dev-cpu | 18300 | 18301 | 18302 | 18303 | 18304 | 18305 |
+
+    x005, the room's site, is spec 002's ([its web-serving contract](../002-the-room/contracts/web-serving.md)).
 
     Dev-cpu's ports are published on the host's 127.0.0.1 by RootlessKit, running as `h4agents`. Only the Author's own processes can open them, which lets the Author look at dev-cpu's Grafana and Langfuse. The sandbox's proxy refuses loopback, so agent sessions can't, and engine containers can't reach the host's stacks either ([contracts/agents-engine.md](contracts/agents-engine.md) rows E4, E9, E14).
 

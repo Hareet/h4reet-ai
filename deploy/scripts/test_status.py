@@ -617,3 +617,19 @@ def test_the_gateways_shared_build_shows_as_built(
         c[3] for c in docker.calls if c[:3] == ("inspect", "--format", "{{.Image}}")
     ]
     assert out.rstrip().endswith("status: healthy")
+
+
+def test_the_web_services_shared_build_shows_as_built(
+    host_stack: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # spec 002, contracts/web-serving.md §1: compose names make up's build of the room's site, which no lock line
+    # pins and compose never pulls, as it does the gateway's.
+    env, run, tree = host_stack
+    docker = FakeDocker(tree, "prod")
+    web = docker.raw["services"]["web"]
+    assert web["image"] == "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}"
+    assert status(env, run, docker) == 0
+    out = capsys.readouterr().out
+    row = next(ln.split() for ln in out.splitlines() if ln.startswith("web "))
+    assert row[1:] == ["running", "healthy", "built"]
+    assert out.rstrip().endswith("status: healthy")

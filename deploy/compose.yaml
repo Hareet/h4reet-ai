@@ -8,7 +8,8 @@
 #   - every service joins `internal`, which has no route out; only `edge` joins `edge` and publishes ports, on the
 #     literal 127.0.0.1; only `gateway` joins `egress`, the one route to the internet (FR-040);
 #   - every image is pinned by digest and matches deploy/images.lock, but the gateway's, which make up builds once per
-#     commit, outside compose, and compose never pulls; compose's own builds come from this file's own tree;
+#     commit, outside compose, and the room's web image, which make up builds on every run, and compose never pulls
+#     either; compose's own builds come from this file's own tree;
 #   - binds come only from ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR};
 #   - no container_name, no external resource, no host network, no privileged mode, no Docker socket;
 #   - every service has a row in docs/data-flow-disclosure.md.
@@ -72,8 +73,9 @@ x-langfuse-env: &langfuse-env
   HOSTNAME: 0.0.0.0
 
 services:
-  # The only publisher: nginx, unprivileged, on the stack's five 127.0.0.1 ports (deploy/edge/nginx.conf).
-  # It resolves each upstream per request, so it starts with no dependencies.
+  # The only publisher: nginx, unprivileged, on the stack's six 127.0.0.1 ports (deploy/edge/nginx.conf). The sixth,
+  # x005, is the room's site (spec 002, contracts/web-serving.md §2). It resolves each upstream per request, so it
+  # starts with no dependencies.
   edge:
     <<: *service
     image: ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
@@ -87,6 +89,7 @@ services:
       - "127.0.0.1:${H4_GRAFANA_PORT}:8082"
       - "127.0.0.1:${H4_ADMIN_PORT}:8083"
       - "127.0.0.1:${H4_OTLP_PORT}:8084"
+      - "127.0.0.1:${H4_SITE_PORT}:8087"
     volumes:
       - type: bind
         source: "${H4_TREE:?set by make up}/deploy/edge/nginx.conf"
@@ -199,6 +202,31 @@ services:
         limits:
           cpus: "1"
           memory: 512M
+
+  # The room's site (spec 002; contracts/web-serving.md §1): nginx, unprivileged, with the built site and its headers
+  # baked in, behind edge's x005 listener. Its image is make up's own build, outside compose, as the gateway's is
+  # (deploy/scripts/web_image.py), with two differences: the tag ends in the env file's H4_WEB_SUFFIX, empty on prod
+  # and -drafts on dev and dev-cpu, whose images hold the room's drafts, bannered; and it is rebuilt on every make up,
+  # since it bakes in main's approvals as they stood. compose never builds or pulls it. It takes nothing from the env
+  # file, reaches nothing, and nothing waits on it: with web down, edge answers x005 with its own 503 page.
+  web:
+    <<: *service
+    image: "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}"
+    pull_policy: never
+    networks: [internal]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 32M
 
   # The gateway's own Postgres: the meter, the kill switch, the ledger, the audit log, the outbox, and incidents
   # (data-model.md). Its volume survives make down (FR-031).

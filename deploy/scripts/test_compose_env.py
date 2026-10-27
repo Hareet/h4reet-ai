@@ -63,6 +63,7 @@ def test_the_topology_of_this_branch() -> None:
     assert set(SERVICES) == {
         "edge",
         "gateway",
+        "web",
         "gateway-state",
         "model-server-gpu",
         "model-server-cpu",
@@ -146,6 +147,7 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
         "127.0.0.1:${H4_GRAFANA_PORT}:8082",
         "127.0.0.1:${H4_ADMIN_PORT}:8083",
         "127.0.0.1:${H4_OTLP_PORT}:8084",
+        "127.0.0.1:${H4_SITE_PORT}:8087",
     ]
     assert [n for n, s in SERVICES.items() if s.get("ports")] == ["edge"]
     assert [n for n, s in SERVICES.items() if "edge" in s["networks"]] == ["edge"]
@@ -154,9 +156,14 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
 
 
 # Built from this file's own tree, each from its Dockerfile on a pinned base; the gateway runs make up's one build per
-# commit, outside compose (tasks.md T184); every other service runs a pinned image.
+# commit, outside compose (tasks.md T184), and so does the room's web service, whose tag ends in the env file's
+# H4_WEB_SUFFIX, -drafts where the stack's image holds the room's drafts (spec 002, contracts/web-serving.md §1);
+# every other service runs a pinned image.
 BUILT = ("telegram-standin", "breach-probe")
-SHARED = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
+SHARED = {
+    "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
+    "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+}
 
 
 def test_images_are_the_locked_pins() -> None:
@@ -227,6 +234,26 @@ def test_the_model_servers() -> None:
     # Same server, same image build: only the backend differs (ADR 0019).
     assert gpu["image"].startswith("ghcr.io/ggml-org/llama.cpp:server-cuda-b11459@")
     assert cpu["image"].startswith("ghcr.io/ggml-org/llama.cpp:server-b11459@")
+
+
+def test_the_web_service_runs_make_ups_build_and_reaches_nothing() -> None:
+    # spec 002, contracts/web-serving.md §1: deploy/scripts/web_image.py builds it (test_web_image.py holds its
+    # arguments), compose neither builds nor pulls it, and it takes nothing from the env file. It listens on the
+    # internal network alone, behind edge's x005; nothing waits on it, and it waits on nothing.
+    web = SERVICES["web"]
+    assert "build" not in web
+    assert (web["image"], web["pull_policy"]) == (SHARED["web"], "never")
+    assert web["networks"] == ["internal"]
+    for absent in (
+        "environment",
+        "volumes",
+        "ports",
+        "depends_on",
+        "command",
+        "entrypoint",
+        "user",
+    ):
+        assert absent not in web, absent
 
 
 def test_the_gateway_runs_make_ups_one_build_per_commit() -> None:
@@ -532,6 +559,7 @@ def test_read_only_roots_where_the_image_allows() -> None:
     read_only = [
         "edge",
         "gateway",
+        "web",
         "otel-collector",
         "telegram-standin",
         "mailpit",
@@ -578,6 +606,7 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
     [
         ("edge", "0.25", "64M"),
         ("gateway", "1", "512M"),
+        ("web", "0.1", "32M"),
         ("gateway-state", "0.5", "256M"),
         ("model-server-gpu", "4", "8G"),
         ("model-server-cpu", "4", "2G"),
@@ -615,6 +644,13 @@ def test_health_checks() -> None:
         probe[:3] == ["CMD", "node", "-e"]
         and "http://127.0.0.1:8080/health/live" in probe[3]
     )
+    # The room's site: a static file in the web image (contracts/web-serving.md §1), with the image's busybox wget.
+    assert SERVICES["web"]["healthcheck"]["test"] == [
+        "CMD",
+        "wget",
+        "-qO-",
+        "http://127.0.0.1:8080/healthz",
+    ]
     assert SERVICES["gateway-state"]["healthcheck"]["test"] == [
         "CMD",
         "pg_isready",
@@ -977,6 +1013,9 @@ def test_every_variable_compose_reads_is_in_the_env_files() -> None:
             has_default = modifier.startswith((":-", "-"))
             used[name] = used.get(name, True) and has_default
     assert used, "compose reads no variables?"
+    assert (
+        used.get("H4_WEB_SUFFIX") is False
+    )  # in every env file: no default could pick prod's tag on dev
     for name, has_default in sorted(used.items()):
         holders = [stack for stack, found in every.items() if name in found]
         if has_default:

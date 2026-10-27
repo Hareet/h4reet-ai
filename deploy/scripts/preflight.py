@@ -57,17 +57,25 @@ KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*")
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 HEX64_RE = re.compile(r"[0-9a-f]{64}")
 DEVCPU_TOKEN_RE = re.compile(r"h4op_devcpu_[A-Za-z0-9_-]{43}")
-# The gateway's one image per commit (tasks.md T184): make up builds it outside compose, after preflight
-# (deploy/scripts/gateway_image.py), and compose names it, as written here, with pull_policy: never and no build. No
-# registry has it, so no lock line pins it, and it is no image to pull.
-SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
+# The gateway's one image per commit (tasks.md T184), and the room's web image (spec 002, contracts/web-serving.md
+# §1): make up builds each outside compose, after preflight (deploy/scripts/gateway_image.py, web_image.py), and
+# compose names it, as written here, with pull_policy: never and no build. No registry has either, so no lock line
+# pins them, and neither is an image to pull.
+SHARED_IMAGES = {
+    "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
+    "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+}
+# x000 to x005, in order: the sixth, x005, is the room's site (spec 002, contracts/web-serving.md §4).
 PORT_KEYS = (
     "H4_API_PORT",
     "H4_LANGFUSE_PORT",
     "H4_GRAFANA_PORT",
     "H4_ADMIN_PORT",
     "H4_OTLP_PORT",
+    "H4_SITE_PORT",
 )
+# The web image's tag suffix per H4_ENV, which carries its drafts flag: prod's never holds drafts (web-serving.md §4).
+WEB_SUFFIX = {"prod": "", "dev": "-drafts"}
 CHANNELS = (
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
@@ -94,7 +102,7 @@ DOCKER_ENV = (
     "BUILDX_CONFIG",
     "XDG_RUNTIME_DIR",
 )
-WATCHED = ("config", "deploy", "services", "evals", "scripts")  # P21
+WATCHED = ("config", "deploy", "services", "apps", "evals", "scripts")  # P21
 
 
 @dataclass(frozen=True)
@@ -330,7 +338,7 @@ def active(service: dict, profiles: set[str]) -> bool:
 
 
 def shared_build(name: str, service: dict) -> bool:
-    """The service runs make up's own build of the gateway, which compose never pulls (SHARED_IMAGES)."""
+    """The service runs make up's own build, the gateway's or the room's, which compose never pulls (SHARED_IMAGES)."""
     return (
         SHARED_IMAGES.get(name) == service.get("image")
         and service.get("pull_policy") == "never"
@@ -521,6 +529,10 @@ def p3(ctx: Context) -> Result:
     if not ctx.readable:
         return fail("P3", "needs a readable env file (P1)")
     allowed_empty = {"H4_BUILD_PROXY"} if ctx.stack.host else set()
+    if ctx.stack.name == "prod":
+        allowed_empty.add(
+            "H4_WEB_SUFFIX"
+        )  # prod's web image carries no suffix: it holds no drafts (P7 checks it)
     if ctx.stack.name == "dev":
         allowed_empty |= set(CHANNELS)
     left = [k for k, v in ctx.values.items() if any(p in v for p in PLACEHOLDERS)]
@@ -608,6 +620,13 @@ def p7(ctx: Context) -> Result:
     for i, key in enumerate(PORT_KEYS):
         if v.get(key) != str(s.base_port + i):
             problems.append(f"{key} isn't {s.name}'s {s.base_port + i}")
+    suffix = WEB_SUFFIX[s.env]
+    if v.get("H4_WEB_SUFFIX") != suffix:
+        problems.append(
+            "H4_WEB_SUFFIX isn't empty on prod, whose web image never holds the room's drafts"
+            if s.env == "prod"
+            else f"H4_WEB_SUFFIX isn't {suffix} on dev, whose web image shows the room's drafts"
+        )
     if s.host:
         if "H4_TREE" in v:
             problems.append(

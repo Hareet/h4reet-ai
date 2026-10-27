@@ -1,11 +1,12 @@
 {
   "name": "h4reet-ai",
   "private": true,
-  "description": "h4reet.ai, an AI twin portfolio: the workspace root. Scripts delegate to the workspaces under services/.",
+  "description": "h4reet.ai, an AI twin portfolio: the workspace root. Scripts delegate to the workspaces under services/ and apps/.",
   "license": "MIT",
   "type": "module",
   "workspaces": [
-    "services/*"
+    "services/*",
+    "apps/*"
   ],
   "engines": {
     "node": ">=24.21 <25"

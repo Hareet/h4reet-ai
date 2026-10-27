@@ -79,7 +79,7 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | `full_name` | string or `null` | the PDF's name line; `null` until the Author fills it |
 | `contact` | string or `null` | the one contact channel the Author chooses |
 
-**How both files reach the build:** on the host, by `git show main:<path>` (`web_image.py` for the image, `build/policy.ts` for a checkout's build), into a policy directory the build reads; the image's build stage reads it as the named build context `policy` and never runs git. A file missing on `main` counts as absent: every content file a draft, and the room's header on the PDF.
+**How both files reach the build:** on the host, by `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:<path>`, never a bare `main`, which a tag of that name would answer (`web_image.py` for the image, `build/policy.ts` for a checkout's build), into a policy directory the build reads; the image's build stage reads it as the named build context `policy` and never runs git. A file missing on `main` counts as absent: every content file a draft, and the room's header on the PDF.
 
 **States of a content file:** `draft` → (the Author adds its hash on `main`) → `approved` → (any edit) → `draft`. An image built before the approval keeps the draft until the next `make up` rebuilds it.
 

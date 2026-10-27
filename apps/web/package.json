@@ -1,0 +1,29 @@
+{
+  "name": "@h4reet/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The room: the static site the visitor sees, built by Vite and served by the web image (spec 002, plan section 1).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21 <25"
+  },
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint --max-warnings 0 . && tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "@types/jsdom": "30.0.0",
+    "@types/node": "24.19.1",
+    "@types/three": "0.186.0",
+    "axe-core": "4.13.0",
+    "jsdom": "30.1.1",
+    "three": "0.186.1",
+    "typescript": "6.0.3",
+    "vite": "8.3.3",
+    "vitest": "5.0.3"
+  }
+}
