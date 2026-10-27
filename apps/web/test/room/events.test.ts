@@ -4,7 +4,8 @@
 // the bundle's index. The room starts with the index compose() makes of the fixture set, so every ID is a synthetic
 // fx- one; the 3D pick is the scene module's own, scene/bundle3d.ts's selectablePicker over the fixture's 3D part,
 // bound to the canvas as src/room/scene.ts binds it, and the 2D pick is src/room/flat.ts's.
-// The other events a selection's action sends (a resume action's resume_opened, T207) are test/ui/talk.test.ts's.
+// Each selection's events are pinned whole too: object_selected, then its action's own (a resume action's
+// resume_opened, T207), and nothing else; what each action does is test/ui/talk.test.ts's.
 import { describe, expect, it } from "vitest";
 
 import { compose } from "../../build/room/compose";
@@ -16,6 +17,7 @@ import { CORE_PX, pickAreas } from "../../src/room/compose/pick";
 import type { PickArea, Rect } from "../../src/room/compose/pick";
 import { FLAT_VIEW, REFERENCE_DESKTOP, REFERENCE_PHONE, flatScale } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
+import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { RoomEvent } from "../../src/room/events";
 import { bindPointerSelection } from "../../src/room/objects";
 import { framedBoxes, pickAreasOn, selectablePicker } from "../../src/room/scene/bundle3d";
@@ -56,6 +58,16 @@ function tap(win: TestWindow, el: Element, [clientX, clientY]: Point, pointerTyp
 /** The object_selected events the visit has sent since `from`. */
 const selections = (v: Visit, from: number): RoomEvent[] =>
   v.events.slice(from).filter((e) => e.kind === "object_selected");
+
+/** Everything a selection of `id` sends, read before it: object_selected, then its action's own events. A resume action
+ *  opens the resume, which sends resume_opened only if it wasn't open already; a topic that isn't ready, as every
+ *  topic is here, sends nothing more (T207). */
+function sends(v: Visit, index: RoomIndex, id: string | null): RoomEvent[] {
+  const action = index.selectables.find((s) => s.id === id)?.action;
+  const closed = v.doc.querySelector(".resume-panel")?.hasAttribute("hidden") ?? true;
+  const opened: RoomEvent[] = action?.kind === "resume" && closed ? [{ kind: "resume_opened" }] : [];
+  return [{ kind: "object_selected", id: id ?? "" }, ...opened];
+}
 
 /** The 3D stage the room builds, picking as src/room/scene.ts picks: the bundle's selectablePicker over the fixture's
  *  3D part, sized to `stage`, bound to the canvas with the room's own select. */
@@ -103,9 +115,10 @@ describe("object_selected", () => {
     expect(areas.map((a) => a.id)).toEqual(index.selectables.map((s) => s.id));
     for (const pointer of ["mouse", "touch"]) {
       for (const area of areas) {
-        const from = v.events.length;
+        const [from, expected] = [v.events.length, sends(v, index, area.id)];
         tap(v.win, canvas, centreOf(area.core), pointer);
         expect(selections(v, from), `${pointer} on ${area.id}`).toEqual([{ kind: "object_selected", id: area.id }]);
+        expect(v.events.slice(from), `${pointer} on ${area.id}`).toEqual(expected);
       }
     }
   });
@@ -129,9 +142,10 @@ describe("object_selected", () => {
     button(v.doc, "Keep it for later").click();
     for (const pointer of ["mouse", "touch"]) {
       for (const area of areas) {
-        const from = v.events.length;
+        const [from, expected] = [v.events.length, sends(v, index, area.id)];
         tap(v.win, flat, at(area), pointer);
         expect(selections(v, from), `${pointer} on ${area.id}`).toEqual([{ kind: "object_selected", id: area.id }]);
+        expect(v.events.slice(from), `${pointer} on ${area.id}`).toEqual(expected);
       }
     }
   });
@@ -143,9 +157,10 @@ describe("object_selected", () => {
     const buttons = [...v.doc.querySelectorAll<HTMLButtonElement>(".room-list button")];
     expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual(index.selectables.map((s) => s.id));
     for (const b of buttons) {
-      const from = v.events.length;
+      const [from, expected] = [v.events.length, sends(v, index, b.getAttribute("data-object-id"))];
       b.click();
       expect(selections(v, from)).toEqual([{ kind: "object_selected", id: b.getAttribute("data-object-id") }]);
+      expect(v.events.slice(from)).toEqual(expected);
     }
   });
 
