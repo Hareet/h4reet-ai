@@ -4,7 +4,8 @@
 // - each placement's primitives in a group at its matrix, back to front as the index orders them;
 // - each switch case its own group, toggled by `visibility`, holding its pose and its cable as a quadratic curve: the
 //   case tier.ts's caseFor gives for the tier the stage's `apply` takes, not-live's until the tier applies another, so
-//   only `local` shows the plugged case and only `cloud` the cloud case, whatever the index maps (FR-043, FR-062);
+//   only `local` shows the plugged case and only `cloud` the cloud case, the two the switch's claims name, whatever
+//   its cases map (FR-043, FR-062; contracts/room-bundle.md §3.1);
 // - each stand-in's label as SVG text, the UI word `standin.label` filled with its label's word, as the 3D room words
 //   it;
 // - the visitor as the chosen avatar's flat polygons (src/choice/avatars.ts), at the index's place and scale;
@@ -183,7 +184,7 @@ function showCases(
 ): void {
   for (const [id, cases] of drawn) {
     const sw = switches.find((s) => s.id === id);
-    const pose = sw ? caseFor(sw.cases, value, (p) => cases.has(p)) : null;
+    const pose = sw ? caseFor(sw, value, (p) => cases.has(p)) : null;
     for (const [name, group] of cases) show(group, name === pose);
   }
 }

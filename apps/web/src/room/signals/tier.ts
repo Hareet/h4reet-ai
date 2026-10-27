@@ -7,9 +7,11 @@
 //   the first frame after a stale answer (SC-003);
 // - causeClass, row 6's map, which the talk panel's "can't talk" messages share (src/talk/messages.ts's cannotTalkFor),
 //   so the laptop and the conversation never disagree about a cause (§4);
-// - caseFor, the runtime's claims rule (§2): whatever a bundle maps, the pose `local`'s case names shows only for
-//   `local`, and the pose `cloud`'s only for `cloud`; any other mapping falls to the shared pose, so a faulty bundle can
-//   neither plug the laptop in nor leave the room blank (FR-043, FR-062).
+// - caseFor, the runtime's claims rule (§2; contracts/room-bundle.md §3.1): whatever a bundle maps, the pose the
+//   switch's claims give `local` shows only for `local`, and the one they give `cloud` only for `cloud`; any other
+//   mapping falls to the shared pose, and claims that aren't whole read as not-live, so a faulty bundle can neither
+//   plug the laptop in nor leave the room blank (FR-043, FR-062). A switch without claims has no plugged pose and
+//   draws its cases as they are.
 // The tier gates nothing: the room renders in full whatever it reads, and the talk panel decides from its own turn.
 import type { TierValue } from "../compose/vocabulary";
 
@@ -131,26 +133,65 @@ export function causeClass(cause: string | null | undefined): CauseClass {
  *  other values that claim nothing. */
 export const SHARED_ORDER: readonly TierValue[] = ["unknown", "not-live", "paused", "resting", "budget", "unavailable"];
 
+/** A switch as the claims rule reads it: the index's `cases`, and its `claims` where its piece declares them
+ *  (contracts/room-bundle.md §3.1). The claims come from a bundle, so the rule checks them whatever their type says. */
+export interface SwitchRule {
+  readonly cases: Readonly<Partial<Record<TierValue, string>>>;
+  readonly claims?: { readonly local: string; readonly cloud: string };
+}
+
+/** The poses a switch's claims give local and cloud, and every pose they name; `whole` where they are what RS3
+ *  requires: a pose for each, two different poses that the cases name. */
+function claimsOf(sw: SwitchRule): {
+  whole: boolean;
+  local: string | undefined;
+  cloud: string | undefined;
+  named: ReadonlySet<string>;
+} {
+  const claims: unknown = sw.claims;
+  const pose = (key: "local" | "cloud"): string | undefined => {
+    if (claims === null || typeof claims !== "object" || !Object.hasOwn(claims, key)) return undefined;
+    const value: unknown = (claims as Record<string, unknown>)[key];
+    return typeof value === "string" ? value : undefined;
+  };
+  const [local, cloud] = [pose("local"), pose("cloud")];
+  const named = new Set([local, cloud].filter((p): p is string => p !== undefined));
+  const shown = new Set<unknown>(Object.values(sw.cases));
+  const whole = local !== undefined && cloud !== undefined && local !== cloud && shown.has(local) && shown.has(cloud);
+  return { whole, local, cloud, named };
+}
+
 /**
- * The pose a switch shows for a tier value, whatever its cases map (FR-043, FR-062): the value's own case, unless it
- * names the pose `local`'s case names and the value isn't `local`, or the pose `cloud`'s and the value isn't `cloud`,
- * or a pose the room doesn't draw, or none; then the shared pose, the first of SHARED_ORDER's cases that names a drawn
- * pose claiming neither. Null where no such pose exists, which the compositor's RS rules refuse.
+ * The pose a switch shows for a tier value, whatever its cases map (FR-043, FR-062). The plugged and the cloud poses
+ * are the ones the switch's claims give `local` and `cloud`, never read from its cases: `local` shows the first and
+ * `cloud` the second; any other value its own case, unless that names either, or a pose the room doesn't draw, or
+ * none; then the shared pose, the first of SHARED_ORDER's cases that names a drawn pose the claims don't name. Claims
+ * that lack `local` or `cloud`, name a pose the cases don't, or name one pose for both read as not-live: every value,
+ * `local` and `cloud` included, shows the shared pose. A switch without claims has no plugged pose, so each value
+ * shows its own case, and the shared pose only where that is missing or not drawn. Null where no such pose exists,
+ * which the compositor's RS rules refuse.
  */
 export function caseFor(
-  cases: Readonly<Partial<Record<TierValue, string>>>,
+  sw: SwitchRule,
   value: TierValue,
   drawn: (pose: string) => boolean = () => true,
 ): string | null {
+  const { cases } = sw;
   const own = (v: TierValue): string | undefined => (Object.hasOwn(cases, v) ? cases[v] : undefined);
-  const [plugged, cloud] = [own("local"), own("cloud")];
-  const shows = (pose: string | undefined, v: TierValue): pose is string =>
-    pose !== undefined && drawn(pose) && (pose !== plugged || v === "local") && (pose !== cloud || v === "cloud");
-  const mine = own(value);
-  if (shows(mine, value)) return mine;
+  const claimless = !Object.hasOwn(sw, "claims") || sw.claims === undefined;
+  const claims = claimless ? null : claimsOf(sw);
+  const free = (pose: string | undefined): pose is string =>
+    typeof pose === "string" && drawn(pose) && !(claims?.named.has(pose) ?? false);
+  if (claims?.whole && (value === "local" || value === "cloud")) {
+    const pose = claims[value];
+    if (pose !== undefined && drawn(pose)) return pose;
+  } else if (claims === null || claims.whole) {
+    const mine = own(value);
+    if (free(mine)) return mine;
+  }
   for (const v of SHARED_ORDER) {
     const pose = own(v);
-    if (shows(pose, "unknown")) return pose;
+    if (free(pose)) return pose;
   }
   return null;
 }

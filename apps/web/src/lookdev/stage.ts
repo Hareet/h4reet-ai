@@ -392,7 +392,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       };
     });
     for (const sw of part.switches) {
-      const cases = index.switches.find((s) => s.id === sw.id)?.cases;
+      const rule = index.switches.find((s) => s.id === sw.id);
       for (const pose of Object.keys(sw.poses)) {
         const id = `${sw.id}.${pose}`;
         pieceOf.set(id, sw.piece);
@@ -401,9 +401,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
           model: wanted(sw.piece),
           framed: false,
           selectable: null,
-          shown: Boolean(
-            cases && caseFor(cases, sample?.tier ?? "not-live", (p) => Object.hasOwn(sw.poses, p)) === pose,
-          ),
+          shown: Boolean(rule && caseFor(rule, sample?.tier ?? "not-live", (p) => Object.hasOwn(sw.poses, p)) === pose),
         });
       }
     }

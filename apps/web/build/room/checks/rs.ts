@@ -5,8 +5,10 @@
 // here: RS1 the cases against the tier's values; RS2 the poses against the claims, a placement of a switch's piece, two
 // poses claiming one value, and claims that give no pose local or none cloud, by which alone RS3 to RS5 know the
 // plugged and the cloud poses (FR-043); RS3 a case showing a pose that claims another value, or passing over the pose
-// that claims its own; RS4 the six values FR-043 gives one pose not sharing one that claims nothing; RS5 a pose
-// sitting where the local pose sits; RS6 a cable from an anchor the switch's piece lacks.
+// that claims its own, and claims that don't give local and cloud each a pose the switch's cases show, which the
+// bundle's switch carries (contracts/room-bundle.md §3.1); RS4 the six values FR-043 gives one pose not sharing one
+// that claims nothing; RS5 a pose sitting where the local pose sits; RS6 a cable from an anchor the switch's piece
+// lacks.
 // Readings: a pose the claims don't name is RS2's alone, so RS3 and RS5 judge only the poses the claims name; RS4's
 // shared pose is the one most of the six values show, ties to the earliest in §13.4's order, and each value showing
 // another is reported where its pose comes from, its case or the default; RS5 compares two poses where the world puts
@@ -131,6 +133,23 @@ function shown(ctx: Context, file: string, { sw, i, claims }: Judged): void {
   }
 }
 
+/** RS3: a switch whose piece's claims don't name a pose for local and one for cloud, each a pose the switch's cases
+ *  show, so every bundle switch with claims carries both (contracts/room-bundle.md §3.1; T163). One pose for both
+ *  can't be written, since the claims map each pose to one value. A claimed pose no case shows is reported only where
+ *  its value has no case (RS1's too): where its value's case shows another pose, `shown`'s finding there stands for
+ *  it. A piece without claims is RS1's. */
+function whole(ctx: Context, file: string, { sw, i, claims }: Judged): void {
+  if (!claims) return;
+  const at = ctx.path("switches", i, "cases");
+  const showing = new Set(Object.values(sw.cases));
+  for (const { value } of NAMED) {
+    const pose = [...claims].find(([, claim]) => claim === value)?.[0];
+    if (pose === undefined) ctx.report("RS3", file, at, `its piece's claims name no pose for ${value}`);
+    else if (!has(sw.cases, value) && !showing.has(pose))
+      ctx.report("RS3", file, at, `no case shows the pose its piece's claims name for ${value}`);
+  }
+}
+
 /** RS4: the six values not all showing one pose, the same, which claims nothing. */
 function sharedPose(ctx: Context, file: string, { sw, i, claims }: Judged): void {
   const shows = SHARED.flatMap((value) => {
@@ -235,6 +254,7 @@ export const rs: Family = (ctx) => {
     cases(ctx, scene.file, j);
     poses(ctx, scene.file, j);
     shown(ctx, scene.file, j);
+    whole(ctx, scene.file, j);
     sharedPose(ctx, scene.file, j);
     plugged(ctx, scene.file, j);
     lead(ctx, scene.file, j);

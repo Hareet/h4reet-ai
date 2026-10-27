@@ -5,9 +5,10 @@
 // puts it to the desk's back edge, then its short drop, at the charger's stylized scale (FR-051): one tube made per
 // pose, when the room is built, and kept, so a change of case makes nothing. Only the plug's placement decides whether
 // the cable reaches the port, so moving the laptop, its stand, or the desk needs no re-export (FR-020).
-// `apply(value)` shows, for each switch, the case tier.ts's caseFor gives: the pose `local`'s case names only for
-// `local`, the pose `cloud`'s only for `cloud`, and any other mapping the shared pose, so a faulty bundle can neither
-// plug the laptop in nor leave the room blank (FR-043, FR-062). A pose's `glows` set other placements' glow levels while
+// `apply(value)` shows, for each switch, the case tier.ts's caseFor gives from the index's switch, its cases and its
+// claims: the pose the claims give `local` only for `local`, the one they give `cloud` only for `cloud`, and any other
+// mapping the shared pose, so a faulty bundle can neither plug the laptop in nor leave the room blank (FR-043, FR-062;
+// contracts/room-bundle.md §3.1). A pose's `glows` set other placements' glow levels while
 // it shows, such as the laptop's charge light, and the levels go back to their pieces' own when another case shows:
 // `glow(placement, glow)` reads them, for the glow cards User Story 5 draws (T185).
 import { CatmullRomCurve3, Group, Mesh, TubeGeometry, Vector3 } from "three";
@@ -21,6 +22,7 @@ import type { Mat4, Vec3 } from "../compose/math";
 import { anchorWorld, mountWorld } from "../compose/mount";
 import type { TierValue } from "../compose/vocabulary";
 import { caseFor } from "../signals/tier";
+import type { SwitchRule } from "../signals/tier";
 import type { Materials } from "./look";
 import { standin } from "./standins";
 
@@ -91,13 +93,13 @@ export function buildCases(
   const groups = new Map<string, Map<string, Group>>();
   const tubes = new Map<string, Map<string, Mesh>>();
   const runs = new Map<string, Map<string, CableRun>>();
-  const cases = new Map<string, RoomIndex["switches"][number]["cases"]>();
+  const rules = new Map<string, SwitchRule>();
   const shown = new Map<string, string | null>();
   for (const sw of part.switches) {
     const own = piece(sw.piece);
     if (!own) throw new Error("buildRoom: a switch's piece isn't in the 3D part");
-    const its = index.switches.find((s) => s.id === sw.id)?.cases;
-    if (its) cases.set(sw.id, its);
+    const its = index.switches.find((s) => s.id === sw.id);
+    if (its) rules.set(sw.id, its);
     const poses = new Map<string, Group>();
     const swTubes = new Map<string, Mesh>();
     const swRuns = new Map<string, CableRun>();
@@ -159,7 +161,7 @@ export function buildCases(
     for (const sw of part.switches) {
       const poses = groups.get(sw.id);
       if (!poses) continue;
-      const pose = caseFor(cases.get(sw.id) ?? {}, value, (p) => poses.has(p));
+      const pose = caseFor(rules.get(sw.id) ?? { cases: {} }, value, (p) => poses.has(p));
       shown.set(sw.id, pose);
       for (const [name, group] of poses) group.visible = name === pose;
       const own = pose !== null && Object.hasOwn(sw.poses, pose) ? sw.poses[pose] : undefined;
