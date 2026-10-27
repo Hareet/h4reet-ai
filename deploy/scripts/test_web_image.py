@@ -737,6 +737,58 @@ def test_the_dockerfile_runs_no_git_and_takes_the_policy_from_its_named_context(
     assert "ROOM_POLICY_DIR=/src/policy" in build
 
 
+def test_the_build_stage_has_the_corpus_the_resume_cites_and_never_the_private_intake() -> (
+    None
+):
+    # The resume's citation check (spec 002, T026) runs in the room's build: it reads corpus/*.md and
+    # corpus/facts/*.yaml, so the build stage copies the corpus before it builds. .dockerignore keeps
+    # corpus/intake/private, the Author's denylist and uncleared sources, out of every build context.
+    text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+    instructions = [
+        ln.strip()
+        for ln in text.splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+    copy = instructions.index("COPY corpus corpus")
+    (build,) = [
+        i
+        for i, ln in enumerate(instructions)
+        if ln.startswith("RUN ") and " build -w apps/web" in ln
+    ]
+    assert copy < build
+    ignore = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    assert "corpus/intake/private" in ignore
+
+
+def test_the_pdfs_text_file_stays_in_the_build_stage() -> None:
+    # dist/resume.pdf.txt is the PDF's text, for the gate's scan of dist/ (contracts/resume-source.md §4). Once
+    # resume-header.json is filled it holds the full name and contact as crawlable plain text, so the build stage
+    # removes it in the same RUN that builds, before the runtime stage copies dist/; nginx refuses it as well.
+    text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+    logical: list[str] = []
+    pending = ""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        pending = f"{pending} {line}".strip()
+        if pending.endswith("\\"):
+            pending = pending[:-1]
+            continue
+        logical.append(pending)
+        pending = ""
+    (build,) = [
+        i for i in logical if i.startswith("RUN ") and " build -w apps/web" in i
+    ]
+    assert "rm -f apps/web/dist/*.pdf.txt" in build
+    assert build.index(" build -w apps/web") < build.index(
+        "rm -f apps/web/dist/*.pdf.txt"
+    )
+    (copy,) = [i for i in logical if i.startswith("COPY --from=build ")]
+    assert copy.split()[2] == "/src/apps/web/dist"
+    assert logical.index(build) < logical.index(copy)
+
+
 def test_docker_gets_only_its_own_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     for key, value in {
         "DOCKER_HOST": "tcp://198.18.0.1:2376",

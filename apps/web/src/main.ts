@@ -3,3 +3,9 @@
 // resume) arrives with the choice screen (tasks.md T040). Nothing here writes a cookie, browser storage, or the URL
 // (FR-003).
 import "./style.css";
+import "./fonts.css";
+
+import { wireResumeOpeners } from "./resume";
+
+// The interactive resume opens from any control marked data-resume-open (tasks.md T029).
+wireResumeOpeners(document);

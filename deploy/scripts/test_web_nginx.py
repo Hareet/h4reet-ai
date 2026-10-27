@@ -109,3 +109,11 @@ def test_the_health_check_is_a_static_file_without_a_log_line() -> None:
     assert health.one("access_log").args == ["off"]
     assert not health.all("return")  # the file itself, which the Dockerfile writes
     assert "/healthz" in (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+
+
+def test_the_pdfs_text_file_is_never_served() -> None:
+    # The image leaves dist/resume.pdf.txt out (test_web_image.py); a 404 for any *.pdf.txt is the second layer.
+    (text,) = [
+        loc for loc in SERVER.all("location") if loc.args == ["~", r"\.pdf\.txt$"]
+    ]
+    assert [(d.name, d.args) for d in text.block] == [("return", ["404"])]

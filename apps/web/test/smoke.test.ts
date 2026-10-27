@@ -3,7 +3,7 @@
 // inline script or style the CSP would refuse, the AI disclosure and the PDF link on the first screen (FR-004,
 // FR-018), the data-flow disclosure page beside it (FR-058), and 0 axe violations on both pages.
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,12 +114,55 @@ describe("the built disclosure page", () => {
 });
 
 describe("the built room-data.json", () => {
-  it("names the policy it was built with, and lists the drafts it left out", () => {
-    // Phase 2 (T017): no content file exists yet, so nothing is a draft; the policy is the empty one.
+  it("names the policy and the lock it was built with, and lists the drafts it left out", () => {
+    // Nothing is approved in an empty policy directory, so the resume's source is a draft, withheld without drafts.
     const data = JSON.parse(readFileSync(join(out, "room-data.json"), "utf8")) as unknown;
     const absent = createHash("sha256")
       .update("content-approvals.json:absent\nresume-header.json:absent\n")
       .digest("hex");
-    expect(data).toEqual({ built_from: { policy: absent }, published: [], drafts: [] });
+    const lock = createHash("sha256")
+      .update(readFileSync(join(WEB, "content/resume.lock.json")))
+      .digest("hex");
+    expect(data).toEqual({
+      built_from: { policy: absent, lock },
+      published: [],
+      drafts: ["apps/web/content/resume.yaml"],
+      resume_state: "withheld",
+      header: null,
+      sections: [],
+    });
+  });
+});
+
+describe("the built resume.pdf (FR-018)", () => {
+  it("is in the build, where the first screen's link points, and is a PDF", () => {
+    const pdf = readFileSync(join(out, "resume.pdf"));
+    expect(pdf.subarray(0, 8).toString("latin1")).toBe("%PDF-1.7");
+  });
+
+  it("has its text beside it, which says only that the withheld draft is a draft", () => {
+    expect(readFileSync(join(out, "resume.pdf.txt"), "utf8")).toBe("Draft, not approved\n");
+  });
+
+  it("carries none of a withheld draft's words, and neither does any other built file", () => {
+    // The start of every item's display text, as the source writes it, before any slot reference.
+    const source = readFileSync(join(WEB, "content/resume.yaml"), "utf8");
+    const texts = [...source.matchAll(/^\s+(?:- )?text: "?(.+?)"?$/gm)]
+      .map((m) => (m[1] as string).replace(/\{\{slot:[^}]*\}\}.*/, "").slice(0, 40))
+      .filter((t) => t.length >= 20);
+    expect(texts.length).toBeGreaterThan(0);
+    const files: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else files.push(path);
+      }
+    };
+    walk(out);
+    for (const file of files) {
+      const body = readFileSync(file, "utf8");
+      for (const text of texts) expect(body.includes(text), `${file} holds "${text}"`).toBe(false);
+    }
   });
 });

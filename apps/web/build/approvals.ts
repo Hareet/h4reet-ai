@@ -160,14 +160,34 @@ export interface Published {
   draft?: true;
 }
 
-/** room-data.json's parts this phase writes (data-model.md §5): the policy built with, each content file the build
- * published with its digest, and every draft. The gate's content check holds `published` to main's approvals, and
+/** room-data.json (data-model.md §5): the policy built with, each content file the build published with its digest,
+ * and every draft, then what each part adds. The gate's content check holds `published` to main's approvals, and
  * scans dist/ for a draft's text whatever this says. */
-export function roomData(
-  files: readonly ContentFile[],
-  policy: Policy,
-  drafts: boolean,
-): { built_from: { policy: string }; published: Published[]; drafts: string[] } {
+export interface RoomData {
+  built_from: { policy: string } & Record<string, string | null>;
+  published: Published[];
+  drafts: string[];
+  [part: string]: unknown;
+}
+
+/** What a part of room-data.json gets: the tree, its content files' states, main's policy, ROOM_DRAFTS, and a way
+ * to emit a file of its own beside room-data.json (the resume's PDF and its text). */
+export interface RoomDataContext {
+  root: string;
+  files: readonly ContentFile[];
+  policy: Policy;
+  drafts: boolean;
+  emit(fileName: string, source: string | Uint8Array): void;
+  warn(message: string): void;
+  info?(message: string): void;
+}
+
+/** A part of room-data.json: the resume (build/content.ts), and later narration and messages. */
+export type RoomDataPart = (data: RoomData, context: RoomDataContext) => RoomData | Promise<RoomData>;
+
+/** room-data.json's own fields: the policy built with, each content file the build published with its digest, and
+ * every draft. */
+export function roomData(files: readonly ContentFile[], policy: Policy, drafts: boolean): RoomData {
   const published: Published[] = files
     .filter((f) => publication(f.state, drafts).publish)
     .map((f) =>
@@ -180,14 +200,32 @@ export function roomData(
   };
 }
 
-/** The Vite plugin: room-data.json, from the tree's content and the policy directory, at build. */
-export function roomDataFile(options: { root: string; policyDir: () => string }): Plugin {
+/** The Vite plugin: room-data.json, from the tree's content and the policy directory, at build, with each part's
+ * fields and files. */
+export function roomDataFile(options: {
+  root: string;
+  policyDir: () => string;
+  parts?: readonly RoomDataPart[];
+}): Plugin {
   return {
     name: "h4-room-data",
     apply: "build",
-    generateBundle() {
+    async generateBundle() {
       const policy = readPolicy(options.policyDir());
-      const data = roomData(contentFiles(options.root, policy), policy, draftsOn(process.env));
+      const files = contentFiles(options.root, policy);
+      const context: RoomDataContext = {
+        root: options.root,
+        files,
+        policy,
+        drafts: draftsOn(process.env),
+        emit: (fileName, source) => {
+          this.emitFile({ type: "asset", fileName, source });
+        },
+        warn: (message) => this.warn(message),
+        info: (message) => console.log(message),
+      };
+      let data = roomData(files, policy, context.drafts);
+      for (const part of options.parts ?? []) data = await part(data, context);
       this.emitFile({ type: "asset", fileName: "room-data.json", source: `${JSON.stringify(data, null, 2)}\n` });
     },
   };

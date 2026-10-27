@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 import { roomDataFile } from "./build/approvals";
+import { resumePart } from "./build/content";
 import { disclosurePage } from "./build/disclosure";
 import { DEFAULT_POLICY_DIR } from "./build/policy";
 
@@ -27,6 +28,11 @@ export default defineConfig({
   plugins: [
     disclosurePage({ source: here("../../docs/data-flow-disclosure.md") }),
     // main's policy: the image's named context (ROOM_POLICY_DIR), or what a checkout's prebuild read from main.
-    roomDataFile({ root: here("../.."), policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR }),
+    // The resume's part (build/content.ts): the citation check, its items when main approves them, and resume.pdf.
+    roomDataFile({
+      root: here("../.."),
+      policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR,
+      parts: [resumePart],
+    }),
   ],
 });
