@@ -741,6 +741,26 @@ def test_an_unknown_key_cant_be_checked_and_its_value_never_shows(
     ]
 
 
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("theme", "dark"),
+        ("modelSettings", {"claude-opus-5-5": {"effortLevel": "high"}}),
+        ("switchModelsOnFlag", True),
+        ("agentPushNotifEnabled", True),
+    ],
+)
+def test_the_keys_claude_code_2_1_311_writes_are_known(
+    world: World, capsys: pytest.CaptureFixture[str], key: str, value: object
+) -> None:
+    # Claude Code 2.1.311 writes these into the user's settings; reviewed as opening no route (2026-10-26). Any other
+    # key still fails closed, as the case above shows.
+    world.scopes["user"][key] = value
+    code, out = world.run(capsys)
+    assert code == 0, out
+    assert out.splitlines()[0].startswith("studio-settings: PASS"), out
+
+
 def test_a_key_it_cant_print_is_named_as_such(
     world: World, capsys: pytest.CaptureFixture[str]
 ) -> None:

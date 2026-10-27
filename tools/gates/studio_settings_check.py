@@ -187,6 +187,13 @@ TOP_KEYS = frozenset(
         "showTurnDuration",
         "spinnerVerbs",
         "terminalProgressBarEnabled",
+        # Written by Claude Code 2.1.311 into the Author's user settings, reviewed 2026-10-26: the interface theme,
+        # a model's effort level, switching models by flag, and push notifications on the Author's devices. None runs
+        # a command, opens a route to a listener, or reopens a path.
+        "theme",
+        "modelSettings",
+        "switchModelsOnFlag",
+        "agentPushNotifEnabled",
     }
 )
 PERMISSIONS_KEYS = frozenset(
