@@ -389,7 +389,10 @@ function reference(
 ): { call: string; visit: string } {
   const unavailable = "cost unavailable";
   if (!o.configured) return { call: unavailable, visit: unavailable };
+  // A call reading set by an outcome is that outcome's source's; the visit is a fixture's only once one fed it.
   const badge = o.from === "fixture" ? " [Sample]" : o.drafts ? " [test]" : "";
+  const fed = o.from === "fixture" && seq.some((k) => ALPHABET[k]?.o.kind !== "refused");
+  const visitBadge = fed ? " [Sample]" : o.drafts ? " [test]" : "";
   const dollars = (micro: number): string => `$${(micro / 1e6).toFixed(6)}`;
   let call = "no call yet";
   let total = 0;
@@ -414,7 +417,7 @@ function reference(
   let visit = paid ? `${dollars(total)} est.` : "$0";
   if (total >= 100_000_000) visit = "at least $99.999999 est.";
   else if (atLeast) visit = `at least ${visit}`;
-  return { call, visit: `${visit}${badge}` };
+  return { call, visit: `${visit}${visitBadge}` };
 }
 
 describe("every sequence of up to 4 outcomes (§10)", () => {
