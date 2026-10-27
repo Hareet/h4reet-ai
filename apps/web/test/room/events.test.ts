@@ -4,6 +4,7 @@
 // the bundle's index. The room starts with the index compose() makes of the fixture set, so every ID is a synthetic
 // fx- one; the 3D pick is the scene module's own, scene/bundle3d.ts's selectablePicker over the fixture's 3D part,
 // bound to the canvas as src/room/scene.ts binds it, and the 2D pick is src/room/flat.ts's.
+// The other events a selection's action sends (a resume action's resume_opened, T207) are test/ui/talk.test.ts's.
 import { describe, expect, it } from "vitest";
 
 import { compose } from "../../build/room/compose";
@@ -104,7 +105,7 @@ describe("object_selected", () => {
       for (const area of areas) {
         const from = v.events.length;
         tap(v.win, canvas, centreOf(area.core), pointer);
-        expect(v.events.slice(from), `${pointer} on ${area.id}`).toEqual([{ kind: "object_selected", id: area.id }]);
+        expect(selections(v, from), `${pointer} on ${area.id}`).toEqual([{ kind: "object_selected", id: area.id }]);
       }
     }
   });
@@ -130,7 +131,7 @@ describe("object_selected", () => {
       for (const area of areas) {
         const from = v.events.length;
         tap(v.win, flat, at(area), pointer);
-        expect(v.events.slice(from), `${pointer} on ${area.id}`).toEqual([{ kind: "object_selected", id: area.id }]);
+        expect(selections(v, from), `${pointer} on ${area.id}`).toEqual([{ kind: "object_selected", id: area.id }]);
       }
     }
   });
@@ -144,7 +145,7 @@ describe("object_selected", () => {
     for (const b of buttons) {
       const from = v.events.length;
       b.click();
-      expect(v.events.slice(from)).toEqual([{ kind: "object_selected", id: b.getAttribute("data-object-id") }]);
+      expect(selections(v, from)).toEqual([{ kind: "object_selected", id: b.getAttribute("data-object-id") }]);
     }
   });
 

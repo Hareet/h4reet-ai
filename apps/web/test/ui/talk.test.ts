@@ -173,7 +173,7 @@ describe("a selectable's action (T205)", () => {
     for (const t of index.topics) expect(t.ready, t.id).toBe(false);
   });
 
-  it("holds the laptop, its stand, and the monitor in one selectable, which opens a topic (compose())", () => {
+  it("makes one selectable of the plugged pose's host, its stand, and the monitor, which opens a topic (compose())", () => {
     const { index, scene } = repositoryBundle();
     const placement = (id: string | undefined): (typeof scene.placements)[number] | undefined =>
       scene.placements.find((p) => p.id === id);
