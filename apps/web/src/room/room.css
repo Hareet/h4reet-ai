@@ -110,8 +110,8 @@ body.in-room .disclosure p {
 }
 
 /* The stage leaves room, on a 320 by 568 screen, for the disclosure, the toolbar, the list, the text box, and the
-   talk button without scrolling (FR-047); dvh follows a phone's browser bars. Below a portrait width of 25rem the
-   reserve grows by one toolbar row (the narrow-portrait rules, below). */
+   talk button without scrolling (FR-047); dvh follows a phone's browser bars. Below a portrait width of 35rem the
+   reserve grows by one toolbar row (below). */
 .room-stage {
   grid-area: stage;
   position: relative;
@@ -300,18 +300,24 @@ body.in-room .disclosure p {
   align-items: center;
 }
 
-/* A narrow phone held upright, below a portrait width of 25rem (spec 004, FR-065; R-40): the toolbar's five controls,
-   spec 003's "Credits" link among them once it lands, take two rows at 0.875rem, so the stage gives up one toolbar row,
-   a 44 px control and the toolbar's 0.5rem gap, 3.25rem, and the text box and the talk button stay on a 320 by 568
-   screen. compose/stages.ts follows this rule (test/room/stages.test.ts pins it). */
-@media (orientation: portrait) and (width < 25rem) {
-  .room-toolbar {
-    font-size: 0.875rem;
-  }
-
+/* A phone held upright, below a portrait width of 35rem (spec 004, FR-065; spec 002's FR-047, as Amendment B8 extends
+   it; the review of T171, B1): the toolbar's five controls, spec 003's "Credits" link among them once it lands, wrap to
+   two rows at 1rem, so the stage gives up one toolbar row, a 44 px control and the toolbar's 0.5rem gap, 3.25rem, and
+   the text box and the talk button stay on screen. The bound follows the toolbar, code and UI words, never the list's
+   names, which are data. compose/stages.ts follows this rule (test/room/stages.test.ts pins it). max-width, not range
+   syntax, which Safari reads only from 16.4. */
+@media (orientation: portrait) and (max-width: 34.99rem) {
   .room-stage {
     height: calc(100vh - 23.25rem);
     height: calc(100dvh - 23.25rem);
+  }
+}
+
+/* Narrower still, below 25rem (R-40): the toolbar's type drops to 0.875rem, so the five controls keep to two rows on a
+   320 by 568 screen. */
+@media (orientation: portrait) and (max-width: 24.99rem) {
+  .room-toolbar {
+    font-size: 0.875rem;
   }
 }
 

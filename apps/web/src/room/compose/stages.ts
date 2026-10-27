@@ -21,8 +21,9 @@ export const ASPECTS = [0.45, 0.6, 0.8, 1.15, 1.5, 2.4] as const;
 
 /**
  * room.css's stage rules (spec 002, T044): the page in the room (`body.in-room`), the room's grid (`.room`), its
- * landscape layout (`@media (orientation: landscape) and (min-width: 32rem)`), its narrow-portrait rules (spec 004,
- * T171: `@media (orientation: portrait) and (width < 25rem)`), and the stage (`.room-stage`).
+ * landscape layout (`@media (orientation: landscape) and (min-width: 32rem)`), its portrait reserve rule (spec 004,
+ * T171 and the review of T171, B1: `@media (orientation: portrait) and (max-width: 34.99rem)`), and the stage
+ * (`.room-stage`). The toolbar's type drop below 25rem (R-40) doesn't move the stage.
  */
 export const ROOM_CSS = {
   /** The root font size every rem is counted in: the browser's default. */
@@ -36,10 +37,11 @@ export const ROOM_CSS = {
   landscapeMinWidthRem: 32,
   /** `.room-stage`'s `height: calc(100dvh - 20rem)`, in portrait. */
   portraitReserveRem: 20,
-  /** The narrow-portrait rules apply below this width, in portrait. */
-  narrowMaxWidthRem: 25,
+  /** The reserve grows below this width, in portrait: room.css writes the bound as `max-width: 34.99rem`, which a
+   *  screen of a whole number of pixels is under exactly when it is under 35rem. */
+  reserveMaxWidthRem: 35,
   /** There, `.room-stage`'s `height: calc(100dvh - 23.25rem)`: the portrait reserve and one toolbar row, a 44 px control
-   *  and the toolbar's 0.5rem gap (spec 004, FR-065; R-40). */
+   *  and the toolbar's 0.5rem gap (spec 004, FR-065; spec 002's FR-047; R-40; the review of T171, B1). */
   narrowReserveRem: 23.25,
   /** Its `height: calc(100dvh - 7rem)`, in landscape. */
   landscapeReserveRem: 7,
@@ -58,7 +60,7 @@ export const ROOM_CSS = {
  * parts of five after the gap, unless the list's two parts would fall under its 15rem minimum, when the list keeps 15rem
  * and the stage takes the rest. Its height is the screen's less the layout's reserve, clamped between 9rem and 40rem;
  * the reserve grows by one toolbar row on a screen held upright (at least as tall as it is wide) and narrower than
- * 25rem. Scroll bars are left out: a phone's overlay the page, and on a desktop the page stops at 72rem first.
+ * 35rem, where the toolbar's five controls wrap at 1rem. Scroll bars are left out: a phone's overlay the page, and on a desktop the page stops at 72rem first.
  */
 export function stageFor(screen: Screen): Stage {
   const c = ROOM_CSS;
@@ -75,7 +77,7 @@ export function stageFor(screen: Screen): Stage {
         : (space * c.stageFr) / (c.stageFr + c.listFr);
   }
   // CSS's orientation: portrait when the viewport is at least as tall as it is wide.
-  const narrow = screen.h >= screen.w && screen.w < c.narrowMaxWidthRem * c.rem;
+  const narrow = screen.h >= screen.w && screen.w < c.reserveMaxWidthRem * c.rem;
   const reserve = (landscape ? c.landscapeReserveRem : narrow ? c.narrowReserveRem : c.portraitReserveRem) * c.rem;
   const h = Math.max(c.stageMinHeightRem * c.rem, Math.min(c.stageMaxHeightRem * c.rem, screen.h - reserve));
   return { w, h };
@@ -103,7 +105,7 @@ export const REFERENCE_DESKTOP: ReferenceStage = reference({ w: 1920, h: 1200 },
 /**
  * The reference phone (ADR 0010's Galaxy A54 class): a 384 × 740 CSS-pixel viewport in portrait, the browser's bars
  * taken off its 384 × 832 screen, at a pixel ratio of 2.8125, whose stage is 368 × 368 (≈ 368 × 420 before T171's
- * narrow-portrait rules: 384 is under 25rem). Re-measured in the first lookdev run, and set here from that measure in
+ * portrait reserve rule: 384 is under 35rem). Re-measured in the first lookdev run, and set here from that measure in
  * Polish (R-18).
  */
 export const REFERENCE_PHONE: ReferenceStage = reference({ w: 384, h: 740 }, 2.8125);
