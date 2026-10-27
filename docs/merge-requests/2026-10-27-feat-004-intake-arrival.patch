@@ -1,0 +1,1288 @@
+P-5: spec 004's amendments to the arrival check (tasks.md T036; contracts/intake-amendments.md §7; FR-015, FR-023,
+FR-077 items 3 and 4). Made on feat/004-intake against main a964494 (P-1 to P-4 applied); apply after M8, then the
+P-6 commit, P-7, and P-8 (docs/merge-requests/2026-10-27-feat-004-intake.md). git apply skips this header.
+
+    BEFORE YOU APPLY IT: the Author confirms or replaces this term before applying P-5 (T031).
+
+    MARK_HUMAN, the mark of a file whose record's steps are all by hand, is the plan's candidate, digitalCreation,
+    unverified (research R-53). The patch adds it as one line of tools/gates/arrival_check.py:
+
+        +MARK_HUMAN = "digitalCreation"
+
+    If IPTC's term for media a person made with digital tools differs, that line takes it, and nothing else in the
+    patch changes (the tests read the term from the check). It is an added line, so the hunk still applies after
+    the edit. The note gives the edit, and the scrubber's matching line.
+
+It changes three files:
+- tools/gates/arrival_check.py: M5 (C1, the mark the record's steps call for, and trainedAlgorithmicMedia alone
+  under assets/twin/ and docs/research/images/), R1 (C2, design), P2 (C4, screens_plain_live_face, true or
+  not_applicable), P1 (C5, likeness_accepted not_applicable for a room file with no likeness), F3 (C6, every room
+  file at gzip-9, phase 3 once assets/room/ holds one), F2 (C7, per_asset.room's six keys, exit 2 otherwise), and
+  AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7").
+- tools/gates/test/test_arrival_check.py and tools/gates/test/arrival_fixtures.py: §7's cases, built at run time.
+
+diff --git a/tools/gates/arrival_check.py b/tools/gates/arrival_check.py
+index cf6451d..39a0d1c 100644
+--- a/tools/gates/arrival_check.py
++++ b/tools/gates/arrival_check.py
+@@ -24,6 +24,21 @@ Standard library only. Human-only: the hook, make check, and the gate each run t
+   main branch as the gate reads it: `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:assets/policy/<file>`,
+   never `main:` (a tag named main would answer first), never a branch, never a checked-out copy (research R-05).
+ 
++Spec 004's amendments (its contracts/intake-amendments.md §7; AMENDMENTS below names them):
++- C1, on M5: the mark follows the record. Its term is trainedAlgorithmicMedia when every step of the file's record is
++  by a model, compositeWithTrainedAlgorithmicMedia when model and hand steps mix, and MARK_HUMAN when every step is by
++  hand; under assets/twin/ and docs/research/images/, trainedAlgorithmicMedia alone, whatever the steps say.
++- C2, on R1: a source may be a `design`, its ID held to the opaque-ID rule.
++- C4, on P2: a room file's room confirmations, window_view_recreated, screens_plain_live_face (once
++  screens_plain_glow), and artwork_original_or_absent, each read true or "not_applicable".
++- C5, on P1: a room file whose record says likeness: false may have confirms.likeness_accepted read "not_applicable".
++- C6, on F3: the first visit counts every file under assets/room/ at gzip level 9, and phase 3's budget applies once
++  that folder holds one.
++- C7, on F2: a room file against main's per_asset.room: its gzip-9 size, a GLB's triangles, and, on a small prop, each
++  texture's width and height. A room file is refused while the block is absent, and a block holding other keys, or a
++  key of the wrong type, can't be checked (exit 2), named by its key, never its value.
++A room file is one whose record's kind is room, or any file under assets/room/, whatever its record says.
++
+ The modes: --staged checks the index's added and changed files, and the directories they touch. --range A..B checks
+ each commit in it: the files it added or changed, as it had them, and their directories; for a merge, what it holds
+ that differs from every parent, so a conflict's resolution is checked; then B's whole tree, so a deletion is judged
+@@ -71,6 +86,13 @@ NOTICE = "LICENSE.md"
+ DISCLOSURE = "docs/data-flow-disclosure.md"
+ MEDIA_LICENSE = "all-rights-reserved-2026"
+ MAIN = "refs/heads/main"
++ROOM = "assets/room/"
++# Only the model's mark here, whatever a record's steps say (spec 004, Amendment C1).
++MODEL_ONLY = ("assets/twin/", PUBLISHED)
++
++# The spec 004 amendments this check carries (spec 004, FR-077). evals/test_room_order.py reads this tuple from main's
++# copy with ast, and fails make test while a file sits under assets/room/ and the tuple lacks 004-C1 and 004-C2.
++AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7")
+ 
+ ADMITTED = {
+     ".png": "png",
+@@ -116,15 +138,32 @@ BY_EXTENSION = {
+     **{ext: "a model" for ext in MODEL_EXT},
+ }
+ 
+-# The mark (research R-03, FR-034): an XMP packet holding exactly this property and value, and nothing else.
++# The mark (research R-03, FR-034): an XMP packet holding exactly this property, and nothing else. Its value is one of
++# three terms of IPTC's digital source type, the one the file's record calls for (spec 004, Amendment C1).
+ X_NS = "adobe:ns:meta/"
+ RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ MARK_NS = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
+-MARK_VALUE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"
+-MARK_JSON = {
+-    "@context": {"Iptc4xmpExt": MARK_NS},
+-    "Iptc4xmpExt:DigitalSourceType": MARK_VALUE,
+-}
++SOURCE_TYPES = "http://cv.iptc.org/newscodes/digitalsourcetype/"
++MARK_MODEL = "trainedAlgorithmicMedia"
++MARK_COMPOSITE = "compositeWithTrainedAlgorithmicMedia"
++# Media a person made with digital tools: the term the Author confirms at IPTC's own vocabulary before applying this
++# (spec 004, tasks.md T031). digitalCreation is the plan's candidate, unverified (research R-53): if the Author's term
++# differs, this one line takes it, and nothing else here changes.
++MARK_HUMAN = "digitalCreation"
++MARK_TERMS = (MARK_MODEL, MARK_COMPOSITE, MARK_HUMAN)
++MARK_VALUE = SOURCE_TYPES + MARK_MODEL
++NOT_A_TERM = "the mark's digital source type isn't one of the three terms a record's steps call for (spec 004, C1)"
++
++
++def mark_json(term: str) -> dict:
++    """The mark as KHR_xmp_json_ld's one packet, in a GLB."""
++    return {
++        "@context": {"Iptc4xmpExt": MARK_NS},
++        "Iptc4xmpExt:DigitalSourceType": SOURCE_TYPES + term,
++    }
++
++
++MARK_JSON = mark_json(MARK_MODEL)
+ XPACKET_BEGIN = re.compile(
+     rb"\A\s*<\?xpacket begin=([\"'])(?:\xef\xbb\xbf)?\1 id=([\"'])W5M0MpCehiHzreSzNTczkc9d\2\?>"
+ )
+@@ -454,6 +493,24 @@ class Size:
+     texture: int | None = None
+ 
+ 
++@dataclass(frozen=True)
++class Facts:
++    """A file's mark, its gzip-9 size, its triangles, and its textures' sides: a GLB's embedded images, or an image's
++    own (spec 004, Amendments C1 and C7)."""
++
++    term: str | None
++    gzip: int
++    triangles: int | None
++    sides: tuple[tuple[int, int], ...]
++
++    @staticmethod
++    def of(parsed: Parsed, kind: str, gzipped: int) -> Facts:
++        sides = (
++            tuple(parsed.images) if kind == "glb" else ((parsed.width, parsed.height),)
++        )
++        return Facts(parsed.term, gzipped, parsed.triangles, sides)
++
++
+ @dataclass
+ class Parsed:
+     """What a container's parse found: problems by rule, the parts that hold text, and the mark's byte ranges."""
+@@ -466,6 +523,10 @@ class Parsed:
+     vertices: int | None = None
+     triangles: int | None = None
+     texture: int | None = None
++    # The mark's term, once it reads as one of MARK_TERMS (spec 004, Amendment C1), and each embedded image's width
++    # and height, which a small prop's texture cap reads (Amendment C7).
++    term: str | None = None
++    images: list[tuple[int, int]] = field(default_factory=list)
+ 
+     def bad(self, rule: str, reason: str) -> None:
+         self.problems.append((rule, reason))
+@@ -475,38 +536,47 @@ class Parsed:
+ # The mark's packet (M5)
+ # --------------------------------------------------------------------------------------------------
+ def mark_problems(packet: bytes) -> list[str]:
+-    """Why an XMP packet isn't the mark, or nothing: exactly Iptc4xmpExt:DigitalSourceType, set to
+-    trainedAlgorithmicMedia, with no toolkit attribute, no other property, and nothing else in the packet."""
++    """Why an XMP packet isn't the mark, or nothing: exactly Iptc4xmpExt:DigitalSourceType, set to one of
++    MARK_TERMS, with no toolkit attribute, no other property, and nothing else in the packet."""
++    return read_mark(packet)[0]
++
++
++def read_mark(packet: bytes) -> tuple[list[str], str | None]:
++    """mark_problems' reasons, and the mark's term when there are none."""
+     body = packet
+     begin = XPACKET_BEGIN.match(body)
+     end = XPACKET_END.search(body)
+     if bool(begin) != bool(end):
+-        return ["the mark's packet has one xpacket wrapper line without the other"]
++        return [
++            "the mark's packet has one xpacket wrapper line without the other"
++        ], None
+     if begin and end:
+         body = body[begin.end() : end.start()]
+     if b"<!" in body or b"<?" in body:
+         return [
+             "the mark's packet holds a comment, a declaration, or a processing instruction"
+-        ]
++        ], None
+     try:
+         root = ET.fromstring(body)
+     except (ET.ParseError, ValueError):
+-        return ["the mark's packet isn't well-formed XML"]
++        return ["the mark's packet isn't well-formed XML"], None
+ 
+     def blank(text: str | None) -> bool:
+         return text is None or not text.strip()
+ 
+     if root.tag != f"{{{X_NS}}}xmpmeta":
+-        return ["the mark's packet doesn't start with x:xmpmeta"]
++        return ["the mark's packet doesn't start with x:xmpmeta"], None
+     if root.attrib:
+-        return ["the mark's packet carries a toolkit or another attribute on x:xmpmeta"]
++        return [
++            "the mark's packet carries a toolkit or another attribute on x:xmpmeta"
++        ], None
+     if (
+         len(root) != 1
+         or not blank(root.text)
+         or root[0].tag != f"{{{RDF_NS}}}RDF"
+         or root[0].attrib
+     ):
+-        return ["the mark's packet holds something besides one rdf:RDF"]
++        return ["the mark's packet holds something besides one rdf:RDF"], None
+     rdf = root[0]
+     if (
+         len(rdf) != 1
+@@ -514,19 +584,19 @@ def mark_problems(packet: bytes) -> list[str]:
+         or not blank(rdf.tail)
+         or rdf[0].tag != f"{{{RDF_NS}}}Description"
+     ):
+-        return ["the mark's packet holds something besides one rdf:Description"]
++        return ["the mark's packet holds something besides one rdf:Description"], None
+     desc = rdf[0]
+     if not blank(desc.tail) or not blank(desc.text):
+-        return ["the mark's packet holds text outside the property"]
++        return ["the mark's packet holds text outside the property"], None
+     prop = f"{{{MARK_NS}}}DigitalSourceType"
+     attrs = dict(desc.attrib)
+     if attrs.pop(f"{{{RDF_NS}}}about", "") != "":
+-        return ["the mark's rdf:about isn't empty"]
++        return ["the mark's rdf:about isn't empty"], None
+     if attrs and set(attrs) != {prop}:
+-        return ["the mark's packet holds a second property"]
++        return ["the mark's packet holds a second property"], None
+     if prop in attrs:
+         if len(desc):
+-            return ["the mark's packet holds a second property"]
++            return ["the mark's packet holds a second property"], None
+         value = attrs[prop]
+     else:
+         if (
+@@ -537,17 +607,18 @@ def mark_problems(packet: bytes) -> list[str]:
+         ):
+             return [
+                 "the mark's packet holds a property other than Iptc4xmpExt:DigitalSourceType"
+-            ]
++            ], None
+         child = desc[0]
+         extra = {k: v for k, v in child.attrib.items() if k != f"{{{RDF_NS}}}resource"}
+         if extra:
+-            return ["the mark's property carries an attribute"]
++            return ["the mark's property carries an attribute"], None
+         value = (child.text or "").strip() or child.attrib.get(
+             f"{{{RDF_NS}}}resource", ""
+         )
+-    if value != MARK_VALUE:
+-        return ["the mark's digital source type isn't trainedAlgorithmicMedia"]
+-    return []
++    term = value[len(SOURCE_TYPES) :] if value.startswith(SOURCE_TYPES) else ""
++    if term not in MARK_TERMS:
++        return [NOT_A_TERM], None
++    return [], term
+ 
+ 
+ # --------------------------------------------------------------------------------------------------
+@@ -759,8 +830,10 @@ def parse_png(data: bytes, out: Parsed) -> None:
+                     start = end - len(text)
+                     out.marks.append((start, end))
+                     out.texts.append(("the mark's packet", start, text))
+-                    for problem in mark_problems(text):
++                    problems, term = read_mark(text)
++                    for problem in problems:
+                         out.bad("M5", problem)
++                    out.term = term or out.term
+         elif kind == b"iCCP":
+             name_bytes, _, rest = body.partition(b"\0")
+             out.texts.append(("the ICC profile's name", pos + 8, name_bytes))
+@@ -859,8 +932,10 @@ def parse_jpeg(data: bytes, out: Parsed) -> None:
+                 # The segment's identifier, the XMP namespace A4 searches for, is part of the mark.
+                 out.marks.append((body_at, text_at + len(text)))
+                 out.texts.append(("the mark's packet", text_at, text))
+-                for problem in mark_problems(text):
++                problems, term = read_mark(text)
++                for problem in problems:
+                     out.bad("M5", problem)
++                out.term = term or out.term
+             else:
+                 out.bad("M2", f"an APP1 segment at byte {start} that isn't the mark")
+         elif marker == 0xE2 and body.startswith(b"ICC_PROFILE\x00") and len(body) >= 14:
+@@ -945,8 +1020,10 @@ def parse_webp(data: bytes, out: Parsed) -> None:
+             start = at + 8
+             out.marks.append((start, start + len(body)))
+             out.texts.append(("the mark's packet", start, body))
+-            for problem in mark_problems(body):
++            problems, term = read_mark(body)
++            for problem in problems:
+                 out.bad("M5", problem)
++            out.term = term or out.term
+         elif kind == b"ICCP":
+             check_icc(body, out)
+         elif kind == b"VP8 " and len(body) >= 10 and not out.width:
+@@ -1447,11 +1524,14 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
+             or set(packets) != {"packets"}
+         ):
+             out.bad("M5", "the mark's KHR_xmp_json_ld holds more than one packet")
+-        elif found[0] != MARK_JSON:
++        elif not any(found[0] == mark_json(term) for term in MARK_TERMS):
+             out.bad(
+                 "M5",
+-                "the mark's packet holds something besides Iptc4xmpExt:DigitalSourceType",
++                "the mark's packet holds something besides Iptc4xmpExt:DigitalSourceType, set to one of the three "
++                "terms a record's steps call for",
+             )
++        else:
++            out.term = found[0]["Iptc4xmpExt:DigitalSourceType"][len(SOURCE_TYPES) :]
+         if asset_ext.get("KHR_xmp_json_ld") != {"packet": 0}:
+             out.bad("M5", "the asset doesn't reference the mark's packet")
+         others = [
+@@ -1544,6 +1624,7 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
+         lo, hi = ranges[index]
+         inner = inspect_image(binary_chunk[lo:hi])
+         out.texture += inner.width * inner.height * 4 * 4 // 3
++        out.images.append((inner.width, inner.height))
+         for rule, reason in inner.problems:
+             if rule == "M9":
+                 out.bad("M9", f"images[{i}], embedded: {reason}")
+@@ -1619,11 +1700,61 @@ CONFIRMS = (
+     "recreation_not_photo",
+     "record_complete",
+ )
++# Each true or "not_applicable" (spec 004, Amendment C4); screens_plain_live_face was screens_plain_glow, no longer read.
+ ROOM_CONFIRMS = (
+     "window_view_recreated",
+-    "screens_plain_glow",
++    "screens_plain_live_face",
+     "artwork_original_or_absent",
+ )
++NOT_APPLICABLE = "not_applicable"
++# per_asset.room (spec 004, Amendment C7; contracts/intake-amendments.md §8): exactly these keys.
++ROOM_CAPS = (
++    "gzip_bytes",
++    "triangles",
++    "small_props",
++    "small_prop_texture_px",
++    "scene_texture_bytes",
++    "legibility_floor_css_px",
++)
++PIECE_ID = re.compile(r"[a-z][a-z0-9-]{1,40}")
++
++
++def room_caps_problem(room: object) -> str | None:
++    """Why main's per_asset.room can't be read, naming a key and never its value; None when it can."""
++    where = "caps.json's per_asset.room"
++    if not isinstance(room, dict):
++        return f"{where} isn't an object"
++    unknown = [k for k in room if k not in ROOM_CAPS]
++    if unknown:
++        return f"{where} holds a key it doesn't know: {clean(str(unknown[0]))[:40]}"
++    missing = [k for k in ROOM_CAPS if k not in room]
++    if missing:
++        return f"{where} lacks {missing[0]}"
++
++    def positive_int(value: object) -> bool:
++        return isinstance(value, int) and not isinstance(value, bool) and value > 0
++
++    for key in ("gzip_bytes", "triangles", "scene_texture_bytes"):
++        if not positive_int(room[key]):
++            return f"{where}'s {key} isn't a positive integer"
++    side = room["small_prop_texture_px"]
++    if not positive_int(side) or side & (side - 1):
++        return f"{where}'s small_prop_texture_px isn't a positive power of two"
++    floor = room["legibility_floor_css_px"]
++    if (
++        not isinstance(floor, (int, float))
++        or isinstance(floor, bool)
++        or not 0 < floor < float("inf")
++    ):
++        return f"{where}'s legibility_floor_css_px isn't a positive number"
++    props = room["small_props"]
++    if (
++        not isinstance(props, list)
++        or not all(isinstance(p, str) and PIECE_ID.fullmatch(p) for p in props)
++        or len(set(props)) != len(props)
++    ):
++        return f"{where}'s small_props isn't a list of unique piece IDs"
++    return None
+ 
+ 
+ def parse_policy(texts: dict[str, bytes]) -> Policy:
+@@ -1682,6 +1813,10 @@ def parse_policy(texts: dict[str, bytes]) -> Policy:
+         caps.get("per_asset"), dict
+     ):
+         raise PolicyError("caps.json has no adr_0010 or per_asset")
++    if "room" in caps["per_asset"]:
++        problem = room_caps_problem(caps["per_asset"]["room"])
++        if problem:
++            raise PolicyError(problem)
+     if not isinstance(visit, dict) or not all(
+         isinstance(visit.get(k), int) for k in ("phase2", "phase3")
+     ):
+@@ -1863,6 +1998,7 @@ class Record:
+             or item.get("kind") == "room"
+             or self.directory == "assets/twin"
+             or self.directory.startswith("assets/twin/")
++            or (self.directory + "/").startswith(ROOM)
+         ):
+             required.append("approval")
+         if self.published:
+@@ -1905,9 +2041,13 @@ class Record:
+         source = item.get("source")
+         if isinstance(source, dict):
+             self.keys(source, ("type", "id"), ("type", "id"), f"{where}.source")
+-            if source.get("type") not in ("photo", "prompt", "asset"):
++            # A design: an original design with no photo or prompt (spec 004, Amendment C2).
++            if source.get("type") not in ("photo", "prompt", "asset", "design"):
+                 self.problems.append(
+-                    ("R1", f"{where}.source.type isn't photo, prompt, or asset")
++                    (
++                        "R1",
++                        f"{where}.source.type isn't photo, prompt, asset, or design",
++                    )
+                 )
+             sid = source.get("id")
+             if isinstance(sid, str) and r5_problem(sid):
+@@ -2032,6 +2172,30 @@ def disclosure_rows(text: bytes | None) -> set[str]:
+     )
+ 
+ 
++def expected_term(path: str, entry: dict) -> str | None:
++    """The mark's term the file's record calls for (spec 004, Amendment C1): every step by a model, MARK_MODEL; model
++    and hand mixed, MARK_COMPOSITE; every step by hand, MARK_HUMAN. Under assets/twin/ and docs/research/images/,
++    MARK_MODEL whatever the steps say. None while the steps can't say, which R1 refuses on its own."""
++    if path.startswith(MODEL_ONLY):
++        return MARK_MODEL
++    steps = entry.get("steps")
++    if not isinstance(steps, list) or not steps:
++        return None
++    by = {step.get("by") if isinstance(step, dict) else None for step in steps}
++    if by == {"model"}:
++        return MARK_MODEL
++    if by == {"hand"}:
++        return MARK_HUMAN
++    if by == {"model", "hand"}:
++        return MARK_COMPOSITE
++    return None
++
++
++def room_file(path: str, entry: dict) -> bool:
++    """A room file: its record's kind is room, or it sits under assets/room/, whatever its record says."""
++    return entry.get("kind") == "room" or path.startswith(ROOM)
++
++
+ def licenses_of(entry: dict) -> list[tuple[str, str, str, str | None]]:
+     """(what, license, version, commercial license) for each model, tool, and service an entry names."""
+     found = []
+@@ -2081,6 +2245,8 @@ class Checker:
+         self._seen: set[tuple[str, str, str]] = set()
+         self._files: dict[tuple[str, str], None] = {}
+         self.sizes: dict[str, Size] = {}
++        # What a file's parse found that its entry's rules read (spec 004, Amendments C1 and C7), by the file's SHA-256.
++        self.facts: dict[str, Facts] = {}
+         self.reasons: list[str] = []
+         self._policy: Policy | None = None
+         self._policy_tried = False
+@@ -2121,7 +2287,13 @@ class Checker:
+             try:
+                 self._policy = parse_policy(texts)
+             except PolicyError as exc:
+-                self.cannot(f"the main branch's {POLICY}{exc}")
++                # The room block's problems read as the contract gives them: caps.json's per_asset.room …
++                reason = str(exc)
++                self.cannot(
++                    reason
++                    if reason.startswith("caps.json's per_asset.room")
++                    else f"the main branch's {POLICY}{reason}"
++                )
+         return self._policy
+ 
+     # -- one file ------------------------------------------------------------------------------
+@@ -2225,6 +2397,9 @@ class Checker:
+                 parsed.triangles,
+                 parsed.texture,
+             )
++            self.facts[hashlib.sha256(data).hexdigest()] = Facts.of(
++                parsed, kind, self.sizes[path].gzip
++            )
+             return
+         if path.startswith(POLICY):
+             return
+@@ -2337,6 +2512,18 @@ class Checker:
+                 tree, f"{directory}/{name}", item, record, policy, published, commit
+             )
+ 
++    def facts_of(self, path: str, data: bytes, digest: str) -> Facts | None:
++        """The file's Facts: from its check in this run, or parsed now when this run didn't check it (its directory's
++        record changed, not the file). None for a file of no admitted format, which the A rules refuse."""
++        if digest not in self.facts:
++            kind = ADMITTED.get(ext_of(path))
++            if kind is None or sniff(data) != kind:
++                return None
++            self.facts[digest] = Facts.of(
++                inspect(data, kind), kind, len(gzip.compress(data, 9, mtime=0))
++            )
++        return self.facts[digest]
++
+     def check_entry(
+         self,
+         tree: Tree,
+@@ -2357,6 +2544,19 @@ class Checker:
+             self.add(
+                 "N2", path, "its media_license differs from the directory's", commit
+             )
++        facts = self.facts_of(path, data, actual)
++        # M5, the mark that follows the record (spec 004, Amendment C1).
++        expected = expected_term(path, entry)
++        if facts and facts.term and expected and facts.term != expected:
++            self.add(
++                "M5",
++                path,
++                f"the mark is {facts.term} where files under assets/twin/ and docs/research/images/ carry "
++                f"{MARK_MODEL}"
++                if path.startswith(MODEL_ONLY)
++                else f"the mark is {facts.term} where its record's steps call for {expected}",
++                commit,
++            )
+         if policy is None:
+             return
+         for what, lid, version, commercial in licenses_of(entry):
+@@ -2401,22 +2601,31 @@ class Checker:
+                     commit,
+                 )
+         kind = entry.get("kind")
++        room = room_file(path, entry)
+         source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
+         approval = None
+-        # Every file of the twin needs its own approval, whatever its record says: the record is the branch's, and a
+-        # record calling a twin's still no likeness, from a prompt, mustn't skip the Author.
++
++        def confirmed(item: dict, key: str) -> bool:
++            # A room file whose record says it shows no likeness may have likeness_accepted read not_applicable;
++            # the other four stay true (spec 004, Amendment C5).
++            value = item["confirms"].get(key)
++            return value is True or (
++                value == NOT_APPLICABLE
++                and key == "likeness_accepted"
++                and room
++                and entry.get("likeness") is False
++            )
++
++        # Every file of the twin, and of the room, needs its own approval, whatever its record says: the record is the
++        # branch's, and a record calling a twin's still no likeness, from a prompt, mustn't skip the Author.
+         if (
+             entry.get("likeness") is True
+             or source.get("type") == "photo"
+-            or kind == "room"
++            or room
+             or path.startswith("assets/twin/")
+         ):
+             matches = [a for a in policy.approvals if a.get("sha256") == actual]
+-            good = [
+-                a
+-                for a in matches
+-                if all(a["confirms"].get(c) is True for c in CONFIRMS)
+-            ]
++            good = [a for a in matches if all(confirmed(a, c) for c in CONFIRMS)]
+             approval = good[0] if good else None
+             if approval is None:
+                 why = (
+@@ -2438,14 +2647,19 @@ class Checker:
+                     "its record's approval ID isn't the one the main branch's approval of this hash carries",
+                     commit,
+                 )
+-            elif kind == "room" and not (
++            elif room and not (
+                 isinstance(approval.get("room"), dict)
+-                and all(approval["room"].get(c) is True for c in ROOM_CONFIRMS)
++                and all(
++                    approval["room"].get(c) is True
++                    or approval["room"].get(c) == NOT_APPLICABLE
++                    for c in ROOM_CONFIRMS
++                )
+             ):
+                 self.add(
+                     "P2",
+                     path,
+-                    "a room file whose approval lacks the room confirmations (FR-037)",
++                    "a room file whose approval lacks the room confirmations, each true or not_applicable "
++                    "(FR-037; spec 004, Amendment C4)",
+                     commit,
+                 )
+         if path.startswith("assets/twin/"):
+@@ -2471,11 +2685,15 @@ class Checker:
+                 f"an {kind} while caps.json says ADR 0010 isn't accepted (FR-018)",
+                 commit,
+             )
+-        limits = (
+-            caps["per_asset"].get(kind)
+-            if isinstance(caps["per_asset"].get(kind), dict)
+-            else {}
+-        )
++        if room:
++            self.check_room_caps(path, facts, caps["per_asset"].get("room"), commit)
++            limits = {}
++        else:
++            limits = (
++                caps["per_asset"].get(kind)
++                if isinstance(caps["per_asset"].get(kind), dict)
++                else {}
++            )
+         size = self.sizes.get(path)
+         measured = {
+             "bytes": len(data),
+@@ -2495,6 +2713,49 @@ class Checker:
+         if published and arm in ("B", "D"):
+             self.check_caption(tree, path, entry, commit)
+ 
++    def check_room_caps(
++        self, path: str, facts: Facts | None, caps: object, commit: str | None
++    ) -> None:
++        """F2 for a room file (spec 004, Amendment C7): its gzip-9 size, a GLB's triangles, and, on a small prop, each
++        texture's sides, against main's per_asset.room, which parse_policy has already held to its six keys."""
++        if not isinstance(caps, dict):
++            self.add(
++                "F2",
++                path,
++                "a room file while the main branch's caps.json has no per_asset.room, the caps it needs "
++                "(spec 004, Amendment C7)",
++                commit,
++            )
++            return
++        if facts is None:
++            return
++        if facts.gzip > caps["gzip_bytes"]:
++            self.add(
++                "F2",
++                path,
++                f"{facts.gzip:,} bytes at gzip level 9 over its cap of {caps['gzip_bytes']:,} (spec 004, FR-053)",
++                commit,
++            )
++        if facts.triangles is not None and facts.triangles > caps["triangles"]:
++            self.add(
++                "F2",
++                path,
++                f"{facts.triangles:,} triangles over its cap of {caps['triangles']:,} (spec 004, FR-053)",
++                commit,
++            )
++        stem = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
++        side = caps["small_prop_texture_px"]
++        if stem in caps["small_props"]:
++            for i, (width, height) in enumerate(facts.sides):
++                if max(width, height) > side:
++                    self.add(
++                        "F2",
++                        path,
++                        f"a small prop's texture {i}, {width} by {height} pixels, over its cap of {side} a side "
++                        "(spec 004, FR-053)",
++                        commit,
++                    )
++
+     def check_caption(
+         self, tree: Tree, path: str, entry: dict, commit: str | None
+     ) -> None:
+@@ -2561,10 +2822,21 @@ class Checker:
+         self.first_visit_total(tree, commit)
+ 
+     def first_visit_total(self, tree: Tree, commit: str | None) -> None:
+-        """SC-006's first visit, by transfer size: every GLB under assets/twin/ and assets/animations/ (and
+-        assets/room/ in Phase 3), and the largest visitor avatar's GLBs."""
+-        glbs = [p for p in tree.under("assets/") if p.endswith(".glb") and in_roots(p)]
+-        if not glbs:
++        """SC-006's first visit, by transfer size: every GLB under assets/twin/ and assets/animations/, every file the
++        room serves under assets/room/, image cards included (spec 004, Amendment C6), and the largest visitor
++        avatar's GLBs; phase 3's budget once assets/room/ holds such a file. A directory's records.json and
++        LICENSE.md aren't served, so they count for neither."""
++        room_files = [
++            p
++            for p in tree.under(ROOM)
++            if in_roots(p) and p.rsplit("/", 1)[-1] not in (RECORDS, NOTICE)
++        ]
++        glbs = [
++            p
++            for p in tree.under("assets/")
++            if p.endswith(".glb") and in_roots(p) and not p.startswith(ROOM)
++        ]
++        if not glbs and not room_files:
+             return
+         policy = self.policy()
+         if policy is None:
+@@ -2578,12 +2850,10 @@ class Checker:
+                 )
+             return self.sizes[path].gzip
+ 
+-        room = any(p.startswith("assets/room/") for p in glbs)
++        room = bool(room_files)
+         total = sum(
+-            gz(p)
+-            for p in glbs
+-            if p.startswith(("assets/twin/", "assets/animations/", "assets/room/"))
+-        )
++            gz(p) for p in glbs if p.startswith(("assets/twin/", "assets/animations/"))
++        ) + sum(gz(p) for p in room_files)
+         visitors: dict[str, int] = {}
+         for p in glbs:
+             if p.startswith("assets/visitors/"):
+diff --git a/tools/gates/test/arrival_fixtures.py b/tools/gates/test/arrival_fixtures.py
+index 148abc5..b3ec08e 100644
+--- a/tools/gates/test/arrival_fixtures.py
++++ b/tools/gates/test/arrival_fixtures.py
+@@ -30,11 +30,18 @@ from pathlib import Path
+ 
+ MEDIA = "all-rights-reserved-2026"
+ MARK_NS = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
+-MARK_VALUE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"
+-MARK_JSON = {
+-    "@context": {"Iptc4xmpExt": MARK_NS},
+-    "Iptc4xmpExt:DigitalSourceType": MARK_VALUE,
+-}
++SOURCE_TYPES = "http://cv.iptc.org/newscodes/digitalsourcetype/"
++MARK_VALUE = SOURCE_TYPES + "trainedAlgorithmicMedia"
++
++
++def mark_json(value: str = MARK_VALUE) -> dict:
++    return {
++        "@context": {"Iptc4xmpExt": MARK_NS},
++        "Iptc4xmpExt:DigitalSourceType": value,
++    }
++
++
++MARK_JSON = mark_json()
+ PNG_SIG = b"\x89PNG\r\n\x1a\n"
+ XMP_ID = b"http://ns.adobe.com/xap/1.0/\x00"
+ CAPTION = "Evaluation output; not used in the site's assets."
+@@ -339,9 +346,11 @@ def glb(
+     target_names: list[str] | None = None,
+     extra_bin: bytes = b"",
+     edit=None,
++    value: str = MARK_VALUE,
+ ) -> bytes:
+     """One triangle with an embedded PNG texture, and, with target_names, a morph target and mesh.extras.targetNames.
+-    `edit` changes the glTF JSON before it's packed; extra_bin adds bytes no bufferView covers."""
++    `edit` changes the glTF JSON before it's packed; extra_bin adds bytes no bufferView covers; `value` is the mark's
++    digital source type."""
+     image = png(mark=False) if image is None else image
+     parts: list[bytes] = []
+     views: list[dict] = []
+@@ -398,9 +407,7 @@ def glb(
+         gltf["materials"][0]["name"] = material_name
+     if mark:
+         gltf["extensionsUsed"] = ["KHR_xmp_json_ld"]
+-        gltf["extensions"] = {
+-            "KHR_xmp_json_ld": {"packets": [json.loads(json.dumps(MARK_JSON))]}
+-        }
++        gltf["extensions"] = {"KHR_xmp_json_ld": {"packets": [mark_json(value)]}}
+         gltf["asset"]["extensions"] = {"KHR_xmp_json_ld": {"packet": 0}}
+     if edit is not None:
+         edit(gltf)
+@@ -481,7 +488,8 @@ def entry(
+         "made": made,
+         "source": {"type": source[0], "id": source[1]},
+         "likeness": likeness,
+-        "steps": steps if steps is not None else [model_step(), hand_step()],
++        # One model step by default, as the fixtures' mark, trainedAlgorithmicMedia, calls for (spec 004, Amendment C1).
++        "steps": steps if steps is not None else [model_step()],
+         "media_license": MEDIA,
+     }
+     if approval is not None:
+@@ -578,9 +586,18 @@ def approval(
+ 
+ ROOM_YES = {
+     "window_view_recreated": True,
+-    "screens_plain_glow": True,
++    "screens_plain_live_face": True,
+     "artwork_original_or_absent": True,
+ }
++# Spec 004's room block (Amendment C7; contracts/intake-amendments.md §8), at FR-053's starting figures.
++ROOM_CAPS = {
++    "gzip_bytes": 2_500_000,
++    "triangles": 40_000,
++    "small_props": ["mug"],
++    "small_prop_texture_px": 1024,
++    "scene_texture_bytes": 96_000_000,
++    "legibility_floor_css_px": 9,
++}
+ 
+ 
+ def caps(
+diff --git a/tools/gates/test/test_arrival_check.py b/tools/gates/test/test_arrival_check.py
+index 8e1aee8..4c61aa5 100644
+--- a/tools/gates/test/test_arrival_check.py
++++ b/tools/gates/test/test_arrival_check.py
+@@ -4,6 +4,10 @@ contracts/arrival-check.md §5).
+ Each test builds a throwaway repository with arrival_fixtures.py, whose `main` holds the policy, and runs the check as
+ the hook, make check, and the gate do: by path, through `python3 -I -B -X pycache_prefix=/dev/null`. It reads the
+ check's lines, `<rule> <path>[ @<commit>]: <reason>`, and its exit code: 0 nothing refused, 1 a finding, 2 can't check.
++
++Spec 004's amendments (its P-5; contracts/intake-amendments.md §7; tasks.md T036) have their own section at the end:
++the mark that follows the record (C1, rule M5), the design source (C2, R1), the room confirmations (C4, P2), the
++likeness that doesn't apply (C5, P1), the room's files in the first visit (C6, F3), and the room's caps (C7, F2).
+ """
+ 
+ from __future__ import annotations
+@@ -654,7 +658,10 @@ def test_r6_a_model_step_without_its_refresh_date_or_after_made(
+ 
+ 
+ def test_r7_a_service_whose_disclosure_row_doesnt_exist(repo: fx.Repo) -> None:
+-    data = fx.png()
++    # A model step and a hand step: the composite mark (spec 004, Amendment C1).
++    data = fx.png(
++        packet=fx.xmp(value=fx.SOURCE_TYPES + "compositeWithTrainedAlgorithmicMedia")
++    )
+     step = {
+         "name": "upscale",
+         "by": "hand",
+@@ -1209,3 +1216,496 @@ def test_a_path_outside_the_repository_is_refused_without_naming_it(
+     run = check(repo, str(stray))
+     assert run.code == 2 and "arrival-check: can't check" in run.out, run.out
+     assert "private-name" not in run.out and "elsewhere" not in run.out
++
++
++# --------------------------------------------------------------------------------------------------
++# Spec 004's amendments (P-5; contracts/intake-amendments.md §7): C1 on M5, C2 on R1, C4 on P2, C5 on P1, C6 on F3,
++# C7 on F2. The terms come from the check itself, so the Author's confirmed term (tasks.md T031) is one line there.
++# --------------------------------------------------------------------------------------------------
++_TERMS_SPEC = importlib.util.spec_from_file_location("arrival_check_terms", SCRIPT)
++assert _TERMS_SPEC and _TERMS_SPEC.loader
++ac = importlib.util.module_from_spec(_TERMS_SPEC)
++sys.modules[_TERMS_SPEC.name] = ac
++_TERMS_SPEC.loader.exec_module(ac)
++TERMS = {
++    "model": getattr(ac, "MARK_MODEL", ""),
++    "composite": getattr(ac, "MARK_COMPOSITE", ""),
++    "hand": getattr(ac, "MARK_HUMAN", ""),
++}
++STEPS = {
++    "model": lambda: [fx.model_step()],
++    "composite": lambda: [fx.model_step(), fx.hand_step()],
++    "hand": lambda: [fx.hand_step()],
++}
++ROOM = "assets/room"
++
++
++def marked(kind: str, term: str, **kwargs) -> bytes:
++    """A file of `kind` whose mark is IPTC's `term`."""
++    value = fx.SOURCE_TYPES + term
++    if kind == "glb":
++        return fx.glb(value=value, **kwargs)
++    return fx.png(packet=fx.xmp(value=value), **kwargs)
++
++
++def room_repo(
++    tmp_path: Path,
++    files: dict[str, bytes],
++    *,
++    steps: list[dict] | None = None,
++    room: object = fx.ROOM_CAPS,
++    room_confirms: dict | None = None,
++    likeness: bool = False,
++    source: tuple[str, str] = ("design", "D-0001"),
++    **confirms,
++) -> fx.Repo:
++    """A repository whose main approves each room file with the room confirmations, and holds the room caps (or
++    `room`, as given; None for none), with the files in assets/room/ on the branch."""
++    per_asset = {} if room is None else {"room": room}
++    approvals = [
++        fx.approval(
++            f"A-01{i:02d}",
++            data,
++            f"{ROOM}/{name}",
++            kind="room",
++            room=dict(fx.ROOM_YES) if room_confirms is None else room_confirms,
++            **confirms,
++        )
++        for i, (name, data) in enumerate(sorted(files.items()))
++    ]
++    repo = fx.repository(
++        tmp_path, approvals=approvals, limits=fx.caps(per_asset=per_asset)
++    )
++    entries = [
++        fx.entry(
++            name,
++            data,
++            kind="room",
++            source=source,
++            likeness=likeness,
++            steps=STEPS["model"]() if steps is None else steps,
++            approval=f"A-01{i:02d}",
++        )
++        for i, (name, data) in enumerate(sorted(files.items()))
++    ]
++    repo.directory(ROOM, files, entries)
++    return repo
++
++
++def check_room(repo: fx.Repo, *names: str) -> Run:
++    return check(repo, *paths(repo, *(f"{ROOM}/{n}" for n in names)))
++
++
++def test_the_amendments_constant_is_a_tuple_of_literals_ast_can_read() -> None:
++    # evals/test_room_order.py reads it from main's copy with ast, never importing the check.
++    import ast
++
++    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
++    (node,) = [
++        n
++        for n in tree.body
++        if isinstance(n, ast.Assign)
++        and any(isinstance(t, ast.Name) and t.id == "AMENDMENTS" for t in n.targets)
++    ]
++    assert ast.literal_eval(node.value) == (
++        "004-C1",
++        "004-C2",
++        "004-C4",
++        "004-C5",
++        "004-C6",
++        "004-C7",
++    )
++
++
++def test_the_three_terms_are_each_one_constant() -> None:
++    assert len(set(TERMS.values())) == 3
++    assert TERMS["model"] == "trainedAlgorithmicMedia"
++    assert TERMS["composite"] == "compositeWithTrainedAlgorithmicMedia"
++    assert re.fullmatch(r"[a-z][A-Za-z]+", TERMS["hand"])
++
++
++# C1: the mark follows the record's steps.
++@pytest.mark.parametrize("which", ["model", "composite", "hand"])
++@pytest.mark.parametrize("kind", ["glb", "png"])
++def test_c1_a_room_file_marked_as_its_steps_call_for_passes(
++    tmp_path: Path, which: str, kind: str
++) -> None:
++    name = f"desk.{kind}"
++    data = marked(kind, TERMS[which])
++    repo = room_repo(tmp_path, {name: data}, steps=STEPS[which]())
++    run = check_room(repo, name)
++    assert run.code == 0, run.out
++
++
++@pytest.mark.parametrize(
++    "mark, steps",
++    [
++        ("model", "hand"),
++        ("model", "composite"),
++        ("composite", "model"),
++        ("composite", "hand"),
++        ("hand", "model"),
++        ("hand", "composite"),
++    ],
++)
++def test_c1_m5_a_room_file_whose_mark_disagrees_with_its_steps(
++    tmp_path: Path, mark: str, steps: str
++) -> None:
++    data = marked("glb", TERMS[mark])
++    repo = room_repo(tmp_path, {"desk.glb": data}, steps=STEPS[steps]())
++    run = check_room(repo, "desk.glb")
++    assert run.code == 1 and run.has("M5", f"{ROOM}/desk.glb"), run.out
++    assert (
++        f"M5 {ROOM}/desk.glb: the mark is {TERMS[mark]} where its record's steps call for {TERMS[steps]}"
++        in run.out
++    ), run.out
++
++
++@pytest.mark.parametrize("which", ["composite", "hand"])
++def test_c1_m5_the_twin_takes_only_the_models_mark_whatever_its_steps(
++    tmp_path: Path, which: str
++) -> None:
++    twin = marked("glb", TERMS[which])
++    repo = fx.repository(tmp_path, approvals=twin_policy(glb_data=twin))
++    record = fx.entry(
++        "twin.glb",
++        twin,
++        kind="avatar",
++        likeness=True,
++        source=("photo", "PH-0001"),
++        approval="A-0001",
++        steps=STEPS[which](),
++    )
++    repo.directory(TWIN, {"twin.glb": twin}, [record])
++    run = check(repo, *paths(repo, f"{TWIN}/twin.glb"))
++    assert run.code == 1 and run.has("M5", f"{TWIN}/twin.glb"), run.out
++    assert f"the mark is {TERMS[which]}" in run.out
++
++
++def test_c1_m5_the_twin_with_the_models_mark_passes_with_hand_steps(
++    tmp_path: Path,
++) -> None:
++    twin = fx.glb()
++    repo = fx.repository(tmp_path, approvals=twin_policy(glb_data=twin))
++    record = fx.entry(
++        "twin.glb",
++        twin,
++        kind="avatar",
++        likeness=True,
++        source=("photo", "PH-0001"),
++        approval="A-0001",
++        steps=[fx.model_step(), fx.hand_step()],
++    )
++    repo.directory(TWIN, {"twin.glb": twin}, [record])
++    assert check(repo, *paths(repo, f"{TWIN}/twin.glb")).code == 0
++
++
++def test_c1_m5_a_research_image_takes_only_the_models_mark(repo: fx.Repo) -> None:
++    grid = fx.jpeg(packet=fx.xmp(value=fx.SOURCE_TYPES + TERMS["hand"]))
++    record = fx.entry(
++        "t1-grid.jpg",
++        grid,
++        kind="published-image",
++        steps=[fx.hand_step()],
++        arm="A",
++        note=NOTE,
++    )
++    repo.directory(NOTE_DIR, {"t1-grid.jpg": grid}, [record])
++    run = check(repo, *paths(repo, f"{NOTE_DIR}/t1-grid.jpg"))
++    assert run.code == 1 and run.has("M5", f"{NOTE_DIR}/t1-grid.jpg"), run.out
++
++
++def test_c1_m5_a_term_outside_the_three_is_refused_by_the_container_rules() -> None:
++    data = fx.png(packet=fx.xmp(value=fx.SOURCE_TYPES + "digitalCapture"))
++    found = ac.container_findings(data, "png")
++    assert [r for r, _ in found] == ["M5"], found
++    assert "digitalCapture" not in found[0][1]  # it names the rule, never the value
++    for term in TERMS.values():
++        assert ac.container_findings(marked("png", term), "png") == []
++
++
++# C2: a design source.
++def test_c2_r1_a_design_source_passes(tmp_path: Path) -> None:
++    data = fx.glb()
++    repo = room_repo(tmp_path, {"desk.glb": data}, source=("design", "D-0042"))
++    assert check_room(repo, "desk.glb").code == 0
++
++
++def test_c2_r1_a_design_sources_id_is_held_to_the_opaque_id_rule(
++    tmp_path: Path,
++) -> None:
++    data = fx.glb()
++    repo = room_repo(tmp_path, {"desk.glb": data}, source=("design", "my sign.svg"))
++    run = check_room(repo, "desk.glb")
++    assert run.code == 1 and (
++        run.has("R5", f"{ROOM}/records.json") or run.has("R1", f"{ROOM}/records.json")
++    ), run.out
++
++
++def test_c2_r1_another_source_type_is_still_refused(tmp_path: Path) -> None:
++    data = fx.glb()
++    repo = room_repo(tmp_path, {"desk.glb": data}, source=("sketch", "S-0001"))
++    run = check_room(repo, "desk.glb")
++    assert run.has("R1", f"{ROOM}/records.json"), run.out
++    assert "photo, prompt, asset, or design" in run.out
++
++
++# C4: the room confirmations, true or "not_applicable".
++@pytest.mark.parametrize(
++    "key",
++    ["window_view_recreated", "screens_plain_live_face", "artwork_original_or_absent"],
++)
++def test_c4_p2_a_room_confirmation_reading_not_applicable_passes(
++    tmp_path: Path, key: str
++) -> None:
++    data = fx.glb()
++    repo = room_repo(
++        tmp_path,
++        {"desk.glb": data},
++        room_confirms={**fx.ROOM_YES, key: "not_applicable"},
++    )
++    assert check_room(repo, "desk.glb").code == 0
++
++
++@pytest.mark.parametrize("value", [False, "no", None, "n/a"])
++def test_c4_p2_a_room_confirmation_neither_true_nor_not_applicable(
++    tmp_path: Path, value: object
++) -> None:
++    data = fx.glb()
++    repo = room_repo(
++        tmp_path,
++        {"desk.glb": data},
++        room_confirms={**fx.ROOM_YES, "window_view_recreated": value},
++    )
++    run = check_room(repo, "desk.glb")
++    assert run.code == 1 and run.has("P2", f"{ROOM}/desk.glb"), run.out
++
++
++def test_c4_p2_the_old_name_alone_is_refused(tmp_path: Path) -> None:
++    data = fx.glb()
++    old = {
++        "window_view_recreated": True,
++        "screens_plain_glow": True,
++        "artwork_original_or_absent": True,
++    }
++    repo = room_repo(tmp_path, {"desk.glb": data}, room_confirms=old)
++    run = check_room(repo, "desk.glb")
++    assert run.code == 1 and run.has("P2", f"{ROOM}/desk.glb"), run.out
++
++
++# C5: likeness_accepted may read "not_applicable" for a room file that shows no likeness.
++def test_c5_p1_a_room_file_with_no_likeness_takes_not_applicable(
++    tmp_path: Path,
++) -> None:
++    data = fx.glb()
++    repo = room_repo(tmp_path, {"desk.glb": data}, likeness_accepted="not_applicable")
++    assert check_room(repo, "desk.glb").code == 0
++
++
++def test_c5_p1_not_applicable_is_refused_where_the_room_file_shows_the_author(
++    tmp_path: Path,
++) -> None:
++    data = fx.glb()
++    repo = room_repo(
++        tmp_path,
++        {"desk.glb": data},
++        likeness=True,
++        likeness_accepted="not_applicable",
++    )
++    run = check_room(repo, "desk.glb")
++    assert run.code == 1 and run.has("P1", f"{ROOM}/desk.glb"), run.out
++
++
++@pytest.mark.parametrize(
++    "key",
++    [
++        "nothing_locates",
++        "no_screen_logo_text_or_art",
++        "recreation_not_photo",
++        "record_complete",
++    ],
++)
++def test_c5_p1_the_other_four_stay_true(tmp_path: Path, key: str) -> None:
++    data = fx.glb()
++    repo = room_repo(tmp_path, {"desk.glb": data}, **{key: "not_applicable"})
++    run = check_room(repo, "desk.glb")
++    assert run.code == 1 and run.has("P1", f"{ROOM}/desk.glb"), run.out
++
++
++def test_c5_p1_not_applicable_outside_the_room_is_refused(tmp_path: Path) -> None:
++    data = fx.png()
++    repo = fx.repository(
++        tmp_path,
++        approvals=[
++            fx.approval(
++                "A-0002",
++                data,
++                f"{DOG}/still.png",
++                kind="still",
++                likeness_accepted="not_applicable",
++            )
++        ],
++    )
++    record = fx.entry("still.png", data, source=("photo", "PH-0003"), approval="A-0002")
++    run = in_dog(repo, "still.png", data, [record])
++    assert run.code == 1 and run.has("P1", f"{DOG}/still.png"), run.out
++
++
++def test_c5_p1_a_room_file_still_needs_its_approval(tmp_path: Path) -> None:
++    data = fx.glb()
++    repo = fx.repository(tmp_path, limits=fx.caps(per_asset={"room": fx.ROOM_CAPS}))
++    record = fx.entry(
++        "desk.glb",
++        data,
++        kind="room",
++        source=("design", "D-0001"),
++        steps=[fx.model_step()],
++        approval="A-0100",
++    )
++    repo.directory(ROOM, {"desk.glb": data}, [record])
++    run = check_room(repo, "desk.glb")
++    assert run.code == 1 and run.has("P1", f"{ROOM}/desk.glb"), run.out
++
++
++# C6: every file under assets/room/ in the first visit, and phase 3 once it holds one.
++def test_c6_f3_a_png_card_alone_under_assets_room_switches_to_phase_3(
++    tmp_path: Path,
++) -> None:
++    card = fx.png()
++    repo = room_repo(tmp_path, {"card.png": card})
++    repo.commit("a room card")
++    run = check(repo, "--range", "main..HEAD")
++    assert run.code == 0, run.out
++    assert "first visit (phase 3)" in run.out, run.out
++
++
++def test_c6_f3_the_room_files_count_at_gzip_level_9(tmp_path: Path) -> None:
++    import gzip
++
++    card = fx.png(width=64, height=64)
++    repo = room_repo(tmp_path, {"card.png": card})
++    repo.commit("a room card")
++    run = check(repo, "--range", "main..HEAD")
++    size = len(gzip.compress(card, 9, mtime=0))
++    assert f"first visit (phase 3): {size:,} of 25,000,000 bytes" in run.out, run.out
++
++
++def test_c6_f3_a_room_file_over_the_phase_3_budget(tmp_path: Path) -> None:
++    card = fx.png(width=64, height=64)
++    repo = room_repo(tmp_path, {"card.png": card})
++    repo.git("switch", "-q", "main")
++    repo.write(
++        "assets/policy/caps.json",
++        fx.dumps(fx.caps(phase3=10, per_asset={"room": fx.ROOM_CAPS})),
++    )
++    repo.git("add", "assets/policy/caps.json")
++    repo.git("commit", "-q", "-m", "main: a tight budget")
++    repo.git("switch", "-q", "feature")
++    repo.commit("a room card")
++    run = check(repo, "--range", "main..HEAD")
++    assert run.code == 1 and run.has("F3"), run.out
++
++
++def test_c6_f3_no_room_file_keeps_phase_2(repo: fx.Repo) -> None:
++    repo.directory(DOG, {"dog.glb": fx.glb()})
++    repo.commit("a visitor avatar")
++    run = check(repo, "--range", "main..HEAD")
++    assert "first visit (phase 2)" in run.out, run.out
++
++
++# C7: a room file against per_asset.room.
++def two_triangles(gltf: dict) -> None:
++    gltf["meshes"][0]["primitives"].append(dict(gltf["meshes"][0]["primitives"][0]))
++
++
++@pytest.mark.parametrize(
++    "name, data, room, what",
++    [
++        ("desk.glb", fx.glb(), {"gzip_bytes": 10}, "gzip"),
++        ("desk.glb", fx.glb(edit=two_triangles), {"triangles": 1}, "triangles"),
++        (
++            "mug.glb",
++            fx.glb(image=fx.png(width=8, height=4, mark=False)),
++            {"small_props": ["mug"], "small_prop_texture_px": 4},
++            "texture",
++        ),
++        (
++            "mug.png",
++            fx.png(width=4, height=8),
++            {"small_props": ["mug"], "small_prop_texture_px": 4},
++            "texture",
++        ),
++    ],
++    ids=["gzip", "triangles", "glb-texture", "card-texture"],
++)
++def test_c7_f2_each_room_cap_exceeded(
++    tmp_path: Path, name: str, data: bytes, room: dict, what: str
++) -> None:
++    repo = room_repo(tmp_path, {name: data}, room={**fx.ROOM_CAPS, **room})
++    run = check_room(repo, name)
++    assert run.code == 1 and run.has("F2", f"{ROOM}/{name}"), run.out
++    assert what in run.out
++
++
++def test_c7_f2_a_texture_on_a_piece_not_named_a_small_prop_isnt_capped(
++    tmp_path: Path,
++) -> None:
++    data = fx.glb(image=fx.png(width=8, height=8, mark=False))
++    repo = room_repo(
++        tmp_path,
++        {"desk.glb": data},
++        room={**fx.ROOM_CAPS, "small_props": ["mug"], "small_prop_texture_px": 4},
++    )
++    assert check_room(repo, "desk.glb").code == 0
++
++
++def test_c7_f2_a_room_file_while_main_has_no_room_caps(tmp_path: Path) -> None:
++    data = fx.glb()
++    repo = room_repo(tmp_path, {"desk.glb": data}, room=None)
++    run = check_room(repo, "desk.glb")
++    assert run.code == 1 and run.has("F2", f"{ROOM}/desk.glb"), run.out
++    assert "per_asset.room" in run.out
++
++
++@pytest.mark.parametrize(
++    "room, key",
++    [
++        ({**fx.ROOM_CAPS, "max_lights": 4}, "max_lights"),
++        ({k: v for k, v in fx.ROOM_CAPS.items() if k != "triangles"}, "triangles"),
++        ({**fx.ROOM_CAPS, "gzip_bytes": "2500000"}, "gzip_bytes"),
++        ({**fx.ROOM_CAPS, "gzip_bytes": 0}, "gzip_bytes"),
++        ({**fx.ROOM_CAPS, "triangles": True}, "triangles"),
++        ({**fx.ROOM_CAPS, "small_prop_texture_px": 1000}, "small_prop_texture_px"),
++        ({**fx.ROOM_CAPS, "small_props": ["mug", "mug"]}, "small_props"),
++        ({**fx.ROOM_CAPS, "small_props": ["Mug Shelf"]}, "small_props"),
++        ({**fx.ROOM_CAPS, "small_props": "mug"}, "small_props"),
++        ({**fx.ROOM_CAPS, "legibility_floor_css_px": -9}, "legibility_floor_css_px"),
++        ({**fx.ROOM_CAPS, "scene_texture_bytes": 9.5e7}, "scene_texture_bytes"),
++        ([1, 2], "room"),
++    ],
++    ids=[
++        "unknown",
++        "missing",
++        "text",
++        "zero",
++        "bool",
++        "not-a-power-of-two",
++        "duplicate",
++        "not-an-id",
++        "not-a-list",
++        "negative",
++        "float",
++        "not-an-object",
++    ],
++)
++def test_c7_a_per_asset_room_it_cant_read_exits_2_naming_the_key_never_the_value(
++    tmp_path: Path, room: object, key: str
++) -> None:
++    data = fx.glb()
++    repo = room_repo(tmp_path, {"desk.glb": data}, room=room)
++    run = check_room(repo, "desk.glb")
++    assert run.code == 2, run.out
++    assert "arrival-check: can't check: caps.json's per_asset.room" in run.out
++    assert key in run.out
++    for value in ("2500000", "Mug Shelf", "1000", "-9", "95000000"):
++        assert value not in run.out
