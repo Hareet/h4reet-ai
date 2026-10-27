@@ -2,8 +2,9 @@
 // the bundle's index, drawn as an inline SVG, which never waits on the 3D part. The compositor projected each piece's
 // 2D drawing through framing(1.6) into the 320 × 200 view box, so this module only draws the index's `flat`:
 // - each placement's primitives in a group at its matrix, back to front as the index orders them;
-// - each switch case its own group, toggled by `visibility`, holding its pose and its cable as a quadratic curve, the
-//   not-live case shown until the tier applies another (T160, T161);
+// - each switch case its own group, toggled by `visibility`, holding its pose and its cable as a quadratic curve: the
+//   case tier.ts's caseFor gives for the tier the stage's `apply` takes, not-live's until the tier applies another, so
+//   only `local` shows the plugged case and only `cloud` the cloud case, whatever the index maps (FR-043, FR-062);
 // - each stand-in's label as SVG text, the UI word `standin.label` filled with its label's word, as the 3D room words
 //   it;
 // - the visitor as the chosen avatar's flat polygons (src/choice/avatars.ts), at the index's place and scale;
@@ -15,7 +16,8 @@
 //   the side the paper comes from;
 // - each selectable's cue, a dashed rectangle around its hit rectangles with its name tag, styled by room.css's
 //   classes.
-// The faces come with their renderers' SVG backend (T185).
+// The faces come with their renderers' SVG backend (T185). The hand-off's visitor reads reduced motion from the room's
+// motion store on each frame, so a change mid-visit reaches it (FR-059).
 //
 // An allowlist governs every element and attribute the drawing holds: the elements g, rect, circle, ellipse, line,
 // polyline, polygon, path, and text; geometry, fill, stroke, stroke-width, opacity, font-*, text-anchor, and transform,
@@ -34,7 +36,9 @@ import { SVG_NS, h, svg } from "./dom";
 import { FLAT_FRAMES, VISITOR_TURN, flatFrame, handOffset, sideOf, visitorTurnShare } from "./handoff";
 import { bindPointerSelection } from "./objects";
 import type { Ndc } from "./objects";
-import type { Stage } from "./stage";
+import { caseFor } from "./signals/tier";
+import type { TierValue } from "./signals/tier";
+import type { MotionView, Stage } from "./stage";
 import { uiWord } from "./ui-keys";
 
 /** What the 2D room reads of the index: its drawing, its words, its selectables, and its switches' cases. */
@@ -170,6 +174,20 @@ function node(
 /** A switch case's, a paper's, or a cue's visibility, set by code. */
 const show = (el: Element, on: boolean): void => el.setAttribute("visibility", on ? "visible" : "hidden");
 
+/** Shows each switch's case for a tier value by the claims rule (tier.ts's caseFor), each case's group, with its cable
+ *  curve, visible or hidden; a switch the index doesn't list shows none. */
+function showCases(
+  drawn: ReadonlyMap<string, ReadonlyMap<string, Element>>,
+  switches: FlatIndex["switches"],
+  value: TierValue,
+): void {
+  for (const [id, cases] of drawn) {
+    const sw = switches.find((s) => s.id === id);
+    const pose = sw ? caseFor(sw.cases, value, (p) => cases.has(p)) : null;
+    for (const [name, group] of cases) show(group, name === pose);
+  }
+}
+
 /** The visitor's turn, set by code through the allowlist's matrix, or taken off. */
 function turnTo(el: Element, m: Matrix2D | null): void {
   if (m === null) {
@@ -275,11 +293,11 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId, reduc
       placed(doc, pose.matrix, pose.primitives),
       ...(pose.cable ? [cable(doc, pose.cable)] : []),
     );
-    // Until the tier applies another (T160, T161), the room shows the case of not-live, as in 3D.
-    show(group, room.switches.find((s) => s.id === pose.switch)?.cases["not-live"] === pose.pose);
     cases.set(pose.pose, group);
     root.append(group);
   }
+  // Until the tier applies another, the room shows not-live's case by the claims rule, as in 3D.
+  showCases(switches, room.switches, "not-live");
 
   // The avatar's polygons are code's; where they stand, and at what scale, is the index's.
   const { x: feet, baseline, scale } = flat.visitor;
@@ -313,7 +331,7 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId, reduc
   // The scene's anchor is the first avatar's hand, on the side the paper ends on, the twin's; the chosen avatar's own is
   // offset from it on that side, in the cut-out's frame, which stands square to the view at the visitor's scale (y down
   // in the view box).
-  const [toTwin, , atVisitor] = flat.papers;
+  const [, , atVisitor] = flat.papers;
   const [dx, dy] = handOffset(avatar, sideOf(atVisitor[0] - feet));
   const papers = flat.papers.map(([x, y], k) => {
     const share = k / (FLAT_FRAMES - 1);
@@ -357,16 +375,19 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId, reduc
     root.append(area, name);
   }
 
-  // In each frame, the visitor turns toward the paper's side as the 3D room turns it at that frame's progress; under
-  // reduced motion it doesn't turn, as in 3D.
-  const towardTwin = sideOf(toTwin[0] - feet);
-  const turns = flat.papers.map((_, k) =>
+  return { root, items, switches, labels, cues, visitor, papers, turns: turnsOf(flat, reducedMotion) };
+}
+
+/** In each of the hand-off's frames, the visitor's turn toward the paper's side, as the 3D room turns it at that frame's
+ *  progress; under reduced motion it doesn't turn, as in 3D. */
+function turnsOf(flat: FlatIndex["flat"], reducedMotion: boolean): (Matrix2D | null)[] {
+  const { x: feet, baseline } = flat.visitor;
+  const towardTwin = sideOf(flat.papers[0][0] - feet);
+  return flat.papers.map((_, k) =>
     reducedMotion
       ? null
       : visitorTurn(feet, baseline, towardTwin, VISITOR_TURN * visitorTurnShare(k / (FLAT_FRAMES - 1))),
   );
-
-  return { root, items, switches, labels, cues, visitor, papers, turns };
 }
 
 // ---- The pick ----
@@ -427,9 +448,19 @@ export function flatPicker(
 /** The 2D stage: the drawing, its pointer's picks, and the hand-off's still frames. */
 export function renderFlat(
   doc: Document,
-  options: { room: FlatIndex; avatar: AvatarId; select(id: string): void; reducedMotion?: boolean },
+  options: {
+    room: FlatIndex;
+    avatar: AvatarId;
+    select(id: string): void;
+    /** Reduced motion, read once, where no motion store is given. */
+    reducedMotion?: boolean;
+    /** The motion store, read whenever a frame is shown, so reduced motion switched on mid-visit stops the turn. */
+    motion?: Pick<MotionView, "reducedMotion">;
+  },
 ): FlatStage {
-  const drawing = drawFlat(doc, options.room, options.avatar, options.reducedMotion ?? false);
+  const reduced = (): boolean => options.motion?.reducedMotion ?? options.reducedMotion ?? false;
+  const drawing = drawFlat(doc, options.room, options.avatar, reduced());
+  const moving = turnsOf(options.room.flat, false);
   const element = h(doc, "div", { class: "flat", "aria-hidden": "true" }, drawing.root);
   const picker = flatPicker(options.room.flat.hits, options.room);
   const resize = (size: Size): void => {
@@ -460,7 +491,7 @@ export function renderFlat(
   const frame = (k: number): void => {
     element.setAttribute("data-handoff-frame", String(k));
     drawing.papers.forEach((paper, i) => show(paper, i === k));
-    turnTo(drawing.visitor, drawing.turns[k] ?? null);
+    turnTo(drawing.visitor, reduced() ? null : (moving[k] ?? null));
   };
   // Outside the hand-off, the paper is in the visitor's hands.
   frame(FLAT_FRAMES - 1);
@@ -469,6 +500,8 @@ export function renderFlat(
     element,
     drawing,
     showHandoff: (progress) => frame(flatFrame(progress)),
+    // Each case's visibility at once, its cable with it: the next paint shows it (FR-042, FR-058).
+    apply: (value) => showCases(drawing.switches, options.room.switches, value),
     resize,
     dispose: () => {
       observer?.disconnect();

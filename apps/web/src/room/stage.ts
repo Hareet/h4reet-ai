@@ -6,6 +6,8 @@ import type { AvatarId } from "../choice/avatars";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
+import type { TierValue } from "./compose/vocabulary";
+import type { MotionState } from "./motion";
 
 export interface Stage {
   readonly mode: "3d" | "2d";
@@ -13,8 +15,14 @@ export interface Stage {
   readonly element: HTMLElement;
   /** Draws the hand-off at its progress, 0 to 1 (contracts/room-scene.md §3). */
   showHandoff(progress: number): void;
+  /** Shows each tier switch's case for a tier value, by the claims rule (spec 004, FR-043; tier.ts's caseFor), at once:
+   *  the 3D room draws it on its next frame, the 2D room on its next paint (FR-042, FR-058). */
+  apply(value: TierValue): void;
   dispose(): void;
 }
+
+/** What a stage reads of the motion store, throughout the visit (spec 004, FR-059, FR-060; R-34). */
+export type MotionView = Pick<MotionState, "animate" | "reducedMotion">;
 
 export interface Stage3D extends Stage {
   readonly mode: "3d";
@@ -30,7 +38,12 @@ export interface SceneOptions {
   /** The bundle's index (spec 004): the 3D part is drawn only if it's this index's, with its words and its cases. */
   room: RoomIndex;
   avatar: AvatarId;
-  reducedMotion: boolean;
+  /** Whether the device asks for reduced motion, read whenever the stage draws: the room gives a getter on its motion
+   *  store, so a change mid-visit reaches the stage (spec 004, FR-059). */
+  readonly reducedMotion: boolean;
+  /** The motion store: idle motion only while it animates (spec 004, FR-059, FR-060). Absent, the stage animates
+   *  unless `reducedMotion`. */
+  motion?: MotionView;
   /** The one handler a pick, a touch, and the list's button all call, with a selectable's ID. */
   select(id: string): void;
   /** Each frame's time, for the quality controller. */
