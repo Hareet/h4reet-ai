@@ -21,13 +21,15 @@ It changes three files:
   F3 (C6, every room file at gzip-9, phase 3 once assets/room/ holds one), F2 (C7, per_asset.room's six keys, exit 2
   otherwise), and AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7").
 - tools/gates/test/test_arrival_check.py and tools/gates/test/arrival_fixtures.py: §7's cases, built at run time.
-  Spec 003's R7 case, whose visitors' still mixes a model step and a hand step, gets main's approval of its hash.
+  Spec 003's R7 case, whose visitors' still mixes a model step and a hand step, gets main's approval of its hash,
+  and its record names it.
 
 Regenerated after T041's review (part 1, I1 and nit 5): the P1 clause above, and its tests; a non-room kind under
-assets/room/ is tested against P1, P2, and F2.
+assets/room/ is tested against P1, P2, and F2. Again after the re-review (part 1): a record whose steps call for a
+hand or composite mark must carry `approval` (R4), as a twin's or a room file's must.
 
 diff --git a/tools/gates/arrival_check.py b/tools/gates/arrival_check.py
-index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f620e064bf 100644
+index cf6451d304c5394a55f9708d151f75862b264f5f..d19c50d24a88b598fb108a500f0a51891914d0f5 100644
 --- a/tools/gates/arrival_check.py
 +++ b/tools/gates/arrival_check.py
 @@ -24,6 +24,23 @@ Standard library only. Human-only: the hook, make check, and the gate each run t
@@ -383,15 +385,18 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
      if not isinstance(visit, dict) or not all(
          isinstance(visit.get(k), int) for k in ("phase2", "phase3")
      ):
-@@ -1863,6 +2000,7 @@ class Record:
+@@ -1863,6 +2000,10 @@ class Record:
              or item.get("kind") == "room"
              or self.directory == "assets/twin"
              or self.directory.startswith("assets/twin/")
 +            or (self.directory + "/").startswith(ROOM)
++            # A hand or composite mark needs the Author's approval anywhere, so its record names it (spec 004,
++            # Amendment C1; contracts/intake-amendments.md §7, As built).
++            or steps_term(item) not in (None, MARK_MODEL)
          ):
              required.append("approval")
          if self.published:
-@@ -1905,9 +2043,13 @@ class Record:
+@@ -1905,9 +2046,13 @@ class Record:
          source = item.get("source")
          if isinstance(source, dict):
              self.keys(source, ("type", "id"), ("type", "id"), f"{where}.source")
@@ -407,7 +412,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
                  )
              sid = source.get("id")
              if isinstance(sid, str) and r5_problem(sid):
-@@ -2032,6 +2174,36 @@ def disclosure_rows(text: bytes | None) -> set[str]:
+@@ -2032,6 +2177,36 @@ def disclosure_rows(text: bytes | None) -> set[str]:
      )
  
  
@@ -444,7 +449,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
  def licenses_of(entry: dict) -> list[tuple[str, str, str, str | None]]:
      """(what, license, version, commercial license) for each model, tool, and service an entry names."""
      found = []
-@@ -2081,6 +2253,8 @@ class Checker:
+@@ -2081,6 +2256,8 @@ class Checker:
          self._seen: set[tuple[str, str, str]] = set()
          self._files: dict[tuple[str, str], None] = {}
          self.sizes: dict[str, Size] = {}
@@ -453,7 +458,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
          self.reasons: list[str] = []
          self._policy: Policy | None = None
          self._policy_tried = False
-@@ -2121,7 +2295,13 @@ class Checker:
+@@ -2121,7 +2298,13 @@ class Checker:
              try:
                  self._policy = parse_policy(texts)
              except PolicyError as exc:
@@ -468,7 +473,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
          return self._policy
  
      # -- one file ------------------------------------------------------------------------------
-@@ -2225,6 +2405,9 @@ class Checker:
+@@ -2225,6 +2408,9 @@ class Checker:
                  parsed.triangles,
                  parsed.texture,
              )
@@ -478,7 +483,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
              return
          if path.startswith(POLICY):
              return
-@@ -2337,6 +2520,18 @@ class Checker:
+@@ -2337,6 +2523,18 @@ class Checker:
                  tree, f"{directory}/{name}", item, record, policy, published, commit
              )
  
@@ -497,7 +502,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
      def check_entry(
          self,
          tree: Tree,
-@@ -2357,6 +2552,19 @@ class Checker:
+@@ -2357,6 +2555,19 @@ class Checker:
              self.add(
                  "N2", path, "its media_license differs from the directory's", commit
              )
@@ -517,7 +522,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
          if policy is None:
              return
          for what, lid, version, commercial in licenses_of(entry):
-@@ -2401,22 +2609,34 @@ class Checker:
+@@ -2401,22 +2612,34 @@ class Checker:
                      commit,
                  )
          kind = entry.get("kind")
@@ -560,7 +565,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
              approval = good[0] if good else None
              if approval is None:
                  why = (
-@@ -2438,14 +2658,19 @@ class Checker:
+@@ -2438,14 +2661,19 @@ class Checker:
                      "its record's approval ID isn't the one the main branch's approval of this hash carries",
                      commit,
                  )
@@ -583,7 +588,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
                      commit,
                  )
          if path.startswith("assets/twin/"):
-@@ -2471,11 +2696,15 @@ class Checker:
+@@ -2471,11 +2699,15 @@ class Checker:
                  f"an {kind} while caps.json says ADR 0010 isn't accepted (FR-018)",
                  commit,
              )
@@ -604,7 +609,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
          size = self.sizes.get(path)
          measured = {
              "bytes": len(data),
-@@ -2495,6 +2724,49 @@ class Checker:
+@@ -2495,6 +2727,49 @@ class Checker:
          if published and arm in ("B", "D"):
              self.check_caption(tree, path, entry, commit)
  
@@ -654,7 +659,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
      def check_caption(
          self, tree: Tree, path: str, entry: dict, commit: str | None
      ) -> None:
-@@ -2561,10 +2833,21 @@ class Checker:
+@@ -2561,10 +2836,21 @@ class Checker:
          self.first_visit_total(tree, commit)
  
      def first_visit_total(self, tree: Tree, commit: str | None) -> None:
@@ -680,7 +685,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..c26431cbbfc0a5f672a7b50d424c05f6
              return
          policy = self.policy()
          if policy is None:
-@@ -2578,12 +2861,10 @@ class Checker:
+@@ -2578,12 +2864,10 @@ class Checker:
                  )
              return self.sizes[path].gzip
  
@@ -779,7 +784,7 @@ index 148abc5e6498e4d2f313ad21269e7ac0c60e3096..b3ec08e4173f0b4edb9af2b5523eaa19
  
  def caps(
 diff --git a/tools/gates/test/test_arrival_check.py b/tools/gates/test/test_arrival_check.py
-index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..974a016bab26b729b3c7999ff132bdc0a9580c9d 100644
+index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..c07643b0d92edf1432e1da039aec95a3e6c59d70 100644
 --- a/tools/gates/test/test_arrival_check.py
 +++ b/tools/gates/test/test_arrival_check.py
 @@ -4,6 +4,10 @@ contracts/arrival-check.md §5).
@@ -812,7 +817,29 @@ index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..974a016bab26b729b3c7999ff132bdc0
      step = {
          "name": "upscale",
          "by": "hand",
-@@ -1209,3 +1221,642 @@ def test_a_path_outside_the_repository_is_refused_without_naming_it(
+@@ -669,13 +681,19 @@ def test_r7_a_service_whose_disclosure_row_doesnt_exist(repo: fx.Repo) -> None:
+         repo,
+         "still.png",
+         data,
+-        [fx.entry("still.png", data, steps=[fx.model_step(), step])],
++        [fx.entry("still.png", data, steps=[fx.model_step(), step], approval="A-0003")],
+     )
+     assert run.code == 1 and run.has("R7", f"{DOG}/records.json"), run.out
+     step["service"]["disclosure_row"] = "D4"
+     assert (
+         check_again(
+-            repo, data, [fx.entry("still.png", data, steps=[fx.model_step(), step])]
++            repo,
++            data,
++            [
++                fx.entry(
++                    "still.png", data, steps=[fx.model_step(), step], approval="A-0003"
++                )
++            ],
+         ).code
+         == 0
+     )
+@@ -1209,3 +1227,667 @@ def test_a_path_outside_the_repository_is_refused_without_naming_it(
      run = check(repo, str(stray))
      assert run.code == 2 and "arrival-check: can't check" in run.out, run.out
      assert "private-name" not in run.out and "elsewhere" not in run.out
@@ -1311,6 +1338,31 @@ index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..974a016bab26b729b3c7999ff132bdc0
 +    run = check(repo, *paths(repo, f"{NOTE_DIR}/t1-grid.jpg"))
 +    assert run.code == 1 and run.has("P1", f"{NOTE_DIR}/t1-grid.jpg"), run.out
 +    assert not run.has("M5", f"{NOTE_DIR}/t1-grid.jpg"), run.out
++
++
++@pytest.mark.parametrize("which", ["composite", "hand"])
++def test_c1_r4_a_hand_or_composite_record_names_its_approval(
++    tmp_path: Path, which: str
++) -> None:
++    # Its record must carry `approval`, as a twin's or a room file's must (T041's re-review, part 1).
++    data = marked("png", TERMS[which])
++    repo = fx.repository(
++        tmp_path,
++        approvals=[fx.approval("A-0203", data, f"{DOG}/still.png", kind="still")],
++    )
++    run = in_dog(
++        repo, "still.png", data, [fx.entry("still.png", data, steps=STEPS[which]())]
++    )
++    assert run.code == 1 and run.has("R4", f"{DOG}/records.json"), run.out
++    assert "lacks approval" in run.out
++    record = fx.entry("still.png", data, steps=STEPS[which](), approval="A-0203")
++    assert check_again(repo, data, [record]).code == 0
++
++
++def test_c1_r4_one_model_step_needs_no_approval_key(repo: fx.Repo) -> None:
++    data = marked("png", TERMS["model"])
++    run = in_dog(repo, "still.png", data, [fx.entry("still.png", data)])
++    assert run.code == 0 and "lacks approval" not in run.out, run.out
 +
 +
 +# C6: every file under assets/room/ in the first visit, and phase 3 once it holds one.
