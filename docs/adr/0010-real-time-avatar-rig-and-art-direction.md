@@ -1,6 +1,6 @@
 # ADR 0010: Real-time 3D avatar rig (not generated video); GTA V-inspired original art direction
 
-Status: proposed, drafted 2026-10-18 by spec 003's second task group for the Author to accept, change, or leave proposed · Spec: 003 (FR-017, FR-018, FR-019; research R-12, R-13), and the rig's Phase 2 spec
+Status: proposed, drafted 2026-10-18 by spec 003's second task group for the Author to accept, change, or leave proposed; spec 004 adds the room's caps (its Amendment C7), and it stays proposed until spec 004's lookdev records the look (spec 004, FR-070) · Spec: 003 (FR-017, FR-018, FR-019; research R-12, R-13), and the rig's Phase 2 spec; 004 (FR-052, FR-053, FR-077; Amendments C6, C7)
 
 While this ADR is proposed, the arrival check refuses every avatar and animation (FR-018, rule F1): `assets/policy/caps.json` reads `"adr_0010": "not-accepted"`. Accepting it is the Author's patch to that file, with the caps below.
 
@@ -27,6 +27,15 @@ The survey itself is a private page, outside this repository (the intent's merge
   - `still` and `preview`: at most 300,000 bytes each.
 
   At the caps, a first visit is 9,500,000 bytes, inside SC-006's 10 MB: the twin's model (3.5 MB), its four animations (2 MB), and a visitor's model (3.5 MB) and its idle (0.5 MB). In `caps.json` they read `"per_asset": {"avatar": {"bytes": 3500000, "triangles": 30000, "texture_bytes": 16777216}, "animation": {"bytes": 500000}, "still": {"bytes": 300000}, "preview": {"bytes": 300000}}`. The arrival check measures each file's bytes, triangles, and texture memory (width × height × 4 × 4/3) and refuses one over its kind's cap (rule F2), and refuses a first visit over its budget whatever the caps (rule F3), counted by transfer size.
+- **The room's caps** (spec 004, Amendment C7; its FR-052 and FR-053), the Author's own commit on `main` (spec 004's P-6), in `per_asset.room`, which holds exactly these six keys, at FR-053's starting figures and FR-052's default floor:
+  - `gzip_bytes`: 2,500,000, the bytes of a room file at gzip level 9, the bytes served, per file (the arrival check's F2) and per piece (spec 004's compositor);
+  - `triangles`: 40,000, per GLB and per piece;
+  - `small_props`: the pieces the Author names, a model file's stem being its piece's ID;
+  - `small_prop_texture_px`: 1,024, the largest texture width or height on a small prop, a power of two;
+  - `scene_texture_bytes`: 96,000,000, the whole scene's texture memory on a phone, width × height × 4 × 4/3 per texture, models, image cards, avatars, and live-face canvases together;
+  - `legibility_floor_css_px`: 9, the smallest cap height a readable face may show, in CSS pixels, at the production framing on both reference stages.
+
+  In `caps.json` they read `"room": {"gzip_bytes": 2500000, "triangles": 40000, "small_props": [...], "small_prop_texture_px": 1024, "scene_texture_bytes": 96000000, "legibility_floor_css_px": 9}`. The arrival check refuses a room file over its byte or triangle cap, or a small prop's texture over its side (F2), refuses every room file while the block is absent from `main`, and can't check (exit 2) while the block holds another key, or one of the wrong type; its first visit counts every file under `assets/room/` at gzip level 9, with phase 3's 25,000,000 bytes once that folder holds one (F3, Amendment C6). The caps are configuration the Author owns: agents never raise one (FR-053).
 - **The reference phone and the mobile profile** (research R-13): a 2023 mid-range Android phone, a Samsung Galaxy A54 or the closest the Author has, recorded by model in each measurement; 9 Mbps down and a 150 ms round trip.
 - **The capability floor** (the site's check before any 3D download, FR-023): WebGL2; where the browser reports it, `navigator.deviceMemory` of at least 4; and a maximum texture size of at least 4096. A device below it goes straight to the 2D mode.
 - **The art direction:** stylized illustrative realism, saturated light, cinematic framing, as intent 000 puts it, and everything original: "no Rockstar assets, logos, typefaces, or character likenesses". The twin is a stylized likeness of the Author, made from the Author's photos; the visitors are original characters that resemble no real person (FR-017). `REVIEW.md`'s "Arriving assets" pass checks it on arrival.
@@ -43,7 +52,8 @@ The survey itself is a private page, outside this repository (the intent's merge
 - Until the Author accepts this ADR, no avatar or animation can enter the repository (FR-018). Stills, previews, and the evaluation's published images can.
 - The arrival check enforces the caps (F2) and the first visit's total (F3). Checking each file against the skeleton's bone names and the twin's 67 shapes is a follow-up once this is accepted, as FR-018's "the skeleton, and, for the twin, the facial shapes" needs; until then `REVIEW.md`'s pass reads them.
 - The caps are first estimates. The measurements on the reference phone (spec 003's waiting group, SC-005, SC-006) may tighten them, never loosen SC-006's budget.
+- The room's files wait for the room's caps on `main`, and for the arrival check's spec 004 amendments (P-5), which `make test` holds before the first file under `assets/room/` (spec 004, FR-077). Spec 004's lookdev then records the look here (FR-070); if the Author accepts this ADR first, ADR 0037 amends it with the look instead.
 
 ## Links
 
-Intent: `intent/000-ai-twin-portfolio.md`, `specs/003-studio-assets/intent.md`. Spec: `specs/003-studio-assets/` (research R-12, R-13; contracts/arrival-check.md, rules F1 to F3). Merge request: `docs/merge-requests/2026-10-18-feat-003-us1-arrival-check.md`.
+Intent: `intent/000-ai-twin-portfolio.md`, `specs/003-studio-assets/intent.md`, `specs/004-room-composition/intent.md`. Spec: `specs/003-studio-assets/` (research R-12, R-13; contracts/arrival-check.md, rules F1 to F3); `specs/004-room-composition/` (data-model.md §9.1; research R-25, R-53, R-54; contracts/intake-amendments.md §7, §8). Merge requests: `docs/merge-requests/2026-10-18-feat-003-us1-arrival-check.md`, `docs/merge-requests/2026-10-27-feat-004-intake.md`.

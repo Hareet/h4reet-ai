@@ -13,7 +13,7 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | 0007 | One AWS account; environments separated by VM, IAM role, tag, and budget | proposed | 001 |
 | 0008 | Terraform, plan-in-PR, human-gated apply | proposed | 001 |
 | 0009 | Pull-based deployment to the local tier; no inbound ports; no self-hosted runners | proposed | 001 |
-| [0010](0010-real-time-avatar-rig-and-art-direction.md) | Real-time 3D avatar rig (not generated video); GTA V-inspired original art direction | proposed (drafted by spec 003; avatars wait for its acceptance) | 003, Phase 2 |
+| [0010](0010-real-time-avatar-rig-and-art-direction.md) | Real-time 3D avatar rig (not generated video); GTA V-inspired original art direction | proposed (drafted by spec 003; avatars wait for its acceptance; spec 004 adds the room's caps, and it stays proposed until spec 004's lookdev records the look) | 003, Phase 2, 004 |
 | 0011 | Cloned voice for the twin, disclosed | proposed | Phase 2 |
 | [0012](0012-constitution-1-0-1-spec-kit-lifecycle.md) | Constitution 1.0.1: Spec Kit 1.0.8 lifecycle order and command names | accepted | — |
 | [0013](0013-local-until-publication.md) | Develop locally until publication; publish the history from its first commit | accepted (one Consequence replaced by 0014; its cleanup extended to assets by 0032, proposed) | 000, 001, 003 |
@@ -27,6 +27,6 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0021](0021-internal-network-prometheus-loki-edge.md) | Prometheus and Loki on an internal-only network, with edge as the only publisher | proposed | 000 |
 | [0022](0022-seaweedfs-for-langfuse.md) | SeaweedFS as Langfuse's object store, because MinIO's community images are gone | proposed | 000 |
 | [0023](0023-claude-code-pin-is-a-floor.md) | Claude Code's pin is a floor: a newer host warns, and the evals record the version they ran (replaces one Decision point and one Consequence of 0018) | accepted | 000 |
-| [0030](0030-media-license-and-ai-mark.md) | The assets' media license (all rights reserved, viewing and linking welcome) and the AI-likeness mark | proposed | 003 |
+| [0030](0030-media-license-and-ai-mark.md) | The assets' media license (all rights reserved, viewing and linking welcome) and the AI-likeness mark, which follows the record (spec 004, Amendment C1) | proposed | 003, 004 |
 | [0031](0031-assets-in-plain-git.md) | Assets in plain git, under fixed roots, served under content-derived names, with a 500 MB history cap | proposed | 003 |
 | [0032](0032-pre-publication-cleanup-for-assets.md) | ADR 0013's pre-publication cleanup extends to an asset that locates the Author or breaks a license (extends one Decision of 0013) | proposed | 003 |
