@@ -111,24 +111,24 @@ description: "Task list for spec 002, The Room"
 
 ### Tests for User Stories 2 and 5 (first)
 
-- [ ] T034 [P] [US2] `apps/web/test/ui/choice.test.ts`: nothing plays until both path and avatar are chosen; "Enter" is disabled until then; the four placeholder avatars; the disclosures and links present; no storage API is called (spies on `document.cookie`, `localStorage`, `sessionStorage`, `indexedDB`, `history`), per FR-001–FR-004
-- [ ] T035 [P] [US2] `apps/web/test/ui/handoff.test.ts` with a fake clock: at most 4.5 s (1 s under reduced motion; three 1.5 s frames in 2D); no control skips it; the live-region line; focus on "Read the resume now" at its end; "later" keeps the "Resume" button, per contracts/room-scene.md §3
-- [ ] T036 [P] [US5] `apps/web/test/room/quality.test.ts` with a simulated frame clock: steps 0 → 3 below the target, 2D below 24 frames a second at 3, never back up, one `mode_2d` event, per contracts/room-scene.md §4
-- [ ] T037 [P] [US5] `apps/web/test/ui/a11y.test.ts` (jsdom, axe-core): the tab order, visible focus, the canvas `aria-hidden`, the "In the room" list as the objects' equivalent, 44-pixel targets in the CSS, 0 axe violations on every screen, per contracts/room-scene.md §5
-- [ ] T038 [P] [US2] `apps/web/test/ui/talk.test.ts`: each object answers `topic_not_ready`; the text box answers `cannot_talk.unavailable`; the talk button announces `voice_unavailable` and moves focus without asking for the microphone; no request leaves but the events beacon, per contracts/room-conversation.md §3 and research.md R-14
-- [ ] T039 [P] [US2] `apps/web/test/room/objects.test.ts`: a raycast hit, a touch, and a list button each call `selectObject` with the same ID, per contracts/room-scene.md §2
+- [X] T034 [P] [US2] `apps/web/test/ui/choice.test.ts`: nothing plays until both path and avatar are chosen; "Enter" is disabled until then; the four placeholder avatars; the disclosures and links present; no storage API is called (spies on `document.cookie`, `localStorage`, `sessionStorage`, `indexedDB`, `history`), per FR-001–FR-004
+- [X] T035 [P] [US2] `apps/web/test/ui/handoff.test.ts` with a fake clock: at most 4.5 s (1 s under reduced motion; three 1.5 s frames in 2D); no control skips it; the live-region line; focus on "Read the resume now" at its end; "later" keeps the "Resume" button, per contracts/room-scene.md §3
+- [X] T036 [P] [US5] `apps/web/test/room/quality.test.ts` with a simulated frame clock: steps 0 → 3 below the target, 2D below 24 frames a second at 3, never back up, one `mode_2d` event, per contracts/room-scene.md §4
+- [X] T037 [P] [US5] `apps/web/test/ui/a11y.test.ts` (jsdom, axe-core): the tab order, visible focus, the canvas `aria-hidden`, the "In the room" list as the objects' equivalent, 44-pixel targets in the CSS, 0 axe violations on every screen, per contracts/room-scene.md §5
+- [X] T038 [P] [US2] `apps/web/test/ui/talk.test.ts`: each object answers `topic_not_ready`; the text box answers `cannot_talk.unavailable`; the talk button announces `voice_unavailable` and moves focus without asking for the microphone; no request leaves but the events beacon, per contracts/room-conversation.md §3 and research.md R-14
+- [X] T039 [P] [US2] `apps/web/test/room/objects.test.ts`: a raycast hit, a touch, and a list button each call `selectObject` with the same ID, per contracts/room-scene.md §2
 
 ### Implementation for User Stories 2 and 5
 
-- [ ] T040 [US2] `apps/web/src/choice/`: the choice screen and the visit object, per data-model.md §9
-- [ ] T041 [US2] `apps/web/src/room/scene.ts` and `objects.ts`: the Three.js scene with labeled placeholder geometry (the desk, laptop and screen, snowboard left, bicycle right, the window with artwork and its fence-and-tree view), the twin's figure, the visitor's placeholder avatar, raycasting; the 3D code in its own chunk loaded after the choice, per contracts/room-scene.md §2 and research.md R-11
-- [ ] T042 [US2] `apps/web/src/room/handoff.ts`, per contracts/room-scene.md §3
-- [ ] T043 [US5] `apps/web/src/room/quality.ts` and `flat.ts`: the controller, the WebGL 2 check before the 3D chunk, the 2D drawing with its buttons, the "2D view" control, context-loss handling, per contracts/room-scene.md §4
-- [ ] T044 [US5] `apps/web/src/room/a11y.ts` and the layout's CSS: the list, the live regions, focus, portrait framing from 320 pixels, per contracts/room-scene.md §5–§6
-- [ ] T045 [US2] `apps/web/src/talk/` and `apps/web/content/messages.yaml`: the text box, "Send", the talk button, and the fixed messages, per data-model.md §7 and contracts/room-conversation.md §3
-- [ ] T046 [US2] `room-manifest.json` from `apps/web/build/manifest.ts`: objects with `ready: false`, items, avatars, `placeholders: true`, event kinds; and `config/room-events.yaml` from the same source (kinds, object IDs, item IDs), committed, with `make test` failing when it's stale, per data-model.md §5 and contracts/room-events.md §3
+- [X] T040 [US2] `apps/web/src/choice/`: the choice screen and the visit object, per data-model.md §9
+- [X] T041 [US2] `apps/web/src/room/scene.ts` and `objects.ts`: the Three.js scene with labeled placeholder geometry (the desk, laptop and screen, snowboard left, bicycle right, the window with artwork and its fence-and-tree view), the twin's figure, the visitor's placeholder avatar, raycasting; the 3D code in its own chunk loaded after the choice, per contracts/room-scene.md §2 and research.md R-11
+- [X] T042 [US2] `apps/web/src/room/handoff.ts`, per contracts/room-scene.md §3
+- [X] T043 [US5] `apps/web/src/room/quality.ts` and `flat.ts`: the controller, the WebGL 2 check before the 3D chunk, the 2D drawing with its buttons, the "2D view" control, context-loss handling, per contracts/room-scene.md §4
+- [X] T044 [US5] `apps/web/src/room/a11y.ts` and the layout's CSS: the list, the live regions, focus, portrait framing from 320 pixels, per contracts/room-scene.md §5–§6
+- [X] T045 [US2] `apps/web/src/talk/` and `apps/web/content/messages.yaml`: the text box, "Send", the talk button, and the fixed messages, per data-model.md §7 and contracts/room-conversation.md §3
+- [X] T046 [US2] `room-manifest.json` from `apps/web/build/manifest.ts`: objects with `ready: false`, items, avatars, `placeholders: true`, event kinds; and `config/room-events.yaml` from the same source (kinds, object IDs, item IDs), committed, with `make test` failing when it's stale, per data-model.md §5 and contracts/room-events.md §3
 - [ ] T048 [US2] **Author**: quickstart §4: the visit, reload, the floor with the model server stopped (SC-001), the keyboard and screen-reader visits (SC-003), the phone and laptop frame rates (SC-004), 4G emulation (SC-005), the network log (SC-012)
-- [ ] T049 [US2] Merge-request note `docs/merge-requests/<date>-feat-002-us2-room.md`
+- [X] T049 [US2] Merge-request note `docs/merge-requests/<date>-feat-002-us2-room.md`
 
 **Checkpoint**: the room works end to end on its floor, with no model.
 

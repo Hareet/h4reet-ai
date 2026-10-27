@@ -8,6 +8,7 @@ import { defineConfig } from "vite";
 import { roomDataFile } from "./build/approvals";
 import { resumePart } from "./build/content";
 import { disclosurePage } from "./build/disclosure";
+import { roomContentModule } from "./build/manifest";
 import { DEFAULT_POLICY_DIR } from "./build/policy";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -24,6 +25,8 @@ export default defineConfig({
     // No inline script: the image's CSP is script-src 'self' (contracts/web-serving.md §3).
     modulePreload: { polyfill: false },
     assetsInlineLimit: 0,
+    // The 3D chunk is Three.js, about 580 KB (150 KB compressed), loaded behind the choice screen (spec 002, T041).
+    chunkSizeWarningLimit: 640,
   },
   plugins: [
     disclosurePage({ source: here("../../docs/data-flow-disclosure.md") }),
@@ -34,5 +37,7 @@ export default defineConfig({
       policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR,
       parts: [resumePart],
     }),
+    // The room's fixed messages and manifest, bundled into the page, and dist/room-manifest.json (T045, T046).
+    roomContentModule({ root: here("../.."), messages: here("content/messages.yaml") }),
   ],
 });

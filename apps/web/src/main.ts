@@ -1,11 +1,14 @@
 // The room's entry (spec 002, plan §1). Phase 1 serves the first screen as static HTML: the AI disclosure, the PDF
 // link, and the data-flow disclosure link, which work without this script. The screens' router (choice, room,
-// resume) arrives with the choice screen (tasks.md T040). Nothing here writes a cookie, browser storage, or the URL
-// (FR-003).
+// resume) is src/room/app.ts (tasks.md T040–T045), which replaces that screen with the choice. Nothing here writes a
+// cookie, browser storage, or the URL (FR-003).
 import "./style.css";
 import "./fonts.css";
 
-import { wireResumeOpeners } from "./resume";
+import { content } from "virtual:room-content";
 
-// The interactive resume opens from any control marked data-resume-open (tasks.md T029).
-wireResumeOpeners(document);
+import { startRoom } from "./room/app";
+import { resumeView } from "./room/resume-port";
+
+// The interactive resume is Phase 3's view (tasks.md T029) in the room's panel, through src/room/resume-port.ts.
+startRoom({ win: window, content, resume: resumeView() });

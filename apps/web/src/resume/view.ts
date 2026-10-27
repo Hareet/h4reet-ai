@@ -1,11 +1,11 @@
-// The interactive resume (spec 002, T029; FR-010, FR-018; contracts/room-scene.md §1 and §5): a panel over the room
-// with the header, each section's heading, and each item as a button in a list; "Download (PDF)"; and "Close".
-// It opens from any control marked data-resume-open (the room's "Resume" and the hand-off's "Read the resume now"),
-// and closes with "Close" or Escape, focus back on the control that opened it.
+// The interactive resume (spec 002, T029; FR-010, FR-018; contracts/room-scene.md §1 and §5): a panel with the
+// header, each section's heading, and each item as a button in a list; "Download (PDF)"; and "Close". The room shows
+// it in its resume panel, in the page's flow, through src/room/resume-port.ts, which opens it, closes it with "Close"
+// or Escape, and returns focus to "Resume"; the view has no opener of its own.
 //
-// Selecting an item marks it (aria-current) and dispatches `room:item-selected` with its ID, for narration (Phase 5)
-// and the usage events (Phase 6); opening dispatches `room:resume-opened`. Nothing is stored, and nothing is
-// fetched but room-data.json from the site's own origin.
+// Selecting an item marks it (aria-current) and dispatches `room:item-selected` with its ID, which the room passes on
+// as the usage event item_selected (and narration, Phase 5, will hear). Nothing is stored, and nothing is fetched but
+// room-data.json from the site's own origin.
 import { ABSENT, asRoomResume, type RoomResume } from "./data";
 
 export const PDF_HREF = "./resume.pdf";
@@ -95,46 +95,4 @@ export async function fetchRoomResume(fetcher: typeof fetch = fetch): Promise<Ro
   } catch {
     return ABSENT;
   }
-}
-
-/** Wires every control marked data-resume-open to one panel, built on first use from what `load` returns. */
-export function wireResumeOpeners(doc: Document, load: () => Promise<RoomResume> = () => fetchRoomResume()): void {
-  let panel: HTMLElement | null = null;
-  /** The panel while room-data.json is on its way, so presses before it arrives share one load and one panel. */
-  let building: Promise<HTMLElement> | null = null;
-  let opener: HTMLElement | null = null;
-
-  const build = async (): Promise<HTMLElement> => {
-    const built = resumePanel(doc, await load());
-    built.querySelector(".resume-close")?.addEventListener("click", close);
-    built.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close();
-      }
-    });
-    (doc.querySelector("main") ?? doc.body).append(built);
-    return built;
-  };
-
-  const close = (): void => {
-    if (!panel || panel.hidden) return;
-    panel.hidden = true;
-    opener?.focus();
-  };
-
-  const open = async (from: HTMLElement): Promise<void> => {
-    opener = from;
-    building ??= build();
-    panel = await building;
-    if (!panel.hidden) return;
-    panel.hidden = false;
-    panel.querySelector<HTMLElement>("#resume-title")?.focus();
-    announce(panel, "room:resume-opened");
-  };
-
-  doc.addEventListener("click", (event) => {
-    const from = (event.target as Element | null)?.closest?.<HTMLElement>("[data-resume-open]");
-    if (from) void open(from);
-  });
 }

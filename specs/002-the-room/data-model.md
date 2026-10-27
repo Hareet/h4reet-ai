@@ -95,7 +95,7 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | `resume_state` | what the build published from the resume's source: `approved`; `draft`, a drafts build's, under the banner; `withheld`, a draft in a build without drafts, so no header and no items; or `absent` |
 | `header` | the room's header, `{name, lines[]}` with slots filled, and its `source` file and that file's `sha256`; `null` when withheld |
 | `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), with its `source` file and that file's `sha256`, and per path `{words, approved}` (Phase 5); no sections when withheld |
-| `messages` | the fixed messages (§7) |
+| `messages` | not written: the fixed messages (§7) are bundled into the page at build instead, so showing one makes no request (plan §4, group 4) |
 
 **`room-manifest.json`:**
 

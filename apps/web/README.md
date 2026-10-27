@@ -4,8 +4,9 @@ The static site visitors see: the choice screen, the 3D work area, the interacti
 
 ## The workspace
 
-- `index.html` and `src/`: the pages and their code. `src/main.ts` is the entry. Phase 1 serves the first screen as static HTML: the AI disclosure, the PDF link, and the data-flow disclosure link. The choice screen and the room arrive in later phases (`specs/002-the-room/tasks.md`).
-- `src/resume/`: the interactive resume (Phase 3), a panel of the header and each item as a button, with "Download (PDF)". Any control marked `data-resume-open` opens it; "Close" or Escape closes it, focus back on that control. Selecting an item dispatches `room:item-selected` with its ID, for narration and the usage events.
+- `index.html` and `src/`: the pages and their code. `src/main.ts` is the entry. Phase 1 serves the first screen as static HTML: the AI disclosure, the PDF link, and the data-flow disclosure link. The script replaces it with the choice screen and the room.
+- `src/resume/`: the interactive resume (Phase 3), a panel of the header and each item as a button, with "Download (PDF)". In the room it opens inside the resume's panel, through `src/room/resume-port.ts`'s adapter, which loads `room-data.json` once (again after a failure) and passes `room:item-selected` on as the usage event `item_selected`; "Close" or Escape closes it, focus back on "Resume".
+- The room (Phase 4): `src/choice/` (the path, the avatar, the visit), `src/room/` (`app.ts` the screens, `scene.ts` the Three.js chunk loaded only after the WebGL 2 check, `handoff.ts`, `quality.ts` and `flat.ts` the modes, `a11y.ts` the "In the room" list), and `src/talk/` (the text box, the talk button, and the fixed messages). Every piece of the scene is labeled placeholder geometry until spec 003's assets arrive. `content/messages.yaml` holds the fixed messages, and `build/manifest.ts` bundles them into the page and writes `dist/room-manifest.json` and `config/room-events.yaml`.
 - `build/`: what the build runs besides Vite. `build/disclosure.ts` renders `docs/data-flow-disclosure.md` into `dist/disclosure/index.html`, so the page the site links is the file the repository reviews. `build/content.ts` checks the resume's source against the corpus and writes its part of `room-data.json`; `build/pdf.ts` renders `resume.pdf` from the same items (contracts/resume-source.md).
 - `test/`: vitest. Tests that need a document make their own with jsdom; `axe-core` checks the built pages.
 - `content/`: `resume.yaml`, the resume's one source, every item citing the corpus, and `resume.lock.json`, the SHA-256 of each corpus and facts file it reads; the narration scripts come in Phase 5. Drafted by agents and published only when the Author approves them by hash.
@@ -25,6 +26,7 @@ From the repository root, in an agent session or the devcontainer:
 | Typecheck and lint | `make lint` (tsc runs per workspace, `apps/web` included) |
 | The resume's citation check and its lock | `npm run content:check -w apps/web` (C1–C9, then whether the lock is current) |
 | Rewrite the lock after a corpus change | `npm run content:lock -w apps/web`, which refuses while the check fails |
+| Rewrite `config/room-events.yaml` after the room's objects or the resume's items change | `npm run manifest -w apps/web` (`make test` fails while it's stale) |
 
 The build writes `apps/web/dist/`: `index.html`, hashed files under `assets/` (the font among them), `disclosure/`, `room-data.json`, and `resume.pdf`. Every URL in it is relative, and nothing loads from another host (FR-057). The citation check runs on every build and fails it on any problem, naming the item; a stale lock only warns there, and fails `make test`, so a corpus edit on `main` never stops `make up`.
 

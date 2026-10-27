@@ -1,0 +1,52 @@
+/* The conversation panel (spec 002, T045; contracts/room-scene.md §6). Targets and focus are room.css's. */
+
+.talk {
+  grid-area: talk;
+  display: grid;
+  gap: 0.25rem;
+}
+
+/* The log keeps a few lines in view, so the text box and the talk button stay on screen in portrait (FR-047). */
+.talk-log {
+  max-height: 4.75rem;
+  overflow-y: auto;
+}
+
+.talk-message {
+  margin: 0 0 0.25rem;
+}
+
+.talk-message a {
+  display: inline-flex;
+  align-items: center;
+}
+
+.room .talk-link {
+  padding: 0 0.25rem;
+  color: #0b4f9c;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+}
+
+.talk-form {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.talk-form label {
+  font-size: 0.875rem;
+}
+
+.talk-row {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.talk-row input {
+  flex: 1 1 6rem;
+  padding: 0 0.5rem;
+  font: inherit;
+  border: 1px solid #555555;
+  border-radius: 4px;
+}
