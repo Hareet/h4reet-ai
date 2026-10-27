@@ -276,9 +276,20 @@ export function startRoom(deps: RoomDeps): RoomHandle {
           return;
         }
         text = roomTextOf(json);
-        stage?.setText?.(text);
-        copy?.setText(text);
-      });
+        // The text copy first, and each guarded, so a stage that can't take the words leaves the copy worded (the
+        // review of T194, nit 4); the faces it would draw then stay plain on the stage.
+        try {
+          copy?.setText(text);
+        } catch {
+          // The text copy keeps what it had.
+        }
+        try {
+          stage?.setText?.(text);
+        } catch {
+          // The stage keeps its faces as they were.
+        }
+      })
+      .catch(() => undefined);
   }
 
   function mount3d(module: SceneModule, choice: Choice): void {

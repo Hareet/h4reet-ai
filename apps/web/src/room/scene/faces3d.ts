@@ -72,7 +72,8 @@ interface FaceState {
   readonly face: IndexFace;
   readonly quad: Mesh;
   readonly canvas: HTMLCanvasElement;
-  readonly texture: CanvasTexture;
+  /** Its canvas's texture: a new one whenever the canvas changes size (see `size`). */
+  texture: CanvasTexture;
   /** When its typing began, on the clock; null before its first frame with words. */
   start: number | null;
   /** Its typing has ended, or was cut to its final frame: it never types again. */
@@ -81,6 +82,15 @@ interface FaceState {
   step: number;
   /** How far into its typing it was last drawn, in milliseconds, so a redraw keeps its place. */
   at: number;
+}
+
+/** A face canvas's texture: no mipmaps (R-37), filtered linearly, in sRGB. */
+function canvasTexture(canvas: HTMLCanvasElement): CanvasTexture {
+  const texture = new CanvasTexture(canvas);
+  texture.generateMipmaps = false;
+  texture.minFilter = LinearFilter;
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
 }
 
 /** The face quads for the index's bound faces. */
@@ -112,10 +122,7 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     const node = p && options.placements.get(p.id);
     if (!piece || !geometry || !node || states.has(face.id)) continue;
     const canvas = doc.createElement("canvas");
-    const texture = new CanvasTexture(canvas);
-    texture.generateMipmaps = false;
-    texture.minFilter = LinearFilter;
-    texture.colorSpace = SRGBColorSpace;
+    const texture = canvasTexture(canvas);
     const material = new MeshBasicMaterial({
       map: texture,
       polygonOffset: true,
@@ -142,12 +149,26 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     states.set(face.id, { face, quad, canvas, texture, start: null, typed: false, step: -1, at: 0 });
   }
 
-  /** Sizes a face's canvas for the device and the level; whether its size changed. */
+  /**
+   * Sizes a face's canvas for the device and the level; whether its size changed. three allocates a texture's storage
+   * once, at the size it first uploads, and then only updates it, so a canvas resized under its texture would draw
+   * into a corner of the old storage, or fail outright: a resized canvas takes a new texture, the old one released, as
+   * the stand-ins' labels do (scene.ts; the review of T194, I1).
+   */
   const size = (s: FaceState): boolean => {
     const [w, h] = faceCanvasSize(s.face, options.dpr, qualitySettings(level));
     if (s.canvas.width === w && s.canvas.height === h) return false;
+    const fresh = s.canvas.width !== 0 || s.canvas.height !== 0;
     s.canvas.width = w;
     s.canvas.height = h;
+    if (fresh) {
+      const old = s.texture;
+      s.texture = canvasTexture(s.canvas);
+      const material = s.quad.material as MeshBasicMaterial;
+      material.map = s.texture;
+      material.needsUpdate = true;
+      old.dispose();
+    }
     return true;
   };
 

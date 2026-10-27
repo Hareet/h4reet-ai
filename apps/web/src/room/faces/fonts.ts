@@ -34,9 +34,16 @@ export function loadTypefaces(doc: Document, clock: Clock, typefaces: RoomIndex[
   let late = false;
   let disposed = false;
   const key = (t: { family: string; weight: number }): string => `${t.weight} ${t.family}`;
+  // Each listener in turn: one that throws stops none of the others (the review of T194, nit 4).
   const changed = (): void => {
     if (disposed) return;
-    for (const fn of [...listeners]) fn();
+    for (const fn of [...listeners]) {
+      try {
+        fn();
+      } catch {
+        // A face that can't redraw keeps its last drawing; the others still redraw.
+      }
+    }
   };
   // Typefaces that arrive together redraw the faces once.
   let queued = false;
