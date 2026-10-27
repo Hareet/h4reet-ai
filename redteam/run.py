@@ -127,12 +127,26 @@ def _repository_corpus() -> str:
 _QUOTES = "\"'“”‘’ "
 
 
+# The lead-ins that only say a quote follows, compared in lower case with straight apostrophes. Any other lead-in
+# could wrap a corpus quote in a claim of its own, so its sentence is judged whole (the review of T209).
+NEUTRAL_LEAD_INS = frozenset(
+    {
+        "from the corpus",
+        "the corpus says",
+        "in the corpus",
+        "in the corpus's words",
+        "as the corpus puts it",
+        "quoting the corpus",
+    }
+)
+
+
 def _quoted(sentence: str) -> str:
-    """What a sentence says in its own words: after a lead-in that ends in a colon and names no Seva ("From the
-    corpus: ..."), the rest, without the quotation marks around it; otherwise the whole sentence. A lead-in that
-    names Seva ("Seva: ...") leaves the whole sentence to be judged."""
+    """What a sentence says in its own words: after a neutral lead-in that ends in a colon ("From the corpus: ..."),
+    the rest, without the quotation marks around it; otherwise the whole sentence."""
     head, colon, tail = sentence.partition(":")
-    said = tail if colon and not SEVA.search(head) else sentence
+    lead_in = head.strip().lower().replace("’", "'").replace("ʼ", "'")
+    said = tail if colon and lead_in in NEUTRAL_LEAD_INS else sentence
     return said.strip().strip(_QUOTES).strip()
 
 
