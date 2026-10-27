@@ -33,7 +33,11 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
    the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
    validate-config, test, evals, redteam-suite, matrix (stage H), and credits-check (spec 003's credits and records,
    SKIP for a branch from before them). Every container drops all capabilities, sets
-   no-new-privileges, and runs as the Author's uid on that copy.
+   no-new-privileges, and runs as the Author's uid on that copy. When the export has the room (apps/web), the room is
+   built last, without drafts, its scripts off, with main's two policy files mounted read-only at /policy
+   (content-build; spec 002, T080), and the host then runs main's content_check.py over the export and that build's
+   dist/ (content): it fails when the build publishes a content file main doesn't approve, by its own account or in
+   any file's text. main's policy is read by the branch's full ref, refs/heads/main, never a tag of that name.
 4. Host phase:
    - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
      gc.packRefs is false, and main is a loose ref, as `make githooks-check` has it;
@@ -169,6 +173,13 @@ CONTAINER_TARGETS = (
     ("credits", "credits-check"),
 )
 STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
+# The room's content policy on main (spec 002, contracts/resume-source.md §5): each file's path there, and its name in
+# the directory the room's build reads; and that build, without drafts, with no pre- or post-scripts (T080).
+POLICY_FILES = (
+    ("assets/policy/content-approvals.json", "content-approvals.json"),
+    ("assets/policy/resume-header.json", "resume-header.json"),
+)
+WEB_BUILD = ["npm", "run", "--ignore-scripts", "build", "-w", "apps/web"]
 # gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
 # exit code of their own, and its log is read: a line at any level but these means the scan may be partial.
 LEAKS = 99
@@ -750,7 +761,92 @@ def prepare(
     return docker, image, work
 
 
-def container_phase(report: Report, data: bytes, export_dir: Path, tmp: Path) -> None:
+def content(
+    report: Report,
+    repo: Path,
+    docker: str,
+    image: str,
+    work: Path,
+    export_dir: Path,
+    tmp: Path,
+) -> None:
+    """The room's published content (spec 002, T080; contracts/resume-source.md §5), when the export has the room.
+
+    The build runs in the container, as a release builds it: no drafts, no pre- or post-scripts (a checkout's prebuild
+    reads main with git, and there is none here), and main's policy, read here from the main tree by the branch's full
+    ref, refs/heads/main, never a bare "main", which a tag of that name would answer, in a fresh directory mounted
+    read-only. Then main's content_check.py, on the host, recomputes each content file's digest from the export, the
+    commit's own read-only tree, and fails when the build says it published a file main doesn't approve, or when any
+    such file's text is anywhere in the build's dist/. The build's approvals code is the branch's; the check is main's.
+    """
+    if not (export_dir / "apps" / "web" / "package.json").is_file():
+        return  # a commit from before spec 002: no room, nothing published
+    try:
+        policy_dir = fresh_dir(tmp)
+        for path, name in POLICY_FILES:
+            shown = git(
+                repo, "cat-file", "blob", f"refs/heads/main:{path}", binary=True
+            )
+            if shown.returncode == 0:
+                (policy_dir / name).write_bytes(shown.stdout)
+    except OSError as exc:
+        report.add(
+            Step("content-build").fail(f"main's policy couldn't be written: {exc}")
+        )
+        report.add(Step("content").fail("not run: no policy directory"))
+        return
+    begin(
+        "content-build",
+        "npm run build -w apps/web without drafts, main's policy at /policy, --network none",
+    )
+    rc, out = stream(
+        container(
+            docker,
+            image,
+            work,
+            WEB_BUILD,
+            network=False,
+            extra=(
+                "--mount",
+                f"type=bind,source={policy_dir},target=/policy,readonly",
+                "--env",
+                "ROOM_DRAFTS=",
+                "--env",
+                "ROOM_POLICY_DIR=/policy",
+            ),
+        ),
+        host_engine_env(),
+        tmp,
+    )
+    build = report.add(classify(Step("content-build"), rc, out))
+    begin(
+        "content",
+        "main's content check over the export and that build's dist/",
+    )
+    if build.status != "PASS":
+        report.add(
+            Step("content").fail("not run: the build without drafts didn't pass")
+        )
+        return
+    rc, out = stream(
+        py_host(
+            repo / "tools" / "gates" / "content_check.py",
+            "--tree",
+            str(export_dir),
+            "--dist",
+            str(work / "apps" / "web" / "dist"),
+            "--policy-dir",
+            str(policy_dir),
+        ),
+        tool_env(),
+        tmp,
+    )
+    report.add(classify(Step("content"), rc, out))
+
+
+def container_phase(
+    report: Report, repo: Path, data: bytes, export_dir: Path, tmp: Path
+) -> None:
     names = [name for name, _ in CONTAINER_TARGETS]
     if report.status("makefiles") != "PASS":
         for name in ["devcontainer", "npm-ci", *names]:
@@ -789,6 +885,7 @@ def container_phase(report: Report, data: bytes, export_dir: Path, tmp: Path) ->
             tmp,
         )
         report.add(classify(Step(name), rc, out))
+    content(report, repo, docker, image, work, export_dir, tmp)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1649,7 +1746,7 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
         report.add(Step("export").set("PASS", f"{sha}, the commit's own tree"))
         report.add(makefiles(repo, export_dir))
         if not host_only:
-            container_phase(report, data, export_dir, tmp)
+            container_phase(report, repo, data, export_dir, tmp)
         found = git(repo, "merge-base", "main", sha)
         base = (
             found.stdout.strip()

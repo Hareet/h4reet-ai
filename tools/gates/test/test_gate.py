@@ -126,8 +126,15 @@ elif args[:1] == ["run"]:
             entry["work_has_node_modules_dir"] = os.path.isdir(fields["source"])
         if fields.get("target") == "/run/h4-contract/recording.json":
             entry["recording_readable"] = os.access(fields["source"], os.R_OK)
+        if fields.get("target") == "/policy":
+            entry["policy"] = {
+                name: open(os.path.join(fields["source"], name), encoding="utf-8").read()
+                for name in sorted(os.listdir(fields["source"]))
+            }
+            entry["policy_readonly"] = "readonly" in spec.split(",")
     if command[:1] == ["npm"]:
-        rc = 1 if control.get("npm_fails") else 0
+        building = command[1:2] == ["run"] and "build" in command
+        rc = 1 if control.get("npm_fails") or (building and control.get("web_build_fails")) else 0
     elif command[:1] == ["make"]:
         target = command[-1]
         print(control.get("print", {}).get(target, f"{target}: ok"))
@@ -414,6 +421,7 @@ def fx(tmp_path: Path) -> Fixture:
     for name, ok in (
         ("compose_policy", "compose policy: PASS"),
         ("toolchain_check", "toolchain-check: all match their pins"),
+        ("content_check", "content check: PASS (no content files yet)"),
     ):
         write(
             main / f"tools/gates/{name}.py",
@@ -2525,3 +2533,124 @@ def test_a_web_image_that_doesnt_build_fails_the_step_before_compose(
     assert "didn't build the room's image" in done.stdout
     assert len(by_kind(fx.docker(), "buildx")) == 2
     assert by_kind(fx.docker(), "compose") == []
+
+
+# --------------------------------------------------------------------------------------------------
+# The room's published content (spec 002, T080; contracts/resume-source.md §5): in the container phase, the room built
+# without drafts, with main's policy mounted; then main's tools/gates/content_check.py, on the host, over the export
+# and that build's room-data.json
+# --------------------------------------------------------------------------------------------------
+ROOM_BRANCH = {**CHANGE, "apps/web/package.json": "{}\n"}
+WEB_BUILD = ["npm", "run", "--ignore-scripts", "build", "-w", "apps/web"]
+MAIN_APPROVALS = '{"schema": 1, "approvals": []}\n'
+
+
+def web_builds(calls: list[dict]) -> list[dict]:
+    return [c for c in by_kind(calls, "run") if c["command"] == WEB_BUILD]
+
+
+def on_main(fx: Fixture, files: dict[str, str]) -> None:
+    git(fx.main, "switch", "-q", "main")
+    for rel, text in files.items():
+        write(fx.main / rel, text)
+    git(fx.main, "add", "-f", "--", *files)
+    git(fx.main, "commit", "-qm", "main's policy")
+
+
+def test_the_room_is_built_without_drafts_and_its_content_checked_from_main(
+    fx: Fixture,
+) -> None:
+    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
+    fx.branch(ROOM_BRANCH)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+    (build,) = web_builds(calls)
+    argv = build["argv"]
+    # --network none, and the scripts off, so a checkout's prebuild (which runs git) never runs here.
+    assert has(argv, "--network", "none")
+    assert has(argv, "--env", "ROOM_DRAFTS=")
+    assert has(argv, "--env", "ROOM_POLICY_DIR=/policy")
+    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
+    assert build["policy_readonly"] is True
+    # After the container's other steps.
+    assert calls.index(build) > calls.index(make_runs(calls)[-1])
+    (check,) = fx.logged("content_check")
+    assert check["isolated"] and check["no_bytecode"]
+    flags = dict(zip(check["argv"][::2], check["argv"][1::2]))
+    # The whole dist/, which the check scans for any unapproved file's text, room-data.json's claims aside.
+    assert set(flags) == {"--tree", "--dist", "--policy-dir"}
+    assert flags["--dist"].endswith("/work/apps/web/dist")
+    # The digests come from the export, the commit's own read-only tree, not the build's working copy.
+    assert Path(flags["--tree"]).name == "export"
+    assert status_of(done, "content-build") == "PASS"
+    assert status_of(done, "content") == "PASS"
+
+
+def test_the_build_gets_mains_policy_never_the_branchs(fx: Fixture) -> None:
+    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
+    fx.branch(
+        {
+            **ROOM_BRANCH,
+            "assets/policy/content-approvals.json": '{"schema": 1, "approvals": ["the branch approving itself"]}\n',
+        }
+    )
+    done = gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
+    assert status_of(done, "content") == "PASS"
+
+
+def test_a_tag_named_main_never_stands_in_for_the_branch(fx: Fixture) -> None:
+    # git resolves a bare `main` to refs/tags/main before refs/heads/main, and an agent session can make that tag:
+    # the gate reads refs/heads/main, as spec 003's check reads its policy.
+    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
+    fx.branch(
+        {
+            **ROOM_BRANCH,
+            "assets/policy/content-approvals.json": '{"schema": 1, "approvals": ["the tag approving itself"]}\n',
+        }
+    )
+    git(fx.main, "tag", "main", "feature")
+    done = gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
+    assert status_of(done, "content") == "PASS"
+
+
+def test_with_no_policy_on_main_the_build_gets_an_empty_one(fx: Fixture) -> None:
+    fx.branch(ROOM_BRANCH)
+    gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    assert build["policy"] == {}
+
+
+def test_a_build_that_publishes_a_draft_fails_the_gate(fx: Fixture) -> None:
+    fx.branch(ROOM_BRANCH)
+    (fx.logs / "content_check.control").write_text(
+        "1\nFAIL apps/web/content/resume.yaml: published, and main doesn't approve its SHA-256",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "content") == "FAIL"
+
+
+def test_a_build_that_fails_runs_no_content_check(fx: Fixture) -> None:
+    fx.branch(ROOM_BRANCH)
+    fx.control(web_build_fails=True)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "content-build") == "FAIL"
+    assert status_of(done, "content") == "FAIL"
+    assert fx.logged("content_check") == []
+
+
+def test_a_commit_without_the_room_has_no_content_steps(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert web_builds(fx.docker()) == []
+    assert fx.logged("content_check") == []
+    with pytest.raises(AssertionError):
+        status_of(done, "content")

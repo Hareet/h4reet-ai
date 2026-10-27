@@ -52,6 +52,7 @@ check() {
     corpus/*) block "the corpus (claims about the Author are human-authored; write a proposal under corpus/proposals/)" ;;
     .github/workflows/*) block "CI workflow (a gate must not be edited by what it gates)" ;;
     config/prices*) block "the price table (human-only, versioned, append-only; spec 000 FR-008)" ;;
+    assets/policy/content-approvals.json | assets/policy/resume-header.json) block "the room's content approvals or the PDF's header, which only the Author changes, on main (spec 002, contracts/resume-source.md §5)" ;;
     GNUmakefile | makefile) block "a makefile that make would run instead of the Makefile" ;;
     deploy/agents-engine | deploy/agents-engine/*) block "the agents' engine (the FR-039 boundary; parts of it run with sudo)" ;;
     .gitleaks* | */.gitleaksignore) block "the secret scanner's rules or an ignore list (research.md R-36)" ;;
