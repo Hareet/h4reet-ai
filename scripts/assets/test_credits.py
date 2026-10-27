@@ -303,6 +303,20 @@ def test_a_design_source_shows_as_an_original_design_with_its_id(
     assert "- Source: an original design, `D-0042`" in text
 
 
+def test_the_intro_says_an_original_design_shows_its_opaque_id(
+    tmp_path: Path,
+) -> None:
+    # The intro must not say every source's ID stays in the studio once a design shows its own (T041 part 1, nit 1).
+    root = room_tree(tmp_path)
+    assert run(root).returncode == 0
+    text = (root / "assets" / "CREDITS.md").read_text(encoding="utf-8")
+    assert "A source is shown by its type only: its ID stays in the studio." not in text
+    assert (
+        "A source is shown by its type only, its ID staying in the studio, except an original design, which is "
+        "shown with its opaque ID."
+    ) in text
+
+
 def test_a_scripted_model_step_shows_its_tools_and_its_service(tmp_path: Path) -> None:
     root = room_tree(tmp_path)
     assert run(root).returncode == 0
