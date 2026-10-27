@@ -18,6 +18,10 @@
 // - "Load every piece", and "Run 2 minutes" and "Run 10 minutes", the scripted load first, then the results as text and
 //   one JSON block in a read-only text area; a run stopped early gives none.
 // - The asset events in the page's own log; no request, beacon, object URL, or storage, ever.
+// T162 (spec 004; FR-067; contracts/lookdev.md §3; User Story 2's runtime on the page): Pause drives the room's own
+// motion store (motion.ts), which the page gives, so the idle sway stops as the room's does; and the sample state
+// applies the laptop switch's case through the room's apply (scene/cables.ts), by the claims rule, its cable tube shown
+// with it and its pose's glows set.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -41,7 +45,9 @@ import { MODEL_FLOOR } from "../../src/room/quality";
 import type { Capability } from "../../src/room/quality";
 import { qualitySettings } from "../../src/room/scene";
 import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
+import { CABLE_NODE } from "../../src/room/scene/cables";
 import { MODEL_NODE } from "../../src/room/scene/loader";
+import { caseFor } from "../../src/room/signals/tier";
 import { outlineThickness } from "../../src/room/scene/look";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
@@ -711,6 +717,46 @@ describe("the scene, the look, the sample state, quality, and pause (contracts/l
     pause.click();
     clock.advance(400);
     expect(page.stage.room.twin.rotation.z).not.toBe(0);
+  });
+});
+
+describe("User Story 2's runtime on the page (T162; contracts/lookdev.md §3)", () => {
+  it("drives the room's motion store with Pause: it stops animating while paused, and the frame loop draws on", () => {
+    const { page, root, clock, renderer } = open();
+    const pause = buttonNamed(root, "Pause");
+    expect(page.motion.paused).toBe(false);
+    expect(page.motion.animate).toBe(true);
+    pause.click();
+    expect(page.motion.paused).toBe(true);
+    expect(page.motion.animate).toBe(false);
+    expect(page.stage.paused).toBe(true);
+    const passes = renderer.passes;
+    clock.advance(400);
+    expect(renderer.passes).toBeGreaterThan(passes);
+    expect(page.stage.room.twin.rotation.z).toBe(0);
+    pause.click();
+    expect(page.motion.animate).toBe(true);
+  });
+
+  it("applies each sample state's tier through the room's own apply, the case by the claims rule, its cable tube shown", () => {
+    const { page, root, inputs: given } = open();
+    const select = control<HTMLSelectElement>(root, "Sample state");
+    expect(given.fixtures.length).toBeGreaterThan(1);
+    for (const fixture of given.fixtures) {
+      choose(select, fixture.id);
+      for (const sw of given.index.switches) {
+        const pose = caseFor(sw.cases, fixture.tier);
+        expect(page.stage.room.cases.shown(sw.id), fixture.id).toBe(pose);
+        const group = page.stage.room.switches.get(sw.id)?.get(pose ?? "");
+        expect(group?.visible, fixture.id).toBe(true);
+        const tube = group?.children.find((c) => c.name === CABLE_NODE);
+        expect(tube, `${fixture.id}'s cable`).toBeDefined();
+        expect(tube?.visible, `${fixture.id}'s cable`).toBe(true);
+        // The shown pose's glows set while it shows, such as the charge light.
+        const glows = given.part.switches.find((x) => x.id === sw.id)?.poses[pose ?? ""]?.glows ?? [];
+        for (const g of glows) expect(page.stage.room.cases.glow(g.placement, g.glow), fixture.id).toBe(g.level);
+      }
+    }
   });
 });
 
