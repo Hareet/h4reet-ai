@@ -15,6 +15,7 @@ import { startRoom } from "../../src/room/app";
 import type { RoomHandle } from "../../src/room/app";
 import type { Clock } from "../../src/room/clock";
 import type { RoomEvent } from "../../src/room/events";
+import { asRoomNarration } from "../../src/narration/data";
 import { resumeView } from "../../src/room/resume-port";
 import type { RoomResume } from "../../src/resume";
 import type { SceneModule, SceneOptions, Stage3D } from "../../src/room/stage";
@@ -288,6 +289,8 @@ export interface SceneOptionsForTest {
    * load the next, the last one again once they run out.
    */
   resumeData?: RoomResume | RoomResume[];
+  /** room-data.json as the build writes it, for the resume view's narration (Phase 5); without it, no narration. */
+  narration?: unknown;
   /** The 3D chunk's import settles only when the test calls scene.release(). */
   sceneLate?: boolean;
 }
@@ -316,12 +319,15 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     win,
     content: roomContent(),
     // The real resume view (Phase 3), its room-data.json from the test, never from the network.
-    resume: resumeView(() => {
-      loads += 1;
-      const data = options.resumeData ?? fixtureResume();
-      const list = Array.isArray(data) ? data : [data];
-      return Promise.resolve(list[Math.min(loads, list.length) - 1] ?? fixtureResume());
-    }),
+    resume: resumeView(
+      () => {
+        loads += 1;
+        const data = options.resumeData ?? fixtureResume();
+        const list = Array.isArray(data) ? data : [data];
+        return Promise.resolve(list[Math.min(loads, list.length) - 1] ?? fixtureResume());
+      },
+      options.narration === undefined ? undefined : { load: async () => asRoomNarration(options.narration), clock },
+    ),
     events: (event) => events.push(event),
     clock,
     loadScene: () => {

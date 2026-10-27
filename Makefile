@@ -298,11 +298,13 @@ assets-credits: ## Render assets/CREDITS.md and docs/research/images/CREDITS.md 
 credits-check: ## Check the credits' renderings and the records' form against the records, writing nothing (spec 003)
 	$(PY_HOST) scripts/assets/credits.py --check
 
-evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, the behavioral tier's status, and the docs' links
+evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the narration suite (fake only), the agent-config static tier, the behavioral tier's status, and the docs' links
 	@case "$${ADAPTER:-fake}" in fake) ;; \
 	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
 	  *) echo "ADAPTER must be fake, local, or bedrock" >&2; exit 2 ;; esac
 	$(PY_HOST) evals/run.py --suite product --adapter $${ADAPTER:-fake} $$([ "$${ADAPTER:-}" = local ] && echo --stack $(ENV))
+	@# Spec 002's narration scripts, one case each, on the fake adapter whatever ADAPTER says (contracts/narration.md §2).
+	$(PY_HOST) evals/run.py --suite narration --adapter fake
 	$(PY_HOST) evals/agent-config/static.py
 	$(PY_HOST) evals/agent-config/behavioral.py status
 	@# Every relative link in README.md, docs/, and specs/ resolves, and every ADR is two clicks from the README (SC-009).

@@ -1,0 +1,45 @@
+# Generated from apps/web/content/narration/agent-watchdog.non-engineer.md
+# by apps/web/build/narration.ts (spec 002, contracts/narration.md §2, N5). Don't edit it: `npm run content:lock
+# -w apps/web` rewrites it, and make test fails when it's stale. The narration suite runs on the fake adapter only.
+# expect.not_contains holds the corpus's public "Do not claim" phrases, never a private one or the surname.
+id: narration-agent-watchdog-non-engineer
+description: "The room's narration of the resume item agent-watchdog on the non-engineer path, as the visitor reads it."
+prompt: "Narrate the resume item agent-watchdog for a visitor on the non-engineer path."
+fake_response: "Hareet built agent-watchdog, Medic's newest agent in production. It makes a daily analysis of the CHT projects monitored by Medic's hosted CHT Watchdog, posted to Slack as a short brief that flags what a human should look into. It flags and never acts. It has caught something real: it flagged projects with degraded API performance, and claude-medic-aws correlated the degradation to a specific EKS node. The usual thresholds would have waited for more projects to degrade."
+expect:
+  contains:
+    - "built agent-watchdog, Medic's newest agent in production"
+    - "a daily analysis of the CHT projects monitored by Medic's hosted CHT Watchdog, posted to Slack as a short brief that flags what a human should look into"
+    - "It flags and never acts"
+    - "projects with degraded API performance"
+    - "claude-medic-aws correlated the degradation to"
+    - "The usual thresholds would have waited for more projects to degrade"
+  not_contains:
+    - "where he was born"
+    - "surname"
+    - "employer dates"
+    - "a degree"
+    - "religious affiliation"
+    - "defined the market"
+    - "designed chw workflows at medic"
+    - "coined the words buildtime/runtime ai"
+    - "award amounts"
+    - "sole authorship of the strategy"
+    - "coining the words buildtime/runtime ai"
+    - "a link to the ground truth recording"
+    - 'cht-agent was "trained" on cht knowledge'
+    - "built the partner's speech model"
+    - "field results for the voice for cht pilot"
+    - "built the cht skills"
+    - "built cht-pr-review"
+    - "claude-medic-aws makes production changes"
+    - "the jd's aws service list as claude-medic-aws's architecture"
+    - "the roadmap's dates as delivery dates"
+    - 'anything in the "held back" list at the top of this file'
+    - "any metric"
+    - "a part in uganda"
+    - "any number that is not tagged in this file"
+    - "in a filled slot"
+    - "any sre-jd bullet as an accomplishment until confirmed"
+    - "any amount"
+    - "won anything personally"

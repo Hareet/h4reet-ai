@@ -140,13 +140,13 @@ description: "Task list for spec 002, The Room"
 
 **Independent test**: quickstart §5; SC-006.
 
-- [ ] T050 [P] [US3] `apps/web/test/content/narration.test.ts`: N1–N4 on fixtures; one script per item and path required; the forbidden list assembled from fixture "Do not claim" sections; the surname rule, per contracts/narration.md §2
-- [ ] T051 [P] [US3] `apps/web/test/ui/narration.test.ts` with a fake clock: the first word within 1 s, 160 words a minute, the whole text in the live region, a new selection stopping the old, drafts hidden without `ROOM_DRAFTS=1`, per contracts/narration.md §4
-- [ ] T052 [US3] Extend `apps/web/build/content.ts` with the scripts' checks, their place in `room-data.json`, and the eval cases written to `evals/narration/cases/narration-<item>-<path>.yaml` (N5) with only public "Do not claim" phrases in `expect.not_contains`; `make evals` runs `--suite narration --adapter fake`, and `evals/run.py` refuses `--suite narration` with any other adapter, per contracts/narration.md §2
-- [ ] T053 [US3] `apps/web/src/narration/`: the display, per contracts/narration.md §4
-- [ ] T054 [US3] Draft one script per item and path, cited, from the corpus, filed in `corpus/proposals/narration-<date>.md` for the Author, per contracts/narration.md §1
+- [X] T050 [P] [US3] `apps/web/test/content/narration.test.ts`: N1–N4 on fixtures; one script per item and path required; the forbidden list assembled from fixture "Do not claim" sections; the surname rule, per contracts/narration.md §2
+- [X] T051 [P] [US3] `apps/web/test/ui/narration.test.ts` with a fake clock: the first word within 1 s, 160 words a minute, the whole text in the live region, a new selection stopping the old, drafts hidden without `ROOM_DRAFTS=1`, per contracts/narration.md §4
+- [X] T052 [US3] Extend `apps/web/build/content.ts` with the scripts' checks, their place in `room-data.json`, and the eval cases written to `evals/narration/cases/narration-<item>-<path>.yaml` (N5) with only public "Do not claim" phrases in `expect.not_contains`; `make evals` runs `--suite narration --adapter fake`, and `evals/run.py` refuses `--suite narration` with any other adapter, per contracts/narration.md §2
+- [X] T053 [US3] `apps/web/src/narration/`: the display, per contracts/narration.md §4
+- [X] T054 [US3] Draft one script per item and path, cited, from the corpus, filed in `corpus/proposals/narration-<date>.md` for the Author, per contracts/narration.md §1
 - [ ] T055 [US3] **Author**: read and approve the scripts by hash, per quickstart §5
-- [ ] T056 [US3] Merge-request note `docs/merge-requests/<date>-feat-002-us3-narration.md`
+- [X] T056 [US3] Merge-request note `docs/merge-requests/<date>-feat-002-us3-narration.md`
 
 ---
 

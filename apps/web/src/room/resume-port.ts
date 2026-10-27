@@ -3,9 +3,12 @@
 // its heading ("The resume") and the focus, closes it on Escape, returns focus to "Resume", and counts resume_opened.
 // What goes inside is a ResumeView's: here, Phase 3's view (src/resume/), behind an adapter.
 import type { VisitPath } from "../choice/visit";
+import { asRoomNarration, createNarrator } from "../narration";
+import type { NarrationSource, Narrator, RoomNarration } from "../narration";
 import { fetchRoomResume, resumePanel } from "../resume";
 import type { RoomResume } from "../resume";
 import { ABSENT } from "../resume/data";
+import { ROOM_DATA_HREF } from "../resume/view";
 import { h } from "./dom";
 
 export interface ResumeContext {
@@ -35,12 +38,18 @@ export interface ResumeView {
  * - drops the view's own heading and dialog role: the room's section and heading frame it, in the page's flow;
  * - wires the view's "Close" and "Download (PDF)" to the room, and passes `room:item-selected` on;
  * - is the only way the view opens: the view has no opener of its own, so nothing opens it a second way or counts
- *   it twice beside the room's resume_opened.
+ *   it twice beside the room's resume_opened;
+ * - with a narration source (Phase 5, src/narration/), narrates each selected item at the visitor's chosen path, the
+ *   context's, and stops it at once when the panel closes.
  * A load that fails reads as absent, and the view says so beside the PDF link.
  */
-export function resumeView(load: () => Promise<RoomResume> = () => fetchRoomResume()): ResumeView {
+export function resumeView(
+  load: () => Promise<RoomResume> = () => fetchRoomResume(),
+  narration?: NarrationSource,
+): ResumeView {
   let built: Promise<HTMLElement> | null = null;
   let current: { host: HTMLElement; context: ResumeContext } | null = null;
+  let narrator: Narrator | null = null;
 
   const build = async (doc: Document): Promise<HTMLElement> => {
     const data = await load().catch(() => ABSENT);
@@ -55,7 +64,9 @@ export function resumeView(load: () => Promise<RoomResume> = () => fetchRoomResu
     panel.querySelector(".resume-pdf")?.addEventListener("click", () => current?.context.pdfFollowed());
     panel.addEventListener("room:item-selected", (event) => {
       const id: unknown = (event as CustomEvent<{ id?: unknown }>).detail?.id;
-      if (typeof id === "string") current?.context.itemSelected(id);
+      if (typeof id !== "string" || !current) return;
+      current.context.itemSelected(id);
+      narrator?.select(panel, id, current.context.path);
     });
     return panel;
   };
@@ -63,15 +74,45 @@ export function resumeView(load: () => Promise<RoomResume> = () => fetchRoomResu
   return {
     mount(host, context) {
       current = { host, context };
+      if (narration) narrator ??= createNarrator(context.doc, narration);
       host.replaceChildren(h(context.doc, "p", { class: "resume-loading" }, "Loading the resume…"));
       built ??= build(context.doc);
       void built.then((panel) => {
-        if (current?.host === host) host.replaceChildren(panel);
+        if (current?.host !== host) return;
+        host.replaceChildren(panel);
+        narrator?.prepare(panel);
       });
     },
     unmount() {
+      narrator?.stop();
       current?.host.replaceChildren();
       current = null;
     },
+  };
+}
+
+/** The narration's load from room-data.json's loader: a failed load fails, rather than reading as no narration, so
+ * the narrator loads again on the next selection, as the resume view does on its next opening. */
+export function narrationFromRoomData(roomData: () => Promise<unknown>): () => Promise<RoomNarration> {
+  return async () => {
+    const json = await roomData();
+    if (json === null) throw new Error("room-data.json didn't load");
+    return asRoomNarration(json);
+  };
+}
+
+/** room-data.json from the site's own origin, for the resume and its narration: one fetch shared by both, and a new
+ * one after a load that failed, as the resume view retries (null when it can't be read, which both read as nothing). */
+export function roomDataLoader(fetcher: typeof fetch = (input, init) => fetch(input, init)): () => Promise<unknown> {
+  let pending: Promise<unknown> | null = null;
+  return () => {
+    pending ??= fetcher(ROOM_DATA_HREF, { credentials: "same-origin", cache: "no-cache" })
+      .then((response) => (response.ok ? (response.json() as Promise<unknown>) : null))
+      .catch(() => null)
+      .then((json) => {
+        if (json === null) pending = null;
+        return json;
+      });
+    return pending;
   };
 }

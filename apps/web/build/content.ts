@@ -23,6 +23,7 @@ import { parse as parseYaml, parseDocument, visit } from "yaml";
 
 import type { RoomResumeHeader, RoomResumeSection } from "../src/resume/data";
 import { publication, readPolicy, type RoomData, type RoomDataContext } from "./approvals";
+import { readScripts } from "./narration-source";
 import { pdfInput, pdfText, renderPdf } from "./pdf";
 import { DEFAULT_POLICY_DIR } from "./policy";
 
@@ -47,6 +48,30 @@ export const OWNERSHIP_VERBS = [
   "architected",
 ] as const;
 
+/** The past-tense verbs the corpus uses for the Author's acts beside the ownership verbs (spec 002's narration
+ * review): C8 holds them as it holds the ownership verbs, so a word the text says as an act must be one a cited
+ * sentence says. They aren't `verb` values an item can declare. */
+export const ACT_VERBS = [
+  "released",
+  "published",
+  "organized",
+  "researched",
+  "turned",
+  "localized",
+  "trained",
+  "prepared",
+  "found",
+  "determined",
+  "mapped",
+  "engaged",
+  "obtained",
+  "adopted",
+  "pitched",
+  "won",
+  "defined",
+  "coined",
+] as const;
+
 export class ContentError extends Error {}
 
 // ---- The source (contracts/resume-source.md §1; data-model.md §2) ----
@@ -65,6 +90,8 @@ export interface Line {
 export interface Item extends Line {
   id: string;
   verb?: string;
+  /** A narration script's: its item's verb sets C4's bar for its citations, and the words needn't say it (N1). */
+  verbUnsaid?: true;
 }
 
 export interface Section {
@@ -115,8 +142,8 @@ function text(label: string, at: string, v: unknown): string {
   return v;
 }
 
-/** The slot IDs a display text references, refusing a malformed reference. */
-function slotRefs(label: string, at: string, display: string): string[] {
+/** The slot IDs a display text references, refusing a malformed reference. Narration's scripts use it too. */
+export function slotRefs(label: string, at: string, display: string): string[] {
   const ids: string[] = [];
   for (const m of display.matchAll(SLOT_REF)) {
     const id = m[1] ?? "";
@@ -479,6 +506,88 @@ export function forbiddenList(options: {
   return { list: [...list, ...denied.list], denylist: denied.state };
 }
 
+/** An auxiliary right before a verb, an adverb allowed between: "was built", "is being used". */
+const AUXILIARY = /(?:^|[^\p{L}])(?:is|was|were|are|been|being|be)\s+(?:\p{L}+ly\s+)?$/u;
+
+/** Who a subject word names: the Author (a pronoun, the room's name, or "who" in a sentence about him) or someone
+ * else. Other words aren't subjects this test can read. */
+const OTHER_SUBJECTS = new Set([
+  "it",
+  "they",
+  "others",
+  "which",
+  "that",
+  "she",
+  "we",
+  "i",
+  "you",
+  "someone",
+  // A possessive opens someone's or something's noun phrase: "his pitch and design won" says the pitch won.
+  "his",
+  "her",
+  "its",
+  "their",
+]);
+const ADVERB = "(?:(?:still|also|first|then|later|once|now|just)\\s+)?";
+
+type Act = { author: boolean; passive: boolean };
+
+/** The single-word ownership and act verbs a sentence says as the Author's own acts (C8; the narration review of
+ * 2026-10-18). Each occurrence, in order:
+ *   - with "by" after it, a passive naming its agent: the Author's when "by" names him ("Designed by Hareet");
+ *   - after an auxiliary ("was built"), or right after a comma, a participle phrase ("…on-call engineer, built
+ *     security-first"): nobody's act;
+ *   - right after a subject: the Author's when it's "he", "him", the room's name, or "who"; someone else's when it's
+ *     "it", "they", "others", "which", "that", or the like ("which others built");
+ *   - after "and", "or", "then", or a dash: the act of the verb it's coordinated with, the last one before it, and
+ *     nobody's when that one was a passive ("Built by Hareet and released to production" says who built it, not who
+ *     released it);
+ *   - first in its clause ("Built agent-watchdog", "Ownership: led"): the Author's, the resume's implied subject or a
+ *     ruling;
+ *   - otherwise: the Author's when the nearest subject word before it in its sentence names him.
+ * Each sentence on its own; normalized text, lowercase. A heuristic, not a parser. */
+function authorActs(text: string, authorWords: readonly string[]): Set<string> {
+  const acts = new Set<string>();
+  for (const sentence of sentences(text)) for (const verb of sentenceActs(sentence, authorWords)) acts.add(verb);
+  return acts;
+}
+
+function sentenceActs(sentence: string, authorWords: readonly string[]): Set<string> {
+  const verbs = [...OWNERSHIP_VERBS, ...ACT_VERBS].filter((v) => /^[a-z-]+$/.test(v));
+  const author = new Set([...authorWords, "he", "him", "who"]);
+  const found = new RegExp(`(?:^|[^\\p{L}\\p{N}-])(${verbs.map(escape).join("|")})(?=$|[^\\p{L}\\p{N}-])`, "gu");
+  const subjectBefore = new RegExp(`(?:^|[^\\p{L}'-])([\\p{L}'-]+)\\s+${ADVERB}$`, "u");
+  const acts = new Set<string>();
+  let last: Act | null = null;
+  for (const m of sentence.matchAll(found)) {
+    const verb = m[1] ?? "";
+    const start = m.index + m[0].length - verb.length;
+    const before = sentence.slice(0, start);
+    const after = sentence.slice(start + verb.length);
+    let act: Act;
+    const by = /^\s+by\s+([\p{L}'-]+)/u.exec(after);
+    const subject = subjectBefore.exec(before)?.[1] ?? "";
+    if (by) {
+      act = { author: author.has(by[1] ?? "") && by[1] !== "who", passive: true };
+    } else if (AUXILIARY.test(before) || /,\s*$/.test(before)) {
+      act = { author: false, passive: true };
+    } else if (author.has(subject) || OTHER_SUBJECTS.has(subject)) {
+      act = { author: author.has(subject), passive: false };
+    } else if (/(?:^|[^\p{L}])(?:and|or|then)\s+$|[—–]\s*$/u.test(before) && last) {
+      act = { author: !last.passive && last.author, passive: last.passive };
+    } else if (!/\p{L}/u.test(before.slice(Math.max(before.lastIndexOf(";"), before.lastIndexOf(":")) + 1))) {
+      act = { author: true, passive: false };
+    } else {
+      const words = before.match(/[\p{L}'-]+/gu) ?? [];
+      const named = [...words].reverse().find((w) => author.has(w) || OTHER_SUBJECTS.has(w));
+      act = { author: named !== undefined && author.has(named), passive: false };
+    }
+    if (act.author) acts.add(verb);
+    last = act;
+  }
+  return acts;
+}
+
 const wordBoundary = (phrase: string): RegExp =>
   new RegExp(`(?:^|[^\\p{L}\\p{N}-])${escape(phrase)}(?:$|[^\\p{L}\\p{N}-])`, "iu");
 
@@ -505,6 +614,7 @@ export function checkSource(
 ): { problems: string[]; denylist: DenylistState } {
   const { root } = options;
   const roomName = source.header.room.name;
+  const authorWords = normalize(roomName).split(/\s+/).filter(Boolean);
   const cache = new Map<string, CorpusFile>();
   const corpusFile = (rel: string): CorpusFile => {
     let file = cache.get(rel);
@@ -532,7 +642,7 @@ export function checkSource(
     return citable.map((p) => p.text);
   };
 
-  const check = (id: string, item: Line, verb: string | undefined): string | null => {
+  const check = (id: string, item: Line, verb: string | undefined, verbUnsaid = false): string | null => {
     const cited: string[] = [];
     for (const claim of item.claims) {
       const result = citation(claim, verb);
@@ -542,13 +652,24 @@ export function checkSource(
     if (/\d/.test(outsideSlots(item.text))) return `${id}: bare number`;
     if (slotIds(item).some((slot) => !facts.has(slot))) return `${id}: unknown slot`;
     // C8: the declared verb is in the text, and every ownership verb the text uses, declared or not, is in a cited
-    // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015).
+    // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015). The corpus's other act verbs are
+    // held the same way, and a verb the text says as an act must be one a cited sentence says as an act, never only
+    // in an agentless passive.
     const shownText = normalize(outsideSlots(item.text));
-    if (verb !== undefined && !wordBoundary(verb.toLowerCase()).test(shownText))
+    if (verb !== undefined && !verbUnsaid && !wordBoundary(verb.toLowerCase()).test(shownText))
       return `${id}: ownership verb not cited`;
-    for (const owned of OWNERSHIP_VERBS) {
+    for (const owned of [...OWNERSHIP_VERBS, ...ACT_VERBS]) {
       const said = wordBoundary(owned.toLowerCase());
-      if (said.test(shownText) && !cited.some((s) => said.test(normalize(s)))) return `${id}: ownership verb not cited`;
+      if (!said.test(shownText)) continue;
+      if (!cited.some((s) => said.test(normalize(s)))) return `${id}: ownership verb not cited`;
+      const word = owned.toLowerCase();
+      if (
+        /^[a-z-]+$/.test(word) &&
+        authorActs(shownText, authorWords).has(word) &&
+        !cited.some((s) => authorActs(normalize(s), authorWords).has(word))
+      ) {
+        return `${id}: passive made active`;
+      }
     }
     const shown = fillSlots(item.text, facts);
     const hit = forbidden.list.find((f) => holds(shown, f));
@@ -565,7 +686,7 @@ export function checkSource(
   });
   for (const section of source.sections) {
     for (const item of section.items) {
-      const problem = check(item.id, item, item.verb);
+      const problem = check(item.id, item, item.verb, item.verbUnsaid === true);
       if (problem) problems.push(problem);
     }
   }
@@ -602,10 +723,12 @@ export interface Lock {
 
 const sha256 = (data: Uint8Array | string): string => createHash("sha256").update(data).digest("hex");
 
-/** Every corpus file a citation names and every facts file a slot reads, sorted. */
+/** Every corpus file a citation names and every facts file a slot reads, the narration scripts' with the source's
+ * (data-model.md §5), sorted. */
 export function lockedFiles(root: string, source: ResumeSource): string[] {
   const facts = readFacts(root);
-  const lines: Line[] = [...source.header.room.lines, ...source.sections.flatMap((s) => s.items)];
+  const scripts: Line[] = readScripts(root).map((s) => ({ text: s.body, claims: s.claims, slots: s.slots }));
+  const lines: Line[] = [...source.header.room.lines, ...source.sections.flatMap((s) => s.items), ...scripts];
   const files = new Set<string>();
   for (const l of lines) {
     for (const claim of l.claims) files.add(claim.file);

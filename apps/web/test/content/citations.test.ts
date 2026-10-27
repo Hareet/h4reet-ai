@@ -227,6 +227,55 @@ describe("C8, the ownership verb", () => {
     const kept = { ...item, text: "Keeper of the tide clock; his design of its face won the harbor prize." };
     expect(problems([kept])).toEqual([]);
   });
+
+  it("holds the corpus's other act verbs too, like released, and never makes an agentless passive an act", () => {
+    // The narration review (2026-10-18): "Built by Robin and released ..." names who built it, not who released it.
+    const lamp = "The night lamp was designed by Robin and released to the docks";
+    const item = { id: "c8a", text: "Designed the night lamp and released it to the docks.", claims: [cite(lamp)] };
+    expect(problems([item])).toEqual(["c8a: passive made active"]);
+    expect(problems([{ ...item, text: "The night lamp, designed by Robin and released to the docks." }])).toEqual([]);
+    const released = { ...CLEAN, id: "c8r", text: "Designed and released the lantern service for the fixture clinic." };
+    expect(problems([released])).toEqual(["c8r: ownership verb not cited"]);
+  });
+});
+
+describe("C8 and the corpus's participles", () => {
+  const REPO = fileURLToPath(new URL("../../../../", import.meta.url));
+  // 01-ai-strategy-and-cht.md: "built security-first" is a participle phrase after a comma, not the Author's act.
+  const quote =
+    "Designed by Hareet: Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base";
+  const check = (text: string) => {
+    const doc = {
+      version: 1,
+      header: { room: { name: "Hareet", lines: [] } },
+      sections: [
+        {
+          id: "agents",
+          title: "Agents",
+          items: [
+            {
+              id: "agent",
+              text,
+              verb: "designed",
+              claims: [{ file: "corpus/01-ai-strategy-and-cht.md", quote }],
+              slots: [],
+            },
+          ],
+        },
+      ],
+    };
+    return checkSource(parseResume(stringify(doc, NO_ALIASES)), { root: REPO }).problems;
+  };
+
+  it("fails the inflated sentence the review named: built from a participle after a comma", () => {
+    expect(check("Hareet designed and built claude-medic-aws.")).toEqual(["agent: passive made active"]);
+  });
+
+  it("passes the same facts in the corpus's grammar", () => {
+    expect(
+      check("Designed claude-medic-aws, Medic's infrastructure agent, security-first for a non-technical user base."),
+    ).toEqual([]);
+  });
 });
 
 describe("C9, forbidden phrases", () => {

@@ -9,6 +9,7 @@ import { roomDataFile } from "./build/approvals";
 import { resumePart } from "./build/content";
 import { disclosurePage } from "./build/disclosure";
 import { roomContentModule } from "./build/manifest";
+import { narrationPart } from "./build/narration";
 import { DEFAULT_POLICY_DIR } from "./build/policy";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -32,10 +33,11 @@ export default defineConfig({
     disclosurePage({ source: here("../../docs/data-flow-disclosure.md") }),
     // main's policy: the image's named context (ROOM_POLICY_DIR), or what a checkout's prebuild read from main.
     // The resume's part (build/content.ts): the citation check, its items when main approves them, and resume.pdf.
+    // Narration's (build/narration.ts): N1–N5, and each published item's scripts, per path, when they're published.
     roomDataFile({
       root: here("../.."),
       policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR,
-      parts: [resumePart],
+      parts: [resumePart, narrationPart],
     }),
     // The room's fixed messages and manifest, bundled into the page, and dist/room-manifest.json (T045, T046).
     roomContentModule({ root: here("../.."), messages: here("content/messages.yaml") }),
