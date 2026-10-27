@@ -8,7 +8,7 @@
 //   which nothing skips; its end offers the resume now or later and opens the room.
 // - The quality controller, a lost context, or the visitor's "2D view" moves the room to 2D, once, keeping the visit.
 // - Every object, the text box, and the talk button answer with the fixed messages and call nothing (R-14).
-// - Usage events go to the EventSink, which sends nothing until Phase 6.
+// - Usage events go to the EventSink: the page's sends beacons (src/events.ts); by default, nothing is sent.
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";

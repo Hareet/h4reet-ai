@@ -62,7 +62,29 @@ describe("the disclosure page", () => {
 
   it("lists every row ID the Markdown has, spec 000's and the room's", () => {
     const ids = htmlTables(renderDisclosure(SOURCE)).flatMap((t) => t.slice(1).map((row) => row[0]));
-    for (const id of ["S1", "S14", "F1", "D3", "V1"]) expect(ids).toContain(id);
+    for (const id of ["S1", "S14", "F1", "D3", "V1", "V4"]) expect(ids).toContain(id);
+  });
+
+  it("gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words", () => {
+    // spec.md's Data-Flow Disclosure Entries: ID | From → To | Carries | Never carries | Why. The disclosure adds
+    // Trigger after From → To, so its Carries, Never carries, and Why are columns 3 to 5 (FR-058; T062 for V4).
+    const spec = readFileSync(resolve(WEB, "../../specs/002-the-room/spec.md"), "utf8");
+    const entries = new Map(
+      markdownTables(spec)
+        .flatMap((t) => t.slice(1))
+        .map((row) => [row[0], row] as const),
+    );
+    const rows = new Map(
+      markdownTables(SOURCE)
+        .flatMap((t) => t.slice(1))
+        .map((row) => [row[0], row] as const),
+    );
+    for (const id of ["V1", "V4"]) {
+      const entry = entries.get(id);
+      const row = rows.get(id);
+      expect(entry, id).toBeDefined();
+      expect(row?.slice(3, 6), id).toEqual(entry?.slice(2, 5));
+    }
   });
 
   it("puts header cells in th and body cells in td", () => {

@@ -71,6 +71,8 @@ POST /hello                      SERVER    one per request (also POST /admin/tes
 
 A request refused before routing (the per-client cap, a validation error) has a server span and no `gateway.route` span. A degraded request decided from the state alone (`store_unreachable`, `store_uninitialized`, `kill_switch_tripped`) has a `gateway.route` span and no client span.
 
+Spec 002's usage events, `POST /room/events` ([room-events.md §3](../../002-the-room/contracts/room-events.md#3-the-gateways-route)), have a server span with no `gateway.route` or client span under it, only `@fastify/otel`'s own hook spans, as every route has (below). They make no model call, and their server span carries only the attributes below, with `h4.outcome` `ok` for its 204 and `invalid` for its 400 and 415. The event's body is in no span and no log record.
+
 (Departure, tasks.md T074.) `POST /admin/test/synthetic` makes its calls one after another in one request, and gives each its own trace, as operator-admin.md §3.2's answer shows a trace ID per call: each call's `gateway.route` span is a root span, linked to the request's server span. So the breach test's T assertions, and an incident draft's list of the last metered calls, can name each call by its trace.
 
 Langfuse shows the tree as one trace: the server span is the trace's root, and the client spans are generations ([§3.5](#35-what-langfuse-reads)). The other `@fastify/otel` hook spans, if the instrumentation emits them, carry no attributes beyond Fastify's own and no payloads.
@@ -174,6 +176,8 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 | `h4.operator.actions` | counter, `{action}` | `h4.action`: the audit action of an accepted write: `init`, `reset`, `renew`, `test_clock`, `test_synthetic`, `adapter_call` | `h4_operator_actions_total` | once per accepted admin write ([operator-admin.md §1.3](operator-admin.md#13-what-each-write-produces)) |
 | `h4.operator.auth_failures` | counter, `{failure}` | `h4.auth.class`: `missing`, `malformed`, `wrong_prefix`, `mismatch` | `h4_operator_auth_failures_total` | once per failed admin authentication, counted in memory ([operator-admin.md §1.1](operator-admin.md#11-authentication)) |
 | `h4.test_machinery.refused` | counter, `{request}` | none | `h4_test_machinery_refused_total` | each 403 from `POST /admin/test/*` outside dev |
+| `h4.room.events` | counter, `{event}` | `kind`: the kinds in `config/room-events.yaml`; `id`: an object's or item's ID from the same file for `object_selected` and `item_selected`, `-` for the others (spec 002, [room-events.md §4](../../002-the-room/contracts/room-events.md#4-telemetry-and-the-dashboard)) | `h4_room_events_total` | each usage event the gateway accepts, with its 204 |
+| `h4.room.events.refused` | counter, `{event}` | `reason`: `content_type`, `shape`, `kind`, `id` | `h4_room_events_refused_total` | each usage event refused with 415 or 400 |
 
 **The gauges.**
 - They are observable gauges. Their callback reads an in-process snapshot and never touches the store.
@@ -263,6 +267,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `adapter.health_changed` | info | an adapter's effective health flips | `adapter`, `healthy`, `reason` |
 | `credentials.expiring` | warn | 2 h before the SSO session ends | `adapter`, `expires_at` |
 | `test.machinery_refused` | warn | a `POST /admin/test/*` outside dev | `path` |
+| `room_events.unavailable` | warn | at startup, when `config/room-events.yaml` is missing or invalid, so every usage event will be refused (spec 002, [room-events.md §3](../../002-the-room/contracts/room-events.md#3-the-gateways-route)) | `reason` (`missing`, `invalid`), `path` (where the file is invalid, as `objects[0]`, or empty; never a value) |
 
 The breach test's L assertions read `alert.delivered`, `fallback.exhausted`, `killswitch.tripped`, and the `operator.*` audit records ([plan.md §8](../plan.md#8-the-breach-test)).
 
@@ -481,6 +486,24 @@ The row's title says what it is: "Development time on the Team plan: notional co
 
 For a month's figure, set the range to the month. Prometheus keeps 30 days; the committed history in `evals/agent-config/history/` is the long-term record (SC-008).
 
+### 7.8 The room (spec 002)
+
+The row's title is "Room": what the room's visitors use, counted with no visitor data (spec 002, FR-054 and FR-056; [room-events.md §4](../../002-the-room/contracts/room-events.md#4-telemetry-and-the-dashboard)). Each usage event the gateway accepts is one increment of `h4_room_events_total`, labelled with its `kind` and `id` alone; each one it refuses, of `h4_room_events_refused_total` by `reason`. The row sits above the development-time row.
+
+| Panel | Type | Query |
+|---|---|---|
+| Use per object per day (FR-056) | bar chart | `sum by (id) (increase(h4_room_events_total{kind="object_selected"}[1d]))` |
+| Use per item per day (FR-056) | bar chart | `sum by (id) (increase(h4_room_events_total{kind="item_selected"}[1d]))` |
+| PDF downloads per day (FR-056) | stat | `sum(increase(h4_room_events_total{kind="pdf_downloaded"}[1d]))` |
+| Visits shown the 2D mode (FR-056) | stat, as a share | `sum(increase(h4_room_events_total{kind="mode_2d"}[$__range])) / sum(increase(h4_room_events_total{kind=~"resume_opened\|resume_kept"}[$__range]))` |
+| Turns sent and talk presses | bar chart | `sum by (kind) (increase(h4_room_events_total{kind=~"turn_sent\|voice_pressed"}[$__rate_interval]))` |
+| Events refused | bar chart | `sum by (reason) (increase(h4_room_events_refused_total[$__rate_interval]))` |
+
+- **Per day** is the 24 hours before the range's end. The two use panels read one instant there, and the PDF stat shows its last value, so the default range shows the last 24 hours, and a range that ends at a past midnight shows that day (the dashboard is in UTC). The gateway's clock gives each event its time; the browser sends none.
+- **The 2D share** is `mode_2d` over `resume_opened` plus `resume_kept`, a stand-in for visits, since no visit is counted (FR-054). Every visit that reaches the room ends its hand-off with one of the two; one that keeps the resume and opens it later counts twice, so the share reads low rather than high. With no visit in the range it has no value.
+- **Turns sent** count the text box's sends; **talk presses**, the talk button's. Both answer with a fixed message until the twin's conversation exists.
+- **Waiting for their groups** (FR-056's other panels, which have no data until their calls exist): each room feature's cost today and this month beside its latency and errors, from `h4_cost_usd_total` and the duration series by the turn endpoint's `h4.room.feature`; turns per room feature; the room's degraded responses by cause; and the model each step used come with conversations (spec 002's group 7). Recognition's latency and failures come with push-to-talk (group 8), and the voice's failures with the voice (group 9).
+
 ## 8. What holds this contract
 
 | Check | Where | What it proves |
@@ -489,7 +512,7 @@ For a month's figure, set the range to the month. Prometheus keeps 30 days; the 
 | Span keys | the contract suite's C8 ([provider-adapter.md §5.2](provider-adapter.md#52-assertions)) | [§3.3](#33-span-attributes)'s canonical success set, identical across `local-openai` and `bedrock-converse` |
 | Redaction | `services/gateway/test/unit/redact.test.ts`, and a pytest test that parses `deploy/otel/collector.yaml` | every pattern in [§6.3](#63-processors) masks its fixture, in both copies; payload keys are deleted unless sampled |
 | The collector's own metrics | `deploy/scripts/test_observability.py`, and `test_dashboard.py` | the collector pushes them to `otlphttp/prometheus`'s endpoint every 10 s, with the stack's labels; the `otel-collector` job keeps only `up`; the panels read the pushed `_total` names (T185) |
-| Dashboard queries | a pytest test, `deploy/scripts/test_dashboard.py` | every metric name in `h4-runtime.json` appears in this file; every FR-028, FR-034, and FR-037 panel exists; the datasource uids are `prom`, `loki`, and `gateway` |
+| Dashboard queries | a pytest test, `deploy/scripts/test_dashboard.py` | every metric name in `h4-runtime.json` appears in this file; every FR-028, FR-034, and FR-037 panel exists, and spec 002's FR-056 panels in §7.8; the datasource uids are `prom`, `loki`, and `gateway` |
 | End to end | the breach test's T, M, and L assertions ([plan.md §8](../plan.md#8-the-breach-test)), and [quickstart.md](../quickstart.md) | the names, the 60 s freshness, and the Langfuse trace, on a running stack |
 
 Checked once, in the first stack task, and recorded in research.md: the `llamacpp:` names of build b11459; which cost attribute Langfuse 4.54.0 reads; whether Langfuse accepts gzip; and the Prometheus names of Claude Code's two metrics.

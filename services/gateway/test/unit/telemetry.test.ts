@@ -71,6 +71,9 @@ function scriptedRun(m: GatewayMetrics): void {
   m.operatorAction("reset");
   m.operatorAuthFailure("mismatch");
   m.testMachineryRefused();
+  m.roomEvent("object_selected", "laptop");
+  m.roomEvent("mode_2d", "-");
+  m.roomEventRefused("kind");
   m.tokenUsage(71, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "input" });
   m.tokenUsage(14, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "output" });
   m.operationDuration(0.2, {
@@ -107,6 +110,9 @@ const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   "h4.operator.actions": { unit: "{action}", keys: ["h4.action"] },
   "h4.operator.auth_failures": { unit: "{failure}", keys: ["h4.auth.class"] },
   "h4.test_machinery.refused": { unit: "{request}", keys: [] },
+  // Spec 002's usage events (contracts/room-events.md §4): the event's kind and ID, or a refusal's reason, and no other.
+  "h4.room.events": { unit: "{event}", keys: ["id", "kind"] },
+  "h4.room.events.refused": { unit: "{event}", keys: ["reason"] },
   "gen_ai.client.token.usage": {
     unit: "{token}",
     keys: [
