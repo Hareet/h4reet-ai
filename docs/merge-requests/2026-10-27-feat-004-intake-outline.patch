@@ -13,12 +13,21 @@ It adds two files:
   findings`, never a value or a path. Exit 0 PASS, 1 findings, 2 a file or the SVG it can't read.
 - tools/gates/test/test_outline_check.py: §10's cases, every file built at run time.
 
+Regenerated after T041's review (part 2, I-4 and nits 1 to 3): the conversion copies only what the Author sees drawn
+in the tracing tool. It refuses, exit 2, nothing written, the report naming counts alone: a path under defs,
+clipPath, mask, symbol, pattern, marker, metadata, switch, foreignObject, or a foreign element; a hidden element
+(display, visibility, or opacity), or what sits under one; a use or a nested svg; a style with a transform; a style
+element that can hide, clip, or bring in what it draws; a clip or a mask. It reads a regular file only (never a link,
+a FIFO, or a device) of at most MAX_SVG_BYTES, 16 MiB, in UTF-8 with no byte-order mark, no other declared encoding,
+no document type declaration or processing instruction, and no element nested deeper than 256; it walks the tree
+without recursion. A write that fails exits 2, naming no path, and leaves no temporary file.
+
 diff --git a/tools/gates/outline_check.py b/tools/gates/outline_check.py
 new file mode 100755
-index 0000000..2f53981
+index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6741d2aa9
 --- /dev/null
 +++ b/tools/gates/outline_check.py
-@@ -0,0 +1,588 @@
+@@ -0,0 +1,846 @@
 +#!/usr/bin/env -S python3 -I -B -X pycache_prefix=/dev/null
 +"""The outline check (spec 004 FR-024, FR-025, FR-032, FR-052, SC-013; contracts/intake-amendments.md §10; R-56).
 +
@@ -34,10 +43,17 @@ index 0000000..2f53981
 +
 +--from-svg writes <sign>.outline.json in the working folder from the local tracing tool's SVG: each <path>'s d, in
 +document order, and the root's viewBox, and nothing else; it says how many other elements it left behind, and how
-+many of them were images, never what they held. It refuses a path under a transform (it doesn't apply transforms:
-+export with them applied), an SVG with a document type declaration, and an output name with a folder in it or outside
-+the room's ID grammar. The file is UTF-8 JSON with LF line ends, two-space indents, the schema's field order, and a
-+final newline, so the same inputs give the same bytes. Then it checks the file, as the second form does.
++many of them were images, never what they held. It copies only what the Author sees drawn in the tracing tool, so it
++refuses, counting each kind (T041's review, part 2, I-4): a path under a transform, by attribute or style (it doesn't
++apply transforms: export with them applied); a path under defs, clipPath, mask, symbol, pattern, marker, metadata,
++switch, foreignObject, or a foreign element; a hidden element (display, visibility, or opacity), or what sits under
++one; a use or a nested svg; a style with a transform; a style element that can hide, clip, or bring in what it draws;
++a clip or a mask. It reads only a regular file of at most MAX_SVG_BYTES, in UTF-8 with no byte-order mark, no other
++declared encoding, no document type declaration or processing instruction, and elements nested at most MAX_DEPTH deep.
++It refuses an output name with a folder in it or outside the room's ID grammar. The file is UTF-8 JSON with LF line
++ends, two-space indents, the schema's field order, and a final newline, so the same inputs give the same bytes; a write
++that fails leaves no temporary file. Then it checks the file, as the second form does. Every refusal exits 2 with
++nothing written.
 +
 +The rules, O1 to O10 (contracts/intake-amendments.md §10; data-model.md §6.2):
 +  O1  not a regular file, not UTF-8, not strict JSON (a duplicate key, NaN, Infinity, a byte-order mark, trailing
@@ -79,6 +95,7 @@ index 0000000..2f53981
 +    )
 +
 +import argparse
++import contextlib
 +import hashlib
 +import json
 +import math
@@ -88,6 +105,7 @@ index 0000000..2f53981
 +import unicodedata
 +from pathlib import Path
 +from xml.etree import ElementTree as ET
++from xml.parsers import expat
 +
 +# --------------------------------------------------------------------------------------------------
 +# The schema (data-model.md §6.2) and this contract's bounds, which change only by the Author's patch
@@ -135,6 +153,64 @@ index 0000000..2f53981
 +    r"\s+|,|[MmLlHhVvCcSsQqTtAaZz]|[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?"
 +)
 +SVG_NS = "{http://www.w3.org/2000/svg}"
++# The SVG the conversion reads (T041's review, part 2, nits 2 and 3). 16 MiB holds a trace of a sign with the photo it
++# was traced over still embedded, as the tracing tool keeps it: a phone's 12-megapixel JPEG, 3 to 8 MB, is 4 to 11 MB
++# as base64. The outline's own paths are capped at 262,144 characters (O9), so nothing a valid outline needs comes
++# near it, and a larger file is refused before it is read into memory. Real traces nest a few levels deep.
++MAX_SVG_BYTES = 16 * 1024 * 1024
++MAX_DEPTH = 256
++XML_ENCODING = re.compile(r"""<\?xml\s[^>]*?\bencoding\s*=\s*["']([^"']*)["']""")
++DTD = "the SVG has a document type declaration, which the check doesn't read; export a plain SVG"
++# What the tracing tool doesn't draw where it stands: a path under one of these, or under a foreign element, is refused.
++UNSEEN = frozenset(
++    (
++        "defs",
++        "clipPath",
++        "mask",
++        "symbol",
++        "pattern",
++        "marker",
++        "metadata",
++        "switch",
++        "foreignObject",
++    )
++)
++# A style element that can hide, clip, or bring in what it draws (a transform is counted on its own).
++STYLE_ELEMENT = re.compile(r"(?i)display|visibility|opacity|clip|mask|@import|\\")
++
++
++def _plural(n: int, one: str, many: str) -> str:
++    return f"{n} {one if n == 1 else many}"
++
++
++# Each refusal of the conversion, by its count alone, in the report's order.
++REFUSALS = {
++    "unseen path": lambda n: (
++        _plural(n, "path", "paths")
++        + " under defs, clipPath, mask, symbol, pattern, marker, metadata, switch, foreignObject, or a foreign element"
++    ),
++    "transformed path": lambda n: (
++        _plural(n, "path", "paths")
++        + " under a transform, which the check doesn't apply (export with transforms applied)"
++    ),
++    "root transform": lambda n: (
++        _plural(n, "transform", "transforms")
++        + " on the svg element, which the check doesn't apply"
++    ),
++    "hidden": lambda n: (
++        _plural(n, "hidden element", "hidden elements")
++        + " (display, visibility, or opacity), or what sits under one"
++    ),
++    "use": lambda n: _plural(n, "use or nested svg", "uses or nested svg elements"),
++    "style transform": lambda n: _plural(
++        n, "style with a transform", "styles with a transform"
++    ),
++    "style": lambda n: (
++        _plural(n, "style", "styles")
++        + " that can hide, clip, or bring in what it draws, or that the check can't read"
++    ),
++    "clipped": lambda n: _plural(n, "clip or mask", "clips or masks"),
++}
 +
 +
 +class CannotRead(Exception):
@@ -438,25 +514,168 @@ index 0000000..2f53981
 +    )
 +
 +
-+def local(tag: object) -> str:
-+    """An element's name without the SVG namespace; another namespace's element keeps it, so it's never a path."""
-+    text = tag if isinstance(tag, str) else ""
-+    return text.removeprefix(SVG_NS)
++def local(tag: object) -> str | None:
++    """An SVG element's name without the namespace; None for any other namespace's element, or none, which is foreign."""
++    if isinstance(tag, str) and tag.startswith(SVG_NS):
++        return tag[len(SVG_NS) :]
++    return None
++
++
++def read_svg(svg: Path) -> bytes:
++    """The SVG's bytes: a regular file, never a link, a FIFO, or a device, of at most MAX_SVG_BYTES."""
++    try:
++        if not stat.S_ISREG(os.lstat(svg).st_mode):
++            raise CannotRead("the SVG isn't a regular file")
++        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
++        handle = os.open(svg, flags)
++    except OSError:
++        raise CannotRead("the SVG can't be read") from None
++    try:
++        info = os.fstat(handle)
++        if not stat.S_ISREG(info.st_mode):
++            raise CannotRead("the SVG isn't a regular file")
++        if info.st_size > MAX_SVG_BYTES:
++            raise CannotRead(f"the SVG is larger than {MAX_SVG_BYTES:,} bytes")
++        chunks, size = [], 0
++        while chunk := os.read(handle, 1 << 20):
++            size += len(chunk)
++            if size > MAX_SVG_BYTES:
++                raise CannotRead(f"the SVG is larger than {MAX_SVG_BYTES:,} bytes")
++            chunks.append(chunk)
++        return b"".join(chunks)
++    except OSError:
++        raise CannotRead("the SVG can't be read") from None
++    finally:
++        os.close(handle)
++
++
++def _refuse(why: str):
++    def handler(*_: object) -> None:
++        raise CannotRead(why)
++
++    return handler
++
++
++def plain_xml(data: bytes) -> None:
++    """Refuse what the conversion doesn't read (T041's review, part 2, nit 1): a byte-order mark, bytes that aren't
++    UTF-8, a NUL, a declared encoding other than UTF-8, a document type declaration or an entity however it is
++    encoded, a processing instruction (an xml-stylesheet among them), or elements nested deeper than MAX_DEPTH. Expat
++    reads it as UTF-8 whatever it declares, and never reads a parameter entity."""
++    if data.startswith(
++        (b"\xef\xbb\xbf", b"\xff\xfe", b"\xfe\xff", b"\x00\x00\xfe\xff")
++    ):
++        raise CannotRead(
++            "the SVG starts with a byte-order mark; export it as UTF-8 without one"
++        )
++    try:
++        text = data.decode("utf-8")
++    except UnicodeDecodeError:
++        raise CannotRead("the SVG isn't UTF-8; export it as UTF-8") from None
++    if "\x00" in text:
++        raise CannotRead("the SVG holds a NUL, as UTF-16 does; export it as UTF-8")
++    declared = XML_ENCODING.match(text)
++    if declared and declared.group(1).lower() not in ("utf-8", "utf8"):
++        raise CannotRead(
++            "the SVG declares an encoding other than UTF-8; export it as UTF-8"
++        )
++    if "<!DOCTYPE" in text or "<!ENTITY" in text:
++        raise CannotRead(DTD)
++    parser = expat.ParserCreate("UTF-8")
++    parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
++    parser.StartDoctypeDeclHandler = _refuse(DTD)
++    parser.EntityDeclHandler = _refuse(DTD)
++    parser.UnparsedEntityDeclHandler = _refuse(DTD)
++    parser.NotationDeclHandler = _refuse(DTD)
++    parser.ExternalEntityRefHandler = _refuse(DTD)
++    parser.ProcessingInstructionHandler = _refuse(
++        "the SVG holds a processing instruction, which the check doesn't read; export a plain SVG"
++    )
++    depth = 0
++
++    def start(*_: object) -> None:
++        nonlocal depth
++        depth += 1
++        if depth > MAX_DEPTH:
++            raise CannotRead(f"the SVG nests elements deeper than {MAX_DEPTH}")
++
++    def end(*_: object) -> None:
++        nonlocal depth
++        depth -= 1
++
++    parser.StartElementHandler = start
++    parser.EndElementHandler = end
++    try:
++        parser.Parse(data, True)
++    except expat.ExpatError:
++        raise CannotRead("the SVG isn't well-formed XML") from None
++
++
++def uncomment(css: str) -> str | None:
++    """CSS without its comments, in linear time; None when a comment isn't closed."""
++    out, pos = [], 0
++    while (start := css.find("/*", pos)) >= 0:
++        end = css.find("*/", start + 2)
++        if end < 0:
++            return None
++        out.append(css[pos:start])
++        pos = end + 2
++    out.append(css[pos:])
++    return "".join(out)
++
++
++def declarations(style: str) -> list[tuple[str, str]]:
++    """A style attribute's (property, value) pairs, lower-cased, !important set aside; its comments already gone."""
++    out = []
++    for part in style.split(";"):
++        name, colon, value = part.partition(":")
++        if colon:
++            value = value.lower().replace("!important", "").strip()
++            out.append((name.strip().lower(), value))
++    return out
++
++
++def zero(value: str | None) -> bool:
++    try:
++        return value is not None and float(value.strip().rstrip("%")) == 0
++    except ValueError:
++        return False
++
++
++def hidden(element: ET.Element, styles: list[tuple[str, str]]) -> bool:
++    """Hidden by an attribute or by its style: display none, visibility hidden or collapse, or opacity 0."""
++    shown = {name: value for name, value in styles}
++    display = shown.get("display", (element.get("display") or "").strip().lower())
++    visibility = shown.get(
++        "visibility", (element.get("visibility") or "").strip().lower()
++    )
++    opacity = shown.get("opacity", element.get("opacity"))
++    return display == "none" or visibility in ("hidden", "collapse") or zero(opacity)
++
++
++def clipped(element: ET.Element, styles: list[tuple[str, str]]) -> bool:
++    """Clipped or masked, by an attribute or by its style, so the tool draws only part of what it holds."""
++    for name in ("clip-path", "mask"):
++        value = element.get(name)
++        if value is not None and value.strip().lower() != "none":
++            return True
++    return any(
++        name in ("clip-path", "mask") and value != "none" for name, value in styles
++    )
 +
 +
 +def from_svg(svg: Path) -> tuple[list[int | float], list[str], int, int]:
 +    """The root's viewBox, each path's d in document order, how many other elements were left behind, and how many of
-+    those were images. CannotRead for an SVG it can't read or a path under a transform."""
++    those were images. CannotRead for an SVG it can't read, or one holding what the Author can't see in the tracing
++    tool as it will be copied (T041's review, part 2, I-4): a path under a transform, under defs, clipPath, mask,
++    symbol, pattern, marker, metadata, switch, or foreignObject, or under a foreign element; a hidden element, or one
++    under it; a use or a nested svg; a style with a transform; a style element that can hide or move what it draws;
++    and a clip or a mask. Each is counted, and the report names the counts alone."""
++    data = read_svg(svg)
++    plain_xml(data)
 +    try:
-+        data = svg.read_bytes()
-+    except OSError:
-+        raise CannotRead("the SVG can't be read") from None
-+    if b"<!DOCTYPE" in data or b"<!ENTITY" in data:
-+        raise CannotRead(
-+            "the SVG has a document type declaration, which the check doesn't read; export a plain SVG"
-+        )
-+    try:
-+        root = ET.fromstring(data)
++        builder = ET.XMLParser(encoding="utf-8")
++        builder.feed(data)
++        root = builder.close()
 +    except (ET.ParseError, ValueError):
 +        raise CannotRead("the SVG isn't well-formed XML") from None
 +    if local(root.tag) != "svg":
@@ -470,46 +689,88 @@ index 0000000..2f53981
 +        raise CannotRead("the SVG's root has no viewBox of four numbers")
 +    paths: list[str] = []
 +    other = images = 0
-+
-+    def walk(element: ET.Element, transformed: bool) -> None:
-+        nonlocal other, images
-+        for child in element:
-+            under = transformed or child.get("transform") is not None
-+            kind = local(child.tag)
-+            if kind == "path" and child.get("d") is not None:
-+                if under:
-+                    raise CannotRead(
-+                        "a path sits under a transform, which the check doesn't apply; export with transforms applied"
-+                    )
-+                paths.append(child.get("d"))
++    counts = dict.fromkeys(REFUSALS, 0)
++    # Iteratively, in document order: (element, under a transform, under what the tool doesn't draw, is the root).
++    stack: list[tuple[ET.Element, bool, bool, bool]] = [(root, False, False, True)]
++    while stack:
++        element, transformed, unseen, is_root = stack.pop()
++        kind = local(element.tag)
++        raw = element.get("style") or ""
++        style = uncomment(raw)
++        if style is None or "\\" in raw:
++            counts["style"] += 1
++        styles = declarations(style or "")
++        sheet = "".join(element.itertext()) if kind == "style" else ""
++        if sheet:
++            readable = uncomment(sheet)
++            if readable is None or STYLE_ELEMENT.search(readable):
++                counts["style"] += 1
++        moved = "transform" in raw.lower() or "transform" in sheet.lower()
++        if moved:
++            counts["style transform"] += 1
++        if hidden(element, styles):
++            counts["hidden"] += 1
++        if clipped(element, styles):
++            counts["clipped"] += 1
++        if kind == "use" or (kind == "svg" and not is_root):
++            counts["use"] += 1
++        under = transformed or moved or element.get("transform") is not None
++        if kind == "path" and element.get("d") is not None:
++            if unseen:
++                counts["unseen path"] += 1
++            elif under:
++                counts["transformed path"] += 1
 +            else:
-+                other += 1
-+                images += kind == "image"
-+            walk(child, under)
-+
-+    if root.get("transform") is not None:
++                paths.append(element.get("d"))
++        elif is_root:
++            if under:
++                counts["root transform"] += 1
++        else:
++            other += 1
++            images += kind == "image"
++        below = unseen or kind is None or kind in UNSEEN
++        stack.extend((child, under, below, False) for child in reversed(element))
++    found = [REFUSALS[key](n) for key, n in counts.items() if n]
++    if found:
 +        raise CannotRead(
-+            "the svg element carries a transform, which the check doesn't apply"
++            "the SVG holds what the Author can't see in the tracing tool as it would be copied, so nothing was "
++            f"written: {'; '.join(found)}"
 +        )
-+    walk(root, False)
 +    return view_box, paths, other, images
 +
 +
 +def write_outline(folder: Path, doc: dict, name: str) -> Path:
-+    """The file, UTF-8 with LF line ends, two-space indents, the schema's field order, and a final newline."""
++    """The file, UTF-8 with LF line ends, two-space indents, the schema's field order, and a final newline. A write that
++    fails leaves no temporary file, and its reason names no path (T041's review, part 2, nit 2)."""
 +    text = (
 +        json.dumps(
 +            {k: doc[k] for k in FIELDS if k in doc}, indent=2, ensure_ascii=False
 +        )
 +        + "\n"
 +    )
++    try:
++        data = text.encode("utf-8")
++    except UnicodeEncodeError:
++        raise CannotRead(
++            "a value given on the command line isn't text UTF-8 can hold"
++        ) from None
 +    target = folder / name
-+    with tempfile.NamedTemporaryFile(
-+        dir=folder, prefix=".outline-", suffix=".tmp", delete=False
-+    ) as tmp:
-+        tmp.write(text.encode("utf-8"))
-+    os.chmod(tmp.name, 0o644)
-+    os.replace(tmp.name, target)
++    temporary = None
++    try:
++        with tempfile.NamedTemporaryFile(
++            dir=folder, prefix=".outline-", suffix=".tmp", delete=False
++        ) as tmp:
++            temporary = tmp.name
++            tmp.write(data)
++        os.chmod(temporary, 0o644)
++        os.replace(temporary, target)
++        temporary = None
++    except OSError:
++        raise CannotRead("the outline can't be written in the working folder") from None
++    finally:
++        if temporary is not None:
++            with contextlib.suppress(OSError):
++                os.unlink(temporary)
 +    return target
 +
 +
@@ -603,16 +864,22 @@ index 0000000..2f53981
 +    except CannotRead as exc:
 +        print(f"outline-check: can't check: {exc}")
 +        return 2
++    except (OSError, RecursionError, MemoryError):
++        # A failure the steps above don't name: exit 2, and the message holds no path (T041's review, part 2, nit 2).
++        print(
++            "outline-check: can't check: a file operation or the SVG's size failed; nothing was written"
++        )
++        return 2
 +
 +
 +if __name__ == "__main__":
 +    sys.exit(main())
 diff --git a/tools/gates/test/test_outline_check.py b/tools/gates/test/test_outline_check.py
 new file mode 100644
-index 0000000..75a9a08
+index 0000000000000000000000000000000000000000..65aa2f80e6a55499247fc830f403a69c0d499947
 --- /dev/null
 +++ b/tools/gates/test/test_outline_check.py
-@@ -0,0 +1,577 @@
+@@ -0,0 +1,902 @@
 +"""Tests for tools/gates/outline_check.py (spec 004 FR-024, FR-025, FR-032, FR-052, SC-013; contracts/intake-amendments.md
 +§10; tasks.md T038).
 +
@@ -625,7 +892,9 @@ index 0000000..75a9a08
 +from __future__ import annotations
 +
 +import hashlib
++import importlib.util
 +import json
++import os
 +import subprocess
 +import sys
 +from pathlib import Path
@@ -880,6 +1149,329 @@ index 0000000..75a9a08
 +    assert MARK not in done.stdout + done.stderr
 +    done = run(tmp_path, f"--{MARK}", "x")
 +    assert done.returncode == 2 and MARK not in done.stdout + done.stderr
++
++
++# --------------------------------------------------------------------------------------------------
++# --from-svg: what the Author can't see in the tracing tool (T041's review, part 2, I-4; §10, As built, after the
++# review). Each is refused, exit 2, with nothing written, and the report names counts, never the SVG's content.
++# --------------------------------------------------------------------------------------------------
++def refused(folder: Path, done: subprocess.CompletedProcess[str]) -> None:
++    out = done.stdout + done.stderr
++    assert done.returncode == 2, out
++    assert sorted(p.name for p in folder.iterdir()) == ["trace.svg"], out
++    assert MARK not in out and str(folder) not in out and "trace.svg" not in out
++    (line,) = [x for x in done.stdout.splitlines() if x.startswith("outline-check:")]
++    assert line.startswith("outline-check: can't check: "), out
++    assert "Traceback" not in out
++
++
++VISIBLE = f'<path d="{PATH_A}"/>'
++UNSEEN = [
++    f'<defs><path id="{MARK}" d="{PATH_B}"/></defs>',
++    f'<clipPath id="{MARK}"><path d="{PATH_B}"/></clipPath>',
++    f'<mask id="{MARK}"><path d="{PATH_B}"/></mask>',
++    f'<symbol id="{MARK}"><path d="{PATH_B}"/></symbol>',
++    f'<pattern id="{MARK}" width="4" height="4"><path d="{PATH_B}"/></pattern>',
++    f'<marker id="{MARK}"><path d="{PATH_B}"/></marker>',
++    f'<metadata><path id="{MARK}" d="{PATH_B}"/></metadata>',
++    f'<switch><g id="{MARK}"/><path d="{PATH_B}"/></switch>',
++    f'<foreignObject width="4" height="4"><path id="{MARK}" d="{PATH_B}"/></foreignObject>',
++    f'<x:layer xmlns:x="urn:{MARK}"><path d="{PATH_B}"/></x:layer>',
++    f'<g><x:layer xmlns:x="urn:{MARK}"><g><path d="{PATH_B}"/></g></x:layer></g>',
++]
++
++
++@pytest.mark.parametrize(
++    "body",
++    UNSEEN,
++    ids=[
++        "defs",
++        "clipPath",
++        "mask",
++        "symbol",
++        "pattern",
++        "marker",
++        "metadata",
++        "switch",
++        "foreignObject",
++        "foreign",
++        "under-a-foreign-ancestor",
++    ],
++)
++def test_a_path_the_tool_doesnt_draw_is_refused(tmp_path: Path, body: str) -> None:
++    done = from_svg(tmp_path, svg(f"{VISIBLE}\n{body}"))
++    refused(tmp_path, done)
++    assert "1 path under" in done.stdout
++
++
++HIDDEN = [
++    f'<g id="{MARK}" style="display:none"><path d="{PATH_B}"/></g>',
++    f'<g id="{MARK}" style="fill:#000; DISPLAY : None !important"><path d="{PATH_B}"/></g>',
++    f'<g id="{MARK}" style="display:/* a comment */none"><path d="{PATH_B}"/></g>',
++    f'<path id="{MARK}" display="none" d="{PATH_B}"/>',
++    f'<g id="{MARK}" visibility="hidden"><g><path d="{PATH_B}"/></g></g>',
++    f'<path id="{MARK}" style="visibility:collapse" d="{PATH_B}"/>',
++    f'<g id="{MARK}" opacity="0"><path d="{PATH_B}"/></g>',
++    f'<path id="{MARK}" style="opacity:0.0" d="{PATH_B}"/>',
++    f'<path id="{MARK}" style="opacity:0%" d="{PATH_B}"/>',
++    f'<rect id="{MARK}" style="display:none" width="4" height="4"/>',
++]
++
++
++@pytest.mark.parametrize(
++    "body",
++    HIDDEN,
++    ids=[
++        "style-display",
++        "style-display-cased",
++        "style-display-comment",
++        "attribute-display",
++        "attribute-visibility-on-an-ancestor",
++        "style-visibility",
++        "attribute-opacity",
++        "style-opacity",
++        "style-opacity-percent",
++        "a-hidden-element-with-no-path",
++    ],
++)
++def test_a_hidden_element_or_one_under_it_is_refused(tmp_path: Path, body: str) -> None:
++    done = from_svg(tmp_path, svg(f"{VISIBLE}\n{body}"))
++    refused(tmp_path, done)
++    assert "1 hidden element" in done.stdout
++
++
++@pytest.mark.parametrize(
++    "body",
++    [
++        f'<path id="{MARK}" d="{PATH_B}"/><use href="#{MARK}" x="40" y="0"/>',
++        f'<use xlink:href="#{MARK}"/>',
++        f'<svg x="40" y="0" viewBox="0 0 10 10"><path id="{MARK}" d="{PATH_B}"/></svg>',
++    ],
++    ids=["use", "use-xlink", "nested-svg"],
++)
++def test_a_use_or_a_nested_svg_is_refused(tmp_path: Path, body: str) -> None:
++    done = from_svg(tmp_path, svg(f"{VISIBLE}\n{body}"))
++    refused(tmp_path, done)
++    assert "1 use or nested svg" in done.stdout
++
++
++@pytest.mark.parametrize(
++    "body",
++    [
++        f'<g id="{MARK}" style="transform:translate(5px, 0)"><path d="{PATH_B}"/></g>',
++        f'<rect id="{MARK}" style="fill:#000;Transform: scale(2)" width="4" height="4"/>',
++        f'<path id="{MARK}" style="transform-origin:center" d="{PATH_B}"/>',
++        f"<style>/* {MARK} */ path {{ transform: scale(2) }}</style>",
++    ],
++    ids=[
++        "style-on-a-group",
++        "style-on-another-element",
++        "transform-origin",
++        "style-element",
++    ],
++)
++def test_a_style_with_a_transform_is_refused(tmp_path: Path, body: str) -> None:
++    done = from_svg(tmp_path, svg(f"{VISIBLE}\n{body}"))
++    refused(tmp_path, done)
++    assert "1 style with a transform" in done.stdout
++
++
++@pytest.mark.parametrize(
++    "body",
++    [
++        f"<style>/* {MARK} */ .a {{ display: none }}</style>",
++        f"<style>/* {MARK} */ .a {{ visibility: hidden }}</style>",
++        f"<style>/* {MARK} */ .a {{ opacity: 0 }}</style>",
++        f"<style>/* {MARK} */ .a {{ clip-path: url(#c) }}</style>",
++        f'<style>@import "{MARK}.css";</style>',
++        f'<g id="{MARK}" style="fill:\\23 000"><path d="{PATH_B}"/></g>',
++        f'<path id="{MARK}" clip-path="url(#c)" d="{PATH_B}"/>',
++        f'<g id="{MARK}" mask="url(#m)"><path d="{PATH_B}"/></g>',
++        f'<path id="{MARK}" style="clip-path:url(#c)" d="{PATH_B}"/>',
++    ],
++    ids=[
++        "style-element-display",
++        "style-element-visibility",
++        "style-element-opacity",
++        "style-element-clip",
++        "style-element-import",
++        "a-backslash-in-a-style",
++        "clip-path-attribute",
++        "mask-attribute",
++        "clip-path-style",
++    ],
++)
++def test_a_style_or_a_clip_that_can_hide_what_it_draws_is_refused(
++    tmp_path: Path, body: str
++) -> None:
++    done = from_svg(tmp_path, svg(f"{VISIBLE}\n{body}"))
++    refused(tmp_path, done)
++
++
++def test_each_kind_is_counted_in_one_report(tmp_path: Path) -> None:
++    body = "\n".join(
++        [
++            VISIBLE,
++            f'<defs><path d="{PATH_B}"/><path d="{PATH_B}"/></defs>',
++            f'<g style="display:none"><path d="{PATH_B}"/></g>',
++            f'<use href="#{MARK}"/>',
++            f'<g style="transform:scale(2)"><path d="{PATH_B}"/></g>',
++            f'<g transform="scale(2)"><path d="{PATH_B}"/></g>',
++        ]
++    )
++    done = from_svg(tmp_path, svg(body))
++    refused(tmp_path, done)
++    for part in (
++        "2 paths under",
++        "1 hidden element",
++        "1 use or nested svg",
++        "1 style with a transform",
++        "2 paths under a transform",
++    ):
++        assert part in done.stdout, done.stdout
++
++
++def test_an_inkscape_style_export_still_converts(tmp_path: Path) -> None:
++    # What the tracing tool writes around a visible trace: its namedview and metadata (foreign, with no path), an
++    # empty defs, a layer shown with display:inline, and a path's fill style; all left behind but the paths.
++    body = (
++        '<sodipodi:namedview xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" id="nv"/>\n'
++        '<defs id="defs1"/>\n'
++        '<metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/></metadata>\n'
++        f'<g style="display:inline" opacity="1"><path style="fill:#000000;stroke:none" d="{PATH_A}"/>'
++        f'<path d="{PATH_B}"/></g>'
++    )
++    done = from_svg(tmp_path, svg(body))
++    assert done.returncode == 0, done.stdout + done.stderr
++    doc = json.loads((tmp_path / "busy-sign.outline.json").read_text(encoding="utf-8"))
++    assert doc["paths"] == [PATH_A, PATH_B]
++
++
++# Nit 1: an encoding other than UTF-8, or any DTD, however it is spelled.
++@pytest.mark.parametrize(
++    "data",
++    [
++        TRACE.replace('encoding="UTF-8"', 'encoding="UTF-16"').encode("utf-16"),
++        TRACE.replace('encoding="UTF-8"', 'encoding="UTF-16"').encode("utf-16-le"),
++        TRACE.replace('encoding="UTF-8"', 'encoding="UTF-16"').encode("utf-16-be"),
++        (
++            '<?xml version="1.0" encoding="UTF-16"?>\n<!DOCTYPE svg [<!ENTITY a "aaaa">]>\n'
++            f'<svg xmlns="{SVG_NS}" viewBox="0 0 10 10"><path id="{MARK}" d="{PATH_A}"/></svg>\n'
++        ).encode("utf-16"),
++        TRACE.replace('encoding="UTF-8"', 'encoding="ISO-8859-1"').encode("utf-8"),
++        b"\xef\xbb\xbf" + TRACE.encode("utf-8"),
++        TRACE.encode("utf-8").replace(b"traced", b"tr\xe9ced"),
++        (
++            '<?xml version="1.0"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" '
++            '"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n'
++            f'<svg xmlns="{SVG_NS}" viewBox="0 0 10 10"><path id="{MARK}" d="{PATH_A}"/></svg>\n'
++        ).encode(),
++        (
++            '<?xml version="1.0"?>\n<?xml-stylesheet href="hide.css" type="text/css"?>\n'
++            f'<svg xmlns="{SVG_NS}" viewBox="0 0 10 10"><path id="{MARK}" d="{PATH_A}"/></svg>\n'
++        ).encode(),
++    ],
++    ids=[
++        "utf-16-with-a-bom",
++        "utf-16-le-without",
++        "utf-16-be-without",
++        "utf-16-with-a-dtd",
++        "another-declared-encoding",
++        "a-utf-8-bom",
++        "not-utf-8",
++        "an-external-dtd",
++        "a-stylesheet-instruction",
++    ],
++)
++def test_an_svg_in_another_encoding_or_with_a_dtd_is_refused(
++    tmp_path: Path, data: bytes
++) -> None:
++    (tmp_path / "trace.svg").write_bytes(data)
++    done = run(tmp_path, "--from-svg", "trace.svg", *FIELDS)
++    refused(tmp_path, done)
++
++
++# Nit 2: failures that once escaped exit 2.
++def test_deep_nesting_exits_2_and_writes_nothing(tmp_path: Path) -> None:
++    for depth in (300, 5000):
++        done = from_svg(tmp_path, svg("<g>" * depth + VISIBLE + "</g>" * depth))
++        refused(tmp_path, done)
++        assert "deeper than" in done.stdout
++
++
++def test_a_folder_it_cant_write_exits_2_naming_no_path(tmp_path: Path) -> None:
++    (tmp_path / "trace.svg").write_text(TRACE, encoding="utf-8")
++    tmp_path.chmod(0o555)
++    try:
++        done = run(tmp_path, "--from-svg", "trace.svg", *FIELDS)
++    finally:
++        tmp_path.chmod(0o755)
++    refused(tmp_path, done)
++    assert "can't be written" in done.stdout
++
++
++def test_an_output_it_cant_replace_exits_2_and_leaves_no_temporary_file(
++    tmp_path: Path,
++) -> None:
++    (tmp_path / "trace.svg").write_text(TRACE, encoding="utf-8")
++    (tmp_path / "busy-sign.outline.json").mkdir()
++    done = run(tmp_path, "--from-svg", "trace.svg", *FIELDS)
++    assert done.returncode == 2, done.stdout + done.stderr
++    assert sorted(p.name for p in tmp_path.iterdir()) == [
++        "busy-sign.outline.json",
++        "trace.svg",
++    ]
++    assert str(tmp_path) not in done.stdout + done.stderr
++    assert "Traceback" not in done.stderr
++
++
++def test_words_that_arent_text_exit_2_and_write_nothing(tmp_path: Path) -> None:
++    # Bytes that aren't UTF-8 on the command line reach Python as surrogates, which UTF-8 can't encode.
++    (tmp_path / "trace.svg").write_text(TRACE, encoding="utf-8")
++    args = [a.encode() for a in FIELDS]
++    args[args.index(WORDS.encode())] = b"busy \xff"
++    done = subprocess.run(
++        [sys.executable, str(SCRIPT), b"--from-svg", b"trace.svg", *args],
++        cwd=tmp_path,
++        capture_output=True,
++        check=False,
++        timeout=60,
++        env={"PATH": "/usr/bin:/bin", "LC_ALL": "C.UTF-8"},
++    )
++    out = done.stdout.decode("utf-8", "replace") + done.stderr.decode(
++        "utf-8", "replace"
++    )
++    assert done.returncode == 2, out
++    assert sorted(p.name for p in tmp_path.iterdir()) == ["trace.svg"], out
++    assert "Traceback" not in out
++
++
++# Nit 3: a regular file, within the size cap.
++def test_an_svg_that_isnt_a_regular_file_exits_2(tmp_path: Path) -> None:
++    os.mkfifo(tmp_path / "fifo.svg")
++    (tmp_path / "real.svg").write_text(TRACE, encoding="utf-8")
++    (tmp_path / "link.svg").symlink_to(tmp_path / "real.svg")
++    (tmp_path / "folder.svg").mkdir()
++    for name in ("fifo.svg", "link.svg", "folder.svg", "/dev/zero"):
++        done = run(tmp_path, "--from-svg", name, *FIELDS)
++        assert done.returncode == 2, (name, done.stdout + done.stderr)
++        assert "isn't a regular file" in done.stdout, (name, done.stdout)
++        assert not (tmp_path / "busy-sign.outline.json").exists()
++
++
++def test_an_svg_over_the_size_cap_exits_2(tmp_path: Path) -> None:
++    spec = importlib.util.spec_from_file_location("outline_check_cap", SCRIPT)
++    assert spec and spec.loader
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    assert module.MAX_SVG_BYTES == 16 * 1024 * 1024
++    big = tmp_path / "trace.svg"
++    with big.open("wb") as out:
++        out.write(TRACE.encode("utf-8"))
++        out.truncate(module.MAX_SVG_BYTES + 1)
++    done = run(tmp_path, "--from-svg", "trace.svg", *FIELDS)
++    refused(tmp_path, done)
++    assert f"larger than {module.MAX_SVG_BYTES:,} bytes" in done.stdout
 +
 +
 +# --------------------------------------------------------------------------------------------------
