@@ -476,9 +476,11 @@ function standInRenderer(): Real & { renderer: object } {
 type Fault = "blocked" | "timed out" | "failing its integrity check" | "failing to decode";
 
 /** The page's fetch for a model under a fault: refused, never answered (aborted at the timeout), refused by the
- *  integrity check, or answered with bytes no glTF reader parses. */
+ *  integrity check, or answered with bytes no glTF reader parses. The status poller's GET /api/status, which these
+ *  runs' live source asks too (User Story 8), answers 404 as the local edge does, and isn't a model's URL. */
 function faulty(fault: Fault, urls: string[]): (url: string, init: RequestInit) => Promise<Response> {
   return (url, init) => {
+    if (url === "/api/status") return Promise.resolve({ status: 404, headers: new Headers() } as Response);
     urls.push(url);
     switch (fault) {
       case "blocked":

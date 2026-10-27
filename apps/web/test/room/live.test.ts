@@ -728,12 +728,16 @@ describe("with the poller wired: the first frame after a failure or a stale answ
     expect(calls.map((c) => c.at)).toEqual([0, 34_000]);
     v.clock.advance(1_000);
     expect(v.room.live.tier).toEqual({ tier: "unknown", row: 4, recheckAt: null });
+    // The first frame at or after 35 s draws it.
+    v.clock.advance(16);
     const log = frameLog(v);
-    expect(events(log, "tier").at(-1)).toMatchObject({ tier: "unknown", row: 4, t: 35_000 });
+    const stale = events(log, "tier").at(-1);
+    expect(stale).toMatchObject({ tier: "unknown", row: 4, t: 35_000 });
+    // Drawn on the first frame after the stale instant: the frame after the one the reduction followed.
     const left = events(log, "case").at(-1);
-    expect(left).toMatchObject({ plugged: false, mode: "3d" });
+    expect(left).toMatchObject({ plugged: false, mode: "3d", frame: (stale?.frame ?? Number.NaN) + 1 });
     expect(left?.t).toBeGreaterThanOrEqual(35_000);
-    expect((left?.t ?? Number.NaN) - 35_000).toBeLessThan(16);
+    expect((left?.t ?? Number.NaN) - 35_000).toBeLessThanOrEqual(16);
     expect(events(log, "case").at(-2)).toMatchObject({ plugged: true });
   });
 });
