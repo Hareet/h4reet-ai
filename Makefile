@@ -134,7 +134,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test secrets evals redteam=redteam-suite matrix image
+CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test secrets arrival evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -257,6 +257,32 @@ corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local
 # --ignore-gitleaks-allow, refusing while a .gitleaksignore could hold an entry at its source (research.md R-36).
 secrets: ## gitleaks over the unstaged and staged changes and every commit since main (plan §11)
 	bash tools/gates/secrets.sh
+
+# The arrival check (spec 003 FR-004; contracts/arrival-check.md): the main working tree's tools/gates/arrival_check.py,
+# never this checkout's, as the pre-commit hook and the gate run it, over every commit since main, with the policy read
+# from refs/heads/main; then the credits' rendering and the records' form. Until the Author applies spec 003's Phase 2
+# patch, the main tree has no check, so the gate reads PLANNED; a clone with no main branch has no range, so SKIP.
+arrival: ## The arrival check over every commit since main, from the main tree's copy, then the credits' check (spec 003)
+	@common="$$(git rev-parse --path-format=absolute --git-common-dir)" || exit 2; \
+	check="$$(dirname -- "$$common")/tools/gates/arrival_check.py"; \
+	if [ ! -f "$$check" ]; then echo "PLANNED (T011): the main working tree has no tools/gates/arrival_check.py until the Author applies spec 003's Phase 2 patch"; \
+	elif ! git show-ref --verify --quiet refs/heads/main; then echo "SKIP: no main branch in this clone, so no commits since main to check"; \
+	else $(PY_HOST) "$$check" --repo "$(CURDIR)" --range refs/heads/main..HEAD; fi
+	$(PY_HOST) scripts/assets/credits.py --check
+
+# The tools that make a studio file pass (spec 003 research R-03, R-04): scripts/assets/, by path through PY_HOST.
+# FILE comes from the command line only and reaches the script as "$$FILE", after --, so make never splices it in.
+assets-scrub: ## Rewrite one studio file to what the arrival check admits, and add the mark: FILE=<path> (spec 003)
+	@[ -n "$(call from_cli,FILE)" ] && [ -n "$$FILE" ] || { echo 'make assets-scrub needs FILE=<path> on the command line' >&2; exit 2; }
+	$(PY_HOST) scripts/assets/scrub.py -- "$$FILE"
+
+assets-credits: ## Render assets/CREDITS.md and docs/research/images/CREDITS.md from the records, in canonical form (spec 003)
+	$(PY_HOST) scripts/assets/credits.py
+
+# The credits' check alone, which writes nothing: the Author's gate runs it in its container phase, since
+# scripts/assets/ is agent-editable and the gate's host phase runs main's code only (ADR 0017). make arrival runs it too.
+credits-check: ## Check the credits' renderings and the records' form against the records, writing nothing (spec 003)
+	$(PY_HOST) scripts/assets/credits.py --check
 
 evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, the behavioral tier's status, and the docs' links
 	@case "$${ADAPTER:-fake}" in fake) ;; \
@@ -490,8 +516,9 @@ contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock
 .PHONY: contract-live
 
 # The history scan before the first push (spec 000 FR-042; plan §12; tasks.md T093), the Author's, in a full clone:
-# tools/gates/publish_check.py, through PY_HOST, runs gitleaks over every commit, and the denylist and corpus-check's
-# currency rule over every blob, path, and message. It exits 0 clean, 1 with findings, and 3 when it can't certify,
+# tools/gates/publish_check.py, through PY_HOST, runs gitleaks over every commit, the denylist and corpus-check's
+# currency rule over every blob, path, and message, and, from spec 003's Phase 2 patch, the arrival check over every
+# commit (arrival_check.py --history). It exits 0 clean, 1 with findings, and 3 when it can't certify,
 # and make shows any of those as error 2, so its summary line says which. It names commits, paths, lines, and rules,
 # never a phrase or a matching line.
 publish-check: ## (the Author) Every commit's secrets, denylisted phrases, and corpus amounts, before the first push (FR-042)
@@ -553,7 +580,7 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image compose-images pin-images \
+	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or

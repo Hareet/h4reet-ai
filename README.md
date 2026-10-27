@@ -78,4 +78,4 @@ Each stage ends by committing the artifact the next stage reads, and decisions a
 - [Data-flow disclosure](docs/data-flow-disclosure.md) · [Runbooks](docs/runbooks/) · [Recordings](docs/recordings/) · [Research notes](docs/research/)
 - [Contributing](CONTRIBUTING.md): we accept intents, not pull requests, from outside
 - [Security policy](SECURITY.md)
-- [MIT license](LICENSE)
+- Licenses: the [MIT license](LICENSE) for the code. The studio's assets in [`assets/`](assets/README.md), and the images published under `docs/research/images/`, are all rights reserved, with viewing and linking welcome: each directory's `LICENSE.md` says so ([ADR 0030](docs/adr/0030-media-license-and-ai-mark.md)).

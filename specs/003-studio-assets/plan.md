@@ -150,6 +150,7 @@ README.md                             [A] changed: the license line (FR-015)
   - **C:** the arms B and D caption in the note (R-09; FR-036).
 - **Output:** one line per finding, `<rule> <path> [@<commit>]: <reason>`, and the size table (FR-038). It never prints the bytes it matched.
 - **Where it runs:** the pre-commit hook, `make check`'s `arrival`, the Author's gate, and `make publish-check` (R-06).
+- **As built** (Phase 2): the contract's §3 lists the readings the implementation made where a rule's wording left room, such as M3's VP8X flags, M8's Blender side suffixes, and F3's first visit; the rule IDs are unchanged.
 
 The patch that brings it is group 2's. Its tests build their fixtures at run time: one passing file per format, and one failing file per rule.
 
