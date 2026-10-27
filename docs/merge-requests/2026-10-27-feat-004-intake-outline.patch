@@ -24,10 +24,10 @@ without recursion. A write that fails exits 2, naming no path, and leaves no tem
 
 diff --git a/tools/gates/outline_check.py b/tools/gates/outline_check.py
 new file mode 100755
-index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6741d2aa9
+index 0000000000000000000000000000000000000000..a0047656ef2f4c9a3cbc37778ba99961ee4f2721
 --- /dev/null
 +++ b/tools/gates/outline_check.py
-@@ -0,0 +1,846 @@
+@@ -0,0 +1,913 @@
 +#!/usr/bin/env -S python3 -I -B -X pycache_prefix=/dev/null
 +"""The outline check (spec 004 FR-024, FR-025, FR-032, FR-052, SC-013; contracts/intake-amendments.md §10; R-56).
 +
@@ -47,8 +47,10 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +refuses, counting each kind (T041's review, part 2, I-4): a path under a transform, by attribute or style (it doesn't
 +apply transforms: export with them applied); a path under defs, clipPath, mask, symbol, pattern, marker, metadata,
 +switch, foreignObject, or a foreign element; a hidden element (display, visibility, or opacity), or what sits under
-+one; a use or a nested svg; a style with a transform; a style element that can hide, clip, or bring in what it draws;
-+a clip or a mask. It reads only a regular file of at most MAX_SVG_BYTES, in UTF-8 with no byte-order mark, no other
++one; a use or a nested svg; a style with the transform property (text-transform and transform-origin aren't one); a
++style element that can hide, clip, or bring in what it draws; a clip or a mask; and a path its paint leaves undrawn,
++with no fill (none, transparent, or fill-opacity 0) and no stroke, since the outline keeps only its d and would draw
++it (T041's re-review). It reads only a regular file of at most MAX_SVG_BYTES, in UTF-8 with no byte-order mark, no other
 +declared encoding, no document type declaration or processing instruction, and elements nested at most MAX_DEPTH deep.
 +It refuses an output name with a folder in it or outside the room's ID grammar. The file is UTF-8 JSON with LF line
 +ends, two-space indents, the schema's field order, and a final newline, so the same inputs give the same bytes; a write
@@ -159,6 +161,10 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +# near it, and a larger file is refused before it is read into memory. Real traces nest a few levels deep.
 +MAX_SVG_BYTES = 16 * 1024 * 1024
 +MAX_DEPTH = 256
++TOO_LARGE = (
++    f"the SVG is larger than {MAX_SVG_BYTES:,} bytes; in the tracing tool, delete the embedded photo, and any hidden"
++    " layer, before saving"
++)
 +XML_ENCODING = re.compile(r"""<\?xml\s[^>]*?\bencoding\s*=\s*["']([^"']*)["']""")
 +DTD = "the SVG has a document type declaration, which the check doesn't read; export a plain SVG"
 +# What the tracing tool doesn't draw where it stands: a path under one of these, or under a foreign element, is refused.
@@ -176,7 +182,22 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +    )
 +)
 +# A style element that can hide, clip, or bring in what it draws (a transform is counted on its own).
-+STYLE_ELEMENT = re.compile(r"(?i)display|visibility|opacity|clip|mask|@import|\\")
++STYLE_ELEMENT = re.compile(
++    r"(?i)display|visibility|opacity|clip|mask|@import|\\"
++    r"|(?<![\w-])fill\s*:\s*(?:none|transparent)"
++)
++# A transform in a style sheet: the property itself, never text-transform or transform-origin (T041's re-review).
++SHEET_TRANSFORM = re.compile(r"(?i)(?<![\w-])transform\s*:")
++# The paint SVG's paths inherit, and its initial values: a path is drawn with a fill of black and no stroke.
++PAINT = ("fill", "fill-opacity", "stroke", "stroke-opacity", "stroke-width")
++INITIAL_PAINT = {
++    "fill": "black",
++    "fill-opacity": "1",
++    "stroke": "none",
++    "stroke-opacity": "1",
++    "stroke-width": "1",
++}
++LEADING_NUMBER = re.compile(r"\s*([+-]?(?:\d+\.?\d*|\.\d+))")
 +
 +
 +def _plural(n: int, one: str, many: str) -> str:
@@ -210,6 +231,11 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +        + " that can hide, clip, or bring in what it draws, or that the check can't read"
 +    ),
 +    "clipped": lambda n: _plural(n, "clip or mask", "clips or masks"),
++    "unpainted": lambda n: (
++        _plural(n, "path", "paths")
++        + " its paint leaves undrawn: no fill (none, transparent, or fill-opacity 0) and no stroke (none, absent,"
++        " transparent, of opacity 0, or of width 0)"
++    ),
 +}
 +
 +
@@ -535,12 +561,12 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +        if not stat.S_ISREG(info.st_mode):
 +            raise CannotRead("the SVG isn't a regular file")
 +        if info.st_size > MAX_SVG_BYTES:
-+            raise CannotRead(f"the SVG is larger than {MAX_SVG_BYTES:,} bytes")
++            raise CannotRead(TOO_LARGE)
 +        chunks, size = [], 0
 +        while chunk := os.read(handle, 1 << 20):
 +            size += len(chunk)
 +            if size > MAX_SVG_BYTES:
-+                raise CannotRead(f"the SVG is larger than {MAX_SVG_BYTES:,} bytes")
++                raise CannotRead(TOO_LARGE)
 +            chunks.append(chunk)
 +        return b"".join(chunks)
 +    except OSError:
@@ -663,13 +689,44 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +    )
 +
 +
++def _zero(value: str) -> bool:
++    """A number that reads 0 before any unit: "0", "0.0", "0px", "0%"."""
++    match = LEADING_NUMBER.match(value)
++    return bool(match) and float(match.group(1)) == 0
++
++
++def paint(element: ET.Element, styles: list[tuple[str, str]], parent: dict) -> dict:
++    """The element's fill and stroke, inherited from its parent, then its attributes, then its style."""
++    out = dict(parent)
++    own = {name: (element.get(name) or "").strip().lower() for name in PAINT}
++    own.update((name, value) for name, value in styles if name in PAINT)
++    for name, value in own.items():
++        if value and value != "inherit":
++            out[name] = value
++    return out
++
++
++def drawn(paint_of: dict) -> bool:
++    """Whether a path's paint draws it: a fill, or a stroke, that shows."""
++    fill = paint_of["fill"] not in ("none", "transparent") and not _zero(
++        paint_of["fill-opacity"]
++    )
++    stroke = (
++        paint_of["stroke"] not in ("none", "transparent")
++        and not _zero(paint_of["stroke-opacity"])
++        and not _zero(paint_of["stroke-width"])
++    )
++    return fill or stroke
++
++
 +def from_svg(svg: Path) -> tuple[list[int | float], list[str], int, int]:
 +    """The root's viewBox, each path's d in document order, how many other elements were left behind, and how many of
 +    those were images. CannotRead for an SVG it can't read, or one holding what the Author can't see in the tracing
 +    tool as it will be copied (T041's review, part 2, I-4): a path under a transform, under defs, clipPath, mask,
 +    symbol, pattern, marker, metadata, switch, or foreignObject, or under a foreign element; a hidden element, or one
-+    under it; a use or a nested svg; a style with a transform; a style element that can hide or move what it draws;
-+    and a clip or a mask. Each is counted, and the report names the counts alone."""
++    under it; a use or a nested svg; a style with the transform property; a path its paint leaves undrawn; a style
++    element that can hide or move what it draws; and a clip or a mask. Each is counted, and the report names the
++    counts alone."""
 +    data = read_svg(svg)
 +    plain_xml(data)
 +    try:
@@ -690,10 +747,13 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +    paths: list[str] = []
 +    other = images = 0
 +    counts = dict.fromkeys(REFUSALS, 0)
-+    # Iteratively, in document order: (element, under a transform, under what the tool doesn't draw, is the root).
-+    stack: list[tuple[ET.Element, bool, bool, bool]] = [(root, False, False, True)]
++    # Iteratively, in document order: (element, under a transform, under what the tool doesn't draw, is the root, the
++    # paint it inherits).
++    stack: list[tuple[ET.Element, bool, bool, bool, dict]] = [
++        (root, False, False, True, INITIAL_PAINT)
++    ]
 +    while stack:
-+        element, transformed, unseen, is_root = stack.pop()
++        element, transformed, unseen, is_root, inherited = stack.pop()
 +        kind = local(element.tag)
 +        raw = element.get("style") or ""
 +        style = uncomment(raw)
@@ -701,11 +761,13 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +            counts["style"] += 1
 +        styles = declarations(style or "")
 +        sheet = "".join(element.itertext()) if kind == "style" else ""
-+        if sheet:
-+            readable = uncomment(sheet)
-+            if readable is None or STYLE_ELEMENT.search(readable):
-+                counts["style"] += 1
-+        moved = "transform" in raw.lower() or "transform" in sheet.lower()
++        readable = uncomment(sheet) if sheet else ""
++        if readable is None or STYLE_ELEMENT.search(readable):
++            counts["style"] += 1
++        # The transform property alone, parsed, never text-transform or transform-origin (T041's re-review, part 2).
++        moved = any(name == "transform" for name, _ in styles) or bool(
++            SHEET_TRANSFORM.search(readable if readable is not None else sheet)
++        )
 +        if moved:
 +            counts["style transform"] += 1
 +        if hidden(element, styles):
@@ -715,11 +777,14 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +        if kind == "use" or (kind == "svg" and not is_root):
 +            counts["use"] += 1
 +        under = transformed or moved or element.get("transform") is not None
++        painted = paint(element, styles, inherited)
 +        if kind == "path" and element.get("d") is not None:
 +            if unseen:
 +                counts["unseen path"] += 1
 +            elif under:
 +                counts["transformed path"] += 1
++            elif not drawn(painted):
++                counts["unpainted"] += 1
 +            else:
 +                paths.append(element.get("d"))
 +        elif is_root:
@@ -729,7 +794,9 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +            other += 1
 +            images += kind == "image"
 +        below = unseen or kind is None or kind in UNSEEN
-+        stack.extend((child, under, below, False) for child in reversed(element))
++        stack.extend(
++            (child, under, below, False, painted) for child in reversed(element)
++        )
 +    found = [REFUSALS[key](n) for key, n in counts.items() if n]
 +    if found:
 +        raise CannotRead(
@@ -876,10 +943,10 @@ index 0000000000000000000000000000000000000000..a0b105ee7aff8ac38b1fe68e46a7f8a6
 +    sys.exit(main())
 diff --git a/tools/gates/test/test_outline_check.py b/tools/gates/test/test_outline_check.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..65aa2f80e6a55499247fc830f403a69c0d499947
+index 0000000000000000000000000000000000000000..45201e3dc1cdf068f4da10ad72da587e77b2442a
 --- /dev/null
 +++ b/tools/gates/test/test_outline_check.py
-@@ -0,0 +1,902 @@
+@@ -0,0 +1,971 @@
 +"""Tests for tools/gates/outline_check.py (spec 004 FR-024, FR-025, FR-032, FR-052, SC-013; contracts/intake-amendments.md
 +§10; tasks.md T038).
 +
@@ -1260,13 +1327,13 @@ index 0000000000000000000000000000000000000000..65aa2f80e6a55499247fc830f403a69c
 +    [
 +        f'<g id="{MARK}" style="transform:translate(5px, 0)"><path d="{PATH_B}"/></g>',
 +        f'<rect id="{MARK}" style="fill:#000;Transform: scale(2)" width="4" height="4"/>',
-+        f'<path id="{MARK}" style="transform-origin:center" d="{PATH_B}"/>',
++        f'<path id="{MARK}" style="fill:#000; TRANSFORM : rotate(5deg) !important" d="{PATH_B}"/>',
 +        f"<style>/* {MARK} */ path {{ transform: scale(2) }}</style>",
 +    ],
 +    ids=[
 +        "style-on-a-group",
 +        "style-on-another-element",
-+        "transform-origin",
++        "cased-and-important",
 +        "style-element",
 +    ],
 +)
@@ -1329,6 +1396,74 @@ index 0000000000000000000000000000000000000000..65aa2f80e6a55499247fc830f403a69c
 +        "2 paths under a transform",
 +    ):
 +        assert part in done.stdout, done.stdout
++
++
++# Inkscape's own style block on a path made by Object to Path or Stroke to Path (T041's re-review, part 2): its
++# text-transform:none is a text property, not a transform, and a fill with no stroke draws the path.
++INKSCAPE_STYLE = (
++    "font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;"
++    "line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;text-align:start;"
++    "writing-mode:lr-tb;text-anchor:start;text-transform:none;letter-spacing:0px;word-spacing:0px;"
++    "fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
++)
++
++
++@pytest.mark.parametrize(
++    "body",
++    [
++        f'<g style="{INKSCAPE_STYLE}"><path style="{INKSCAPE_STYLE}" d="{PATH_A}"/></g>',
++        f'<path style="transform-origin:center;text-transform:uppercase" d="{PATH_A}"/>',
++        f'<style>text {{ text-transform: none; font-family: sans-serif }}</style><path d="{PATH_A}"/>',
++        f'<path style="fill:none;stroke:#000;stroke-width:2" d="{PATH_A}"/>',
++        f'<g fill="none" stroke="#000"><path d="{PATH_A}"/></g>',
++        f'<g style="fill:none"><path style="fill:#000" d="{PATH_A}"/></g>',
++    ],
++    ids=[
++        "inkscape-text-transform",
++        "transform-origin-and-text-transform",
++        "style-element-text-transform",
++        "a-stroke-and-no-fill",
++        "an-inherited-stroke",
++        "a-fill-over-an-inherited-none",
++    ],
++)
++def test_a_drawn_path_with_a_text_property_or_a_stroke_converts(
++    tmp_path: Path, body: str
++) -> None:
++    done = from_svg(tmp_path, svg(body))
++    assert done.returncode == 0, done.stdout + done.stderr
++    doc = json.loads((tmp_path / "busy-sign.outline.json").read_text(encoding="utf-8"))
++    assert doc["paths"] == [PATH_A]
++
++
++@pytest.mark.parametrize(
++    "body",
++    [
++        f'<path id="{MARK}" style="fill:none;stroke:none" d="{PATH_B}"/>',
++        f'<path id="{MARK}" fill="none" d="{PATH_B}"/>',
++        f'<path id="{MARK}" style="fill:transparent" d="{PATH_B}"/>',
++        f'<path id="{MARK}" style="fill-opacity:0" d="{PATH_B}"/>',
++        f'<g id="{MARK}" style="fill:none"><g><path d="{PATH_B}"/></g></g>',
++        f'<g id="{MARK}" fill="none" stroke="#000"><path stroke="none" d="{PATH_B}"/></g>',
++        f'<path id="{MARK}" style="fill:none;stroke:#000;stroke-opacity:0" d="{PATH_B}"/>',
++        f'<path id="{MARK}" style="fill:none;stroke:#000;stroke-width:0" d="{PATH_B}"/>',
++        f"<style>/* {MARK} */ .a {{ fill: none }}</style>",
++    ],
++    ids=[
++        "fill-and-stroke-none",
++        "fill-none-no-stroke",
++        "fill-transparent",
++        "fill-opacity-0",
++        "an-inherited-fill-none",
++        "an-inherited-fill-none-and-its-own-stroke-none",
++        "stroke-opacity-0",
++        "stroke-width-0",
++        "a-style-element-with-fill-none",
++    ],
++)
++def test_a_path_its_paint_makes_invisible_is_refused(tmp_path: Path, body: str) -> None:
++    done = from_svg(tmp_path, svg(f"{VISIBLE}\n{body}"))
++    refused(tmp_path, done)
 +
 +
 +def test_an_inkscape_style_export_still_converts(tmp_path: Path) -> None:
@@ -1472,6 +1607,7 @@ index 0000000000000000000000000000000000000000..65aa2f80e6a55499247fc830f403a69c
 +    done = run(tmp_path, "--from-svg", "trace.svg", *FIELDS)
 +    refused(tmp_path, done)
 +    assert f"larger than {module.MAX_SVG_BYTES:,} bytes" in done.stdout
++    assert "delete the embedded photo" in done.stdout
 +
 +
 +# --------------------------------------------------------------------------------------------------
