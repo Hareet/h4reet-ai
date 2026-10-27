@@ -93,6 +93,33 @@ def test_the_committed_product_suite_passes_on_fake(
     assert "1 passed, 0 failed" in capsys.readouterr().out
 
 
+def test_the_committed_narration_suite_passes_on_fake(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Spec 002's narration cases (contracts/narration.md §2, N5): one per script, two per resume item."""
+    assert run.main(["--suite", "narration", "--adapter", "fake"]) == 0
+    out = capsys.readouterr().out
+    assert ", 0 failed" in out
+    passed = int(out.rsplit("evals narration (fake): ", 1)[1].split(" passed")[0])
+    assert passed >= 2 and passed % 2 == 0
+
+
+@pytest.mark.parametrize("adapter", ["local", "bedrock"])
+def test_the_narration_suite_runs_on_the_fake_adapter_only(
+    adapter: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A narration case is never sent to a stack's /hello or charged to prod's meter (contracts/narration.md §2)."""
+
+    def never(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the narration suite reached a real adapter")
+
+    monkeypatch.setattr(run, "local_adapter", never)
+    monkeypatch.setattr(run, "bedrock_adapter", never)
+    argv = ["--suite", "narration", "--adapter", adapter]
+    assert run.main(argv + (["--stack", "dev"] if adapter == "local" else [])) == 2
+    assert "runs on the fake adapter only" in capsys.readouterr().err
+
+
 def test_scoring_is_deterministic() -> None:
     case = {
         "id": "x",

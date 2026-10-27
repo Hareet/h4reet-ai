@@ -9,6 +9,7 @@ exists, and a page of edge's own when web doesn't answer.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -100,6 +101,34 @@ def test_the_events_beacon_goes_to_the_gateway_post_only_capped_and_limited() ->
         assert headers[name] == "", name
     assert headers["x-request-id"] == "$request_id"
     assert events.one("proxy_read_timeout").args == ["10s"]
+
+
+def test_events_reach_the_gateway_only_through_the_sites_limited_location() -> None:
+    # x000 forwards everything else to the gateway, with neither the events' rate limit nor their 512-byte cap, so it
+    # answers the room's routes itself, as the gateway answers an unknown route (room-events.md §2; review, item 1).
+    api = edge.SERVERS["8080"]
+    assert not [loc for loc in api.all("location") if loc.args[0] in ("~", "~*")]
+    (room,) = [loc for loc in api.all("location") if loc.args == ["/room/"]]
+    assert not room.all("proxy_pass")
+    status, body = room.one("return").args
+    assert status == "404"
+    assert json.loads(body.replace("$request_id", "ab" * 16)) == {
+        "error": "not_found",
+        "request_id": "ab" * 16,
+    }
+    assert room.one("default_type").args == ["application/json"]
+    headers = {d.args[0]: d.args[1:] for d in room.all("add_header")}
+    assert headers["Cache-Control"] == ["no-store", "always"]
+    assert headers["X-Content-Type-Options"] == ["nosniff", "always"]
+    assert headers["X-Request-Id"] == ["$request_id", "always"]
+    # With no regex location, nginx's longest matching prefix wins: /room/events, and every spelling nginx normalizes
+    # to it (//room/events, /room/./events, /room/%65vents), lands in /room/, never in the proxied /.
+    prefixes = [
+        loc.args[0] for loc in api.all("location") if not loc.args[0].startswith("@")
+    ]
+    assert (
+        max((p for p in prefixes if "/room/events".startswith(p)), key=len) == "/room/"
+    )
 
 
 def test_the_events_limit_is_one_zone_per_stack() -> None:

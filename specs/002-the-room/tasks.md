@@ -82,22 +82,22 @@ description: "Task list for spec 002, The Room"
 
 ### Tests for User Story 1 (first)
 
-- [ ] T021 [P] [US1] `apps/web/test/content/citations.test.ts` with fixture corpora under `apps/web/test/fixtures/corpus/`: one failing case per rule C1–C9, including a quote in a span whose own tag is insufficient on a line where another sentence's tag is sufficient (C3, C4), and display text holding a "Do not claim" phrase, the surname, and a fixture private-denylist phrase, the last reported by source line without the phrase (C9); a clean source passing, per contracts/resume-source.md §2
-- [ ] T022 [P] [US1] `apps/web/test/content/slots.test.ts`: a filled, public-safe slot renders its phrasing; an empty one renders its fallback or nothing; no estimate, per contracts/resume-source.md §2
-- [ ] T023 [P] [US1] `apps/web/test/lock.test.ts`: a changed cited file fails with its path; an uncited change doesn't, per contracts/resume-source.md §3 and FR-016
-- [ ] T024 [P] [US1] `apps/web/test/pdf.test.ts`: the extracted text (pdf.js, pinned) holds each item's filled text once, in order; the catalog has `MarkInfo/Marked`, a `StructTreeRoot`, `Lang en-US`, and `DisplayDocTitle`; `Info` holds only `Title` and `Author`, with no `CreationDate`, `ModDate`, `Producer`, or `Creator`, and the file has no XMP metadata stream (no `xmp:CreatorTool`, no `pdf:Producer`); the same source and policy build the same bytes; the header follows FR-017's rule from the policy directory's `resume-header.json`, per contracts/resume-source.md §4
-- [ ] T025 [P] [US1] `apps/web/test/ui/resume.test.ts` (jsdom, axe-core): the interactive resume's items are buttons in a list; "Download (PDF)" links the built file; the choice screen's PDF link works without entering the room; 0 axe violations, per FR-010 and FR-018
+- [X] T021 [P] [US1] `apps/web/test/content/citations.test.ts` with fixture corpora under `apps/web/test/fixtures/corpus/`: one failing case per rule C1–C9, including a quote in a span whose own tag is insufficient on a line where another sentence's tag is sufficient (C3, C4), and display text holding a "Do not claim" phrase, the surname, and a fixture private-denylist phrase, the last reported by source line without the phrase (C9); a clean source passing, per contracts/resume-source.md §2
+- [X] T022 [P] [US1] `apps/web/test/content/slots.test.ts`: a filled, public-safe slot renders its phrasing; an empty one renders its fallback or nothing; no estimate, per contracts/resume-source.md §2
+- [X] T023 [P] [US1] `apps/web/test/lock.test.ts`: a changed cited file fails with its path; an uncited change doesn't, per contracts/resume-source.md §3 and FR-016
+- [X] T024 [P] [US1] `apps/web/test/pdf.test.ts`: the extracted text (pdf.js, pinned) holds each item's filled text once, in order; the catalog has `MarkInfo/Marked`, a `StructTreeRoot`, `Lang en-US`, and `DisplayDocTitle`; `Info` holds only `Title` and `Author`, with no `CreationDate`, `ModDate`, `Producer`, or `Creator`, and the file has no XMP metadata stream (no `xmp:CreatorTool`, no `pdf:Producer`); the same source and policy build the same bytes; the header follows FR-017's rule from the policy directory's `resume-header.json`, per contracts/resume-source.md §4
+- [X] T025 [P] [US1] `apps/web/test/ui/resume.test.ts` (jsdom, axe-core): the interactive resume's items are buttons in a list; "Download (PDF)" links the built file; the choice screen's PDF link works without entering the room; 0 axe violations, per FR-010 and FR-018
 
 ### Implementation for User Story 1
 
-- [ ] T026 [US1] `apps/web/build/content.ts`: parse `resume.yaml` with the `yaml` package, run C1–C9 (the forbidden list shared with narration's N3), fill slots, write `room-data.json`'s resume part and the lock, per contracts/resume-source.md §1–§4
-- [ ] T027 [US1] `apps/web/build/pdf.ts` with PDFKit (pinned from the npm registry): the tagged structure, the vendored font, `Title` and `Author` only, with PDFKit's default producer, creator, and creation date overridden and no XMP stream, per contracts/resume-source.md §4 and research.md R-06
-- [ ] T028 [P] [US1] `apps/web/fonts/`: one open-licensed font (its license file beside it), pinned by SHA-256 in a `fonts.lock`, used by both the site's CSS and the PDF
-- [ ] T029 [US1] `apps/web/src/resume/`: the interactive resume view, opened from the room's "Resume" and closed with Escape, focus returning to the button, per contracts/room-scene.md §1
-- [ ] T030 [US1] The first draft of `apps/web/content/resume.yaml`, from the corpus's "Role at a glance" and topic sections, every item cited, no number outside a slot, no forbidden phrase; filed with any facts slots its items need, unfilled, in `corpus/proposals/resume-<date>.md`, per contracts/resume-source.md §6 (agents never edit `corpus/` outside `proposals/`; the PDF's header isn't proposed there: it's `assets/policy/resume-header.json`, the Author's)
-- [ ] T031 [US1] `make test` runs the content check and the lock; `npm run content:lock -w apps/web` rewrites the lock, per FR-016
+- [X] T026 [US1] `apps/web/build/content.ts`: parse `resume.yaml` with the `yaml` package, run C1–C9 (the forbidden list shared with narration's N3), fill slots, write `room-data.json`'s resume part and the lock, per contracts/resume-source.md §1–§4
+- [X] T027 [US1] `apps/web/build/pdf.ts` with PDFKit (pinned from the npm registry): the tagged structure, the vendored font, `Title` and `Author` only, with PDFKit's default producer, creator, and creation date overridden and no XMP stream, per contracts/resume-source.md §4 and research.md R-06
+- [X] T028 [P] [US1] `apps/web/fonts/`: one open-licensed font (its license file beside it), pinned by SHA-256 in a `fonts.lock`, used by both the site's CSS and the PDF
+- [X] T029 [US1] `apps/web/src/resume/`: the interactive resume view, opened from the room's "Resume" and closed with Escape, focus returning to the button, per contracts/room-scene.md §1
+- [X] T030 [US1] The first draft of `apps/web/content/resume.yaml`, from the corpus's "Role at a glance" and topic sections, every item cited, no number outside a slot, no forbidden phrase; filed with any facts slots its items need, unfilled, in `corpus/proposals/resume-<date>.md`, per contracts/resume-source.md §6 (agents never edit `corpus/` outside `proposals/`; the PDF's header isn't proposed there: it's `assets/policy/resume-header.json`, the Author's)
+- [X] T031 [US1] `make test` runs the content check and the lock; `npm run content:lock -w apps/web` rewrites the lock, per FR-016
 - [ ] T032 [US1] **Author**: read the proposal and the draft; approve by hash when satisfied; optionally fill `full_name` and `contact` in `assets/policy/resume-header.json` on `main`, per quickstart §3
-- [ ] T033 [US1] Merge-request note `docs/merge-requests/<date>-feat-002-us1-resume.md`
+- [X] T033 [US1] Merge-request note `docs/merge-requests/<date>-feat-002-us1-resume.md`
 
 **Checkpoint**: the PDF exists, cited and checked, whatever the state of the local tier.
 
@@ -111,24 +111,24 @@ description: "Task list for spec 002, The Room"
 
 ### Tests for User Stories 2 and 5 (first)
 
-- [ ] T034 [P] [US2] `apps/web/test/ui/choice.test.ts`: nothing plays until both path and avatar are chosen; "Enter" is disabled until then; the four placeholder avatars; the disclosures and links present; no storage API is called (spies on `document.cookie`, `localStorage`, `sessionStorage`, `indexedDB`, `history`), per FR-001–FR-004
-- [ ] T035 [P] [US2] `apps/web/test/ui/handoff.test.ts` with a fake clock: at most 4.5 s (1 s under reduced motion; three 1.5 s frames in 2D); no control skips it; the live-region line; focus on "Read the resume now" at its end; "later" keeps the "Resume" button, per contracts/room-scene.md §3
-- [ ] T036 [P] [US5] `apps/web/test/room/quality.test.ts` with a simulated frame clock: steps 0 → 3 below the target, 2D below 24 frames a second at 3, never back up, one `mode_2d` event, per contracts/room-scene.md §4
-- [ ] T037 [P] [US5] `apps/web/test/ui/a11y.test.ts` (jsdom, axe-core): the tab order, visible focus, the canvas `aria-hidden`, the "In the room" list as the objects' equivalent, 44-pixel targets in the CSS, 0 axe violations on every screen, per contracts/room-scene.md §5
-- [ ] T038 [P] [US2] `apps/web/test/ui/talk.test.ts`: each object answers `topic_not_ready`; the text box answers `cannot_talk.unavailable`; the talk button announces `voice_unavailable` and moves focus without asking for the microphone; no request leaves but the events beacon, per contracts/room-conversation.md §3 and research.md R-14
-- [ ] T039 [P] [US2] `apps/web/test/room/objects.test.ts`: a raycast hit, a touch, and a list button each call `selectObject` with the same ID, per contracts/room-scene.md §2
+- [X] T034 [P] [US2] `apps/web/test/ui/choice.test.ts`: nothing plays until both path and avatar are chosen; "Enter" is disabled until then; the four placeholder avatars; the disclosures and links present; no storage API is called (spies on `document.cookie`, `localStorage`, `sessionStorage`, `indexedDB`, `history`), per FR-001–FR-004
+- [X] T035 [P] [US2] `apps/web/test/ui/handoff.test.ts` with a fake clock: at most 4.5 s (1 s under reduced motion; three 1.5 s frames in 2D); no control skips it; the live-region line; focus on "Read the resume now" at its end; "later" keeps the "Resume" button, per contracts/room-scene.md §3
+- [X] T036 [P] [US5] `apps/web/test/room/quality.test.ts` with a simulated frame clock: steps 0 → 3 below the target, 2D below 24 frames a second at 3, never back up, one `mode_2d` event, per contracts/room-scene.md §4
+- [X] T037 [P] [US5] `apps/web/test/ui/a11y.test.ts` (jsdom, axe-core): the tab order, visible focus, the canvas `aria-hidden`, the "In the room" list as the objects' equivalent, 44-pixel targets in the CSS, 0 axe violations on every screen, per contracts/room-scene.md §5
+- [X] T038 [P] [US2] `apps/web/test/ui/talk.test.ts`: each object answers `topic_not_ready`; the text box answers `cannot_talk.unavailable`; the talk button announces `voice_unavailable` and moves focus without asking for the microphone; no request leaves but the events beacon, per contracts/room-conversation.md §3 and research.md R-14
+- [X] T039 [P] [US2] `apps/web/test/room/objects.test.ts`: a raycast hit, a touch, and a list button each call `selectObject` with the same ID, per contracts/room-scene.md §2
 
 ### Implementation for User Stories 2 and 5
 
-- [ ] T040 [US2] `apps/web/src/choice/`: the choice screen and the visit object, per data-model.md §9
-- [ ] T041 [US2] `apps/web/src/room/scene.ts` and `objects.ts`: the Three.js scene with labeled placeholder geometry (the desk, laptop and screen, snowboard left, bicycle right, the window with artwork and its fence-and-tree view), the twin's figure, the visitor's placeholder avatar, raycasting; the 3D code in its own chunk loaded after the choice, per contracts/room-scene.md §2 and research.md R-11
-- [ ] T042 [US2] `apps/web/src/room/handoff.ts`, per contracts/room-scene.md §3
-- [ ] T043 [US5] `apps/web/src/room/quality.ts` and `flat.ts`: the controller, the WebGL 2 check before the 3D chunk, the 2D drawing with its buttons, the "2D view" control, context-loss handling, per contracts/room-scene.md §4
-- [ ] T044 [US5] `apps/web/src/room/a11y.ts` and the layout's CSS: the list, the live regions, focus, portrait framing from 320 pixels, per contracts/room-scene.md §5–§6
-- [ ] T045 [US2] `apps/web/src/talk/` and `apps/web/content/messages.yaml`: the text box, "Send", the talk button, and the fixed messages, per data-model.md §7 and contracts/room-conversation.md §3
-- [ ] T046 [US2] `room-manifest.json` from `apps/web/build/manifest.ts`: objects with `ready: false`, items, avatars, `placeholders: true`, event kinds; and `config/room-events.yaml` from the same source (kinds, object IDs, item IDs), committed, with `make test` failing when it's stale, per data-model.md §5 and contracts/room-events.md §3
+- [X] T040 [US2] `apps/web/src/choice/`: the choice screen and the visit object, per data-model.md §9
+- [X] T041 [US2] `apps/web/src/room/scene.ts` and `objects.ts`: the Three.js scene with labeled placeholder geometry (the desk, laptop and screen, snowboard left, bicycle right, the window with artwork and its fence-and-tree view), the twin's figure, the visitor's placeholder avatar, raycasting; the 3D code in its own chunk loaded after the choice, per contracts/room-scene.md §2 and research.md R-11
+- [X] T042 [US2] `apps/web/src/room/handoff.ts`, per contracts/room-scene.md §3
+- [X] T043 [US5] `apps/web/src/room/quality.ts` and `flat.ts`: the controller, the WebGL 2 check before the 3D chunk, the 2D drawing with its buttons, the "2D view" control, context-loss handling, per contracts/room-scene.md §4
+- [X] T044 [US5] `apps/web/src/room/a11y.ts` and the layout's CSS: the list, the live regions, focus, portrait framing from 320 pixels, per contracts/room-scene.md §5–§6
+- [X] T045 [US2] `apps/web/src/talk/` and `apps/web/content/messages.yaml`: the text box, "Send", the talk button, and the fixed messages, per data-model.md §7 and contracts/room-conversation.md §3
+- [X] T046 [US2] `room-manifest.json` from `apps/web/build/manifest.ts`: objects with `ready: false`, items, avatars, `placeholders: true`, event kinds; and `config/room-events.yaml` from the same source (kinds, object IDs, item IDs), committed, with `make test` failing when it's stale, per data-model.md §5 and contracts/room-events.md §3
 - [ ] T048 [US2] **Author**: quickstart §4: the visit, reload, the floor with the model server stopped (SC-001), the keyboard and screen-reader visits (SC-003), the phone and laptop frame rates (SC-004), 4G emulation (SC-005), the network log (SC-012)
-- [ ] T049 [US2] Merge-request note `docs/merge-requests/<date>-feat-002-us2-room.md`
+- [X] T049 [US2] Merge-request note `docs/merge-requests/<date>-feat-002-us2-room.md`
 
 **Checkpoint**: the room works end to end on its floor, with no model.
 
@@ -140,13 +140,13 @@ description: "Task list for spec 002, The Room"
 
 **Independent test**: quickstart §5; SC-006.
 
-- [ ] T050 [P] [US3] `apps/web/test/content/narration.test.ts`: N1–N4 on fixtures; one script per item and path required; the forbidden list assembled from fixture "Do not claim" sections; the surname rule, per contracts/narration.md §2
-- [ ] T051 [P] [US3] `apps/web/test/ui/narration.test.ts` with a fake clock: the first word within 1 s, 160 words a minute, the whole text in the live region, a new selection stopping the old, drafts hidden without `ROOM_DRAFTS=1`, per contracts/narration.md §4
-- [ ] T052 [US3] Extend `apps/web/build/content.ts` with the scripts' checks, their place in `room-data.json`, and the eval cases written to `evals/narration/cases/narration-<item>-<path>.yaml` (N5) with only public "Do not claim" phrases in `expect.not_contains`; `make evals` runs `--suite narration --adapter fake`, and `evals/run.py` refuses `--suite narration` with any other adapter, per contracts/narration.md §2
-- [ ] T053 [US3] `apps/web/src/narration/`: the display, per contracts/narration.md §4
-- [ ] T054 [US3] Draft one script per item and path, cited, from the corpus, filed in `corpus/proposals/narration-<date>.md` for the Author, per contracts/narration.md §1
+- [X] T050 [P] [US3] `apps/web/test/content/narration.test.ts`: N1–N4 on fixtures; one script per item and path required; the forbidden list assembled from fixture "Do not claim" sections; the surname rule, per contracts/narration.md §2
+- [X] T051 [P] [US3] `apps/web/test/ui/narration.test.ts` with a fake clock: the first word within 1 s, 160 words a minute, the whole text in the live region, a new selection stopping the old, drafts hidden without `ROOM_DRAFTS=1`, per contracts/narration.md §4
+- [X] T052 [US3] Extend `apps/web/build/content.ts` with the scripts' checks, their place in `room-data.json`, and the eval cases written to `evals/narration/cases/narration-<item>-<path>.yaml` (N5) with only public "Do not claim" phrases in `expect.not_contains`; `make evals` runs `--suite narration --adapter fake`, and `evals/run.py` refuses `--suite narration` with any other adapter, per contracts/narration.md §2
+- [X] T053 [US3] `apps/web/src/narration/`: the display, per contracts/narration.md §4
+- [X] T054 [US3] Draft one script per item and path, cited, from the corpus, filed in `corpus/proposals/narration-<date>.md` for the Author, per contracts/narration.md §1
 - [ ] T055 [US3] **Author**: read and approve the scripts by hash, per quickstart §5
-- [ ] T056 [US3] Merge-request note `docs/merge-requests/<date>-feat-002-us3-narration.md`
+- [X] T056 [US3] Merge-request note `docs/merge-requests/<date>-feat-002-us3-narration.md`
 
 ---
 

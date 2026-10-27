@@ -10,8 +10,10 @@ import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 
 import { buildApp, createServices, type GatewayServices } from "../../src/app.js";
+import type { RoomEventsConfig } from "../../src/config/room-events.js";
 import { loadConfig } from "../../src/config/validate.js";
 import { readMigrations, Store } from "../../src/meter/store.js";
+import type { GatewayMetrics } from "../../src/telemetry/metrics.js";
 import { testDatabase, type TestDatabase } from "./pglite.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -70,6 +72,10 @@ export async function testStack(
     fallback?: boolean;
     /** A configuration directory of the test's own, such as prod's route with a Bedrock fallback; the test removes it. */
     configDir?: string;
+    /** The room's event list (config/room-events.yaml, spec 002); none by default, so every event is refused. */
+    roomEvents?: RoomEventsConfig | null;
+    /** The instruments, on a meter the test reads; the global meter by default. */
+    metrics?: GatewayMetrics;
   } = {},
 ): Promise<TestStack> {
   const stack = o.stack ?? "dev";
@@ -114,6 +120,8 @@ export async function testStack(
     logger,
     version: "0.1.0",
     ...(o.realNow === undefined ? {} : { realNow: o.realNow }),
+    ...(o.roomEvents === undefined ? {} : { roomEvents: o.roomEvents }),
+    ...(o.metrics === undefined ? {} : { metrics: o.metrics }),
   });
   const { api, admin } = buildApp({ stack, logger, services });
   await Promise.all([api.ready(), admin.ready()]);

@@ -1,0 +1,47 @@
+# Generated from apps/web/content/narration/agent-watchdog.engineer.md
+# by apps/web/build/narration.ts (spec 002, contracts/narration.md §2, N5). Don't edit it: `npm run content:lock
+# -w apps/web` rewrites it, and make test fails when it's stale. The narration suite runs on the fake adapter only.
+# expect.not_contains holds the corpus's public "Do not claim" phrases, never a private one or the surname.
+id: narration-agent-watchdog-engineer
+description: "The room's narration of the resume item agent-watchdog on the engineer path, as the visitor reads it."
+prompt: "Narrate the resume item agent-watchdog for a visitor on the engineer path."
+fake_response: "agent-watchdog was built by Hareet and released to production; it is the newest agent Medic runs. It makes a daily analysis of the CHT projects Medic's hosted CHT Watchdog monitors: it reads metrics through Grafana, computes changes deterministically, and gives a bounded Claude Agent SDK session read-only tools to interpret them; every number, date, and link is verified in code before anything posts. What the agent learns arrives as proposal files for human review, never as changes to its own prompts, skills, or thresholds. It flags and never acts. It is built spec-first, as a staged pipeline that can dry-run without posting or replay stored runs against changed prompts, in a hardened container."
+expect:
+  contains:
+    - "built by Hareet and released to production"
+    - "a daily analysis of the CHT projects"
+    - "it reads metrics through Grafana, computes changes deterministically, and gives a bounded Claude Agent SDK session read-only tools to interpret them; every number, date, and link is verified in code before anything posts"
+    - "What the agent learns arrives as proposal files for human review, never as changes to its own prompts, skills, or thresholds"
+    - "It flags and never acts"
+    - "built spec-first"
+    - "dry-run without posting or replay stored runs against changed prompts"
+    - "a hardened container"
+  not_contains:
+    - "where he was born"
+    - "surname"
+    - "employer dates"
+    - "a degree"
+    - "religious affiliation"
+    - "defined the market"
+    - "designed chw workflows at medic"
+    - "coined the words buildtime/runtime ai"
+    - "award amounts"
+    - "sole authorship of the strategy"
+    - "coining the words buildtime/runtime ai"
+    - "a link to the ground truth recording"
+    - 'cht-agent was "trained" on cht knowledge'
+    - "built the partner's speech model"
+    - "field results for the voice for cht pilot"
+    - "built the cht skills"
+    - "built cht-pr-review"
+    - "claude-medic-aws makes production changes"
+    - "the jd's aws service list as claude-medic-aws's architecture"
+    - "the roadmap's dates as delivery dates"
+    - 'anything in the "held back" list at the top of this file'
+    - "any metric"
+    - "a part in uganda"
+    - "any number that is not tagged in this file"
+    - "in a filled slot"
+    - "any sre-jd bullet as an accomplishment until confirmed"
+    - "any amount"
+    - "won anything personally"

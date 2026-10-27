@@ -1,6 +1,7 @@
 // The gateway's two listeners and its startup order (plan §5.1; contracts/gateway-http.md §1; operator-admin.md §1).
 //
-// - The api listens on 8080: POST /hello, GET /health, and GET /health/live.
+// - The api listens on 8080: POST /hello, GET /health, and GET /health/live; and spec 002's POST /room/events, the
+//   room's usage events, which reads config/room-events.yaml as server.ts loaded it (routes/room-events.ts).
 // - The admin listener listens on 8081. Authentication comes first, before anything else (operator-admin.md §1.1),
 //   and until it exists (tasks.md T055) every request there is unauthenticated, so every answer is 401.
 // - Startup: validate the environment and the configuration (exit 78 on failure), build the route's adapters
@@ -30,6 +31,7 @@ import {
   type StartupRefusal,
 } from "./config/validate.js";
 import { validateGatewayEnv } from "./config/validate-env.js";
+import type { RoomEventsConfig, RoomEventsLoad } from "./config/room-events.js";
 import { GatewayClock } from "./core/clock.js";
 import { Gateway } from "./core/gateway.js";
 import { ClientCap } from "./core/limits.js";
@@ -47,6 +49,7 @@ import {
 import { registerAdmin } from "./routes/admin.js";
 import { registerHealth, registerHealthLive } from "./routes/health.js";
 import { registerHello } from "./routes/hello.js";
+import { registerRoomEvents } from "./routes/room-events.js";
 import { edgePeer, type ForwardedBy } from "./core/edge.js";
 import { GatewayMetrics } from "./telemetry/metrics.js";
 import { annotateServerSpan, noteErrorType } from "./telemetry/otel.js";
@@ -163,6 +166,8 @@ export interface GatewayServices {
   forwardedBy: ForwardedBy;
   /** GATEWAY_STATE_DIR: the journal and the incident drafts. */
   stateDir: string;
+  /** Spec 002's event list, config/room-events.yaml; null when it was missing or invalid: every event is refused. */
+  roomEvents: RoomEventsConfig | null;
 }
 
 /** GATEWAY_STATE_DIR, which compose sets (env-files.md §4): the journal and the incident drafts live under it. */
@@ -183,6 +188,8 @@ export interface ServiceOptions {
   realNow?: () => number;
   /** Which peer is edge; by default the `edge` service's addresses, looked up on the stack's network. */
   forwardedBy?: ForwardedBy;
+  /** Spec 002's event list; none by default, so every usage event is refused. */
+  roomEvents?: RoomEventsConfig | null;
 }
 
 /**
@@ -299,6 +306,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     realNow,
     forwardedBy: opts.forwardedBy ?? edgePeer(),
     stateDir,
+    roomEvents: opts.roomEvents ?? null,
   };
 }
 
@@ -328,6 +336,7 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       realNow: s.realNow,
       forwardedBy: s.forwardedBy,
     });
+    registerRoomEvents(api, { events: s.roomEvents, metrics: s.metrics });
   }
   api.setNotFoundHandler(async (req, reply) => reply.code(404).send({ error: "not_found", request_id: req.id }));
 
@@ -386,6 +395,11 @@ export interface StartOptions {
   /** The adapter factories; every module in adapters/ by default. */
   factories?: ReadonlyMap<string, AdapterFactory>;
   now?: () => number;
+  /**
+   * Spec 002's config/room-events.yaml, as server.ts read it from the config directory. Missing or invalid, the
+   * gateway still starts, logs room_events.unavailable, and refuses every usage event; absent, it refuses them too.
+   */
+  roomEvents?: RoomEventsLoad;
 }
 
 export interface RunningGateway {
@@ -438,6 +452,15 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
   const envClass = ENV_CLASSES.find((c) => c === env.H4_ENV);
   if (!routing || !prices || !envClass) throw new Error("validated configuration is incomplete");
 
+  // Spec 002's event list never stops the gateway: without it, every usage event is refused (room-events.md §3).
+  const roomEvents = opts.roomEvents;
+  if (roomEvents !== undefined && !roomEvents.ok) {
+    logger.warn(
+      { event: "room_events.unavailable", reason: roomEvents.reason, path: roomEvents.path },
+      "The room's event list is missing or invalid, so every usage event is refused.",
+    );
+  }
+
   // 2. The route's adapters, and the services around them; then the store: the first attempt now, retries in the
   //    background while it is down.
   const store = new Store({
@@ -461,6 +484,7 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
       logger,
       version: opts.version,
       ...(opts.factories === undefined ? {} : { factories: opts.factories }),
+      roomEvents: roomEvents?.ok === true ? roomEvents.config : null,
     });
   } catch (err) {
     await store.close();

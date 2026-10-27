@@ -38,9 +38,9 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 |---|---|---|
 | `id` | string | `^[a-z][a-z0-9-]{1,40}$`, unique across the source; it's the item's ID in events, scripts, and the manifest |
 | `text` | string | display text, at most 400 characters. Any digit must sit inside a `{{slot:<id>}}` (FR-014). No "we" without its expansion (the corpus's rule) |
-| `claims[]` | list, at least one | each `{file, quote}`. `file` is a path under `corpus/` (no `intake/`, `proposals/`, or `facts/`); `quote` is at least 12 characters, found verbatim in one sentence of that file |
+| `claims[]` | list, at least one | each `{file, quote}`. `file` is one of the corpus's topic files, `corpus/NN-<topic>.md` (no `intake/`, `proposals/`, or `facts/`, and not `README.md` or `INTAKE.md`); `quote` is at least 12 characters, found verbatim in one sentence of that file |
 | `slots[]` | list | the slot IDs `text` uses; each must exist in `corpus/facts/*.yaml` |
-| `verb` | string, optional | for a role claim, one of the corpus's ownership verbs (built, designed, co-authored, sourced, sponsored, AI system architect, led, was part of a team that); the check requires it to appear in `text` and in a cited sentence (FR-015) |
+| `verb` | string, optional | for a role claim, one of the corpus's ownership verbs (built, designed, co-authored, sourced, sponsored, AI system architect, led, was part of a team that), or "architected", the ruling `02` gives the CHT 4.0 architecture; the check requires it to appear in `text` and in a cited sentence (FR-015) |
 
 **A citation is sufficient** when the cited sentence's own tag, the one that opens its span on the line, is one of `[A …]`, `[A-DOC …]`, `[A-BIO]`, `[A-CHAT]`, `[A-NOTES]`, or `[C]`. A sentence tagged only `[P]`, `[A-JD]`, or `[A-SRE-JD]` is sufficient for a fact about a system or organization, never for a claim with `verb`. A `[?]` sentence is never sufficient. No sentence under a "Do not claim" heading is citable.
 
@@ -56,7 +56,8 @@ Phase 1 output of `/speckit-plan`. Nothing here is stored at run time on the ser
 | Front matter: `path` | `engineer` or `non-engineer`, matching the file name |
 | Front matter: `claims[]` | as an item's |
 | Front matter: `slots[]` | as an item's |
-| Body | plain text, at most 900 characters (about 45 seconds at 160 words a minute), in the twin's first person about the Author in the third person, as the corpus's Golden Q&A does; any digit inside a slot |
+| (its verb) | none of its own: the item's `verb` sets C4's bar for both its scripts' citations, and the words needn't say it; every ownership or act verb they do say is one a cited sentence says as an act, and no ruling annotation is cited or read out (N1) |
+| Body | plain text after a blank line, at most 900 characters as written (about 45 seconds at 160 words a minute), in the twin's first person about the Author in the third person, as the corpus's Golden Q&A does; any digit inside a slot |
 
 **Required:** one script for every item on each path (FR-016). **The forbidden-claim check** fails a script that contains any phrase from the forbidden list ([contracts/narration.md](contracts/narration.md) §2), which the build assembles from each corpus file's "Do not claim" section, the surname rule, and the private denylist when it can read it. Private phrases are never written into a committed file.
 
@@ -92,9 +93,10 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | `built_from` | the commit, `resume.lock.json`'s digest, and the policy files' digest (the approvals and the PDF header, as read from `main`) |
 | `published` | `{path, sha256}` for each content file the build published, and `draft: true` on a draft a drafts build shows; the gate's content check holds each to the tree's digest and `main`'s approvals, and scans `dist/` for any unapproved file's text whatever this says |
 | `drafts` | the paths of draft files, empty for a release |
-| `header` | the room's header |
-| `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), and per path `{words, approved}` |
-| `messages` | the fixed messages (§7) |
+| `resume_state` | what the build published from the resume's source: `approved`; `draft`, a drafts build's, under the banner; `withheld`, a draft in a build without drafts, so no header and no items; or `absent` |
+| `header` | the room's header, `{name, lines[]}` with slots filled, and its `source` file and that file's `sha256`; `null` when withheld |
+| `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), with its `source` file and that file's `sha256`, and `narration: {engineer, non-engineer}`, each `{words, approved, source, sha256}` with its slots filled, or `null` where a build without drafts left a draft out (Phase 5); no sections when withheld, so no narration |
+| `messages` | not written: the fixed messages (§7) are bundled into the page at build instead, so showing one makes no request (plan §4, group 4) |
 
 **`room-manifest.json`:**
 

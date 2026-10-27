@@ -25,14 +25,20 @@ COPY apps/web/package.json apps/web/
 RUN npm ci --ignore-scripts -w apps/web
 COPY tsconfig.base.json ./
 COPY docs/data-flow-disclosure.md docs/
+# The resume's citation check reads the corpus it cites (build/content.ts). .dockerignore keeps corpus/intake/private,
+# the Author's denylist and uncleared sources, out of every context, so C9 here checks the public list only.
+COPY corpus corpus
 COPY apps/web apps/web
 COPY --from=policy / /src/policy/
 # ROOM_DRAFTS is 1 for the -drafts images of dev and dev-cpu, and empty for prod's (contracts/web-serving.md §1).
 # ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else. --ignore-scripts keeps a checkout's
 # prebuild (build/policy.ts, which reads main with git) from running here: the context already holds main's policy.
 ARG ROOM_DRAFTS=
+# dist/resume.pdf.txt, the PDF's text, is for the gate's scan of dist/: with the PDF's full header filled it would put
+# the name and contact in crawlable plain text, so it never reaches the runtime stage (nginx.conf refuses it as well).
 RUN ROOM_DRAFTS="$ROOM_DRAFTS" ROOM_POLICY_DIR=/src/policy npm run --ignore-scripts build -w apps/web \
- && printf 'ok\n' > apps/web/dist/healthz
+ && printf 'ok\n' > apps/web/dist/healthz \
+ && rm -f apps/web/dist/*.pdf.txt
 
 # ---- runtime: nginx, unprivileged, with the built site and its own configuration ----
 FROM ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
