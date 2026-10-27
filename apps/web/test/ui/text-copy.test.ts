@@ -2,8 +2,9 @@
 // room", src/room/text-copy.ts, built from the index's copy[] by reference, in its order: a section headed by the UI
 // word around.heading; each switch's label and the sentence of the tier the room shows, tier.not-live while nothing
 // applies another, replaced in place by setTier, with no live region; the fixed lines the index lists, but "Paused at"
-// only while paused; and a face's words only from its renderer's own word list, so a face is left out while it has
-// none (T183, T184), as the sign's figures are. src/room/layout.ts places it after the conversation panel and outside
+// only while paused; and a face's words only from its renderer's own word list (spec 004, T183, T184), so a face bound
+// to room text is left out until its words come, and the sign's figures wait for their channel (T266).
+// src/room/layout.ts places it after the conversation panel and outside
 // the stage, in 3D and 2D, open with nothing to expand, in the page from Enter whatever the 3D chunk does; and the
 // placeholder note, the UI word standin.note, shows only while stand-ins are in use. Expectations come from compose()
 // over the fixture set, whose IDs are synthetic fx- ones.
@@ -15,6 +16,7 @@ import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
+import { faceWords } from "../../src/room/faces/words";
 import { renderTextCopy } from "../../src/room/text-copy";
 import { button, flush, intoRoom, radio, start, textOf } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
@@ -25,12 +27,17 @@ const fixture = (): ComposeResult => (composed ??= compose(goodTree(), noPolicy(
 
 const page = (): Document => new JSDOM("<main></main>").window.document;
 
-/** The lines "Around the room" holds for an index, as copy[] orders them, the tier at `tier`: each switch's label and
- *  its tier's sentence, and each fixed line but "Paused at"; no face, and no figures, while no renderer gives words. */
+/** The lines "Around the room" holds for an index, as copy[] orders them, the tier at `tier`, before any room text has
+ *  come: each face its renderers word from the UI words, with its label; each switch's label and its tier's sentence;
+ *  and each fixed line but "Paused at"; no face bound to room text, and no figures, until their words come. */
 function expectedLines(index: RoomIndex, tier: string): string[] {
   const out: string[] = [];
   for (const entry of index.copy) {
-    if ("switch" in entry) {
+    if ("face" in entry) {
+      const face = index.faces.find((f) => f.id === entry.face);
+      const words = face ? faceWords(face, { index, text: null }) : null;
+      if (face && words !== null) out.push(`${index.ui[face.label] ?? ""}: ${words.join(" ")}`);
+    } else if ("switch" in entry) {
       const sw = index.switches.find((s) => s.id === entry.switch);
       out.push(`${index.ui[sw?.label ?? ""] ?? ""}: ${index.ui[`tier.${tier}`] ?? ""}`);
     } else if ("line" in entry && entry.line !== "pause.paused_at") out.push(index.ui[entry.line] ?? "");
@@ -58,18 +65,20 @@ describe("the text copy (renderTextCopy)", () => {
     expect(linesOf(section).length).toBeGreaterThan(index.switches.length);
   });
 
-  it("leaves out the faces and the sign's figures while no renderer words them, and Paused at until paused", () => {
+  it("leaves out each face bound to room text until its words come, the sign's figures, and Paused at until paused", () => {
     const { index } = fixture();
     const lines = linesOf(renderTextCopy(page(), index).element);
     const lineEntries = index.copy.filter((e) => "line" in e && e.line !== "pause.paused_at");
-    expect(lines).toHaveLength(index.switches.length + lineEntries.length);
+    const worded = index.faces.filter((f) => faceWords(f, { index, text: null }) !== null);
+    expect(lines).toHaveLength(worded.length + index.switches.length + lineEntries.length);
     for (const face of index.faces) {
       const label = index.ui[face.label] ?? "";
       expect(label).not.toBe("");
+      const fromText = face.regions.some((r) => "room_text" in r.source || "resume_titles" in r.source);
       expect(
         lines.filter((l) => l.startsWith(`${label}:`)),
         face.id,
-      ).toEqual([]);
+      ).toHaveLength(fromText ? 0 : 1);
     }
     expect(lines.filter((l) => l.startsWith((index.ui["pause.paused_at"] ?? "").split("{")[0] ?? ""))).toEqual([]);
   });

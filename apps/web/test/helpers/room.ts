@@ -406,6 +406,8 @@ export interface Visit {
   room: RoomHandle;
   /** How many times the room's resume view loaded room-data.json. */
   resumeLoads: () => number;
+  /** How many times the room loaded room-data.json for its room text, at Enter and on its one retry (spec 004, T187). */
+  roomDataLoads: () => number;
 }
 
 /** The wall clock's time at the fake clock's 0: 26 October 2026, 13:05, local time, so "Paused at" reads 13:05 then. */
@@ -423,6 +425,12 @@ export interface SceneOptionsForTest {
   resumeData?: RoomResume | RoomResume[];
   /** room-data.json as the build writes it, for the resume view's narration (Phase 5); without it, no narration. */
   narration?: unknown;
+  /**
+   * room-data.json as the room's shared loader gives it at Enter, for the room text (spec 004, T187): a list gives each
+   * load the next, the last one again once they run out, and null is a load that failed. By default `{}`, a file with
+   * no room text, so every face bound to room text stays plain.
+   */
+  roomData?: unknown[];
   /** The 3D chunk's import settles only when the test calls scene.release(). */
   sceneLate?: boolean;
   /** The bundle's index the room starts with: by default the repository's, as the site's build bundles it. */
@@ -456,6 +464,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
   const events: RoomEvent[] = [];
   const scene = fakeScene();
   let loads = 0;
+  let roomDataLoads = 0;
   const room = startRoom({
     win,
     content: roomContent(),
@@ -471,6 +480,12 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
       options.narration === undefined ? undefined : { load: async () => asRoomNarration(options.narration), clock },
     ),
     events: (event) => events.push(event),
+    // The room text's load at Enter, from the test, never from the network.
+    roomData: () => {
+      roomDataLoads += 1;
+      const list = options.roomData ?? [{}];
+      return Promise.resolve(list[Math.min(roomDataLoads, list.length) - 1] ?? null);
+    },
     clock,
     wall,
     loadScene: () => {
@@ -485,7 +500,18 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
       return options.sceneFails ? Promise.reject(new Error("the chunk didn't load")) : Promise.resolve(scene.module);
     },
   });
-  return { dom, win, doc: win.document, clock, events, spies, scene, room, resumeLoads: () => loads };
+  return {
+    dom,
+    win,
+    doc: win.document,
+    clock,
+    events,
+    spies,
+    scene,
+    room,
+    resumeLoads: () => loads,
+    roomDataLoads: () => roomDataLoads,
+  };
 }
 
 /** Lets promises the page started settle (the 3D chunk's import, the stage after Enter). */
