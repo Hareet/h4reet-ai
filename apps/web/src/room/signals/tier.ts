@@ -161,13 +161,30 @@ function claimsOf(sw: SwitchRule): {
   return { whole, local, cloud, named };
 }
 
+/** The pose most of SHARED_ORDER's cases name among the poses `free` lets through, ties going to the earliest value's;
+ *  null where none does. RS4's shared pose, at run time. */
+function mostShown(
+  own: (v: TierValue) => string | undefined,
+  free: (pose: string | undefined) => pose is string,
+): string | null {
+  const count = new Map<string, number>();
+  for (const v of SHARED_ORDER) {
+    const pose = own(v);
+    if (free(pose)) count.set(pose, (count.get(pose) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [pose, n] of count) if (best === null || n > (count.get(best) ?? 0)) best = pose;
+  return best;
+}
+
 /**
  * The pose a switch shows for a tier value, whatever its cases map (FR-043, FR-062). The plugged and the cloud poses
  * are the ones the switch's claims give `local` and `cloud`, never read from its cases: `local` shows the first and
  * `cloud` the second; any other value its own case, unless that names either, or a pose the room doesn't draw, or
  * none; then the shared pose, the first of SHARED_ORDER's cases that names a drawn pose the claims don't name. Claims
  * that lack `local` or `cloud`, name a pose the cases don't, or name one pose for both read as not-live: every value,
- * `local` and `cloud` included, shows the shared pose. A switch without claims has no plugged pose, so each value
+ * `local` and `cloud` included, shows the shared pose as RS4 picks it, the unnamed drawn pose most of the six values
+ * show, ties to the earliest of SHARED_ORDER. A switch without claims has no plugged pose, so each value
  * shows its own case, and the shared pose only where that is missing or not drawn. Null where no such pose exists,
  * which the compositor's RS rules refuse.
  */
@@ -182,10 +199,14 @@ export function caseFor(
   const claims = claimless ? null : claimsOf(sw);
   const free = (pose: string | undefined): pose is string =>
     typeof pose === "string" && drawn(pose) && !(claims?.named.has(pose) ?? false);
+  // Claims present but not whole read as not-live: every value shows the shared pose RS4 would name, the drawn pose the
+  // claims don't name that most of the six values show, ties going to the earliest of SHARED_ORDER. Never just the first
+  // case, which a swapped bundle may point at the plugged pose (the delta review of T163, I1).
+  if (claims !== null && !claims.whole) return mostShown(own, free);
   if (claims?.whole && (value === "local" || value === "cloud")) {
     const pose = claims[value];
     if (pose !== undefined && drawn(pose)) return pose;
-  } else if (claims === null || claims.whole) {
+  } else {
     const mine = own(value);
     if (free(mine)) return mine;
   }
