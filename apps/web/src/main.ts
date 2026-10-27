@@ -6,6 +6,7 @@ import "./style.css";
 import "./fonts.css";
 
 import { content, room } from "virtual:room-content";
+import { createFrameLog } from "virtual:room-frame-log";
 
 import { beaconEvents } from "./events";
 import { asRoomResume } from "./resume";
@@ -18,7 +19,8 @@ import { narrationFromRoomData, resumeView, roomDataLoader } from "./room/resume
 // resume's view and the narration share that load, and load again after a failed one, on their next opening or
 // selection.
 // Usage events go out as beacons to the site's own /api/room/events (tasks.md T060). The room itself is the bundle's
-// index, `room`, composed from apps/web/room/ at build (spec 004, T096).
+// index, `room`, composed from apps/web/room/ at build (spec 004, T096). A drafts build gives the room its frame log,
+// h4FrameLog() on the console; a release build's `createFrameLog` is null, and the room keeps none (spec 004, T246).
 const roomData = roomDataLoader();
 startRoom({
   win: window,
@@ -27,4 +29,5 @@ startRoom({
   resume: resumeView(async () => asRoomResume(await roomData()), { load: narrationFromRoomData(roomData) }),
   events: beaconEvents(window.navigator),
   roomData,
+  ...(createFrameLog ? { frameLog: createFrameLog } : {}),
 });

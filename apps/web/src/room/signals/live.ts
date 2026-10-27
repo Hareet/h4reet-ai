@@ -9,12 +9,19 @@
 //   (FR-042, FR-058). So on resume or show the tier is reduced before the next frame.
 // - A request in flight changes nothing: only a completed one is an input (FR-042).
 // - With live.source `off` (until User Story 8's switch-on change), nothing polls and the tier is not-live (FR-045).
-//   No poller exists on this branch: User Story 8's (T245) records each completed request through `complete`, and the
-//   cost channel (T266) calls `fallbackReply` for each fallback reply; neither is wired yet.
-// Nothing here makes a request, stores anything, or calls a model (FR-076).
+// - The status poller (status-poller.ts; T246) runs only while live.source is `site`, the visitor has entered, the page
+//   is visible, and the room isn't paused: Enter, pause, resume, hide, and show reach it after the reduction, so on
+//   resume or show the tier is reduced before any request starts. Each completed request comes back through
+//   `complete`. The cost channel (T266) calls `fallbackReply` for each fallback reply.
+// - A drafts build's frame log (frame-log.ts; R-70) gets Enter, pause, resume, hide, show, each request's start and
+//   result, each reduction's tier and row, and each fallback cue; the room logs the cases it draws.
+// Nothing here stores anything or calls a model (FR-076); the poller's GET /api/status is the only request.
 import type { Clock } from "../clock";
 import type { RoomIndex } from "../compose/bundle";
 import type { MotionState } from "../motion";
+import type { FrameLog } from "./frame-log";
+import { createStatusPoller } from "./status-poller";
+import type { StatusFetch, StatusPoller } from "./status-poller";
 import { reduceTier } from "./tier";
 import type { StatusResult, TierReading } from "./tier";
 
@@ -44,10 +51,14 @@ export interface LiveOptions {
   };
   /** Shows a reading, synchronously: the switch's case and the text copy's sentence. */
   apply(reading: TierReading): void;
+  /** The status poller's fetch and interval (T246): absent, nothing polls, and results come only through `complete`. */
+  readonly status?: { readonly fetch: StatusFetch; readonly pollMs: number };
+  /** A drafts build's frame log (T246): absent, as in a release build, nothing is logged. */
+  readonly log?: FrameLog;
 }
 
 export function createLiveSignals(options: LiveOptions): LiveSignals {
-  const { clock, motion } = options;
+  const { clock, motion, log } = options;
   const listeners = new Set<(reading: TierReading) => void>();
   let last: StatusResult | null = null;
   let fallbackReplyAt: number | null = null;
@@ -74,6 +85,7 @@ export function createLiveSignals(options: LiveOptions): LiveSignals {
     if (timer !== null) clock.clearTimeout(timer);
     timer = null;
     reading = read();
+    log?.record("tier", { tier: reading.tier, row: reading.row });
     options.apply(reading);
     for (const listener of [...listeners]) listener(reading);
     const at = reading.recheckAt;
@@ -88,12 +100,42 @@ export function createLiveSignals(options: LiveOptions): LiveSignals {
     }
   }
 
+  function complete(result: StatusResult): void {
+    if (disposed) return;
+    log?.record("result", {
+      outcome: result.ok ? "ok" : result.why,
+      status: result.ok ? 200 : (result.status ?? null),
+    });
+    last = result;
+    reduce();
+  }
+
+  const { status } = options;
+  const poller: StatusPoller | null = status
+    ? createStatusPoller({
+        source: options.live.source,
+        pollMs: status.pollMs,
+        clock,
+        wall: options.wall,
+        fetch: status.fetch,
+        onStart: () => log?.record("request"),
+        onResult: complete,
+      })
+    : null;
+  if (motion.paused) poller?.setPaused(true);
+  if (motion.hidden) poller?.setHidden(true);
+
   const unsubscribe = motion.subscribe((state) => {
     // Pause, resume, hide, and show; reduced motion alone changes nothing here.
     if (state.paused === paused && state.hidden === hidden) return;
+    if (state.paused !== paused) log?.record(state.paused ? "pause" : "resume");
+    if (state.hidden !== hidden) log?.record(state.hidden ? "hide" : "show");
     paused = state.paused;
     hidden = state.hidden;
+    // Reduced first, in the same event, before the next frame; then the poller's resume rule (§5.4).
     reduce();
+    poller?.setPaused(paused);
+    poller?.setHidden(hidden);
   });
 
   return {
@@ -104,17 +146,22 @@ export function createLiveSignals(options: LiveOptions): LiveSignals {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    enter: reduce,
-    complete(result) {
-      last = result;
+    enter() {
+      if (disposed) return;
+      log?.record("enter", { source: options.live.source, poll_ms: status?.pollMs ?? null });
       reduce();
+      poller?.enter();
     },
+    complete,
     fallbackReply() {
+      if (disposed) return;
+      log?.record("fallback");
       fallbackReplyAt = clock.now();
       reduce();
     },
     dispose() {
       disposed = true;
+      poller?.dispose();
       if (timer !== null) clock.clearTimeout(timer);
       timer = null;
       unsubscribe();

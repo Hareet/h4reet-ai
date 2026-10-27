@@ -14,10 +14,15 @@
 //   and the drafts build's room_text as `text`, for the page's faces (spec 004, T192).
 //   A release build that reaches either fails: resolveId throws "fixtures and lookdev are drafts-only (FR-066)"
 //   rather than ship them.
+// - `virtual:room-frame-log`, which the room's entry (src/main.ts) imports in every build (spec 004, T246; R-70): in a
+//   drafts build it re-exports src/room/signals/frame-log.ts's `createFrameLog`, so the log lands in the entry; in a
+//   release build it is `createFrameLog = null`, so the release build holds neither the log's code nor its names.
 // - generateBundle emits each set model's `a/<stem>.<hash16>.glb.gz`, each set card plain, and room-manifest.json,
 //   each through this.emitFile, so under dist/. The plugin writes nothing else, anywhere: the committed generated files
 //   are `room:generate`'s alone (cli.ts), and room_text reaches room-data.json through roomTextPart (T186).
 // Every module is the compose's output serialized as §11 has it, so two builds of one commit and policy agree.
+import { fileURLToPath } from "node:url";
+
 import type { Plugin } from "vite";
 
 import { draftsOn } from "../approvals";
@@ -34,10 +39,13 @@ export const ROOM_CONTENT = "virtual:room-content";
 export const ROOM_SCENE = "virtual:room-scene";
 export const ROOM_FIXTURES = "virtual:room-fixtures";
 export const ROOM_LOOKDEV = "virtual:room-lookdev";
+export const ROOM_FRAME_LOG = "virtual:room-frame-log";
+/** The frame log's module, which only a drafts build's `virtual:room-frame-log` reaches. */
+const FRAME_LOG_MODULE = fileURLToPath(new URL("../../src/room/signals/frame-log.ts", import.meta.url));
 /** What a release build that reaches a drafts-only module fails with (R-43's second layer). */
 export const DRAFTS_ONLY = "fixtures and lookdev are drafts-only (FR-066)";
 
-const MODULES: readonly string[] = [ROOM_CONTENT, ROOM_SCENE, ROOM_FIXTURES, ROOM_LOOKDEV];
+const MODULES: readonly string[] = [ROOM_CONTENT, ROOM_SCENE, ROOM_FIXTURES, ROOM_LOOKDEV, ROOM_FRAME_LOG];
 const DRAFTS_MODULES: readonly string[] = [ROOM_FIXTURES, ROOM_LOOKDEV];
 /** A virtual module's resolved ID: `\0` keeps every other plugin off it. */
 const resolved = (id: string): string => `\0${id}`;
@@ -88,6 +96,10 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
         }
         case resolved(ROOM_SCENE):
           return `export default ${serialize(result().scene)};\n`;
+        case resolved(ROOM_FRAME_LOG):
+          return result().drafts === null
+            ? "export const createFrameLog = null;\n"
+            : `export { createFrameLog } from ${JSON.stringify(FRAME_LOG_MODULE)};\n`;
         case resolved(ROOM_FIXTURES):
         case resolved(ROOM_LOOKDEV): {
           const { drafts, index } = result();

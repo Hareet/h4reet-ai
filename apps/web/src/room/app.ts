@@ -23,7 +23,12 @@
 //   an answer turns stale, each reduction showing the switch's case on the stage and the tier's sentence in "Around
 //   the room" in the same call; "Pause the room" and the motion store (motion.ts), read throughout the visit, stop the
 //   room's motion, and only the pause shows "Paused at". With live.source off, as until spec 001 serves the status,
-//   nothing is asked of the network and the tier is not-live (FR-045).
+//   nothing is asked of the network and the tier is not-live (FR-045). With it `site`, the status poller asks the
+//   page's own GET /api/status from Enter, while the page is visible and the room isn't paused (spec 004, User Story
+//   8; signals/status-poller.ts).
+// - A drafts build's frame log (spec 004, R-70; signals/frame-log.ts), when main.ts gives its factory: the live
+//   signal's events, each frame the 3D stage draws, and each new switch case, with h4FrameLog() on the window. A
+//   release build gives none, so the room keeps no log.
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
@@ -63,8 +68,11 @@ import {
 } from "./quality";
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
+import type { FrameLog, FrameLogOptions } from "./signals/frame-log";
 import { createLiveSignals } from "./signals/live";
 import type { LiveSignals } from "./signals/live";
+import { caseFor } from "./signals/tier";
+import type { TierValue } from "./signals/tier";
 import type { SceneModule, Stage, Stage3D } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
@@ -93,6 +101,9 @@ export interface RoomDeps {
   /** The twin's sender for a conversation turn, which the twin's spec gives (spec 004, FR-038; R-33): absent, as until
    *  then, every turn answers with its fixed message and goes nowhere. */
   sendTurn?: SendTurn;
+  /** A drafts build's frame log (spec 004, T246; R-70): main.ts gives `virtual:room-frame-log`'s factory in a drafts
+   *  build, and nothing in a release build, which then keeps no log. */
+  frameLog?: (options: FrameLogOptions) => FrameLog;
 }
 
 export interface RoomHandle {
@@ -135,16 +146,35 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   // The motion store, read throughout the visit by whichever stage the room draws (3D or 2D), and the tier signal, which
   // shows each reading on the stage and in the text copy at once (spec 004, FR-042, FR-059, FR-060).
   const motion = createMotionStore({ win, wall });
+  // A drafts build's frame log, in page memory, with h4FrameLog() for the console (R-70).
+  const log = deps.frameLog?.({ clock, wall, origin: win.location.origin }) ?? null;
+  log?.expose(win);
   const live = createLiveSignals({
     live: deps.room.live,
     clock,
     wall,
     motion,
     apply: (reading) => {
-      stage?.apply(reading.tier);
+      if (stage) showTier(stage, reading.tier);
       copy?.setTier(reading.tier);
     },
+    // The poller, only while the live source is on (FR-045): the page's own fetch, which spies see in the tests.
+    ...(deps.room.live.source === "site"
+      ? { status: { fetch: (url: string, init: RequestInit) => win.fetch(url, init), pollMs: deps.room.live.poll_ms } }
+      : {}),
+    ...(log ? { log } : {}),
   });
+
+  /** A tier on a stage, and in the frame log each switch's case as the claims rule gives it: in 3D drawn on the next
+   *  frame, in 2D now. */
+  function showTier(target: Stage, value: TierValue): void {
+    target.apply(value);
+    if (!log) return;
+    for (const sw of deps.room.switches) {
+      const pose = caseFor(sw, value);
+      if (pose !== null) log.applied(sw.id, pose, pose === sw.claims?.local, target.mode);
+    }
+  }
   motion.subscribe((state) => {
     room?.setPaused(state.paused);
     copy?.setPausedAt(state.paused ? state.pausedAt : null);
@@ -202,6 +232,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     else assets.show();
   });
   const onFrame = (time: number): void => {
+    log?.frame(time);
     if (doc.visibilityState === "hidden") controller?.restart();
     else controller?.frame(time);
   };
@@ -340,7 +371,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     }
     stage = scene3d;
     visit.mode = "3d";
-    scene3d.apply(live.tier.tier);
+    showTier(scene3d, live.tier.tier);
     show(scene3d);
     controller = createQualityController({
       target: targetFps(media("(pointer: coarse)")),
@@ -382,7 +413,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         text,
         ...(typefaces ? { typefaces } : {}),
       });
-      flat.apply(live.tier.tier);
+      showTier(flat, live.tier.tier);
     } catch {
       flat = null;
     }
