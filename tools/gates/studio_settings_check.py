@@ -727,7 +727,12 @@ def rule_reaches(rule: str, folder: str, workspace: str) -> bool:
     if spec is None or tool in ("WebFetch", "WebSearch") or tool.startswith("mcp__"):
         return False
     if tool == "Bash":
-        words = re.findall(r"(?:~|/)[^\s'\"`;|&()<>]*", spec)
+        # A path starts a shell word, or follows a quote, = (--dir=/x), : (host:/x, a:/x), or , (a,/x), and its slash
+        # isn't followed by a regex's or awk's syntax ({ ^ $ + \); a slash inside a word is a regex's or a URL's
+        # (grep 'origin/[0-9]+', awk 'x:/{f=1}'), not a path the rule allows. A glob's * ? [ still counts.
+        words = re.findall(
+            r"(?:^|(?<=[\s'\"=:,]))(?:~|/(?![{^$+\\]))[^\s'\"`;|&()<>]*", spec
+        )
         return any(
             reaches(entry_path(w, workspace), folder, subtree=False) for w in words
         )

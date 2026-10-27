@@ -547,6 +547,40 @@ def test_allow_rules_elsewhere_pass(
     assert code == 0, out
 
 
+def test_a_slash_inside_a_bash_word_is_no_path(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The Author's own rules: regexes whose slashes the first reading took for paths at the root (2026-10-26).
+    world.scopes["user"]["permissions"]["allow"] = [
+        "Bash(grep -E 'origin/[0-9.]+x$')",
+        "Bash(awk '/^## Testing/{f=1;next}/^## [A-Z]/{f=0}f' /home/h4reet/notes.md)",
+        "Bash(awk 'NR>=446 && /^  infrastructure:/{f=1} f{print} f&&/^  \\\\],?$/{exit}' src/a.ts)",
+    ]
+    code, out = world.run(capsys)
+    assert code == 0, out
+
+
+@pytest.mark.parametrize(
+    "form",
+    [
+        "cat '{key}/key.csv'",
+        "tar -cf out.tar --directory={key}",
+        "rsync host:{key} .",
+        "cp a,{key}/x .",
+    ],
+)
+def test_a_path_after_a_quote_equals_colon_or_comma_still_counts(
+    world: World, capsys: pytest.CaptureFixture[str], form: str
+) -> None:
+    world.scopes["user"]["permissions"]["allow"] = [
+        f"Bash({form.format(key=world.key)})"
+    ]
+    code, out = world.run(capsys)
+    assert failed(code, out, "SS5") == [
+        "SS5 blinding-key: a permissions.allow rule in user names a path at or under it"
+    ]
+
+
 @pytest.mark.parametrize("key", ["allowRead", "allowWrite"])
 def test_a_sandbox_allowance_reaching_a_folder_fails(
     world: World, capsys: pytest.CaptureFixture[str], key: str
