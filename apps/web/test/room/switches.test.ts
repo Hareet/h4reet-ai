@@ -356,6 +356,19 @@ describe("the switches' rules on the fixtures (RS1 to RS6)", () => {
       ]);
     });
 
+    // The delta review of T163, N-c: the index of a switch whose piece's claims lack local writes it as "", a pose no
+    // case names, so the runtime reads the claims as not-live, beside RS3's finding.
+    it("writes a missing claim as an empty pose in the index, beside RS3's finding", () => {
+      const doc = parse(decoder.decode(goodFiles().get(PLUG))) as Doc;
+      at(doc, "claims", "poses")["fx-plugged"] = null;
+      const result = compose(overlay({ [PLUG]: stringify(doc) }), noPolicy(), { mode: "strict", drafts: true });
+      expect(result.findings.filter((f) => f.rule === "RS3").map((f) => `${f.file}:${f.path}`)).toEqual([
+        `${SCENE}:switches[0].cases`,
+      ]);
+      expect(result.index.switches[0]?.claims?.local).toBe("");
+      expect(result.index.switches[0]?.claims?.cloud).toBe("fx-cloud");
+    });
+
     it.each([
       ["local", "fx-plugged"],
       ["cloud", "fx-cloud"],

@@ -138,6 +138,52 @@ describe("the claims rule (tier.ts's caseFor)", () => {
     for (const value of TIER_VALUES) expect(caseFor(faulty, value), value).toBe("fx-resting");
   });
 
+  // The delta review of T163, I1: claims present but not whole, crossed with mappings that swap a claimed pose into one
+  // of the six shared values' cases. The shared pose is then the one RS4 would call shared, the drawn pose the claims
+  // don't name that most of the six values show, ties going to the earliest of SHARED_ORDER, never the first case alone.
+  const FAULTY_CLAIMS: [string, unknown][] = [
+    ["null", null],
+    ["empty", {}],
+    ["a string", "fx-plugged"],
+    ["cloud alone", { cloud: "fx-cloud" }],
+    ["local alone", { local: "fx-plugged" }],
+    ["a pose the cases lack", { local: "fx-gone", cloud: "fx-cloud" }],
+    ["one pose for both", { local: "fx-plugged", cloud: "fx-plugged" }],
+  ];
+  const SWAPS: [string, Partial<Cases>][] = [
+    ["as committed", {}],
+    ["local and unknown swapped", { local: "fx-resting", unknown: "fx-plugged" }],
+    ["cloud and unknown swapped", { cloud: "fx-resting", unknown: "fx-cloud" }],
+    ["unknown on the cloud pose", { unknown: "fx-cloud" }],
+    ["unknown and not-live on the plugged pose", { unknown: "fx-plugged", "not-live": "fx-plugged" }],
+  ];
+  it.each(FAULTY_CLAIMS.flatMap(([c, claims]) => SWAPS.map(([m, change]) => [c, m, claims, change] as const)))(
+    "draws the shared pose for every value where the claims are %s and the cases %s",
+    (_, __, claims, change) => {
+      const faulty = claimed({ ...DEFAULT, ...change }, claims);
+      for (const value of TIER_VALUES) expect(caseFor(faulty, value), value).toBe("fx-resting");
+    },
+  );
+
+  it("takes the shared pose of faulty claims by count, ties going to the earliest of SHARED_ORDER", () => {
+    const split: Partial<Cases> = {
+      ...DEFAULT,
+      unknown: "fx-a",
+      "not-live": "fx-b",
+      paused: "fx-a",
+      resting: "fx-b",
+      budget: "fx-b",
+      unavailable: "fx-a",
+    };
+    // Three each: unknown's pose, the earliest.
+    expect(caseFor(claimed(split, null), "budget")).toBe("fx-a");
+    expect(caseFor(claimed({ ...split, unavailable: "fx-b" }, null), "unknown")).toBe("fx-b");
+    // A pose not drawn, or one the claims name, isn't counted.
+    expect(caseFor(claimed(split, null), "local", (pose) => pose !== "fx-a")).toBe("fx-b");
+    expect(caseFor(claimed(split, { local: "fx-a" }), "cloud")).toBe("fx-b");
+    expect(caseFor(claimed({ ...split, resting: "fx-a" }, { local: "fx-a", cloud: "fx-b" }), "paused")).toBeNull();
+  });
+
   it("draws a switch without claims straight from its cases, since no pose is plugged", () => {
     for (const value of TIER_VALUES) expect(caseFor({ cases: DEFAULT }, value), value).toBe(DEFAULT[value]);
     const own = { cases: { ...DEFAULT, unknown: "fx-plugged", local: "fx-cloud" } };

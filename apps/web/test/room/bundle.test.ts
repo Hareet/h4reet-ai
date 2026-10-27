@@ -939,8 +939,12 @@ describe("what the bundle holds (contracts/room-bundle.md §11, §14)", () => {
     // "lead" are other words; the selectable's lead is held to its value above. A switch's `claims` in the index is the
     // catalog's, its plugged and cloud poses' names, which the site holds (contracts/room-bundle.md §3.1; T163), not a
     // line's or a word's † citations, so it is held to those two names and taken out before the keys are read.
-    for (const sw of index.switches)
+    for (const sw of index.switches) {
       expect(Object.keys(sw.claims ?? {}).every((k) => k === "local" || k === "cloud")).toBe(true);
+      // And each is a pose of that switch's cases, never another word (the delta review of T163, N-b).
+      const poses = new Set(Object.values(sw.cases));
+      for (const pose of Object.values(sw.claims ?? {})) expect(poses.has(pose), pose).toBe(true);
+    }
     const keyed = JSON.stringify([
       { ...index, switches: index.switches.map((sw) => ({ ...sw, claims: undefined })) },
       scene,

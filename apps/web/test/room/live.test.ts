@@ -385,7 +385,7 @@ describe("the claims rule at run time (FR-043, FR-062)", () => {
     expect(caseFor(claimed(faulty), "budget")).toBe(SHARED);
   });
 
-  it("trusts neither claim where local's and cloud's cases name one pose: both fall to the shared case", () => {
+  it("reads claims as not-live where no case shows their cloud pose: local and cloud both fall to the shared case", () => {
     const tangled: Cases = { ...CASES, cloud: PLUGGED };
     expect(caseFor(claimed(tangled), "local")).toBe(SHARED);
     expect(caseFor(claimed(tangled), "cloud")).toBe(SHARED);
