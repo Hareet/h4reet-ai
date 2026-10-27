@@ -6,6 +6,10 @@ section per file, with its kind, its source's type (never its ID, which only the
 model or by hand, each model with its repository, revision, and license, each hand tool, any hosted service, and the
 media license. `--check` exits 1 when a committed rendering is stale or hand-edited, or a records.json isn't in its
 canonical form. The records here are made up at run time; their hashes are computed, never written out.
+
+Spec 004 (Amendments C2 and C8; contracts/intake-amendments.md §13): a `design` source shows as an original design,
+with its opaque ID; and every step shows its tools and its service, a model
+step's included, so a step the studio's agent session scripted shows the tools it drove and the session, with row D4.
 """
 
 from __future__ import annotations
@@ -236,3 +240,85 @@ def test_a_records_json_that_isnt_json_is_an_error_not_a_rendering(tree: Path) -
     )
     done = run(tree)
     assert done.returncode == 2 and "assets/twin/records.json" in done.stderr
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 004, Amendments C2 and C8 (contracts/intake-amendments.md §13; tasks.md T033)
+# --------------------------------------------------------------------------------------------------
+SCRIPTED = {
+    "name": "blockout",
+    "by": "model",
+    "models": [
+        {
+            "name": "Example Agent Model",
+            "repository": "example-org/example-agent",
+            "revision": "2026-10",
+            "role": "primary",
+            "license": "example-terms",
+            "license_version": "2026-10",
+        }
+    ],
+    "tools": [
+        {
+            "name": "Blender",
+            "version": "4.2",
+            "license": "gpl-3.0-or-later",
+            "license_version": "3",
+        }
+    ],
+    "service": {
+        "name": "the studio's agent session",
+        "license": "example-terms",
+        "license_version": "2026-10",
+        "disclosure_row": "D4",
+    },
+    "models_checked": "2026-11-01",
+}
+
+
+def room_tree(tmp_path: Path, **over) -> Path:
+    root = tmp_path / "repo"
+    directory = root / "assets" / "room"
+    directory.mkdir(parents=True)
+    record = entry(
+        "desk.glb",
+        kind="room",
+        likeness=False,
+        source={"type": "design", "id": "D-0042"},
+        steps=[SCRIPTED],
+        **over,
+    )
+    (directory / "records.json").write_text(
+        records("assets/room", [record]), encoding="utf-8"
+    )
+    return root
+
+
+def test_a_design_source_shows_as_an_original_design_with_its_id(
+    tmp_path: Path,
+) -> None:
+    root = room_tree(tmp_path)
+    assert run(root).returncode == 0
+    text = (root / "assets" / "CREDITS.md").read_text(encoding="utf-8")
+    assert "- Source: an original design, `D-0042`" in text
+
+
+def test_a_scripted_model_step_shows_its_tools_and_its_service(tmp_path: Path) -> None:
+    root = room_tree(tmp_path)
+    assert run(root).returncode == 0
+    text = (root / "assets" / "CREDITS.md").read_text(encoding="utf-8")
+    assert (
+        "- Step 1, `blockout`, by a model: `Example Agent Model` (`example-org/example-agent`, revision `2026-10`), "
+        "primary, under `example-terms` `2026-10`; with `Blender` `4.2`, under `gpl-3.0-or-later` `3`; "
+        "a hosted service, `the studio's agent session`, under `example-terms` `2026-10` (disclosure row D4)"
+    ) in text
+    assert run(root, "--check").returncode == 0
+
+
+def test_a_model_step_without_tools_reads_as_before(tree: Path) -> None:
+    assert run(tree).returncode == 0
+    text = (tree / "assets" / "CREDITS.md").read_text(encoding="utf-8")
+    assert (
+        "- Step 1, `concept image`, by a model: `Example Model` (`example-org/example-model`, revision `v1`), "
+        "primary, under `apache-2.0` `2.0`\n"
+    ) in text
