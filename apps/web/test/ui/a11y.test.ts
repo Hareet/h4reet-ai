@@ -148,6 +148,7 @@ describe("keyboard", () => {
     expect(tabOrder(v.doc).map(nameOf)).toEqual([
       "Resume",
       "2D view",
+      "Pause the room",
       "How data flows",
       ...OBJECT_BUTTONS,
       "Your message",
@@ -157,11 +158,13 @@ describe("keyboard", () => {
     button(v.doc, "Resume").click();
     await flush();
     const order = tabOrder(v.doc).map(nameOf);
-    // The toolbar's three stops, a button per selectable, and the conversation panel's three come first.
-    const room = 3 + OBJECT_BUTTONS.length + 3;
+    // The toolbar's four stops ("Pause the room", spec 004's, T161), a button per selectable, and the conversation
+    // panel's three come first.
+    const room = 4 + OBJECT_BUTTONS.length + 3;
     expect(order.slice(0, room)).toEqual([
       "Resume",
       "2D view",
+      "Pause the room",
       "How data flows",
       ...OBJECT_BUTTONS,
       "Your message",
