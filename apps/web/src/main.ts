@@ -13,8 +13,10 @@ import { startRoom } from "./room/app";
 import { narrationFromRoomData, resumeView, roomDataLoader } from "./room/resume-port";
 
 // The interactive resume is Phase 3's view (tasks.md T029) in the room's panel, through src/room/resume-port.ts, which
-// narrates a selected item at the path the visitor chose (tasks.md T053). room-data.json is fetched once for both, and
-// again after a failed load: the resume's view retries on its next opening, and the narration on its next selection.
+// narrates a selected item at the path the visitor chose (tasks.md T053). room-data.json is fetched once for both and
+// for the room's text (spec 004, T187): the room loads it at Enter, and once more 10 seconds later if that failed; the
+// resume's view and the narration share that load, and load again after a failed one, on their next opening or
+// selection.
 // Usage events go out as beacons to the site's own /api/room/events (tasks.md T060). The room itself is the bundle's
 // index, `room`, composed from apps/web/room/ at build (spec 004, T096).
 const roomData = roomDataLoader();
@@ -24,4 +26,5 @@ startRoom({
   room,
   resume: resumeView(async () => asRoomResume(await roomData()), { load: narrationFromRoomData(roomData) }),
   events: beaconEvents(window.navigator),
+  roomData,
 });

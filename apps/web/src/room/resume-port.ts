@@ -101,8 +101,9 @@ export function narrationFromRoomData(roomData: () => Promise<unknown>): () => P
   };
 }
 
-/** room-data.json from the site's own origin, for the resume and its narration: one fetch shared by both, and a new
- * one after a load that failed, as the resume view retries (null when it can't be read, which both read as nothing). */
+/** room-data.json from the site's own origin, for the room's text, the resume, and its narration (spec 004, T187): one
+ * fetch shared by all three, which the room makes at Enter (app.ts), and a new one after a load that failed, as the
+ * room's one retry and the resume view's next opening make (null when it can't be read, which each reads as nothing). */
 export function roomDataLoader(fetcher: typeof fetch = (input, init) => fetch(input, init)): () => Promise<unknown> {
   let pending: Promise<unknown> | null = null;
   return () => {

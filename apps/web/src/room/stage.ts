@@ -7,6 +7,8 @@ import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
 import type { TierValue } from "./compose/vocabulary";
+import type { TypefaceLoader } from "./faces/fonts";
+import type { RoomText } from "./faces/words";
 import type { MotionState } from "./motion";
 
 export interface Stage {
@@ -18,6 +20,9 @@ export interface Stage {
   /** Shows each tier switch's case for a tier value, by the claims rule (spec 004, FR-043; tier.ts's caseFor), at once:
    *  the 3D room draws it on its next frame, the 2D room on its next paint (FR-042, FR-058). */
   apply(value: TierValue): void;
+  /** The room text, once room-data.json has loaded at Enter (spec 004, FR-029, FR-061): the faces it words are drawn;
+   *  null leaves them plain. A stage made after it loaded is given it at once. */
+  setText?(text: RoomText | null): void;
   dispose(): void;
 }
 
@@ -63,6 +68,10 @@ export interface SceneOptions {
   mode?: () => Mode;
   /** Records spec 003's asset event for each model's outcome (FR-071). */
   assets?: (event: AssetEvent) => void;
+  /** The live faces' typefaces (spec 004, faces/fonts.ts): absent, each face draws at once. */
+  typefaces?: TypefaceLoader;
+  /** The room text, where room-data.json loaded before the stage was made. */
+  text?: RoomText | null;
 }
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */

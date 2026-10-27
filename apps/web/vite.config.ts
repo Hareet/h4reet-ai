@@ -11,6 +11,7 @@ import { disclosurePage } from "./build/disclosure";
 import { narrationPart } from "./build/narration";
 import { DEFAULT_POLICY_DIR } from "./build/policy";
 import { roomBundle } from "./build/room/plugin";
+import { roomTextPart } from "./build/room/text";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 
@@ -39,10 +40,12 @@ export default defineConfig({
     // main's policy: the image's named context (ROOM_POLICY_DIR), or what a checkout's prebuild read from main.
     // The resume's part (build/content.ts): the citation check, its items when main approves them, and resume.pdf.
     // Narration's (build/narration.ts): N1–N5, and each published item's scripts, per path, when they're published.
+    // The room's text (build/room/text.ts, spec 004): room_text, the room-text files main approves, and in a drafts
+    // build the drafts too, which the room fetches with the rest at Enter.
     roomDataFile({
       root: here("../.."),
       policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR,
-      parts: [resumePart, narrationPart],
+      parts: [resumePart, narrationPart, roomTextPart],
     }),
     // The room's bundle, composed from apps/web/room/ under main's policy (spec 004, T096; its contracts/room-bundle.md
     // §3, §12): spec 002's fixed messages and the manifest, now Amendment B7's, with the index, in the entry; the 3D

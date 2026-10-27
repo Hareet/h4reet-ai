@@ -17,8 +17,12 @@
 //   the side the paper comes from;
 // - each selectable's cue, a dashed rectangle around its hit rectangles with its name tag, styled by room.css's
 //   classes.
-// The faces come with their renderers' SVG backend (T185). The hand-off's visitor reads reduced motion from the room's
-// motion store on each frame, so a change mid-visit reaches it (FR-059).
+// - each bound live face, from its renderers' display list through the SVG backend (faces/svg.ts), in a group at the
+//   index's face transform, scaled from the face's pixels, over its piece and under the visitor: a still image, its
+//   final frame, drawn once its typefaces have a family (faces/fonts.ts) and redrawn only when a value changes, the
+//   room text arriving or a typeface (FR-058, FR-061; T185). A face with no words now has an empty group, plain.
+// The hand-off's visitor reads reduced motion from the room's motion store on each frame, so a change mid-visit
+// reaches it (FR-059).
 //
 // An allowlist governs every element and attribute the drawing holds: the elements g, rect, circle, ellipse, line,
 // polyline, polygon, path, and text; geometry, fill, stroke, stroke-width, opacity, font-*, text-anchor, and transform,
@@ -37,13 +41,23 @@ import { SVG_NS, h, svg } from "./dom";
 import { FLAT_FRAMES, VISITOR_TURN, flatFrame, handOffset, sideOf, visitorTurnShare } from "./handoff";
 import { bindPointerSelection } from "./objects";
 import type { Ndc } from "./objects";
+import { typefaceFor } from "./compose/legibility";
+import type { TypefaceLoader } from "./faces/fonts";
+import { faceSvg } from "./faces/svg";
+import type { SvgNode } from "./faces/svg";
+import { faceList } from "./faces/words";
+import type { RoomText } from "./faces/words";
 import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import type { MotionView, Stage } from "./stage";
 import { uiWord } from "./ui-keys";
 
-/** What the 2D room reads of the index: its drawing, its words, its selectables, and its switches' cases. */
-export type FlatIndex = Pick<RoomIndex, "flat" | "ui" | "selectables" | "switches">;
+/** What the 2D room reads of the index: its drawing, its words, its selectables, its switches' cases, and its faces with
+ *  what words them (the build, the live configuration, and the typefaces). */
+export type FlatIndex = Pick<
+  RoomIndex,
+  "flat" | "ui" | "selectables" | "switches" | "faces" | "build" | "live" | "typefaces"
+>;
 
 /** The 2D room's picture, as drawFlat builds it. */
 export interface FlatDrawing {
@@ -55,6 +69,8 @@ export interface FlatDrawing {
   readonly switches: ReadonlyMap<string, ReadonlyMap<string, SVGElement>>;
   /** The stand-ins' labels, by placement: only where the index has the label's words. */
   readonly labels: ReadonlyMap<string, SVGElement>;
+  /** Each bound face's group, by face ID, at its face transform: its drawing, or nothing while it is plain. */
+  readonly faces: ReadonlyMap<string, SVGElement>;
   /** Each selectable's cue, by selectable, in scene order: its dashed rectangle and its name tag. */
   readonly cues: ReadonlyMap<string, { readonly area: SVGElement; readonly name: SVGElement }>;
   /** The visitor: the chosen avatar's polygons. */
@@ -70,6 +86,8 @@ export interface FlatStage extends Stage {
    *  pick area. The stage calls it on each pick, and on each change of the drawing's size where the browser reports
    *  one. */
   resize(size: Size): void;
+  /** The room text, once room-data.json has loaded: the faces it words are drawn. */
+  setText(text: RoomText | null): void;
 }
 
 // ---- The allowlist ----
@@ -246,6 +264,12 @@ function primitive(doc: Document, p: Prim): SVGElement {
 const placed = (doc: Document, m: Matrix2D, prims: readonly Prim[]): SVGElement =>
   node(doc, "g", { transform: m }, ...prims.map((p) => primitive(doc, p)));
 
+/** An SVG backend's element and its children, made only through the allowlist (faces/svg.ts). */
+function tree(doc: Document, n: SvgNode): SVGElement {
+  const children = n.text !== undefined ? [n.text] : (n.children ?? []).map((c) => tree(doc, c));
+  return node(doc, n.tag, n.attrs, ...children);
+}
+
 /** The cable's run: one quadratic curve from the lead's end, through its control point, to where it plugs in. */
 function cable(doc: Document, run: NonNullable<FlatIndex["flat"]["poses"][number]["cable"]>): SVGElement {
   const pair = (p: readonly [number, number]): string => {
@@ -296,6 +320,16 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
   }
   // Until the tier applies another, the room shows not-live's case by the claims rule, as in 3D.
   showCases(switches, room.switches, "not-live");
+
+  // Each bound face's group at its transform, scaled from its pixels to its size there; drawn by drawFaces.
+  const faces = new Map<string, SVGElement>();
+  for (const f of flat.faces) {
+    const face = room.faces.find((x) => x.id === f.face);
+    if (!face || faces.has(f.face) || !(face.px[0] > 0 && face.px[1] > 0)) continue;
+    const inner = node(doc, "g", { transform: [f.size[0] / face.px[0], 0, 0, f.size[1] / face.px[1], 0, 0] });
+    root.append(node(doc, "g", { transform: f.matrix }, inner));
+    faces.set(f.face, inner);
+  }
 
   // The avatar's polygons are code's; where they stand, and at what scale, is the index's.
   const { x: feet, baseline, scale } = flat.visitor;
@@ -373,7 +407,43 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     root.append(area, name);
   }
 
-  return { root, items, switches, labels, cues, visitor, papers };
+  return { root, items, switches, labels, faces, cues, visitor, papers };
+}
+
+/**
+ * Draws each bound face's final frame into its group, from the room text and the typefaces' families now: a face waits
+ * until each typeface it draws in has a family, and one with no words is left empty, plain. A face whose drawing is
+ * unchanged is left as it is, so the 2D room redraws only when a value changes (FR-058).
+ */
+function drawFaces(
+  doc: Document,
+  room: FlatIndex,
+  drawing: FlatDrawing,
+  text: RoomText | null,
+  typefaces: TypefaceLoader | undefined,
+  drawn: Map<string, string>,
+): void {
+  for (const [id, group] of drawing.faces) {
+    const face = room.faces.find((f) => f.id === id);
+    if (!face) continue;
+    const ready =
+      !typefaces ||
+      face.regions.every((r) => {
+        const use = typefaceFor(r.renderer, r.source);
+        return use === null || typefaces.family(use) !== null;
+      });
+    const list = ready
+      ? faceList(face, {
+          index: room,
+          text,
+          ...(typefaces ? { family: (use) => typefaces.family(use) ?? "sans-serif" } : {}),
+        })
+      : null;
+    const key = list === null ? "" : JSON.stringify(list);
+    if (drawn.get(id) === key) continue;
+    drawn.set(id, key);
+    group.replaceChildren(...(list === null ? [] : [tree(doc, faceSvg(list))]));
+  }
 }
 
 /** In each of the hand-off's frames, the visitor's turn toward the paper's side, as the 3D room turns it at that frame's
@@ -453,6 +523,10 @@ export function renderFlat(
     reducedMotion?: boolean;
     /** The motion store, read whenever a frame is shown, so reduced motion switched on mid-visit stops the turn. */
     motion?: Pick<MotionView, "reducedMotion">;
+    /** The room text, where room-data.json loaded before the 2D room was drawn. */
+    text?: RoomText | null;
+    /** The live faces' typefaces: absent, each face draws at once. */
+    typefaces?: TypefaceLoader;
   },
 ): FlatStage {
   const reduced = (): boolean => options.motion?.reducedMotion ?? options.reducedMotion ?? false;
@@ -492,6 +566,12 @@ export function renderFlat(
   };
   // Outside the hand-off, the paper is in the visitor's hands.
   frame(FLAT_FRAMES - 1);
+  // The faces: drawn now, again when the room text comes, and again when a typeface's family changes.
+  let text = options.text ?? null;
+  const drawn = new Map<string, string>();
+  const faces = (): void => drawFaces(doc, options.room, drawing, text, options.typefaces, drawn);
+  faces();
+  const unwatch = options.typefaces?.onChange(faces);
   return {
     mode: "2d",
     element,
@@ -500,7 +580,12 @@ export function renderFlat(
     // Each case's visibility at once, its cable with it: the next paint shows it (FR-042, FR-058).
     apply: (value) => showCases(drawing.switches, options.room.switches, value),
     resize,
+    setText(next) {
+      text = next;
+      faces();
+    },
     dispose: () => {
+      unwatch?.();
       observer?.disconnect();
       unbind();
       element.remove();

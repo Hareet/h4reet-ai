@@ -1,0 +1,26 @@
+# How the Author thinks about problems, on the chalkboard (spec 004; FR-030, FR-033, FR-035; T189): a draft, as
+# chalk-mission.yaml is. Each drawn line is the corpus's own words, a span of the sentence its claim quotes, the quote
+# the longer span. The pending line is a placeholder for the Author, never drawn or published: the corpus holds no
+# sentence yet in which the Author says how he approaches a problem, so the lines here are the principles it records.
+version: 1
+block: chalk-approach
+renderer: chalk
+exclude: [Seva, selfless service, service to humanity, cultural tradition]
+lines:
+  - text: production-grade rigor
+    about_author: true
+    claims:
+      - file: corpus/01-ai-strategy-and-cht.md
+        quote: "The through-line is AI for good: production-grade rigor from an SRE background"
+  - text: judged by its ability to help CHWs
+    about_author: true
+    claims:
+      - file: corpus/01-ai-strategy-and-cht.md
+        quote: "human-centered, judged by its ability to help CHWs"
+  - text: shared tools, shared standards, shared learning
+    about_author: true
+    claims:
+      - file: corpus/01-ai-strategy-and-cht.md
+        quote: "organizational AI, not individual AI — shared tools, shared standards, shared learning"
+  - text: "PLACEHOLDER for the Author: how the Author approaches a problem, in the Author's own words, once the corpus holds them"
+    pending: true

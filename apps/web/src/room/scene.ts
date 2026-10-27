@@ -38,8 +38,11 @@ import {
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
 import type { LabelFactory } from "./scene/bundle3d";
+import { buildFaceQuads } from "./scene/faces3d";
+import { buildGlows } from "./scene/glows";
 import { createTextureLedger } from "./scene/ledger";
 import type { Loader } from "./scene/loader";
+import { qualitySettings } from "./scene/levels";
 import { createInk } from "./scene/look";
 import type { SceneOptions, Stage3D } from "./stage";
 
@@ -50,75 +53,9 @@ const namedLabel: LabelFactory = (text) => {
   return node;
 };
 
-export interface QualitySettings {
-  /** The most device pixels a CSS pixel gets. */
-  pixelRatio: number;
-  shadows: boolean;
-  /** The look's outlines (spec 004, R-35). */
-  outlines: boolean;
-  /** The glow cards (spec 004, R-35). */
-  glowCards: boolean;
-  /** The terminal's typing, in redraws a second; 0 shows its final frame (spec 004, R-35, R-37). */
-  typingFps: number;
-  /** The live faces' canvas resolution, as a share (spec 004, R-35, R-37). */
-  faceScale: number;
-  /** The labels' texture resolution, as a share (the placeholders' only textures): R-35's label scale. */
-  textureScale: number;
-  /** The twin's idle sway: R-35's idle sway. */
-  animations: boolean;
-}
-
-const LEVELS: readonly QualitySettings[] = [
-  {
-    pixelRatio: 2,
-    shadows: true,
-    outlines: true,
-    glowCards: true,
-    typingFps: 15,
-    faceScale: 1,
-    textureScale: 1,
-    animations: true,
-  },
-  {
-    pixelRatio: 1.25,
-    shadows: true,
-    outlines: true,
-    glowCards: true,
-    typingFps: 15,
-    faceScale: 1,
-    textureScale: 1,
-    animations: true,
-  },
-  {
-    pixelRatio: 1,
-    shadows: false,
-    outlines: false,
-    glowCards: false,
-    typingFps: 8,
-    faceScale: 1,
-    textureScale: 1,
-    animations: true,
-  },
-  {
-    pixelRatio: 0.75,
-    shadows: false,
-    outlines: false,
-    glowCards: false,
-    typingFps: 0,
-    faceScale: 0.5,
-    textureScale: 0.5,
-    animations: false,
-  },
-];
-
-/**
- * R-04's steps: the pixel ratio first, then shadows, then textures and animations. Spec 004's R-35 (Amendment B13)
- * steps the outlines and glow cards with the shadows, the typing at quality 2 and 3, and the faces with the textures,
- * still in four levels.
- */
-export function qualitySettings(level: number): QualitySettings {
-  return LEVELS[Math.min(LEVELS.length - 1, Math.max(0, Math.round(level)))] as QualitySettings;
-}
+// The quality levels live in scene/levels.ts, which the faces read too; the stage and the lookdev page read them here.
+export { qualitySettings } from "./scene/levels";
+export type { QualitySettings } from "./scene/levels";
 
 const PLACEHOLDER = " (placeholder)";
 
@@ -220,6 +157,24 @@ export function createScene(options: SceneOptions): Stage3D {
   const { win, doc, clock } = options;
   const labels = createLabels(doc);
   const room = buildRoom(part, { avatar: options.avatar, label: labels.factory, index: options.room });
+  // The live faces and the glow cards (spec 004, T185): each read the motion store on every frame, so a pause or reduced
+  // motion stills them mid-visit, and the faces' words come when room-data.json does (setText).
+  const animating = (): { animate: boolean } => ({
+    animate: options.motion ? options.motion.animate : !options.reducedMotion,
+  });
+  const faces = buildFaceQuads({
+    part,
+    index: options.room,
+    placements: room.placements,
+    doc,
+    clock,
+    dpr: win.devicePixelRatio || 1,
+    level: 0,
+    motion: animating,
+    ...(options.typefaces ? { typefaces: options.typefaces } : {}),
+  });
+  if (options.text !== undefined) faces.setText(options.text);
+  const glows = buildGlows({ part, placements: room.placements, glow: room.cases.glow, motion: animating });
   const canvas = doc.createElement("canvas");
   canvas.className = "room-canvas";
   canvas.setAttribute("aria-hidden", "true");
@@ -227,6 +182,8 @@ export function createScene(options: SceneOptions): Stage3D {
   try {
     renderer = new WebGLRenderer({ canvas, antialias: true });
   } catch (error) {
+    faces.dispose();
+    glows.dispose();
     disposeRoom(room);
     throw error;
   }
@@ -315,8 +272,10 @@ export function createScene(options: SceneOptions): Stage3D {
     resize();
     // Idle sway only while the motion store animates: paused, reduced motion, or a hidden page show its final frame,
     // still, and the loop keeps drawing (spec 004, FR-059, FR-060; R-34).
-    const moving = options.motion ? options.motion.animate : !options.reducedMotion;
+    const moving = animating().animate;
     room.twin.rotation.z = settings.animations && moving ? Math.sin(time / 900) * 0.015 : 0;
+    faces.frame(time);
+    glows.frame(time);
     ink.render(room.scene, camera);
     frame = clock.requestFrame(loop);
   };
@@ -331,8 +290,11 @@ export function createScene(options: SceneOptions): Stage3D {
       drawHandoff(room, progress, options.reducedMotion);
     },
     apply(value) {
-      // The case shows on the next frame the loop draws (spec 004, FR-042, FR-043; scene/cables.ts).
+      // The case shows on the next frame the loop draws (spec 004, FR-042, FR-043; scene/cables.ts), its glows with it.
       room.cases.apply(value);
+    },
+    setText(text) {
+      faces.setText(text);
     },
     setQuality(level) {
       const before = settings.shadows;
@@ -340,6 +302,8 @@ export function createScene(options: SceneOptions): Stage3D {
       renderer.shadowMap.enabled = settings.shadows;
       ink.setOutlines(settings.outlines);
       labels.setScale(settings.textureScale);
+      faces.setLevel(level);
+      glows.setEnabled(settings.glowCards);
       if (before !== settings.shadows) {
         room.scene.traverse((node) => {
           const material = (node as Partial<Mesh>).material;
@@ -356,6 +320,8 @@ export function createScene(options: SceneOptions): Stage3D {
       unbind();
       loader?.stop();
       canvas.removeEventListener("webglcontextrestored", restored);
+      faces.dispose();
+      glows.dispose();
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();
