@@ -4,6 +4,10 @@
 // readings, and second line; and the line saying the project isn't affiliated with or endorsed by Langfuse or its
 // owner. Each face's entry equals the 2D drawing's words for it and the 3D faces' display list. The fixture set's IDs
 // are synthetic fx- ones; the repository's neon sign gives the real words.
+// T264 (spec 004; FR-034, FR-050, FR-063; contracts/turn-cost.md §8): the neon sign's counters follow the room's cost
+// channel. In every reading of a run of turns through the twin's sender, each counter's entry equals its face's word
+// list from the channel's state and the 2D drawing's words; "est." is marked up as an abbreviation of "estimated"; a
+// badge is in brackets; nothing is in a live region, in the talk panel's log, or announced.
 import { JSDOM } from "jsdom";
 import { Object3D } from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,10 +18,22 @@ import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { drawnWords } from "../../src/room/faces/display-list";
 import { faceWords, roomTextOf } from "../../src/room/faces/words";
+import type { TurnResult } from "../../src/room/signals/turn-cost";
+import type { TurnRequest } from "../../src/talk/talk";
 import type { RoomText } from "../../src/room/faces/words";
 import { buildRoom } from "../../src/room/scene/bundle3d";
 import { buildFaceQuads } from "../../src/room/scene/faces3d";
-import { FakeClock, flush, intoRoom, repositoryBundle, roomIndex, start, textOf } from "../helpers/room";
+import {
+  FakeClock,
+  announcer,
+  flush,
+  intoRoom,
+  repositoryBundle,
+  roomIndex,
+  start,
+  talkLog,
+  textOf,
+} from "../helpers/room";
 import type { Visit } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 
@@ -168,5 +184,126 @@ describe('"Around the room" (FR-034, FR-063)', () => {
       const want = entry(repo.index, face, roomTextOf({}));
       if (want !== null) expect(lines(v), face.id).toContain(want);
     }
+  });
+});
+
+// ---- T264: the counters' readings in the text copy ----
+
+/** The index with its first talk selectable's topic ready and the turn route on, as the twin's spec will set them. */
+function talking(index: RoomIndex): { index: RoomIndex; selectable: string } {
+  const s = index.selectables.find((x) => x.action.kind === "talk");
+  if (!s || s.action.kind !== "talk") throw new Error("no talk selectable");
+  const topic = s.action.topic;
+  return {
+    index: {
+      ...index,
+      live: { ...index.live, turn: "site" },
+      topics: index.topics.map((t) => (t.id === topic ? { ...t, ready: true } : t)),
+    },
+    selectable: s.id,
+  };
+}
+
+/** The counters' faces: each face whose every region reads the turn's cost. */
+const counters = (index: RoomIndex): RoomIndex["faces"] =>
+  index.faces.filter((f) => f.regions.length > 0 && f.regions.every((r) => "signal" in r.source));
+
+const ok = (route: string, cost: unknown): TurnResult => ({
+  kind: "response",
+  status: 200,
+  body: { text: "t", feature: "f", route, cost_micro_usd: cost },
+});
+
+describe("the counters' readings (T264; contracts/turn-cost.md §8)", () => {
+  for (const drafts of [false, true]) {
+    it(`equal each counter face's word list in every reading, in a ${drafts ? "drafts" : "release"} build`, async () => {
+      const { index, selectable } = talking(repositoryBundle({ drafts }).index);
+      expect(counters(index)).toHaveLength(2);
+      const sent: { request: TurnRequest; ended: (result: TurnResult) => void }[] = [];
+      const v = start({ room: index, sendTurn: (request, ended) => sent.push({ request, ended }) });
+      await intoRoom(v);
+      expect(v.room.visit.mode).toBe("2d");
+      const button = [...v.doc.querySelectorAll<HTMLButtonElement>(".room-list button")].find(
+        (b) => b.getAttribute("data-object-id") === selectable,
+      );
+      button?.click();
+      const results: (TurnResult | null)[] = [
+        null,
+        ok("local", 0),
+        ok("fallback", 950),
+        { kind: "error", error: "aborted" },
+        ok("fallback", 1840),
+        { kind: "response", status: 429, body: {} },
+        { kind: "response", status: 503, body: { state: "degraded", cause: "meter_at_ceiling" } },
+        ok("metered", 1200),
+      ];
+      const seen: string[] = [];
+      for (const result of results) {
+        if (result !== null) {
+          const box = v.doc.querySelector<HTMLInputElement>("#talk-text");
+          if (box) box.value = "a turn";
+          [...v.doc.querySelectorAll<HTMLButtonElement>("button")].find((b) => textOf(b) === "Send")?.click();
+          sent.at(-1)?.ended(result);
+        }
+        await flush();
+        const state = v.room.cost.state;
+        for (const face of counters(index)) {
+          const words = faceWords(face, { index, text: null, cost: state });
+          expect(words, face.id).not.toBeNull();
+          const want = `${index.ui[face.label] ?? ""}: ${(words ?? []).join(" ")}`;
+          expect(lines(v), face.id).toContain(want);
+          seen.push(want);
+          // The 2D drawing draws the same words, the badge in brackets.
+          const badge = (w: string): string =>
+            w === index.ui["sign.test"] || w === index.ui["sign.sample"] ? `[${w}]` : w;
+          expect(drawn2d(v, face.id, roomTextOf({})).map(badge), face.id).toEqual(words);
+        }
+      }
+      const tail = drafts ? ` [${index.ui["sign.test"] ?? ""}]` : "";
+      expect(seen).toContain(`This call: no call yet`);
+      expect(seen).toContain(`This visit: $0${tail}`);
+      expect(seen).toContain(`This call: local · $0${tail}`);
+      expect(seen).toContain(`This call: $0.000950 est.${tail}`);
+      expect(seen).toContain(`This visit: at least $0.000950 est.${tail}`);
+      expect(seen).toContain(`This visit: at least $0.002790 est.${tail}`);
+      expect(seen).toContain(`This call: cost unavailable`);
+      // "est." is an abbreviation of "estimated", wherever it shows.
+      const around = v.doc.querySelector(".room-around");
+      const abbrs = [...(around?.querySelectorAll("abbr") ?? [])];
+      expect(abbrs.length).toBeGreaterThan(0);
+      for (const abbr of abbrs) {
+        expect(abbr.textContent).toBe("est.");
+        expect(abbr.getAttribute("title")).toBe("estimated");
+      }
+      // No live region, nothing in the talk panel's log, nothing announced.
+      for (const el of [around, ...(around?.querySelectorAll("*") ?? [])])
+        expect(el?.hasAttribute("aria-live"), el?.localName).toBe(false);
+      expect(textOf(talkLog(v.doc))).not.toMatch(/\$0|est\.|cost unavailable/);
+      expect(textOf(announcer(v.doc))).not.toMatch(/\$0|est\.|cost unavailable/);
+      expect(v.spies.network).toEqual([]);
+      expect(v.spies.storage).toEqual([]);
+    });
+  }
+
+  it('marks every "est." of an entry, and only there, as the abbreviation', async () => {
+    const { index, selectable } = talking(roomIndex());
+    const sent: { request: TurnRequest; ended: (result: TurnResult) => void }[] = [];
+    const v = start({ room: index, sendTurn: (request, ended) => sent.push({ request, ended }) });
+    await intoRoom(v);
+    [...v.doc.querySelectorAll<HTMLButtonElement>(".room-list button")]
+      .find((b) => b.getAttribute("data-object-id") === selectable)
+      ?.click();
+    const box = v.doc.querySelector<HTMLInputElement>("#talk-text");
+    if (box) box.value = "a turn";
+    [...v.doc.querySelectorAll<HTMLButtonElement>("button")].find((b) => textOf(b) === "Send")?.click();
+    sent[0]?.ended(ok("fallback", 950));
+    const entries = [...v.doc.querySelectorAll(".room-around li")].filter((li) => textOf(li).includes("est."));
+    expect(entries).toHaveLength(2);
+    for (const li of entries) {
+      expect(li.querySelectorAll("abbr")).toHaveLength(1);
+      expect(li.querySelector("abbr")?.textContent).toBe("est.");
+    }
+    // No other entry carries one.
+    expect(v.doc.querySelectorAll(".room-around abbr")).toHaveLength(2);
   });
 });

@@ -26,6 +26,9 @@
 // T192 (spec 004; FR-067, FR-070; the wiring T003 records): the page draws the room's live faces and glow cards through
 // the room's own modules (scene/faces3d.ts, scene/glows.ts), in the room and in the vignette, with the drafts build's
 // room text; and its "Smallest cap height" readout measures the bound faces at the current view, as RG7 measures them.
+// T267 (spec 004; FR-049, FR-067; contracts/turn-cost.md §6; the wiring T003 records): the sample state feeds its
+// fixture's turns to a cost channel of its own, from "fixture", so the neon sign's counters draw its figures badged
+// "Sample", never "test", and its fallback replies never stamp the tier's row 7: the switch shows the fixture's tier.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -52,6 +55,8 @@ import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
 import { CABLE_NODE } from "../../src/room/scene/cables";
 import { MODEL_NODE, modelEntries } from "../../src/room/scene/loader";
 import { caseFor } from "../../src/room/signals/tier";
+import { costReadings, createCostChannel } from "../../src/room/signals/turn-cost";
+import type { TurnOutcome } from "../../src/room/signals/turn-cost";
 import { outlineThickness } from "../../src/room/scene/look";
 import { compose } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
@@ -1503,5 +1508,61 @@ describe("User Story 5's faces on the page (T192; FR-067, FR-070)", () => {
     choose(control<HTMLInputElement>(root, "Reference phone"));
     expect(readout()).toBe(expected());
     expect(readout()).not.toBe("");
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// User Story 9's sample figures (T267)
+// --------------------------------------------------------------------------------------------------------------------
+describe("User Story 9's sample figures on the page (T267; FR-049)", () => {
+  /** A fixture's turn as the outcome it stands for (contracts/turn-cost.md §3). */
+  const outcome = (turn: LookdevDeps["inputs"]["fixtures"][number]["turns"][number]): TurnOutcome => {
+    switch (turn.outcome) {
+      case "reply":
+        return { kind: "reply", route: turn.route, cost_micro_usd: turn.cost_micro_usd };
+      case "refused":
+        return { kind: "refused", status: turn.status };
+      case "degraded":
+        return { kind: "degraded", cause: "" };
+      default:
+        return { kind: turn.outcome };
+    }
+  };
+
+  it("draws each fixture's figures on the counters, badged \"Sample\", and its tier on the switch, never row 7's", () => {
+    const { page, root, clock, inputs: given } = open();
+    const select = control<HTMLSelectElement>(root, "Sample state");
+    const counters = given.index.faces.flatMap((face) => {
+      const r = face.regions[0];
+      return r && face.regions.length === 1 && "signal" in r.source ? [{ face, part: r.source.part }] : [];
+    });
+    expect(counters).toHaveLength(2);
+    let amounts = 0;
+    for (const fixture of given.fixtures) {
+      choose(select, fixture.id);
+      clock.advance(50);
+      const channel = createCostChannel({ configured: true, clock });
+      for (const turn of fixture.turns) channel.report(outcome(turn), "fixture");
+      const readings = costReadings(channel.state, { ui: given.index.ui, drafts: true });
+      for (const { face, part } of counters) {
+        const list = page.stage.faces.lists.get(face.id);
+        const reading = readings[part];
+        const badge = reading?.badge ? [`[${reading.badge.text}]`] : [];
+        expect(list ? drawnWords(list.ops) : [], `${fixture.id} ${part}`).toEqual([reading?.text, ...badge]);
+        const kinds = (list?.ops ?? []).flatMap((o) => (o.op === "badge" ? [o.kind] : []));
+        expect(
+          kinds.every((k) => k === "sample"),
+          `${fixture.id} ${part}`,
+        ).toBe(true);
+        amounts += kinds.length;
+      }
+      // The switch shows the fixture's own tier: a fixture's fallback reply stamps nothing.
+      for (const sw of given.index.switches) {
+        const cases = page.stage.room.switches.get(sw.id);
+        for (const [pose, group] of cases ?? [])
+          expect(group.visible, `${fixture.id} ${pose}`).toBe(pose === sw.cases[fixture.tier]);
+      }
+    }
+    expect(amounts).toBeGreaterThan(0);
   });
 });

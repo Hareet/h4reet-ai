@@ -28,7 +28,8 @@ import { resumeView } from "../../src/room/resume-port";
 import type { RoomResume } from "../../src/resume";
 import type { TierValue } from "../../src/room/compose/vocabulary";
 import type { SceneModule, SceneOptions, Stage3D } from "../../src/room/stage";
-import type { TurnRequest } from "../../src/talk/talk";
+import type { CostState } from "../../src/room/signals/turn-cost";
+import type { SendTurn } from "../../src/talk/talk";
 
 export const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 export const REPO = resolve(WEB, "../..");
@@ -277,6 +278,9 @@ export interface FakeScene {
   /** Each tier value the room applied to the stage (spec 004, T161), with the frames drawn before it: what applies
    *  shows from the next frame on. */
   applied: { value: TierValue; frame: number; at: number }[];
+  /** The cost channel's state the room gave the stage at its making, then each it gave through setCost (spec 004,
+   *  T264). */
+  cost: CostState[];
   /** With sceneLate: lets the chunk's import resolve now. */
   release?: () => void;
 }
@@ -291,9 +295,11 @@ export function fakeScene(): FakeScene {
     stage: null,
     frames: 0,
     applied: [],
+    cost: [],
     module: {
       createScene(options) {
         fake.created.push(options);
+        if (options.cost) fake.cost.push(options.cost);
         const canvas = options.doc.createElement("canvas");
         let frame = 0;
         const loop = (time: number): void => {
@@ -309,6 +315,7 @@ export function fakeScene(): FakeScene {
           showHandoff: (progress) => fake.handoff.push(progress),
           setQuality: (level) => fake.quality.push(level),
           apply: (value) => fake.applied.push({ value, frame: fake.frames, at: options.clock.now() }),
+          setCost: (state) => fake.cost.push(state),
           dispose: () => {
             fake.disposed += 1;
             options.clock.cancelFrame(frame);
@@ -443,8 +450,8 @@ export interface SceneOptionsForTest {
   /** Answers the page's fetches, after the spy records each: by default every fetch is refused. */
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
   /** The twin's sender, which the twin's spec gives the room (spec 004, T205): each turn the talk panel would send, by
-   *  default to nowhere, since no sender exists until then. */
-  sendTurn?: (request: TurnRequest) => void;
+   *  default to nowhere, since no sender exists until then; its second argument reports the turn's end (T264). */
+  sendTurn?: SendTurn;
   /** The drafts build's frame log (spec 004, T246): the factory main.ts gives a drafts build, which the room makes its
    *  log with and puts h4FrameLog() on the window; absent, as in a release build, the room keeps no log. */
   frameLog?: RoomDeps["frameLog"];

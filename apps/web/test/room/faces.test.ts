@@ -15,6 +15,9 @@
 //   shows (contracts/room-data-files.md §5.4).
 // The words come from compose() over the fixture set (its fx- IDs are synthetic), in a drafts build, so every room-text
 // file is a draft and drawn with "Draft".
+// T264 (spec 004; FR-034, FR-047 to FR-049, FR-060; contracts/turn-cost.md §5, §6, §8): the neon sign's counters draw
+// the room's cost channel's state: each reading's words and badge, the text copy equal to the drawn words; and the 3D
+// quads redraw them at once on each new state, while the room is paused too, since a pause stops only the glow's motion.
 import { JSDOM } from "jsdom";
 import { Object3D } from "three";
 import type { Mesh } from "three";
@@ -37,6 +40,8 @@ import type { RegionInput } from "../../src/room/faces/registry";
 import { faceSvg } from "../../src/room/faces/svg";
 import type { SvgNode } from "../../src/room/faces/svg";
 import { faceLayout, faceList, faceWords, regionInputs, roomTextOf } from "../../src/room/faces/words";
+import { costReadings, createCostChannel } from "../../src/room/signals/turn-cost";
+import type { CostState, TurnOutcome } from "../../src/room/signals/turn-cost";
 import type { FaceSources, RoomText } from "../../src/room/faces/words";
 import { buildRoom } from "../../src/room/scene/bundle3d";
 import { buildFaceQuads } from "../../src/room/scene/faces3d";
@@ -623,5 +628,102 @@ describe("a switch pose's glows (contracts/room-data-files.md §5.4)", () => {
       seen.add(Number(opacity().toFixed(4)));
     }
     expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
+// ---- T264: the counters ----
+
+describe("the neon sign's counters (T264; contracts/turn-cost.md §5, §6)", () => {
+  /** The fixture's index with the turn route on. */
+  const routed = (): RoomIndex => ({ ...fixture().index, live: { ...fixture().index.live, turn: "site" } });
+  /** Each counter face of an index, with the part it reads. */
+  const counterFaces = (index: RoomIndex): { face: RoomIndex["faces"][number]; part: "call" | "visit" }[] =>
+    index.faces.flatMap((face) => {
+      const r = face.regions[0];
+      return r && face.regions.length === 1 && "signal" in r.source ? [{ face, part: r.source.part }] : [];
+    });
+  const state = (outcomes: TurnOutcome[], from: "turn" | "fixture" = "turn"): CostState => {
+    const channel = createCostChannel({ configured: true, clock: new FakeClock() });
+    for (const o of outcomes) channel.report(o, from);
+    return channel.state;
+  };
+  const reply = (route: string, cost: number): TurnOutcome => ({ kind: "reply", route, cost_micro_usd: cost });
+
+  it("draws each reading of the channel's state, its badge beside it, its text copy equal to its drawn words", () => {
+    const index = routed();
+    const found = counterFaces(index);
+    expect(found.map((f) => f.part).sort()).toEqual(["call", "visit"]);
+    const states = [
+      state([]),
+      state([reply("local", 0)]),
+      state([reply("fallback", 950)]),
+      state([reply("fallback", 950), { kind: "lost" }]),
+      state([reply("fallback", 950)], "fixture"),
+      createCostChannel({ configured: false, clock: new FakeClock() }).state,
+    ];
+    for (const cost of states) {
+      const readings = costReadings(cost, { ui: index.ui, drafts: index.build.kind === "drafts" });
+      for (const { face, part } of found) {
+        const what = `${face.id} ${JSON.stringify(cost, (_, v: unknown) => (typeof v === "bigint" ? String(v) : v))}`;
+        const reading = readings[part];
+        const [input] = regionInputs(face, { index, text: null, cost });
+        expect(input?.lines, what).toEqual([reading?.text]);
+        expect(input?.badge ?? null, what).toEqual(reading?.badge ?? null);
+        expect(input?.counter, what).toBe(true);
+        const list = faceList(face, { index, text: null, cost });
+        expect(list ? drawnWords(list.ops) : null, what).toEqual(faceWords(face, { index, text: null, cost }));
+      }
+    }
+  });
+
+  it('reads "Sample" for a fixture\'s figures and "test" for a turn\'s in a drafts build, as badges of their kinds', () => {
+    const index = routed();
+    expect(index.build.kind).toBe("drafts");
+    const [call] = counterFaces(index).filter((f) => f.part === "call");
+    if (!call) throw new Error("no call counter");
+    const kinds = (cost: CostState): string[] =>
+      (faceList(call.face, { index, text: null, cost })?.ops ?? []).flatMap((o) => (o.op === "badge" ? [o.kind] : []));
+    expect(kinds(state([reply("fallback", 950)]))).toEqual(["test"]);
+    expect(kinds(state([reply("fallback", 950)], "fixture"))).toEqual(["sample"]);
+    expect(kinds(state([]))).toEqual([]);
+  });
+
+  it("reads the index without a state: cost unavailable while live.turn is off, no call yet and $0 once it's on", () => {
+    const off = fixture().index;
+    for (const { face } of counterFaces(off))
+      expect(faceWords(face, { index: off, text: null }), face.id).toEqual([off.ui["sign.unavailable"]]);
+    const on = routed();
+    const words = counterFaces(on).map(({ face, part }) => [part, faceWords(face, { index: on, text: null })]);
+    expect(Object.fromEntries(words)).toEqual({
+      call: [on.ui["sign.no_call_yet"]],
+      visit: ["$0", `[${on.ui["sign.test"]}]`],
+    });
+  });
+
+  it("redraws the counters in 3D at once on each new state, while the room is paused too", () => {
+    const index = routed();
+    const { scene: part } = fixture();
+    const room = buildRoom(part, { avatar: "dog", label: () => new Object3D(), index });
+    const faces = buildFaceQuads({
+      part,
+      index,
+      placements: room.placements,
+      doc: new JSDOM("<main></main>").window.document,
+      clock: new FakeClock(),
+      dpr: 1,
+      level: 0,
+      motion: () => ({ animate: false }),
+    });
+    const [call] = counterFaces(index).filter((f) => f.part === "call");
+    const words = (): string[] => {
+      const list = faces.lists.get(call?.face.id ?? "");
+      return list ? drawnWords(list.ops) : [];
+    };
+    expect(words()).toEqual([index.ui["sign.no_call_yet"]]);
+    faces.setCost(state([reply("fallback", 950)]));
+    expect(words()).toEqual(["$0.000950 est.", `[${index.ui["sign.test"]}]`]);
+    faces.setCost(state([reply("fallback", 950), { kind: "failed" }]));
+    expect(words()).toEqual([index.ui["sign.unavailable"]]);
+    expect(faces.quads.get(call?.face.id ?? "")?.visible).toBe(true);
   });
 });
