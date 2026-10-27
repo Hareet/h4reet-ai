@@ -15,7 +15,10 @@
 // - The look, applied at run time: the room rebuilt in it, and every model it showed loaded again (its decoded bitmaps
 //   were closed once uploaded, R-28).
 // - The sample state: a fixture's tier applied to each tier switch through the room's own apply (scene/cables.ts), its
-//   case by the claims rule, its cable tube, and its glows, as the tier signal applies a reading (User Story 2, T162).
+//   case by the claims rule, its cable tube, and its glows, as the tier signal applies a reading (User Story 2, T162);
+//   and its turns reported, from "fixture", to a cost channel of its own, configured whatever live.turn says, whose
+//   state the neon sign's counters draw, every figure "Sample" (User Story 9, T267; FR-049). A fixture's fallback
+//   reply cues nothing: the switch shows the fixture's tier, never row 7's.
 // - Quality: automatic, a controller of its own on the device's target, or pinned at a level for a measurement.
 // - Pause: the room's motion store (motion.ts), which the page's Pause drives: the idle sway stops while it doesn't
 //   animate, as the room's does, the frame loop drawing still frames (User Story 2, T162).
@@ -72,6 +75,8 @@ import type { GlowCards } from "../room/scene/glows";
 import { createTextureLedger } from "../room/scene/ledger";
 import { createLoader, modelEntries, prepareModel, showModel } from "../room/scene/loader";
 import { caseFor } from "../room/signals/tier";
+import { createCostChannel } from "../room/signals/turn-cost";
+import type { CostState, TurnOutcome } from "../room/signals/turn-cost";
 import type { ModelEntry } from "../room/scene/loader";
 import { createInk } from "../room/scene/look";
 import type { Ink } from "../room/scene/look";
@@ -166,6 +171,29 @@ const AVATAR = AVATARS[0].id;
 const IDLE_SWAY = 0.015;
 /** The layer the stand-ins' labels draw on, which the page's camera sees beside its own, layer 0, while Labels is on. */
 const LABEL_LAYER = 1;
+
+/** A fixture's turn as the outcome it stands for (contracts/turn-cost.md §3): a fixture's degraded turn names no
+ *  cause, and none is shown. */
+function fixtureOutcome(turn: RoomFixture["turns"][number]): TurnOutcome {
+  switch (turn.outcome) {
+    case "reply":
+      return { kind: "reply", route: turn.route, cost_micro_usd: turn.cost_micro_usd };
+    case "refused":
+      return { kind: "refused", status: turn.status };
+    case "degraded":
+      return { kind: "degraded", cause: "" };
+    default:
+      return { kind: turn.outcome };
+  }
+}
+
+/** A sample's figures: its turns, from "fixture", to a channel of its own, configured as though the route existed, so
+ *  the counters show what they would read; without a fixture, a new channel's. Its fallback cue goes nowhere. */
+function sampleCost(fixture: RoomFixture | null, clock: Clock): CostState {
+  const channel = createCostChannel({ configured: true, clock });
+  for (const turn of fixture?.turns ?? []) channel.report(fixtureOutcome(turn), "fixture");
+  return channel.state;
+}
 
 /** The groups that hold a placement's face quads and glow cards (scene/faces3d.ts, scene/glows.ts). */
 const HOLDER = /^(faces|glows):/;
@@ -389,6 +417,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
    *  claims rule with its cable tube and glows; without a fixture, not-live's, as the room shows before a reading. */
   function applySample(): void {
     room.cases.apply(sample?.tier ?? "not-live");
+    faces?.setCost(sampleCost(sample, clock));
   }
 
   const hold = (): (() => void) => {
