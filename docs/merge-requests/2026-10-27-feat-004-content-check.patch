@@ -1,5 +1,5 @@
 diff --git a/tools/gates/content_check.py b/tools/gates/content_check.py
-index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db4679c1afd7 100644
+index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204b3f94379 100644
 --- a/tools/gates/content_check.py
 +++ b/tools/gates/content_check.py
 @@ -1,27 +1,34 @@
@@ -54,7 +54,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
  from pathlib import Path
  
  APPROVALS = "assets/policy/content-approvals.json"
-@@ -46,7 +54,13 @@ CONTENT = Path("apps/web/content")
+@@ -46,22 +54,84 @@ CONTENT = Path("apps/web/content")
  SHA256_RE = re.compile(r"[0-9a-f]{64}")
  ID_RE = re.compile(r"C-\d{4}")
  DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -69,12 +69,40 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
  # The shortest piece of a draft's text that counts as publishing it: shorter shared words (a section title, an ID)
  # say nothing about where they came from.
  MIN_FRAGMENT = 24
-@@ -56,12 +70,42 @@ TEXT_KEY_RE = re.compile(
+ TEXT_KEY_RE = re.compile(
+     r"^(?P<indent>\s*)(?:-\s+)?(?P<key>text|title|name)\s*:\s*(?P<value>.*)$"
+ )
++# A room-text block is read strictly (P-9's review, I1): a value in a form this reader can't read exactly, or a
++# displayed key spelled in a way TEXT_KEY_RE doesn't match, makes the file Unreadable, never read as something else.
++#   - a displayed key anywhere in a line: in flow style, quoted, after a sequence's dash, or as a complex key;
++KEY_SPELLING_RE = re.compile(r"""(?:^|[\s{,\[?-])["']?(?:text|title|name)["']?\s*:""")
++COMPLEX_KEY_RE = re.compile(r"^\s*(?:-\s+)*\?(?:\s|$)")
++#   - another key's block scalar, whose content lines are its words, never keys;
++OTHER_BLOCK_RE = re.compile(
++    r"^\s*(?:-\s+)?(?P<key>[A-Za-z_][\w-]*)\s*:\s+[>|][-+0-9]*\s*(?:#.*)?$"
++)
++#   - a block scalar's header, read exactly when it is >, |, and an optional chomping indicator;
++BLOCK_HEADER_RE = re.compile(r"[>|][-+]?")
++#   - a quoted value on one line, then nothing or a comment;
++DOUBLE_QUOTED_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
++SINGLE_QUOTED_RE = re.compile(r"'(?:[^']|'')*'")
++AFTER_QUOTE_RE = re.compile(r"\s*(?:\s#.*)?")
++#   - a plain value can't start with an indicator, hold a comment or a mapping's ": ", or be read by YAML as anything
++#     but a string (YAML 1.1's and 1.2's nulls, booleans, numbers, and timestamps).
++PLAIN_INDICATORS = "-?:,[]{}#&*!|>'\"%@`"
++YAML_NOT_A_STRING_RE = re.compile(
++    r"~|null|Null|NULL|true|True|TRUE|false|False|FALSE|yes|Yes|YES|no|No|NO|on|On|ON|off|Off|OFF|y|Y|n|N"
++    r"|[-+]?(?:\.[0-9_]+|[0-9][0-9_]*(?:\.[0-9_]*)?)(?:[eE][-+]?[0-9]+)?"
++    r"|[-+]?0[xX][0-9a-fA-F_]+|[-+]?0[oO]?[0-7_]+|[-+]?0[bB][01_]+"
++    r"|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN)"
++    r"|\d{4}-\d\d?-\d\d?(?:[Tt ].*)?"
++    r"|[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+(?:\.[0-9_]*)?"
++)
  SLOT_RE = re.compile(r"\{\{[^}]*\}\}")
  SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
  JS_UNICODE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 +# dist/'s strings for the whole-string match (contracts/intake-amendments.md §11), by a file's suffix.
-+JSON_SUFFIXES = (".json", ".webmanifest", ".map")
++JSON_SUFFIXES = (".json", ".webmanifest", ".map", ".gltf")
 +JS_SUFFIXES = (".js", ".mjs", ".cjs")
 +MARKUP_SUFFIXES = (".html", ".htm", ".svg", ".xml")
 +TEXT_SUFFIXES = (".txt",)
@@ -112,7 +140,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
  def git_env() -> dict[str, str]:
      """git's minimum: no GIT_DIR or other GIT_* of the caller's, no replace objects, no system or global config."""
      return {
-@@ -112,7 +156,11 @@ def approved_digests(data: bytes | None) -> set[str]:
+@@ -112,7 +182,11 @@ def approved_digests(data: bytes | None) -> set[str]:
          checks = (
              ("id", lambda v: isinstance(v, str) and ID_RE.fullmatch(v), "isn't C-nnnn"),
              ("path_when_approved", lambda v: isinstance(v, str) and v, "is missing"),
@@ -125,7 +153,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
              (
                  "sha256",
                  lambda v: isinstance(v, str) and SHA256_RE.fullmatch(v),
-@@ -133,21 +181,33 @@ def approved_digests(data: bytes | None) -> set[str]:
+@@ -133,21 +207,33 @@ def approved_digests(data: bytes | None) -> set[str]:
  
  
  def content_files(tree: Path) -> list[str]:
@@ -167,7 +195,115 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
  def collapse(text: str) -> str:
      return " ".join(text.split())
  
-@@ -209,7 +269,39 @@ def fragments(texts: list[str]) -> set[str]:
+@@ -162,8 +248,23 @@ def unquote(value: str) -> str:
+     return value
+ 
+ 
++def indent_of(line: str) -> int:
++    return len(line) - len(line.lstrip())
++
++
++def block_scalar(lines: list[str], i: int, column: int) -> tuple[str, int]:
++    """A block scalar's content from lines[i]: every line blank or indented past its key's column, joined with
++    spaces (white space is collapsed before any comparison), and the index of the line after it."""
++    block = []
++    while i < len(lines) and (not lines[i].strip() or indent_of(lines[i]) > column):
++        block.append(lines[i].strip())
++        i += 1
++    return " ".join(b for b in block if b), i
++
++
+ def yaml_texts(text: str) -> list[str]:
+-    """The displayed values of a resume source: `text`, `title`, and `name`, inline or as a block scalar."""
++    """The displayed values of a resume source: `text`, `title`, and `name`, inline or as a block scalar, whose
++    content ends at a line no further in than its key (the key's column, not a sequence dash's before it)."""
+     lines = text.splitlines()
+     out = []
+     i = 0
+@@ -176,14 +277,74 @@ def yaml_texts(text: str) -> list[str]:
+         if value and value[0] not in ">|":
+             out.append(unquote(value))
+             continue
+-        indent = len(found["indent"])
+-        block = []
+-        while i < len(lines) and (
+-            not lines[i].strip() or len(lines[i]) - len(lines[i].lstrip()) > indent
+-        ):
+-            block.append(lines[i].strip())
+-            i += 1
+-        out.append(" ".join(b for b in block if b))
++        words, i = block_scalar(lines, i, found.start("key"))
++        out.append(words)
++    return out
++
++
++def strict_value(value: str, lines: list[str], i: int, column: int) -> tuple[str, int]:
++    """One room-text value, from the text after its key's colon on lines[i - 1], read exactly or Unreadable: a block
++    scalar; a double-quoted value on one line, read as JSON reads it (YAML's escapes that JSON shares mean the same);
++    a single-quoted one on one line, '' its one escape; or a plain one on one line. Returns the value and the index
++    of the line after it."""
++    value = value.rstrip()
++    if not value:
++        raise Unreadable("a room-text value on the line after its key")
++    first = value[0]
++    if first in ">|":
++        if not BLOCK_HEADER_RE.fullmatch(value):
++            raise Unreadable("a block scalar's header with an indicator or a comment")
++        return block_scalar(lines, i, column)
++    if first in "\"'":
++        quoted = (DOUBLE_QUOTED_RE if first == '"' else SINGLE_QUOTED_RE).match(value)
++        if not quoted or not AFTER_QUOTE_RE.fullmatch(value[quoted.end() :]):
++            raise Unreadable("a quoted room-text value that isn't whole on its line")
++        if first == "'":
++            return quoted.group(0)[1:-1].replace("''", "'"), i
++        try:
++            return json.loads(quoted.group(0)), i
++        except ValueError:
++            raise Unreadable("a double-quoted escape JSON doesn't read") from None
++    if (
++        first in PLAIN_INDICATORS
++        or " #" in value
++        or "\t#" in value
++        or ": " in value
++        or value.endswith(":")
++    ):
++        raise Unreadable("a plain room-text value with an indicator or a comment")
++    if YAML_NOT_A_STRING_RE.fullmatch(value):
++        raise Unreadable("a plain room-text value YAML reads as something else")
++    following = next((line for line in lines[i:] if line.strip()), None)
++    if following is not None and indent_of(following) > column:
++        raise Unreadable("a plain room-text value continued onto another line")
++    return value, i
++
++
++def room_yaml_texts(text: str) -> list[str]:
++    """A room-text block's displayed values, its `text` values (and `title` and `name`, which a block never names,
++    data-model.md §6.1), each read exactly; any other spelling of those keys, or of their values, is Unreadable."""
++    lines = text.splitlines()
++    out = []
++    i = 0
++    while i < len(lines):
++        line = lines[i]
++        i += 1
++        if not line.strip() or line.lstrip().startswith("#"):
++            continue
++        found = TEXT_KEY_RE.match(line)
++        if found is None:
++            if KEY_SPELLING_RE.search(line) or COMPLEX_KEY_RE.match(line):
++                raise Unreadable("a room-text key in a form this check doesn't read")
++            other = OTHER_BLOCK_RE.match(line)
++            if other is not None:
++                _, i = block_scalar(lines, i, other.start("key"))
++            continue
++        if not re.match(r"\s*:(?:\s|$)", line[found.end("key") :]):
++            raise Unreadable("a room-text key with no space after its colon")
++        after = line[found.end("key") :].lstrip()[1:]
++        words, i = strict_value(after.lstrip(), lines, i, found.start("key"))
++        out.append(words)
+     return out
+ 
+ 
+@@ -209,8 +370,42 @@ def fragments(texts: list[str]) -> set[str]:
      return out
  
  
@@ -199,15 +335,54 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
 +
 +
  def displayed(rel: str, data: bytes) -> list[str]:
-+    """A content file's displayed values: the resume's and a room-text block's `text`, `title`, and `name` values (no
-+    other key of a block is named `title` or `name`, spec 004's data-model.md §6.1), a script's body, an outline's
-+    `words`."""
++    """A content file's displayed values: the resume's `text`, `title`, and `name` values; a room-text block's, each
++    read exactly or the file Unreadable (no other key of a block is named `title` or `name`, spec 004's data-model.md
++    §6.1); a script's body; an outline's `words`."""
 +    if rel.endswith(OUTLINE_SUFFIX):
 +        return outline_words(data)
      text = data.decode("utf-8", errors="replace")
++    if kind_of(rel) == "room-text":
++        return room_yaml_texts(text)
      return yaml_texts(text) if rel.endswith(".yaml") else script_body(text)
  
-@@ -246,6 +338,103 @@ def readable(path: Path) -> str:
+ 
+@@ -226,14 +421,33 @@ def json_strings(node: object) -> list[str]:
+     return []
+ 
+ 
++def _every_pair(pairs: list[tuple[str, object]]) -> list[object]:
++    """An object as the list of its keys and values, every pair kept: a key given twice keeps both values."""
++    return [part for pair in pairs for part in pair]
++
++
++def json_texts(text: str) -> list[str]:
++    """Every string of a JSON text, keys included, a key given twice keeping both values; and, for a string that is
++    JSON itself, that JSON's strings too. Raises ValueError (or RecursionError) when the text isn't JSON."""
++    out = []
++    for string in json_strings(json.loads(text, object_pairs_hook=_every_pair)):
++        out.append(string)
++        if string.lstrip()[:1] in ("{", "["):
++            try:
++                out += json_texts(string)
++            except (ValueError, RecursionError):
++                pass
++    return out
++
++
+ def readable(path: Path) -> str:
+     """A dist/ file's text as a reader would see it: JSON's strings, HTML's entities and a bundle's escapes undone."""
+     data = path.read_bytes()
+     text = data.decode("utf-8", errors="replace")
+     if path.suffix == ".json":
+         try:
+-            return collapse("\n".join(json_strings(json.loads(text))))
+-        except json.JSONDecodeError:
++            return collapse("\n".join(json_texts(text)))
++        except (ValueError, RecursionError):
+             pass
+     text = html.unescape(text)
+     text = JS_UNICODE_RE.sub(lambda m: chr(int(m.group(1), 16)), text)
+@@ -246,6 +460,118 @@ def readable(path: Path) -> str:
      return collapse(text)
  
  
@@ -247,8 +422,8 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
 +                out.append(value)
 +                if value.lstrip()[:1] in ("{", "["):
 +                    try:
-+                        out += json_strings(json.loads(value))
-+                    except ValueError:
++                        out += json_texts(value)
++                    except (ValueError, RecursionError):
 +                        pass
 +            start = text.find(quote, start + 1)
 +    return out
@@ -285,14 +460,16 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
 +def dist_strings(path: Path) -> set[str]:
 +    """A dist/ file's whole strings, white space collapsed (contracts/intake-amendments.md §11): every JSON string,
 +    keys included; every string literal of a script; every text node and attribute value of an HTML or SVG file,
-+    entities decoded; each line of a .txt file. A .json file that isn't JSON is read for its string literals."""
-+    text = path.read_bytes().decode("utf-8", errors="replace")
++    entities decoded; each line of a .txt file. A .json file that isn't JSON, and any other file that is text (UTF-8,
++    no NUL byte: a stylesheet's content, a Markdown file), is read for its string literals."""
++    data = path.read_bytes()
++    text = data.decode("utf-8", errors="replace")
 +    suffix = path.suffix.lower()
 +    strings: list[str] = []
 +    if suffix in JSON_SUFFIXES:
 +        try:
-+            strings = json_strings(json.loads(text))
-+        except ValueError:
++            strings = json_texts(text)
++        except (ValueError, RecursionError):
 +            strings = js_strings(text)
 +    elif suffix in JS_SUFFIXES:
 +        strings = js_strings(text)
@@ -305,13 +482,26 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
 +        strings = parser.strings
 +    elif suffix in TEXT_SUFFIXES:
 +        strings = text.splitlines()
++    elif is_text(data):
++        strings = js_strings(text)
 +    return {s for s in map(collapse, strings) if s}
++
++
++def is_text(data: bytes) -> bool:
++    """A file of a kind the reader has no rule for, read as text when it is UTF-8 with no NUL byte."""
++    if b"\0" in data:
++        return False
++    try:
++        data.decode("utf-8")
++    except UnicodeDecodeError:
++        return False
++    return True
 +
 +
  def dist_files(dist: Path) -> list[Path]:
      """Every regular file under dist/, never following a link."""
      out = []
-@@ -258,19 +447,41 @@ def dist_files(dist: Path) -> list[Path]:
+@@ -258,19 +584,41 @@ def dist_files(dist: Path) -> list[Path]:
      return out
  
  
@@ -357,7 +547,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
      published = doc.get("published")
      if not isinstance(published, list) or not all(
          isinstance(e, dict)
-@@ -278,8 +489,15 @@ def published_of(room_data: Path) -> tuple[list[dict] | None, str]:
+@@ -278,8 +626,15 @@ def published_of(room_data: Path) -> tuple[list[dict] | None, str]:
          and isinstance(e.get("sha256"), str)
          for e in published
      ):
@@ -375,7 +565,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
  
  
  def main(argv: list[str]) -> int:
-@@ -305,7 +523,7 @@ def main(argv: list[str]) -> int:
+@@ -305,7 +660,7 @@ def main(argv: list[str]) -> int:
          )
          return 2
  
@@ -384,7 +574,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
      if published is None:
          print(f"FAIL room-data.json: {why}")
          print("content check: 1 problem (room-data.json isn't a build's)")
-@@ -324,7 +542,11 @@ def main(argv: list[str]) -> int:
+@@ -324,14 +679,19 @@ def main(argv: list[str]) -> int:
              continue
          raw = full.read_bytes()
          digests[rel] = hashlib.sha256(raw).hexdigest()
@@ -396,8 +586,18 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
 +            problems.append(f"FAIL {rel}: {error}: its words can't be checked")
  
      # What the build says it published: each must be a content file, at its current digest, which main approves.
-     for item in published:
-@@ -342,26 +564,47 @@ def main(argv: list[str]) -> int:
+-    for item in published:
++    # An entry that names no content file is named by its index: its path is a value the build wrote, never printed.
++    for index, item in enumerate(published):
+         rel, claimed = item["path"], item["sha256"]
+         if rel not in digests:
+             problems.append(
+-                f"FAIL {rel}: room-data.json says it published this, and it isn't a content file"
++                f"FAIL room-data.json: published[{index}] says it published a file that isn't a content file"
+             )
+         elif claimed != digests[rel]:
+             problems.append(
+@@ -342,26 +702,47 @@ def main(argv: list[str]) -> int:
                  f"FAIL {rel}: published, and main doesn't approve its SHA-256"
              )
  
@@ -453,7 +653,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..597f2385e49581479885fd700452db46
                          f"FAIL {rel}: main doesn't approve it, and its text is in {where}"
                      )
 diff --git a/tools/gates/test/test_content_check.py b/tools/gates/test/test_content_check.py
-index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..02f0c0dd1b441696069e23f829ed660cc67b6653 100644
+index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..a6f1e5d725ff30b0591c0b299847f2d0fbef9232 100644
 --- a/tools/gates/test/test_content_check.py
 +++ b/tools/gates/test/test_content_check.py
 @@ -5,7 +5,10 @@ draft and say otherwise. This check is the enforcement, in human-only code, and
@@ -488,7 +688,40 @@ index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..02f0c0dd1b441696069e23f829ed660c
      (dist / "room-data.json").write_text(json.dumps(data), encoding="utf-8")
      for rel, text in (files or {}).items():
          (dist / rel).parent.mkdir(parents=True, exist_ok=True)
-@@ -353,6 +359,447 @@ def test_a_content_file_that_is_a_link_fails(tmp_path: Path) -> None:
+@@ -202,11 +208,21 @@ def test_a_published_digest_that_isnt_the_trees_fails(
+     "path", ["apps/web/src/main.ts", "../outside.yaml", "apps/web/content/notes.txt"]
+ )
+ def test_a_published_path_that_isnt_a_content_file_fails(
+-    tmp_path: Path, tree: Path, path: str
++    tmp_path: Path, tree: Path, path: str, capsys: pytest.CaptureFixture[str]
+ ) -> None:
+     folder = policy_dir(tmp_path, approvals(sha(RESUME_TEXT)))
+-    dist = build(tmp_path, [{"path": path, "sha256": sha(RESUME_TEXT)}])
++    dist = build(
++        tmp_path,
++        [entry(RESUME, RESUME_TEXT), {"path": path, "sha256": sha(RESUME_TEXT)}],
++    )
+     assert run(tree, dist, "--policy-dir", str(folder)) == 1
++    # The entry by its index: the path is a value the build wrote, and the check prints none (P-9's review, nit 4).
++    out = capsys.readouterr().out
++    assert (
++        "FAIL room-data.json: published[1] says it published a file that isn't a content file"
++        in out
++    )
++    assert path not in out
+ 
+ 
+ # --------------------------------------------------------------------------------------------------
+@@ -236,6 +252,8 @@ def test_a_build_that_lists_a_draft_but_renders_it_fails(
+     [
+         # In the room's data, as JSON writes it.
+         ("room-data.json", None),
++        # Under a key given twice, before its second value (P-9's review, nit 2).
++        ("strings.json", '{"s": "' + RESUME_ITEM + '", "s": "x"}'),
+         # In a bundle, as a minifier writes a string: a \u escape, or an escaped apostrophe.
+         (
+             "assets/index-abc.js",
+@@ -353,6 +371,573 @@ def test_a_content_file_that_is_a_link_fails(tmp_path: Path) -> None:
      assert run(tree, build(tmp_path, []), "--policy-dir", str(folder)) == 1
  
  
@@ -610,6 +843,125 @@ index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..02f0c0dd1b441696069e23f829ed660c
 +    assert cc.displayed(OUTLINE, outline_file(DOG).encode()) == [DOG]
 +
 +
++# A room-text block's `text` values are read exactly, or the file is refused (P-9's review, I1): a check that reads
++# YAML by pattern must never read a spelling it can't read exactly as something else.
++BLOCK_HEAD = "version: 1\nblock: chalk-busy\nrenderer: chalk\nlines:\n"
++
++
++@pytest.mark.parametrize(
++    ("lines", "values"),
++    [
++        # Block scalars, followed by the line's other keys in data-model.md §6.1's order.
++        (
++            "  - text: >-\n      I am\n      very busy\n    about_author: false\n    pending: false\n",
++            [BUSY],
++        ),
++        ("  - text: |\n      I am very busy\n    about_author: false\n", [BUSY]),
++        (
++            "  - text: >\n      I am\n\n      very busy\n  - text: next\n",
++            [BUSY, "next"],
++        ),
++        ("  - text: |+\n      I am very busy\n\n", [BUSY]),
++        # Double-quoted, read as JSON reads it, a trailing comment dropped.
++        (f'  - text: "{BUSY}"  # chalk\n', [BUSY]),
++        ('  - text: "I am \\"very\\" busy"\n', ['I am "very" busy']),
++        ('  - text: "I am very busy\\u0021"\n', ["I am very busy!"]),
++        # Single-quoted, '' as its one escape.
++        (f"  - text: '{BUSY}'  # chalk\n", [BUSY]),
++        ("  - text: 'it''s busy'\n", ["it's busy"]),
++        # Plain, on one line.
++        (f"  - text: {BUSY}\n    about_author: false\n", [BUSY]),
++        (f"  - text:   {BUSY}   \n", [BUSY]),
++        (f'  -   text: "{BUSY}"\n', [BUSY]),
++        (f'  - text : "{BUSY}"\n', [BUSY]),
++        ("  - text: production-grade rigor\n", ["production-grade rigor"]),
++    ],
++)
++def test_a_room_text_value_in_a_form_read_exactly_is_read(
++    lines: str, values: list[str]
++) -> None:
++    read = cc.displayed(ROOM, (BLOCK_HEAD + lines).encode())
++    assert [cc.collapse(v) for v in read] == values
++
++
++@pytest.mark.parametrize(
++    "lines",
++    [
++        # A plain value with a comment, or continued onto another line.
++        f"  - text: {BUSY} # chalk\n",
++        "  - text: I am very\n      busy\n",
++        "  - text:\n      I am very busy\n",
++        "  - text: I am very\n\n      busy\n",
++        # A quoted value continued onto another line, or with more after its closing quote.
++        '  - text: "I am very\n      busy"\n',
++        "  - text: 'I am very\n      busy'\n",
++        '  - text: "I am" very busy\n',
++        # A double-quoted escape JSON doesn't read the same way.
++        '  - text: "I am very busy\\x21"\n',
++        '  - text: "I am very busy\\_"\n',
++        # Flow style, a quoted key, a complex key, or a key with no space after its colon.
++        f'  - {{text: "{BUSY}"}}\n',
++        f'  - {{about_author: false, text: "{BUSY}"}}\n',
++        f'  - "text": "{BUSY}"\n',
++        f"  - 'text': {BUSY}\n",
++        f"  - ? text\n    : {BUSY}\n",
++        f"  - text:{BUSY}\n",
++        # A tag, an anchor, an alias, or a flow value.
++        f"  - text: !!str {BUSY}\n",
++        f"  - text: &busy {BUSY}\n",
++        "  - text: *busy\n",
++        f"  - text: [{BUSY}]\n",
++        f"  - text: {{a: {BUSY}}}\n",
++        # A block scalar's header with an indentation indicator or a comment.
++        "  - text: >2\n      I am very busy\n",
++        "  - text: > # chalk\n      I am very busy\n",
++        # A plain value YAML reads as something other than a string.
++        "  - text: 2026\n",
++        "  - text: true\n",
++        "  - text: null\n",
++        "  - text: ~\n",
++        "  - text: 2026-10-27\n",
++        "  - text: .inf\n",
++        "  - text: 0x1F\n",
++    ],
++)
++def test_a_room_text_value_in_a_form_not_read_exactly_is_refused(lines: str) -> None:
++    with pytest.raises(cc.Unreadable):
++        cc.displayed(ROOM, (BLOCK_HEAD + lines).encode())
++
++
++def test_flow_style_lines_are_refused() -> None:
++    with pytest.raises(cc.Unreadable):
++        cc.displayed(
++            ROOM,
++            f'version: 1\nblock: chalk-busy\nrenderer: chalk\nlines: [{{text: "{BUSY}"}}]\n'.encode(),
++        )
++
++
++def test_a_room_text_file_that_cant_be_read_exactly_fails_the_check(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    room = BLOCK_HEAD + f'  - {{text: "{BUSY}"}}\n'
++    tree, folder = draft_tree(tmp_path, {ROOM: room})
++    dist = build(tmp_path, [entry(RESUME, RESUME_TEXT)], drafts=[ROOM])
++    assert run(tree, dist, "--policy-dir", str(folder)) == 1
++    captured = capsys.readouterr()
++    assert f"FAIL {ROOM}: " in captured.out
++    assert "very busy" not in captured.out + captured.err
++
++
++def test_a_resume_block_scalar_ends_at_its_keys_column() -> None:
++    # The indent is the key's column, not the dash's, so the item's next key isn't read as the value's words.
++    resume = (
++        "version: 1\nsections:\n  - items:\n      - text: >-\n"
++        "          Wrote the runbook the on-call\n          team still follows today\n"
++        "        claims: [{file: corpus/00-profile.md, quote: a span}]\n"
++    )
++    assert cc.displayed(RESUME, resume.encode()) == [
++        "Wrote the runbook the on-call team still follows today"
++    ]
++
++
 +def test_an_approved_room_text_file_published_passes(
 +    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 +) -> None:
@@ -677,6 +1029,13 @@ index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..02f0c0dd1b441696069e23f829ed660c
 +        (BUNDLE, f'/* it\'s */const r=/"/g,t="{BUSY}";'),
 +        # A large JSON import, as a bundler inlines it: one string literal that JSON.parse reads.
 +        (BUNDLE, 'const d=JSON.parse(\'{"t":["' + BUSY + "\"]}');"),
++        # A key given twice keeps both values; JSON inside a JSON string is read too (P-9's review, nit 2).
++        ("dup.json", '{"t": "' + BUSY + '", "t": "other"}'),
++        ("nested.json", json.dumps({"payload": json.dumps({"t": [BUSY]})})),
++        # A glTF file is JSON; another text file is read for its string literals (P-9's review, nit 3).
++        ("models/sign.gltf", json.dumps({"asset": {"extras": {"t": BUSY}}})),
++        ("assets/index-abc.css", '.a::after{content:"' + BUSY + '"}'),
++        ("notes.md", f'a line, then "{BUSY}"\n'),
 +        # JSON's strings, keys included, white space collapsed.
 +        ("strings.json", json.dumps({BUSY: 1})),
 +        ("data/deep.json", json.dumps({"a": [{"b": f"  {BUSY.replace(' ', '  ')} "}]})),
