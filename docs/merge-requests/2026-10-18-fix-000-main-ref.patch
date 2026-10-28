@@ -506,7 +506,7 @@ index 3e5b0c1bef2319eb2c9503fce952c8e656e35d8a..fcfee2fb28c609e6ef27da7f8287f4e3
 +H/git-hook/tag maintenance
 +H/git-hook/tag -d main, a deletion
 diff --git a/tools/gates/test/test_gate.py b/tools/gates/test/test_gate.py
-index af3adbd1ba436bed77d0413acc9f7de39c53f5f6..ba798ced997833b1b681430b2133e051a86a112a 100644
+index af3adbd1ba436bed77d0413acc9f7de39c53f5f6..7915def4ca12919374798e6541e314a5aab9fd9a 100644
 --- a/tools/gates/test/test_gate.py
 +++ b/tools/gates/test/test_gate.py
 @@ -836,6 +836,107 @@ def test_a_replace_ref_stops_the_gate_before_anything_runs(fx: Fixture) -> None:
@@ -705,7 +705,7 @@ index af3adbd1ba436bed77d0413acc9f7de39c53f5f6..ba798ced997833b1b681430b2133e051
  # --------------------------------------------------------------------------------------------------
  # The container phase
  # --------------------------------------------------------------------------------------------------
-@@ -2605,17 +2780,22 @@ def test_a_tag_named_main_never_stands_in_for_the_branch(fx: Fixture) -> None:
+@@ -2605,17 +2780,24 @@ def test_a_tag_named_main_never_stands_in_for_the_branch(fx: Fixture) -> None:
      # git resolves a bare `main` to refs/tags/main before refs/heads/main, and an agent session can make that tag:
      # the gate reads refs/heads/main, as spec 003's check reads its policy.
      on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
@@ -723,6 +723,8 @@ index af3adbd1ba436bed77d0413acc9f7de39c53f5f6..ba798ced997833b1b681430b2133e051
 +    stand_in = TAG_MAIN_DURING_RUN.replace("@REPO@", repr(str(fx.main)))
 +    write(fx.stubs / "docker", stand_in.replace("@SHA@", repr(sha)), 0o755)
      done = gate(fx, "feature")
++    # The tag is there before the room's build reads main's policy: a docker run, which made it, came first.
++    assert by_kind(fx.docker(), "run")[0]["command"] != WEB_BUILD
      (build,) = web_builds(fx.docker())
      assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
      assert status_of(done, "content") == "PASS"
