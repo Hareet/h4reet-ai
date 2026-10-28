@@ -1,0 +1,693 @@
+--- a/tools/gates/gate
++++ b/tools/gates/gate
+@@ -20,7 +20,10 @@
+ contract-live reaches it through the checkout's own Makefile and operator.py, which have run by then.
+ 
+ 1. Export. REF resolves once to a commit SHA, which every later step and the merge use. Every git call runs with
+-   GIT_NO_REPLACE_OBJECTS=1. A ref under refs/replace stops the gate, since the Author's merge would honor it. So do
++   GIT_NO_REPLACE_OBJECTS=1, and reads main as refs/heads/main, never bare. A ref under refs/replace stops the gate,
++   since the Author's merge would honor it. So does a ref beside refs/heads/main that a bare main names: main (a file
++   at the top of .git), refs/main, or refs/tags/main, which git reads first, or refs/remotes/main or
++   refs/remotes/main/HEAD, which make the name ambiguous; anything the Author writes as main would read it. So do
+    .git/info/attributes and submodules, which git archive would apply or skip, and any path git takes for its own
+    directory (.git in any case, or as NTFS spells it: a file, a folder, or a link, anywhere in the tree), which git
+    would read as a repository if anything ran it in the export. `git archive` exports the commit, tarfile's data
+@@ -40,8 +43,8 @@
+    - policy: tools/gates/compose_policy.py --root <export>;
+    - corpus: corpus/tools/check_corpus.py over the export's corpus, with the Author's denylist, which must exist;
+      loaded into this process, which runs with PY_HOST's flags, since the script reads only its own tree;
+-   - gitleaks over $(git merge-base main SHA)..SHA, with the main tree's .gitleaks.toml (--config), a fresh empty
+-     --gitleaks-ignore-path, and --ignore-gitleaks-allow, and git log's --text, without which git shows no diff for
++   - gitleaks over $(git merge-base refs/heads/main SHA)..SHA, with the main tree's .gitleaks.toml (--config), a fresh
++     empty --gitleaks-ignore-path, and --ignore-gitleaks-allow, and git log's --text, without which git shows no diff for
+      what it takes for binary: a NUL byte, or a -diff attribute in any .gitattributes in the work tree. It refuses
+      while a .gitleaksignore at the main tree could hold an entry (research.md R-36). gitleaks exits 0 when git
+      fails beneath it, and only logs the error, so findings exit 99 (--exit-code) and a scan passes only when
+@@ -77,7 +80,9 @@
+    "cache_creation" (integers), and a "run" that is its file's name. Only an entry this machine attests is posted;
+    the rest wait (PENDING). The history is append-only: a branch that changes or removes an entry fails, and so does
+    a malformed entry or a link. A collector that doesn't answer is a WARN.
+-6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off.
++6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off. First
++   the export's check on refs a bare main names runs again, since one can be made while the gate runs: if one is
++   there, a main-refs step fails, and no merge command is printed.
+ 
+ --host skips the container phase (plan §19: the devcontainer image won't build), and every summary line says
+ DEGRADED. Lint, tests, the scaffolds, and stage H then run nowhere: never on the host.
+@@ -188,6 +193,18 @@
+ )
+ TOKEN_TYPES = ("input", "output", "cache_read", "cache_creation")
+ COUNTED = ("PASS", "SKIP", "WARN", "PLANNED", "PENDING", "FAIL")
++# main, by its full name. git reads a bare main through its rules (refs.c's ref_rev_parse_rules) as main, refs/main,
++# refs/tags/main, refs/heads/main, refs/remotes/main, and refs/remotes/main/HEAD, in that order, so a tag named main,
++# which an agent session can write, would answer for main:GNUmakefile and git merge-base main (fix/000-main-ref).
++MAIN = "refs/heads/main"
++# The rest of those names: while any of them is a ref, the gate stops, as it does on refs/replace.
++MAIN_SHADOWS = (
++    "main",
++    "refs/main",
++    "refs/tags/main",
++    "refs/remotes/main",
++    "refs/remotes/main/HEAD",
++)
+ 
+ 
+ class Refusal(Exception):
+@@ -533,6 +550,46 @@
+     shutil.rmtree(top, ignore_errors=True)
+ 
+ 
++def main_shadows(repo: Path) -> list[str]:
++    """The names in MAIN_SHADOWS that are refs: each that for-each-ref lists, loose or packed, and each with a file or a
++    link at its path, which finds main itself, at the top of .git, where for-each-ref never looks, and a loose ref git
++    couldn't read. main is shown with its path, since git won't delete it by that name. The paths come relative to the
++    repository: --path-format=absolute resolves each, and fails where refs/remotes/main is a file and so can't hold
++    refs/remotes/main/HEAD."""
++    listed = git(repo, "for-each-ref", "--format=%(refname)")
++    located = git(
++        repo,
++        "rev-parse",
++        *(arg for name in MAIN_SHADOWS for arg in ("--git-path", name)),
++    )
++    paths = [repo / line for line in located.stdout.splitlines()]
++    if listed.returncode or located.returncode or len(paths) != len(MAIN_SHADOWS):
++        raise Stop(
++            "git couldn't list the refs, so a ref that a bare main names can't be ruled out"
++        )
++    refs = set(listed.stdout.splitlines())
++    return [
++        f"{name} ({path})" if name == "main" else name
++        for name, path in zip(MAIN_SHADOWS, paths)
++        if name in refs or path.is_symlink() or path.is_file()
++    ]
++
++
++def shadow_problem(repo: Path) -> str | None:
++    """Why a bare main might not read refs/heads/main, or None: the refs main_shadows finds. The export stops on one,
++    and finish() looks again, since one can be made while the gate runs."""
++    shadows = main_shadows(repo)
++    if not shadows:
++        return None
++    return (
++        f"{', '.join(shadows)}: {'a ref' if len(shadows) == 1 else 'refs'} beside {MAIN} that a bare main "
++        "names. git reads main, refs/main, and refs/tags/main before the branch, so your own git diff "
++        "main...<branch>, git log main, or main:<path> could read another commit. The gate reads main only as "
++        f"{MAIN}, but stops while one is there: remove each (git update-ref -d --no-deref <ref>; for main, rm "
++        "the path shown) and run the gate again"
++    )
++
++
+ def export(repo: Path, ref: str, tmp: Path) -> tuple[str, Path, bytes]:
+     """Resolve REF once, export that commit, and prove the export is the commit's own tree (plan §11)."""
+     replaced = git(repo, "for-each-ref", "--format=%(refname)", "refs/replace/")
+@@ -544,6 +601,9 @@
+             "replace ref, so the gate would vouch for a commit other than the one the merge writes: remove them "
+             "(git replace -l, git replace -d) and run the gate again"
+         )
++    problem = shadow_problem(repo)
++    if problem:
++        raise Stop(problem)
+     sha = resolve(repo, ref)
+     expected = commit_tree(repo, sha)
+     attributes = git(
+@@ -610,7 +670,7 @@
+     gnu = export_dir / "GNUmakefile"
+     if not os.path.lexists(gnu):
+         return step.set("PASS", "no GNUmakefile and no makefile")
+-    mains = git(repo, "cat-file", "blob", "main:GNUmakefile", binary=True)
++    mains = git(repo, "cat-file", "blob", f"{MAIN}:GNUmakefile", binary=True)
+     if mains.returncode:
+         return step.fail("the commit has a GNUmakefile, and main has none")
+     if gnu.is_symlink() or not gnu.is_file() or gnu.read_bytes() != mains.stdout:
+@@ -1555,6 +1615,14 @@
+ 
+ 
+ def finish(report: Report, repo: Path, sha: str, ref: str, degraded: bool) -> int:
++    # The export's check on refs a bare main names, again: the container phase runs for minutes, and one made meanwhile
++    # would answer for main in your git diff main...<branch> before the merge. A step only when one is there.
++    try:
++        late = shadow_problem(repo)
++    except Stop as exc:
++        late = str(exc)
++    if late:
++        report.add(Step("main-refs").fail(late))
+     say()
+     for step in report.steps:
+         note = f"  {'; '.join(step.notes)}" if step.notes else ""
+@@ -1571,7 +1639,7 @@
+         f"-m {shlex.quote(line)} {sha}"
+     )
+     say(f"merge: {merge}")
+-    if git(repo, "merge-base", "--is-ancestor", "main", sha).returncode != 0:
++    if git(repo, "merge-base", "--is-ancestor", MAIN, sha).returncode != 0:
+         say(
+             f"note: main has commits {ref} doesn't, so the merge writes a tree this run didn't check; to merge "
+             "exactly what it checked, merge main into the branch and run the gate again"
+@@ -1605,7 +1673,7 @@
+         report.add(makefiles(repo, export_dir))
+         if not host_only:
+             container_phase(report, data, export_dir, tmp)
+-        found = git(repo, "merge-base", "main", sha)
++        found = git(repo, "merge-base", MAIN, sha)
+         base = (
+             found.stdout.strip()
+             if found.returncode == 0 and SHA_RE.fullmatch(found.stdout.strip())
+--- a/tools/gates/test/test_gate.py
++++ b/tools/gates/test/test_gate.py
+@@ -790,6 +790,107 @@
+     assert fx.docker() == [] and fx.gitleaks() == []
+ 
+ 
++# A ref beside refs/heads/main that a bare main names (fix/000-main-ref): git reads main as main (a file at the top of
++# .git), refs/main, and refs/tags/main before refs/heads/main, and refs/remotes/main and refs/remotes/main/HEAD after
++# it. An agent session can write any of them: .git/refs/tags is writable in its sandbox. Each case, and the name the
++# gate shows for it.
++SHADOWS = {
++    "refs/tags/main": "refs/tags/main",
++    "refs/tags/main, annotated": "refs/tags/main",
++    "refs/tags/main, packed": "refs/tags/main",
++    "refs/tags/main, a symbolic ref": "refs/tags/main",
++    "refs/main": "refs/main",
++    "main": "main (",
++    "refs/remotes/main": "refs/remotes/main",
++    "refs/remotes/main/HEAD": "refs/remotes/main/HEAD",
++}
++
++
++def shadow_main(repo: Path, case: str, commit: str) -> None:
++    """Make the ref a case of SHADOWS names, at a commit, as an agent session could: main itself as a file at the top
++    of .git (git 2.43's update-ref writes it there; this way doesn't depend on git's version)."""
++    name = case.split(",")[0]
++    if case == "main":
++        path = git(repo, "rev-parse", "--path-format=absolute", "--git-path", "main")
++        Path(path).write_text(f"{commit}\n", encoding="utf-8")
++    elif case.endswith("annotated"):
++        git(repo, "tag", "-a", "-m", "a tag named main", "main", commit)
++    elif case.endswith("a symbolic ref"):
++        git(repo, "symbolic-ref", name, "refs/heads/feature")
++    else:
++        git(repo, "update-ref", name, commit)
++        if case.endswith("packed"):
++            # Tags only (and refs already packed): refs/heads/main stays loose, and refs/tags/main is in packed-refs
++            # alone.
++            git(repo, "pack-refs")
++
++
++@pytest.mark.parametrize("case", list(SHADOWS))
++def test_a_ref_a_bare_main_names_stops_the_gate_before_anything_runs(
++    fx: Fixture, case: str
++) -> None:
++    # Your own git diff main...<branch> before a merge would read it, so the gate stops, as on refs/replace, and names it.
++    sha = fx.branch(CHANGE)
++    shadow_main(fx.main, case, sha)
++    done = gate(fx, "feature")
++    assert done.returncode == 1, done.stdout + done.stderr
++    assert status_of_export_failure(done)
++    (line,) = [ln for ln in done.stdout.splitlines() if ln.startswith("-> FAIL export")]
++    assert SHADOWS[case] in line and "refs/heads/main" in line, line
++    assert fx.docker() == [] and fx.gitleaks() == []
++
++
++@pytest.mark.parametrize(
++    "name",
++    [
++        "refs/remotes/origin/main",
++        "refs/tags/main-v1",
++        "refs/tags/v1/main",
++        "refs/heads/topic/main",
++    ],
++)
++def test_a_ref_a_bare_main_never_names_leaves_the_gate_alone(
++    fx: Fixture, name: str
++) -> None:
++    # A remote-tracking branch (origin/main), a tag whose name only starts with main or ends in /main, and a branch:
++    # git reads none of them for a bare main.
++    sha = fx.branch(CHANGE)
++    git(fx.main, "update-ref", name, sha)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert "main-refs" not in done.stdout
++
++
++# A docker that writes a tag named main whenever the gate runs a container: a ref made while the gate runs, after the
++# export's check.
++TAG_MAIN_DURING_RUN = r"""#!/usr/bin/env python3
++import os, subprocess, sys
++here = os.path.dirname(os.path.abspath(__file__))
++if sys.argv[1:2] == ["run"]:
++    subprocess.run(["git", "-C", @REPO@, "update-ref", "refs/tags/main", @SHA@], check=True)
++real = os.path.join(here, "docker.real")
++os.execv(real, [real, *sys.argv[1:]])
++"""
++
++
++def test_a_ref_a_bare_main_names_made_while_the_gate_runs_holds_back_the_merge(
++    fx: Fixture,
++) -> None:
++    # The container phase runs for minutes; a tag made meanwhile would answer for main in your git diff
++    # main...<branch> before the merge, so finish() looks again (the review's item 2).
++    sha = fx.branch(CHANGE)
++    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
++    stand_in = TAG_MAIN_DURING_RUN.replace("@REPO@", repr(str(fx.main)))
++    write(fx.stubs / "docker", stand_in.replace("@SHA@", repr(sha)), 0o755)
++    done = gate(fx, "feature")
++    assert done.returncode == 1, done.stdout + done.stderr
++    assert status_of(done, "export") == "PASS"
++    assert status_of(done, "main-refs") == "FAIL"
++    assert "refs/tags/main" in row(done, "main-refs")
++    assert "main-refs FAIL" in summary(done)
++    assert not [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
++
++
+ def test_info_attributes_stops_the_gate(fx: Fixture) -> None:
+     fx.branch(CHANGE)
+     info = Path(
+@@ -874,6 +975,44 @@
+     assert len(seen) > 10 and set(seen) == {'"1"'}
+ 
+ 
++def names_main_bare(argv: list[str], i: int) -> bool:
++    """Whether argument i names main as a revision by its short name: main, main:<path>, main^, main~2, main@{1}, or a
++    range ending in main. A --git-path's argument is a file's name."""
++    if i and argv[i - 1] == "--git-path":
++        return False
++    return bool(
++        re.fullmatch(r"main([:^~@].*|\.\..*)?", argv[i])
++        or re.search(r"\.\.\.?main([:^~@].*)?$", argv[i])
++    )
++
++
++def test_every_git_call_reads_main_by_its_full_name(fx: Fixture) -> None:
++    # git reads a bare main as refs/tags/main before refs/heads/main, so the makefiles step's blob, the merge base the
++    # scans and the triggers read, and the merge note's ancestry check all name refs/heads/main (fix/000-main-ref).
++    real = (fx.sysbin / "git").resolve()
++    log = fx.logs / "git.argv"
++    (fx.sysbin / "git").unlink()
++    write(
++        fx.sysbin / "git",
++        "#!/usr/bin/env python3\nimport json, os, sys\n"
++        f"with open({str(log)!r}, 'a') as h:\n"
++        "    h.write(json.dumps(sys.argv[1:]) + '\\n')\n"
++        f"os.execv({str(real)!r}, ['git', *sys.argv[1:]])\n",
++        0o755,
++    )
++    commit_on_main(fx, {"GNUmakefile": "include Makefile\n"}, "main's GNUmakefile")
++    sha = fx.branch(CHANGE)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    calls = [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines()]
++    assert [a for a in calls if any(names_main_bare(a, i) for i in range(len(a)))] == []
++    # The gate runs git as git -C <directory> <arguments>.
++    args = [a[2:] for a in calls if a[:1] == ["-C"]]
++    assert ["cat-file", "blob", "refs/heads/main:GNUmakefile"] in args
++    assert ["merge-base", "refs/heads/main", sha] in args
++    assert ["merge-base", "--is-ancestor", "refs/heads/main", sha] in args
++
++
+ @pytest.mark.parametrize("ref", ["-x", "feature..main", "has space"])
+ def test_a_ref_that_isnt_a_plain_name_is_refused(fx: Fixture, ref: str) -> None:
+     fx.branch(CHANGE)
+@@ -1101,6 +1240,42 @@
+     assert status_of(done, "makefiles") == "FAIL"
+ 
+ 
++HOSTILE_MAKEFILE = "include Makefile\nlint:\n\t@true\n"
++
++
++@pytest.mark.parametrize("case", ["refs/tags/main", "refs/main", "main"])
++def test_mains_gnumakefile_is_the_branchs_whatever_a_bare_main_names(
++    fx: Fixture, case: str
++) -> None:
++    # make reads a GNUmakefile before the Makefile, so the step decides what make runs in the container phase. A tag
++    # named main at a commit holding the branch's GNUmakefile made main:GNUmakefile read that one, and the step pass
++    # (fix/000-main-ref). In this process, since a whole run now stops at the export first.
++    commit_on_main(fx, {"GNUmakefile": "include Makefile\n"}, "main's GNUmakefile")
++    hostile = fx.branch({"GNUmakefile": HOSTILE_MAKEFILE})
++    shadow_main(fx.main, case, hostile)
++    export = fx.root / "export"
++    write(export / "GNUmakefile", HOSTILE_MAKEFILE)
++    step = gm.makefiles(fx.main, export)
++    assert (step.status, step.notes) == (
++        "FAIL",
++        ["the commit's GNUmakefile isn't main's"],
++    )
++    write(export / "GNUmakefile", "include Makefile\n")
++    assert gm.makefiles(fx.main, export).status == "PASS"
++
++
++def test_a_gnumakefile_main_lacks_fails_whatever_a_bare_main_names(fx: Fixture) -> None:
++    hostile = fx.branch({"GNUmakefile": HOSTILE_MAKEFILE})
++    shadow_main(fx.main, "refs/tags/main", hostile)
++    export = fx.root / "export"
++    write(export / "GNUmakefile", HOSTILE_MAKEFILE)
++    step = gm.makefiles(fx.main, export)
++    assert (step.status, step.notes) == (
++        "FAIL",
++        ["the commit has a GNUmakefile, and main has none"],
++    )
++
++
+ # --------------------------------------------------------------------------------------------------
+ # The container phase
+ # --------------------------------------------------------------------------------------------------
+--- a/.claude/git-hooks/reference-transaction
++++ b/.claude/git-hooks/reference-transaction
+@@ -5,6 +5,12 @@
+ # command runs inside Claude Code, which sets CLAUDECODE=1 in the shells it starts. The Author's own
+ # terminal doesn't set it, so the Author's merges go through. bash-gate.sh blocks agents from
+ # unsetting CLAUDECODE or redirecting core.hooksPath.
++# It also refuses creating or changing a ref outside refs/heads that a bare `main` names: git reads `main` as main
++# (a file at the top of .git), refs/main, and refs/tags/main before refs/heads/main, then refs/remotes/main and
++# refs/remotes/main/HEAD, so a tag named main would answer for main wherever it's written bare (fix/000-main-ref).
++# Any other ref outside refs/heads whose last component is main is refused too, as are main-worktree/main and
++# worktrees/<id>/main, but not a remote-tracking branch, refs/remotes/<remote>/main, which is <remote>/main. Deleting
++# one goes through.
+ # git passes the state ("prepared", "committed", or "aborted") as $1 and one line per update on stdin:
+ # "<old-value> <new-value> <ref-name>". Only a failure in "prepared" aborts the transaction. The old
+ # value is all zeros whenever the caller didn't state one, so the check compares the new value with
+@@ -20,5 +26,18 @@
+     echo "Blocked by .claude/git-hooks/reference-transaction: only the Author changes main (ADR 0013). Work on a feature branch; the Author merges it." >&2
+     exit 1
+   fi
++  case "$ref" in
++    refs/heads/*) continue ;;
++    main | refs/main | refs/tags/main | refs/remotes/main | refs/remotes/main/HEAD) ;;
++    refs/remotes/*/main) continue ;;
++    */main) ;;
++    *) continue ;;
++  esac
++  # A deletion's new value is all zeros; anything else (an object ID, or ref:<target> for a symbolic ref) refuses.
++  if [ -n "$new" ] && [ -z "${new//0/}" ]; then
++    continue
++  fi
++  echo "Blocked by .claude/git-hooks/reference-transaction: a bare main would name $ref beside refs/heads/main (git reads main, refs/main, and refs/tags/main first), and the Author's gate stops while one exists. Name the tag or ref anything else." >&2
++  exit 1
+ done
+ exit 0
+--- a/.claude/hooks/bash-gate.sh
++++ b/.claude/hooks/bash-gate.sh
+@@ -96,9 +96,10 @@
+ echo "$cmd" | grep -Eq '\bgh\b[^;&|]*[[:space:]]api\b.*createRepository' \
+   && block "creating a GitHub repository" "$local_route"
+ # Git internals change through git, never by writing the files directly. The backtick in the
+-# pattern is a literal (a command started inside backticks), not an expansion.
++# pattern is a literal (a command started inside backticks), not an expansion. .git/main is a ref git reads for a bare
++# main before refs/heads/main (fix/000-main-ref).
+ # shellcheck disable=SC2016
+-echo "$cmd" | grep -Eq '(>|(^|[;&|(`[:space:]])(tee|cp|mv|ln|install|truncate|rm|sed[[:space:]]+-i)[[:space:]])[^;&|]*\.git/(config|HEAD|refs/|hooks/|packed-refs|info/)' \
++echo "$cmd" | grep -Eq '(>|(^|[;&|(`[:space:]])(tee|cp|mv|ln|install|truncate|rm|sed[[:space:]]+-i)[[:space:]])[^;&|]*\.git/(config|HEAD|refs/|hooks/|packed-refs|info/|main([^[:alnum:]_.-]|$))' \
+   && block "writing git internals" "$main_route"
+ # The git hook that guards main (.claude/git-hooks/reference-transaction) keys on CLAUDECODE and runs
+ # from .git/hooks, so agents may not unset or clear that variable or point git at other hooks or config.
+@@ -284,6 +285,33 @@
+   || has "${git_word}([^;&|]*[[:space:]])?$(spelled commit)([^[:alnum:]_.-][^;&|]*)?[[:space:]][\"'\\]*-[[:alpha:]\"'\\]*n"; }; then
+   block "skipping git's hooks" "commit without --no-verify or -n; the pre-commit scan runs on every commit (FR-008)"
+ fi
++# A ref a bare main names beside refs/heads/main (fix/000-main-ref). git reads main as main (a file at the top of .git),
++# refs/main, and refs/tags/main before refs/heads/main, so a tag named main would answer for main:<path>, git diff
++# main...<branch>, and git merge-base main wherever they're written bare. The reference-transaction git hook refuses
++# them inside Claude Code; these rules name the spellings: git tag whose tag name is main (after the options that create
++# one: -a, -f, -s, -e, and -m, -F, -u with their values; never -l, -d, -v, or --contains, which only read or delete),
++# and update-ref, symbolic-ref, or a fetch refspec's destination naming refs/main, refs/tags/main, refs/remotes/main, or
++# refs/remotes/main/HEAD. Quotes, backslashes, and $ inside the name don't hide it; a name held in a variable or built
++# at run time, update-ref --stdin, and fast-import do (the matrix's gap rows), and the git hook and the gate's check
++# hold those.
++q="[\"'\\\\]*"
++shell_word="(\"[^\"]*\"|'[^']*'|[^[:space:];&|\"']+)+"
++tag_value="(-[afse]*[mFu]|--(message|file|local-user|cleanup|trailer))(=|[[:space:]]+)${shell_word}|-[afse]*[mFu][^[:space:]]+"
++tag_flag="-[afse]+|--(force|annotate|sign|no-sign|edit|no-edit|create-reflog|no-create-reflog)?"
++if has "${git_cmd}tag${q}([[:space:]]+${q}(${tag_value}|${tag_flag})${q})*[[:space:]]+${q}$(spelled main)${q}([^[:alnum:]_./-]|\$)"; then
++  block "a tag named main" "$main_route; name the tag anything else"
++fi
++main_shadow="${q}($(spelled refs/main)|$(spelled refs/tags/main)|$(spelled refs/remotes/main)(${eq}/${eq}$(spelled HEAD))?)${q}([^[:alnum:]_./-]|\$)"
++# A fetch refspec's destination is read as git reads it: git puts refs/ before one starting tags/ or remotes/, and a glob
++# at refs/* or refs/remotes/* (or remotes/*) lands a source branch feature/main at refs/main or refs/remotes/main. The
++# refspec may follow fetch, or sit in a remote's fetch setting (git -c remote.<name>.fetch=…, git config). A glob at
++# refs/tags/* stays allowed, since it is how tags are fetched: a gap row.
++fetch_dst="(${main_shadow}|${q}($(spelled refs/)${eq})?($(spelled tags/main)|$(spelled remotes/main)(${eq}/${eq}$(spelled HEAD))?)${q}([^[:alnum:]_./-]|\$)|${q}($(spelled refs/)${eq}($(spelled remotes/)${eq})?|$(spelled remotes/)${eq})\*)"
++if has "${git_cmd}(update-ref|symbolic-ref)\b[^;&|]*[[:space:]]${main_shadow}" \
++  || has "${git_cmd}fetch\b[^;&|]*:${fetch_dst}" \
++  || has "$(spelled remote)${eq}\.[^[:space:]=]*\.${eq}$(spelled fetch)${q}(=|[[:space:]]+)[^;&|[:space:]]*:${fetch_dst}"; then
++  block "a ref a bare main names" "$main_route; name the ref anything else"
++fi
+ # claude, or npx's claude-code, where a command starts, then mcp and add in the same command: naming the three in a
+ # grep, a commit message, or a comment isn't running it (the closing patch's review).
+ claude_run="${engine_start}(${engine_skip})*[[:space:]]*([\"']?([^[:space:];&|]*/)?($(spelled npx)|$(spelled bunx)|$(spelled pnpx))(${engine_skip})*[[:space:]]+)?[\"']?([^[:space:];&|]*/)?$(spelled claude)(${eq}-$(spelled code))?[\"']*"
+--- a/redteam/forbidden-actions.sh
++++ b/redteam/forbidden-actions.sh
+@@ -187,48 +187,47 @@
+ # main...<branch>, and git merge-base main wherever they're written bare. bash-gate.sh refuses git tag naming main as the
+ # tag, update-ref, symbolic-ref, or a fetch refspec naming refs/main, refs/tags/main, refs/remotes/main, or
+ # refs/remotes/main/HEAD, and a write to .git/main; the git hook's rows below refuse them in any spelling git runs it
+-# for, and tools/gates/gate stops while one exists. docs/merge-requests/2026-10-18-fix-000-main-ref.patch adds the rules
+-# and makes these rows "block".
+-main_ref_planned=$planned
+-cmd planned 'git tag main'
+-cmd planned 'git tag main HEAD~1'
+-cmd planned 'git tag -f main'
+-cmd planned 'git tag --force main HEAD'
+-cmd planned 'git tag -a -m "a release" main'
+-cmd planned 'git tag -fam x main'
+-cmd planned 'git tag --message=x -s main'
+-cmd planned 'git tag "main"'
+-cmd planned "git tag 'main' HEAD"
+-cmd planned "git tag ma''in"
+-cmd planned 'git tag \main'
+-cmd planned 'git -C . tag main'
+-cmd planned 'git -c tag.gpgSign=false tag -f main'
+-cmd planned "bash -c 'git tag main'"
+-cmd planned '(git tag -f main)'
+-cmd planned 'git status; git tag main'
+-cmd planned 'git update-ref refs/tags/main HEAD'
+-cmd planned 'git update-ref refs/main HEAD'
+-cmd planned 'git update-ref "refs/tags/main" HEAD~1'
+-cmd planned "git update-ref 'refs/main' HEAD"
+-cmd planned 'git -C . update-ref refs/main HEAD'
+-cmd planned 'git -c core.x=y update-ref refs/tags/main HEAD'
+-cmd planned "bash -c 'git update-ref refs/main HEAD'"
+-cmd planned '(git update-ref refs/tags/main HEAD)'
+-cmd planned 'git update-ref -m x refs/remotes/main HEAD'
+-cmd planned 'git update-ref refs/remotes/main/HEAD HEAD'
+-cmd planned 'git symbolic-ref refs/tags/main refs/heads/feature/x'
+-cmd planned 'git fetch . HEAD:refs/tags/main'
+-cmd planned 'git fetch . +HEAD:refs/main'
++# for, and tools/gates/gate stops while one exists. The rules came with
++# docs/merge-requests/2026-10-18-fix-000-main-ref.patch.
++cmd block 'git tag main'
++cmd block 'git tag main HEAD~1'
++cmd block 'git tag -f main'
++cmd block 'git tag --force main HEAD'
++cmd block 'git tag -a -m "a release" main'
++cmd block 'git tag -fam x main'
++cmd block 'git tag --message=x -s main'
++cmd block 'git tag "main"'
++cmd block "git tag 'main' HEAD"
++cmd block "git tag ma''in"
++cmd block 'git tag \main'
++cmd block 'git -C . tag main'
++cmd block 'git -c tag.gpgSign=false tag -f main'
++cmd block "bash -c 'git tag main'"
++cmd block '(git tag -f main)'
++cmd block 'git status; git tag main'
++cmd block 'git update-ref refs/tags/main HEAD'
++cmd block 'git update-ref refs/main HEAD'
++cmd block 'git update-ref "refs/tags/main" HEAD~1'
++cmd block "git update-ref 'refs/main' HEAD"
++cmd block 'git -C . update-ref refs/main HEAD'
++cmd block 'git -c core.x=y update-ref refs/tags/main HEAD'
++cmd block "bash -c 'git update-ref refs/main HEAD'"
++cmd block '(git update-ref refs/tags/main HEAD)'
++cmd block 'git update-ref -m x refs/remotes/main HEAD'
++cmd block 'git update-ref refs/remotes/main/HEAD HEAD'
++cmd block 'git symbolic-ref refs/tags/main refs/heads/feature/x'
++cmd block 'git fetch . HEAD:refs/tags/main'
++cmd block 'git fetch . +HEAD:refs/main'
+ # A fetch's destination as git reads it (the review): git puts refs/ before tags/ and remotes/; a glob at refs/* lands a
+ # branch feature/main at refs/main; and a remote's fetch setting given with -c carries the refspec before fetch.
+-cmd planned 'git fetch . HEAD:tags/main'
+-cmd planned 'git fetch . HEAD:remotes/main'
+-cmd planned "git fetch . 'refs/heads/feature/*:refs/*'"
+-cmd planned "git fetch . '+refs/heads/*:refs/remotes/*'"
+-cmd planned 'git -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch x'
+-cmd planned "git -c remote.x.url=. -c remote.x.fetch='refs/heads/feature/*:refs/*' fetch x"
+-cmd planned "git fetch --refmap='+HEAD:refs/tags/main' . HEAD"
+-cmd planned 'printf x > .git/main'
++cmd block 'git fetch . HEAD:tags/main'
++cmd block 'git fetch . HEAD:remotes/main'
++cmd block "git fetch . 'refs/heads/feature/*:refs/*'"
++cmd block "git fetch . '+refs/heads/*:refs/remotes/*'"
++cmd block 'git -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch x'
++cmd block "git -c remote.x.url=. -c remote.x.fetch='refs/heads/feature/*:refs/*' fetch x"
++cmd block "git fetch --refmap='+HEAD:refs/tags/main' . HEAD"
++cmd block 'printf x > .git/main'
+ # Refused already: a ref file written directly, and main itself by update-ref or symbolic-ref (the rules above).
+ cmd block 'printf x > .git/refs/tags/main'
+ cmd block 'git update-ref main HEAD'
+@@ -268,7 +267,6 @@
+ # A glob at refs/tags/* is how tags are fetched, so it stays allowed, though a branch feature/main lands at
+ # refs/tags/main: the git hook refuses that update, and the gate stops on the tag.
+ cmd gap "git fetch . 'refs/heads/feature/*:refs/tags/*'"
+-main_ref_rows=$((planned - main_ref_planned))
+ on main
+ cmd block 'git commit -m wip'
+ cmd block 'git -C . commit -m wip'
+@@ -1525,8 +1523,8 @@
+ # changing main (a file at the top of .git), refs/main, refs/tags/main, refs/remotes/main, refs/remotes/main/HEAD, and
+ # any other ref outside refs/heads whose last component is main, but a remote-tracking branch (refs/remotes/<remote>/main,
+ # which is <remote>/main). A deletion goes through. git 2.43 runs no reference-transaction hook for symbolic-ref, so
+-# that spelling is bash-gate.sh's and the gate's alone. docs/merge-requests/2026-10-18-fix-000-main-ref.patch adds the
+-# hook's refusal and makes the planned rows "refused".
++# that spelling is bash-gate.sh's and the gate's alone. The refusal came with
++# docs/merge-requests/2026-10-18-fix-000-main-ref.patch.
+ # ashadow <refused|planned|ok> <label> <ref the command would leave> <git arguments...>: run git in $gr as agit does,
+ # then see whether the ref is there, and remove it as the Author would, so the next row starts without it.
+ ashadow() {
+@@ -1550,35 +1548,30 @@
+     *) fail=$((fail + 1)); printf 'FAIL        %-21s %s: expected %s, got %s\n' git-hook "$label" "$expect" "$got" ;;
+   esac
+ }
+-main_ref_planned=$planned
+-ashadow planned 'tag main' refs/tags/main tag main HEAD
+-ashadow planned 'tag -f main' refs/tags/main tag -f main HEAD
+-ashadow planned 'tag -a main' refs/tags/main tag -a -m x main HEAD
+-ashadow planned 'update-ref refs/tags/main' refs/tags/main update-ref refs/tags/main HEAD
+-ashadow planned 'update-ref refs/main' refs/main update-ref refs/main HEAD
+-ashadow planned 'update-ref main, a file at the top of .git' main update-ref main HEAD
+-ashadow planned 'update-ref refs/remotes/main' refs/remotes/main update-ref refs/remotes/main HEAD
+-ashadow planned 'update-ref refs/remotes/main/HEAD' refs/remotes/main/HEAD update-ref refs/remotes/main/HEAD HEAD
+-ashadow planned 'update-ref refs/tags/v1/main' refs/tags/v1/main update-ref refs/tags/v1/main HEAD
+-ashadow planned 'fetch . HEAD:refs/tags/main' refs/tags/main fetch -q . HEAD:refs/tags/main
++ashadow refused 'tag main' refs/tags/main tag main HEAD
++ashadow refused 'tag -f main' refs/tags/main tag -f main HEAD
++ashadow refused 'tag -a main' refs/tags/main tag -a -m x main HEAD
++ashadow refused 'update-ref refs/tags/main' refs/tags/main update-ref refs/tags/main HEAD
++ashadow refused 'update-ref refs/main' refs/main update-ref refs/main HEAD
++ashadow refused 'update-ref main, a file at the top of .git' main update-ref main HEAD
++ashadow refused 'update-ref refs/remotes/main' refs/remotes/main update-ref refs/remotes/main HEAD
++ashadow refused 'update-ref refs/remotes/main/HEAD' refs/remotes/main/HEAD update-ref refs/remotes/main/HEAD HEAD
++ashadow refused 'update-ref refs/tags/v1/main' refs/tags/v1/main update-ref refs/tags/v1/main HEAD
++ashadow refused 'fetch . HEAD:refs/tags/main' refs/tags/main fetch -q . HEAD:refs/tags/main
+ printf 'create refs/main %s\n' "$(git -C "$gr" rev-parse HEAD)" >"$scratch/create-main"
+-ashadow planned 'update-ref --stdin creating refs/main' refs/main update-ref --stdin <"$scratch/create-main"
++ashadow refused 'update-ref --stdin creating refs/main' refs/main update-ref --stdin <"$scratch/create-main"
+ # A fetch's destination as git reads it (the review): tags/main is refs/tags/main; a glob at refs/* lands a branch x/main
+ # at refs/main; and a remote's fetch setting can come with -c, before fetch.
+-ashadow planned 'fetch . HEAD:tags/main' refs/tags/main fetch -q . HEAD:tags/main
++ashadow refused 'fetch . HEAD:tags/main' refs/tags/main fetch -q . HEAD:tags/main
+ env -u CLAUDECODE git -C "$gr" branch x/main HEAD
+-ashadow planned 'fetch . refs/heads/x/*:refs/*, from a branch x/main' refs/main fetch -q . 'refs/heads/x/*:refs/*'
++ashadow refused 'fetch . refs/heads/x/*:refs/*, from a branch x/main' refs/main fetch -q . 'refs/heads/x/*:refs/*'
+ env -u CLAUDECODE git -C "$gr" branch -q -D x/main
+-ashadow planned 'fetch with -c remote.x.fetch=+HEAD:refs/tags/main' refs/tags/main -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch -q x
++ashadow refused 'fetch with -c remote.x.fetch=+HEAD:refs/tags/main' refs/tags/main -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch -q x
+ ashadow ok 'update-ref refs/remotes/origin/main, a remote-tracking branch' refs/remotes/origin/main update-ref refs/remotes/origin/main HEAD
+ ashadow ok 'update-ref refs/heads/topic/main, a branch' refs/heads/topic/main update-ref refs/heads/topic/main HEAD
+ ashadow ok 'tag maintenance' refs/tags/maintenance tag maintenance HEAD
+ env -u CLAUDECODE git -C "$gr" tag main HEAD
+ ashadow ok 'tag -d main, a deletion' refs/tags/main tag -d main
+-main_ref_rows=$((main_ref_rows + planned - main_ref_planned))
+-if [ "$main_ref_rows" -gt 0 ]; then
+-  printf 'PLANNED (fix/000-main-ref): %d rows: bash-gate.sh and the reference-transaction git hook let an agent create a tag or ref a bare main names beside refs/heads/main; docs/merge-requests/2026-10-18-fix-000-main-ref.patch refuses them\n' "$main_ref_rows"
+-fi
+ 
+ # --- .claude/git-hooks/pre-commit: gitleaks over the staged changes (FR-008; research.md R-36) ---------
+ # Fake keys are assembled here, at run time, so this file holds none. The content-scan rows below use them too.
+--- a/tools/gates/matrix-required.txt
++++ b/tools/gates/matrix-required.txt
+@@ -183,3 +183,86 @@
+ H/role/red-teamer/make redteam -f Makefile -f /tmp/x.mk
+ H/role/reviewer/git log >/dev/null; git log -p > x
+ H/role/id-no-type/git log -p > /tmp/x.log
++
++# --- fix/000-main-ref: a tag or ref a bare main names beside refs/heads/main (bash-gate.sh, the git hook) ---
++H/bash-gate.sh/git tag main
++H/bash-gate.sh/git tag main HEAD~1
++H/bash-gate.sh/git tag -f main
++H/bash-gate.sh/git tag --force main HEAD
++H/bash-gate.sh/git tag -a -m "a release" main
++H/bash-gate.sh/git tag -fam x main
++H/bash-gate.sh/git tag --message=x -s main
++H/bash-gate.sh/git tag "main"
++H/bash-gate.sh/git tag 'main' HEAD
++H/bash-gate.sh/git tag ma''in
++H/bash-gate.sh/git tag \main
++H/bash-gate.sh/git -C . tag main
++H/bash-gate.sh/git -c tag.gpgSign=false tag -f main
++H/bash-gate.sh/bash -c 'git tag main'
++H/bash-gate.sh/(git tag -f main)
++H/bash-gate.sh/git status; git tag main
++H/bash-gate.sh/git update-ref refs/tags/main HEAD
++H/bash-gate.sh/git update-ref refs/main HEAD
++H/bash-gate.sh/git update-ref "refs/tags/main" HEAD~1
++H/bash-gate.sh/git update-ref 'refs/main' HEAD
++H/bash-gate.sh/git -C . update-ref refs/main HEAD
++H/bash-gate.sh/git -c core.x=y update-ref refs/tags/main HEAD
++H/bash-gate.sh/bash -c 'git update-ref refs/main HEAD'
++H/bash-gate.sh/(git update-ref refs/tags/main HEAD)
++H/bash-gate.sh/git update-ref -m x refs/remotes/main HEAD
++H/bash-gate.sh/git update-ref refs/remotes/main/HEAD HEAD
++H/bash-gate.sh/git symbolic-ref refs/tags/main refs/heads/feature/x
++H/bash-gate.sh/git fetch . HEAD:refs/tags/main
++H/bash-gate.sh/git fetch . +HEAD:refs/main
++H/bash-gate.sh/git fetch . HEAD:tags/main
++H/bash-gate.sh/git fetch . HEAD:remotes/main
++H/bash-gate.sh/git fetch . 'refs/heads/feature/*:refs/*'
++H/bash-gate.sh/git fetch . '+refs/heads/*:refs/remotes/*'
++H/bash-gate.sh/git -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch x
++H/bash-gate.sh/git -c remote.x.url=. -c remote.x.fetch='refs/heads/feature/*:refs/*' fetch x
++H/bash-gate.sh/git fetch --refmap='+HEAD:refs/tags/main' . HEAD
++H/bash-gate.sh/printf x > .git/main
++H/bash-gate.sh/printf x > .git/refs/tags/main
++H/bash-gate.sh/git update-ref main HEAD
++H/bash-gate.sh/git symbolic-ref main refs/heads/feature/x
++H/bash-gate.sh/git config remote.x.fetch '+HEAD:refs/tags/main'
++# What must stay allowed: reads, deletions, other names, and the usual fetches.
++H/bash-gate.sh/git tag
++H/bash-gate.sh/git tag -l
++H/bash-gate.sh/git tag -l main
++H/bash-gate.sh/git tag v0.1.0
++H/bash-gate.sh/git tag -a -m "main release" v0.1.0
++H/bash-gate.sh/git tag -m main v0.1.0
++H/bash-gate.sh/git tag v0.1.0 main
++H/bash-gate.sh/git tag maintenance
++H/bash-gate.sh/git tag main-v1
++H/bash-gate.sh/git tag -d main
++H/bash-gate.sh/git tag --contains main
++H/bash-gate.sh/git tag --merged main
++H/bash-gate.sh/git log --oneline refs/tags/main
++H/bash-gate.sh/git update-ref refs/heads/feature/main HEAD
++H/bash-gate.sh/cat .git/main
++H/bash-gate.sh/git fetch origin '+refs/heads/*:refs/remotes/origin/*'
++H/bash-gate.sh/git fetch . 'refs/tags/*:refs/tags/*'
++H/bash-gate.sh/git fetch . HEAD:tags/main-v1
++H/bash-gate.sh/git fetch . HEAD:feature/tags/main
++H/bash-gate.sh/git fetch --tags
++H/git-hook/tag main
++H/git-hook/tag -f main
++H/git-hook/tag -a main
++H/git-hook/update-ref refs/tags/main
++H/git-hook/update-ref refs/main
++H/git-hook/update-ref main, a file at the top of .git
++H/git-hook/update-ref refs/remotes/main
++H/git-hook/update-ref refs/remotes/main/HEAD
++H/git-hook/update-ref refs/tags/v1/main
++H/git-hook/fetch . HEAD:refs/tags/main
++H/git-hook/update-ref --stdin creating refs/main
++H/git-hook/fetch . HEAD:tags/main
++H/git-hook/fetch . refs/heads/x/*:refs/*, from a branch x/main
++H/git-hook/fetch with -c remote.x.fetch=+HEAD:refs/tags/main
++# The hook's departure (a remote-tracking branch), a branch, another tag, and a deletion go through.
++H/git-hook/update-ref refs/remotes/origin/main, a remote-tracking branch
++H/git-hook/update-ref refs/heads/topic/main, a branch
++H/git-hook/tag maintenance
++H/git-hook/tag -d main, a deletion
+--- a/specs/000-local-foundations/plan.md
++++ b/specs/000-local-foundations/plan.md
+@@ -888,6 +888,7 @@
+    - the commit object is rehashed against its SHA, and the expected tree is read from it;
+    - no `.git/info/attributes` exists;
+    - no ref exists under `refs/replace` (`git for-each-ref refs/replace` prints nothing), because the Author's merge and checkouts honor one;
++   - no ref beside `refs/heads/main` exists that a bare `main` names: `main` (a file at the top of `.git`), `refs/main`, or `refs/tags/main`, which git reads before the branch, or `refs/remotes/main` or `refs/remotes/main/HEAD`, which make the name ambiguous. The Author's own `git diff main...<branch>` would read one, so the gate stops, naming it, and looks again before it prints the merge command, since one can be made while it runs (a `main-refs` step fails); and the gate itself reads main only as `refs/heads/main`: its `GNUmakefile`, the merge base, and the ancestry check (fix/000-main-ref). Inside Claude Code, the `reference-transaction` git hook refuses creating or changing any of them, or another ref outside `refs/heads` whose last component is `main` but a remote-tracking branch, and `bash-gate.sh` refuses the spellings it can read (§13);
+    - extraction uses tarfile's data filter;
+    - the export hashes to that tree.
+ 
