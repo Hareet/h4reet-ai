@@ -1,5 +1,5 @@
 diff --git a/tools/gates/content_check.py b/tools/gates/content_check.py
-index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204b3f94379 100644
+index b3881727ff98f48ce9dd5ac798456f636828173f..8147eb381de2e42dca22ea545793f3e8be26f80b 100644
 --- a/tools/gates/content_check.py
 +++ b/tools/gates/content_check.py
 @@ -1,27 +1,34 @@
@@ -54,7 +54,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
  from pathlib import Path
  
  APPROVALS = "assets/policy/content-approvals.json"
-@@ -46,22 +54,84 @@ CONTENT = Path("apps/web/content")
+@@ -46,22 +54,91 @@ CONTENT = Path("apps/web/content")
  SHA256_RE = re.compile(r"[0-9a-f]{64}")
  ID_RE = re.compile(r"C-\d{4}")
  DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -87,6 +87,13 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
 +DOUBLE_QUOTED_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
 +SINGLE_QUOTED_RE = re.compile(r"'(?:[^']|'')*'")
 +AFTER_QUOTE_RE = re.compile(r"\s*(?:\s#.*)?")
++#   - on any line, outside quoted scalars and comments (flow_scan): a quoted key or an alias as a key, since §6.1's keys
++#     are all plain words; a quoted scalar not closed on its line; and a flow collection not closed on its line. A
++#     scalar starts at a line's start or after one of SCALAR_STARTS, with any anchor or tag before it.
++SCALAR_STARTS = (None, "-", ":", ",", "[", "{", "?")
++NODE_PROPERTY_RE = re.compile(r"[&!][^\s,\[\]{}]*")
++ALIAS_RE = re.compile(r"\*[^\s,\[\]{}]+")
++KEY_COLON_RE = re.compile(r"\s*:(?:\s|$)")
 +#   - a plain value can't start with an indicator, hold a comment or a mapping's ": ", or be read by YAML as anything
 +#     but a string (YAML 1.1's and 1.2's nulls, booleans, numbers, and timestamps).
 +PLAIN_INDICATORS = "-?:,[]{}#&*!|>'\"%@`"
@@ -140,7 +147,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
  def git_env() -> dict[str, str]:
      """git's minimum: no GIT_DIR or other GIT_* of the caller's, no replace objects, no system or global config."""
      return {
-@@ -112,7 +182,11 @@ def approved_digests(data: bytes | None) -> set[str]:
+@@ -112,7 +189,11 @@ def approved_digests(data: bytes | None) -> set[str]:
          checks = (
              ("id", lambda v: isinstance(v, str) and ID_RE.fullmatch(v), "isn't C-nnnn"),
              ("path_when_approved", lambda v: isinstance(v, str) and v, "is missing"),
@@ -153,7 +160,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
              (
                  "sha256",
                  lambda v: isinstance(v, str) and SHA256_RE.fullmatch(v),
-@@ -133,21 +207,33 @@ def approved_digests(data: bytes | None) -> set[str]:
+@@ -133,21 +214,33 @@ def approved_digests(data: bytes | None) -> set[str]:
  
  
  def content_files(tree: Path) -> list[str]:
@@ -195,7 +202,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
  def collapse(text: str) -> str:
      return " ".join(text.split())
  
-@@ -162,8 +248,23 @@ def unquote(value: str) -> str:
+@@ -162,8 +255,23 @@ def unquote(value: str) -> str:
      return value
  
  
@@ -220,7 +227,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
      lines = text.splitlines()
      out = []
      i = 0
-@@ -176,14 +277,74 @@ def yaml_texts(text: str) -> list[str]:
+@@ -176,14 +284,121 @@ def yaml_texts(text: str) -> list[str]:
          if value and value[0] not in ">|":
              out.append(unquote(value))
              continue
@@ -230,8 +237,6 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
 -            not lines[i].strip() or len(lines[i]) - len(lines[i].lstrip()) > indent
 -        ):
 -            block.append(lines[i].strip())
--            i += 1
--        out.append(" ".join(b for b in block if b))
 +        words, i = block_scalar(lines, i, found.start("key"))
 +        out.append(words)
 +    return out
@@ -276,6 +281,53 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
 +    return value, i
 +
 +
++def flow_scan(line: str) -> None:
++    """Refuse (Unreadable) a line of a room-text block that holds, outside its quoted scalars and its comment, a quoted
++    key or an alias as a key, a quoted scalar that doesn't close on the line, or a flow collection that doesn't: each
++    is legal YAML that this reader, which reads line by line, would read as nothing or as another value."""
++    depth = 0
++    previous: str | None = None
++    i = 0
++    while i < len(line):
++        char = line[i]
++        if char in " \t":
+             i += 1
+-        out.append(" ".join(b for b in block if b))
++            continue
++        if char == "#" and (i == 0 or line[i - 1] in " \t"):
++            break
++        at_start = previous in SCALAR_STARTS
++        if at_start and char in "&!":
++            prop = NODE_PROPERTY_RE.match(line, i)
++            i = prop.end() if prop is not None else i + 1
++            continue
++        if at_start and char in "\"'":
++            quoted = (DOUBLE_QUOTED_RE if char == '"' else SINGLE_QUOTED_RE).match(
++                line, i
++            )
++            if quoted is None:
++                raise Unreadable("a quoted value over several lines")
++            i = quoted.end()
++            if KEY_COLON_RE.match(line, i):
++                raise Unreadable("a quoted key")
++            previous = char
++            continue
++        if at_start and char == "*":
++            alias = ALIAS_RE.match(line, i)
++            if alias is not None and KEY_COLON_RE.match(line, alias.end()):
++                raise Unreadable("an alias as a key")
++        if char in "[{":
++            depth += 1
++        elif char in "]}":
++            depth -= 1
++            if depth < 0:
++                raise Unreadable("a flow collection over several lines")
++        previous = char
++        i += 1
++    if depth:
++        raise Unreadable("a flow collection over several lines")
++
++
 +def room_yaml_texts(text: str) -> list[str]:
 +    """A room-text block's displayed values, its `text` values (and `title` and `name`, which a block never names,
 +    data-model.md §6.1), each read exactly; any other spelling of those keys, or of their values, is Unreadable."""
@@ -287,6 +339,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
 +        i += 1
 +        if not line.strip() or line.lstrip().startswith("#"):
 +            continue
++        flow_scan(line)
 +        found = TEXT_KEY_RE.match(line)
 +        if found is None:
 +            if KEY_SPELLING_RE.search(line) or COMPLEX_KEY_RE.match(line):
@@ -303,7 +356,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
      return out
  
  
-@@ -209,8 +370,42 @@ def fragments(texts: list[str]) -> set[str]:
+@@ -209,8 +424,42 @@ def fragments(texts: list[str]) -> set[str]:
      return out
  
  
@@ -346,7 +399,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
      return yaml_texts(text) if rel.endswith(".yaml") else script_body(text)
  
  
-@@ -226,14 +421,33 @@ def json_strings(node: object) -> list[str]:
+@@ -226,14 +475,33 @@ def json_strings(node: object) -> list[str]:
      return []
  
  
@@ -382,7 +435,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
              pass
      text = html.unescape(text)
      text = JS_UNICODE_RE.sub(lambda m: chr(int(m.group(1), 16)), text)
-@@ -246,6 +460,118 @@ def readable(path: Path) -> str:
+@@ -246,6 +514,118 @@ def readable(path: Path) -> str:
      return collapse(text)
  
  
@@ -483,7 +536,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
 +    elif suffix in TEXT_SUFFIXES:
 +        strings = text.splitlines()
 +    elif is_text(data):
-+        strings = js_strings(text)
++        strings = js_strings(text) + text.splitlines()
 +    return {s for s in map(collapse, strings) if s}
 +
 +
@@ -501,7 +554,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
  def dist_files(dist: Path) -> list[Path]:
      """Every regular file under dist/, never following a link."""
      out = []
-@@ -258,19 +584,41 @@ def dist_files(dist: Path) -> list[Path]:
+@@ -258,19 +638,41 @@ def dist_files(dist: Path) -> list[Path]:
      return out
  
  
@@ -547,7 +600,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
      published = doc.get("published")
      if not isinstance(published, list) or not all(
          isinstance(e, dict)
-@@ -278,8 +626,15 @@ def published_of(room_data: Path) -> tuple[list[dict] | None, str]:
+@@ -278,8 +680,15 @@ def published_of(room_data: Path) -> tuple[list[dict] | None, str]:
          and isinstance(e.get("sha256"), str)
          for e in published
      ):
@@ -565,7 +618,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
  
  
  def main(argv: list[str]) -> int:
-@@ -305,7 +660,7 @@ def main(argv: list[str]) -> int:
+@@ -305,7 +714,7 @@ def main(argv: list[str]) -> int:
          )
          return 2
  
@@ -574,7 +627,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
      if published is None:
          print(f"FAIL room-data.json: {why}")
          print("content check: 1 problem (room-data.json isn't a build's)")
-@@ -324,14 +679,19 @@ def main(argv: list[str]) -> int:
+@@ -324,14 +733,19 @@ def main(argv: list[str]) -> int:
              continue
          raw = full.read_bytes()
          digests[rel] = hashlib.sha256(raw).hexdigest()
@@ -597,7 +650,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
              )
          elif claimed != digests[rel]:
              problems.append(
-@@ -342,26 +702,47 @@ def main(argv: list[str]) -> int:
+@@ -342,26 +756,47 @@ def main(argv: list[str]) -> int:
                  f"FAIL {rel}: published, and main doesn't approve its SHA-256"
              )
  
@@ -653,7 +706,7 @@ index b3881727ff98f48ce9dd5ac798456f636828173f..43afadcc8f33ab973c5ac340b2a3f204
                          f"FAIL {rel}: main doesn't approve it, and its text is in {where}"
                      )
 diff --git a/tools/gates/test/test_content_check.py b/tools/gates/test/test_content_check.py
-index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..a6f1e5d725ff30b0591c0b299847f2d0fbef9232 100644
+index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..1b5b22e33d450c8b95b54780d32de6a9a6ecddab 100644
 --- a/tools/gates/test/test_content_check.py
 +++ b/tools/gates/test/test_content_check.py
 @@ -5,7 +5,10 @@ draft and say otherwise. This check is the enforcement, in human-only code, and
@@ -721,7 +774,7 @@ index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..a6f1e5d725ff30b0591c0b299847f2d0
          # In a bundle, as a minifier writes a string: a \u escape, or an escaped apostrophe.
          (
              "assets/index-abc.js",
-@@ -353,6 +371,573 @@ def test_a_content_file_that_is_a_link_fails(tmp_path: Path) -> None:
+@@ -353,6 +371,633 @@ def test_a_content_file_that_is_a_link_fails(tmp_path: Path) -> None:
      assert run(tree, build(tmp_path, []), "--policy-dir", str(folder)) == 1
  
  
@@ -875,6 +928,16 @@ index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..a6f1e5d725ff30b0591c0b299847f2d0
 +        (f'  -   text: "{BUSY}"\n', [BUSY]),
 +        (f'  - text : "{BUSY}"\n', [BUSY]),
 +        ("  - text: production-grade rigor\n", ["production-grade rigor"]),
++        # One-line flow collections stay readable, and a quote's commas and colons are its own (the last look).
++        (
++            (
++                f"  - text: {BUSY}\n    claims:\n"
++                '      - {file: corpus/a.md, quote: "a span, with a key: in it"}\n'
++                "    tags: [Seva, selfless service]\n"
++            ),
++            [BUSY],
++        ),
++        ("  - text: it's {busy} [now]\n", ["it's {busy} [now]"]),
 +    ],
 +)
 +def test_a_room_text_value_in_a_form_read_exactly_is_read(
@@ -936,6 +999,54 @@ index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..a6f1e5d725ff30b0591c0b299847f2d0
 +            ROOM,
 +            f'version: 1\nblock: chalk-busy\nrenderer: chalk\nlines: [{{text: "{BUSY}"}}]\n'.encode(),
 +        )
++
++
++# The last look at P-9's I1: legal spellings that PyYAML and the build's yaml both read as
++# lines: [{text: "I am very busy"}], each refused rather than read as nothing or as another value.
++LAST_LOOK = {
++    # J: a quoted key with an escape, so its spelling isn't "text".
++    "J, \\x": f'{BLOCK_HEAD}  - "te\\x78t": "{BUSY}"\n',
++    "J, \\u": f'{BLOCK_HEAD}  - "te\\u0078t": "{BUSY}"\n',
++    "J, after a key": f'{BLOCK_HEAD}  - pending: false\n    "te\\x78t": "{BUSY}"\n',
++    "J, in a flow mapping": f'{BLOCK_HEAD}  - {{pending: false, "te\\x78t": "{BUSY}"}}\n',
++    # K: an alias as a key, at the item's dash or after another key.
++    "K": f'version: 1\nblock: chalk-busy\nrenderer: chalk\nalias: &k text\nlines:\n  - *k : "{BUSY}"\n',
++    "K2": (
++        "version: 1\nblock: chalk-busy\nrenderer: chalk\nalias: &k text\nlines:\n"
++        f'  - pending: false\n    *k : "{BUSY}"\n'
++    ),
++    # L: a flow mapping over several lines, with a plain value.
++    "L": f"{BLOCK_HEAD}  - {{\n    text: {BUSY}}}\n",
++    "L2": f"{BLOCK_HEAD}  - {{\n    text: {BUSY},\n    pending: false}}\n",
++    # Any other flow collection over several lines, or a quoted value over several lines, anywhere in the file.
++    "a flow sequence": f"{BLOCK_HEAD}  - text: {BUSY}\n    tags: [Seva,\n      selfless service]\n",
++    "a quoted value": f'{BLOCK_HEAD}  - text: {BUSY}\n    claims:\n      - quote: "a span\n          continued"\n',
++}
++
++
++@pytest.mark.parametrize("name", list(LAST_LOOK))
++def test_a_quoted_or_alias_key_or_a_multi_line_flow_or_quote_is_refused(
++    name: str,
++) -> None:
++    with pytest.raises(cc.Unreadable):
++        cc.displayed(ROOM, LAST_LOOK[name].encode())
++
++
++@pytest.mark.parametrize("name", ["J, \\x", "K", "L2"])
++def test_such_a_draft_fails_the_check_without_printing_its_words(
++    tmp_path: Path, name: str, capsys: pytest.CaptureFixture[str]
++) -> None:
++    tree, folder = draft_tree(tmp_path, {ROOM: LAST_LOOK[name]})
++    dist = build(
++        tmp_path,
++        [entry(RESUME, RESUME_TEXT)],
++        {BUNDLE: f'const t="{BUSY}";'},
++        drafts=[ROOM],
++    )
++    assert run(tree, dist, "--policy-dir", str(folder)) == 1
++    captured = capsys.readouterr()
++    assert f"FAIL {ROOM}: " in captured.out
++    assert "very busy" not in captured.out + captured.err
 +
 +
 +def test_a_room_text_file_that_cant_be_read_exactly_fails_the_check(
@@ -1036,6 +1147,8 @@ index 0fc22b30f8907d1649c2f170a3f3c35b1b9d7fb5..a6f1e5d725ff30b0591c0b299847f2d0
 +        ("models/sign.gltf", json.dumps({"asset": {"extras": {"t": BUSY}}})),
 +        ("assets/index-abc.css", '.a::after{content:"' + BUSY + '"}'),
 +        ("notes.md", f'a line, then "{BUSY}"\n'),
++        # Such a file's lines too, as a .txt file's (the last look's nit 2).
++        ("notes.md", f"# Notes\n{BUSY}\n"),
 +        # JSON's strings, keys included, white space collapsed.
 +        ("strings.json", json.dumps({BUSY: 1})),
 +        ("data/deep.json", json.dumps({"a": [{"b": f"  {BUSY.replace(' ', '  ')} "}]})),
