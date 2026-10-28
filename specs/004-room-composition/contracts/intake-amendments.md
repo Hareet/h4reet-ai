@@ -24,7 +24,7 @@ Spec 002's and spec 003's files sit on unmerged branches, so this contract names
 | P-7 | `REVIEW.md`'s sixth pass, "Room data", with what the work orders and studio notes may ask of the studio's session; the reviewer's definition; a behavioural case | item 5 | `feat/004-intake` | at M8, P-4 and P-5 first | the first work order, studio note, or photo guide to merge (User Story 1's branch) |
 | P-8 | The outline check (FR-032) | FR-032's own order | `feat/004-intake` | at M8 | the first outline traced from a photo leaving the photos folder |
 | P-9 | The content check's `room-text` kind, matched as whole strings at any length (FR-030, Amendment B9) | item 6 | a branch from `main` after M9 | after M9, spec 002's approvals patch first | the first `room-text` approval; the first room text shipped |
-| P-10 | The gate: `caps.json` in the content build's policy, and the `studio-settings` host step (FR-025, FR-053, SC-013) | items 2 and 3, at every intake | a branch from `main` after M9 | after M9, spec 002's and spec 003's gate patches and P-3 first | the merge of User Story 4's intake |
+| P-10 | The gate: `caps.json` in the content build's policy, and the `studio-settings` host step (FR-025, FR-053, SC-013) | items 2 and 3, at every intake | a branch from `main` after M9 | after M9, spec 002's and spec 003's gate patches and P-3 first, then spec 000's image-probe and main-ref gate patches and P-9 (§12, As built) | the merge of User Story 4's intake |
 | P-11 | The compose policy admits SC-004's harness, `status-harness`, alone past its port and edge-network rules: in its own profile, published only on the literal 127.0.0.1, on `edge` and `internal`; the disclosure rule stays whole (§18; Amendment Z1); and ADR 0021's amendment, beside it | — | a branch from `main` holding only the patch, ADR 0021's amendment, and its note | once spec 001's dev relay exists | User Story 8's switch-on change is rebased and gated |
 
 FR-077's first item began outside the repository. The photos folder and the key have been denied to every Claude session on the machine, at user level, since the room photos were staged on 2026-10-22 (spec.md, Assumptions, "Already past"). P-1 puts those two denies in this repository's settings, beside the outputs and workflows folders' denies. There the matrix proves them.
@@ -606,6 +606,12 @@ The patch is `docs/merge-requests/<date>-feat-004-gate.patch`. It changes `tools
   - the step runs only for a range with a studio file, and is SKIP otherwise;
   - exit 1 and exit 2 both fail the step;
   - the step's report lines hold no path.
+- **As built** (`feat/004-gate`, T053). Where this section is silent, P-10 reads it failing closed, or more strictly:
+  - **What it applies on.** Besides the three patches above, which M9 brought to `main`, two of spec 000's gate patches change the same code and still wait for the Author: the image probe (`fix/000-gate-image-probe-r2`) and main-ref (`fix/000-main-ref-r2`). So P-10 is generated on `main` with the image probe, main-ref, and P-9 applied, in that order, after each one's branch, and applies after all three. On `main` alone two of its hunks in the gate don't apply.
+  - **"The range adds or changes."** A file under `assets/`, outside `assets/policy/`, that any commit in the range adds or changes, or that the tree the range ends at holds changed from the merge base, which covers what a merge's resolution adds. So a file a later commit removes still counts, since it stays in the history the merge brings in, while a range that only removes one is SKIP.
+  - **Exit codes.** PASS on 0 and FAIL on any other, 1 and 2 among them; the step reads the exit alone, so a line the check prints that make check's rules would read as SKIP changes nothing. No merge base with `main`, a `git` read that fails, or `main` without the check fails the step.
+  - **The Author's run, as the Author runs it.** The check gets no option, and the gate's own environment, with the shell's `CLAUDE_CONFIG_DIR` when it is set, since the check reads the user scope there (§5).
+  - **Its lines.** The check's lines stream into the gate's report above the step's line. The step itself adds a count of the range's studio files and names no path and no file.
 
 ## 13. The agent code beside the patches
 
