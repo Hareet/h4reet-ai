@@ -750,6 +750,13 @@ CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the sam
   - User Story 2's Author run sees no neon counters or glow cards yet (T165), and User Story 7's screen-reader run hears no face's words or sign's figures (T174), so Q9's screen-reader run is made again on User Story 5's branch (T197).
   - A later task that departs further updates this section in its own commit (CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the same commit").
 - **`apps/web/test/smoke.test.ts` changes on `feat/004-setup`** (T004, 2026-10-23). The smoke test pins the built `room-data.json`'s policy digest over spec 002's two policy files, so taking `caps.json` into the digest (R-13) changes its expected value on this branch, before the foundation's own changes to that file. The Project Structure lists it.
+- **P-9 reads §11 strictly where it is silent** (T049, T050, 2026-10-27). The details are in contracts/intake-amendments.md §11, "As built". In short:
+  - room-text values are read exactly or refused;
+  - both checks collapse white space;
+  - `dist/`'s strings are a superset of §11's list;
+  - a `published` entry is reported by its index.
+
+  The patch was built in a plain folder and diffed with `git diff --no-index`, not in a scratch worktree. The hook that guards `tools/gates/` refuses an edit in any worktree of this repository. T050's review then ruled out staging the files by blob ID: that is the route the matrix lists as a known gap.
 
 **Foreseen, and conditional.** If the phone probe stops ("This browser can't run the vignette from a local file."), lookdev runs on the desktop at the phone's stage size and pixel ratio, FR-069's option B. This section then records, for the Author and with the probe's results, that departure from the intent's order ("Lookdev settles the look on a small vignette, at the room's real framing, on a reference phone"). SC-005, SC-006's phone figure, and SC-010's phone judgment then wait for the first release build after publication (R-42).
 
