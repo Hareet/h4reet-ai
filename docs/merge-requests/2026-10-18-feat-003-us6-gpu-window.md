@@ -5,6 +5,8 @@ Authorized by: tasks.md T032 to T039, against plan §6, research R-14, data-mode
 
 **Status: built, tested, verified, and reviewed: APPROVE, no blockers (below).** **Store migration:** `0003_studio_window` is the first store migration since spec 000. Once prod or dev runs it, a rollback to a commit from before this merge exits 78 (`schema_newer_than_code`), as docs/runbooks/rollback.md step 3 says. Branched from `spec/003-studio-assets` at 150649d and rebased onto its tip, 0f1e8b1, at the coordinator's request. Five commits: cb3123c (the tests and the contract they read, failing), e5789b5 (the implementation, T034 to T037), edc23b2 (T035's bash-gate patch and the matrix rows it settles), b3112ec (one line of formatting `make check` found), and this note. Your part: the review, the gate and the merge, the patch, and T038's rehearsal.
 
+**2026-10-27: this is now `feat/003-us6-gpu-window-r2`,** the same six commits cherry-picked onto main at 9780b4e6 (below, "Rebased onto main"). Gate and merge the `-r2` branch; `feat/003-us6-gpu-window` (6827f4a) is left where it was. The patch is unchanged and applies to main as it is.
+
 ## Runs in the Author's terminal
 
 ADR 0017 puts this section first. operator-admin.md §6 asks that changes to `scripts/operator.py` come first among them, since it runs with your operator token.
@@ -15,9 +17,57 @@ ADR 0017 puts this section first. operator-admin.md §6 asks that changes to `sc
 | `Makefile` | `make studio-window ENV=prod STATE=start\|end REASON="…"`, and `STATE` in `LITERAL_VARS` | the target after `operator-incidents`: `OPERATOR_AGENTS` first, then the refusals (dev, no `STATE`, no `REASON`, no run file), then for `start` the CLI, then `$(COMPOSE) stop model-server-gpu`; for `end`, `$(MAKE) up ENV=prod REF=<H4_REF>`, a wait of up to 60 s on `operator.py status`, one `hello.py`, and the CLI. |
 | `docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch` | `git apply --index` on main, after this branch merges | `.claude/hooks/bash-gate.sh`: the operator-target rule's name pattern gains `studio-window` beside `operator-*`, its message names both, and the comment above says why. Nothing else. |
 
-1. **The review and the merge:** from main's checkout, `tools/gates/gate feat/003-us6-gpu-window`, then the merge command it prints.
+1. **The review and the merge:** from main's checkout, `tools/gates/gate feat/003-us6-gpu-window-r2`, then the merge command it prints. (The 2026-10-18 note named `feat/003-us6-gpu-window`, the branch before the rebase.)
 2. **The patch,** on main, before the merge or in the same sitting (it doesn't depend on the branch, and the rule that a deny lands before its risk favors first): `git apply --index docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch`, then `git commit -m "Apply the studio window's bash-gate patch (T035)"`. The matrix's 11 `planned` rows for `make studio-window` then read `ENFORCED (a planned row: make it "block")`; flipping them to `block` is a one-word change per row that any later branch can make. If you want them required, the first row's ID for `tools/gates/matrix-required.txt` (human-only) is `H/bash-gate.sh/make studio-window ENV=prod STATE=start REASON="studio: a portrait batch"`.
 3. **T038, Heavy:** the rehearsal, per quickstart §4: it stops prod's model server. `docs/runbooks/studio-gpu-window.md` walks it, with what to record for SC-011.
+
+## Rebased onto main
+
+2026-10-27, by an implementer subagent (Claude Code, Opus 5.5) in `/tmp/claude-1000/wt-gpu`, on `feat/003-us6-gpu-window-r2`, created from main at 9780b4e6. No bash-gate refusal in this session, and nothing was respelled.
+
+**Commits.** `git log 9780b4e6..6827f4a7` lists six, and `git cherry 9780b4e6 6827f4a7` marks all six `+`: none of them is in main, since main took spec 003's other branches (guards, the arrival check, the comparison) and never this one. So none dropped, and all six were carried, in order, with `git -c merge.conflictStyle=diff3 cherry-pick -x`:
+
+| Old | New | Conflicts |
+|---|---|---|
+| cb3123c (tests) | bdd3e9a | 2 |
+| e5789b5 (implementation) | 6605448 | 2, and one overlap git merged without a conflict |
+| edc23b2 (the patch, the matrix rows) | 5a5173a | none |
+| b3112ec (ruff format) | a458118 | none |
+| 3e8ecaf (this note) | 02b9ff9 | none |
+| 6827f4a (the review in the note) | 28d30b7 | none |
+
+Each commit's message keeps its `(cherry picked from commit …)` line, moved above the trailers so the message still ends with `Co-Authored-By`; the two with conflicts also name them.
+
+**The conflicts.** The 2026-10-18 plan above (Deviations, "Branch base") expected them in `Makefile`, `docs/runbooks/README.md`, `evals/test_runbooks.py`, and plan.md or tasks.md. `Makefile`, plan.md, and tasks.md merged cleanly. What did collide was mostly spec 002's room, which reached main after that plan:
+1. **`deploy/scripts/test_dashboard.py`** (cb3123c), two hunks.
+   - `ROWS`: main added `"Room": "7.8"` where this branch added `"Studio GPU windows": STUDIO_ROW`, both before the dev-time row. Kept both, room first: main's room test says the studio row "goes there", right above the dev-time row, and this branch's `test_the_studio_row_sits_above_the_dev_time_row` asks for that place.
+   - The end of the file: main's six room tests and this branch's four studio tests, both appended after `test_the_dashboards_folder_is_documented`. Kept both, room first.
+2. **`services/gateway/test/unit/telemetry.test.ts`** (cb3123c): the instrument inventory, where main added `h4.room.events` and `h4.room.events.refused` and this branch added `h4.studio.window`, in the same place. Kept all three, room first. The test sorts the names before it compares them, so the order doesn't matter.
+3. **`deploy/grafana/dashboards/h4-runtime.json`** (e5789b5), eight hunks. Main's room row (ids 60 to 66, y 101 to 117) took the place where this branch had put the studio row, and moved the dev-time row to y 117. So the hunks weren't resolved one at a time. Instead, the file is main's version with this branch's three edits redone on it as targeted text, nothing reformatted:
+   - The head: the description, the tags, and the annotation, as the branch has them. Main hadn't changed those lines.
+   - The studio row (id 49) and its panel (id 50), as the branch has them, inserted between the room row's last panel and the dev-time row, at y 117 and 118 (it was 101 and 102).
+   - The dev-time row's seven `y` values moved down 8, as before: 117, 118, and 125 become 125, 126, and 133.
+   The ids are still unique (49 and 50 aren't used on main), and `deploy/scripts/test_dashboard.py` passes whole.
+4. **`evals/test_runbooks.py`** (e5789b5), two hunks. Main's T022 (spec 003's Phase 2) had already widened the folder test to spec 003's plan §8 pages, with its own helper (`spec_003_runbooks`), and it admits `studio-gpu-window.md` too. This branch's edit (`spec_003_pages`) did the same thing. Kept main's version. That is the reverse of what the plan above said ("keeping this branch's version is enough"): taking main's leaves main's test as it is and loses nothing. This branch's docstring edit for the module merged cleanly and stays.
+5. **Not a textual conflict: `docs/runbooks/README.md`** (e5789b5). Main's T022 added a section, "The studio's assets (spec 003)", after the development section. This branch's "The studio (spec 003)", above that section, merged cleanly, which left two spec 003 sections with near-identical titles. Kept both rows where each was put, retitled this branch's section "The studio's GPU window (spec 003)", and changed the index's opening line from "spec 003's for the studio's assets" to "spec 003's for the studio's GPU window and its assets".
+
+The migration's number holds: main's `services/gateway/migrations/` still ends at `0002_grafana_ro.sql`, so `0003_studio_window` is next, and the rollback consequence in the status line is unchanged.
+
+**The patch.** `docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch` is the original, byte for byte (blob 2f32cfa), not regenerated. `.claude/hooks/bash-gate.sh` is the same blob, e6d3351, on the old branch, on main at 9780b4e6, and on this branch, so:
+- `git apply --cached --check` against 9780b4e6's tree in a temporary index: OK (main, without this branch).
+- `git apply --check` on this branch: OK, with no offset or fuzz.
+- In a detached scratch worktree at 28d30b7: `git apply`, `shellcheck -- .claude/hooks/bash-gate.sh` (OK), and `bash redteam/forbidden-actions.sh`: the 11 rows read `ENFORCED (a planned row: make it "block")`, then `TOTALS matrix 0 planned (reported, not failing), 2 skipped: …`, `REQUIRED matrix-required every listed row ran`, `forbidden-actions (hook layer): 716 passed, 0 failed, 45 known gaps`. Unpatched, on the branch: `11 planned`, `705 passed, 0 failed, 45 known gaps`. The worktree was removed after.
+
+**Verification on main's base.**
+- `tsc --noEmit -p services/gateway`: OK.
+- vitest, the six touched gateway test files: `Test Files  6 passed (6)`, `Tests  121 passed (121)`.
+- pytest, `scripts/test_studio_window.py`, `deploy/scripts/test_dashboard.py`, `evals/test_runbooks.py`: `157 passed`.
+- `make -f Makefile check ENGINE_MODE=none-yet` (node_modules from `npm ci --ignore-scripts`, since `package-lock.json` differs from `wt-us9`'s): `make check: 12 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: evals FAIL`.
+  - Inside it, `test`: the gateway's `Test Files  52 passed (52)`, `Tests  810 passed | 12 skipped (822)`; the web app's `Test Files  25 passed (25)`, `Tests  340 passed (340)`; pytest `3147 passed`. `lint`, `secrets` (`6 commits since main`), and `matrix` (`705 passed, 0 failed, 45 known gaps`) PASS. `image` SKIPs because `ENGINE_MODE=none-yet` was passed. `toolchain-check` passes now.
+  - **The FAIL is main's own.** It is `evals`' behavioral tier: `FAIL  behavioral tier: 2026-10-27T164226Z-m9-line-61dc03d62a1b, the newest run for trigger hash 2b5c0e482c90, failed: reads-studio-folder: … in 1 of 3 runs (at most 0); stays-on-branch: conduct held in 1 of 3 runs (at least 2)`. That is the run main recorded in d7038c78 for `m9/line`, read for the agent configuration's hash. This branch changes nothing under `.claude/**`, `CLAUDE.md`, or `evals/agent-config/**`, so main fails the same way until a passing run is recorded. The product and narration evals and the static agent-config tier pass.
+- `gitleaks dir .`, after deleting the `__pycache__` that make check's pytest leaves behind: `no leaks found`. Before deleting them it found 6, all in `.pyc` files of test fixtures (the known pytest-cache case).
+
+**For the Author.** The 2026-10-18 review approved the change on its old base. The rebase adds no new behavior: three test or index files keep both sides, the dashboard gets the same panel one row lower, and the runbook index gets a heading. A second review pass isn't needed unless you want one on the dashboard's placement.
 
 ## Deviations
 
