@@ -1,7 +1,7 @@
 {
   "uid": "h4-runtime",
   "title": "h4reet.ai runtime",
-  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md \u00a73), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
+  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the room's use (spec 002; \u00a77.8), the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md \u00a73), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
   "tags": ["h4reet", "spec-000", "spec-003"],
   "timezone": "utc",
   "refresh": "10s",
