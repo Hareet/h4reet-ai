@@ -751,7 +751,7 @@ CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the sam
   - A later task that departs further updates this section in its own commit (CLAUDE.md: "If implementation departs from the plan, update `plan.md` in the same commit").
 - **`apps/web/test/smoke.test.ts` changes on `feat/004-setup`** (T004, 2026-10-23). The smoke test pins the built `room-data.json`'s policy digest over spec 002's two policy files, so taking `caps.json` into the digest (R-13) changes its expected value on this branch, before the foundation's own changes to that file. The Project Structure lists it.
 - **P-9 reads §11 strictly where it is silent** (T049, T050, 2026-10-27). The details are in contracts/intake-amendments.md §11, "As built". In short:
-  - room-text values are read exactly or refused;
+  - room-text values are read exactly or refused, and so is a line that holds a quoted or alias key, or a flow collection or quote that doesn't close on that line;
   - both checks collapse white space;
   - `dist/`'s strings are a superset of §11's list;
   - a `published` entry is reported by its index.

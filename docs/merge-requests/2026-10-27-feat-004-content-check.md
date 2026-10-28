@@ -6,14 +6,16 @@ Session: the main session started from `~/h4reet-ai/h4reet-ai`. This branch's wo
 - 2026-10-28T02:12:44Z and 02:12:46Z, `edit BLOCK`, "the local gates or the agent-config evals …". These were Edits of `tools/gates/test/test_content_check.py` in a detached scratch worktree, which `protected-paths.sh` checks as a worktree of this repository.
 - 2026-10-28T02:20:09Z, `bash BLOCK`, "checking out main in a worktree". This was `git worktree add --detach … refs/heads/main`. The chain tree was made at the commit ID instead, after `git rev-parse refs/heads/main` showed 9780b4e6f8e3.
 
-Authorized by: tasks.md T049 to T051, against contracts/intake-amendments.md §11 and research R-57; T050's review by the main session (APPROVE with fixes), whose fixes this branch makes.
+Authorized by: tasks.md T049 to T051, against contracts/intake-amendments.md §11 and research R-57; T050's review by a read-only reviewer subagent the coordinator launched (APPROVE with fixes), and that reviewer's last look at 5f7d0067 (I1 still open), whose fixes this branch makes.
 
-**Status: built, reviewed (T050: APPROVE with fixes), and every finding fixed. T052 is yours.** The branch is four commits on `main` at 9780b4e6 (M9):
+**Status: built and reviewed (T050: APPROVE with fixes). The last look at 5f7d0067 found I1 still open; 201e2c7e fixes it, and waits for the next look. Then T052 is yours.** The branch is six commits on `main` at 9780b4e6 (M9):
 
 - 053e129e: T049, the first patch;
 - cf0a8eaa: the first chain's record, with `make check`'s whole output in its message;
 - 579f0d29: the patch regenerated after T050;
-- the commit that adds this note, with plan.md §10, contracts §11's "As built", and the ticks for T049 and T051. T050's tick is the main session's.
+- 5f7d0067: this note, with plan.md §10, contracts §11's "As built", and the ticks for T049 and T051. T050's tick is the main session's;
+- 201e2c7e: the patch regenerated after the last look;
+- the commit that updates this note, plan.md §10, and §11's "As built" for it.
 
 **Land P-9 after M9 and before the first `room-text` approval** (FR-077 item 6: "the content check of FR-030, before the first room text ships"; tasks.md T203). Until P-9 is applied, `main`'s check exits 2 on an approval of kind `room-text`, so it fails closed. So approve no room text until P-9 is on `main`.
 
@@ -23,12 +25,12 @@ ADR 0017 puts this section first.
 
 **No agent code on this branch runs in your terminal.** The branch adds only this note, the patch file, and three documents (plan.md §10, contracts §11, tasks.md).
 
-**The patch** (human-only): **P-9**, `docs/merge-requests/2026-10-27-feat-004-content-check.patch`, blob `b865d1010b3c7e5ad93db6e96148f1e814925ae4`, 1,297 lines. It touches 2 files, both mode 100644, 1,017 lines added and 51 removed. Its body is `git diff --no-index --full-index` from `main`'s files to the plain folder's, with the headers rewritten to `a/tools/gates/…` and `b/tools/gates/…`. So every `index` line carries full blob IDs:
+**The patch** (human-only): **P-9**, `docs/merge-requests/2026-10-27-feat-004-content-check.patch`, blob `75a2381d2db9d81defa4e48f125a716cc31c3b3f`, 1,410 lines. It touches 2 files, both mode 100644, 1,130 lines added and 50 removed. Its body is `git diff --no-index --full-index` from `main`'s files to the plain folder's, with the headers rewritten to `a/tools/gates/…` and `b/tools/gates/…`. So every `index` line carries full blob IDs:
 
-| File                                     | On `main` 9780b4e6 | First version (053e129e, reviewed) | Now (579f0d29) |
-| ---------------------------------------- | ------------------ | ---------------------------------- | -------------- |
-| `tools/gates/content_check.py`           | `b3881727ff98`     | `597f2385e495`                     | `43afadcc8f33` |
-| `tools/gates/test/test_content_check.py` | `0fc22b30f890`     | `02f0c0dd1b44`                     | `a6f1e5d725ff` |
+| File | On `main` 9780b4e6 | First version (053e129e, reviewed) | After the review (579f0d29, last look) | Now (201e2c7e) |
+| --- | --- | --- | --- | --- |
+| `tools/gates/content_check.py` | `b3881727ff98` | `597f2385e495` | `43afadcc8f33` | `8147eb381de2` |
+| `tools/gates/test/test_content_check.py` | `0fc22b30f890` | `02f0c0dd1b44` | `a6f1e5d725ff` | `1b5b22e33d45` |
 
 **Your steps, T052, in order:**
 
@@ -46,7 +48,7 @@ ADR 0017 puts this section first.
      && git apply --index docs/merge-requests/2026-10-27-feat-004-content-check.patch
    git --no-replace-objects ls-files -s tools/gates/content_check.py tools/gates/test/test_content_check.py
    ```
-   The second command should print `43afadcc8f33ab973c5ac340b2a3f204b3f94379` and `a6f1e5d725ff30b0591c0b299847f2d0fbef9232`. Then:
+   The second command should print `8147eb381de2e42dca22ea545793f3e8be26f80b` and `1b5b22e33d450c8b95b54780d32de6a9a6ecddab`. Then:
    ```bash
    git commit -m "Apply the content check's room-text kind (spec 004 P-9, T052)"
    ```
@@ -71,7 +73,7 @@ ADR 0017 puts this section first.
   - Each group is sorted by name, and each file must be a regular file, never a link.
   - A file's kind comes from its path.
 - **Displayed values.**
-  - A room-text block's displayed values are its `text` values, each read exactly or the file refused (T050's I1, below).
+  - A room-text block's displayed values are its `text` values, each read exactly or the file refused (T050's I1 and the last look, below). Every line is also scanned outside its quoted scalars: a quoted key, an alias as a key, or a flow collection or quoted scalar that doesn't close on its line refuses the file.
   - An outline's displayed value is its `words`, read as strict JSON: UTF-8 without a byte-order mark, an object, no key twice, no NaN or Infinity, and `words` a string.
   - A file whose values can't be read fails as `FAIL <rel>: <why>: its words can't be checked`.
 - **The positive check.** Every `lines[].text` in `dist/room-data.json`'s `room_text` must equal, whole, a displayed value of a room-text file `main` approves, with white space collapsed on both sides. Otherwise the check prints `FAIL room-data.json: a room-text string isn't a displayed value of any approved room-text file`, once per string. A `room_text` that isn't `{blocks: [{lines: [{text}]}]}` fails as a `room-data.json` that isn't a build's.
@@ -79,7 +81,7 @@ ADR 0017 puts this section first.
   - **JSON:** every string, keys included, in `.json`, `.map`, `.webmanifest`, and `.gltf` files. A key given twice keeps both values, and JSON held inside a JSON string is read too.
   - **Scripts:** every string literal in a `.js`, `.mjs`, or `.cjs` file, in `'`, `"`, or a backtick holding no `${`, with its escapes undone. A literal that is JSON (a bundler's `JSON.parse('…')`) is read for that JSON's strings too. Literals are read from every quote character, so a quote in a comment or a regular expression can't hide the next one.
   - **Markup:** every text node and attribute value of an `.html`, `.htm`, `.svg`, or `.xml` file, entities decoded, and an inline `<script>`'s literals.
-  - **Text:** each line of a `.txt` file. Any other file that is UTF-8 with no NUL byte, a stylesheet among them, is read for its string literals.
+  - **Text:** each line of a `.txt` file. Any other file that is UTF-8 with no NUL byte, a stylesheet among them, is read by line and for its string literals.
 - **Unchanged:**
   - the `published` rule, except that an entry naming no content file is reported by its index, `published[n]`, never by the path the build wrote (T050's nit 4);
   - the resume's and narration's fragments, except that the resume's block scalars now end at the key's column (T050's I1);
@@ -89,7 +91,7 @@ ADR 0017 puts this section first.
 ## Acceptance criteria
 
 - **FR-030:** "THE HUMAN-ONLY CONTENT CHECK SHALL verify every published room-text string against an approved file's displayed values, at any length, and room text SHALL ship only once that check is on `main`". This is the positive check, with the whole-string negative check. P-9 is that check, once you apply it.
-- **User Story 5, scenario 5:** "**Given** an unapproved string under 24 characters, **When** the gate runs, **Then** it fails". The cases are the 14-character `"I am very busy"` as a whole JS literal, and in 20 other forms of `dist/`.
+- **User Story 5, scenario 5:** "**Given** an unapproved string under 24 characters, **When** the gate runs, **Then** it fails". The cases are the 14-character `"I am very busy"` as a whole JS literal, and in 21 other forms of `dist/`.
 - **User Story 5, scenario 2,** for the strings §11 defines: "**Given** room text not approved on `main`, **When** a release build runs, **Then** its face stays plain and its words appear nowhere in the built site". The backlog below names what §11's definitions leave out.
 - **SC-008**, the content check's part of "100% of drawn words in a release build trace to an approved room-text file, …": the positive check.
 - **FR-077, item 6:** "the content check of FR-030, before the first room text ships". This is P-9 at T052, before T203. `evals/test_room_order.py` enforces the order on line R.
@@ -99,7 +101,7 @@ ADR 0017 puts this section first.
 | Principle                                               | Touched | How it complies                                                                                                                                                                                                                                             |
 | ------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | I. Data-local by default                                | No      | The check runs locally on the tree and `dist/`, and prints paths and counts, never text. Nothing new leaves a visitor's device.                                                                                                                             |
-| II. Production-grade or not shipped                     | Yes     | Test-first twice. The first round's RED was 42 of 88, then 89 passed. The review round's RED was 46 of 141, then 141 passed. `make check` ran on `main` with the patch applied, both times.                                                                 |
+| II. Production-grade or not shipped                     | Yes     | Test-first twice. The first round's RED was 42 of 88, then 89 passed. The review round's RED was 46 of 141, then 141 passed. The last look's round: 14 of 157, then 157 passed. `make check` ran on `main` with the patch applied, both times.                                                                 |
 | III. Intent before spec, spec before code, humans merge | Yes     | T049 to T051 trace to §11 and R-57. The human-only change is a patch you apply. The departures are recorded in plan.md §10 and §11's "As built".                                                                                                            |
 | IV. Least privilege                                     | Yes     | P-9 is the approved admission R-57 names: the `room-text` kind. Everything else it adds is a check that refuses more: a value it can't read exactly, more of `dist/`'s strings, and no build-written path in its output. No permission or allowlist widens. |
 | V. Cost is a first-class signal                         | No      | $0. No provider call.                                                                                                                                                                                                                                       |
@@ -111,7 +113,7 @@ No deviation from the constitution.
 
 ## Review
 
-**Verdict (T050): APPROVE with fixes.** The reviewer was the main session, which wrote none of the branch. It reviewed `feat/004-content-check` at cf0a8eaa, with the patch applied to `main` 9780b4e6, against `REVIEW.md`, §11, R-57, and the constitution. Its findings:
+**Verdict (T050): APPROVE with fixes.** The reviewer was a read-only reviewer subagent that the coordinator launched, which wrote none of the branch. It reviewed `feat/004-content-check` at cf0a8eaa, with the patch applied to `main` 9780b4e6, against `REVIEW.md`, §11, R-57, and the constitution. Its findings:
 
 - **No change needed:** the patch applies, and the dist side, the positive check, and §11's seven cases are sound.
 - **Findings:** one Important finding and five nits.
@@ -122,12 +124,12 @@ The fixes came test-first, in 579f0d29. What was done about each:
 - **I1 (Important): the room-text YAML reader misread legal YAML**, so a draft's real words could pass unnoticed and approved text could wrongly fail. The reviewer's probes of `displayed()`:
   - `- text: >-` followed by `about_author:` read as one string, because a block scalar's indent was taken from the dash;
   - a trailing comment was kept;
-  - a double-quoted `\"` was left unread;
+  - a double-quoted `\u` escape was left unread;
   - a value continued onto a second line was cut;
   - flow style and a quoted key read as `[]`;
   - a tag was read as part of the value.
 
-  **Fixed:**
+  **Fixed in 579f0d29, and reopened by the last look (below):**
   - **The block-scalar indent.** It is measured from the key's column, `found.start("key")`. This also fixes the resume's reader, which had the same bug before P-9. Line R's resume and all 30 narration scripts read exactly as before, by a byte comparison of `displayed()` under the old and new check.
   - **Room-text values, read exactly or refused.** A room-text block's values now go through `room_yaml_texts`, which reads only these forms exactly:
     - a block scalar, `>` or `|` with an optional chomping indicator;
@@ -153,6 +155,29 @@ The fixes came test-first, in 579f0d29. What was done about each:
 - **Nit 5: the build route.** **Fixed**, as described under "How the patch was built" below.
 - **Nit 1 (backlog only).** Below.
 
+**The last look, at 5f7d0067: not APPROVE yet.** The same reviewer confirmed what held:
+- the patch's bytes match the plain files and apply to `main`;
+- RED reproduces: 46 of 141 fail against round one's module;
+- the changed test got stricter;
+- line R's chalk blocks and resume read exactly.
+
+One item was still open, and the reviewer found a nit:
+- **I1, still open.** PyYAML and the build's `yaml` 2.9.1 both read four legal spellings as `lines: [{text: "I am very busy"}]`. `room_yaml_texts` read them as nothing or as the wrong value, with no refusal:
+  - **J:** an escaped quoted key, `- "te\x78t": "I am very busy"`, read as `[]`;
+  - **K:** an alias as a key, `a: &k text` … `- *k : "I am very busy"`, read as `[]`, and the same after another key in the item (**K2**);
+  - **L:** a flow mapping over two lines with a plain value, `- {` then `text: I am very busy}`, read as `'I am very busy}'`;
+  - **L2:** the same with a comma and another key, read as `'I am very busy,'`.
+
+  **Fixed in 201e2c7e, test-first** (14 of 157 failed, then 157 passed):
+  - `flow_scan` scans every line of a room-text block outside its quoted scalars and its comment. A scalar starts at the line's start or after `-`, `:`, `,`, `[`, `{`, or `?`, with any anchor or tag before it skipped, so an anchor can't hide a quoted key.
+  - It refuses, as `Unreadable`, a quoted key and an alias used as a key, since §6.1's keys are all plain words.
+  - It refuses a flow collection, and a quoted scalar, that doesn't close on its line.
+  - One-line flow items (`{file, quote}`, `exclude: [Seva, …]`) stay readable, and a quote's own commas and colons are its own.
+  - Tests: J (four forms), K, K2, L, L2, a flow sequence and a quoted value over two lines, each refused; J, K, and L2 end to end, each failing the check without printing its words; and two forms that stay readable.
+  - Line R's two chalk blocks still read as before, and its resume and 30 scripts read byte for byte as before.
+- **Nit 2.** A text file with no rule for its suffix went only through `js_strings`, so a bare line in a `.md` file wasn't found. **Fixed:** such a file is read by line too, as a `.txt` file is. Test: a Markdown file whose line is the value.
+- **The note.** It had said the main session wrote the review, and it had misquoted one I1 probe: it was a `\u` escape, not `\"`. Both are corrected above.
+
 **The seven decisions, as judged:**
 
 1. **Collapsing white space in the positive check, as the negative check does: accepted.** It makes the positive check more lenient by white space only, not stricter. A string that differs from an approved value only in white space passes. No string with different characters does.
@@ -166,7 +191,7 @@ The fixes came test-first, in 579f0d29. What was done about each:
 **How the patch was built.**
 
 - **The first version.** `protected-paths.sh` refused an Edit of `tools/gates/**` in the detached scratch worktree, so the two files were built in a plain folder, `/tmp/claude-1000/p9`, as P-5 and P-8 were. That version (053e129e) was then staged into the scratch worktree's index with `git hash-object -w` and `git update-index --cacheinfo`, and diffed with `git diff --cached --full-index`. No file under a protected path was written in a checkout.
-- **Why that route was dropped (T050's nit 5).** Staging `tools/gates/**` into a git index is the route the matrix lists as a KNOWN GAP (`git update-index --add --cacheinfo … tools/gates/gate`), even in a scratch index. So 579f0d29's patch is built another way:
+- **Why that route was dropped (T050's nit 5).** Staging `tools/gates/**` into a git index is the route the matrix lists as a KNOWN GAP (`git update-index --add --cacheinfo … tools/gates/gate`), even in a scratch index. So 579f0d29's and 201e2c7e's patches are built another way:
   - `main`'s two files are exported with `git show 9780b4e6:<path>` into a second plain folder, `/tmp/claude-1000/p9-base`;
   - the patch is `git diff --no-index --full-index` from there to `/tmp/claude-1000/p9`, its headers rewritten to `a/tools/gates/…` and `b/tools/gates/…`;
   - that writes nothing under a protected path and stages nothing.
@@ -188,13 +213,15 @@ The reviewer proposes a spec amendment for P-9's next revision:
 
 ## Verification
 
-### After the review's fixes (the patch as it stands now, 579f0d29)
+### After the last look (the patch as it stands now, 201e2c7e)
 
-**Test-first:** 46 of 141 failed before the fix, and 95 passed (`46 failed, 95 passed in 0.45s`). Then `141 passed in 0.59s`, in `/tmp/claude-1000/p9` with pytest 9 on Python 3.12.3.
+**Test-first:** 14 of 157 failed before the fix, and 143 passed (`14 failed, 143 passed in 1.13s`). Then `157 passed in 0.42s`, in `/tmp/claude-1000/p9` with pytest 9.1.1 on Python 3.12.3.
 
 **`ruff`** with the repository's `ruff.toml`, over the two files: `All checks passed!` and `2 files already formatted`.
 
-**The chain at `main` 9780b4e6** (`/tmp/claude-1000/p9-chain`, a detached worktree; the first version reversed with `git apply -R` first, which left the tree clean):
+**The patch** is rebuilt by `git diff --no-index --full-index` from the `p9-base` exports of `main`'s files, its headers rewritten. Nothing is staged. `grep -c "p9-base\|/p9/"` over it prints `0`.
+
+**The chain at `main` 9780b4e6** (`/tmp/claude-1000/p9-chain`). 579f0d29's patch was reversed first with `git apply -R`, which left the tree clean:
 
 ```text
 $ git apply --check -v docs/merge-requests/2026-10-27-feat-004-content-check.patch
@@ -209,9 +236,8 @@ identical
 node_modules: `package-lock.json` differs from wt-us9's, so `npm ci --ignore-scripts --cache $TMPDIR/npm-cache` ran (before the first chain).
 
 **`make -f Makefile check ENGINE_MODE=none-yet`**, with the patch applied:
-
 - Summary line: `make check: 12 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: evals FAIL`.
-- pytest: `3197 passed`, up from 3145 with the first version.
+- pytest: `3213 passed`. That is up from 3197 at 579f0d29 and 3145 at 053e129e.
 - `content-check` passes on `main`'s tree as it stands, which has no room text: `content check: PASS (31 content files: 0 approved by main, 31 drafts, none of whose text is in dist/)`.
 - The `evals` FAIL is `main`'s behavioural record for trigger hash 2b5c0e482c90 (above). The patch leaves that hash as it is on `main`.
 
@@ -283,8 +309,8 @@ npm test --workspaces --if-present
 
  Test Files  51 passed (51)
       Tests  789 passed | 12 skipped (801)
-   Start at  20:41:41
-   Duration  57.12s (tests 95%, import 4%, transform 2%)
+   Start at  20:59:57
+   Duration  63.21s (tests 95%, import 3%, transform 2%)
 
 
 > @h4reet/web@0.1.0 test
@@ -296,56 +322,56 @@ npm test --workspaces --if-present
 
  Test Files  25 passed (25)
       Tests  340 passed (340)
-   Start at  20:42:40
-   Duration  3.52s (tests 51%, import 38%, transform 11%)
+   Start at  21:01:04
+   Duration  2.97s (tests 50%, import 38%, transform 11%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  2%]
 ........................................................................ [  4%]
 ........................................................................ [  6%]
-........................................................................ [  9%]
+........................................................................ [  8%]
 ........................................................................ [ 11%]
 ........................................................................ [ 13%]
 ........................................................................ [ 15%]
-........................................................................ [ 18%]
+........................................................................ [ 17%]
 ........................................................................ [ 20%]
 ........................................................................ [ 22%]
 ........................................................................ [ 24%]
-........................................................................ [ 27%]
+........................................................................ [ 26%]
 ........................................................................ [ 29%]
 ........................................................................ [ 31%]
 ........................................................................ [ 33%]
-........................................................................ [ 36%]
+........................................................................ [ 35%]
 ........................................................................ [ 38%]
 ........................................................................ [ 40%]
 ........................................................................ [ 42%]
-........................................................................ [ 45%]
+........................................................................ [ 44%]
 ........................................................................ [ 47%]
 ........................................................................ [ 49%]
 ........................................................................ [ 51%]
-........................................................................ [ 54%]
+........................................................................ [ 53%]
 ........................................................................ [ 56%]
 ........................................................................ [ 58%]
 ........................................................................ [ 60%]
-........................................................................ [ 63%]
-........................................................................ [ 65%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
 ........................................................................ [ 67%]
 ........................................................................ [ 69%]
-........................................................................ [ 72%]
-........................................................................ [ 74%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
 ........................................................................ [ 76%]
 ........................................................................ [ 78%]
-........................................................................ [ 81%]
-........................................................................ [ 83%]
+........................................................................ [ 80%]
+........................................................................ [ 82%]
 ........................................................................ [ 85%]
 ........................................................................ [ 87%]
-........................................................................ [ 90%]
-........................................................................ [ 92%]
+........................................................................ [ 89%]
+........................................................................ [ 91%]
 ........................................................................ [ 94%]
 ........................................................................ [ 96%]
-........................................................................ [ 99%]
-.............................                                            [100%]
-3197 passed in 310.89s (0:05:10)
+........................................................................ [ 98%]
+.............................................                            [100%]
+3213 passed in 273.56s (0:04:33)
 -> PASS test
 == content-check
 + ROOM_DRAFTS=
@@ -366,28 +392,28 @@ policy: main's content-approvals.json and resume-header.json into /tmp/claude-10
   - import "./build/manifest" without a file extension (vite.config.ts:11:35). Add the file extension
   - import "./build/narration" without a file extension (vite.config.ts:12:31). Add the file extension
   - import "./build/policy" without a file extension (vite.config.ts:13:36). Add the file extension
-  - import "../src/resume/data" without a file extension (build/narration.ts:24:40). Add the file extension
   - import "../src/choice/avatars" without a file extension (build/manifest.ts:17:25). Add the file extension
+  - import "../src/resume/data" without a file extension (build/narration.ts:24:40). Add the file extension
   - import "../src/resume/data" without a file extension (build/content.ts:24:58). Add the file extension
-  - import "../src/narration/data" without a file extension (build/narration.ts:25:53). Add the file extension
   - import "../src/choice/avatars" without a file extension (build/manifest.ts:18:31). Add the file extension
+  - import "../src/narration/data" without a file extension (build/narration.ts:25:53). Add the file extension
   - import "./approvals" without a file extension (build/content.ts:25:78). Add the file extension
   - import "./approvals" without a file extension (build/narration.ts:26:78). Add the file extension
-  - import "../src/room/events" without a file extension (build/manifest.ts:19:29). Add the file extension
   - import "./narration-source" without a file extension (build/content.ts:26:29). Add the file extension
+  - import "../src/room/events" without a file extension (build/manifest.ts:19:29). Add the file extension
   - import "./content" without a file extension (build/narration.ts:48:8). Add the file extension
-  - import "../src/room/events" without a file extension (build/manifest.ts:20:32). Add the file extension
   - import "./pdf" without a file extension (build/content.ts:27:46). Add the file extension
+  - import "../src/room/events" without a file extension (build/manifest.ts:20:32). Add the file extension
   - import "./narration-source" without a file extension (build/narration.ts:49:57). Add the file extension
-  - import "../src/room/objects" without a file extension (build/manifest.ts:21:30). Add the file extension
   - import "./policy" without a file extension (build/content.ts:28:36). Add the file extension
+  - import "../src/room/objects" without a file extension (build/manifest.ts:21:30). Add the file extension
   - import "./policy" without a file extension (build/narration.ts:50:36). Add the file extension
   - import "../src/room/objects" without a file extension (build/manifest.ts:22:31). Add the file extension
   - import "../src/talk/messages" without a file extension (build/manifest.ts:23:42). Add the file extension
   - import "../src/talk/messages" without a file extension (build/manifest.ts:24:42). Add the file extension
   - import "./policy" without a file extension (build/manifest.ts:25:27). Add the file extension
-  - import "../src/narration/data" without a file extension (build/narration-source.ts:23:36). Add the file extension
   - import "../room/dom" without a file extension (src/choice/avatars.ts:4:21). Add the file extension
+  - import "../src/narration/data" without a file extension (build/narration-source.ts:23:36). Add the file extension
   - import "./approvals" without a file extension (build/pdf.ts:23:40). Add the file extension
   - import "./content" without a file extension (build/pdf.ts:24:31). Add the file extension
 Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
@@ -411,7 +437,7 @@ dist/assets/index-t3rAI7rO.css                   7.25 kB │ gzip:   2.20 kB
 dist/assets/index-DLxJp5Zs.js                   26.45 kB │ gzip:   9.95 kB
 dist/assets/scene-BAvAprnz.js                  576.58 kB │ gzip: 145.99 kB
 
-✓ built in 526ms
+✓ built in 628ms
 + python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py --tree . --dist apps/web/dist --repo .
 content check: PASS (31 content files: 0 approved by main, 31 drafts, none of whose text is in dist/)
 -> PASS content-check
@@ -419,19 +445,19 @@ content check: PASS (31 content files: 0 approved by main, 31 drafts, none of wh
 bash tools/gates/secrets.sh
 secrets: gitleaks with /home/h4reet/h4reet-ai/h4reet-ai/.gitleaks.toml, over /tmp/claude-1000/p9-chain
 == gitleaks: unstaged changes
-8:48PM INF 0 commits scanned.
-8:48PM INF scanned ~43510 bytes (43.51 KB) in 41.8ms
-8:48PM INF no leaks found
+9:05PM INF 0 commits scanned.
+9:05PM INF scanned ~48695 bytes (48.69 KB) in 78.4ms
+9:05PM INF no leaks found
 -> PASS unstaged changes
 == gitleaks: staged changes
-8:48PM INF 0 commits scanned.
-8:48PM INF scanned ~0 bytes (0) in 19.2ms
-8:48PM INF no leaks found
+9:05PM INF 0 commits scanned.
+9:05PM INF scanned ~0 bytes (0) in 37.5ms
+9:05PM INF no leaks found
 -> PASS staged changes
 == gitleaks: 0 commits since main (9780b4e6f8e3..HEAD)
-8:48PM INF 0 commits scanned.
-8:48PM INF scanned ~0 bytes (0) in 22.1ms
-8:48PM INF no leaks found
+9:05PM INF 0 commits scanned.
+9:05PM INF scanned ~0 bytes (0) in 38ms
+9:05PM INF no leaks found
 -> PASS 0 commits since main (9780b4e6f8e3..HEAD)
 secrets: PASS (unstaged changes, staged changes, 0 commits since main)
 -> PASS secrets
@@ -588,7 +614,14 @@ make: *** [Makefile:159: check] Error 1
 make check exit 2
 ```
 
-**`gitleaks dir .`** (v8.30.1) on that tree, after deleting the pytest `__pycache__` folders outside `node_modules`: `scanned ~12363285 bytes (12.36 MB)`, `no leaks found`, exit 0.
+**`gitleaks dir .`** (v8.30.1) on that tree, after deleting the pytest `__pycache__` folders outside `node_modules`: `scanned ~12368489 bytes (12.37 MB)`, `no leaks found`, exit 0.
+
+### At 579f0d29, after the review's fixes (the patch the last look read)
+
+- **Test-first:** 46 of 141 failed before the fix (`46 failed, 95 passed in 0.45s`). Then `141 passed in 0.59s`. `ruff`: clean.
+- **The chain at `main` 9780b4e6:** 053e129e's patch was reversed with `git apply -R`. Then `git apply --check -v` printed both files' `Checking patch …` and exited 0, and the applied files compared identical to the plain ones.
+- **`make -f Makefile check ENGINE_MODE=none-yet`:** `make check: 12 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: evals FAIL`, with pytest's `3197 passed`, the same `content check: PASS` line, and the same `evals` FAIL. Its whole output is in 5f7d0067's version of this note.
+- **`gitleaks dir .`:** `scanned ~12363285 bytes (12.36 MB)`, `no leaks found`, exit 0.
 
 ### At 053e129e, before the review (the first version)
 
