@@ -144,6 +144,8 @@ None. There are no model calls and no new flows. The probe is one `docker versio
    - Building a human-only patch by writing the protected path in a worktree (git apply, checkout, a shell write) after a hook refused the Edit: resolve plain copies outside the repository with git merge-file and diff them with git diff --no-index --full-index.
    ```
 
+   As written it would make CLAUDE.md 16 bytes over the static tier's 6 KB; `fix/000-main-ref-r2`'s note, "For the Author" item 8, gives the sizes and a shorter wording that fits.
+
 **Backlog:**
 - Still unbounded in the gate: a gateway build or compose build that hangs after a probe that answered (as in make; T167's backlog), the container phase's calls to this machine's engine, and `--prove`'s `engine.sh prove`.
 - No test pins the bound at 15; the in-process test patches it to 1. T167 has merged, so a test could now check that the gate's `ENGINE_PROBE_SECONDS` equals the Makefile's.
