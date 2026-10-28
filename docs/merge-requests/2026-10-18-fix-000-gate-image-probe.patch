@@ -1,22 +1,46 @@
+diff --git a/specs/000-local-foundations/plan.md b/specs/000-local-foundations/plan.md
+index f5fee9a4b98184c1ef52469694bc826ebb604dad..34c7b2d6a30f70018a961d42361e78515a5b81e8 100644
+--- a/specs/000-local-foundations/plan.md
++++ b/specs/000-local-foundations/plan.md
+@@ -924,7 +924,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
+ - the container phase also runs `make validate-config`;
+ - the export proof and the makefiles check follow fix/000-agents-make's newer T092 text: one SHA, replace objects off, a refusal of any ref under `refs/replace`, of `info/attributes`, and of a submodule, and a proof that the exported tree's hash is the commit's;
+ - the export also refuses, from `git ls-tree -r -t`, any path git takes for its own directory, anywhere in the tree and whether a file, a folder, or a link: `.git` in any case, or as NTFS spells it (trailing dots or spaces, `git~1`, a stream), as git's own verify_path reads a name with `core.protectNTFS` on. The behavioral step's `status` runs git in a tree that holds `.git`, and git would read that tree's config and index. git archive refuses these names too, but only as git's version and `core.protectNTFS` have it (US3 review A, finding 1);
+-- the image build runs only after the policy passes or is PLANNED; since T184 it builds the gateway's image first, outside compose, as `make up` does (`h4reet-gateway:<SHA>`, with the engine's proxy), then the compose images;
++- the image build runs only after the policy passes or is PLANNED; since T184 it builds the gateway's image first, outside compose, as `make up` does (`h4reet-gateway:<SHA>`, with the engine's proxy), then the compose images. Before it builds, the agents' engine must answer one `docker version` within 15 s (`ENGINE_PROBE_SECONDS`), as `make image` asks it (tasks.md T167), or the step fails, naming the timeout or docker's exit status and `deploy/agents-engine/engine.sh up`, and builds nothing. docker's client sets no limit of its own, so an engine that took the connection and never answered would have held the gate at `image` with no end, as it held `make check` before T167 (2026-10-18, `docs/merge-requests/2026-10-18-fix-000-gate-image-probe.patch`);
+ - a WARN status, for an eval-history push prod's collector didn't take;
+ - `--contract-replay` adds `--reporter=verbose`, and passes only when a test passed under "recorded live: <adapter>", with the recording's own adapter name, whole, and the contract's " (" after it, so a test under another adapter's name, or one the name only begins, doesn't count (US3 review A, a nit);
+ - stage E runs when the branch touches `deploy/agents-engine/` or `.claude/settings.json`, and stays PENDING until `--prove`;
+@@ -1242,7 +1242,7 @@ Total cloud spend for spec 000: the Bedrock line only, bounded by prod's ceiling
+ | Prometheus or Loki | Panels go empty. The audit panel still reads the store. |
+ | Grafana | No dashboard; nothing else is affected. |
+ | gitleaks missing | The commit and content hooks fail closed; `make check` fails; publish-check exits 3. |
+-| The agents' engine is down | The image gate fails with "ask the Author: deploy/agents-engine/engine.sh up". Ops falls back to its batched request to the Author. |
++| The agents' engine is down | The image gate fails with "ask the Author: deploy/agents-engine/engine.sh up". Ops falls back to its batched request to the Author. The Author's gate fails its `image` step within 15 s, naming the same command, and builds nothing (§11's As built). |
+ | The engine's admission plugin | The daemon refuses every request (fail closed). |
+ | The engine's egress proxy | Pulls fail closed; seeded images still run. An unreadable or empty allowlist refuses everything. |
+ | The matrix can't run a stage (no sandbox, no engine) | That stage reports SKIP with its reason, and the others still run. Acceptance needs every stage's run recorded in a note. |
+diff --git a/tools/gates/gate b/tools/gates/gate
+index a32dd9feedd5dc577f3528e4f154286e770abab2..61c8a17849dc1f2821786ee9ca16551462ddacf1 100755
 --- a/tools/gates/gate
 +++ b/tools/gates/gate
-@@ -54,9 +54,12 @@
-      obeys one at the folder it scans (R-36). Its log is read as the range scan's, and a "WRN skipping" line, a file
-      it couldn't read, fails it too; it must say how many bytes it scanned, more than none of a tree with content;
+@@ -65,9 +65,12 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
+      (contracts/arrival-check.md). The branch's credits renderer is agent-editable, so its check, make credits-check,
+      runs in the container phase;
     - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
 -     only after the policy passed, because an unvetted build could read host files into the engine: first the
 -     gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
--     proxy; then the compose images;
+-     proxy; then, when the export has apps/web/Dockerfile, the room's, as make up builds prod's (spec 002), as
 +     only after the policy passed, because an unvetted build could read host files into the engine. First the engine
 +     must answer one docker version within ENGINE_PROBE_SECONDS (15), as make image asks it (tasks.md T167), or the
 +     step fails, naming the timeout or docker's exit status, and builds nothing: docker's client sets no limit of its
 +     own, so an engine that takes the connection and never answers would hold the gate there. Then the gateway's
 +     image, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's proxy;
-+     then the compose images;
++     then, when the export has apps/web/Dockerfile, the room's, as make up builds prod's (spec 002), as
+      h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
     - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
       waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
-    - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
-@@ -144,6 +147,10 @@
+@@ -157,6 +160,10 @@ HOST_ENGINE = "unix:///var/run/docker.sock"
  AGENTS_ENGINE = "tcp://198.18.0.1:2376"
  # The agents' engine's egress proxy, which its builds reach npm through (contracts/agents-engine.md §4).
  AGENTS_PROXY = "http://198.18.0.1:3128"
@@ -27,8 +51,8 @@
  OTLP_URL = "http://127.0.0.1:18004/v1/metrics"
  DEVCONTAINER = "h4reet-devcontainer"
  RECORDING = "/run/h4-contract/recording.json"
-@@ -1100,6 +1107,41 @@
-     return scan_verdict(step, findings, problems)
+@@ -1253,6 +1260,41 @@ def arrival(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
+     return classify(step, rc, out)
  
  
 +def engine_problem(docker: str, engine: dict[str, str], tmp: Path) -> str | None:
@@ -67,9 +91,9 @@
 +
 +
  def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
-     begin("image", "the gateway's and the compose images, built on the agents' engine")
-     step = Step("image")
-@@ -1121,6 +1163,10 @@
+     begin(
+         "image",
+@@ -1277,6 +1319,10 @@ def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
          DOCKER_TLS_VERIFY="1",
          DOCKER_CERT_PATH=str(certs),
      )
@@ -80,12 +104,14 @@
      # The gateway's image is make up's own build, outside compose (deploy/scripts/gateway_image.py; tasks.md T184),
      # built here as it builds it, from the export.
      rc, out = stream(
+diff --git a/tools/gates/test/test_gate.py b/tools/gates/test/test_gate.py
+index 6bd3ffb0553014706d89968a662318a423878931..af3adbd1ba436bed77d0413acc9f7de39c53f5f6 100644
 --- a/tools/gates/test/test_gate.py
 +++ b/tools/gates/test/test_gate.py
-@@ -2312,3 +2312,114 @@
-     assert "deploy/agents-engine/engine.sh up" in done.stdout
-     assert len(by_kind(fx.docker(), "buildx")) == 1
-     assert by_kind(fx.docker(), "compose") == []
+@@ -2654,3 +2654,114 @@ def test_a_commit_without_the_room_has_no_content_steps(fx: Fixture) -> None:
+     assert fx.logged("content_check") == []
+     with pytest.raises(AssertionError):
+         status_of(done, "content")
 +
 +
 +# --------------------------------------------------------------------------------------------------
@@ -197,23 +223,3 @@
 +    done = gate(fx, "feature")
 +    assert status_of(done, "image") == "FAIL"
 +    assert on_engine(fx.docker()) == []
---- a/specs/000-local-foundations/plan.md
-+++ b/specs/000-local-foundations/plan.md
-@@ -916,7 +916,7 @@
- - the container phase also runs `make validate-config`;
- - the export proof and the makefiles check follow fix/000-agents-make's newer T092 text: one SHA, replace objects off, a refusal of any ref under `refs/replace`, of `info/attributes`, and of a submodule, and a proof that the exported tree's hash is the commit's;
- - the export also refuses, from `git ls-tree -r -t`, any path git takes for its own directory, anywhere in the tree and whether a file, a folder, or a link: `.git` in any case, or as NTFS spells it (trailing dots or spaces, `git~1`, a stream), as git's own verify_path reads a name with `core.protectNTFS` on. The behavioral step's `status` runs git in a tree that holds `.git`, and git would read that tree's config and index. git archive refuses these names too, but only as git's version and `core.protectNTFS` have it (US3 review A, finding 1);
--- the image build runs only after the policy passes or is PLANNED; since T184 it builds the gateway's image first, outside compose, as `make up` does (`h4reet-gateway:<SHA>`, with the engine's proxy), then the compose images;
-+- the image build runs only after the policy passes or is PLANNED; since T184 it builds the gateway's image first, outside compose, as `make up` does (`h4reet-gateway:<SHA>`, with the engine's proxy), then the compose images. Before it builds, the agents' engine must answer one `docker version` within 15 s (`ENGINE_PROBE_SECONDS`), as `make image` asks it (tasks.md T167), or the step fails, naming the timeout or docker's exit status and `deploy/agents-engine/engine.sh up`, and builds nothing. docker's client sets no limit of its own, so an engine that took the connection and never answered would have held the gate at `image` with no end, as it held `make check` before T167 (2026-10-18, `docs/merge-requests/2026-10-18-fix-000-gate-image-probe.patch`);
- - a WARN status, for an eval-history push prod's collector didn't take;
- - `--contract-replay` adds `--reporter=verbose`, and passes only when a test passed under "recorded live: <adapter>", with the recording's own adapter name, whole, and the contract's " (" after it, so a test under another adapter's name, or one the name only begins, doesn't count (US3 review A, a nit);
- - stage E runs when the branch touches `deploy/agents-engine/` or `.claude/settings.json`, and stays PENDING until `--prove`;
-@@ -1233,7 +1233,7 @@
- | Prometheus or Loki | Panels go empty. The audit panel still reads the store. |
- | Grafana | No dashboard; nothing else is affected. |
- | gitleaks missing | The commit and content hooks fail closed; `make check` fails; publish-check exits 3. |
--| The agents' engine is down | The image gate fails with "ask the Author: deploy/agents-engine/engine.sh up". Ops falls back to its batched request to the Author. |
-+| The agents' engine is down | The image gate fails with "ask the Author: deploy/agents-engine/engine.sh up". Ops falls back to its batched request to the Author. The Author's gate fails its `image` step within 15 s, naming the same command, and builds nothing (§11's As built). |
- | The engine's admission plugin | The daemon refuses every request (fail closed). |
- | The engine's egress proxy | Pulls fail closed; seeded images still run. An unreadable or empty allowlist refuses everything. |
- | The matrix can't run a stage (no sandbox, no engine) | That stage reports SKIP with its reason, and the others still run. Acceptance needs every stage's run recorded in a note. |
