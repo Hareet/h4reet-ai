@@ -1,0 +1,20 @@
+# Plug-in years for 03-grants-and-credits.md, so a rendering can show them as numbers.
+# From his words of 2026-10-28 and his resume, confirmed 2026-10-29. No amounts, ever (03's "Do not claim").
+# This file is public.
+
+topic: 03-grants-and-credits
+facts:
+  - id: awards.imagine_year
+    label: The year Medic won the AWS IMAGINE Grant's Momentum to Modernize award, on his pitch and design for Smart Task Prioritization
+    value: "2025"
+    tag: A
+    source: "The Author, 2026-09-14/27 (03-grants-and-credits.md); 2026-10-28: 'Winner of AWS Imagine 2025.'; his resume, 2026-10-29: 'AWS IMAGINE Grant 2025 winner'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: awards.no_code_finalist_year
+    label: The year No-Code CHT Configuration was an AWS Breaking Barriers finalist and an AWS IMAGINE Grant finalist
+    value: "2026"
+    tag: A
+    source: "The Author, 2026-10-28: 'AWS 2026 Breaking Barriers fainlist', 'AWS 2026 Imagine Finalist'; his resume, 2026-10-29: 'AWS 2026 Breaking Barriers finalist; AWS IMAGINE Grant 2026 finalist'"
+    public_safe: true
+    phrasing: "{value}"
