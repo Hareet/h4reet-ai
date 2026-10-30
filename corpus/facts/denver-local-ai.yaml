@@ -1,0 +1,18 @@
+# Plug-in details for 07-denver-local-ai.md. This file is public: fill a slot only when it's public-safe.
+
+topic: 07-denver-local-ai
+facts:
+  - id: dlai.co_owner_name
+    label: The co-owner's first name, as the site gives it
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: " Her name is {value}."
+  - id: dlai.booking_text_number
+    label: The number the site gives for texting to book a free visit
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: " To book a free visit, text {value}."

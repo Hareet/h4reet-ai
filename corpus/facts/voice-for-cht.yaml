@@ -32,3 +32,18 @@ facts:
     source: null
     public_safe: null
     phrasing: "In a controlled test, {value}."
+  # Added 2026-10-29: his words of 2026-10-28, which he chose to keep on 2026-10-29
+  - id: voice.model_size
+    label: The footprint the partner's team fine-tuned the models to, with his help
+    value: "273 MB"
+    tag: A
+    source: "The Author, 2026-10-28: 'helped them fine tune models to achieve a 273mb footprint'; 2026-10-29: 'Let's keep the hardware specs so we can illustrate our impact of fine tuning models for offline low-resource phones.'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: voice.phone_memory
+    label: The memory of the rural Android phone the models run on, beside the app
+    value: "4 GB"
+    tag: A
+    source: "The Author, 2026-10-28: 'local rural offline models that can run an 4gb android phone alongside the application'; kept on 2026-10-29, as voice.model_size"
+    public_safe: true
+    phrasing: "{value}"

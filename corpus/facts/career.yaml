@@ -1,0 +1,41 @@
+# Plug-in facts for 00-profile.md and 02-production-infrastructure-national-scale.md: his dates and roles at Medic,
+# as his resume and his answers of 2026-10-28 and 2026-10-29 give them. This file is public.
+# Each phrasing is the bare value, so a sentence can carry it inline.
+
+topic: 00-profile
+facts:
+  - id: career.medic_dates
+    label: His dates at Medic, start to end, as on his resume
+    value: "Jul 2018 – Nov 2026"
+    tag: A
+    source: "The Author, 2026-10-29: 'total years at medic from July 2018 to Nov 2026'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: career.sre_lead_years
+    label: His years as SRE Lead at Medic
+    value: "2018–2024"
+    tag: A
+    source: "The Author, 2026-10-28: 'from 2018-2024, SRE lead'; 2026-10-29: 'Yes, we were SRE Lead.'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: career.ai_lead_years
+    label: His years as Applied AI Engineering Lead at Medic
+    value: "2024–2026"
+    tag: A
+    source: "The Author's resume, 2026-10-29: 'Applied AI Engineering Lead 2024–2026'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: career.ai_strategy_years
+    label: How many years, as of 2026-10-29, he has designed Medic's AI strategy and led its implementation
+    value: "2"
+    tag: A
+    source: "The Author, 2026-10-28: 'For the last 2 years' with Medic's AI Strategy; 2026-10-29: 'the last two years for AI strategy and implementation'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: career.governments_trained
+    label: The governments for which he implemented and trained DevOps practices, with their Ministry of Health departments
+    value: "six"
+    tag: A
+    source: "The Author, 2026-10-29: 'I implemented and trained DevOps practices for those 6 govts'; 'I trained and localized DevOps practices for 6 Governments and their Ministry of Health Departments'"
+    public_safe: true
+    phrasing: "{value}"

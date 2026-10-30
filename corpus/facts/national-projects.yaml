@@ -58,7 +58,7 @@ facts:
     source: null
     public_safe: null
     phrasing: "The data-center migration: {value}."
-  # Lesser involvement — one line each: what Hareet did, and when
+  # Uganda, Mali, and Zanzibar — one line each: what Hareet did, and when
   - id: echis_ug.involvement
     label: Hareet's involvement in Uganda's eCHIS (what and when, one line)
     value: null
@@ -95,3 +95,18 @@ facts:
     source: null
     public_safe: null
     phrasing: "In benchmarking, {value}."
+  # Added 2026-10-29, from his resume and his answers of 2026-10-28 and 2026-10-29
+  - id: cht.national_governments
+    label: Governments that run their national community health systems on the CHT (the CHT docs' count, as of 2024)
+    value: "six"
+    tag: C
+    source: "docs.communityhealthtoolkit.org/why-the-cht/ (six governments, as of 2024); his resume, 2026-10-29: 'Six governments run their national community health systems on it'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: cht.version_migration
+    label: The CHT versions of the migration that moved the whole application to containers
+    value: "3.x-to-4.x"
+    tag: C
+    source: "The Author, 2026-10-28: '3.x to 4.x migration to containers throughout the application'; his resume, 2026-10-29: 'the 3.x-to-4.x migration'. docs.communityhealthtoolkit.org/hosting/cht/migration/preparing-for-4/"
+    public_safe: true
+    phrasing: "{value}"
