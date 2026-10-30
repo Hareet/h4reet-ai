@@ -49,8 +49,9 @@ SOURCE_TYPES = "http://cv.iptc.org/newscodes/digitalsourcetype/"
 # The three marks a record's steps call for (spec 004, Amendment C1), each a term of IPTC's digital source type.
 MARK_MODEL = "trainedAlgorithmicMedia"
 MARK_COMPOSITE = "compositeWithTrainedAlgorithmicMedia"
-# Media a person made with digital tools. The Author confirms IPTC's term before P-5 (tasks.md T031), and this one line
-# takes it; digitalCreation is the plan's candidate, unverified (research R-53).
+# Media a person made with digital tools: IPTC's digitalCreation, "Media created by a human using non-generative
+# tools", which replaced digitalArt on 2024-09-17 (cv.iptc.org/newscodes/digitalsourcetype/; tasks.md T031, settled on
+# 2026-10-30). P-5's arrival check holds the same term.
 MARK_HUMAN = "digitalCreation"
 MARK_VALUE = SOURCE_TYPES + MARK_MODEL
 

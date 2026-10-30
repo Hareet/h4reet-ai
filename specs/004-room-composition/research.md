@@ -27,7 +27,7 @@ Phase 0 output of `/speckit-plan`, written on 2026-10-22 for [spec.md](spec.md).
 
 One reading departs from the approved plan's words, to follow the spec, and is the Author's to confirm. The approved plan's 'When any is set, the room shows final frames, stops polling, and the text copy reads "Paused at HH:MM"' is read per FR: reduced motion stops motion only (FR-044 polls while the page is visible and the room isn't paused); a hidden page stops polling too; only the pause shows "Paused at" (FR-060) (R-34).
 
-**The Author's actions the plan names:** confirm IPTC's term for human-made digital art before P-5 (R-53); fill the studio folders into P-1 (R-50, R-51); read the licences for P-6 (R-54); and name `small_props` (R-25, R-54). Added on 2026-10-23, by the remediation of the `REVIEW.md` pass, and due now: the interim deny of the outputs and workflows folders (R-51), and the check of the studio session's routes to ComfyUI's port since 2026-10-22 (R-52).
+**The Author's actions the plan names:** confirm IPTC's term for human-made digital art before P-5 (R-53; settled on 2026-10-30, `digitalCreation`); fill the studio folders into P-1 (R-50, R-51); read the licences for P-6 (R-54); and name `small_props` (R-25, R-54; `[]`, his answer of 2026-10-30). Added on 2026-10-23, by the remediation of the `REVIEW.md` pass, and due now: the interim deny of the outputs and workflows folders (R-51), and the check of the studio session's routes to ComfyUI's port since 2026-10-22 (R-52).
 
 ## The studio checks of 2026-10-22
 
@@ -54,7 +54,7 @@ Applied against the [constitution](../../.specify/memory/constitution.md) 1.0.1.
 | V. Cost is a first-class signal | Yes | $0 model spend (R-33); caps from `main`, never raised by agents (R-13, R-25); the visitor's own turn costs (R-32); the report in every room note (R-24) |
 | VI. Build in public | Yes | the catalog, work orders, photo guide, and room text are public (R-14); notes print folder names, never paths (R-52) |
 | VII. Say exactly what you owned | Yes | the mark follows the record, the `design` source, `likeness` read per file, scripted steps credited as model steps (R-53); row D4 (R-62) |
-| VIII. Honest AI | Yes | a hand or composite mark only with the Author's approval, wherever the file lives (R-53); word checks (R-15); unready topics call nothing (R-33); the tier's sentences speak about the machine (R-30); the red team's cases (R-64) |
+| VIII. Honest AI | Yes | the mark the record's steps call for, with the Author's approval of a likeness, a photo source, a room file, or the twin's, and elsewhere a warning that a hand or composite file's likeness is the contributor's to check (R-53); word checks (R-15); unready topics call nothing (R-33); the tier's sentences speak about the machine (R-30); the red team's cases (R-64) |
 | Security and agent governance | Yes | the agent-configuration evals after P-1, P-2, P-4, and P-7, and stage E after P-1 and P-2 (R-50, R-51, R-55); the order test (R-58) |
 
 **Deviations:** none beyond the spec's own (its Assumptions, "Deviations"). FR-069's option B, Q1's named fallback, departs from the intent's order, not from the constitution, and is recorded only if the phone probe fails (R-42). The expected cost and the degraded modes stay the spec's tables; R-24 measures the cost.
@@ -816,7 +816,7 @@ The patches' behaviour: [contracts/intake-amendments.md](contracts/intake-amendm
 
 | Amendment | Rule | Change |
 |---|---|---|
-| C1 | M5 | The mark follows the record's steps: every step by a model, `trainedAlgorithmicMedia`; model and hand steps mixed, `compositeWithTrainedAlgorithmicMedia`; every step by hand, IPTC's human-made code. A step the studio's session scripted is a model step. Under `assets/twin/` and `docs/research/images/`, only `trainedAlgorithmicMedia` passes. Wherever a file lives, a record that calls for any other mark needs the Author's approval of the file's hash (P1). |
+| C1 | M5 | The mark follows the record's steps: every step by a model, `trainedAlgorithmicMedia`; model and hand steps mixed, `compositeWithTrainedAlgorithmicMedia`; every step by hand, IPTC's human-made code. A step the studio's session scripted is a model step. Under `assets/twin/` and `docs/research/images/`, only `trainedAlgorithmicMedia` passes. Outside spec 003's approval breadth (P1), a record that calls for any other mark gets a warning: it's up to the contributor to check for likeness. |
 | C2 | R1 | Admits the source type `design`. |
 | C4 | P2 | Each room confirmation is `true` or `"not_applicable"`; `screens_plain_glow` becomes `screens_plain_live_face`, free while `approvals.json` holds no room entry. |
 | C5 | P1 | A room file whose `likeness` is false takes `likeness_accepted: "not_applicable"`; the approval stays required. |
@@ -825,8 +825,8 @@ The patches' behaviour: [contracts/intake-amendments.md](contracts/intake-amendm
 
 - The patch adds the constant `AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7")`, which R-58's order test reads.
 - C8 needs data only: the studio's session appears on a step as its models and its `service`, with `disclosure_row` `D4`, which R7 and L1 already check. C11 changes no rule: it is the bundle's and the events' `bytes` (R-26).
-- A hand or composite mark needs the Author's approval of the file's hash wherever the file lives, as a room file's does. Otherwise a mistaken `records.json` outside the room, under `assets/visitors/` for one, could over-claim human authorship with no human looking (Principle VIII). This is the main session's hardening from the review (T041, part 1, I1), not the Author's decision, and the Author may relax it ([contracts/intake-amendments.md](contracts/intake-amendments.md) §7, "As built").
-- IPTC's human-made code is unverified (the exploration's guess is `digitalCreation`). The Author confirms the term at cv.iptc.org before P-5, and the scrubber, M5, and RX5 use exactly that one term.
+- A hand or composite mark needs the Author's approval only where spec 003's P1 asks one: a room file, a file under `assets/twin/`, a likeness, or a photo source. Elsewhere, under `assets/visitors/` for one, the arrival check prints a warning, which fails nothing: it's up to the contributor to check for likeness. The main session's hardening after the review (T041, part 1, I1), which asked an approval wherever the file lives, is withdrawn on the Author's answer of 2026-10-30: "No, let's relax that with a warning of saying it's up to the contributor to check for likeness. Deprecate the heavy check." ([contracts/intake-amendments.md](contracts/intake-amendments.md) §7, "As built").
+- IPTC's human-made code was unverified (the exploration's guess was `digitalCreation`). T031 settled it on 2026-10-30: IPTC retired `digitalArt` on 2024-09-17 and replaced it with `digitalCreation`, "Media created by a human using non-generative tools", which the main session read at cv.iptc.org at the Author's request ([contracts/intake-amendments.md](contracts/intake-amendments.md) §17). The scrubber, M5, and RX5 use exactly that one term.
 - Agent code on `feat/004-intake`: `scripts/assets/scrub.py` takes the mark's value from the record's steps; `scripts/assets/credits.py` renders the `design` source, and renders `tools` and `service` on model steps (today it renders `tools` on hand steps only).
 
 **Rationale.** The intent: "The mark follows the record." The first hand-made or design-sourced file needs C1 and C2 together; one patch is one review and one step for the Author.
@@ -835,7 +835,7 @@ The patches' behaviour: [contracts/intake-amendments.md](contracts/intake-amendm
 
 ### R-54: The policy commit, P-6 (FR-053; spec 003's FR-013; Amendments C7, C8)
 
-**Decision.** The Author's own commit on `main`, at M8 and before the first room file: `caps.json`'s `per_asset.room` (R-25), and `licenses.json` entries for the hand tools (Blender, and the local tracing tool), MPFB and COLMAP if the studio uses them, and the studio session's terms. The merge-request note drafts the entries with each `read_by_the_author` date blank; the Author reads each licence, decides spec 003's FR-013 terms, and names `small_props`.
+**Decision.** The Author's own commit on `main`, at M8 and before the first room file: `caps.json`'s `per_asset.room` (R-25), and `licenses.json` entries for the hand tools (Blender, and the local tracing tool), MPFB and COLMAP if the studio uses them, and the studio session's terms. The merge-request note drafts the entries with each `read_by_the_author` date blank; the Author reads each licence, decides spec 003's FR-013 terms, and names `small_props` (`[]`, his answer of 2026-10-30).
 
 **Rationale.** `assets/policy/` is human-only, and spec 003's rule A9 refuses a branch that changes it.
 
@@ -1115,7 +1115,7 @@ SC-016 is folded into SC-001.
 | 35 | C1 needs plumbing: the mark is checked without the record, and the scrubber takes no record | intake and relay | R-53 |
 | 36 | A scripted step as a model step needs its models and a check date; credits hide tools on model steps | intake and relay | R-53: C8 as data; credits render tools and service on model steps |
 | 37 | P1 demands `likeness_accepted` for a desk | intake and relay | R-53: C5 |
-| 38 | IPTC's human-made code is unverified | intake and relay; integration | R-53: the Author confirms it before P-5 |
+| 38 | IPTC's human-made code is unverified | intake and relay; integration | R-53: the Author confirms it before P-5 (T031, settled on 2026-10-30: `digitalCreation`) |
 | 39 | Disclosure row IDs collide across specs, and the tests accept only `[A-Z]\d+` | intake and relay; infrastructure | R-62 (approved) |
 | 40 | The studio folders' paths, and whether their mount is case-insensitive | infrastructure | R-50, R-51: the Author fills P-1; a case-sensitive mount, so the case-variant row reads NOTE |
 | 41 | Does T005's patch deny writes? | the spec; intake and relay | Verified: reads only, with no `Edit()` deny or `denyWrite` for the studio's folders; R-51 adds them |

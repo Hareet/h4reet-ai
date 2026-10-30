@@ -10,7 +10,8 @@ container rules must find nothing in the result: M1 to M9, the B rules, and A4.
 With --record (spec 004, Amendment C1; contracts/intake-amendments.md §13), the mark follows the file's record: the
 entry whose file is the output's name, read only for its steps' `by`. Every step by a model writes
 trainedAlgorithmicMedia; model and hand mixed, compositeWithTrainedAlgorithmicMedia; every step by hand, MARK_HUMAN,
-the term the Author confirms (tasks.md T031). A record it can't read that way is exit 2, with nothing written.
+IPTC's digitalCreation (tasks.md T031, settled on 2026-10-30). A record it can't read that way is exit 2, with nothing
+written.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
-import re
 import struct
 import subprocess
 import sys
@@ -559,12 +559,12 @@ def png_mark(data: bytes) -> bytes:
 
 
 def test_the_three_terms_are_one_constant_each_under_iptcs_vocabulary() -> None:
-    # T031: the Author confirms MARK_HUMAN, and replacing it is a one-line edit of the constant alone.
     found = terms()
     assert len(set(found.values())) == 3
     assert found["model"] == "trainedAlgorithmicMedia"
     assert found["composite"] == "compositeWithTrainedAlgorithmicMedia"
-    assert re.fullmatch(r"[a-z][A-Za-z]+", found["hand"])
+    # IPTC's term for media a human made with non-generative tools (tasks.md T031, settled on 2026-10-30).
+    assert found["hand"] == "digitalCreation"
     for term in found.values():
         packet = scrub.mark_packet(term)
         assert (
