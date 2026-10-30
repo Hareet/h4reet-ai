@@ -1,0 +1,16 @@
+{
+  "files": {
+    "corpus/00-profile.md": "83e9832e72a91cdf382b82f270d0c52b2ea9ee3a0796af73228dc6e27bbab2eb",
+    "corpus/01-ai-strategy-and-cht.md": "1e72e082e78e45ec90c3fcea574682abf6b6727a89fdcfff75589eb661fccfab",
+    "corpus/02-production-infrastructure-national-scale.md": "8595bcdc9bc900fe03278e2a7e902f47fd4ad305cd6d53cf06f9de4c5815a29c",
+    "corpus/03-grants-and-credits.md": "7e134b9ed8c6bbf4fce075c7969b1b1562de71409a9f877fe0e86d2911b09259",
+    "corpus/07-denver-local-ai.md": "59ea6c9cfc6e02af2031bf0a8e5483eab90d4db501a4e5361d37b8228a4f76a5",
+    "corpus/08-hareet-ai.md": "6153c95db9cfa117cbc063573feb283dac50b0479f9e543ca81e74a6378d06a5",
+    "corpus/facts/awards.yaml": "543db6d2497e249fef7106c90d2dead341031585204547be4c19f51e84521296",
+    "corpus/facts/career.yaml": "b57e3319b4d5576c092320e56cd090a44794b606e577f78e19f83c780d5774d4",
+    "corpus/facts/hareet-ai.yaml": "e04c7d230b983974eaa85a2b9bce7c24beaee57aac65be7a1f2351910cc9a83d",
+    "corpus/facts/medic-context.yaml": "c9778cefbc298c19b55f6860cd0494a41c17be3cea576fa0d5aff6e2920dd194",
+    "corpus/facts/national-projects.yaml": "7d9d0ae9feb081eb2f7071ea98d2d24f14fbaf8aca94aaa9c7b665c6d3e47110",
+    "corpus/facts/voice-for-cht.yaml": "55d5d9c24281e9f8f486f260166d5a848009416aad4674305c1989596b87d534"
+  }
+}

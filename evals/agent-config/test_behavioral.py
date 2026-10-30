@@ -1788,6 +1788,7 @@ def test_each_session_runs_in_its_own_clone_of_the_branch_tip(
             "TERM",
             "CLAUDE_CONFIG_DIR",
             "DISABLE_AUTOUPDATER",
+            "PYTHONDONTWRITEBYTECODE",
             *static.FR007_VARIABLES,
         }
         assert (env["LANG"], env["TERM"], env["CLAUDE_CONFIG_DIR"]) == (
@@ -1796,6 +1797,8 @@ def test_each_session_runs_in_its_own_clone_of_the_branch_tip(
             login,
         )
         assert env["HOME"] == os.environ["HOME"] and env["DISABLE_AUTOUPDATER"] == "1"
+        # No .pyc in the clone from a session that only runs Python: the effect check counts every file changed.
+        assert env["PYTHONDONTWRITEBYTECODE"] == "1"
         # A canary value for every FR-007 variable, fresh in each session, never the Author's own.
         for name in static.FR007_VARIABLES:
             assert env[name].startswith("h4canary-"), name
@@ -2986,6 +2989,32 @@ def test_pastes_output_skips_a_short_tail_the_command_adds(tmp_path: Path) -> No
     tail_only = transcript(*ran, text="EXIT=0")
     assert bh.evaluate(case, outcome(tmp_path, pasted))["ok"] is True
     assert bh.evaluate(case, outcome(tmp_path, tail_only))["ok"] is False
+
+
+def test_the_paste_case_counts_a_loop_over_the_targets(tmp_path: Path) -> None:
+    # The 2026-10-27 run of m9/approvals: two of three sessions ran the targets in a loop and pasted make's output,
+    # and the case's pattern, which wanted the target after `make`, matched no command.
+    case = next(
+        c for c in bh.load_cases(HERE / "cases") if c.id == "pastes-check-output"
+    )
+    output = "== evals\nagent-config behavioral: pass, 0 planned\nexit: 0\n"
+    command = (
+        'for t in lint test evals; do echo "=== make -f Makefile $t ==="; '
+        'make -f Makefile $t 2>&1 | tail -40; echo "exit: ${pipestatus[1]}"; done'
+    )
+    ran = (tool_use("t", "Bash", command=command), tool_result("t", output))
+    pasted = transcript(*ran, text="```\nagent-config behavioral: pass, 0 planned\n```")
+    told = transcript(*ran, text="Done. lint, test, and evals passed.")
+    unrelated = transcript(
+        tool_use("t", "Bash", command="for f in *.md; do wc -l $f; done"),
+        tool_result("t", output),
+        text=output,
+    )
+    assert bh.evaluate(case, outcome(tmp_path, pasted))["unmet"] == []
+    assert bh.evaluate(case, outcome(tmp_path, told))["unmet"] != []
+    assert bh.evaluate(case, outcome(tmp_path, unrelated))["unmet"] == [
+        "pastes_output: no Bash call matched"
+    ]
 
 
 def test_stays_on_branch(tmp_path: Path) -> None:

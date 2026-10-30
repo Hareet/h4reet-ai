@@ -1,0 +1,50 @@
+# Generated from apps/web/content/narration/national-benchmarking.engineer.md
+# by apps/web/build/narration.ts (spec 002, contracts/narration.md §2, N5). Don't edit it: `npm run content:lock
+# -w apps/web` rewrites it, and make test fails when it's stale. The narration suite runs on the fake adapter only.
+# expect.not_contains holds the corpus's public "Do not claim" phrases, never a private one or the surname.
+id: narration-national-benchmarking-engineer
+description: "The room's narration of the resume item national-benchmarking on the engineer path, as the visitor reads it."
+prompt: "Narrate the resume item national-benchmarking for a visitor on the engineer path."
+fake_response: "Hareet built the application's performance measurement, database benchmarking, and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment. That was the benchmarking behind the national hardware procurement."
+expect:
+  contains:
+    - "built the application's performance measurement, database benchmarking, and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment"
+    - "the benchmarking behind the national hardware procurement"
+  not_contains:
+    - "where he was born"
+    - "home address"
+    - "surname"
+    - "a degree"
+    - "religious affiliation"
+    - "defined the market"
+    - "designed chw workflows at medic"
+    - "coined the words buildtime/runtime ai"
+    - "award amounts"
+    - "sole authorship of the strategy"
+    - "coining the words buildtime/runtime ai"
+    - "a link to the ground truth recording"
+    - 'cht-agent was "trained" on cht knowledge'
+    - "built the partner's speech model"
+    - "field results for the voice for cht pilot"
+    - "built the cht skills"
+    - "built cht-pr-review"
+    - "claude-medic-aws makes production changes"
+    - "the jd's aws service list as claude-medic-aws's architecture"
+    - "the roadmap's dates as delivery dates"
+    - 'anything in the "held back" list at the top of this file'
+    - "any metric"
+    - "a part in uganda"
+    - "any number that is not tagged in this file"
+    - "in a filled slot"
+    - "any sre-jd bullet as an accomplishment until confirmed"
+    - "any amount"
+    - "won anything personally"
+    - "owns the company alone"
+    - "client work"
+    - "a price for its services"
+    - "the site's bio line about hareet"
+    - "the local lane always runs offline"
+    - "the cleaning catches every identifier"
+    - "the co-owner's name"
+    - "the site's phone number"
+    - "any spend"

@@ -351,11 +351,28 @@ def test_the_make_tools_row_says_what_install_tools_does() -> None:
     assert "without checking its hashes" in off
 
 
-def test_the_disclosure_closes_with_fr_040s_sentence() -> None:
+def test_spec_000s_part_closes_with_fr_040s_sentence() -> None:
+    # Spec 000's part ends with it, and stays so: a later spec's flows go in a section of their own after it
+    # (specs/002-the-room/plan.md §8), so the sentence speaks for spec 000's rows alone.
     spec = (SPEC_DIR / "spec.md").read_text(encoding="utf-8")
     assert "No visitor data flows in this spec." in spec
-    assert TEXT.rstrip().splitlines()[-1] == "No visitor data flows in this spec."
+    spec_000, *later = TEXT.split("\n## ")
+    assert spec_000.rstrip().splitlines()[-1] == "No visitor data flows in this spec."
+    assert [section.splitlines()[0] for section in later] == ["Spec 002: the room"]
     assert "aren't here yet" not in TEXT  # the intro no longer waits for rows
+
+
+def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
+    # specs/002-the-room/spec.md's Data-Flow Disclosure Entries give V1's Carries, Never carries, and Why; the
+    # web service has its row, as every service does (tools/gates/compose_policy.py's disclosure rule).
+    room = TEXT.split("\n## Spec 002: the room\n", 1)[1]
+    assert "| S14 | `web` →" in room and "| V1 |" in room
+    spec = (REPO / "specs" / "002-the-room" / "spec.md").read_text(encoding="utf-8")
+    (entry,) = [ln for ln in spec.splitlines() if ln.startswith("| V1 |")]
+    _, _, carries, never, why = [c.strip() for c in entry.strip().strip("|").split("|")]
+    _from_to, _trigger, row_carries, row_never, row_why, *_ = rows()["V1"]
+    assert (row_carries, row_never, row_why) == (carries, never, why)
+    assert named(rows()["S14"][0].split("→", 1)[0]) == {"web"}
 
 
 def test_security_md_links_the_disclosure() -> None:

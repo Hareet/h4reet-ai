@@ -78,6 +78,15 @@ H/protected-paths.sh/.mcp.json
 H/protected-paths.sh/tools/gates/gate
 H/protected-paths.sh/evals/agent-config/static.py
 
+# --- spec 002's approvals patch (T015, T016; contracts/resume-source.md §5): the room's content policy, human-only ---
+H/protected-paths.sh/assets/policy/content-approvals.json
+H/protected-paths.sh/assets/policy/resume-header.json
+H/protected-paths.sh/apps/../assets/policy/content-approvals.json
+H/protected-paths.sh/./assets//policy/resume-header.json
+H/protected-paths.sh/Edit in a linked worktree: assets/policy/content-approvals.json
+H/protected-paths.sh/apps/web/content/resume.yaml
+H/settings/the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)
+
 # --- review B, finding 6: both payload forms, and the blocked role rows as `claude --agent <role>` sends them ---
 H/role/both-forms
 H/role/ops/edit deploy/env/prod.env [--agent]

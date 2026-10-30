@@ -1,0 +1,34 @@
+/* The room's styles (spec 002). One stylesheet from the site's own origin: the CSP is style-src 'self'. */
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 48rem;
+  padding: 1rem;
+}
+
+.disclosure {
+  border-bottom: 1px solid #555;
+}
+
+a {
+  color: #0b4f9c;
+}
+
+/* Focus is always visible: a 2-pixel outline at 3:1 contrast or better (contracts/room-scene.md §5). */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid #0b4f9c;
+  outline-offset: 2px;
+}
+
+/* Touch targets of at least 44 by 44 CSS pixels (contracts/room-scene.md §5). */
+.links a {
+  display: inline-block;
+  min-height: 44px;
+  line-height: 44px;
+}

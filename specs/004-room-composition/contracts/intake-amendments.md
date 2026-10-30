@@ -707,7 +707,7 @@ No agent merges. Agents only rebase and cherry-pick. The Author gates each branc
 | M6 | `feat/003-us1-arrival-check` | P-4 | item 3 |
 | M7 | `feat/003-us5-comparison` | — | — |
 | M8 | `feat/004-intake`: the scrubber and credits, ADRs 0010 and 0030 | P-5; the P-6 commit; P-7; P-8 | items 3, 4, and 5; FR-032 |
-| M9 | spec 002's line, in its notes' order up to `feat/002-us6-events`, with its patches | spec 002's patches | — |
+| M9 | spec 002's line, in its notes' order up to `feat/002-us6-events`, then `fix/002-patches-on-003`, in three parts: `feat/002-web`; `feat/002-approvals`; the rest of the line with `fix/002-patches-on-003` | spec 002's web patch after the first part; its approvals patch, regenerated onto main's gate, after the second | — |
 | then | — | P-9, then P-10, each from a branch on `main` | item 6 |
 | then | line R, in story order, each branch first rebased onto `main` | — | — |
 | later | P-11's branch, from `main`, once spec 001's dev relay exists | P-11 | — |
@@ -724,8 +724,14 @@ No agent merges. Agents only rebase and cherry-pick. The Author gates each branc
 - **If P-5 slips,** P-7 still waits for it, and User Story 1's merge waits with it: FR-077's order holds. The Author approved that reading with the plan.
 - **Conflicts at M9:**
   - `CHECK_GATES` resolves to `makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival evals redteam=redteam-suite matrix image`. That keeps spec 002's pin of `content-check` right after `test`, and spec 003's `arrival` after `secrets`. Spec 004 adds no gate to the line.
-  - An integration task lists the other conflicts, with their resolutions: `.PHONY`, `redteam/forbidden-actions.sh`, the ADR index, START-HERE, and the README. It computes them with `git merge-tree --write-tree main feat/002-us6-events`, which moves no ref. The Author makes that merge in a worktree of its own, on a scratch branch from `main`, with the list's resolutions; gates the scratch branch with `tools/gates/gate <scratch branch>`; and merges it with the command the gate prints, so `main` never takes a merged tree the gate didn't check (START-HERE §7, step 2).
+  - An integration task lists the other conflicts, with their resolutions: `.PHONY`, `redteam/forbidden-actions.sh`, the ADR index, START-HERE, and the README. It computes them with `git merge-tree --write-tree main feat/002-us6-events`, which moves no ref.
   - If spec 002's gate patches no longer apply after P-4, `fix/002-patches-on-003` regenerates them against main's gate. The Author then applies verified patches, and merges no human-only code by hand.
+- **M9 runs in three parts** (2026-10-26; plan.md §4.2 and §10), not as one scratch branch holding the whole line, gated once. That gate can't pass: main's `tools/gates/compose_policy.py` refuses spec 002's `web` image ("not pinned by digest") until spec 002's web patch is on `main`, and the patch can't go first, because one of its tests reads the compose file's `web` service. The Author makes each part's merge in a worktree of its own, on a scratch branch from `main`, with the integration task's resolutions, and gates it with `tools/gates/gate <scratch branch>`, so `main` never takes a merged tree the gate didn't check (START-HERE §7, step 2). `fix/002-patches-on-003`'s note gives the commands. Since 2026-10-26, M9 may also come before M8 (plan.md §10).
+  1. `feat/002-web`, on `m9/web`. Its gate ends "Not ready to merge", as expected: policy FAIL, image FAIL, and test FAIL in four compose-policy tests, all from that one finding, and evals PENDING on main's trigger hash. `main` fast-forwards to `m9/web` and applies the web patch at once; then the web note's steps 4 to 6, and `tools/gates/gate main`, whose image step must pass.
+  2. `feat/002-approvals`, on `m9/approvals`, gated and merged with the command the gate prints; then the regenerated approvals patch.
+  3. The rest of the line, `feat/002-us1-resume` to `feat/002-us6-events`, and `fix/002-patches-on-003` at the tip its review approved, on `m9/line`, gated and merged with the command the gate prints.
+
+  M9 needs at most two behavioural runs, both already owed: main's own trigger hash at the second part, unless M8's run has landed, and the approvals patch's at the third.
 - `feat/003-us6-gpu-window` is independent, and merges whenever the Author likes.
 
 ## 15. Disclosure rows and their IDs

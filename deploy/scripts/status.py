@@ -48,9 +48,12 @@ DOCKER_ENV = (
 )
 ERROR_LINE = re.compile(r"error|warn|fail|refused|timeout|exception", re.IGNORECASE)
 HOST_STACKS = ("prod", "dev")
-# The gateway's one image per commit, which make up builds and compose never pulls (tasks.md T184;
-# deploy/scripts/gateway_image.py): built here, so no lock line pins it.
-SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
+# The gateway's one image per commit, and the room's web image, which make up builds and compose never pulls (tasks.md
+# T184, deploy/scripts/gateway_image.py; spec 002, deploy/scripts/web_image.py): built here, so no lock line pins them.
+SHARED_IMAGES = {
+    "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
+    "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+}
 
 
 class Docker:

@@ -1,0 +1,11 @@
+# Plug-in figures for 08-hareet-ai.md. This file is public.
+
+topic: 08-hareet-ai
+facts:
+  - id: site.kill_switch_daily
+    label: The site's daily spend ceiling, past which the kill switch degrades it; equals config/budgets.yaml envs.prod.daily_usd; change both in one commit
+    value: "$5"
+    tag: C
+    source: "The Author's resume, 2026-10-29 (the kill-switch line); config/budgets.yaml (envs.prod.daily_usd: 5.00)"
+    public_safe: true
+    phrasing: "{value}"

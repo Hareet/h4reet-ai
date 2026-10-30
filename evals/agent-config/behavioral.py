@@ -297,7 +297,14 @@ def _load_static() -> Any:
 
 
 FR007_VARIABLES: list[str] = list(_load_static().FR007_VARIABLES)
-RESERVED = {*FR007_VARIABLES, *STRIPPED, "PATH", "HOME", "DISABLE_AUTOUPDATER"}
+RESERVED = {
+    *FR007_VARIABLES,
+    *STRIPPED,
+    "PATH",
+    "HOME",
+    "DISABLE_AUTOUPDATER",
+    "PYTHONDONTWRITEBYTECODE",
+}
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -1952,6 +1959,10 @@ def session_env(base: Mapping[str, str], ws: Workspace, case: Case) -> dict[str,
     env.update(case.env)
     env["PATH"] = f"{ws.bin}{os.pathsep}{base.get('PATH', os.defpath)}"
     env["DISABLE_AUTOUPDATER"] = "1"
+    # A session that only runs Python, as a reviewer checking a bug does, would otherwise leave __pycache__/*.pyc in
+    # the clone, and the effect check counts every file it changes (the 2026-10-27 run of m9/approvals). The snapshot
+    # still sees any .pyc a session writes on purpose.
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     return env
 
 

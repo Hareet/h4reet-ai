@@ -30,3 +30,5 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0030](0030-media-license-and-ai-mark.md) | The assets' media license (all rights reserved, viewing and linking welcome) and the AI-likeness mark, which follows the record (spec 004, Amendment C1) | proposed | 003, 004 |
 | [0031](0031-assets-in-plain-git.md) | Assets in plain git, under fixed roots, served under content-derived names, with a 500 MB history cap | proposed | 003 |
 | [0032](0032-pre-publication-cleanup-for-assets.md) | ADR 0013's pre-publication cleanup extends to an asset that locates the Author or breaks a license (extends one Decision of 0013) | proposed | 003 |
+| [0033](0033-the-rooms-stack-apps-web-vite-threejs.md) | The room's stack: `apps/web`, Vite, Three.js, no framework (0023 to 0032 are allocated on other branches: the pin-rule proposal, spec 001, and spec 003) | proposed | 002 |
+| [0034](0034-content-approvals-by-hash-read-from-main.md) | Content approvals by hash, in a human-only file read from `main`, beside spec 003's likeness approvals | proposed | 002 |

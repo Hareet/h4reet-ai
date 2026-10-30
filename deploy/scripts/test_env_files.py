@@ -118,14 +118,20 @@ PORT_KEYS = (
     "H4_GRAFANA_PORT",
     "H4_ADMIN_PORT",
     "H4_OTLP_PORT",
+    # x005, the room's site (spec 002, contracts/web-serving.md §4).
+    "H4_SITE_PORT",
 )
+# The web image's tag suffix, which says whether it holds the room's drafts (spec 002, contracts/web-serving.md §1 and
+# §4): never on prod.
+WEB_SUFFIX = {"prod": "", "dev": "-drafts", "dev-cpu": "-drafts"}
 
 
 @pytest.mark.parametrize("stack", sorted(FILES))
 def test_the_stack_keys(stack: str) -> None:
     env = ENV[stack]
     assert {k: env[k] for k in STACK_KEYS[stack]} == STACK_KEYS[stack]
-    assert [env[k] for k in PORT_KEYS] == [str(BASE_PORT[stack] + i) for i in range(5)]
+    assert [env[k] for k in PORT_KEYS] == [str(BASE_PORT[stack] + i) for i in range(6)]
+    assert env["H4_WEB_SUFFIX"] == WEB_SUFFIX[stack]
 
 
 MODEL = {

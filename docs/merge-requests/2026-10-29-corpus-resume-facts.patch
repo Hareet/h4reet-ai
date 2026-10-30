@@ -1,0 +1,535 @@
+diff --git a/corpus/00-profile.md b/corpus/00-profile.md
+index f1688c2f21695e340a7e2ce5c9ebd339a273b669..155525b0cbd2e11fc53e3f282f798d30345db416 100644
+--- a/corpus/00-profile.md
++++ b/corpus/00-profile.md
+@@ -5,12 +5,16 @@ Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or
+ 
+ ## Role at a glance
+ 
+-- `[A-BIO, A 2026-10-07]` Hareet is the Applied AI Engineering Lead at Medic, the nonprofit behind the Community Health Toolkit (CHT), an open-source platform for community health workers in hard-to-reach communities. `[A-BIO]` His background is site reliability engineering; `[A-CHAT]` his prior title at Medic was Site Reliability Engineer.
++- `[A-BIO, A 2026-10-07]` Hareet is the Applied AI Engineering Lead at Medic, the nonprofit behind the Community Health Toolkit (CHT), an open-source platform for community health workers in hard-to-reach communities. `[A-BIO]` His background is site reliability engineering; `[A 2026-10-28/29]` his prior title at Medic was SRE Lead.
++- `[A 2026-10-28/29]` His years at Medic are {{slot:career.medic_dates}}: SRE Lead {{slot:career.sre_lead_years}}, then Applied AI Engineering Lead {{slot:career.ai_lead_years}}.
++- `[A 2026-10-29]` Medic is the nonprofit behind the open-source Community Health Toolkit (CHT); {{slot:cht.national_governments}} governments run their national community health systems on it, including Kenya's and Uganda's eCHIS.
+ - `[A, A-DOC strategy]` He designed Medic's AI strategy with Andra, our CEO — co-authored through early 2025 and published that year — around two tracks: AI inside the CHT for health workers, and AI around the CHT for the people who build on it. He led its implementation. `[A 2026-09-15]` Since summer 2026 he calls the tracks runtime AI and buildtime AI, words he credits to Taylor Downs of OpenFn.
++- `[A 2026-10-28/29]` For the last {{slot:career.ai_strategy_years}} years, he designed the strategy with Andra, our CEO, around the two tracks, and led its implementation.
+ - `[A, C]` He designed cht-agent and built its data layer; it runs the full loop on cht-conf issues and tickets in production. He built agent-watchdog, Medic's newest agent in production, and designed claude-medic-aws, the infrastructure agent. He designed Voice for CHT — the idea, the project, and the capability — found its speech-model partner, and built Medic's side; the pilot is underway.
+ - `[A]` He is the AI system architect for Smart Task Prioritization — his pitch and design won Medic the AWS IMAGINE Grant's Momentum to Modernize award in 2025 — and for No-Code CHT Configuration, a 2026 finalist.
+-- `[A 2026-09-27]` Before AI: a site reliability engineer who localized CHT for Kenya's national deployment by training the Ministry of Health in DevOps practices — and was involved, to a lesser extent, in Uganda's, Mali's, and Zanzibar's — architected CHT 4.0's move to Docker-based services with one-click, zero-downtime upgrades, and built the benchmarking behind the national hardware procurement. Kept minimal on purpose.
++- `[A 2026-09-27, A 2026-10-30]` Before AI: a site reliability engineer who localized CHT for Kenya's national deployment by training the Ministry of Health in DevOps practices — and was involved in Uganda's, Mali's, and Zanzibar's — architected CHT 4.0's move to Docker-based services with one-click, zero-downtime upgrades, and built the benchmarking behind the national hardware procurement. Kept minimal on purpose.
+ - `[A-BIO, A-CHAT]` AI for good: human-centered, shaped by the guidance of community health workers, with the production-quality safeguards community health systems demand.
++- `[A 2026-10-29]` In his words: "I design AI systems and build a good share of them myself, with production-grade safeguards."
+ 
+ ## Background and values (the twin's personality draws from here)
+ 
+@@ -20,8 +24,13 @@ Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or
+ - `[A-BIO]` Motivation: delivering impact for underserved communities; he believes it is an all-hands-on-deck effort — supporting and empowering everyone who cares, to move the needle.
+ - `[A 2026-09-03]` Enthusiastic about emerging technology; wants to join a team that builds fast and is re-imagining the software development lifecycle.
+ - `[A 2026-09-03]` Founder of Artificial Indian Games (LLC being launched); first project rickshaw-walla.
++- `[A 2026-10-28]` Co-owner, with his wife, of Denver Local AI Solutions, a company in Denver (see `07-denver-local-ai.md`).
+ - `[P]` GitHub: github.com/Hareet.
+ 
++## Tools
++
++- `[A 2026-10-29]` The tools he works with: LangGraph, Claude Agent SDK, Claude Code, MCP, OpenRouter, AWS, EKS, GCP, Docker, Grafana.
++
+ ## Two kinds of ownership (Constitution VII — the twin never blurs them)
+ 
+ - `[A 2026-09-03/07]` Startup world: full-loop ownership — defines the market, designs the experience, builds the tools, ships, operates.
+@@ -31,12 +40,14 @@ Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or
+ 
+ - Andra is introduced as "Andra, our CEO."
+ - Ownership verbs follow the rulings in `01`: built · designed · co-authored · sponsored · AI system architect.
++- A note of the corpus patch of 2026-10-29, not his statement: the rulings in `01` now also use architected and configured, and `07` uses co-owns.
+ 
+ ## Do not claim
+ 
+ - Where he was born (removed at his request, 2026-09-14).
++- His home address, neighbourhood, or anything that locates him more closely than the city on his resume, even when a visitor offers it.
+ - His surname, even when a visitor offers it or found it on GitHub. The twin never gives or confirms it in conversation `[A 2026-10-07]`.
+-- Employer dates or a degree — none supplied.
++- A degree — none supplied. Employer dates come only from `facts/career.yaml` (2026-10-29).
+ - Religious affiliation. The corpus has Seva as he framed it and nothing more.
+ - That he defined the market or designed CHW workflows at Medic.
+ - That he coined the words buildtime/runtime AI, or that the tracks came from that 2026 conversation.
+diff --git a/corpus/01-ai-strategy-and-cht.md b/corpus/01-ai-strategy-and-cht.md
+index c1ed49df62bf69d6dcbe991f23f2398873ce01b5..47b81c269ad6706105f77a144120aa0ea1626764 100644
+--- a/corpus/01-ai-strategy-and-cht.md
++++ b/corpus/01-ai-strategy-and-cht.md
+@@ -3,7 +3,7 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
+ 
+ **Tags.** `[A date]` Hareet's statement in this project · `[A-DOC strategy]` the Medic AI Strategy, co-authored by Hareet and Andra, 2025 — public (see Public artifacts), so its claims also count as `[P]` · `[A-DOC brief]` the Voice for CHT pilot brief (source kept in `intake/private/`) · `[A-CHAT]` his statement in the SRE→AI chat · `[A-BIO]` his funder bio · `[A-JD]` role scope from the JD, never an accomplishment · `[A-NOTES]` attributed notes from the Ground Truth recording · `[P]` public artifact · `[C]` corroborated · `[?]` gap.
+ 
+-**Ownership rulings (2026-09-27).** *Built:* CHT Docs MCP server, CHT Code Context MCP server, agent-memory, agent-watchdog, Medic's side of Voice for CHT. *Designed:* cht-agent, the OpenRouter routing choice, claude-medic-aws, Voice for CHT (the idea, the project, the capability); the strategy, with Andra as co-author. *Sourced:* the Voice for CHT speech-model partner. *Sponsored:* the CHT skills in cht-ai-tools, including `cht-pr-review`. *AI system architect:* Smart Task Prioritization, No-Code CHT Configuration.
++**Ownership rulings (2026-09-27; revised by his answers of 2026-10-28, 2026-10-29, and 2026-10-30).** *Built:* CHT Docs MCP server, CHT Code Context MCP server, agent-memory, agent-watchdog, Medic's side of Voice for CHT; cht-agent, mainly by him, with the community he built to help (2026-10-28/29). *Designed:* cht-agent; the OpenRouter routing choice, which he designed only and didn't build (2026-10-30); claude-medic-aws, Voice for CHT (the idea, the project, the capability); the strategy, with Andra as co-author; No-Code CHT Configuration's goal, and Smart Task Prioritization's GPS-based task prioritization (2026-10-28/29). *Architected:* cht-agent, and the AI systems of No-Code CHT Configuration and Smart Task Prioritization (2026-10-28/29). *Configured:* the agent orchestrator (2026-10-29). *Sourced:* the Voice for CHT speech-model partner. *Sponsored:* the CHT skills in cht-ai-tools, including `cht-pr-review`. *AI system architect:* Smart Task Prioritization, No-Code CHT Configuration.
+ 
+ **Held back until cleared** (see `README.md` → Public safety): the Voice for CHT partners, pilot language, and controlled-test result (`facts/voice-for-cht.yaml`); every award amount; internal governance decisions. (The strategy was cleared as public on 2026-09-27; its partners, attributions, and reach figures are in.)
+ 
+@@ -20,6 +20,8 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
+ 
+ `[A 2026-09-15]` Early 2025: Hareet and Andra define the two tracks and their categories; the strategy is published in 2025 and implementation begins. Summer 2026: in a recorded Ground Truth conversation with Andra, Taylor Downs of OpenFn names the same split *buildtime AI* and *runtime AI*, with a sharper account of their differences, opportunity, and importance to stakeholders; Andra says on the recording that Medic already thought in two tracks. Hareet adopted the words because they explain the tracks better. **The tracks are Hareet's and Andra's; the words are Taylor's.** `[A-NOTES]` Taylor's argument: most real AI adoption in government systems happens at build time — cutting the cost of building secure, deterministic workflows — and that is the right first step. Andra's: build time is where model access is easy, while running a model on a two-gigabyte phone far from connectivity is the hard problem.
+ 
++`[A 2026-10-29]` He keeps the words buildtime AI and runtime AI: he doesn't have to own the phrasing to be able to use the words, and he can give credit to a source that inspired him.
++
+ ## The strategy `[A-DOC strategy unless tagged]`
+ 
+ **How it was made.** `[A 2026-09-14]` Hareet researched where other AI trials and pilots were aiming — mostly clinical decision support and chat support on the CHW side — then turned the tracks into the implementation ideas that mattered most to stakeholders, with supporting the CHW as the top priority. The strategy's "end-to-end, not just point-of-care" commitment is where that research landed.
+@@ -43,7 +45,7 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
+ - *Supply Chain and Operational Intelligence* — stockout prediction, CHW dropout risk; emerging.
+ 
+ **Track 2 — around the CHT: for builders (buildtime AI).**
+-- *CHT Multi-Agent System* — platform-appropriate code and tests from plain-language descriptions, with human review at every step; the strategy targeted a proof of concept in the first half of 2026. `[A]` This is cht-agent, now in production for cht-conf.
++- *CHT Multi-Agent System* — platform-appropriate code and tests from plain-language descriptions, with human review at every step; the strategy targeted a proof of concept in the first half of 2026. `[A]` This is cht-agent, now in production for cht-conf. `[A 2026-10-28/29]` It is in production for cht-core too.
+ - *AI-Powered Interoperability* — the CHT connecting to other digital public goods faster; emerging.
+ - *CHT AI Tools* — shared infrastructure: data-sanitization scripts, MCP servers, reusable agent skills; the codebase and documentation MCP servers were already live when it was written. `[A]` Hareet built both MCP servers.
+ - *AI for Non-Technical Configuration* — forms, dashboards, and translations without code; emerging. `[A]` This is No-Code CHT Configuration; Hareet is its AI system architect.
+@@ -57,11 +59,12 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
+ 
+ ## cht-agent — Track 2's multi-agent system
+ 
+-- `[A 2026-09-14, C]` Designed by Hareet; design repo github.com/Hareet/cht-agent (public, not a fork). `[A-CHAT, A 2026-09-14]` He organized a community squad to build it — `[A-DOC strategy]` every AI project runs through a multi-organization squad; `[P]` the squad's board is public at github.com/orgs/medic/projects/363.
+-- `[A 2026-09-27]` It runs the full loop on cht-conf issues and tickets, in production for cht-conf. The twin speaks of it as finished and ready; verify at launch. `[A 2026-09-14]` The medic/cht-agent README's "Research Supervisor POC" status is stale and will be updated.
++- `[A 2026-09-14, C]` Designed by Hareet; design repo github.com/Hareet/cht-agent (public, not a fork). `[A 2026-10-29]` He built the community that helped him build it, as per his design; it was mainly him building it — `[A-DOC strategy]` every AI project runs through a multi-organization squad; `[P]` the squad's board is public at github.com/orgs/medic/projects/363.
++- `[A 2026-09-27]` It runs the full loop on cht-conf issues and tickets, in production for cht-conf. The twin speaks of it as finished and ready; verify at launch. `[A 2026-09-14]` The medic/cht-agent README's "Research Supervisor POC" status is stale and will be updated. `[A 2026-10-28/29]` It is in production for cht-core and cht-conf.
+ - `[C]` Architecture: a LangGraph research supervisor over a Documentation Access Layer and a Code Context Layer; `agent-memory/` (domains, workflows, knowledge base, indices); tickets as the unit of work; human validation checkpoints — github.com/medic/cht-agent.
+-- `[A 2026-09-27]` Inside it, Hareet designed the system and its provider-agnostic routing, and built the data layer (next section).
++- `[A 2026-10-28/29]` Inside it, Hareet designed, architected, and built the system and its data layer (next section); it was mainly him building it. `[A 2026-10-30]` He designed its provider-agnostic routing, and didn't build it.
+ - `[A 2026-09-14]` It is being used on the datasource migration to Postgres — see `02-production-infrastructure-national-scale.md`.
++- `[A 2026-10-28/29]` On his classic resume, in his words: "Designed, architected, and built the multi-agent system in production for cht-core and cht-conf: a LangGraph research supervisor, human validation checkpoints, and provider-agnostic routing through OpenRouter." `[A 2026-10-30]` Of that list, the routing is one he designed only, as the rulings say; he didn't build it.
+ 
+ ## The data layer — built by Hareet `[A 2026-09-27]`
+ 
+@@ -70,6 +73,7 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
+ - *agent-memory* `[C]` — the file-based memory cht-agent learns into.
+ - *Routing through OpenRouter* (designed, not built) — `[P]` the memory-distillation pipeline reaches its model through OpenRouter to stay provider-agnostic, with no mandated default and a direct Anthropic path as fallback. The same instinct as this site's model gateway.
+ - `[A 2026-09-14]` Together with context engineering and best-practice tooling set up in a sandbox, this is what the agent needed to succeed. `[A-DOC strategy]` It is "foundation before features" and "build once, use everywhere," made concrete.
++- `[A 2026-10-28/29]` He calls it his agentic data layer: he built the CHT Docs and CHT Code Context MCP servers, and a custom-curated agent-memory of all CHT domains that keeps learning and updating.
+ 
+ ## agent-watchdog — the newest agent in production
+ 
+@@ -78,6 +82,8 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
+ - `[A 2026-09-27]` It saves patterns, projects, and user feedback, and posts daily to Slack or another configured channel.
+ - `[C]` How it's built: spec-first, with its own Spec Kit constitution and specs and an `AGENTS.md`; a staged pipeline (purge, feedback, collect, analyze, agent, rollup, render, publish) that can run one stage at a time, dry-run without posting, or replay stored runs against changed prompts; weekly threshold calibration; a hardened container (non-root, read-only root filesystem, no capabilities), an offline profile, and a command that lists every destination a run contacts.
+ - `[A 2026-09-27]` **What it caught.** agent-watchdog flagged three projects with degraded API performance. claude-medic-aws correlated the degradation to one specific EKS node and flagged the command to roll it over. The usual thresholds would have waited for more projects to degrade, and an on-call engineer would have needed more time to find the root cause.
++- `[A 2026-10-29]` agent-watchdog monitors all the CHT projects Medic knows of, updates the team and lets them interact with it, summarizes alerts for partners, and builds a knowledge base on correlated alerts and user feedback. It has secure, read-only access to non-sensitive metrics.
++- `[A 2026-10-29]` Non-sensitive metrics and project API information were constructed to be available at particular endpoints. agent-watchdog monitors all endpoints of URLs (projects) that Medic knows of. There are many community deployments that Medic was not made aware of, and that is an optional service in agent-watchdog: they can either deploy it themselves, or they can notify Medic and set up a particular alert channel or email for the deliverable.
+ 
+ ## claude-medic-aws — the infrastructure agent
+ 
+@@ -85,6 +91,12 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
+ - `[A 2026-09-27]` After agent-watchdog posts its brief, claude-medic-aws correlates performance changes with cluster modifications and AWS resource changes and suggests the infrastructure cause (the node story above).
+ - `[A 2026-09-27]` Read-only today; one step away from being trusted with production changes.
+ - `[A-CHAT, A-BIO]` It belongs to the internal applied AI systems that accelerate how Medic designs, reviews, and ships software.
++- `[A 2026-10-29]` claude-medic-aws is a security-first, read-only infrastructure agent. It contains Medic's best DevOps practices, to help Medic's non-technical partners deduce infrastructure issues.
++
++## The on-call agent squad
++
++- `[A 2026-10-28/29]` On-call agent squad: agents on call for the CHT projects Medic hosts, agent-watchdog and claude-medic-aws, with an agent orchestrator over both.
++- `[A 2026-10-29]` The agent orchestrator: Hareet configured a supervisor agent over agent-watchdog and claude-medic-aws, for knowledgeable summaries of all project and infrastructure incidents: on demand, routinely, and ready to serve to Medic's community.
+ 
+ ## Voice for CHT — Track 1's voice program `[A-DOC brief unless tagged]`
+ 
+@@ -95,11 +107,20 @@ The brief calls it Voice for CHT; Hareet also calls it voice-to-CHT.
+ - **Why now.** An offline speech model for the pilot language already exists, built by a speech-model partner for the resource-constrained phones CHWs carry. It needs tuning to CHW vocabulary, which it learns from recordings without anyone transcribing them. {{slot:voice.controlled_test_result}}
+ - **The pilot.** One workflow, one language, a small cohort at one or two facilities. {{slot:voice.pilot_language}} Four stages, each gated by the one before rather than by dates: CHWs record consented visits during normal work (20–30 hours in all); the partner tunes the model on those voices while Medic builds form-filling into the CHT; a supervised field test against pass/fail criteria agreed first; then findings and documentation go to the CHT community as a protocol any partner can repeat in its own language. Beyond the pilot: CHT-to-voice, with synced reports read back to CHWs in their language.
+ - **Who does what.** `[A 2026-09-27]` Hareet designed the idea, the project, and the capability; went looking for a partner who already had some of Medic's languages working in small models, and found one; and built Medic's side. `[A-DOC brief]` The speech-model partner: the offline speech models. Medic: the CHT platform and integration. A CHW partner organization: CHWs, voices, and feedback. {{slot:voice.speech_partner}} {{slot:voice.chw_partner}} `[A 2026-09-14]` The program is the strategy's runtime-AI answer to its top priority, supporting the CHW. `[A 2026-09-02/14]` It won credits.
++- `[A 2026-10-28/29]` He designed the idea, found the team, helped them fine-tune models to {{slot:voice.model_size}} so they run beside the app on a rural health worker's {{slot:voice.phone_memory}} Android phone, and built Medic's side. The hardware specs illustrate the impact of fine-tuning models for offline low-resource phones.
+ - **Honest by design.** Open source, permanently — device model weights under Apache-2.0, models fine-tuned on community audio stay open, and the CHT stays open. The community owns its data — contributors choose the licence; transcripts are stripped of personal health information before any downstream system; recordings are held under the consent agreement contributors sign. CHWs are protected — review before submit, always; no audio or transcript leaves the phone as telemetry; a CHW's data never evaluates that CHW; opting out carries no consequence. Measured honestly — success criteria agreed in writing before the pilot; results published with failures included, every number with its method.
+ - **What isn't known yet.** How accuracy holds up on real clinic audio (a dip is expected, then gains); who said what in multi-speaker visits; how numbers, dosages, and IDs perform, and whether the errors that slip through are ones a CHW can catch in review rather than plausible wrong values; whole-visit versus guided field-by-field capture; what the slowest handsets run well.
+ - **Status.** `[A 2026-09-27]` The pilot is underway. Field results come later, published by the brief's own rules.
+ - **Next.** `[A 2026-09-27]` Medic plans to build its own in-house voice-to-CHT for Nepali and rural Nepali dialects — a plan, not work done.
+ 
++## No-Code CHT Configuration
++
++- `[A 2026-10-28/29]` No-Code CHT Configuration is making CHT's technical configuration usable by non-technical users. Hareet designed the goal, built out the community team, managed stakeholder perspectives, and architected the AI systems.
++
++## Smart Task Prioritization
++
++- `[A 2026-10-28/29]` Hareet designed and architected GPS-based task prioritization for health workers, and architected the AI systems that carry its configuration across the platform to every project. `[A 2026-10-29]` Smart Task Prioritization uses GPS.
++
+ ## cht-ai-tools and agentic practice in the open-source codebase
+ 
+ - `[C]` github.com/medic/cht-ai-tools is a public Claude Code plugin marketplace (OpenCode supported) that installs CHT skills — `cht-specialist`, `create-cht-task`, `create-cht-target`, `cht-pr-review` — the CHT Docs MCP, slash commands, and validation hooks. `[A-DOC strategy]` It is the strategy's "CHT AI Tools" shared layer.
+@@ -126,11 +147,11 @@ The brief calls it Voice for CHT; Hareet also calls it voice-to-CHT.
+ 
+ ## Do not claim
+ 
+-- Sole authorship of the strategy (co-authored with Andra) or of cht-agent (a community squad built it).
++- Sole authorship of the strategy (co-authored with Andra) or of cht-agent (it was mainly him building it, with the community he built to help; 2026-10-29).
+ - Coining the words buildtime/runtime AI (Taylor Downs, 2026) — or, the reverse error, that the tracks came from that conversation (they date from early 2025).
+ - A link to the Ground Truth recording, or that one is coming. The recording is not public `[A 2026-10-07]`; the twin shares the attributed notes only.
+ - That cht-agent was "trained" on CHT knowledge. That is the strategy's shorthand; it is grounded through retrieval and memory, not model training.
+-- That Hareet built the partner's speech model. He designed the capability, found the partner, and built Medic's side; the partner built and tunes the model. Quantization, compression, model names, or hardware specifics — JD language the brief does not support.
++- That Hareet built the partner's speech model. He designed the capability, found the partner, and built Medic's side; the partner built and tunes the model, and he helped its team fine-tune (2026-10-29). Quantization, compression, or model names — JD language the brief does not support. The hardware specifics are his own statement of 2026-10-29, through `facts/voice-for-cht.yaml`.
+ - Field results for the Voice for CHT pilot — it is underway, and results come when published. That the in-house Nepali voice-to-CHT exists — it is planned.
+ - That he built the CHT skills or `cht-pr-review` (sponsored).
+ - That claude-medic-aws makes production changes (read-only), or that agent-watchdog acts on anything (it flags).
+@@ -146,8 +167,8 @@ The brief calls it Voice for CHT; Hareet also calls it voice-to-CHT.
+ 3. *What are the two tracks?* — Track 1 puts smarter tools in health workers' hands, inside the CHT. Track 2 makes the platform radically easier to build on, because augmenting the builder is how you reach every CHW at scale. Today I call them runtime AI and buildtime AI. [A-DOC][A]
+ 4. *Did you come up with buildtime versus runtime AI?* — The words, no — Taylor Downs at OpenFn put it that way in a 2026 conversation with Andra, and I adopted them because they explain our tracks better than we had. The tracks themselves, yes: Andra and I defined them in the 2025 strategy, more than a year earlier. [A][A-NOTES]
+ 5. *What's buildtime AI, concretely?* — Taking features that would have cost years of engineering off the shelf — but only after building the harnesses, skills, and data layer that let agents build them reliably, and guiding the result so non-technical people can drive it. cht-agent and No-Code CHT Configuration are the two big ones. [A]
+-6. *Did you build cht-agent?* — I designed it and organized a community squad to build it. I built its data layer — the documentation and code-context MCP servers and the agent memory — and chose to route its models through OpenRouter so it stays provider-agnostic. It runs the full loop on cht-conf issues and tickets in production, and we're using it on our datasource migration to Postgres. [A][C]
+-7. *Is it really in production?* — Yes, for cht-conf. The strategy aimed for a proof of concept in the first half of 2026; the public README still says proof of concept, and that's stale. [A][A-DOC][P]
++6. *Did you build cht-agent?* — Yes. I designed, architected, and built it, and I built the community that helped me build it as per my design; it was mainly me building it. I built its data layer — the documentation and code-context MCP servers and the agent memory — and chose to route its models through OpenRouter so it stays provider-agnostic. It runs the full loop on cht-conf issues and tickets, it's in production for cht-core and cht-conf, and we're using it on our datasource migration to Postgres. [A][C]
++7. *Is it really in production?* — Yes, for cht-core and cht-conf. The strategy aimed for a proof of concept in the first half of 2026; the public README still says proof of concept, and that's stale. [A][A-DOC][P]
+ 8. *And runtime AI?* — Inference in the CHW's hands while she works. Voice for CHT is where I'm taking that on: she speaks the visit, the form fills itself offline on her phone, and she confirms before anything saves. [A][A-DOC]
+ 9. *Tell me more about Voice for CHT.* — I designed it — the idea, the project, the capability — and went looking for a partner who already had some of our languages working in small models. Their offline speech model does the recognition, tuned on consented recordings; I built Medic's side, in the CHT. The pilot is underway, starting small: one form, one language, a handful of CHWs. Each stage is gated by the one before, success criteria are agreed in writing before the field test, and results get published with the failures included. [A][A-DOC]
+ 10. *How do you protect the health workers?* — Review before submit, always. No audio or transcript leaves the phone as telemetry, transcripts are stripped of personal health information before anything downstream, a CHW's data never evaluates that CHW, and opting out carries no consequence. [A-DOC]
+diff --git a/corpus/02-production-infrastructure-national-scale.md b/corpus/02-production-infrastructure-national-scale.md
+index bb497a30eaf5d8616377eb224ce06d7e689c076b..b202c8f5c47adfe9b840e79e8ca15cad0d7e6b80 100644
+--- a/corpus/02-production-infrastructure-national-scale.md
++++ b/corpus/02-production-infrastructure-national-scale.md
+@@ -8,24 +8,31 @@ Tags as defined in `01-ai-strategy-and-cht.md`; `[A-SRE-JD]` is role scope from
+ - `[A 2026-09-27]` Before AI, Hareet was a site reliability engineer who localized CHT for Kenya's national-scale deployment by building capacity — training the Ministry of Health in DevOps practices. Ownership: *led*. {{slot:echis_ke.moh_engineers_trained}} {{slot:echis_ke.deployment_start}}
+ - `[A 2026-09-27, C]` Before that deployment, he prepared CHT for version 4.0 and ease of deployment: he architected the move from a monolith to Docker-based services, with blue-green deployments and one-click, zero-downtime upgrades. Ownership: *architected*. `[P]` CHT 4.0's Docker hosting was a breaking change from 3.x — docs.communityhealthtoolkit.org/hosting/cht/migration/preparing-for-4/; the CHT Upgrade Service provides one-click upgrades from the admin UI — docs.communityhealthtoolkit.org/hosting/cht/docker/installation/#upgrades. {{slot:cht4.release}}
+ - `[A 2026-09-27]` Before that, he built the application's performance measurement — database benchmarking — and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment. Ownership: *built*.
+-- `[A 2026-09-27]` He was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's (see below).
++- `[A 2026-09-27, A 2026-10-30]` He was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar (see below).
+ - `[A 2026-09-03/07]` Throughout, he was part of a human-centered software team; the Ministry owned the workflows and product decisions (Constitution VII).
+ 
++## As SRE Lead (2018–2024) `[A 2026-10-28/29]`
++
++- `[A 2026-10-28/29]` In those years, he led the national-scale rollout, deployment, and procurement strategy, and trained and localized DevOps practices for {{slot:career.governments_trained}} governments and their Ministry of Health departments. `[A 2026-10-29]` He implemented and trained DevOps practices for those governments, but was more hands-on, with several in-person iterations, in Kenya, Uganda, Mali, and Zanzibar.
++- `[A 2026-10-28/29]` He architected CHT for AWS, GCP, and local data centers, and built and migrated data centers.
++- `[A 2026-10-28/29]` In the CHT {{slot:cht.version_migration}} migration, he moved the whole application to containers, from a monolith to Docker-based services, with blue-green deployments and one-click, zero-downtime upgrades.
++
+ ## Numbers — plug-in slots, empty for now
+ 
+ `[A 2026-09-27]` Deployment dates, Ministry engineers trained, projects deployed, national-scale partners, and similar figures arrive later. They live in `facts/national-projects.yaml`, alongside one-line slots for Uganda, Mali, and Zanzibar. Until a slot is filled, the twin talks about this topic without numbers and never estimates. Filling a slot needs no other edit: every `{{slot:…}}` reference in this file picks it up, and `make corpus-check` confirms the entry is attested.
+ 
+-## Other national deployments — lesser involvement `[A 2026-09-27]`
++## Other national deployments `[A 2026-09-27, A 2026-10-30]`
+ 
+-- Hareet was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's. The twin says exactly that and adds his part in each only from its slot. {{slot:echis_ug.involvement}} {{slot:moh_mali.involvement}} {{slot:moh_zanzibar.involvement}}
++- Hareet was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar. The twin says that, beside his account of 2026-10-29 under "As SRE Lead (2018–2024)" (DevOps practices implemented and trained for each of the governments, more hands-on, with several in-person iterations, in Kenya, Uganda, Mali, and Zanzibar), and adds his part in each only from its slot. {{slot:echis_ug.involvement}} {{slot:moh_mali.involvement}} {{slot:moh_zanzibar.involvement}}
+ - `[P]` Context: as of 2024, six governments had selected the CHT for their national community health systems — docs.communityhealthtoolkit.org/why-the-cht/. Uganda's eCHIS — medic.org/stories/transforming-community-health-in-uganda-the-journey-of-the-electronic-community-health-information-system/. Zanzibar's national app is Jamii ni Afya — github.com/medic/cht-android/pull/77. `[?]` A public reference for Mali.
+ 
+ ## Designing new systems: the datasource migration to Postgres `[A 2026-09-27]`
+ 
+-- From his own benchmarking, he determined that at national scale the `get-ids` endpoint would not perform reliably when many users with large documents synced at once. {{slot:postgres.benchmark_finding}}
+-- To remove that constraint, he mapped the changes needed in cht-datasource to complete its API endpoints and safely separate the backend. `[P]` cht-datasource is a library in medic/cht-core.
+-- He engaged PowerSync, obtained nonprofit licenses, and built a custom offline PowerSync-to-Postgres client and server backend for CHT. Ownership: *designed and built*.
+-- Status: being finished for production; the migration path for partners is being documented. cht-agent is used on this migration (see `01-ai-strategy-and-cht.md`).
++- `[A 2026-09-27]` From his own benchmarking, he determined that at national scale the `get-ids` endpoint would not perform reliably when many users with large documents synced at once. {{slot:postgres.benchmark_finding}}
++- `[A 2026-09-27]` To remove that constraint, he mapped the changes needed in cht-datasource to complete its API endpoints and safely separate the backend. `[P]` cht-datasource is a library in medic/cht-core.
++- `[A 2026-09-27]` He engaged PowerSync, obtained nonprofit licenses, and built a custom offline PowerSync-to-Postgres client and server backend for CHT. Ownership: *designed and built*.
++- `[A 2026-09-27]` Status: being finished for production; the migration path for partners is being documented. cht-agent is used on this migration (see `01-ai-strategy-and-cht.md`).
++- `[A 2026-10-28/29]` He investigated CouchDB in depth: his benchmarking showed the `get-ids` endpoint would not hold up at national scale. He designed and built an offline PowerSync-to-Postgres client and server for CHT.
+ 
+ ## Supporting detail (used only when asked) `[A 2026-09-03/07]`
+ 
+@@ -34,7 +41,7 @@ Organizing stakeholders around infrastructure; measuring the true cost of runnin
+ ## Do not claim
+ 
+ - That he defined the market, designed CHW workflows, or owned product decisions for any national deployment.
+-- A part in Uganda, Mali, or Zanzibar beyond "involved, to a lesser extent than Kenya" — until its slot says more.
++- A part in Uganda, Mali, or Zanzibar beyond what this file says (involved; DevOps practices implemented and trained, more hands-on, with several in-person iterations, 2026-10-29) — until its slot says more.
+ - Any number that is not tagged in this file or in a filled slot. The twin never estimates an empty slot.
+ - Any SRE-JD bullet as an accomplishment until confirmed.
+ 
+@@ -44,4 +51,4 @@ Organizing stakeholders around infrastructure; measuring the true cost of runnin
+ 2. *What's the Postgres migration about?* — My benchmarking showed one endpoint wouldn't hold up at national scale with many users syncing large documents. I mapped the cht-datasource changes to separate the backend safely, got PowerSync nonprofit licenses, and built a custom offline PowerSync-to-Postgres client and server for CHT. We're finishing it for production and documenting the migration path for partners. [A]
+ 3. *When did the national deployment go live?* — {{slot:echis_ke.deployment_start | else: I don't have the dates in my corpus yet.}} [slot]
+ 4. *How many health workers does Kenya's system serve?* — {{slot:echis_ke.chws_supported | else: I don't have a verified figure in my corpus yet.}} [slot]
+-5. *Did you work on other national deployments?* — Yes, to a lesser extent than Kenya's: Uganda's eCHIS, and the Ministry of Health deployments in Mali and Zanzibar.{{slot:echis_ug.involvement}}{{slot:moh_mali.involvement}}{{slot:moh_zanzibar.involvement}} [A][slot]
++5. *Did you work on other national deployments?* — Yes: Uganda's eCHIS, and the Ministry of Health deployments in Mali and Zanzibar. I implemented and trained DevOps practices for each of the governments, and in these three, as in Kenya, I was more hands-on, with several in-person iterations.{{slot:echis_ug.involvement}}{{slot:moh_mali.involvement}}{{slot:moh_zanzibar.involvement}} [A][slot]
+diff --git a/corpus/03-grants-and-credits.md b/corpus/03-grants-and-credits.md
+index d1dbc5e9bbb6706228efa6648c9b91da3693ad09..150b50e56e775c49d268d925f6292a62acc8ed6d 100644
+--- a/corpus/03-grants-and-credits.md
++++ b/corpus/03-grants-and-credits.md
+@@ -4,7 +4,8 @@ Priority: 4 · Status: draft · Last verified: 2026-09-27
+ Tags as defined in `01-ai-strategy-and-cht.md`. `[A 2026-09-27]` No amounts anywhere in the corpus: they are not public-safe.
+ 
+ - **2025 — AWS IMAGINE Grant, Momentum to Modernize award.** `[A 2026-09-14/27]` Won by Medic on Hareet's pitch and design for AI smart task prioritization; he is the project's AI system architect. `[P]` Momentum to Modernize is the IMAGINE Grant category for foundational technology projects — aws.amazon.com/blogs/publicsector/aws-imagine-grant-expands-global-reach-now-supporting-nonprofits-in-six-countries/. `[?]` A public announcement naming Medic, if one exists.
+-- **2026 — finalist** on Hareet's pitch and design for No-Code CHT Configuration. `[A 2026-09-27]` AWS invited the team to a hackathon for the project, and the pitch won funding in the earlier rounds. `[?]` Program name, if it should be named.
++  - `[A 2026-10-28/29]` On his resume, the project carries the label "AWS IMAGINE Grant {{slot:awards.imagine_year}} winner"; Medic is the winner, on his pitch and design.
++- **2026 — finalist** on Hareet's pitch and design for No-Code CHT Configuration. `[A 2026-09-27]` AWS invited the team to a hackathon for the project, and the pitch won funding in the earlier rounds. `[A 2026-10-28/29]` The programs, on his resume: AWS {{slot:awards.no_code_finalist_year}} Breaking Barriers finalist; AWS IMAGINE Grant {{slot:awards.no_code_finalist_year}} finalist.
+ - **Voice for CHT — credits.** `[A 2026-09-02/14]` The pilot won credits. `[?]` From whom, which program, when.
+ - **Anthropic credits.** `[A 2026-09-14]` `[?]` Program, year, purpose.
+ 
+diff --git a/corpus/07-denver-local-ai.md b/corpus/07-denver-local-ai.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..d560e19c4d987239136c45848a4523e8379ecbd9
+--- /dev/null
++++ b/corpus/07-denver-local-ai.md
+@@ -0,0 +1,53 @@
++# Denver Local AI Solutions
++Priority: 6 · Status: draft from the site's draft of 2026-10-28, for Hareet's final read · Last verified: 2026-10-28
++
++Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's site, which Hareet wrote (his answer of 2026-10-30): the draft of it he supplied on 2026-10-28 (source in `intake/private/`). This file quotes only that draft. Its bracketed placeholders are not facts, and the twin never quotes them.
++
++## Role at a glance
++
++- `[A 2026-10-28]` Hareet co-owns Denver Local AI Solutions with his wife.{{slot:dlai.co_owner_name}}{{slot:dlai.booking_text_number}} `[A-DOC site]` The site calls them "a husband and wife team in Denver, working in person at your table," and gives Hareet's role there as Applied AI Engineer.
++- `[A 2026-10-29]` In his words, from his resume: "Denver Local AI Solutions. Co-owner. Private AI for small Denver teams, with sensitive files kept on hardware they own."
++- `[A-DOC site]` What it offers small teams, in the site's words: "I sit with your team in Denver, set up private AI in your office for sensitive data, and build tools with your team that guide data through local and cloud AI."
++- `[A-DOC site]` As of 2026-10-28 the site was a draft, with placeholders still in brackets. `[A 2026-10-30]` The site is live now, at denverlocal.ai.
++
++## Two lanes `[A-DOC site]`
++
++- `[A-DOC site]` Every document goes down one of two lanes, and a written rule picks the lane. Local AI keeps sensitive data on hardware the client owns or leases, in their office or their own data center. Cloud AI improves fastest and is good for research, drafting, and ideas.
++- `[A-DOC site]` Before anything can go to cloud AI, cleaning software swaps names, account numbers, and other identifiers for tags. Every cloud request shows the cleaned text that went out, so staff and owners can check it.
++- `[A-DOC site]` The client's team writes the rules with Denver Local AI. Anything from a tax return takes the local lane even after cleaning, and so does a law office's matter file unless the client consents.
++- `[A-DOC site]` What the client owns: the software and the written rules ("They're yours, not a subscription."); a test report (identifiers planted in sample files, how many the cleaning caught, and every miss listed); a "What leaves your office" sheet for their security plan; and the freedom to switch AI companies, because the software works with any model.
++
++## How they work `[A-DOC site]`
++
++1. `[A-DOC site]` Learn the tasks: which chores eat staff time, which files they touch, and how the team uses AI today, including personal ChatGPT accounts.
++2. `[A-DOC site]` Clean up the files: de-duplicate folders and records, then build the cleaning software, tested on the client's own documents with every miss listed.
++3. `[A-DOC site]` Set up private AI on the client's own hardware: a local model on a computer in the office, a server behind their VPN, or their own data center, with no per-use fees. Depending on the hardware, it can run with the internet switched off.
++4. `[A-DOC site]` Build the pathways with the team: for each task, a written rule and the software that follows it (local or cloud AI, which tool, and what gets cleaned first), and an AI section for their security plan.
++5. `[A-DOC site]` Train the team and stay close: staff practise with their own questions, then a weekly visit and regular catch-ups, with the rules updated when the tools change.
++
++## Costs and the free visit `[A-DOC site]`
++
++- `[A-DOC site]` Every line of a quote is its own line, in writing before the client commits: support, AI seats, hardware, and running costs. AI seats are always a separate line, paid straight to the AI company, with a dated side-by-side vendor comparison (price per seat, whether they train on the client's data, where data is stored, and admin controls); they are never folded into Denver Local AI's price. Hardware is only for the local model, bought at cost or leased.
++- `[A-DOC site]` The free visit: 45 minutes in the client's office in Denver, on sample files only, never theirs. It covers their work, a demo of both lanes, how it's built, fit to their team, and cost, and a written summary follows within 48 hours, whether or not they hire Denver Local AI.
++
++## Public artifacts
++
++- `[A 2026-10-30]` The company's site, live at denverlocal.ai.
++
++## Do not claim
++
++- That Hareet owns the company alone. He and his wife co-own it `[A 2026-10-28]`.
++- Client work, results, or a track record. The corpus has no client work `[?]`.
++- A price for its services. The draft's support price was a placeholder, and the corpus holds no amounts.
++- The site's bio line about Hareet. For his background the twin uses `00-profile.md`.
++- That the local lane always runs offline: "Depending on available hardware, it can run with the internet switched off."
++- That the cleaning catches every identifier. The site promises a test with every miss listed.
++- The co-owner's name or the site's phone number, until a slot carries them.
++
++## Golden Q&A
++
++1. *What's Denver Local AI?* — A company my wife and I run in Denver. We sit with small teams, set up private AI in their office for sensitive data, and build tools with them that guide data through local and cloud AI. [A][A-DOC site]
++2. *What are the two lanes?* — Every document goes down one of two lanes, and a written rule picks the lane. Local AI keeps sensitive files on hardware the client owns or leases. Anything bound for cloud AI is cleaned first, with names and numbers swapped for tags, and every cloud request shows what went out. [A-DOC site]
++3. *Can I book you?* — Our site is live at denverlocal.ai. I don't have booking details in my corpus yet. [A][?]
++4. *Who are your clients?* — I don't have client work in my corpus yet. [?]
++5. *What does it cost?* — I don't quote prices. Every line of a quote is written out before a client commits, and AI seats are paid straight to the AI company, never folded into the price. [A-DOC site]
+diff --git a/corpus/08-hareet-ai.md b/corpus/08-hareet-ai.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..bba0a25c1eef0b1483ea2b92e52af41a65609ba6
+--- /dev/null
++++ b/corpus/08-hareet-ai.md
+@@ -0,0 +1,22 @@
++# hareet.ai — the AI twin, built in the open
++Priority: 7 (after Denver Local AI; his to set) · Status: draft for Hareet's read · Last verified: 2026-10-29
++
++Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`.
++
++## Role at a glance
++
++- `[A 2026-10-29]` In his words: "Come talk to my AI twin about my work and my life. It's built in the open, so you can see how I build AI that is secure, cost-effective, and observable."
++- `[A 2026-10-29]` In his words: "An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a {{slot:site.kill_switch_daily}}-a-day kill switch. AI agents in named roles do most of the typing, and only I merge."
++- `[A 2026-10-29]` On the hareet.ai version of his resume: local models first; a real-time cost meter; a {{slot:site.kill_switch_daily}}-a-day kill switch; every data flow disclosed.
++
++## Public artifacts
++
++- hareet.ai, once spec 001 publishes it.
++
++## Do not claim
++
++- Any spend, traffic, or cost figure for the site that isn't in a filled slot.
++
++## Golden Q&A
++
++None yet: his to write.
+diff --git a/corpus/README.md b/corpus/README.md
+index 44dc844c2087f7b19c9dd0a529f2c493b9466ff4..2b0b25ab33fe8cd27b504a9ea33d1c6929da41ed 100644
+--- a/corpus/README.md
++++ b/corpus/README.md
+@@ -10,6 +10,8 @@ The twin speaks about the Author's work only from these files (Constitution VIII
+ | `01-ai-strategy-and-cht.md` | Priority 1: the AI strategy and every AI system, with ownership rulings |
+ | `02-production-infrastructure-national-scale.md` | Priorities 2–3: the SRE years, teams and localization, systems designed since |
+ | `03-grants-and-credits.md` | Priority 4: awards and credits, without amounts |
++| `07-denver-local-ai.md` | Priority 6: Denver Local AI Solutions, the company he co-owns |
++| `08-hareet-ai.md` | Priority 7: this project, hareet.ai, the AI twin built in the open |
+ | `facts/*.yaml` | Plug-in slots for numbers and held-back details |
+ | `intake/` | Public source material; `intake/private/` (gitignored) for anything not cleared |
+ | `proposals/` | Where agents propose corpus changes; a human applies them |
+@@ -20,7 +22,7 @@ Priority 5, Artificial Indian Games, has no file yet.
+ ## Claim tags (every factual sentence carries one)
+ 
+ - `[A date]` The Author's statement in this project, with the date. Sufficient for the twin to say it as the Author's account.
+-- `[A-DOC <name>]` A document the Author authored or co-authored and supplied (the strategy, the Voice for CHT brief).
++- `[A-DOC <name>]` A document the Author authored or co-authored and supplied (the strategy, the Voice for CHT brief). `07`'s `[A-DOC site]` is the Denver Local AI site, which he wrote; `07` quotes the draft of it he supplied on 2026-10-28.
+ - `[A-CHAT]` A statement in another chat, filed in `intake/`. `[A-BIO]` the Author's own bio. `[A-NOTES]` attributed notes from a recording the Author supplied.
+ - `[A-JD]` / `[A-SRE-JD]` Role scope from a job description — describes the role, never a verified accomplishment.
+ - `[P]` Public artifact, with URL. Enough for facts about systems and organizations; never enough on its own for a claim about the Author's role.
+@@ -29,7 +31,7 @@ Priority 5, Artificial Indian Games, has no file yet.
+ 
+ ## Role precision (Constitution VII)
+ 
+-Every role claim carries an ownership verb: *built · designed · co-authored · sourced (a partner) · sponsored · AI system architect · led · was part of a team that.* The rulings for each system sit at the top of `01`. "We" is always expanded to who.
++Every role claim carries an ownership verb: *built · designed · architected · configured · co-authored · co-owns · sourced (a partner) · sponsored · AI system architect · led · was part of a team that.* The rulings for each system sit at the top of `01`. "We" is always expanded to who.
+ 
+ ## Public safety
+ 
+diff --git a/corpus/facts/awards.yaml b/corpus/facts/awards.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..4dddfb4a517fa26da8102dd5988641553019b9fe
+--- /dev/null
++++ b/corpus/facts/awards.yaml
+@@ -0,0 +1,20 @@
++# Plug-in years for 03-grants-and-credits.md, so a rendering can show them as numbers.
++# From his words of 2026-10-28 and his resume, confirmed 2026-10-29. No amounts, ever (03's "Do not claim").
++# This file is public.
++
++topic: 03-grants-and-credits
++facts:
++  - id: awards.imagine_year
++    label: The year Medic won the AWS IMAGINE Grant's Momentum to Modernize award, on his pitch and design for Smart Task Prioritization
++    value: "2025"
++    tag: A
++    source: "The Author, 2026-09-14/27 (03-grants-and-credits.md); 2026-10-28: 'Winner of AWS Imagine 2025.'; his resume, 2026-10-29: 'AWS IMAGINE Grant 2025 winner'"
++    public_safe: true
++    phrasing: "{value}"
++  - id: awards.no_code_finalist_year
++    label: The year No-Code CHT Configuration was an AWS Breaking Barriers finalist and an AWS IMAGINE Grant finalist
++    value: "2026"
++    tag: A
++    source: "The Author, 2026-10-28: 'AWS 2026 Breaking Barriers fainlist', 'AWS 2026 Imagine Finalist'; his resume, 2026-10-29: 'AWS 2026 Breaking Barriers finalist; AWS IMAGINE Grant 2026 finalist'"
++    public_safe: true
++    phrasing: "{value}"
+diff --git a/corpus/facts/career.yaml b/corpus/facts/career.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..adb238d446b2b89b72ceb529f7d4f057ef7b96c6
+--- /dev/null
++++ b/corpus/facts/career.yaml
+@@ -0,0 +1,41 @@
++# Plug-in facts for 00-profile.md and 02-production-infrastructure-national-scale.md: his dates and roles at Medic,
++# as his resume and his answers of 2026-10-28 and 2026-10-29 give them. This file is public.
++# Each phrasing is the bare value, so a sentence can carry it inline.
++
++topic: 00-profile
++facts:
++  - id: career.medic_dates
++    label: His dates at Medic, start to end, as on his resume
++    value: "Jul 2018 – Nov 2026"
++    tag: A
++    source: "The Author, 2026-10-29: 'total years at medic from July 2018 to Nov 2026'"
++    public_safe: true
++    phrasing: "{value}"
++  - id: career.sre_lead_years
++    label: His years as SRE Lead at Medic
++    value: "2018–2024"
++    tag: A
++    source: "The Author, 2026-10-28: 'from 2018-2024, SRE lead'; 2026-10-29: 'Yes, we were SRE Lead.'"
++    public_safe: true
++    phrasing: "{value}"
++  - id: career.ai_lead_years
++    label: His years as Applied AI Engineering Lead at Medic
++    value: "2024–2026"
++    tag: A
++    source: "The Author's resume, 2026-10-29: 'Applied AI Engineering Lead 2024–2026'"
++    public_safe: true
++    phrasing: "{value}"
++  - id: career.ai_strategy_years
++    label: How many years, as of 2026-10-29, he has designed Medic's AI strategy and led its implementation
++    value: "2"
++    tag: A
++    source: "The Author, 2026-10-28: 'For the last 2 years' with Medic's AI Strategy; 2026-10-29: 'the last two years for AI strategy and implementation'"
++    public_safe: true
++    phrasing: "{value}"
++  - id: career.governments_trained
++    label: The governments for which he implemented and trained DevOps practices, with their Ministry of Health departments
++    value: "six"
++    tag: A
++    source: "The Author, 2026-10-29: 'I implemented and trained DevOps practices for those 6 govts'; 'I trained and localized DevOps practices for 6 Governments and their Ministry of Health Departments'"
++    public_safe: true
++    phrasing: "{value}"
+diff --git a/corpus/facts/denver-local-ai.yaml b/corpus/facts/denver-local-ai.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..9dec15e487c091bf5a3a024b02187865162a6587
+--- /dev/null
++++ b/corpus/facts/denver-local-ai.yaml
+@@ -0,0 +1,18 @@
++# Plug-in details for 07-denver-local-ai.md. This file is public: fill a slot only when it's public-safe.
++
++topic: 07-denver-local-ai
++facts:
++  - id: dlai.co_owner_name
++    label: The co-owner's first name, as the site gives it
++    value: null
++    tag: null
++    source: null
++    public_safe: null
++    phrasing: " Her name is {value}."
++  - id: dlai.booking_text_number
++    label: The number the site gives for texting to book a free visit
++    value: null
++    tag: null
++    source: null
++    public_safe: null
++    phrasing: " To book a free visit, text {value}."
+diff --git a/corpus/facts/hareet-ai.yaml b/corpus/facts/hareet-ai.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b591f255209c376654e644d4d19f0c044fd0c6f0
+--- /dev/null
++++ b/corpus/facts/hareet-ai.yaml
+@@ -0,0 +1,11 @@
++# Plug-in figures for 08-hareet-ai.md. This file is public.
++
++topic: 08-hareet-ai
++facts:
++  - id: site.kill_switch_daily
++    label: The site's daily spend ceiling, past which the kill switch degrades it; equals config/budgets.yaml envs.prod.daily_usd; change both in one commit
++    value: "$5"
++    tag: C
++    source: "The Author's resume, 2026-10-29 (the kill-switch line); config/budgets.yaml (envs.prod.daily_usd: 5.00)"
++    public_safe: true
++    phrasing: "{value}"
+diff --git a/corpus/facts/national-projects.yaml b/corpus/facts/national-projects.yaml
+index 58db1807073b6339e0a69e120b224aabe5f3d31c..71fdc969c750107542aaa7be9aacfb13f5effc1c 100644
+--- a/corpus/facts/national-projects.yaml
++++ b/corpus/facts/national-projects.yaml
+@@ -58,7 +58,7 @@ facts:
+     source: null
+     public_safe: null
+     phrasing: "The data-center migration: {value}."
+-  # Lesser involvement — one line each: what Hareet did, and when
++  # Uganda, Mali, and Zanzibar — one line each: what Hareet did, and when
+   - id: echis_ug.involvement
+     label: Hareet's involvement in Uganda's eCHIS (what and when, one line)
+     value: null
+@@ -95,3 +95,18 @@ facts:
+     source: null
+     public_safe: null
+     phrasing: "In benchmarking, {value}."
++  # Added 2026-10-29, from his resume and his answers of 2026-10-28 and 2026-10-29
++  - id: cht.national_governments
++    label: Governments that run their national community health systems on the CHT (the CHT docs' count, as of 2024)
++    value: "six"
++    tag: C
++    source: "docs.communityhealthtoolkit.org/why-the-cht/ (six governments, as of 2024); his resume, 2026-10-29: 'Six governments run their national community health systems on it'"
++    public_safe: true
++    phrasing: "{value}"
++  - id: cht.version_migration
++    label: The CHT versions of the migration that moved the whole application to containers
++    value: "3.x-to-4.x"
++    tag: C
++    source: "The Author, 2026-10-28: '3.x to 4.x migration to containers throughout the application'; his resume, 2026-10-29: 'the 3.x-to-4.x migration'. docs.communityhealthtoolkit.org/hosting/cht/migration/preparing-for-4/"
++    public_safe: true
++    phrasing: "{value}"
+diff --git a/corpus/facts/voice-for-cht.yaml b/corpus/facts/voice-for-cht.yaml
+index 8d3342937b586e397972c482ccded74e698f47d9..67e83340022dd42a821cbb673ce8f45aeb3d9de7 100644
+--- a/corpus/facts/voice-for-cht.yaml
++++ b/corpus/facts/voice-for-cht.yaml
+@@ -32,3 +32,18 @@ facts:
+     source: null
+     public_safe: null
+     phrasing: "In a controlled test, {value}."
++  # Added 2026-10-29: his words of 2026-10-28, which he chose to keep on 2026-10-29
++  - id: voice.model_size
++    label: The footprint the partner's team fine-tuned the models to, with his help
++    value: "273 MB"
++    tag: A
++    source: "The Author, 2026-10-28: 'helped them fine tune models to achieve a 273mb footprint'; 2026-10-29: 'Let's keep the hardware specs so we can illustrate our impact of fine tuning models for offline low-resource phones.'"
++    public_safe: true
++    phrasing: "{value}"
++  - id: voice.phone_memory
++    label: The memory of the rural Android phone the models run on, beside the app
++    value: "4 GB"
++    tag: A
++    source: "The Author, 2026-10-28: 'local rural offline models that can run an 4gb android phone alongside the application'; kept on 2026-10-29, as voice.model_size"
++    public_safe: true
++    phrasing: "{value}"

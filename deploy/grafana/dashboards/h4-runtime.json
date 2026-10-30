@@ -2602,12 +2602,384 @@
     },
     {
       "type": "row",
+      "id": 60,
+      "title": "Room",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 101,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "id": 61,
+      "title": "Use per object per day",
+      "description": "Each object's selections, by pointer, touch, or the list, in the 24 hours before the range's end, from the room's usage events (spec 002, FR-054, FR-056). An event carries its kind and the ID alone, so nothing here says who selected it. For a past day, end the range at that day's midnight; the dashboard is in UTC.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 102,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (id) (increase(h4_room_events_total{kind=\"object_selected\"}[1d]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "gradientMode": "none"
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Field",
+        "showValue": "auto",
+        "barWidth": 0.8,
+        "groupWidth": 0.7,
+        "stacking": "none",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "seriesToRows",
+            "reducers": ["lastNotNull"]
+          }
+        }
+      ]
+    },
+    {
+      "type": "barchart",
+      "id": 62,
+      "title": "Use per item per day",
+      "description": "Each resume item's selections in the 24 hours before the range's end, from the room's usage events (spec 002, FR-054, FR-056); only the IDs config/room-events.yaml lists are counted. An event carries its kind and the ID alone, so nothing here says who selected it. For a past day, end the range at that day's midnight; the dashboard is in UTC.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 102,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (id) (increase(h4_room_events_total{kind=\"item_selected\"}[1d]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "gradientMode": "none"
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Field",
+        "showValue": "auto",
+        "barWidth": 0.8,
+        "groupWidth": 0.7,
+        "stacking": "none",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "seriesToRows",
+            "reducers": ["lastNotNull"]
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 63,
+      "title": "PDF downloads per day",
+      "description": "The resume's PDF link followed, on any screen, in the 24 hours before each moment; the number is the last, at the range's end (spec 002, FR-056). For a past day, end the range at that day's midnight; the dashboard is in UTC.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 110,
+        "w": 5,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(increase(h4_room_events_total{kind=\"pdf_downloaded\"}[1d]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "PDF downloads"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 64,
+      "title": "Visits shown the 2D mode",
+      "description": "The share of visits the room showed in its 2D mode (the visitor's choice, a slow device, a lost context, or no WebGL 2) over the dashboard's range: mode_2d events over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 002, FR-054, FR-056). A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 5,
+        "y": 110,
+        "w": 5,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(increase(h4_room_events_total{kind=\"mode_2d\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "2D share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "percentunit",
+          "decimals": 0,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 65,
+      "title": "Turns sent and talk presses",
+      "description": "The text box's sends and the talk button's presses, and when (spec 002, FR-054). Until the twin's conversation exists, each answers with a fixed message and calls nothing; its cost, latency, and turns per room feature come with conversations (telemetry.md \u00a77.8).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 110,
+        "w": 7,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (kind) (increase(h4_room_events_total{kind=~\"turn_sent|voice_pressed\"}[$__rate_interval]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 66,
+      "title": "Events refused",
+      "description": "Usage events the gateway refused, by reason: content_type (415, neither JSON nor text), shape (400, not {kind} or {kind, id}), kind (400, a kind config/room-events.yaml doesn't list), and id (400, an ID it doesn't list for the kind; every event while the file is missing or invalid, which the gateway's startup log names as room_events.unavailable). The room never retries one, so the use panels undercount by these (spec 002, contracts/room-events.md \u00a73).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 17,
+        "y": 110,
+        "w": 7,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (reason) (increase(h4_room_events_refused_total[$__rate_interval]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
       "id": 42,
       "title": "Development time on the Team plan: notional cost, outside the production meter",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 101,
+        "y": 117,
         "w": 24,
         "h": 1
       },
@@ -2624,7 +2996,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 102,
+        "y": 118,
         "w": 10,
         "h": 7
       },
@@ -2683,7 +3055,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 102,
+        "y": 118,
         "w": 4,
         "h": 7
       },
@@ -2737,7 +3109,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 102,
+        "y": 118,
         "w": 10,
         "h": 7
       },
@@ -2803,7 +3175,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 109,
+        "y": 125,
         "w": 4,
         "h": 7
       },
@@ -2857,7 +3229,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 109,
+        "y": 125,
         "w": 8,
         "h": 7
       },
@@ -2923,7 +3295,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 109,
+        "y": 125,
         "w": 12,
         "h": 7
       },

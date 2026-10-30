@@ -1034,6 +1034,24 @@ studio_list_row 'an Edit in a studio folder the list names through a symlink' \
   "${studio_whole/"photos $studio_fake/photos"/photos $studio_fake/photos-link}" \
   "$studio_fake/photos-link/h4-matrix-probe.txt" "$studio_fake/photos-real/h4-matrix-probe.txt"
 
+# --- Spec 002's content policy (T015; contracts/resume-source.md §5): the approvals and the PDF's header -----------
+# Human-only from the approvals patch on (T016): the Author approves a content file by putting its SHA-256 on main,
+# and fills the PDF's header there, so no agent may write either file, by Edit or Write, in any path form, in the main
+# tree or a linked worktree. The content itself stays agent-editable. The patch switched these rows, stage S's, and the
+# settings row below from "planned" to "block".
+edit block 'assets/policy/content-approvals.json'
+edit block 'assets/policy/resume-header.json'
+edit block 'apps/../assets/policy/content-approvals.json'
+edit block './assets//policy/resume-header.json'
+edit allow 'apps/web/content/resume.yaml'
+edit allow 'apps/web/build/approvals.ts'
+# In a linked worktree (the governance worktree above): its Edit is the hook's to refuse; its shell write is a gap,
+# as tools/gates' is, held by the gate, which reads approvals from main, never the branch.
+mkdir -p "$gov_wt/assets/policy"
+: >"$gov_wt/assets/policy/content-approvals.json"
+check protected-paths.sh block "Edit in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg f "$gov_wt/assets/policy/content-approvals.json" '{file_path:$f}')"
+check bash-gate.sh gap "a shell write in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg c "cp /tmp/new $gov_wt/assets/policy/content-approvals.json" '{command:$c}')"
+
 # =================================================================================================
 # T089: stage S, inside the sandbox (plan §13). It runs only when SANDBOX_RUNTIME=1 and .git/hooks isn't
 # writable (the agent sandbox); otherwise it is skipped with a notice. Every row only probes — test -w,
@@ -1199,6 +1217,9 @@ PY
   # The gates and the agent-config evals, denied by the governance patch (T098).
   s_unwritable 'tools/gates' block "$stage_s_tree/tools/gates"
   s_unwritable 'evals/agent-config' block "$stage_s_tree/evals/agent-config"
+  # Spec 002's content policy (T015, T016): the approvals patch creates and denies both files.
+  s_unwritable 'assets/policy/content-approvals.json' block "$stage_s_tree/assets/policy/content-approvals.json"
+  s_unwritable 'assets/policy/resume-header.json' block "$stage_s_tree/assets/policy/resume-header.json"
   # main can't move (plan §13): test -w on the ref's path, and nothing more. The row never runs update-ref, so the matrix
   # itself can't move main before the closing patch denies the ref.
   # A main that isn't a loose ref (packed, or no path) would make test -w say nothing, so that fails instead.
@@ -1475,8 +1496,8 @@ except OSError:
   fi
   s_refused_conn 'the egress proxy 198.18.0.1:3128' 198.18.0.1 3128
   # Every stack's ports on the host's loopback (plan §4: x000 api, x001 Langfuse, x002 Grafana, x003 admin, x004 OTLP,
-  # where the gate posts; review B, finding 7).
-  for port in 18000 18001 18002 18003 18004 18100 18101 18102 18103 18104 18300 18301 18302 18303 18304; do
+  # where the gate posts; review B, finding 7; and spec 002's x005, the room's site).
+  for port in 18000 18001 18002 18003 18004 18005 18100 18101 18102 18103 18104 18105 18300 18301 18302 18303 18304 18305; do
     s_refused_conn "127.0.0.1:$port" 127.0.0.1 "$port"
   done
   # ComfyUI's port (spec 004 FR-025; research R-51). Its server serves the photos folder whatever the file denies say,
@@ -2263,6 +2284,9 @@ if sort -- "$req_seen" | uniq -d | grep -q .; then
 else
   pass=$((pass + 1))
 fi
+# Spec 002's content policy (T016): both files, in both layers behind the hook, since the approvals patch.
+# shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
+set_has "the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)" '(.sandbox.filesystem.denyWrite as $w | ["./assets/policy/content-approvals.json", "./assets/policy/resume-header.json"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/assets/policy/content-approvals.json)", "Edit(/assets/policy/resume-header.json)"] | all(. as $p | $d | index($p) != null))'
 # The planned/skipped recap (plan §13's report), beside the summary line. It sits above the blank line, so the settings
 # rows other branches add before the summary line still merge cleanly; those print nothing when they pass, and add no
 # planned or skipped row.

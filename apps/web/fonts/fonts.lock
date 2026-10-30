@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "family": "IBM Plex Sans",
+  "license": "OFL-1.1",
+  "source": {
+    "package": "@ibm/plex-sans",
+    "version": "1.1.0",
+    "url": "https://registry.npmjs.org/@ibm/plex-sans/-/plex-sans-1.1.0.tgz",
+    "sha256": "c3818979c2a2c82927ea3e7c485e389a18de0b7462887dd4f7acc9a525568962",
+    "integrity": "sha512-WPgvO6Yfj2w5YbhyAr1tv95RUz4LRJlqN+CmYvBglabXteufP1D1E9BABMde+ZIKdRbFJDoKF5eQzfhpnbgZcQ==",
+    "published": "2024-11-11"
+  },
+  "files": {
+    "IBMPlexSans-Bold.woff": {
+      "sha256": "5c8bcd6be12df67acd529819b92f36febeff4df059a9603c4ecd578f01cf4062",
+      "from": "package/fonts/complete/woff/IBMPlexSans-Bold.woff"
+    },
+    "IBMPlexSans-Regular.woff": {
+      "sha256": "b731cf56514a4bd711ab2f9acf641f9311707f4386772eb306d25c2b29b73b1a",
+      "from": "package/fonts/complete/woff/IBMPlexSans-Regular.woff"
+    },
+    "LICENSE.txt": {
+      "sha256": "37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d",
+      "from": "package/LICENSE.txt",
+      "note": "line endings CRLF to LF, as the repository stores text; the words unchanged"
+    }
+  }
+}

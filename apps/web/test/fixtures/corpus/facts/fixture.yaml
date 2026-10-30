@@ -1,0 +1,24 @@
+# Fixture facts slots, in the real corpus's shape (corpus/README.md, "Plug-in numbers"). Not about anyone.
+topic: 01-fixture
+facts:
+  - id: fixture.lanterns
+    label: Lanterns the service lights
+    value: "12"
+    tag: A
+    source: "a test fixture"
+    public_safe: true
+    phrasing: " It lights {value} lanterns."
+  - id: fixture.empty
+    label: Coves the service covers
+    value: null
+    tag: null
+    source: null
+    public_safe: null
+    phrasing: " It covers {value} coves."
+  - id: fixture.unsafe
+    label: A filled value that isn't public-safe
+    value: "7"
+    tag: A
+    source: "a test fixture"
+    public_safe: false
+    phrasing: " Its private count is {value}."

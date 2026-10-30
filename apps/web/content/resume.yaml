@@ -1,0 +1,276 @@
+# The resume's one source (spec 002, T030; contracts/resume-source.md §1). A draft by an agent, refreshed on 2026-10-29
+# from the Author's new resume (the hareet.ai version's voice and wording) and his answers of 2026-10-28 to 2026-10-30,
+# each item citing the corpus. It cites the corpus as docs/merge-requests/2026-10-29-corpus-resume-facts.patch leaves it,
+# so the branch it lands on sits on a commit of that patch (corpus/proposals/corpus-additions-2026-10-29.md). Filed for
+# the Author in corpus/proposals/resume-2026-10-29.md (the record of the first draft is
+# corpus/proposals/resume-2026-10-18.md). It is published only when main's assets/policy/content-approvals.json lists
+# this file's SHA-256 (§5).
+#
+# Every item cites the corpus sentences it rests on; the build checks each citation (C1–C9, §2), and
+# resume.lock.json pins the corpus files they come from (§3). Any number goes in a {{slot:…}}, which renders only
+# when the Author fills the slot as public-safe. The PDF's full name and contact aren't here: they are
+# assets/policy/resume-header.json's, the Author's (§5).
+version: 1
+header:
+  room:
+    name: Hareet
+    lines:
+      - text: "Applied AI Engineering Lead, with a background in site reliability engineering"
+        claims:
+          - file: corpus/00-profile.md
+            quote: "Hareet is the Applied AI Engineering Lead at Medic"
+          - file: corpus/00-profile.md
+            quote: "His background is site reliability engineering"
+      - text: "I design AI systems and build a good share of them myself, with production-grade safeguards."
+        claims:
+          - file: corpus/00-profile.md
+            quote: "I design AI systems and build a good share of them myself, with production-grade safeguards"
+      - text: "Come talk to my AI twin about my work and my life. It's built in the open, so you can see how I build AI that is secure, cost-effective, and observable."
+        claims:
+          - file: corpus/08-hareet-ai.md
+            quote: "Come talk to my AI twin about my work and my life"
+          - file: corpus/08-hareet-ai.md
+            quote: "It's built in the open, so you can see how I build AI that is secure, cost-effective, and observable"
+      - text: "Medic, {{slot:career.medic_dates}}: Applied AI Engineering Lead, {{slot:career.ai_lead_years}}; previously SRE Lead, {{slot:career.sre_lead_years}}."
+        claims:
+          - file: corpus/00-profile.md
+            quote: "His years at Medic are"
+          - file: corpus/00-profile.md
+            quote: "then Applied AI Engineering Lead"
+          - file: corpus/00-profile.md
+            quote: "his prior title at Medic was SRE Lead"
+        slots: [career.medic_dates, career.ai_lead_years, career.sre_lead_years]
+      - text: "The nonprofit behind the open-source Community Health Toolkit (CHT); {{slot:cht.national_governments}} governments run their national community health systems on it, including Kenya's and Uganda's eCHIS. {{slot:medic.countries}}"
+        claims:
+          - file: corpus/00-profile.md
+            quote: "the nonprofit behind the open-source Community Health Toolkit (CHT)"
+          - file: corpus/00-profile.md
+            quote: "governments run their national community health systems on it, including Kenya's and Uganda's eCHIS"
+        slots: [cht.national_governments, medic.countries]
+sections:
+  - id: ai-strategy
+    title: Medic's AI strategy
+    items:
+      - id: ai-strategy
+        text: "For the last {{slot:career.ai_strategy_years}} years, I designed the strategy with our CEO, around the two tracks below, and led its implementation. I call the tracks runtime AI and buildtime AI, words I credit to Taylor Downs of OpenFn."
+        verb: designed
+        claims:
+          - file: corpus/00-profile.md
+            quote: "he designed the strategy with Andra, our CEO, around the two tracks, and led its implementation"
+          - file: corpus/00-profile.md
+            quote: "He designed Medic's AI strategy with Andra, our CEO"
+          - file: corpus/00-profile.md
+            quote: "He led its implementation"
+          - file: corpus/00-profile.md
+            quote: "he calls the tracks runtime AI and buildtime AI, words he credits to Taylor Downs of OpenFn"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "The tracks are Hareet's and Andra's; the words are Taylor's"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "he doesn't have to own the phrasing to be able to use the words, and he can give credit to a source that inspired him"
+        slots: [career.ai_strategy_years]
+      - id: change-management
+        text: "Team change: I led change management and built internal AI tooling so other senior engineers could see how the workflow was changing."
+        verb: led
+        claims:
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "He led change management and built internal AI tooling so other senior engineers could see how the workflow was changing"
+        slots: []
+      - id: cht-skills
+        text: "I sponsored the CHT skills in cht-ai-tools, Medic's public Claude Code plugin marketplace, including cht-pr-review, which others built."
+        verb: sponsored
+        claims:
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "and sponsored the CHT skills, including `cht-pr-review`, which others built"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "github.com/medic/cht-ai-tools is a public Claude Code plugin marketplace"
+        slots: []
+      - id: cht-codebase
+        text: "I still produce, maintain, and contribute to the main CHT codebase, and I'm changing it so agentic best practices can take root."
+        claims:
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "He still produces, maintains, and contributes to the main CHT codebase, and is changing it so agentic best practices can take root"
+        slots: []
+  - id: buildtime-ai
+    title: "Buildtime AI: around the CHT, for the people who build on it"
+    items:
+      - id: cht-agent
+        text: "cht-agent (designed, architected, built): a multi-agent system in production for cht-core and cht-conf, with human validation checkpoints."
+        verb: designed
+        claims:
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "Inside it, Hareet designed, architected, and built the system and its data layer"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "the multi-agent system in production for cht-core and cht-conf: a LangGraph research supervisor, human validation checkpoints"
+        slots: []
+      - id: cht-agent-data-layer
+        text: "Agentic data layer (built): CHT Docs and Code Context MCP servers, plus custom-curated agent-memory of all CHT domains that keeps learning."
+        verb: built
+        claims:
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "He calls it his agentic data layer: he built the CHT Docs and CHT Code Context MCP servers, and a custom-curated agent-memory of all CHT domains that keeps learning and updating"
+        slots: []
+      - id: agent-watchdog
+        text: "On-call agent squad, agent-watchdog (built): monitors all the CHT projects Medic knows of, updates the team and lets them interact with it, summarizes alerts for partners, and builds a knowledge base on correlated alerts and user feedback. It has secure, read-only access to non-sensitive metrics."
+        verb: built
+        claims:
+          - file: corpus/00-profile.md
+            quote: "He built agent-watchdog"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "agent-watchdog monitors all the CHT projects Medic knows of, updates the team and lets them interact with it, summarizes alerts for partners, and builds a knowledge base on correlated alerts and user feedback"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "It has secure, read-only access to non-sensitive metrics"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "agent-watchdog monitors all endpoints of URLs (projects) that Medic knows of"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "On-call agent squad: agents on call for the CHT projects Medic hosts"
+        slots: []
+      - id: claude-medic-aws
+        text: "On-call agent squad, claude-medic-aws (designed): a security-first, read-only infrastructure agent. It contains our best DevOps practices, to help our non-technical partners deduce infrastructure issues."
+        verb: designed
+        claims:
+          - file: corpus/00-profile.md
+            quote: "and designed claude-medic-aws, the infrastructure agent"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "claude-medic-aws is a security-first, read-only infrastructure agent"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "It contains Medic's best DevOps practices, to help Medic's non-technical partners deduce infrastructure issues"
+        slots: []
+      - id: agent-orchestrator
+        text: "On-call agent squad, agent orchestrator (configured): a supervisor over both agents, for knowledgeable summaries of all project and infrastructure incidents: on demand, routinely, and ready to serve to our community."
+        claims:
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "On-call agent squad: agents on call for the CHT projects Medic hosts, agent-watchdog and claude-medic-aws, with an agent orchestrator over both"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "Hareet configured a supervisor agent over agent-watchdog and claude-medic-aws, for knowledgeable summaries of all project and infrastructure incidents: on demand, routinely, and ready to serve to Medic's community"
+        slots: []
+      - id: no-code-configuration
+        text: "No-Code CHT Configuration (designed, architected): making CHT's technical configuration usable by non-technical users. I designed the goal, built out the community team, managed stakeholder perspectives, and architected the AI systems. AWS {{slot:awards.no_code_finalist_year}} Breaking Barriers finalist; AWS IMAGINE Grant {{slot:awards.no_code_finalist_year}} finalist."
+        verb: designed
+        claims:
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "No-Code CHT Configuration is making CHT's technical configuration usable by non-technical users"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "Hareet designed the goal, built out the community team, managed stakeholder perspectives, and architected the AI systems"
+          - file: corpus/03-grants-and-credits.md
+            quote: "Breaking Barriers finalist; AWS IMAGINE Grant"
+        slots: [awards.no_code_finalist_year]
+  - id: runtime-ai
+    title: "Runtime AI: inside the CHT, for health workers"
+    items:
+      - id: voice-for-cht
+        text: "Voice for CHT (designed): the health worker speaks the visit and the form fills itself, offline, and she confirms before anything saves. I designed the idea, found the team, helped them fine-tune models to {{slot:voice.model_size}} to run beside the app on rural {{slot:voice.phone_memory}} Android phones, and built Medic's side; the pilot is underway."
+        verb: designed
+        claims:
+          - file: corpus/00-profile.md
+            quote: "He designed Voice for CHT — the idea, the project, and the capability — found its speech-model partner, and built Medic's side; the pilot is underway"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "The CHW speaks the visit and the form fills itself, offline, and she confirms before anything saves"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "He designed the idea, found the team, helped them fine-tune models to"
+        slots: [voice.model_size, voice.phone_memory]
+      - id: smart-task-prioritization
+        text: "Smart Task Prioritization (designed, architected): I designed and architected GPS-based task prioritization for health workers, and architected the AI systems that carry its configuration across the platform to every project. AWS IMAGINE Grant {{slot:awards.imagine_year}} winner."
+        verb: designed
+        claims:
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "Hareet designed and architected GPS-based task prioritization for health workers, and architected the AI systems that carry its configuration across the platform to every project"
+          - file: corpus/01-ai-strategy-and-cht.md
+            quote: "Smart Task Prioritization uses GPS"
+          - file: corpus/03-grants-and-credits.md
+            quote: "Medic is the winner, on his pitch and design"
+        slots: [awards.imagine_year]
+  - id: infrastructure
+    title: SRE Lead
+    items:
+      - id: national-scale
+        text: "I led the national-scale rollout, deployment, and procurement strategy, and trained and localized DevOps practices for {{slot:career.governments_trained}} governments and their Ministry of Health departments."
+        verb: led
+        claims:
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "he led the national-scale rollout, deployment, and procurement strategy, and trained and localized DevOps practices for"
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "governments and their Ministry of Health departments"
+        slots: [career.governments_trained]
+      - id: kenya-localization
+        text: "I led CHT's localization for Kenya's national-scale deployment by training the Ministry of Health in DevOps practices.{{slot:echis_ke.moh_engineers_trained}} The Ministry owned the workflows and product decisions."
+        verb: led
+        claims:
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "Before AI, Hareet was a site reliability engineer who localized CHT for Kenya's national-scale deployment by building capacity — training the Ministry of Health in DevOps practices"
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "Ownership: *led*"
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "the Ministry owned the workflows and product decisions"
+        slots: [echis_ke.moh_engineers_trained]
+      - id: national-benchmarking
+        text: "I built the database benchmarking behind the national hardware procurement, and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment."
+        verb: built
+        claims:
+          - file: corpus/00-profile.md
+            quote: "built the benchmarking behind the national hardware procurement"
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "he built the application's performance measurement — database benchmarking — and the infrastructure to analyze and procure hardware for the Ministry's national-scale deployment"
+        slots: []
+      - id: other-deployments
+        text: "I was also involved in Uganda's eCHIS and the Ministry of Health deployments in Mali and Zanzibar, where, as in Kenya, I was more hands-on, with several in-person iterations.{{slot:echis_ug.involvement}}{{slot:moh_mali.involvement}}{{slot:moh_zanzibar.involvement}}"
+        claims:
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "He was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar"
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "was more hands-on, with several in-person iterations, in Kenya, Uganda, Mali, and Zanzibar"
+        slots: [echis_ug.involvement, moh_mali.involvement, moh_zanzibar.involvement]
+      - id: cloud-data-centers
+        text: "I architected CHT for AWS, GCP, and local data centers, and built and migrated data centers."
+        verb: architected
+        claims:
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "He architected CHT for AWS, GCP, and local data centers, and built and migrated data centers"
+        slots: []
+      - id: cht-docker-architecture
+        text: "I containerized the whole application in CHT's {{slot:cht.version_migration}} migration: I architected the move from a monolith to Docker-based services, with blue-green deployments and one-click, zero-downtime upgrades. {{slot:cht4.release}}"
+        verb: architected
+        claims:
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "he moved the whole application to containers, from a monolith to Docker-based services, with blue-green deployments and one-click, zero-downtime upgrades"
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "he architected the move from a monolith to Docker-based services, with blue-green deployments and one-click, zero-downtime upgrades"
+        slots: [cht.version_migration, cht4.release]
+      - id: powersync-postgres
+        text: "CouchDB to PowerSync: I investigated CouchDB in depth, and my benchmarking showed the get-ids endpoint would not hold up at national scale. I designed and built an offline PowerSync-to-Postgres client and server for CHT."
+        verb: designed
+        claims:
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "He investigated CouchDB in depth: his benchmarking showed the `get-ids` endpoint would not hold up at national scale"
+          - file: corpus/02-production-infrastructure-national-scale.md
+            quote: "He designed and built an offline PowerSync-to-Postgres client and server for CHT"
+        slots: []
+  - id: also-building
+    title: Also building
+    items:
+      - id: hareet-ai
+        text: "hareet.ai: an AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, a {{slot:site.kill_switch_daily}}-a-day kill switch, and every data flow disclosed. AI agents in named roles do most of the typing, and only I merge."
+        claims:
+          - file: corpus/08-hareet-ai.md
+            quote: "An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a"
+          - file: corpus/08-hareet-ai.md
+            quote: "AI agents in named roles do most of the typing, and only I merge"
+          - file: corpus/08-hareet-ai.md
+            quote: "every data flow disclosed"
+        slots: [site.kill_switch_daily]
+      - id: denver-local-ai
+        text: "Denver Local AI Solutions (co-owner): private AI for small Denver teams, with sensitive files kept on hardware they own."
+        claims:
+          - file: corpus/07-denver-local-ai.md
+            quote: "Hareet co-owns Denver Local AI Solutions with his wife"
+          - file: corpus/07-denver-local-ai.md
+            quote: "Private AI for small Denver teams, with sensitive files kept on hardware they own"
+        slots: []
+  - id: tools
+    title: Tools
+    items:
+      - id: tools
+        text: "LangGraph, Claude Agent SDK, Claude Code, MCP, OpenRouter, AWS, EKS, GCP, Docker, Grafana."
+        claims:
+          - file: corpus/00-profile.md
+            quote: "LangGraph, Claude Agent SDK, Claude Code, MCP, OpenRouter, AWS, EKS, GCP, Docker, Grafana"
+        slots: []

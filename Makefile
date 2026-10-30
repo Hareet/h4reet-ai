@@ -117,8 +117,9 @@ PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts 
 CONTAINED = @if [ "$${SANDBOX_RUNTIME:-}" != 1 ] && [ "$${H4_DEVCONTAINER:-}" != 1 ]; then \
   echo "make $@ runs node_modules or pytest, which agents can write: run it in the devcontainer, or read the merge-request note's make check output (plan §11)" >&2; exit 2; fi
 
-# npm runs a workspace script only once a workspace exists; with none, it fails with "No workspaces found".
-WORKSPACES := $(wildcard services/*/package.json)
+# npm runs a workspace script only once a workspace exists; with none, it fails with "No workspaces found". The
+# services, then the apps (spec 002's room, apps/web), as the root package.json's workspaces list them.
+WORKSPACES := $(wildcard services/*/package.json apps/*/package.json)
 WORKSPACE_DIRS := $(patsubst %/package.json,%,$(WORKSPACES))
 NPM_WS = $(if $(WORKSPACES),npm $(1) --workspaces --if-present,@echo "npm $(1): no workspaces yet")
 # Every shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), NUL-separated, so no name is
@@ -134,7 +135,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test secrets arrival evals redteam=redteam-suite matrix image
+CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -199,14 +200,14 @@ git-hooks: ## Install the git hooks that keep main the Author's, once per clone 
 	git config gc.packRefs false; \
 	echo "git hooks: installed in $$hooks"
 
-build: ## Build the workspaces, then the gateway's and the compose images on the agents' engine, where there is one; prints BUILD OK
+build: ## Build the workspaces, then the gateway's, the room's, and the compose images on the agents' engine, where there is one; prints BUILD OK
 	$(CONTAINED)
 	$(call NPM_WS,run build)
 ifeq ($(ENGINE_MODE),relay)
 	@$(call ENGINE_PROBE,build)
-	@$(RELAY) make --no-print-directory gateway-image compose-images ENV=dev-cpu || { echo "build: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
+	@$(RELAY) make --no-print-directory gateway-image web-image compose-images ENV=dev-cpu || { echo "build: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
 else ifeq ($(ENGINE_MODE),direct)
-	@$(MAKE) --no-print-directory gateway-image compose-images
+	@$(MAKE) --no-print-directory gateway-image web-image compose-images
 else
 	@echo "compose images: $(if $(filter none-yet,$(ENGINE_MODE)),no agents' engine yet (tasks.md T046),no docker CLI here; the Author's gate builds them on the agents' engine)"
 endif
@@ -250,6 +251,19 @@ test-fast: ## The quick subset
 	$(call NPM_WS,run test:unit)
 	$(PYTEST) $(PYTEST_ARGS) -m "not slow" $(PYTEST_DIRS)
 
+# The published-content check (spec 002, T080; contracts/resume-source.md §5): the room built without drafts, whatever
+# the shell's ROOM_DRAFTS, its prebuild reading main's policy; then tools/gates/content_check.py, human-only, which
+# reads main's approvals itself and fails when the build publishes a content file main doesn't approve, by its own
+# account in room-data.json or in the text of any file in dist/. The build's approvals code is agent-editable; the
+# check isn't. PLANNED until the approvals patch adds the script. The Author's gate runs the same check from main's
+# tree, over a build in its container phase.
+content-check: ## The room's published content against main's approvals, after a build without drafts (spec 002, T080)
+	$(CONTAINED)
+	@# One shell: the PLANNED exit must end the recipe, not only its own line.
+	@if [ ! -f tools/gates/content_check.py ]; then echo "PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch"; exit 0; fi; \
+	set -x; ROOM_DRAFTS= npm run build -w apps/web && \
+	$(PY_HOST) tools/gates/content_check.py --tree . --dist apps/web/dist --repo .
+
 corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local denylist
 	$(PY_HOST) corpus/tools/check_corpus.py
 
@@ -286,11 +300,13 @@ assets-credits: ## Render assets/CREDITS.md and docs/research/images/CREDITS.md 
 credits-check: ## Check the credits' renderings and the records' form against the records, writing nothing (spec 003)
 	$(PY_HOST) scripts/assets/credits.py --check
 
-evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, the behavioral tier's status, and the docs' links
+evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the narration suite (fake only), the agent-config static tier, the behavioral tier's status, and the docs' links
 	@case "$${ADAPTER:-fake}" in fake) ;; \
 	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
 	  *) echo "ADAPTER must be fake, local, or bedrock" >&2; exit 2 ;; esac
 	$(PY_HOST) evals/run.py --suite product --adapter $${ADAPTER:-fake} $$([ "$${ADAPTER:-}" = local ] && echo --stack $(ENV))
+	@# Spec 002's narration scripts, one case each, on the fake adapter whatever ADAPTER says (contracts/narration.md §2).
+	$(PY_HOST) evals/run.py --suite narration --adapter fake
 	$(PY_HOST) evals/agent-config/static.py
 	$(PY_HOST) evals/agent-config/behavioral.py status
 	@# Every relative link in README.md, docs/, and specs/ resolves, and every ADR is two clicks from the README (SC-009).
@@ -337,6 +353,12 @@ PULL_MODELS = if [ -f $(1)/deploy/scripts/pull-models.sh ]; then bash $(1)/deplo
 # gateway in compose, as its compose file says.
 GATEWAY_IMAGE = if [ -f $(1)/deploy/scripts/gateway_image.py ]; then $(PY_HOST) $(1)/deploy/scripts/gateway_image.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)); \
   else echo "gateway image: the commit being run has no deploy/scripts/gateway_image.py, so its compose file builds the gateway"; fi
+# The room's image (spec 002, contracts/web-serving.md §1): deploy/scripts/web_image.py, from $(1), the tree being
+# started, builds h4reet-web:<ref><H4_WEB_SUFFIX> outside compose, on every run, with ROOM_DRAFTS only in a -drafts
+# build, and main's policy files read from this working tree (--repo, as preflight's) by refs/heads/main. A commit older
+# than the script, which a rollback can run, has no web service either.
+WEB_IMAGE = if [ -f $(1)/deploy/scripts/web_image.py ]; then $(PY_HOST) $(1)/deploy/scripts/web_image.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR); \
+  else echo "web image: the commit being run has no deploy/scripts/web_image.py, and no web service"; fi
 
 ifeq ($(VIA_RELAY),1)
 # Inside the sandbox: the same target again, through the relay, on the agents' engine. MAKEFLAGS carries the rest of
@@ -346,11 +368,12 @@ up down logs status:
 	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make $@: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
 	$(RELAY) make --no-print-directory $@ ENV=dev-cpu
 else
-up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, the gateway's image, then every service, healthy
+up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, the gateway's and the room's images, then every service, healthy
 	@$(if $(RUNFILE),:,[ -z "$(call from_cli,REF)" ] || { echo "make up: dev-cpu runs the working tree; REF= is for prod and dev" >&2; exit 2; })
 	$(PY_HOST) $(TREE)/deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR)$(REF_ARG)
 	@$(call PULL_MODELS,$(TREE),)
 	@$(call GATEWAY_IMAGE,$(TREE))
+	@$(call WEB_IMAGE,$(TREE))
 	@# Every service healthy, or status names the one that isn't, with its health output and error lines, redacted;
 	@# the rest keep running, and hello answers degraded (plan §4). --remove-orphans retires a service the commit dropped.
 	@$(COMPOSE) up -d --build --remove-orphans --wait --wait-timeout 600; up=$$?; \
@@ -391,16 +414,16 @@ pull: ## (the Author) Pull every image by digest, Docker Hub's one at a time wit
 # The image gate (plan §11): SKIP before the agents' engine exists (tasks.md T046), and FAIL once it exists and
 # doesn't answer within ENGINE_PROBE_SECONDS (T167), or doesn't build them. The devcontainer has no docker CLI; the
 # Author's gate builds the images on the engine.
-image: ## The image gate: the gateway's and the compose images built on the agents' engine (plan §11)
+image: ## The image gate: the gateway's, the room's, and the compose images built on the agents' engine (plan §11)
 ifeq ($(ENGINE_MODE),relay)
 	@$(call ENGINE_PROBE,image)
-	@$(RELAY) make --no-print-directory gateway-image compose-images ENV=dev-cpu || { echo "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
+	@$(RELAY) make --no-print-directory gateway-image web-image compose-images ENV=dev-cpu || { echo "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
 else ifeq ($(ENGINE_MODE),none-yet)
 	@echo "SKIP: no agents' engine yet: tasks.md T046"
 else ifeq ($(ENGINE_MODE),no-cli)
 	@echo "SKIP: no docker CLI here (the devcontainer); the Author's gate builds the images on the agents' engine"
 else
-	@$(MAKE) --no-print-directory gateway-image compose-images
+	@$(MAKE) --no-print-directory gateway-image web-image compose-images
 endif
 
 # The images this tree builds, on the agents' engine only: through the relay in a session (DOCKER_HOST is the relay's),
@@ -417,6 +440,12 @@ AGENTS_ENGINE_ONLY = case "$${DOCKER_HOST:-}" in \
 gateway-image:
 	@$(AGENTS_ENGINE_ONLY)
 	$(PY_HOST) deploy/scripts/gateway_image.py --stack dev-cpu --env-file deploy/env.agents/dev-cpu.vars
+
+# The room's image, h4reet-web:working-tree-drafts, outside compose, as make up ENV=dev-cpu builds it (spec 002), with
+# main's policy files read from this working tree.
+web-image:
+	@$(AGENTS_ENGINE_ONLY)
+	$(PY_HOST) deploy/scripts/web_image.py --stack dev-cpu --env-file deploy/env.agents/dev-cpu.vars --repo $(CURDIR)
 
 # compose's own images (the Telegram stand-in and the breach probe), in every profile, with dev-cpu's env file.
 compose-images:
@@ -581,8 +610,8 @@ endif
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
-.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image compose-images pin-images \
+.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
+	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
