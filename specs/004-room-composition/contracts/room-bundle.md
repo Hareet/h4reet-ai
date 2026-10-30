@@ -120,7 +120,8 @@ interface RoomIndex {
           poll_ms: number; freshness_ms: number };      // tier-signal.md §1
   ui: Record<string, string>;                           // every UI word's text, by key, slots unfilled
   selectables: { id: string; name: string; members: string[];
-                 action: { kind: "talk"; topic: string } | { kind: "resume" } }[];   // scene order; no lead
+                 action: { kind: "talk"; topic: string } | { kind: "resume" };
+                 side_wall: boolean }[];   // scene order; no lead; side_wall: FR-064's carve-out
   topics: { id: string; phrase: string; ready: false }[];
   faces: { id: string;                                  // "<placement>.<role>"
            placement: string; role: string; readable: boolean; label: string;
@@ -152,6 +153,7 @@ interface RoomIndex {
 
 - **`build.kind`** lets the renderers mark a drafts build's figures "test" (FR-049) and its draft text "Draft" (FR-030); `placeholders` is the manifest's (§6).
 - **`ui`** holds the closed list's keys and the data's `label.<name>` keys; a `label` field anywhere in the index is one of those keys.
+- **`selectables[].side_wall`** is true when every member is mounted directly on the shell's `left-wall` or `right-wall` anchor, as the compositor reads the scene's mounts, never an ID (FR-064's carve-out; [room-data-files.md](room-data-files.md) §13.3). At a stage the 3D room or the 2D room has, the kernel's `pick.ts` finds which such selectables can't keep their exclusive core; the room draws no pick area or 2D cue for those, a pick on their members selects nothing, and the "In the room" list reaches them. That may happen at any stage (the spec's Clarifications, 2026-10-26, D1's condition, T302), so the runtime measures the stage it has, with the same function RG6 and the report use; where a side-wall selectable keeps its core, it is picked as any selectable is.
 - **`faces[].screen_css`** is the face's largest on-screen size at the reference stages, so a canvas is at most min(`px`, `screen_css` × the device's pixel ratio), scaled down by the quality level (FR-054).
 - **`flat`** is the composed 2D room (FR-058): each placement's drawing projected through `framing(1.6)` into the 320 × 200 view box, scaled by the pixels per metre at its depth, and drawn back to front; each pose's drawing with its cable as a quadratic curve, shown by toggling `visibility`; each face's frame, where the renderers' SVG backend draws; each selectable's hit rectangles with their depths; the stand-ins' labels; the hand-off's three paper positions; and the visitor's cut-out. Numbers and resolved colours only, from an allowlist, so the 2D room sets attributes, never `style`, and the CSP needs no change.
 - **`copy`** lists the text copy's entries in order, by reference: the bound faces in placement order, the switches, the sign's figures, and the fixed lines (the illustration's note, the affiliation line, and "Paused at" while paused). The words come at run time from the renderers' own word lists, so the 3D room, the 2D room, and the text copy can't differ (FR-034, FR-063).
@@ -355,6 +357,13 @@ First visit, the room's share: 2,204,113 gzip-9 bytes of placed models and cards
 | Face | Readable | Desktop | Phone | Floor | Margin | Status |
 |---|---|---:|---:|---:|---:|---|
 | `<placement>.<role>` | yes | 11.2 px | 9.4 px | 9 | 0.4 px | readable |
+| `<placement>.<role>` | yes | 10.1 px | 7.2 px | 9 | −1.8 px | exempt on the phone, carried by the text copy's "Around the room" |
+
+Side-wall selectables (FR-064): the room draws no pick area for them at the stages named, and the "In the room" list reaches them.
+
+| Selectable | 3D | 2D |
+|---|---|---|
+| `<selectable>` (left-wall) | list-only at 304 × 208 and 3 others | list-only at 304 × 208 and 3 others |
 
 | Switch | Poses | Desktop | Phone | Status |
 |---|---|---:|---:|---|
@@ -369,7 +378,8 @@ Findings: none.
 | Per piece | how many placements and poses show it; its source, the studio file's stem, or "stand-in" with its reason (§6); its model's plain bytes and the `.gz`'s bytes, triangles, and texture memory, beside its budget; its stylized scale where above 1 | FR-051, FR-073 |
 | Totals | the largest per-piece figures against the caps; the scene's texture memory by class (models, image cards, avatars, live-face canvases at the reference phone's pixel ratio) against `scene_texture_bytes`, summed as RK3 sums it, with a note while the twin's or the avatars' files don't exist | FR-053, FR-054 |
 | First visit | the room's share in gzip-9 bytes (the placed models' `.glb.gz` and the cards), beside the design's estimate of 12,000,000 and the enforced limit, `first_visit_bytes.phase3` (25,000,000); and spec 003's F3 view, every file under `assets/room/` (Amendment C6) | FR-053, SC-006 |
-| Legibility | for each bound face and each reference stage: its smallest cap height in CSS pixels, to 0.1, the floor, and the margin; `readable`, `atmosphere (max <n>)`, or `under` | FR-052, SC-010 |
+| Legibility | for each bound face and each reference stage: its smallest cap height in CSS pixels, to 0.1, the floor, and the margin; `readable`, `atmosphere (max <n>)`, `exempt on the phone, carried by the text copy's "Around the room"` (a readable face whose regions all have the `signal` `turn-cost`, under the floor on the reference phone and at or above it on the reference desktop: RG7's one exemption), or `under` | FR-052, SC-010 |
+| Side-wall selectables | after the legibility table: each side-wall selectable that is list-only at one or more supported stages, with its wall (`left-wall` or `right-wall`); the 3D stages where it is list-only, as the first by size and how many others, or `–`; and the same for the 2D drawing, by the stages whose scale it is drawn at; or the line "Side-wall selectables: none." A selectable is named by its ID only where RT2 passed it. RG6 refuses no side-wall selectable for a missing core (the spec's Clarifications, 2026-10-26, T302), so this section is where those stages show | FR-064, SC-009 |
 | Switches | the case-to-pose table, and for every two poses that show different placements, the largest on-screen displacement, or the size of the cue the look adds, on each stage; `apart`, or flagged `under the floor` (RG8) | FR-052, SC-010 |
 | Findings | every finding's line, or "none"; in the image build, the lenient ones marked `warn` | FR-009, FR-013 |
 
