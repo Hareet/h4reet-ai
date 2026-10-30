@@ -1,5 +1,5 @@
 P-5: spec 004's amendments to the arrival check (tasks.md T036; contracts/intake-amendments.md §7; FR-015, FR-023,
-FR-077 items 3 and 4). Made on feat/004-intake, and regenerated on feat/004-intake-r2 against main's three files as
+FR-077 items 3 and 4). Made on feat/004-intake, and regenerated on feat/004-intake-r2 against main's four files as
 a964494 has them, unchanged at main 130d011 (P-1 to P-4 applied); apply after M8, then the P-6 commit, P-7, and P-8
 (docs/merge-requests/2026-10-30-feat-004-intake-r2.md). git apply skips this header.
 
@@ -9,14 +9,16 @@ a964494 has them, unchanged at main 130d011 (P-1 to P-4 applied); apply after M8
 
         +MARK_HUMAN = "digitalCreation"
 
-It changes three files:
+It changes four files:
 - tools/gates/arrival_check.py: M5 (C1, the mark the record's steps call for, and trainedAlgorithmicMedia alone
   under assets/twin/ and docs/research/images/), R1 (C2, design), P2 (C4, screens_plain_live_face, true or
   not_applicable), P1 (C5, likeness_accepted not_applicable for a room file with no likeness; spec 003's breadth
-  otherwise, with a WARN line, which fails nothing, for a hand-made or composite file outside it), F3 (C6, every room
-  file at gzip-9, phase 3 once assets/room/ holds one), F2 (C7, per_asset.room's six keys, exit 2 otherwise), and
-  AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7").
+  otherwise, with a WARN line, which fails nothing, for a hand-made or composite file outside it that the changes
+  being checked add or change), F3 (C6, every room file at gzip-9, phase 3 once assets/room/ holds one), F2 (C7,
+  per_asset.room's six keys, exit 2 otherwise), and AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6",
+  "004-C7").
 - tools/gates/test/test_arrival_check.py and tools/gates/test/arrival_fixtures.py: §7's cases, built at run time.
+- tools/gates/test/test_run_checks.py: one case, make check reading the arrival check's WARN line as PASS.
 
 Regenerated after T041's review (part 1, I1 and nit 5) and its re-review (part 1): P1 then asked main's approval of
 any file whose record's steps call for a mark but trainedAlgorithmicMedia, wherever it lives, and R4 had such a
@@ -32,8 +34,15 @@ or a photo source. A hand-made or composite file outside them passes with one li
 
 Spec 003's R7 case keeps the composite mark its steps call for, with no approval.
 
+And after that branch's review (APPROVE with fixes): the line names only a file the changes being checked add or
+change, the staged files, each walked commit's, or the named paths. The last pass over a tip's whole tree records
+none, so a file main already holds isn't named again at every later gate (N-1). Pinned besides: per_asset.room with
+small_props [], the Author's P-6, holding no texture to its side while the other caps hold; and make check's
+run_checks.py reading the WARN line as PASS (N-5). The gate's own classify reads the same three prefixes; its tests
+are P-10's file, so this patch leaves it alone.
+
 diff --git a/tools/gates/arrival_check.py b/tools/gates/arrival_check.py
-index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542e7818621 100644
+index cf6451d304c5394a55f9708d151f75862b264f5f..c95d692db755eeee0f3615f436a8cdd2acd3f948 100644
 --- a/tools/gates/arrival_check.py
 +++ b/tools/gates/arrival_check.py
 @@ -24,6 +24,24 @@ Standard library only. Human-only: the hook, make check, and the gate each run t
@@ -61,17 +70,19 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
  The modes: --staged checks the index's added and changed files, and the directories they touch. --range A..B checks
  each commit in it: the files it added or changed, as it had them, and their directories; for a merge, what it holds
  that differs from every parent, so a conflict's resolution is checked; then B's whole tree, so a deletion is judged
-@@ -34,7 +52,8 @@ branch isn't main: the Author's own policy commits on main are expected.
+@@ -34,7 +52,10 @@ branch isn't main: the Author's own policy commits on main are expected.
  Output: one line per finding, `<rule> <path>[ @<commit>]: <reason>`, then the size table, the totals, and a summary.
  Exit 0: nothing refused. 1: at least one finding. 2: it can't check (a range that doesn't resolve, a path outside the
  repository, git failing, or a studio file that needs the policy while the main branch has none or it doesn't parse).
 -A run that meets no studio file needs no policy.
 +A run that meets no studio file needs no policy. A warning, `WARN <path>[ @<commit>]: <reason>`, follows the findings,
-+and no exit code counts it (spec 004, Amendment C1).
++and no exit code counts it (spec 004, Amendment C1). It names only a file the changes being checked add or change (the
++staged files, each walked commit's, or the named paths); the last pass over a tip's whole tree records none, so a file
++main already holds isn't named again at every later gate.
  """
  
  from __future__ import annotations
-@@ -71,6 +90,13 @@ NOTICE = "LICENSE.md"
+@@ -71,6 +92,13 @@ NOTICE = "LICENSE.md"
  DISCLOSURE = "docs/data-flow-disclosure.md"
  MEDIA_LICENSE = "all-rights-reserved-2026"
  MAIN = "refs/heads/main"
@@ -85,7 +96,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
  
  ADMITTED = {
      ".png": "png",
-@@ -116,15 +142,32 @@ BY_EXTENSION = {
+@@ -116,15 +144,32 @@ BY_EXTENSION = {
      **{ext: "a model" for ext in MODEL_EXT},
  }
  
@@ -124,7 +135,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
  XPACKET_BEGIN = re.compile(
      rb"\A\s*<\?xpacket begin=([\"'])(?:\xef\xbb\xbf)?\1 id=([\"'])W5M0MpCehiHzreSzNTczkc9d\2\?>"
  )
-@@ -454,6 +497,24 @@ class Size:
+@@ -454,6 +499,24 @@ class Size:
      texture: int | None = None
  
  
@@ -149,7 +160,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
  @dataclass
  class Parsed:
      """What a container's parse found: problems by rule, the parts that hold text, and the mark's byte ranges."""
-@@ -466,6 +527,10 @@ class Parsed:
+@@ -466,6 +529,10 @@ class Parsed:
      vertices: int | None = None
      triangles: int | None = None
      texture: int | None = None
@@ -160,7 +171,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
  
      def bad(self, rule: str, reason: str) -> None:
          self.problems.append((rule, reason))
-@@ -475,38 +540,47 @@ class Parsed:
+@@ -475,38 +542,47 @@ class Parsed:
  # The mark's packet (M5)
  # --------------------------------------------------------------------------------------------------
  def mark_problems(packet: bytes) -> list[str]:
@@ -216,7 +227,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
      rdf = root[0]
      if (
          len(rdf) != 1
-@@ -514,19 +588,19 @@ def mark_problems(packet: bytes) -> list[str]:
+@@ -514,19 +590,19 @@ def mark_problems(packet: bytes) -> list[str]:
          or not blank(rdf.tail)
          or rdf[0].tag != f"{{{RDF_NS}}}Description"
      ):
@@ -241,7 +252,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          value = attrs[prop]
      else:
          if (
-@@ -537,17 +611,18 @@ def mark_problems(packet: bytes) -> list[str]:
+@@ -537,17 +613,18 @@ def mark_problems(packet: bytes) -> list[str]:
          ):
              return [
                  "the mark's packet holds a property other than Iptc4xmpExt:DigitalSourceType"
@@ -265,7 +276,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
  
  
  # --------------------------------------------------------------------------------------------------
-@@ -759,8 +834,10 @@ def parse_png(data: bytes, out: Parsed) -> None:
+@@ -759,8 +836,10 @@ def parse_png(data: bytes, out: Parsed) -> None:
                      start = end - len(text)
                      out.marks.append((start, end))
                      out.texts.append(("the mark's packet", start, text))
@@ -277,7 +288,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          elif kind == b"iCCP":
              name_bytes, _, rest = body.partition(b"\0")
              out.texts.append(("the ICC profile's name", pos + 8, name_bytes))
-@@ -859,8 +936,10 @@ def parse_jpeg(data: bytes, out: Parsed) -> None:
+@@ -859,8 +938,10 @@ def parse_jpeg(data: bytes, out: Parsed) -> None:
                  # The segment's identifier, the XMP namespace A4 searches for, is part of the mark.
                  out.marks.append((body_at, text_at + len(text)))
                  out.texts.append(("the mark's packet", text_at, text))
@@ -289,7 +300,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
              else:
                  out.bad("M2", f"an APP1 segment at byte {start} that isn't the mark")
          elif marker == 0xE2 and body.startswith(b"ICC_PROFILE\x00") and len(body) >= 14:
-@@ -945,8 +1024,10 @@ def parse_webp(data: bytes, out: Parsed) -> None:
+@@ -945,8 +1026,10 @@ def parse_webp(data: bytes, out: Parsed) -> None:
              start = at + 8
              out.marks.append((start, start + len(body)))
              out.texts.append(("the mark's packet", start, body))
@@ -301,7 +312,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          elif kind == b"ICCP":
              check_icc(body, out)
          elif kind == b"VP8 " and len(body) >= 10 and not out.width:
-@@ -1447,11 +1528,14 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
+@@ -1447,11 +1530,14 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
              or set(packets) != {"packets"}
          ):
              out.bad("M5", "the mark's KHR_xmp_json_ld holds more than one packet")
@@ -318,7 +329,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          if asset_ext.get("KHR_xmp_json_ld") != {"packet": 0}:
              out.bad("M5", "the asset doesn't reference the mark's packet")
          others = [
-@@ -1544,6 +1628,7 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
+@@ -1544,6 +1630,7 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
          lo, hi = ranges[index]
          inner = inspect_image(binary_chunk[lo:hi])
          out.texture += inner.width * inner.height * 4 * 4 // 3
@@ -326,7 +337,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          for rule, reason in inner.problems:
              if rule == "M9":
                  out.bad("M9", f"images[{i}], embedded: {reason}")
-@@ -1619,11 +1704,61 @@ CONFIRMS = (
+@@ -1619,11 +1706,61 @@ CONFIRMS = (
      "recreation_not_photo",
      "record_complete",
  )
@@ -389,7 +400,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
  
  
  def parse_policy(texts: dict[str, bytes]) -> Policy:
-@@ -1682,6 +1817,10 @@ def parse_policy(texts: dict[str, bytes]) -> Policy:
+@@ -1682,6 +1819,10 @@ def parse_policy(texts: dict[str, bytes]) -> Policy:
          caps.get("per_asset"), dict
      ):
          raise PolicyError("caps.json has no adr_0010 or per_asset")
@@ -400,7 +411,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
      if not isinstance(visit, dict) or not all(
          isinstance(visit.get(k), int) for k in ("phase2", "phase3")
      ):
-@@ -1863,6 +2002,7 @@ class Record:
+@@ -1863,6 +2004,7 @@ class Record:
              or item.get("kind") == "room"
              or self.directory == "assets/twin"
              or self.directory.startswith("assets/twin/")
@@ -408,7 +419,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          ):
              required.append("approval")
          if self.published:
-@@ -1905,9 +2045,13 @@ class Record:
+@@ -1905,9 +2047,13 @@ class Record:
          source = item.get("source")
          if isinstance(source, dict):
              self.keys(source, ("type", "id"), ("type", "id"), f"{where}.source")
@@ -424,7 +435,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
                  )
              sid = source.get("id")
              if isinstance(sid, str) and r5_problem(sid):
-@@ -2032,6 +2176,36 @@ def disclosure_rows(text: bytes | None) -> set[str]:
+@@ -2032,6 +2178,36 @@ def disclosure_rows(text: bytes | None) -> set[str]:
      )
  
  
@@ -461,12 +472,14 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
  def licenses_of(entry: dict) -> list[tuple[str, str, str, str | None]]:
      """(what, license, version, commercial license) for each model, tool, and service an entry names."""
      found = []
-@@ -2079,8 +2253,12 @@ class Checker:
+@@ -2079,8 +2255,14 @@ class Checker:
          self.git = git
          self.findings: list[Finding] = []
          self._seen: set[tuple[str, str, str]] = set()
-+        # What no exit code counts: a hand-made or composite file P1 doesn't hold (spec 004, Amendment C1).
++        # What no exit code counts: a hand-made or composite file P1 doesn't hold (spec 004, Amendment C1), recorded
++        # only for the files the changes being checked add or change, never for one main already holds.
 +        self.warnings: list[Finding] = []
++        self.warn_for: set[str] = set()
          self._files: dict[tuple[str, str], None] = {}
          self.sizes: dict[str, Size] = {}
 +        # What a file's parse found that its entry's rules read (spec 004, Amendments C1 and C7), by the file's SHA-256.
@@ -474,21 +487,22 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          self.reasons: list[str] = []
          self._policy: Policy | None = None
          self._policy_tried = False
-@@ -2097,6 +2275,13 @@ class Checker:
+@@ -2097,6 +2279,14 @@ class Checker:
              self._seen.add(key)
              self.findings.append(Finding(rule, path, reason, commit))
  
 +    def warn(self, path: str, reason: str, commit: str | None) -> None:
-+        """A WARN line, once per file and reason, which fails nothing."""
++        """A WARN line, once per file and reason, which fails nothing: only for a file the changes being checked add or
++        change (check_changes), so a range's last pass over the tip's whole tree records none."""
 +        key = ("WARN", path, reason)
-+        if key not in self._seen:
++        if path in self.warn_for and key not in self._seen:
 +            self._seen.add(key)
 +            self.warnings.append(Finding("WARN", path, reason, commit))
 +
      def cannot(self, reason: str) -> None:
          if reason not in self.reasons:
              self.reasons.append(reason)
-@@ -2121,7 +2306,13 @@ class Checker:
+@@ -2121,7 +2311,13 @@ class Checker:
              try:
                  self._policy = parse_policy(texts)
              except PolicyError as exc:
@@ -503,7 +517,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          return self._policy
  
      # -- one file ------------------------------------------------------------------------------
-@@ -2225,6 +2416,9 @@ class Checker:
+@@ -2225,6 +2421,9 @@ class Checker:
                  parsed.triangles,
                  parsed.texture,
              )
@@ -513,7 +527,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
              return
          if path.startswith(POLICY):
              return
-@@ -2337,6 +2531,18 @@ class Checker:
+@@ -2337,6 +2536,18 @@ class Checker:
                  tree, f"{directory}/{name}", item, record, policy, published, commit
              )
  
@@ -532,7 +546,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
      def check_entry(
          self,
          tree: Tree,
-@@ -2357,6 +2563,19 @@ class Checker:
+@@ -2357,6 +2568,19 @@ class Checker:
              self.add(
                  "N2", path, "its media_license differs from the directory's", commit
              )
@@ -552,7 +566,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          if policy is None:
              return
          for what, lid, version, commercial in licenses_of(entry):
-@@ -2401,22 +2620,44 @@ class Checker:
+@@ -2401,22 +2625,44 @@ class Checker:
                      commit,
                  )
          kind = entry.get("kind")
@@ -607,7 +621,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
              approval = good[0] if good else None
              if approval is None:
                  why = (
-@@ -2438,14 +2679,19 @@ class Checker:
+@@ -2438,14 +2684,19 @@ class Checker:
                      "its record's approval ID isn't the one the main branch's approval of this hash carries",
                      commit,
                  )
@@ -630,7 +644,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
                      commit,
                  )
          if path.startswith("assets/twin/"):
-@@ -2471,11 +2717,15 @@ class Checker:
+@@ -2471,11 +2722,15 @@ class Checker:
                  f"an {kind} while caps.json says ADR 0010 isn't accepted (FR-018)",
                  commit,
              )
@@ -651,7 +665,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          size = self.sizes.get(path)
          measured = {
              "bytes": len(data),
-@@ -2495,6 +2745,49 @@ class Checker:
+@@ -2495,6 +2750,49 @@ class Checker:
          if published and arm in ("B", "D"):
              self.check_caption(tree, path, entry, commit)
  
@@ -701,7 +715,27 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
      def check_caption(
          self, tree: Tree, path: str, entry: dict, commit: str | None
      ) -> None:
-@@ -2561,10 +2854,21 @@ class Checker:
+@@ -2545,10 +2843,15 @@ class Checker:
+                 continue
+             if in_roots(path):
+                 touched.add(parent(path))
+-        for path in changed:
+-            self.check_file(tree, path, commit)
+-        for directory in sorted(touched):
+-            self.check_dir(tree, directory, commit)
++        # A warning names a file these changes add or change, not another its directory's record holds (C1).
++        self.warn_for = {path for path in changed if in_roots(path)}
++        try:
++            for path in changed:
++                self.check_file(tree, path, commit)
++            for directory in sorted(touched):
++                self.check_dir(tree, directory, commit)
++        finally:
++            self.warn_for = set()
+ 
+     def check_tree(self, tree: Tree, commit: str | None) -> None:
+         """Every asset directory in a tree, whole, and the first visit's total."""
+@@ -2561,10 +2864,21 @@ class Checker:
          self.first_visit_total(tree, commit)
  
      def first_visit_total(self, tree: Tree, commit: str | None) -> None:
@@ -727,7 +761,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
              return
          policy = self.policy()
          if policy is None:
-@@ -2578,12 +2882,10 @@ class Checker:
+@@ -2578,12 +2892,10 @@ class Checker:
                  )
              return self.sizes[path].gzip
  
@@ -743,7 +777,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
          visitors: dict[str, int] = {}
          for p in glbs:
              if p.startswith("assets/visitors/"):
-@@ -2799,7 +3101,7 @@ def run_paths(top: Path, checker: Checker, names: list[str]) -> None:
+@@ -2799,7 +3111,7 @@ def run_paths(top: Path, checker: Checker, names: list[str]) -> None:
  # Output
  # --------------------------------------------------------------------------------------------------
  def report(checker: Checker) -> str:
@@ -752,7 +786,7 @@ index cf6451d304c5394a55f9708d151f75862b264f5f..d53d787eea87317d2e95906e5b38a542
      rows = [s for s in checker.sizes.values() if in_roots(s.path)]
      if rows:
          width = max(36, max(len(s.path) for s in rows) + 2)
-@@ -2833,8 +3135,10 @@ def report(checker: Checker) -> str:
+@@ -2833,8 +3145,10 @@ def report(checker: Checker) -> str:
          else ""
      )
      count = len(checker.findings)
@@ -847,7 +881,7 @@ index 148abc5e6498e4d2f313ad21269e7ac0c60e3096..b3ec08e4173f0b4edb9af2b5523eaa19
  
  def caps(
 diff --git a/tools/gates/test/test_arrival_check.py b/tools/gates/test/test_arrival_check.py
-index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..3c17e7f0b9a10b8e838c087d6dfd6835192bb6a0 100644
+index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..4d1869cfc1b056c1c7f6f1a7b136f4c066606565 100644
 --- a/tools/gates/test/test_arrival_check.py
 +++ b/tools/gates/test/test_arrival_check.py
 @@ -4,6 +4,12 @@ contracts/arrival-check.md §5).
@@ -863,7 +897,15 @@ index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..3c17e7f0b9a10b8e838c087d6dfd6835
  """
  
  from __future__ import annotations
-@@ -654,7 +660,10 @@ def test_r6_a_model_step_without_its_refresh_date_or_after_made(
+@@ -32,6 +38,7 @@ LINE = re.compile(
+     r"^(?P<rule>[A-Z]\d+) (?P<path>\S+)(?: @(?P<commit>[0-9a-f]{7,40}))?: (?P<reason>.+)$"
+ )
+ DOG = "assets/visitors/dog"
++CAT = "assets/visitors/cat"
+ TWIN = "assets/twin"
+ NOTE_DIR = "docs/research/images/2026-10-12-image-model-evaluation"
+ NOTE = "docs/research/2026-10-12-image-model-evaluation.md"
+@@ -654,7 +661,10 @@ def test_r6_a_model_step_without_its_refresh_date_or_after_made(
  
  
  def test_r7_a_service_whose_disclosure_row_doesnt_exist(repo: fx.Repo) -> None:
@@ -875,7 +917,7 @@ index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..3c17e7f0b9a10b8e838c087d6dfd6835
      step = {
          "name": "upscale",
          "by": "hand",
-@@ -1209,3 +1218,703 @@ def test_a_path_outside_the_repository_is_refused_without_naming_it(
+@@ -1209,3 +1219,749 @@ def test_a_path_outside_the_repository_is_refused_without_naming_it(
      run = check(repo, str(stray))
      assert run.code == 2 and "arrival-check: can't check" in run.out, run.out
      assert "private-name" not in run.out and "elsewhere" not in run.out
@@ -1414,8 +1456,8 @@ index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..3c17e7f0b9a10b8e838c087d6dfd6835
 +def test_c1_the_warning_at_the_hook_and_once_per_file_in_a_range(
 +    repo: fx.Repo,
 +) -> None:
-+    # The pre-commit hook's run shows it before the commit; a range names the commit, once, though the tip's tree is
-+    # checked again after the commit.
++    # The pre-commit hook's run shows it before the commit; a range names the commit that adds the file, once: its
++    # last pass over the tip's whole tree records no warning.
 +    data = marked("png", TERMS["hand"])
 +    record = fx.entry("still.png", data, steps=STEPS["hand"]())
 +    repo.directory(DOG, {"still.png": data}, [record])
@@ -1429,6 +1471,33 @@ index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..3c17e7f0b9a10b8e838c087d6dfd6835
 +    (warning,) = warned(run)
 +    assert warning["path"] == f"{DOG}/still.png", run.out
 +    assert warning["commit"] and sha.startswith(warning["commit"]), run.out
++
++
++@pytest.mark.parametrize(
++    "folder", [CAT, DOG], ids=["another-folder", "the-same-folder"]
++)
++def test_c1_no_warning_for_a_file_main_already_holds(
++    repo: fx.Repo, folder: str
++) -> None:
++    # A warning is for each file the range adds or changes (T041's re-review of feat/004-intake-r2, N-1): main holds a
++    # hand-made still, the branch adds an unrelated file, and the gate's range says nothing of the still, though its
++    # last pass reads the tip's whole tree, and, in the same folder, the still's records.json changes.
++    still = marked("png", TERMS["hand"])
++    held = fx.entry("still.png", still, steps=STEPS["hand"]())
++    repo.git("switch", "-q", "main")
++    repo.directory(DOG, {"still.png": still}, [held])
++    repo.commit("main: a hand-made still")
++    repo.git("branch", "-q", "-f", "feature", "main")
++    repo.git("switch", "-q", "feature")
++    other = fx.png(width=2, height=2)
++    entries = [fx.entry("other.png", other)] + ([held] if folder == DOG else [])
++    files = {"other.png": other} | ({"still.png": still} if folder == DOG else {})
++    repo.directory(folder, files, entries)
++    repo.commit("an unrelated model-made still")
++    run = check(repo, "--range", "main..HEAD")
++    assert run.code == 0 and run.findings == [], run.out
++    assert warned(run) == [], run.out
++    assert "warning" not in run.out.rstrip().splitlines()[-1], run.out
 +
 +
 +def test_c1_r4_one_model_step_needs_no_approval_key(repo: fx.Repo) -> None:
@@ -1529,6 +1598,25 @@ index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..3c17e7f0b9a10b8e838c087d6dfd6835
 +    assert check_room(repo, "desk.glb").code == 0
 +
 +
++@pytest.mark.parametrize(
++    "over, refused", [({}, False), ({"gzip_bytes": 10}, True)], ids=["passes", "gzip"]
++)
++def test_c7_f2_no_small_props_holds_no_texture_to_its_side(
++    tmp_path: Path, over: dict, refused: bool
++) -> None:
++    # The Author's P-6 names no small prop ("small_props []", 2026-10-30): the block reads, no room file's textures are
++    # held to small_prop_texture_px, and the other caps still hold.
++    data = fx.glb(image=fx.png(width=8, height=8, mark=False))
++    room = {**fx.ROOM_CAPS, "small_props": [], "small_prop_texture_px": 4, **over}
++    repo = room_repo(tmp_path, {"mug.glb": data}, room=room)
++    run = check_room(repo, "mug.glb")
++    if refused:
++        assert run.code == 1 and run.rules(f"{ROOM}/mug.glb") == {"F2"}, run.out
++        assert ["gzip" in f["reason"] for f in run.findings] == [True], run.out
++    else:
++        assert run.code == 0 and run.findings == [], run.out
++
++
 +def test_c7_f2_a_room_file_while_main_has_no_room_caps(tmp_path: Path) -> None:
 +    data = fx.glb()
 +    repo = room_repo(tmp_path, {"desk.glb": data}, room=None)
@@ -1579,3 +1667,27 @@ index 8e1aee880ef658dbaf4c12b8503c0b77b9999902..3c17e7f0b9a10b8e838c087d6dfd6835
 +    assert key in run.out
 +    for value in ("2500000", "Mug Shelf", "1000", "-9", "95000000"):
 +        assert value not in run.out
+diff --git a/tools/gates/test/test_run_checks.py b/tools/gates/test/test_run_checks.py
+index c22646bfecc2b4dab529a5ab153628fb2be11aaa..dd1570b39225f06ffd4d5981b0b23e0cf801730d 100644
+--- a/tools/gates/test/test_run_checks.py
++++ b/tools/gates/test/test_run_checks.py
+@@ -67,6 +67,19 @@ def test_fail_and_pending_fail_the_run_but_it_keeps_going(
+     assert "failing: fail FAIL, pending PENDING" in out
+ 
+ 
++def test_the_arrival_checks_warning_reads_pass() -> None:
++    # Spec 004's P-5: the arrival check's WARN line, for a hand-made or composite file that needs no approval, fails
++    # nothing (spec 004, contracts/intake-amendments.md §7, As built), so its gate stays PASS.
++    gate = rc.parse("arrival")
++    output = (
++        "WARN assets/visitors/dog/still.png: its record's steps call for the hand-made mark, and the file needs no "
++        "approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)\n"
++        "arrival-check: 0 findings in 3 files, 1 warning\n"
++    )
++    rc.classify(gate, 0, output)
++    assert (gate.status, gate.notes) == ("PASS", [])
++
++
+ def test_a_missing_target_is_skip_with_its_task_or_fail_without(
+     project: Path, capsys: pytest.CaptureFixture[str]
+ ) -> None:
