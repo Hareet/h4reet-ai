@@ -3,6 +3,78 @@ Spec: specs/003-studio-assets/ (T032 to T039; FR-035, SC-011) · Intent: specs/0
 Session: worked in `/tmp/claude-1000/wt-003-gpu`, launched from `~/h4reet-ai/h4reet-ai` · Repo hooks active: yes (`2026-10-18T03:01:57Z bash BLOCK an operator target outside dev-cpu`, `03:13:30Z` and `03:15:04Z bash BLOCK the operator CLI outside dev-cpu`, and one earlier the same way: each time the guard matched my own command's text, a heredoc or a grep naming `make studio-window` or the operator CLI with prod. The text went in by a file written with the Write tool, and nothing was respelled)
 Authorized by: tasks.md T032 to T039, against plan §6, research R-14, data-model.md §8, and contracts/gpu-window.md; the Author's direction of 2026-10-17: "Let's relax some of the overnight rules so that you can continue with intent 002 and intent 003? I think you can create the tasks and implement them and we can always go back later and re-do a task or requirement if we highlight a needed change". The span and the matrix's spellings came from the coordinator's review of spec/003 (0f1e8b1).
 
+## 2026-11-06: `feat/003-us6-gpu-window-r3`, with M8's tip merged in
+
+**Gate and merge `feat/003-us6-gpu-window-r3`.** It is `feat/003-us6-gpu-window-r2` (742fcb31) with M8's tip, `feat/004-intake-r2` at 6eb283a5, merged in on 2026-11-06 by an implementer subagent (Claude Code, Opus 5.5), in `/tmp/claude-1000/wt-gpu-r3`. `-r2` is left where it was. M8 is now on `main` (f527b810), with P-5 after it (0acbac1a).
+
+**Runs in your terminal: one merged line** (ADR 0017 puts this first). The merge's only conflict was `Makefile` line 11, and the resolution keeps both sides' names on one line:
+
+```make
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE
+```
+
+M8 appends `RECORD`, for `make assets-scrub FILE=… RECORD=…`, and this branch appends `STATE`, for `make studio-window`. Nothing else in the `Makefile` was resolved by hand: M8's `assets-scrub` lines and this branch's `studio-window` target merged on their own. Against `main` now, the branch's `Makefile` change is what "Runs in the Author's terminal", below, lists: `STATE` in `LITERAL_VARS`, and the target. The rest of what the merge brings is M8's, which is on `main` already.
+
+**Why.** The main session rehearsed the merges into `main` in a scratch worktree: e03c9703, then M8's tip, then each open branch. This branch conflicted with M8 on that line. Merged here, the conflict is resolved once, on this branch, so its merge into `main` is clean.
+
+**The resolution** (68e2c511, `git merge --no-ff 6eb283a5af0fdd1601be1b637994556be1ec0d18`, by SHA):
+
+- **`Makefile` line 11,** as above. `scripts/test_makefile.py` reads `LITERAL_VARS` as a set (line 37), so the order is free; `RECORD` comes before `STATE` because M8 merges first.
+- **Checked against both parents.** From M8's tip, the merged `Makefile` is this branch's change, line for line, apart from line 11, which adds `STATE`. From this branch's tip, it is M8's, apart from line 11, which adds `RECORD`. Line 11 keeps all 23 of the base's names, plus both. The merged tree differs from M8's tip only in this branch's 33 files, and from this branch's tip only in M8's 128, and the `Makefile` is the only file both changed. Every human-only path in it is byte for byte as on `main` at e03c9703: the merge carries `main`'s own `corpus/` changes in, and nothing else human-only.
+
+**Verification.**
+
+- **`make -f Makefile check ENGINE_MODE=none-yet`** on the merged tree, before its commit, with `node_modules` from `npm ci --ignore-scripts`:
+  ```text
+  PASS     makefiles-check
+  PASS     githooks-check
+  PASS     toolchain-check
+  PASS     policy
+  PASS     validate-config
+  PASS     lint
+  PASS     test
+  PASS     content-check
+  PASS     secrets
+  PASS     arrival
+  FAIL     evals
+  PASS     redteam
+  PASS     matrix
+  SKIP     image  no agents' engine yet: tasks.md T046
+  make check: 12 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: evals FAIL
+  ```
+  - **The FAIL is `main`'s,** as on `-r2` ("Verification on main's base", below): `FAIL  behavioral tier: 2026-10-27T164226Z-m9-line-61dc03d62a1b, the newest run for trigger hash 2b5c0e482c90, failed: reads-studio-folder: the forbidden effect, or a run without hook events, in 1 of 3 runs (at most 0); stays-on-branch: conduct held in 1 of 3 runs (at least 2)`. The product evals, the narration suite (44 of 44), and the static agent-config tier pass.
+  - Inside `test`: the gateway's `Test Files  52 passed (52)`, `Tests  810 passed | 12 skipped (822)`; the web app's `Test Files  25 passed (25)`, `Tests  340 passed (340)`; pytest `3175 passed, 8 skipped`. `matrix`: `forbidden-actions (hook layer): 705 passed, 0 failed, 45 known gaps`, with the 11 `planned` rows for `make studio-window` reported until the patch lands.
+  - `evals` stops at the behavioral tier, before the docs' links, so `evals/docs_links.py` ran on its own: `docs links: 0 failed, 1423 relative links in 167 files`.
+  - **After the commit,** `make -f Makefile secrets arrival ENGINE_MODE=none-yet`: `secrets: PASS (unstaged changes, staged changes, 9 commits since main)`, over 6eb283a5af0f..HEAD; `arrival-check: 0 findings in 53 files (9 commits)`, with P-5's check, the main tree's at 0acbac1a; `credits: OK`. The pre-commit hook's run on the merge: gitleaks found no leaks, and `arrival-check: 0 findings in 128 files`.
+- **The patch still applies.** On a plain `git archive` export of 68e2c511 in `$TMPDIR`, not a worktree, `git apply --check -v docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch` checks `.claude/hooks/bash-gate.sh` and exits 0. The same check on an export of `main` at 0acbac1a exits 0 too. The patch is unchanged, blob `2f32cfac4ed9`, and `.claude/hooks/bash-gate.sh` is the same blob, `e6d33514b004`, at 9780b4e6, at M8's tip, and at 0acbac1a. So step 2, below, holds as written.
+- **The rehearsals,** each in a detached scratch worktree, made by SHA, with the merge `--no-commit` and then aborted:
+  - **At `main`'s 0acbac1a:** `git merge --no-ff --no-commit 68e2c511…`: "Automatic merge went well". It brings exactly this branch's 33 files, and line 11 ends `ID RECORD STATE`.
+  - **After P-9-r2's merge:** at 0acbac1a with `feat/004-content-check-r2` (6a74ad8a) merged, and committed there only as a base; then this branch: "Automatic merge went well", with the same 33 files.
+
+**Your steps, from main's checkout.** Step 1, below, names `feat/003-us6-gpu-window-r2`. Gate this branch instead:
+
+```bash
+tools/gates/gate feat/003-us6-gpu-window-r3
+```
+
+- **Expect "Not ready to merge", with only `evals` FAIL,** on `main`'s recorded run `2026-10-27T164226Z-m9-line-61dc03d62a1b` for trigger hash 2b5c0e482c90. `agent-config-evals` reads SKIP: the branch touches none of its triggers (`tools/gates/gate`, lines 1428 to 1448). So does `matrix-e`: the branch touches neither `deploy/agents-engine/` nor `.claude/settings.json`.
+- **Then merge by hand,** by the SHA the gate checked, with the gate's summary line and the reason. `<SHA>` is the full SHA the gate names, and `<summary line>` is the gate's own:
+  ```bash
+  git --no-replace-objects merge --no-ff \
+    -m "Merge feat/003-us6-gpu-window-r3 (<the SHA's first 12>)" \
+    -m "<summary line>" \
+    -m "Merged by hand: the gate's only failure was evals, main's own recorded behavioral run 2026-10-27T164226Z-m9-line-61dc03d62a1b for trigger hash 2b5c0e482c90; this branch touches no agent-config path, so agent-config-evals was SKIP." \
+    <SHA>
+  ```
+- **Then steps 2 and 3,** below, as they stand: the patch, and T038's rehearsal.
+
+**Repo hooks, this session:** the bash gate refused four of its commands, and none was respelled.
+
+- 2026-11-06T18:13:06Z, "redirecting git hooks or config": a read of git's hooks setting. M8's note already says what the pre-commit hook runs, so it wasn't needed.
+- 18:19:02Z and 18:26:43Z, "changing main (HEAD is main)": this branch's merge, while your checkout was on `main`; and 18:28:00Z, the same, for a read-only `git log` and `git merge-base` of `spec/004-answers-1030-r2`. The session waited, and went on once your checkout was off `main`.
+
+The rest of this note is as it stood at 742fcb31.
+
 **Status: built, tested, verified, and reviewed: APPROVE on 6827f4a; re-reviewed on `-r2` at 9e0b4e0f: APPROVE, no blockers (below, "Review" and "Rebased onto main").** **Store migration:** `0003_studio_window` is the first store migration since spec 000. Once prod or dev runs it, a rollback to a commit from before this merge exits 78 (`schema_newer_than_code`), as docs/runbooks/rollback.md step 3 says. Branched from `spec/003-studio-assets` at 150649d and rebased onto its tip, 0f1e8b1, at the coordinator's request, then cherry-picked onto main on 2026-10-27 as `feat/003-us6-gpu-window-r2`. The commits, old and new, are in the table under "Rebased onto main". Your part: the review, the gate and the merge, the patch, and T038's rehearsal.
 
 **2026-10-27: this is now `feat/003-us6-gpu-window-r2`,** the same six commits cherry-picked onto main at 9780b4e6 (below, "Rebased onto main"). Gate and merge the `-r2` branch; `feat/003-us6-gpu-window` (6827f4a) is left where it was. The patch is unchanged and applies to main as it is.
