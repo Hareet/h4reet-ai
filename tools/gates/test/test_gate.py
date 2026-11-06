@@ -222,6 +222,12 @@ if control.exists():
 print("{ok}")
 """
 
+# The settings check's verdict line on a pass (contracts/intake-amendments.md §5, Output).
+SETTINGS_PASS = (
+    "studio-settings: PASS: the studio session's settings deny the photos folder and the blinding key, to the file "
+    "tools and in the sandbox, and give it no route to a loopback listener"
+)
+
 # What the branch commits in place of the Author's code: anything that runs it leaves a marker.
 HOSTILE = """#!/usr/bin/env python3
 from pathlib import Path
@@ -446,6 +452,11 @@ def fx(tmp_path: Path) -> Fixture:
             name="credits",
             ok="credits: OK: the renderings and the records' form",
         ),
+    )
+    # Spec 004's studio-settings step (P-10): the main tree's settings check, a stand-in that logs how it ran.
+    write(
+        main / "tools/gates/studio_settings_check.py",
+        STUB_SCRIPT.format(depth=3, name="studio_settings_check", ok=SETTINGS_PASS),
     )
     git(main, "add", "-A")
     git(main, "commit", "-qm", "init")
@@ -1844,6 +1855,236 @@ def test_without_mains_arrival_check_the_step_fails(fx: Fixture) -> None:
     assert "arrival_check.py is missing" in row(done, "arrival")
 
 
+# --------------------------------------------------------------------------------------------------
+# Spec 004's studio-settings step, P-10 (FR-025, SC-013; contracts/intake-amendments.md §12): after arrival, main's
+# tools/gates/studio_settings_check.py under PY_HOST, when the range adds or changes a file under assets/ outside
+# assets/policy/; SKIP otherwise
+# --------------------------------------------------------------------------------------------------
+STUDIO_FILE = "assets/room/desk.glb"
+
+
+def branch_of(fx: Fixture, *commits: tuple[dict[str, str], tuple[str, ...]]) -> str:
+    """A branch off main with one commit per (files written, paths removed)."""
+    git(fx.main, "switch", "-q", "main")
+    git(fx.main, "switch", "-qc", "feature")
+    for files, removed in commits:
+        for rel, text in files.items():
+            write(fx.main / rel, text)
+        if files:
+            git(fx.main, "add", "-f", "--", *files)
+        if removed:
+            git(fx.main, "rm", "-q", "--", *removed)
+        git(fx.main, "commit", "-qm", "feature work")
+    sha = git(fx.main, "rev-parse", "HEAD")
+    git(fx.main, "switch", "-q", "main")
+    return sha
+
+
+def settings_section(done: subprocess.CompletedProcess[str]) -> list[str]:
+    """The step's own lines: from its heading to its result line, then its line in the final table."""
+    lines = done.stdout.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("== studio-settings"))
+    end = next(
+        i
+        for i in range(start, len(lines))
+        if lines[i].startswith("-> ") and lines[i].split()[2:3] == ["studio-settings"]
+    )
+    return [*lines[start : end + 1], row(done, "studio-settings")]
+
+
+def table_order(done: subprocess.CompletedProcess[str]) -> list[str]:
+    names = []
+    for line in done.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] in STATUSES and not line.startswith("-> "):
+            names.append(parts[1])
+    return names
+
+
+@pytest.mark.parametrize(
+    "commits",
+    [
+        pytest.param((({STUDIO_FILE: "glb\n"}, ()),), id="added"),
+        pytest.param((({"assets/twin/still.png": "changed\n"}, ()),), id="changed"),
+        pytest.param(
+            (({STUDIO_FILE: "glb\n"}, ()), ({}, (STUDIO_FILE,))),
+            id="added-then-removed-in-the-range",
+        ),
+        pytest.param(
+            (({"assets/CREDITS.md": "credits, changed\n", **CHANGE}, ()),),
+            id="outside-a-subfolder",
+        ),
+    ],
+)
+def test_a_range_that_brings_a_studio_file_in_runs_mains_settings_check(
+    fx: Fixture, commits: tuple
+) -> None:
+    on_main(fx, {"assets/twin/still.png": "main's\n", "assets/CREDITS.md": "credits\n"})
+    branch_of(fx, *commits)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    # main's own check, as the Author runs it: no option, through PY_HOST's flags.
+    (run,) = fx.logged("studio_settings_check")
+    assert run["argv"] == []
+    assert (run["isolated"], run["no_bytecode"], run["pycache_prefix"]) == (
+        1,
+        1,
+        "/dev/null",
+    )
+    assert status_of(done, "studio-settings") == "PASS"
+    # Its lines in the gate's report, for the note.
+    assert SETTINGS_PASS in settings_section(done)
+    # A host step after arrival, before the image.
+    order = table_order(done)
+    assert order.index("arrival") + 1 == order.index("studio-settings")
+    assert order.index("studio-settings") < order.index("image")
+
+
+@pytest.mark.parametrize(
+    "commits",
+    [
+        pytest.param(((CHANGE, ()),), id="no-asset"),
+        pytest.param(
+            (({"assets/policy/caps.json": '{"schema": 1}\n'}, ()),), id="policy-only"
+        ),
+        pytest.param(((CHANGE, ("assets/twin/still.png",)),), id="removed-only"),
+        pytest.param(
+            (({"docs/assets/room.md": "not under assets/\n"}, ()),),
+            id="assets-elsewhere",
+        ),
+    ],
+)
+def test_a_range_with_no_studio_file_skips_the_step(
+    fx: Fixture, commits: tuple
+) -> None:
+    on_main(fx, {"assets/twin/still.png": "main's\n"})
+    branch_of(fx, *commits)
+    done = gate(fx, "feature")
+    assert status_of(done, "studio-settings") == "SKIP"
+    assert (
+        row(done, "studio-settings").split(None, 2)[2] == "no studio file in the range"
+    )
+    assert fx.logged("studio_settings_check") == []
+
+
+@pytest.mark.parametrize("rc", [1, 2])
+def test_a_check_that_finds_something_or_cant_check_fails_the_step(
+    fx: Fixture, rc: int
+) -> None:
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    finding = "SS4 photos: no scope's sandbox.filesystem.denyRead holds it"
+    (fx.logs / "studio_settings_check.control").write_text(
+        f"{rc}\nstudio-settings: FAIL: 1 findings\n{finding}", encoding="utf-8"
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "studio-settings") == "FAIL"
+    assert "failing: studio-settings FAIL" in summary(done)
+    # Its lines in the gate's report, whatever the exit.
+    section = settings_section(done)
+    assert "studio-settings: FAIL: 1 findings" in section
+    assert finding in section
+    if rc == 2:
+        assert "couldn't check" in row(done, "studio-settings")
+
+
+def test_a_check_that_prints_skip_still_passes_or_fails_by_its_exit(
+    fx: Fixture,
+) -> None:
+    # The step reads the check's exit alone: a line that make check's rules would read as SKIP changes nothing.
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    (fx.logs / "studio_settings_check.control").write_text(
+        "1\nSKIP: nothing to see", encoding="utf-8"
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "studio-settings") == "FAIL"
+
+
+def test_without_mains_settings_check_the_step_fails(fx: Fixture) -> None:
+    git(fx.main, "rm", "-q", "tools/gates/studio_settings_check.py")
+    git(fx.main, "commit", "-qm", "main without the check")
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    done = gate(fx, "feature")
+    assert status_of(done, "studio-settings") == "FAIL"
+    assert "studio_settings_check.py is missing" in row(done, "studio-settings")
+
+
+@pytest.mark.parametrize(
+    "outcome", ["pass", "finding", "cant-check", "missing", "skip"]
+)
+def test_the_steps_lines_hold_no_path(fx: Fixture, outcome: str) -> None:
+    if outcome == "missing":
+        git(fx.main, "rm", "-q", "tools/gates/studio_settings_check.py")
+        git(fx.main, "commit", "-qm", "main without the check")
+    if outcome in ("finding", "cant-check"):
+        (fx.logs / "studio_settings_check.control").write_text(
+            f"{1 if outcome == 'finding' else 2}\nstudio-settings: FAIL: 1 findings\n"
+            "SS1 photos: the folder list has a placeholder left",
+            encoding="utf-8",
+        )
+    files = CHANGE if outcome == "skip" else {STUDIO_FILE: "glb\n"}
+    branch_of(fx, (files, ()))
+    done = gate(fx, "feature")
+    section = "\n".join(settings_section(done))
+    # No path of this machine's (the main tree, the Author's home, the gate's temporary folder), and no name of a
+    # file in the range.
+    assert str(fx.root) not in section
+    assert str(fx.home) not in section
+    assert STUDIO_FILE not in section and "desk.glb" not in section
+
+
+def test_the_check_gets_the_authors_claude_config_dir_and_nothing_else_of_the_shell(
+    fx: Fixture,
+) -> None:
+    # The check reads the user scope from $CLAUDE_CONFIG_DIR when the Author's shell sets it (§5, What it reads).
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    gate(
+        fx,
+        "feature",
+        CLAUDE_CONFIG_DIR=str(fx.home / ".claude-elsewhere"),
+        H4_PROBE_CANARY="canary",
+        GIT_DIR="/nonexistent",
+    )
+    (run,) = fx.logged("studio_settings_check")
+    assert "CLAUDE_CONFIG_DIR" in run["env_keys"]
+    assert set(run["env_keys"]) <= {
+        "PATH",
+        "HOME",
+        "LC_ALL",
+        "LC_CTYPE",
+        "PWD",
+        "CLAUDE_CONFIG_DIR",
+    }
+
+
+def test_without_claude_config_dir_the_check_gets_none(fx: Fixture) -> None:
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    gate(fx, "feature")
+    (run,) = fx.logged("studio_settings_check")
+    assert "CLAUDE_CONFIG_DIR" not in run["env_keys"]
+
+
+def test_the_branchs_own_settings_check_never_runs(fx: Fixture) -> None:
+    marker = fx.logs / "EXPORT-studio-settings"
+    branch_of(
+        fx,
+        (
+            {
+                STUDIO_FILE: "glb\n",
+                "tools/gates/studio_settings_check.py": HOSTILE.format(
+                    marker=str(marker)
+                ),
+            },
+            (),
+        ),
+    )
+    done = gate(fx, "feature")
+    assert not marker.exists()
+    (run,) = fx.logged("studio_settings_check")
+    assert run["argv"] == []
+    assert status_of(done, "studio-settings") == "PASS"
+
+
 def test_missing_gitleaks_fails_closed(fx: Fixture) -> None:
     fx.branch(CHANGE)
     (fx.stubs / "gitleaks").unlink()
@@ -2805,6 +3046,56 @@ def test_with_no_policy_on_main_the_build_gets_an_empty_one(fx: Fixture) -> None
     gate(fx, "feature")
     (build,) = web_builds(fx.docker())
     assert build["policy"] == {}
+
+
+# Spec 004, P-10 (FR-053; contracts/intake-amendments.md §12): main's caps join the policy the build reads.
+MAIN_HEADER = '{"schema": 1, "header": {}}\n'
+MAIN_CAPS = '{"schema": 1, "room": {"total_gzip_bytes": 1}}\n'
+
+
+def test_the_build_gets_mains_caps_read_only_beside_the_other_policy_files(
+    fx: Fixture,
+) -> None:
+    on_main(
+        fx,
+        {
+            "assets/policy/content-approvals.json": MAIN_APPROVALS,
+            "assets/policy/resume-header.json": MAIN_HEADER,
+            "assets/policy/caps.json": MAIN_CAPS,
+        },
+    )
+    fx.branch(
+        {
+            **ROOM_BRANCH,
+            "assets/policy/caps.json": '{"schema": 1, "room": {"total_gzip_bytes": 999999999}}\n',
+        }
+    )
+    done = gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    # main's three files, as the names the build reads, never the branch's caps; the mount is read-only.
+    assert build["policy"] == {
+        "caps.json": MAIN_CAPS,
+        "content-approvals.json": MAIN_APPROVALS,
+        "resume-header.json": MAIN_HEADER,
+    }
+    assert build["policy_readonly"] is True
+    assert has(build["argv"], "--env", "ROOM_POLICY_DIR=/policy")
+    assert status_of(done, "content-build") == "PASS"
+
+
+def test_without_caps_on_main_the_build_gets_none(fx: Fixture) -> None:
+    # The compositor then takes its defaults (contracts/intake-amendments.md §8).
+    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
+    fx.branch(
+        {
+            **ROOM_BRANCH,
+            "assets/policy/caps.json": MAIN_CAPS,
+        }
+    )
+    gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
+    assert build["policy_readonly"] is True
 
 
 def test_a_build_that_publishes_a_draft_fails_the_gate(fx: Fixture) -> None:

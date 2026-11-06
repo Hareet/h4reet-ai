@@ -37,8 +37,9 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
    validate-config, test, evals, redteam-suite, matrix (stage H), and credits-check (spec 003's credits and records,
    SKIP for a branch from before them). Every container drops all capabilities, sets
    no-new-privileges, and runs as the Author's uid on that copy. When the export has the room (apps/web), the room is
-   built last, without drafts, its scripts off, with main's two policy files mounted read-only at /policy
-   (content-build; spec 002, T080), and the host then runs main's content_check.py over the export and that build's
+   built last, without drafts, its scripts off, with main's policy files mounted read-only at /policy: the content
+   approvals, the resume header, and, since spec 004's P-10, the caps, each absent there when main lacks it
+   (content-build; spec 002, T080; spec 004, FR-053), and the host then runs main's content_check.py over the export and that build's
    dist/ (content): it fails when the build publishes a content file main doesn't approve, by its own account or in
    any file's text. main's policy is read by the branch's full ref, refs/heads/main, never a tag of that name.
 4. Host phase:
@@ -67,6 +68,11 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
      whole tree, read as git data, with the license allowlist, the approvals, and the caps read from refs/heads/main
      (contracts/arrival-check.md). The branch's credits renderer is agent-editable, so its check, make credits-check,
      runs in the container phase;
+   - studio-settings: spec 004's step (FR-025, SC-013; its contracts/intake-amendments.md §12). When the range adds
+     or changes a file under assets/ outside assets/policy/, in any of its commits or in the tree it ends at, the
+     main tree's tools/gates/studio_settings_check.py runs with no option, as the Author runs it, on the settings the
+     studio's session loads, with the shell's CLAUDE_CONFIG_DIR when set: PASS on exit 0, FAIL on any other, its
+     lines in the report. Otherwise SKIP: no studio file in the range. The step names no path or file of the range;
    - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
      only after the policy passed, because an unvetted build could read host files into the engine. First the engine
      must answer one docker version within ENGINE_PROBE_SECONDS (15), as make image asks it (tasks.md T167), or the
@@ -186,11 +192,18 @@ CONTAINER_TARGETS = (
 )
 STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
 # The room's content policy on main (spec 002, contracts/resume-source.md §5): each file's path there, and its name in
-# the directory the room's build reads; and that build, without drafts, with no pre- or post-scripts (T080).
+# the directory the room's build reads; and that build, without drafts, with no pre- or post-scripts (T080). Spec 004
+# adds main's caps, so the release-like build applies main's caps and legibility floor, as prod's image does; a file
+# main lacks is absent there, and the compositor takes its defaults (FR-053; contracts/intake-amendments.md §8, §12).
 POLICY_FILES = (
     ("assets/policy/content-approvals.json", "content-approvals.json"),
     ("assets/policy/resume-header.json", "resume-header.json"),
+    ("assets/policy/caps.json", "caps.json"),
 )
+# Spec 004's studio-settings step (FR-025, SC-013; contracts/intake-amendments.md §12): a range that adds or changes a
+# file under STUDIO_ROOT, outside STUDIO_POLICY, brings studio files in, so main's settings check runs.
+STUDIO_ROOT = "assets/"
+STUDIO_POLICY = "assets/policy/"
 WEB_BUILD = ["npm", "run", "--ignore-scripts", "build", "-w", "apps/web"]
 # gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
 # exit code of their own, and its log is read: a line at any level but these means the scan may be partial.
@@ -1320,6 +1333,78 @@ def arrival(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
     return classify(step, rc, out)
 
 
+def studio_files(repo: Path, base: str, sha: str) -> list[str] | None:
+    """The files under STUDIO_ROOT, outside STUDIO_POLICY, that the range adds or changes, or None when git can't say:
+    in any of its commits, so a file a later commit removes still counts, since it stays in the history the merge
+    brings in; and in the tree it ends at, which holds what a merge's resolution adds."""
+    net = changed_paths(repo, base, sha, "--diff-filter=d", under=STUDIO_ROOT)
+    each = git(
+        repo,
+        "log",
+        "--no-renames",
+        "--name-only",
+        "-z",
+        "--format=",
+        "--diff-filter=d",
+        f"{base}..{sha}",
+        "--",
+        STUDIO_ROOT,
+        binary=True,
+    )
+    if net is None or each.returncode:
+        return None
+    found = set(net) | {
+        p.decode("utf-8", "surrogateescape") for p in each.stdout.split(b"\0") if p
+    }
+    return sorted(
+        p
+        for p in found
+        if p.startswith(STUDIO_ROOT) and not p.startswith(STUDIO_POLICY)
+    )
+
+
+def studio_settings(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
+    """Spec 004's studio-settings step (FR-025, SC-013; contracts/intake-amendments.md §12): when the range brings a
+    studio file in, main's tools/gates/studio_settings_check.py, as the Author runs it, with no option, under PY_HOST,
+    on the settings the studio's session loads on this machine. PASS on exit 0, FAIL on any other; its lines go into
+    the report above the step's, for the note. The step names no path and no file of the range: the check prints
+    folder and scope names and hashes only (§5), and the step adds a count."""
+    begin(
+        "studio-settings",
+        "main's studio settings check, when the range brings a studio file in",
+    )
+    step = Step("studio-settings")
+    if base is None:
+        return step.fail(
+            "no merge base with main, so the range's studio files can't be named"
+        )
+    files = studio_files(repo, base, sha)
+    if files is None:
+        return step.fail("git couldn't name the range's files under assets/")
+    if not files:
+        return step.set("SKIP", "no studio file in the range")
+    checker = repo / "tools" / "gates" / "studio_settings_check.py"
+    if not checker.is_file():
+        return step.fail(
+            "main's tools/gates/studio_settings_check.py is missing (spec 004, P-3)"
+        )
+    count = f"{len(files)} studio file{'s' if len(files) != 1 else ''}"
+    say(f"{count} in the range, so main's check runs")
+    # The Author's own CLAUDE_CONFIG_DIR, when the shell sets it: the check reads the user scope there (§5).
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    extra = {"CLAUDE_CONFIG_DIR": config_dir} if config_dir else {}
+    rc, _ = stream(py_host(checker), tool_env(**extra), tmp)
+    if rc == 0:
+        return step.set("PASS", f"{count}; the check's lines are above, for the note")
+    if rc == 1:
+        return step.fail(
+            f"{count}; the check found what its lines above name, for the note"
+        )
+    return step.fail(
+        f"the studio settings check exited {rc}: it couldn't check, which counts as a failure; its lines are above"
+    )
+
+
 def engine_problem(docker: str, engine: dict[str, str], tmp: Path) -> str | None:
     """Why the image step can't build on the agents' engine, or None when the engine answered one docker version
     within ENGINE_PROBE_SECONDS, as make image asks it (tasks.md T167). At the bound, subprocess.run kills the client
@@ -1875,6 +1960,7 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
         report.add(gitleaks(repo, sha, base, tmp))
         report.add(gitleaks_tree(repo, export_dir, tmp))
         report.add(arrival(repo, sha, base, tmp))
+        report.add(studio_settings(repo, sha, base, tmp))
         report.add(image(export_dir, policy_step, tmp, sha))
         report.add(stage_e(repo, paths, prove, ref))
         report.add(agent_config_evals(repo, export_dir, base, paths))
