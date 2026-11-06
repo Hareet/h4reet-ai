@@ -471,6 +471,7 @@ A value is a string, or `{text, about_author: true, claims}` for a word that sta
 | `toolbar.credits` | – | "Credits" | FR-065; C9 |
 | `standin.label` | `{name}` | a stand-in's label | FR-029 |
 | `standin.note` | – | the note that placeholder shapes are in use | FR-013 |
+| `flat-failed` | – | "This drawing of the room could not be shown. The list below still works.", shown in the stage when the 2D drawing can't be drawn (the Author, 2026-10-30: "flat-failed is good") | FR-081 |
 | `draft.badge` | – | "Draft" | FR-030 |
 
 How the sign's readings combine is [turn-cost.md](turn-cost.md)'s. Every value passes C9; C6 and C8 apply where it states anything about the Author, and a live value in a slot counts as a slot for C6 (RT2, RT3, RT5; FR-035). Amounts are live values, never UI words, so no UI word holds a digit outside a slot (FR-048). Spec 002's fixed messages stay in its `messages.yaml`; `topic_not_ready`'s `{topic}` now takes the topic's phrase.
