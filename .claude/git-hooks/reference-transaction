@@ -5,6 +5,12 @@
 # command runs inside Claude Code, which sets CLAUDECODE=1 in the shells it starts. The Author's own
 # terminal doesn't set it, so the Author's merges go through. bash-gate.sh blocks agents from
 # unsetting CLAUDECODE or redirecting core.hooksPath.
+# It also refuses creating or changing a ref outside refs/heads that a bare `main` names: git reads `main` as main
+# (a file at the top of .git), refs/main, and refs/tags/main before refs/heads/main, then refs/remotes/main and
+# refs/remotes/main/HEAD, so a tag named main would answer for main wherever it's written bare (fix/000-main-ref).
+# Any other ref outside refs/heads whose last component is main is refused too, as are main-worktree/main and
+# worktrees/<id>/main, but not a remote-tracking branch, refs/remotes/<remote>/main, which is <remote>/main. Deleting
+# one goes through.
 # git passes the state ("prepared", "committed", or "aborted") as $1 and one line per update on stdin:
 # "<old-value> <new-value> <ref-name>". Only a failure in "prepared" aborts the transaction. The old
 # value is all zeros whenever the caller didn't state one, so the check compares the new value with
@@ -20,5 +26,18 @@ while read -r _old new ref; do
     echo "Blocked by .claude/git-hooks/reference-transaction: only the Author changes main (ADR 0013). Work on a feature branch; the Author merges it." >&2
     exit 1
   fi
+  case "$ref" in
+    refs/heads/*) continue ;;
+    main | refs/main | refs/tags/main | refs/remotes/main | refs/remotes/main/HEAD) ;;
+    refs/remotes/*/main) continue ;;
+    */main) ;;
+    *) continue ;;
+  esac
+  # A deletion's new value is all zeros; anything else (an object ID, or ref:<target> for a symbolic ref) refuses.
+  if [ -n "$new" ] && [ -z "${new//0/}" ]; then
+    continue
+  fi
+  echo "Blocked by .claude/git-hooks/reference-transaction: a bare main would name $ref beside refs/heads/main (git reads main, refs/main, and refs/tags/main first), and the Author's gate stops while one exists. Name the tag or ref anything else." >&2
+  exit 1
 done
 exit 0

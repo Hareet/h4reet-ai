@@ -836,6 +836,107 @@ def test_a_replace_ref_stops_the_gate_before_anything_runs(fx: Fixture) -> None:
     assert fx.docker() == [] and fx.gitleaks() == []
 
 
+# A ref beside refs/heads/main that a bare main names (fix/000-main-ref): git reads main as main (a file at the top of
+# .git), refs/main, and refs/tags/main before refs/heads/main, and refs/remotes/main and refs/remotes/main/HEAD after
+# it. An agent session can write any of them: .git/refs/tags is writable in its sandbox. Each case, and the name the
+# gate shows for it.
+SHADOWS = {
+    "refs/tags/main": "refs/tags/main",
+    "refs/tags/main, annotated": "refs/tags/main",
+    "refs/tags/main, packed": "refs/tags/main",
+    "refs/tags/main, a symbolic ref": "refs/tags/main",
+    "refs/main": "refs/main",
+    "main": "main (",
+    "refs/remotes/main": "refs/remotes/main",
+    "refs/remotes/main/HEAD": "refs/remotes/main/HEAD",
+}
+
+
+def shadow_main(repo: Path, case: str, commit: str) -> None:
+    """Make the ref a case of SHADOWS names, at a commit, as an agent session could: main itself as a file at the top
+    of .git (git 2.43's update-ref writes it there; this way doesn't depend on git's version)."""
+    name = case.split(",")[0]
+    if case == "main":
+        path = git(repo, "rev-parse", "--path-format=absolute", "--git-path", "main")
+        Path(path).write_text(f"{commit}\n", encoding="utf-8")
+    elif case.endswith("annotated"):
+        git(repo, "tag", "-a", "-m", "a tag named main", "main", commit)
+    elif case.endswith("a symbolic ref"):
+        git(repo, "symbolic-ref", name, "refs/heads/feature")
+    else:
+        git(repo, "update-ref", name, commit)
+        if case.endswith("packed"):
+            # Tags only (and refs already packed): refs/heads/main stays loose, and refs/tags/main is in packed-refs
+            # alone.
+            git(repo, "pack-refs")
+
+
+@pytest.mark.parametrize("case", list(SHADOWS))
+def test_a_ref_a_bare_main_names_stops_the_gate_before_anything_runs(
+    fx: Fixture, case: str
+) -> None:
+    # Your own git diff main...<branch> before a merge would read it, so the gate stops, as on refs/replace, and names it.
+    sha = fx.branch(CHANGE)
+    shadow_main(fx.main, case, sha)
+    done = gate(fx, "feature")
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert status_of_export_failure(done)
+    (line,) = [ln for ln in done.stdout.splitlines() if ln.startswith("-> FAIL export")]
+    assert SHADOWS[case] in line and "refs/heads/main" in line, line
+    assert fx.docker() == [] and fx.gitleaks() == []
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "refs/remotes/origin/main",
+        "refs/tags/main-v1",
+        "refs/tags/v1/main",
+        "refs/heads/topic/main",
+    ],
+)
+def test_a_ref_a_bare_main_never_names_leaves_the_gate_alone(
+    fx: Fixture, name: str
+) -> None:
+    # A remote-tracking branch (origin/main), a tag whose name only starts with main or ends in /main, and a branch:
+    # git reads none of them for a bare main.
+    sha = fx.branch(CHANGE)
+    git(fx.main, "update-ref", name, sha)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "main-refs" not in done.stdout
+
+
+# A docker that writes a tag named main whenever the gate runs a container: a ref made while the gate runs, after the
+# export's check.
+TAG_MAIN_DURING_RUN = r"""#!/usr/bin/env python3
+import os, subprocess, sys
+here = os.path.dirname(os.path.abspath(__file__))
+if sys.argv[1:2] == ["run"]:
+    subprocess.run(["git", "-C", @REPO@, "update-ref", "refs/tags/main", @SHA@], check=True)
+real = os.path.join(here, "docker.real")
+os.execv(real, [real, *sys.argv[1:]])
+"""
+
+
+def test_a_ref_a_bare_main_names_made_while_the_gate_runs_holds_back_the_merge(
+    fx: Fixture,
+) -> None:
+    # The container phase runs for minutes; a tag made meanwhile would answer for main in your git diff
+    # main...<branch> before the merge, so finish() looks again (the review's item 2).
+    sha = fx.branch(CHANGE)
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    stand_in = TAG_MAIN_DURING_RUN.replace("@REPO@", repr(str(fx.main)))
+    write(fx.stubs / "docker", stand_in.replace("@SHA@", repr(sha)), 0o755)
+    done = gate(fx, "feature")
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert status_of(done, "export") == "PASS"
+    assert status_of(done, "main-refs") == "FAIL"
+    assert "refs/tags/main" in row(done, "main-refs")
+    assert "main-refs FAIL" in summary(done)
+    assert not [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
+
+
 def test_info_attributes_stops_the_gate(fx: Fixture) -> None:
     fx.branch(CHANGE)
     info = Path(
@@ -918,6 +1019,44 @@ def test_every_git_call_reads_the_commits_own_objects(fx: Fixture) -> None:
     assert gate(fx, "feature").returncode == 0
     seen = log.read_text(encoding="utf-8").splitlines()
     assert len(seen) > 10 and set(seen) == {'"1"'}
+
+
+def names_main_bare(argv: list[str], i: int) -> bool:
+    """Whether argument i names main as a revision by its short name: main, main:<path>, main^, main~2, main@{1}, or a
+    range ending in main. A --git-path's argument is a file's name."""
+    if i and argv[i - 1] == "--git-path":
+        return False
+    return bool(
+        re.fullmatch(r"main([:^~@].*|\.\..*)?", argv[i])
+        or re.search(r"\.\.\.?main([:^~@].*)?$", argv[i])
+    )
+
+
+def test_every_git_call_reads_main_by_its_full_name(fx: Fixture) -> None:
+    # git reads a bare main as refs/tags/main before refs/heads/main, so the makefiles step's blob, the merge base the
+    # scans and the triggers read, and the merge note's ancestry check all name refs/heads/main (fix/000-main-ref).
+    real = (fx.sysbin / "git").resolve()
+    log = fx.logs / "git.argv"
+    (fx.sysbin / "git").unlink()
+    write(
+        fx.sysbin / "git",
+        "#!/usr/bin/env python3\nimport json, os, sys\n"
+        f"with open({str(log)!r}, 'a') as h:\n"
+        "    h.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        f"os.execv({str(real)!r}, ['git', *sys.argv[1:]])\n",
+        0o755,
+    )
+    commit_on_main(fx, {"GNUmakefile": "include Makefile\n"}, "main's GNUmakefile")
+    sha = fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines()]
+    assert [a for a in calls if any(names_main_bare(a, i) for i in range(len(a)))] == []
+    # The gate runs git as git -C <directory> <arguments>.
+    args = [a[2:] for a in calls if a[:1] == ["-C"]]
+    assert ["cat-file", "blob", "refs/heads/main:GNUmakefile"] in args
+    assert ["merge-base", "refs/heads/main", sha] in args
+    assert ["merge-base", "--is-ancestor", "refs/heads/main", sha] in args
 
 
 @pytest.mark.parametrize("ref", ["-x", "feature..main", "has space"])
@@ -1145,6 +1284,42 @@ def test_exactly_mains_gnumakefile_is_allowed(fx: Fixture) -> None:
     fx.branch({"GNUmakefile": "include Makefile\nlint:\n\t@true\n"}, name="other")
     done = gate(fx, "other")
     assert status_of(done, "makefiles") == "FAIL"
+
+
+HOSTILE_MAKEFILE = "include Makefile\nlint:\n\t@true\n"
+
+
+@pytest.mark.parametrize("case", ["refs/tags/main", "refs/main", "main"])
+def test_mains_gnumakefile_is_the_branchs_whatever_a_bare_main_names(
+    fx: Fixture, case: str
+) -> None:
+    # make reads a GNUmakefile before the Makefile, so the step decides what make runs in the container phase. A tag
+    # named main at a commit holding the branch's GNUmakefile made main:GNUmakefile read that one, and the step pass
+    # (fix/000-main-ref). In this process, since a whole run now stops at the export first.
+    commit_on_main(fx, {"GNUmakefile": "include Makefile\n"}, "main's GNUmakefile")
+    hostile = fx.branch({"GNUmakefile": HOSTILE_MAKEFILE})
+    shadow_main(fx.main, case, hostile)
+    export = fx.root / "export"
+    write(export / "GNUmakefile", HOSTILE_MAKEFILE)
+    step = gm.makefiles(fx.main, export)
+    assert (step.status, step.notes) == (
+        "FAIL",
+        ["the commit's GNUmakefile isn't main's"],
+    )
+    write(export / "GNUmakefile", "include Makefile\n")
+    assert gm.makefiles(fx.main, export).status == "PASS"
+
+
+def test_a_gnumakefile_main_lacks_fails_whatever_a_bare_main_names(fx: Fixture) -> None:
+    hostile = fx.branch({"GNUmakefile": HOSTILE_MAKEFILE})
+    shadow_main(fx.main, "refs/tags/main", hostile)
+    export = fx.root / "export"
+    write(export / "GNUmakefile", HOSTILE_MAKEFILE)
+    step = gm.makefiles(fx.main, export)
+    assert (step.status, step.notes) == (
+        "FAIL",
+        ["the commit has a GNUmakefile, and main has none"],
+    )
 
 
 # --------------------------------------------------------------------------------------------------
@@ -2605,17 +2780,24 @@ def test_a_tag_named_main_never_stands_in_for_the_branch(fx: Fixture) -> None:
     # git resolves a bare `main` to refs/tags/main before refs/heads/main, and an agent session can make that tag:
     # the gate reads refs/heads/main, as spec 003's check reads its policy.
     on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
-    fx.branch(
+    sha = fx.branch(
         {
             **ROOM_BRANCH,
             "assets/policy/content-approvals.json": '{"schema": 1, "approvals": ["the tag approving itself"]}\n',
         }
     )
-    git(fx.main, "tag", "main", "feature")
+    # The tag is made while the gate runs, at the container phase's first docker run, since the export stops on one
+    # made before it (fix/000-main-ref); the room's build, the phase's last, then runs beside it.
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    stand_in = TAG_MAIN_DURING_RUN.replace("@REPO@", repr(str(fx.main)))
+    write(fx.stubs / "docker", stand_in.replace("@SHA@", repr(sha)), 0o755)
     done = gate(fx, "feature")
+    # The tag is there before the room's build reads main's policy: a docker run, which made it, came first.
+    assert by_kind(fx.docker(), "run")[0]["command"] != WEB_BUILD
     (build,) = web_builds(fx.docker())
     assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
     assert status_of(done, "content") == "PASS"
+    assert status_of(done, "main-refs") == "FAIL"
 
 
 def test_with_no_policy_on_main_the_build_gets_an_empty_one(fx: Fixture) -> None:

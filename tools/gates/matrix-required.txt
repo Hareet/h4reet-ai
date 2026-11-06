@@ -233,3 +233,86 @@ H/settings/assets/policy is Edit-denied behind the hook
 H/pre-commit/a staged PNG with a tEXt chunk under assets/ (arrival check)
 H/pre-commit/a staged JPEG with EXIF outside the asset roots (arrival A1, A4)
 H/pre-commit/the arrival check missing from the main tree (fails closed)
+
+# --- fix/000-main-ref: a tag or ref a bare main names beside refs/heads/main (bash-gate.sh, the git hook) ---
+H/bash-gate.sh/git tag main
+H/bash-gate.sh/git tag main HEAD~1
+H/bash-gate.sh/git tag -f main
+H/bash-gate.sh/git tag --force main HEAD
+H/bash-gate.sh/git tag -a -m "a release" main
+H/bash-gate.sh/git tag -fam x main
+H/bash-gate.sh/git tag --message=x -s main
+H/bash-gate.sh/git tag "main"
+H/bash-gate.sh/git tag 'main' HEAD
+H/bash-gate.sh/git tag ma''in
+H/bash-gate.sh/git tag \main
+H/bash-gate.sh/git -C . tag main
+H/bash-gate.sh/git -c tag.gpgSign=false tag -f main
+H/bash-gate.sh/bash -c 'git tag main'
+H/bash-gate.sh/(git tag -f main)
+H/bash-gate.sh/git status; git tag main
+H/bash-gate.sh/git update-ref refs/tags/main HEAD
+H/bash-gate.sh/git update-ref refs/main HEAD
+H/bash-gate.sh/git update-ref "refs/tags/main" HEAD~1
+H/bash-gate.sh/git update-ref 'refs/main' HEAD
+H/bash-gate.sh/git -C . update-ref refs/main HEAD
+H/bash-gate.sh/git -c core.x=y update-ref refs/tags/main HEAD
+H/bash-gate.sh/bash -c 'git update-ref refs/main HEAD'
+H/bash-gate.sh/(git update-ref refs/tags/main HEAD)
+H/bash-gate.sh/git update-ref -m x refs/remotes/main HEAD
+H/bash-gate.sh/git update-ref refs/remotes/main/HEAD HEAD
+H/bash-gate.sh/git symbolic-ref refs/tags/main refs/heads/feature/x
+H/bash-gate.sh/git fetch . HEAD:refs/tags/main
+H/bash-gate.sh/git fetch . +HEAD:refs/main
+H/bash-gate.sh/git fetch . HEAD:tags/main
+H/bash-gate.sh/git fetch . HEAD:remotes/main
+H/bash-gate.sh/git fetch . 'refs/heads/feature/*:refs/*'
+H/bash-gate.sh/git fetch . '+refs/heads/*:refs/remotes/*'
+H/bash-gate.sh/git -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch x
+H/bash-gate.sh/git -c remote.x.url=. -c remote.x.fetch='refs/heads/feature/*:refs/*' fetch x
+H/bash-gate.sh/git fetch --refmap='+HEAD:refs/tags/main' . HEAD
+H/bash-gate.sh/printf x > .git/main
+H/bash-gate.sh/printf x > .git/refs/tags/main
+H/bash-gate.sh/git update-ref main HEAD
+H/bash-gate.sh/git symbolic-ref main refs/heads/feature/x
+H/bash-gate.sh/git config remote.x.fetch '+HEAD:refs/tags/main'
+# What must stay allowed: reads, deletions, other names, and the usual fetches.
+H/bash-gate.sh/git tag
+H/bash-gate.sh/git tag -l
+H/bash-gate.sh/git tag -l main
+H/bash-gate.sh/git tag v0.1.0
+H/bash-gate.sh/git tag -a -m "main release" v0.1.0
+H/bash-gate.sh/git tag -m main v0.1.0
+H/bash-gate.sh/git tag v0.1.0 main
+H/bash-gate.sh/git tag maintenance
+H/bash-gate.sh/git tag main-v1
+H/bash-gate.sh/git tag -d main
+H/bash-gate.sh/git tag --contains main
+H/bash-gate.sh/git tag --merged main
+H/bash-gate.sh/git log --oneline refs/tags/main
+H/bash-gate.sh/git update-ref refs/heads/feature/main HEAD
+H/bash-gate.sh/cat .git/main
+H/bash-gate.sh/git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+H/bash-gate.sh/git fetch . 'refs/tags/*:refs/tags/*'
+H/bash-gate.sh/git fetch . HEAD:tags/main-v1
+H/bash-gate.sh/git fetch . HEAD:feature/tags/main
+H/bash-gate.sh/git fetch --tags
+H/git-hook/tag main
+H/git-hook/tag -f main
+H/git-hook/tag -a main
+H/git-hook/update-ref refs/tags/main
+H/git-hook/update-ref refs/main
+H/git-hook/update-ref main, a file at the top of .git
+H/git-hook/update-ref refs/remotes/main
+H/git-hook/update-ref refs/remotes/main/HEAD
+H/git-hook/update-ref refs/tags/v1/main
+H/git-hook/fetch . HEAD:refs/tags/main
+H/git-hook/update-ref --stdin creating refs/main
+H/git-hook/fetch . HEAD:tags/main
+H/git-hook/fetch . refs/heads/x/*:refs/*, from a branch x/main
+H/git-hook/fetch with -c remote.x.fetch=+HEAD:refs/tags/main
+# The hook's departure (a remote-tracking branch), a branch, another tag, and a deletion go through.
+H/git-hook/update-ref refs/remotes/origin/main, a remote-tracking branch
+H/git-hook/update-ref refs/heads/topic/main, a branch
+H/git-hook/tag maintenance
+H/git-hook/tag -d main, a deletion

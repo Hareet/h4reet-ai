@@ -896,6 +896,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
    - the commit object is rehashed against its SHA, and the expected tree is read from it;
    - no `.git/info/attributes` exists;
    - no ref exists under `refs/replace` (`git for-each-ref refs/replace` prints nothing), because the Author's merge and checkouts honor one;
+   - no ref beside `refs/heads/main` exists that a bare `main` names: `main` (a file at the top of `.git`), `refs/main`, or `refs/tags/main`, which git reads before the branch, or `refs/remotes/main` or `refs/remotes/main/HEAD`, which make the name ambiguous. The Author's own `git diff main...<branch>` would read one, so the gate stops, naming it, and looks again before it prints the merge command, since one can be made while it runs (a `main-refs` step fails); and the gate itself reads main only as `refs/heads/main`: its `GNUmakefile`, the merge base, and the ancestry check (fix/000-main-ref). Inside Claude Code, the `reference-transaction` git hook refuses creating or changing any of them, or another ref outside `refs/heads` whose last component is `main` but a remote-tracking branch, and `bash-gate.sh` refuses the spellings it can read (§13);
    - extraction uses tarfile's data filter;
    - the export hashes to that tree.
 

@@ -96,9 +96,10 @@ echo "$cmd" | grep -Eq '\bgit\b[^;&|]*(-c[[:space:]]*|[[:space:]]config\b[^;&|]*
 echo "$cmd" | grep -Eq '\bgh\b[^;&|]*[[:space:]]api\b.*createRepository' \
   && block "creating a GitHub repository" "$local_route"
 # Git internals change through git, never by writing the files directly. The backtick in the
-# pattern is a literal (a command started inside backticks), not an expansion.
+# pattern is a literal (a command started inside backticks), not an expansion. .git/main is a ref git reads for a bare
+# main before refs/heads/main (fix/000-main-ref).
 # shellcheck disable=SC2016
-echo "$cmd" | grep -Eq '(>|(^|[;&|(`[:space:]])(tee|cp|mv|ln|install|truncate|rm|sed[[:space:]]+-i)[[:space:]])[^;&|]*\.git/(config|HEAD|refs/|hooks/|packed-refs|info/)' \
+echo "$cmd" | grep -Eq '(>|(^|[;&|(`[:space:]])(tee|cp|mv|ln|install|truncate|rm|sed[[:space:]]+-i)[[:space:]])[^;&|]*\.git/(config|HEAD|refs/|hooks/|packed-refs|info/|main([^[:alnum:]_.-]|$))' \
   && block "writing git internals" "$main_route"
 # The git hook that guards main (.claude/git-hooks/reference-transaction) keys on CLAUDECODE and runs
 # from .git/hooks, so agents may not unset or clear that variable or point git at other hooks or config.
@@ -283,6 +284,33 @@ no_verify="${nb}$(spelled --no-veri)(${eq}f(${eq}y)?)?(${eq}=|${ne})"
 if has "$git_word" && { has "$no_verify" \
   || has "${git_word}([^;&|]*[[:space:]])?$(spelled commit)([^[:alnum:]_.-][^;&|]*)?[[:space:]][\"'\\]*-[[:alpha:]\"'\\]*n"; }; then
   block "skipping git's hooks" "commit without --no-verify or -n; the pre-commit scan runs on every commit (FR-008)"
+fi
+# A ref a bare main names beside refs/heads/main (fix/000-main-ref). git reads main as main (a file at the top of .git),
+# refs/main, and refs/tags/main before refs/heads/main, so a tag named main would answer for main:<path>, git diff
+# main...<branch>, and git merge-base main wherever they're written bare. The reference-transaction git hook refuses
+# them inside Claude Code; these rules name the spellings: git tag whose tag name is main (after the options that create
+# one: -a, -f, -s, -e, and -m, -F, -u with their values; never -l, -d, -v, or --contains, which only read or delete),
+# and update-ref, symbolic-ref, or a fetch refspec's destination naming refs/main, refs/tags/main, refs/remotes/main, or
+# refs/remotes/main/HEAD. Quotes, backslashes, and $ inside the name don't hide it; a name held in a variable or built
+# at run time, update-ref --stdin, and fast-import do (the matrix's gap rows), and the git hook and the gate's check
+# hold those.
+q="[\"'\\\\]*"
+shell_word="(\"[^\"]*\"|'[^']*'|[^[:space:];&|\"']+)+"
+tag_value="(-[afse]*[mFu]|--(message|file|local-user|cleanup|trailer))(=|[[:space:]]+)${shell_word}|-[afse]*[mFu][^[:space:]]+"
+tag_flag="-[afse]+|--(force|annotate|sign|no-sign|edit|no-edit|create-reflog|no-create-reflog)?"
+if has "${git_cmd}tag${q}([[:space:]]+${q}(${tag_value}|${tag_flag})${q})*[[:space:]]+${q}$(spelled main)${q}([^[:alnum:]_./-]|\$)"; then
+  block "a tag named main" "$main_route; name the tag anything else"
+fi
+main_shadow="${q}($(spelled refs/main)|$(spelled refs/tags/main)|$(spelled refs/remotes/main)(${eq}/${eq}$(spelled HEAD))?)${q}([^[:alnum:]_./-]|\$)"
+# A fetch refspec's destination is read as git reads it: git puts refs/ before one starting tags/ or remotes/, and a glob
+# at refs/* or refs/remotes/* (or remotes/*) lands a source branch feature/main at refs/main or refs/remotes/main. The
+# refspec may follow fetch, or sit in a remote's fetch setting (git -c remote.<name>.fetch=…, git config). A glob at
+# refs/tags/* stays allowed, since it is how tags are fetched: a gap row.
+fetch_dst="(${main_shadow}|${q}($(spelled refs/)${eq})?($(spelled tags/main)|$(spelled remotes/main)(${eq}/${eq}$(spelled HEAD))?)${q}([^[:alnum:]_./-]|\$)|${q}($(spelled refs/)${eq}($(spelled remotes/)${eq})?|$(spelled remotes/)${eq})\*)"
+if has "${git_cmd}(update-ref|symbolic-ref)\b[^;&|]*[[:space:]]${main_shadow}" \
+  || has "${git_cmd}fetch\b[^;&|]*:${fetch_dst}" \
+  || has "$(spelled remote)${eq}\.[^[:space:]=]*\.${eq}$(spelled fetch)${q}(=|[[:space:]]+)[^;&|[:space:]]*:${fetch_dst}"; then
+  block "a ref a bare main names" "$main_route; name the ref anything else"
 fi
 # claude, or npx's claude-code, where a command starts, then mcp and add in the same command: naming the three in a
 # grep, a commit message, or a comment isn't running it (the closing patch's review).

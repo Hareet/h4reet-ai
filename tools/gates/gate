@@ -20,7 +20,10 @@ check in it can stop, so the Author runs main's. --contract-replay is held to th
 contract-live reaches it through the checkout's own Makefile and operator.py, which have run by then.
 
 1. Export. REF resolves once to a commit SHA, which every later step and the merge use. Every git call runs with
-   GIT_NO_REPLACE_OBJECTS=1. A ref under refs/replace stops the gate, since the Author's merge would honor it. So do
+   GIT_NO_REPLACE_OBJECTS=1, and reads main as refs/heads/main, never bare. A ref under refs/replace stops the gate,
+   since the Author's merge would honor it. So does a ref beside refs/heads/main that a bare main names: main (a file
+   at the top of .git), refs/main, or refs/tags/main, which git reads first, or refs/remotes/main or
+   refs/remotes/main/HEAD, which make the name ambiguous; anything the Author writes as main would read it. So do
    .git/info/attributes and submodules, which git archive would apply or skip, and any path git takes for its own
    directory (.git in any case, or as NTFS spells it: a file, a folder, or a link, anywhere in the tree), which git
    would read as a repository if anything ran it in the export. `git archive` exports the commit, tarfile's data
@@ -46,8 +49,8 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
    - policy: tools/gates/compose_policy.py --root <export>;
    - corpus: corpus/tools/check_corpus.py over the export's corpus, with the Author's denylist, which must exist;
      loaded into this process, which runs with PY_HOST's flags, since the script reads only its own tree;
-   - gitleaks over $(git merge-base main SHA)..SHA, with the main tree's .gitleaks.toml (--config), a fresh empty
-     --gitleaks-ignore-path, and --ignore-gitleaks-allow, and git log's --text, without which git shows no diff for
+   - gitleaks over $(git merge-base refs/heads/main SHA)..SHA, with the main tree's .gitleaks.toml (--config), a fresh
+     empty --gitleaks-ignore-path, and --ignore-gitleaks-allow, and git log's --text, without which git shows no diff for
      what it takes for binary: a NUL byte, or a -diff attribute in any .gitattributes in the work tree. It refuses
      while a .gitleaksignore at the main tree could hold an entry (research.md R-36). gitleaks exits 0 when git
      fails beneath it, and only logs the error, so findings exit 99 (--exit-code) and a scan passes only when
@@ -89,7 +92,9 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
    "cache_creation" (integers), and a "run" that is its file's name. Only an entry this machine attests is posted;
    the rest wait (PENDING). The history is append-only: a branch that changes or removes an entry fails, and so does
    a malformed entry or a link. A collector that doesn't answer is a WARN.
-6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off.
+6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off. First
+   the export's check on refs a bare main names runs again, since one can be made while the gate runs: if one is
+   there, a main-refs step fails, and no merge command is printed.
 
 --host skips the container phase (plan §19: the devcontainer image won't build), and every summary line says
 DEGRADED. Lint, tests, the scaffolds, and stage H then run nowhere: never on the host.
@@ -211,6 +216,18 @@ CODE_PATHS = (
 )
 TOKEN_TYPES = ("input", "output", "cache_read", "cache_creation")
 COUNTED = ("PASS", "SKIP", "WARN", "PLANNED", "PENDING", "FAIL")
+# main, by its full name. git reads a bare main through its rules (refs.c's ref_rev_parse_rules) as main, refs/main,
+# refs/tags/main, refs/heads/main, refs/remotes/main, and refs/remotes/main/HEAD, in that order, so a tag named main,
+# which an agent session can write, would answer for main:GNUmakefile and git merge-base main (fix/000-main-ref).
+MAIN = "refs/heads/main"
+# The rest of those names: while any of them is a ref, the gate stops, as it does on refs/replace.
+MAIN_SHADOWS = (
+    "main",
+    "refs/main",
+    "refs/tags/main",
+    "refs/remotes/main",
+    "refs/remotes/main/HEAD",
+)
 
 
 class Refusal(Exception):
@@ -556,6 +573,46 @@ def remove(top: Path) -> None:
     shutil.rmtree(top, ignore_errors=True)
 
 
+def main_shadows(repo: Path) -> list[str]:
+    """The names in MAIN_SHADOWS that are refs: each that for-each-ref lists, loose or packed, and each with a file or a
+    link at its path, which finds main itself, at the top of .git, where for-each-ref never looks, and a loose ref git
+    couldn't read. main is shown with its path, since git won't delete it by that name. The paths come relative to the
+    repository: --path-format=absolute resolves each, and fails where refs/remotes/main is a file and so can't hold
+    refs/remotes/main/HEAD."""
+    listed = git(repo, "for-each-ref", "--format=%(refname)")
+    located = git(
+        repo,
+        "rev-parse",
+        *(arg for name in MAIN_SHADOWS for arg in ("--git-path", name)),
+    )
+    paths = [repo / line for line in located.stdout.splitlines()]
+    if listed.returncode or located.returncode or len(paths) != len(MAIN_SHADOWS):
+        raise Stop(
+            "git couldn't list the refs, so a ref that a bare main names can't be ruled out"
+        )
+    refs = set(listed.stdout.splitlines())
+    return [
+        f"{name} ({path})" if name == "main" else name
+        for name, path in zip(MAIN_SHADOWS, paths)
+        if name in refs or path.is_symlink() or path.is_file()
+    ]
+
+
+def shadow_problem(repo: Path) -> str | None:
+    """Why a bare main might not read refs/heads/main, or None: the refs main_shadows finds. The export stops on one,
+    and finish() looks again, since one can be made while the gate runs."""
+    shadows = main_shadows(repo)
+    if not shadows:
+        return None
+    return (
+        f"{', '.join(shadows)}: {'a ref' if len(shadows) == 1 else 'refs'} beside {MAIN} that a bare main "
+        "names. git reads main, refs/main, and refs/tags/main before the branch, so your own git diff "
+        "main...<branch>, git log main, or main:<path> could read another commit. The gate reads main only as "
+        f"{MAIN}, but stops while one is there: remove each (git update-ref -d --no-deref <ref>; for main, rm "
+        "the path shown) and run the gate again"
+    )
+
+
 def export(repo: Path, ref: str, tmp: Path) -> tuple[str, Path, bytes]:
     """Resolve REF once, export that commit, and prove the export is the commit's own tree (plan §11)."""
     replaced = git(repo, "for-each-ref", "--format=%(refname)", "refs/replace/")
@@ -567,6 +624,9 @@ def export(repo: Path, ref: str, tmp: Path) -> tuple[str, Path, bytes]:
             "replace ref, so the gate would vouch for a commit other than the one the merge writes: remove them "
             "(git replace -l, git replace -d) and run the gate again"
         )
+    problem = shadow_problem(repo)
+    if problem:
+        raise Stop(problem)
     sha = resolve(repo, ref)
     expected = commit_tree(repo, sha)
     attributes = git(
@@ -633,7 +693,7 @@ def makefiles(repo: Path, export_dir: Path) -> Step:
     gnu = export_dir / "GNUmakefile"
     if not os.path.lexists(gnu):
         return step.set("PASS", "no GNUmakefile and no makefile")
-    mains = git(repo, "cat-file", "blob", "main:GNUmakefile", binary=True)
+    mains = git(repo, "cat-file", "blob", f"{MAIN}:GNUmakefile", binary=True)
     if mains.returncode:
         return step.fail("the commit has a GNUmakefile, and main has none")
     if gnu.is_symlink() or not gnu.is_file() or gnu.read_bytes() != mains.stdout:
@@ -1743,6 +1803,14 @@ def summary_line(
 
 
 def finish(report: Report, repo: Path, sha: str, ref: str, degraded: bool) -> int:
+    # The export's check on refs a bare main names, again: the container phase runs for minutes, and one made meanwhile
+    # would answer for main in your git diff main...<branch> before the merge. A step only when one is there.
+    try:
+        late = shadow_problem(repo)
+    except Stop as exc:
+        late = str(exc)
+    if late:
+        report.add(Step("main-refs").fail(late))
     say()
     for step in report.steps:
         note = f"  {'; '.join(step.notes)}" if step.notes else ""
@@ -1759,7 +1827,7 @@ def finish(report: Report, repo: Path, sha: str, ref: str, degraded: bool) -> in
         f"-m {shlex.quote(line)} {sha}"
     )
     say(f"merge: {merge}")
-    if git(repo, "merge-base", "--is-ancestor", "main", sha).returncode != 0:
+    if git(repo, "merge-base", "--is-ancestor", MAIN, sha).returncode != 0:
         say(
             f"note: main has commits {ref} doesn't, so the merge writes a tree this run didn't check; to merge "
             "exactly what it checked, merge main into the branch and run the gate again"
@@ -1793,7 +1861,7 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
         report.add(makefiles(repo, export_dir))
         if not host_only:
             container_phase(report, repo, data, export_dir, tmp)
-        found = git(repo, "merge-base", "main", sha)
+        found = git(repo, "merge-base", MAIN, sha)
         base = (
             found.stdout.strip()
             if found.returncode == 0 and SHA_RE.fullmatch(found.stdout.strip())
