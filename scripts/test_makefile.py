@@ -722,3 +722,36 @@ def test_the_content_check_builds_without_drafts_then_runs_mains_check(
         "python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py"
         in recipe
     )
+
+
+# --------------------------------------------------------------------------------------------------
+# make assets-scrub passes RECORD on, taken from the command line as FILE is (spec 004, Amendment C1; tasks.md T034)
+# --------------------------------------------------------------------------------------------------
+def _dry_run_scrub(tmp_path: Path, *args: str, **env: str) -> list[str]:
+    done = subprocess.run(
+        ["make", "--no-print-directory", "-n", "-C", str(ROOT), "assets-scrub", *args],
+        env={
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+            "LC_ALL": "C",
+            **env,
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    return [line for line in done.stdout.splitlines() if "scrub.py" in line]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+def test_assets_scrub_passes_record_on_from_the_command_line(tmp_path: Path) -> None:
+    (line,) = _dry_run_scrub(tmp_path, "FILE=desk.glb", "RECORD=records.json")
+    assert line.endswith('scripts/assets/scrub.py --record "$RECORD" -- "$FILE"')
+    (line,) = _dry_run_scrub(tmp_path, "FILE=desk.glb")
+    assert line.endswith('scripts/assets/scrub.py -- "$FILE"')
+    # From the environment, RECORD is ignored, as FILE is.
+    (line,) = _dry_run_scrub(tmp_path, "FILE=desk.glb", RECORD="records.json")
+    assert line.endswith('scripts/assets/scrub.py -- "$FILE"')
+    assert "RECORD" in literal_vars()
