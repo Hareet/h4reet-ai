@@ -386,6 +386,7 @@ Two kinds of key:
   | `around.*` | the text copy's heading, "Around the room"; "a scripted illustration"; the sign's figures as sentences | `{amount}` | FR-031, FR-063 |
   | `list.*`, `toolbar.*` | the list's heading, "In the room"; the phrase for a resume action; "Credits" | none | FR-063, FR-065, C9 |
   | `standin.*`, `draft.*` | a stand-in's label; the note that placeholder shapes are in use; the badge "Draft" | `{name}` | FR-013, FR-029, FR-030 |
+  | `flat-failed`, one key | the stage's line when the 2D drawing can't be drawn, "This drawing of the room could not be shown. The list below still works." | none | FR-081 |
 
 - **Labels the data references**, `label.<name>`: each referenced by a placement's, a face binding's, or a switch's `label`, none left unreferenced (RI). They keep adding a piece a data edit: its labels are data, not code. No other key is allowed (RD).
 
