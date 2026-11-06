@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -286,9 +286,11 @@ arrival: ## The arrival check over every commit since main, from the main tree's
 
 # The tools that make a studio file pass (spec 003 research R-03, R-04): scripts/assets/, by path through PY_HOST.
 # FILE comes from the command line only and reaches the script as "$$FILE", after --, so make never splices it in.
-assets-scrub: ## Rewrite one studio file to what the arrival check admits, and add the mark: FILE=<path> (spec 003)
+# RECORD, the file's records.json, comes the same way, as "$$RECORD": the mark then follows the record's steps (spec 004,
+# Amendment C1); without it, the mark is trainedAlgorithmicMedia.
+assets-scrub: ## Rewrite one studio file to what the arrival check admits, and add the mark: FILE=<path> [RECORD=<records.json>] (spec 003, 004)
 	@[ -n "$(call from_cli,FILE)" ] && [ -n "$$FILE" ] || { echo 'make assets-scrub needs FILE=<path> on the command line' >&2; exit 2; }
-	$(PY_HOST) scripts/assets/scrub.py -- "$$FILE"
+	$(PY_HOST) scripts/assets/scrub.py$(if $(call from_cli,RECORD), --record "$$RECORD") -- "$$FILE"
 
 assets-credits: ## Render assets/CREDITS.md and docs/research/images/CREDITS.md from the records, in canonical form (spec 003)
 	$(PY_HOST) scripts/assets/credits.py
