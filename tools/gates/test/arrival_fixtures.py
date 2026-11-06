@@ -30,11 +30,18 @@ from pathlib import Path
 
 MEDIA = "all-rights-reserved-2026"
 MARK_NS = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
-MARK_VALUE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"
-MARK_JSON = {
-    "@context": {"Iptc4xmpExt": MARK_NS},
-    "Iptc4xmpExt:DigitalSourceType": MARK_VALUE,
-}
+SOURCE_TYPES = "http://cv.iptc.org/newscodes/digitalsourcetype/"
+MARK_VALUE = SOURCE_TYPES + "trainedAlgorithmicMedia"
+
+
+def mark_json(value: str = MARK_VALUE) -> dict:
+    return {
+        "@context": {"Iptc4xmpExt": MARK_NS},
+        "Iptc4xmpExt:DigitalSourceType": value,
+    }
+
+
+MARK_JSON = mark_json()
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
 XMP_ID = b"http://ns.adobe.com/xap/1.0/\x00"
 CAPTION = "Evaluation output; not used in the site's assets."
@@ -339,9 +346,11 @@ def glb(
     target_names: list[str] | None = None,
     extra_bin: bytes = b"",
     edit=None,
+    value: str = MARK_VALUE,
 ) -> bytes:
     """One triangle with an embedded PNG texture, and, with target_names, a morph target and mesh.extras.targetNames.
-    `edit` changes the glTF JSON before it's packed; extra_bin adds bytes no bufferView covers."""
+    `edit` changes the glTF JSON before it's packed; extra_bin adds bytes no bufferView covers; `value` is the mark's
+    digital source type."""
     image = png(mark=False) if image is None else image
     parts: list[bytes] = []
     views: list[dict] = []
@@ -398,9 +407,7 @@ def glb(
         gltf["materials"][0]["name"] = material_name
     if mark:
         gltf["extensionsUsed"] = ["KHR_xmp_json_ld"]
-        gltf["extensions"] = {
-            "KHR_xmp_json_ld": {"packets": [json.loads(json.dumps(MARK_JSON))]}
-        }
+        gltf["extensions"] = {"KHR_xmp_json_ld": {"packets": [mark_json(value)]}}
         gltf["asset"]["extensions"] = {"KHR_xmp_json_ld": {"packet": 0}}
     if edit is not None:
         edit(gltf)
@@ -481,7 +488,8 @@ def entry(
         "made": made,
         "source": {"type": source[0], "id": source[1]},
         "likeness": likeness,
-        "steps": steps if steps is not None else [model_step(), hand_step()],
+        # One model step by default, as the fixtures' mark, trainedAlgorithmicMedia, calls for (spec 004, Amendment C1).
+        "steps": steps if steps is not None else [model_step()],
         "media_license": MEDIA,
     }
     if approval is not None:
@@ -578,8 +586,17 @@ def approval(
 
 ROOM_YES = {
     "window_view_recreated": True,
-    "screens_plain_glow": True,
+    "screens_plain_live_face": True,
     "artwork_original_or_absent": True,
+}
+# Spec 004's room block (Amendment C7; contracts/intake-amendments.md §8), at FR-053's starting figures.
+ROOM_CAPS = {
+    "gzip_bytes": 2_500_000,
+    "triangles": 40_000,
+    "small_props": ["mug"],
+    "small_prop_texture_px": 1024,
+    "scene_texture_bytes": 96_000_000,
+    "legibility_floor_css_px": 9,
 }
 
 

@@ -24,6 +24,24 @@ Standard library only. Human-only: the hook, make check, and the gate each run t
   main branch as the gate reads it: `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:assets/policy/<file>`,
   never `main:` (a tag named main would answer first), never a branch, never a checked-out copy (research R-05).
 
+Spec 004's amendments (its contracts/intake-amendments.md §7; AMENDMENTS below names them):
+- C1, on M5: the mark follows the record. Its term is trainedAlgorithmicMedia when every step of the file's record is
+  by a model, compositeWithTrainedAlgorithmicMedia when model and hand steps mix, and MARK_HUMAN when every step is by
+  hand; under assets/twin/ and docs/research/images/, trainedAlgorithmicMedia alone, whatever the steps say. P1 asks
+  no more than spec 003's breadth: a hand-made or composite file that isn't a room file, the twin's, a likeness, or
+  from a photo needs no approval, and gets a WARN line, which fails nothing: it's up to the contributor to check for
+  likeness (the Author's answer of 2026-10-30).
+- C2, on R1: a source may be a `design`, its ID held to the opaque-ID rule.
+- C4, on P2: a room file's room confirmations, window_view_recreated, screens_plain_live_face (once
+  screens_plain_glow), and artwork_original_or_absent, each read true or "not_applicable".
+- C5, on P1: a room file whose record says likeness: false may have confirms.likeness_accepted read "not_applicable".
+- C6, on F3: the first visit counts every file under assets/room/ at gzip level 9, and phase 3's budget applies once
+  that folder holds one.
+- C7, on F2: a room file against main's per_asset.room: its gzip-9 size, a GLB's triangles, and, on a small prop, each
+  texture's width and height. A room file is refused while the block is absent, and a block holding other keys, or a
+  key of the wrong type, can't be checked (exit 2), named by its key, never its value.
+A room file is one whose record's kind is room, or any file under assets/room/, whatever its record says.
+
 The modes: --staged checks the index's added and changed files, and the directories they touch. --range A..B checks
 each commit in it: the files it added or changed, as it had them, and their directories; for a merge, what it holds
 that differs from every parent, so a conflict's resolution is checked; then B's whole tree, so a deletion is judged
@@ -34,7 +52,10 @@ branch isn't main: the Author's own policy commits on main are expected.
 Output: one line per finding, `<rule> <path>[ @<commit>]: <reason>`, then the size table, the totals, and a summary.
 Exit 0: nothing refused. 1: at least one finding. 2: it can't check (a range that doesn't resolve, a path outside the
 repository, git failing, or a studio file that needs the policy while the main branch has none or it doesn't parse).
-A run that meets no studio file needs no policy.
+A run that meets no studio file needs no policy. A warning, `WARN <path>[ @<commit>]: <reason>`, follows the findings,
+and no exit code counts it (spec 004, Amendment C1). It names only a file the changes being checked add or change (the
+staged files, each walked commit's, or the named paths); the last pass over a tip's whole tree records none, so a file
+main already holds isn't named again at every later gate.
 """
 
 from __future__ import annotations
@@ -71,6 +92,13 @@ NOTICE = "LICENSE.md"
 DISCLOSURE = "docs/data-flow-disclosure.md"
 MEDIA_LICENSE = "all-rights-reserved-2026"
 MAIN = "refs/heads/main"
+ROOM = "assets/room/"
+# Only the model's mark here, whatever a record's steps say (spec 004, Amendment C1).
+MODEL_ONLY = ("assets/twin/", PUBLISHED)
+
+# The spec 004 amendments this check carries (spec 004, FR-077). evals/test_room_order.py reads this tuple from main's
+# copy with ast, and fails make test while a file sits under assets/room/ and the tuple lacks 004-C1 and 004-C2.
+AMENDMENTS = ("004-C1", "004-C2", "004-C4", "004-C5", "004-C6", "004-C7")
 
 ADMITTED = {
     ".png": "png",
@@ -116,15 +144,32 @@ BY_EXTENSION = {
     **{ext: "a model" for ext in MODEL_EXT},
 }
 
-# The mark (research R-03, FR-034): an XMP packet holding exactly this property and value, and nothing else.
+# The mark (research R-03, FR-034): an XMP packet holding exactly this property, and nothing else. Its value is one of
+# three terms of IPTC's digital source type, the one the file's record calls for (spec 004, Amendment C1).
 X_NS = "adobe:ns:meta/"
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 MARK_NS = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
-MARK_VALUE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"
-MARK_JSON = {
-    "@context": {"Iptc4xmpExt": MARK_NS},
-    "Iptc4xmpExt:DigitalSourceType": MARK_VALUE,
-}
+SOURCE_TYPES = "http://cv.iptc.org/newscodes/digitalsourcetype/"
+MARK_MODEL = "trainedAlgorithmicMedia"
+MARK_COMPOSITE = "compositeWithTrainedAlgorithmicMedia"
+# Media a person made with digital tools: IPTC's digitalCreation, "Media created by a human using non-generative
+# tools", which replaced digitalArt on 2024-09-17 (cv.iptc.org/newscodes/digitalsourcetype/; spec 004, tasks.md T031,
+# settled on 2026-10-30).
+MARK_HUMAN = "digitalCreation"
+MARK_TERMS = (MARK_MODEL, MARK_COMPOSITE, MARK_HUMAN)
+MARK_VALUE = SOURCE_TYPES + MARK_MODEL
+NOT_A_TERM = "the mark's digital source type isn't one of the three terms a record's steps call for (spec 004, C1)"
+
+
+def mark_json(term: str) -> dict:
+    """The mark as KHR_xmp_json_ld's one packet, in a GLB."""
+    return {
+        "@context": {"Iptc4xmpExt": MARK_NS},
+        "Iptc4xmpExt:DigitalSourceType": SOURCE_TYPES + term,
+    }
+
+
+MARK_JSON = mark_json(MARK_MODEL)
 XPACKET_BEGIN = re.compile(
     rb"\A\s*<\?xpacket begin=([\"'])(?:\xef\xbb\xbf)?\1 id=([\"'])W5M0MpCehiHzreSzNTczkc9d\2\?>"
 )
@@ -454,6 +499,24 @@ class Size:
     texture: int | None = None
 
 
+@dataclass(frozen=True)
+class Facts:
+    """A file's mark, its gzip-9 size, its triangles, and its textures' sides: a GLB's embedded images, or an image's
+    own (spec 004, Amendments C1 and C7)."""
+
+    term: str | None
+    gzip: int
+    triangles: int | None
+    sides: tuple[tuple[int, int], ...]
+
+    @staticmethod
+    def of(parsed: Parsed, kind: str, gzipped: int) -> Facts:
+        sides = (
+            tuple(parsed.images) if kind == "glb" else ((parsed.width, parsed.height),)
+        )
+        return Facts(parsed.term, gzipped, parsed.triangles, sides)
+
+
 @dataclass
 class Parsed:
     """What a container's parse found: problems by rule, the parts that hold text, and the mark's byte ranges."""
@@ -466,6 +529,10 @@ class Parsed:
     vertices: int | None = None
     triangles: int | None = None
     texture: int | None = None
+    # The mark's term, once it reads as one of MARK_TERMS (spec 004, Amendment C1), and each embedded image's width
+    # and height, which a small prop's texture cap reads (Amendment C7).
+    term: str | None = None
+    images: list[tuple[int, int]] = field(default_factory=list)
 
     def bad(self, rule: str, reason: str) -> None:
         self.problems.append((rule, reason))
@@ -475,38 +542,47 @@ class Parsed:
 # The mark's packet (M5)
 # --------------------------------------------------------------------------------------------------
 def mark_problems(packet: bytes) -> list[str]:
-    """Why an XMP packet isn't the mark, or nothing: exactly Iptc4xmpExt:DigitalSourceType, set to
-    trainedAlgorithmicMedia, with no toolkit attribute, no other property, and nothing else in the packet."""
+    """Why an XMP packet isn't the mark, or nothing: exactly Iptc4xmpExt:DigitalSourceType, set to one of
+    MARK_TERMS, with no toolkit attribute, no other property, and nothing else in the packet."""
+    return read_mark(packet)[0]
+
+
+def read_mark(packet: bytes) -> tuple[list[str], str | None]:
+    """mark_problems' reasons, and the mark's term when there are none."""
     body = packet
     begin = XPACKET_BEGIN.match(body)
     end = XPACKET_END.search(body)
     if bool(begin) != bool(end):
-        return ["the mark's packet has one xpacket wrapper line without the other"]
+        return [
+            "the mark's packet has one xpacket wrapper line without the other"
+        ], None
     if begin and end:
         body = body[begin.end() : end.start()]
     if b"<!" in body or b"<?" in body:
         return [
             "the mark's packet holds a comment, a declaration, or a processing instruction"
-        ]
+        ], None
     try:
         root = ET.fromstring(body)
     except (ET.ParseError, ValueError):
-        return ["the mark's packet isn't well-formed XML"]
+        return ["the mark's packet isn't well-formed XML"], None
 
     def blank(text: str | None) -> bool:
         return text is None or not text.strip()
 
     if root.tag != f"{{{X_NS}}}xmpmeta":
-        return ["the mark's packet doesn't start with x:xmpmeta"]
+        return ["the mark's packet doesn't start with x:xmpmeta"], None
     if root.attrib:
-        return ["the mark's packet carries a toolkit or another attribute on x:xmpmeta"]
+        return [
+            "the mark's packet carries a toolkit or another attribute on x:xmpmeta"
+        ], None
     if (
         len(root) != 1
         or not blank(root.text)
         or root[0].tag != f"{{{RDF_NS}}}RDF"
         or root[0].attrib
     ):
-        return ["the mark's packet holds something besides one rdf:RDF"]
+        return ["the mark's packet holds something besides one rdf:RDF"], None
     rdf = root[0]
     if (
         len(rdf) != 1
@@ -514,19 +590,19 @@ def mark_problems(packet: bytes) -> list[str]:
         or not blank(rdf.tail)
         or rdf[0].tag != f"{{{RDF_NS}}}Description"
     ):
-        return ["the mark's packet holds something besides one rdf:Description"]
+        return ["the mark's packet holds something besides one rdf:Description"], None
     desc = rdf[0]
     if not blank(desc.tail) or not blank(desc.text):
-        return ["the mark's packet holds text outside the property"]
+        return ["the mark's packet holds text outside the property"], None
     prop = f"{{{MARK_NS}}}DigitalSourceType"
     attrs = dict(desc.attrib)
     if attrs.pop(f"{{{RDF_NS}}}about", "") != "":
-        return ["the mark's rdf:about isn't empty"]
+        return ["the mark's rdf:about isn't empty"], None
     if attrs and set(attrs) != {prop}:
-        return ["the mark's packet holds a second property"]
+        return ["the mark's packet holds a second property"], None
     if prop in attrs:
         if len(desc):
-            return ["the mark's packet holds a second property"]
+            return ["the mark's packet holds a second property"], None
         value = attrs[prop]
     else:
         if (
@@ -537,17 +613,18 @@ def mark_problems(packet: bytes) -> list[str]:
         ):
             return [
                 "the mark's packet holds a property other than Iptc4xmpExt:DigitalSourceType"
-            ]
+            ], None
         child = desc[0]
         extra = {k: v for k, v in child.attrib.items() if k != f"{{{RDF_NS}}}resource"}
         if extra:
-            return ["the mark's property carries an attribute"]
+            return ["the mark's property carries an attribute"], None
         value = (child.text or "").strip() or child.attrib.get(
             f"{{{RDF_NS}}}resource", ""
         )
-    if value != MARK_VALUE:
-        return ["the mark's digital source type isn't trainedAlgorithmicMedia"]
-    return []
+    term = value[len(SOURCE_TYPES) :] if value.startswith(SOURCE_TYPES) else ""
+    if term not in MARK_TERMS:
+        return [NOT_A_TERM], None
+    return [], term
 
 
 # --------------------------------------------------------------------------------------------------
@@ -759,8 +836,10 @@ def parse_png(data: bytes, out: Parsed) -> None:
                     start = end - len(text)
                     out.marks.append((start, end))
                     out.texts.append(("the mark's packet", start, text))
-                    for problem in mark_problems(text):
+                    problems, term = read_mark(text)
+                    for problem in problems:
                         out.bad("M5", problem)
+                    out.term = term or out.term
         elif kind == b"iCCP":
             name_bytes, _, rest = body.partition(b"\0")
             out.texts.append(("the ICC profile's name", pos + 8, name_bytes))
@@ -859,8 +938,10 @@ def parse_jpeg(data: bytes, out: Parsed) -> None:
                 # The segment's identifier, the XMP namespace A4 searches for, is part of the mark.
                 out.marks.append((body_at, text_at + len(text)))
                 out.texts.append(("the mark's packet", text_at, text))
-                for problem in mark_problems(text):
+                problems, term = read_mark(text)
+                for problem in problems:
                     out.bad("M5", problem)
+                out.term = term or out.term
             else:
                 out.bad("M2", f"an APP1 segment at byte {start} that isn't the mark")
         elif marker == 0xE2 and body.startswith(b"ICC_PROFILE\x00") and len(body) >= 14:
@@ -945,8 +1026,10 @@ def parse_webp(data: bytes, out: Parsed) -> None:
             start = at + 8
             out.marks.append((start, start + len(body)))
             out.texts.append(("the mark's packet", start, body))
-            for problem in mark_problems(body):
+            problems, term = read_mark(body)
+            for problem in problems:
                 out.bad("M5", problem)
+            out.term = term or out.term
         elif kind == b"ICCP":
             check_icc(body, out)
         elif kind == b"VP8 " and len(body) >= 10 and not out.width:
@@ -1447,11 +1530,14 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
             or set(packets) != {"packets"}
         ):
             out.bad("M5", "the mark's KHR_xmp_json_ld holds more than one packet")
-        elif found[0] != MARK_JSON:
+        elif not any(found[0] == mark_json(term) for term in MARK_TERMS):
             out.bad(
                 "M5",
-                "the mark's packet holds something besides Iptc4xmpExt:DigitalSourceType",
+                "the mark's packet holds something besides Iptc4xmpExt:DigitalSourceType, set to one of the three "
+                "terms a record's steps call for",
             )
+        else:
+            out.term = found[0]["Iptc4xmpExt:DigitalSourceType"][len(SOURCE_TYPES) :]
         if asset_ext.get("KHR_xmp_json_ld") != {"packet": 0}:
             out.bad("M5", "the asset doesn't reference the mark's packet")
         others = [
@@ -1544,6 +1630,7 @@ def parse_glb(data: bytes, out: Parsed, *, inspect_image) -> None:
         lo, hi = ranges[index]
         inner = inspect_image(binary_chunk[lo:hi])
         out.texture += inner.width * inner.height * 4 * 4 // 3
+        out.images.append((inner.width, inner.height))
         for rule, reason in inner.problems:
             if rule == "M9":
                 out.bad("M9", f"images[{i}], embedded: {reason}")
@@ -1619,11 +1706,61 @@ CONFIRMS = (
     "recreation_not_photo",
     "record_complete",
 )
+# Each true or "not_applicable" (spec 004, Amendment C4); screens_plain_live_face was screens_plain_glow, no longer read.
 ROOM_CONFIRMS = (
     "window_view_recreated",
-    "screens_plain_glow",
+    "screens_plain_live_face",
     "artwork_original_or_absent",
 )
+NOT_APPLICABLE = "not_applicable"
+# per_asset.room (spec 004, Amendment C7; contracts/intake-amendments.md §8): exactly these keys.
+ROOM_CAPS = (
+    "gzip_bytes",
+    "triangles",
+    "small_props",
+    "small_prop_texture_px",
+    "scene_texture_bytes",
+    "legibility_floor_css_px",
+)
+PIECE_ID = re.compile(r"[a-z][a-z0-9-]{1,40}")
+
+
+def room_caps_problem(room: object) -> str | None:
+    """Why main's per_asset.room can't be read, naming a key and never its value; None when it can."""
+    where = "caps.json's per_asset.room"
+    if not isinstance(room, dict):
+        return f"{where} isn't an object"
+    unknown = [k for k in room if k not in ROOM_CAPS]
+    if unknown:
+        return f"{where} holds a key it doesn't know: {clean(str(unknown[0]))[:40]}"
+    missing = [k for k in ROOM_CAPS if k not in room]
+    if missing:
+        return f"{where} lacks {missing[0]}"
+
+    def positive_int(value: object) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+    for key in ("gzip_bytes", "triangles", "scene_texture_bytes"):
+        if not positive_int(room[key]):
+            return f"{where}'s {key} isn't a positive integer"
+    side = room["small_prop_texture_px"]
+    if not positive_int(side) or side & (side - 1):
+        return f"{where}'s small_prop_texture_px isn't a positive power of two"
+    floor = room["legibility_floor_css_px"]
+    if (
+        not isinstance(floor, (int, float))
+        or isinstance(floor, bool)
+        or not 0 < floor < float("inf")
+    ):
+        return f"{where}'s legibility_floor_css_px isn't a positive number"
+    props = room["small_props"]
+    if (
+        not isinstance(props, list)
+        or not all(isinstance(p, str) and PIECE_ID.fullmatch(p) for p in props)
+        or len(set(props)) != len(props)
+    ):
+        return f"{where}'s small_props isn't a list of unique piece IDs"
+    return None
 
 
 def parse_policy(texts: dict[str, bytes]) -> Policy:
@@ -1682,6 +1819,10 @@ def parse_policy(texts: dict[str, bytes]) -> Policy:
         caps.get("per_asset"), dict
     ):
         raise PolicyError("caps.json has no adr_0010 or per_asset")
+    if "room" in caps["per_asset"]:
+        problem = room_caps_problem(caps["per_asset"]["room"])
+        if problem:
+            raise PolicyError(problem)
     if not isinstance(visit, dict) or not all(
         isinstance(visit.get(k), int) for k in ("phase2", "phase3")
     ):
@@ -1863,6 +2004,7 @@ class Record:
             or item.get("kind") == "room"
             or self.directory == "assets/twin"
             or self.directory.startswith("assets/twin/")
+            or (self.directory + "/").startswith(ROOM)
         ):
             required.append("approval")
         if self.published:
@@ -1905,9 +2047,13 @@ class Record:
         source = item.get("source")
         if isinstance(source, dict):
             self.keys(source, ("type", "id"), ("type", "id"), f"{where}.source")
-            if source.get("type") not in ("photo", "prompt", "asset"):
+            # A design: an original design with no photo or prompt (spec 004, Amendment C2).
+            if source.get("type") not in ("photo", "prompt", "asset", "design"):
                 self.problems.append(
-                    ("R1", f"{where}.source.type isn't photo, prompt, or asset")
+                    (
+                        "R1",
+                        f"{where}.source.type isn't photo, prompt, asset, or design",
+                    )
                 )
             sid = source.get("id")
             if isinstance(sid, str) and r5_problem(sid):
@@ -2032,6 +2178,36 @@ def disclosure_rows(text: bytes | None) -> set[str]:
     )
 
 
+def expected_term(path: str, entry: dict) -> str | None:
+    """The mark's term the file must carry (spec 004, Amendment C1): the one its record's steps call for, and under
+    assets/twin/ and docs/research/images/, MARK_MODEL whatever the steps say. None while the steps can't say, which
+    R1 refuses on its own."""
+    if path.startswith(MODEL_ONLY):
+        return MARK_MODEL
+    return steps_term(entry)
+
+
+def steps_term(entry: dict) -> str | None:
+    """The term the record's steps call for, wherever the file lives: every step by a model, MARK_MODEL; model and
+    hand mixed, MARK_COMPOSITE; every step by hand, MARK_HUMAN. None while the steps can't say."""
+    steps = entry.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return None
+    by = {step.get("by") if isinstance(step, dict) else None for step in steps}
+    if by == {"model"}:
+        return MARK_MODEL
+    if by == {"hand"}:
+        return MARK_HUMAN
+    if by == {"model", "hand"}:
+        return MARK_COMPOSITE
+    return None
+
+
+def room_file(path: str, entry: dict) -> bool:
+    """A room file: its record's kind is room, or it sits under assets/room/, whatever its record says."""
+    return entry.get("kind") == "room" or path.startswith(ROOM)
+
+
 def licenses_of(entry: dict) -> list[tuple[str, str, str, str | None]]:
     """(what, license, version, commercial license) for each model, tool, and service an entry names."""
     found = []
@@ -2079,8 +2255,14 @@ class Checker:
         self.git = git
         self.findings: list[Finding] = []
         self._seen: set[tuple[str, str, str]] = set()
+        # What no exit code counts: a hand-made or composite file P1 doesn't hold (spec 004, Amendment C1), recorded
+        # only for the files the changes being checked add or change, never for one main already holds.
+        self.warnings: list[Finding] = []
+        self.warn_for: set[str] = set()
         self._files: dict[tuple[str, str], None] = {}
         self.sizes: dict[str, Size] = {}
+        # What a file's parse found that its entry's rules read (spec 004, Amendments C1 and C7), by the file's SHA-256.
+        self.facts: dict[str, Facts] = {}
         self.reasons: list[str] = []
         self._policy: Policy | None = None
         self._policy_tried = False
@@ -2096,6 +2278,14 @@ class Checker:
         if key not in self._seen:
             self._seen.add(key)
             self.findings.append(Finding(rule, path, reason, commit))
+
+    def warn(self, path: str, reason: str, commit: str | None) -> None:
+        """A WARN line, once per file and reason, which fails nothing: only for a file the changes being checked add or
+        change (check_changes), so a range's last pass over the tip's whole tree records none."""
+        key = ("WARN", path, reason)
+        if path in self.warn_for and key not in self._seen:
+            self._seen.add(key)
+            self.warnings.append(Finding("WARN", path, reason, commit))
 
     def cannot(self, reason: str) -> None:
         if reason not in self.reasons:
@@ -2121,7 +2311,13 @@ class Checker:
             try:
                 self._policy = parse_policy(texts)
             except PolicyError as exc:
-                self.cannot(f"the main branch's {POLICY}{exc}")
+                # The room block's problems read as the contract gives them: caps.json's per_asset.room …
+                reason = str(exc)
+                self.cannot(
+                    reason
+                    if reason.startswith("caps.json's per_asset.room")
+                    else f"the main branch's {POLICY}{reason}"
+                )
         return self._policy
 
     # -- one file ------------------------------------------------------------------------------
@@ -2224,6 +2420,9 @@ class Checker:
                 parsed.vertices,
                 parsed.triangles,
                 parsed.texture,
+            )
+            self.facts[hashlib.sha256(data).hexdigest()] = Facts.of(
+                parsed, kind, self.sizes[path].gzip
             )
             return
         if path.startswith(POLICY):
@@ -2337,6 +2536,18 @@ class Checker:
                 tree, f"{directory}/{name}", item, record, policy, published, commit
             )
 
+    def facts_of(self, path: str, data: bytes, digest: str) -> Facts | None:
+        """The file's Facts: from its check in this run, or parsed now when this run didn't check it (its directory's
+        record changed, not the file). None for a file of no admitted format, which the A rules refuse."""
+        if digest not in self.facts:
+            kind = ADMITTED.get(ext_of(path))
+            if kind is None or sniff(data) != kind:
+                return None
+            self.facts[digest] = Facts.of(
+                inspect(data, kind), kind, len(gzip.compress(data, 9, mtime=0))
+            )
+        return self.facts[digest]
+
     def check_entry(
         self,
         tree: Tree,
@@ -2356,6 +2567,19 @@ class Checker:
         ) != getattr(record, "license", None):
             self.add(
                 "N2", path, "its media_license differs from the directory's", commit
+            )
+        facts = self.facts_of(path, data, actual)
+        # M5, the mark that follows the record (spec 004, Amendment C1).
+        expected = expected_term(path, entry)
+        if facts and facts.term and expected and facts.term != expected:
+            self.add(
+                "M5",
+                path,
+                f"the mark is {facts.term} where files under assets/twin/ and docs/research/images/ carry "
+                f"{MARK_MODEL}"
+                if path.startswith(MODEL_ONLY)
+                else f"the mark is {facts.term} where its record's steps call for {expected}",
+                commit,
             )
         if policy is None:
             return
@@ -2401,22 +2625,44 @@ class Checker:
                     commit,
                 )
         kind = entry.get("kind")
+        room = room_file(path, entry)
         source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
         approval = None
-        # Every file of the twin needs its own approval, whatever its record says: the record is the branch's, and a
-        # record calling a twin's still no likeness, from a prompt, mustn't skip the Author.
-        if (
+
+        def confirmed(item: dict, key: str) -> bool:
+            # A room file whose record says it shows no likeness may have likeness_accepted read not_applicable;
+            # the other four stay true (spec 004, Amendment C5).
+            value = item["confirms"].get(key)
+            return value is True or (
+                value == NOT_APPLICABLE
+                and key == "likeness_accepted"
+                and room
+                and entry.get("likeness") is False
+            )
+
+        # Every file of the twin, and of the room, needs its own approval, whatever its record says: the record is the
+        # branch's, and a record calling a twin's still no likeness, from a prompt, mustn't skip the Author.
+        held = (
             entry.get("likeness") is True
             or source.get("type") == "photo"
-            or kind == "room"
+            or room
             or path.startswith("assets/twin/")
-        ):
+        )
+        term = steps_term(entry)
+        if not held and term in (MARK_HUMAN, MARK_COMPOSITE):
+            # A hand-made or composite file outside those needs no approval, and the check warns that its likeness is
+            # the contributor's to check: "No, let's relax that with a warning of saying it's up to the contributor to
+            # check for likeness. Deprecate the heavy check." (the Author, 2026-10-30; spec 004, Amendment C1).
+            made = "hand-made" if term == MARK_HUMAN else "composite"
+            self.warn(
+                path,
+                f"its record's steps call for the {made} mark, and the file needs no approval, so it's up to the "
+                "contributor to check for likeness (spec 004, Amendment C1)",
+                commit,
+            )
+        if held:
             matches = [a for a in policy.approvals if a.get("sha256") == actual]
-            good = [
-                a
-                for a in matches
-                if all(a["confirms"].get(c) is True for c in CONFIRMS)
-            ]
+            good = [a for a in matches if all(confirmed(a, c) for c in CONFIRMS)]
             approval = good[0] if good else None
             if approval is None:
                 why = (
@@ -2438,14 +2684,19 @@ class Checker:
                     "its record's approval ID isn't the one the main branch's approval of this hash carries",
                     commit,
                 )
-            elif kind == "room" and not (
+            elif room and not (
                 isinstance(approval.get("room"), dict)
-                and all(approval["room"].get(c) is True for c in ROOM_CONFIRMS)
+                and all(
+                    approval["room"].get(c) is True
+                    or approval["room"].get(c) == NOT_APPLICABLE
+                    for c in ROOM_CONFIRMS
+                )
             ):
                 self.add(
                     "P2",
                     path,
-                    "a room file whose approval lacks the room confirmations (FR-037)",
+                    "a room file whose approval lacks the room confirmations, each true or not_applicable "
+                    "(FR-037; spec 004, Amendment C4)",
                     commit,
                 )
         if path.startswith("assets/twin/"):
@@ -2471,11 +2722,15 @@ class Checker:
                 f"an {kind} while caps.json says ADR 0010 isn't accepted (FR-018)",
                 commit,
             )
-        limits = (
-            caps["per_asset"].get(kind)
-            if isinstance(caps["per_asset"].get(kind), dict)
-            else {}
-        )
+        if room:
+            self.check_room_caps(path, facts, caps["per_asset"].get("room"), commit)
+            limits = {}
+        else:
+            limits = (
+                caps["per_asset"].get(kind)
+                if isinstance(caps["per_asset"].get(kind), dict)
+                else {}
+            )
         size = self.sizes.get(path)
         measured = {
             "bytes": len(data),
@@ -2494,6 +2749,49 @@ class Checker:
         arm = entry.get("arm")
         if published and arm in ("B", "D"):
             self.check_caption(tree, path, entry, commit)
+
+    def check_room_caps(
+        self, path: str, facts: Facts | None, caps: object, commit: str | None
+    ) -> None:
+        """F2 for a room file (spec 004, Amendment C7): its gzip-9 size, a GLB's triangles, and, on a small prop, each
+        texture's sides, against main's per_asset.room, which parse_policy has already held to its six keys."""
+        if not isinstance(caps, dict):
+            self.add(
+                "F2",
+                path,
+                "a room file while the main branch's caps.json has no per_asset.room, the caps it needs "
+                "(spec 004, Amendment C7)",
+                commit,
+            )
+            return
+        if facts is None:
+            return
+        if facts.gzip > caps["gzip_bytes"]:
+            self.add(
+                "F2",
+                path,
+                f"{facts.gzip:,} bytes at gzip level 9 over its cap of {caps['gzip_bytes']:,} (spec 004, FR-053)",
+                commit,
+            )
+        if facts.triangles is not None and facts.triangles > caps["triangles"]:
+            self.add(
+                "F2",
+                path,
+                f"{facts.triangles:,} triangles over its cap of {caps['triangles']:,} (spec 004, FR-053)",
+                commit,
+            )
+        stem = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        side = caps["small_prop_texture_px"]
+        if stem in caps["small_props"]:
+            for i, (width, height) in enumerate(facts.sides):
+                if max(width, height) > side:
+                    self.add(
+                        "F2",
+                        path,
+                        f"a small prop's texture {i}, {width} by {height} pixels, over its cap of {side} a side "
+                        "(spec 004, FR-053)",
+                        commit,
+                    )
 
     def check_caption(
         self, tree: Tree, path: str, entry: dict, commit: str | None
@@ -2545,10 +2843,15 @@ class Checker:
                 continue
             if in_roots(path):
                 touched.add(parent(path))
-        for path in changed:
-            self.check_file(tree, path, commit)
-        for directory in sorted(touched):
-            self.check_dir(tree, directory, commit)
+        # A warning names a file these changes add or change, not another its directory's record holds (C1).
+        self.warn_for = {path for path in changed if in_roots(path)}
+        try:
+            for path in changed:
+                self.check_file(tree, path, commit)
+            for directory in sorted(touched):
+                self.check_dir(tree, directory, commit)
+        finally:
+            self.warn_for = set()
 
     def check_tree(self, tree: Tree, commit: str | None) -> None:
         """Every asset directory in a tree, whole, and the first visit's total."""
@@ -2561,10 +2864,21 @@ class Checker:
         self.first_visit_total(tree, commit)
 
     def first_visit_total(self, tree: Tree, commit: str | None) -> None:
-        """SC-006's first visit, by transfer size: every GLB under assets/twin/ and assets/animations/ (and
-        assets/room/ in Phase 3), and the largest visitor avatar's GLBs."""
-        glbs = [p for p in tree.under("assets/") if p.endswith(".glb") and in_roots(p)]
-        if not glbs:
+        """SC-006's first visit, by transfer size: every GLB under assets/twin/ and assets/animations/, every file the
+        room serves under assets/room/, image cards included (spec 004, Amendment C6), and the largest visitor
+        avatar's GLBs; phase 3's budget once assets/room/ holds such a file. A directory's records.json and
+        LICENSE.md aren't served, so they count for neither."""
+        room_files = [
+            p
+            for p in tree.under(ROOM)
+            if in_roots(p) and p.rsplit("/", 1)[-1] not in (RECORDS, NOTICE)
+        ]
+        glbs = [
+            p
+            for p in tree.under("assets/")
+            if p.endswith(".glb") and in_roots(p) and not p.startswith(ROOM)
+        ]
+        if not glbs and not room_files:
             return
         policy = self.policy()
         if policy is None:
@@ -2578,12 +2892,10 @@ class Checker:
                 )
             return self.sizes[path].gzip
 
-        room = any(p.startswith("assets/room/") for p in glbs)
+        room = bool(room_files)
         total = sum(
-            gz(p)
-            for p in glbs
-            if p.startswith(("assets/twin/", "assets/animations/", "assets/room/"))
-        )
+            gz(p) for p in glbs if p.startswith(("assets/twin/", "assets/animations/"))
+        ) + sum(gz(p) for p in room_files)
         visitors: dict[str, int] = {}
         for p in glbs:
             if p.startswith("assets/visitors/"):
@@ -2799,7 +3111,7 @@ def run_paths(top: Path, checker: Checker, names: list[str]) -> None:
 # Output
 # --------------------------------------------------------------------------------------------------
 def report(checker: Checker) -> str:
-    lines = [f.render() for f in checker.findings]
+    lines = [f.render() for f in checker.findings + checker.warnings]
     rows = [s for s in checker.sizes.values() if in_roots(s.path)]
     if rows:
         width = max(36, max(len(s.path) for s in rows) + 2)
@@ -2833,8 +3145,10 @@ def report(checker: Checker) -> str:
         else ""
     )
     count = len(checker.findings)
+    warned = len(checker.warnings)
+    warnings = f", {warned} warning{'s' if warned != 1 else ''}" if warned else ""
     lines.append(
-        f"arrival-check: {count} finding{'s' if count != 1 else ''} in {checker.files_checked} file{'s' if checker.files_checked != 1 else ''}{commits}"
+        f"arrival-check: {count} finding{'s' if count != 1 else ''} in {checker.files_checked} file{'s' if checker.files_checked != 1 else ''}{commits}{warnings}"
     )
     return "\n".join(lines)
 

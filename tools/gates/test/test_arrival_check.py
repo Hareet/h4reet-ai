@@ -4,6 +4,12 @@ contracts/arrival-check.md §5).
 Each test builds a throwaway repository with arrival_fixtures.py, whose `main` holds the policy, and runs the check as
 the hook, make check, and the gate do: by path, through `python3 -I -B -X pycache_prefix=/dev/null`. It reads the
 check's lines, `<rule> <path>[ @<commit>]: <reason>`, and its exit code: 0 nothing refused, 1 a finding, 2 can't check.
+
+Spec 004's amendments (its P-5; contracts/intake-amendments.md §7; tasks.md T036) have their own section at the end:
+the mark that follows the record (C1, rule M5), the design source (C2, R1), the room confirmations (C4, P2), the
+likeness that doesn't apply (C5, P1), the room's files in the first visit (C6, F3), and the room's caps (C7, F2). Its
+C1 cases also read the check's `WARN <path>[ @<commit>]: <reason>` lines, which no exit code counts: a hand-made or
+composite file that needs no approval is the contributor's to check for likeness (the Author's answer of 2026-10-30).
 """
 
 from __future__ import annotations
@@ -32,6 +38,7 @@ LINE = re.compile(
     r"^(?P<rule>[A-Z]\d+) (?P<path>\S+)(?: @(?P<commit>[0-9a-f]{7,40}))?: (?P<reason>.+)$"
 )
 DOG = "assets/visitors/dog"
+CAT = "assets/visitors/cat"
 TWIN = "assets/twin"
 NOTE_DIR = "docs/research/images/2026-10-12-image-model-evaluation"
 NOTE = "docs/research/2026-10-12-image-model-evaluation.md"
@@ -654,7 +661,10 @@ def test_r6_a_model_step_without_its_refresh_date_or_after_made(
 
 
 def test_r7_a_service_whose_disclosure_row_doesnt_exist(repo: fx.Repo) -> None:
-    data = fx.png()
+    # A model step and a hand step: the composite mark (spec 004, Amendment C1).
+    data = fx.png(
+        packet=fx.xmp(value=fx.SOURCE_TYPES + "compositeWithTrainedAlgorithmicMedia")
+    )
     step = {
         "name": "upscale",
         "by": "hand",
@@ -1209,3 +1219,749 @@ def test_a_path_outside_the_repository_is_refused_without_naming_it(
     run = check(repo, str(stray))
     assert run.code == 2 and "arrival-check: can't check" in run.out, run.out
     assert "private-name" not in run.out and "elsewhere" not in run.out
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 004's amendments (P-5; contracts/intake-amendments.md §7): C1 on M5, C2 on R1, C4 on P2, C5 on P1, C6 on F3,
+# C7 on F2. The terms come from the check itself, so the Author's confirmed term (tasks.md T031) is one line there.
+# --------------------------------------------------------------------------------------------------
+_TERMS_SPEC = importlib.util.spec_from_file_location("arrival_check_terms", SCRIPT)
+assert _TERMS_SPEC and _TERMS_SPEC.loader
+ac = importlib.util.module_from_spec(_TERMS_SPEC)
+sys.modules[_TERMS_SPEC.name] = ac
+_TERMS_SPEC.loader.exec_module(ac)
+TERMS = {
+    "model": getattr(ac, "MARK_MODEL", ""),
+    "composite": getattr(ac, "MARK_COMPOSITE", ""),
+    "hand": getattr(ac, "MARK_HUMAN", ""),
+}
+STEPS = {
+    "model": lambda: [fx.model_step()],
+    "composite": lambda: [fx.model_step(), fx.hand_step()],
+    "hand": lambda: [fx.hand_step()],
+}
+ROOM = "assets/room"
+
+
+def marked(kind: str, term: str, **kwargs) -> bytes:
+    """A file of `kind` whose mark is IPTC's `term`."""
+    value = fx.SOURCE_TYPES + term
+    if kind == "glb":
+        return fx.glb(value=value, **kwargs)
+    return fx.png(packet=fx.xmp(value=value), **kwargs)
+
+
+def room_repo(
+    tmp_path: Path,
+    files: dict[str, bytes],
+    *,
+    steps: list[dict] | None = None,
+    room: object = fx.ROOM_CAPS,
+    room_confirms: dict | None = None,
+    likeness: bool = False,
+    source: tuple[str, str] = ("design", "D-0001"),
+    **confirms,
+) -> fx.Repo:
+    """A repository whose main approves each room file with the room confirmations, and holds the room caps (or
+    `room`, as given; None for none), with the files in assets/room/ on the branch."""
+    per_asset = {} if room is None else {"room": room}
+    approvals = [
+        fx.approval(
+            f"A-01{i:02d}",
+            data,
+            f"{ROOM}/{name}",
+            kind="room",
+            room=dict(fx.ROOM_YES) if room_confirms is None else room_confirms,
+            **confirms,
+        )
+        for i, (name, data) in enumerate(sorted(files.items()))
+    ]
+    repo = fx.repository(
+        tmp_path, approvals=approvals, limits=fx.caps(per_asset=per_asset)
+    )
+    entries = [
+        fx.entry(
+            name,
+            data,
+            kind="room",
+            source=source,
+            likeness=likeness,
+            steps=STEPS["model"]() if steps is None else steps,
+            approval=f"A-01{i:02d}",
+        )
+        for i, (name, data) in enumerate(sorted(files.items()))
+    ]
+    repo.directory(ROOM, files, entries)
+    return repo
+
+
+def check_room(repo: fx.Repo, *names: str) -> Run:
+    return check(repo, *paths(repo, *(f"{ROOM}/{n}" for n in names)))
+
+
+def test_the_amendments_constant_is_a_tuple_of_literals_ast_can_read() -> None:
+    # evals/test_room_order.py reads it from main's copy with ast, never importing the check.
+    import ast
+
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    (node,) = [
+        n
+        for n in tree.body
+        if isinstance(n, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "AMENDMENTS" for t in n.targets)
+    ]
+    assert ast.literal_eval(node.value) == (
+        "004-C1",
+        "004-C2",
+        "004-C4",
+        "004-C5",
+        "004-C6",
+        "004-C7",
+    )
+
+
+def test_the_three_terms_are_each_one_constant() -> None:
+    assert len(set(TERMS.values())) == 3
+    assert TERMS["model"] == "trainedAlgorithmicMedia"
+    assert TERMS["composite"] == "compositeWithTrainedAlgorithmicMedia"
+    # IPTC's term for media a human made with non-generative tools (tasks.md T031, settled on 2026-10-30).
+    assert TERMS["hand"] == "digitalCreation"
+
+
+# C1: the mark follows the record's steps.
+@pytest.mark.parametrize("which", ["model", "composite", "hand"])
+@pytest.mark.parametrize("kind", ["glb", "png"])
+def test_c1_a_room_file_marked_as_its_steps_call_for_passes(
+    tmp_path: Path, which: str, kind: str
+) -> None:
+    name = f"desk.{kind}"
+    data = marked(kind, TERMS[which])
+    repo = room_repo(tmp_path, {name: data}, steps=STEPS[which]())
+    run = check_room(repo, name)
+    assert run.code == 0, run.out
+    # P1 holds a room file, so nothing is left to the contributor.
+    assert warned(run) == [], run.out
+
+
+@pytest.mark.parametrize(
+    "mark, steps",
+    [
+        ("model", "hand"),
+        ("model", "composite"),
+        ("composite", "model"),
+        ("composite", "hand"),
+        ("hand", "model"),
+        ("hand", "composite"),
+    ],
+)
+def test_c1_m5_a_room_file_whose_mark_disagrees_with_its_steps(
+    tmp_path: Path, mark: str, steps: str
+) -> None:
+    data = marked("glb", TERMS[mark])
+    repo = room_repo(tmp_path, {"desk.glb": data}, steps=STEPS[steps]())
+    run = check_room(repo, "desk.glb")
+    assert run.code == 1 and run.has("M5", f"{ROOM}/desk.glb"), run.out
+    assert (
+        f"M5 {ROOM}/desk.glb: the mark is {TERMS[mark]} where its record's steps call for {TERMS[steps]}"
+        in run.out
+    ), run.out
+
+
+@pytest.mark.parametrize("which", ["composite", "hand"])
+def test_c1_m5_the_twin_takes_only_the_models_mark_whatever_its_steps(
+    tmp_path: Path, which: str
+) -> None:
+    twin = marked("glb", TERMS[which])
+    repo = fx.repository(tmp_path, approvals=twin_policy(glb_data=twin))
+    record = fx.entry(
+        "twin.glb",
+        twin,
+        kind="avatar",
+        likeness=True,
+        source=("photo", "PH-0001"),
+        approval="A-0001",
+        steps=STEPS[which](),
+    )
+    repo.directory(TWIN, {"twin.glb": twin}, [record])
+    run = check(repo, *paths(repo, f"{TWIN}/twin.glb"))
+    assert run.code == 1 and run.has("M5", f"{TWIN}/twin.glb"), run.out
+    assert f"the mark is {TERMS[which]}" in run.out
+
+
+def test_c1_m5_the_twin_with_the_models_mark_passes_with_hand_steps(
+    tmp_path: Path,
+) -> None:
+    twin = fx.glb()
+    repo = fx.repository(tmp_path, approvals=twin_policy(glb_data=twin))
+    record = fx.entry(
+        "twin.glb",
+        twin,
+        kind="avatar",
+        likeness=True,
+        source=("photo", "PH-0001"),
+        approval="A-0001",
+        steps=[fx.model_step(), fx.hand_step()],
+    )
+    repo.directory(TWIN, {"twin.glb": twin}, [record])
+    run = check(repo, *paths(repo, f"{TWIN}/twin.glb"))
+    assert run.code == 0, run.out
+    assert warned(run) == [], run.out  # P1 holds the twin's files
+
+
+def test_c1_m5_a_research_image_takes_only_the_models_mark(repo: fx.Repo) -> None:
+    grid = fx.jpeg(packet=fx.xmp(value=fx.SOURCE_TYPES + TERMS["hand"]))
+    record = fx.entry(
+        "t1-grid.jpg",
+        grid,
+        kind="published-image",
+        steps=[fx.hand_step()],
+        arm="A",
+        note=NOTE,
+    )
+    repo.directory(NOTE_DIR, {"t1-grid.jpg": grid}, [record])
+    run = check(repo, *paths(repo, f"{NOTE_DIR}/t1-grid.jpg"))
+    assert run.code == 1 and run.has("M5", f"{NOTE_DIR}/t1-grid.jpg"), run.out
+
+
+def test_c1_m5_a_term_outside_the_three_is_refused_by_the_container_rules() -> None:
+    data = fx.png(packet=fx.xmp(value=fx.SOURCE_TYPES + "digitalCapture"))
+    found = ac.container_findings(data, "png")
+    assert [r for r, _ in found] == ["M5"], found
+    assert "digitalCapture" not in found[0][1]  # it names the rule, never the value
+    for term in TERMS.values():
+        assert ac.container_findings(marked("png", term), "png") == []
+
+
+# C2: a design source.
+def test_c2_r1_a_design_source_passes(tmp_path: Path) -> None:
+    data = fx.glb()
+    repo = room_repo(tmp_path, {"desk.glb": data}, source=("design", "D-0042"))
+    assert check_room(repo, "desk.glb").code == 0
+
+
+def test_c2_r1_a_design_sources_id_is_held_to_the_opaque_id_rule(
+    tmp_path: Path,
+) -> None:
+    data = fx.glb()
+    repo = room_repo(tmp_path, {"desk.glb": data}, source=("design", "my sign.svg"))
+    run = check_room(repo, "desk.glb")
+    assert run.code == 1 and (
+        run.has("R5", f"{ROOM}/records.json") or run.has("R1", f"{ROOM}/records.json")
+    ), run.out
+
+
+def test_c2_r1_another_source_type_is_still_refused(tmp_path: Path) -> None:
+    data = fx.glb()
+    repo = room_repo(tmp_path, {"desk.glb": data}, source=("sketch", "S-0001"))
+    run = check_room(repo, "desk.glb")
+    assert run.has("R1", f"{ROOM}/records.json"), run.out
+    assert "photo, prompt, asset, or design" in run.out
+
+
+# C4: the room confirmations, true or "not_applicable".
+@pytest.mark.parametrize(
+    "key",
+    ["window_view_recreated", "screens_plain_live_face", "artwork_original_or_absent"],
+)
+def test_c4_p2_a_room_confirmation_reading_not_applicable_passes(
+    tmp_path: Path, key: str
+) -> None:
+    data = fx.glb()
+    repo = room_repo(
+        tmp_path,
+        {"desk.glb": data},
+        room_confirms={**fx.ROOM_YES, key: "not_applicable"},
+    )
+    assert check_room(repo, "desk.glb").code == 0
+
+
+@pytest.mark.parametrize("value", [False, "no", None, "n/a"])
+def test_c4_p2_a_room_confirmation_neither_true_nor_not_applicable(
+    tmp_path: Path, value: object
+) -> None:
+    data = fx.glb()
+    repo = room_repo(
+        tmp_path,
+        {"desk.glb": data},
+        room_confirms={**fx.ROOM_YES, "window_view_recreated": value},
+    )
+    run = check_room(repo, "desk.glb")
+    assert run.code == 1 and run.has("P2", f"{ROOM}/desk.glb"), run.out
+
+
+def test_c4_p2_the_old_name_alone_is_refused(tmp_path: Path) -> None:
+    data = fx.glb()
+    old = {
+        "window_view_recreated": True,
+        "screens_plain_glow": True,
+        "artwork_original_or_absent": True,
+    }
+    repo = room_repo(tmp_path, {"desk.glb": data}, room_confirms=old)
+    run = check_room(repo, "desk.glb")
+    assert run.code == 1 and run.has("P2", f"{ROOM}/desk.glb"), run.out
+
+
+# C5: likeness_accepted may read "not_applicable" for a room file that shows no likeness.
+def test_c5_p1_a_room_file_with_no_likeness_takes_not_applicable(
+    tmp_path: Path,
+) -> None:
+    data = fx.glb()
+    repo = room_repo(tmp_path, {"desk.glb": data}, likeness_accepted="not_applicable")
+    assert check_room(repo, "desk.glb").code == 0
+
+
+def test_c5_p1_not_applicable_is_refused_where_the_room_file_shows_the_author(
+    tmp_path: Path,
+) -> None:
+    data = fx.glb()
+    repo = room_repo(
+        tmp_path,
+        {"desk.glb": data},
+        likeness=True,
+        likeness_accepted="not_applicable",
+    )
+    run = check_room(repo, "desk.glb")
+    assert run.code == 1 and run.has("P1", f"{ROOM}/desk.glb"), run.out
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "nothing_locates",
+        "no_screen_logo_text_or_art",
+        "recreation_not_photo",
+        "record_complete",
+    ],
+)
+def test_c5_p1_the_other_four_stay_true(tmp_path: Path, key: str) -> None:
+    data = fx.glb()
+    repo = room_repo(tmp_path, {"desk.glb": data}, **{key: "not_applicable"})
+    run = check_room(repo, "desk.glb")
+    assert run.code == 1 and run.has("P1", f"{ROOM}/desk.glb"), run.out
+
+
+def test_c5_p1_not_applicable_outside_the_room_is_refused(tmp_path: Path) -> None:
+    data = fx.png()
+    repo = fx.repository(
+        tmp_path,
+        approvals=[
+            fx.approval(
+                "A-0002",
+                data,
+                f"{DOG}/still.png",
+                kind="still",
+                likeness_accepted="not_applicable",
+            )
+        ],
+    )
+    record = fx.entry("still.png", data, source=("photo", "PH-0003"), approval="A-0002")
+    run = in_dog(repo, "still.png", data, [record])
+    assert run.code == 1 and run.has("P1", f"{DOG}/still.png"), run.out
+
+
+def test_c5_p1_a_room_file_still_needs_its_approval(tmp_path: Path) -> None:
+    data = fx.glb()
+    repo = fx.repository(tmp_path, limits=fx.caps(per_asset={"room": fx.ROOM_CAPS}))
+    record = fx.entry(
+        "desk.glb",
+        data,
+        kind="room",
+        source=("design", "D-0001"),
+        steps=[fx.model_step()],
+        approval="A-0100",
+    )
+    repo.directory(ROOM, {"desk.glb": data}, [record])
+    run = check_room(repo, "desk.glb")
+    assert run.code == 1 and run.has("P1", f"{ROOM}/desk.glb"), run.out
+
+
+# A room file is a record of kind room, or any file under assets/room/, whatever its record says (§7, As built).
+def test_a_non_room_kind_under_assets_room_needs_its_approval(tmp_path: Path) -> None:
+    data = fx.png()
+    repo = fx.repository(tmp_path, limits=fx.caps(per_asset={"room": fx.ROOM_CAPS}))
+    record = fx.entry("card.png", data, kind="still", source=("design", "D-0001"))
+    repo.directory(ROOM, {"card.png": data}, [record])
+    run = check_room(repo, "card.png")
+    assert run.code == 1 and run.has("P1", f"{ROOM}/card.png"), run.out
+
+
+def test_a_non_room_kind_under_assets_room_needs_the_room_confirmations(
+    tmp_path: Path,
+) -> None:
+    data = fx.png()
+    repo = fx.repository(
+        tmp_path,
+        approvals=[fx.approval("A-0101", data, f"{ROOM}/card.png", kind="still")],
+        limits=fx.caps(per_asset={"room": fx.ROOM_CAPS}),
+    )
+    record = fx.entry(
+        "card.png",
+        data,
+        kind="still",
+        source=("design", "D-0001"),
+        approval="A-0101",
+    )
+    repo.directory(ROOM, {"card.png": data}, [record])
+    run = check_room(repo, "card.png")
+    assert run.code == 1 and run.has("P2", f"{ROOM}/card.png"), run.out
+    assert not run.has("P1", f"{ROOM}/card.png"), run.out
+
+
+def test_a_non_room_kind_under_assets_room_is_held_to_the_room_caps(
+    tmp_path: Path,
+) -> None:
+    data = fx.png()
+    repo = fx.repository(
+        tmp_path,
+        approvals=[
+            fx.approval(
+                "A-0101", data, f"{ROOM}/card.png", kind="still", room=dict(fx.ROOM_YES)
+            )
+        ],
+    )
+    record = fx.entry(
+        "card.png",
+        data,
+        kind="still",
+        source=("design", "D-0001"),
+        approval="A-0101",
+    )
+    repo.directory(ROOM, {"card.png": data}, [record])
+    run = check_room(repo, "card.png")
+    assert run.code == 1 and run.has("F2", f"{ROOM}/card.png"), run.out
+    assert run.rules(f"{ROOM}/card.png") == {"F2"}, run.out
+
+
+# C1 and P1, after the Author's answer of 2026-10-30: "No, let's relax that with a warning of saying it's up to the
+# contributor to check for likeness. Deprecate the heavy check." Only a room file, a file under assets/twin/, a likeness,
+# and a photo source need the Author's approval, spec 003's breadth. A hand-made or composite file outside them needs
+# none, and passes with a WARN line, which no exit code counts (§7, As built).
+WARN_LINE = re.compile(
+    r"^WARN (?P<path>\S+)(?: @(?P<commit>[0-9a-f]{7,40}))?: (?P<reason>.+)$"
+)
+LEFT_TO_THE_CONTRIBUTOR = "it's up to the contributor to check for likeness"
+CALLED = {"hand": "hand-made", "composite": "composite"}
+
+
+def warned(run: Run) -> list[dict]:
+    return [m.groupdict() for m in map(WARN_LINE.match, run.out.splitlines()) if m]
+
+
+@pytest.mark.parametrize("which", ["composite", "hand"])
+@pytest.mark.parametrize("kind", ["glb", "png"])
+def test_c1_a_hand_or_composite_file_outside_p1_passes_with_a_warning(
+    tmp_path: Path, which: str, kind: str
+) -> None:
+    name = f"still.{kind}"
+    data = marked(kind, TERMS[which])
+    repo = fx.repository(tmp_path)
+    run = in_dog(repo, name, data, [fx.entry(name, data, steps=STEPS[which]())])
+    assert run.code == 0 and run.findings == [], run.out
+    assert "lacks approval" not in run.out, run.out  # R4 asks its record for none
+    (warning,) = warned(run)
+    assert warning["path"] == f"{DOG}/{name}" and warning["commit"] is None, run.out
+    assert LEFT_TO_THE_CONTRIBUTOR in warning["reason"], run.out
+    assert f"the {CALLED[which]} mark" in warning["reason"], run.out
+    assert run.out.rstrip().splitlines()[-1].endswith(", 1 warning"), run.out
+
+
+@pytest.mark.parametrize("kind", ["glb", "png"])
+def test_c1_one_model_step_outside_p1_needs_no_approval_and_no_warning(
+    tmp_path: Path, kind: str
+) -> None:
+    # No likeness, a prompt source, and one model step: spec 003's reading, unchanged.
+    name = f"still.{kind}"
+    data = marked(kind, TERMS["model"])
+    repo = fx.repository(tmp_path)
+    record = fx.entry(
+        name, data, steps=STEPS["model"](), likeness=False, source=("prompt", "P-0001")
+    )
+    run = in_dog(repo, name, data, [record])
+    assert run.code == 0 and warned(run) == [], run.out
+    assert "warning" not in run.out.rstrip().splitlines()[-1], run.out
+
+
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("held", ["likeness", "photo source"])
+@pytest.mark.parametrize("which", ["composite", "hand"])
+def test_c1_p1_a_hand_or_composite_likeness_or_photo_source_still_needs_its_approval(
+    tmp_path: Path, which: str, held: str, approved: bool
+) -> None:
+    # P1 holds a likeness and a photo source whatever their steps, so the Author checks them, and nothing warns.
+    data = marked("png", TERMS[which])
+    approvals = (
+        [fx.approval("A-0201", data, f"{DOG}/still.png", kind="still")]
+        if approved
+        else []
+    )
+    repo = fx.repository(tmp_path, approvals=approvals)
+    held_by = (
+        {"likeness": True} if held == "likeness" else {"source": ("photo", "PH-0004")}
+    )
+    record = fx.entry(
+        "still.png", data, steps=STEPS[which](), approval="A-0201", **held_by
+    )
+    run = in_dog(repo, "still.png", data, [record])
+    assert warned(run) == [], run.out
+    if approved:
+        assert run.code == 0, run.out
+    else:
+        assert run.code == 1 and run.rules(f"{DOG}/still.png") == {"P1"}, run.out
+        assert "no approval names this file's hash" in run.out
+
+
+def test_c1_an_approval_main_holds_is_not_read_outside_p1(tmp_path: Path) -> None:
+    # P1 reads no approval for such a file, so one whose likeness_accepted reads "not_applicable" refuses nothing:
+    # C5's "not_applicable" stays a room file's, where P1 holds it.
+    data = marked("png", TERMS["hand"])
+    repo = fx.repository(
+        tmp_path,
+        approvals=[
+            fx.approval(
+                "A-0202",
+                data,
+                f"{DOG}/still.png",
+                kind="still",
+                likeness_accepted="not_applicable",
+            )
+        ],
+    )
+    record = fx.entry("still.png", data, steps=STEPS["hand"](), approval="A-0202")
+    run = in_dog(repo, "still.png", data, [record])
+    assert run.code == 0 and run.findings == [], run.out
+    assert [w["path"] for w in warned(run)] == [f"{DOG}/still.png"], run.out
+
+
+def test_c1_a_research_image_whose_steps_mix_passes_with_a_warning(
+    repo: fx.Repo,
+) -> None:
+    # It carries the model's mark, as M5 holds it there; its steps mix a model's and a hand's, and P1 doesn't hold it.
+    grid = fx.jpeg()
+    record = fx.entry(
+        "t1-grid.jpg",
+        grid,
+        kind="published-image",
+        steps=[fx.model_step(), fx.hand_step()],
+        arm="A",
+        note=NOTE,
+    )
+    repo.directory(NOTE_DIR, {"t1-grid.jpg": grid}, [record])
+    run = check(repo, *paths(repo, f"{NOTE_DIR}/t1-grid.jpg"))
+    assert run.code == 0 and run.findings == [], run.out
+    assert [w["path"] for w in warned(run)] == [f"{NOTE_DIR}/t1-grid.jpg"], run.out
+
+
+def test_c1_the_warning_at_the_hook_and_once_per_file_in_a_range(
+    repo: fx.Repo,
+) -> None:
+    # The pre-commit hook's run shows it before the commit; a range names the commit that adds the file, once: its
+    # last pass over the tip's whole tree records no warning.
+    data = marked("png", TERMS["hand"])
+    record = fx.entry("still.png", data, steps=STEPS["hand"]())
+    repo.directory(DOG, {"still.png": data}, [record])
+    repo.git("add", "-A")
+    staged = check(repo, "--staged")
+    assert staged.code == 0 and staged.findings == [], staged.out
+    assert [w["path"] for w in warned(staged)] == [f"{DOG}/still.png"], staged.out
+    sha = repo.commit("a hand-made still")
+    run = check(repo, "--range", "main..HEAD")
+    assert run.code == 0 and run.findings == [], run.out
+    (warning,) = warned(run)
+    assert warning["path"] == f"{DOG}/still.png", run.out
+    assert warning["commit"] and sha.startswith(warning["commit"]), run.out
+
+
+@pytest.mark.parametrize(
+    "folder", [CAT, DOG], ids=["another-folder", "the-same-folder"]
+)
+def test_c1_no_warning_for_a_file_main_already_holds(
+    repo: fx.Repo, folder: str
+) -> None:
+    # A warning is for each file the range adds or changes (T041's re-review of feat/004-intake-r2, N-1): main holds a
+    # hand-made still, the branch adds an unrelated file, and the gate's range says nothing of the still, though its
+    # last pass reads the tip's whole tree, and, in the same folder, the still's records.json changes.
+    still = marked("png", TERMS["hand"])
+    held = fx.entry("still.png", still, steps=STEPS["hand"]())
+    repo.git("switch", "-q", "main")
+    repo.directory(DOG, {"still.png": still}, [held])
+    repo.commit("main: a hand-made still")
+    repo.git("branch", "-q", "-f", "feature", "main")
+    repo.git("switch", "-q", "feature")
+    other = fx.png(width=2, height=2)
+    entries = [fx.entry("other.png", other)] + ([held] if folder == DOG else [])
+    files = {"other.png": other} | ({"still.png": still} if folder == DOG else {})
+    repo.directory(folder, files, entries)
+    repo.commit("an unrelated model-made still")
+    run = check(repo, "--range", "main..HEAD")
+    assert run.code == 0 and run.findings == [], run.out
+    assert warned(run) == [], run.out
+    assert "warning" not in run.out.rstrip().splitlines()[-1], run.out
+
+
+def test_c1_r4_one_model_step_needs_no_approval_key(repo: fx.Repo) -> None:
+    data = marked("png", TERMS["model"])
+    run = in_dog(repo, "still.png", data, [fx.entry("still.png", data)])
+    assert run.code == 0 and "lacks approval" not in run.out, run.out
+
+
+# C6: every file under assets/room/ in the first visit, and phase 3 once it holds one.
+def test_c6_f3_a_png_card_alone_under_assets_room_switches_to_phase_3(
+    tmp_path: Path,
+) -> None:
+    card = fx.png()
+    repo = room_repo(tmp_path, {"card.png": card})
+    repo.commit("a room card")
+    run = check(repo, "--range", "main..HEAD")
+    assert run.code == 0, run.out
+    assert "first visit (phase 3)" in run.out, run.out
+
+
+def test_c6_f3_the_room_files_count_at_gzip_level_9(tmp_path: Path) -> None:
+    import gzip
+
+    card = fx.png(width=64, height=64)
+    repo = room_repo(tmp_path, {"card.png": card})
+    repo.commit("a room card")
+    run = check(repo, "--range", "main..HEAD")
+    size = len(gzip.compress(card, 9, mtime=0))
+    assert f"first visit (phase 3): {size:,} of 25,000,000 bytes" in run.out, run.out
+
+
+def test_c6_f3_a_room_file_over_the_phase_3_budget(tmp_path: Path) -> None:
+    card = fx.png(width=64, height=64)
+    repo = room_repo(tmp_path, {"card.png": card})
+    repo.git("switch", "-q", "main")
+    repo.write(
+        "assets/policy/caps.json",
+        fx.dumps(fx.caps(phase3=10, per_asset={"room": fx.ROOM_CAPS})),
+    )
+    repo.git("add", "assets/policy/caps.json")
+    repo.git("commit", "-q", "-m", "main: a tight budget")
+    repo.git("switch", "-q", "feature")
+    repo.commit("a room card")
+    run = check(repo, "--range", "main..HEAD")
+    assert run.code == 1 and run.has("F3"), run.out
+
+
+def test_c6_f3_no_room_file_keeps_phase_2(repo: fx.Repo) -> None:
+    repo.directory(DOG, {"dog.glb": fx.glb()})
+    repo.commit("a visitor avatar")
+    run = check(repo, "--range", "main..HEAD")
+    assert "first visit (phase 2)" in run.out, run.out
+
+
+# C7: a room file against per_asset.room.
+def two_triangles(gltf: dict) -> None:
+    gltf["meshes"][0]["primitives"].append(dict(gltf["meshes"][0]["primitives"][0]))
+
+
+@pytest.mark.parametrize(
+    "name, data, room, what",
+    [
+        ("desk.glb", fx.glb(), {"gzip_bytes": 10}, "gzip"),
+        ("desk.glb", fx.glb(edit=two_triangles), {"triangles": 1}, "triangles"),
+        (
+            "mug.glb",
+            fx.glb(image=fx.png(width=8, height=4, mark=False)),
+            {"small_props": ["mug"], "small_prop_texture_px": 4},
+            "texture",
+        ),
+        (
+            "mug.png",
+            fx.png(width=4, height=8),
+            {"small_props": ["mug"], "small_prop_texture_px": 4},
+            "texture",
+        ),
+    ],
+    ids=["gzip", "triangles", "glb-texture", "card-texture"],
+)
+def test_c7_f2_each_room_cap_exceeded(
+    tmp_path: Path, name: str, data: bytes, room: dict, what: str
+) -> None:
+    repo = room_repo(tmp_path, {name: data}, room={**fx.ROOM_CAPS, **room})
+    run = check_room(repo, name)
+    assert run.code == 1 and run.has("F2", f"{ROOM}/{name}"), run.out
+    assert what in run.out
+
+
+def test_c7_f2_a_texture_on_a_piece_not_named_a_small_prop_isnt_capped(
+    tmp_path: Path,
+) -> None:
+    data = fx.glb(image=fx.png(width=8, height=8, mark=False))
+    repo = room_repo(
+        tmp_path,
+        {"desk.glb": data},
+        room={**fx.ROOM_CAPS, "small_props": ["mug"], "small_prop_texture_px": 4},
+    )
+    assert check_room(repo, "desk.glb").code == 0
+
+
+@pytest.mark.parametrize(
+    "over, refused", [({}, False), ({"gzip_bytes": 10}, True)], ids=["passes", "gzip"]
+)
+def test_c7_f2_no_small_props_holds_no_texture_to_its_side(
+    tmp_path: Path, over: dict, refused: bool
+) -> None:
+    # The Author's P-6 names no small prop ("small_props []", 2026-10-30): the block reads, no room file's textures are
+    # held to small_prop_texture_px, and the other caps still hold.
+    data = fx.glb(image=fx.png(width=8, height=8, mark=False))
+    room = {**fx.ROOM_CAPS, "small_props": [], "small_prop_texture_px": 4, **over}
+    repo = room_repo(tmp_path, {"mug.glb": data}, room=room)
+    run = check_room(repo, "mug.glb")
+    if refused:
+        assert run.code == 1 and run.rules(f"{ROOM}/mug.glb") == {"F2"}, run.out
+        assert ["gzip" in f["reason"] for f in run.findings] == [True], run.out
+    else:
+        assert run.code == 0 and run.findings == [], run.out
+
+
+def test_c7_f2_a_room_file_while_main_has_no_room_caps(tmp_path: Path) -> None:
+    data = fx.glb()
+    repo = room_repo(tmp_path, {"desk.glb": data}, room=None)
+    run = check_room(repo, "desk.glb")
+    assert run.code == 1 and run.has("F2", f"{ROOM}/desk.glb"), run.out
+    assert "per_asset.room" in run.out
+
+
+@pytest.mark.parametrize(
+    "room, key",
+    [
+        ({**fx.ROOM_CAPS, "max_lights": 4}, "max_lights"),
+        ({k: v for k, v in fx.ROOM_CAPS.items() if k != "triangles"}, "triangles"),
+        ({**fx.ROOM_CAPS, "gzip_bytes": "2500000"}, "gzip_bytes"),
+        ({**fx.ROOM_CAPS, "gzip_bytes": 0}, "gzip_bytes"),
+        ({**fx.ROOM_CAPS, "triangles": True}, "triangles"),
+        ({**fx.ROOM_CAPS, "small_prop_texture_px": 1000}, "small_prop_texture_px"),
+        ({**fx.ROOM_CAPS, "small_props": ["mug", "mug"]}, "small_props"),
+        ({**fx.ROOM_CAPS, "small_props": ["Mug Shelf"]}, "small_props"),
+        ({**fx.ROOM_CAPS, "small_props": "mug"}, "small_props"),
+        ({**fx.ROOM_CAPS, "legibility_floor_css_px": -9}, "legibility_floor_css_px"),
+        ({**fx.ROOM_CAPS, "scene_texture_bytes": 9.5e7}, "scene_texture_bytes"),
+        ([1, 2], "room"),
+    ],
+    ids=[
+        "unknown",
+        "missing",
+        "text",
+        "zero",
+        "bool",
+        "not-a-power-of-two",
+        "duplicate",
+        "not-an-id",
+        "not-a-list",
+        "negative",
+        "float",
+        "not-an-object",
+    ],
+)
+def test_c7_a_per_asset_room_it_cant_read_exits_2_naming_the_key_never_the_value(
+    tmp_path: Path, room: object, key: str
+) -> None:
+    data = fx.glb()
+    repo = room_repo(tmp_path, {"desk.glb": data}, room=room)
+    run = check_room(repo, "desk.glb")
+    assert run.code == 2, run.out
+    assert "arrival-check: can't check: caps.json's per_asset.room" in run.out
+    assert key in run.out
+    for value in ("2500000", "Mug Shelf", "1000", "-9", "95000000"):
+        assert value not in run.out

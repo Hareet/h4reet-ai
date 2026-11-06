@@ -67,6 +67,19 @@ def test_fail_and_pending_fail_the_run_but_it_keeps_going(
     assert "failing: fail FAIL, pending PENDING" in out
 
 
+def test_the_arrival_checks_warning_reads_pass() -> None:
+    # Spec 004's P-5: the arrival check's WARN line, for a hand-made or composite file that needs no approval, fails
+    # nothing (spec 004, contracts/intake-amendments.md §7, As built), so its gate stays PASS.
+    gate = rc.parse("arrival")
+    output = (
+        "WARN assets/visitors/dog/still.png: its record's steps call for the hand-made mark, and the file needs no "
+        "approval, so it's up to the contributor to check for likeness (spec 004, Amendment C1)\n"
+        "arrival-check: 0 findings in 3 files, 1 warning\n"
+    )
+    rc.classify(gate, 0, output)
+    assert (gate.status, gate.notes) == ("PASS", [])
+
+
 def test_a_missing_target_is_skip_with_its_task_or_fail_without(
     project: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
