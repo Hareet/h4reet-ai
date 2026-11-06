@@ -65,9 +65,12 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
      (contracts/arrival-check.md). The branch's credits renderer is agent-editable, so its check, make credits-check,
      runs in the container phase;
    - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
-     only after the policy passed, because an unvetted build could read host files into the engine: first the
-     gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
-     proxy; then, when the export has apps/web/Dockerfile, the room's, as make up builds prod's (spec 002), as
+     only after the policy passed, because an unvetted build could read host files into the engine. First the engine
+     must answer one docker version within ENGINE_PROBE_SECONDS (15), as make image asks it (tasks.md T167), or the
+     step fails, naming the timeout or docker's exit status, and builds nothing: docker's client sets no limit of its
+     own, so an engine that takes the connection and never answers would hold the gate there. Then the gateway's
+     image, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's proxy;
+     then, when the export has apps/web/Dockerfile, the room's, as make up builds prod's (spec 002), as
      h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
@@ -157,6 +160,10 @@ HOST_ENGINE = "unix:///var/run/docker.sock"
 AGENTS_ENGINE = "tcp://198.18.0.1:2376"
 # The agents' engine's egress proxy, which its builds reach npm through (contracts/agents-engine.md §4).
 AGENTS_PROXY = "http://198.18.0.1:3128"
+# How long the agents' engine has to answer one docker version before the image step builds on it, as make image and
+# make build give it (tasks.md T167). docker's client sets no limit of its own, so a forward that takes connections and
+# never answers (T046) would hold the gate at image with no end.
+ENGINE_PROBE_SECONDS = 15
 OTLP_URL = "http://127.0.0.1:18004/v1/metrics"
 DEVCONTAINER = "h4reet-devcontainer"
 RECORDING = "/run/h4-contract/recording.json"
@@ -1253,6 +1260,41 @@ def arrival(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
     return classify(step, rc, out)
 
 
+def engine_problem(docker: str, engine: dict[str, str], tmp: Path) -> str | None:
+    """Why the image step can't build on the agents' engine, or None when the engine answered one docker version
+    within ENGINE_PROBE_SECONDS, as make image asks it (tasks.md T167). At the bound, subprocess.run kills the client
+    and waits for it alone, not for its output, so nothing holding that pipe can hold the step. What docker printed,
+    its own error included, goes above the step's line."""
+    say(f"docker version, on the agents' engine, stopped at {ENGINE_PROBE_SECONDS} s")
+    try:
+        done = subprocess.run(
+            [docker, "version"],
+            env=engine,
+            cwd=tmp,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=ENGINE_PROBE_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output, why = exc.stdout, f"within {ENGINE_PROBE_SECONDS} s"
+    except OSError as exc:
+        return f"can't run {docker}: {exc.strerror or exc}"
+    else:
+        output = done.stdout
+        why = f"(it exited {done.returncode})" if done.returncode else None
+    text = (output or b"").decode("utf-8", "replace").rstrip("\n")
+    if text:
+        say(text)
+    if why is None:
+        return None
+    return (
+        f"the agents' engine didn't answer docker version {why}, so nothing was built: "
+        "deploy/agents-engine/engine.sh up"
+    )
+
+
 def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
     begin(
         "image",
@@ -1277,6 +1319,10 @@ def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
         DOCKER_TLS_VERIFY="1",
         DOCKER_CERT_PATH=str(certs),
     )
+    # The engine answers first, within its bound, or the step fails rather than holds the gate.
+    problem = engine_problem(docker, engine, tmp)
+    if problem is not None:
+        return step.fail(problem)
     # The gateway's image is make up's own build, outside compose (deploy/scripts/gateway_image.py; tasks.md T184),
     # built here as it builds it, from the export.
     rc, out = stream(

@@ -2654,3 +2654,114 @@ def test_a_commit_without_the_room_has_no_content_steps(fx: Fixture) -> None:
     assert fx.logged("content_check") == []
     with pytest.raises(AssertionError):
         status_of(done, "content")
+
+
+# --------------------------------------------------------------------------------------------------
+# The agents' engine answers one docker version, within a bound, before the image step builds on it (as make image
+# asks it since tasks.md T167)
+# --------------------------------------------------------------------------------------------------
+# A docker whose agents' engine is down. Every call to that engine is logged, then refused at once ("refuses"), or held
+# as a forward that takes the connection and never answers would hold it ("hangs"), here until HELD_FOR, the test's
+# own cap, and then refused. Calls to this machine's engine go on to the stand-in.
+ENGINE_DOWN = r"""#!/usr/bin/env python3
+import json, os, sys, time
+here = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+if os.environ.get("DOCKER_HOST") != "tcp://198.18.0.1:2376":
+    real = os.path.join(here, "docker.real")
+    os.execv(real, [real, *args])
+docker_env = {k: v for k, v in os.environ.items() if k.startswith("DOCKER_")}
+with open(os.path.join(here, "docker.calls"), "a", encoding="utf-8") as handle:
+    handle.write(json.dumps({"argv": args, "env_keys": sorted(os.environ), "docker_env": docker_env}) + "\n")
+if "@MODE@" == "hangs":
+    time.sleep(@HELD@)
+print("Cannot connect to the Docker daemon at tcp://198.18.0.1:2376. Is the docker daemon running?", file=sys.stderr)
+sys.exit(1)
+"""
+HELD_FOR = 20
+
+
+def engine_down(fx: Fixture, mode: str) -> None:
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    stand_in = ENGINE_DOWN.replace("@MODE@", mode).replace("@HELD@", str(HELD_FOR))
+    write(fx.stubs / "docker", stand_in, 0o755)
+
+
+def on_engine(calls: list[dict]) -> list[dict]:
+    """The docker calls made to the agents' engine."""
+    return [c for c in calls if c["docker_env"].get("DOCKER_HOST") == ENGINE]
+
+
+def test_the_image_step_asks_the_agents_engine_for_its_version_before_it_builds(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = on_engine(fx.docker())
+    # One docker version, with the Author's certificate, then the gateway's image, then the compose images.
+    assert [c["argv"][:1] for c in calls] == [["version"], ["buildx"], ["compose"]]
+    assert calls[0]["argv"] == ["version"]
+    assert calls[0]["docker_env"] == {
+        "DOCKER_HOST": ENGINE,
+        "DOCKER_TLS_VERIFY": "1",
+        "DOCKER_CERT_PATH": f"{fx.home}/.config/h4reet-ai/agents-engine/docker",
+    }
+    assert status_of(done, "image") == "PASS"
+
+
+def test_an_engine_that_refuses_fails_the_image_step_with_dockers_reason_and_builds_nothing(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    engine_down(fx, "refuses")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "image") == "FAIL"
+    line = row(done, "image")
+    assert "didn't answer docker version (it exited 1)" in line
+    assert "nothing was built" in line
+    assert "deploy/agents-engine/engine.sh up" in line
+    # docker's own error, above the step's line.
+    assert "Cannot connect to the Docker daemon at tcp://198.18.0.1:2376" in done.stdout
+    assert [c["argv"] for c in on_engine(fx.docker())] == [["version"]]
+    # The steps after it still ran.
+    assert status_of(done, "matrix-e") == "SKIP"
+    assert "failing: image FAIL" in summary(done)
+
+
+def test_an_engine_that_never_answers_fails_the_image_step_at_the_bound(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The step itself, in this process, so the bound can be 1 s here rather than the gate's 15. The stand-in holds
+    # each call to the agents' engine for HELD_FOR, so a step that waited on one would take that long.
+    engine_down(fx, "hangs")
+    monkeypatch.setenv("PATH", f"{fx.stubs}:{fx.sysbin}")
+    monkeypatch.setenv("HOME", str(fx.home))
+    monkeypatch.setattr(gm, "ENGINE_PROBE_SECONDS", 1, raising=False)
+    start = time.monotonic()
+    step = gm.image(fx.main, gm.Step("policy"), fx.tmp, "0" * 40)
+    took = time.monotonic() - start
+    assert step.status == "FAIL"
+    (note,) = step.notes
+    assert "didn't answer docker version within 1 s" in note
+    assert "nothing was built" in note
+    assert "deploy/agents-engine/engine.sh up" in note
+    assert took < HELD_FOR / 2, f"the step took {took:.1f} s"
+    assert [c["argv"] for c in on_engine(fx.docker())] == [["version"]]
+
+
+@pytest.mark.parametrize("why", ["policy", "certificate"])
+def test_the_engine_isnt_asked_where_the_step_wouldnt_build(
+    fx: Fixture, why: str
+) -> None:
+    fx.branch(CHANGE)
+    if why == "policy":
+        (fx.logs / "compose_policy.control").write_text(
+            "1\ncompose policy: 1 refusal(s)", encoding="utf-8"
+        )
+    else:
+        shutil.rmtree(fx.home / ".config/h4reet-ai/agents-engine")
+    done = gate(fx, "feature")
+    assert status_of(done, "image") == "FAIL"
+    assert on_engine(fx.docker()) == []
