@@ -5,15 +5,16 @@
 id: narration-smart-task-prioritization-non-engineer
 description: "The room's narration of the resume item smart-task-prioritization on the non-engineer path, as the visitor reads it."
 prompt: "Narrate the resume item smart-task-prioritization for a visitor on the non-engineer path."
-fake_response: "Hareet is the AI system architect for Smart Task Prioritization. His pitch and design won Medic the AWS IMAGINE Grant's Momentum to Modernize award: the award is Medic's, won on his pitch and design."
+fake_response: "Hareet designed and architected GPS-based task prioritization for health workers, and architected the AI systems that carry its configuration across the platform to every project: Smart Task Prioritization uses GPS. It won Medic the AWS IMAGINE Grant's Momentum to Modernize award in 2025; the award is Medic's."
 expect:
   contains:
-    - "is the AI system architect for Smart Task Prioritization. His pitch and design won Medic the AWS IMAGINE Grant's Momentum to Modernize award"
-    - "Smart Task Prioritization"
+    - "Hareet designed and architected GPS-based task prioritization for health workers, and architected the AI systems that carry its configuration across the platform to every project"
+    - "Smart Task Prioritization uses GPS"
+    - "won Medic the AWS IMAGINE Grant's Momentum to Modernize award"
   not_contains:
     - "where he was born"
+    - "home address"
     - "surname"
-    - "employer dates"
     - "a degree"
     - "religious affiliation"
     - "defined the market"
@@ -39,3 +40,12 @@ expect:
     - "any sre-jd bullet as an accomplishment until confirmed"
     - "any amount"
     - "won anything personally"
+    - "owns the company alone"
+    - "client work"
+    - "a price for its services"
+    - "the site's bio line about hareet"
+    - "the local lane always runs offline"
+    - "the cleaning catches every identifier"
+    - "the co-owner's name"
+    - "the site's phone number"
+    - "any spend"

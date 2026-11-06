@@ -18,7 +18,7 @@ We don't merge pull requests from outside, because a change here is more than a 
 6. **Implement**: the `implementer` agent works on a feature branch, tests with or before code, and updates `plan.md` in the same commit when the diff departs from it.
 7. **Converge**: `/speckit-converge` compares the code with the spec and appends any unbuilt work to `tasks.md`.
 8. **Verify**: the session runs the gates and pastes their output. Until publication that is `make check`, which runs every local gate, `make lint`, `make test`, and `make evals` among them once spec 000 adds them.
-9. **Review**: the `reviewer` agent, which didn't write the change, runs the four passes in [`REVIEW.md`](REVIEW.md).
+9. **Review**: the `reviewer` agent, which didn't write the change, runs the passes in [`REVIEW.md`](REVIEW.md).
 10. **Merge and record**: only the Author merges to `main`; decisions become ADRs, incidents get a note within seven days, and what was learned becomes the next intent.
 
 The full version, with every gate and enforcement layer, is [`docs/how-we-build/lifecycle.md`](docs/how-we-build/lifecycle.md). The [constitution](.specify/memory/constitution.md) governs all of it, and the agents' working rules are in [`CLAUDE.md`](CLAUDE.md).

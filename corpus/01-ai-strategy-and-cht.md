@@ -3,7 +3,7 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
 
 **Tags.** `[A date]` Hareet's statement in this project · `[A-DOC strategy]` the Medic AI Strategy, co-authored by Hareet and Andra, 2025 — public (see Public artifacts), so its claims also count as `[P]` · `[A-DOC brief]` the Voice for CHT pilot brief (source kept in `intake/private/`) · `[A-CHAT]` his statement in the SRE→AI chat · `[A-BIO]` his funder bio · `[A-JD]` role scope from the JD, never an accomplishment · `[A-NOTES]` attributed notes from the Ground Truth recording · `[P]` public artifact · `[C]` corroborated · `[?]` gap.
 
-**Ownership rulings (2026-09-27).** *Built:* CHT Docs MCP server, CHT Code Context MCP server, agent-memory, agent-watchdog, Medic's side of Voice for CHT. *Designed:* cht-agent, the OpenRouter routing choice, claude-medic-aws, Voice for CHT (the idea, the project, the capability); the strategy, with Andra as co-author. *Sourced:* the Voice for CHT speech-model partner. *Sponsored:* the CHT skills in cht-ai-tools, including `cht-pr-review`. *AI system architect:* Smart Task Prioritization, No-Code CHT Configuration.
+**Ownership rulings (2026-09-27; revised by his answers of 2026-10-28, 2026-10-29, and 2026-10-30).** *Built:* CHT Docs MCP server, CHT Code Context MCP server, agent-memory, agent-watchdog, Medic's side of Voice for CHT; cht-agent, mainly by him, with the community he built to help (2026-10-28/29). *Designed:* cht-agent; the OpenRouter routing choice, which he designed only and didn't build (2026-10-30); claude-medic-aws, Voice for CHT (the idea, the project, the capability); the strategy, with Andra as co-author; No-Code CHT Configuration's goal, and Smart Task Prioritization's GPS-based task prioritization (2026-10-28/29). *Architected:* cht-agent, and the AI systems of No-Code CHT Configuration and Smart Task Prioritization (2026-10-28/29). *Configured:* the agent orchestrator (2026-10-29). *Sourced:* the Voice for CHT speech-model partner. *Sponsored:* the CHT skills in cht-ai-tools, including `cht-pr-review`. *AI system architect:* Smart Task Prioritization, No-Code CHT Configuration.
 
 **Held back until cleared** (see `README.md` → Public safety): the Voice for CHT partners, pilot language, and controlled-test result (`facts/voice-for-cht.yaml`); every award amount; internal governance decisions. (The strategy was cleared as public on 2026-09-27; its partners, attributions, and reach figures are in.)
 
@@ -19,6 +19,8 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
 ## Chronology — read this before anything about "buildtime" and "runtime"
 
 `[A 2026-09-15]` Early 2025: Hareet and Andra define the two tracks and their categories; the strategy is published in 2025 and implementation begins. Summer 2026: in a recorded Ground Truth conversation with Andra, Taylor Downs of OpenFn names the same split *buildtime AI* and *runtime AI*, with a sharper account of their differences, opportunity, and importance to stakeholders; Andra says on the recording that Medic already thought in two tracks. Hareet adopted the words because they explain the tracks better. **The tracks are Hareet's and Andra's; the words are Taylor's.** `[A-NOTES]` Taylor's argument: most real AI adoption in government systems happens at build time — cutting the cost of building secure, deterministic workflows — and that is the right first step. Andra's: build time is where model access is easy, while running a model on a two-gigabyte phone far from connectivity is the hard problem.
+
+`[A 2026-10-29]` He keeps the words buildtime AI and runtime AI: he doesn't have to own the phrasing to be able to use the words, and he can give credit to a source that inspired him.
 
 ## The strategy `[A-DOC strategy unless tagged]`
 
@@ -43,7 +45,7 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
 - *Supply Chain and Operational Intelligence* — stockout prediction, CHW dropout risk; emerging.
 
 **Track 2 — around the CHT: for builders (buildtime AI).**
-- *CHT Multi-Agent System* — platform-appropriate code and tests from plain-language descriptions, with human review at every step; the strategy targeted a proof of concept in the first half of 2026. `[A]` This is cht-agent, now in production for cht-conf.
+- *CHT Multi-Agent System* — platform-appropriate code and tests from plain-language descriptions, with human review at every step; the strategy targeted a proof of concept in the first half of 2026. `[A]` This is cht-agent, now in production for cht-conf. `[A 2026-10-28/29]` It is in production for cht-core too.
 - *AI-Powered Interoperability* — the CHT connecting to other digital public goods faster; emerging.
 - *CHT AI Tools* — shared infrastructure: data-sanitization scripts, MCP servers, reusable agent skills; the codebase and documentation MCP servers were already live when it was written. `[A]` Hareet built both MCP servers.
 - *AI for Non-Technical Configuration* — forms, dashboards, and translations without code; emerging. `[A]` This is No-Code CHT Configuration; Hareet is its AI system architect.
@@ -57,11 +59,12 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
 
 ## cht-agent — Track 2's multi-agent system
 
-- `[A 2026-09-14, C]` Designed by Hareet; design repo github.com/Hareet/cht-agent (public, not a fork). `[A-CHAT, A 2026-09-14]` He organized a community squad to build it — `[A-DOC strategy]` every AI project runs through a multi-organization squad; `[P]` the squad's board is public at github.com/orgs/medic/projects/363.
-- `[A 2026-09-27]` It runs the full loop on cht-conf issues and tickets, in production for cht-conf. The twin speaks of it as finished and ready; verify at launch. `[A 2026-09-14]` The medic/cht-agent README's "Research Supervisor POC" status is stale and will be updated.
+- `[A 2026-09-14, C]` Designed by Hareet; design repo github.com/Hareet/cht-agent (public, not a fork). `[A 2026-10-29]` He built the community that helped him build it, as per his design; it was mainly him building it — `[A-DOC strategy]` every AI project runs through a multi-organization squad; `[P]` the squad's board is public at github.com/orgs/medic/projects/363.
+- `[A 2026-09-27]` It runs the full loop on cht-conf issues and tickets, in production for cht-conf. The twin speaks of it as finished and ready; verify at launch. `[A 2026-09-14]` The medic/cht-agent README's "Research Supervisor POC" status is stale and will be updated. `[A 2026-10-28/29]` It is in production for cht-core and cht-conf.
 - `[C]` Architecture: a LangGraph research supervisor over a Documentation Access Layer and a Code Context Layer; `agent-memory/` (domains, workflows, knowledge base, indices); tickets as the unit of work; human validation checkpoints — github.com/medic/cht-agent.
-- `[A 2026-09-27]` Inside it, Hareet designed the system and its provider-agnostic routing, and built the data layer (next section).
+- `[A 2026-10-28/29]` Inside it, Hareet designed, architected, and built the system and its data layer (next section); it was mainly him building it. `[A 2026-10-30]` He designed its provider-agnostic routing, and didn't build it.
 - `[A 2026-09-14]` It is being used on the datasource migration to Postgres — see `02-production-infrastructure-national-scale.md`.
+- `[A 2026-10-28/29]` On his classic resume, in his words: "Designed, architected, and built the multi-agent system in production for cht-core and cht-conf: a LangGraph research supervisor, human validation checkpoints, and provider-agnostic routing through OpenRouter." `[A 2026-10-30]` Of that list, the routing is one he designed only, as the rulings say; he didn't build it.
 
 ## The data layer — built by Hareet `[A 2026-09-27]`
 
@@ -70,6 +73,7 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
 - *agent-memory* `[C]` — the file-based memory cht-agent learns into.
 - *Routing through OpenRouter* (designed, not built) — `[P]` the memory-distillation pipeline reaches its model through OpenRouter to stay provider-agnostic, with no mandated default and a direct Anthropic path as fallback. The same instinct as this site's model gateway.
 - `[A 2026-09-14]` Together with context engineering and best-practice tooling set up in a sandbox, this is what the agent needed to succeed. `[A-DOC strategy]` It is "foundation before features" and "build once, use everywhere," made concrete.
+- `[A 2026-10-28/29]` He calls it his agentic data layer: he built the CHT Docs and CHT Code Context MCP servers, and a custom-curated agent-memory of all CHT domains that keeps learning and updating.
 
 ## agent-watchdog — the newest agent in production
 
@@ -78,6 +82,8 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
 - `[A 2026-09-27]` It saves patterns, projects, and user feedback, and posts daily to Slack or another configured channel.
 - `[C]` How it's built: spec-first, with its own Spec Kit constitution and specs and an `AGENTS.md`; a staged pipeline (purge, feedback, collect, analyze, agent, rollup, render, publish) that can run one stage at a time, dry-run without posting, or replay stored runs against changed prompts; weekly threshold calibration; a hardened container (non-root, read-only root filesystem, no capabilities), an offline profile, and a command that lists every destination a run contacts.
 - `[A 2026-09-27]` **What it caught.** agent-watchdog flagged three projects with degraded API performance. claude-medic-aws correlated the degradation to one specific EKS node and flagged the command to roll it over. The usual thresholds would have waited for more projects to degrade, and an on-call engineer would have needed more time to find the root cause.
+- `[A 2026-10-29]` agent-watchdog monitors all the CHT projects Medic knows of, updates the team and lets them interact with it, summarizes alerts for partners, and builds a knowledge base on correlated alerts and user feedback. It has secure, read-only access to non-sensitive metrics.
+- `[A 2026-10-29]` Non-sensitive metrics and project API information were constructed to be available at particular endpoints. agent-watchdog monitors all endpoints of URLs (projects) that Medic knows of. There are many community deployments that Medic was not made aware of, and that is an optional service in agent-watchdog: they can either deploy it themselves, or they can notify Medic and set up a particular alert channel or email for the deliverable.
 
 ## claude-medic-aws — the infrastructure agent
 
@@ -85,6 +91,12 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
 - `[A 2026-09-27]` After agent-watchdog posts its brief, claude-medic-aws correlates performance changes with cluster modifications and AWS resource changes and suggests the infrastructure cause (the node story above).
 - `[A 2026-09-27]` Read-only today; one step away from being trusted with production changes.
 - `[A-CHAT, A-BIO]` It belongs to the internal applied AI systems that accelerate how Medic designs, reviews, and ships software.
+- `[A 2026-10-29]` claude-medic-aws is a security-first, read-only infrastructure agent. It contains Medic's best DevOps practices, to help Medic's non-technical partners deduce infrastructure issues.
+
+## The on-call agent squad
+
+- `[A 2026-10-28/29]` On-call agent squad: agents on call for the CHT projects Medic hosts, agent-watchdog and claude-medic-aws, with an agent orchestrator over both.
+- `[A 2026-10-29]` The agent orchestrator: Hareet configured a supervisor agent over agent-watchdog and claude-medic-aws, for knowledgeable summaries of all project and infrastructure incidents: on demand, routinely, and ready to serve to Medic's community.
 
 ## Voice for CHT — Track 1's voice program `[A-DOC brief unless tagged]`
 
@@ -95,10 +107,19 @@ The brief calls it Voice for CHT; Hareet also calls it voice-to-CHT.
 - **Why now.** An offline speech model for the pilot language already exists, built by a speech-model partner for the resource-constrained phones CHWs carry. It needs tuning to CHW vocabulary, which it learns from recordings without anyone transcribing them. {{slot:voice.controlled_test_result}}
 - **The pilot.** One workflow, one language, a small cohort at one or two facilities. {{slot:voice.pilot_language}} Four stages, each gated by the one before rather than by dates: CHWs record consented visits during normal work (20–30 hours in all); the partner tunes the model on those voices while Medic builds form-filling into the CHT; a supervised field test against pass/fail criteria agreed first; then findings and documentation go to the CHT community as a protocol any partner can repeat in its own language. Beyond the pilot: CHT-to-voice, with synced reports read back to CHWs in their language.
 - **Who does what.** `[A 2026-09-27]` Hareet designed the idea, the project, and the capability; went looking for a partner who already had some of Medic's languages working in small models, and found one; and built Medic's side. `[A-DOC brief]` The speech-model partner: the offline speech models. Medic: the CHT platform and integration. A CHW partner organization: CHWs, voices, and feedback. {{slot:voice.speech_partner}} {{slot:voice.chw_partner}} `[A 2026-09-14]` The program is the strategy's runtime-AI answer to its top priority, supporting the CHW. `[A 2026-09-02/14]` It won credits.
+- `[A 2026-10-28/29]` He designed the idea, found the team, helped them fine-tune models to {{slot:voice.model_size}} so they run beside the app on a rural health worker's {{slot:voice.phone_memory}} Android phone, and built Medic's side. The hardware specs illustrate the impact of fine-tuning models for offline low-resource phones.
 - **Honest by design.** Open source, permanently — device model weights under Apache-2.0, models fine-tuned on community audio stay open, and the CHT stays open. The community owns its data — contributors choose the licence; transcripts are stripped of personal health information before any downstream system; recordings are held under the consent agreement contributors sign. CHWs are protected — review before submit, always; no audio or transcript leaves the phone as telemetry; a CHW's data never evaluates that CHW; opting out carries no consequence. Measured honestly — success criteria agreed in writing before the pilot; results published with failures included, every number with its method.
 - **What isn't known yet.** How accuracy holds up on real clinic audio (a dip is expected, then gains); who said what in multi-speaker visits; how numbers, dosages, and IDs perform, and whether the errors that slip through are ones a CHW can catch in review rather than plausible wrong values; whole-visit versus guided field-by-field capture; what the slowest handsets run well.
 - **Status.** `[A 2026-09-27]` The pilot is underway. Field results come later, published by the brief's own rules.
 - **Next.** `[A 2026-09-27]` Medic plans to build its own in-house voice-to-CHT for Nepali and rural Nepali dialects — a plan, not work done.
+
+## No-Code CHT Configuration
+
+- `[A 2026-10-28/29]` No-Code CHT Configuration is making CHT's technical configuration usable by non-technical users. Hareet designed the goal, built out the community team, managed stakeholder perspectives, and architected the AI systems.
+
+## Smart Task Prioritization
+
+- `[A 2026-10-28/29]` Hareet designed and architected GPS-based task prioritization for health workers, and architected the AI systems that carry its configuration across the platform to every project. `[A 2026-10-29]` Smart Task Prioritization uses GPS.
 
 ## cht-ai-tools and agentic practice in the open-source codebase
 
@@ -126,11 +147,11 @@ The brief calls it Voice for CHT; Hareet also calls it voice-to-CHT.
 
 ## Do not claim
 
-- Sole authorship of the strategy (co-authored with Andra) or of cht-agent (a community squad built it).
+- Sole authorship of the strategy (co-authored with Andra) or of cht-agent (it was mainly him building it, with the community he built to help; 2026-10-29).
 - Coining the words buildtime/runtime AI (Taylor Downs, 2026) — or, the reverse error, that the tracks came from that conversation (they date from early 2025).
 - A link to the Ground Truth recording, or that one is coming. The recording is not public `[A 2026-10-07]`; the twin shares the attributed notes only.
 - That cht-agent was "trained" on CHT knowledge. That is the strategy's shorthand; it is grounded through retrieval and memory, not model training.
-- That Hareet built the partner's speech model. He designed the capability, found the partner, and built Medic's side; the partner built and tunes the model. Quantization, compression, model names, or hardware specifics — JD language the brief does not support.
+- That Hareet built the partner's speech model. He designed the capability, found the partner, and built Medic's side; the partner built and tunes the model, and he helped its team fine-tune (2026-10-29). Quantization, compression, or model names — JD language the brief does not support. The hardware specifics are his own statement of 2026-10-29, through `facts/voice-for-cht.yaml`.
 - Field results for the Voice for CHT pilot — it is underway, and results come when published. That the in-house Nepali voice-to-CHT exists — it is planned.
 - That he built the CHT skills or `cht-pr-review` (sponsored).
 - That claude-medic-aws makes production changes (read-only), or that agent-watchdog acts on anything (it flags).
@@ -146,8 +167,8 @@ The brief calls it Voice for CHT; Hareet also calls it voice-to-CHT.
 3. *What are the two tracks?* — Track 1 puts smarter tools in health workers' hands, inside the CHT. Track 2 makes the platform radically easier to build on, because augmenting the builder is how you reach every CHW at scale. Today I call them runtime AI and buildtime AI. [A-DOC][A]
 4. *Did you come up with buildtime versus runtime AI?* — The words, no — Taylor Downs at OpenFn put it that way in a 2026 conversation with Andra, and I adopted them because they explain our tracks better than we had. The tracks themselves, yes: Andra and I defined them in the 2025 strategy, more than a year earlier. [A][A-NOTES]
 5. *What's buildtime AI, concretely?* — Taking features that would have cost years of engineering off the shelf — but only after building the harnesses, skills, and data layer that let agents build them reliably, and guiding the result so non-technical people can drive it. cht-agent and No-Code CHT Configuration are the two big ones. [A]
-6. *Did you build cht-agent?* — I designed it and organized a community squad to build it. I built its data layer — the documentation and code-context MCP servers and the agent memory — and chose to route its models through OpenRouter so it stays provider-agnostic. It runs the full loop on cht-conf issues and tickets in production, and we're using it on our datasource migration to Postgres. [A][C]
-7. *Is it really in production?* — Yes, for cht-conf. The strategy aimed for a proof of concept in the first half of 2026; the public README still says proof of concept, and that's stale. [A][A-DOC][P]
+6. *Did you build cht-agent?* — Yes. I designed, architected, and built it, and I built the community that helped me build it as per my design; it was mainly me building it. I built its data layer — the documentation and code-context MCP servers and the agent memory — and chose to route its models through OpenRouter so it stays provider-agnostic. It runs the full loop on cht-conf issues and tickets, it's in production for cht-core and cht-conf, and we're using it on our datasource migration to Postgres. [A][C]
+7. *Is it really in production?* — Yes, for cht-core and cht-conf. The strategy aimed for a proof of concept in the first half of 2026; the public README still says proof of concept, and that's stale. [A][A-DOC][P]
 8. *And runtime AI?* — Inference in the CHW's hands while she works. Voice for CHT is where I'm taking that on: she speaks the visit, the form fills itself offline on her phone, and she confirms before anything saves. [A][A-DOC]
 9. *Tell me more about Voice for CHT.* — I designed it — the idea, the project, the capability — and went looking for a partner who already had some of our languages working in small models. Their offline speech model does the recognition, tuned on consented recordings; I built Medic's side, in the CHT. The pilot is underway, starting small: one form, one language, a handful of CHWs. Each stage is gated by the one before, success criteria are agreed in writing before the field test, and results get published with the failures included. [A][A-DOC]
 10. *How do you protect the health workers?* — Review before submit, always. No audio or transcript leaves the phone as telemetry, transcripts are stripped of personal health information before anything downstream, a CHW's data never evaluates that CHW, and opting out carries no consequence. [A-DOC]

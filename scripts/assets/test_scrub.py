@@ -6,10 +6,17 @@ generator, unlisted extension, and source image names, and an embedded texture w
 scrubbed file must keep only what research R-03 admits and the one mark, with its pixel data unchanged, byte for byte.
 Where the tree has the arrival check (tools/gates/arrival_check.py, which spec 003's Phase 2 patch adds), its own
 container rules must find nothing in the result: M1 to M9, the B rules, and A4.
+
+With --record (spec 004, Amendment C1; contracts/intake-amendments.md §13), the mark follows the file's record: the
+entry whose file is the output's name, read only for its steps' `by`. Every step by a model writes
+trainedAlgorithmicMedia; model and hand mixed, compositeWithTrainedAlgorithmicMedia; every step by hand, MARK_HUMAN,
+IPTC's digitalCreation (tasks.md T031, settled on 2026-10-30). A record it can't read that way is exit 2, with nothing
+written.
 """
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import struct
@@ -501,3 +508,207 @@ def test_the_command_writes_elsewhere_and_refuses_what_it_cant_fix(
     assert run("--out", str(out), str(source)).returncode == 0 and out.exists()
     assert source.read_bytes() == dirty_glb()  # --out leaves the source as it was
     assert run(str(tmp_path / "notes.txt")).returncode == 2
+
+
+# --------------------------------------------------------------------------------------------------
+# The mark follows the record (spec 004, Amendment C1; contracts/intake-amendments.md §13; tasks.md T033)
+# --------------------------------------------------------------------------------------------------
+MODEL_STEP = {"name": "base mesh", "by": "model"}
+HAND_STEP = {"name": "retopology", "by": "hand"}
+
+
+def amendments(path: Path) -> tuple[str, ...]:
+    """The arrival check's AMENDMENTS, read with ast and never run: () while the file or the constant is absent."""
+    if not path.is_file():
+        return ()
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "AMENDMENTS" for t in node.targets
+        ):
+            value = ast.literal_eval(node.value)
+            return tuple(value) if isinstance(value, tuple) else ()
+    return ()
+
+
+def terms() -> dict[str, str]:
+    return {
+        "model": scrub.MARK_MODEL,
+        "composite": scrub.MARK_COMPOSITE,
+        "hand": scrub.MARK_HUMAN,
+    }
+
+
+def write_record(folder: Path, name: str, **over) -> Path:
+    entry = {
+        "file": name,
+        "kind": "room",
+        "source": {"type": "design", "id": "D-0001"},
+        "steps": [MODEL_STEP, HAND_STEP],
+        **over,
+    }
+    path = folder / "records.json"
+    path.write_text(
+        json.dumps({"schema": 1, "entries": [entry]}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def png_mark(data: bytes) -> bytes:
+    return dict(png_chunks(data))[b"iTXt"]
+
+
+def test_the_three_terms_are_one_constant_each_under_iptcs_vocabulary() -> None:
+    found = terms()
+    assert len(set(found.values())) == 3
+    assert found["model"] == "trainedAlgorithmicMedia"
+    assert found["composite"] == "compositeWithTrainedAlgorithmicMedia"
+    # IPTC's term for media a human made with non-generative tools (tasks.md T031, settled on 2026-10-30).
+    assert found["hand"] == "digitalCreation"
+    for term in found.values():
+        packet = scrub.mark_packet(term)
+        assert (
+            f'Iptc4xmpExt:DigitalSourceType="{scrub.SOURCE_TYPES}{term}"'.encode()
+            in packet
+        )
+        assert scrub.mark_json(term)["Iptc4xmpExt:DigitalSourceType"] == (
+            scrub.SOURCE_TYPES + term
+        )
+    # Without a record, the mark is the model's, as before.
+    assert scrub.MARK_PACKET == scrub.mark_packet(scrub.MARK_MODEL)
+    assert scrub.MARK_JSON == scrub.mark_json(scrub.MARK_MODEL)
+
+
+@pytest.mark.parametrize(
+    "steps, which",
+    [
+        ([MODEL_STEP], "model"),
+        ([MODEL_STEP, MODEL_STEP], "model"),
+        ([MODEL_STEP, HAND_STEP], "composite"),
+        ([HAND_STEP, MODEL_STEP, HAND_STEP], "composite"),
+        ([HAND_STEP], "hand"),
+        ([HAND_STEP, HAND_STEP], "hand"),
+    ],
+    ids=["model", "models", "mixed", "mixed-3", "hand", "hands"],
+)
+def test_record_writes_the_mark_the_steps_call_for(
+    tmp_path: Path, steps: list[dict], which: str
+) -> None:
+    term = terms()[which]
+    record = write_record(tmp_path, "card.png", steps=steps)
+    card = tmp_path / "card.png"
+    card.write_bytes(dirty_png())
+    done = run("--record", str(record), str(card))
+    assert done.returncode == 0, done.stderr
+    assert png_mark(card.read_bytes()) == (
+        b"XML:com.adobe.xmp\x00\x00\x00\x00\x00" + scrub.mark_packet(term)
+    )
+    model = tmp_path / "desk.glb"
+    model.write_bytes(dirty_glb())
+    record = write_record(tmp_path, "desk.glb", steps=steps)
+    done = run("--record", str(record), str(model))
+    assert done.returncode == 0, done.stderr
+    gltf, _ = unpack_glb(model.read_bytes())
+    assert gltf["extensions"] == {
+        "KHR_xmp_json_ld": {"packets": [scrub.mark_json(term)]}
+    }
+
+
+def test_record_matches_the_outputs_name(tmp_path: Path) -> None:
+    # The entry is the one whose file is the output's name: --out's, when it's given.
+    source, out = tmp_path / "export.png", tmp_path / "card.png"
+    source.write_bytes(dirty_png())
+    record = write_record(tmp_path, "card.png", steps=[HAND_STEP])
+    done = run("--record", str(record), "--out", str(out), str(source))
+    assert done.returncode == 0, done.stderr
+    assert scrub.mark_packet(scrub.MARK_HUMAN) in out.read_bytes()
+    record = write_record(tmp_path, "export.png", steps=[HAND_STEP])
+    out.unlink()
+    done = run("--record", str(record), "--out", str(out), str(source))
+    assert done.returncode == 2 and not out.exists()
+
+
+@pytest.mark.parametrize(
+    "sha256", [None, 12, "not a hash"], ids=["absent", "a-number", "text"]
+)
+def test_record_never_reads_the_entrys_sha256(tmp_path: Path, sha256) -> None:
+    # The Author fills the hash in after the scrub, so whatever it holds, the scrub doesn't look.
+    over = {} if sha256 is None else {"sha256": sha256}
+    record = write_record(tmp_path, "card.png", steps=[MODEL_STEP], **over)
+    card = tmp_path / "card.png"
+    card.write_bytes(dirty_png())
+    done = run("--record", str(record), str(card))
+    assert done.returncode == 0, done.stderr
+
+
+@pytest.mark.parametrize(
+    "over",
+    [
+        {"file": "other.png"},
+        {"steps": None},
+        {"steps": []},
+        {"steps": [MODEL_STEP, {"name": "a pass", "by": "agent"}]},
+        {"steps": [{"name": "a pass"}]},
+        {"steps": ["model"]},
+    ],
+    ids=["no-entry", "no-steps", "empty-steps", "agent", "no-by", "not-a-step"],
+)
+def test_record_exits_2_and_writes_nothing_when_it_cant_say_which_mark(
+    tmp_path: Path, over: dict
+) -> None:
+    record = write_record(tmp_path, "card.png", **over)
+    if over.get("steps", 1) is None:
+        doc = json.loads(record.read_text(encoding="utf-8"))
+        del doc["entries"][0]["steps"]
+        record.write_text(json.dumps(doc), encoding="utf-8")
+    card = tmp_path / "card.png"
+    card.write_bytes(dirty_png())
+    done = run("--record", str(record), str(card))
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert card.read_bytes() == dirty_png()
+    assert (
+        "agent" not in done.stdout + done.stderr
+    )  # it names the problem, never a value
+
+
+def test_record_that_isnt_json_or_isnt_there_exits_2(tmp_path: Path) -> None:
+    card = tmp_path / "card.png"
+    card.write_bytes(dirty_png())
+    bad = tmp_path / "records.json"
+    bad.write_text("{not json", encoding="utf-8")
+    assert run("--record", str(bad), str(card)).returncode == 2
+    assert run("--record", str(tmp_path / "missing.json"), str(card)).returncode == 2
+    assert card.read_bytes() == dirty_png()
+
+
+def test_two_entries_naming_the_output_exit_2(tmp_path: Path) -> None:
+    card = tmp_path / "card.png"
+    card.write_bytes(dirty_png())
+    entry = {"file": "card.png", "steps": [HAND_STEP]}
+    record = tmp_path / "records.json"
+    record.write_text(json.dumps({"entries": [entry, entry]}), encoding="utf-8")
+    assert run("--record", str(record), str(card)).returncode == 2
+
+
+# Once spec 004's P-5 is on main (its Amendment C1), the arrival check admits all three marks; until then, only the
+# model's. So the hand-made and composite parity cases wait for main's check to carry 004-C1 (T044 runs them).
+@pytest.mark.parametrize("which", ["model", "composite", "hand"])
+@pytest.mark.parametrize(
+    "kind, build",
+    [
+        ("png", dirty_png),
+        ("jpeg", dirty_jpeg),
+        ("webp", dirty_webp),
+        ("glb", dirty_glb),
+    ],
+)
+def test_each_mark_passes_the_arrival_checks_container_rules(
+    kind: str, build, which: str
+) -> None:
+    if not CHECK.is_file():
+        pytest.skip("tools/gates/arrival_check.py arrives with spec 003's patch")
+    if which != "model" and "004-C1" not in amendments(CHECK):
+        pytest.skip("the arrival check admits this mark from spec 004's P-5 (004-C1)")
+    check = load(CHECK, "arrival_check_for_scrub_marks")
+    clean = scrub.scrub_bytes(build(), kind, term=terms()[which])
+    assert check.container_findings(clean, kind) == []

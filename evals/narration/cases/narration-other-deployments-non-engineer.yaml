@@ -5,14 +5,15 @@
 id: narration-other-deployments-non-engineer
 description: "The room's narration of the resume item other-deployments on the non-engineer path, as the visitor reads it."
 prompt: "Narrate the resume item other-deployments for a visitor on the non-engineer path."
-fake_response: "Hareet was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's."
+fake_response: "Hareet was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, where, as in Kenya, he was more hands-on, with several in-person iterations."
 expect:
   contains:
-    - "was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar, to a lesser extent than in Kenya's"
+    - "was also involved in Uganda's eCHIS and in the Ministry of Health deployments in Mali and Zanzibar"
+    - "was more hands-on, with several in-person iterations"
   not_contains:
     - "where he was born"
+    - "home address"
     - "surname"
-    - "employer dates"
     - "a degree"
     - "religious affiliation"
     - "defined the market"
@@ -38,3 +39,12 @@ expect:
     - "any sre-jd bullet as an accomplishment until confirmed"
     - "any amount"
     - "won anything personally"
+    - "owns the company alone"
+    - "client work"
+    - "a price for its services"
+    - "the site's bio line about hareet"
+    - "the local lane always runs offline"
+    - "the cleaning catches every identifier"
+    - "the co-owner's name"
+    - "the site's phone number"
+    - "any spend"

@@ -5,12 +5,12 @@ claims:
   - file: corpus/00-profile.md
     quote: "and designed claude-medic-aws, the infrastructure agent"
   - file: corpus/01-ai-strategy-and-cht.md
-    quote: "Designed by Hareet: Medic's infrastructure agent and the team's on-call engineer, built security-first for a non-technical user base"
+    quote: "claude-medic-aws is a security-first, read-only infrastructure agent"
   - file: corpus/01-ai-strategy-and-cht.md
-    quote: "It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect"
+    quote: "It contains Medic's best DevOps practices, to help Medic's non-technical partners deduce infrastructure issues"
   - file: corpus/01-ai-strategy-and-cht.md
     quote: "Read-only today; one step away from being trusted with production changes"
 slots: []
 ---
 
-Hareet designed claude-medic-aws, Medic's infrastructure agent and the team's on-call engineer, security-first for a non-technical user base. It reports, alerts, analyzes, and suggests how the EKS clusters, AWS resources, and Grafana intersect. It is read-only today; one step away from being trusted with production changes.
+Hareet designed claude-medic-aws, the infrastructure agent. claude-medic-aws is a security-first, read-only infrastructure agent: it contains Medic's best DevOps practices, to help Medic's non-technical partners deduce infrastructure issues. It is read-only today; one step away from being trusted with production changes.
