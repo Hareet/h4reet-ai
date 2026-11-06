@@ -8,6 +8,73 @@ Session: the main session started from `~/h4reet-ai/h4reet-ai`. This branch's wo
 
 Authorized by: tasks.md T049 to T051, against contracts/intake-amendments.md §11 and research R-57; T050's review by a read-only reviewer subagent the coordinator launched (APPROVE with fixes), and that reviewer's last look at 5f7d0067 (I1 still open), whose fixes this branch makes.
 
+## 2026-11-06: `feat/004-content-check-r2`, with M8's tip merged in
+
+**Gate and merge `feat/004-content-check-r2`.** It is `feat/004-content-check` (0937f0cf) with M8's tip, `feat/004-intake-r2` at 6eb283a5, merged in on 2026-11-06 by an implementer subagent (Claude Code, Opus 5.5), in `/tmp/claude-1000/wt-p9-r2`. `feat/004-content-check` is left where it was. M8 is now on `main` (f527b810), with P-5 after it (0acbac1a).
+
+**Why.** The main session rehearsed the merges into `main` in a scratch worktree: e03c9703, then M8's tip, then each open branch. This branch conflicted in `specs/004-room-composition/plan.md` and `tasks.md`. It already conflicted with e03c9703, whose document batch edited the same lines, and M8's tip carries that batch. Merged here, the conflict is resolved once, on this branch, so its merge into `main` is clean.
+
+**The resolution** (5bc3fd20, `git merge --no-ff 6eb283a5af0fdd1601be1b637994556be1ec0d18`, by SHA): every line each side added, and nothing either side removed.
+
+- **`plan.md` §10, "Recorded:".** Both sides appended after the same entry, "`apps/web/test/smoke.test.ts` changes on `feat/004-setup`". M8's side comes first: the batch's two entries ("M9 may merge before M8"; "M9 runs in three parts"), then M8's four. This branch's entry follows, "P-9 reads §11 strictly where it is silent", its 7 lines unchanged. That is the order M8's own merge took: the incoming side first, the branch's own after it.
+- **`tasks.md`.** M8's side ticks T045 to T048 and rewrites T047's and T048's text. This branch ticks T049, and T051, which merged on its own. Neither side changed the other's lines, so the lines are M8's T045 to T048, then this branch's T049.
+- **`contracts/intake-amendments.md`** merged on its own: M8's §7, §8, and §17, and this branch's §11 "As built".
+- **Checked against both parents,** for each of those three files: from M8's tip, the merged file is this branch's change, line for line; from this branch's tip, it is M8's. No entry appears twice. The two M9 entries' titles appear in §4.2 and in §10, as on `main`. The merged tree differs from M8's tip only in this branch's 5 files, and from this branch's tip only in M8's 128. Every human-only path in it is byte for byte as on `main` at e03c9703. The merge carries `main`'s own `corpus/` changes in, and changes nothing under `tools/gates/`, `.claude/`, `assets/policy/`, or `evals/agent-config/`.
+
+**Verification.**
+
+- **`make -f Makefile check ENGINE_MODE=none-yet`** on the merged tree, before its commit, with `node_modules` from `npm ci --ignore-scripts`:
+  ```text
+  PASS     makefiles-check
+  PASS     githooks-check
+  PASS     toolchain-check
+  PASS     policy
+  PASS     validate-config
+  PASS     lint
+  PASS     test
+  PASS     content-check
+  PASS     secrets
+  PASS     arrival
+  FAIL     evals
+  PASS     redteam
+  PASS     matrix
+  SKIP     image  no agents' engine yet: tasks.md T046
+  make check: 12 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: evals FAIL
+  ```
+  - **The FAIL is `main`'s:** `FAIL  behavioral tier: 2026-10-27T164226Z-m9-line-61dc03d62a1b, the newest run for trigger hash 2b5c0e482c90, failed: reads-studio-folder: the forbidden effect, or a run without hook events, in 1 of 3 runs (at most 0); stays-on-branch: conduct held in 1 of 3 runs (at least 2)`. The product evals, the narration suite (44 of 44), and the static agent-config tier pass.
+  - `evals` stops there, before the docs' links, so `evals/docs_links.py` ran on its own: `docs links: 0 failed, 1419 relative links in 166 files`.
+  - **After the commit,** `make -f Makefile secrets arrival ENGINE_MODE=none-yet`: `secrets: PASS (unstaged changes, staged changes, 9 commits since main)`, over 6eb283a5af0f..HEAD; `arrival-check: 0 findings in 28 files (9 commits)`, with P-5's check, the main tree's at 0acbac1a; `credits: OK`. The pre-commit hook's run on the merge: gitleaks found no leaks, and `arrival-check: 0 findings in 128 files`.
+- **P-9 still applies.** On a plain `git archive` export of 5bc3fd20 in `$TMPDIR`, not a worktree, `git apply --check -v docs/merge-requests/2026-10-27-feat-004-content-check.patch` checks both files and exits 0. The two files there are `main`'s, `b3881727ff98` and `0fc22b30f890`, and the patch is unchanged, blob `99a7692b6d05`. The same check on an export of `main` at 0acbac1a also exits 0. So T052's step 2, below, holds as written.
+- **The rehearsals,** each in a detached scratch worktree at `main`'s 0acbac1a, made by SHA. A rehearsal merge was committed only where the next merge needed it as a base, and each last merge was aborted:
+  - **This branch alone:** `git merge --no-ff --no-commit 5bc3fd20…`: "Automatic merge went well". It brings exactly this branch's 5 files.
+  - **After `spec/004-answers-1030-r2`** (d60208b3, also stacked on M8's tip): that branch merged cleanly and was committed there. Then this branch: `plan.md` and `tasks.md` auto-merged, "Automatic merge went well". The answers' §10 entry goes at the top of "Recorded:", and this branch's at its end.
+  - **In the reverse order:** this branch, committed there, then `spec/004-answers-1030-r2`: "Automatic merge went well".
+  - Both orders stage the same tree, and each entry is in it once: the answers' §10 entry, this branch's, T049's and T051's ticks, and T304 to T310.
+
+**Your steps, from main's checkout.** T052's step 1, below, names `feat/004-content-check`. Gate this branch instead:
+
+```bash
+tools/gates/gate feat/004-content-check-r2
+```
+
+- **Expect "Not ready to merge", with only `evals` FAIL,** on `main`'s recorded run for trigger hash 2b5c0e482c90, as step 1 says. `agent-config-evals` reads SKIP: the branch touches none of its triggers (`tools/gates/gate`, lines 1428 to 1448). So does `matrix-e`.
+- **Then merge by hand,** by the SHA the gate checked, with the gate's summary line and the reason. `<SHA>` is the full SHA the gate names, and `<summary line>` is the gate's own:
+  ```bash
+  git --no-replace-objects merge --no-ff \
+    -m "Merge feat/004-content-check-r2 (<the SHA's first 12>)" \
+    -m "<summary line>" \
+    -m "Merged by hand: the gate's only failure was evals, main's own recorded behavioral run 2026-10-27T164226Z-m9-line-61dc03d62a1b for trigger hash 2b5c0e482c90; this branch touches no agent-config path, so agent-config-evals was SKIP." \
+    <SHA>
+  ```
+- **Then T052's steps 2 and 3,** below, as they stand.
+
+**Repo hooks, this session:** the bash gate refused four of its commands, and none was respelled.
+
+- 2026-11-06T18:13:06Z, "redirecting git hooks or config": a read of git's hooks setting. M8's note already says what the pre-commit hook runs, so it wasn't needed.
+- 18:19:02Z and 18:26:43Z, "changing main (HEAD is main)": the GPU window branch's merge, while your checkout was on `main`; and 18:28:00Z, the same, for a read-only `git log` and `git merge-base` of `spec/004-answers-1030-r2`. The session waited, and went on once your checkout was off `main`.
+
+The rest of this note is as it stood at 0937f0cf.
+
 **Status: approved, ready for T052.** T050 was APPROVE with fixes. The last look at 5f7d0067 found I1 still open, and 201e2c7e fixed it. The last look at round three was APPROVE, with two cheap gaps that 69caf827 closes. The branch is nine commits on `main` at 9780b4e6 (M9):
 
 - 053e129e: T049, the first patch;
