@@ -41,7 +41,15 @@ export type AlertKind =
   | "store_unreachable"
   | "reminder";
 export type AlertOutcome = "delivered" | "retry" | "failed";
-export type OperatorAction = "init" | "reset" | "renew" | "test_clock" | "test_synthetic" | "adapter_call";
+export type OperatorAction =
+  | "init"
+  | "reset"
+  | "renew"
+  | "test_clock"
+  | "test_synthetic"
+  | "adapter_call"
+  // spec 003's studio GPU window (its contracts/gpu-window.md §1, §5)
+  | "studio_window";
 export type AuthFailureClass = "missing" | "malformed" | "wrong_prefix" | "mismatch";
 /** Why POST /room/events refused an event (spec 002, contracts/room-events.md §3). */
 export type RoomEventRefusal = "content_type" | "shape" | "kind" | "id";
@@ -69,6 +77,11 @@ export interface GaugeSnapshot {
     fallbackDay: { spentMicro: bigint; allowanceMicro: bigint; warnMicro: bigint };
   };
   fallbackAwaitingRenewal?: boolean;
+  /**
+   * Whether a studio GPU window is open (spec 003's contracts/gpu-window.md §1). Absent while the store can't be read,
+   * as the meters are: its series goes stale rather than read closed.
+   */
+  studioWindow?: boolean;
   adapters: readonly { id: string; healthy: boolean }[];
 }
 
@@ -157,6 +170,10 @@ export class GatewayMetrics {
     });
     gauge("h4.adapter.healthy", "{flag}", (r, s) => {
       for (const a of s.adapters) r.observe(a.healthy ? 1 : 0, { "h4.adapter": a.id });
+    });
+    // spec 003's studio GPU window: no attribute, since the stack is the resource's (its gpu-window.md §1).
+    gauge("h4.studio.window", "{flag}", (r, s) => {
+      if (s.studioWindow !== undefined) r.observe(s.studioWindow ? 1 : 0);
     });
   }
 

@@ -7,7 +7,8 @@ A later task's mark expires, as plan §11's do: once tasks.md marks the task don
 Bedrock pages also quote their alerts as alerts.md §3's examples give them, and hello's degraded detail as
 gateway-http.md §3 does, read from those files.
 
-From T111: the folder holds exactly the pages plan §16 lists; the index, docs/runbooks/README.md, links each and
+From T111: the folder holds exactly the pages plan §16 lists, and, from spec 003, the pages its own plan §8 lists, once
+each exists (tasks.md T022, T037); the index, docs/runbooks/README.md, links each and
 names the alerts and causes alerts.md §6 sends to it; the agents' engine's page quotes the messages the engine's code
 prints and names the Author's commands its code takes; and the local gate's page names what make check prints. From
 US6's review, it gives --host in the gate's own words, read from tools/gates/gate.

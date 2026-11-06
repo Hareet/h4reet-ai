@@ -32,7 +32,8 @@ datasources:
           urlDisplayLabel: Open in Langfuse
 
   # The gateway's own store, read as grafana_ro, which can SELECT gateway.audit_log and gateway.v_state and nothing
-  # else, so the audit and state panels still work when telemetry is down (FR-034).
+  # else, so the audit and state panels still work when telemetry is down (FR-034); and, from spec 003's migration
+  # 0003_studio_window, gateway.v_studio_windows, for the studio GPU windows' panel (its contracts/gpu-window.md §3).
   - name: Gateway store
     uid: gateway
     type: grafana-postgresql-datasource

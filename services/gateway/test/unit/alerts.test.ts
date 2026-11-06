@@ -180,6 +180,54 @@ describe("§3: every kind, as its example", () => {
     ]);
   });
 
+  it("operator_action, studio_window (spec 003's gpu-window.md §1): opened, then closed with the window's fallback spend", () => {
+    const opened = ctx({
+      key: "prod:operator_action:studio_window:57",
+      at: "2026-11-02T20:14:03Z",
+      meters: meters(400_000, 6_100_000, 0),
+    });
+    expect(
+      lines(opened, { kind: "operator_action", action: "studio_window", fingerprint: FP, state: "start" }),
+    ).toEqual([
+      `[h4reet.ai prod] OPERATOR ACTION: studio GPU window opened by operator #${FP}`,
+      "Daily: 0.40 / 5.00 USD (warning 3.50) · Month: 6.10 / 20.00 (warning 14.00) · Fallback today: 0.00 / 2.00 (grant 1)",
+      "Runtime: normal · Fallback: available · 2026-11-02T20:14:03Z · id prod:operator_action:studio_window:57",
+      "The model server stops next: hello falls back within the sub-budget, or degrades, until the window closes.",
+      "Runbook: docs/runbooks/studio-gpu-window.md",
+    ]);
+    const closed = ctx({
+      key: "prod:operator_action:studio_window:58",
+      at: "2026-11-02T21:02:40Z",
+      meters: meters(402_700, 6_102_700, 2_700),
+    });
+    const end = {
+      kind: "operator_action",
+      action: "studio_window",
+      fingerprint: FP,
+      state: "end",
+      fallbackMicro: 2_700n,
+      fallbackCalls: 1,
+    } as const;
+    expect(lines(closed, end)).toEqual([
+      `[h4reet.ai prod] OPERATOR ACTION: studio GPU window closed by operator #${FP}`,
+      "Daily: 0.40 / 5.00 USD (warning 3.50) · Month: 6.10 / 20.00 (warning 14.00) · Fallback today: 0.00 / 2.00 (grant 1)",
+      "Runtime: normal · Fallback: available · 2026-11-02T21:02:40Z · id prod:operator_action:studio_window:58",
+      // Two decimals, truncated toward zero, as every amount in an alert (§3); facts keep the micro-USD.
+      "Hello answers from the local model again. The window's fallback spend: $0.00 in 1 call.",
+      "Runbook: docs/runbooks/studio-gpu-window.md",
+    ]);
+    expect(renderAlert(closed, end).facts).toMatchObject({
+      action: "studio_window",
+      fingerprint: FP,
+      state: "end",
+      fallback_micro: 2_700,
+      fallback_calls: 1,
+    });
+    expect(lines(closed, { ...end, fallbackMicro: 300_000n, fallbackCalls: 3 })[3]).toBe(
+      "Hello answers from the local model again. The window's fallback spend: $0.30 in 3 calls.",
+    );
+  });
+
   it("credentials_expiring, with the adapter's own label and runbook", () => {
     const c = ctx({
       key: "prod:credentials_expiring:bedrock:2026-10-29T18:00Z",
@@ -409,6 +457,21 @@ function everyKind(): [AlertContext, AlertSpec][] {
       },
     ],
     [
+      base("prod:operator_action:studio_window:4"),
+      { kind: "operator_action", action: "studio_window", fingerprint: FP, state: "start" },
+    ],
+    [
+      base("prod:operator_action:studio_window:5"),
+      {
+        kind: "operator_action",
+        action: "studio_window",
+        fingerprint: FP,
+        state: "end",
+        fallbackMicro: 2_700n,
+        fallbackCalls: 1,
+      },
+    ],
+    [
       base("prod:credentials_expiring:bedrock:2026-10-29T18:00Z"),
       { kind: "credentials_expiring", adapter: "bedrock", label: "Bedrock", endsAt: T("2026-10-29T18:00:00Z") },
     ],
@@ -484,6 +547,7 @@ describe("§2: dedupe keys", () => {
       "prod:fallback_exhausted:fallback_day:2026-10-28:g1",
     );
     expect(dedupeKey.operatorAction("prod", "reset", 41)).toBe("prod:operator_action:reset:41");
+    expect(dedupeKey.operatorAction("prod", "studio_window", 57)).toBe("prod:operator_action:studio_window:57");
     expect(dedupeKey.credentialsExpiring("prod", "bedrock", T("2026-10-29T18:00:59Z"))).toBe(
       "prod:credentials_expiring:bedrock:2026-10-29T18:00Z",
     );

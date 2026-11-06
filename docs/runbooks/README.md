@@ -1,6 +1,6 @@
 # Runbooks
 
-One page for each alert, degraded cause, and operator action of spec 000's stack, one each for the agents' engine and the local gate (plan §16), and spec 003's for the studio's assets. Every page has the same six sections: Symptoms · Impact · Act, with the make targets · Verify · Undo · Record.
+One page for each alert, degraded cause, and operator action of spec 000's stack, one each for the agents' engine and the local gate (plan §16), and spec 003's for the studio's GPU window and its assets. Every page has the same six sections: Symptoms · Impact · Act, with the make targets · Verify · Undo · Record.
 
 How to find yours:
 - **An alert** names its page on its last line, `Runbook: docs/runbooks/<page>.md` ([contracts/alerts.md §3](../../specs/000-local-foundations/contracts/alerts.md#3-message-format)).
@@ -42,15 +42,16 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 | [operator-auth-failures.md](operator-auth-failures.md) | the `auth_failed` alert: calls to the admin listener with a missing, malformed, or wrong token |
 | [rollback.md](rollback.md) | a new commit misbehaving on prod or dev: back to the previous one, in one command |
 
+## The studio (spec 003)
+
+| Runbook | Use it for |
+|---|---|
+| [studio-gpu-window.md](studio-gpu-window.md) | handing prod's GPU to a studio job and taking it back (spec 003 FR-035): `make studio-window`; the `operator_action` alert for a `studio_window` |
+| [asset-withdrawal.md](asset-withdrawal.md) | a merged asset or published image that locates the Author or breaks a license: the pre-publication cleanup, or off the site within a day and an incident note |
+
 ## Development: the agents' engine and the local gate
 
 | Runbook | Use it for |
 |---|---|
 | [agents-engine.md](agents-engine.md) | the agents' engine down or unreachable, its plugin or proxy down, images or the stand-in model missing, a reset |
 | [local-gate.md](local-gate.md) | `make check` or the Author's gate failing, waiting, or unable to run; a secret finding; a history scan that can't certify |
-
-## The studio's assets (spec 003)
-
-| Runbook | Use it for |
-|---|---|
-| [asset-withdrawal.md](asset-withdrawal.md) | a merged asset or published image that locates the Author or breaks a license: the pre-publication cleanup, or off the site within a day and an incident note |

@@ -186,6 +186,14 @@ export function noteErrorType(request: object, errorType: string): void {
   errorTypes.set(request, errorType);
 }
 
+/**
+ * spec 003's studio GPU window (its contracts/gpu-window.md §1): the request's state, start or end, on its server
+ * span, once the body has a valid one. The reason never goes on a span.
+ */
+export function noteStudioWindowState(request: { raw: object }, state: "start" | "end"): void {
+  serverSpanOf(request)?.setAttribute("h4.studio_window.state", state);
+}
+
 /** Sets the server span's h4 attributes as the response goes out. */
 export function annotateServerSpan(
   request: { raw: object },

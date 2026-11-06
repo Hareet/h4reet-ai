@@ -73,7 +73,7 @@ export const dedupeKey = {
   trip: (stack: string, ceiling: Ceiling, period: string): string => `${stack}:trip:${ceiling}:${period}`,
   fallbackExhausted: (stack: string, day: string, grantNo: number): string =>
     `${stack}:fallback_exhausted:fallback_day:${day}:g${grantNo}`,
-  operatorAction: (stack: string, action: "init" | "reset" | "renew", auditId: number): string =>
+  operatorAction: (stack: string, action: "init" | "reset" | "renew" | "studio_window", auditId: number): string =>
     `${stack}:operator_action:${action}:${auditId}`,
   /** At the session's end, to the minute. */
   credentialsExpiring: (stack: string, adapter: string, endsAt: number): string =>

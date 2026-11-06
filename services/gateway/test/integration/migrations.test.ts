@@ -1,6 +1,7 @@
-// The store's schema and its migrations, on PGlite (tasks.md T024, T025; data-model.md §2.1–§2.9): both migrations
-// apply, the SHA-256 check stops a changed file (exit 1), a schema newer than the code fails closed (exit 78), the
-// audit trigger refuses UPDATE, DELETE, and TRUNCATE, and grafana_ro reads two objects and nothing else.
+// The store's schema and its migrations, on PGlite (tasks.md T024, T025; data-model.md §2.1–§2.9): every migration
+// applies, the SHA-256 check stops a changed file (exit 1), a schema newer than the code fails closed (exit 78), the
+// audit trigger refuses UPDATE, DELETE, and TRUNCATE, and grafana_ro reads three objects and nothing else (the third,
+// spec 003's gateway.v_studio_windows, came with 0003_studio_window: its contracts/gpu-window.md §3).
 import { createHash, createHmac, pbkdf2Sync } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
@@ -30,7 +31,7 @@ beforeAll(async () => {
   migrations = await readMigrations();
 });
 
-/** A database with both migrations applied. */
+/** A database with every migration applied. */
 async function migrated(): Promise<TestDatabase> {
   const db = await testDatabase();
   await runMigrations(db, migrations);
@@ -47,10 +48,11 @@ const fatal = async (p: Promise<unknown>): Promise<FatalStoreError> => {
 };
 
 describe("the migration files", () => {
-  it("are 0001_state and 0002_grafana_ro, in order, each with the SHA-256 of its bytes", async () => {
+  it("are 0001_state, 0002_grafana_ro, and 0003_studio_window, in order, each with the SHA-256 of its bytes", async () => {
     expect(migrations.map((m) => [m.version, m.name])).toEqual([
       [1, "0001_state"],
       [2, "0002_grafana_ro"],
+      [3, "0003_studio_window"],
     ]);
     const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
     expect(migrations[0]?.sha256).toBe(sha256(text));
@@ -67,8 +69,8 @@ describe("applying them", () => {
     await db.close();
   });
 
-  it("applies both, records each with its SHA-256, and holds the advisory lock throughout", async () => {
-    expect(await runMigrations(db, migrations)).toEqual([1, 2]);
+  it("applies each, records each with its SHA-256, and holds the advisory lock throughout", async () => {
+    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3]);
     const { rows } = await db.pg.query<{ version: number; name: string; sha256: string }>(
       "SELECT version, name, sha256 FROM gateway.schema_migrations ORDER BY version",
     );
@@ -108,23 +110,23 @@ describe("applying them", () => {
   });
 
   it("refuses to apply a migration older than one already applied (exit 1)", async () => {
-    const third: Migration = { version: 3, name: "0003_test", sql: "SELECT 1;", sha256: sha256("SELECT 1;") };
+    const later: Migration = { version: 4, name: "0004_test", sql: "SELECT 1;", sha256: sha256("SELECT 1;") };
     await runMigrations(db, migrations.slice(0, 1));
-    await db.pg.query("INSERT INTO gateway.schema_migrations VALUES (3, '0003_test', $1, now())", [third.sha256]);
-    const err = await fatal(runMigrations(db, [...migrations, third]));
+    await db.pg.query("INSERT INTO gateway.schema_migrations VALUES (4, '0004_test', $1, now())", [later.sha256]);
+    const err = await fatal(runMigrations(db, [...migrations, later]));
     expect([err.exitCode, err.reason]).toEqual([1, "migration_gap"]);
   });
 
   it("rolls back a migration that fails, and records nothing for it", async () => {
     const broken: Migration = {
-      version: 3,
-      name: "0003_broken",
+      version: 4,
+      name: "0004_broken",
       sql: "CREATE TABLE gateway.half_done (id int); SELECT no_such_function();",
       sha256: sha256("x"),
     };
     await expect(runMigrations(db, [...migrations, broken])).rejects.toThrow(/no_such_function/);
     const { rows } = await db.pg.query<{ version: number }>("SELECT version FROM gateway.schema_migrations");
-    expect(rows.map((r) => r.version)).toEqual([1, 2]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2, 3]);
     expect((await db.pg.query("SELECT to_regclass('gateway.half_done') AS t")).rows[0]).toEqual({ t: null });
   });
 });
@@ -412,6 +414,10 @@ describe("the schema (data-model.md §2.2–§2.9)", () => {
     ).resolves.toBeDefined();
     await expect(audit({ action: "shutdown", actor: "gateway" })).rejects.toThrow(/action/);
     await expect(audit({ action: "trip", actor: "someone" })).rejects.toThrow(/actor/);
+    // 0003_studio_window: the studio's GPU window is an operator write, with its reason (spec 003's gpu-window.md §1).
+    await expect(audit({ action: "studio_window", reason: "studio: a portrait batch" })).resolves.toBeDefined();
+    await expect(audit({ action: "studio_window" })).rejects.toThrow(/audit_log_reason_iff_operator_write/);
+    await expect(audit({ action: "studio_window", reason: "too short" })).rejects.toThrow(/audit_log_reason_length/);
     const { rows } = await db.pg.query<{ recorded_at: Date; detail: unknown }>(
       "SELECT recorded_at, detail FROM gateway.audit_log WHERE action = 'trip'",
     );
@@ -515,7 +521,7 @@ describe("grafana_ro (§2.9)", () => {
     });
   });
 
-  it("reads audit_log and v_state, and is refused on every other table", async () => {
+  it("reads audit_log, v_state, and v_studio_windows, and is refused on every other table", async () => {
     const { rows: tables } = await db.pg.query<{ name: string }>(
       "SELECT tablename AS name FROM pg_tables WHERE schemaname = 'gateway' ORDER BY tablename",
     );
@@ -533,6 +539,7 @@ describe("grafana_ro (§2.9)", () => {
     try {
       await expect(db.pg.query("SELECT count(*) FROM gateway.audit_log")).resolves.toBeDefined();
       await expect(db.pg.query("SELECT * FROM gateway.v_state")).resolves.toBeDefined();
+      await expect(db.pg.query("SELECT * FROM gateway.v_studio_windows")).resolves.toBeDefined();
       for (const { name } of tables.filter((t) => t.name !== "audit_log")) {
         await expect(db.pg.query(`SELECT 1 FROM gateway.${name} LIMIT 1`), name).rejects.toThrow(/permission denied/);
       }
@@ -684,7 +691,7 @@ describe("the store", () => {
     ]);
     expect(logged[0]?.record).toMatchObject({ condition: "store_unreachable", error_class: "ECONNREFUSED" });
     expect(JSON.stringify(logged)).not.toContain("10.0.0.1");
-    expect(logged[1]?.record).toMatchObject({ versions: [1, 2] });
+    expect(logged[1]?.record).toMatchObject({ versions: [1, 2, 3] });
     await store.close();
   });
 
@@ -792,7 +799,7 @@ describe("the store", () => {
     expect(await store.readStackState()).toEqual({ kind: "unreachable" });
     expect(store.status).toBe("ready");
     expect(logged.filter((l) => l.record.event === "migrations.applied").map((l) => l.record.versions)).toEqual([
-      [1, 2],
+      [1, 2, 3],
       [],
     ]);
     expect(logged.at(-1)?.record).toMatchObject({ event: "state.unknown", error_class: "42P01" });
@@ -820,10 +827,11 @@ describe("the store", () => {
     expect((await db.pg.query("SELECT version FROM gateway.schema_migrations ORDER BY version")).rows).toEqual([
       { version: 1 },
       { version: 2 },
+      { version: 3 },
     ]);
     // One run, for both reads, and no outage: the store answered throughout.
     expect(logged.map((l) => [l.level, l.record.event, l.record.versions])).toEqual([
-      ["info", "migrations.applied", [1, 2]],
+      ["info", "migrations.applied", [1, 2, 3]],
     ]);
     expect(store.outageStartedAt()).toBeUndefined();
     await store.close();

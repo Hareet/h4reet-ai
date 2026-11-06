@@ -9,3 +9,5 @@ How a row of the contract becomes panels:
 - A type that names two visualizations of the same queries, such as "stat, and a state timeline" or "time series and stat", is two panels: the first under the row's title, the second under the title with the other visualization in parentheses, as "Kill switch (state timeline)" or "Spend today (stat)".
 - "time series, and a stat over the range" with its own `stat:` query is a time series and a stat titled "… over the range".
 - "table (SQL)" panels read the store's `gateway.v_state` and `gateway.audit_log` through the `gateway` datasource, as `grafana_ro`; "logs" panels read Loki; every other panel is PromQL on `prom`.
+
+Spec 003's studio GPU window adds a row, "Studio GPU windows", above the dev-time row, with its one panel, and an annotation from `h4_studio_window` on every time series. Both are in `specs/003-studio-assets/contracts/gpu-window.md` §3, which the test reads as it reads telemetry.md §7. The panel is "table (SQL)" too, over `gateway.v_studio_windows`.

@@ -375,6 +375,25 @@ export interface MeterRow {
   grantNo: number | null; // fallback_day only
 }
 
+/**
+ * The studio GPU window's state (spec 003's contracts/gpu-window.md §1): the newest studio_window audit row. A start
+ * leaves it open and an end closed, and with none it is closed. No column holds it: the audit log already does, and it
+ * survives a restart. The write reads it under the state lock, through its own transaction's connection.
+ */
+export const STUDIO_WINDOW_SQL = `SELECT ts, detail ->> 'state' AS state FROM gateway.audit_log
+  WHERE action = 'studio_window' ORDER BY id DESC LIMIT 1`;
+
+export interface StudioWindowRow {
+  ts: Date | string;
+  state: string | null;
+}
+
+/** The window from STUDIO_WINDOW_SQL's answer: open, with the start's time, or closed. */
+export function studioWindowOf(rows: readonly StudioWindowRow[]): { open: true; since: Date } | { open: false } {
+  const row = rows[0];
+  return row !== undefined && row.state === "start" ? { open: true, since: new Date(row.ts) } : { open: false };
+}
+
 /** Thrown inside Store.transaction to roll it back and resolve with `value`: a refusal, not a failure. */
 export class Rollback<T> {
   constructor(readonly value: T) {}
@@ -666,6 +685,11 @@ export class Store {
       allowanceMicro: r.allowance_micro === null ? null : toBigInt(r.allowance_micro),
       grantNo: r.grant_no === null ? null : Number(r.grant_no),
     }));
+  }
+
+  /** Whether a studio GPU window is open, for the gauges' refresh; a failure throws, as readMeters' does. */
+  async readStudioWindow(): Promise<boolean> {
+    return studioWindowOf((await this.query<StudioWindowRow>(STUDIO_WINDOW_SQL)).rows).open;
   }
 
   /**

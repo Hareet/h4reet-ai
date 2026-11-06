@@ -8,8 +8,8 @@
 //   fsyncs the directory. Only a record whose fsync returned has been written. A write cut short (a filling disk
 //   returns a short count, not an error) is undone and reported as not written, and a file whose last line was torn
 //   (a crash, or a short write that couldn't be undone) gets a newline first, so the torn line never swallows the next.
-// - The record kinds are `reserve` and `commit` (the metered path, tasks.md T072), `operator` (init, reset, renew),
-//   and `clock` (dev's test clock).
+// - The record kinds are `reserve` and `commit` (the metered path, tasks.md T072), `operator` (init, reset, renew, and
+//   spec 003's studio_window, which a rebuild reads and counts nothing from), and `clock` (dev's test clock).
 import { constants } from "node:fs";
 import { mkdir, open, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -56,7 +56,7 @@ export interface CommitRecord extends Common {
 }
 export interface OperatorRecord extends Common {
   kind: "operator";
-  action: "init" | "reset" | "renew";
+  action: "init" | "reset" | "renew" | "studio_window";
   audit_id: number;
   actor: string;
   period_day: string;
@@ -70,6 +70,8 @@ export interface OperatorRecord extends Common {
   // renew, and init with renewed: true
   allowance_micro?: number;
   grant_no?: number;
+  // studio_window (spec 003's contracts/gpu-window.md §1)
+  state?: "start" | "end";
 }
 export interface ClockRecord extends Common {
   kind: "clock";
@@ -144,7 +146,10 @@ function parseLine(line: string): JournalRecord | undefined {
         ? (r as unknown as CommitRecord)
         : undefined;
     case "operator": {
-      if (!["init", "reset", "renew"].includes(String(r.action)) || !periods || !isCount(r.audit_id)) return undefined;
+      if (!["init", "reset", "renew", "studio_window"].includes(String(r.action)) || !periods || !isCount(r.audit_id)) {
+        return undefined;
+      }
+      if (r.action === "studio_window" && r.state !== "start" && r.state !== "end") return undefined;
       if (r.action === "init" && !(isCount(r.day_micro) && isCount(r.month_micro) && isCount(r.fallback_day_micro))) {
         return undefined;
       }

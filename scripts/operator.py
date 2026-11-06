@@ -14,6 +14,8 @@
     contract-record  the live contract run (provider-adapter.md §5.3): --adapter ID --out FILE     make contract-live
                --reason TEXT [--cases FILE]; /admin/status, each case through
                POST /admin/adapters/ID/complete, /admin/status again, into a new file
+    studio-window  POST /admin/studio-window (spec 003's contracts/gpu-window.md): start|end      make studio-window
+               --reason TEXT; prod's, and dev-cpu's for rehearsals, never dev's
 
 It runs in the Author's terminal with the operator token, so it is standard library only, and it runs by path
 through PY_HOST, never with -m: -I keeps out PYTHON* variables, the user's site directory, and the script's own
@@ -111,8 +113,13 @@ AUDIT_ACTIONS = (
     "test_synthetic",
     "adapter_call",
     "journal_failed",
+    "studio_window",  # spec 003's studio GPU window (its contracts/gpu-window.md §5)
 )
 AUDIT_LIMITS = (1, 200)
+# The studio GPU window (spec 003's contracts/gpu-window.md §1, §2): its states, and the stacks whose listener serves
+# it. dev routes no fallback to hand hello to, so it has none.
+STUDIO_STATES = ("start", "end")
+STUDIO_STACKS = ("prod", "dev-cpu")
 INCIDENT_LIMITS = (1, 20)
 # A compose service name. It starts with a letter, so the resolver can never read it as an address (2130706433).
 LABEL_RE = re.compile(r"[a-z]([a-z0-9-]{0,61}[a-z0-9])?")
@@ -589,6 +596,16 @@ class AdminClient:
     def renew(self, reason: str) -> dict[str, Any]:
         """POST /admin/renew (operator-admin.md §2.2): $2 more fallback at once, inside the daily ceiling."""
         return self.request("POST", "/admin/renew", {"reason": check_reason(reason)})
+
+    def studio_window(self, state: str, reason: str) -> dict[str, Any]:
+        """POST /admin/studio-window (spec 003's contracts/gpu-window.md §1): open or close the studio's GPU window."""
+        if state not in STUDIO_STATES:
+            raise Usage("the studio window's state is start or end")
+        return self.request(
+            "POST",
+            "/admin/studio-window",
+            {"state": state, "reason": check_reason(reason)},
+        )
 
     def audit(
         self,
@@ -1093,6 +1110,32 @@ def renew_lines(stack: str, body: dict[str, Any]) -> list[str]:
     return lines + journal_line(body)
 
 
+def studio_window_lines(stack: str, body: dict[str, Any]) -> list[str]:
+    """A summary of POST /admin/studio-window's answer (spec 003's contracts/gpu-window.md §1), naming the CLI's own
+    stack: the window's state and when, and for an end its span and the ledger's fallback spend inside it."""
+    audit = f"audit #{text(body.get('audit_id'))}"
+    if body.get("window") == "closed":
+        span = f"open {seconds(body.get('opened'))} to {seconds(body.get('since'))}"
+        lines = [f"{stack}  studio window closed · {audit} · {span}"]
+        fallback = obj(body.get("fallback"))
+        count = fallback.get("calls")
+        calls = (
+            f"{count} call{'' if count == 1 else 's'}"
+            if isinstance(count, int) and not isinstance(count, bool)
+            else "? calls"
+        )
+        lines.append(
+            f"{'fallback':<15}{usd(fallback.get('spent_micro_usd'))} USD in {calls} (the window's, from the ledger)"
+        )
+    else:
+        lines = [
+            f"{stack}  studio window {text(body.get('window'))} · {audit} · since {seconds(body.get('since'))}"
+        ]
+    if body.get("note"):
+        lines.append(f"{'note':<15}{text(body['note'], 500)}")
+    return lines + journal_line(body)
+
+
 def audit_lines(stack: str, body: dict[str, Any]) -> list[str]:
     """GET /admin/audit's entries, one a line, newest first: the reason is the operator's own words, shown as given."""
     entries = [e for e in body.get("entries") or [] if isinstance(e, dict)]
@@ -1249,6 +1292,16 @@ def build_parser() -> Parser:
         default=str(LIVE_CASES),
         help="the cases file (live-cases.json by default)",
     )
+    studio = commands.add_parser(
+        "studio-window",
+        parents=[common],
+        allow_abbrev=False,
+        help="POST /admin/studio-window: open or close the studio's GPU window (prod, dev-cpu)",
+    )
+    # A positional, not --state: bash-gate reads any --s… option on this CLI's command line as an abbreviation of
+    # --stack, so --state would refuse even dev-cpu's command (found by this command's matrix row).
+    studio.add_argument("state", choices=STUDIO_STATES, help="start or end")
+    studio.add_argument("--reason", required=True, help="why: 10 to 500 characters")
     return parser
 
 
@@ -1315,9 +1368,12 @@ def run_hop(
 
 
 def forwarded(args: argparse.Namespace, reason: str | None) -> list[str]:
-    """The arguments of reset, renew, audit, and incidents, checked already, for the CLI inside the dev-cpu hop."""
+    """The arguments of reset, renew, studio-window, audit, and incidents, checked already, for the CLI inside the
+    dev-cpu hop."""
     if args.command in ("reset", "renew"):
         return [f"--reason={reason}"]
+    if args.command == "studio-window":
+        return [args.state, f"--reason={reason}"]
     out: list[str] = []
     if args.command in ("audit", "incidents") and args.limit is not None:
         out.append(f"--limit={args.limit}")
@@ -1517,8 +1573,13 @@ def main(
                 as_json=as_json,
             )
         reason, stated = init_arguments(args) if args.command == "init" else (None, {})
-        if args.command in ("reset", "renew"):
+        if args.command in ("reset", "renew", "studio-window"):
             reason = check_reason(args.reason)
+        if args.command == "studio-window" and stack not in STUDIO_STACKS:
+            raise Usage(
+                "the studio window is prod's, and dev-cpu's for rehearsals: dev routes no fallback to hand hello "
+                "to (specs/003-studio-assets/contracts/gpu-window.md §1)"
+            )
         read_arguments(args)
         sandboxed = os.environ.get("SANDBOX_RUNTIME") == "1"
         if stack == "dev-cpu" and url is None and not token_stdin and sandboxed:
@@ -1542,6 +1603,9 @@ def main(
             elif args.command == "renew":
                 body = client.renew(reason or "")
                 lines = renew_lines(stack, body)
+            elif args.command == "studio-window":
+                body = client.studio_window(args.state, reason or "")
+                lines = studio_window_lines(stack, body)
             elif args.command == "audit":
                 body = client.audit(limit=args.limit, action=args.action)
                 lines = audit_lines(stack, body)

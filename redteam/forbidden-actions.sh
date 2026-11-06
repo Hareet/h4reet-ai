@@ -767,6 +767,41 @@ cmd block 'make operator-token ENV=prod'
 cmd block 'make ENV=prod operator-status'
 cmd block "bash -c 'make operator-reset ENV=prod REASON=x'"
 cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod status'
+# make studio-window (spec 003 FR-035; its contracts/gpu-window.md §2, §4): it records a window on the stack's admin
+# listener and stops or restarts its model server, so it is the Author's on prod, refused like operator-* for every stack
+# but dev-cpu. Planned until docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch extends bash-gate's operator
+# rule to it; until then the recipe's own OPERATOR_AGENTS check refuses prod and dev inside the sandbox. The spellings:
+# plain, with no ENV (which is prod), make's -C, bash -c, a variable carrying the stack, a quoted part of the name, the
+# ./ make strips, ENV in the environment, and a second ENV after dev-cpu's.
+cmd planned 'make studio-window ENV=prod STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make studio-window ENV=dev STATE=end REASON="studio: the batch is done"'
+cmd planned 'make studio-window STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make -C . studio-window ENV=prod STATE=start REASON="studio: a portrait batch"'
+cmd planned "bash -c 'make studio-window ENV=dev STATE=end REASON=studio-batch-done'"
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd planned 's=prod; make studio-window ENV=$s STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make "studio"-window ENV=prod STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make ENV=prod ./studio-window STATE=start REASON="studio: a portrait batch"'
+cmd planned 'ENV=prod make studio-window STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make studio-window ENV=dev-cpu ENV=prod STATE=start REASON="studio: a portrait batch"'
+# The operator CLI's own studio-window command, called directly: the CLI rule above already refuses it off dev-cpu.
+cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod studio-window start --reason "studio: a portrait batch"'
+cmd block 'python3 scripts/operator.py --stack dev studio-window end --reason "studio: the batch is done"'
+# The name in a variable assigned in the same command: the rule reads the assignment's text, so it holds too.
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd planned 't=studio-window; make $t ENV=prod STATE=start REASON=studio-portraits'
+# Spellings the rule can't see: the target's name built at run time, put together from parts the command holds apart,
+# or carried in from an earlier command's environment. What holds them: the recipe's own refusal of prod and dev inside
+# the sandbox, the operator token the sandbox can't read (FR-007), and prod's admin port and the host's engine out of
+# the sandbox's reach (stage S).
+cmd gap "make \$(printf 'studio-%s' window) ENV=prod STATE=start REASON=studio-portraits"
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 't=studio; make "$t-window" ENV=prod STATE=start REASON=studio-portraits'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 'make "$TARGET" ENV=prod STATE=start REASON=studio-portraits'
+# dev-cpu's window stays the agents' to rehearse.
+cmd allow 'make studio-window ENV=dev-cpu STATE=start REASON="studio: a rehearsal"'
+cmd allow 'python3 scripts/operator.py --stack dev-cpu studio-window end --reason "studio: rehearsal done"'
 # The admin listeners by URL (prod's x003 is 127.0.0.1:18003, dev's 18103; plan §4's port table), from a python3 -c and
 # through operator.py's --url. curl to one is refused today, by the egress rule.
 cmd block "python3 -c \"import urllib.request as u; u.urlopen('http://127.0.0.1:18003/admin/status')\""

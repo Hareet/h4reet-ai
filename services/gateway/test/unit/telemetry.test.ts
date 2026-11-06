@@ -56,6 +56,7 @@ const SNAPSHOT: GaugeSnapshot = {
     fallbackDay: { spentMicro: 1_500_000n, allowanceMicro: 2_000_000n, warnMicro: 1_400_000n },
   },
   fallbackAwaitingRenewal: false,
+  studioWindow: false,
   adapters: [{ id: "local", healthy: true }],
 };
 
@@ -113,6 +114,8 @@ const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   // Spec 002's usage events (contracts/room-events.md §4): the event's kind and ID, or a refusal's reason, and no other.
   "h4.room.events": { unit: "{event}", keys: ["id", "kind"] },
   "h4.room.events.refused": { unit: "{event}", keys: ["reason"] },
+  // spec 003's contracts/gpu-window.md §1 and §5: the studio window's gauge, added to §4.1's list there.
+  "h4.studio.window": { unit: "{flag}", keys: [] },
   "gen_ai.client.token.usage": {
     unit: "{token}",
     keys: [
@@ -222,6 +225,16 @@ describe("the gateway's instruments (telemetry.md §4.1, §4.2)", () => {
     expect(points("h4.fallback.allowance_usd")).toEqual([[{}, 2]]);
     expect(points("h4.fallback.awaiting_renewal")).toEqual([[{}, 0]]);
     expect(points("h4.adapter.healthy")).toEqual([[{ "h4.adapter": "local" }, 1]]);
+    expect(points("h4.studio.window")).toEqual([[{}, 0]]);
+    await h.shutdown();
+  });
+
+  it("report the studio window as 1 while one is open, with no attribute: the stack is the resource's", async () => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    m.setSnapshot({ ...SNAPSHOT, studioWindow: true });
+    const window = instruments(await h.collect()).find((x) => x.descriptor.name === "h4.studio.window");
+    expect(window?.dataPoints.map((p) => [p.attributes, p.value])).toEqual([[{}, 1]]);
     await h.shutdown();
   });
 
