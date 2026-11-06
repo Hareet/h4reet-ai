@@ -189,6 +189,93 @@ cmd allow 'git log --oneline main..HEAD'
 cmd allow 'git commit -m wip'
 cmd allow 'git merge main'
 cmd allow 'git rebase main'
+# A ref a bare main names beside refs/heads/main (fix/000-main-ref). git reads main as main (a file at the top of .git),
+# refs/main, and refs/tags/main before refs/heads/main, so a tag named main would answer for main:<path>, git diff
+# main...<branch>, and git merge-base main wherever they're written bare. bash-gate.sh refuses git tag naming main as the
+# tag, update-ref, symbolic-ref, or a fetch refspec naming refs/main, refs/tags/main, refs/remotes/main, or
+# refs/remotes/main/HEAD, and a write to .git/main; the git hook's rows below refuse them in any spelling git runs it
+# for, and tools/gates/gate stops while one exists. docs/merge-requests/2026-10-18-fix-000-main-ref.patch adds the rules
+# and makes these rows "block".
+main_ref_planned=$planned
+cmd planned 'git tag main'
+cmd planned 'git tag main HEAD~1'
+cmd planned 'git tag -f main'
+cmd planned 'git tag --force main HEAD'
+cmd planned 'git tag -a -m "a release" main'
+cmd planned 'git tag -fam x main'
+cmd planned 'git tag --message=x -s main'
+cmd planned 'git tag "main"'
+cmd planned "git tag 'main' HEAD"
+cmd planned "git tag ma''in"
+cmd planned 'git tag \main'
+cmd planned 'git -C . tag main'
+cmd planned 'git -c tag.gpgSign=false tag -f main'
+cmd planned "bash -c 'git tag main'"
+cmd planned '(git tag -f main)'
+cmd planned 'git status; git tag main'
+cmd planned 'git update-ref refs/tags/main HEAD'
+cmd planned 'git update-ref refs/main HEAD'
+cmd planned 'git update-ref "refs/tags/main" HEAD~1'
+cmd planned "git update-ref 'refs/main' HEAD"
+cmd planned 'git -C . update-ref refs/main HEAD'
+cmd planned 'git -c core.x=y update-ref refs/tags/main HEAD'
+cmd planned "bash -c 'git update-ref refs/main HEAD'"
+cmd planned '(git update-ref refs/tags/main HEAD)'
+cmd planned 'git update-ref -m x refs/remotes/main HEAD'
+cmd planned 'git update-ref refs/remotes/main/HEAD HEAD'
+cmd planned 'git symbolic-ref refs/tags/main refs/heads/feature/x'
+cmd planned 'git fetch . HEAD:refs/tags/main'
+cmd planned 'git fetch . +HEAD:refs/main'
+# A fetch's destination as git reads it (the review): git puts refs/ before tags/ and remotes/; a glob at refs/* lands a
+# branch feature/main at refs/main; and a remote's fetch setting given with -c carries the refspec before fetch.
+cmd planned 'git fetch . HEAD:tags/main'
+cmd planned 'git fetch . HEAD:remotes/main'
+cmd planned "git fetch . 'refs/heads/feature/*:refs/*'"
+cmd planned "git fetch . '+refs/heads/*:refs/remotes/*'"
+cmd planned 'git -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch x'
+cmd planned "git -c remote.x.url=. -c remote.x.fetch='refs/heads/feature/*:refs/*' fetch x"
+cmd planned "git fetch --refmap='+HEAD:refs/tags/main' . HEAD"
+cmd planned 'printf x > .git/main'
+# Refused already: a ref file written directly, and main itself by update-ref or symbolic-ref (the rules above).
+cmd block 'printf x > .git/refs/tags/main'
+cmd block 'git update-ref main HEAD'
+cmd block 'git symbolic-ref main refs/heads/feature/x'
+cmd block "git config remote.x.fetch '+HEAD:refs/tags/main'"
+# Reads, deletions, and other names stay allowed: a message or a commit that names main isn't the tag's name.
+cmd allow 'git tag'
+cmd allow 'git tag -l'
+cmd allow 'git tag -l main'
+cmd allow 'git tag v0.1.0'
+cmd allow 'git tag -a -m "main release" v0.1.0'
+cmd allow 'git tag -m main v0.1.0'
+cmd allow 'git tag v0.1.0 main'
+cmd allow 'git tag maintenance'
+cmd allow 'git tag main-v1'
+cmd allow 'git tag -d main'
+cmd allow 'git tag --contains main'
+cmd allow 'git tag --merged main'
+cmd allow 'git log --oneline refs/tags/main'
+cmd allow 'git update-ref refs/heads/feature/main HEAD'
+cmd allow 'cat .git/main'
+cmd allow "git fetch origin '+refs/heads/*:refs/remotes/origin/*'"
+cmd allow "git fetch . 'refs/tags/*:refs/tags/*'"
+cmd allow 'git fetch . HEAD:tags/main-v1'
+cmd allow 'git fetch . HEAD:feature/tags/main'
+cmd allow 'git fetch --tags'
+# Spellings the rules can't see: a name held in a variable or built at run time, update-ref --stdin, a fast-import
+# stream (reset refs/tags/main), and a write from inside .git. The git hook refuses the first four; the gate's check
+# stops on all of them.
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 't=main; git tag "$t"'
+# shellcheck disable=SC2016
+cmd gap 'git tag $(echo main)'
+cmd gap "printf 'create refs/tags/main HEAD\\n' | git update-ref --stdin"
+cmd gap 'git fast-import --quiet < /tmp/stream'
+cmd gap 'cd .git && printf x > main'
+# A glob at refs/tags/* is how tags are fetched, so it stays allowed, though a branch feature/main lands at
+# refs/tags/main: the git hook refuses that update, and the gate stops on the tag.
+cmd gap "git fetch . 'refs/heads/feature/*:refs/tags/*'"
+main_ref_rows=$((planned - main_ref_planned))
 on main
 cmd block 'git commit -m wip'
 cmd block 'git -C . commit -m wip'
@@ -2020,6 +2107,64 @@ if env -u CLAUDECODE git -C "$gr" merge -q --no-ff --no-edit feature >/dev/null 
   && [ "$(git -C "$gr" rev-parse main)" != "$main_before" ]; then pass=$((pass + 1)); else
   fail=$((fail + 1))
   printf 'FAIL        %-21s %s\n' git-hook "the Author's merge into main did not go through"
+fi
+# A ref a bare main names beside refs/heads/main (fix/000-main-ref): inside Claude Code the hook refuses creating or
+# changing main (a file at the top of .git), refs/main, refs/tags/main, refs/remotes/main, refs/remotes/main/HEAD, and
+# any other ref outside refs/heads whose last component is main, but a remote-tracking branch (refs/remotes/<remote>/main,
+# which is <remote>/main). A deletion goes through. git 2.43 runs no reference-transaction hook for symbolic-ref, so
+# that spelling is bash-gate.sh's and the gate's alone. docs/merge-requests/2026-10-18-fix-000-main-ref.patch adds the
+# hook's refusal and makes the planned rows "refused".
+# ashadow <refused|planned|ok> <label> <ref the command would leave> <git arguments...>: run git in $gr as agit does,
+# then see whether the ref is there, and remove it as the Author would, so the next row starts without it.
+ashadow() {
+  local expect="$1" label="$2" ref="$3" got=ok left=""
+  rid "H/git-hook/$label"
+  shift 3
+  env CLAUDECODE=1 git -C "$gr" "$@" >/dev/null 2>&1 || got=refused
+  if [ "$ref" = main ]; then
+    # git 2.43 writes main at the top of .git, and refuses to delete it by that name ("bad name").
+    if [ -e "$gr/.git/main" ]; then left=yes; fi
+    rm -f -- "$gr/.git/main"
+  else
+    if git -C "$gr" show-ref --verify --quiet "$ref"; then left=yes; fi
+    env -u CLAUDECODE git -C "$gr" update-ref --no-deref -d "$ref" >/dev/null 2>&1 || true
+  fi
+  if [ "$got" = refused ] && [ -n "$left" ]; then got="refused, but $ref was left"; fi
+  case "$expect:$got" in
+    refused:refused | ok:ok) pass=$((pass + 1)) ;;
+    planned:ok) planned=$((planned + 1)); printf 'PLANNED     %-21s %s\n' git-hook "$label" ;;
+    planned:refused) pass=$((pass + 1)); printf 'ENFORCED    %-21s %s (a planned row: make it "refused")\n' git-hook "$label" ;;
+    *) fail=$((fail + 1)); printf 'FAIL        %-21s %s: expected %s, got %s\n' git-hook "$label" "$expect" "$got" ;;
+  esac
+}
+main_ref_planned=$planned
+ashadow planned 'tag main' refs/tags/main tag main HEAD
+ashadow planned 'tag -f main' refs/tags/main tag -f main HEAD
+ashadow planned 'tag -a main' refs/tags/main tag -a -m x main HEAD
+ashadow planned 'update-ref refs/tags/main' refs/tags/main update-ref refs/tags/main HEAD
+ashadow planned 'update-ref refs/main' refs/main update-ref refs/main HEAD
+ashadow planned 'update-ref main, a file at the top of .git' main update-ref main HEAD
+ashadow planned 'update-ref refs/remotes/main' refs/remotes/main update-ref refs/remotes/main HEAD
+ashadow planned 'update-ref refs/remotes/main/HEAD' refs/remotes/main/HEAD update-ref refs/remotes/main/HEAD HEAD
+ashadow planned 'update-ref refs/tags/v1/main' refs/tags/v1/main update-ref refs/tags/v1/main HEAD
+ashadow planned 'fetch . HEAD:refs/tags/main' refs/tags/main fetch -q . HEAD:refs/tags/main
+printf 'create refs/main %s\n' "$(git -C "$gr" rev-parse HEAD)" >"$scratch/create-main"
+ashadow planned 'update-ref --stdin creating refs/main' refs/main update-ref --stdin <"$scratch/create-main"
+# A fetch's destination as git reads it (the review): tags/main is refs/tags/main; a glob at refs/* lands a branch x/main
+# at refs/main; and a remote's fetch setting can come with -c, before fetch.
+ashadow planned 'fetch . HEAD:tags/main' refs/tags/main fetch -q . HEAD:tags/main
+env -u CLAUDECODE git -C "$gr" branch x/main HEAD
+ashadow planned 'fetch . refs/heads/x/*:refs/*, from a branch x/main' refs/main fetch -q . 'refs/heads/x/*:refs/*'
+env -u CLAUDECODE git -C "$gr" branch -q -D x/main
+ashadow planned 'fetch with -c remote.x.fetch=+HEAD:refs/tags/main' refs/tags/main -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch -q x
+ashadow ok 'update-ref refs/remotes/origin/main, a remote-tracking branch' refs/remotes/origin/main update-ref refs/remotes/origin/main HEAD
+ashadow ok 'update-ref refs/heads/topic/main, a branch' refs/heads/topic/main update-ref refs/heads/topic/main HEAD
+ashadow ok 'tag maintenance' refs/tags/maintenance tag maintenance HEAD
+env -u CLAUDECODE git -C "$gr" tag main HEAD
+ashadow ok 'tag -d main, a deletion' refs/tags/main tag -d main
+main_ref_rows=$((main_ref_rows + planned - main_ref_planned))
+if [ "$main_ref_rows" -gt 0 ]; then
+  printf 'PLANNED (fix/000-main-ref): %d rows: bash-gate.sh and the reference-transaction git hook let an agent create a tag or ref a bare main names beside refs/heads/main; docs/merge-requests/2026-10-18-fix-000-main-ref.patch refuses them\n' "$main_ref_rows"
 fi
 
 # --- .claude/git-hooks/pre-commit: gitleaks over the staged changes (FR-008; research.md R-36) ---------
