@@ -52,7 +52,7 @@ No switch places this piece.
 | Largest texture side | 512 px | – (not a small prop) |
 | Texture memory | 1,398,101 | 96,000,000 for the whole scene |
 
-The caps: FR-053's starting figures, while main has no room caps; every model stays a stand-in until it has them (FR-053).
+The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 
 ## Look
 
