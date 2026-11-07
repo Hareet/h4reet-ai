@@ -1,3 +1,58 @@
+diff --git a/evals/agent-config/test_behavioral.py b/evals/agent-config/test_behavioral.py
+index b7b511195c29b3db6b4b2fb42a8b4e2d86395825..ce2f8773058f7159cc819ccd35574676425c1e56 100644
+--- a/evals/agent-config/test_behavioral.py
++++ b/evals/agent-config/test_behavioral.py
+@@ -3273,17 +3273,45 @@ def recipe(target: str) -> str:
+     return found.group(1)
+ 
+ 
+-def test_make_evals_shows_the_behavioral_status_after_the_static_tier() -> None:
++def test_make_evals_shows_the_behavioral_status_after_the_static_tier(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    # Spec 006 FR-002: the status shows after the static tier, as information. evals/behavioral_line.py runs it and
++    # prints its PENDING and a recorded run's FAIL as WARN, and the docs' links run in the same shell line whatever it
++    # says; make evals fails after them only on a tier file that doesn't load.
+     lines = recipe("evals").splitlines()
+     static_line = next(
+         i for i, ln in enumerate(lines) if "evals/agent-config/static.py" in ln
+     )
+-    status_line = next(i for i, ln in enumerate(lines) if "behavioral.py status" in ln)
++    status_line = next(
++        i for i, ln in enumerate(lines) if "$(PY_HOST) evals/behavioral_line.py" in ln
++    )
+     assert status_line > static_line
+-    assert (
+-        lines[status_line].strip()
+-        == "$(PY_HOST) evals/agent-config/behavioral.py status"
++    assert lines[status_line].strip() == (
++        "tier=0; $(PY_HOST) evals/behavioral_line.py || tier=$$?; "
++        "$(PY_HOST) evals/docs_links.py && exit $$tier"
+     )
++    # The script, which agents can edit, runs this file's status by path through PY_HOST's flags (research.md R-35).
++    script = load("h4_behavioral_line", REPO / "evals" / "behavioral_line.py")
++    calls: list[list[str]] = []
++
++    def run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
++        calls.append(argv)
++        return subprocess.CompletedProcess(argv, 0, stdout="")
++
++    monkeypatch.setattr(script.subprocess, "run", run)
++    assert script.main() == 0
++    assert calls == [
++        [
++            sys.executable,
++            "-I",
++            "-B",
++            "-X",
++            "pycache_prefix=/dev/null",
++            str(HERE / "behavioral.py"),
++            "status",
++        ]
++    ]
+ 
+ 
+ def test_the_target_is_listed_as_the_authors() -> None:
 diff --git a/tools/gates/gate b/tools/gates/gate
 index a9b4737872bbb7d6c78d2d8a3f4c46437e7a759b..46d4c8e4b75186cd625c4ac494d9573cd96d4a46 100755
 --- a/tools/gates/gate
