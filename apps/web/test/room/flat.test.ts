@@ -28,7 +28,7 @@ import type { Stage } from "../../src/room/compose/stages";
 import { drawFlat, flatPicker, renderFlat } from "../../src/room/flat";
 import { FLAT_FRAMES, VISITOR_TURN } from "../../src/room/handoff";
 import { standinLabel } from "../../src/room/scene/bundle3d";
-import { enter, intoRoom, parseCss, start, stylesheets } from "../helpers/room";
+import { button, enter, intoRoom, parseCss, start, stylesheets, talkLog, textOf } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
 import { goodFiles, goodTree, overlay, sideWallFiles, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 
@@ -758,8 +758,9 @@ describe("the 2D stage (renderFlat)", () => {
 describe("in the room", () => {
   // The review of T116, R1: drawFlat throws on anything off its allowlist, and the room still opens (FR-062: never a
   // blank or frozen scene). The drawing is a picture of what the list holds, so the list and "Around the room" carry
-  // the room without it.
-  it("opens the room with its list and text copy when the 2D drawing refuses the index's drawing", async () => {
+  // the room without it. FR-081 (the Author, 2026-10-30: "flat-failed is good, and if the room is failing like that, we
+  // show the list"): the stage says why, in the UI word flat-failed, as text a screen reader also reads (T305).
+  it("shows flat-failed's line, and the list, text copy, and talk box work, when the drawing refuses", async () => {
     const { index } = fixture();
     // A view box off the drawing's allowlist, as a malformed bundle could carry it.
     const viewBox = [0, 0, Number.NaN, 200] as unknown as RoomIndex["flat"]["view_box"];
@@ -775,11 +776,33 @@ describe("in the room", () => {
     const view = v.doc.querySelector(".room-stage-view");
     expect(view?.querySelector(".flat")).toBeNull();
     expect(view?.querySelector(".room-loading")).toBeNull();
-    expect(v.doc.body.textContent).toContain(index.ui["around.heading"] ?? "Around the room");
-    const first = index.selectables[0];
-    if (!first) throw new Error("no selectable");
-    v.doc.querySelector<HTMLButtonElement>(`button[data-object-id="${first.id}"]`)?.click();
-    expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: first.id });
+    // The stage shows flat-failed's words exactly, and nothing from them up hides them from assistive technology.
+    expect(textOf(view)).toBe("This drawing of the room could not be shown. The list below still works.");
+    expect(textOf(view)).toBe(index.ui["flat-failed"]);
+    const line = view?.firstElementChild ?? null;
+    expect(textOf(line)).toBe(index.ui["flat-failed"]);
+    expect(line?.closest("[hidden], [inert], [aria-hidden='true']")).toBeNull();
+    // "Around the room": its heading, and each switch's label with its tier sentence, the laptop's among them.
+    const around = v.doc.querySelector(".room-around");
+    expect(textOf(around?.querySelector("h2") ?? null)).toBe(index.ui["around.heading"]);
+    expect(index.switches.length).toBeGreaterThan(0);
+    const lines = [...(around?.querySelectorAll("li") ?? [])].map((li) => textOf(li));
+    for (const sw of index.switches)
+      expect(lines).toContain(`${index.ui[sw.label ?? ""] ?? ""}: ${index.ui["tier.not-live"] ?? ""}`);
+    // Each "In the room" button still selects its own selectable (selectObject's object_selected, with its ID).
+    const buttons = [...v.doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]")];
+    expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual(index.selectables.map((s) => s.id));
+    for (const b of buttons) {
+      b.click();
+      expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: b.getAttribute("data-object-id") });
+    }
+    // The talk box still answers, as it does with a drawing: the fixed message, and turn_sent.
+    const text = v.doc.querySelector<HTMLInputElement>("#talk-text");
+    if (!text) throw new Error("no text box");
+    text.value = "What is in the room?";
+    button(v.doc, "Send").click();
+    expect(talkLog(v.doc).lastElementChild?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+    expect(v.events.at(-1)).toEqual({ kind: "turn_sent" });
   });
 
   it("hands the paper over without turning the visitor under reduced motion", async () => {

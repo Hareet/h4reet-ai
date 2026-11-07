@@ -123,8 +123,10 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "standin.label": ["name"],
       "standin.note": [],
       "draft.badge": [],
+      // The stage's line when the 2D drawing can't be drawn (FR-081; the Author, 2026-10-30: "flat-failed is good").
+      "flat-failed": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(32);
+    expect(Object.keys(UI_KEYS)).toHaveLength(33);
   });
 
   it("give one tier sentence for each tier value", () => {
