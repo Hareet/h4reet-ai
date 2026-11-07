@@ -1,0 +1,2544 @@
+{
+  "schema": 1,
+  "directory": "assets/room",
+  "license": "all-rights-reserved-2026",
+  "entries": [
+    {
+      "file": "bag.glb",
+      "sha256": "635cd52f0e4e359a7d8d191ead08b92781faf411a7cc54b39c82a06f400ba7d7",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0020"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "textures from prompts (P-hero-webbing)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "38d3d356919bb5be0c3022e439b87c6f2f6807a23259bf222efad4173f9fd9c7"
+        },
+        {
+          "name": "hero-canvas drawn procedurally",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Python",
+              "version": "3.12.3",
+              "license": "psf-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Pillow",
+              "version": "10.2.0",
+              "license": "hpnd",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1066ca8bbce1e24c5f6031d19412c183af45772e8fe4fb2e0ece22cd296e5ba6"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, its strap settled onto the floor, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "3e648df804af49d1ffa280532ca22022c2ac48acd3091f464d04dd80b76d3e22"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-bag"
+    },
+    {
+      "file": "bicycle.glb",
+      "sha256": "a135f413f356b57a2330057330e25851b565137bf0800be317aff6e218387e83",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0012"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "hero-bartape, hero-tyre drawn procedurally",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Python",
+              "version": "3.12.3",
+              "license": "psf-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Pillow",
+              "version": "10.2.0",
+              "license": "hpnd",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "947c278d9a5e313302e5aa4a25ac8aed03cc45ce904bb85a0504c416acf628c9"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1066ca8bbce1e24c5f6031d19412c183af45772e8fe4fb2e0ece22cd296e5ba6"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "3e648df804af49d1ffa280532ca22022c2ac48acd3091f464d04dd80b76d3e22"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-bicycle"
+    },
+    {
+      "file": "busy-sign.glb",
+      "sha256": "5b004a8d57b31aeb7cb2549d4e4796e63e5c8eac5c9fc39d280c4f40dfb66834",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0002"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1066ca8bbce1e24c5f6031d19412c183af45772e8fe4fb2e0ece22cd296e5ba6"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, named for the room's piece and lifted onto its felt pads, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "3e648df804af49d1ffa280532ca22022c2ac48acd3091f464d04dd80b76d3e22"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-busy-sign"
+    },
+    {
+      "file": "chalkboard.glb",
+      "sha256": "ead06b65eb1da86a9a531f2dba76caaa31807dcb4336292d408183fb0e0887a6",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0010"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "textures from prompts (P-walnut)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "a7c1d797b62e5e5a0c124d1265a7e01dd3fc856a8b86b1551594f8f026fbab44"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "90c384439cfe66fc39b3590d809db736cfcbf0fb08c5b8a7159aa76c767ec9ee"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "14e73546c332310365c9347e664c060945476de54716bd2637de1a38d391f7bc"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-chalkboard"
+    },
+    {
+      "file": "charger.glb",
+      "sha256": "847444b98e04a2a2086fe3d2991c870d26756ae6bc21ae1fb8ac27df2c7a7e65",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0008"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "2004f0677234dcf523ba77fda33d9d495c3d38f8eefdc9595e368675d347d0af"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1829b1692b2ecb9c826ef190bd5bf5885256148a57170729bcfc3a0ec8f633d1"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-charger"
+    },
+    {
+      "file": "desk-screen.glb",
+      "sha256": "e9cf3a7dcc44cd55859dcbebf918ed5b4f38ec659c025e3c3294d5fa2107a3b1",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0004"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "2004f0677234dcf523ba77fda33d9d495c3d38f8eefdc9595e368675d347d0af"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, with the flat panel the Author chose for this round, lifted onto its foot, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1829b1692b2ecb9c826ef190bd5bf5885256148a57170729bcfc3a0ec8f633d1"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-desk-screen"
+    },
+    {
+      "file": "dog-sign.glb",
+      "sha256": "e45123bc258b1c20ce82bcaa077e2c9f598008084a08ab0c422a0446982fec7a",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0009"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "textures from prompts (P-hero-walnut)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "38d3d356919bb5be0c3022e439b87c6f2f6807a23259bf222efad4173f9fd9c7"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1066ca8bbce1e24c5f6031d19412c183af45772e8fe4fb2e0ece22cd296e5ba6"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, lifted onto its felt pads, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "3e648df804af49d1ffa280532ca22022c2ac48acd3091f464d04dd80b76d3e22"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-dog-sign"
+    },
+    {
+      "file": "helmet.glb",
+      "sha256": "a458798f92cb556ea1ad31f865a83e811d18e2184e9ea4f57e3b4cfafd10f9e2",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0019"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "682465d36f8fd527b98c4399b429997c1d609263cce94aca9fa24bf07fdf9d37"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, its straps settled onto the floor, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "8eb1d3a6187e1b871e18a4c32bb608f9c07134a464ca6f52acc49b2c73c8355c"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-helmet"
+    },
+    {
+      "file": "laptop-stand.glb",
+      "sha256": "869193ea7baff8d87b8603d92a5d847dce8a5fa33c500c682b9190f2b8447198",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0006"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "2004f0677234dcf523ba77fda33d9d495c3d38f8eefdc9595e368675d347d0af"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, lifted onto its feet, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1829b1692b2ecb9c826ef190bd5bf5885256148a57170729bcfc3a0ec8f633d1"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-laptop-stand"
+    },
+    {
+      "file": "laptop.glb",
+      "sha256": "3a3a4084224495356d6fd3cd75c826bebf75fee02e3958a7bbe8446b638f0fe9",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0007"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "2004f0677234dcf523ba77fda33d9d495c3d38f8eefdc9595e368675d347d0af"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1829b1692b2ecb9c826ef190bd5bf5885256148a57170729bcfc3a0ec8f633d1"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-laptop"
+    },
+    {
+      "file": "neon-sign.glb",
+      "sha256": "6a3f066de44a5bb0fa41b02fa565b0e2c20047746e48f671422e30e70269cf58",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0005"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "90c384439cfe66fc39b3590d809db736cfcbf0fb08c5b8a7159aa76c767ec9ee"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, at the catalog's stylized scale of 2.6 with the catalog's stacked faces, the sign a little taller to hold them, by a wrapper that pins it and swaps in that layout, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1a1e992d266f1ffea1d5cc48b29f410ba08b1c08ec0a9ffe4e69af6b7c56225a"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-neon-sign"
+    },
+    {
+      "file": "notebook.glb",
+      "sha256": "eae2e0d6ad05fe539659ed6e28ef847a7c9a4036b41843992de8644da1e8d1a8",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0018"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "notebook-page drawn procedurally",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Python",
+              "version": "3.12.3",
+              "license": "psf-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Pillow",
+              "version": "10.2.0",
+              "license": "hpnd",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "682465d36f8fd527b98c4399b429997c1d609263cce94aca9fa24bf07fdf9d37"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, lifted onto the desk, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "8eb1d3a6187e1b871e18a4c32bb608f9c07134a464ca6f52acc49b2c73c8355c"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-notebook"
+    },
+    {
+      "file": "room-shell.glb",
+      "sha256": "7ef950f7dea73f9c64e724375aa1568dbed4e12b9e137e37029b26f227c71846",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0003"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "textures from prompts (P-brick-2k, P-brick-side-2k, P-floor-2k)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "07d25b2b4fceca6dfaef25aac8ed2f02470c161a5aacaf532d22ed140055f779"
+        },
+        {
+          "name": "the textures refined image-to-image at 4K, from the session's own textures (no photo)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "a7c1d797b62e5e5a0c124d1265a7e01dd3fc856a8b86b1551594f8f026fbab44"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "9b29b59b52421bb6ca1a96f749ed7d770c27c2b8e6d5f7fb31034a66bbc31a52"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "40cb1cbef265f50ebb1f78f976b24de1d8959815aec4b2be8eb33c754bc6767d"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-room-shell"
+    },
+    {
+      "file": "snowboard.glb",
+      "sha256": "f04dd193ad29f07babd22db35b7361d9ee3b3d514b00a40b5192d302c11e3c6b",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0011"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "textures from prompts (P-snowboard-base, P-snowboard-top)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "f2f4d39722a027acd0d0ce1b120bf1d97a3a1794b1937afc9bd482403992ab64"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "3f06316826b4c599e749277aac098ea626ca3874294bd98230488de44d18a4b6"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "2bdd33215705d4ed843e7671325480c489c3558e8d1be472f777c2da6864e5e9"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-snowboard"
+    },
+    {
+      "file": "split-keyboard.glb",
+      "sha256": "5c987d38380d61cbc88806d32534aad38f55e7760d09615eb212b6d6fcd27930",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0016"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "built by a script the studio's agent wrote from the sheet's row and the Author's description, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "8e48e1baa6f5e415d119ad116627d6db8b48f7fd34dd55a91ffe6f6873c72f30"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-split-keyboard"
+    },
+    {
+      "file": "vertical-mouse.glb",
+      "sha256": "ac009724b3b7f534fcb65727a3f65d06be75e678a61b058aaae39e22a0e7155b",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0017"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "built by a script the studio's agent wrote from the sheet's row and the Author's description, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "8e48e1baa6f5e415d119ad116627d6db8b48f7fd34dd55a91ffe6f6873c72f30"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-vertical-mouse"
+    },
+    {
+      "file": "wall-art.glb",
+      "sha256": "dfbad1fc0a7b5ddcb05ee3f700e38996124a0c56d48c7f44cb2a4aa6034a7e01",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0015"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "textures from prompts (P-wall-art)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "a7c1d797b62e5e5a0c124d1265a7e01dd3fc856a8b86b1551594f8f026fbab44"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "90c384439cfe66fc39b3590d809db736cfcbf0fb08c5b8a7159aa76c767ec9ee"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "14e73546c332310365c9347e664c060945476de54716bd2637de1a38d391f7bc"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-wall-art"
+    },
+    {
+      "file": "wall-outlet.glb",
+      "sha256": "ec3c6384ed77b696dcbf1d38cfe19a746b28097f798d3a19ef0669ce4b741915",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0021"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "9b29b59b52421bb6ca1a96f749ed7d770c27c2b8e6d5f7fb31034a66bbc31a52"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "40cb1cbef265f50ebb1f78f976b24de1d8959815aec4b2be8eb33c754bc6767d"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-wall-outlet"
+    },
+    {
+      "file": "wall-window.glb",
+      "sha256": "2657859b32185b45c0faf5ad0049e75e300531a557db3d44eefa6917ff083fbf",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0013"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "textures from prompts (P-painted-wood)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "a7c1d797b62e5e5a0c124d1265a7e01dd3fc856a8b86b1551594f8f026fbab44"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "90c384439cfe66fc39b3590d809db736cfcbf0fb08c5b8a7159aa76c767ec9ee"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "14e73546c332310365c9347e664c060945476de54716bd2637de1a38d391f7bc"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-wall-window"
+    },
+    {
+      "file": "window-view.glb",
+      "sha256": "d030f41e7a98e3fd87338467456dab4c1f182e168408add7906f7e1bdd18b1e9",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0014"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "textures from prompts (P-window-view)",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "a7c1d797b62e5e5a0c124d1265a7e01dd3fc856a8b86b1551594f8f026fbab44"
+        },
+        {
+          "name": "modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "90c384439cfe66fc39b3590d809db736cfcbf0fb08c5b8a7159aa76c767ec9ee"
+        },
+        {
+          "name": "textures scaled to powers of two and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "14e73546c332310365c9347e664c060945476de54716bd2637de1a38d391f7bc"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-window-view"
+    },
+    {
+      "file": "work-desk.glb",
+      "sha256": "1568a2917a8d9e4238cd810f92cb11469bb9c67c83ab174eed39b2bc10aaf22c",
+      "kind": "room",
+      "made": "2026-11-07",
+      "source": {
+        "type": "prompt",
+        "id": "P-0001"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the desk top's texture, from a prompt (P-ws-maple), seed 41, two images at 2560 x 1376; the second was chosen",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "dd0b080c03ab788afcbade6cf22f7456aa10bce3a841375182b59a36f2860418"
+        },
+        {
+          "name": "the desk modeled in Blender at showcase detail",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "4.2.0",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "2004f0677234dcf523ba77fda33d9d495c3d38f8eefdc9595e368675d347d0af"
+        },
+        {
+          "name": "the texture scaled to 2048 x 1024 and re-encoded as WebP, quality 92",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
+        },
+        {
+          "name": "rebuilt from the studio's copy of that script, its grommet brought down to sit almost flush, and exported, by the studio's agent, run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-07",
+          "workflow_sha256": "1829b1692b2ecb9c826ef190bd5bf5885256148a57170729bcfc3a0ec8f633d1"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261107-work-desk"
+    }
+  ]
+}
