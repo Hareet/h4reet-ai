@@ -300,7 +300,7 @@ assets-credits: ## Render assets/CREDITS.md and docs/research/images/CREDITS.md 
 credits-check: ## Check the credits' renderings and the records' form against the records, writing nothing (spec 003)
 	$(PY_HOST) scripts/assets/credits.py --check
 
-evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the narration suite (fake only), the agent-config static tier, the behavioral tier's status, and the docs' links
+evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the narration suite (fake only), the agent-config static tier, the behavioral tier's status as information (spec 006), and the docs' links
 	@case "$${ADAPTER:-fake}" in fake) ;; \
 	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
 	  *) echo "ADAPTER must be fake, local, or bedrock" >&2; exit 2 ;; esac
@@ -308,9 +308,11 @@ evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), 
 	@# Spec 002's narration scripts, one case each, on the fake adapter whatever ADAPTER says (contracts/narration.md §2).
 	$(PY_HOST) evals/run.py --suite narration --adapter fake
 	$(PY_HOST) evals/agent-config/static.py
-	$(PY_HOST) evals/agent-config/behavioral.py status
-	@# Every relative link in README.md, docs/, and specs/ resolves, and every ADR is two clicks from the README (SC-009).
-	$(PY_HOST) evals/docs_links.py
+	@# The behavioral tier's status is information here, never a merge block (spec 006 FR-002): evals/behavioral_line.py
+	@# prints its PENDING and a recorded run's FAIL as a "WARN (behavioral tier):" line, which make check and the gate read
+	@# as WARN. Then every relative link in README.md, docs/, and specs/ resolves, and every ADR is two clicks from the
+	@# README (SC-009): those run whatever the tier says, and a tier file that doesn't load fails make evals after them.
+	tier=0; $(PY_HOST) evals/behavioral_line.py || tier=$$?; $(PY_HOST) evals/docs_links.py && exit $$tier
 
 # The behavioral agent-config evals (plan §14; FR-011, SC-008; tasks.md T094): real Claude Code sessions on the Team
 # plan, never the API, each in a scratch clone of the branch REF names, with the git hooks installed. The Author's,
@@ -318,9 +320,10 @@ evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), 
 # but earlier entries and __pycache__/*.pyc (untracked files elsewhere don't matter): main's behavioral.py reads the branch's cases and thresholds as
 # data, shows its diff under the human-only paths, and starts nothing until the Author types yes. It ends with the
 # commands that commit the entry on the branch from main's checkout, never switching it to the branch (review D1, 1).
-# make evals shows PENDING with this command until a passing run's entry, attested and committed, has the trigger
-# hash. ONLY= names cases to try alone, and writes no history. The closing patch's bash-gate rule refuses it to agents
-# too (§15).
+# make evals shows a WARN line with this command until a passing run's entry, attested and committed, has the trigger
+# hash, and the gate's agent-config-evals step waits (PENDING) for it only on a branch that changes CLAUDE.md,
+# REVIEW.md, .claude/, or the Claude Code pin (spec 006 FR-002, FR-004 to FR-006). ONLY= names cases to try alone, and
+# writes no history. The closing patch's bash-gate rule refuses it to agents too (§15).
 evals-agent-config: ## (the Author) The behavioral agent-config evals of a branch, from main's checkout, on the Team plan; paste the commands it prints to commit the entry on the branch: REF=<branch> [ONLY=id,...]
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make evals-agent-config is the Author's: it starts real Claude Code sessions on the Team plan, which an agent session can't (plan §14)" >&2; exit 2; }
 	$(PY_HOST) evals/agent-config/behavioral.py run$(if $(call from_cli,REF), --ref="$$REF")$(if $(call from_cli,ONLY), --only="$$ONLY")
