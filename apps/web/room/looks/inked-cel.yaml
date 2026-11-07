@@ -1,8 +1,8 @@
 # The room's default look, inked cel (answer 2): a stepped ramp and ink outlines, lit at run time, nothing baked.
 # The palette is spec 002's placeholder colours (src/room/scene.ts), named for the stand-ins and drawings, with the
 # cube's brick and cement in place of spec 002's wall and floor (the Author, 2026-10-23), and the new pieces' four
-# after them; the lights are its hemisphere and key lights. Lookdev compares looks, and ADR 0010 records the one the
-# scene names (FR-070).
+# after them, then the busy sign's solid purple from the studio's hand-back of 2026-11-07 (tasks.md T313); the lights
+# are its hemisphere and key lights. Lookdev compares looks, and ADR 0010 records the one the scene names (FR-070).
 version: 1
 id: inked-cel
 method: inked-cel
@@ -36,6 +36,7 @@ palette:
   slate: "#2f3b33"
   sign-cream: "#efe6d2"
   sign-wood: "#a7825a"
+  sign-purple: "#5b3f9e"
 lights:
   ambient: { sky: "#ffffff", ground: "#8a7a66", intensity: 1.2 }
   key: { color: "#ffffff", intensity: 1.6, from: [0.6, 4.5, 4.0], shadows: true }

@@ -18,19 +18,19 @@ Model the desk from the dimension sheet and the Author's description, as plain s
 - The height from the floor to the top's upper face.
 - The legs' or frame's size and where they stand under the top.
 - Where the desk stands, from the back wall and from the room's left side.
-- Measure: the size, now estimated at 1.5 × 0.75 × 0.8 m (w × h × d).
-- Measure: the anchor `top`, now estimated at (0, 0.75, 0) m in the piece's frame.
-- Measure: the anchor `front-left`, now estimated at (-0.75, 0.75, 0.4) m in the piece's frame.
-- Measure: the anchor `back-edge`, now estimated at (0.4, 0.75, -0.4) m in the piece's frame.
+- Measure: the size, now estimated at 1.5 × 1.07 × 0.8 m (w × h × d).
+- Measure: the anchor `top`, now estimated at (0, 1.07, 0) m in the piece's frame.
+- Measure: the anchor `front-left`, now estimated at (-0.75, 1.07, 0.4) m in the piece's frame.
+- Measure: the anchor `back-edge`, now estimated at (0.4, 1.07, -0.4) m in the piece's frame.
 - Measure: where `work-desk` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (0, 0, 0.4) m.
 
 ## Size, origin, and bounds
 
-- The size: 1.5 × 0.75 × 0.8 m (w × h × d), estimated.
-- The stylized scale: 1, so the model is made at 1.5 × 0.75 × 0.8 m (FR-051).
+- The size: 1.5 × 1.07 × 0.8 m (w × h × d), estimated.
+- The stylized scale: 1, so the model is made at 1.5 × 1.07 × 0.8 m (FR-051).
 - The origin: on the floor, below the centre of the desk's top.
-- The expected bounds at that scale: from (-0.75, 0, -0.4) to (0.75, 0.75, 0.4) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.045 m, y 0.0225 m, z 0.024 m (FR-019).
+- The expected bounds at that scale: from (-0.75, 0, -0.4) to (0.75, 1.07, 0.4) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.045 m, y 0.0321 m, z 0.024 m (FR-019).
 
 ## Anchors
 
@@ -38,9 +38,9 @@ At the model's scale, in the piece's frame (FR-003):
 
 | Anchor | Position (m) | Turn (°) |
 |---|---|---|
-| `top` | (0, 0.75, 0) | (0, 0, 0) |
-| `front-left` | (-0.75, 0.75, 0.4) | (0, 0, 0) |
-| `back-edge` | (0.4, 0.75, -0.4) | (0, 0, 0) |
+| `top` | (0, 1.07, 0) | (0, 0, 0) |
+| `front-left` | (-0.75, 1.07, 0.4) | (0, 0, 0) |
+| `back-edge` | (0.4, 1.07, -0.4) | (0, 0, 0) |
 
 ## Live faces
 
@@ -55,9 +55,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 600,000 | 2,500,000 |
-| Triangles | 6,000 | 40,000 |
-| Largest texture side | 1,024 px | – (not a small prop) |
-| Texture memory | 5,592,405 | 96,000,000 for the whole scene |
+| Triangles | 38,000 | 40,000 |
+| Largest texture side | 2,048 px | – (not a small prop) |
+| Texture memory | 11,184,811 | 96,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 
