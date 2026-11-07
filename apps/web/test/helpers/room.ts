@@ -3,7 +3,8 @@
 // microphone API the page could reach, a stand-in for the 3D chunk (jsdom has no WebGL), and the room's content and
 // index as the build bundles them, composed from the repository's data (spec 004, T096). Nothing here reaches the
 // network: jsdom loads no subresource, and every request API is a spy.
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,7 +15,8 @@ import { readMessages } from "../../build/manifest";
 import type { RoomContent } from "../../build/manifest";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
-import { policyFrom, readRoomPolicy } from "../../build/room/policy";
+import { readRoomPolicy } from "../../build/room/policy";
+import type { RoomPolicy } from "../../build/room/policy";
 import { fileTree } from "../../build/room/source";
 import { startRoom } from "../../src/room/app";
 import type { RoomHandle } from "../../src/room/app";
@@ -322,10 +324,24 @@ export function fakeScene(): FakeScene {
 const bundles = new Map<string, ComposeResult>();
 
 /**
+ * The policy the build reads under an empty policy directory, as the global setup's builds and the phone copy's test
+ * are (test/global-build.ts): nothing approved and no header, and the caps as build/room/policy.ts takes them where
+ * the directory holds no caps.json, main's in a checkout and the tree's own where there is no .git (spec 004, T327).
+ */
+export function emptyDirPolicy(): RoomPolicy {
+  const dir = mkdtempSync(join(tmpdir(), "h4-web-policy-"));
+  try {
+    return readRoomPolicy({ env: { ROOM_POLICY_DIR: dir }, root: REPO });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
  * The room's bundle as the site's build composes the repository's data (spec 004; build/room/plugin.ts): lenient, as
  * a release build unless `drafts`, under main's policy as make test reads it (build/room/policy.ts), or with `empty`,
- * under an empty policy directory, as the global setup's builds are (test/global-build.ts). Each is composed once a
- * test file, and a finding that would fail the site's build fails the test that asks.
+ * under an empty policy directory, as the global setup's builds are (test/global-build.ts; `emptyDirPolicy`). Each is
+ * composed once a test file, and a finding that would fail the site's build fails the test that asks.
  */
 export function repositoryBundle(
   options: { readonly drafts?: boolean; readonly policy?: "main" | "empty" } = {},
@@ -335,10 +351,7 @@ export function repositoryBundle(
   const key = `${source} ${drafts ? "drafts" : "release"}`;
   const known = bundles.get(key);
   if (known) return known;
-  const policy =
-    source === "main"
-      ? readRoomPolicy({ env: process.env, root: REPO })
-      : policyFrom({ caps: null, approvals: null, header: null }, "policy-dir");
+  const policy = source === "main" ? readRoomPolicy({ env: process.env, root: REPO }) : emptyDirPolicy();
   const result = compose(fileTree(REPO), policy, { mode: "lenient", drafts });
   const refused = result.findings.filter((f) => !f.lenient).map((f) => formatFinding(f, "lenient"));
   if (refused.length > 0) throw new Error(`the repository's room doesn't compose:\n${refused.join("\n")}`);

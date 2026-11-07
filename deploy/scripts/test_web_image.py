@@ -861,6 +861,35 @@ def test_the_build_stage_has_the_corpus_the_resume_cites_and_never_the_private_i
     assert "corpus/intake/private" in ignore
 
 
+def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
+    # A build that names no policy context, the gate's image step and the Author's phone copy, gets the Dockerfile's
+    # empty policy stage, so the room's compositor takes its caps from the tree it builds (spec 004, T327; its
+    # contracts/room-bundle.md §2): assets/policy/caps.json, which spec 003's rule A9 keeps equal to main's at the
+    # commit's base. The caps alone: the approvals and the PDF's header come from the policy context or not at all, so
+    # nothing is approved without it. The install stage copies the file before either build runs.
+    text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+    instructions = [
+        ln.strip()
+        for ln in text.splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+    caps = "COPY assets/policy/caps.json assets/policy/caps.json"
+    copy = instructions.index(caps)
+    builds = [
+        i
+        for i, ln in enumerate(instructions)
+        if ln.startswith("RUN ")
+        and (" build -w apps/web" in ln or " build:lookdev-phone -w apps/web" in ln)
+    ]
+    assert len(builds) == 2
+    assert all(copy < i for i in builds)
+    assert [
+        ln
+        for ln in instructions
+        if ln.startswith(("COPY ", "ADD ")) and "assets/" in ln
+    ] == [caps]
+
+
 def test_the_pdfs_text_file_stays_in_the_build_stage() -> None:
     # dist/resume.pdf.txt is the PDF's text, for the gate's scan of dist/ (contracts/resume-source.md §4). Once
     # resume-header.json is filled it holds the full name and contact as crawlable plain text, so the build stage

@@ -4,7 +4,10 @@
 // replace entry change nothing, and the branch's own copy is never read), or, only where there is no .git, the export's
 // own copy ("export"). Without per_asset.room the source is "defaults", FR-053's starting figures, pinned here. A
 // malformed block is RK4's: the reader keeps it raw with its problems, which name paths and never a value. Main's
-// approvals and the PDF header's full name come from the same source. The repositories are made by the test.
+// approvals and the PDF header's full name come from the same source. A ROOM_POLICY_DIR that holds no caps.json (the
+// global setup's builds, an image built with no policy context) takes the caps alone from the next source, main's in a
+// checkout and the tree's own where there is no .git, its approvals and header still the directory's (T327, option
+// (a) of 2026-11-07). The repositories are made by the test.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -187,6 +190,61 @@ describe("where the caps come from (contracts/room-bundle.md §2)", () => {
   it("is the defaults where main has no caps.json, or there is no branch main: never the tree's own copy", () => {
     for (const root of [repository({}, { [CAPS]: capsText(ROOM) }), repository(null, { [CAPS]: capsText(ROOM) })]) {
       expect(readRoomPolicy({ env: {}, root })).toEqual(noPolicy());
+    }
+  });
+
+  it("takes the caps alone from main, by its full ref, where ROOM_POLICY_DIR holds no caps.json: never the branch's copy", () => {
+    const caps = capsText(ROOM);
+    const root = repository(
+      { [CAPS]: caps, [APPROVALS]: approvalsText([{ sha256: sha256("main"), kind: "resume" }]) },
+      { [CAPS]: capsText({ ...ROOM, triangles: 99999 }) },
+    );
+    writeFileSync(join(root, CAPS), capsText({ ...ROOM, triangles: 88888 }));
+    const dir = temp();
+    write(dir, {
+      "resume-header.json": `${JSON.stringify({ schema: 1, full_name: "Fixture Person", contact: null })}\n`,
+    });
+    expect(readRoomPolicy({ env: { ROOM_POLICY_DIR: dir }, root })).toEqual({
+      caps: ROOM,
+      caps_source: "main",
+      caps_sha256: sha256(caps),
+      phase3_bytes: 20000000,
+      approvals: [],
+      caps_block: ROOM,
+      caps_problems: [],
+      full_name: "Fixture Person",
+    });
+  });
+
+  it("takes the caps alone from the tree's own copy where ROOM_POLICY_DIR holds no caps.json and there is no .git", () => {
+    const root = temp();
+    const caps = capsText(ROOM);
+    write(root, { [CAPS]: caps, [APPROVALS]: approvalsText([{ sha256: sha256("tree"), kind: "resume" }]) });
+    expect(readRoomPolicy({ env: { ROOM_POLICY_DIR: temp() }, root })).toMatchObject({
+      caps: ROOM,
+      caps_source: "export",
+      caps_sha256: sha256(caps),
+      approvals: [],
+      full_name: null,
+    });
+  });
+
+  it("is the defaults where ROOM_POLICY_DIR holds no caps.json and neither does the next source", () => {
+    const roots = [repository({}, { [CAPS]: capsText(ROOM) }), repository(null, { [CAPS]: capsText(ROOM) }), temp()];
+    for (const root of roots) expect(readRoomPolicy({ env: { ROOM_POLICY_DIR: temp() }, root })).toEqual(noPolicy());
+  });
+
+  it("keeps ROOM_POLICY_DIR's caps.json where it holds one, a room block or not: the next source never answers", () => {
+    const dir = temp();
+    write(dir, { "caps.json": capsText(undefined) });
+    const tree = temp();
+    write(tree, { [CAPS]: capsText(ROOM) });
+    for (const root of [repository({ [CAPS]: capsText(ROOM) }), tree]) {
+      expect(readRoomPolicy({ env: { ROOM_POLICY_DIR: dir }, root })).toMatchObject({
+        caps: null,
+        caps_source: "defaults",
+        caps_sha256: sha256(capsText(undefined)),
+      });
     }
   });
 
