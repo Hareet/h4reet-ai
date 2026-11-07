@@ -8,13 +8,15 @@ they stood at build time. So, unlike gateway_image.py (tasks.md T184):
     reaches the next make up;
   - main's assets/policy/content-approvals.json, resume-header.json, and caps.json are read on the host with git
     cat-file, from the repository make names, and handed to the build as the named build context `policy`; a file
-    main lacks is absent from it. The build stage reads only that, and never runs git.
+    main lacks is absent from it. The build stage reads only that and the tree's own assets/policy/caps.json, which
+    the room takes where the context holds no caps.json (spec 004, T328): rule A9 holds it to main's, but on dev-cpu
+    it is the working tree's, so that rests on main keeping caps.json. The build stage never runs git.
 The rest is the gateway's rule: a host stack builds the export its run file names; dev-cpu builds the working tree on
 the agents' engine only. deploy/compose.yaml names that image and never pulls it.
 
 Spec 004's T005 (FR-053; research.md R-13; contracts/serving.md §3): caps.json joins the policy third, so the room's
-compositor reads main's caps, never a branch's, and the image's label org.h4reet.web.policy digests the three files
-in that order, as apps/web/build/approvals.ts's policyDigest does for room-data.json's built_from.
+compositor reads main's caps while main holds caps.json, and the image's label org.h4reet.web.policy digests the three
+files in that order, as apps/web/build/approvals.ts's policyDigest does for room-data.json's built_from.
 """
 
 from __future__ import annotations

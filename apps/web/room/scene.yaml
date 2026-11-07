@@ -147,7 +147,7 @@ switches:
         mount: { on: laptop, anchor: port }
         glows: [{ placement: laptop, glow: charge-light, level: 1 }]
       # Both desk poses lie at y 0.011, so the studio's plug, 22 mm tall at scale 2, rests on the desk's top rather than
-      # 4 mm into it (the Author's default of 2026-11-07); the stand-in's plug, 14 mm tall, then floats 4 mm above it.
+      # 4 mm into it (the main session's default of 2026-11-07); the stand-in's plug, 14 mm tall, floats 4 mm above it.
       unplugged:
         mount: { on: work-desk, anchor: top, offset: [0.5, 0.011, 0.16], turn: { y: 160 } }
       # Resting 8 cm further forward than at z −0.2, so the plug clears the right prong of the studio monitor's V-shaped

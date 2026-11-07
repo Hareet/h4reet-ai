@@ -1,9 +1,9 @@
 # The chalkboard on the cube's left wall, left of the monitor (FR-078; the Author, 2026-10-23: "the chalkboard on a
 # brick wall that is left of the monitor"): a framed slate on the wall whose slate is a readable live face, drawn in
-# chalk by the room (FR-033). The slate is recessed in its frame, and the chalk tray stands out to 4 cm, as the studio's
-# hand-back of 2026-11-07 gives the Author's lookdev board; the stand-in stays a board with the slate on its face,
-# which stands in front of the recessed face until a model is set. Its size and where it hangs are estimates until
-# measured; the stylized scale is lookdev's to set, for the slate.
+# chalk by the room (FR-033). The slate is recessed in its frame, and the chalk tray stands out 4 cm at scale 1, 5 cm in
+# the room at 1.25, as the studio's hand-back of 2026-11-07 gives the Author's lookdev board; the stand-in stays a
+# board with the slate on its face, which stands in front of the recessed face until a model is set. Its size and where
+# it hangs are estimates until measured; the stylized scale is lookdev's to set, for the slate.
 version: 1
 id: chalkboard
 name: Chalkboard
