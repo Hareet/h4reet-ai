@@ -504,6 +504,20 @@ The row's title is "Room": what the room's visitors use, counted with no visitor
 - **Turns sent** count the text box's sends; **talk presses**, the talk button's. Both answer with a fixed message until the twin's conversation exists.
 - **Waiting for their groups** (FR-056's other panels, which have no data until their calls exist): each room feature's cost today and this month beside its latency and errors, from `h4_cost_usd_total` and the duration series by the turn endpoint's `h4.room.feature`; turns per room feature; the room's degraded responses by cause; and the model each step used come with conversations (spec 002's group 7). Recognition's latency and failures come with push-to-talk (group 8), and the voice's failures with the voice (group 9).
 
+### 7.9 Room live state (spec 004)
+
+The row's title is "Room live state": the status requests behind the room's laptop, and the class of the tier the relay's status would show now (spec 004, FR-072 and SC-014; its contracts/room-live-state-telemetry.md). The series are spec 001's relay's, as spec 004's Amendment A2 amends its contracts/relay-http.md §10: `h4_relay_requests_total` and `h4_relay_cap_refusals_total` gain the label `h4_relay_route` (`hello`, `status`, or `other`), the status bucket's refusals carry `h4_cap_limit="status_per_minute"`, and the one-hot gauge `h4_relay_status_class` reports, by `h4_class`, the class FR-041's table gives the status the relay would answer now: `local`, `cloud`, `resting`, `budget`, `unavailable`, or `unknown`. Until spec 001's relay emits them, this section is in `deploy/scripts/test_dashboard.py`'s `SECTIONS` but not in its `REQUIRED`, and the dashboard has none of its panels. The change that switches the room's live source on adds the panels and makes the section required. The row sits right below "Room".
+
+| Panel | Type | Query |
+|---|---|---|
+| Status requests a minute (FR-072) | time series | `sum(rate(h4_relay_requests_total{h4_relay_route="status"}[$__rate_interval])) * 60` |
+| Status 429s a minute (FR-072) | time series | `sum(rate(h4_relay_cap_refusals_total{h4_relay_route="status"}[$__rate_interval])) * 60` |
+| Time in each class (FR-072, SC-014) | bar chart | `avg by (h4_class) (avg_over_time(h4_relay_status_class[$__range]))` |
+
+- **Status requests** are every `GET /api/status` the relay answers, on both listeners: the room's polls, at most 2 a minute per visible, unpaused room; the `/status/` page's, every 60 s while it's visible; the snapshot sink's reads; and probes. The room's polls and the `/status/` page's can't be told apart, and both panels' descriptions say so.
+- **The 429s** are the status bucket's, `status_per_minute`: 30 a minute with a burst of 10, per address, shared by every visitor behind one address. A refused poll leaves that room's laptop at unknown until its next answer.
+- **Time in each class** is the share of the range the gauge spent at 1 in each class, read once at the range's end. It's the relay's view: a room's own rows (the live source, pause, a failed or stale request, a fallback reply) aren't in it.
+
 ## 8. What holds this contract
 
 | Check | Where | What it proves |

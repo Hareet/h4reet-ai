@@ -12,7 +12,7 @@ The static site visitors see: the choice screen, the 3D work area, the interacti
 - `build/`: what the build runs besides Vite. `build/disclosure.ts` renders `docs/data-flow-disclosure.md` into `dist/disclosure/index.html`, so the page the site links is the file the repository reviews. `build/content.ts` checks the resume's source against the corpus and writes its part of `room-data.json`; `build/pdf.ts` renders `resume.pdf` from the same items (contracts/resume-source.md). `build/narration.ts` checks the narration scripts (N1–N5, with the resume's own C1–C9), puts each published script under its item in `room-data.json`, and writes the scripts' eval cases; `build/narration-source.ts` reads the scripts' files (contracts/narration.md).
 - `test/`: vitest. Tests that need a document make their own with jsdom; `axe-core` checks the built pages.
 - `content/`: `resume.yaml`, the resume's one source, every item citing the corpus, `narration/<item-id>.<path>.md`, one script per item for each path, `engineer` and `non-engineer`, each citing the corpus like the resume's items; and `resume.lock.json`, the SHA-256 of each corpus and facts file the source and its scripts read. Drafted by agents and published only when the Author approves them by hash.
-- `fonts/`: IBM Plex Sans, Regular and Bold, under the OFL, pinned by `fonts.lock`; the site's CSS serves them and the PDF embeds them ([its README](fonts/README.md)).
+- `fonts/`: three families under the OFL, pinned by `fonts.lock` (schema 2), each with its uses: IBM Plex Sans, Regular and Bold, which the site's CSS serves and the PDF embeds, the PDF's one family; and IBM Plex Mono and Patrick Hand at weight 400, for the room's live faces, which the CSS declares too. `npm run fonts:lock` writes the lock from the families' npm tarballs ([its README](fonts/README.md)).
 - `Dockerfile` and `nginx.conf`: the `web` image, nginx with the built site and its headers baked in.
 
 Every dependency is a development dependency, pinned exactly in the root `package-lock.json`. The browser gets Vite's bundle, and the image holds only `dist/`.
@@ -30,14 +30,15 @@ From the repository root, in an agent session or the devcontainer:
 | Rewrite the lock and the eval cases after a change | `npm run content:lock -w apps/web`, which refuses while a check fails |
 | The narration's eval cases | `make evals`, which runs the `narration` suite on the fake adapter only |
 | Rewrite `config/room-events.yaml` after the room's objects or the resume's items change | `npm run manifest -w apps/web` (`make test` fails while it's stale) |
+| Vendor a font, or rewrite `fonts/fonts.lock` | `npm run fonts:lock -w apps/web -- [--copy] <tarball>...`, one `npm pack` tarball per family ([fonts/README.md](fonts/README.md)) |
 
-The build writes `apps/web/dist/`: `index.html`, hashed files under `assets/` (the font among them), `disclosure/`, `room-data.json`, and `resume.pdf`. Every URL in it is relative, and nothing loads from another host (FR-057). The citation check and the narration's checks run on every build and fail it on any problem, naming the item or the script; a stale lock only warns there, and fails `make test`, so a corpus edit on `main` never stops `make up`.
+The build writes `apps/web/dist/`: `index.html`, hashed files under `assets/` (the fonts among them), `disclosure/`, `room-data.json`, and `resume.pdf`. Every URL in it is relative, and nothing loads from another host (FR-057). The citation check and the narration's checks run on every build and fail it on any problem, naming the item or the script; a stale lock only warns there, and fails `make test`, so a corpus edit on `main` never stops `make up`.
 
 ## The image and the stacks
 
 `deploy/scripts/web_image.py` builds the image outside compose on every `make up`, after the gateway's (contracts/web-serving.md §1):
 - **Its tag carries the drafts flag:** `h4reet-web:<ref>` on prod, which never holds drafts, and `h4reet-web:<ref>-drafts` on dev and dev-cpu, built with `ROOM_DRAFTS=1`. The env file's `H4_WEB_SUFFIX` says which, and preflight holds it to the stack.
-- **Main's content policy comes from the host:** it reads `assets/policy/content-approvals.json` and `assets/policy/resume-header.json` from `main` with `git cat-file blob refs/heads/main:<path>` (the branch's full ref: a bare `main` would read a tag of that name first), and hands them to the build as the named build context `policy`. The build stage never runs git, and a file `main` lacks leaves every content file a draft.
+- **Main's content policy comes from the host:** it reads `assets/policy/content-approvals.json`, `assets/policy/resume-header.json`, and, for the room's caps, `assets/policy/caps.json` (spec 004) from `main` with `git cat-file blob refs/heads/main:<path>` (the branch's full ref: a bare `main` would read a tag of that name first), and hands them to the build as the named build context `policy`. The build stage never runs git; without the approvals every content file is a draft, and without the caps the room takes FR-053's starting figures. The image's label `org.h4reet.web.policy` digests the three files.
 
 On dev-cpu, `make web-image` builds the working tree on the agents' engine; `make build` and `make image` include it.
 

@@ -2,6 +2,11 @@
 // policy directory's copy of main's content-approvals.json lists its current SHA-256; anything else is a draft, left
 // out of a build without ROOM_DRAFTS=1 and bannered in one with it. build/policy.ts fills that directory from main
 // by refs/heads/main in a checkout, never from the branch or a tag; the image gets it as the named context `policy`.
+//
+// Spec 004's T004 (FR-030, FR-053; Amendment B9; research.md R-13, R-57): an approval of kind room-text, beside resume
+// and narration, breaks no build, make up included, and any other kind is still refused; and main's caps.json joins
+// the policy third, read as bytes for the room's compositor, so the policy's digest covers three files in one order
+// with web_image.py's label.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -14,13 +19,14 @@ import {
   contentFiles,
   draftsOn,
   pdfHeader,
+  POLICY_FILES,
   policyDigest,
   publication,
   readPolicy,
   roomData,
   stateOf,
 } from "../build/approvals";
-import { fillPolicy, prebuild } from "../build/policy";
+import { fillPolicy, POLICY_PATHS, prebuild, type Show } from "../build/policy";
 
 const sha256 = (data: string | Uint8Array): string => createHash("sha256").update(data).digest("hex");
 const RESUME = "version: 1\nsections: []\n";
@@ -37,18 +43,27 @@ afterEach(() => {
 });
 
 function approvals(...digests: string[]): string {
+  return approvalsOf(...digests.map((sha) => ({ sha, kind: "resume" as unknown })));
+}
+
+/** content-approvals.json with one entry per digest, each of the kind given (any value, for the refusals). */
+function approvalsOf(...entries: { sha: string; kind: unknown }[]): string {
   return JSON.stringify({
     schema: 1,
-    approvals: digests.map((sha, i) => ({
+    approvals: entries.map(({ sha, kind }, i) => ({
       id: `C-${String(i + 1).padStart(4, "0")}`,
-      path_when_approved: "apps/web/content/resume.yaml",
-      kind: "resume",
+      path_when_approved:
+        kind === "room-text" ? "apps/web/content/room/fixture-sign.yaml" : "apps/web/content/resume.yaml",
+      kind,
       sha256: sha,
       date: "2026-10-18",
       reason: "a stand-in approval, made by the test",
     })),
   });
 }
+
+/** A stand-in for main's caps.json: the policy reads it as bytes, and only the room's compositor parses it. */
+const CAPS = '{"schema": 1, "per_asset": {}, "fixture": "made by the test"}\n';
 
 function policyDir(files: Record<string, string>): string {
   const dir = temp("h4-policy-");
@@ -134,10 +149,72 @@ describe("the policy files", () => {
 
   it("have the digest web_image.py labels the image with: each file's name and SHA-256, or absent", () => {
     const a = approvals();
-    const expected = sha256(`content-approvals.json:${sha256(a)}\nresume-header.json:absent\n`);
+    const expected = sha256(`content-approvals.json:${sha256(a)}\nresume-header.json:absent\ncaps.json:absent\n`);
     expect(policyDigest(readPolicy(policyDir({ "content-approvals.json": a })))).toBe(expected);
-    const none = sha256("content-approvals.json:absent\nresume-header.json:absent\n");
+    const none = sha256("content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\n");
     expect(policyDigest(readPolicy(policyDir({})))).toBe(none);
+  });
+
+  it("are the approvals, the header, and the caps, in the order the digest takes them (spec 004, R-13)", () => {
+    expect(POLICY_FILES).toEqual(["content-approvals.json", "resume-header.json", "caps.json"]);
+    // build/policy.ts fills the directory with the same names, in the same order.
+    expect(POLICY_PATHS.map(([, name]) => name)).toEqual([...POLICY_FILES]);
+  });
+
+  it("digest the caps third, so web_image.py's label and room-data.json's built_from agree (spec 004, R-13)", () => {
+    const a = approvals();
+    const h = JSON.stringify({ schema: 1, full_name: null, contact: null });
+    const all = readPolicy(policyDir({ "content-approvals.json": a, "resume-header.json": h, "caps.json": CAPS }));
+    expect(policyDigest(all)).toBe(
+      sha256(`content-approvals.json:${sha256(a)}\nresume-header.json:${sha256(h)}\ncaps.json:${sha256(CAPS)}\n`),
+    );
+    const capsOnly = readPolicy(policyDir({ "caps.json": CAPS }));
+    expect(policyDigest(capsOnly)).toBe(
+      sha256(`content-approvals.json:absent\nresume-header.json:absent\ncaps.json:${sha256(CAPS)}\n`),
+    );
+  });
+
+  it("read caps.json as bytes and never parse it: the room's compositor does (spec 004, R-13)", () => {
+    const odd = "not JSON, and the policy reader doesn't care {\n";
+    const policy = readPolicy(policyDir({ "caps.json": odd }));
+    expect(policy.files["caps.json"]?.toString("utf8")).toBe(odd);
+    expect(readPolicy(policyDir({})).files["caps.json"]).toBeNull();
+    // A directory in its place is absent, as for the other two.
+    const dir = policyDir({});
+    mkdirSync(join(dir, "caps.json"));
+    expect(readPolicy(dir).files["caps.json"]).toBeNull();
+  });
+});
+
+describe("a room-text approval (spec 004, FR-030, Amendment B9; R-57)", () => {
+  it("is accepted beside resume and narration, so one on main breaks no build, make up included", () => {
+    const text = "version: 1\nlines: []\n";
+    const policy = readPolicy(
+      policyDir({
+        "content-approvals.json": approvalsOf(
+          { sha: sha256(RESUME), kind: "resume" },
+          { sha: sha256(SCRIPT), kind: "narration" },
+          { sha: sha256(text), kind: "room-text" },
+        ),
+      }),
+    );
+    expect([...policy.approved].sort()).toEqual([sha256(RESUME), sha256(SCRIPT), sha256(text)].sort());
+    // The build's own fields still come out: the resume and the script approved, whatever else main approves.
+    const data = roomData(contentFiles(tree(), policy), policy, false);
+    expect(data.published.map((p) => p.path)).toEqual([
+      "apps/web/content/resume.yaml",
+      "apps/web/content/narration/x.engineer.md",
+    ]);
+    expect(data.drafts).toEqual([]);
+  });
+
+  it("still leaves every other kind refused, naming the three it accepts", () => {
+    for (const kind of ["outline", "Room-text", "room_text", "roomtext", " room-text", "", null, 1, ["room-text"]]) {
+      const text = approvalsOf({ sha: sha256(RESUME), kind });
+      expect(() => readPolicy(policyDir({ "content-approvals.json": text })), String(kind)).toThrow(
+        /content-approvals\.json.*kind isn't resume, narration, or room-text/,
+      );
+    }
   });
 });
 
@@ -219,15 +296,57 @@ describe("build/policy.ts, a checkout's prebuild", () => {
   const MAIN_APPROVALS = approvals(sha256(RESUME));
   const MAIN_HEADER = JSON.stringify({ schema: 1, full_name: null, contact: null });
 
-  it("fills the directory with main's two files", () => {
+  it("reads main's three paths, the caps third (spec 004, R-13)", () => {
+    expect(POLICY_PATHS).toEqual([
+      ["assets/policy/content-approvals.json", "content-approvals.json"],
+      ["assets/policy/resume-header.json", "resume-header.json"],
+      ["assets/policy/caps.json", "caps.json"],
+    ]);
+  });
+
+  it("fills the directory with main's three files", () => {
     const root = repo({
       "assets/policy/content-approvals.json": MAIN_APPROVALS,
       "assets/policy/resume-header.json": MAIN_HEADER,
+      "assets/policy/caps.json": CAPS,
     });
     const dir = join(temp("h4-fill-"), "policy");
-    fillPolicy(dir, root);
+    expect(fillPolicy(dir, root)).toEqual(["content-approvals.json", "resume-header.json", "caps.json"]);
     expect(readFileSync(join(dir, "content-approvals.json"), "utf8")).toBe(MAIN_APPROVALS);
     expect(readFileSync(join(dir, "resume-header.json"), "utf8")).toBe(MAIN_HEADER);
+    expect(readFileSync(join(dir, "caps.json"), "utf8")).toBe(CAPS);
+  });
+
+  it("writes caps.json from what main's refs/heads/main holds, through the Show it's given (spec 004, R-13)", () => {
+    const asked: [string, string][] = [];
+    const show: Show = (repoDir, path) => {
+      asked.push([repoDir, path]);
+      return path === "assets/policy/caps.json" ? Buffer.from(CAPS) : null;
+    };
+    const dir = join(temp("h4-fill-"), "policy");
+    expect(fillPolicy(dir, "/the/repository", show)).toEqual(["caps.json"]);
+    expect(asked).toEqual([
+      ["/the/repository", "assets/policy/content-approvals.json"],
+      ["/the/repository", "assets/policy/resume-header.json"],
+      ["/the/repository", "assets/policy/caps.json"],
+    ]);
+    expect(readdirSync(dir)).toEqual(["caps.json"]);
+    expect(readFileSync(join(dir, "caps.json"), "utf8")).toBe(CAPS);
+  });
+
+  it("takes main's caps.json, never a branch's or a tag's named main (spec 004, R-13)", () => {
+    // A branch could raise its own caps if the build read its copy; a tag named main would answer a bare `main`.
+    const raised = '{"schema": 1, "per_asset": {"room": "raised by the branch"}}\n';
+    const root = repo({ "assets/policy/caps.json": CAPS }, { "assets/policy/caps.json": raised });
+    git(root, "tag", "main", "feature");
+    const dir = join(temp("h4-fill-"), "policy");
+    fillPolicy(dir, root);
+    expect(readFileSync(join(dir, "caps.json"), "utf8")).toBe(CAPS);
+    // With no branch main, a tag named main gives no caps at all.
+    const tagged = repo(null, { "assets/policy/caps.json": raised });
+    git(tagged, "tag", "main", "feature");
+    fillPolicy(dir, tagged);
+    expect(readdirSync(dir)).toEqual([]);
   });
 
   it("never reads the branch's copy", () => {
@@ -267,7 +386,11 @@ describe("build/policy.ts, a checkout's prebuild", () => {
     expect(prebuild({ ROOM_POLICY_DIR: "/src/policy" }, show)).toBe("given");
     expect(asked).toEqual([]);
     expect(prebuild({}, show, join(temp("h4-fill-"), "policy"))).toBe("filled");
-    expect(asked).toEqual(["assets/policy/content-approvals.json", "assets/policy/resume-header.json"]);
+    expect(asked).toEqual([
+      "assets/policy/content-approvals.json",
+      "assets/policy/resume-header.json",
+      "assets/policy/caps.json",
+    ]);
   });
 
   it("leaves the directory empty with no main, or none of the files on it, and clears what was there", () => {

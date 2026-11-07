@@ -6,14 +6,24 @@
 //
 // This file is the build's convenience. The enforcement is tools/gates/content_check.py, human-only, which reads main's
 // approvals itself and fails a build whose room-data.json publishes a file main doesn't approve.
+//
+// Spec 004 (FR-030, FR-053; Amendment B9; its research.md R-13, R-57): an approval may name the kind room-text, so the
+// Author's first room-text approval on main breaks no build, make up included; and main's assets/policy/caps.json is
+// the policy's third file, read here as bytes for the room's compositor, which parses it.
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 
 import type { Plugin } from "vite";
 
-/** main's two policy files, by their name in the policy directory, in the order the policy's digest takes them. */
-export const POLICY_FILES = ["content-approvals.json", "resume-header.json"] as const;
+/** main's three policy files, by their name in the policy directory, in the order the policy's digest takes them:
+ * spec 002's content approvals and PDF header, then spec 004's caps (R-13), as build/policy.ts and web_image.py
+ * name them too. */
+export const POLICY_FILES = ["content-approvals.json", "resume-header.json", "caps.json"] as const;
+
+/** The kinds an approval may name: spec 002's resume and narration, and spec 004's room text (Amendment B9). The
+ * human-only content check checks room text only once P-9 gives it the kind; until then, it fails closed. */
+export const APPROVAL_KINDS: readonly string[] = ["resume", "narration", "room-text"];
 
 export type ContentState = "approved" | "draft";
 
@@ -27,7 +37,8 @@ export interface Policy {
   approved: ReadonlySet<string>;
   /** resume-header.json's two slots, as main holds them; null without the file. */
   header: { full_name: string | null; contact: string | null } | null;
-  /** Each policy file's bytes, or null when main doesn't hold it. */
+  /** Each policy file's bytes, or null when main doesn't hold it. caps.json stays bytes here: the room's compositor
+   * parses it (spec 004's contracts/room-bundle.md §2). */
   files: Readonly<Record<(typeof POLICY_FILES)[number], Buffer | null>>;
 }
 
@@ -70,7 +81,8 @@ function approvedDigests(data: Buffer | null): Set<string> {
     if (typeof entry.id !== "string" || !ID.test(entry.id)) refuse(name, `${at}.id isn't C-nnnn`);
     if (typeof entry.path_when_approved !== "string" || entry.path_when_approved === "")
       refuse(name, `${at}.path_when_approved is missing`);
-    if (entry.kind !== "resume" && entry.kind !== "narration") refuse(name, `${at}.kind isn't resume or narration`);
+    if (typeof entry.kind !== "string" || !APPROVAL_KINDS.includes(entry.kind))
+      refuse(name, `${at}.kind isn't resume, narration, or room-text`);
     if (typeof entry.sha256 !== "string" || !SHA256.test(entry.sha256))
       refuse(name, `${at}.sha256 isn't 64 lowercase hex`);
     if (typeof entry.date !== "string" || !DATE.test(entry.date)) refuse(name, `${at}.date isn't YYYY-MM-DD`);
@@ -93,13 +105,18 @@ function header(data: Buffer | null): Policy["header"] {
   return { full_name: slot("full_name"), contact: slot("contact") };
 }
 
-/** main's policy, from the policy directory. A missing directory or file is absent: nothing approved, no header. */
+/** main's policy, from the policy directory. A missing directory or file is absent: nothing approved, no header, no
+ * caps (the compositor then takes FR-053's starting figures). */
 export function readPolicy(dir: string): Policy {
   const read = (name: string): Buffer | null => {
     const path = join(dir, name);
     return existsSync(path) && lstatSync(path).isFile() ? readFileSync(path) : null;
   };
-  const files = { "content-approvals.json": read(POLICY_FILES[0]), "resume-header.json": read(POLICY_FILES[1]) };
+  const files = {
+    "content-approvals.json": read(POLICY_FILES[0]),
+    "resume-header.json": read(POLICY_FILES[1]),
+    "caps.json": read(POLICY_FILES[2]),
+  };
   return { approved: approvedDigests(files[POLICY_FILES[0]]), header: header(files[POLICY_FILES[1]]), files };
 }
 

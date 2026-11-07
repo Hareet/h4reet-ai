@@ -1,28 +1,91 @@
 {
-  "schema": 1,
-  "family": "IBM Plex Sans",
-  "license": "OFL-1.1",
-  "source": {
-    "package": "@ibm/plex-sans",
-    "version": "1.1.0",
-    "url": "https://registry.npmjs.org/@ibm/plex-sans/-/plex-sans-1.1.0.tgz",
-    "sha256": "c3818979c2a2c82927ea3e7c485e389a18de0b7462887dd4f7acc9a525568962",
-    "integrity": "sha512-WPgvO6Yfj2w5YbhyAr1tv95RUz4LRJlqN+CmYvBglabXteufP1D1E9BABMde+ZIKdRbFJDoKF5eQzfhpnbgZcQ==",
-    "published": "2024-11-11"
-  },
-  "files": {
-    "IBMPlexSans-Bold.woff": {
-      "sha256": "5c8bcd6be12df67acd529819b92f36febeff4df059a9603c4ecd578f01cf4062",
-      "from": "package/fonts/complete/woff/IBMPlexSans-Bold.woff"
+  "schema": 2,
+  "families": [
+    {
+      "family": "IBM Plex Sans",
+      "license": "OFL-1.1",
+      "reserved_font_name": "Plex",
+      "uses": [
+        "site",
+        "pdf",
+        "room"
+      ],
+      "source": {
+        "package": "@ibm/plex-sans",
+        "version": "1.1.0",
+        "url": "https://registry.npmjs.org/@ibm/plex-sans/-/plex-sans-1.1.0.tgz",
+        "sha256": "c3818979c2a2c82927ea3e7c485e389a18de0b7462887dd4f7acc9a525568962",
+        "integrity": "sha512-WPgvO6Yfj2w5YbhyAr1tv95RUz4LRJlqN+CmYvBglabXteufP1D1E9BABMde+ZIKdRbFJDoKF5eQzfhpnbgZcQ==",
+        "published": "2024-11-11"
+      },
+      "files": {
+        "IBMPlexSans-Bold.woff": {
+          "sha256": "5c8bcd6be12df67acd529819b92f36febeff4df059a9603c4ecd578f01cf4062",
+          "from": "package/fonts/complete/woff/IBMPlexSans-Bold.woff"
+        },
+        "IBMPlexSans-Regular.woff": {
+          "sha256": "b731cf56514a4bd711ab2f9acf641f9311707f4386772eb306d25c2b29b73b1a",
+          "from": "package/fonts/complete/woff/IBMPlexSans-Regular.woff"
+        },
+        "LICENSE.txt": {
+          "sha256": "37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d",
+          "from": "package/LICENSE.txt",
+          "note": "line endings CRLF to LF, as the repository stores text; the words unchanged"
+        }
+      }
     },
-    "IBMPlexSans-Regular.woff": {
-      "sha256": "b731cf56514a4bd711ab2f9acf641f9311707f4386772eb306d25c2b29b73b1a",
-      "from": "package/fonts/complete/woff/IBMPlexSans-Regular.woff"
+    {
+      "family": "IBM Plex Mono",
+      "license": "OFL-1.1",
+      "reserved_font_name": "Plex",
+      "uses": [
+        "room"
+      ],
+      "source": {
+        "package": "@ibm/plex-mono",
+        "version": "2.5.0",
+        "url": "https://registry.npmjs.org/@ibm/plex-mono/-/plex-mono-2.5.0.tgz",
+        "sha256": "55b5ffcfcd5e9db36ef2070b2b07a573434ca02c6f3be2b921c0b88fff29acad",
+        "integrity": "sha512-STBJIPxPomOYPmBMO7z5TKPJUotAF9u3gAUumTqVgwgrAO+K4FRNh0MlhsoJjKhJKsMbBJR10/bk4inkj/wc1w==",
+        "published": "2026-06-11"
+      },
+      "files": {
+        "IBMPlexMono-Regular.woff": {
+          "sha256": "3a0d6e1587e8dc784be5a75e1c55b1a5533919b04072a29c750bb29cfe4a4b74",
+          "from": "package/fonts/complete/woff/IBMPlexMono-Regular.woff"
+        },
+        "LICENSE.txt": {
+          "sha256": "37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d",
+          "from": "package/LICENSE.txt",
+          "note": "line endings CRLF to LF, as the repository stores text; the words unchanged; the same bytes as IBM Plex Sans's, so the two families share the file"
+        }
+      }
     },
-    "LICENSE.txt": {
-      "sha256": "37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d",
-      "from": "package/LICENSE.txt",
-      "note": "line endings CRLF to LF, as the repository stores text; the words unchanged"
+    {
+      "family": "Patrick Hand",
+      "license": "OFL-1.1",
+      "reserved_font_name": null,
+      "uses": [
+        "room"
+      ],
+      "source": {
+        "package": "@fontsource/patrick-hand",
+        "version": "5.3.0",
+        "url": "https://registry.npmjs.org/@fontsource/patrick-hand/-/patrick-hand-5.3.0.tgz",
+        "sha256": "c3428d02610c7b8fa92b044cf766f8c30b88bb32a47460b4ac42fa14e0bcdcc0",
+        "integrity": "sha512-V8C38IlIFfdWg0Xtri3F7sLCVpm069rUwn6w4n+oyn38gt7H4arOJmuReg3tAw1Q6jHqZp89wTnAAJagq4Atxw==",
+        "published": "2026-07-19"
+      },
+      "files": {
+        "LICENSE-PatrickHand.txt": {
+          "sha256": "dbf0df430d5997121cc569dbe4f9198f76cf393114438f1f6c80a49f06f029d6",
+          "from": "package/LICENSE"
+        },
+        "patrick-hand-latin-400-normal.woff": {
+          "sha256": "0f7031f6665437e04d6f354c5f64d6ae6777b498afbe804638c45b957a7ce8aa",
+          "from": "package/files/patrick-hand-latin-400-normal.woff"
+        }
+      }
     }
-  }
+  ]
 }
