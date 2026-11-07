@@ -4,13 +4,13 @@ Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (tasks.md
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`; this branch's worktree is `/tmp/claude-1000/wt-desk-sign`, cut from `feat/004-us1-composition`'s tip 126ab33f · Repo hooks active: yes. `.claude/audit/hooks.log` holds this session's commands and edits from 2026-11-07T07:34:09Z, each ALLOW but two: the bash gate refused one command, at 07:59:53Z, "switching to main", because a heredoc writing a scratch file of your steps held that text (the file was then written with the Write tool, not respelled); and the post-edit check warned on that scratch file's missing shebang, at 08:00:02Z, fixed. Each commit ran the pre-commit hooks, gitleaks and the arrival check.
 Authorized by: the main session's brief of 2026-11-07, which brings spec 004's catalog to the studio's hand-back of that day for `work-desk` and `busy-sign` while you are away overnight, with your defaults as it gives them; and the main session's decision on the neon sign, after the session stopped there (plan.md §10).
 
-**Status: not reviewed yet.** The branch is data and generated files, with tasks.md, plan.md §10, and this note. `make check` ends as expected, with `evals` PENDING its one step not passing (Verification). It waits for the main session's review, then your gate after US1's merge.
+**Status: reviewed, "ready with suggestions", with no Important finding (Review).** The branch is data and generated files, with tasks.md, plan.md §10, and this note. `make check` ends as expected, with `evals` PENDING its one step not passing (Verification). It waits for your gate after US1's merge.
 
 **The base and the merge order:** this branch is cut from `feat/004-us1-composition` at 126ab33f2eec27b0ef4be79f074cb1305b3557e1, US1's reviewed tip, which waits for your gate and merge (T119). The order is `feat/004-us1-composition`, then this branch, then line R's User Story 3, `feat/004-us3-lookdev`, which will be restacked on this branch. If US1 moves again before it merges, the session rebases this branch onto it first and updates this note, the guard's base among it.
 
 ## Runs in your terminal
 
-From main's checkout. Nothing paid: the gate runs the behavioral tier only for a branch that touches the agent config, and this one touches none (no path under `.claude/`, `evals/agent-config/`, `tools/gates/`, `deploy/`, or `Makefile`).
+From main's checkout. Nothing paid: main's gate runs the behavioral tier, its step `agent-config-evals` (`agent_config_evals`), only "when the branch touches CLAUDE.md, REVIEW.md, .claude/, evals/agent-config/ (its history aside), or the Claude Code pin" (tools/gates/gate:86-87), not for `tools/gates/`, `deploy/`, or the Makefile, and this branch touches none of them.
 
 1. **The gate, once US1 has merged (T119):**
 
@@ -65,10 +65,12 @@ From main's checkout. Nothing paid: the gate runs the behavioral tier only for a
      reason="$r1$r2$r3"
      m="Merge $b (${sha:0:12})"
      opts=(--no-ff -m "$m" -m "$summary" -m "$reason")
+     t="${summary##*; failing: }"
+     [ "$t" = "evals PENDING" ] || ok=no
      [ "$ok" = go ] && git --no-replace-objects merge "${opts[@]}" "$sha"
      ```
 
-     The last line merges only after `guard: go`. If it prints nothing, don't merge, and tell the session: your checkout isn't on `main`, or `main` or the branch has moved since the gate.
+     The last line merges only after `guard: go`, and only when the gate's summary line names `evals PENDING` as its only failing step: the two lines before it take what follows "; failing: " in the summary, and set `ok` back to `no` for anything else, a Ready summary with no failing list among them. If it prints nothing, don't merge, and tell the session: your checkout isn't on `main`, `main` or the branch has moved since the gate, or the gate holds back something besides the behavioral tier.
 
 4. **Park off `main` again:**
 
@@ -122,7 +124,7 @@ Quotes are from [spec.md](../../specs/004-room-composition/spec.md).
 - **FR-019 (met).** The desk's expected bounds take its standing height, with the tolerance the hand-back checked against.
 - **FR-051 (met).** The sign's face is at scale 1, and its work order at the sign's stylized scale.
 - **FR-052, SC-010 (unchanged).** The neon sign's faces stand where US1 left them: the word 16.9 px on the reference desktop and 9.5 px on the reference phone, the counters exempt there.
-- **FR-053 (met).** Both budgets are under `main`'s caps (RK1): the desk's 38,000 triangles under 40,000, and the scene's planned texture memory 65,061,311 bytes of 96,000,000.
+- **FR-053 (met), in plan.md:78's reading: "agents never raise a cap (FR-053)".** This branch raises a catalog budget, the desk's triangles from 6,000 to 38,000 (6.3×), never a cap. Both budgets are under `main`'s caps (RK1): the desk's 38,000 triangles under 40,000, and the scene's planned texture memory 65,061,311 bytes of 96,000,000.
 - **FR-078 (partial, as before).** The desk and what stands on it, laid out as data, their positions estimates until measured; the neon sign over the walls is a question for lookdev.
 
 ## Constitution check
@@ -141,11 +143,18 @@ Quotes are from [spec.md](../../specs/004-room-composition/spec.md).
 
 ## Review
 
-Not yet: REVIEW.md's passes need an agent that wrote none of this branch. The main session arranges it; its verdict goes here.
+**Verdict: "ready with suggestions".** A reviewer subagent that wrote none of this branch reviewed `126ab33f..fbff2a77`, with REVIEW.md's passes Bugs, Security, Compliance, Cost & telemetry, and Room data; "Arriving assets" wasn't triggered, since no file arrives under `assets/room/`. It found nothing Important: five nits, and FR-053's wording. One docs-only commit after it changes this note alone, and no data, since line R's User Story 3 is being stacked on this branch. What was done with each:
+
+- **Nit 1, FR-078's window.** spec.md:366 has "the window, large, around the neon sign", from your words at spec.md:55, "The window is large and should encompass around the neon sign". At 2.6 the raised sign's top, 2.326 m, stands 0.226 m above the window's top edge at 2.100 m (its centre at 1.475 m, `scene.yaml`:92, and its height 1.25 m, `wall-window.yaml`:7); at US1's tip the sign ended inside the window, at 2.006 m. Checked against the data, and added to For the Author, items 1 and 8.
+- **Nit 2, the sign's foot in words.** `busy-sign.yaml`:16, 37, and 39 still describe a plate on a foot, which the A-frame doesn't have. Not changed tonight, so User Story 3 takes no data churn: in the backlog, for the next catalog branch, with the work order regenerated then.
+- **Nit 3, a stronger hand-merge guard.** Step 3's hand merge now guards on the summary line too: two lines before the merge line set `ok` back to `no` unless `evals PENDING` is the only failing step. Each line is at most 70 characters, and zsh and bash give the same answers on a summary with evals PENDING alone (`go`), with another failure beside it, with no failing list, and from a degraded run (each `no`).
+- **Nit 4, the trigger list.** Corrected under Runs in your terminal: main's gate triggers the behavioral tier on CLAUDE.md, REVIEW.md, `.claude/`, `evals/agent-config/` (its history aside), and the Claude Code pin (tools/gates/gate:86-87, `agent_config_evals`), not on `tools/gates/`, `deploy/`, or the Makefile. The conclusion stands: this branch touches none of them.
+- **Nit 5, the visitor's position.** Added to For the Author, item 7, for your lookdev check (T309, T311): the visitor's x of −0.7 (FR-080) rests on a table measured with the monitor 0.32 m lower.
+- **FR-053's wording.** The acceptance line now cites plan.md:78's reading, "agents never raise a cap": this branch raises a catalog budget, the desk's triangles 6.3×, never a cap.
 
 ## Verification
 
-All on the tip before this note, 32d7a9dc, in `/tmp/claude-1000/wt-desk-sign`, with `node_modules` from `npm ci --cache $TMPDIR/npm-cache-desk-sign`. This note's commit adds this file and tasks.md's two ticks.
+All on the tip before this note, 32d7a9dc, in `/tmp/claude-1000/wt-desk-sign`, with `node_modules` from `npm ci --cache $TMPDIR/npm-cache-desk-sign`. This note's commit adds this file and tasks.md's two ticks, and the review's commit after it changes this note alone (`git diff --stat`), so no `make check` ran again; the docs links did (the last bullet).
 
 - **`npm run room:check -w apps/web`:** "room: 0 findings in 0 files". **`room:scan`:** "room: 0 hits". **`room:generate`,** after the data: "room: 2 written, 0 removed, 18 unchanged", then nothing to write.
 - **`npm run room:report -w apps/web`,** whole, below. Against US1's tip, its changed lines are the bundle; the desk's budget row; the scene's texture memory, 65,061,311 bytes from 59,468,905 (models 64,400,038 from 58,807,632); and the charger's poses, `plugged` / `unplugged` 29.1 px on the desktop and 16.4 px on the phone, from 32.8 and 18.2, `plugged` / `resting` 148.4 px from 148.5, and `unplugged` / `resting` 134.3 px from 134.4. Its legibility and side-wall sections don't change. The production camera stands where it did: 3.588 m from the floor's centre on the reference desktop, 4.256 m on the reference phone, and 3.580 m for the 2D drawing.
@@ -181,7 +190,7 @@ All on the tip before this note, 32d7a9dc, in `/tmp/claude-1000/wt-desk-sign`, w
 - **The merge rehearsals,** each in a detached scratch worktree, each ended with `git merge --abort` and a clean tree:
   - **Into `main` after US1,** in `/tmp/claude-1000/wt-desk-sign-rh-main`, detached at c84a115b. First `git --no-replace-objects merge --no-ff` of US1's tip, 126ab33f, as your T119 does: a merge commit whose second parent is 126ab33f and whose tree is US1's tip's (`git diff --quiet` between them). It isn't an ancestor of 32d7a9dc, so a Ready gate prints its note. Then `git merge --no-ff --no-commit` of 32d7a9dc: "Automatic merge went well; stopped before committing as requested", no unmerged path, 7 files staged, and an index equal to 32d7a9dc's tree (`git diff --cached --quiet`). Step 2's guard, run there with that merge commit in place of `refs/heads/main` and the on-`main` test left out, said `go`.
   - **Into US1's tip alone,** in `/tmp/claude-1000/wt-desk-sign-rh-us1`, detached at 126ab33f: "Automatic merge went well; stopped before committing as requested", no unmerged path, the same 7 files staged, and an index equal to 32d7a9dc's tree.
-- **The docs links,** `evals/docs_links.py`, which `make evals` doesn't reach while the behavioral tier waits, run alone on the tree with this note: "docs links: 0 failed, 1543 relative links in 204 files", exit 0, this note's own links among them, and its other three checks PASS.
+- **The docs links,** `evals/docs_links.py`, which `make evals` doesn't reach while the behavioral tier waits, run alone on the tree with this note: "docs links: 0 failed, 1543 relative links in 204 files", exit 0, this note's own links among them, and its other three checks PASS. After the review's edits, again: "docs links: 0 failed, 1543 relative links in 204 files".
 
 ```text
 ## Room report
@@ -916,6 +925,7 @@ make exit: 2
 - **The desk's stand-in colours,** once the frame's hex is known (For the Author, 3).
 - **`framing.ts`'s comment on `EYE_Y`** gives the framed span as "0 to about 2.33 m"; with the raised neon sign's label it reaches 2.606 m. A code comment, for a later task with code.
 - **T185** places each face quad by its `facing` and `up`, which the bundle carries; the busy sign's is the first that isn't axis-aligned.
+- **The sign's foot, in words** (the review's Nit 2). `busy-sign.yaml`:16, 37, and 39 still describe a plate on a foot, "below the centre of the sign's foot", "showing its foot", and "its foot's depth", and the A-frame has no foot. They get reworded with the next catalog branch, which takes the studio's other 13 pieces, and the work order is regenerated then. This branch changes no data after its review, since line R's User Story 3 is being stacked on it.
 
 ## For the Author
 
@@ -923,6 +933,7 @@ Each is a default the session took, in the words of the main session's brief, or
 
 1. **The neon sign over the walls, for your lookdev check** (T309, made data at T311, where your check already settles the sign's labels and layout). Your default: "Apply lookdev's stylized scale 1.65 (from 2.6) only if the raised desk pushes the sign past the 2.134 m wall or fails a room check (the Author's default)." It does the first, and at 1.65 RG7 fails, so the session stopped, as the brief said, and the main session decided: "Take option (a): keep the neon sign at 2.6. Every check passes there, and the cube has no ceiling. The Author's default said to use 1.65 "only if" the raised desk needed it, and at 1.65 the legibility floor (RG7) fails. So applying it would trade one rule for a harder one, and that's his call to make, not ours." The figures:
    - at 2.6 the sign's top is at 2.326 m, 0.192 m above the 2.1336 m walls, its label at 2.606 m;
+   - at 2.6 that top is also 0.226 m above the window's top edge, at 2.100 m (`scene.yaml`:92, `wall-window.yaml`:7), where at US1's tip the sign ended inside the window, at 2.006 m (item 8, FR-078);
    - at 1.65 the word is 6.0 px on the reference phone and the counters 7.0 px on the reference desktop, against a floor of 9;
    - at 1.8, the largest scale under the walls, the word is 6.6 px on the phone; 2.47 is the smallest scale, to two places, that reaches 9.0 px there.
 
@@ -932,8 +943,9 @@ Each is a default the session took, in the words of the main session's brief, or
 4. **The desk's work order** is unchanged, so it still says "Model the desk from the dimension sheet and the Author's description, as plain solid parts in flat colours." Should it name the maple top and the graphite frame?
 5. **The desk's figures as estimates.** The brief: "1.07 is the Author's design height, not a tape measurement, unless the catalog's own rules say otherwise." The catalog's rules mark a figure `estimated` until it is measured, so the size and the anchors stay estimates, and the work order asks for each measurement.
 6. **The signs' placements.** Your default: "Keep the signs' current placements. Lookdev's move beside the monitor is an experiment the Author hasn't confirmed (his default)."
-7. **The camera and the composition, for your lookdev.** The brief: "Don't move the camera unless a check fails." None fails, so it doesn't move. But the eye at 1.15 m is now 0.08 m above the desk's top, from 0.40 m, so the top is seen almost edge-on, and it stands below the middle of the framed span, now 0 to 2.606 m with the sign's label (plan.md §10's "The camera's eye" gave 0 to 2.38 m). The report's list-only counts don't change: the snowboard list-only at 304 × 208 and 38 other stages in 3D and 145 in 2D, the chalkboard at 1267 and 1611. What changes is the charger's poses, 29.1 px apart on the desktop and 16.4 px on the phone, from 32.8 and 18.2.
+7. **The camera and the composition, for your lookdev.** The brief: "Don't move the camera unless a check fails." None fails, so it doesn't move. But the eye at 1.15 m is now 0.08 m above the desk's top, from 0.40 m, so the top is seen almost edge-on, and it stands below the middle of the framed span, now 0 to 2.606 m with the sign's label (plan.md §10's "The camera's eye" gave 0 to 2.38 m). The report's list-only counts don't change: the snowboard list-only at 304 × 208 and 38 other stages in 3D and 145 in 2D, the chalkboard at 1267 and 1611. What changes is the charger's poses, 29.1 px apart on the desktop and 16.4 px on the phone, from 32.8 and 18.2. **The visitor's position too** (the review's Nit 5), for your lookdev check (T309, made data at T311): the visitor's x of −0.7 (FR-080) rests on plan.md:868, T304's entry, and the table it reads, plan.md:853 to 859, both measured with the monitor 0.32 m lower. Raising the monitor changes how much of its screen, and of the neon sign's faces, the visitor's figure hides.
 8. **spec.md, unedited; its words beside the new data:**
+   - FR-078's window (the review's Nit 1): spec.md:366 has "the window, large, around the neon sign", from your words at spec.md:55, "The window is large and should encompass around the neon sign". At 2.6 the raised sign's top, 2.326 m, stands 0.226 m above the window's top edge, 2.100 m: its centre at 1.475 m (`scene.yaml`:92) and its height 1.25 m (`wall-window.yaml`:7). At US1's tip the sign ended inside the window, at 2.006 m. Across, it still fits the window's width (x −0.843 to 0.691 against −0.95 to 0.85). Does "around the neon sign" hold with the sign above the window's top, or does lookdev's fix for the walls (item 1) settle this too?
    - FR-022: "Materials SHALL carry flat base colours with no baked light, shadow, ambient occlusion, glow, or outline geometry, as the chosen look needs." The maple top's texture is allowed by its first sentence ("TEXTURES SHALL be painted, procedural, or made by an allowed model from a recorded prompt"), and the hand-back's maple came "from a typed prompt with no photo"; whether a textured top is "flat base colours ... as the chosen look needs" is for the look's ADR to say.
    - FR-078: "the desk and what stands on it at the Author's measured positions (the intent: "My computer desk, laid out as it is")". The desk's height is now your design figure, an estimate until measured. Should FR-078 name the standing desk?
    - No line of spec.md makes a sign's lettering upright: FR-017 holds a face to its catalog figures, in any direction.
