@@ -8,6 +8,101 @@ Authorized by: tasks.md T241 to T249; plan.md §10's entries "`feat/004-us8-live
 
 `feat/004-us8-live-tier was 9f243f6d74679cfbef1da9fa9de9f08655bd219e` (T250): 14 commits on decba195e54eb019d5980e5d160b4c911cc6a794, `feat/004-us6-topics`'s tip before its restack onto `feat/004-us5-words`'s tip on `main` (T211), which is now 91a6fcdfd95028c1bb6e0935c0a84ef891e083f0, on fefc452ae4f1f80d42f6de6be2e96b750e136ac8, User Story 5's tip on `main` at 4414b4adda1a577c2816cc97d8ba626c0161aee8. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
 
+**Status: restacked onto User Story 6's new tip, with one conflict, both sides kept, nothing dropped, and no test changed.** User Story 5 was restacked onto `main` (T198), which now holds US1, desk-sign, and User Stories 3, 2, and 7, and T308 was re-solved there by your choice, "Past the wall's edge"; User Story 6 was restacked onto it just before this branch (its note's newest section). So User Stories 5 and 6 merge before this branch now. The per-branch checks below pass. By the main session's direction for this pass, `make check`, gitleaks, and the rehearsal of line R's merges run once, at `feat/004-us9-neon-sign`'s final tip, and User Story 9's note (T269's) records them; none ran here. The merge waits for User Story 6's (T212), which waits for User Story 5's (T199), after your lookdev check (T309) and, if you change the slate there, the agents' T310.
+
+Session: an implementer subagent (Claude Opus 5.5), for the main session, in `/tmp/claude-1000/wt-us8-r`, clean at 9f243f6d when it began, right after User Story 6's restack. It committed the record above as f5cf867, then ran `git rebase --onto 91a6fcdfd95028c1bb6e0935c0a84ef891e083f0 decba195e54eb019d5980e5d160b4c911cc6a794` on the checked-out branch, without naming it. The main checkout, parked on `wip-park/11-7-2026`, wasn't touched.
+
+**One conflict, both sides kept.** The rebase stopped once, at the first commit, 48980ba, the entry on this branch's cut, in plan.md §10: its context is User Story 6's restack entry, which on the new base has gained the sentence on User Story 6's rebase onto fefc452a (and "No rebase had a conflict", and the RED commit's new SHA, 4d6ba8c). The commit's copy of that entry was decba195's, byte for byte, and the new base's was 91a6fcdf's, so the resolution keeps the new base's entry and adds the commit's three lines after it, the entry on the cut and its two sub-bullets: plan.md at 594c205 adds exactly the lines 48980ba adds. The other 14 commits replayed cleanly. Three files both sides change: plan.md, whose tip is the new base's with exactly this branch's lines added and none removed (`git diff -U0`, compared line for line with the old branch's); and `apps/web/test/helpers/room.ts` (the new base's `emptyDirPolicy`, T327, beside this branch's `frameLog` option and its `RoomDeps` import) and tasks.md, each at the tip what `git merge-file` gives for its copies at f5cf867, decba195, and 91a6fcdf. No generated file differs: `room:generate` wrote nothing (below). `git diff --name-only 91a6fcdf <this update>` lists 18 paths, the same 18 as `git diff --name-only decba195 9f243f6d`; outside those three, each has its blob at 9f243f6d, and none is under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `deploy/`, `.devcontainer/`, `services/`, or `infra/`, nor CLAUDE.md, REVIEW.md, the Makefile, or `package-lock.json`.
+
+**What dropped: nothing.** `git range-diff decba195..f5cf867 91a6fcdf..018f5f0` pairs all 15, 13 `=` and two `!`, each adding and removing the same lines as before: 594c205, the conflict's commit, whose plan.md context is the new base's entry; and 21ec3d1, the RED commit for T242 to T244, whose `test/helpers/room.ts` hunk has the new base's imports above it as context. The subjects are unchanged. Below this section the note's SHAs are the old ones.
+
+| Before | After | Commit |
+| --- | --- | --- |
+| 48980ba | 594c205 | docs(004): feat/004-us8-live-tier is cut from feat/004-us6-topics's tip, 2ddfd73, not feat/004-us4-studio's, and nothing in T242 to T247 needs User Story 4 (plan.md §10; T241) |
+| f177080 | 21ec3d1 | test(004): the status poller, the HAR checker, and the poller wired with the drafts-only frame log, RED (T242 to T244) |
+| 33ff525 | 5e28234 | test(004): the model-fault runs answer the poller's status request apart, and the stale case reads its frame after drawing it, RED (T244, the first RED's own misses) |
+| cf9bd04 | 338bd58 | feat(004): the status poller, the drafts-only frame log with h4FrameLog(), and the HAR checker, with live.source still off, GREEN (T245 to T247) |
+| 566fc6b | c0ebc24 | test(004): one motion change that resumes the room and hides the page starts no request, RED (T246, found re-reading GREEN) |
+| ae3a23f | 4ab9b97 | fix(004): the live controller tells the poller what stops it before what lets it go, GREEN (T246) |
+| 7acca89 | 5422758 | docs(004): T241 to T247 ticked, each with its commits |
+| 9fe4c86 | 89c804b | test(004): the review of T248's findings, RED (I-1 to I-3, nits 1 to 5) |
+| 8caa89d | cfbaf18 | fix(004): the review of T248's findings, GREEN (I-1 to I-3, nits 1 to 5) |
+| 6f96eef | 715a3e9 | docs(004): the merge-request note for feat/004-us8-live-tier, with har_check.py first under the Author's terminal, the RED runs, the review and its fixes, the departures and T250's rebase, make check's whole output, and the Author's steps; T248 and T249 ticked (T249) |
+| ae20154 | 337595a | docs(004): the US8 note after the last look: its APPROVE, and two backlog items (T249) |
+| 55271d9 | 60e3a51 | docs(004): T250's record first, in the US8 note: feat/004-us8-live-tier was 36290d18 before its restack onto feat/004-us6-topics's restacked tip (T250) |
+| b23d6e3 | b17b0b6 | docs(004): plan.md §10: User Story 8 restacked onto feat/004-us6-topics's restacked tip, not main, ahead of T212, with one conflict, in its own §10 entry, both sides kept; T250 ticked as far as the stacking goes (T250) |
+| 9f243f6 | fd6afb4 | docs(004): the US8 note after its restack onto feat/004-us6-topics's restacked tip: one conflict in plan.md §10, both sides kept, nothing dropped, no test changed, old to new SHAs, make check, the report, gitleaks, both rehearsals, T251's stacked steps with base decba195, and T271's restack (T250, T249) |
+| f5cf867 | 018f5f0 | docs(004): T250's record first, in the US8 note: feat/004-us8-live-tier was 9f243f6d before its restack onto feat/004-us6-topics's tip on User Story 5's on main, 91a6fcdf (T250) |
+
+This update adds one commit after them, with this section and plan.md §10's sentence on this rebase in its User Story 8 entry, which now names 91a6fcdf as the guard's base.
+
+**Checked on 018f5f0,** with the tree clean, Node the pinned 24.21.0, and `node_modules` from this worktree's earlier `npm ci --ignore-scripts` (the new base changes no `package.json` and not `package-lock.json`):
+- `npm run room:generate -w apps/web`, "room: 0 written, 0 removed, 26 unchanged"; `room:check`, "room: 0 findings in 0 files"; `room:scan`, "room: 0 hits".
+- `room:report`: User Story 5's report at fefc452a, byte for byte (`cmp`), bundle 72e3337b036e042a, caps from `main` (e268db4ee85d5847), "Findings: none." This branch binds no face.
+- In `apps/web`, `npx vitest run`, "Test Files 79 passed (79)", "Tests 2191 passed (2191)": 2,187 before, and the new base's 4. `npx tsc --noEmit -p .` in `apps/web` and `node_modules/.bin/eslint --max-warnings 0 .` from the root, exit 0. `scripts/room/test_har_check.py` runs in `make check`'s pytest, at User Story 9's tip.
+- RG7's measure, unrounded (`faceCaps` over the stand-ins' geometry, by a scratch script outside the worktree): the neon word face 15.6624 px on the desktop and 9.0059 px on the phone, the slate 15.6677 and 9.0089, every camera at z 3.8614: User Story 5's figures. No test changed, so there is no RED commit in this round.
+
+**Your steps (T251), once User Story 6 has merged (T212), from main's checkout.** They replace "Your steps (T251)" in the section below, whose guard names the old base, decba195, and whose step 3 hand-merges for `evals` PENDING: `main` now has the behavioral tier off the merge path (ADR 0038), so the gate's `evals` WARNs and the gate prints its merge line. Nothing paid: the gate runs the behavioral tier only for a branch that touches CLAUDE.md, REVIEW.md, `.claude/`, or the Claude Code pin, and this one touches none. Every line is at most 70 characters.
+
+1. The gate:
+
+   ```bash
+   git switch main
+   b=feat/004-us8-live-tier
+   tools/gates/gate "$b" 2>&1 | tee ~/gate-us8.log
+   ```
+
+   Expect Ready, with `evals` WARN, the behavioral tier's advisory line. The gate's container phase runs `make test`, which holds this branch's `scripts/room/test_har_check.py`. After its `merge:` line it prints "note: main has commits feat/004-us8-live-tier doesn't …", since `main` holds User Story 6's merge commit; that merge gives `main` exactly User Story 6's tip's tree, the tree this branch stands on, so merging this branch writes the tree the gate checked, and step 2 checks it. Don't merge `main` into the branch. If the only failure is the gateway's timing test with a negative duration, run the gate again. With any other failure, don't merge, and tell the session.
+
+2. The guard: the merge runs only if the gate printed its merge line, your checkout is on `main`, the branch is at the SHA the gate checked, `main`'s second parent is this branch's base, User Story 6's tip, and `main`'s tree is that tip's:
+
+   ```bash
+   log=~/gate-us8.log
+   base=91a6fcdfd95028c1bb6e0935c0a84ef891e083f0
+   s=$(grep '^gate: ' "$log" | tail -n 1)
+   sha=$(printf '%s\n' "$s" | awk '{print $2}')
+   n=$(grep -c '^merge: ' "$log")
+   on=$(git symbolic-ref -q HEAD)
+   tip=$(git rev-parse --verify "refs/heads/$b")
+   p2=$(git rev-parse --verify "refs/heads/main^2")
+   same=no; git diff --quiet refs/heads/main "$base" && same=yes
+   ok=no
+   ```
+
+   Then the guard, on its own lines:
+
+   ```bash
+   want="refs/heads/main.$sha.$base.yes"
+   [ "$n" -gt 0 ] && [ "$on.$tip.$p2.$same" = "$want" ] && ok=go
+   echo "guard: $ok"
+   ```
+
+3. The merge, only after `guard: go`, the gate's own merge line rebuilt from its log:
+
+   ```bash
+   m="Merge $b (${sha:0:12})"
+   o=(--no-replace-objects merge --no-ff -m "$m" -m "$s")
+   [ "$ok" = go ] && git "${o[@]}" "$sha"
+   ```
+
+   If it prints nothing, don't merge, and tell the session. These are User Story 6's lines, with this branch's name, log, and base, which the session ran in bash and in zsh with `git` stubbed (User Story 6's note gives the 12 runs).
+
+4. Park off `main` again:
+
+   ```bash
+   git switch -C wip-park/11-7-2026
+   ```
+
+If User Story 6 moves again before it merges, the session restacks this branch onto its new tip, and `base` changes with it here.
+
+**For the next step (T271).** `feat/004-us9-neon-sign` is stacked on 9f243f6d, this branch's tip before this rebase, so its restack is `git rebase --onto <this branch's tip after this update> 9f243f6d74679cfbef1da9fa9de9f08655bd219e`, on the checked-out branch, after T269's note records `feat/004-us9-neon-sign was <sha>` first. It follows in this pass.
+
+**For the Author: questions from this round.** Where the session would have asked, it took the smallest choice that keeps every check passing.
+
+1. **The record-first commit.** As T250 says, the branch's tip was recorded in this note and committed, f5cf867, before the rebase, so the branch has one more commit than the rebase's brief names. Keep it?
+2. **One `make check` for line R's three branches.** As User Story 6's note asks (its question 2): `make check` ran once, at User Story 9's final tip, which holds this branch's commits whole. If you want a run on this branch's own tip before T251, the session runs it; the gate runs it either way.
+3. **The older questions.** The section below asks four; this round answers none of them and changes none. Its question 3, the conflict's order, holds again: User Story 6's entry stays before this branch's entry on its cut.
+
 ## 2026-11-07: restacked onto feat/004-us6-topics's restacked tip (T250)
 
 `feat/004-us8-live-tier was 36290d18b576baf4ba26b60498c1ab01adca9ef5` (T250): 11 commits on 2ddfd73b6a27c4d0f2db6283e4b4554aabe9bb9b, the commit this branch was cut from, `feat/004-us6-topics`'s last commit but one before its own rebase (T211), whose tip was then 2482581a3e94c436102b391747a2e3d9307faea2. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
