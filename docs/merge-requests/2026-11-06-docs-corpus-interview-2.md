@@ -25,12 +25,10 @@ From main's checkout, parked off `main` until step 2. Nothing to install, and no
    git commit -m "corpus: Golden Q&A for 07 and 08 from the interview of 2026-11-06, and the lock and narration eval cases they regenerate (patch C)"
    ```
    With your denylist, `corpus-check` should say "OK — 43 slots, 25 filled, denylist applied (…), 0 problems". If you want a line changed, say so rather than editing the patch: the lock and the eval cases follow the corpus's exact bytes, so they're rebuilt together.
-2. **Merge it by hand, by its SHA, only if `main` hasn't moved.** The first command must print "main unchanged: go ahead":
+2. **Merge it by hand, by its SHA, only if `main` hasn't moved.** The second command is one chain: it prints "main unchanged: go ahead" and merges, or, if `main` has moved, does neither:
    ```bash
    git switch main
-   git merge-base --is-ancestor refs/heads/main refs/heads/docs/corpus-golden-qa && echo "main unchanged: go ahead"
-   sha=$(git rev-parse --verify refs/heads/docs/corpus-golden-qa)
-   git --no-replace-objects merge --no-ff -m "Merge docs/corpus-golden-qa (${sha:0:12})" -m "Merged by hand, without the gate, at the Author's choice: patch C from interview 2, with its documents and the lock and narration eval cases it regenerates. corpus-check passed with the Author's denylist; the session's checks are in docs/merge-requests/2026-11-06-docs-corpus-interview-2.md." "$sha"
+   git merge-base --is-ancestor refs/heads/main refs/heads/docs/corpus-golden-qa && echo "main unchanged: go ahead" && sha=$(git rev-parse --verify refs/heads/docs/corpus-golden-qa) && git --no-replace-objects merge --no-ff -m "Merge docs/corpus-golden-qa (${sha:0:12})" -m "Merged by hand, without the gate, at the Author's choice: patch C from interview 2, with its documents and the lock and narration eval cases it regenerates. corpus-check passed with the Author's denylist; the session's checks are in docs/merge-requests/2026-11-06-docs-corpus-interview-2.md." "$sha"
    ```
    **If it prints nothing,** `main` has moved since the session's checks, for example by `feat/004-foundation`'s merge: don't merge, and tell the session. It re-checks patch C on the new tip first. It has already checked patch C with `feat/004-foundation` merged (Verification), so that takes minutes.
 3. **Park off `main` again:** `git switch -C wip-park/11-6-2026`.
