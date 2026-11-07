@@ -4,10 +4,10 @@
 # hanging over the window's upper right corner, and the laptop on its stand at the desk's right side; on the left wall
 # the chalkboard hangs high and the snowboard stands low on its tail, with small gaps at the wall's corners (D1); the
 # bicycle hangs upright by its front wheel on the right wall, next to the laptop; the twin stands a little right of
-# the desk, by the laptop, and the visitor central, at the floor's open front and a little left (D3). Every piece's
-# position is an estimate until measured; the two figures' places are composition, set from the Author's words and
-# what the camera shows past them, with nothing in the room to measure. The charger is the laptop's switch on the tier:
-# plugged in only while the tier is local (FR-043).
+# the desk, by the laptop, and the visitor at the floor's open front, left of where D3 put it, by the Author's "Move
+# further left" (FR-080). Every piece's position is an estimate until measured; the two figures' places are
+# composition, set from the Author's words and what the camera shows past them, with nothing in the room to measure.
+# The charger is the laptop's switch on the tier: plugged in only while the tier is local (FR-043).
 # Offsets are in the anchor's frame, so on the side walls they read along the wall: the shell turns `left-wall` +90°
 # about Y, so its +x points toward the back wall, and `right-wall` −90°, so its +x points toward the open front; y is
 # the height, and z the distance out from the wall. The side walls' offsets are derived from the cube's depth: on the
@@ -110,7 +110,7 @@ placements:
   - id: visitor-figure
     piece: visitor-figure
     role: visitor
-    mount: { on: room-shell, anchor: floor, offset: [-0.5, 0, 0.58] }
+    mount: { on: room-shell, anchor: floor, offset: [-0.7, 0, 0.58] }
     frame: true
 switches:
   - id: laptop-power
