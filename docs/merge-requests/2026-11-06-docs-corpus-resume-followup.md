@@ -6,6 +6,8 @@ Authorized by: the Author's message of 2026-11-06: "build patch D, the resume's 
 
 **Status: documents for you to read, and patch D for you to commit.** This branch adds three files and changes none: the proposal, [corpus/proposals/resume-followup-2026-11-06.md](../../corpus/proposals/resume-followup-2026-11-06.md); patch D, [2026-11-06-corpus-resume-followup.patch](2026-11-06-corpus-resume-followup.patch); and this note. Once you've committed patch D, the session cuts `feat/002-resume-followup` on your commit: "configured" as an ownership verb, the two resume items, and the lock. That branch's note, `docs/merge-requests/2026-11-06-feat-002-resume-followup.md`, holds the merge, by hand and without the gate, as you chose. One merge brings this branch, your commit, and the content.
 
+**Update, after step 1:** you committed patch D on `main` itself, as 054d7c12, rather than on `docs/corpus-patch-d`, and switched back to `wip-park/11-6-2026`. Its seven files are patch D's, byte for byte. So `feat/002-resume-followup` is cut from `main` at your commit, merges this branch in, and its note holds the rest.
+
 ## Runs in your terminal
 
 From main's checkout, parked off `main` (it is now, on `wip-park/11-6-2026`). Nothing to install, and nothing paid.
