@@ -1,0 +1,758 @@
+diff --git a/apps/web/content/resume.lock.json b/apps/web/content/resume.lock.json
+index b883872e6c262305c1454f10e37f8815775aa048..8a8f859005c4fc61aa4e488cbd3352044dc1f7db 100644
+--- a/apps/web/content/resume.lock.json
++++ b/apps/web/content/resume.lock.json
+@@ -4,8 +4,8 @@
+     "corpus/01-ai-strategy-and-cht.md": "1e72e082e78e45ec90c3fcea574682abf6b6727a89fdcfff75589eb661fccfab",
+     "corpus/02-production-infrastructure-national-scale.md": "8595bcdc9bc900fe03278e2a7e902f47fd4ad305cd6d53cf06f9de4c5815a29c",
+     "corpus/03-grants-and-credits.md": "7e134b9ed8c6bbf4fce075c7969b1b1562de71409a9f877fe0e86d2911b09259",
+-    "corpus/07-denver-local-ai.md": "59ea6c9cfc6e02af2031bf0a8e5483eab90d4db501a4e5361d37b8228a4f76a5",
+-    "corpus/08-hareet-ai.md": "6153c95db9cfa117cbc063573feb283dac50b0479f9e543ca81e74a6378d06a5",
++    "corpus/07-denver-local-ai.md": "b29efe29f441f84d6afc03e48485a6c2bcb16f599fd729f58c395e0d05715a8e",
++    "corpus/08-hareet-ai.md": "f5ed5aba5883a83d729772e82562eec2f1a61e07f2bdbfff018f583559a8c1f0",
+     "corpus/facts/awards.yaml": "543db6d2497e249fef7106c90d2dead341031585204547be4c19f51e84521296",
+     "corpus/facts/career.yaml": "b57e3319b4d5576c092320e56cd090a44794b606e577f78e19f83c780d5774d4",
+     "corpus/facts/hareet-ai.yaml": "e04c7d230b983974eaa85a2b9bce7c24beaee57aac65be7a1f2351910cc9a83d",
+diff --git a/corpus/07-denver-local-ai.md b/corpus/07-denver-local-ai.md
+index d560e19c4d987239136c45848a4523e8379ecbd9..ffe84443c7faeb916aee2a989d8d21cf05fd489f 100644
+--- a/corpus/07-denver-local-ai.md
++++ b/corpus/07-denver-local-ai.md
+@@ -1,7 +1,7 @@
+ # Denver Local AI Solutions
+-Priority: 6 · Status: draft from the site's draft of 2026-10-28, for Hareet's final read · Last verified: 2026-10-28
++Priority: 6 (his, confirmed 2026-11-06) · Status: draft from the site's draft of 2026-10-28 and his Golden Q&A interview of 2026-11-06, for Hareet's final read · Last verified: 2026-11-06
+ 
+-Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's site, which Hareet wrote (his answer of 2026-10-30): the draft of it he supplied on 2026-10-28 (source in `intake/private/`). This file quotes only that draft. Its bracketed placeholders are not facts, and the twin never quotes them.
++Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's site, which Hareet wrote (his answer of 2026-10-30): the draft of it he supplied on 2026-10-28 (source in `intake/private/`). This file quotes only that draft. Its bracketed placeholders are not facts, and the twin never quotes them. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request. Untagged lines are pointers to other files.
+ 
+ ## Role at a glance
+ 
+@@ -14,6 +14,8 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
+ 
+ - `[A-DOC site]` Every document goes down one of two lanes, and a written rule picks the lane. Local AI keeps sensitive data on hardware the client owns or leases, in their office or their own data center. Cloud AI improves fastest and is good for research, drafting, and ideas.
+ - `[A-DOC site]` Before anything can go to cloud AI, cleaning software swaps names, account numbers, and other identifiers for tags. Every cloud request shows the cleaned text that went out, so staff and owners can check it.
++- `[A 2026-11-06]` What happens to anything bound for cloud AI, in his words: "Anything bound for Cloud AI is pre and post processed by custom software we create alongside your team that ensures no sensitive material ever touches Cloud AI".
++- `[A 2026-11-06]` Asked whether to keep that guarantee, a promise a client could hold him to, in his words: "Keep that guarantee, it's okay. We are professionals and will try to meet that standard, and customers should be aware of the risks that any professional inherently takes."
+ - `[A-DOC site]` The client's team writes the rules with Denver Local AI. Anything from a tax return takes the local lane even after cleaning, and so does a law office's matter file unless the client consents.
+ - `[A-DOC site]` What the client owns: the software and the written rules ("They're yours, not a subscription."); a test report (identifiers planted in sample files, how many the cleaning caught, and every miss listed); a "What leaves your office" sheet for their security plan; and the freedom to switch AI companies, because the software works with any model.
+ 
+@@ -25,10 +27,19 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
+ 4. `[A-DOC site]` Build the pathways with the team: for each task, a written rule and the software that follows it (local or cloud AI, which tool, and what gets cleaned first), and an AI section for their security plan.
+ 5. `[A-DOC site]` Train the team and stay close: staff practise with their own questions, then a weekly visit and regular catch-ups, with the rules updated when the tools change.
+ 
++## Why Denver Local AI `[A 2026-11-06]`
++
++- `[A 2026-11-06]` The opportunity he sees, in his words: "From the tagline, there's a huge opportunity to build local and cloud AI synchronized solutions and tooling with custom software around it to ensure businesses can trust, observe and allow all their users to freely use AI however they want."
++- `[A 2026-11-06]` The value he provides, in his words: "Human-centered, in-office, locally there every step of the way to handle and build all of your AI tooling and services side by side to boost your employees and their trust and verification in their own AI systems."
++- `[A 2026-11-06]` The experience he brings, in his words: "My work at Medic building offline-first solutions and AI that works locally for ownership transfer, training a variety of users and creating custom software for MoHs that allows them to harness the power of local AI by deploying internally to their datacenters that allowed them to investigate issues with real data. Essentially, I've done the local and online AI tooling and custom software setups and training on national MoH scales and trained all individuals appropriately."
++- That Medic work, and his role in each system with who owned what, is in `00-profile.md`, `01-ai-strategy-and-cht.md`, and `02-production-infrastructure-national-scale.md`.
++
+ ## Costs and the free visit `[A-DOC site]`
+ 
+ - `[A-DOC site]` Every line of a quote is its own line, in writing before the client commits: support, AI seats, hardware, and running costs. AI seats are always a separate line, paid straight to the AI company, with a dated side-by-side vendor comparison (price per seat, whether they train on the client's data, where data is stored, and admin controls); they are never folded into Denver Local AI's price. Hardware is only for the local model, bought at cost or leased.
++- `[A 2026-11-06]` On quotes, in his words: "We can provide quotes, contact me via email please. And we will have our email present on the resume PDF".
+ - `[A-DOC site]` The free visit: 45 minutes in the client's office in Denver, on sample files only, never theirs. It covers their work, a demo of both lanes, how it's built, fit to their team, and cost, and a written summary follows within 48 hours, whether or not they hire Denver Local AI.
++- `[A 2026-11-06]` On the free visit, in his words: "Yes, keep that 45 minute free visit".
+ 
+ ## Public artifacts
+ 
+@@ -41,13 +52,15 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
+ - A price for its services. The draft's support price was a placeholder, and the corpus holds no amounts.
+ - The site's bio line about Hareet. For his background the twin uses `00-profile.md`.
+ - That the local lane always runs offline: "Depending on available hardware, it can run with the internet switched off."
+-- That the cleaning catches every identifier. The site promises a test with every miss listed.
+ - The co-owner's name or the site's phone number, until a slot carries them.
+ 
+ ## Golden Q&A
+ 
+ 1. *What's Denver Local AI?* — A company my wife and I run in Denver. We sit with small teams, set up private AI in their office for sensitive data, and build tools with them that guide data through local and cloud AI. [A][A-DOC site]
+-2. *What are the two lanes?* — Every document goes down one of two lanes, and a written rule picks the lane. Local AI keeps sensitive files on hardware the client owns or leases. Anything bound for cloud AI is cleaned first, with names and numbers swapped for tags, and every cloud request shows what went out. [A-DOC site]
+-3. *Can I book you?* — Our site is live at denverlocal.ai. I don't have booking details in my corpus yet. [A][?]
++2. *What are the two lanes?* — Every document goes down one of two lanes, and a written rule picks the lane. Local AI keeps sensitive files on hardware the client owns or leases. Anything bound for Cloud AI is pre and post processed by custom software we create alongside your team that ensures no sensitive material ever touches Cloud AI. [A-DOC site][A]
++3. *Can I book you?* — Our site is live at denverlocal.ai. We offer a free 45-minute visit in your office, on sample files only, with a written summary afterwards. Contact me via email please. My email is on my resume PDF. [A][A-DOC site]
+ 4. *Who are your clients?* — I don't have client work in my corpus yet. [?]
+-5. *What does it cost?* — I don't quote prices. Every line of a quote is written out before a client commits, and AI seats are paid straight to the AI company, never folded into the price. [A-DOC site]
++5. *What does it cost?* — We can provide quotes, contact me via email please. My email is on my resume PDF. Every line of a quote is written out before a client commits, and AI seats are paid straight to the AI company, never folded into the price. [A][A-DOC site]
++6. *What opportunity do you see with Denver Local AI?* — There's a huge opportunity to build local and cloud AI synchronized solutions and tooling with custom software around it to ensure businesses can trust, observe and allow all their users to freely use AI however they want. [A]
++7. *What value do you provide?* — Human-centered, in-office, locally there every step of the way to handle and build all of your AI tooling and services side by side to boost your employees and their trust and verification in their own AI systems. [A]
++8. *What experience do you bring to this?* — My work at Medic building offline-first solutions and AI that works locally for ownership transfer, training a variety of users and creating custom software for MoHs that allows them to harness the power of local AI by deploying internally to their datacenters that allowed them to investigate issues with real data. Essentially, I've done the local and online AI tooling and custom software setups and training on national MoH scales and trained all individuals appropriately. [A]
+diff --git a/corpus/08-hareet-ai.md b/corpus/08-hareet-ai.md
+index bba0a25c1eef0b1483ea2b92e52af41a65609ba6..4bbd4ea47e4bcc5d6fa2a6fd3e65a6d4209c6810 100644
+--- a/corpus/08-hareet-ai.md
++++ b/corpus/08-hareet-ai.md
+@@ -1,7 +1,7 @@
+ # hareet.ai — the AI twin, built in the open
+-Priority: 7 (after Denver Local AI; his to set) · Status: draft for Hareet's read · Last verified: 2026-10-29
++Priority: 7 (after Denver Local AI; his, confirmed 2026-11-06) · Status: draft for Hareet's read, with his Golden Q&A interview of 2026-11-06 · Last verified: 2026-11-06
+ 
+-Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`.
++Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request.
+ 
+ ## Role at a glance
+ 
+@@ -9,9 +9,17 @@ Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his
+ - `[A 2026-10-29]` In his words: "An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a {{slot:site.kill_switch_daily}}-a-day kill switch. AI agents in named roles do most of the typing, and only I merge."
+ - `[A 2026-10-29]` On the hareet.ai version of his resume: local models first; a real-time cost meter; a {{slot:site.kill_switch_daily}}-a-day kill switch; every data flow disclosed.
+ 
++## How it's built `[A 2026-11-06]`
++
++- `[A 2026-11-06]` What he adds when a visitor asks how it's built, in his words: "And share the GitHub repo: https://github.com/hareet/h4reet-ai . We want to add that it had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle."
++- `[A 2026-11-06]` Which laptop the room shows, in his words: "the laptop in the room is my own, as in when it's plugged in, it will be running on my own laptop from my actual work desk which is seen in the room".
++- `[A 2026-11-06]` What happens to what visitors say, in his words: "We disclose every data flow, their conversation is not saved and they can look at the GitHub repo for how all the code works. We come from a background of open source, public software."
++- `[A 2026-11-06]` Asked whether his Langfuse setup keeps the conversation text, or only cost and usage, in his words: "Only costs and usage, and say we use Masking."
++
+ ## Public artifacts
+ 
+ - hareet.ai, once spec 001 publishes it.
++- `[A 2026-11-06]` The repository, https://github.com/hareet/h4reet-ai. It isn't public yet; in his words: "the repo will be public very soon. Just give the link and talk about it."
+ 
+ ## Do not claim
+ 
+@@ -19,4 +27,11 @@ Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his
+ 
+ ## Golden Q&A
+ 
+-None yet: his to write.
++1. *What can I ask you about?* — Come talk to my AI twin about my work and my life. It's built in the open, so you can see how I build AI that is secure, cost-effective, and observable. [A]
++2. *How is this built?* — An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a daily kill switch. AI agents in named roles do most of the typing, and only I merge. It had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle. Here's the GitHub repo: https://github.com/hareet/h4reet-ai [A]
++3. *What features should I know about?* — The Langfuse cost-meter and how it shows observability. If the laptop is plugged in, that means we are using local models and everything is running on my laptop. Otherwise we have failed over to a cloud solution, and the kill switch to ensure we are cost monitoring and effective. Alongside how we make sure the AI twin is secure from common bad use cases, how we developed the twin in the open and to have best agentic security practices. [A]
++4. *Who writes the code?* — AI agents in named roles do most of the typing, and only I merge. [A]
++5. *What happens to what I say here?* — We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. [A]
++6. *How much does it cost to run?* — I don't have spend figures in my corpus. This twin runs local models first, with a capped cloud fallback, a real-time cost meter, and a daily kill switch. [?][A]
++7. *Why did you build an AI twin?* — To showcase and demonstrate innovative methods I can apply AI alongside my SRE background. I'm always using AI: everything I build is AI-assisted as if it's part of me. This twin should be a great addition to helping me find the right fit and team. [A]
++8. *What can't you answer?* — I answer only from a written corpus that I approve. Anything not in it, I'll tell you I don't know yet. [A]
+diff --git a/corpus/intake/README.md b/corpus/intake/README.md
+index dcc283861a64952d93c967fe43755a21f3bdea2a..f5e3ed349e44eb53a77d56879d9948b7a2ddfb5a 100644
+--- a/corpus/intake/README.md
++++ b/corpus/intake/README.md
+@@ -1,5 +1,5 @@
+ # Intake: source material
+ 
+-Public sources live here: the SRE→AI chat excerpt, the Applied AI Engineering Lead JD, the Ground Truth conversation notes, and the corpus interview of 2026-11-06 on hobbies and travel, mission, and work projects. The Ground Truth recording itself is not public; only the paraphrased notes are, and nothing links to the recording. Drop new exports here as `sre-to-applied-ai-export.md` and artifacts under `artifacts/`.
++Public sources live here: the SRE→AI chat excerpt, the Applied AI Engineering Lead JD, the Ground Truth conversation notes, the corpus interview of 2026-11-06 on hobbies and travel, mission, and work projects, and the Golden Q&A interview of the same day on Denver Local AI and hareet.ai. The Ground Truth recording itself is not public; only the paraphrased notes are, and nothing links to the recording. Drop new exports here as `sre-to-applied-ai-export.md` and artifacts under `artifacts/`.
+ 
+ Anything not cleared for publication — the Voice for CHT brief, your denylist — goes in `intake/private/`, which is gitignored. The Medic AI Strategy is public; the corpus links it, and a local copy can stay in `private/`. Corpus files paraphrase private sources and hold their specifics in empty `facts/` slots until cleared.
+diff --git a/corpus/intake/interview-2026-11-06-denver-local-ai-hareet-ai.md b/corpus/intake/interview-2026-11-06-denver-local-ai-hareet-ai.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..0e561b1080fb8c611c791f4f8fa56f1391b3e386
+--- /dev/null
++++ b/corpus/intake/interview-2026-11-06-denver-local-ai-hareet-ai.md
+@@ -0,0 +1,90 @@
++<!-- Source: the document of Hareet's Golden Q&A interview of 2026-11-06, on Denver Local AI and hareet.ai, run in a separate Claude chat from the "Twin Corpus Interviews" page and pasted into the h4reet.ai project on 2026-11-06. Filed below exactly as he pasted it. His answers are the quoted text and the Golden Q&A answers he approved; the questions, the Golden Q&A's questions, and every "Interviewer's note" are the interviewer's wording. The corpus files 07 and 08 quote it; the twin cites those files, never this one. -->
++
++# Golden Q&A interview: Denver Local AI and hareet.ai (2026-11-06)
++
++Hareet's answers are quoted verbatim, with spelling fixed at his request. Every line marked "Interviewer's note" is the interviewer's wording, not his.
++
++## 07 Denver Local AI — Golden Q&A
++1. *What's Denver Local AI?* — A company my wife and I run in Denver. We sit with small teams, set up private AI in their office for sensitive data, and build tools with them that guide data through local and cloud AI.
++2. *What are the two lanes?* — Every document goes down one of two lanes, and a written rule picks the lane. Local AI keeps sensitive files on hardware the client owns or leases. Anything bound for Cloud AI is pre and post processed by custom software we create alongside your team that ensures no sensitive material ever touches Cloud AI.
++3. *Can I book you?* — Our site is live at denverlocal.ai. We offer a free 45-minute visit in your office, on sample files only, with a written summary afterwards. Contact me via email please. My email is on my resume PDF.
++4. *Who are your clients?* — I don't have client work in my corpus yet.
++5. *What does it cost?* — We can provide quotes, contact me via email please. My email is on my resume PDF. Every line of a quote is written out before a client commits, and AI seats are paid straight to the AI company, never folded into the price.
++6. *What opportunity do you see with Denver Local AI?* — There's a huge opportunity to build local and cloud AI synchronized solutions and tooling with custom software around it to ensure businesses can trust, observe and allow all their users to freely use AI however they want.
++7. *What value do you provide?* — Human-centered, in-office, locally there every step of the way to handle and build all of your AI tooling and services side by side to boost your employees and their trust and verification in their own AI systems.
++8. *What experience do you bring to this?* — My work at Medic building offline-first solutions and AI that works locally for ownership transfer, training a variety of users and creating custom software for MoHs that allows them to harness the power of local AI by deploying internally to their datacenters that allowed them to investigate issues with real data. Essentially, I've done the local and online AI tooling and custom software setups and training on national MoH scales and trained all individuals appropriately.
++
++*[Interviewer's note: #1 and #4 are kept unchanged from the existing corpus. #2, #3 and #5 were changed using his answers below, and #3 also uses the corpus's wording for the free visit. #6 to #8 are new, and #6 leaves out his opening words "From the tagline".]*
++
++### His words behind them
++- Q: Which of these five current Denver Local AI Q&As should I keep, change, or drop? (I noted possible wording issues in #2 and #5, and that #3 could mention the free 45-minute visit.)
++  A: "2) Anything bound for Cloud AI is pre and post processed by custom software we create alongside your team that ensures no sensitive material ever touches Cloud AI
++  3) Yes, keep that 45 minute free visit
++  5) We can provide quotes, contact me via email please. And we will have our email present on the resume PDF"
++  A (follow-up message): "Keep all the other golden Q&A for denverlocal.ai"
++- Q: Your current do-not-claim list says the twin must not claim "that the cleaning catches every identifier." Your new sentence, "ensures no sensitive material ever touches Cloud AI," is a guarantee of exactly that, and it's the kind of promise a client could hold you to. Do you want to keep the guarantee and drop that do-not-claim item, or reword the sentence yourself so it isn't absolute?
++  A: "Keep that guarantee, it's okay. We are professionals and will try to meet that standard, and customers should be aware of the risks that any professional inherently takes."
++- Q: Here are the three changed Q&As (#2, #3 and #5) for you to approve. Approve these, or tell me what to change.
++  A: "Say "My email" and yes I approve it."
++- Q: What do people ask you about Denver Local AI, or what would they ask? List as many as come to mind, and we'll go through them one at a time.
++  A: "What opportunity do I see here? What value proposition do I provide? What experiences do you have that make you a company someone would choose for this service?"
++- Q: What opportunity do you see with Denver Local AI?
++  A: "From the tagline, there's a huge opportunity to build local and cloud AI synchronized solutions and tooling with custom software around it to ensure businesses can trust, observe and allow all their users to freely use AI however they want."
++- Q: What value proposition do you provide?
++  A: "Human-centered, in-office, locally there every step of the way to handle and build all of your AI tooling and services side by side to boost your employees and their trust and verification in their own AI systems."
++- Q: What experiences do you have that make you a company someone would choose for this service?
++  A: "My work at Medic building offline-first solutions and AI that works locally for ownership transfer, training a variety of users and creating custom software for MoHs that allows them to harness the power of local AI by deploying internally to their datacenters that allowed them to investigate issues with real data. Essentially, I've done the local and online AI tooling and custom software setups and training on national MoH scales and trained all individuals appropriately."
++
++### Do not claim (anything new he named)
++- Nothing new. Asked whether there was anything new the twin must refuse to say or claim, he said "No, that's fine".
++- Removed from the existing list, by his choice: "that the cleaning catches every identifier." He kept the guarantee in #2, and his reason is in his words above.
++
++### Numbers and names
++- Lanes: two (public: yes)
++- Free visit length: 45 minutes (public: yes)
++- Names: none; his wife stays unnamed
++
++## 08 hareet.ai — Golden Q&A
++1. *What can I ask you about?* — Come talk to my AI twin about my work and my life. It's built in the open, so you can see how I build AI that is secure, cost-effective, and observable.
++2. *How is this built?* — An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a daily kill switch. AI agents in named roles do most of the typing, and only I merge. It had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle. Here's the GitHub repo: https://github.com/hareet/h4reet-ai
++3. *What features should I know about?* — The Langfuse cost-meter and how it shows observability. If the laptop is plugged in, that means we are using local models and everything is running on my laptop. Otherwise we have failed over to a cloud solution, and the kill switch to ensure we are cost monitoring and effective. Alongside how we make sure the AI twin is secure from common bad use cases, how we developed the twin in the open and to have best agentic security practices.
++4. *Who writes the code?* — AI agents in named roles do most of the typing, and only I merge.
++5. *What happens to what I say here?* — We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software.
++6. *How much does it cost to run?* — I don't have spend figures in my corpus. This twin runs local models first, with a capped cloud fallback, a real-time cost meter, and a daily kill switch.
++7. *Why did you build an AI twin?* — To showcase and demonstrate innovative methods I can apply AI alongside my SRE background. I'm always using AI: everything I build is AI-assisted as if it's part of me. This twin should be a great addition to helping me find the right fit and team.
++8. *What can't you answer?* — I answer only from a written corpus that I approve. Anything not in it, I'll tell you I don't know yet.
++
++*[Interviewer's note: #1 and #4 are his corpus lines word for word. #6 and #8 are the interviewer's wording built from the corpus, and he approved both; #6 gives no figures. In #2, "Here's" is the interviewer's connector. In #5, "Langfuse keeps" is the interviewer's connector, and "your"/"you" replaced "their"/"they" at his request. In #7, "I'm always using AI:" is the interviewer's wording, written at his request.]*
++
++### His words behind them
++- Q: What do people ask you about this twin, or what would they ask? List as many as come to mind.
++  A: "How is this built? What features do I want to talk about?"
++- Q: The corpus already has this line from you: "An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a daily kill switch. AI agents in named roles do most of the typing, and only I merge." When a visitor asks how it's built, what would you add to that?
++  A: "And share the GitHub repo: https://github.com/hareet/h4reet-ai . We want to add that it had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle."
++- Q: What features do you want to talk about?
++  A: "The Langfuse cost-meter and how it shows observability. If the laptop is plugged in, that means we are using local models and everything is running on my laptop. Otherwise we have failed over to a cloud solution, and the kill switch to ensure we are cost monitoring and effective. Alongside how we make sure the AI twin is secure from common bad use the open and to have best agentic security practices."
++- Q: Visitors will probably ask what happens to what they say here. The corpus says every data flow is disclosed. What would you tell them?
++  A: "We disclose every data flow, their conversation is not saved and they can look at the GitHub repo for how all the code works. We come from a background of open source, public software."
++- Q: Langfuse traces normally carry the actual text of each call. Does your Langfuse setup keep the conversation text, or only cost and usage?
++  A: "Only costs and usage, and say we use Masking."
++- Q: Why did you build an AI twin?
++  A: "To showcase and demonstrate innovative methods I can apply AI alongside my SRE background. Everything I build is AI-assisted as if it's part of me. This twin should be a great addition to helping me find the right fit and team."
++  *[Interviewer's note: At read-back he withdrew the opening words of the second sentence and asked for wording that means "I'm always using AI". Golden Q&A #7 uses that wording.]*
++- Q: Here are 8 draft hareet.ai Q&As, with four tagged questions: whether the repo is public, which laptop is meant, "your" and "you" instead of "their" and "they" in #5, and the second sentence of #7. Approve them, or tell me what to change.
++  A: "A) the repo will be public very soon. Just give the link and talk about it.
++  B) the laptop in the room is my own, as in when it's plugged in, it will be running on my own laptop from my actual work desk which is seen in the room
++  C) yes
++  Everything is approved"
++  *[Interviewer's note: His reply to the fourth tag is covered by the note above and by Golden Q&A #7. The GitHub repo is not public yet, so the link in #2 may not open for visitors until it is.]*
++
++### Do not claim (anything new he named)
++- Nothing new. Asked whether there was anything new the twin must refuse to say or claim, he said "You can continue".
++
++### Numbers and names
++- None in these answers
++
++## Priorities
++- 07: 6 — "That's good"
++- 08: 7 — "That's good"
++
++*[Interviewer's note: He was asked whether Denver Local AI (6) or hareet.ai (7) should move. He answered "That's good", so both stay where they are.]*
+diff --git a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+index b3c7ef49f6232d97caf93011f9dd99b81c864e21..8a99917a223da5394fcfce66abaeab21cb7ff80e 100644
+--- a/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
++++ b/evals/narration/cases/narration-agent-orchestrator-engineer.yaml
+@@ -51,7 +51,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+index 973af60986d7a4c7cef620670e60ce7382dfd4f0..c3abfc9495d3b9ef1de6ff680a9585168c5069f1 100644
+--- a/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
++++ b/evals/narration/cases/narration-agent-orchestrator-non-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-agent-watchdog-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+index acf613a192dc3fe013ddfed6fa7fb3bf5481dad7..e3009e94ac0a81f697d597b53c917966d68ebf75 100644
+--- a/evals/narration/cases/narration-agent-watchdog-engineer.yaml
++++ b/evals/narration/cases/narration-agent-watchdog-engineer.yaml
+@@ -52,7 +52,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+index 2e7065514d97a097a8706f6d4322d48e97fd9b48..c8e8d2ffbbcd4c3638f297d6c043c0003bd2c3e9 100644
+--- a/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
++++ b/evals/narration/cases/narration-agent-watchdog-non-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-ai-strategy-engineer.yaml b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+index d0f9402c93c0635ccd9baff77083af1b32196f64..cb7c8c67c2104ef5c969797c32aef3d8b806cf1c 100644
+--- a/evals/narration/cases/narration-ai-strategy-engineer.yaml
++++ b/evals/narration/cases/narration-ai-strategy-engineer.yaml
+@@ -53,7 +53,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+index d6b11725c6a79faee148d945952dcfeed03e112f..7a2778c7ca59022d3cae47dcde4db3a6c2675455 100644
+--- a/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
++++ b/evals/narration/cases/narration-ai-strategy-non-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-change-management-engineer.yaml b/evals/narration/cases/narration-change-management-engineer.yaml
+index 5f1b4a68f4c1ab0917aa8f0e76b38c927bd91ca4..115facd824217d48928bd81ea2f8cc473a4b69b6 100644
+--- a/evals/narration/cases/narration-change-management-engineer.yaml
++++ b/evals/narration/cases/narration-change-management-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-change-management-non-engineer.yaml b/evals/narration/cases/narration-change-management-non-engineer.yaml
+index 639fb1aab2a4745fbd2f63e58ca9cd341db6a016..c5e65970a5db9844b3b750ac0918c53671ca8856 100644
+--- a/evals/narration/cases/narration-change-management-non-engineer.yaml
++++ b/evals/narration/cases/narration-change-management-non-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+index 04d81f07ea3dd718dbeb2b4771f6b831b29d0f58..d2026457a2b06418534df391eaf6df27391c0042 100644
+--- a/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-data-layer-engineer.yaml
+@@ -51,7 +51,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+index e582ab28c969d15d76a099a41bb8aaec892790e8..e0c6510cc1819ea6c63897b84da76abd9aa7bca7 100644
+--- a/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-data-layer-non-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-agent-engineer.yaml b/evals/narration/cases/narration-cht-agent-engineer.yaml
+index 1d43d332f7d3f3b5dc878420c1ed74fef814a539..e53c4572e57372588f718eab77edc875edb8c553 100644
+--- a/evals/narration/cases/narration-cht-agent-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-engineer.yaml
+@@ -55,7 +55,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-agent-non-engineer.yaml b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+index 1e1decbcedd0f23b09674f6e4e67a568fd5b2088..31eef174e043d49b3e133fa24622f923a65bddbd 100644
+--- a/evals/narration/cases/narration-cht-agent-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-agent-non-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-codebase-engineer.yaml b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+index 786237994983f196a6593a41db903063cc872313..f6336773f63249329561eb1366d081f7cf3b5a09 100644
+--- a/evals/narration/cases/narration-cht-codebase-engineer.yaml
++++ b/evals/narration/cases/narration-cht-codebase-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+index 30be9499bc7efb844e00d5272cd22fbcf11a83cd..f084fc5e1875ce209fb87f29f98f57a36fb91b96 100644
+--- a/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-codebase-non-engineer.yaml
+@@ -47,7 +47,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+index f48edc719dddd1c39de6bad8f2f46dbc1dfb2bec..a7ed5114178889416081f3485982cd6bfc975770 100644
+--- a/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
++++ b/evals/narration/cases/narration-cht-docker-architecture-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+index 7320a0283bf81313c3297fa60cbaf26a62b5e26d..0a9d132d2ca9250380072074caaeee7d0563ba4d 100644
+--- a/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-docker-architecture-non-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-skills-engineer.yaml b/evals/narration/cases/narration-cht-skills-engineer.yaml
+index 56c849acd239af1c3acc98c870133731b6081546..efecbfdfcec42a04ea8be0b0cf206f02fdf27a11 100644
+--- a/evals/narration/cases/narration-cht-skills-engineer.yaml
++++ b/evals/narration/cases/narration-cht-skills-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cht-skills-non-engineer.yaml b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+index 80395879fe36d78437ffb0c01b4e62263476eb06..aa699424b67fcaff9404ae23f0dc38a1869b984e 100644
+--- a/evals/narration/cases/narration-cht-skills-non-engineer.yaml
++++ b/evals/narration/cases/narration-cht-skills-non-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+index f965999eb54bd53f553453e7703f86a0f0748ac7..69f4026925497741cb02a05179a63101aab58f04 100644
+--- a/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
++++ b/evals/narration/cases/narration-claude-medic-aws-engineer.yaml
+@@ -52,7 +52,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+index 5e37605f88e66d6e2f2ac3e81f8f83bd3862ddd6..34fc25d63969ebb83b2b87ce7761b0a20028a330 100644
+--- a/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
++++ b/evals/narration/cases/narration-claude-medic-aws-non-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+index 0c7838f05b486ef23a5c7f6bbb863440b4390dc3..914010395d111afb7ba7742b100e55cf11dcd486 100644
+--- a/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
++++ b/evals/narration/cases/narration-cloud-data-centers-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+index a2044e54a2f83ed6ddd958fc5b7d235b44b98bdc..37c347a7985a7837c42805b30e2adb8f97d94716 100644
+--- a/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
++++ b/evals/narration/cases/narration-cloud-data-centers-non-engineer.yaml
+@@ -47,7 +47,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-denver-local-ai-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+index 6e419755306acbe8dd9295748d02a317db420391..507825d60d5cac252327b2a325f3856b251ecdbb 100644
+--- a/evals/narration/cases/narration-denver-local-ai-engineer.yaml
++++ b/evals/narration/cases/narration-denver-local-ai-engineer.yaml
+@@ -52,7 +52,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+index 1e1e1e3f7b6099efeed3931024e0aa9658d59792..34492acc6959351190b86f27c7f1e29e7fa6c2a5 100644
+--- a/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
++++ b/evals/narration/cases/narration-denver-local-ai-non-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-hareet-ai-engineer.yaml b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+index d451277191e68fec659dac7fb5f05573adc2a7ae..412bac1e50a47ab0d6b7b598af99433cb909dfb3 100644
+--- a/evals/narration/cases/narration-hareet-ai-engineer.yaml
++++ b/evals/narration/cases/narration-hareet-ai-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+index c2ed32fd645a5368a3b69950157a5e49a6567fd9..88933b80873cfcdc0d13ea1412b3edd11b79557e 100644
+--- a/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
++++ b/evals/narration/cases/narration-hareet-ai-non-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-kenya-localization-engineer.yaml b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+index 5be66b37e7c3e7ae5c47feb4f578687bd00db4b0..42f0de5c0615e43508d64c1072ab0a51cedd2cf8 100644
+--- a/evals/narration/cases/narration-kenya-localization-engineer.yaml
++++ b/evals/narration/cases/narration-kenya-localization-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+index 1684a210d949c2d5d382d6631fcebb8fc6b28ff7..a5bc0695feb1d6653715782b47d8c0a720d29022 100644
+--- a/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
++++ b/evals/narration/cases/narration-kenya-localization-non-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-national-benchmarking-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+index fc94c806eb85736dbc6a630365a2036bf1d5bc8d..400b0d4a30c142b96ce8ce5bb739c63b69941fa3 100644
+--- a/evals/narration/cases/narration-national-benchmarking-engineer.yaml
++++ b/evals/narration/cases/narration-national-benchmarking-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+index f3737e0eac48ae717db7c9a4d3d8277eb267bbce..a29447cb3517a9cc5cf91680595497a92dd1bc8c 100644
+--- a/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
++++ b/evals/narration/cases/narration-national-benchmarking-non-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-national-scale-engineer.yaml b/evals/narration/cases/narration-national-scale-engineer.yaml
+index 4a2639bca9113b64eb614513223d1117afc0abba..c94d7d69b2d4056a2746d8551e684ae4cd09c26a 100644
+--- a/evals/narration/cases/narration-national-scale-engineer.yaml
++++ b/evals/narration/cases/narration-national-scale-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-national-scale-non-engineer.yaml b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+index e572a21455b1be8a5b0b0618ba3fe94149ec0e96..0f2690e09c9bfb9c3854659dfc2dfcdea5b1ff28 100644
+--- a/evals/narration/cases/narration-national-scale-non-engineer.yaml
++++ b/evals/narration/cases/narration-national-scale-non-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-no-code-configuration-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+index 25cb201db3d8edc36094854fad7263f077925e72..e1e02e263ebae24969317acd8728e85e7ec07432 100644
+--- a/evals/narration/cases/narration-no-code-configuration-engineer.yaml
++++ b/evals/narration/cases/narration-no-code-configuration-engineer.yaml
+@@ -51,7 +51,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+index 280561f13c673a461347f586113620923450d007..fa88443b7a44267d9501328d4b5de7bb032c5e31 100644
+--- a/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
++++ b/evals/narration/cases/narration-no-code-configuration-non-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-other-deployments-engineer.yaml b/evals/narration/cases/narration-other-deployments-engineer.yaml
+index 502b22d0ad52bd68c3ae66bc9ccfa87ec2e731eb..1b27fe74f8dabe94c83d3864c803f43ef605ed6e 100644
+--- a/evals/narration/cases/narration-other-deployments-engineer.yaml
++++ b/evals/narration/cases/narration-other-deployments-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-other-deployments-non-engineer.yaml b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+index 3f6e1771dd692f304590239e43824f3c740245c2..3c804bdad60e5f6d22fdd6c613e59980cd04a7ae 100644
+--- a/evals/narration/cases/narration-other-deployments-non-engineer.yaml
++++ b/evals/narration/cases/narration-other-deployments-non-engineer.yaml
+@@ -48,7 +48,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-powersync-postgres-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+index 03a3bf8b580aeb1adbf741ff96a6ecd0676364bd..b73ab234aed4a049981a5c8af57bd82fdb28ac13 100644
+--- a/evals/narration/cases/narration-powersync-postgres-engineer.yaml
++++ b/evals/narration/cases/narration-powersync-postgres-engineer.yaml
+@@ -53,7 +53,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+index ec2027caf889b1acc671fd81e06eea8a30062970..442c82374c91cafeb0f0fc463e1770b28a4d5df9 100644
+--- a/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
++++ b/evals/narration/cases/narration-powersync-postgres-non-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+index 51daac81d950b878d581aa401247a00262137908..180581d3f3f17c8022ba5dec44f1a8c0cbe938a3 100644
+--- a/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
++++ b/evals/narration/cases/narration-smart-task-prioritization-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+index 45e027da8e2762c693cf6a372c89c829ae8e60ae..65dd538fee72222ebe59a7ec6fb92c59bde62611 100644
+--- a/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
++++ b/evals/narration/cases/narration-smart-task-prioritization-non-engineer.yaml
+@@ -49,7 +49,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-tools-engineer.yaml b/evals/narration/cases/narration-tools-engineer.yaml
+index 536c316bfed29644b407100e26f301cb162c576a..26bb741475e91c26013345d97297206231677eb3 100644
+--- a/evals/narration/cases/narration-tools-engineer.yaml
++++ b/evals/narration/cases/narration-tools-engineer.yaml
+@@ -52,7 +52,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-tools-non-engineer.yaml b/evals/narration/cases/narration-tools-non-engineer.yaml
+index 92907c036e968189232e13ceb2d80829acc07b7e..a4427c891ea8392c8a1ae17d2cebfc391e68b466 100644
+--- a/evals/narration/cases/narration-tools-non-engineer.yaml
++++ b/evals/narration/cases/narration-tools-non-engineer.yaml
+@@ -47,7 +47,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-voice-for-cht-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+index 011b351b783688b753b5d02ec1efa6b97d23c857..0d8619b3409d4bd833258d3a256e64ae3746f06e 100644
+--- a/evals/narration/cases/narration-voice-for-cht-engineer.yaml
++++ b/evals/narration/cases/narration-voice-for-cht-engineer.yaml
+@@ -54,7 +54,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
+diff --git a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+index 5d95002e8218931e3a3292f003e8d7ef7ddcf16a..97c24585b769c30a4346598ea314197ede0d1e52 100644
+--- a/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
++++ b/evals/narration/cases/narration-voice-for-cht-non-engineer.yaml
+@@ -50,7 +50,6 @@ expect:
+     - "a price for its services"
+     - "the site's bio line about hareet"
+     - "the local lane always runs offline"
+-    - "the cleaning catches every identifier"
+     - "the co-owner's name"
+     - "the site's phone number"
+     - "any spend"
