@@ -1,4 +1,77 @@
 {
   "schema": 1,
-  "licenses": []
+  "licenses": [
+    {
+      "id": "anthropic-consumer-terms",
+      "name": "Anthropic Consumer Terms of Service",
+      "version": "2025-10-08",
+      "url": "https://www.anthropic.com/legal/consumer-terms",
+      "display_on_site_that_promotes_the_studio": "yes",
+      "everywhere": "yes",
+      "public_distribution": "yes",
+      "research_display": "yes",
+      "evaluation_only": false,
+      "read_by_the_author": "2026-11-07"
+    },
+    {
+      "id": "apache-2.0",
+      "name": "Apache License 2.0",
+      "version": "2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0",
+      "display_on_site_that_promotes_the_studio": "yes",
+      "everywhere": "yes",
+      "public_distribution": "yes",
+      "research_display": "yes",
+      "evaluation_only": false,
+      "read_by_the_author": "2026-11-07"
+    },
+    {
+      "id": "gpl-3.0",
+      "name": "GNU General Public License 3.0",
+      "version": "3",
+      "url": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "display_on_site_that_promotes_the_studio": "yes",
+      "everywhere": "yes",
+      "public_distribution": "yes",
+      "research_display": "yes",
+      "evaluation_only": false,
+      "read_by_the_author": "2026-11-07"
+    },
+    {
+      "id": "gpl-3.0-or-later",
+      "name": "GNU General Public License 3.0 or later",
+      "version": "3",
+      "url": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "display_on_site_that_promotes_the_studio": "yes",
+      "everywhere": "yes",
+      "public_distribution": "yes",
+      "research_display": "yes",
+      "evaluation_only": false,
+      "read_by_the_author": "2026-11-07"
+    },
+    {
+      "id": "hpnd",
+      "name": "Historical Permission Notice and Disclaimer (Pillow's licence)",
+      "version": "1",
+      "url": "https://github.com/python-pillow/Pillow/blob/10.2.0/LICENSE",
+      "display_on_site_that_promotes_the_studio": "yes",
+      "everywhere": "yes",
+      "public_distribution": "yes",
+      "research_display": "yes",
+      "evaluation_only": false,
+      "read_by_the_author": "2026-11-07"
+    },
+    {
+      "id": "psf-2.0",
+      "name": "Python Software Foundation License 2.0",
+      "version": "2.0",
+      "url": "https://docs.python.org/3/license.html",
+      "display_on_site_that_promotes_the_studio": "yes",
+      "everywhere": "yes",
+      "public_distribution": "yes",
+      "research_display": "yes",
+      "evaluation_only": false,
+      "read_by_the_author": "2026-11-07"
+    }
+  ]
 }
