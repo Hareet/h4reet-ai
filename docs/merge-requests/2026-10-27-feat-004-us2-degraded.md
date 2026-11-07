@@ -3,6 +3,12 @@ Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (Phase 5,
 Session: started from `/home/h4reet/h4reet-ai/h4reet-ai` (parked on `wip/park-2026-10-26b`); worked in the branch's worktree, `/tmp/claude-1000/wt-us2`, made with `git worktree add -b feat/004-us2-degraded` from 74c33e9, `feat/004-us3-lookdev`'s tip (T153). Repo hooks active: yes. The post-edit check refused an unused variable in `cables.test.ts` mid-edit, the bash gate refused a read of a git hook setting (not respelled), and `.claude/audit/hooks.log` records this session's commands, for example `2026-10-27T04:14:33Z	bash	ALLOW	ls -la /home/h4reet/h4reet-ai/h4reet-ai/.claude/audit/ ...`. Each commit ran the arrival check (`arrival-check: 0 findings in 4 files`) and gitleaks (`no leaks found`).
 Authorized by: tasks.md T153 to T164; plan.md §10's User Story 2 entries; the main session's direction for T163's claims amendment (option a) and for the delta review's fixes.
 
+## 2026-11-07: restacked onto feat/004-us3-lookdev's restacked tip (T166)
+
+`feat/004-us2-degraded was 7904c5155b298163c3bcac75ff4c6b53b4529765` (T166): 20 commits on 74c33e9d82c6f33e9249d627b65372bddc029a9c, `feat/004-us3-lookdev`'s tip as recorded before its own rebase (T147), the commit this branch was cut from. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
+
+The rest of this note is as it stood at 7904c515, its SHAs the old ones.
+
 **Status: reviewed twice, ready for the gate once line R's earlier merges land.** T163's review found one important issue (I1, the claims rule read from the cases) and five nits. All are fixed test first, except N3, which is a decision for the Author (For the Author, item 1). The delta review over those fixes gave **APPROVE with fixes**: one important issue (I1, faulty claims crossed with swapped cases) and four nits, all fixed here. The live source stays `off`: no poller exists, and nothing asks `/api/status`. `make check` ends with the same four FAILs as `feat/004-us3-lookdev`, none from this branch's code (Verification; For the Author, item 4).
 
 ## Runs in the Author's terminal
