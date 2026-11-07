@@ -356,6 +356,62 @@ The two that fail, each as expected, word for word:
   room: 8 findings in 1 file
   ```
 
+## The studio's second delivery: the flat monitor, and the neon at 2.6
+
+The studio delivered its flat monitor and the neon sign rebuilt at
+2.6 with the side-by-side counters (your option A), and you scrubbed
+both. The main session copied them into `.fit-scratch/`; the session
+fitted them against this branch's final catalog, then removed them.
+
+- **desk-screen.glb, flat:** 0 findings:
+
+  ```text
+  measures: 285,384 bytes · 95,401 gzip-9 bytes · 10,922 triangles · 0 bytes of texture memory · no texture
+  bounds: (-0.492, 0, -0.145) to (0.492, 0.6245, 0.14032) m
+  budget: 600,000 gzip-9 bytes · 11,000 triangles · 1 px a side · 1 bytes of texture memory
+  room: 0 findings in 0 files
+  ```
+
+- **neon-sign.glb at 2.6:** it fits the hand-back's 2.6 entry with
+  no finding, but RG7 refuses that entry, so nothing landed for the
+  neon and main's entry stays. Against main's entry:
+
+  ```text
+  RK2 .fit-scratch/neon-sign.glb:-: 10,836 triangles, over the piece's budget of 4,000; the piece keeps its stand-in
+  RX7 .fit-scratch/neon-sign.glb:-: bounds on z from -0.0390 to 0.0487 m, off the catalog's -0.0390 to 0.0910 m by more than 0.0200 m
+  RX8 .fit-scratch/neon-sign.glb:nodes[1]: live face off the catalog's live_faces[1] by centre 324.2 mm, top edge 676.0 mm, bottom edge 676.0 mm, left edge 16.0 mm, and right edge 16.0 mm: measured centre (-0.3100, 0.3100, 0.0125) m, edges 0.5200, 0.5200, 0.1200, and 0.1200 m (top, bottom, left, right), facing (0.000, 0.000, 1.000), up (0.000, 1.000, 0.000)
+  RX8 .fit-scratch/neon-sign.glb:nodes[5]: live face off the catalog's live_faces[3] by centre 71.7 mm, top edge 196.0 mm, bottom edge 196.0 mm, left edge 18.0 mm, and right edge 18.0 mm: measured centre (-0.0500, 0.1700, 0.0125) m, edges 1.0000, 1.0000, 0.0700, and 0.0700 m (top, bottom, left, right), facing (0.000, 0.000, 1.000), up (0.000, 1.000, 0.000)
+  RX8 .fit-scratch/neon-sign.glb:nodes[7]: live face off the catalog's live_faces[2] by centre 239.9 mm, top edge 676.0 mm, bottom edge 676.0 mm, left edge 16.0 mm, and right edge 16.0 mm: measured centre (0.2300, 0.3100, 0.0125) m, edges 0.5200, 0.5200, 0.1200, and 0.1200 m (top, bottom, left, right), facing (0.000, 0.000, 1.000), up (0.000, 1.000, 0.000)
+  RX8 .fit-scratch/neon-sign.glb:nodes[8]: live face off the catalog's live_faces[0] by centre 87.3 mm, top edge 246.0 mm, bottom edge 246.0 mm, left edge 20.8 mm, and right edge 20.8 mm: measured centre (-0.0500, 0.4700, 0.0125) m, edges 1.0000, 1.0000, 0.1300, and 0.1300 m (top, bottom, left, right), facing (0.000, 0.000, 1.000), up (0.000, 1.000, 0.000)
+  measures: 373,340 bytes · 121,106 gzip-9 bytes · 10,836 triangles · 0 bytes of texture memory · no texture
+  bounds: (-0.668303, -0.052, -0.039) to (0.8785, 0.638991, 0.0487) m
+  budget: 300,000 gzip-9 bytes · 4,000 triangles · 512 px a side · 1,398,101 bytes of texture memory
+  room: 6 findings in 1 file
+  ```
+
+RG7 at 2.6 with the side-by-side layout, on this branch's scene
+(room:report's table; RG7's findings round down):
+- **The word:** 14.0 px on the desktop and 7.9 px on the phone. RG7:
+  "cap height 7.8 px on the phone stage, under the floor of 9".
+- **Each counter:** 4.7 px on the desktop, and 2.6 px on the phone,
+  where it is exempt. RG7: "cap height 4.6 px on the desktop stage,
+  under the floor of 9".
+- **The scene's texture memory** with that entry: 158,451,424 of
+  200,000,000 (the canvases 465,972).
+
+What the studio would need to pass at 2.6, found by trial on this
+branch's scene, each face's centre kept:
+- **main's face layout,** as main's entry gives it: the word 16.5 px
+  and 9.2 px, the counters 10.9 px on the desktop; or
+- **the word face at least 0.0572 m tall at scale 1** (0.149 m in
+  the model), from 0.05 (0.13 m), its width unchanged: at 0.057 it
+  reads 8.9 px on the phone, and at 0.0572 it passes; and
+- **each counter face at least 0.385 m wide at scale 1** (1.0 m in
+  the model), from 0.2. Their 24-character grids are bound by width,
+  not height: 0.38 reads 8.8 px on the desktop, and 0.385 passes.
+  Two such counters side by side, 0.77 m, are wider than the sign's
+  0.5949 m, so they would have to be stacked, as in main's layout.
+
 ## Verification
 
 - **room:check:** `room: 0 findings in 0 files`.
@@ -1149,12 +1205,13 @@ device that didn't before.
   the chalkboard's board, which stand in front of their new faces
   once T185 draws the faces; the shell's floor in the palette's
   cement.
-- **The neon sign at 1.65:** the figures above, for T309 and T311.
+- **The neon sign:** the 1.65 and 2.6 figures above, for T309 and
+  T311.
 - **The curved monitor:** T326, after a spec amendment.
 
 ## For the Author
 
-- **The flat monitor:** the studio hands back its flat desk-screen
-  file, and you scrub it; it then fits these figures.
+- **The flat monitor:** delivered and scrubbed; it fits these
+  figures with no finding, ready for intake (T230 to T240).
 - **At intake (T230 to T240):** keyboard.glb and mouse.glb take the
   stems `split-keyboard` and `vertical-mouse`, with their records.
