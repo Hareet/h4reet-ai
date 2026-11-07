@@ -287,8 +287,9 @@ describe("the probe's panel, the copy's first (§7.2)", () => {
     expect(rest).toEqual([]);
     if (!panel || !page) throw new Error("no panel, or no page");
     expect(panel.querySelector("h1, h2")).not.toBeNull();
+    // 384 wide is under 25rem, so the narrow-portrait reserve holds (spec 004, T171; plan.md §10).
     const stage = stageFor({ w: 384, h: 740 });
-    expect(stage).toEqual({ w: 368, h: 420 });
+    expect(stage).toEqual({ w: 368, h: 368 });
     expect(rows(panel)).toEqual({
       "WebGL 2": "yes",
       "Largest texture": "4,096 px",
@@ -296,7 +297,7 @@ describe("the probe's panel, the copy's first (§7.2)", () => {
       "createImageBitmap from a Blob": "yes",
       "Secure context": "no, recorded only",
       Viewport: "384 × 740 CSS px, at a pixel ratio of 2.8125",
-      "The room's stage here": "368 × 420 CSS px",
+      "The room's stage here": "368 × 368 CSS px",
       "ADR 0010's floor for studio models": FLOOR_ABOVE,
     });
     const verdict = panel.querySelector("[role=status]");

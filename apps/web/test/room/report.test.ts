@@ -361,7 +361,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
       "",
       "| Selectable | 3D | 2D |",
       "|---|---|---|",
-      "| `fx-lower` (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
+      "| `fx-lower` (left-wall) | list-only at 304 × 196 and 30 others | list-only at 304 × 196 and 30 others |",
       "",
     ]);
     // The legibility table's last row is right above it.
@@ -385,7 +385,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
     const rows = lines(result);
     // The upper sign keeps its tap there (`listOnly`'s release pass), so the lower alone is listed.
     expect(rows.filter((r) => r.startsWith("| `fx-"))).toContain(
-      "| `fx-lower` (left-wall) | list-only at 304 × 248 and 48 others | – |",
+      "| `fx-lower` (left-wall) | list-only at 304 × 252 and 48 others | – |",
     );
     expect(rows.some((r) => r.startsWith("| `fx-upper` (left-wall)"))).toBe(false);
     expect(rows).toContain("Findings: none.");
@@ -405,7 +405,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
     });
     expect(out.report.markdown).not.toContain("fx-lower");
     expect(out.report.markdown).toContain(
-      "| selectables[3] (left-wall) | list-only at 304 × 208 and 26 others | list-only at 304 × 208 and 26 others |",
+      "| selectables[3] (left-wall) | list-only at 304 × 196 and 30 others | list-only at 304 × 196 and 30 others |",
     );
   });
 });

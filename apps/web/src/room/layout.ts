@@ -1,9 +1,15 @@
 // The room's screen (spec 002, T044; contracts/room-scene.md §1, §5, §6): its heading, the toolbar ("Resume", "2D view",
-// "Pause the room", the data-flow disclosure link), the stage, the "In the room" list, the conversation panel, "Around the room" (spec
-// 004, FR-063), and the resume's panel, in that order, which is the Tab order. While the hand-off plays, every part a
-// visitor acts on is inert; the offer of "Read the resume now" and "Keep it for later" comes when it ends. The layout's
-// CSS (room.css) frames it from 320 CSS pixels wide, with the stage, the list, the text box, and the talk button on
-// screen in portrait. The stage's placeholder note, the UI word standin.note, shows only while stand-ins are in use.
+// "Pause the room", the data-flow disclosure link), the stage, the "In the room" list, the conversation panel, "Around
+// the room" (spec 004, FR-063), and the resume's panel, in that order, which is the Tab order: "Around the room" is a
+// Tab stop of its own after the conversation (FR-065; Amendment B8; text-copy.ts). While the hand-off plays, every part
+// a visitor acts on is inert; the offer of "Read the resume now" and "Keep it for later" comes when it ends. The
+// layout's CSS (room.css) frames it from 320 CSS pixels wide, with the stage, the list, the text box, and the talk
+// button on screen in portrait: its grid's areas run toolbar, stage, list, talk, around, resume, and in landscape
+// "around" spans both columns before the resume; below a portrait width of 35rem, where five controls (spec 003's
+// "Credits" among them once it lands) wrap to two rows, the stage gives up one toolbar row, and below 25rem the
+// toolbar's type drops to 0.875rem, so the text box and the talk button stay on screen, a 320 × 568 one included
+// (FR-047, FR-065; R-40; the review of T171, B1). The stage's placeholder note, the UI word standin.note, shows only
+// while stand-ins are in use.
 // "Pause the room" (spec 004, FR-060, FR-065; Amendment B8; R-34), the UI word pause.button, is a toggle whose state
 // is in aria-pressed; the room's motion store holds what it sets (motion.ts).
 import { h } from "./dom";

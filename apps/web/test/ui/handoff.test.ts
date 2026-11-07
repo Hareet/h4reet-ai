@@ -13,6 +13,7 @@ import {
   hasButton,
   nameOf,
   start,
+  tabOrder,
   talkLog,
   textOf,
 } from "../helpers/room";
@@ -164,5 +165,21 @@ describe("after the hand-off", () => {
     for (const el of v.doc.querySelectorAll(".room-toolbar button, .room-list button, .talk input, .talk button")) {
       expect(el.closest("[inert], [hidden]"), nameOf(el)).toBeNull();
     }
+  });
+});
+
+// The review of T171, N2 (spec 004; FR-063, FR-065): "Around the room" is content, not a control, so it stays readable
+// while the hand-off plays: Tab from the room's heading reaches it, and only it, with nothing in it to press.
+describe('"Around the room" during the hand-off', () => {
+  it("is the one Tab stop from the heading, readable and not inert", async () => {
+    const v = start({ webgl: true });
+    await enter(v);
+    expect(v.room.visit.stage).toBe("handoff");
+    expect(v.doc.activeElement?.tagName).toBe("H1");
+    const around = v.doc.querySelector(".room-around");
+    expect(around?.closest("[inert], [hidden]")).toBeNull();
+    expect(around?.querySelectorAll("button, a, input, select, textarea")).toHaveLength(0);
+    expect(tabOrder(v.doc)).toEqual([around]);
+    expect(nameOf(around as Element)).toBe("Around the room");
   });
 });
