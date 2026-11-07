@@ -37,7 +37,7 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `lettering` | (0, 0.0825, 0.00675) | 0.3 × 0.0825 | (0, 0, 1) | (0, 1, 0) |
+| `lettering` | (0, 0.0753, 0.0258) | 0.288 × 0.092 | (0, 0.210642, 0.977563) | (0, 0.977563, -0.210642) |
 
 ## States
 

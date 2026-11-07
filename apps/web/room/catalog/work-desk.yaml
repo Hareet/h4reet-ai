@@ -1,26 +1,31 @@
-# The Author's computer desk (FR-078), a top on four legs. Its size, its anchors, and where it stands are estimates
-# until measured. Its top carries the monitor, the laptop's stand, the two signs, and the charger's unplugged poses;
-# its back edge is where the charger's cable runs; its front-left corner is the photo guide's origin.
+# The Author's standing desk (FR-078), its top at the standing height, 1.07 m: the size, the anchors, and the budget
+# the studio's hand-back of 2026-11-07 gives for his lookdev design (tasks.md T312). They are design figures, not
+# measurements, so they stay estimates until measured, as where the desk stands does. Its top carries the monitor, the
+# laptop's stand, the two signs, and the charger's unplugged poses; its back edge is where the charger's cable runs;
+# its front-left corner is the photo guide's origin. The stand-in keeps its top on four legs, raised to the top's
+# height. The studio's desk shows a maple-textured top and a graphite frame, not the palette's desk-wood and desk-leg,
+# which the stand-in keeps: the hand-back gives no hex for the graphite, so the palette gains none. The Author's
+# default of 2026-11-07 takes the maple top and the graphite frame as his lookdev choice, for the look's ADR (0037).
 version: 1
 id: work-desk
 name: Desk
-size: { w: 1.5, h: 0.75, d: 0.8, estimated: true }
+size: { w: 1.5, h: 1.07, d: 0.8, estimated: true }
 stylized_scale: 1
 origin:
   point: on the floor, below the centre of the desk's top.
-  bounds: { min: [-0.75, 0, -0.4], max: [0.75, 0.75, 0.4] }
+  bounds: { min: [-0.75, 0, -0.4], max: [0.75, 1.07, 0.4] }
 anchors:
-  top: { at: [0, 0.75, 0], estimated: true }
-  front-left: { at: [-0.75, 0.75, 0.4], estimated: true }
-  back-edge: { at: [0.4, 0.75, -0.4], estimated: true }
+  top: { at: [0, 1.07, 0], estimated: true }
+  front-left: { at: [-0.75, 1.07, 0.4], estimated: true }
+  back-edge: { at: [0.4, 1.07, -0.4], estimated: true }
 standin:
-  - { shape: box, size: [1.5, 0.04, 0.8], at: [0, 0.73, 0], color: desk-wood }
-  - { shape: box, size: [0.05, 0.71, 0.05], at: [-0.7, 0.355, -0.35], color: desk-leg }
-  - { shape: box, size: [0.05, 0.71, 0.05], at: [-0.7, 0.355, 0.35], color: desk-leg }
-  - { shape: box, size: [0.05, 0.71, 0.05], at: [0.7, 0.355, -0.35], color: desk-leg }
-  - { shape: box, size: [0.05, 0.71, 0.05], at: [0.7, 0.355, 0.35], color: desk-leg }
+  - { shape: box, size: [1.5, 0.04, 0.8], at: [0, 1.05, 0], color: desk-wood }
+  - { shape: box, size: [0.05, 1.03, 0.05], at: [-0.7, 0.515, -0.35], color: desk-leg }
+  - { shape: box, size: [0.05, 1.03, 0.05], at: [-0.7, 0.515, 0.35], color: desk-leg }
+  - { shape: box, size: [0.05, 1.03, 0.05], at: [0.7, 0.515, -0.35], color: desk-leg }
+  - { shape: box, size: [0.05, 1.03, 0.05], at: [0.7, 0.515, 0.35], color: desk-leg }
 drawing: { from: standin }
-budget: { gzip_bytes: 600000, triangles: 6000, texture_px: 1024, texture_bytes: 5592405 }
+budget: { gzip_bytes: 600000, triangles: 38000, texture_px: 2048, texture_bytes: 11184811 }
 work_order:
   method: Model the desk from the dimension sheet and the Author's description, as plain solid parts in flat colours.
   shots:
