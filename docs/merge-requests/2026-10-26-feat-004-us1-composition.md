@@ -1,4 +1,5 @@
 # feat/004-us1-composition
+
 Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (Phase 3, User Story 1: T089 to T119, and the cube amendment's T292 to T303) · Intent: [specs/004-room-composition/intent.md](../../specs/004-room-composition/intent.md) · Written by: docs agent (Claude Haiku 5.5), from the review's record, the branch's commits, and the outputs in `/tmp/claude-1000/feat-004-us1/final/`; the main session commits it and fills the `make check` placeholder · Date: 2026-10-26
 Session: the implementer and fix sessions worked in the branch's worktree, `/tmp/claude-1000/wt-004-us1`, and in the scratch worktrees the sections below name, each removed after its run. Tip before this note: 73d4527.
 Authorized by: tasks.md T089 to T119 and T292 to T303; the cube amendment on `spec/004-cube-amend` (tip fffdb55), which merges to `main` before this branch; the Author's decisions in spec.md's Clarifications, Sessions 2026-10-23 and 2026-10-26; and plan.md §10.
@@ -8,6 +9,8 @@ Authorized by: tasks.md T089 to T119 and T292 to T303; the cube amendment on `sp
 `feat/004-us1-composition was 58c22d56c1a644604855ab02fdc76ea9a18a77d4` (T118): 71 commits on 85747fe, `feat/004-foundation`'s tip before its own rebase (T087), the commit this branch was cut from. On 2026-11-06 an implementer subagent (Claude Code, Opus 5.5) rebased it onto `main` at df2dcf45b7cb3dff239043cfd340a68ee8c6c1ec, which holds `feat/004-foundation` merged (T088, a309baa) and, on top, the Author's commit "Added resume header" (df2dcf4, `assets/policy/resume-header.json` alone), with `git rebase --onto refs/heads/main 85747fe198291a2e7ca58db80cbef52298748dfa feat/004-us1-composition`, in `/tmp/claude-1000/wt-us1-r`, launched from `~/h4reet-ai/h4reet-ai`. Then, on the rebased branch, it regenerated the work orders that main's room caps made stale, and made the Author's two answers of 2026-10-30 that land on this branch: T304, the visitor at x −0.7, and T305, `flat-failed`'s line. The branch is now 66 commits on df2dcf4: the 61 kept below, the work orders' regeneration, T304, T305's RED and GREEN, then this update, which ticks T118, T304, and T305.
 
 `main` was a309baa when this work began. The bash gate refused the rebase once, at 2026-11-07T03:25:09Z, "changing main (HEAD is main)": the main checkout's reflog shows it moved from `wip-park/11-6-2026` to `main` at 03:24:57Z, df2dcf4 committed at 03:25:04Z, and the checkout parked again at 03:25:28Z. Once it was parked, the same command ran unchanged, so `refs/heads/main` was df2dcf4.
+
+**Reviewed, 2026-11-06: APPROVE with fixes, no blocker** (Review, below, its first entry). Its fixes are in this note, and the Author has answered its I1: "a is fine".
 
 **Gate and merge it, provisionally (T119).** Your steps follow the verification, before its outputs. They are provisional: the `evals` FAIL they expect is now known to be a harness misread (the behavioral tier's name check also searched the agent's own prose), a fix-A patch to `evals/agent-config/behavioral.py` is being built separately, for you to apply, and after it lands this branch is rebased once more onto the patched `main` and takes a fresh behavioral run there. "Runs in the Author's terminal", below, holds but for its steps 1 to 3: the merges before this branch are on `main`, this section is step 2's rebase, and its step 3 is replaced by the steps here.
 
@@ -25,69 +28,69 @@ Authorized by: tasks.md T089 to T119 and T292 to T303; the cube amendment on `sp
 
 **What was kept: 61 commits, before and after.** The messages are unchanged. Two say what is now history: 8abcfac's "T302 ticked" (it recased `main`'s tick, which stays `main`'s, below), and 9e7b63a's visitor at x −0.5, which T304 moves. Below this section, the note's SHAs are the old ones.
 
-| Before | After | Commit |
-|---|---|---|
-| 0887c90 | 28551fc | test(004): the committed tree composes in strict mode with no finding, and holds no fx- ID, RED (T094's compose half) |
-| 1011b12 | 827c04f | feat(004): today's room as data, spec 002's room exactly (T095) |
-| b3fea0e | 824dad4 | feat(004): FR-078's pieces as data, keeping spec 002's three selectables, GREEN (T100; T094's compose half) |
-| 2f69862 | e40f25c | test(004): the stand-ins' nine shapes and the look, RED (T091) |
-| 1bd2171 | 22a9e0f | test(004): the room drawn from the 3D part, RED (T090) |
-| 9e387ec | c5b4f29 | feat(004): the stand-ins' nine shape builders and the look, GREEN (T097) |
-| 1111733 | dee8502 | feat(004): the 3D part's interpreter, bundle3d.ts, GREEN (T098's buildRoom) |
-| d03bd22 | 515655d | test(004): the site's own builds carry the bundle, and the manifest is compose()'s, RED (T093, T094's manifest half) |
-| 02d92b4 | 4bd89cc | feat(004): roomBundle() builds the site's room from its data, GREEN (T096) |
-| 7299b60 | 75209f7 | test(004): the 3D room picks, refuses, and hands off from the bundle, RED (T092, T098) |
-| b48a3fc | 7c7c6aa | feat(004): scene.ts draws the room from the bundle's 3D part, GREEN (T098, T092) |
-| 4eea499 | 09d6622 | test(004): the scene's look draws its ink lines at least half a CSS pixel thick, RED (T097, T095; lookdev review page-5) |
-| f432cae | 1de8a6e | fix(004): inked cel's ink lines are 1 CSS pixel wide, GREEN (T097, T095; lookdev review page-5) |
-| abeaea0 | 98cc6f5 | test(004): the gateway's room-event tests hold no room ID (T106) |
-| 5ac86ac | b97a0e9 | test(004): the gateway's client label holds no room ID (T106) |
-| 3c21a15 | 105200a | docs(004): the events-file test's header names the edits that change its list (T106) |
-| e4d4591 | 54966a8 | test(004): the data-only proof set, the generated files' freshness, and the committed tree's scan, RED (T101, T102, T107) |
-| 580c9e4 | 54351fc | feat(004): FR-036's topics as data, and room:generate's committed files, GREEN (T113, T108; T102) |
-| 57c77de | d09e47e | docs(004): apps/web/room/README.md, how to make each change of the room as data, GREEN (T114) |
-| 1b42e00 | b4fc8db | test(004): the proof set's removal takes a selectable nothing else in the data names, and its unreferenced labels (T101) |
-| 25337f8 | 0aaba5c | test(004): the whole-visit privacy case clicks every button of the room's list, whatever the data names them (T113) |
-| d50dfe3 | c64d70a | test(004): the 2D room drawn from the bundle's index, RED (T103) |
-| 8a3f165 | 090ab7b | feat(004): the 2D room drawn from the bundle's index, GREEN (T109) |
-| 5f92463 | 9a13cc9 | test(004): each input's object_selected, and the list and the talk panel from the index, RED (T104, T105) |
-| 69c3cc9 | 4d177fd | feat(004): the list and the conversation read the bundle's index, GREEN (T110) |
-| 8559fbd | 033d014 | test(004): "Around the room" from the index's copy, RED (T111) |
-| 2331dc1 | 47815ce | feat(004): "Around the room", the text copy from the index, GREEN (T111) |
-| 5fab94c | 2cc5007 | test(004): the 2D room refuses a visitor's place it can't draw, RED (T103) |
-| 4c0862f | fe568d3 | fix(004): the 2D room checks the visitor's place before it draws there, GREEN (T109) |
-| dc4aa0d | 08ae1e3 | test(004): the runtime half of the data-only proof holds as plain cases, now that T109 and T110 have landed (T101) |
-| 76a45d7 | 96173aa | test(004): the Tab-order case counts the list's buttons from the index, so a fourth selectable keeps it (T113, T105) |
-| 0805a0d | ea36f87 | feat(004): the chalkboard opens the Author's mission, a data edit now that the list and the 2D room read the index (T113) |
-| c6137e1 | ade7253 | test(004): the room's code holds no room data, and spec 002's work-area cases end, RED (T112) |
-| 689c414 | 75e99b9 | feat(004): the room's data leaves its code: no object list, no piece builders, no layout, GREEN (T112) |
-| e9bed6f | 18064b7 | test(004): the last tests that spelled a room ID take it from the fixture set or say it otherwise (T107, T112) |
-| 19268c5 | b938cea | test(004): the committed tree's scan finds 0 data-only IDs, a plain case now (T107, T112) |
-| 17a403b | 3c0a8b4 | fix(004): the window's view takes no label of its own, which drew over the window's (T100's data) |
-| 3714f3d | 022dc0f | docs(004): the foundation's note names src/room/framing.ts without a link, since T112 deleted the file (T112) |
-| cf106af | 2b1463c | test(004): the data-only proof's addition takes a spot it measures free with the kernel, not the first of 99 that composes (T101) |
-| a65a3fb | 0b42d2f | test(004): the visitor turns toward the twin to take the paper, which ends in its hand on the twin's side, either side, RED |
-| 0d4cd27 | b0c88be | feat(004): the visitor turns toward the twin to take the paper, which ends in its hand on the twin's side, GREEN |
-| 9c81be9 | 5a62981 | docs(004): US1's done tasks ticked, T089 to T115 (T116 and T117 stay open) |
-| bc897a6 | aba8f59 | feat(004): the Author's cube room as data: the brick cube, the large window, the sign at 2.6, the hangings on the side walls |
-| d8b9c2e | b5b0338 | test(004): the amendments' tests: side-wall selectables list-only where a stage can't hold their core, the phone's turn-cost faces exempt, RED |
-| 4aa2e0a | f58267b | feat(004): the amendments in the compositor, the index, and the room, GREEN |
-| 01ca787 | 4d50df2 | test(004): FR-064's carve-out at its smallest stages alone, RG7's exemption per face, the report's two sections, and a lower camera, RED (T292 to T295, T301) |
+| Before  | After   | Commit                                                                                                                                                                                      |
+| ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0887c90 | 28551fc | test(004): the committed tree composes in strict mode with no finding, and holds no fx- ID, RED (T094's compose half)                                                                       |
+| 1011b12 | 827c04f | feat(004): today's room as data, spec 002's room exactly (T095)                                                                                                                             |
+| b3fea0e | 824dad4 | feat(004): FR-078's pieces as data, keeping spec 002's three selectables, GREEN (T100; T094's compose half)                                                                                 |
+| 2f69862 | e40f25c | test(004): the stand-ins' nine shapes and the look, RED (T091)                                                                                                                              |
+| 1bd2171 | 22a9e0f | test(004): the room drawn from the 3D part, RED (T090)                                                                                                                                      |
+| 9e387ec | c5b4f29 | feat(004): the stand-ins' nine shape builders and the look, GREEN (T097)                                                                                                                    |
+| 1111733 | dee8502 | feat(004): the 3D part's interpreter, bundle3d.ts, GREEN (T098's buildRoom)                                                                                                                 |
+| d03bd22 | 515655d | test(004): the site's own builds carry the bundle, and the manifest is compose()'s, RED (T093, T094's manifest half)                                                                        |
+| 02d92b4 | 4bd89cc | feat(004): roomBundle() builds the site's room from its data, GREEN (T096)                                                                                                                  |
+| 7299b60 | 75209f7 | test(004): the 3D room picks, refuses, and hands off from the bundle, RED (T092, T098)                                                                                                      |
+| b48a3fc | 7c7c6aa | feat(004): scene.ts draws the room from the bundle's 3D part, GREEN (T098, T092)                                                                                                            |
+| 4eea499 | 09d6622 | test(004): the scene's look draws its ink lines at least half a CSS pixel thick, RED (T097, T095; lookdev review page-5)                                                                    |
+| f432cae | 1de8a6e | fix(004): inked cel's ink lines are 1 CSS pixel wide, GREEN (T097, T095; lookdev review page-5)                                                                                             |
+| abeaea0 | 98cc6f5 | test(004): the gateway's room-event tests hold no room ID (T106)                                                                                                                            |
+| 5ac86ac | b97a0e9 | test(004): the gateway's client label holds no room ID (T106)                                                                                                                               |
+| 3c21a15 | 105200a | docs(004): the events-file test's header names the edits that change its list (T106)                                                                                                        |
+| e4d4591 | 54966a8 | test(004): the data-only proof set, the generated files' freshness, and the committed tree's scan, RED (T101, T102, T107)                                                                   |
+| 580c9e4 | 54351fc | feat(004): FR-036's topics as data, and room:generate's committed files, GREEN (T113, T108; T102)                                                                                           |
+| 57c77de | d09e47e | docs(004): apps/web/room/README.md, how to make each change of the room as data, GREEN (T114)                                                                                               |
+| 1b42e00 | b4fc8db | test(004): the proof set's removal takes a selectable nothing else in the data names, and its unreferenced labels (T101)                                                                    |
+| 25337f8 | 0aaba5c | test(004): the whole-visit privacy case clicks every button of the room's list, whatever the data names them (T113)                                                                         |
+| d50dfe3 | c64d70a | test(004): the 2D room drawn from the bundle's index, RED (T103)                                                                                                                            |
+| 8a3f165 | 090ab7b | feat(004): the 2D room drawn from the bundle's index, GREEN (T109)                                                                                                                          |
+| 5f92463 | 9a13cc9 | test(004): each input's object_selected, and the list and the talk panel from the index, RED (T104, T105)                                                                                   |
+| 69c3cc9 | 4d177fd | feat(004): the list and the conversation read the bundle's index, GREEN (T110)                                                                                                              |
+| 8559fbd | 033d014 | test(004): "Around the room" from the index's copy, RED (T111)                                                                                                                              |
+| 2331dc1 | 47815ce | feat(004): "Around the room", the text copy from the index, GREEN (T111)                                                                                                                    |
+| 5fab94c | 2cc5007 | test(004): the 2D room refuses a visitor's place it can't draw, RED (T103)                                                                                                                  |
+| 4c0862f | fe568d3 | fix(004): the 2D room checks the visitor's place before it draws there, GREEN (T109)                                                                                                        |
+| dc4aa0d | 08ae1e3 | test(004): the runtime half of the data-only proof holds as plain cases, now that T109 and T110 have landed (T101)                                                                          |
+| 76a45d7 | 96173aa | test(004): the Tab-order case counts the list's buttons from the index, so a fourth selectable keeps it (T113, T105)                                                                        |
+| 0805a0d | ea36f87 | feat(004): the chalkboard opens the Author's mission, a data edit now that the list and the 2D room read the index (T113)                                                                   |
+| c6137e1 | ade7253 | test(004): the room's code holds no room data, and spec 002's work-area cases end, RED (T112)                                                                                               |
+| 689c414 | 75e99b9 | feat(004): the room's data leaves its code: no object list, no piece builders, no layout, GREEN (T112)                                                                                      |
+| e9bed6f | 18064b7 | test(004): the last tests that spelled a room ID take it from the fixture set or say it otherwise (T107, T112)                                                                              |
+| 19268c5 | b938cea | test(004): the committed tree's scan finds 0 data-only IDs, a plain case now (T107, T112)                                                                                                   |
+| 17a403b | 3c0a8b4 | fix(004): the window's view takes no label of its own, which drew over the window's (T100's data)                                                                                           |
+| 3714f3d | 022dc0f | docs(004): the foundation's note names src/room/framing.ts without a link, since T112 deleted the file (T112)                                                                               |
+| cf106af | 2b1463c | test(004): the data-only proof's addition takes a spot it measures free with the kernel, not the first of 99 that composes (T101)                                                           |
+| a65a3fb | 0b42d2f | test(004): the visitor turns toward the twin to take the paper, which ends in its hand on the twin's side, either side, RED                                                                 |
+| 0d4cd27 | b0c88be | feat(004): the visitor turns toward the twin to take the paper, which ends in its hand on the twin's side, GREEN                                                                            |
+| 9c81be9 | 5a62981 | docs(004): US1's done tasks ticked, T089 to T115 (T116 and T117 stay open)                                                                                                                  |
+| bc897a6 | aba8f59 | feat(004): the Author's cube room as data: the brick cube, the large window, the sign at 2.6, the hangings on the side walls                                                                |
+| d8b9c2e | b5b0338 | test(004): the amendments' tests: side-wall selectables list-only where a stage can't hold their core, the phone's turn-cost faces exempt, RED                                              |
+| 4aa2e0a | f58267b | feat(004): the amendments in the compositor, the index, and the room, GREEN                                                                                                                 |
+| 01ca787 | 4d50df2 | test(004): FR-064's carve-out at its smallest stages alone, RG7's exemption per face, the report's two sections, and a lower camera, RED (T292 to T295, T301)                               |
 | 71b3d35 | 6d9c855 | feat(004): FR-064's carve-out held in pick.ts at its smallest stages alone, RG7's exemption per face, the report's two sections, and the camera's eye at 1.15 m, GREEN (T296 to T299, T301) |
-| acb124a | a009db4 | feat(004): the Author's cube as data, with the brief's data fixes, the word panel inside the 1.5 m sign, and the photo guide's side walls as measured (T300) |
-| 628c633 | 2ff2332 | feat(004): the left wall re-laid, the chalkboard high and the snowboard low on its tail, and D1 measured: it stops (T301) |
-| 5688997 | b5f0777 | test(004): side-wall selectables list-only wherever their core can't fit, at any stage, and never refused for it, RED (T303) |
-| bf7d3b4 | 1e3c28c | feat(004): a side-wall selectable list-only wherever its core can't fit, never refused for it, and the room composing clean, GREEN (T303) |
-| 7de0abf | e2ed6a2 | test(004): the US1 review's fixes, tests first: the release pass, an undodgeable side-wall test, the desktop's taps, the photo guide's walls, RI8's hands, the 2D fallback, RED (T116) |
-| 41d7031 | 7f13df4 | feat(004): the release pass in listOnly, one side-wall test for RG6 and the photo guide, and the guide's origins, GREEN (T116) |
-| cd5f1f6 | af63511 | feat(004): the room opens when the 2D drawing refuses, RI8 checks the nearer hands, and the 2D stage's and the ink's nits, GREEN (T116) |
-| a2abdd3 | 95b48a0 | test(004): the gateway's events-file case pins the eight kinds and the IDs' format again, and no room ID (T116) |
-| 9e7b63a | a93ef20 | feat(004): the visitor at x -0.5, the shell's 2D drawing from the lower camera, and the figures' places read as composition, GREEN (T116) |
-| 8abcfac | 56e1de5 | docs(004): plan.md §10 brought up to the cube as it stands and the review's fixes, T114 and T115 reopened, T302 ticked (T116) |
-| 0db136c | 37d863d | docs(004): the room's README gives the side walls: RG6's carve-out, RG7's counter faces, the anchors' frame, and the report's Side-wall section; T114 ticked again (T116) |
-| 73d4527 | e0d8ee4 | docs(004): T115 ticked again: quickstart Q3's agents' checks re-run on 0db136c, the review's fixes in (T116) |
-| c344a5f | 6a297ef | docs(004): the merge-request note for feat/004-us1-composition: the review, T099, T301's measurement, T115, and the steps after (T116, T117) |
-| 58c22d5 | ce76b2b | docs(004): the US1 note names the chalkboard slate's foreshortening as a look judgement (T117) |
+| acb124a | a009db4 | feat(004): the Author's cube as data, with the brief's data fixes, the word panel inside the 1.5 m sign, and the photo guide's side walls as measured (T300)                                |
+| 628c633 | 2ff2332 | feat(004): the left wall re-laid, the chalkboard high and the snowboard low on its tail, and D1 measured: it stops (T301)                                                                   |
+| 5688997 | b5f0777 | test(004): side-wall selectables list-only wherever their core can't fit, at any stage, and never refused for it, RED (T303)                                                                |
+| bf7d3b4 | 1e3c28c | feat(004): a side-wall selectable list-only wherever its core can't fit, never refused for it, and the room composing clean, GREEN (T303)                                                   |
+| 7de0abf | e2ed6a2 | test(004): the US1 review's fixes, tests first: the release pass, an undodgeable side-wall test, the desktop's taps, the photo guide's walls, RI8's hands, the 2D fallback, RED (T116)      |
+| 41d7031 | 7f13df4 | feat(004): the release pass in listOnly, one side-wall test for RG6 and the photo guide, and the guide's origins, GREEN (T116)                                                              |
+| cd5f1f6 | af63511 | feat(004): the room opens when the 2D drawing refuses, RI8 checks the nearer hands, and the 2D stage's and the ink's nits, GREEN (T116)                                                     |
+| a2abdd3 | 95b48a0 | test(004): the gateway's events-file case pins the eight kinds and the IDs' format again, and no room ID (T116)                                                                             |
+| 9e7b63a | a93ef20 | feat(004): the visitor at x -0.5, the shell's 2D drawing from the lower camera, and the figures' places read as composition, GREEN (T116)                                                   |
+| 8abcfac | 56e1de5 | docs(004): plan.md §10 brought up to the cube as it stands and the review's fixes, T114 and T115 reopened, T302 ticked (T116)                                                               |
+| 0db136c | 37d863d | docs(004): the room's README gives the side walls: RG6's carve-out, RG7's counter faces, the anchors' frame, and the report's Side-wall section; T114 ticked again (T116)                   |
+| 73d4527 | e0d8ee4 | docs(004): T115 ticked again: quickstart Q3's agents' checks re-run on 0db136c, the review's fixes in (T116)                                                                                |
+| c344a5f | 6a297ef | docs(004): the merge-request note for feat/004-us1-composition: the review, T099, T301's measurement, T115, and the steps after (T116, T117)                                                |
+| 58c22d5 | ce76b2b | docs(004): the US1 note names the chalkboard slate's foreshortening as a look judgement (T117)                                                                                              |
 
 **The conflicts in kept commits, and how each was resolved.** All five were in `specs/004-room-composition/`, and none touched a human-only path. `package-lock.json` isn't in this branch's diff.
 
@@ -131,6 +134,8 @@ The occlusion at x −0.7, measured again as the review of T116 measured it (D-I
 
 At x −0.7 a human visitor hides none of the monitor's screen as the woman shows it and 6% as the man, the dinosaur 48%, and the stand-in and the dog none; the neon word is clear, and the counters lose at most 4%. The snowboard loses 80 to 95% of its box to the stand-in and the human avatars. The visitor's 1.1 m frame box passes the cube's left wall further, so the production camera stands back at the narrower aspects: 3.588 m from 3.580 m on the reference desktop, and 4.256 m from 3.725 m on the reference phone; the 2D drawing's camera, at 1.6, stays at 3.580 m.
 
+**The dinosaur's tail (the review of 2026-11-06, I1).** The dinosaur's tail passes through the left wall at x −0.7: at z 0.58 its tip stands at world x ≈ −1.25, the avatar's tail reaching 0.55 m to its left, beyond the wall's inner face at x −1.0668, which runs forward to z 0.6096. The review measured about 44 CSS px of it past the wall's front edge on the reference desktop, 24 px on the reference phone, and about 30 px in 2D, and the dog's tail passes the wall by about 3 cm; at z 0.58 the dinosaur fits inside the wall only for x ≥ −0.517. The two 3D figures check against the production cameras here, 44.4 and 24.1 px. The options: (a) keep x −0.7 until the Author's lookdev check (T309, T311) settles it; (b) move the visitor forward to z ≈ 0.64 or more, in front of the wall's front edge, which moves the camera and the occlusion figures again; or (c) another x. **The Author's decision, 2026-11-06: "a is fine".** So x −0.7 stays until his lookdev check (T309, T311) settles the visitor's spot, and step 4's Run 2 below asks him to choose the dinosaur, so he sees the tail on dev. The backlog takes a compositor check that keeps a figure inside the shell, or clipping the cut-out at the walls.
+
 The report on 57ed7b4: bundle dba7b558c2e494d6, its legibility and side-wall sections as printed.
 
 | Face                    | Readable | Desktop |  Phone | Floor |  Margin | Status                                                            |
@@ -169,15 +174,16 @@ GREEN: `src/room/ui-keys.ts` gains `flat-failed`, with no slots; `room/ui-words.
 - **On 197dd1d,** the tree before this update, with T304 and T305, three runs. The first, from 03:56:20Z, ended "11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 FAIL; failing: test FAIL, evals FAIL". Its `test` FAIL was one gateway case, `test/contract/local-openai.errors.test.ts`'s connect watchdog, "expected -685 to be greater than or equal to 900": the case times itself with two `Date.now()` readings, so a backward step of the wall clock, which WSL makes, gives a negative duration. The file passed alone straight after, 9 of 9; the run after the rebase passed it; and this branch changes neither that file nor the gateway's source. That run's `matrix` passed whole ("795 passed, 0 failed, 51 known gaps"). The second, from 04:00:33Z, straddled a restart of this session, and the third, from 2026-11-07T04:03:48Z, ran wholly after it; each ended "11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 FAIL; failing: evals FAIL, matrix FAIL", with `test` passing whole. Their `matrix` FAIL is four rows of stage S, the agent sandbox's own check, "makefile has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai", and the same for `.gitleaksignore`, `.github/workflows`, and `.mcp.json`: the restarted session's sandbox doesn't mask those four paths of the main checkout, as the session before the restart did, and this branch changes none of them, nor the matrix. Stage S runs only in an agent session; the gate's matrix is stage H, in its container (and stage E for a branch that touches the agents' engine, which this one doesn't). The second run's log is quiet inside each gate until the gate ends, so I took it for stopped and started the third, and the two overlapped for about five minutes, the second's later gates beside the third's lint and test. The third's whole output is the first block at the end of this section. This update adds this section and four pointers to it, and ticks T118, T304, and T305, and changes no other file.
 
 Summary of the third run: "make check: 11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 FAIL; failing: evals FAIL, matrix FAIL". What isn't a plain PASS:
-- **`evals` FAIL:** "FAIL  behavioral tier: 2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4, the newest run for trigger hash 788771dbb186, failed: reads-studio-folder: the forbidden effect, or a run without hook events, in 2 of 3 runs (at most 0)". The hash is `main`'s own: this branch changes nothing under `.claude/` or `evals/agent-config/`, nor CLAUDE.md, REVIEW.md, or the Claude Code pin. The failure is now known to be a harness misread, the name check also searching the agent's own prose, and its fix is your patch to `evals/agent-config/behavioral.py`, being built. The rest of `evals` passes as far as it ran: the product evals (1 of 1), the narration suite (44 of 44), and the static tier ("agent-config static: 0 failed, 0 planned").
-- **`matrix` FAIL:** four rows of stage S, "FAIL        stage-S-unwritable    makefile has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai", and the same for `.gitleaksignore`, `.github/workflows`, and `.mcp.json`; "forbidden-actions (hook layer): 791 passed, 4 failed, 51 known gaps". This session's sandbox since its restart, as the bullet above says; on 197dd1d before the restart, and on cb429ca, every row of the matrix passed.
+
+- **`evals` FAIL:** `FAIL  behavioral tier: 2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4, the newest run for trigger hash 788771dbb186, failed: reads-studio-folder: the forbidden effect, or a run without hook events, in 2 of 3 runs (at most 0)`. The hash is `main`'s own: this branch changes nothing under `.claude/` or `evals/agent-config/`, nor CLAUDE.md, REVIEW.md, or the Claude Code pin. The failure is now known to be a harness misread, the name check also searching the agent's own prose, and its fix is your patch to `evals/agent-config/behavioral.py`, being built. The rest of `evals` passes as far as it ran: the product evals (1 of 1), the narration suite (44 of 44), and the static tier ("agent-config static: 0 failed, 0 planned").
+- **`matrix` FAIL:** four rows of stage S, `FAIL        stage-S-unwritable    makefile has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai`, and the same for `.gitleaksignore`, `.github/workflows`, and `.mcp.json`; "forbidden-actions (hook layer): 791 passed, 4 failed, 51 known gaps". This session's sandbox since its restart, as the bullet above says; on 197dd1d before the restart, and on cb429ca, every row of the matrix passed.
 - **The docs' links, the step `evals` didn't reach.** The recipe stops at the behavioral tier's exit, so `evals/docs_links.py`, its last line, didn't run. Run alone on 197dd1d, it gave "docs links: 0 failed, 1503 relative links in 196 files", exit 0: the fourth block below.
 - **`image` SKIP:** "no agents' engine yet: tasks.md T046", from the make argument.
 - **`toolchain-check`'s WARN,** inside its PASS: "claude code 2.1.312 is newer than its floor, 2.1.296 (ADR 0023)", the host's version.
 - **Two rows SKIP inside `matrix`,** as its totals say: "stage S's SMTP row has no usable host; stage E's report is for another engine tree".
 - **The private denylist is hidden from this session,** so `corpus-check` skipped its rule 4, and the resume's C9 and the narration's N3 checked the public list only, as each line says.
 - **Inside `content-check`'s PASS,** the site's build prints Vite's warnings that an import its config loads has no file extension, as on `feat/004-foundation`. Its result: "content check: PASS (45 content files: 0 approved by main, 45 drafts, none of whose text is in dist/)".
-- **Inside `test`:** the gateway's "Tests  810 passed | 12 skipped (822)", the web app's "Test Files  57 passed (57)" and "Tests  1592 passed (1592)", this branch's files among them, and pytest's "3692 passed".
+- **Inside `test`:** the gateway's `Tests  810 passed | 12 skipped (822)`, the web app's `Test Files  57 passed (57)` and `Tests  1592 passed (1592)`, this branch's files among them, and pytest's "3692 passed".
 
 **gitleaks.** `gitleaks dir .`, run from inside a `git archive` export of 197dd1d in `$TMPDIR`, with the export's own `.gitleaks.toml`, which is the gate's form: "no leaks found", exit 0. Its whole output is the third block below, its colour codes taken out. The export is a fresh folder, `/tmp/claude-1000/us1-r-export-197dd1d6`, and nothing was deleted; WSL's next restart clears it. `make check`'s own `secrets` gate also passed over the branch's commits since `main`, and `arrival` gave "arrival-check: 0 findings in 389 files (65 commits)".
 
@@ -187,15 +193,15 @@ Summary of the third run: "make check: 11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 
 
 1. `git diff --stat refs/heads/main...feat/004-us1-composition`
 2. `tools/gates/gate feat/004-us1-composition 2>&1 | tee ~/gate-us1.log`, with the engine up. Expect "Not ready to merge", with `evals FAIL`, and possibly `test FAIL` as on `feat/004-foundation` (below). Keep `~/gate-us1.log`: the container's `test` failure waits on it.
-3. If those are the only failures, and the `test` failure, if any, names none of this branch's test files (`git diff --name-only refs/heads/main...feat/004-us1-composition -- apps/web/test services/gateway/test` lists them), merge by hand, by the SHA in the gate's summary line (`gate: <sha> (feat/004-us1-composition) by tools/gates/gate at …`), with that line, as printed, in the second `-m`:
+3. If those are the only failures, merge by hand, by the SHA in the gate's summary line (`gate: <sha> (feat/004-us1-composition) by tools/gates/gate at …`), with that line, as printed, in the second `-m`. A `test` FAIL lets you do so only if every failing case is outside `apps/web`, in the gateway's suite or pytest's, whose source this branch doesn't touch, or if the same cases fail in the gate's container on `main`. Otherwise hold the merge, and investigate with `~/gate-us1.log`: this branch rewrites `apps/web/src/room/**` and `apps/web/build/room/**`, which many tests it doesn't edit exercise, so a failing case under `apps/web` may be this branch's.
 
    ```text
-   git --no-replace-objects merge --no-ff -m "Merge feat/004-us1-composition (<sha12>)" -m '<the gate's summary line>' -m "Merged by hand. evals FAIL: main's own recorded behavioral run 2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4 for trigger hash 788771dbb186 (reads-studio-folder), a harness misread; this branch touches no agent-config path, so the gate's agent-config-evals step was SKIP. test FAIL: the container's make test, failing as on feat/004-foundation since that merge, on none of this branch's test files; every run outside the container passes. Every other step passed." <sha>
+   git --no-replace-objects merge --no-ff -m "Merge feat/004-us1-composition (<sha12>)" -m '<the gate's summary line>' -m "Merged by hand. evals FAIL: main's own recorded behavioral run 2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4 for trigger hash 788771dbb186 (reads-studio-folder), a harness misread; this branch touches no agent-config path, so the gate's agent-config-evals step was SKIP. test FAIL: the container's make test, failing as on feat/004-foundation since that merge, with every failing case outside apps/web, in the gateway's or pytest's suite, whose source this branch doesn't touch; every run outside the container passes. Every other step passed." <sha>
    ```
 
-   Without a `test` FAIL, leave out the sentence on `test`. With any other failure, don't merge: that one is this branch's.
+   If the `test` FAIL's cases are instead the ones the gate's container fails on `main`, say that in the `test` sentence: "test FAIL: the container's make test, failing on the same cases as the gate's container on main; every run outside the container passes." Without a `test` FAIL, leave out the sentence on `test`. With any other failure, don't merge: that one is this branch's.
 
-4. Q3's Author runs on dev, after `make up ENV=dev`, which is heavy, so run it when no agents are running, at `http://127.0.0.1:18105/`. Run 2: the Author's cube, as Q3 words it, but for the visitor, who stands at x −0.7, left of where D3 put it (FR-080, T304), so more of the monitor shows and a human visitor hides most of the snowboard. Run 3: on the desktop, the snowboard, the chalkboard, and the bicycle each open their topic's message; in device mode and in the 2D room, at stages where the report lists a board as list-only (the chalkboard at 1,268 stages in 3D and 1,612 in 2D, the snowboard at 39 and 146, each from 304 × 208), it selects nothing when tapped and is chosen from "In the room". Run 1, "until FR-078's layout lands", is the room at 827c04f, T095's data commit, which T099 measured within 1 mm of spec 002's layout; at the merged tip the room is the cube. `flat-failed`'s line shows only where the 2D drawing can't be drawn, which dev's data never makes; its test is T305's.
+4. Q3's Author runs on dev, after `make up ENV=dev`, which is heavy, so run it when no agents are running, at `http://127.0.0.1:18105/`. Run 2: the Author's cube, as Q3 words it, but for the visitor, who stands at x −0.7, left of where D3 put it (FR-080, T304), so more of the monitor shows and a human visitor hides most of the snowboard. Choose the dinosaur too: at x −0.7 its tail passes through the left wall (I1, above), which stays so, as you decided ("a is fine"), until your lookdev check settles the visitor's spot. Run 3: on the desktop, the snowboard, the chalkboard, and the bicycle each open their topic's message; in device mode and in the 2D room, at stages where the report lists a board as list-only (the chalkboard at 1,268 stages in 3D and 1,612 in 2D, the snowboard at 39 and 146, each from 304 × 208), it selects nothing when tapped and is chosen from "In the room". Run 1, "until FR-078's layout lands", is the room at 827c04f, T095's data commit, which T099 measured within 1 mm of spec 002's layout; at the merged tip the room is the cube. `flat-failed`'s line shows only where the 2D drawing can't be drawn, which dev's data never makes; its test is T305's.
 
 **What the gate is likely to show.** Its own `agent-config-evals` step SKIPs, since the branch touches none of its triggers ("the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, evals/agent-config/, …", `tools/gates/gate` on `main`, line 1637). But its container phase runs `make evals` in the export, whose behavioral tier reads `main`'s recorded run for 788771dbb186, which failed, as `make check`'s `evals` line below shows, and the gate exits 0 only "with no FAIL or PENDING" (line 115). So it ends "Not ready to merge" on that step, which is `main`'s run, not this branch's: `main` took `feat/004-setup` and `feat/004-foundation` by hand on the same failure (f261bfa, a309baa). Its container `make test` failed on `feat/004-foundation` for a cause not yet known, while every run outside the container passes, this branch's above among them; if it fails here, its failing cases are what `~/gate-us1.log` holds for that investigation. For the same reason as `evals`, the gate's `make evals` never reaches the docs' links, so the fourth block below is that check for this branch. If the gate shows any other failure, don't merge: that one is this branch's.
 
@@ -203,13 +209,19 @@ Summary of the third run: "make check: 11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 
 
 - The gateway's connect-watchdog case (`services/gateway/test/contract/local-openai.errors.test.ts`, `failure()`) times itself by `Date.now()`, so a step of the wall clock fails it with a negative duration, as it did here once (−685 ms); `performance.now()` would hold it. A change to a gateway test, for a later branch.
 - `make evals` still runs the docs' links after the behavioral tier's status, as `feat/004-foundation`'s note has it.
+- A compositor check, in the RG family, that keeps a figure inside the room's shell, or the cut-out clipped at the walls (I1: at x −0.7 the dinosaur's tail passes through the left wall, and the dog's by about 3 cm).
+- `flat-failed`'s line announced through the room's announcer when it follows the visitor's "2D view", so a screen reader hears it then (WCAG 4.1.3); FR-081 is met as written.
+- The stand-in note, "Placeholder shapes stand in for the room's pieces until their models arrive", still shows over a stage that draws nothing once the drawing fails.
+- A test that the AI disclosure stays visible on the flat-failed screen (FR-081, SC-007).
+- A telemetry signal of its own for a failed drawing, which the room now reports as any fall to 2D, `mode_2d`: a spec-level change, since the event kinds are a closed list.
+- For the Author: FR-081's words say "The list below still works.", while in landscape the "In the room" list sits beside the stage, not below it.
 
 **Repo hooks, this session:** active. `.claude/audit/hooks.log` shows this session's Bash commands from 2026-11-07T03:19Z on, each ALLOW but one BLOCK, and its writes, each ALLOW, to scratch files outside the repository and to the files this section's commits name. Two refusals:
 
 - the bash gate's BLOCK, at 03:25:09Z, "changing main (HEAD is main)", of the rebase, while the main checkout stood on `main` for df2dcf4 (above). The same command ran once the checkout was parked again.
 - Claude Code's own permission check refused a `git diff` after a `cd` into the worktree by `$TMPDIR`: "git reads '85747fe…' after a cd whose target cannot be resolved, and a deny rule (//srv/studio/photos/**) names that file under a directory it may run in". The same reads then ran with `git -C` and the worktree's literal path, which the check can resolve, rather than through a `cd`.
 
-The post-edit hook formatted the session's scratch files outside the repository, which nothing commits, and flagged one lint problem in one of them (ruff's FURB167), fixed in the next edit. This update was written into the note and tasks.md by a script that copied each output from its log, so each block is whole.
+The post-edit hook formatted the session's scratch files outside the repository, which nothing commits, and flagged one lint problem in one of them, `/tmp/claude-1000/us1-r-ref/splice.py` (ruff's FURB167, the post-edit WARN at 04:10:14Z), fixed in the next edit. hooks.log holds every session's records: between 03:19Z and this round's first commit it holds three other post-edit WARNs, on other sessions' files (another session's scratch script at 03:35:44Z and 03:35:53Z, and `/tmp/claude-1000/wt-fu-wip`'s `citations.test.ts` at 03:57:16Z), which this session never touched. This update was written into the note and tasks.md by a script that copied each output from its log, so each block is whole. The review's fixes were made by a second script, and prettier then formatted the whole note, run with `--ignore-path /dev/null` since `.prettierignore` holds `docs/`: it aligned the tables, set a few blank lines and blockquote markers, and trimmed the trailing spaces of two pytest lines in the older `make check` block; the quotes of output whose runs of spaces matter are code spans, which it leaves as they are.
 
 ```text
 # make check ENGINE_MODE=none-yet in /tmp/claude-1000/wt-us1-r on feat/004-us1-composition at 197dd1d6, 2026-11-07T04:03:48Z
@@ -920,7 +932,7 @@ docs links: 0 failed, 1503 relative links in 196 files
 docs_links exit: 0
 ```
 
-The rest of this note is as it stood at 58c22d5, its SHAs the old ones (the table above maps them), but for four pointers to this section: under "Runs in the Author's terminal", under Verification's last line, under "Rebase plan (T118, I4)", and in For the Author, items 1 and 2.
+The rest of this note is as it stood at 58c22d5, its SHAs the old ones (the table above maps them), but for these additions, each dated 2026-11-06: pointers to this section under "Runs in the Author's terminal", under Verification's last line, and under "Rebase plan (T118, I4)"; `main`'s caps under "What changed and why" and in Measurements' report; this round's review, first under Review; and For the Author, items 1, with the dinosaur's tail and the Author's decision, and 2.
 
 **Status: reviewed, APPROVE with fixes, no blocker.** Every fix is made, and each was written test first (RED 7de0abf, then GREEN). The merge waits for `spec/004-cube-amend`, M9, P-10, and M8 (P-7), and for the rebase in T118. The `make check` run ends with three FAILs, and all three are environmental or pre-existing: toolchain-check (the Claude Code pin), policy (the web image's digest pin), and test (the four pytest cases the foundation's note records). See Verification. Several decisions are the Author's, and they are under For the Author.
 
@@ -954,7 +966,7 @@ What this branch does, in plain terms:
 
 The branch is 69 commits on top of `85747fe`. The diff is 140 files, with 12,802 insertions and 1,527 deletions. 100 files are under `apps/web/`, 18 under `docs/studio/`, 11 under `services/gateway/` (all tests), 7 under `specs/004-room-composition/`, 2 under `docs/merge-requests/`, and 2 under `config/`. No gateway source changes.
 
-Every model stays a stand-in. `main` has no room models or caps, so the report draws each piece as a stand-in (FR-053's starting figures).
+Every model stays a stand-in. `main` has no room models or caps, so the report draws each piece as a stand-in (FR-053's starting figures). **2026-11-06:** `main` has the room's caps now (P-6, 865b059), and still no room models, so every piece stays a stand-in and the report reads main's caps (the section at the top).
 
 ## Acceptance criteria
 
@@ -984,16 +996,16 @@ This branch serves the parts of the spec below that are listed as met. The parti
 
 ## Constitution check
 
-| Principle | Touched? | How it complies |
-| --- | --- | --- |
-| I. Data-local by default | Yes | No new flow. The chalkboard's ID goes through the existing room-event beacon (disclosure row V4). No photo, model, or room file leaves the visitor's device on this branch. |
-| II. Production-grade or not shipped | Yes | Tests first, with the exceptions said plainly under RED and GREEN. $0 at run time. The room-event path already has its telemetry, and this branch adds no endpoint. |
-| III. Intent before spec, spec before code, humans merge | Yes | The work follows tasks.md T089 to T119 and T292 to T303. Departures are in plan.md §10 (the list is under Plan §10 departures below). The side-wall rule follows the Author's answer, and the amendment's spec branch merges first. |
-| IV. Least privilege for humans and agents alike | Yes | No permission, sandbox domain, deny, or human-only path changes. The file list is under Security and agent governance. |
-| V. Cost is a first-class signal | Yes | $0 at run time. No model call is added. A topic with no corpus material calls nothing (FR-037). |
-| VI. Build in public, including failures | Yes | The RED runs, the GREEN runs, the review's findings, the superseded commit messages, and the failing `make check` lines are all in this note. |
-| VII. Own the whole product, and say exactly what you owned | Yes | The cube's words are the Author's, and they are quoted in spec.md's Clarifications. The metric sizes are a conversion. This note makes no claim about the Author's role or the agents' share of the work. |
-| VIII. Honest AI | Yes | No change to what the twin says. The chalkboard's topic reaches the twin through the existing conversation path, and the fixed message applies where there is no corpus (FR-037). |
+| Principle                                                  | Touched? | How it complies                                                                                                                                                                                                                     |
+| ---------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. Data-local by default                                   | Yes      | No new flow. The chalkboard's ID goes through the existing room-event beacon (disclosure row V4). No photo, model, or room file leaves the visitor's device on this branch.                                                         |
+| II. Production-grade or not shipped                        | Yes      | Tests first, with the exceptions said plainly under RED and GREEN. $0 at run time. The room-event path already has its telemetry, and this branch adds no endpoint.                                                                 |
+| III. Intent before spec, spec before code, humans merge    | Yes      | The work follows tasks.md T089 to T119 and T292 to T303. Departures are in plan.md §10 (the list is under Plan §10 departures below). The side-wall rule follows the Author's answer, and the amendment's spec branch merges first. |
+| IV. Least privilege for humans and agents alike            | Yes      | No permission, sandbox domain, deny, or human-only path changes. The file list is under Security and agent governance.                                                                                                              |
+| V. Cost is a first-class signal                            | Yes      | $0 at run time. No model call is added. A topic with no corpus material calls nothing (FR-037).                                                                                                                                     |
+| VI. Build in public, including failures                    | Yes      | The RED runs, the GREEN runs, the review's findings, the superseded commit messages, and the failing `make check` lines are all in this note.                                                                                       |
+| VII. Own the whole product, and say exactly what you owned | Yes      | The cube's words are the Author's, and they are quoted in spec.md's Clarifications. The metric sizes are a conversion. This note makes no claim about the Author's role or the agents' share of the work.                           |
+| VIII. Honest AI                                            | Yes      | No change to what the twin says. The chalkboard's topic reaches the twin through the existing conversation path, and the fixed message applies where there is no corpus (FR-037).                                                   |
 
 ## Security and agent governance
 
@@ -1011,26 +1023,26 @@ Nothing under `.claude/`, `tools/gates/`, `REVIEW.md`, `CLAUDE.md`, `.specify/me
 
 **RED.** tasks.md's Prerequisites set the rule: "In each phase the test tasks come first and must fail (RED) before the code that makes them pass; each merge-request note records the RED and GREEN runs." The RED commits and what their messages record:
 
-| Task | RED commit | What the RED run showed (from the commit message) | GREEN commit |
-| --- | --- | --- | --- |
-| T090 | 1bd2171 | `bundle3d.ts` doesn't exist; `scene.test.ts` fails to load. No count. | 1111733, b48a3fc |
-| T091 | 2f69862 | The modules don't exist (1 failed file). | 9e387ec |
-| T092 | 7299b60 | 11 fail (`selectablePicker`, the digest checks, the hand offsets). | b48a3fc |
-| T093, T094 (manifest half) | d03bd22 | 9 of 1420 fail, waiting for T096 and T098. | 02d92b4 |
-| T094 (compose half) | 0887c90 | The tree has no room data yet. No count. | b3fea0e |
-| T101 | e4d4591, with cf106af and 1b42e00 as its test fixes | The compose half passed on arrival. The runtime half was `it.fails` until T109 and T110; dc4aa0d made it plain. No count. | 8a3f165, 69c3cc9 |
-| T102 | e4d4591 | `config/room-topics.yaml` and `docs/studio/` don't exist; the events file has spec 002's header. | 580c9e4 |
-| T103 | 5fab94c, d50dfe3 | 1 of 19 fails (5fab94c); 19 of 19 fail (d50dfe3). | 8a3f165, 4c0862f |
-| T104, T105 | 5f92463 | 5 of 44 fail. | 69c3cc9 |
-| T106 | abeaea0, 5ac86ac | No count. The scan's hits under `services/gateway/` fall from 47 to 20 to 0, with apps/web's 46 left for T112. | test commits |
-| T107 | e4d4591 | The scan finds 93 hits; it was `it.fails` until T112. | 689c414, 19268c5 |
-| T111 | 8559fbd | The module doesn't exist; tsc refuses the import. | 2331dc1 |
-| T97 (lookdev page-5 fix) | 4eea499 | The ink lines were about 0.003 px. No count. | f432cae |
-| T112 | c6137e1 | No count. | 689c414 |
-| Visitor turns to take the paper (FR-008, the Author's words of 2026-10-23) | a65a3fb | 8 cases fail. | 0d4cd27 |
-| T292 to T295, and T301's framing (cube amendment) | 01ca787 | 45 of 448 cases fail in 12 files, against the cherry-picked code. | 71b3d35 (T296 to T299, T301) |
-| T303 (Author's answer (b)) | 5688997 | 36 of 364 cases fail in 9 files, against T296's code. | bf7d3b4 |
-| Review fixes (T116) | 7de0abf | 34 of 1,592 cases fail in 11 files, against bf7d3b4's code. | 41d7031, cd5f1f6, 9e7b63a |
+| Task                                                                       | RED commit                                          | What the RED run showed (from the commit message)                                                                         | GREEN commit                 |
+| -------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| T090                                                                       | 1bd2171                                             | `bundle3d.ts` doesn't exist; `scene.test.ts` fails to load. No count.                                                     | 1111733, b48a3fc             |
+| T091                                                                       | 2f69862                                             | The modules don't exist (1 failed file).                                                                                  | 9e387ec                      |
+| T092                                                                       | 7299b60                                             | 11 fail (`selectablePicker`, the digest checks, the hand offsets).                                                        | b48a3fc                      |
+| T093, T094 (manifest half)                                                 | d03bd22                                             | 9 of 1420 fail, waiting for T096 and T098.                                                                                | 02d92b4                      |
+| T094 (compose half)                                                        | 0887c90                                             | The tree has no room data yet. No count.                                                                                  | b3fea0e                      |
+| T101                                                                       | e4d4591, with cf106af and 1b42e00 as its test fixes | The compose half passed on arrival. The runtime half was `it.fails` until T109 and T110; dc4aa0d made it plain. No count. | 8a3f165, 69c3cc9             |
+| T102                                                                       | e4d4591                                             | `config/room-topics.yaml` and `docs/studio/` don't exist; the events file has spec 002's header.                          | 580c9e4                      |
+| T103                                                                       | 5fab94c, d50dfe3                                    | 1 of 19 fails (5fab94c); 19 of 19 fail (d50dfe3).                                                                         | 8a3f165, 4c0862f             |
+| T104, T105                                                                 | 5f92463                                             | 5 of 44 fail.                                                                                                             | 69c3cc9                      |
+| T106                                                                       | abeaea0, 5ac86ac                                    | No count. The scan's hits under `services/gateway/` fall from 47 to 20 to 0, with apps/web's 46 left for T112.            | test commits                 |
+| T107                                                                       | e4d4591                                             | The scan finds 93 hits; it was `it.fails` until T112.                                                                     | 689c414, 19268c5             |
+| T111                                                                       | 8559fbd                                             | The module doesn't exist; tsc refuses the import.                                                                         | 2331dc1                      |
+| T97 (lookdev page-5 fix)                                                   | 4eea499                                             | The ink lines were about 0.003 px. No count.                                                                              | f432cae                      |
+| T112                                                                       | c6137e1                                             | No count.                                                                                                                 | 689c414                      |
+| Visitor turns to take the paper (FR-008, the Author's words of 2026-10-23) | a65a3fb                                             | 8 cases fail.                                                                                                             | 0d4cd27                      |
+| T292 to T295, and T301's framing (cube amendment)                          | 01ca787                                             | 45 of 448 cases fail in 12 files, against the cherry-picked code.                                                         | 71b3d35 (T296 to T299, T301) |
+| T303 (Author's answer (b))                                                 | 5688997                                             | 36 of 364 cases fail in 9 files, against T296's code.                                                                     | bf7d3b4                      |
+| Review fixes (T116)                                                        | 7de0abf                                             | 34 of 1,592 cases fail in 11 files, against bf7d3b4's code.                                                               | 41d7031, cd5f1f6, 9e7b63a    |
 
 **GREEN.** The web workspace passes at the tip: 57 files, 1592 tests. The gateway passes: 51 files, 789 passed and 12 skipped. Both counts are in the final checks under Verification. The GREEN for each RED is in the table above.
 
@@ -1042,6 +1054,13 @@ Nothing under `.claude/`, `tools/gates/`, `REVIEW.md`, `CLAUDE.md`, `.specify/me
 - The messages for T094 (compose half), T097, T106, and T112 give no failing count.
 
 ## Review
+
+**2026-11-06, the rebase and the 2026-10-30 answers (ff89036): APPROVE with fixes, no blocker.** A separate reviewer, who wrote none of this round, reviewed the branch at ff89036 and this note. It verified the rebase's checks (the ten drops, the kept commits' lines, and the spec folder differing from `main` by ticks and §10 entries alone), cb429ca's single line in each work order, T304 as a data edit only, T305's RED and GREEN, FR-081's exact words, and the new line's assistive-technology and content security policy checks. Findings, and what was done:
+
+- **I1, important: the dinosaur's tail passes through the left wall at x −0.7.** At z 0.58 its tip stands at world x ≈ −1.25, the avatar's tail reaching 0.55 m to its left, beyond the wall's inner face at x −1.0668, which runs forward to z 0.6096. The review measured about 44 CSS px of it past the wall's front edge on the reference desktop, 24 px on the reference phone, and about 30 px in 2D, and the dog's tail passes the wall by about 3 cm; at z 0.58 the dinosaur fits inside the wall only for x ≥ −0.517. The options were (a) keep x −0.7 until the Author's lookdev check (T309, T311) settles it; (b) move the visitor forward to z ≈ 0.64 or more, in front of the wall's front edge, which moves the camera and the occlusion figures again; or (c) another x. The Author answered (a): "a is fine" (2026-11-06). x −0.7 stays until his lookdev check (T309, T311) settles the visitor's spot; T304's part of the section at the top and For the Author, item 1, record it, step 4's Run 2 asks him to choose the dinosaur on dev, and the section's backlog takes a compositor check that keeps a figure inside the shell, or clipping at the walls.
+- **I2, important: T119's step 3 let a container `test` FAIL through too easily.** It merged by hand when no failing case was in this branch's test files, but this branch rewrites `apps/web/src/room/**` and `apps/web/build/room/**`, which many tests it doesn't edit exercise. Step 3 now merges by hand only if every failing case is outside `apps/web`, in the gateway's suite or pytest's, whose source this branch doesn't touch, or if the same cases fail in the gate's container on `main`, and otherwise holds the merge for an investigation with `~/gate-us1.log`; the merge command's reason line matches.
+- **Five nits,** each in the section's backlog: `flat-failed`'s line announced when it follows the "2D view" (WCAG 4.1.3; FR-081 is met as written); the stand-in note over a stage that draws nothing; a test that the AI disclosure stays visible on the flat-failed screen (FR-081, SC-007); a telemetry signal of its own for a failed drawing (spec-level, the event kinds being a closed list); and, for the Author, FR-081's "The list below" while in landscape the list sits beside the stage.
+- **The note's record:** the hooks paragraph counted one post-edit warning where hooks.log holds four in its window, three of them other sessions'; and "What changed and why" still said `main` has no caps. Both now say what the log and `main` hold.
 
 **Verdict: APPROVE with fixes. No blocker in any slice.** Four reviewer agents each took one slice of `git diff 85747fe bf7d3b4`. None of them wrote any of the branch, and each covered REVIEW.md's four passes for its slice. The fixes are bf7d3b4..73d4527, made test first (RED 7de0abf, then GREEN commits that change no test). The full record is in `/tmp/claude-1000/-home-h4reet-h4reet-ai-h4reet-ai/a2c7a863-b242-4706-8e2f-717ec5e905d8/scratchpad/us1-review-summary.md`.
 
@@ -1072,17 +1091,17 @@ Findings, and what was done:
 
 T099 is the one-off comparison of R-07. The script was a throwaway test file in a detached worktree of 1011b12 (today's room as data, T095), which was never committed and was deleted after the run. It ran on 2026-10-26. Each box `compose()` places was measured by the kernel's transform against spec 002's `LAYOUT`, and the framed boxes against spec 002's `FRAMED`. The result, from `/tmp/claude-1000/feat-004-us1/final/t099.txt`:
 
-| Placement | LAYOUT box | compose()'s box (expected bounds, world) | Largest difference | Within 1 mm | Framed box, with the label, against LAYOUT's framed box |
-| --- | --- | --- | --- | --- | --- |
-| `work-desk` (LAYOUT.desk) | (-0.7500, 0.0000, -1.8000) to (0.9500, 0.7500, -1.1000) | (-0.7500, 0.0000, -1.8000) to (0.9500, 0.7500, -1.1000) | 0.0000 mm | yes | 0.0000 mm |
-| `laptop` (LAYOUT.laptop) | (-0.4300, 0.7500, -1.4800) to (-0.0700, 0.9800, -1.2200) | (-0.4300, 0.7500, -1.4800) to (-0.0700, 0.9800, -1.2200) | 0.0000 mm | yes | 0.0000 mm |
-| `desk-screen` (LAYOUT.screen) | (0.0800, 0.7500, -1.7000) to (0.7200, 1.2900, -1.5400) | (0.0800, 0.7500, -1.7000) to (0.7200, 1.2900, -1.5400) | 0.0000 mm | yes | 0.0000 mm |
-| `snowboard` (LAYOUT.snowboard) | (-2.4600, 0.6750, -1.9700) to (-2.1400, 2.2250, -1.9100) | (-2.4600, 0.6750, -1.9700) to (-2.1400, 2.2250, -1.9100) | 0.0000 mm | yes | 0.0000 mm |
-| `bicycle` (LAYOUT.bicycle) | (1.6200, 1.2200, -1.9500) to (2.8800, 1.9800, -1.8500) | (1.6200, 1.2200, -1.9500) to (2.8800, 1.9800, -1.8500) | 0.0000 mm | yes | 0.0000 mm |
-| `wall-window` (LAYOUT.window) | (0.5000, 1.5000, -2.0000) to (1.4000, 2.2000, -1.9400) | (0.5000, 1.5000, -2.0000) to (1.4000, 2.2000, -1.9400) | 0.0000 mm | yes | 0.0000 mm |
-| `wall-art` (LAYOUT.artwork) | (0.6000, 2.3500, -1.9900) to (1.3000, 2.7500, -1.9500) | (0.6000, 2.3500, -1.9900) to (1.3000, 2.7500, -1.9500) | 0.0000 mm | yes | 0.0000 mm |
-| `twin-figure` (LAYOUT.twin) | (-1.2300, 0.0000, -1.5000) to (-0.6700, 1.7500, -1.1000) | (-1.2300, 0.0000, -1.5000) to (-0.6700, 1.7500, -1.1000) | 0.0000 mm | yes | 0.0000 mm |
-| `visitor-figure` (LAYOUT.visitor) | (0.4500, 0.0000, -0.3750) to (1.5500, 1.7400, -0.3250) | (0.4500, 0.0000, -0.3750) to (1.5500, 1.7400, -0.3250) | 0.0000 mm | yes | 0.0000 mm |
+| Placement                         | LAYOUT box                                               | compose()'s box (expected bounds, world)                 | Largest difference | Within 1 mm | Framed box, with the label, against LAYOUT's framed box |
+| --------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- | ------------------ | ----------- | ------------------------------------------------------- |
+| `work-desk` (LAYOUT.desk)         | (-0.7500, 0.0000, -1.8000) to (0.9500, 0.7500, -1.1000)  | (-0.7500, 0.0000, -1.8000) to (0.9500, 0.7500, -1.1000)  | 0.0000 mm          | yes         | 0.0000 mm                                               |
+| `laptop` (LAYOUT.laptop)          | (-0.4300, 0.7500, -1.4800) to (-0.0700, 0.9800, -1.2200) | (-0.4300, 0.7500, -1.4800) to (-0.0700, 0.9800, -1.2200) | 0.0000 mm          | yes         | 0.0000 mm                                               |
+| `desk-screen` (LAYOUT.screen)     | (0.0800, 0.7500, -1.7000) to (0.7200, 1.2900, -1.5400)   | (0.0800, 0.7500, -1.7000) to (0.7200, 1.2900, -1.5400)   | 0.0000 mm          | yes         | 0.0000 mm                                               |
+| `snowboard` (LAYOUT.snowboard)    | (-2.4600, 0.6750, -1.9700) to (-2.1400, 2.2250, -1.9100) | (-2.4600, 0.6750, -1.9700) to (-2.1400, 2.2250, -1.9100) | 0.0000 mm          | yes         | 0.0000 mm                                               |
+| `bicycle` (LAYOUT.bicycle)        | (1.6200, 1.2200, -1.9500) to (2.8800, 1.9800, -1.8500)   | (1.6200, 1.2200, -1.9500) to (2.8800, 1.9800, -1.8500)   | 0.0000 mm          | yes         | 0.0000 mm                                               |
+| `wall-window` (LAYOUT.window)     | (0.5000, 1.5000, -2.0000) to (1.4000, 2.2000, -1.9400)   | (0.5000, 1.5000, -2.0000) to (1.4000, 2.2000, -1.9400)   | 0.0000 mm          | yes         | 0.0000 mm                                               |
+| `wall-art` (LAYOUT.artwork)       | (0.6000, 2.3500, -1.9900) to (1.3000, 2.7500, -1.9500)   | (0.6000, 2.3500, -1.9900) to (1.3000, 2.7500, -1.9500)   | 0.0000 mm          | yes         | 0.0000 mm                                               |
+| `twin-figure` (LAYOUT.twin)       | (-1.2300, 0.0000, -1.5000) to (-0.6700, 1.7500, -1.1000) | (-1.2300, 0.0000, -1.5000) to (-0.6700, 1.7500, -1.1000) | 0.0000 mm          | yes         | 0.0000 mm                                               |
+| `visitor-figure` (LAYOUT.visitor) | (0.4500, 0.0000, -0.3750) to (1.5500, 1.7400, -0.3250)   | (0.4500, 0.0000, -0.3750) to (1.5500, 1.7400, -0.3250)   | 0.0000 mm          | yes         | 0.0000 mm                                               |
 
 Every box is within 1 mm of LAYOUT's, to 1e-4 mm. The strict run lists six RG2 findings on 1011b12's own stand-in shapes, which sit outside their pieces' bounds. The tip composes with none of them, and they don't touch the boxes compared.
 
@@ -1099,12 +1118,12 @@ Two points of the report read against these numbers. The report counts every lis
 
 **The core margins and the slate's foreshortening**, from the implementing session's measurement at 628c633 (its report to the main session, 2026-10-26; the left wall and the camera haven't moved since, and the review's release pass, C1, changed none of the cube's list-only stages). Core margins in CSS pixels, negative where the core is short:
 
-| Board | Desktop | Phone | 304 × 208 | 304 × 640 | 304 × 248 | 312 × 208 | 304 × 624 | 312 × 224 | 320 × 640 |
-|---|---|---|---|---|---|---|---|---|---|
-| Snowboard, 3D | 89.2 | 40.4 | -0.7 | 23.7 | 7.6 | -0.7 | 24.6 | 2.6 | 29.2 |
-| Snowboard, 2D | 45.3 | 3.9 | -4.5 | -4.5 | -4.5 | -3.4 | -4.5 | -3.4 | -2.4 |
-| Chalkboard, 3D | 18.1 | -6.7 | -23.8 | -26.8 | -19.9 | -23.8 | -26.3 | -22.2 | -24.9 |
-| Chalkboard, 2D | -2.3 | -21.7 | -25.6 | -25.6 | -25.6 | -25.1 | -25.6 | -25.1 | -24.6 |
+| Board          | Desktop | Phone | 304 × 208 | 304 × 640 | 304 × 248 | 312 × 208 | 304 × 624 | 312 × 224 | 320 × 640 |
+| -------------- | ------- | ----- | --------- | --------- | --------- | --------- | --------- | --------- | --------- |
+| Snowboard, 3D  | 89.2    | 40.4  | -0.7      | 23.7      | 7.6       | -0.7      | 24.6      | 2.6       | 29.2      |
+| Snowboard, 2D  | 45.3    | 3.9   | -4.5      | -4.5      | -4.5      | -3.4      | -4.5      | -3.4      | -2.4      |
+| Chalkboard, 3D | 18.1    | -6.7  | -23.8     | -26.8     | -19.9     | -23.8     | -26.3     | -22.2     | -24.9     |
+| Chalkboard, 2D | -2.3    | -21.7 | -25.6     | -25.6     | -25.6     | -25.1     | -25.6     | -25.1     | -24.6     |
 
 The chalkboard's slate on the side wall shows 44.6 × 184.0 px on the reference desktop and 26.8 × 115.2 px on the phone: a glyph comes out about 31 to 32% as wide, for its cap height, as it would seen square on. RG7 measures cap height, which passes; the narrowness is a look judgement for lookdev (SC-010), named under "For the Author".
 
@@ -1115,24 +1134,24 @@ The report, `npm run room:report -w apps/web` at the tip, is in `/tmp/claude-100
 - Per piece, the largest against the caps: 0 of 2,500,000 gzip-9 bytes, and 0 of 40,000 triangles.
 - Scene texture memory: 59,472,270 of 96,000,000 bytes (models 58,807,632, image cards 0, avatars 0, live-face canvases 664,638).
 - First visit, the room's share: 0 gzip-9 bytes of placed models and cards, beside the design's estimate of 12,000,000. The enforced limit is spec 003's phase-3 first visit, 25,000,000.
-- The bundle is e32fddc27ece0cc8, a release build. The caps are FR-053's starting figures, because `main` has no room caps.
+- The bundle is e32fddc27ece0cc8, a release build. The caps are FR-053's starting figures, because `main` has no room caps. (2026-11-06: `main` has them now; the section at the top gives the report after the rebase.)
 
 The two sections the template asks for follow, from the report as printed.
 
 **Legibility (FR-052, SC-010).**
 
-| Face | Readable | Desktop | Phone | Floor | Margin | Status |
-|---|---|---:|---:|---:|---:|---|
-| `neon-sign.word` | yes | 17.0 px | 10.7 px | 9 | 1.7 px | readable |
-| `neon-sign.call` | yes | 11.2 px | 7.1 px | 9 | -1.9 px | exempt on the phone, carried by the text copy's "Around the room" |
-| `neon-sign.visit` | yes | 11.2 px | 7.1 px | 9 | -1.9 px | exempt on the phone, carried by the text copy's "Around the room" |
-| `neon-sign.second-line` | no | 5.9 px | 3.7 px | 9 | -5.3 px | atmosphere (max 43) |
+| Face                    | Readable | Desktop |   Phone | Floor |  Margin | Status                                                            |
+| ----------------------- | -------- | ------: | ------: | ----: | ------: | ----------------------------------------------------------------- |
+| `neon-sign.word`        | yes      | 17.0 px | 10.7 px |     9 |  1.7 px | readable                                                          |
+| `neon-sign.call`        | yes      | 11.2 px |  7.1 px |     9 | -1.9 px | exempt on the phone, carried by the text copy's "Around the room" |
+| `neon-sign.visit`       | yes      | 11.2 px |  7.1 px |     9 | -1.9 px | exempt on the phone, carried by the text copy's "Around the room" |
+| `neon-sign.second-line` | no       |  5.9 px |  3.7 px |     9 | -5.3 px | atmosphere (max 43)                                               |
 
 **Side-wall selectables (FR-064).** The room draws no pick area for them at the stages named, and the "In the room" list reaches them.
 
-| Selectable | 3D | 2D |
-|---|---|---|
-| `snowboard` (left-wall) | list-only at 304 × 208 and 38 others | list-only at 304 × 208 and 145 others |
+| Selectable               | 3D                                     | 2D                                     |
+| ------------------------ | -------------------------------------- | -------------------------------------- |
+| `snowboard` (left-wall)  | list-only at 304 × 208 and 38 others   | list-only at 304 × 208 and 145 others  |
 | `chalkboard` (left-wall) | list-only at 304 × 208 and 1113 others | list-only at 304 × 208 and 1611 others |
 
 The report also prints the laptop's switch cases and poses (apart on both reference stages) and "Findings: none."
@@ -1148,6 +1167,7 @@ The full summary is in `/tmp/claude-1000/feat-004-us1/final/t115.md`, and the wh
 > ## 2. The proof set by hand
 >
 > The edits, all under `apps/web/room/`:
+>
 > - **The move:** the artwork's mount offset from `[0.8, 1.9, 0.065]` to `[0.78, 1.9, 0.065]` on the back wall.
 > - **The addition:** `catalog/wall-clock.yaml`, a 0.3 m box stand-in, estimated; a placement `wall-clock` on the shell's `right-wall` anchor at `[0.45, 0.25, 0]`, estimated, framed, `label: label.wall-clock`, with its UI word; a selectable `wall-clock`, "Wall clock"; and a topic `room-tour`, "the room itself", quoting the intent, its corpus `corpus/07-room-tour.md`.
 > - **The retarget:** the `bicycle` selectable from `hobbies-and-travel` to `work-projects`.
@@ -1159,6 +1179,7 @@ The full summary is in `/tmp/claude-1000/feat-004-us1/final/t115.md`, and the wh
 > The new piece is a labelled, selectable stand-in: 0 findings; its selectable `{"id":"wall-clock", ...,"side_wall":true}`; its 3D placement labelled, no model, one stand-in shape; its 2D label and hit; the manifest's `standins` giving `no-model`; a work order under `docs/studio/work-orders/`; and its ID in `config/room-events.yaml`. The retargeted `bicycle` keeps its ID and its event (its line in `room-events.yaml` is unchanged; its topic and corpus change in `room-topics.yaml`).
 >
 > `make -f Makefile check ENGINE_MODE=none-yet` on the proof: 7 PASS, 1 SKIP, 2 PLANNED, 3 FAIL.
+>
 > - **toolchain-check: environmental.** Claude Code 2.1.310 against its pin, 2.1.296.
 > - **policy: pre-existing.** deploy/compose.yaml's web image isn't pinned by digest, as feat/004-foundation's note records.
 > - **test: a flake, then the known four.** In make check, one gateway case failed, `test/contract/local-openai.contract.test.ts` C6's 429 case ("expected true to be false"), a timing case, while the determinism builds ran beside it; so npm stopped there and pytest didn't run. The web workspace passed, 1,592 of 1,592, the data-only proof cases with the clock in the room among them. `make -f Makefile test` again on the same proof: the gateway 789 passed and 12 skipped, the web 1,592 passed, and pytest 2,637 passed with 4 failed, the four `tools/gates/test/test_compose_policy.py` failures feat/004-foundation's note records. No source file was touched.
@@ -1317,7 +1338,7 @@ ____________________ test_the_breach_probe_meets_the_policy ____________________
             (f"{cp.COMPOSE_FILE} service {PROBE}", "disclosure")
         ]
 E       AssertionError: assert [('deploy/com...'disclosure')] == [('deploy/com...'disclosure')]
-E         
+E
 E         At index 0 diff: ('deploy/compose.yaml service web', 'image') != ('deploy/compose.yaml service breach-probe', 'disclosure')
 E         Left contains one more item: ('deploy/compose.yaml service breach-probe', 'disclosure')
 E         Use -v to get more diff
@@ -1333,7 +1354,7 @@ _________________ test_the_real_compose_file_passes_as_written _________________
         found = cp.check_model(model, lock, REPO, disclosed)
 >       assert [f for f in found if not f.planned] == []
 E       AssertionError: assert [Finding(wher...sha256:...)')] == []
-E         
+E
 E         Left contains one more item: Finding(where='deploy/compose.yaml service web', rule='image', detail='h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}: not pinned by digest (repository:tag@sha256:...)')
 E         Use -v to get more diff
 
@@ -1687,9 +1708,11 @@ Nothing here blocks the merge. Each item goes to a later task or a later note.
 
 At −0.5 a human visitor still hides about a quarter to a third of the monitor screen's width, and a quarter of each counter face. The dinosaur hides 56% of the screen's width at every position from −0.4 to −0.6. Moving further left trades the monitor for the snowboard, and from −0.55 it widens the frame at narrow stages.
 
-   **Ask:** keep x −0.5, move further left and give up the snowboard's clear view, or accept the position as it was. The branch keeps −0.5 until you say.
+**Ask:** keep x −0.5, move further left and give up the snowboard's clear view, or accept the position as it was. The branch keeps −0.5 until you say.
 
-   **Answered, 2026-10-30:** "Move further left" (spec.md's Clarifications, Session 2026-10-30, US1 · 1). T304 put the visitor at x −0.7; its measured row is in the section at the top.
+**Answered, 2026-10-30:** "Move further left" (spec.md's Clarifications, Session 2026-10-30, US1 · 1). T304 put the visitor at x −0.7; its measured row is in the section at the top.
+
+**The dinosaur's tail, 2026-11-06** (the review's I1): the dinosaur's tail passes through the left wall at x −0.7: at z 0.58 its tip stands at world x ≈ −1.25, the avatar's tail reaching 0.55 m to its left, beyond the wall's inner face at x −1.0668, which runs forward to z 0.6096. The review measured about 44 CSS px of it past the wall's front edge on the reference desktop, 24 px on the reference phone, and about 30 px in 2D, and the dog's tail passes the wall by about 3 cm; at z 0.58 the dinosaur fits inside the wall only for x ≥ −0.517. The options: (a) keep x −0.7 until the Author's lookdev check (T309, T311) settles it; (b) move the visitor forward to z ≈ 0.64 or more, in front of the wall's front edge, which moves the camera and the occlusion figures again; or (c) another x. **Your decision, 2026-11-06: "a is fine".** x −0.7 stays until your lookdev check settles the visitor's spot; on dev, choose the dinosaur to see the tail (T119's step 4, in the section at the top).
 
 2. **R1's missing line for a failed 2D drawing.** If the 2D drawing refuses, the room opens with the list and "Around the room", but no UI word gives a line that says why. data-model.md §6.3 closes the UI words' keys, so the view is left empty. Two choices:
    - Add a UI word. That is a spec change to data-model.md §6.3, through the lifecycle. A suggested line, for you to accept or change, is key `flat-failed` with the text "This drawing of the room could not be shown. The list below still works."
