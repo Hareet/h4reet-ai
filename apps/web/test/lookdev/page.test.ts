@@ -75,12 +75,19 @@ afterEach(() => {
 // --------------------------------------------------------------------------------------------------------------------
 // The page's inputs, a renderer, a window with spies, and createImageBitmap
 // --------------------------------------------------------------------------------------------------------------------
-/** The drafts build's inputs, as compose() gives them over the repository; with `standins`, over the room as it stood
- *  before its models were set (T234), each piece a labelled stand-in. */
+/** The drafts build's inputs, as compose() gives them over the repository, with its room text, as main.ts gives the
+ *  page virtual:room-lookdev's `text`: a face bound to room text draws its words only with it (T308); with
+ *  `standins`, over the room as it stood before its models were set (T234), each piece a labelled stand-in. */
 function inputs(options: { standins?: boolean } = {}): LookdevDeps["inputs"] {
   const bundle = repositoryBundle({ drafts: true, standins: options.standins ?? false });
   if (!bundle.drafts) throw new Error("no drafts modules");
-  return { part: bundle.scene, index: bundle.index, lookdev: bundle.drafts.lookdev, fixtures: bundle.drafts.fixtures };
+  return {
+    part: bundle.scene,
+    index: bundle.index,
+    lookdev: bundle.drafts.lookdev,
+    fixtures: bundle.drafts.fixtures,
+    text: roomTextOf({ room_text: bundle.roomText }),
+  };
 }
 
 /** What the page asked the network for beyond the room's own set models, which the site's page loads from the site's
