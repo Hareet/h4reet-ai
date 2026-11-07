@@ -119,7 +119,10 @@ describe("room-manifest.json (Amendment B7)", () => {
   });
 
   it("says where the caps came from, as the policy read them", () => {
-    expect(composed({ policy: noPolicy() }).manifest.caps).toEqual({ source: "defaults", sha256: null });
+    // No policy at all: FR-053's starting figures, which the room's budgets are over since the studio's hand-back
+    // (T318), so this compose has RK1 and RK3 findings; its manifest still says where the caps came from.
+    const none = compose(fileTree(REPO), noPolicy(), { mode: "lenient", drafts: false });
+    expect(none.manifest.caps).toEqual({ source: "defaults", sha256: null });
     // An empty policy directory: main's caps in a checkout, the tree's own in the gate's container (T327).
     const empty = emptyDirPolicy();
     expect(["main", "export"]).toContain(empty.caps_source);
