@@ -3,8 +3,10 @@
 # each item citing the corpus. It cites the corpus as docs/merge-requests/2026-10-29-corpus-resume-facts.patch leaves it,
 # so the branch it lands on sits on a commit of that patch (corpus/proposals/corpus-additions-2026-10-29.md). Filed for
 # the Author in corpus/proposals/resume-2026-10-29.md (the record of the first draft is
-# corpus/proposals/resume-2026-10-18.md). It is published only when main's assets/policy/content-approvals.json lists
-# this file's SHA-256 (§5).
+# corpus/proposals/resume-2026-10-18.md). Its follow-up of 2026-11-06, the Denver Local AI label and the orchestrator's
+# verb, cites the corpus as docs/merge-requests/2026-11-06-corpus-resume-followup.patch (patch D) leaves it
+# (corpus/proposals/resume-followup-2026-11-06.md). It is published only when main's
+# assets/policy/content-approvals.json lists this file's SHA-256 (§5).
 #
 # Every item cites the corpus sentences it rests on; the build checks each citation (C1–C9, §2), and
 # resume.lock.json pins the corpus files they come from (§3). Any number goes in a {{slot:…}}, which renders only
@@ -137,6 +139,7 @@ sections:
         slots: []
       - id: agent-orchestrator
         text: "On-call agent squad, agent orchestrator (configured): a supervisor over both agents, for knowledgeable summaries of all project and infrastructure incidents: on demand, routinely, and ready to serve to our community."
+        verb: configured
         claims:
           - file: corpus/01-ai-strategy-and-cht.md
             quote: "On-call agent squad: agents on call for the CHT projects Medic hosts, agent-watchdog and claude-medic-aws, with an agent orchestrator over both"
@@ -258,10 +261,12 @@ sections:
             quote: "every data flow disclosed"
         slots: [site.kill_switch_daily]
       - id: denver-local-ai
-        text: "Denver Local AI Solutions (co-owner): private AI for small Denver teams, with sensitive files kept on hardware they own."
+        text: "Denver Local AI Solutions (co-owner, Applied AI Engineer): private AI for small Denver teams, with sensitive files kept on hardware they own."
         claims:
           - file: corpus/07-denver-local-ai.md
             quote: "Hareet co-owns Denver Local AI Solutions with his wife"
+          - file: corpus/07-denver-local-ai.md
+            quote: "co-owner, Applied AI Engineer"
           - file: corpus/07-denver-local-ai.md
             quote: "Private AI for small Denver teams, with sensitive files kept on hardware they own"
         slots: []

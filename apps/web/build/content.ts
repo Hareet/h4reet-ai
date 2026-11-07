@@ -37,8 +37,10 @@ export const DENYLIST_PATH = "corpus/intake/private/denylist.txt";
 export const SURNAME_RULE = "the surname rule";
 const LOCK_HINT = "run npm run content:lock -w apps/web";
 
-/** The corpus's ownership verbs (corpus/README.md, Role precision; data-model.md §2), and "architected", the ruling
- * 02-production-infrastructure-national-scale.md gives the CHT 4.0 architecture ("Ownership: *architected*"). */
+/** The corpus's ownership verbs (corpus/README.md, Role precision; data-model.md §2), "architected", the ruling
+ * 02-production-infrastructure-national-scale.md gives the CHT 4.0 architecture ("Ownership: *architected*"), and
+ * "configured", the Author's verb for technical software (his answer of 2026-10-30; `01`'s ruling for the agent
+ * orchestrator). */
 export const OWNERSHIP_VERBS = [
   "built",
   "designed",
@@ -49,6 +51,7 @@ export const OWNERSHIP_VERBS = [
   "led",
   "was part of a team that",
   "architected",
+  "configured",
 ] as const;
 
 /** The past-tense verbs the corpus uses for the Author's acts beside the ownership verbs (spec 002's narration
@@ -329,7 +332,7 @@ const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The single-word ownership verbs, and any past tense, for carrying a verb across a bullet's alternatives. */
 const verbish = (word: string): boolean =>
-  ["built", "led", "sourced", "sponsored", "designed", "co-authored", "architected"].includes(word) ||
+  ["built", "led", "sourced", "sponsored", "designed", "co-authored", "architected", "configured"].includes(word) ||
   /[a-z]ed$/.test(word);
 
 /** A "Do not claim" bullet's key phrases: its text up to the first clause break, without "That" or its subject, then
