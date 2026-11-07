@@ -65,6 +65,30 @@ def test_no_cookie_ever_leaves_the_site() -> None:
     assert location("/").one("proxy_hide_header").args == ["Set-Cookie"]
 
 
+def every(directive):
+    for child in directive.block or []:
+        yield child
+        yield from every(child)
+
+
+def test_the_site_passes_accept_encoding_to_web_and_content_encoding_back() -> None:
+    # Spec 004 (T215; contracts/serving.md §4): web sends each GLB as its gzip-9 copy, the bytes the caps count, and
+    # inflates it only for a client that takes no gzip. So x005's site location passes the client's Accept-Encoding to
+    # web, setting none of its own, and passes web's Content-Encoding back, hiding none: at any level it inherits from.
+    for level in (HTTP, SITE, location("/")):
+        assert "accept-encoding" not in level.headers(), level.name
+        hidden = [d.args[0].lower() for d in level.all("proxy_hide_header")]
+        assert "content-encoding" not in hidden, level.name
+
+
+def test_edge_neither_compresses_nor_inflates() -> None:
+    # No gzip, gzip_static, or gunzip directive in any block of edge's configuration, so a GLB leaves edge as web sent
+    # it, which edge streams with proxy_buffering off (contracts/serving.md §4 and §7).
+    names = {d.name for d in every(edge.TOP)}
+    assert not names & {"gzip", "gzip_static", "gunzip"}
+    assert HTTP.one("proxy_buffering").args == ["off"]
+
+
 def test_web_unreachable_is_edges_own_503_page() -> None:
     site = location("/")
     assert [d.args for d in site.all("error_page")] == [
