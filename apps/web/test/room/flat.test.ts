@@ -798,12 +798,18 @@ describe("in the room", () => {
     const lines = [...(around?.querySelectorAll("li") ?? [])].map((li) => textOf(li));
     for (const sw of index.switches)
       expect(lines).toContain(`${index.ui[sw.label ?? ""] ?? ""}: ${index.ui["tier.not-live"] ?? ""}`);
-    // Each "In the room" button still selects its own selectable (selectObject's object_selected, with its ID).
+    // Each "In the room" button still selects its own selectable (selectObject's object_selected, with its ID), then
+    // runs its action: a resume action opens the resume, which sends resume_opened too if it was closed (T207).
     const buttons = [...v.doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]")];
     expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual(index.selectables.map((s) => s.id));
     for (const b of buttons) {
+      const id = b.getAttribute("data-object-id");
+      const resume = index.selectables.find((s) => s.id === id)?.action.kind === "resume";
+      const closed = v.doc.querySelector(".resume-panel")?.hasAttribute("hidden") ?? true;
+      const from = v.events.length;
       b.click();
-      expect(v.events.at(-1)).toEqual({ kind: "object_selected", id: b.getAttribute("data-object-id") });
+      const opened = resume && closed ? [{ kind: "resume_opened" }] : [];
+      expect(v.events.slice(from), id ?? "").toEqual([{ kind: "object_selected", id }, ...opened]);
     }
     // The talk box still answers, as it does with a drawing: the fixed message, and turn_sent.
     const text = v.doc.querySelector<HTMLInputElement>("#talk-text");
