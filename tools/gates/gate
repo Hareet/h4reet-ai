@@ -35,8 +35,12 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
    devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
    the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
    validate-config, test, evals, redteam-suite, matrix (stage H), and credits-check (spec 003's credits and records,
-   SKIP for a branch from before them). Every container drops all capabilities, sets
-   no-new-privileges, and runs as the Author's uid on that copy. When the export has the room (apps/web), the room is
+   SKIP for a branch from before them). In make evals the behavioral tier's line is information, never a merge block
+   (spec 006 FR-002): a "WARN (behavioral tier):" line, which a branch's make evals prints once its Makefile has spec
+   006's interim change, makes the step WARN, and so do the tier's own PENDING and its FAIL for a recorded run, which
+   a tree from before prints; a make evals that exits non-zero fails the step whatever they say. Every container
+   drops all capabilities, sets no-new-privileges, and runs as the Author's uid on that copy. When the export has the
+   room (apps/web), the room is
    built last, without drafts, its scripts off, with main's policy files mounted read-only at /policy: the content
    approvals, the resume header, and, since spec 004's P-10, the caps, each absent there when main lacks it
    (content-build; spec 002, T080; spec 004, FR-053), and the host then runs main's content_check.py over the export and that build's
@@ -83,15 +87,17 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
      h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
-   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
-     evals/agent-config/ (its history aside), or the Claude Code pin: the main tree's evals/agent-config/behavioral.py,
+   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/, or the Claude
+     Code pin (spec 006 FR-004): the main tree's evals/agent-config/behavioral.py,
      loaded into this process like check_corpus, whose status reads the export's cases, thresholds, history, and
      trigger files as data and starts nothing; in export mode it walks the tree and never runs git. An entry counts
      only when this machine attests its exact bytes (make evals-agent-config writes the SHA-256 under
      ~/.local/state/h4reet, which agent sessions can't write), and the newest attested run for the export's trigger
      hash decides: PASS, FAIL, or PENDING when none has run (the Author runs make evals-agent-config REF=<branch> from
      main's checkout and commits the entry). A file that doesn't load fails. Before main has the tier (T094), this
-     step is SKIP naming it.
+     step is SKIP naming it. A branch that changes evals/agent-config/ (its history aside) and none of those is SKIP,
+     naming its change as held to its own tests, which make test runs in the container phase (FR-005): a run before it
+     lands would test main's runner, not the changed one.
 5. eval-history: each history entry the branch adds is posted once to prod's x004 as the h4.devtime.eval.* gauges
    (contracts/telemetry.md §4.4): OTLP/JSON, stdlib, no proxy, timestamped at the post. An entry needs "verdict"
    ("pass" or "fail"), "cost_usd" (a number), and "tokens" with "input", "output", "cache_read", and
@@ -110,8 +116,8 @@ DEGRADED. Lint, tests, the scaffolds, and stage H then run nowhere: never on the
 with H4_CONTRACT_RECORDING set and --network none. It passes only when the replay passed tests under the
 recording's own name ("recorded live: <adapter>"), so a replay that never read FILE can't pass.
 
-Statuses are make check's (PASS, SKIP, PLANNED, PENDING, FAIL), plus WARN for telemetry that didn't arrive and for
-a Claude Code above its floor.
+Statuses are make check's (PASS, SKIP, WARN, PLANNED, PENDING, FAIL). WARN is information the merge doesn't wait on:
+a "WARN (" line, such as make evals' behavioral line, telemetry that didn't arrive, and a Claude Code above its floor.
 Exit 0 with no FAIL or PENDING; 1 otherwise, or when the export's proof fails; 2 when the gate refuses to start.
 """
 
@@ -342,21 +348,52 @@ def stream(argv: list[str], env: dict[str, str], cwd: Path) -> tuple[int, str]:
 
 
 def classify(step: Step, rc: int, output: str) -> Step:
-    """make check's rules (tools/gates/run_checks.py): non-zero is FAIL; then a PENDING line, a "PLANNED (" line, or
-    a "SKIP:" line sets that status; otherwise PASS."""
+    """make check's rules (tools/gates/run_checks.py): non-zero is FAIL; then a PENDING line, a "PLANNED (" line, a
+    "WARN (" line, or a "SKIP:" line sets that status, in that order; otherwise PASS."""
     lines = output.splitlines()
     if rc != 0:
         return step.fail(f"exited {rc}")
     pending = [ln for ln in lines if ln.startswith("PENDING")]
     planned = [ln for ln in lines if ln.startswith("PLANNED (")]
+    warned = [ln for ln in lines if ln.startswith("WARN (")]
     skipped = [ln[len("SKIP:") :].strip() for ln in lines if ln.startswith("SKIP:")]
     if pending:
         step.status, step.notes = "PENDING", pending
     elif planned:
         step.status, step.notes = "PLANNED", planned
+    elif warned:
+        step.status, step.notes = "WARN", warned
     elif skipped:
         step.status, step.notes = "SKIP", skipped
     return step
+
+
+# Spec 006 FR-002: in make evals, the behavioral tier's verdict is information, never a merge block. A branch whose
+# Makefile has the interim change prints it as a "WARN (behavioral tier): ..." line (evals/behavioral_line.py). A
+# tree from before runs the tier's status itself, so its make evals prints the tier's own lines: the PENDING when no
+# attested run has the tree's trigger hash, and the FAIL for the newest run that has it, on which that make evals
+# stops before the docs' links, exiting non-zero. Line R's branches, from main at c84a115b, print the PENDING.
+TIER_PENDING = "PENDING (behavioral tier): "
+TIER_RUN_FAILED = re.compile(
+    r"FAIL  behavioral tier: (?=[^\s,]+, the newest run for trigger hash [0-9a-f]{12}, failed: )"
+)
+TIER_WARN = "WARN (behavioral tier): "
+
+
+def evals_step(step: Step, rc: int, output: str) -> Step:
+    """The container's evals step: classify's rules, with the tier's own PENDING and its recorded run's FAIL read as
+    its WARN line. Only what a make evals that exited 0 printed can count that way: classify fails the step on any
+    other exit first, so a tree from before whose make evals stopped at its run's FAIL still fails, since its docs'
+    links never ran. The agent-config-evals step reads the tier with classify alone, where its PENDING still waits."""
+    lines = []
+    for line in output.splitlines():
+        found = TIER_RUN_FAILED.match(line)
+        if line.startswith(TIER_PENDING):
+            line = TIER_WARN + line[len(TIER_PENDING) :]
+        elif found:
+            line = TIER_WARN + line[found.end() :]
+        lines.append(line)
+    return classify(step, rc, "\n".join(lines))
 
 
 def py_host(script: Path, *args: str) -> list[str]:
@@ -964,7 +1001,8 @@ def container_phase(
             host_engine_env(),
             tmp,
         )
-        report.add(classify(Step(name), rc, out))
+        read = evals_step if target == "evals" else classify
+        report.add(read(Step(name), rc, out))
     content(report, repo, docker, image, work, export_dir, tmp)
 
 
@@ -1610,20 +1648,24 @@ def pin(text: str) -> str | None:
 def agent_config_evals(
     repo: Path, export_dir: Path, base: str | None, paths: list[str] | None
 ) -> Step:
-    begin("agent-config-evals", "the behavioral tier, when triggered (plan §14)")
+    begin(
+        "agent-config-evals",
+        "the behavioral tier, when triggered (plan §14; spec 006 FR-004 to FR-006)",
+    )
     step = Step("agent-config-evals")
     if paths is None or base is None:
         return step.fail(
             "no merge base with main, so the branch's changes can't be read"
         )
     touched = sorted(
+        p for p in paths if p in ("CLAUDE.md", "REVIEW.md") or p.startswith(".claude/")
+    )
+    # Spec 006 FR-004: a change to the runner, its checks, the cases, or the thresholds alone is held to its own tests,
+    # and the tier's next run exercises it. The trigger hash still covers it, so each entry names what it tested.
+    harness = sorted(
         p
         for p in paths
-        if (
-            p in ("CLAUDE.md", "REVIEW.md")
-            or p.startswith((".claude/", "evals/agent-config/"))
-        )
-        and not p.startswith(HISTORY)
+        if p.startswith("evals/agent-config/") and not p.startswith(HISTORY)
     )
     if ".devcontainer/toolchain.vars" in paths:
         before = git(repo, "cat-file", "blob", f"{base}:.devcontainer/toolchain.vars")
@@ -1632,10 +1674,16 @@ def agent_config_evals(
         if pin(before.stdout if before.returncode == 0 else "") != pin(after):
             touched.append("the Claude Code pin")
     if not touched:
+        held = (
+            f"; its change to evals/agent-config/ ({some(harness)}) is held to its own tests (spec 006 FR-004, "
+            "FR-005)"
+            if harness
+            else ""
+        )
         return step.set(
             "SKIP",
-            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, evals/agent-config/, "
-            "the Claude Code pin",
+            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, the Claude Code pin"
+            + held,
         )
     shown = ", ".join(touched[:3]) + (", ..." if len(touched) > 3 else "")
     tier = repo / "evals" / "agent-config" / "behavioral.py"

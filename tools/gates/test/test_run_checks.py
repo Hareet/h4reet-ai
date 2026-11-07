@@ -28,8 +28,22 @@ pending:
 \t@echo "PENDING: the Author runs make evals-agent-config"
 skip:
 \t@echo "SKIP: no engine in CI"
-.PHONY: pass fail planned pending skip
+warn:
+\t@echo "WARN (behavioral tier): no run for trigger hash 0123abcd4567 in evals/agent-config/history/"
+warnfail:
+\t@echo "WARN (behavioral tier): no run for trigger hash 0123abcd4567"; echo "docs links: 1 failed"; exit 1
+warnpending:
+\t@echo "WARN (behavioral tier): no run for trigger hash 0123abcd4567"; echo "PENDING: a run the Author makes"
+.PHONY: pass fail planned pending skip warn warnfail warnpending
 """
+# make evals' line for the behavioral tier, as information (spec 006 FR-002; evals/behavioral_line.py).
+WARN_LINE = "WARN (behavioral tier): no run for trigger hash 0123abcd4567 in evals/agent-config/history/"
+# The toolchain check's lines for a Claude Code above its floor (ADR 0023), whose "WARN:" make check reads as PASS.
+FLOOR_WARN = (
+    "WARN: claude code 2.1.312 is newer than its floor, 2.1.296 (ADR 0023): the agent-config evals record the version "
+    "each run used, and moving the floor runs them again\n"
+    "toolchain-check: all 15 match their pins, 1 newer than its floor (claude code)\n"
+)
 
 
 @pytest.fixture
@@ -53,7 +67,52 @@ def test_each_status(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert "-> PASS pass" in out
     assert "-> PLANNED planned (PLANNED (T045): waits for the early patch)" in out
     assert "-> SKIP skip (no engine in CI)" in out
-    assert "make check: 1 PASS, 1 SKIP, 1 PLANNED, 0 PENDING, 0 FAIL" in out
+    # The summary counts WARN too, in the gate's own order (spec 006 FR-002, FR-010).
+    assert "make check: 1 PASS, 1 SKIP, 0 WARN, 1 PLANNED, 0 PENDING, 0 FAIL" in out
+
+
+def test_a_warn_line_is_a_warn_that_fails_nothing(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Spec 006 FR-002: make evals prints the behavioral tier's PENDING and a recorded run's FAIL as a "WARN (" line,
+    # information that make check counts and doesn't fail on.
+    assert rc.main(["pass", "warn"]) == 0
+    out = capsys.readouterr().out
+    assert f"-> WARN warn ({WARN_LINE})" in out
+    assert f"WARN     warn  {WARN_LINE}" in out.splitlines()
+    assert "make check: 1 PASS, 0 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 0 FAIL" in out
+    assert "failing" not in out
+
+
+def test_a_warn_line_never_hides_a_failure_or_a_wait(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert rc.main(["warnfail", "warnpending", "warn"]) == 1
+    out = capsys.readouterr().out
+    assert "-> FAIL warnfail" in out
+    assert "-> PENDING warnpending (PENDING: a run the Author makes)" in out
+    assert "failing: warnfail FAIL, warnpending PENDING" in out
+
+
+@pytest.mark.parametrize(
+    ("output", "status"),
+    [
+        (
+            f"PLANNED (T117): 1 case waits for the closing patch\n{WARN_LINE}\n",
+            "PLANNED",
+        ),
+        (f"{WARN_LINE}\nSKIP: no engine here\n", "WARN"),
+        # The toolchain's "WARN:" line still reads PASS here, as before.
+        (FLOOR_WARN, "PASS"),
+    ],
+    ids=["planned-over-warn", "warn-over-skip", "toolchains-warn-colon"],
+)
+def test_a_warn_line_ranks_below_planned_and_above_skip(
+    output: str, status: str
+) -> None:
+    gate = rc.parse("evals")
+    rc.classify(gate, 0, output)
+    assert gate.status == status
 
 
 def test_fail_and_pending_fail_the_run_but_it_keeps_going(

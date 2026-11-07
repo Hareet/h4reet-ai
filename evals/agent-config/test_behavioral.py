@@ -3273,17 +3273,45 @@ def recipe(target: str) -> str:
     return found.group(1)
 
 
-def test_make_evals_shows_the_behavioral_status_after_the_static_tier() -> None:
+def test_make_evals_shows_the_behavioral_status_after_the_static_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Spec 006 FR-002: the status shows after the static tier, as information. evals/behavioral_line.py runs it and
+    # prints its PENDING and a recorded run's FAIL as WARN, and the docs' links run in the same shell line whatever it
+    # says; make evals fails after them only on a tier file that doesn't load.
     lines = recipe("evals").splitlines()
     static_line = next(
         i for i, ln in enumerate(lines) if "evals/agent-config/static.py" in ln
     )
-    status_line = next(i for i, ln in enumerate(lines) if "behavioral.py status" in ln)
-    assert status_line > static_line
-    assert (
-        lines[status_line].strip()
-        == "$(PY_HOST) evals/agent-config/behavioral.py status"
+    status_line = next(
+        i for i, ln in enumerate(lines) if "$(PY_HOST) evals/behavioral_line.py" in ln
     )
+    assert status_line > static_line
+    assert lines[status_line].strip() == (
+        "tier=0; $(PY_HOST) evals/behavioral_line.py || tier=$$?; "
+        "$(PY_HOST) evals/docs_links.py && exit $$tier"
+    )
+    # The script, which agents can edit, runs this file's status by path through PY_HOST's flags (research.md R-35).
+    script = load("h4_behavioral_line", REPO / "evals" / "behavioral_line.py")
+    calls: list[list[str]] = []
+
+    def run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="")
+
+    monkeypatch.setattr(script.subprocess, "run", run)
+    assert script.main() == 0
+    assert calls == [
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            "-X",
+            "pycache_prefix=/dev/null",
+            str(HERE / "behavioral.py"),
+            "status",
+        ]
+    ]
 
 
 def test_the_target_is_listed_as_the_authors() -> None:

@@ -11,13 +11,16 @@ failure. A gate's status:
              or its @Tnnn mark is stale, because the target exists now (the task that adds it removes the mark);
     PENDING  it passed but printed a line starting "PENDING": a run the Author must make (the merge waits);
     PLANNED  it passed but printed "PLANNED (Tnnn): ...": enforcement a patch adds, which the patch clears;
+    WARN     it passed but printed a line starting "WARN (": information the merge doesn't wait on, such as make
+             evals' line for the behavioral tier, its PENDING or a recorded run's FAIL (spec 006 FR-002);
     SKIP     it printed "SKIP: <reason>", or its target doesn't exist yet and a task is named to add it;
     PASS     otherwise.
 
 Every gate is a .PHONY target. A file or directory with a gate's name, and no .PHONY rule claiming it, makes make
 print "Nothing to be done" and exit 0, which would otherwise read as PASS.
-Exit 1 when any gate is FAIL or PENDING; PLANNED and SKIP don't fail the run. Spec 000's acceptance requires
-no PLANNED line and no SKIP that names a task (tasks.md T118).
+Exit 1 when any gate is FAIL or PENDING; PLANNED, WARN, and SKIP don't fail the run. Spec 000's acceptance requires
+no PLANNED line and no SKIP that names a task (tasks.md T118). Other lines that start with WARN, such as the toolchain
+check's "WARN:" and the arrival check's "WARN <path>:", read as PASS here, as before.
 """
 
 from __future__ import annotations
@@ -31,7 +34,8 @@ from dataclasses import dataclass, field
 GATE_RE = re.compile(
     r"(?P<label>[a-z][a-z0-9-]*)(?:=(?P<target>[a-z][a-z0-9-]*))?(?:@(?P<task>T\d{3}))?"
 )
-ORDER = ["FAIL", "PENDING", "PLANNED", "SKIP", "PASS"]
+# Most severe first. The summary counts them in reverse, the order of the gate's summary line (tools/gates/gate).
+ORDER = ["FAIL", "PENDING", "PLANNED", "WARN", "SKIP", "PASS"]
 
 
 @dataclass
@@ -123,11 +127,14 @@ def classify(gate: Gate, returncode: int, output: str) -> None:
         return
     pending = [ln for ln in lines if ln.startswith("PENDING")]
     planned = [ln for ln in lines if ln.startswith("PLANNED (")]
+    warned = [ln for ln in lines if ln.startswith("WARN (")]
     skipped = [ln[len("SKIP:") :].strip() for ln in lines if ln.startswith("SKIP:")]
     if pending:
         gate.status, gate.notes = "PENDING", pending
     elif planned:
         gate.status, gate.notes = "PLANNED", planned
+    elif warned:
+        gate.status, gate.notes = "WARN", warned
     elif skipped:
         gate.status, gate.notes = "SKIP", skipped
 
