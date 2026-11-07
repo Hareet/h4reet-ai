@@ -1,9 +1,9 @@
 # feat/006-advisory-tier
-Spec: [specs/006-behavioral-tier/spec.md](../../specs/006-behavioral-tier/spec.md), its interim core: FR-002, FR-004, and FR-005 in part · Intent: [specs/006-behavioral-tier/intent.md](../../specs/006-behavioral-tier/intent.md) · Written by: an implementer subagent of the main session (Claude Opus 5.5) · Date: 2026-11-07
-Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`, on `wip-park/11-6-2026`. This branch's worktree is `/tmp/claude-1000/wt-advisory`, made with `git worktree add -b feat/006-advisory-tier "$TMPDIR/wt-advisory" refs/heads/main` at c84a115b. The patch was built from plain copies outside any checkout, `/tmp/claude-1000/advisory/a` and `/tmp/claude-1000/advisory/b`, and tested in plain `git archive` exports beside them · Repo hooks active: yes. `.claude/audit/hooks.log` in the primary checkout holds this session's commands as ALLOW, for example `2026-11-07T07:28:14Z bash ALLOW echo "main checkout: …" && git worktree add -b feat/006-advisory-tier "$TMPDIR/wt-adviso…` and `2026-11-07T07:54:31Z bash ALLOW cd "$TMPDIR/wt-advisory" && git add Makefile docs/START-HERE.md …`. The bash gate refused one command, `2026-11-07T07:16:18Z bash BLOCK an Author-only make target :: grep -n "^evals\|^check\|^evals-agent-config\|…" Makefile`, a read-only grep whose pattern named your make target; it wasn't respelled, and the session read the Makefile with the Read tool. Claude Code's own permission check refused one read-only grep after a `cd` to a path it couldn't resolve ("a cd whose target cannot be resolved"); the session used absolute paths from then on, as fix A's session did after the same refusal. Six `post-edit WARN lint failed` lines, 07:34Z to 07:40Z, on the new test file and the patch's two gate test copies (ruff's PIE810, F401, and ISC004), each gone after the next edit. Each commit ran the pre-commit hook: gitleaks and the arrival check. The log's other refusal of the morning, 07:59:53Z, is another session's.
-Authorized by: your request of 2026-11-07, relayed by the main session's brief, in its words: "the tier's paid runs keep failing on harness strictness and block every gate. Nobody else works in the repo yet, so the tier can come back as a merge requirement later." The brief calls this "the interim, minimal implementation of spec 006's core: the behavioral tier off the merge path". Mid-way, the main session added that the rule must hold for branches whose tree predates this change: "Line R's stack (feat/004-us1-composition and the branches stacked on it) is based on main at c84a115b and won't be rebased onto the patched main before each gate." So main's gate carries it. Spec 006 has no `plan.md` or `tasks.md` yet (For the Author, item 6).
+Spec: [specs/006-behavioral-tier/spec.md](../../specs/006-behavioral-tier/spec.md), its interim core: FR-002, FR-004, and FR-005 in part · Intent: [specs/006-behavioral-tier/intent.md](../../specs/006-behavioral-tier/intent.md) · Written by: an implementer subagent of the main session (Claude Opus 5.5); spec 006's Deviations item by a spec-writer subagent · Date: 2026-11-07
+Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`, on `wip-park/11-6-2026`. This branch's worktree is `/tmp/claude-1000/wt-advisory`, made with `git worktree add -b feat/006-advisory-tier "$TMPDIR/wt-advisory" refs/heads/main` at c84a115b. The patch was built from plain copies outside any checkout, `/tmp/claude-1000/advisory/a` and `/tmp/claude-1000/advisory/b`, and tested in plain `git archive` exports beside them · Repo hooks active: yes. `.claude/audit/hooks.log` in the primary checkout holds this session's commands as ALLOW, for example `2026-11-07T07:28:14Z bash ALLOW echo "main checkout: …" && git worktree add -b feat/006-advisory-tier "$TMPDIR/wt-adviso…` and `2026-11-07T07:54:31Z bash ALLOW cd "$TMPDIR/wt-advisory" && git add Makefile docs/START-HERE.md …`. The bash gate refused one command, `2026-11-07T07:16:18Z bash BLOCK an Author-only make target :: grep -n "^evals\|^check\|^evals-agent-config\|…" Makefile`, a read-only grep whose pattern named your make target; it wasn't respelled, and the session read the Makefile with the Read tool. Claude Code's own permission check refused one read-only grep after a `cd` to a path it couldn't resolve ("a cd whose target cannot be resolved"); the session used absolute paths from then on, as fix A's session did after the same refusal. Six `post-edit WARN lint failed` lines, 07:34Z to 07:40Z, on the new test file and the patch's two gate test copies (ruff's PIE810, F401, and ISC004), each gone after the next edit. Each commit ran the pre-commit hook: gitleaks and the arrival check. The log's other refusal of the morning, 07:59:53Z, is another session's. After the ADR's commit, git's automatic repack failed in the sandbox ("fatal: failed to run repack"); the commit and the refs stand, and `main` is still a loose ref.
+Authorized by: your words of 2026-11-07, as [ADR 0038](../adr/0038-the-behavioral-tier-off-the-merge-path-interim.md) quotes them: "This eval command is still failing and why do we have to keep running it? This is really blocking us from progress with heavy constraints, can we lighten them up? No one else is working on this repo yet, so we can add more of these checks later?", and your answer to the main session's question, "yes we want that". The main session's brief put it as: "the tier's paid runs keep failing on harness strictness and block every gate. Nobody else works in the repo yet, so the tier can come back as a merge requirement later." The brief calls this "the interim, minimal implementation of spec 006's core: the behavioral tier off the merge path". Mid-way, the main session added that the rule must hold for branches whose tree predates this change: "Line R's stack (feat/004-us1-composition and the branches stacked on it) is based on main at c84a115b and won't be rebased onto the patched main before each gate." So main's gate carries it. Spec 006 has no `plan.md` or `tasks.md` yet (For the Author, item 6).
 
-**Status: a patch for you to apply on `main` right after a gate run and a guarded hand merge.** The branch carries the Makefile's change and the script it runs, their tests, three documents, a test that pinned make check's status list, and the patch. The patch changes main's gate and make check's runner, with their tests, and the behavioral tier's own test of the Makefile's line: human-only paths, built from plain copies. **That last file is under `evals/agent-config/`, so the patch moves main's trigger hash, from 401d0a4d7341 to 0e1669499c9a** (For the Author, item 1). Once the patch is in, that blocks nothing.
+**Status: a patch for you to apply on `main` right after a gate run and a guarded hand merge.** The branch carries the Makefile's change and the script it runs, their tests, three documents, a test that pinned make check's status list, spec 006's Deviations item, ADR 0038, and the patch. The patch changes main's gate and make check's runner, with their tests, and the behavioral tier's own test of the Makefile's line: human-only paths, built from plain copies. **That last file is under `evals/agent-config/`, so the patch moves main's trigger hash, from 401d0a4d7341 to 0e1669499c9a** (For the Author, item 1). Once the patch is in, that blocks nothing. **It departs from three clauses of constitution 1.0.1:** Development Workflow step 3 (no `plan.md`), step 5 (the evaluation suite above its thresholds), and Security & Agent Governance, "changes to them run the agent-configuration evals before merge". [Spec 006's Deviations item](../../specs/006-behavioral-tier/spec.md) names them, and [ADR 0038](../adr/0038-the-behavioral-tier-off-the-merge-path-interim.md), proposed, records them (For the Author, items 3 and 5).
 
 ## Runs in your terminal
 
@@ -26,8 +26,7 @@ Nothing on this branch runs here: the gate is main's code, and the patch is data
    git switch main
    tools/gates/gate feat/006-advisory-tier 2>&1 | tee ~/gate-advisory.log
    ```
-   - **Expect `test` FAIL,** on one test: `evals/agent-config/test_behavioral.py::test_make_evals_shows_the_behavioral_status_after_the_static_tier`, the human-only test that pins make evals' old line. The patch updates it (step 3). `grep -n 'shows_the_behavioral_status' ~/gate-advisory.log` finds it.
-   - **The container may fail `test` on more,** as main's gates have since `feat/004-foundation`'s merge (a309baa3's message: "failing: test FAIL, evals FAIL"). Keep the log either way: the session needs it.
+   - **Expect `test` FAIL, on exactly one test:** `evals/agent-config/test_behavioral.py::test_make_evals_shows_the_behavioral_status_after_the_static_tier`, the human-only test that pins make evals' old line, which the patch updates (step 3). The log should hold exactly one line starting `FAILED`, that one: step 2's guard counts them and checks the name. Tonight's gates passed `test` in the container (`~/gate-fixA.log` line 710, `~/gate-us1.log` line 826), so **any other failing test: stop,** and give the session the log.
    - **Expect `evals` PASS, not PENDING.** This branch's `make evals` prints "WARN (behavioral tier): no run for trigger hash 401d0a4d7341 in evals/agent-config/history/; …" and exits 0. Main's gate learns to read a "WARN (" line only from the patch, so today it counts the step as PASS. `grep -n 'behavioral tier' ~/gate-advisory.log` shows the line.
    - **`agent-config-evals` SKIP:** the branch touches none of its triggers. **`toolchain` WARN,** a Claude Code above its floor, as on every gate.
    - **`evals` PENDING or FAIL, or any other step failing: stop,** and give the session the log.
@@ -41,26 +40,27 @@ Nothing on this branch runs here: the gate is main's code, and the patch is data
    ```
    The summary should end "failing: test FAIL". Then the reason:
    ```bash
-   reason=$(cat <<'EOF'
-   Merged by hand. The gate's failing step was test: the
-   human-only pin of make evals' old line,
-   test_make_evals_shows_the_behavioral_status_after_the_static_tier,
-   which this branch's patch updates next, and any failure the
-   container has shown since a309baa3 (log: ~/gate-advisory.log).
-   make test passes on the branch with its patch in the session.
-   Before the patch, main's gate reads the branch's new make evals
-   line, 'WARN (behavioral tier): no run for trigger hash
-   401d0a4d7341', as PASS. agent-config-evals was SKIP.
-   EOF
-   )
+   reason=$(printf '%s\n' \
+     "Merged by hand. The gate's one failing step was test, on one" \
+     "test: the human-only pin of make evals' old line, in" \
+     "evals/agent-config/test_behavioral.py, which the branch's" \
+     "patch updates next (log: ~/gate-advisory.log). make test" \
+     "passes on the branch with its patch in the session. Before" \
+     "the patch, main's gate reads the branch's new make evals" \
+     "line, 'WARN (behavioral tier): no run for trigger hash" \
+     "401d0a4d7341', as PASS. agent-config-evals was SKIP.")
    ```
-   Then the guard, which prints "guard: yes" only if your checkout is on `main`, the branch is at the gate's SHA, and `main` is an ancestor of it:
+   Then the guard, which prints "guard: yes" only if your checkout is on `main`, the branch is at the gate's SHA, `main` is an ancestor of it, and the log's one line starting `FAILED` is the pin:
    ```bash
    br=refs/heads/feat/006-advisory-tier
+   f=evals/agent-config/test_behavioral.py
+   pin=test_make_evals_shows_the_behavioral_status_after_the_static_tier
    ok=no
    [ "$(git symbolic-ref -q HEAD)" = refs/heads/main ] &&
    [ "$sha" = "$(git rev-parse --verify "$br")" ] &&
    git merge-base --is-ancestor refs/heads/main "$sha" &&
+   [ "$(grep -c '^FAILED ' "$log")" = 1 ] &&
+   grep -Eq "^FAILED ${f}::${pin}( |\$)" "$log" &&
    ok=yes
    echo "guard: $ok"
    ```
@@ -70,28 +70,32 @@ Nothing on this branch runs here: the gate is main's code, and the patch is data
      -m "Merge feat/006-advisory-tier (${sha:0:12})" \
      -m "$summary" -m "$reason" "$sha"
    ```
-   **On "guard: no",** don't merge: your checkout isn't on `main`, or `main` or the branch has moved since the gate. Tell the session. The session rehearsed the merge against `main` at c84a115b.
+   **On "guard: no",** don't merge: your checkout isn't on `main`, `main` or the branch has moved since the gate, or the log's failing tests aren't the pin alone. Tell the session. The session rehearsed the merge against `main` at c84a115b.
 
 3. **Right after the merge, apply the patch on `main` and commit it,** from its blob, unmodified. Between the merge and this commit, main's `make test` fails the pin above, so don't stop between them (For the Author, item 2):
    ```bash
    p=docs/merge-requests/2026-11-07-feat-006-advisory-tier.patch
    blob=$(git --no-replace-objects rev-parse "refs/heads/main:$p")
    want=7f0f2903bdd5d56ab8002d39a7fac5fdb1588fcf
-   [ "$blob" = "$want" ] && echo "blob ok"
    sum=075d048fcee65438bfe2d7c9666d3525a66c9a964092f64c1b932b6e4c50555f
    got=$(git --no-replace-objects cat-file blob "$blob" | sha256sum)
-   [ "${got%% *}" = "$sum" ] && echo "sha256 ok"
-   git --no-replace-objects cat-file blob "$blob" | git apply --check
-   git --no-replace-objects cat-file blob "$blob" | git apply --index
+   ok=no
+   [ "$blob" = "$want" ] && [ "${got%% *}" = "$sum" ] && ok=yes
+   echo "blob and sha256: $ok"
+   [ "$ok" = yes ] &&
+   git --no-replace-objects cat-file blob "$blob" | git apply --check &&
+   git --no-replace-objects cat-file blob "$blob" | git apply --index ||
+   ok=no
+   echo "applied: $ok"
    git --no-replace-objects ls-files -s tools/gates/gate \
      tools/gates/run_checks.py tools/gates/test/test_gate.py \
      tools/gates/test/test_run_checks.py \
      evals/agent-config/test_behavioral.py
    git diff --cached --stat
    msg="Apply the advisory-tier patch (spec 006 FR-002, interim)"
-   git commit -m "$msg"
+   [ "$ok" = yes ] && git commit -m "$msg"
    ```
-   - Expect "blob ok" and "sha256 ok".
+   - Expect "blob and sha256: yes" and "applied: yes". On either "no", nothing is applied or committed: stop, and tell the session.
    - Expect these staged blobs: `tools/gates/gate` 46d4c8e4b751…, mode 100755; `tools/gates/run_checks.py` 5ca38873dcdc…; `tools/gates/test/test_gate.py` a8ad43bd890f…; `tools/gates/test/test_run_checks.py` a78c1d30030a…; `evals/agent-config/test_behavioral.py` ce2f8773058f…. The full IDs are in the table under "What changed and why".
    - Expect "5 files changed, 380 insertions(+), 28 deletions(-)".
    - The commit runs your pre-commit hook: gitleaks and the arrival check.
@@ -135,6 +139,8 @@ Nothing on this branch runs here: the gate is main's code, and the patch is data
 - `docs/START-HERE.md` §7: step 3 says the gate's `agent-config-evals` step waits only for the enforcement layer, a change confined to `evals/agent-config/` is held to its tests, and `make evals` shows the tier's state as a WARN line; and the scripts `make check` runs in your terminal include `evals/behavioral_line.py`, which a docs test derives from the Makefile.
 - `docs/runbooks/local-gate.md`: the summary's form with WARN; PENDING is now the gate's host step, quoting the tier's two PENDING lines; and a WARN item for `make evals`.
 - `docs/how-we-build/lifecycle.md`: the tier's row runs the evals for the enforcement layer, and says the rest.
+- `specs/006-behavioral-tier/spec.md`: a Deviations item at the end of its Assumptions, written by a spec-writer subagent and committed as it wrote it (f95de633), then its "ADR 0038" made a link (34f94690). It names the three clauses this interim departs from, and in practice ADR 0006's and ADR 0017's "the merge waits".
+- `docs/adr/0038-the-behavioral-tier-off-the-merge-path-interim.md`, proposed, and its row in `docs/adr/README.md` (34f94690): your words, the main session's question, and your answer; the decision, its consequences, the alternatives, and the end, left open as a question. ADR 0037 stays reserved for spec 004's look.
 
 | File | On `main` c84a115b | After | Lines |
 |---|---|---|---|
@@ -145,6 +151,9 @@ Nothing on this branch runs here: the gate is main's code, and the patch is data
 | `docs/START-HERE.md` | 2f470b134974830777d5d55b2a3cdf1307e4303e | 4f26dcc38cadc569506ab3388c66f0ffe9633f86 | +2 −2 |
 | `docs/runbooks/local-gate.md` | 67e37e9c998a12eb7a56f32b92bf66a4d692e4c1 | 71bee76340bb85247ada855f1cd2f0b83b652168 | +4 −3 |
 | `docs/how-we-build/lifecycle.md` | 70964b1c72411286a7e0dfc5da0de14a46c8fac2 | 71a97cd42c6cb9be9659eaca704f054d15d492f3 | +1 −1 |
+| `specs/006-behavioral-tier/spec.md` | 51d022011a184396770432b0a3e61fd328868a0e | 13755a107aabf0e172d8b1462338f201d49f8a0b | +9 |
+| `docs/adr/0038-the-behavioral-tier-off-the-merge-path-interim.md` | new | 80071c9cba326e3ee6d60daf2c2a41f522589733 | +53 |
+| `docs/adr/README.md` | daf87d1ce9de4ac88ff77548899b9c38d777a9a2 | 616f493204114213ecb282d2fe744593baa53302 | +1 |
 | `tools/gates/gate` (the patch) | a9b4737872bbb7d6c78d2d8a3f4c46437e7a759b | 46d4c8e4b75186cd625c4ac494d9573cd96d4a46 | +66 −18 |
 | `tools/gates/run_checks.py` (the patch) | 278eb19a94443b471d6cd6456747fb2bea1b782d | 5ca38873dcdcf59b7910d5f51a9e353f0923f6bb | +10 −3 |
 | `tools/gates/test/test_gate.py` (the patch) | b5690f6901924c0b1c218d98282ed670f7ed33ff | a8ad43bd890f9059ba01304918769df17b59e5b8 | +210 |
@@ -177,30 +186,30 @@ Against [constitution](../../.specify/memory/constitution.md) 1.0.1, with the co
 |---|---|---|
 | I. Data-local by default | No | No runtime path or endpoint changes, and no byte leaves the visitor's device. No disclosure entry. |
 | II. Production-grade or not shipped | Yes | Tests first, RED then GREEN, on both sides (Verification). `make lint` and `make test` pass on the branch's tip with the patch; the branch alone fails one human-only test until the patch updates it. No telemetry change: `eval-history` posts as before. The runbook and START-HERE say the new behavior. |
-| III. Intent before spec, spec before code, humans merge | Yes, with a gap | Spec 006 is approved and merged; this implements its first change on your direction. It has no `plan.md` (For the Author, item 6). The human-only changes reach `main` only by your commit of the patch, and you merge. |
+| III. Intent before spec, spec before code, humans merge | Yes: a named deviation | Spec 006 is approved and merged; this implements its first change on your direction. It has no `plan.md`: Development Workflow step 3, below. The human-only changes reach `main` only by your commit of the patch, and you merge. |
 | IV. Least privilege | Yes | No permission, allowlist, credential, or sandbox rule changes. One enforcement point, the gate, stops waiting on the tier's line in `make evals`, and on a change confined to `evals/agent-config/`. The hooks, denies, sandbox, matrix, static tier, tests, and a triggered branch's run keep blocking. |
 | V. Cost is a first-class signal | Yes | $0 at run time. Dev time: no behavioral run is forced on a branch that changes no agent configuration, and the moved hash calls for none. |
 | VI. Build in public, including failures | Yes | Every WARN shows in the gate's report and its summary's count, and the history is unchanged. Step 2's reason records the tier's state in this merge. |
 | VII. Own the whole product | Yes | This note says what the implementer wrote, what the main session added mid-way, and that a separate reviewer reviews it. |
 | VIII. Honest AI | No | No change to the twin. |
-| Development Workflow, step 5 | Yes: a deviation spec 006 doesn't name | Below. |
+| Development Workflow, step 3 | Yes: a named deviation | "Approved `plan.md` is committed before code exists": spec 006 has none (For the Author, item 6). |
+| Development Workflow, step 5 | Yes: a named deviation | "CI requires — … the evaluation suite above its thresholds": a branch that changes no trigger merges while its tree's hash has no run or a failed one, and `thresholds.yaml` still sets the thresholds, since FR-009's escalations aren't built. |
+| Security & Agent Governance | Yes: a named deviation | "changes to them run the agent-configuration evals before merge": a triggered branch still waits for its run, but an enforcement-layer patch applied straight to `main` has nothing forcing one (For the Author, item 5). |
 
-**Step 5, "CI requires — … the evaluation suite above its thresholds; …".** After this patch, a branch that touches no trigger merges while the newest attested run for its tree's hash is below `thresholds.yaml`'s thresholds, or while no run has it. Spec 006 reads step 5 as satisfied once its thresholds are FR-009's escalations (its Constitution Check row; Q1), and its merge-request note says "No deviation from the constitution is claimed or needed." This interim doesn't make that change: `thresholds.yaml` still decides a run's verdict. So in practice the requirement changes, and **spec 006's Assumptions name no deviation and no clause.** Proposed for your confirmation, since those files are yours to confirm:
-
-- **Wording, a new item at the end of spec 006's Assumptions:**
-
-  > **A named deviation, for the interim (constitution 1.0.1, Development Workflow step 5: "CI requires — a linked spec; passing tests; the evaluation suite above its thresholds; …").** From the interim patch of 2026-11-07 until FR-008 to FR-013 make the tier's thresholds its escalations, a branch that touches no trigger merges while the newest attested run for its tree's trigger hash is below `thresholds.yaml`'s thresholds, or while no run has the hash: `make evals`, `make check`, and the gate's `evals` step show the tier's line as WARN (FR-002, FR-005). A triggered branch still waits for its run, and a failed run still fails it. The reason, in the main session's brief of 2026-11-07: "the tier's paid runs keep failing on harness strictness and block every gate. Nobody else works in the repo yet, so the tier can come back as a merge requirement later." Until publication your gate stands in for CI (spec 000's FR-041; ADR 0013). It ends when FR-009's escalations become the thresholds, or at publication, whichever comes first. ADR 0037 records it.
-
-- **ADR 0037, proposed** (0035 is reserved on spec 002's branches, and 0024 to 0029 are allocated elsewhere): "The behavioral tier off the merge path, interim (spec 006)".
-  - *Context:* the twelve hand merges spec 006 records; main's hash with no run; the brief's words above.
-  - *Decision:* `make evals`, `make check`, and the gate's `evals` step show the tier's PENDING and a recorded run's FAIL as WARN, which the merge doesn't wait on. The gate's `agent-config-evals` step waits for a run only for a branch that changes `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code pin, and still fails it on a failed run until FR-009 lands. A change confined to `evals/agent-config/` is held to its own tests. The rule is in main's gate, matched on the tier's own lines, so it holds for trees from before it.
-  - *Supersedes,* for a branch that touches no trigger: ADR 0006's "With the Team plan unavailable, the behavioral tier shows PENDING and the merge waits (FR-011)." and ADR 0017's "With the Team plan unavailable, the behavioral tier shows PENDING, and the merge waits (FR-011).", which spec 006's FR-031 names; and ADR 0017's list of what `make check` prints gains WARN. ADR 0023's "a moved floor does" still holds, since the pin is a trigger.
-  - *Deviation:* step 5, as worded above, until FR-009 or publication.
-  - *Alternatives:* keep the tier blocking and merge by hand, as on twelve merges; make every run advisory, triggered ones too, against FR-009 and your answer to spec 006's Q2; wait for spec 006's whole implementation.
+**The deviations are named and recorded.** [Spec 006's Deviations item](../../specs/006-behavioral-tier/spec.md), at the end of its Assumptions, names the three clauses above, and, in practice, ADR 0006's and ADR 0017's "the merge waits", both still proposed. A spec-writer subagent wrote it, and this branch commits it as written (f95de633). [ADR 0038](../adr/0038-the-behavioral-tier-off-the-merge-path-interim.md), proposed, records the decision (34f94690): your acceptance of it accepts the deviations. ADR 0037 stays reserved for spec 004's look (its `plan.md`, line 337).
 
 ## Review
 
-None yet. The agent that implements never reviews: a separate reviewer reviews this branch.
+**Ready with suggestions,** by a reviewer subagent that wrote none of this branch, of 54b9544d, as the main session relayed it. It found no behavior bug, and nothing in it changes the patch: blob 7f0f2903 and sha256 075d048f stand. Each finding, and what was done, in docs-only commits after it:
+- **Important 1: the note didn't name the Security & Agent Governance clause** that an enforcement-layer patch reaching `main` with no run departs from. Fixed: the Status line and For the Author, item 5, name it and point to spec 006's Deviations item.
+- **Important 2: the note proposed wording and an "ADR 0037",** a number spec 004's plan reserves for its look. Fixed: a spec-writer subagent wrote the Deviations item (f95de633); this branch's implementer wrote ADR 0038, proposed, and its index row, and linked the item to it (34f94690); the note points to both, with no proposal left, and names Development Workflow step 3, since there is no `plan.md`.
+- **Important 3: step 1 let other `test` failures through,** and the reason excused them. Tonight's gates passed `test` in the container (`~/gate-fixA.log` line 710, `~/gate-us1.log` line 826). Fixed: step 1 expects exactly one line starting `FAILED`, the pin, and stops on any other; step 2's guard counts those lines and checks the pin's name, folded into `ok`; the reason's clause about the container's failures is gone.
+- **N1: step 3 printed "blob ok" and "sha256 ok" without holding anything back.** Fixed: both checks set `ok`, and `git apply` and the commit run only on yes; a refused `git apply` sets it back to no.
+- **Backlog, not done here:**
+  - **N2:** tighten `evals/test_runbooks.py`, line 373, to the list with WARN alone, once the patch is on `main`.
+  - **N3:** a non-blocking WARN listing the human-only paths a branch changes. The SKIP for a change confined to `evals/agent-config/` removes the one tripwire there.
+  - **N4:** step 4's `git switch -C` resets the parking branch if it exists.
+  - **N5:** when the tier also prints a PLANNED line, PLANNED outranks WARN, so the step's note shows the PLANNED line and not the tier's.
 
 ## Verification
 
@@ -242,9 +251,9 @@ None yet. The agent that implements never reviews: a separate reviewer reviews t
   - `make lint`, exit 0: eslint with `--max-warnings 0`, tsc for both workspaces, Prettier "All matched files use Prettier code style!", `ruff check` "All checks passed!", `ruff format --check` "372 files already formatted", and shellcheck.
   - `make test`, exit 0: corpus-check "OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems", the gateway "Tests 810 passed | 12 skipped (822)", the web workspace "Tests 1400 passed (1400)", and pytest "3726 passed in 379.69s": `make check`'s 3707 and the patch's 19 new tests, the pin passing.
 - **The trigger hash** (`behavioral.py hash`): 401d0a4d734145cf5a6cdcfed4a09ef434aae0ece328c8e431ceeb0b8bd526ee on c84a115b, and on the branch without the patch; 0e1669499c9a019e8683ffe71151a3a955a970e83a1287c493f92946238f20b8 with it. With the patch, the tier says "PENDING (behavioral tier): no run for trigger hash 0e1669499c9a …", which the script prints as the WARN line.
-- **gitleaks,** with the gate's flags, inside a fresh export of 470affa8 with the patch applied, before anything else ran there: `gitleaks dir --no-banner --no-color --redact --config` with the main tree's `.gitleaks.toml` (blob 92379905, main's), a fresh empty `--gitleaks-ignore-path`, `--ignore-gitleaks-allow`, a JSON report, and `--exit-code 99`, from inside the export. "scanned ~15518074 bytes (15.52 MB) in 957ms", "no leaks found", exit 0, report `[]`. No `.gitleaksignore` sits at the export's root.
-- **The merge rehearsal, by SHA:** `git merge-tree --write-tree c84a115b536a48ad63793284e25644398931f911 470affa801723d4d6bea4c4a62f9f22575031930` exits 0 with tree 842909a458a7…, the tip's own, since c84a115b is its ancestor (`git merge-base --is-ancestor`, exit 0). On a plain export of that tree, `git apply --check -v` of the patch checks all five files and exits 0. No file the merge adds sits untracked in the main checkout. This note's commit changes only this file.
-- **This note,** in the worktree: `evals/docs_links.py` "docs links: 0 failed, 1541 relative links in 185 files", and its commit's pre-commit hook. Prettier skips `docs/`.
+- **gitleaks,** with the gate's flags, inside a fresh export of 470affa8 with the patch applied, before anything else ran there: `gitleaks dir --no-banner --no-color --redact --config` with the main tree's `.gitleaks.toml` (blob 92379905, main's), a fresh empty `--gitleaks-ignore-path`, `--ignore-gitleaks-allow`, a JSON report, and `--exit-code 99`, from inside the export. "scanned ~15518074 bytes (15.52 MB) in 957ms", "no leaks found", exit 0, report `[]`. No `.gitleaksignore` sits at the export's root. Again on 54b9544d, this note's first commit: "scanned ~15587641 bytes (15.59 MB)", "no leaks found", report `[]`.
+- **The merge rehearsal, by SHA:** `git merge-tree --write-tree c84a115b536a48ad63793284e25644398931f911 470affa801723d4d6bea4c4a62f9f22575031930` exits 0 with tree 842909a458a7…, the tip's own, since c84a115b is its ancestor (`git merge-base --is-ancestor`, exit 0). On a plain export of that tree, `git apply --check -v` of the patch checks all five files and exits 0. No file the merge adds sits untracked in the main checkout. Again on 54b9544d: tree bf3f0496dce0…, the tip's own, and the patch checks. The commits after it change documents only: the spec's Deviations item, ADR 0038 and its index row, and this note.
+- **The review round's documents,** in the worktree: `evals/docs_links.py` "docs links: 0 failed, 1558 relative links in 186 files", the ADR index linking 26 of 26; the docs tests, `evals/test_repository_docs.py`, `evals/test_runbooks.py`, and `evals/test_docs_links.py`, "104 passed"; and each commit's pre-commit hook. Prettier skips `docs/`.
 
 ## Cost and data-flow impact
 
@@ -254,16 +263,19 @@ $0 at run time: no model call, endpoint, poll, budget, or cap changes, and no by
 
 1. **The patch moves main's trigger hash, from 401d0a4d7341 to 0e1669499c9a.** The brief asked to avoid that, and it can't be avoided: the human-only test `test_make_evals_shows_the_behavioral_status_after_the_static_tier` required make evals' old line, and that line stops `make evals` on a recorded run's FAIL, so the FAIL stays a merge block for every branch unless the test changes (What changed and why). The alternative that keeps the hash, the PENDING alone made information, leaves the next failed run blocking every gate again. Once the patch is in, the new hash blocks nothing: `make evals` and the gate show "no run for trigger hash 0e1669499c9a" as WARN, and no run is needed for it. Under spec 006's FR-004 a change confined to `evals/agent-config/` needs no run before it lands, and FR-029 has the first change land "before or with any other that moves main's trigger hash": this one does both in one patch.
 2. **Main fails one test between steps 2 and 3,** the same pin: the merge brings the new Makefile, and the patch brings the test that matches it. In the other order, the patch's WARN in make check's status list fails `evals/test_runbooks.py`'s old pin instead, so one red step is unavoidable while the Makefile changes on a branch, as FR-030 has it. Doing step 3 straight after step 2 keeps it to a minute. Moving the Makefile's hunk into the patch would make it one commit, but against FR-030: say so, and a session rebuilds it that way.
-3. **Spec 006 names no deviation for step 5.** The wording and ADR 0037 above are proposals; neither file is written. Say yes, and a session writes them.
+3. **The deviations are written: your acceptance of ADR 0038 accepts them.** Spec 006's Deviations item names them, and ADR 0038, proposed, records the decision (Constitution check). The spec-writer left three questions for you:
+   - **When does the interim end?** The ADR leaves it open, and proposes: when FR-009's escalations become the thresholds, or at publication, whichever comes first.
+   - **Were ADR 0006 and ADR 0017 ever accepted?** The record says proposed (the index, and both files), so the item calls them proposed.
+   - **Should spec 006's Constitution Check rows** for Development Workflow step 5 and for Security & Agent Governance point to the Deviations item? They still read as complying.
 4. **FR-029 asks this change to land "with FR-032's deny",** the transcripts' read deny in `.claude/settings.json`, with a stage S row in the matrix and `tools/gates/matrix-required.txt`. Not here: `.claude/**` is yours, and the transcripts' own folder needs `behavioral.py`. Agent sessions can read `~/.local/state/h4reet` today, as before; this patch neither adds nor removes that. Landing this first departs from FR-029's order: your call.
-5. **A triggered branch's failed run still fails the gate.** Spec 006 makes it WARN unless an effect escalates (FR-009, FR-010), which needs the tier's classes. Making every triggered run advisory now would be a small change in the patch, but against FR-009 and your Q2 answer, so it isn't made. Until FR-009, you merge such a branch by hand with the reason, as spec 006's edge case has it.
-6. **Spec 006 has no `plan.md` or `tasks.md`.** This interim ran on your direction through the main session's brief. The plan session can take it in as its first patch.
+5. **The enforcement layer: a branch still waits, a patch applied straight to `main` doesn't.** A branch that changes `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code pin still waits for its run, and a failed run still fails it: spec 006 makes that a WARN unless an effect escalates (FR-009, FR-010), which needs the tier's classes, so it isn't made here, against FR-009 and your Q2 answer; until then you merge such a branch by hand with the reason, as spec 006's edge case has it. But your own patch to the enforcement layer, applied straight to `main`, has nothing forcing a run before it lands, where the moved hash used to make every later branch wait for one. That departs from Security & Agent Governance, "changes to them run the agent-configuration evals before merge", a deviation [spec 006's Deviations item](../../specs/006-behavioral-tier/spec.md) names and ADR 0038 records. For a run before you apply such a patch, FR-007's route: the patch on a scratch branch from `main`, `make evals-agent-config` against it, its entry committed there, and the gate, whose `agent-config-evals` step waits until the entry is attested.
+6. **Spec 006 has no `plan.md` or `tasks.md`:** Development Workflow step 3, "Approved `plan.md` is committed before code exists.", a deviation the Deviations item names. This interim ran on your direction through the main session's brief. The plan session can take it in as its first patch.
 7. **What the gate reads before the patch:** this branch's `evals` reads PASS, since main's gate doesn't know a "WARN (" line yet. Step 2's reason says so in the merge commit.
-8. **Spec 006's rest, not in this interim:** FR-003's line in `behavioral.py`; FR-004's trial of a changed case alone, in the docs; FR-005's note with main's standing state; FR-006's reading under FR-008 to FR-013; FR-007's route for an enforcement-layer patch, and START-HERE §7 step 4; the classes, escalations, and standing escalation (FR-008 to FR-013); the triage (FR-014 to FR-017); the "unclear" rules and their fixtures (FR-018 to FR-022); the trend and the WARN levels (FR-023, FR-024); the generated merge line (FR-025); the `warn` verdict, in the entries and in `eval-history` (FR-026); earlier entries read under the new rules (FR-027); the class counts on the dashboard (FR-028); FR-029's deny, item 4; the new ADR (FR-031), item 3; the transcripts' read deny (FR-032); and SC-001 to SC-004, SC-007, and SC-008.
+8. **Spec 006's rest, not in this interim:** FR-003's line in `behavioral.py`; FR-004's trial of a changed case alone, in the docs; FR-005's note with main's standing state; FR-006's reading under FR-008 to FR-013; FR-007's route for an enforcement-layer patch, and START-HERE §7 step 4; the classes, escalations, and standing escalation (FR-008 to FR-013); the triage (FR-014 to FR-017); the "unclear" rules and their fixtures (FR-018 to FR-022); the trend and the WARN levels (FR-023, FR-024); the generated merge line (FR-025); the `warn` verdict, in the entries and in `eval-history` (FR-026); earlier entries read under the new rules (FR-027); the class counts on the dashboard (FR-028); FR-029's deny, item 4; FR-031's ADR for the whole change, since ADR 0038 records the interim alone; the transcripts' read deny (FR-032); and SC-001 to SC-004, SC-007, and SC-008.
 
 ## `make check`'s whole output
 
-From `make -f Makefile check ENGINE_MODE=none-yet` in `/tmp/claude-1000/wt-advisory` at d93f70da, unedited, with the exit line the session's command added. Since then, 470affa8 changed only the patch file, and this note's commit only this note.
+From `make -f Makefile check ENGINE_MODE=none-yet` in `/tmp/claude-1000/wt-advisory` at d93f70da, unedited, with the exit line the session's command added. Since then, 470affa8 changed only the patch file, and the later commits documents only: this note, the spec's Deviations item, and ADR 0038 with its index row.
 
 ```text
 == makefiles-check
