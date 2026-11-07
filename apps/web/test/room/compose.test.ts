@@ -10,6 +10,7 @@
 // mode with no finding, under the policy `make test` reads (policy.ts: main's, by refs/heads/main), with drafts and
 // without; and its data holds no ID with the reserved prefix `fx-`, the tests' own, so no literal in a test can be a
 // real ID.
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,9 +25,13 @@ import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { loadRoom, namespaceIds } from "../../build/room/load";
 import { CAPS_DEFAULTS, noPolicy, policyFrom, readRoomPolicy } from "../../build/room/policy";
 import { fileTree, isTreePath, memoryTree, overlayTree } from "../../build/room/source";
+import type { Tree } from "../../build/room/source";
 import { AVATARS } from "../../src/choice/avatars";
+import { LABEL_HEIGHT, LABEL_LIFT } from "../../src/room/compose/framing";
+import { gzip9 } from "../../src/room/glb/gzip";
+import { desk, rxVariants, sign, SIGN_INPUT } from "../helpers/glb";
 import { badCases, caseTree, goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
-import { capsPolicy, modelChanges } from "../helpers/room-models";
+import { capsPolicy, catalogEntry, cleanModel, modelChanges } from "../helpers/room-models";
 
 const MODES: ComposeOptions[] = [
   { mode: "strict", drafts: true },
@@ -515,4 +520,137 @@ describe("the trees (contracts/room-bundle.md §1)", () => {
     ]);
     expect(base.log).not.toContain("a/new.yaml");
   });
+});
+
+// ---- T217: User Story 4's scenarios 1 and 2 on a fixture overlay (FR-019, FR-023) ----
+
+const sha256 = (data: Uint8Array): string => createHash("sha256").update(data).digest("hex");
+
+/** The changes that set `piece`'s model to `model`: its catalog entry's `model`, the file under assets/room/, and
+ *  records.json recording it with the kind room and its SHA-256 (RI7). */
+function setModel(piece: string, model: Uint8Array): Record<string, Uint8Array> {
+  const changes = modelChanges([piece]);
+  changes[`assets/room/${piece}.glb`] = model;
+  changes["assets/room/records.json"] = records(piece, model);
+  return changes;
+}
+
+/** records.json recording `piece`'s file alone. */
+function records(piece: string, model: Uint8Array): Uint8Array {
+  const entries = [{ file: `${piece}.glb`, sha256: sha256(model), kind: "room" }];
+  const record = { schema: 1, directory: "assets/room", license: "all-rights-reserved-2026", entries };
+  return new TextEncoder().encode(`${JSON.stringify(record, null, 2)}\n`);
+}
+
+/** User Story 4's machine-checkable variants, as its Independent Test lists them, from test/helpers/glb.ts: a live face
+ *  missing or off its plane, a misplaced origin, a light, a camera, an animation, a name off the rule, a refused
+ *  extension, and a mark that isn't spec 003's (missing, or another value). */
+const US4_VARIANTS = [
+  "rx8-missing",
+  "rx8-facing-off",
+  "rx7-misplaced-origin",
+  "rx4-light",
+  "rx3-camera",
+  "rx3-animation",
+  "rx6-camera-stem",
+  "rx4-KHR_materials_transmission",
+  "rx5-not-scrubbed",
+  "rx5-another-value",
+] as const;
+
+describe("User Story 4: a studio model in place of its stand-in (T217; FR-019, FR-023)", () => {
+  const STRICT: ComposeOptions = { mode: "strict", drafts: false };
+  const LENIENT: ComposeOptions = { mode: "lenient", drafts: false };
+  const MONITOR = "fx-monitor";
+
+  it("sets a clean model at the catalog's size, origin, and live faces with the one edit: its model entry and its measured frame box (scenario 1)", () => {
+    type Bounds = { readonly min: [number, number, number]; readonly max: [number, number, number] };
+    const entry = catalogEntry(MONITOR);
+    const bounds = (entry.origin as { bounds: Bounds }).bounds;
+    // The studio's file: the catalog's box and live face, its top 1 cm under the expected bounds', inside RX7's 2 cm,
+    // so the frame box below can only be the measured one.
+    const measured: Bounds = { min: bounds.min, max: [bounds.max[0], bounds.max[1] - 0.01, bounds.max[2]] };
+    const model = cleanModel({ ...entry, origin: { bounds: measured } } as unknown as Parameters<typeof cleanModel>[0]);
+    const changes = setModel(MONITOR, model);
+    // The one edit in the room's data: the entry's model; the file and its record arrive under assets/room/.
+    expect(Object.keys(changes).filter((p) => !p.startsWith("assets/room/"))).toEqual([
+      `apps/web/room/catalog/${MONITOR}.yaml`,
+    ]);
+    expect(parse(decoder.decode(changes[`apps/web/room/catalog/${MONITOR}.yaml`]))).toEqual({
+      ...entry,
+      model: { file: `${MONITOR}.glb` },
+    });
+
+    const standin = compose(goodTree(), capsPolicy(), STRICT);
+    const set = compose(overlay(changes), capsPolicy(), STRICT);
+    expect(lines(standin.findings)).toEqual([]);
+    expect(lines(set.findings)).toEqual([]);
+    const before = standin.scene.placements.find((p) => p.id === MONITOR);
+    const after = set.scene.placements.find((p) => p.id === MONITOR);
+    if (!before || !after) throw new Error(`no placement ${MONITOR}`);
+    expect(before.model).toBeNull();
+    const digest = sha256(model);
+    expect(after.model).toMatchObject({
+      url: `a/${MONITOR}.${digest.slice(0, 16)}.glb`,
+      sha256: digest,
+      bytes: gzip9(model).length,
+      texture_bytes: 0,
+    });
+    for (const k of ["min", "max"] as const)
+      after.model?.bounds[k].forEach((v, i) => expect(v, `bounds.${k}[${i}]`).toBeCloseTo(measured[k][i] ?? NaN, 6));
+    // The frame box: the measured bounds through the placement's world transform, with no raise for a stand-in's
+    // label, so its top drops by the label's lift and height and the studio's 1 cm.
+    expect(after.frame_box.min).toEqual(before.frame_box.min);
+    expect([after.frame_box.max[0], after.frame_box.max[2]]).toEqual([
+      before.frame_box.max[0],
+      before.frame_box.max[2],
+    ]);
+    expect(after.frame_box.max[1]).toBeCloseTo(before.frame_box.max[1] - 0.01 - LABEL_LIFT - LABEL_HEIGHT, 6);
+    // The rest the 3D part holds of the piece stays, its stand-in among it, for a load that fails (FR-057).
+    expect(set.scene.pieces[MONITOR]).toEqual(standin.scene.pieces[MONITOR]);
+    expect(set.scene.load_order).toEqual([MONITOR]);
+    expect(set.models.map((m) => m.piece)).toEqual([MONITOR]);
+    expect(standin.manifest.standins).toContainEqual({ placement: MONITOR, reason: "no-model" });
+    expect(set.manifest.standins.map((s) => s.placement)).not.toContain(MONITOR);
+  });
+
+  it.each(US4_VARIANTS)(
+    "refuses %s naming its rule in strict mode, and keeps the stand-in with a warn line in lenient mode (scenario 2)",
+    (id) => {
+      const variant = rxVariants().find((v) => v.id === id);
+      if (!variant) throw new Error(`no rxVariants() id ${id}`);
+      // A desk's variant on fx-desk and a sign's on fx-sign, each under the catalog entry its bytes were made for, as
+      // bad/RX4/ and bad/RX8/ lay them out; the clean desk and sign pass there, so only the variant's break refuses it.
+      const onSign = variant.input === SIGN_INPUT;
+      const template = badCases().find((c) => c.name === (onSign ? "RX8" : "RX4"));
+      if (!template) throw new Error("no bad/RX4/ or bad/RX8/");
+      const piece = onSign ? "fx-sign" : "fx-desk";
+      expect(template.file).toBe(`assets/room/${piece}.glb`);
+      const tree = (model: Uint8Array): Tree =>
+        overlayTree(
+          goodTree(),
+          new Map([...template.changes, [template.file, model], ["assets/room/records.json", records(piece, model)]]),
+        );
+      const clean = compose(tree(onSign ? sign().bytes : desk().bytes), capsPolicy(), STRICT);
+      expect(lines(clean.findings)).toEqual([]);
+      expect(clean.scene.placements.find((p) => p.id === piece)?.model).not.toBeNull();
+
+      const strict = compose(tree(variant.bytes), capsPolicy(), STRICT);
+      const lenient = compose(tree(variant.bytes), capsPolicy(), LENIENT);
+      expect(strict.findings.map((f) => `${f.rule} ${f.file}:${f.path}`)).toContain(
+        `${variant.rule} ${template.file}:${variant.path}`,
+      );
+      // Every finding is the model's, and lenient: a strict build fails on it, a lenient one prints it prefixed warn.
+      expect(strict.findings.every((f) => f.file === template.file && f.lenient)).toBe(true);
+      expect(lenient.findings).toEqual(strict.findings);
+      expect(lenient.findings.map((f) => formatFinding(f, "lenient"))).toEqual(
+        strict.findings.map((f) => `warn ${formatFinding(f, "strict")}`),
+      );
+      for (const result of [strict, lenient]) {
+        expect(result.scene.placements.find((p) => p.id === piece)?.model ?? null).toBeNull();
+        expect(result.models.some((m) => m.piece === piece)).toBe(false);
+        expect(result.manifest.standins).toContainEqual({ placement: piece, reason: "findings" });
+      }
+    },
+  );
 });
