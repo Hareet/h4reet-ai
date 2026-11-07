@@ -1,16 +1,18 @@
 # The chalkboard on the cube's left wall, left of the monitor (FR-078; the Author, 2026-10-23: "the chalkboard on a
 # brick wall that is left of the monitor"): a framed slate on the wall whose slate is a readable live face, drawn in
 # chalk by the room (FR-033). The slate is recessed in its frame, and the chalk tray stands out 4 cm at scale 1, 5 cm in
-# the room at 1.25, as the studio's hand-back of 2026-11-07 gives the Author's lookdev board; the stand-in stays a
-# board with the slate on its face, which stands in front of the recessed face until a model is set. Its size and where
-# it hangs are estimates until measured; the stylized scale is lookdev's to set, for the slate. 1.37, from 1.25, is
-# T308's: the smallest that keeps the slate's one line, "denverlocal.ai", on one line at the floor of 9 CSS pixels on
-# the reference phone (FR-082), until the Author's lookdev check (T309, T310).
+# the room at 1.25, as the studio's hand-back of 2026-11-07 gives the Author's lookdev board; the stand-in stays a board
+# with the slate on its face, which stands in front of the recessed face until a model is set. Its size and where it
+# hangs are estimates until measured; the stylized scale is lookdev's to set, for the slate. 1.49, from 1.25, is T308's
+# on this recessed slate, by the Author's choice of 2026-11-07, "Past the wall's edge": the smallest that keeps the
+# slate's one line, "denverlocal.ai", on one line at the floor of 9 CSS pixels on the reference phone (FR-082) with the
+# board clear of the artwork, which leaves it hanging past the left wall's front edge (scene.yaml), until the Author's
+# lookdev check (T309, T310).
 version: 1
 id: chalkboard
 name: Chalkboard
 size: { w: 0.48, h: 0.64, d: 0.04, estimated: true }
-stylized_scale: 1.37
+stylized_scale: 1.49
 origin:
   point: the centre of the board's back, against the wall.
   bounds: { min: [-0.24, -0.32, 0], max: [0.24, 0.32, 0.04] }
