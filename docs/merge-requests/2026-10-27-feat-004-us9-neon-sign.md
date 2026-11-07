@@ -4,6 +4,12 @@ Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (Phase 11
 Session: worked in the branch's worktree, `/tmp/claude-1000/wt-us9`, which the main session made from 6c3955d, `feat/004-us8-live-tier`'s tip (T262), with `node_modules` copied in. The main checkout wasn't touched. Repo hooks active: yes. Each commit ran the arrival check (`arrival-check: 0 findings in …`) and gitleaks (`no leaks found`).
 Authorized by: tasks.md T262 to T269; plan.md §10's entry "User Story 9's cost channel, as built"; the main session's direction for the review's four nits.
 
+## 2026-11-07: restacked onto feat/004-us8-live-tier's restacked tip (T271)
+
+`feat/004-us9-neon-sign was a65763ea677004e2b2251832e03c0067c320c261` (T271): 13 commits on 6c3955dce88553247e0faa75350db9531d0bb8b7, the commit this branch was cut from, `feat/004-us8-live-tier`'s last commit but one before its own rebase (T250), whose tip was then 36290d18b576baf4ba26b60498c1ab01adca9ef5. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
+
+The rest of this note is as it stood at a65763ea, its SHAs the old ones.
+
 **Status: reviewed and approved, the review's nits fixed, ready for the gate once line R's earlier merges land.** T268's review of 6c3955d..d3cbbb4 gave **APPROVE**, with no Blocker and no Important finding, and four nits, all fixed: nit 1 test first (6a9a63a RED, 1f159e6 GREEN), nits 2 and 4 by strengthening the tests (bbd9bb6), nit 3 in plan.md §10 (3820128). `make check` ends with the same four FAILs as `feat/004-us8-live-tier`, none from this branch's code (Verification; For the Author, item 6).
 
 **Both counters read "cost unavailable" in every build.** Your answer 7: "Yes it can have cost unavailable for now." `apps/web/room/scene.yaml` keeps `live.turn: off`: no turn route exists until the twin's conversation core, so nothing reports a turn, nothing is requested, and nothing is stored. The channel, its readings, and the talk panel's seam are in force behind it. The counters read live figures once the twin's spec sets `live.turn: site` with `POST /api/room/turn` returning B6's two fields, `cost_micro_usd` and `route` (Amendments A5, B6). For row V2, the twin's change carries the words "the reply carries the turn's estimated cost and its route" (FR-075; RL4 refuses `turn: site` without them).
