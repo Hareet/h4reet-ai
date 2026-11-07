@@ -142,8 +142,10 @@ describe("room-manifest.json (Amendment B7)", () => {
         },
       }),
     );
+    // Caps of FR-053's starting figures in a policy directory: the same findings, the same manifest field.
     const policy = policyFrom({ caps, approvals: null, header: null }, "policy-dir");
-    expect(composed({ policy }).manifest.caps).toEqual({
+    const given = compose(fileTree(REPO), policy, { mode: "lenient", drafts: false });
+    expect(given.manifest.caps).toEqual({
       source: "policy-dir",
       sha256: createHash("sha256").update(caps).digest("hex"),
     });
