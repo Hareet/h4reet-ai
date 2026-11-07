@@ -24,7 +24,9 @@ import {
 import type { Material, Mesh } from "three";
 import part from "virtual:room-scene";
 
+import { assetEvent } from "../asset-events";
 import { bindPointerSelection } from "./objects";
+import { capability, meetsModelFloor } from "./quality";
 import {
   buildRoom,
   disposeRoom,
@@ -34,6 +36,8 @@ import {
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
 import type { LabelFactory } from "./scene/bundle3d";
+import { createTextureLedger } from "./scene/ledger";
+import type { Loader } from "./scene/loader";
 import { createInk } from "./scene/look";
 import type { SceneOptions, Stage3D } from "./stage";
 
@@ -48,20 +52,68 @@ export interface QualitySettings {
   /** The most device pixels a CSS pixel gets. */
   pixelRatio: number;
   shadows: boolean;
-  /** The labels' texture resolution, as a share (the placeholders' only textures). */
+  /** The look's outlines (spec 004, R-35). */
+  outlines: boolean;
+  /** The glow cards (spec 004, R-35). */
+  glowCards: boolean;
+  /** The terminal's typing, in redraws a second; 0 shows its final frame (spec 004, R-35, R-37). */
+  typingFps: number;
+  /** The live faces' canvas resolution, as a share (spec 004, R-35, R-37). */
+  faceScale: number;
+  /** The labels' texture resolution, as a share (the placeholders' only textures): R-35's label scale. */
   textureScale: number;
-  /** The twin's idle sway. */
+  /** The twin's idle sway: R-35's idle sway. */
   animations: boolean;
 }
 
 const LEVELS: readonly QualitySettings[] = [
-  { pixelRatio: 2, shadows: true, textureScale: 1, animations: true },
-  { pixelRatio: 1.25, shadows: true, textureScale: 1, animations: true },
-  { pixelRatio: 1, shadows: false, textureScale: 1, animations: true },
-  { pixelRatio: 0.75, shadows: false, textureScale: 0.5, animations: false },
+  {
+    pixelRatio: 2,
+    shadows: true,
+    outlines: true,
+    glowCards: true,
+    typingFps: 15,
+    faceScale: 1,
+    textureScale: 1,
+    animations: true,
+  },
+  {
+    pixelRatio: 1.25,
+    shadows: true,
+    outlines: true,
+    glowCards: true,
+    typingFps: 15,
+    faceScale: 1,
+    textureScale: 1,
+    animations: true,
+  },
+  {
+    pixelRatio: 1,
+    shadows: false,
+    outlines: false,
+    glowCards: false,
+    typingFps: 8,
+    faceScale: 1,
+    textureScale: 1,
+    animations: true,
+  },
+  {
+    pixelRatio: 0.75,
+    shadows: false,
+    outlines: false,
+    glowCards: false,
+    typingFps: 0,
+    faceScale: 0.5,
+    textureScale: 0.5,
+    animations: false,
+  },
 ];
 
-/** R-04's steps: the pixel ratio first, then shadows, then textures and animations. */
+/**
+ * R-04's steps: the pixel ratio first, then shadows, then textures and animations. Spec 004's R-35 (Amendment B13)
+ * steps the outlines and glow cards with the shadows, the typing at quality 2 and 3, and the faces with the textures,
+ * still in four levels.
+ */
 export function qualitySettings(level: number): QualitySettings {
   return LEVELS[Math.min(LEVELS.length - 1, Math.max(0, Math.round(level)))] as QualitySettings;
 }
@@ -181,6 +233,55 @@ export function createScene(options: SceneOptions): Stage3D {
   const ink = createInk(renderer, part.look);
   ink.prepare(room.scene);
 
+  // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, which the room
+  // read behind the choice (app.ts), so nothing here asks the device during the hand-off; after the hand-off; under the
+  // controller's holds; each outcome an asset event. The loader, with three's GLTFLoader, is a chunk of its own,
+  // imported only when the part sets a model, so the 3D chunk carries neither until the first studio piece. If that
+  // chunk can't load, the stand-ins stay, each model failed (or skipped below the floor) at once: a browser keeps a
+  // failed module's failure, so nothing retries it. A stage the room left first records nothing: app.ts skips its
+  // models in 2D.
+  const { floor } = options;
+  let loader: Loader | null = null;
+  let disposed = false;
+  if (part.load_order.length > 0)
+    void import("./scene/loader")
+      .then(({ createLoader, modelEntries, prepareModel, showModel }) => {
+        const entries = modelEntries(part);
+        if (disposed || entries.length === 0) return;
+        loader = createLoader({
+          clock,
+          fetch: (url, init) => win.fetch(url, init),
+          decode: (source, o) => win.createImageBitmap(source, o),
+          floor: floor === undefined ? () => meetsModelFloor(capability(win)) : () => floor,
+          figures: Promise.resolve(),
+          handoff: options.handoff ?? Promise.resolve(),
+          hold: options.hold ?? (() => () => undefined),
+          level: options.level ?? (() => 0),
+          mode: options.mode ?? (() => "3d"),
+          record: options.assets ?? (() => undefined),
+          ledger: createTextureLedger(part.scene_texture_bytes),
+          uploader: renderer,
+          prepare: (piece, model) => {
+            const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
+            if (!own) return;
+            prepareModel(model, own, part.look, room.materials);
+            // The lines' one set of parameters, the stand-ins', so the stage's height reaches the model's too.
+            ink.prepare(model);
+          },
+          swap: (piece, model) => showModel(room, part, piece, model),
+        });
+        void loader.load(entries);
+      })
+      .catch(() => {
+        if (disposed) return;
+        const outcome = floor === false ? "skipped" : "failed";
+        for (const asset of options.room.models)
+          options.assets?.(assetEvent({ asset, outcome, ms: 0, bytes: 0, mode: options.mode?.() ?? "3d" }));
+      });
+  // A restored context lost the models' textures, whose bitmaps were closed: back to stand-ins, and loaded again.
+  const restored = (): void => void loader?.reload();
+  canvas.addEventListener("webglcontextrestored", restored);
+
   let settings = qualitySettings(0);
   const camera = new PerspectiveCamera();
   const boxes = framedBoxes(part);
@@ -203,7 +304,6 @@ export function createScene(options: SceneOptions): Stage3D {
     ink.setStageHeight(h);
   };
 
-  let disposed = false;
   let frame = 0;
   const loop = (time: number): void => {
     if (disposed) return;
@@ -229,6 +329,7 @@ export function createScene(options: SceneOptions): Stage3D {
       const before = settings.shadows;
       settings = qualitySettings(level);
       renderer.shadowMap.enabled = settings.shadows;
+      ink.setOutlines(settings.outlines);
       labels.setScale(settings.textureScale);
       if (before !== settings.shadows) {
         room.scene.traverse((node) => {
@@ -244,6 +345,8 @@ export function createScene(options: SceneOptions): Stage3D {
       disposed = true;
       clock.cancelFrame(frame);
       unbind();
+      loader?.stop();
+      canvas.removeEventListener("webglcontextrestored", restored);
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();

@@ -12,6 +12,7 @@ import { policyFrom } from "../../build/room/policy";
 import type { RoomCaps, RoomPolicy } from "../../build/room/policy";
 import type { Vec3 } from "../../src/room/glb/fit";
 import { ModelBuilder } from "./glb";
+import type { PackOptions } from "./glb";
 import { goodFiles } from "./room-fixtures";
 
 const encoder = new TextEncoder();
@@ -33,8 +34,9 @@ interface Entry {
 
 const times = (v: Vec3, s: number): Vec3 => [v[0] * s, v[1] * s, v[2] * s];
 
-/** A clean model of a catalog entry: its bounds as a box, and a plain quad per live face, at its stylized scale. */
-export function cleanModel(entry: Entry): Uint8Array {
+/** A clean model of a catalog entry: its bounds as a box, and a plain quad per live face, at its stylized scale; packed
+ *  with `o`, so a test can leave the mark out or edit the file (`asExported`, for one). */
+export function cleanModel(entry: Entry, o: PackOptions = {}): Uint8Array {
   const s = entry.stylized_scale ?? 1;
   const b = new ModelBuilder();
   const body = b.material({ pbrMetallicRoughness: { baseColorFactor: [0.5, 0.5, 0.5, 1], metallicFactor: 0 } });
@@ -52,7 +54,7 @@ export function cleanModel(entry: Entry): Uint8Array {
     b.node({ name: face.role, mesh: b.mesh([b.quad(quad, plain)], face.role) });
   });
   b.node({ name: "body", mesh: box });
-  return b.pack().bytes;
+  return b.pack(o).bytes;
 }
 
 /** The known-good set's catalog entry of `piece`, as its YAML holds it. */

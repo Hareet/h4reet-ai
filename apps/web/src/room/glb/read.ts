@@ -6,7 +6,10 @@
 // which stays the authority. It reads in stages, and a stage with a finding stops the rest:
 // 1. the container (RX1): the 12-byte header, then one JSON chunk and at most one BIN chunk, each 4-byte padded;
 // 2. the JSON (RX2): strict JSON (json.ts), then M4's walk over the glTF 2.0 schema, ported, with the schema's required
-//    properties, noting what the fit check's other rules read (names, extension objects, extras, and uris);
+//    properties, noting what the fit check's other rules read (names, extension objects, extras, and uris). A property
+//    the reader never reads (rules.ts's READ_PAST: a key outside the schema, Blender's asset.generator among them, or a
+//    copyright that doesn't name the media license) stays a finding but stops nothing, so an unscrubbed file is read
+//    and measured (plan.md §10);
 // 3. the structure (RX2): every index naming an element; the node tree a forest; the buffer, its views, and the BIN
 //    chunk's bytes as parse_glb checks them; every accessor inside its view, aligned, and of a type its use takes;
 // 4. the values (RX2): sparse indices climbing within their accessor, attribute values finite, and every vertex index
@@ -17,7 +20,7 @@
 import { isIntegerAt, isObject, strictJson } from "./json";
 import type { Json, JsonObject } from "./json";
 import { printableKey } from "./names";
-import { MATERIALS, REASON, XMP } from "./rules";
+import { MATERIALS, READ_PAST, REASON, XMP } from "./rules";
 import type { RxRule } from "./rules";
 
 /** A finding before its file is known: the rule, the JSON path by index, and the reason. */
@@ -1146,12 +1149,13 @@ export class Glb {
 }
 
 export interface GlbRead {
-  /** RX1's or RX2's findings, where the file isn't sound; else none. */
+  /** RX1's or RX2's findings: every one, where the file isn't sound; where it is, the properties it read past, which
+   *  stay findings (READ_PAST). */
   readonly problems: readonly Problem[];
   readonly glb: Glb | null;
 }
 
-/** A GLB read in stages, each stopping the rest at its first finding. */
+/** A GLB read in stages, each stopping the rest at its first finding but for a property the reader never reads. */
 export function readGlb(bytes: Uint8Array): GlbRead {
   const problems: Problem[] = [];
   const box = container(bytes, problems);
@@ -1162,12 +1166,14 @@ export function readGlb(bytes: Uint8Array): GlbRead {
   if (!isObject(parsed.value)) return { problems: [{ rule: "RX2", path: "-", reason: REASON.root }], glb: null };
   const walker = new Walker();
   walker.walk(parsed.value, "root", "", 0);
-  if (walker.problems.length) return { problems: walker.problems, glb: null };
+  // What the walk read past goes on with the file's findings; any other problem stops the reading here.
+  const past = walker.problems.filter((p) => READ_PAST.has(p.reason));
+  if (past.length < walker.problems.length) return { problems: walker.problems, glb: null };
   const gltf = parsed.value as unknown as Gltf;
   const structural = structure(gltf, box, walker.notes);
-  if (structural.length) return { problems: structural, glb: null };
+  if (structural.length) return { problems: [...past, ...structural], glb: null };
   const glb = new Glb(gltf, box.bin, walker.notes);
   const values = glb.checkValues();
-  if (values.length) return { problems: values, glb: null };
-  return { problems: [], glb };
+  if (values.length) return { problems: [...past, ...values], glb: null };
+  return { problems: past, glb };
 }

@@ -170,6 +170,8 @@ export interface WindowOptions {
   touch?: boolean;
   /** Whether canvas.getContext("webgl2") gives a context. */
   webgl?: boolean;
+  /** The context's MAX_TEXTURE_SIZE, which ADR 0010's floor reads (spec 004, R-28); without it, reading it fails. */
+  maxTextureSize?: number;
 }
 
 /** A window holding the real index.html, as the site serves it, with media queries and WebGL as asked. */
@@ -203,9 +205,14 @@ export function makeWindow(options: WindowOptions = {}): JSDOM {
     }),
   });
   const released: string[] = [];
+  const MAX_TEXTURE_SIZE = 0x0d33;
+  const { maxTextureSize } = options;
   win.HTMLCanvasElement.prototype.getContext = function getContext(kind: string) {
     if (options.webgl !== true || kind !== "webgl2") return null;
     return {
+      ...(maxTextureSize === undefined
+        ? {}
+        : { MAX_TEXTURE_SIZE, getParameter: (name: number) => (name === MAX_TEXTURE_SIZE ? maxTextureSize : null) }),
       getExtension: (name: string) =>
         name === "WEBGL_lose_context" ? { loseContext: () => released.push("lost") } : null,
     };

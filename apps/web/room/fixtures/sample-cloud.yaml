@@ -1,0 +1,10 @@
+# A sample state for the lookdev page (FR-049; R-05; data-model.md §8), drafts only: the cloud fallback serving, so
+# the laptop's switch shows its unplugged pose; a local reply costing 0, then two paid fallback replies (FR-048).
+# Every figure it feeds reads "Sample".
+version: 1
+id: sample-cloud
+tier: cloud
+turns:
+  - { outcome: reply, route: local, cost_micro_usd: 0 }
+  - { outcome: reply, route: fallback, cost_micro_usd: 950 }
+  - { outcome: reply, route: fallback, cost_micro_usd: 1840 }

@@ -160,6 +160,13 @@ export function png(o: PngOptions = {}): Uint8Array {
   );
 }
 
+/** A PNG whose header names `width` × `height`, 8-bit RGB, over a single byte of data: the fit check and the lookdev
+ *  tests' decoder read headers alone, so a texture past any cap costs nothing to build. */
+export function pngHeader(width: number, height: number): Uint8Array {
+  const ihdr = chunk("IHDR", concat(u32be(width), u32be(height), bytes(8, 2, 0, 0, 0)));
+  return concat(PNG_SIGNATURE, ihdr, chunk("IDAT", deflateSync(new Uint8Array(1))), chunk("IEND", new Uint8Array()));
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 // JPEG
 // --------------------------------------------------------------------------------------------------------------------
@@ -300,6 +307,17 @@ export function addMark(gltf: Obj, term: string = MODEL_TERM): void {
     KHR_xmp_json_ld: { packets: [markPacket(term)] },
   };
   obj(gltf.asset).extensions = { KHR_xmp_json_ld: { packet: 0 } };
+}
+
+/** The generator Blender's glTF exporter writes into every file's asset, a property outside the arrival check's schema,
+ *  which spec 003's scrub drops. */
+export const BLENDER_GENERATOR = "Khronos glTF Blender I/O v4.2.70";
+
+/** A file as Blender exports it, before the scrub, as an `edit` for any builder here: the asset's generator, and a
+ *  custom property as `extras` on the first node. With `mark: false`, the studio's file as the Author picks it. */
+export function asExported(gltf: Obj): void {
+  obj(gltf.asset).generator = BLENDER_GENERATOR;
+  item(gltf, "nodes", 0).extras = { "fx-note": "fx-from-the-studio" };
 }
 
 export interface GlbOptions {

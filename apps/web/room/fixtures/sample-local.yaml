@@ -1,0 +1,9 @@
+# A sample state for the lookdev page (FR-049; R-05; data-model.md §8), drafts only: the Author's machine serving, so
+# the laptop's switch shows its plugged pose, and two local replies, each costing 0 (FR-048). Every figure it feeds
+# reads "Sample".
+version: 1
+id: sample-local
+tier: local
+turns:
+  - { outcome: reply, route: local, cost_micro_usd: 0 }
+  - { outcome: reply, route: local, cost_micro_usd: 0 }

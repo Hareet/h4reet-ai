@@ -419,3 +419,19 @@ export const REASON = {
   emissiveStrength: `an emissive strength, ${EMISSIVE_STRENGTH}`,
   occlusion: "an occlusionTexture",
 } as const;
+
+/**
+ * RX2's reasons for a property the reader never reads: a key outside the glTF 2.0 schema or outside an admitted
+ * extension's, and a copyright that doesn't name the media license. Blender writes `asset.generator` into every export,
+ * and spec 003's scrub drops it and `asset.copyright`. The finding stands, so no build sets such a model; the reader
+ * reads past it, so the other rules run and the file is measured, and the lookdev page can show an unscrubbed file at
+ * the room's framing (plan.md §10). Every other RX2 reason keeps the reader from reading the file, and stops it.
+ */
+export const READ_PAST: ReadonlySet<string> = new Set<string>([
+  REASON.outside,
+  REASON.outsideAsset,
+  REASON.outsideUnprinted,
+  REASON.outsideExtension,
+  REASON.outsideExtensionUnprinted,
+  REASON.copyright,
+]);

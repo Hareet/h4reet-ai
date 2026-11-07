@@ -3,6 +3,12 @@
 // device, 60 otherwise), switches to 2D below 24 frames a second for 5 s at quality 3, and never moves back up; the
 // WebGL 2 check comes before the 3D chunk, which a device without it never loads; a lost context gets one restore; and
 // entering 2D, by any road, sends one mode_2d.
+//
+// T127 (spec 004; FR-055, SC-005; Amendment B13; research.md R-28, R-35): the controller's holds, reference-counted,
+// each returning its release: frames during a hold are ignored and the window restarts when the last is released, so a
+// scripted load of every piece steps nothing down, and a context restore holds too; the four levels are R-35's table,
+// none raising a setting over the one before, with spec 002's step to 2D unchanged; and capability() reads what ADR
+// 0010's floor for studio models needs.
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
@@ -10,13 +16,17 @@ import {
   FLOOR_FPS,
   FRAME_WINDOW_MS,
   MAX_QUALITY,
+  MODEL_FLOOR,
   SCENE_WAIT_MS,
+  capability,
   createQualityController,
   hasWebGL2,
+  meetsModelFloor,
   targetFps,
   watchContext,
 } from "../../src/room/quality";
-import type { FlatReason, QualityController } from "../../src/room/quality";
+import type { Capability, FlatReason, QualityController } from "../../src/room/quality";
+import { qualitySettings } from "../../src/room/scene";
 import {
   FakeClock,
   HANDOFF_LINE,
@@ -148,6 +158,145 @@ describe("the quality controller", () => {
   });
 });
 
+/** About FR-078's room: the pieces a scripted load fetches, parses, and swaps. */
+const PIECES = 12;
+
+/**
+ * A scripted load of every piece as the loader runs it (R-28): two at a time, frames falling to 20 a second while a
+ * pair parses and swaps, then 60 a second while the next pair fetches. With `held`, each piece holds the controller
+ * from its parse until two frames after its swap. Returns the time after the load.
+ */
+function scriptedLoad(c: QualityController, held: boolean, from: number): number {
+  let t = from;
+  for (let piece = 0; piece < PIECES; piece += 2) {
+    const releases = held ? [c.hold(), c.hold()] : [];
+    t = feed(c, 20, 2, t);
+    t = feed(c, 60, 0.03, t);
+    for (const release of releases) release();
+    t = feed(c, 60, 0.3, t);
+  }
+  return t;
+}
+
+describe("the quality controller's holds (spec 004, FR-055)", () => {
+  it("ignores frames during a hold, and starts a new window when it's released", () => {
+    const { c, steps } = controller(60);
+    let t = feed(c, 40, 4.9, 0);
+    const release = c.hold();
+    t = feed(c, 5, 20, t);
+    expect(steps).toEqual([]);
+    release();
+    // Without the restart, the next frame would close the window opened before the hold, and step down at once.
+    t = feed(c, 40, 4.9, t);
+    expect(steps).toEqual([]);
+    feed(c, 40, 0.2, t);
+    expect(steps).toEqual([1]);
+  });
+
+  it("is reference-counted: frames count again only once the last hold is released, and a release counts once", () => {
+    const { c, steps } = controller(60);
+    const first = c.hold();
+    const second = c.hold();
+    let t = feed(c, 10, 10, 0);
+    first();
+    first();
+    t = feed(c, 10, 10, t);
+    expect(steps).toEqual([]);
+    second();
+    t = feed(c, 10, 4.9, t);
+    expect(steps).toEqual([]);
+    feed(c, 10, 0.2, t);
+    expect(steps).toEqual([1]);
+  });
+
+  it("lets a scripted load of every piece step nothing down, where the same frames unheld would", () => {
+    const unheld = controller(60);
+    feed(unheld.c, 60, 30, scriptedLoad(unheld.c, false, 0));
+    expect(unheld.steps.length).toBeGreaterThan(0);
+
+    const { c, steps, flats } = controller(60);
+    feed(c, 60, 30, scriptedLoad(c, true, 0));
+    expect(steps).toEqual([]);
+    expect(flats).toEqual([]);
+    expect(c.quality).toBe(0);
+  });
+
+  it("keeps spec 002's step to 2D below 24 frames a second at quality 3, held frames aside", () => {
+    const { c, steps, flats } = controller(30);
+    let t = feed(c, 20, 15.3, 0);
+    expect(steps).toEqual([1, 2, 3]);
+    const release = c.hold();
+    t = feed(c, 10, 30, t);
+    expect(flats).toEqual([]);
+    release();
+    t = feed(c, 20, 4.9, t);
+    expect(flats).toEqual([]);
+    feed(c, 20, 0.3, t);
+    expect(flats).toEqual(["frame_floor"]);
+    expect(c.mode).toBe("2d");
+  });
+});
+
+describe("R-35's four quality levels (Amendment B13)", () => {
+  it("are R-35's table: label scale is textureScale, idle sway is animations", () => {
+    expect([0, 1, 2, 3].map(qualitySettings)).toEqual([
+      {
+        pixelRatio: 2,
+        shadows: true,
+        outlines: true,
+        glowCards: true,
+        typingFps: 15,
+        faceScale: 1,
+        textureScale: 1,
+        animations: true,
+      },
+      {
+        pixelRatio: 1.25,
+        shadows: true,
+        outlines: true,
+        glowCards: true,
+        typingFps: 15,
+        faceScale: 1,
+        textureScale: 1,
+        animations: true,
+      },
+      {
+        pixelRatio: 1,
+        shadows: false,
+        outlines: false,
+        glowCards: false,
+        typingFps: 8,
+        faceScale: 1,
+        textureScale: 1,
+        animations: true,
+      },
+      {
+        pixelRatio: 0.75,
+        shadows: false,
+        outlines: false,
+        glowCards: false,
+        typingFps: 0,
+        faceScale: 0.5,
+        textureScale: 0.5,
+        animations: false,
+      },
+    ]);
+  });
+
+  it("are still four, none raising a setting over the level before", () => {
+    expect(MAX_QUALITY).toBe(3);
+    expect(qualitySettings(-1)).toEqual(qualitySettings(0));
+    expect(qualitySettings(MAX_QUALITY + 1)).toEqual(qualitySettings(MAX_QUALITY));
+    for (let level = 1; level <= MAX_QUALITY; level += 1) {
+      const before = qualitySettings(level - 1);
+      const after = qualitySettings(level);
+      for (const key of Object.keys(before) as (keyof typeof before)[]) {
+        expect(Number(after[key]), `${key} at ${level}`).toBeLessThanOrEqual(Number(before[key]));
+      }
+    }
+  });
+});
+
 describe("the WebGL 2 check", () => {
   it("is false without a webgl2 context", () => {
     const win = new JSDOM("<p>").window;
@@ -177,6 +326,87 @@ describe("the WebGL 2 check", () => {
   });
 });
 
+describe("the capability floor for studio models (spec 004, R-28)", () => {
+  /** WebGL's MAX_TEXTURE_SIZE. */
+  const MAX_TEXTURE_SIZE = 0x0d33;
+
+  /**
+   * A jsdom window whose canvases give a WebGL 2 context reporting `maxTextureSize`, or throwing when it's read
+   * ("unreadable"), give none, or throw when asked, recording each call.
+   */
+  function windowWith(maxTextureSize: number | null | "throws" | "unreadable"): { win: Window; calls: string[] } {
+    const win = new JSDOM("<p>").window;
+    const calls: string[] = [];
+    win.HTMLCanvasElement.prototype.getContext = ((kind: string, attributes: unknown) => {
+      calls.push(`getContext ${kind} ${JSON.stringify(attributes)}`);
+      if (maxTextureSize === "throws") throw new Error("blocked");
+      if (maxTextureSize === null) return null;
+      return {
+        MAX_TEXTURE_SIZE,
+        getParameter: (name: number) => {
+          calls.push(`getParameter ${name}`);
+          if (maxTextureSize === "unreadable") throw new Error("lost");
+          return name === MAX_TEXTURE_SIZE ? maxTextureSize : null;
+        },
+        getExtension: (name: string) => {
+          calls.push(`getExtension ${name}`);
+          return { loseContext: () => calls.push("loseContext") };
+        },
+      };
+    }) as unknown as HTMLCanvasElement["getContext"];
+    return { win: win as unknown as Window, calls };
+  }
+
+  it("reads the largest texture size before releasing the context it made, and the device memory where given", () => {
+    const { win, calls } = windowWith(8192);
+    expect(capability(win)).toEqual({ webgl2: true, maxTextureSize: 8192, deviceMemory: null });
+    expect(calls).toEqual([
+      'getContext webgl2 {"failIfMajorPerformanceCaveat":true}',
+      `getParameter ${MAX_TEXTURE_SIZE}`,
+      "getExtension WEBGL_lose_context",
+      "loseContext",
+    ]);
+    Object.defineProperty(win.navigator, "deviceMemory", { configurable: true, value: 2 });
+    expect(capability(win)).toEqual({ webgl2: true, maxTextureSize: 8192, deviceMemory: 2 });
+  });
+
+  it("reads no WebGL 2 where there is none, or where asking throws", () => {
+    expect(capability(windowWith(null).win)).toEqual({ webgl2: false, maxTextureSize: 0, deviceMemory: null });
+    expect(capability(windowWith("throws").win)).toEqual({ webgl2: false, maxTextureSize: 0, deviceMemory: null });
+  });
+
+  it("keeps spec 002's WebGL 2 verdict where the context won't give its texture size: 0, below the floor", () => {
+    // The room reads its WebGL 2 check through capability() (R-28 step 1), so the size failing never sends it to 2D.
+    const { win, calls } = windowWith("unreadable");
+    const read = capability(win);
+    // The context it made is released all the same.
+    expect(calls).toEqual([
+      'getContext webgl2 {"failIfMajorPerformanceCaveat":true}',
+      `getParameter ${MAX_TEXTURE_SIZE}`,
+      "getExtension WEBGL_lose_context",
+      "loseContext",
+    ]);
+    expect(read).toEqual({ webgl2: true, maxTextureSize: 0, deviceMemory: null });
+    expect(read.webgl2).toBe(hasWebGL2(win.document));
+    expect(meetsModelFloor(read)).toBe(false);
+  });
+
+  it("is ADR 0010's floor: WebGL 2, at least 4 GB where the browser reports it, and 4096-pixel textures", () => {
+    expect(MODEL_FLOOR).toEqual({ deviceMemory: 4, maxTextureSize: 4096 });
+    const at = (webgl2: boolean, maxTextureSize: number, deviceMemory: number | null): Capability => ({
+      webgl2,
+      maxTextureSize,
+      deviceMemory,
+    });
+    expect(meetsModelFloor(at(true, 4096, null))).toBe(true);
+    expect(meetsModelFloor(at(true, 4096, 4))).toBe(true);
+    expect(meetsModelFloor(at(true, 16384, 8))).toBe(true);
+    expect(meetsModelFloor(at(true, 4096, 2))).toBe(false);
+    expect(meetsModelFloor(at(true, 2048, 8))).toBe(false);
+    expect(meetsModelFloor(at(false, 16384, 8))).toBe(false);
+  });
+});
+
 describe("a lost context", () => {
   it("gets one restore: restored in time, the room stays; lost again, or not restored, it goes to 2D", () => {
     const clock = new FakeClock();
@@ -203,6 +433,71 @@ describe("a lost context", () => {
     expect(otherFailed).toBe(0);
     clock.advance(1);
     expect(otherFailed).toBe(1);
+  });
+
+  /**
+   * A room's frame loop on a fake clock, feeding a desktop's controller, its context watched with or without the
+   * controller's hold: 4.9 s at 40 frames a second, then the context lost for 2 s at 5 a second, then restored.
+   */
+  function restore(held: boolean): { clock: FakeClock; steps: number[] } {
+    const clock = new FakeClock();
+    const win = new JSDOM("<canvas></canvas>").window;
+    const canvas = win.document.querySelector("canvas") as unknown as EventTarget;
+    const { c, steps } = controller(60);
+    if (held) watchContext(canvas, clock, () => undefined, { hold: c.hold.bind(c) });
+    else watchContext(canvas, clock, () => undefined);
+    const loop = (time: number): void => {
+      c.frame(time);
+      clock.requestFrame(loop);
+    };
+    clock.requestFrame(loop);
+    clock.advance(4900, 25);
+    canvas.dispatchEvent(new win.Event("webglcontextlost", { cancelable: true }));
+    clock.advance(2000, 200);
+    canvas.dispatchEvent(new win.Event("webglcontextrestored"));
+    return { clock, steps };
+  }
+
+  it("holds the quality controller from the loss until two frames after the restore (spec 004, R-35)", () => {
+    // Unheld, the window opened before the loss closes during it, and steps down.
+    expect(restore(false).steps).toEqual([1]);
+
+    // Held, the restore's two frames (at 25 and 50 ms after it) are ignored too, and the third opens the window,
+    // which closes 5 s later, stepping down once.
+    const { clock, steps } = restore(true);
+    clock.advance(5050, 25);
+    expect(steps).toEqual([]);
+    clock.advance(25, 25);
+    expect(steps).toEqual([1]);
+  });
+
+  it("lets its hold go when the room stops watching, or when the context isn't restored in time", () => {
+    const clock = new FakeClock();
+    const win = new JSDOM("<canvas></canvas><canvas></canvas>").window;
+    const [canvas, other] = [...win.document.querySelectorAll("canvas")] as unknown as EventTarget[];
+    if (!canvas || !other) throw new Error("no canvases");
+    let held = 0;
+    const hold = (): (() => void) => {
+      held += 1;
+      let released = false;
+      return () => {
+        if (!released) held -= 1;
+        released = true;
+      };
+    };
+    const unwatch = watchContext(canvas, clock, () => undefined, { hold });
+    canvas.dispatchEvent(new win.Event("webglcontextlost", { cancelable: true }));
+    expect(held).toBe(1);
+    unwatch();
+    expect(held).toBe(0);
+
+    let failed = 0;
+    watchContext(other, clock, () => (failed += 1), { hold });
+    other.dispatchEvent(new win.Event("webglcontextlost", { cancelable: true }));
+    expect(held).toBe(1);
+    clock.advance(3000);
+    expect(failed).toBe(1);
+    expect(held).toBe(0);
   });
 });
 

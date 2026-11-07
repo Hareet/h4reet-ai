@@ -19,13 +19,17 @@
 // framing and placeholder cases move onto the site's own room, the repository's bundle; its hand-off cases and its
 // visitor's cut-out go, as this file's own cases above hold both of the bundle's room; and where spec 002 hung its
 // pieces goes with its layout, FR-078's work area being the data's, which the Author's runs judge (T119).
+// T141 (spec 004; FR-055 to FR-057, FR-071; R-28; the lookdev review's runtime-7): src/room/scene.ts's studio models
+// end to end, on a 3D part with set models (test/helpers/room-models.ts) and a stand-in renderer, since jsdom has no
+// WebGL: the loader's chunk imported, each model fetched as R-28 has it and swapped in for its piece's stand-ins, a
+// restored context's reload, and a disposed stage's stop, with the asset events each records.
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { JSDOM } from "jsdom";
 import { Box3, Mesh, Object3D, PerspectiveCamera, ShapeGeometry, Vector3 } from "three";
-import type { BufferGeometry, Color, Material, MeshBasicMaterial, Sprite, Texture } from "three";
-import { describe, expect, it, vi } from "vitest";
+import type { BufferGeometry, Color, Material, MeshBasicMaterial, Scene, Sprite, Texture } from "three";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import roomScene from "virtual:room-scene";
 
 import { compose } from "../../build/room/compose";
@@ -41,6 +45,9 @@ import { anchorWorld, mountWorld, resolveMounts } from "../../src/room/compose/m
 import type { Resolved } from "../../src/room/compose/mount";
 import { projector } from "../../src/room/compose/project";
 import { ASPECTS } from "../../src/room/compose/stages";
+import type { AssetEvent } from "../../src/asset-events";
+import type { Mode } from "../../src/choice/visit";
+import { SETTLE_FRAMES } from "../../src/room/quality";
 import { createLabels, createScene, qualitySettings } from "../../src/room/scene";
 import {
   buildRoom,
@@ -52,12 +59,43 @@ import {
 } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { VISITOR_TURN, visitorTurnShare } from "../../src/room/handoff";
+import { readImage } from "../../src/room/glb/images";
+import { MODEL_NODE, integrity } from "../../src/room/scene/loader";
+import { outlineThickness } from "../../src/room/scene/look";
 import { shapeGeometry } from "../../src/room/scene/standins";
+import type { SceneOptions } from "../../src/room/stage";
 import { uiWord } from "../../src/room/ui-keys";
-import { FakeClock, enter, repositoryBundle, start } from "../helpers/room";
+import { FakeClock, enter, flush, repositoryBundle, start } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
+import { PNG_SIGNATURE, bytes, chunk, concat, desk } from "../helpers/glb";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
+
+/**
+ * What the scene module draws and draws with: the repository's 3D part and three's own renderer, unless a test sets a
+ * part of its own and a stand-in renderer here (vitest.config.ts gives `virtual:room-scene` the repository's part).
+ */
+const swapped = vi.hoisted(() => ({
+  part: null as RoomScene | null,
+  renderer: null as ((parameters: unknown) => unknown) | null,
+}));
+
+vi.mock("virtual:room-scene", async (importOriginal) => {
+  const own = await importOriginal<{ default: RoomScene }>();
+  return {
+    get default() {
+      return swapped.part ?? own.default;
+    },
+  };
+});
+
+vi.mock("three", async (importOriginal) => {
+  const three = await importOriginal<typeof import("three")>();
+  function WebGLRenderer(parameters?: unknown): unknown {
+    return swapped.renderer ? swapped.renderer(parameters) : new three.WebGLRenderer(parameters as never);
+  }
+  return { ...three, WebGLRenderer };
+});
 
 const decoder = new TextDecoder();
 const text = (path: string): string => decoder.decode(goodFiles().get(path));
@@ -773,5 +811,405 @@ describe("the labels' textures", () => {
     expect(node.name).toBe("label:Desk (placeholder)");
     expect(node.children).toHaveLength(0);
     labels.setScale(0.5);
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// The studio models in the 3D stage (T134; T141, the lookdev review's runtime-7)
+// --------------------------------------------------------------------------------------------------------------------
+/** WebGL's MAX_TEXTURE_SIZE. */
+const MAX_TEXTURE_SIZE = 0x0d33;
+
+/** A stand-in for WebGLRenderer: what scene.ts and OutlineEffect use of it, each frame's scene kept. */
+function standInRenderer(): { renderer: object; drawn(): Scene; disposed(): boolean } {
+  let last: Scene | null = null;
+  let gone = false;
+  const renderer = {
+    autoClear: true,
+    outputColorSpace: "",
+    shadowMap: { enabled: true },
+    setPixelRatio: () => undefined,
+    setSize: () => undefined,
+    initTexture: () => undefined,
+    render: (scene: Scene) => {
+      last = scene;
+    },
+    dispose: () => {
+      gone = true;
+    },
+  };
+  return {
+    renderer,
+    drawn: () => {
+      if (!last) throw new Error("no frame drawn");
+      return last;
+    },
+    disposed: () => gone,
+  };
+}
+
+/** One fetch the page made, which the test answers; an aborted one rejects, as a browser's does. */
+interface Fetched {
+  readonly url: string;
+  readonly init: RequestInit;
+  answer(body: Uint8Array | undefined): void;
+}
+
+interface Staged {
+  readonly win: TestWindow;
+  readonly clock: FakeClock;
+  readonly stage: ReturnType<typeof createScene>;
+  readonly result: ComposeResult;
+  readonly fetched: Fetched[];
+  readonly events: AssetEvent[];
+  /** Each set model's plain file, by piece. */
+  readonly files: ReadonlyMap<string, Uint8Array>;
+  /** The visit's mode, which the stage's events read. */
+  mode: Mode;
+  /** The holds taken and not yet let go. */
+  held(): number;
+  /** The WebGL 2 contexts asked for since the stage was made: capability()'s probes, the renderer being a stand-in. */
+  probes(): number;
+  /** The scene the last frame drew. */
+  drawn(): Scene;
+  disposed(): boolean;
+}
+
+/** The pieces whose models the stage loads: a placed piece, and the piece a switch shows in each of its cases. */
+const SET = ["fx-desk", "fx-plug"];
+let composedWithModels: ComposeResult | null = null;
+
+/**
+ * The fixture room with set models on SET, composed under main's caps, drawn by the scene module with a stand-in
+ * renderer, on a window whose fetch is a spy the test answers and whose WebGL 2 context reports 16384-pixel textures.
+ */
+function staged(
+  options: Partial<SceneOptions> = {},
+  part?: (own: RoomScene) => RoomScene,
+  make: typeof createScene = createScene,
+): Staged {
+  composedWithModels ??= compose(overlay(modelChanges(SET)), capsPolicy(), { mode: "lenient", drafts: false });
+  const result = composedWithModels;
+  const changes = modelChanges(SET);
+  const r = standInRenderer();
+  swapped.part = part ? part(result.scene) : result.scene;
+  swapped.renderer = () => r.renderer;
+  const win = new JSDOM("<main></main>", { url: "http://127.0.0.1:18105/", pretendToBeVisual: true })
+    .window as unknown as TestWindow;
+  let probes = 0;
+  win.HTMLCanvasElement.prototype.getContext = ((kind: string) => {
+    if (kind !== "webgl2") return null;
+    probes += 1;
+    return {
+      MAX_TEXTURE_SIZE,
+      getParameter: (name: number) => (name === MAX_TEXTURE_SIZE ? 16384 : null),
+      getExtension: () => ({ loseContext: () => undefined }),
+    };
+  }) as unknown as HTMLCanvasElement["getContext"];
+  // createImageBitmap, which jsdom lacks: a bitmap of the image header's size, or the resize asked for.
+  Object.defineProperty(win, "createImageBitmap", {
+    configurable: true,
+    value: async (source: Blob, o: ImageBitmapOptions = {}) => {
+      const size = readImage(new Uint8Array(await source.arrayBuffer())).header;
+      if (!size) throw new Error("undecodable");
+      return { width: o.resizeWidth ?? size.width, height: o.resizeHeight ?? size.height, close: () => undefined };
+    },
+  });
+  const fetched: Fetched[] = [];
+  Object.defineProperty(win, "fetch", {
+    configurable: true,
+    value: (url: string, init: RequestInit) =>
+      new Promise<Response>((resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        fetched.push({
+          url,
+          init,
+          answer: (body) =>
+            resolve({
+              status: 200,
+              arrayBuffer: () => Promise.resolve((body ?? new Uint8Array()).slice().buffer),
+            } as Response),
+        });
+      }),
+  });
+  const clock = new FakeClock();
+  const events: AssetEvent[] = [];
+  let held = 0;
+  const s: Omit<Staged, "stage"> & { stage: Staged["stage"] | null } = {
+    win,
+    clock,
+    stage: null,
+    result,
+    fetched,
+    events,
+    files: new Map(SET.map((piece) => [piece, changes[`assets/room/${piece}.glb`] as Uint8Array])),
+    mode: "3d",
+    held: () => held,
+    probes: () => probes,
+    drawn: r.drawn,
+    disposed: r.disposed,
+  };
+  s.stage = make({
+    win,
+    doc: win.document,
+    clock,
+    room: result.index,
+    avatar: "dog",
+    reducedMotion: false,
+    select: () => undefined,
+    onFrame: () => undefined,
+    handoff: Promise.resolve(),
+    hold: () => {
+      held += 1;
+      let done = false;
+      return () => {
+        if (done) return;
+        done = true;
+        held -= 1;
+      };
+    },
+    level: () => 0,
+    mode: () => s.mode,
+    assets: (event) => events.push(event),
+    ...options,
+  });
+  return s as Staged;
+}
+
+/** Whether a holder (a placement's node, or a switch's case) shows a model, and whether its stand-in shows. */
+function showing(holder: Object3D | undefined): { model: boolean; standin: boolean | undefined } {
+  return {
+    model: holder?.children.some((c) => c.name === MODEL_NODE) ?? false,
+    standin: holder?.children.find((c) => c.name === "standin")?.visible,
+  };
+}
+
+/** Every holder the set pieces show in: the desk's placement, and each case of the plug's switch. */
+function holdersOf(s: Staged): Object3D[] {
+  const scene = s.drawn();
+  const part = s.result.scene;
+  const sw = part.switches.find((x) => x.piece === "fx-plug");
+  const names = [
+    ...part.placements.filter((p) => p.piece === "fx-desk").map((p) => p.id),
+    ...Object.keys(sw?.poses ?? {}).map((pose) => `${sw?.id ?? ""}.${pose}`),
+  ];
+  expect(names.length).toBeGreaterThan(2);
+  return names.map((name) => scene.getObjectByName(name) as Object3D);
+}
+
+/** A loaded event of a set piece's model: its .gz copy's length. */
+function loadedEvent(s: Staged, piece: string): AssetEvent {
+  const bytes = s.result.models.find((m) => m.piece === piece)?.gz.length ?? -1;
+  return { asset: piece, outcome: "loaded", ms_bucket: "<250", bytes, mode: "full" };
+}
+
+const byAsset = (events: readonly AssetEvent[]): AssetEvent[] =>
+  [...events].sort((a, b) => a.asset.localeCompare(b.asset));
+
+/** Answers the stage's fetches from `from` on with each model's plain file, and waits for their events. */
+async function answerAll(s: Staged, from: number): Promise<void> {
+  const before = s.events.length;
+  const answering = s.fetched.slice(from);
+  for (const f of answering) f.answer(s.files.get(SET.find((piece) => f.url.startsWith(`a/${piece}.`)) ?? ""));
+  await vi.waitFor(() => expect(s.events.length - before).toBe(answering.length));
+}
+
+describe("the room's studio models in its 3D stage (scene.ts with scene/loader.ts; T134, T141)", () => {
+  afterEach(() => {
+    swapped.part = null;
+    swapped.renderer = null;
+  });
+
+  it("fetches each set model in load_order as R-28 has it, and swaps it in for its piece's stand-ins", async () => {
+    const s = staged();
+    const part = s.result.scene;
+    const desk = part.placements.find((p) => p.piece === "fx-desk")?.model;
+    const plug = part.switches.find((x) => x.piece === "fx-plug")?.model;
+    expect(part.load_order).toHaveLength(2);
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
+    // Same-origin a/ URLs, in load_order, each with its plain file's SHA-256 as its integrity and no redirect.
+    expect(s.fetched.map((f) => f.url)).toEqual([desk?.url, plug?.url]);
+    expect(s.fetched.map((f) => f.init.integrity)).toEqual([
+      integrity(desk?.sha256 ?? ""),
+      integrity(plug?.sha256 ?? ""),
+    ]);
+    for (const f of s.fetched)
+      expect(f.init).toMatchObject({ redirect: "error", mode: "same-origin", credentials: "same-origin" });
+    s.clock.advance(16);
+    for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: false, standin: true });
+    await answerAll(s, 0);
+    expect(byAsset(s.events)).toEqual([loadedEvent(s, "fx-desk"), loadedEvent(s, "fx-plug")]);
+    // Held from each parse until two frames after its swap.
+    expect(s.held()).toBe(2);
+    s.clock.advance(SETTLE_FRAMES * 16);
+    expect(s.held()).toBe(0);
+    for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: true, standin: false });
+    s.stage.dispose();
+    expect(s.events).toHaveLength(2);
+  });
+
+  it("puts every swapped piece back to its stand-ins when a lost context is restored, then loads it again", async () => {
+    const s = staged();
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
+    await answerAll(s, 0);
+    s.clock.advance(SETTLE_FRAMES * 16);
+    s.stage.canvas.dispatchEvent(new s.win.Event("webglcontextrestored"));
+    // At once: the stand-ins back, wherever the pieces show.
+    for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: false, standin: true });
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(4));
+    expect(s.fetched.slice(2).map((f) => f.url)).toEqual(s.fetched.slice(0, 2).map((f) => f.url));
+    await answerAll(s, 2);
+    s.clock.advance(SETTLE_FRAMES * 16);
+    for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: true, standin: false });
+    expect(byAsset(s.events.slice(2))).toEqual([loadedEvent(s, "fx-desk"), loadedEvent(s, "fx-plug")]);
+    expect(s.held()).toBe(0);
+    s.stage.dispose();
+  });
+
+  it("stops its loader when disposed: the fetch on its way aborted, and the model not loaded skipped in 2D", async () => {
+    const s = staged();
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
+    const [desk, plug] = s.fetched;
+    desk?.answer(s.files.get("fx-desk"));
+    await vi.waitFor(() => expect(s.events).toHaveLength(1));
+    // The room goes to 2D within the desk's two settle frames, the plug still on its way.
+    s.mode = "2d";
+    s.stage.dispose();
+    expect(plug?.init.signal?.aborted).toBe(true);
+    expect(s.held()).toBe(0);
+    expect(s.disposed()).toBe(true);
+    expect(s.events).toEqual([
+      loadedEvent(s, "fx-desk"),
+      { asset: "fx-plug", outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "2d" },
+    ]);
+    // Nothing more: a restore reloads nothing, and the answer comes too late.
+    s.stage.canvas.dispatchEvent(new s.win.Event("webglcontextrestored"));
+    plug?.answer(s.files.get("fx-plug"));
+    await flush();
+    s.clock.advance(1000);
+    await flush();
+    expect(s.fetched).toHaveLength(2);
+    expect(s.events).toHaveLength(2);
+  });
+
+  it("gives every model it swaps in inked cel's one set of line parameters, the stand-ins' (US1's ink.prepare)", async () => {
+    // The review of T116, R3, shares the lines' parameters once after the room is built, not on each frame, "and again
+    // when a model swaps in" (scene/look.ts), so the stage's height reaches a model's lines as it does the stand-ins'.
+    const s = staged();
+    expect(s.result.scene.look.method).toBe("inked-cel");
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
+    await answerAll(s, 0);
+    s.clock.advance(SETTLE_FRAMES * 16);
+    // A sized stage, which the next frame reads: every line follows its height.
+    const [w, h] = [800, 500];
+    Object.defineProperty(s.stage.canvas, "clientWidth", { configurable: true, value: w });
+    Object.defineProperty(s.stage.canvas, "clientHeight", { configurable: true, value: h });
+    s.clock.advance(16);
+    const lines = new Set<unknown>();
+    let models = 0;
+    s.drawn().traverse((node) => {
+      const mesh = node as Mesh;
+      if (!mesh.isMesh) return;
+      for (let n: Object3D | null = node; n; n = n.parent)
+        if (n.name === MODEL_NODE) {
+          models += 1;
+          break;
+        }
+      for (const m of ([] as Material[]).concat(mesh.material)) lines.add(m.userData.outlineParameters);
+    });
+    expect(models).toBeGreaterThan(0);
+    expect(lines.size).toBe(1);
+    expect([...lines][0]).toEqual({ thickness: outlineThickness(s.result.scene.look.outlines.width, h) });
+    s.stage.dispose();
+  });
+
+  it("takes ADR 0010's floor from the room, which read it behind the choice, asking the device nothing itself", async () => {
+    const above = staged({ floor: true });
+    await vi.waitFor(() => expect(above.fetched).toHaveLength(2));
+    expect(above.probes()).toBe(0);
+    above.stage.dispose();
+    // Below it every model is skipped and nothing fetched, whatever the device would answer during the hand-off.
+    const below = staged({ floor: false });
+    await vi.waitFor(() => expect(below.events).toHaveLength(2));
+    expect(below.probes()).toBe(0);
+    expect(below.fetched).toEqual([]);
+    expect(byAsset(below.events)).toEqual(
+      SET.map((asset) => ({ asset, outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "full" })),
+    );
+    below.stage.dispose();
+  });
+
+  it("holds its texture ledger to the caps' scene_texture_bytes the compose used, raised or lowered", async () => {
+    // A PNG whose header alone says side × side, which the stand-in decoder sizes its bitmap from: no pixels to make.
+    const be = (n: number): Uint8Array => bytes((n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff);
+    const claimed = (side: number): Uint8Array =>
+      concat(
+        PNG_SIGNATURE,
+        chunk("IHDR", concat(be(side), be(side), bytes(8, 2, 0, 0, 0))),
+        chunk("IDAT", bytes(0)),
+        chunk("IEND", new Uint8Array()),
+      );
+    // Raised by the Author: a desk whose top alone is 8192 × 8192 pixels, 357,913,941 bytes, over FR-053's starting
+    // 96,000,000, loads.
+    const raised = staged({}, (own) => ({ ...own, scene_texture_bytes: 400_000_000 }));
+    await vi.waitFor(() => expect(raised.fetched).toHaveLength(2));
+    raised.fetched[0]?.answer(desk({ top: claimed(8192) }).bytes);
+    await vi.waitFor(() => expect(raised.events).toHaveLength(1));
+    expect(raised.events).toEqual([loadedEvent(raised, "fx-desk")]);
+    raised.stage.dispose();
+    // Lowered under the plain desk's three small images: it keeps its stand-in, skipped.
+    const lowered = staged({}, (own) => ({ ...own, scene_texture_bytes: 1000 }));
+    await vi.waitFor(() => expect(lowered.fetched).toHaveLength(2));
+    lowered.fetched[0]?.answer(desk().bytes);
+    await vi.waitFor(() => expect(lowered.events).toHaveLength(1));
+    expect(lowered.events).toEqual([
+      { asset: "fx-desk", outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "full" },
+    ]);
+    lowered.clock.advance(SETTLE_FRAMES * 16);
+    expect(showing(lowered.drawn().getObjectByName("fx-desk"))).toEqual({ model: false, standin: true });
+    lowered.stage.dispose();
+  });
+
+  it("fetches nothing when disposed before its loader's chunk arrives", async () => {
+    const s = staged();
+    s.mode = "2d";
+    s.stage.dispose();
+    await flush();
+    s.clock.advance(1000);
+    await flush();
+    expect(s.fetched).toEqual([]);
+    expect(s.held()).toBe(0);
+  });
+
+  it("records each set model failed when its loader's chunk won't load, but for a stage the room left first", async () => {
+    // A browser keeps a failed module's failure, so there is no retry: the stand-ins stay, each model failed (FR-057).
+    vi.doMock("../../src/room/scene/loader", () => {
+      throw new Error("the loader's chunk didn't load");
+    });
+    vi.resetModules();
+    try {
+      const { createScene: blocked } = await import("../../src/room/scene");
+      const s = staged({ floor: true }, undefined, blocked);
+      await vi.waitFor(() => expect(s.events).toHaveLength(2));
+      expect(byAsset(s.events)).toEqual(
+        SET.map((asset) => ({ asset, outcome: "failed", ms_bucket: "<250", bytes: 0, mode: "full" })),
+      );
+      expect(s.fetched).toEqual([]);
+      s.clock.advance(16);
+      for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: false, standin: true });
+      s.stage.dispose();
+      expect(s.events).toHaveLength(2);
+      // A stage the room left first records nothing: the room skips its models in 2D (app.ts).
+      const left = staged({ floor: true }, undefined, blocked);
+      left.mode = "2d";
+      left.stage.dispose();
+      await flush();
+      await flush();
+      expect(left.events).toEqual([]);
+      expect(left.fetched).toEqual([]);
+    } finally {
+      vi.doUnmock("../../src/room/scene/loader");
+      vi.resetModules();
+    }
   });
 });

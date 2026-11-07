@@ -2,8 +2,10 @@
 // the GLB reader and fit check, on files built when the test runs (test/helpers/glb.ts), since spec 003's rule A1
 // refuses a committed model. The clean desk and sign pass with each mark value glb/rules.ts holds; each variant is
 // refused with its rule and its path by index, never a name; "not scrubbed" stops no other rule, while RX1, then RX2,
-// stop the rest; and the measures equal values worked by hand: triangles per mode, texture memory, bounds through TRS
-// and matrix nodes, and quantized, sparse, and strided positions.
+// stop the rest, but for a property the reader never reads (Blender's asset.generator, which spec 003's scrub drops),
+// which stays RX2's finding while the other rules run and the file is measured (plan.md §10); and the measures equal
+// values worked by hand: triangles per mode, texture memory, bounds through TRS and matrix nodes, and quantized,
+// sparse, and strided positions.
 import { describe, expect, it } from "vitest";
 
 import { atScale, compareFindings, fit, fitCard, render, textureMemory, unreadable } from "../../src/room/glb/fit";
@@ -23,6 +25,7 @@ import {
 } from "../../src/room/glb/rules";
 import {
   ARRIVAL_INPUT,
+  BLENDER_GENERATOR,
   DESK_INPUT,
   FLOAT,
   ModelBuilder,
@@ -38,6 +41,7 @@ import {
   UNSIGNED_SHORT,
   WORD_QUAD,
   aboutX,
+  asExported,
   ascii,
   bigGlb,
   bytes,
@@ -214,6 +218,69 @@ describe("the order of the rules", () => {
     expect(paths(check(index.bytes))).toEqual(["RX2 nodes[2].mesh"]);
     const unreadModel = check(broken);
     expect(unreadModel.measures).toMatchObject({ bytes: broken.length, triangles: null, bounds: null, faces: [] });
+  });
+
+  it("reads past a property the reader never reads, which stays RX2's finding while every other rule runs (plan.md §10)", () => {
+    // Blender writes asset.generator into every export, and spec 003's scrub drops it: the file is measured all the
+    // same, so the lookdev page can show an unscrubbed file at the room's framing; and the finding stands, so no build
+    // sets such a model.
+    const measured = (r: FitResult): FitResult["measures"] => ({ ...r.measures, bytes: 0 });
+    const clean = check(desk().bytes);
+    const generator = check(desk({ edit: (g) => (obj(g.asset).generator = BLENDER_GENERATOR) }).bytes);
+    expect(generator.findings.map(render)).toEqual([`RX2 candidate:asset.generator: ${REASON.outsideAsset}`]);
+    expect(measured(generator)).toEqual(measured(clean));
+    expect([generator.scrubbed, generator.mark]).toEqual([true, "model"]);
+    // As Blender exports it, before the scrub: its generator, a custom property, and no mark; with a copyright that
+    // doesn't name the media license, a key outside the schema, and one outside an admitted extension's schema.
+    const exported = check(
+      desk({
+        mark: false,
+        edit: (g) => {
+          asExported(g);
+          obj(g.asset).copyright = "2026 fx-someone";
+          item(g, "nodes", 1).description = "fx-the top";
+          list(g, "extensionsUsed").push("KHR_texture_transform");
+          obj(obj(item(g, "materials", 0).pbrMetallicRoughness).baseColorTexture).extensions = {
+            KHR_texture_transform: { scale: [1, 1], note: 1 },
+          };
+        },
+      }).bytes,
+    );
+    expect(exported.findings.map(render)).toEqual([
+      `RX2 candidate:asset.copyright: ${REASON.copyright}`,
+      `RX2 candidate:asset.generator: ${REASON.outsideAsset}`,
+      `RX5 candidate:extensions: ${REASON.notScrubbed}`,
+      `RX2 candidate:materials[0].pbrMetallicRoughness.baseColorTexture.extensions.KHR_texture_transform.note: ${REASON.outsideExtension}`,
+      `RX3 candidate:nodes[0].extras: ${REASON.extras}`,
+      `RX2 candidate:nodes[1].description: ${REASON.outside}`,
+    ]);
+    expect(measured(exported)).toEqual(measured(clean));
+    expect([exported.scrubbed, exported.mark]).toEqual([false, null]);
+    // Beside any other RX2 problem the reading stops as before: the other rules unread, and nothing measured.
+    const index = check(
+      desk({
+        edit: (g) => {
+          asExported(g);
+          item(g, "nodes", 1).name = "IMG_1234";
+          item(g, "nodes", 2).mesh = 40;
+        },
+      }).bytes,
+    );
+    expect(paths(index)).toEqual(["RX2 asset.generator", "RX2 nodes[2].mesh"]);
+    expect(index.measures).toMatchObject({ triangles: null, bounds: null, faces: [] });
+    const model = desk({ edit: asExported });
+    const typed = check(packText(JSON.stringify(model.gltf).replace(/"count":(\d+)/, '"count":$1.0'), model.bin));
+    expect(paths(typed)).toEqual(["RX2 accessors[0].count", "RX2 asset.generator"]);
+    expect(typed.measures).toMatchObject({ triangles: null, bounds: null, faces: [] });
+    const values = sparseDesk({
+      edit: (g) => {
+        asExported(g);
+        obj(obj(item(g, "accessors", SPARSE_POINTS).sparse).indices).byteOffset = 0;
+      },
+    });
+    expect(rules(check(values.bytes))).toEqual(["RX2"]);
+    expect(paths(check(values.bytes))).toEqual(["RX2 accessors[6].sparse.indices", "RX2 asset.generator"]);
+    expect(check(values.bytes).measures.triangles).toBeNull();
   });
 
   it("sorts findings by path, its indices compared as numbers, then by rule", () => {

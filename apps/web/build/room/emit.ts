@@ -8,10 +8,11 @@
 //   file (RX or RK2, which lenient mode tolerates, or the catalog's own model entry); otherwise it keeps its stand-in,
 //   with the reason no-model, no-caps, or findings (§6). Any finding lenient mode doesn't tolerate means the outputs
 //   aren't to be used, and emit still never throws.
-// - The index (§3.1), with the 2D drawing projected through framing(1.6) into the 320 × 200 view box; the 3D part
-//   (§3.2); the digest over both (§4); each set model's gzip-9 copy and each set card (§3.4); the drafts modules (§3.3);
-//   room_text (§5); B7's manifest (§6, build/manifest.ts); the generated files, sorted by path (§7 and §8 from
-//   build/manifest.ts, §9 from orders.ts), which compose() never writes; and the report (§10, report.ts).
+// - The index (§3.1), with the 2D drawing projected through framing(1.6) into the 320 × 200 view box, and the set
+//   models the loader loads, which a room in 2D records as skipped (plan.md §10); the 3D part (§3.2), with the caps'
+//   scene texture figure; the digest over both (§4); each set model's gzip-9 copy and each set card (§3.4); the drafts
+//   modules (§3.3); room_text (§5); B7's manifest (§6, build/manifest.ts); the generated files, sorted by path (§7 and
+//   §8 from build/manifest.ts, §9 from orders.ts), which compose() never writes; and the report (§10, report.ts).
 // - The geometry is RG's production framing (checks/rg.ts's `geometry`, over the pieces this compose shows set): the
 //   world transforms, the frame boxes, the cameras, the faces' screen_css, the 2D hit rectangles, and the cap ratios
 //   are the numbers RG and RK3 checked, so the bundle can't carry a framing the checks didn't measure.
@@ -990,8 +991,32 @@ function copyOf(faces: RoomIndex["faces"], switches: RoomIndex["switches"]): Roo
   ];
 }
 
+/** A set model's URL in the 3D part, `a/<stem>.<hash16>.glb`, its stem its record's file stem. */
+const MODEL_URL = /^a\/(.+)\.[0-9a-f]{16}\.glb$/;
+
+/**
+ * The index's `models` (§3.1, plan.md §10): each set model the room's loader loads, by its asset events' `asset`, in
+ * the 3D part's load_order, once a piece. As src/room/scene/loader.ts's modelEntries reads them, which bundle.test.ts
+ * holds it to: a placement's model, or for a switch's pose, `<switch>.<pose>`, the switch's own; a GLB alone, since an
+ * image card waits for its drawing; its asset its URL's stem.
+ */
+function loadedModels(part: Pick<RoomScene, "placements" | "switches" | "load_order">): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of part.load_order) {
+    const dot = id.indexOf(".");
+    const shows =
+      dot < 0 ? part.placements.find((p) => p.id === id) : part.switches.find((s) => s.id === id.slice(0, dot));
+    const url = shows?.model?.url;
+    if (!shows || url === undefined || !url.endsWith(".glb") || seen.has(shows.piece)) continue;
+    seen.add(shows.piece);
+    out.push(MODEL_URL.exec(url)?.[1] ?? shows.piece);
+  }
+  return out;
+}
+
 /** The index without its digest. */
-function indexBody(c: Composed, placeholders: boolean): Omit<RoomIndex, "digest"> {
+function indexBody(c: Composed, placeholders: boolean, models: readonly string[]): Omit<RoomIndex, "digest"> {
   const scene = c.scene;
   const live = scene?.live;
   const words = c.room.ui?.value.words ?? {};
@@ -1034,6 +1059,7 @@ function indexBody(c: Composed, placeholders: boolean): Omit<RoomIndex, "digest"
       cap_ratio: t.cap_ratio,
       fallback: t.fallback,
     })),
+    models: [...models],
   };
 }
 
@@ -1222,6 +1248,7 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       to: { placement: scene?.handoff.to.placement ?? "", anchor: scene?.handoff.to.anchor ?? "" },
     },
     load_order: loadOrder(entries),
+    scene_texture_bytes: c.caps.scene_texture_bytes,
   };
 }
 
@@ -1411,8 +1438,8 @@ export const emit: Emit = (room, policy, options, findings, reader) => {
   const c = prepare(room, policy, options, findings, reader);
   const standins = standinsOf(c);
   const placeholders = standins.length > 0 || avatarsPlaceholder(reader.tree);
-  const indexPart = indexBody(c, placeholders);
   const scenePart = sceneBody(c);
+  const indexPart = indexBody(c, placeholders, loadedModels(scenePart));
   const digest = sha256(`${serialize(indexPart)}\n${serialize(scenePart)}`);
   const { schema: indexSchema, ...indexRest } = indexPart;
   const { schema: sceneSchema, ...sceneRest } = scenePart;

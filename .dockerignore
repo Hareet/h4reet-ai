@@ -8,6 +8,8 @@ deploy/env
 **/secrets
 **/node_modules
 **/dist
+# The lookdev page's phone copy, a working tree's: no image ever holds it (spec 004, contracts/lookdev.md §8).
+**/dist-phone
 **/__pycache__
 **/*.py[cod]
 corpus/intake/private

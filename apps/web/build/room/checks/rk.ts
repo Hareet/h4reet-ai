@@ -69,7 +69,8 @@ export interface SceneTextureMemory {
   /** The largest visitor avatar's models, measured together; null while assets/visitors/ holds no model, which the
    *  report notes. */
   readonly visitor: number | null;
-  /** The figures' models RX1 or RX2 refuses, or the tree can't read, each counted 0, which the report notes. */
+  /** The figures' models RX1 or RX2 refuses (but for a property the reader reads past, READ_PAST), or the tree can't
+   *  read, each counted 0, which the report notes. */
   readonly unread: { readonly twin: number; readonly visitor: number };
   readonly figures: number;
   readonly canvases: number;
@@ -111,7 +112,8 @@ const together = (a: Models, b: Models): Models => ({
 
 /** The models at `path`: the file itself where it is a .glb, else each .glb under the folder, at any depth, in the
  *  tree's order. A .glb is read with the fit check's reader for its texture memory alone, by §7's measure; one that RX1
- *  or RX2 refuses, or that the tree lists but can't read and that holds nothing, can't be read, and counts 0. */
+ *  or RX2 refuses, or that the tree lists but can't read and that holds nothing, can't be read, and counts 0. A property
+ *  the reader reads past (READ_PAST) stops no read, so such a model counts its measured texture memory. */
 function modelsAt(tree: Tree, path: string): Models {
   const model = path.endsWith(".glb");
   const bytes = model ? tree.read(path) : null;

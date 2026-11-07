@@ -1,0 +1,13 @@
+# A sample state for the lookdev page (FR-049; R-05; data-model.md §8), drafts only: today's budget used, so the
+# laptop's switch shows its shared pose; a paid fallback reply, then two invalid replies on purpose, the gateway's
+# metered route and a cost written as a string, then a degraded turn and a refused one (FR-048). Every figure it feeds
+# reads "Sample".
+version: 1
+id: sample-budget
+tier: budget
+turns:
+  - { outcome: reply, route: fallback, cost_micro_usd: 2400 }
+  - { outcome: reply, route: metered, cost_micro_usd: 1200 }
+  - { outcome: reply, route: fallback, cost_micro_usd: "950" }
+  - { outcome: degraded }
+  - { outcome: refused, status: 429 }

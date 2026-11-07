@@ -18,6 +18,9 @@ npm-debug.log*
 *.tsbuildinfo
 coverage/
 dist/
+# The lookdev page's phone copy as npm run build:lookdev-phone writes it in a working tree (spec 004, contracts/lookdev.md
+# §7.1). The Author's copy comes from the Dockerfile's lookdev-phone target, built from a commit's export.
+apps/web/dist-phone/
 
 # Terraform. State and plans describe real resources and can hold secrets; the remote state is the source of truth.
 # .terraform.lock.hcl is committed: it pins the providers (lockfile pinning, spec 000 FR-014; Terraform arrives with spec 001).

@@ -9,5 +9,12 @@
     "types": ["node", "vite/client"],
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "build/**/*.ts", "test/**/*.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "build/**/*.ts",
+    "test/**/*.ts",
+    "vite.config.ts",
+    "vite.phone.config.ts",
+    "vitest.config.ts"
+  ]
 }
