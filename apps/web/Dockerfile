@@ -9,9 +9,10 @@
 # ---- policy: main's approvals, the PDF's header, and the room's caps, as web_image.py read them on the host ----
 # web_image.py replaces this stage with the named build context `policy`, a directory holding the files main has:
 # content-approvals.json, resume-header.json, and spec 004's caps.json (its contracts/serving.md §3). A build that
-# names none, such as the gate's, gets this empty stage: every content file builds as a draft, the room's compositor
-# takes FR-053's starting figures with every model a stand-in, as it does whenever main lacks caps.json, and nothing
-# is pulled under that name. Nothing below runs git (contracts/web-serving.md §1).
+# names none, such as the gate's image step or the lookdev phone copy, gets this empty stage: every content file builds
+# as a draft, the room's compositor takes its caps from the commit's own assets/policy/caps.json, which the install
+# stage copies (spec 004, T328), and nothing is pulled under that name. Nothing below runs git
+# (contracts/web-serving.md §1).
 FROM scratch AS policy
 
 # ---- install: the workspace's dependencies from the lockfile, and what the builds read ----
@@ -31,6 +32,11 @@ COPY docs/data-flow-disclosure.md docs/
 # the Author's denylist and uncleared sources, out of every context, so C9 here checks the public list only.
 COPY corpus corpus
 COPY apps/web apps/web
+# The room's caps for a build whose policy context holds none: build/room/policy.ts reads the tree's own copy only
+# where ROOM_POLICY_DIR holds no caps.json, so web_image.py's context, main's caps, wins wherever it is named. Spec
+# 003's rule A9 refuses a branch that changes assets/policy/, so this copy is main's at the commit's base. The caps
+# alone: the approvals and the PDF's header come from the policy context or not at all (spec 004, T328).
+COPY assets/policy/caps.json assets/policy/caps.json
 COPY --from=policy / /src/policy/
 
 # ---- build: the static site ----
@@ -50,7 +56,7 @@ RUN ROOM_DRAFTS="$ROOM_DRAFTS" ROOM_POLICY_DIR=/src/policy npm run --ignore-scri
 #   git --no-replace-objects archive <commit> | docker build -f apps/web/Dockerfile --target lookdev-phone \
 #     --output type=local,dest=<a new, empty folder outside the repository> -
 # The first stage builds the copy on the install the site's build runs on, with drafts on, reading the policy from
-# the named context, which a build that names none gets empty (the room's starting figures, every model a stand-in);
+# the named context, which a build that names none gets empty (nothing approved, and the room's caps the commit's own);
 # the second holds only lookdev.html, which --output type=local exports as the folder's one file. No other stage
 # copies from either, and web_image.py names no target, so its images end at the runtime stage below and never hold
 # the copy (contracts/lookdev.md §8, layer 5).
