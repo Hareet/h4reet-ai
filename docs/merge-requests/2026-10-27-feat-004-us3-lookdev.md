@@ -204,10 +204,12 @@ That difference has 4c059df's own patch ID (`git patch-id --stable`). So `make c
      reason="$r1$r2$r3"
      m="Merge $b (${sha:0:12})"
      opts=(--no-ff -m "$m" -m "$summary" -m "$reason")
+     t="${summary##*; failing: }"
+     [ "$t" = "evals PENDING" ] || ok=no
      [ "$ok" = go ] && git --no-replace-objects merge "${opts[@]}" "$sha"
      ```
 
-     The last line merges only after `guard: go`. If it prints nothing, don't merge, and tell the session: your checkout isn't on `main`, or `main` or the branch has moved since the gate.
+     The last line merges only after `guard: go`, and only when the gate's summary line names `evals PENDING` as its only failing step: the two lines before it, as desk-sign's review added them to its steps (4c059df), take what follows "; failing: " in the summary, and set `ok` back to `no` for anything else, among them a Ready summary, which has no failing list, and a degraded run's, which ends in its DEGRADED words. If it prints nothing, don't merge, and tell the session: your checkout isn't on `main`, `main` or the branch has moved since the gate, or the gate holds back something besides the behavioral tier.
 
 4. **Park off `main` again:**
 
@@ -223,7 +225,7 @@ Then the phone copy's check (T307) and the probe (T143), as steps 3 and 4 of "Ru
 
 **For the Author: questions from this round.** Where the session would have asked, it took the smallest choice that keeps every check passing.
 
-1. **T148's merge.** T148 says "merge it with the command the gate prints"; T317, desk-sign's, adds "or by the note's guarded chain if only the behavioral tier holds it back". Step 3 above gives both, as desk-sign's steps do. Should T148 carry T317's words too?
+1. **T148's merge.** T148 says "merge it with the command the gate prints"; T317, desk-sign's, adds "or by the note's guarded chain if only the behavioral tier holds it back". Step 3 above gives both, as desk-sign's steps do. Should T148 carry T317's words too? **Settled, 2026-11-07, by the main session:** step 3's hand merge now holds T317's condition itself. Its two lines from desk-sign's review set `ok` back to `no` unless `evals PENDING` is the gate's only failing step, so it can't merge when the gate holds back anything besides the behavioral tier. In zsh and in bash, on the gate's summary line as `summary_line` in `tools/gates/gate` on `main` writes it, it gives `go` with evals PENDING alone, and `no` with another failure beside it, on a Ready summary, and on a degraded run's. tasks.md's T148 is unchanged, since this was a note-only commit.
 2. **Where T307's figures go.** T307 says "the commit and that SHA-256 go into the branch's note". You run it from main's checkout, and after the merge this note is on `main`, where the session doesn't commit. Unless you say otherwise, the session records them in the next note on line R, `feat/004-us2-degraded`'s (T164).
 3. **T147's tick.** T147 is ticked for tonight's stacked rebase, with its departure in plan.md §10. Once US1 and desk-sign merge, the guard holds `main`'s tree to desk-sign's tip's, so merging this branch writes the tree the gate checked, and no further rebase onto `main` is needed. If you want one anyway, untick T147.
 
