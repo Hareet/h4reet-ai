@@ -8,10 +8,11 @@
 // `build_kind` the build's; and `caps` where the policy read them, beside spec 002's free talk, items, avatars, and
 // event kinds. config/room-events.yaml is room:generate's since T108, its objects the selectables' IDs, and
 // test/room/generated.test.ts holds the committed file fresh; spec 002's generator and its item reader went with it.
-// T234 (spec 004; FR-013, User Story 4 scenario 1): with every piece's studio file set, the manifest names no stand-in
-// and `placeholders` is false; the stand-in rule is held on the room as it stood before (`withoutModels`).
+// T234 (spec 004; FR-013, User Story 4 scenario 1): with every piece's studio file set, the manifest names no stand-in,
+// so `placeholders` is the avatars' alone, true until spec 003's files arrive; the stand-in rule is held on the room as
+// it stood before (`withoutModels`).
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -126,8 +127,15 @@ describe("room-manifest.json (Amendment B7)", () => {
     expect(scene.switches.filter((s) => s.model === null).map((s) => s.id)).toEqual([]);
     expect(scene.placements.filter((p) => figures.has(p.id) && p.model !== null).map((p) => p.id)).toEqual([]);
     expect(manifest.standins).toEqual([]);
-    expect(manifest.placeholders).toBe(false);
     expect(composed({ drafts: true }).manifest.standins).toEqual([]);
+    // So placeholders is the avatars' alone (build/room/emit.ts): true until the twin's GLB is under assets/twin/ and
+    // each visitor's under assets/visitors/<avatar>/ (spec 003's files).
+    const twin = join(REPO, "assets/twin");
+    const arrived =
+      existsSync(twin) &&
+      readdirSync(twin).some((name) => name.endsWith(".glb")) &&
+      AVATARS.every((a) => existsSync(join(REPO, `assets/visitors/${a.id}/${a.id}.glb`)));
+    expect(manifest.placeholders).toBe(!arrived);
   });
 
   it("says the live source is the scene's, off, and the build's kind", () => {
