@@ -86,9 +86,11 @@ An unknown key in the block refuses the file: spec 003's F2, as P-5 amends it, e
 2. **`refs/heads/main`** (`caps_source: "main"`), by its full ref, with `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:assets/policy/caps.json`: a checkout's build and `make test`. Never a bare `main`, which a tag of that name would answer.
 3. **The export's own copy** (`caps_source: "export"`), only where there is no `.git`: the gate's container, where `make test` runs. Spec 003's rule A9 refuses a branch that changes the file, so the copy equals `main`'s at the branch's base: it can lag `main`, never loosen it.
 
+**A policy directory without `caps.json`** (the tests' global builds, and an image built with no policy context: the gate's image step and the lookdev phone copy) takes the caps alone from the next source, 2 or 3, and names that source: `main`'s in a checkout, never the branch's copy, and the tree's own where there is no `.git`, which the web image's install stage copies for this (tasks.md T327, T328; the main session's option (a) of 2026-11-07). The directory's approvals and header stay its own, so such a build approves nothing, and the policy's digest stays the directory's files.
+
 `assets/policy/caps.json` joins spec 002's policy files in each list that names them, in the same order, so the policy's digest, the image's label `org.h4reet.web.policy`, and `room-data.json`'s `built_from` agree: `POLICY_PATHS` in `apps/web/build/policy.ts`, `POLICY_FILES` in `apps/web/build/approvals.ts`, and `POLICY_FILES` in `deploy/scripts/web_image.py` (all on `feat/002-us6-events`).
 
-**While `main` has no room block** (`caps_source: "defaults"`: no file, or no `per_asset.room`, as before P-6, or the gate's image build, which has no policy context):
+**While `main` has no room block** (`caps_source: "defaults"`: no file, or no `per_asset.room`, as before P-6, or a build none of whose sources holds one):
 - every catalog budget is checked against FR-053's starting figures above, with `small_props` empty;
 - the legibility floor is 9;
 - every model stays a stand-in, with the reason `no-caps` (§6);

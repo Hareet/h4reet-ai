@@ -643,7 +643,7 @@ The patch is `docs/merge-requests/<date>-feat-004-gate.patch`. It changes `tools
   - It runs main's `tools/gates/studio_settings_check.py` under PY_HOST, and reports PASS on exit 0 and FAIL on exit 1 or 2. The check's lines go into the gate's report, for the note.
   - Otherwise it reports `SKIP: no studio file in the range`.
   - It runs no agent code.
-- **Unchanged.** The gate's image step still builds the web image with no policy context, and the compositor then builds with its defaults.
+- **Unchanged.** The gate's image step still builds the web image with no policy context, and the compositor then builds with its defaults. Since T328 (2026-11-07), a build with no policy context takes the commit's own `assets/policy/caps.json`, which the web image's install stage copies, so the compositor there applies `main`'s caps at the commit's base ([room-bundle.md](room-bundle.md) §2); the gate needs no change for it.
 - **Tests:**
   - the mount holds `caps.json`, read-only;
   - the step runs only for a range with a studio file, and is SKIP otherwise;
