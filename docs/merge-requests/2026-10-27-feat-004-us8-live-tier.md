@@ -4,6 +4,12 @@ Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (Phase 10
 Session: worked in the branch's worktree, `/tmp/claude-1000/wt-us8`, which the main session made from 2ddfd73, `feat/004-us6-topics`'s tip (T241, a departure: below). The main checkout wasn't touched. Repo hooks active: yes. Each commit ran the arrival check (`arrival-check: 0 findings in …`) and gitleaks (`no leaks found`).
 Authorized by: tasks.md T241 to T249; plan.md §10's entries "`feat/004-us8-live-tier` is cut from `feat/004-us6-topics`'s tip" and "User Story 8's poller, frame log, and HAR checker, as built"; the main session's direction for the review's fixes (I-1 to I-3, nits 1 to 5).
 
+## 2026-11-07: restacked onto feat/004-us6-topics's restacked tip (T250)
+
+`feat/004-us8-live-tier was 36290d18b576baf4ba26b60498c1ab01adca9ef5` (T250): 11 commits on 2ddfd73b6a27c4d0f2db6283e4b4554aabe9bb9b, the commit this branch was cut from, `feat/004-us6-topics`'s last commit but one before its own rebase (T211), whose tip was then 2482581a3e94c436102b391747a2e3d9307faea2. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
+
+The rest of this note is as it stood at 36290d18, its SHAs the old ones.
+
 **Status: reviewed, with every finding fixed test first, ready for the gate once line R's earlier merges land.** T248's review of 2ddfd73..237ad98 gave **APPROVE with fixes**: three Important findings and five nits, all fixed in 9027e2e (RED) and 8e88710 (GREEN). `make check` ends with the same four FAILs as `feat/004-us6-topics`, none from this branch's code (Verification; For the Author, item 5).
 
 **The live source stays off.** `apps/web/room/scene.yaml` keeps `live.source: off`, so no build asks `/api/status`, and every visitor still sees the not-live laptop (FR-045). The poller, the frame log, and the checker are in force behind it. The switch-on is one reviewed change once spec 001 serves `GET /api/status` on the room's origin (T252 to T261, For the Author, item 2).
