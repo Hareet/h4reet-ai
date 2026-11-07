@@ -3,6 +3,12 @@ Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (Phase 4,
 Session: started from `/home/h4reet/h4reet-ai/h4reet-ai` (parked on `wip/park-2026-10-26b`); worked in the branch's worktree, `/tmp/claude-1000/wt-us3`, made fresh from e87d329 after `/tmp` was wiped. Repo hooks active: yes. The post-edit check refused an unused import in `scene.test.ts` mid-edit, and `.claude/audit/hooks.log` records this session's commands, for example `2026-10-27T02:41:08Z	bash	ALLOW	ls -la /home/h4reet/h4reet-ai/h4reet-ai/.claude/audit/ ...`. Each commit ran the arrival check (`arrival-check: 0 findings in 2 files`) and gitleaks (`no leaks found`).
 Authorized by: tasks.md T120 to T142; plan.md §10's User Story 3 entries; the Author's first lookdev run (2026-10-23), whose four fixes are in plan.md §10; the main session's direction of 2026-10-26 for the restack review's nits and this note.
 
+## 2026-11-07: restacked onto feat/004-studio-desk-sign (T147, T306)
+
+`feat/004-us3-lookdev was 74c33e9d82c6f33e9249d627b65372bddc029a9c` (T147): 88 commits on 58c22d56c1a644604855ab02fdc76ea9a18a77d4, `feat/004-us1-composition`'s tip as recorded before its own rebase (T118), the commit this branch was cut from. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
+
+The rest of this note is as it stood at 74c33e9d, its SHAs the old ones.
+
 **Status: reviewed twice, ready for the gate once line R's earlier merges land.** The T141 review's findings are fixed test first (commits tagged "lookdev review"). The restack review gave APPROVE with 4 nits. Three are fixed here: 7174157 (a, b) and 9d7b19e (c). The fourth is this note's record of the restack. `make check` ends with four FAILs, and none comes from this branch's code. Two were expected: policy (spec 002's web patch, M9) and test (4 compose-policy cases from the same patch; 2,644 others pass). Two were not, and both come from the machine: githooks-check and toolchain-check (For the Author, item 5). See Verification. T140, the agents' build of the phone copy, waits for the agents' engine, so this note has no SHA-256 for the copy yet (For the Author, item 1).
 
 ## Runs in the Author's terminal
