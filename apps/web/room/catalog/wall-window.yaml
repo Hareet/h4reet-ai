@@ -20,6 +20,7 @@ standin:
   - { shape: box, size: [0.04, 1.25, 0.06], at: [0.88, 0, 0.03], color: frame-wood }
 drawing: { from: standin }
 budget: { gzip_bytes: 300000, triangles: 11000, texture_px: 2048, texture_bytes: 5592405 }
+model: { file: wall-window.glb }
 work_order:
   method: >-
     Model the window's frame from the dimension sheet, with an empty opening. The window is the room's composition, as

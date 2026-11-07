@@ -40,7 +40,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
-import { ASSET_EVENTS_URL } from "../../src/asset-events";
+import { ASSET_EVENTS_URL, BATCH_MAX } from "../../src/asset-events";
 import type { AssetEvent } from "../../src/asset-events";
 import type { Mode } from "../../src/choice/visit";
 import type { RoomIndex, RoomScene } from "../../src/room/compose/bundle";
@@ -1075,10 +1075,18 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
     expect(beaconed(v)).toEqual([{ ...loaded, outcome: "retried", bytes: 0 }, loaded, skipped2d("fx-plug")]);
   });
 
-  it("records nothing where the index sets no model", async () => {
-    const v = start({ webgl: false, room: sending(roomIndex()) });
+  it("records nothing where the index sets no model, and each of the site's own models once where it does", async () => {
+    const none = start({ webgl: false, room: sending(withModels([]).index) });
+    await enter(none);
+    expect(none.room.visit.mode).toBe("2d");
+    expect(beaconed(none)).toEqual([]);
+    // The site's own room, every piece but the figures with its studio file set (T234): each skipped in 2D, once, in
+    // load order. The hide's one beacon carries at most BATCH_MAX of them; the rest stay queued for the next send.
+    const site = roomIndex();
+    expect(site.models.length).toBeGreaterThan(0);
+    const v = start({ webgl: false, room: sending(site) });
     await enter(v);
     expect(v.room.visit.mode).toBe("2d");
-    expect(beaconed(v)).toEqual([]);
+    expect(beaconed(v)).toEqual(site.models.slice(0, BATCH_MAX).map(skipped2d));
   });
 });

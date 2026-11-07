@@ -23,6 +23,7 @@ drawing:
     - { primitive: rect, x: -0.12, y: 0.211, w: 0.24, h: 0.085, fill: ink }
     - { primitive: rect, x: -0.12, y: -0.268, w: 0.24, h: 0.085, fill: ink }
 budget: { gzip_bytes: 1000000, triangles: 60000, texture_px: 4096, texture_bytes: 22369620 }
+model: { file: snowboard.glb }
 work_order:
   method: Model the board and its bindings from the dimension sheet and the Author's description.
   shots:

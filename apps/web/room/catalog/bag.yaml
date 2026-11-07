@@ -11,6 +11,7 @@ standin:
   - { shape: box, size: [0.45, 0.004, 0.03], at: [-0.007, 0.002, 0.2], color: leaf }
 drawing: { from: standin }
 budget: { gzip_bytes: 750000, triangles: 24500, texture_px: 2048, texture_bytes: 11184810 }
+model: { file: bag.glb }
 work_order:
   method: Model the bag from the Author's description, its body, flap, and strap; its canvas drawn procedurally and its webbing from a recorded prompt.
   shots: []

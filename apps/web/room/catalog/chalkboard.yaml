@@ -25,6 +25,7 @@ standin:
   - { shape: plane, size: [0.44, 0.58], at: [0, 0, 0.025], color: slate }
 drawing: { from: standin }
 budget: { gzip_bytes: 300000, triangles: 6500, texture_px: 2048, texture_bytes: 5592405 }
+model: { file: chalkboard.glb }
 work_order:
   method: >-
     Model the framed board from the dimension sheet and the Author's description. The slate is one quad, the live

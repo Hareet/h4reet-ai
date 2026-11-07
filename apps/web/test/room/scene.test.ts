@@ -740,11 +740,16 @@ describe("the site's own room, from the repository's bundle (spec 002's work are
     });
   }
 
-  it("labels each stand-in it shows as a placeholder, in the site's own words", () => {
-    const room = build(repositoryBundle());
-    const words = [...room.labels.values()].map((node) => node.name.slice("label:".length));
+  it("labels each stand-in it shows as a placeholder, in the site's own words, and no piece whose model is set", () => {
+    // The room as it stood before its models were set (T234), each piece a labelled stand-in.
+    const standins = build(repositoryBundle({ standins: true }));
+    const words = [...standins.labels.values()].map((node) => node.name.slice("label:".length));
     expect(words.length).toBeGreaterThan(3);
     for (const w of words) expect(w).toMatch(/placeholder/i);
+    disposeRoom(standins);
+    // The site's own room: every piece but the figures has its studio file set, so it labels nothing.
+    const room = build(repositoryBundle());
+    expect([...room.labels.keys()]).toEqual([]);
     disposeRoom(room);
   });
 });

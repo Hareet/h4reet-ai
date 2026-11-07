@@ -28,20 +28,21 @@ standin:
 drawing:
   primitives:
     - primitive: polygon
-      points: [[-1.0668, 0], [1.0668, 0], [1.4882, -0.4542], [-1.4882, -0.4542]]
+      points: [[-1.0668, 0], [1.0668, 0], [1.5088, -0.4764], [-1.5088, -0.4764]]
       fill: cement
     - primitive: polygon
-      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.4882, 2.5221], [-1.4882, -0.4542]]
+      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.5088, 2.5411], [-1.5088, -0.4764]]
       fill: brick
       stroke: ink
       stroke_width: 0.01
     - primitive: polygon
-      points: [[1.0668, 0], [1.0668, 2.1336], [1.4882, 2.5221], [1.4882, -0.4542]]
+      points: [[1.0668, 0], [1.0668, 2.1336], [1.5088, 2.5411], [1.5088, -0.4764]]
       fill: brick
       stroke: ink
       stroke_width: 0.01
     - { primitive: rect, x: -1.0668, y: 0, w: 2.1336, h: 2.1336, fill: brick, stroke: ink, stroke_width: 0.01 }
 budget: { gzip_bytes: 1050000, triangles: 2000, texture_px: 2048, texture_bytes: 55924051 }
+model: { file: room-shell.glb }
 work_order:
   method: >-
     Model the cube from the dimension sheet: the floor of oak floorboards, and the back, left, and right walls standing

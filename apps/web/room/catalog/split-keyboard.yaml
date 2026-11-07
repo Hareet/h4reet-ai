@@ -15,6 +15,7 @@ standin:
   - { shape: box, size: [0.2, 0.03, 0.24], at: [0.112, 0.015, -0.014], color: ink }
 drawing: { from: standin }
 budget: { gzip_bytes: 150000, triangles: 10500, texture_px: 1, texture_bytes: 1 }
+model: { file: split-keyboard.glb }
 work_order:
   method: Model the split keyboard from the dimension sheet and the Author's description, two tented halves with palm rests, as plain solid parts in flat colours.
   shots: []

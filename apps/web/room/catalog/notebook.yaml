@@ -11,6 +11,7 @@ standin:
   - { shape: box, size: [0.15, 0.002, 0.22], at: [-0.15, 0.001, 0], color: paper }
 drawing: { from: standin }
 budget: { gzip_bytes: 100000, triangles: 7500, texture_px: 1024, texture_bytes: 5592405 }
+model: { file: notebook.glb }
 work_order:
   method: Model the open spiral notebook and its pen from the dimension sheet; draw the ruled pages procedurally, with no writing.
   shots: []

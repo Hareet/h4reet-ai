@@ -27,6 +27,7 @@ standin:
   - { shape: circle, radius: 0.11, at: [0.75, 0.1, 0.009], color: leaf, lit: false }
 drawing: { from: standin }
 budget: { gzip_bytes: 500000, triangles: 6000, texture_px: 2048, texture_bytes: 11184810 }
+model: { file: window-view.glb }
 work_order:
   method: >-
     Recreate the view as a flat backdrop from the Author's typed description: a sky, a plain wooden fence, and one
