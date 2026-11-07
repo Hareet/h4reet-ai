@@ -7,8 +7,10 @@
 // or stand-in shape outside them, an up not square to its facing (+Y where it's absent), and a canvas off its face's
 // aspect by more than a pixel; RG4 the twin or a selectable's member not framed; RG5 a framed box's corner behind the
 // camera or outside the view at one of the six aspects; RG6 a selectable's exclusive core leaving the view, or over
-// another's core, member, or union, at a supported stage, in 3D or 2D; RG7 a bound face under the legibility floor
-// that isn't atmosphere, atmosphere on a readable face, and an atmosphere face over its max_chars; RG9 a region outside
+// another's core, member, or union, at a supported stage, in 3D or 2D, but FR-064's carve-out for a side-wall
+// selectable at any stage where its core can't fit (see listOnly); RG7 a bound face under the legibility floor that isn't
+// atmosphere, but FR-052's one exemption on the reference phone (`phoneExempt`), atmosphere on a readable face, and an
+// atmosphere face over its max_chars; RG9 a region outside
 // its face, or over another. RG8 is never a finding: `poseSeparations` gives the report its measures, as `faceCaps`
 // gives RG7's.
 //
@@ -44,11 +46,11 @@ import type { Grid } from "../../../src/room/compose/layout";
 import { facePoint, regionCap, smallestCapPx, typefaceFor } from "../../../src/room/compose/legibility";
 import type { CapRegion, FaceGeometry, RegionSourceRef } from "../../../src/room/compose/legibility";
 import { dot, normalize, origin, rotation, sub, transformPoint } from "../../../src/room/compose/math";
-import type { Mat4, Vec3 } from "../../../src/room/compose/math";
+import type { Mat4, Turn, Vec3 } from "../../../src/room/compose/math";
 import { anchorWorld, modelOf, mountWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountAnchor, MountPlacement, Resolved } from "../../../src/room/compose/mount";
-import { flatCore, memberRect, pickAreas, pickProblems } from "../../../src/room/compose/pick";
-import type { MemberRect, PickInput, PickProblem } from "../../../src/room/compose/pick";
+import { flatCore, listOnly, memberRect, pickAreas, pickProblems } from "../../../src/room/compose/pick";
+import type { MemberRect, PickArea, PickProblem, Rect } from "../../../src/room/compose/pick";
 import { projector, toStage } from "../../../src/room/compose/project";
 import type { Camera, Projector } from "../../../src/room/compose/project";
 import {
@@ -57,11 +59,12 @@ import {
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
   flatScale,
+  smallestFlatStage,
   supportedStages,
 } from "../../../src/room/compose/stages";
 import type { Stage } from "../../../src/room/compose/stages";
-import { TIER_VALUES } from "../../../src/room/compose/vocabulary";
-import type { TypefaceUse } from "../../../src/room/compose/vocabulary";
+import { TIER_VALUES, isSideWallAnchor } from "../../../src/room/compose/vocabulary";
+import type { SideWallAnchor, TypefaceUse } from "../../../src/room/compose/vocabulary";
 import type { Loaded, LoadedRoom } from "../load";
 import { capsOf } from "../policy";
 import type { RoomPolicy } from "../policy";
@@ -71,6 +74,7 @@ import type {
   FaceBinding,
   LiveFace,
   Mount,
+  Placement,
   Region,
   Scene,
   StandinEntry,
@@ -338,8 +342,9 @@ function span(s: StandinEntry, d: Vec3): readonly [number, number] {
   }
 }
 
-/** A stand-in shape's extent in its piece's frame: around `at`, its own geometry through R(turn) · S(scale). */
-function shapeBox(s: StandinEntry): Box {
+/** A stand-in shape's extent in its piece's frame: around `at`, its own geometry through R(turn) · S(scale). The room's
+ *  stand-in builders (src/room/scene/standins.ts) are held to it, so what RG checks is what the room draws. */
+export function shapeBox(s: StandinEntry): Box {
   const r = rotation(s.turn);
   const [sx, sy, sz] = typeof s.scale === "number" ? [s.scale, s.scale, s.scale] : (s.scale ?? [1, 1, 1]);
   // Each axis takes its row of R · S, R column-major: element (k, c) at index c × 4 + k.
@@ -437,16 +442,132 @@ let stages: readonly Stage[] | null = null;
 /** Every supported stage (stages.ts), computed once. */
 const allStages = (): readonly Stage[] => (stages ??= supportedStages());
 
-/** A stage's size, as a reason prints it. */
-const size = (s: Stage): string => `${Number(s.w.toFixed(1))} × ${Number(s.h.toFixed(1))}`;
+/** A stage's size, as a reason and the report's Side-wall section print it. */
+export const stageSize = (s: Stage): string => `${Number(s.w.toFixed(1))} × ${Number(s.h.toFixed(1))}`;
 
-/** RG6: a selectable's exclusive 44 × 44 core that leaves the view, or lies over another selectable's core, a member,
- *  or its union, where a pick that misses every member goes: in 3D at every supported stage, at its production
- *  framing; in 2D in the drawing's view box, at its smallest scale. Each problem is reported once, with the first stage
- *  it comes at and how many more. */
-function spacing(ctx: Context, g: Geometry): void {
+/** "304 × 248", or "304 × 248 and 26 others": the first stage by size and how many more, as RG6's reasons and the
+ *  report's Side-wall section name a run of supported stages (contracts/room-bundle.md §10). */
+export const stagesPhrase = (first: Stage, more: number): string =>
+  `${stageSize(first)}${more > 0 ? ` and ${more} other${more === 1 ? "" : "s"}` : ""}`;
+
+/** An angle in degrees, mod 360, in [0, 360). */
+const mod360 = (deg: number): number => ((deg % 360) + 360) % 360;
+
+/** Whether a turn is a quarter turn about Y alone, as a side wall's anchor is: its x and z turns none and its y ±90,
+ *  each mod 360, so `y: 270` and `y: -270` count. */
+export const quarterTurnY = (turn: Turn): boolean =>
+  mod360(turn.x) === 0 && mod360(turn.z) === 0 && (mod360(turn.y) === 90 || mod360(turn.y) === 270);
+
+/** How far a side wall's anchor may stand off the shell's bounds along x, in metres. */
+const WALL_MM = 0.001;
+
+/** A side-wall anchor of the shell's piece, and the side of the shell's bounds its wall stands at. */
+export interface SideWallFrame {
+  readonly anchor: SideWallAnchor;
+  /** The wall's x, the bounds' min or max x at the shell's stylized scale, in the shell's frame. */
+  readonly side: "min" | "max";
+  readonly x: number;
+}
+
+/**
+ * The side-wall test of one of the shell's anchors, which RG6 (`sideWallsOf`) and the photo guide (orders.ts) share:
+ * one of SIDE_WALL_ANCHORS by name, at a quarter turn about Y alone (`quarterTurnY`), whose `at[0]` stands within 1 mm
+ * of the shell's bounds' min or max x, so the anchor is on a wall of the shell and not inside it. Null otherwise.
+ */
+export function sideWallFrame(shell: CatalogEntry, name: string): SideWallFrame | null {
+  if (!isSideWallAnchor(name)) return null;
+  const anchor = anchorOf(shell, name);
+  if (!anchor || !quarterTurnY(anchor.turn)) return null;
+  const s = shell.stylized_scale;
+  const { min, max } = shell.origin.bounds;
+  const at = anchor.at[0] * s;
+  for (const [side, x] of [
+    ["min", min[0] * s],
+    ["max", max[0] * s],
+  ] as const)
+    if (Math.abs(at - x) <= WALL_MM + EPS) return { anchor: name, side, x };
+  return null;
+}
+
+/**
+ * The side-wall anchor a placement hangs on directly, or null (FR-064's carve-out; the spec's Reading R2): it mounts
+ * on the scene's shell, the placement without a mount, at an anchor `sideWallFrame` takes for a wall's; its own mount
+ * turns it about z alone, if at all (a turn about x or y would stand it out of the wall's plane, as a sign turned to
+ * face the camera does); and its offset out from the wall, `|offset[2]|`, is at most its piece's depth along its own z
+ * at its stylized scale, so it hangs on the wall and doesn't stand in the room.
+ */
+function sideWallOf(g: Geometry, root: Placement | undefined, p: Placement | undefined): SideWallAnchor | null {
+  const mount = p?.mount;
+  if (root === undefined || p === undefined || mount === undefined || mount.on !== root.id) return null;
+  const shell = g.pieces.get(root.piece);
+  const frame = shell && sideWallFrame(shell, mount.anchor);
+  const piece = g.pieces.get(p.piece);
+  if (!frame || !piece) return null;
+  if (mod360(mount.turn.x) !== 0 || mod360(mount.turn.y) !== 0) return null;
+  const { min, max } = piece.origin.bounds;
+  const depth = (max[2] - min[2]) * piece.stylized_scale;
+  return Math.abs(mount.offset[2]) <= depth + EPS ? frame.anchor : null;
+}
+
+/** The scene's placements by ID, the first of each (a second is RI2's), and its shell. */
+function byIdOf(g: Geometry): { readonly byId: ReadonlyMap<string, Placement>; readonly root: Placement | undefined } {
+  const byId = new Map<string, Placement>();
+  for (const [id, i] of g.index) {
+    const p = g.scene.value.placements[i];
+    if (p) byId.set(id, p);
+  }
+  return { byId, root: g.scene.value.placements.find((p) => p.mount === undefined) };
+}
+
+/** Each selectable, in scene order: whether it is a side-wall selectable, every member hung directly on a side wall
+ *  of the shell (`sideWallOf`; FR-064's carve-out, see listOnly), as the index's `side_wall` flags it. A selectable
+ *  with members on a side wall and elsewhere isn't one. */
+export function sideWallsOf(g: Geometry): boolean[] {
+  const { byId, root } = byIdOf(g);
+  return g.scene.value.selectables.map(
+    (sel) => sel.members.length > 0 && sel.members.every((m) => sideWallOf(g, root, byId.get(m)) !== null),
+  );
+}
+
+/** A side-wall selectable, its walls, and the stages FR-064's carve-out (see listOnly) leaves it to the "In the room"
+ *  list at, in 3D and in the 2D drawing at each stage's scale: the report's Side-wall section. */
+export interface SideWallPick {
+  readonly id: string;
+  /** Its index in scene.yaml's selectables, which names it where RT2 refused its ID. */
+  readonly index: number;
+  /** Its members' side-wall anchors, in first-appearance order. */
+  readonly walls: readonly SideWallAnchor[];
+  /** The stages, in supportedStages()'s order, where it is list-only in 3D, and in 2D. */
+  readonly stages: readonly Stage[];
+  readonly flat: readonly Stage[];
+}
+
+/** A problem RG6 refuses, with the first stage it comes at, in 3D or in 2D, and at how many more. */
+interface SweptProblem {
+  readonly problem: PickProblem;
+  readonly mode: "3D" | "2D";
+  readonly first: Stage;
+  more: number;
+}
+
+/** RG6's sweep of every supported stage, in 3D at its production framing and in 2D at its scale: what it refuses,
+ *  and where it leaves a side-wall selectable to the list. */
+export interface PickSweep {
+  readonly problems: readonly SweptProblem[];
+  readonly sideWalls: readonly SideWallPick[];
+}
+
+const sweeps = new WeakMap<Geometry, PickSweep>();
+
+/** RG6's sweep, made once a compose: `spacing` refuses its problems, and the report names its side-wall
+ *  selectables. Each selectable with a member that resolves is a pick area, its ID its index in scene.yaml's
+ *  selectables; in 3D its members are its frame boxes projected on the stage, and in 2D the index's flat hits
+ *  (`flatMembers`), which the 2D room picks from, their core 44 px at the stage's scale. At each stage `listOnly`
+ *  holds the side-wall selectables FR-064's carve-out leaves to the list there, and `pickProblems` gives the rest. */
+export function pickSweep(g: Geometry): PickSweep {
+  const known = sweeps.get(g);
+  if (known) return known;
   const s = g.scene.value;
-  // Each selectable with a member that resolves, by its index, which is its pick area's ID.
   const selectables = s.selectables.flatMap((x, k) => {
     const boxes = x.members.flatMap((m) => {
       const box = g.boxes.get(m);
@@ -454,16 +575,24 @@ function spacing(ctx: Context, g: Geometry): void {
     });
     return boxes.length > 0 ? [{ id: String(k), boxes }] : [];
   });
-  if (selectables.length === 0) return;
-  const inputs = (camera: Camera, stage: Stage): PickInput[] =>
-    selectables.map(({ id, boxes }) => ({
-      id,
-      members: boxes.flatMap((box) => {
-        const rect = memberRect(box, camera, stage);
-        return rect ? [rect] : [];
-      }),
-    }));
-  const found = new Map<string, { problem: PickProblem; mode: "3D" | "2D"; first: Stage; more: number }>();
+  const flags = sideWallsOf(g);
+  const sideWall = new Set(selectables.filter(({ id }) => flags[Number(id)]).map(({ id }) => id));
+  const { byId, root } = byIdOf(g);
+  const picks = new Map(
+    [...sideWall].map((id) => {
+      const walls = new Set<SideWallAnchor>();
+      for (const m of s.selectables[Number(id)]?.members ?? []) {
+        const wall = sideWallOf(g, root, byId.get(m));
+        if (wall) walls.add(wall);
+      }
+      const index = Number(id);
+      return [
+        id,
+        { id: s.selectables[index]?.id ?? "", index, walls: [...walls], stages: [] as Stage[], flat: [] as Stage[] },
+      ];
+    }),
+  );
+  const found = new Map<string, SweptProblem>();
   const note = (mode: "3D" | "2D", problems: readonly PickProblem[], stage: Stage): void => {
     for (const problem of problems) {
       const key = `${mode}\n${problem.selectable}\n${problem.problem}\n${problem.other ?? ""}`;
@@ -472,31 +601,68 @@ function spacing(ctx: Context, g: Geometry): void {
       else found.set(key, { problem, mode, first: stage, more: 0 });
     }
   };
+  const flat = flatMembers(g);
+  const flatInputs = selectables.map(({ id }) => ({ id, members: flat[Number(id)] ?? [] }));
+  const flatAreas = new Map<number, PickArea[]>();
+  const flatView: Rect = [0, 0, FLAT_VIEW.w, FLAT_VIEW.h];
   for (const stage of allStages()) {
     const { camera } = cameraAt(g, stage.w / stage.h);
-    note("3D", pickProblems(pickAreas(inputs(camera, stage)), [0, 0, stage.w, stage.h]), stage);
+    const areas = pickAreas(
+      selectables.map(({ id, boxes }) => ({
+        id,
+        members: boxes.flatMap((box) => {
+          const rect = memberRect(box, camera, stage);
+          return rect ? [rect] : [];
+        }),
+      })),
+    );
+    const view: Rect = [0, 0, stage.w, stage.h];
+    const held = listOnly(areas, view, sideWall);
+    note("3D", pickProblems(areas, view, held), stage);
+    for (const id of held) picks.get(id)?.stages.push(stage);
+    // In 2D the view box is fixed, and a core's 44 px are view-box units at the stage's scale.
+    const scale = flatScale(stage);
+    let drawn = flatAreas.get(scale);
+    if (!drawn) flatAreas.set(scale, (drawn = pickAreas(flatInputs, flatCore(stage))));
+    const flatHeld = listOnly(drawn, flatView, sideWall);
+    note("2D", pickProblems(drawn, flatView, flatHeld), stage);
+    for (const id of flatHeld) picks.get(id)?.flat.push(stage);
   }
-  // In 2D the view box is fixed, and a core's 44 px are the most view-box units at the drawing's smallest scale. The
-  // member rectangles are the index's flat hits, which the 2D room picks from.
-  const smallest = allStages().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
-  const flat = flatMembers(g);
-  const areas = pickAreas(
-    selectables.map(({ id }) => ({ id, members: flat[Number(id)] ?? [] })),
-    flatCore(smallest),
-  );
-  note("2D", pickProblems(areas, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h]), FLAT_VIEW);
+  const sweep: PickSweep = {
+    problems: [...found.values()],
+    sideWalls: [...picks.values()],
+  };
+  sweeps.set(g, sweep);
+  return sweep;
+}
+
+/** RG6: a selectable's exclusive 44 × 44 core that leaves the view, or lies over another selectable's core, a member,
+ *  or its union, where a pick that misses every member goes: in 3D at every supported stage, at its production
+ *  framing; in 2D in the drawing's view box, at each stage's scale. FR-064's carve-out (see listOnly) holds a
+ *  side-wall selectable there instead of refusing it. Each problem is reported once, with the first stage it comes at
+ *  and how many more; in 2D, a problem that comes at the drawing's smallest scale is named by that scale. */
+function spacing(ctx: Context, g: Geometry): void {
+  const smallest = flatScale(smallestFlatStage());
   const meets = { core: "the core of", member: "a member of", union: "the union of the members of" } as const;
-  for (const { problem, mode, first, more } of found.values()) {
+  for (const { problem, mode, first, more } of pickSweep(g).problems) {
     const what =
       problem.problem === "outside"
         ? "its 44 × 44 core leaves the view"
         : `its exclusive core overlaps ${meets[problem.problem]} selectables[${problem.other ?? ""}]`;
     const where =
-      mode === "2D"
-        ? "in 2D, at the drawing's smallest scale"
-        : `in 3D at the ${size(first)} stage${more > 0 ? ` and ${more} other supported stage${more === 1 ? "" : "s"}` : ""}`;
+      mode === "3D"
+        ? `in 3D at ${stagesPhrase(first, more)}`
+        : flatScale(first) === smallest
+          ? "in 2D, at the drawing's smallest scale"
+          : `in 2D, at the drawing's scale on ${stagesPhrase(first, more)}`;
     ctx.report("RG6", g.scene.file, ctx.path("selectables", Number(problem.selectable)), `${what} ${where}`);
   }
+}
+
+/** The side-wall selectables FR-064's carve-out (see listOnly) leaves to the "In the room" list somewhere, in scene
+ *  order, with the stages where it does: the report's Side-wall section. None without a scene. */
+export function sideWallPicks(g: Geometry | null): SideWallPick[] {
+  return g ? pickSweep(g).sideWalls.filter((p) => p.stages.length > 0 || p.flat.length > 0) : [];
 }
 
 // ---- RG7 ----
@@ -515,6 +681,8 @@ export interface FaceCaps {
   /** CSS pixels on the reference desktop's and phone's stages; null when no region of it can be measured. */
   readonly desktop: number | null;
   readonly phone: number | null;
+  /** RG7's one exemption (FR-052; see `phoneExempt`): the reference phone doesn't hold it to the floor. */
+  readonly phone_exempt: boolean;
 }
 
 /** Where a region's words come from, as legibility.ts names it: its typeface by `typefaceFor`, for RG7 and RT8. */
@@ -557,6 +725,22 @@ function capOf(
   return ratio === undefined ? null : regionCap(face, region, { capRatio: ratio });
 }
 
+/**
+ * RG7's one exemption, the one function that holds it (spec.md, FR-052; contracts/room-data-files.md §13.3): a readable
+ * face whose regions are all bound to the turn-cost signal (the neon sign's counters), whose figures the text copy's
+ * "Around the room" also carries, may fall under the floor on the reference phone alone; the reference desktop holds
+ * it to the floor. It is the face's own binding that counts, never what its piece's other faces carry: a word face
+ * beside the counters, or a face with a word region and a counter region, is held to the floor on both stages.
+ */
+function phoneExempt(live: LiveFace, binding: FaceBinding): boolean {
+  return (
+    live.readable &&
+    !binding.atmosphere &&
+    binding.regions.length > 0 &&
+    binding.regions.every((r) => r.signal === "turn-cost")
+  );
+}
+
 /** Each bound face of each placement whose piece has it, in scene order, measured where its placement resolves. */
 function measureFaces(g: Geometry, typefaces: readonly CapRatio[]): FaceCaps[] {
   const ratios = new Map(typefaces.map((t) => [t.use, t.cap_ratio]));
@@ -585,6 +769,7 @@ function measureFaces(g: Geometry, typefaces: readonly CapRatio[]): FaceCaps[] {
         max_chars: binding.max_chars ?? null,
         desktop: desktop ?? null,
         phone: phone ?? null,
+        phone_exempt: phoneExempt(live, binding),
       });
     }
   });
@@ -618,8 +803,9 @@ function characters(room: LoadedRoom, binding: FaceBinding): number {
   return n;
 }
 
-/** RG7: on either reference stage, a bound face whose smallest cap height is under the floor and isn't atmosphere;
- *  atmosphere on a face the catalog marks readable; an atmosphere face whose words run over its max_chars. */
+/** RG7: on either reference stage, a bound face whose smallest cap height is under the floor and isn't atmosphere,
+ *  but a phone-exempt face on the reference phone (`phoneExempt`); atmosphere on a face the catalog marks readable;
+ *  an atmosphere face whose words run over its max_chars. */
 function legibility(ctx: Context, g: Geometry): void {
   const floor = capsOf(ctx.policy).legibility_floor_css_px;
   for (const f of measureFaces(g, lookTypefaces(ctx.room, ctx.tree))) {
@@ -642,7 +828,8 @@ function legibility(ctx: Context, g: Geometry): void {
       ["desktop", f.desktop],
       ["phone", f.phone],
     ] as const)
-      if (px !== null && px < floor)
+      // FR-052's exemption (see phoneExempt): the reference phone alone.
+      if (px !== null && px < floor && !(name === "phone" && f.phone_exempt))
         ctx.report(
           "RG7",
           g.scene.file,

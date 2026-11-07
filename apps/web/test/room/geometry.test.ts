@@ -23,9 +23,11 @@ import {
   geometryOf,
   lookTypefaces,
   poseSeparations,
+  sideWallPicks,
+  stageSize,
 } from "../../build/room/checks/rg";
 import { sceneTextureMemory } from "../../build/room/checks/rk";
-import { compose } from "../../build/room/compose";
+import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, Finding } from "../../build/room/compose";
 import { loadRoom } from "../../build/room/load";
 import { noPolicy, policyFrom } from "../../build/room/policy";
@@ -36,7 +38,7 @@ import { LABEL_HEIGHT, LABEL_LIFT } from "../../src/room/compose/framing";
 import { flatCore, pickAreas, pickProblems } from "../../src/room/compose/pick";
 import { flatScale, REFERENCE_PHONE, supportedStages } from "../../src/room/compose/stages";
 import { fixed } from "../../src/room/glb/rules";
-import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
+import { goodFiles, goodTree, overlay, sideWallFiles, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
 const SCENE = "apps/web/room/scene.yaml";
@@ -229,7 +231,7 @@ describe("RG6: an exclusive 44 × 44 core for each selectable at every supported
     expect(found.every((f) => f.file === SCENE && /^selectables\[\d\]$/.test(f.path))).toBe(true);
     const three = found.find((f) => f.path === "selectables[2]" && f.reason.includes(" in 3D "));
     expect(three?.reason).toMatch(
-      /^its exclusive core overlaps a member of selectables\[0\] in 3D at the \d+(\.\d)? × \d+(\.\d)? stage( and \d+ other supported stages?)?$/,
+      /^its exclusive core overlaps a member of selectables\[0\] in 3D at \d+(\.\d)? × \d+(\.\d)?( and \d+ others?)?$/,
     );
     const flat = found.find((f) => f.path === "selectables[2]" && f.reason.includes(" in 2D"));
     expect(flat?.reason).toMatch(
@@ -258,11 +260,265 @@ describe("RG6: an exclusive 44 × 44 core for each selectable at every supported
     expect(found.map((f) => `${f.rule} ${f.path}: ${f.reason}`)).toEqual([
       expect.stringMatching(
         new RegExp(
-          `^RG6 selectables\\[1\\]: ${union.replace(/[[\]]/g, "\\$&")} in 3D at the \\d+(\\.\\d)? × \\d+(\\.\\d)? stage and \\d+ other supported stages$`,
+          `^RG6 selectables\\[1\\]: ${union.replace(/[[\]]/g, "\\$&")} in 3D at \\d+(\\.\\d)? × \\d+(\\.\\d)? and \\d+ others$`,
         ),
       ),
       `RG6 selectables[1]: ${union} in 2D, at the drawing's smallest scale`,
     ]);
+  });
+});
+
+// T292, T303 (spec 004; FR-064, SC-009; data-model.md §4.5; contracts/room-data-files.md §13.3): FR-064's carve-out,
+// over the side-wall overlay (test/fixtures/room/README.md): two signs hung on the shell's left-wall anchor, whose
+// cores overlap at the 27 stages 304 px wide, in 3D and in 2D at 0.95, and nowhere else. T302's answer lets a side-wall
+// selectable go without its core at any stage, list-only there; other selectables are refused as before. The two cores
+// meet only each other's, so `listOnly`'s release pass gives the first in scene order, the upper sign, its tap back, and
+// the lower sign alone is list-only (the review of T116, C1).
+describe("RG6: FR-064's carve-out for side-wall selectables", () => {
+  const SIDE = { upper: 10, lower: 11 } as const;
+  /** The side-wall overlay with its scene, its shell, and the desk changed as values. */
+  function sideWall(change: (scene: Doc, shell: Doc, desk: Doc) => void = () => undefined): Tree {
+    const files = sideWallFiles();
+    const read = (file: string, from: ReadonlyMap<string, Uint8Array>): Doc =>
+      parse(decoder.decode(from.get(file) ?? goodFiles().get(file))) as Doc;
+    const DESK = "apps/web/room/catalog/fx-desk.yaml";
+    const [scene, shell, desk] = [read(SCENE, files), read(SHELL, files), read(DESK, files)];
+    change(scene, shell, desk);
+    return sideWallTree({ [SCENE]: stringify(scene), [SHELL]: stringify(shell), [DESK]: stringify(desk) });
+  }
+  const composed = (t: Tree) => compose(t, sideWallPolicy(), { mode: "strict", drafts: true });
+  const picks = (t: Tree) =>
+    sideWallPicks(geometryOf(contextOf(t, sideWallPolicy()))).map((p) => ({
+      id: p.id,
+      walls: p.walls,
+      stages: p.stages.map(stageSize),
+      flat: p.flat.map(stageSize),
+    }));
+  const reasons = (t: Tree): string[] =>
+    composed(t)
+      .findings.filter((f) => f.rule === "RG6")
+      .map((f) => `${f.path}: ${f.reason}`);
+  /** The 27 stages 304 px wide, in supportedStages()'s order. */
+  const NARROW = [208, 248, 256, ...Array.from({ length: 24 }, (_, k) => 272 + 16 * k)].map((h) => `304 × ${h}`);
+  const placement = (scene: Doc, k: number): Doc => at(scene, "placements", k);
+
+  it("keeps the upper sign's tap and lets the lower go without its core there, and flags both side_wall", () => {
+    const t = sideWall();
+    const r = composed(t);
+    expect(r.findings.map((f) => formatFinding(f))).toEqual([]);
+    expect(r.index.selectables.map((x) => [x.id, x.side_wall])).toEqual([
+      ["fx-workstation", false],
+      ["fx-board", false],
+      ["fx-upper", true],
+      ["fx-lower", true],
+    ]);
+    expect(NARROW).toHaveLength(27);
+    expect(picks(t)).toEqual([{ id: "fx-lower", walls: ["left-wall"], stages: NARROW, flat: NARROW }]);
+  });
+
+  it("composes alike with the overlay's IDs renamed", () => {
+    const renamed = sideWall((scene) => {
+      for (const [from, to] of [
+        ["fx-upper", "fx-top"],
+        ["fx-lower", "fx-bottom"],
+      ] as const) {
+        const k = from === "fx-upper" ? SIDE.upper : SIDE.lower;
+        placement(scene, k).id = to;
+        const sel = (scene.selectables as Doc[]).find((x) => x.id === from) as Doc;
+        Object.assign(sel, { id: to, members: [to] });
+      }
+    });
+    expect(composed(renamed).findings).toEqual([]);
+    expect(picks(renamed)).toEqual([{ id: "fx-bottom", walls: ["left-wall"], stages: NARROW, flat: NARROW }]);
+  });
+
+  // T303: T302's answer, "tap where it fits, list where it doesn't". A side-wall selectable short of its core at any
+  // stage is list-only there, never refused; the report lists those stages.
+  const listed = (t: Tree): string[] =>
+    picks(t).map(
+      (p) =>
+        `${p.id}: 3D ${p.stages.length > 0 ? `${p.stages[0]} and ${p.stages.length - 1} others` : "–"}, ` +
+        `2D ${p.flat.length > 0 ? `${p.flat[0]} and ${p.flat.length - 1} others` : "–"}`,
+    );
+
+  it("lists a side-wall selectable short of its core at larger stages there too, in 3D, and refuses nothing", () => {
+    // The signs 0.3 m nearer the camera and closer together: their cores overlap on the 304 px stages from 304 × 248,
+    // and on stages 312 and 320 px wide, from 320 × 432 among them, in 3D alone.
+    const t = sideWall((scene, shell) => {
+      (at(shell, "anchors", "left-wall").at as number[])[2] = -0.5;
+      (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.09;
+    });
+    expect(reasons(t)).toEqual([]);
+    expect(listed(t)).toEqual(["fx-lower: 3D 304 × 248 and 48 others, 2D –"]);
+    expect(picks(t)[0]?.stages).toContain("320 × 432");
+  });
+
+  it("lists one short of its core in 2D at the scale of larger stages, and refuses nothing", () => {
+    // The signs 0.15 m further from the camera and a little closer together: in 2D their cores overlap at 0.975 too.
+    const t = sideWall((scene, shell) => {
+      (at(shell, "anchors", "left-wall").at as number[])[2] = -0.95;
+      (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.0375;
+    });
+    expect(reasons(t)).toEqual([]);
+    expect(listed(t)).toEqual(["fx-lower: 3D 304 × 208 and 31 others, 2D 304 × 208 and 42 others"]);
+    expect(picks(t)[0]?.flat).toContain("312 × 224");
+  });
+
+  /** RG6 on the stages 304 px wide, for the two signs, once neither is a side-wall selectable. */
+  const NOT_SIDE_WALL = [
+    "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 304 × 208 and 26 others",
+    "selectables[2]: its exclusive core overlaps the core of selectables[3] in 2D, at the drawing's smallest scale",
+    "selectables[3]: its exclusive core overlaps the core of selectables[2] in 3D at 304 × 208 and 26 others",
+    "selectables[3]: its exclusive core overlaps the core of selectables[2] in 2D, at the drawing's smallest scale",
+  ];
+  const sides = (t: Tree): boolean[] => composed(t).index.selectables.map((x) => x.side_wall);
+
+  it("refuses a selectable with one member on a side wall and one on the desk, which isn't side-wall", () => {
+    // Each sign's selectable takes a second sign, on the desk's top, where the first hangs: its pick area is the same.
+    const t = sideWall((scene) => {
+      for (const [k, id, y] of [
+        [SIDE.upper, "fx-upper-desk", 0.75],
+        [SIDE.lower, "fx-lower-desk", 0.2956],
+      ] as const) {
+        (scene.placements as Doc[]).push({
+          id,
+          piece: "fx-sign",
+          mount: { on: "fx-desk", anchor: "top", offset: [-0.9, y, -0.2] },
+          frame: true,
+        });
+        const sel = (scene.selectables as Doc[]).find((x) => x.id === placement(scene, k).id) as Doc;
+        (sel.members as string[]).push(id);
+      }
+    });
+    expect(sides(t)).toEqual([false, false, false, false]);
+    expect(reasons(t)).toEqual(NOT_SIDE_WALL);
+  });
+
+  it("refuses a member on another placement's anchor that is also named left-wall", () => {
+    // The desk, a child of the shell, gains an anchor named left-wall where the shell's is, and the signs hang on it.
+    const t = sideWall((scene, _shell, desk) => {
+      at(desk, "anchors")["left-wall"] = { at: [-0.9, 0, -0.2], turn: { y: 90 } };
+      for (const k of [SIDE.upper, SIDE.lower]) at(placement(scene, k), "mount").on = "fx-desk";
+    });
+    expect(sides(t)).toEqual([false, false, false, false]);
+    expect(reasons(t)).toEqual(NOT_SIDE_WALL);
+  });
+
+  /** RG6 on the two signs once neither is a side-wall selectable, where a change moves them: each one's core over the
+   *  other's, in 3D from the first stage 304 px wide and in 2D. */
+  function refusedBoth(t: Tree): void {
+    expect(sides(t)).toEqual([false, false, false, false]);
+    const found = reasons(t);
+    for (const [k, other] of [
+      [2, 3],
+      [3, 2],
+    ] as const)
+      expect(found, `selectables[${k}]`).toContainEqual(
+        expect.stringMatching(
+          new RegExp(
+            `^selectables\\[${k}\\]: its exclusive core overlaps the core of selectables\\[${other}\\] in 3D at 304 × 208`,
+          ),
+        ),
+      );
+  }
+  const BASE = [{ id: "fx-lower", walls: ["left-wall"], stages: NARROW, flat: NARROW }];
+
+  it("refuses a shell anchor named left-wall without a side wall's quarter turn about Y", () => {
+    // The anchor unturned: the signs face the camera from where they hung.
+    const t = sideWall((_scene, shell) => {
+      at(shell, "anchors", "left-wall").turn = { y: 0 };
+    });
+    refusedBoth(t);
+  });
+
+  // The review of T116, C2: the side-wall test can't be dodged. Each anchor and mount below would hang the signs on
+  // the left wall's name without hanging them on the wall.
+  it("refuses a shell anchor named left-wall turned about X as well as Y", () => {
+    const t = sideWall((_scene, shell) => {
+      at(shell, "anchors", "left-wall").turn = { x: 90, y: 90 };
+    });
+    refusedBoth(t);
+  });
+
+  it("takes a quarter turn about Y mod 360, so y 270 and y -270 count", () => {
+    for (const y of [-270, 270]) {
+      // The signs' boxes are symmetric about their own x and z, so a half turn more hangs them as they hung.
+      const t = sideWall((_scene, shell) => {
+        at(shell, "anchors", "left-wall").turn = { y };
+      });
+      expect(sides(t), `y ${y}`).toEqual([false, false, true, true]);
+      expect(reasons(t), `y ${y}`).toEqual([]);
+      expect(picks(t), `y ${y}`).toEqual(BASE);
+    }
+  });
+
+  it("refuses a shell anchor named left-wall that stands more than 1 mm off the shell's bounds", () => {
+    // The shell's bounds widened 2 mm to the left: the anchor, and the signs, stay where they were.
+    const t = sideWall((_scene, shell) => {
+      (at(shell, "origin", "bounds").min as number[])[0] = -0.902;
+    });
+    expect(sides(t)).toEqual([false, false, false, false]);
+    expect(reasons(t)).toEqual(NOT_SIDE_WALL);
+    // Within 1 mm, the anchor is on the wall.
+    const near = sideWall((_scene, shell) => {
+      (at(shell, "origin", "bounds").min as number[])[0] = -0.9008;
+    });
+    expect(sides(near)).toEqual([false, false, true, true]);
+    expect(picks(near)).toEqual(BASE);
+  });
+
+  it("refuses a member whose own mount turns it about Y or X, and takes a turn about Z", () => {
+    // A half turn about Y, or about X and Z together, which is the same: the signs' boxes, and so their pick areas,
+    // are where they were.
+    for (const turn of [{ y: 180 }, { x: 180, z: 180 }]) {
+      const t = sideWall((scene) => {
+        for (const k of [SIDE.upper, SIDE.lower]) at(placement(scene, k), "mount").turn = { ...turn };
+      });
+      expect(sides(t), JSON.stringify(turn)).toEqual([false, false, false, false]);
+      expect(reasons(t), JSON.stringify(turn)).toEqual(NOT_SIDE_WALL);
+    }
+    const t = sideWall((scene) => {
+      for (const k of [SIDE.upper, SIDE.lower]) at(placement(scene, k), "mount").turn = { z: 90 };
+    });
+    expect(sides(t)).toEqual([false, false, true, true]);
+  });
+
+  it("refuses a member that stands out from the wall by more than its piece's depth", () => {
+    // The anchor, and the shell's bounds with it, 3 cm further left, and the signs 3 cm out from it: they hang where
+    // they did, out from the wall by more than the sign's 0.025 m depth at its scale.
+    const out = (by: number): Tree =>
+      sideWall((scene, shell) => {
+        (at(shell, "anchors", "left-wall").at as number[])[0] = -0.9 - by;
+        (at(shell, "origin", "bounds").min as number[])[0] = -0.9 - by;
+        for (const k of [SIDE.upper, SIDE.lower]) (at(placement(scene, k), "mount").offset as number[])[2] = by;
+      });
+    expect(sides(out(0.03))).toEqual([false, false, false, false]);
+    expect(reasons(out(0.03))).toEqual(NOT_SIDE_WALL);
+    // At the depth itself, the signs hang on the wall.
+    expect(sides(out(0.025))).toEqual([false, false, true, true]);
+    expect(picks(out(0.025))).toEqual(BASE);
+  });
+
+  it("refuses another selectable's core over a list-only side-wall selectable's member, naming that selectable", () => {
+    // A sign on the floor at the lower one's height, 0.1 m out from the wall and 0.15 m in front of it, a selectable of
+    // its own.
+    const t = sideWall((scene) => {
+      (scene.placements as Doc[]).push({
+        id: "fx-probe",
+        piece: "fx-sign",
+        mount: { on: "fx-shell", anchor: "floor", offset: [-0.8, 1.0515, -0.65] },
+        frame: true,
+      });
+      (scene.selectables as Doc[]).push({
+        id: "fx-probe",
+        name: "Fixture probe",
+        members: ["fx-probe"],
+        action: { resume: {} },
+      });
+    });
+    expect(reasons(t)).toContain(
+      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 304 × 208 and 1726 others",
+    );
   });
 });
 
@@ -285,7 +541,7 @@ describe("RG7: legibility at the production framing on both reference stages", (
   });
 
   it("measures a sign by its outline's cap height", () => {
-    const small = rg(tree({ [OUTLINE]: (d) => (d.cap_height = 20) }));
+    const small = rg(tree({ [OUTLINE]: (d) => (d.cap_height = 15) }));
     expect(where(small)).toEqual([
       `RG7 ${SCENE}:placements[6].faces.lettering`,
       `RG7 ${SCENE}:placements[6].faces.lettering`,

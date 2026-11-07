@@ -128,13 +128,11 @@ describe("the choice screen", () => {
     const href = v.win.location.href;
     const length = v.win.history.length;
     await intoRoom(v);
-    for (const name of [
-      "Snowboard: hobbies and general life",
-      "Bicycle: travel adventures",
-      "Laptop and screen: work projects",
-    ]) {
-      button(v.doc, name).click();
-    }
+    // Every button of the "In the room" list, whatever the room's data names them (spec 004, FR-006).
+    const list = [...v.doc.querySelectorAll("section")].find((s) => nameOf(s) === "In the room");
+    const objects = [...(list?.querySelectorAll("button") ?? [])];
+    expect(objects.length).toBeGreaterThan(0);
+    for (const object of objects) object.click();
     const text = v.doc.querySelector<HTMLInputElement>("#talk-text");
     if (text) text.value = "hello";
     button(v.doc, "Send").click();

@@ -1,0 +1,44 @@
+# The laptop on its stand, the second screen (FR-040; answer 5): a base and an upright lid, whose screen is a plain live
+# face, a glow, unless approved room text is bound to it (FR-031). Its port is where the plugged pose's plug goes,
+# and its charge light glows only while the plug is in (FR-020, FR-043). Its size and anchor are estimates until
+# measured.
+version: 1
+id: laptop
+name: Laptop
+size: { w: 0.31, h: 0.22, d: 0.22, estimated: true }
+stylized_scale: 1
+origin:
+  point: on the stand, below the centre of the laptop's base.
+  bounds: { min: [-0.155, 0, -0.11], max: [0.155, 0.221, 0.11] }
+anchors:
+  port: { at: [0.155, 0.008, 0.05], turn: { y: 180 }, estimated: true }
+live_faces:
+  - role: screen
+    at: [0, 0.1185, -0.1]
+    size: [0.28, 0.175]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [512, 320]
+    readable: false
+glows:
+  - { id: screen-glow, at: [0, 0.1185, -0.098], radius: 0.18, tone: screen-blue, motion: breathe }
+  - { id: charge-light, at: [0.15, 0.008, 0.1], radius: 0.006, tone: charge-green, motion: steady, level: 0 }
+standin:
+  - { shape: box, size: [0.31, 0.016, 0.22], at: [0, 0.008, 0], color: graphite }
+  - { shape: box, size: [0.31, 0.205, 0.008], at: [0, 0.1185, -0.105], color: graphite-light }
+  - { shape: plane, size: [0.28, 0.175], at: [0, 0.1185, -0.1005], color: screen-glow, lit: false }
+drawing: { from: standin }
+budget: { gzip_bytes: 400000, triangles: 5000, texture_px: 512, texture_bytes: 1398101 }
+work_order:
+  method: >-
+    Model the laptop open from the dimension sheet and the Author's description, as plain solid parts in flat
+    colours. Its display is one quad, the live face named for its role, in one plain colour.
+  shots:
+    - The laptop open on its stand, from the front, square on.
+    - The laptop from its right side, showing the charging port.
+  measurements:
+    - The base's width, depth, and thickness, and the lid's height.
+    - The charging port's position on the base's side, from the base's front corner.
+  studio_notes: >-
+    The display is one plain colour: nothing shows on it (FR-031; spec 003's screens confirmation). The charge light
+    is the room's glow, not a lit material (FR-022). No logo, key legend, label, sticker, or regulatory print (FR-016).

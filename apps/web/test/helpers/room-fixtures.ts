@@ -21,6 +21,8 @@ import { desk, rxVariants, sign } from "./glb";
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 export const FIXTURES_DIR = here("../fixtures/room/");
 export const GOOD_DIR = join(FIXTURES_DIR, "good");
+export const SIDE_WALL_DIR = join(FIXTURES_DIR, "side-wall");
+export const COUNTERS_DIR = join(FIXTURES_DIR, "counters");
 export const BAD_DIR = join(FIXTURES_DIR, "bad");
 /** The repository's vendored typefaces, which the known-good set takes as they are. */
 const FONTS_DIR = here("../../fonts/");
@@ -57,6 +59,38 @@ export function overlay(changes: Readonly<Record<string, string | Uint8Array | n
   const map = new Map<string, Uint8Array | null>();
   for (const [path, value] of Object.entries(changes)) map.set(path, typeof value === "string" ? bytes(value) : value);
   return overlayTree(goodTree(), map);
+}
+
+/** The side-wall overlay's files (README.md), by repository path. */
+export function sideWallFiles(): Map<string, Uint8Array> {
+  return new Map(walk(SIDE_WALL_DIR));
+}
+
+/** The known-good set under the side-wall overlay, and any further changes over it. */
+export function sideWallTree(changes: Readonly<Record<string, string | Uint8Array | null>> = {}): Tree {
+  return overlay({ ...Object.fromEntries(sideWallFiles()), ...changes });
+}
+
+/** The known-good set under the counters overlay (README.md), and any further changes over it. */
+export function countersTree(changes: Readonly<Record<string, string | Uint8Array | null>> = {}): Tree {
+  return overlay({ ...Object.fromEntries(walk(COUNTERS_DIR)), ...changes });
+}
+
+/** Main's caps with FR-053's starting figures and a legibility floor of 5 px: the policy the side-wall overlay composes
+ *  under, since the frame its far sign sets makes the known-good set's faces smaller. */
+export function sideWallPolicy(): RoomPolicy {
+  const room = {
+    gzip_bytes: 2500000,
+    triangles: 40000,
+    small_props: [],
+    small_prop_texture_px: 1024,
+    scene_texture_bytes: 96000000,
+    legibility_floor_css_px: 5,
+  };
+  return policyFrom(
+    { caps: bytes(`${JSON.stringify({ schema: 1, per_asset: { room } })}\n`), approvals: null, header: null },
+    "policy-dir",
+  );
 }
 
 /** One known-bad case: an overlay of the known-good set, and the finding it must produce. */

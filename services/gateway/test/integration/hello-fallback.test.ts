@@ -73,7 +73,7 @@ async function meters(s: TestStack): Promise<Rec[]> {
 describe("the fallback answers while local can't (gateway-http.md §2.4 steps 5.2–5.8)", () => {
   it("answers 200 from the synthetic fallback while local is unhealthy, metered at $0.10", async () => {
     const { s } = await stack();
-    const res = await hello(s, { "x-h4-client": "author-laptop" }, { message: "Say hello." });
+    const res = await hello(s, { "x-h4-client": "author-terminal" }, { message: "Say hello." });
     expect(res.statusCode).toBe(200);
     const body = res.json() as Rec;
     expect(Object.keys(body)).toEqual([
@@ -115,7 +115,7 @@ describe("the fallback answers while local can't (gateway-http.md §2.4 steps 5.
       cost_basis: "usage",
       purpose: "hello",
       trace_id: body.trace_id,
-      client_label: "author-laptop",
+      client_label: "author-terminal",
     });
     expect((await meters(s)).map((m) => [m.meter, m.spent_micro, m.reserved_micro])).toEqual([
       ["day", 100_000, 0],
@@ -130,7 +130,7 @@ describe("the fallback answers while local can't (gateway-http.md §2.4 steps 5.
     expect(journal.map((r) => r.kind)).toEqual(["operator", "reserve", "commit"]);
     expect(s.logged.some((l) => l.record.event === "call.completed" && l.record.attribution === "fallback")).toBe(true);
     // The label stays in the ledger: no log record carries it.
-    expect(JSON.stringify(s.logged)).not.toContain("author-laptop");
+    expect(JSON.stringify(s.logged)).not.toContain("author-terminal");
     expect(await health(s)).toMatchObject({ status: "ok", degraded_cause: null, fallback: { adapter: "synthetic" } });
   });
 
@@ -263,8 +263,8 @@ describe("the metered limits in memory, as 429 (gateway-http.md §2.4 step 5.5; 
 
   it("refuses a client's second metered call in flight with client_cap_exceeded, not a degraded state", async () => {
     const { s } = await stack();
-    expect((await held(s, clientKey("198.51.100.7", "author-laptop"))).ok).toBe(true);
-    const res = await hello(s, { "x-h4-client": "author-laptop" });
+    expect((await held(s, clientKey("198.51.100.7", "author-terminal"))).ok).toBe(true);
+    const res = await hello(s, { "x-h4-client": "author-terminal" });
     expect(res.statusCode).toBe(429);
     expect(res.headers["retry-after"]).toBe("1");
     expect(res.headers["x-h4-degraded-cause"]).toBeUndefined();

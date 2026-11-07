@@ -65,7 +65,7 @@ const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** A line a command prints for a file. */
-interface Line {
+export interface Line {
   readonly file: string;
   readonly text: string;
 }
@@ -101,8 +101,9 @@ function staleLine(committed: string, fresh: string): string {
   return /^line (\d+):/.exec(firstDifference(committed, fresh) ?? "")?.[1] ?? "-";
 }
 
-/** §13: each generated file as the build writes it, none missing, and no work order whose piece is gone. */
-function freshness(tree: Tree, generated: readonly { readonly path: string; readonly text: string }[]): Line[] {
+/** §13: each generated file as the build writes it, none missing, and no work order whose piece is gone; room:check's
+ *  check, which make test runs too (test/room/generated.test.ts). */
+export function freshness(tree: Tree, generated: readonly { readonly path: string; readonly text: string }[]): Line[] {
   const line = (file: string, where: string, reason: string): Line => ({
     file,
     text: `FR-013 ${file}:${where}: ${reason}`,

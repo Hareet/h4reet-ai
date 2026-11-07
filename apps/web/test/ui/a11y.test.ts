@@ -3,8 +3,18 @@
 // focus in the CSS, the canvas and the 2D drawing hidden from assistive technology with the list as their equivalent,
 // 44-pixel targets in the CSS, polite live regions, and 0 axe violations on every screen. What jsdom can't show (layout,
 // real focus rings, a screen reader) is the Author's run, quickstart §4.
-import { describe, expect, it } from "vitest";
+// T105 (spec 004; FR-063; R-16, R-40): the "In the room" list is the bundle's index's: a button per selectable in
+// scene order, named by its name with a visually hidden ": " and its topic's phrase, or the resume action's UI word,
+// under the index's own heading. Expectations come from compose(), of the repository's data and of the fixture set,
+// whose IDs are synthetic fx- ones.
+import { JSDOM } from "jsdom";
+import { describe, expect, it, vi } from "vitest";
 
+import { compose } from "../../build/room/compose";
+import { noPolicy } from "../../build/room/policy";
+import { renderObjectList } from "../../src/room/a11y";
+import type { RoomIndex } from "../../src/room/compose/bundle";
+import { renderFlat } from "../../src/room/flat";
 import {
   AI_DISCLOSURE,
   axeViolations,
@@ -16,6 +26,7 @@ import {
   nameOf,
   parseCss,
   px,
+  roomIndex,
   start,
   stylesheets,
   tabOrder,
@@ -23,12 +34,19 @@ import {
   textOf,
 } from "../helpers/room";
 import type { CssRule, Visit } from "../helpers/room";
+import { goodTree, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
 
-const OBJECT_BUTTONS = [
-  "Snowboard: hobbies and general life",
-  "Bicycle: travel adventures",
-  "Laptop and screen: work projects",
-];
+/** The "In the room" list's buttons by their accessible names, as the index gives them: in scene order, each name, a
+ *  ": ", and its topic's phrase, or the resume action's UI word. */
+function objectButtons(index: RoomIndex): string[] {
+  return index.selectables.map(({ name, action }) => {
+    const what =
+      action.kind === "talk" ? index.topics.find((t) => t.id === action.topic)?.phrase : index.ui["list.resume_action"];
+    return `${name}: ${what ?? ""}`;
+  });
+}
+
+const OBJECT_BUTTONS = objectButtons(roomIndex());
 
 function rules(): CssRule[] {
   return stylesheets().flatMap((sheet) => parseCss(sheet.text).rules);
@@ -139,7 +157,9 @@ describe("keyboard", () => {
     button(v.doc, "Resume").click();
     await flush();
     const order = tabOrder(v.doc).map(nameOf);
-    expect(order.slice(0, 9)).toEqual([
+    // The toolbar's three stops, a button per selectable, and the conversation panel's three come first.
+    const room = 3 + OBJECT_BUTTONS.length + 3;
+    expect(order.slice(0, room)).toEqual([
       "Resume",
       "2D view",
       "How data flows",
@@ -148,8 +168,8 @@ describe("keyboard", () => {
       "Send",
       "Hold to talk",
     ]);
-    expect(order.slice(9)).toContain("Close");
-    expect(order.slice(9)).toContain("Download (PDF)");
+    expect(order.slice(room)).toContain("Close");
+    expect(order.slice(room)).toContain("Download (PDF)");
   });
 
   it("orders the choice screen's Tab stops: the path, the avatar, Enter, then the links", async () => {
@@ -194,18 +214,42 @@ describe("assistive technology", () => {
     for (const v of [v3, v2]) {
       const list = v.doc.querySelector(".room-list");
       const heading = list?.querySelector("h2");
-      expect(heading?.textContent?.trim()).toBe("In the room");
+      expect(heading?.textContent?.trim()).toBe(roomIndex().ui["list.heading"]);
       expect(list?.getAttribute("aria-labelledby")).toBe(heading?.id);
       expect([...(list?.querySelectorAll("ul > li > button") ?? [])].map(nameOf)).toEqual(OBJECT_BUTTONS);
     }
   });
 
-  it("keeps the 2D drawing's buttons out of the Tab order, beside the list", async () => {
+  it('builds the "In the room" list from the index: a button per selectable, with its topic or action', async () => {
+    const { index } = compose(goodTree(), noPolicy(), { mode: "strict", drafts: false });
+    expect(new Set(index.selectables.map((s) => s.action.kind))).toEqual(new Set(["talk", "resume"]));
+    const v = start({ webgl: false, room: index });
+    await intoRoom(v);
+    const list = v.doc.querySelector(".room-list");
+    expect(list?.querySelector("h2")?.textContent?.trim()).toBe(index.ui["list.heading"]);
+    const buttons = [...(list?.querySelectorAll("ul > li > button") ?? [])];
+    expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual(index.selectables.map((s) => s.id));
+    expect(buttons.map(nameOf)).toEqual(objectButtons(index));
+    // Each shows its name; the ": " and its topic or action are there for a screen reader, visually hidden.
+    for (const [k, b] of buttons.entries()) {
+      const [shown, hidden, ...rest] = [...b.children];
+      expect(rest).toEqual([]);
+      expect(textOf(shown ?? null)).toBe(index.selectables[k]?.name);
+      expect(hidden?.getAttribute("class")).toBe("visually-hidden");
+      expect(hidden?.textContent?.startsWith(": ")).toBe(true);
+    }
+  });
+
+  it("puts nothing to focus or press in the 2D drawing, whose cues picture what the list's buttons hold", async () => {
     const v = start({ webgl: false });
     await intoRoom(v);
-    const hits = [...v.doc.querySelectorAll(".flat button")];
-    expect(hits).toHaveLength(3);
-    for (const hit of hits) expect(hit.getAttribute("tabindex")).toBe("-1");
+    const flat = v.doc.querySelector(".flat");
+    expect(flat?.getAttribute("aria-hidden")).toBe("true");
+    expect(flat?.querySelectorAll("button, a, input, [tabindex]")).toHaveLength(0);
+    // Each selectable is cued in the drawing (spec 004, T109), and has its button in the list.
+    const count = roomIndex().selectables.length;
+    expect(flat?.querySelectorAll(".flat-cue")).toHaveLength(count);
+    expect(v.doc.querySelectorAll(".room-list button")).toHaveLength(count);
   });
 
   it("has polite live regions for the hand-off line and the twin's words, in the page before either speaks", () => {
@@ -229,6 +273,45 @@ describe("assistive technology", () => {
       expect(await axeViolations(v), name).toEqual([]);
     }
   }, 60_000);
+});
+
+// T295 (spec 004; FR-063, FR-064, SC-009): over T292's side-wall overlay (test/fixtures/room/README.md), the "In the
+// room" list reaches every selectable at every stage, the list-only side-wall one among them, by a named button; the
+// 2D drawing, aria-hidden, hides its cue where it has no pick area and shows the rest, the upper sign's among them,
+// which `listOnly`'s release pass keeps.
+describe("the side-wall selectables' road in (FR-064's carve-out)", () => {
+  it("gives every selectable its named button, and hides only the list-only ones' cues on a 304 px stage", () => {
+    const { index } = compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: false });
+    const doc = new JSDOM("<main></main>").window.document;
+    const select = vi.fn<(id: string) => void>();
+    const list = renderObjectList(doc, index, select);
+    doc.body.append(list);
+    const buttons = [...list.querySelectorAll("button")];
+    expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual([
+      "fx-workstation",
+      "fx-board",
+      "fx-upper",
+      "fx-lower",
+    ]);
+    expect(buttons.map(nameOf)).toEqual(objectButtons(index));
+    for (const b of buttons) b.click();
+    expect(select.mock.calls).toEqual([["fx-workstation"], ["fx-board"], ["fx-upper"], ["fx-lower"]]);
+    for (const stage of [
+      { w: 304, h: 208 },
+      { w: 368, h: 420 },
+    ]) {
+      const flat = renderFlat(doc, { room: index, avatar: "dog", select });
+      const s = Math.min(stage.w / 320, stage.h / 200);
+      flat.resize({ w: 320 * s, h: 200 * s });
+      expect(flat.element.getAttribute("aria-hidden")).toBe("true");
+      expect(flat.element.querySelectorAll("button, a, input, [tabindex]")).toHaveLength(0);
+      const hidden = [...flat.drawing.cues].filter(([, c]) => c.area.getAttribute("visibility") === "hidden");
+      expect(
+        hidden.map(([id]) => id),
+        `${stage.w} × ${stage.h}`,
+      ).toEqual(stage.w === 304 ? ["fx-lower"] : []);
+    }
+  });
 });
 
 describe("the AI disclosure", () => {

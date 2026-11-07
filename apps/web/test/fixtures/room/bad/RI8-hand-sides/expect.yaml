@@ -1,0 +1,6 @@
+rule: RI8
+file: apps/web/room/scene.yaml
+path: handoff.to.anchor
+why: the figures' sides swapped, the twin moved to the visitor's left with each hand left where it was, so the paper would cross both figures to the visitor's farther hand
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 7, mount, offset], set: [-0.48, 0, 0.12] }

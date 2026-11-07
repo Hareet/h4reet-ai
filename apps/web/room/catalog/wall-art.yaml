@@ -1,0 +1,35 @@
+# The artwork (FR-028, FR-078): spec 002's placeholder, a framed canvas with a sun and a hill, unlit
+# (src/room/scene.ts), at the size estimated for the Author's frame until measured, hanging on the back wall over part
+# of the window (the Author, 2026-10-23: "Have it hanging and maybe covering partial window").
+version: 1
+id: wall-art
+name: Artwork
+size: { w: 0.5, h: 0.3, d: 0.04, estimated: true }
+stylized_scale: 1
+origin:
+  point: the centre of the frame's back, against the wall.
+  bounds: { min: [-0.25, -0.15, 0], max: [0.25, 0.15, 0.04] }
+standin:
+  - { shape: box, size: [0.5, 0.3, 0.03], at: [0, 0, 0.02], color: frame-wood }
+  - { shape: plane, size: [0.45, 0.25], at: [0, 0, 0.036], color: canvas, lit: false }
+  - { shape: circle, radius: 0.05, at: [-0.09, 0.02, 0.037], color: sun, lit: false }
+  - shape: polygon
+    points: [[0.09, 0], [-0.045, 0.077942], [-0.045, -0.077942]]
+    depth: 0.002
+    at: [0.09, -0.03, 0.037]
+    color: hill
+    lit: false
+drawing: { from: standin }
+budget: { gzip_bytes: 400000, triangles: 500, texture_px: 1024, texture_bytes: 5592405 }
+work_order:
+  method: >-
+    Model a framed canvas from the dimension sheet; paint an original picture for it in the look's flat colours, or
+    leave the canvas one plain colour.
+  shots:
+    - The frame from the front, square on, for its shape and depth only.
+  measurements:
+    - The frame's outer width, height, and depth.
+    - Where the frame hangs, from the floor to its lower edge and from the window's centre.
+  studio_notes: >-
+    Original art, the studio's own by default, or none (FR-028): never a copy, trace, or crop of the picture that
+    hangs there, and no signature, word, or digit (FR-016).

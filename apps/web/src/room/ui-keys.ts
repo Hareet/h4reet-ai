@@ -47,6 +47,8 @@ export const UI_KEYS = {
   "standin.label": ["name"],
   "standin.note": [],
   "draft.badge": [],
+  // The stage's line when the 2D drawing can't be drawn (FR-081).
+  "flat-failed": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;
@@ -61,4 +63,21 @@ export const LABEL_KEY = /^label\.[a-z][a-z0-9-]{1,40}$/;
 /** The slots a UI word's text holds, in order, as many times as it holds each: `{` a lowercase name `}`. */
 export function slotsIn(text: string): string[] {
   return [...text.matchAll(/\{([a-z][a-z0-9_]*)\}/g)].map((m) => m[1] ?? "");
+}
+
+/**
+ * A UI word as the room shows it, from the index's words (contracts/room-bundle.md §3.1, slots unfilled): its slots
+ * filled from the values given, which are the room's own (a label's word, a live value), never the visitor's words;
+ * null when the index lacks the key or a value for one of its slots.
+ */
+export function uiWord(
+  ui: Readonly<Record<string, string>>,
+  key: string,
+  slots: Readonly<Partial<Record<Slot, string>>> = {},
+): string | null {
+  const text = Object.hasOwn(ui, key) ? ui[key] : undefined;
+  if (text === undefined) return null;
+  const value = (name: string): string | undefined => (Object.hasOwn(slots, name) ? slots[name as Slot] : undefined);
+  if (slotsIn(text).some((name) => value(name) === undefined)) return null;
+  return text.replace(/\{([a-z][a-z0-9_]*)\}/g, (_, name: string) => value(name) ?? "");
 }

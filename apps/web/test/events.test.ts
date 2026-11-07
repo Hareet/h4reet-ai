@@ -3,6 +3,8 @@
 // {kind, id} and nothing else. No path, avatar, visit ID, address, or time goes in it, whatever a caller hands the sink.
 // A beacon the browser refuses, or that throws, is dropped: never retried, queued, or stored, and nothing is sent
 // another way. Each test runs the sink in its own jsdom window, with every storage and request API spied on.
+// Spec 004 (T104; R-16, R-60): an object's ID here is a synthetic fx- one, since a room's IDs live in its data alone;
+// test/room/events.test.ts sends the room's own, from each input.
 import { JSDOM } from "jsdom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +12,7 @@ import { EVENTS_URL, beaconEvents } from "../src/events";
 import { EVENT_KINDS } from "../src/room/events";
 import type { RoomEvent } from "../src/room/events";
 
-const ID_KINDS: Record<string, string> = { object_selected: "laptop", item_selected: "cht-agent" };
+const ID_KINDS: Record<string, string> = { object_selected: "fx-workstation", item_selected: "cht-agent" };
 
 interface Page {
   win: Window;
@@ -76,7 +78,7 @@ describe("the beacon", () => {
     // A string body goes as text/plain;charset=UTF-8, which contracts/room-events.md §3 accepts.
     for (const b of p.beacons) expect(typeof b.body).toBe("string");
     expect(p.beacons.map((b) => b.body)).toEqual([
-      '{"kind":"object_selected","id":"laptop"}',
+      '{"kind":"object_selected","id":"fx-workstation"}',
       '{"kind":"item_selected","id":"cht-agent"}',
       '{"kind":"resume_opened"}',
       '{"kind":"resume_kept"}',
@@ -92,12 +94,12 @@ describe("the beacon", () => {
     const p = page();
     const emit = beaconEvents(p.win.navigator);
     const extra = { path: "engineer", avatar: "dog", visit: "v-1", address: "203.0.113.9", text: "hi", at: 1_760_000 };
-    emit({ kind: "object_selected", id: "laptop", ...extra } as RoomEvent);
+    emit({ kind: "object_selected", id: "fx-workstation", ...extra } as RoomEvent);
     emit({ kind: "mode_2d", ...extra } as RoomEvent);
     // An ID on a kind that takes none is dropped too: the gateway would refuse the event's shape.
-    emit({ kind: "resume_opened", id: "laptop" });
+    emit({ kind: "resume_opened", id: "fx-workstation" });
     expect(bodies(p)).toEqual([
-      { kind: "object_selected", id: "laptop" },
+      { kind: "object_selected", id: "fx-workstation" },
       { kind: "mode_2d" },
       { kind: "resume_opened" },
     ]);

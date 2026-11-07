@@ -191,8 +191,9 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
         name: "Fixture workstation",
         members: ["fx-monitor", "fx-laptop"],
         action: { kind: "talk", topic: "fx-work" },
+        side_wall: false,
       },
-      { id: "fx-board", name: "Fixture board", members: ["fx-board"], action: { kind: "resume" } },
+      { id: "fx-board", name: "Fixture board", members: ["fx-board"], action: { kind: "resume" }, side_wall: false },
     ]);
     expect(index.topics).toEqual([{ id: "fx-work", phrase: "fixture work", ready: false }]);
     expect(JSON.stringify(index)).not.toContain("Fixture lead");

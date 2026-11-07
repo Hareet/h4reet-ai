@@ -1,0 +1,6 @@
+rule: RI8
+file: apps/web/room/scene.yaml
+path: handoff.from.anchor
+why: the twin's hand on its side away from the visitor, so the paper would leave from its farther hand
+edits:
+  - { file: apps/web/room/catalog/fx-twin.yaml, at: [anchors, hand, at], set: [0.1, 0.25, 0.05] }

@@ -6,9 +6,14 @@
 // lists. The coverage test fails while a rule of §13 but RG8 has no bad/ case, so it stays red until every family has
 // its cases (T078). The trees compose() reads through (T075; contracts/room-bundle.md §1) are held to their interface:
 // repository paths only, listings sorted bytewise, no link followed, and a log of every path read or listed.
+// T094's compose half (FR-009, SC-002; contracts/room-data-files.md §3.1, §15): the committed tree composes in strict
+// mode with no finding, under the policy `make test` reads (policy.ts: main's, by refs/heads/main), with drafts and
+// without; and its data holds no ID with the reserved prefix `fx-`, the tests' own, so no literal in a test can be a
+// real ID.
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
@@ -16,7 +21,8 @@ import { parse, stringify } from "yaml";
 import { compareFindings, RULE_IDS, RULES } from "../../build/room/checks/family";
 import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeOptions, Finding } from "../../build/room/compose";
-import { CAPS_DEFAULTS, noPolicy, policyFrom } from "../../build/room/policy";
+import { loadRoom, namespaceIds } from "../../build/room/load";
+import { CAPS_DEFAULTS, noPolicy, policyFrom, readRoomPolicy } from "../../build/room/policy";
 import { fileTree, isTreePath, memoryTree, overlayTree } from "../../build/room/source";
 import { AVATARS } from "../../src/choice/avatars";
 import { badCases, caseTree, goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
@@ -81,10 +87,12 @@ describe("the known-good set", () => {
       .decode(goodFiles().get("apps/web/room/scene.yaml"))
       .replace(/^live: .*$/m, "live: { source: site, poll_s: 30, freshness_s: 35, turn: site, asset_events: site }");
     // Amendment A4's words on V7, B6's on V2, and spec 003's asset events on V6 (spec.md's Data-Flow Disclosure Entries).
+    // V7's Why cell, which no RL rule reads, names the fixture set's laptop where the spec names the room's: the room's
+    // own ID would hit the source scan (FR-007).
     const rows: Record<string, string> = {
       V2: "| V2 | the stack → the visitor's browser, in each turn's reply | a conversation turn | the turn's estimated cost and its route | anything new leaving the device | the neon sign (FR-048) and the failover cue (FR-041 row 7) | with the conversation | close the conversation | FR-075 |",
       V6: "| V6 | the visitor's browser → the site's own origin, `POST /api/events` | a piece's model loading | the asset's kind and bytes | the visitor's address | spec 003's transfer panel | off | `asset_events: off` | FR-071 |",
-      V7: "| V7 | the visitor's browser → the edge → the relay, `GET /api/status` | as before, and now the room: every 30 s while the visitor has entered, the page is visible, the room isn't paused, and the live source is on, and once on resume or return, at most once an interval | the request; the IP address; the user agent | anything typed or said | the laptop shows whether the Author's machine is serving (FR-041) | on once the live source is | \"Pause the room\", or block the path | FR-074 |",
+      V7: "| V7 | the visitor's browser → the edge → the relay, `GET /api/status` | as before, and now the room: every 30 s while the visitor has entered, the page is visible, the room isn't paused, and the live source is on, and once on resume or return, at most once an interval | the request; the IP address; the user agent | anything typed or said | the fx-laptop shows whether the Author's machine is serving (FR-041) | on once the live source is | \"Pause the room\", or block the path | FR-074 |",
     };
     const disclosure = (ids: readonly string[]): string =>
       [
@@ -291,6 +299,34 @@ describe("findings", () => {
       "fx-sign",
       "fx-power.fx-resting",
     ]);
+  });
+});
+
+describe("the committed tree (T094)", () => {
+  /** The repository's root, which holds apps/web/room/ and everything else contracts/room-data-files.md §1 lists. */
+  const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+
+  it.each([true, false])("composes in strict mode with no finding (drafts %s)", (drafts) => {
+    const policy = readRoomPolicy({ env: process.env, root: ROOT });
+    expect(lines(compose(fileTree(ROOT), policy, { mode: "strict", drafts }).findings)).toEqual([]);
+  });
+
+  it("holds no ID with the reserved prefix fx-, which belongs to the tests' synthetic IDs", () => {
+    const room = loadRoom(fileTree(ROOT));
+    const ids = [...Object.values(namespaceIds(room)).flat(), ...(room.scene?.value.retired.map((r) => r.id) ?? [])];
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.filter((id) => id.startsWith("fx-"))).toEqual([]);
+  });
+
+  // look.ts reads outlines.width in CSS pixels of the stage's height; OutlineEffect's own default thickness, 0.003, is
+  // in normalized device units, and taken as pixels it draws lines a few thousandths of a pixel thick, which no one
+  // sees (the review of feat/004-us3-lookdev, page-5).
+  it("draws the scene's look's ink lines at least half a CSS pixel thick", () => {
+    const room = loadRoom(fileTree(ROOT));
+    const name = room.scene?.value.look;
+    const look = room.looks.find((l) => l.value.id === name)?.value;
+    expect(look).toBeDefined();
+    if (look?.outlines) expect(look.outlines.width).toBeGreaterThanOrEqual(0.5);
   });
 });
 

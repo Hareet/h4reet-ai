@@ -33,7 +33,7 @@ const HEX64 = "ab".repeat(32);
 const T0 = Date.parse("2026-11-20T08:00:00.000Z");
 const DAY = "2026-11-20";
 const MONTH = "2026-11";
-const CLIENT_LABEL = "author-laptop";
+const CLIENT_LABEL = "author-terminal";
 
 type Rec = Record<string, unknown>;
 

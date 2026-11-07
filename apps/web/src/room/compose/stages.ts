@@ -157,3 +157,15 @@ export const FLAT_VIEW = { w: 320, h: 200 } as const;
 export function flatScale(stage: Stage): number {
   return Math.min(stage.w / FLAT_VIEW.w, stage.h / FLAT_VIEW.h);
 }
+
+let supported: readonly Stage[] | null = null;
+/** supportedStages(), computed once for the functions below. */
+const everyStage = (): readonly Stage[] => (supported ??= supportedStages());
+
+let flatSmallest: Stage | null = null;
+/** The supported stage that gives the 2D drawing its smallest scale, the first in supportedStages()'s order (304 × 208:
+ *  0.95). Computed once. */
+export function smallestFlatStage(): Stage {
+  flatSmallest ??= everyStage().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
+  return flatSmallest;
+}

@@ -7,7 +7,8 @@
 // - "Enter" builds the room with its controls inert, mounts the 3D scene or the 2D drawing, and plays the hand-off,
 //   which nothing skips; its end offers the resume now or later and opens the room.
 // - The quality controller, a lost context, or the visitor's "2D view" moves the room to 2D, once, keeping the visit.
-// - Every object, the text box, and the talk button answer with the fixed messages and call nothing (R-14).
+// - Every selectable, the text box, and the talk button answer with the fixed messages and call nothing (R-14). The
+//   selectables, the list, and the 2D drawing are the bundle's index's (spec 004, FR-011): no ID of the room's is here.
 // - Usage events go to the EventSink: the page's sends beacons (src/events.ts); by default, nothing is sent.
 import "./room.css";
 
@@ -21,6 +22,7 @@ import type { TalkPanel } from "../talk/talk";
 import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
+import type { RoomIndex } from "./compose/bundle";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
@@ -29,17 +31,19 @@ import { handoffDuration, runHandoff } from "./handoff";
 import type { Handoff } from "./handoff";
 import { renderRoom } from "./layout";
 import type { RoomLayout } from "./layout";
-import { objectById } from "./objects";
-import type { ObjectId } from "./objects";
 import { SCENE_WAIT_MS, createQualityController, hasWebGL2, targetFps, watchContext } from "./quality";
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
 import type { SceneModule, Stage, Stage3D } from "./stage";
+import { renderTextCopy } from "./text-copy";
+import { uiWord } from "./ui-keys";
 
 export interface RoomDeps {
   win: Window;
-  /** The fixed messages and the manifest, bundled at build (build/manifest.ts). */
+  /** The fixed messages and the manifest, bundled at build (build/room/plugin.ts). */
   content: RoomContent;
+  /** The bundle's index, bundled at build beside them (spec 004; contracts/room-bundle.md §3.1). */
+  room: RoomIndex;
   /** The interactive resume's view: Phase 3's, through src/room/resume-port.ts's adapter. */
   resume: ResumeView;
   /** Where usage events go (Phase 6's beacon); by default nowhere. */
@@ -72,6 +76,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   let handoff: Handoff | null = null;
   let offering = false;
   let resumeOpen = false;
+  /** The visitor's reduced-motion setting, read at "Enter", for whichever stage the room draws (3D or 2D). */
+  let reducedMotion = false;
 
   /** The room takes input only after the hand-off and its offer. */
   const open = (): boolean => visit.stage === "room" && !offering;
@@ -115,10 +121,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   async function arrive(choice: Choice): Promise<void> {
-    const list = renderObjectList(doc, selectObject);
+    const list = renderObjectList(doc, deps.room, selectObject);
     talk = renderTalk(doc, { messages: content.messages, clock, emit, enabled: open, openResume, pdfFollowed });
-    const layout = renderRoom(doc, { list, talk: talk.element });
+    // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
+    const around = renderTextCopy(doc, deps.room);
+    const layout = renderRoom(doc, {
+      list,
+      talk: talk.element,
+      around: around.element,
+      note: uiWord(deps.room.ui, "standin.note") ?? "",
+    });
     room = layout;
+    layout.setPlaceholders(deps.room.build.placeholders);
     layout.setInteractive(false);
     layout.resumeButton.addEventListener("click", openResume);
     layout.flatButton.addEventListener("click", () => {
@@ -137,7 +151,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
     const loaded = await sceneOrLate();
     const module = loaded === "late" ? null : loaded;
-    const reducedMotion = media("(prefers-reduced-motion: reduce)");
+    reducedMotion = media("(prefers-reduced-motion: reduce)");
     if (module) mount3d(module, choice, reducedMotion);
     if (!module || !stage) toFlat(!webgl ? "no_webgl2" : loaded === "late" ? "load_timeout" : "load_failed");
     handoff = runHandoff({
@@ -156,12 +170,14 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         win,
         doc,
         clock,
+        room: deps.room,
         avatar: choice.avatar,
         reducedMotion,
         select: selectObject,
         onFrame,
       });
     } catch {
+      // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
       return;
     }
     stage = scene3d;
@@ -185,7 +201,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     room?.view.replaceChildren(next.element);
   }
 
-  /** Into 2D for the rest of the visit, once, by any road, keeping everything else (FR-042). */
+  /** Into 2D for the rest of the visit, once, by any road, keeping everything else (FR-042). If the 2D drawing refuses
+   *  the index's (flat.ts throws on anything off its allowlist), the view shows the UI word flat-failed in place of a
+   *  picture, as text a screen reader reads too, and the room goes on: the list, "Around the room", and the
+   *  conversation carry it, and the hand-off still ends in the room (FR-062, FR-081). */
   function toFlat(reason: FlatReason): void {
     if (visit.mode === "2d" || !room || !visit.avatar) return;
     visit.mode = "2d";
@@ -193,11 +212,20 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     unwatch?.();
     unwatch = null;
     const old = stage;
-    const flat = renderFlat(doc, { avatar: visit.avatar, select: selectObject });
+    let flat: Stage | null;
+    try {
+      flat = renderFlat(doc, { room: deps.room, avatar: visit.avatar, select: selectObject, reducedMotion });
+    } catch {
+      flat = null;
+    }
     stage = flat;
-    show(flat);
+    if (flat) show(flat);
+    else {
+      const words = uiWord(deps.room.ui, "flat-failed") ?? "";
+      room.view.replaceChildren(h(doc, "p", { class: "room-flat-failed" }, words));
+    }
     old?.dispose();
-    flat.showHandoff(handoff && !handoff.finished ? handoff.progress() : 1);
+    flat?.showHandoff(handoff && !handoff.finished ? handoff.progress() : 1);
     room.markFlat();
     emit({ kind: "mode_2d" });
   }
@@ -252,10 +280,19 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (content.manifest.items.includes(id)) emit({ kind: "item_selected", id });
   }
 
-  function selectObject(id: ObjectId): void {
-    if (!open() || !talk) return;
-    emit({ kind: "object_selected", id });
-    talk.objectSelected(objectById(id));
+  /**
+   * A selectable picked in 3D or 2D, or pressed in the list, the one path for every input (spec 004, FR-004, FR-071;
+   * R-33): object_selected with the selectable's ID, only for one the index lists; then, while no topic is ready, the
+   * fixed message naming its topic by the topic's own phrase, and no call (FR-037). Running the action is T207's.
+   */
+  function selectObject(id: string): void {
+    const selectable = deps.room.selectables.find((s) => s.id === id);
+    if (!open() || !talk || !selectable) return;
+    emit({ kind: "object_selected", id: selectable.id });
+    const { action } = selectable;
+    if (action.kind !== "talk") return;
+    const topic = deps.room.topics.find((t) => t.id === action.topic);
+    if (topic) talk.objectSelected(topic);
   }
 
   return {

@@ -75,3 +75,16 @@ export const VOCABULARY: ReadonlySet<string> = new Set<string>([
 export function isVocabulary(word: string): boolean {
   return VOCABULARY.has(word);
 }
+
+/**
+ * The room shell's side-wall anchors, by name (FR-064's carve-out; data-model.md §4.5): a selectable whose members all
+ * hang directly on one of them, on the wall (checks/rg.ts's sideWallFrame), is a side-wall selectable. Both walls, as
+ * Reading R2 has it, whose default the Author accepted on 2026-10-26. They name anchors, not IDs, so they stay out of
+ * VOCABULARY, which RI5 keeps the four namespaces' IDs off.
+ */
+export const SIDE_WALL_ANCHORS = ["left-wall", "right-wall"] as const;
+export type SideWallAnchor = (typeof SIDE_WALL_ANCHORS)[number];
+
+export function isSideWallAnchor(name: string): name is SideWallAnchor {
+  return (SIDE_WALL_ANCHORS as readonly string[]).includes(name);
+}

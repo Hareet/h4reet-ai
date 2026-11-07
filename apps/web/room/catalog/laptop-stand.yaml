@@ -1,0 +1,28 @@
+# The laptop's stand beside the monitor (FR-040; answer 5): its own piece, a plate on two sides, whose top carries the
+# laptop, so moving the stand carries the laptop, its screen, and the plugged pose's plug. Its size and its anchor are
+# estimates until measured.
+version: 1
+id: laptop-stand
+name: Laptop stand
+size: { w: 0.26, h: 0.12, d: 0.24, estimated: true }
+stylized_scale: 1
+origin:
+  point: on the desk, below the centre of the stand's top plate.
+  bounds: { min: [-0.13, 0, -0.12], max: [0.13, 0.12, 0.12] }
+anchors:
+  top: { at: [0, 0.12, 0], estimated: true }
+standin:
+  - { shape: box, size: [0.26, 0.012, 0.24], at: [0, 0.114, 0], color: graphite }
+  - { shape: box, size: [0.012, 0.108, 0.22], at: [-0.124, 0.054, 0], color: graphite }
+  - { shape: box, size: [0.012, 0.108, 0.22], at: [0.124, 0.054, 0], color: graphite }
+drawing: { from: standin }
+budget: { gzip_bytes: 200000, triangles: 2000, texture_px: 512, texture_bytes: 1398101 }
+work_order:
+  method: Model the stand from the dimension sheet and the Author's description, as plain solid parts in flat colours.
+  shots:
+    - The stand from the front, square on, with the laptop off it.
+    - The stand from its side, showing its height and any tilt.
+  measurements:
+    - The top plate's width and depth, and its height above the desk at the front and the back.
+    - Where the stand stands on the desk, from the desk's front-left corner.
+  studio_notes: No brand, label, or sticker (FR-016).

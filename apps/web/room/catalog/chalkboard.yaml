@@ -1,0 +1,38 @@
+# The chalkboard on the cube's left wall, left of the monitor (FR-078; the Author, 2026-10-23: "the chalkboard on a
+# brick wall that is left of the monitor"): a framed slate on the wall whose slate is a readable live face, drawn in
+# chalk by the room (FR-033). Its size and where it hangs are estimates until measured; the stylized scale is lookdev's
+# to set, for the slate.
+version: 1
+id: chalkboard
+name: Chalkboard
+size: { w: 0.48, h: 0.64, d: 0.026, estimated: true }
+stylized_scale: 1.25
+origin:
+  point: the centre of the board's back, against the wall.
+  bounds: { min: [-0.24, -0.32, 0], max: [0.24, 0.32, 0.026] }
+live_faces:
+  - role: slate
+    at: [0, 0, 0.026]
+    size: [0.44, 0.58]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [1554, 2048]
+    readable: true
+standin:
+  - { shape: box, size: [0.48, 0.64, 0.024], at: [0, 0, 0.012], color: frame-wood }
+  - { shape: plane, size: [0.44, 0.58], at: [0, 0, 0.025], color: slate }
+drawing: { from: standin }
+budget: { gzip_bytes: 300000, triangles: 1000, texture_px: 1024, texture_bytes: 5592405 }
+work_order:
+  method: >-
+    Model the framed board from the dimension sheet and the Author's description. The slate is one quad, the live
+    face named for its role, in one plain colour: the room writes on it.
+  shots:
+    - The board from the front, square on, wiped clean.
+    - The frame's corner close up, for its profile.
+  measurements:
+    - The board's outer width, height, and depth, and the slate's width and height inside the frame.
+    - Where the board hangs, from the floor and from the back wall.
+  studio_notes: >-
+    The slate is blank: no chalk writing, drawing, or smudge in any texture, since the room draws its words live
+    (FR-016, FR-033). No brand or label on the frame.

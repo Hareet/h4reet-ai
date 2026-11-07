@@ -16,6 +16,7 @@ import {
   SMALLEST,
   SWEEP_STEP,
   flatScale,
+  smallestFlatStage,
   stageFor,
   supportedStages,
   sweepScreens,
@@ -202,5 +203,19 @@ describe("the stages (compose/stages.ts)", () => {
     expect(flatScale({ w: 304, h: 208 })).toBeCloseTo(0.95, 12);
     expect(flatScale({ w: 686.4, h: 640 })).toBeCloseTo(2.145, 12);
     expect(flatScale({ w: 640, h: 300 })).toBe(1.5);
+  });
+});
+
+// T303 (spec 004; FR-064; spec.md's Clarifications, 2026-10-26, T302): FR-064's smallest stages no longer bound the
+// carve-out, so the named set left stages.ts; the stage of the 2D drawing's smallest scale stays, which RG6's reasons
+// name.
+describe("the 2D drawing's smallest scale (compose/stages.ts)", () => {
+  it("comes first at 304 × 208, at 0.95, and only at stages 304 px wide", async () => {
+    expect(smallestFlatStage()).toEqual({ w: 304, h: 208 });
+    expect(flatScale(smallestFlatStage())).toBeCloseTo(0.95, 12);
+    for (const s of supportedStages()) if (flatScale(s) <= 0.95 + 1e-12) expect(s.w).toBe(304);
+    const module = await import("../../src/room/compose/stages");
+    expect(Object.keys(module)).not.toContain("isFr064Smallest");
+    expect(Object.keys(module)).not.toContain("fr064SmallestStages");
   });
 });

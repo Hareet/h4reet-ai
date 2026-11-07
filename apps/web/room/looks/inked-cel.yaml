@@ -1,0 +1,59 @@
+# The room's default look, inked cel (answer 2): a stepped ramp and ink outlines, lit at run time, nothing baked.
+# The palette is spec 002's placeholder colours (src/room/scene.ts), named for the stand-ins and drawings, with the
+# cube's brick and cement in place of spec 002's wall and floor (the Author, 2026-10-23), and the new pieces' four
+# after them; the lights are its hemisphere and key lights. Lookdev compares looks, and ADR 0010 records the one the
+# scene names (FR-070).
+version: 1
+id: inked-cel
+method: inked-cel
+palette:
+  brick: "#a65a42"
+  cement: "#9a968e"
+  desk-wood: "#8a6a4a"
+  desk-leg: "#6e5238"
+  frame-wood: "#5b4a3a"
+  graphite: "#4a4a4a"
+  graphite-light: "#5a5a5a"
+  charcoal: "#3a3a3a"
+  screen-black: "#1f1f1f"
+  screen-glow: "#2d4f6e"
+  board-blue: "#2f6db5"
+  ink: "#1a1a1a"
+  tyre: "#2b2b2b"
+  bike-red: "#b03a2e"
+  sky: "#cfe6f5"
+  fence: "#a07a4f"
+  bark: "#6b4a2b"
+  leaf: "#4f7d3a"
+  canvas: "#f3d27a"
+  sun: "#c4553b"
+  hill: "#3b6fa5"
+  twin-violet: "#6c5a8f"
+  twin-lilac: "#8a77ad"
+  figure-grey: "#9a9a9a"
+  paper: "#ffffff"
+  neon-tube: "#ff8a5c"
+  slate: "#2f3b33"
+  sign-cream: "#efe6d2"
+  sign-wood: "#a7825a"
+lights:
+  ambient: { sky: "#ffffff", ground: "#8a7a66", intensity: 1.2 }
+  key: { color: "#ffffff", intensity: 1.6, from: [0.6, 4.5, 4.0], shadows: true }
+shading: { steps: 3 }
+# The ink lines' width in CSS pixels of the stage's height (look.ts); 1 is about OutlineEffect's own default on the
+# 640-pixel reference stage.
+outlines: { color: ink, width: 1 }
+glow_tones:
+  screen-blue: { color: "#8fc3ff", intensity: 0.6 }
+  neon-warm: { color: "#ff6a3d", intensity: 1.5 }
+  charge-green: { color: "#7cfc9a", intensity: 0.8 }
+typefaces:
+  terminal: { family: IBM Plex Mono, weight: 400 }
+  desktop-session: { family: IBM Plex Sans, weight: 400 }
+  chalk: { family: Patrick Hand, weight: 400 }
+  neon: { family: IBM Plex Sans, weight: 700 }
+  counters: { family: IBM Plex Mono, weight: 400 }
+material_notes: >-
+  Flat base colours from the palette, matte: rough, and barely metallic. No baked light, shadow, ambient occlusion,
+  glow, or outline geometry, since inked cel shades with a stepped ramp and draws its ink lines at run time. Screens,
+  panels, and lettering areas stay one plain colour: the room draws on them.

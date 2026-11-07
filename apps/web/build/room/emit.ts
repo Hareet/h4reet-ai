@@ -57,7 +57,7 @@ import { readImage } from "../../src/room/glb/images";
 import { roomEventsFile, roomManifest, roomTopicsFile } from "../manifest";
 import { RULE_IDS } from "./checks/family";
 import type { ComposeOptions, Finding } from "./checks/family";
-import { faceScreens, flatMembers, geometry, lookTypefaces } from "./checks/rg";
+import { faceScreens, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
 import type { Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import type { Loaded, LoadedRoom } from "./load";
@@ -1002,6 +1002,8 @@ function indexBody(c: Composed, placeholders: boolean): Omit<RoomIndex, "digest"
     label: sw.label,
     cases: casesOf(sw),
   }));
+  // FR-064's carve-out (see listOnly): the side-wall selectables, read from the scene's mounts.
+  const sideWall = c.geometry === null ? [] : sideWallsOf(c.geometry);
   return {
     schema: 1,
     build: { kind: c.options.drafts ? "drafts" : "release", placeholders },
@@ -1013,11 +1015,12 @@ function indexBody(c: Composed, placeholders: boolean): Omit<RoomIndex, "digest"
       freshness_ms: (live?.freshness_s ?? 35) * 1000,
     },
     ui: sortedMap(words, (w) => (typeof w === "string" ? w : w.text)),
-    selectables: (scene?.selectables ?? []).map((x) => ({
+    selectables: (scene?.selectables ?? []).map((x, k) => ({
       id: x.id,
       name: x.name,
       members: [...x.members],
       action: x.action.talk ? { kind: "talk" as const, topic: x.action.talk.topic } : { kind: "resume" as const },
+      side_wall: sideWall[k] ?? false,
     })),
     topics: (c.room.topics?.value.topics ?? []).map((t) => ({ id: t.id, phrase: t.phrase, ready: false as const })),
     faces,

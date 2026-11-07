@@ -1,150 +1,479 @@
-// The 2D mode (spec 002, FR-042; contracts/room-scene.md §3–§4; research.md R-04, R-11): the work area as an inline
-// SVG drawing of the same placeholders, with a button over each object at its place, and the hand-off as three still
-// frames. The drawing is aria-hidden and its buttons are out of the Tab order: the "In the room" list stays the
-// objects' accessible equivalent, as it is in 3D. Everything is drawn from attributes, so the CSP needs nothing more.
-import { avatarById, avatarPolygons, AVATAR_SHAPES } from "../choice/avatars";
+// The 2D room (spec 002, FR-042; spec 004, FR-011, FR-058, FR-064; Amendment B8; R-39; contracts/room-bundle.md §3.1):
+// the bundle's index, drawn as an inline SVG, which never waits on the 3D part. The compositor projected each piece's
+// 2D drawing through framing(1.6) into the 320 × 200 view box, so this module only draws the index's `flat`:
+// - each placement's primitives in a group at its matrix, back to front as the index orders them;
+// - each switch case its own group, toggled by `visibility`, holding its pose and its cable as a quadratic curve, the
+//   not-live case shown until the tier applies another (T160, T161);
+// - each stand-in's label as SVG text, the UI word `standin.label` filled with its label's word, as the 3D room words
+//   it;
+// - the visitor as the chosen avatar's flat polygons (src/choice/avatars.ts), at the index's place and scale;
+// - the hand-off as three still frames of its paper, at the index's projected positions, which are the first avatar's:
+//   the paper in the visitor's hands moves by the chosen avatar's hand offset (handoff.ts), at the visitor's scale, on
+//   the side the index's paper ends on (the data's anchor, nearer the twin), and the paper between the hands half as
+//   far, as the 3D room's arc does (plan.md §10, T098's entry); and the visitor turning toward the twin as the 3D room
+//   turns it, in the frames where it is turned: narrowed to the turn's cosine about its feet, its head leaning toward
+//   the side the paper comes from;
+// - each selectable's cue, a dashed rectangle around its hit rectangles with its name tag, styled by room.css's
+//   classes.
+// The faces come with their renderers' SVG backend (T185).
+//
+// An allowlist governs every element and attribute the drawing holds: the elements g, rect, circle, ellipse, line,
+// polyline, polygon, path, and text; geometry, fill, stroke, stroke-width, opacity, font-*, text-anchor, and transform,
+// each with a typed value; and, from code's own constants, a class of room.css's and a case's or a paper's visibility.
+// Anything else throws: no href, no event handler, no style, so the CSP needs no change and data never becomes code.
+// Words go in as text, never markup. A pointer picks through compose/pick.ts over the index's hit rectangles, each
+// selectable's exclusive core 44 CSS pixels at the drawing's scale on screen, as the compositor's spacing check (RG6)
+// measured them (R-20). The drawing is aria-hidden: the "In the room" list and the text copy are its equivalents.
+import { avatarPolygons } from "../choice/avatars";
 import type { AvatarId } from "../choice/avatars";
-import { h, svg } from "./dom";
-import { FLAT_FRAMES, flatFrame } from "./handoff";
-import { ROOM_OBJECTS } from "./objects";
-import type { ObjectId } from "./objects";
+import type { Matrix2D, Prim, RoomIndex } from "./compose/bundle";
+import { CORE_PX, listOnly, pick, pickAreas, unionOf } from "./compose/pick";
+import type { PickArea, PickInput } from "./compose/pick";
+import type { Stage as Size } from "./compose/stages";
+import { SVG_NS, h, svg } from "./dom";
+import { FLAT_FRAMES, VISITOR_TURN, flatFrame, handOffset, sideOf, visitorTurnShare } from "./handoff";
+import { bindPointerSelection } from "./objects";
+import type { Ndc } from "./objects";
 import type { Stage } from "./stage";
+import { uiWord } from "./ui-keys";
+
+/** What the 2D room reads of the index: its drawing, its words, its selectables, and its switches' cases. */
+export type FlatIndex = Pick<RoomIndex, "flat" | "ui" | "selectables" | "switches">;
+
+/** The 2D room's picture, as drawFlat builds it. */
+export interface FlatDrawing {
+  /** The `svg` element, the view box's, aria-hidden. */
+  readonly root: SVGElement;
+  /** Each placement's group at its matrix, by placement, in the index's order, back to front. */
+  readonly items: ReadonlyMap<string, SVGElement>;
+  /** Each switch's cases, by switch and pose: a group toggled by `visibility`, holding its pose and its cable. */
+  readonly switches: ReadonlyMap<string, ReadonlyMap<string, SVGElement>>;
+  /** The stand-ins' labels, by placement: only where the index has the label's words. */
+  readonly labels: ReadonlyMap<string, SVGElement>;
+  /** Each selectable's cue, by selectable, in scene order: its dashed rectangle and its name tag. */
+  readonly cues: ReadonlyMap<string, { readonly area: SVGElement; readonly name: SVGElement }>;
+  /** The visitor: the chosen avatar's polygons. */
+  readonly visitor: SVGElement;
+  /** The hand-off's paper in its three still frames: in the twin's hand, between the hands, in the visitor's. */
+  readonly papers: readonly SVGElement[];
+  /** For each of those frames, the visitor's turn toward the twin as a matrix about its feet, or null where it stands
+   *  square to the view. */
+  readonly turns: readonly (Matrix2D | null)[];
+}
 
 export interface FlatStage extends Stage {
   readonly mode: "2d";
+  readonly drawing: FlatDrawing;
+  /** Fits the picker and the cues to the drawing's size in CSS pixels: a cue shows only where its selectable has a
+   *  pick area. The stage calls it on each pick, and on each change of the drawing's size where the browser reports
+   *  one. */
+  resize(size: Size): void;
 }
 
-/** The drawing's viewBox: 320 by 200. The buttons' places in room.css are percentages of it. */
-const W = 320;
-const H = 200;
-/** The visitor's avatar: its feet on the floor, in front of the desk, at this scale (pixels a metre). */
-const AVATAR_X = 150;
-const AVATAR_BASELINE = 192;
-const AVATAR_SCALE = 45;
+// ---- The allowlist ----
 
-/** The paper in each still frame: in the twin's hand, between them, in the visitor's hands. */
-function paperPlaces(avatar: AvatarId): readonly (readonly [number, number])[] {
-  const hand = AVATAR_BASELINE - Math.min(0.95, AVATAR_SHAPES[avatar].height * 0.6) * AVATAR_SCALE;
-  return [
-    [106, 118],
-    [126, Math.min(102, hand - 20)],
-    [AVATAR_X - AVATAR_SHAPES[avatar].width * 0.35 * AVATAR_SCALE, hand],
-  ];
+/** The drawing's elements: no other is ever made. */
+const ELEMENTS: ReadonlySet<string> = new Set([
+  "g",
+  "rect",
+  "circle",
+  "ellipse",
+  "line",
+  "polyline",
+  "polygon",
+  "path",
+  "text",
+]);
+
+/** The room.css classes the drawing's cues and labels take. */
+const CLASSES = ["flat-cue", "flat-cue-name", "flat-label"] as const;
+
+/** An attribute's value as written, or null where the value isn't one the attribute takes. */
+type Check = (value: unknown) => string | null;
+
+const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const number: Check = (v) => (isNumber(v) ? String(v) : null);
+const length: Check = (v) => (isNumber(v) && v >= 0 ? String(v) : null);
+const unit: Check = (v) => (isNumber(v) && v >= 0 && v <= 1 ? String(v) : null);
+const matching =
+  (re: RegExp): Check =>
+  (v) =>
+    typeof v === "string" && re.test(v) ? v : null;
+const oneOf =
+  (...values: readonly string[]): Check =>
+  (v) =>
+    typeof v === "string" && values.includes(v) ? v : null;
+/** A list of points, each two finite numbers, as SVG writes them. */
+const points: Check = (v) =>
+  Array.isArray(v) && v.length >= 2 && v.every((p) => Array.isArray(p) && p.length === 2 && p.every(isNumber))
+    ? v.map((p: readonly number[]) => p.join(",")).join(" ")
+    : null;
+/** SVG's matrix(a b c d e f), from six finite numbers. */
+const matrix: Check = (v) =>
+  Array.isArray(v) && v.length === 6 && v.every(isNumber) ? `matrix(${v.join(" ")})` : null;
+
+/** A colour resolved by the compositor: `#rrggbb` or `none`, so no paint can name a URL. */
+const COLOUR = /^(?:#[0-9a-f]{6}|none)$/;
+/** Path data's characters, its commands and numbers (contracts/room-data-files.md §8), so it can name nothing. */
+const PATH_DATA = /^[MmZzLlHhVvCcSsQqTtAa0-9eE.,+\- ]+$/;
+/** A font family list of code's own: names, spaces, commas, and hyphens. */
+const FAMILY = /^[A-Za-z][A-Za-z0-9 ,-]*$/;
+
+const ATTRIBUTES: Readonly<Record<string, Check>> = {
+  x: number,
+  y: number,
+  width: length,
+  height: length,
+  cx: number,
+  cy: number,
+  r: length,
+  rx: length,
+  ry: length,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  points,
+  d: matching(PATH_DATA),
+  fill: matching(COLOUR),
+  stroke: matching(COLOUR),
+  "stroke-width": length,
+  opacity: unit,
+  "font-family": matching(FAMILY),
+  "font-size": length,
+  "font-weight": length,
+  "text-anchor": oneOf("start", "middle", "end"),
+  transform: matrix,
+  class: oneOf(...CLASSES),
+  visibility: oneOf("visible", "hidden"),
+};
+
+/** One element of the drawing, made only through the allowlist: an element, attribute, or value off it throws. */
+function node(
+  doc: Document,
+  tag: string,
+  attrs: Readonly<Record<string, unknown>>,
+  ...children: (Node | string)[]
+): SVGElement {
+  if (!ELEMENTS.has(tag)) throw new Error(`the 2D room draws no <${tag}>`);
+  const el = doc.createElementNS(SVG_NS, tag) as SVGElement;
+  for (const [name, value] of Object.entries(attrs)) {
+    const check = Object.hasOwn(ATTRIBUTES, name) ? ATTRIBUTES[name] : undefined;
+    const text = check ? check(value) : null;
+    if (text === null) throw new Error(`the 2D room refuses <${tag}>'s ${name}`);
+    el.setAttribute(name, text);
+  }
+  el.append(...children);
+  return el;
 }
 
-const label = (doc: Document, x: number, y: number, text: string): SVGElement =>
-  svg(doc, "text", { x, y, "font-size": 7, "font-family": "system-ui, sans-serif", fill: "#1a1a1a" }, text);
+/** A switch case's, a paper's, or a cue's visibility, set by code. */
+const show = (el: Element, on: boolean): void => el.setAttribute("visibility", on ? "visible" : "hidden");
 
-function drawing(doc: Document, avatar: AvatarId): { root: SVGElement; papers: SVGElement[] } {
-  const papers = paperPlaces(avatar).map(([x, y]) =>
-    svg(doc, "rect", { x: x - 4, y: y - 5.5, width: 8, height: 11, fill: "#ffffff", stroke: "#555555" }),
-  );
-  const root = svg(
-    doc,
-    "svg",
-    { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "xMidYMid meet", "aria-hidden": "true", focusable: "false" },
-    // The wall and the floor.
-    svg(doc, "rect", { x: 0, y: 0, width: W, height: 160, fill: "#e9e4da" }),
-    svg(doc, "rect", { x: 0, y: 160, width: W, height: 40, fill: "#b9a68c" }),
-    // The window, its view of a fence and a tree, and the artwork above it.
-    svg(
-      doc,
-      "g",
-      {},
-      svg(doc, "rect", { x: 170, y: 40, width: 60, height: 44, fill: "#cfe6f5", stroke: "#5b4a3a", "stroke-width": 3 }),
-      svg(doc, "rect", { x: 202, y: 52, width: 4, height: 22, fill: "#6b4a2b" }),
-      svg(doc, "circle", { cx: 204, cy: 52, r: 11, fill: "#4f7d3a" }),
-      ...Array.from({ length: 9 }, (_, i) =>
-        svg(doc, "rect", { x: 172 + i * 6.5, y: 66, width: 4, height: 16, fill: "#a07a4f" }),
-      ),
-      label(doc, 172, 94, "Window, fence, tree (placeholder)"),
-      svg(doc, "rect", { x: 182, y: 10, width: 36, height: 22, fill: "#f3d27a", stroke: "#5b4a3a", "stroke-width": 2 }),
-      svg(doc, "circle", { cx: 194, cy: 21, r: 6, fill: "#c4553b" }),
-      svg(doc, "polygon", { points: "202,28 210,14 216,28", fill: "#3b6fa5" }),
-      label(doc, 222, 24, "Artwork (placeholder)"),
-    ),
-    // The desk, the laptop, and the screen.
-    svg(
-      doc,
-      "g",
-      {},
-      svg(doc, "rect", { x: 110, y: 120, width: 112, height: 8, fill: "#8a6a4a" }),
-      svg(doc, "rect", { x: 114, y: 128, width: 6, height: 32, fill: "#7a5a3a" }),
-      svg(doc, "rect", { x: 212, y: 128, width: 6, height: 32, fill: "#7a5a3a" }),
-      svg(doc, "rect", { x: 126, y: 116, width: 32, height: 4, fill: "#4a4a4a" }),
-      svg(doc, "polygon", { points: "130,116 156,116 152,98 134,98", fill: "#5a5a5a" }),
-      svg(doc, "rect", { x: 172, y: 90, width: 40, height: 24, fill: "#2b2b2b", stroke: "#4a4a4a" }),
-      svg(doc, "rect", { x: 190, y: 114, width: 4, height: 6, fill: "#4a4a4a" }),
-      label(doc, 140, 140, "Desk (placeholder)"),
-    ),
-    // The snowboard, hanging on the left.
-    svg(
-      doc,
-      "g",
-      {},
-      svg(doc, "rect", { x: 22, y: 30, width: 16, height: 110, rx: 8, fill: "#2f6db5" }),
-      svg(doc, "rect", { x: 24, y: 64, width: 12, height: 6, fill: "#1a1a1a" }),
-      svg(doc, "rect", { x: 24, y: 98, width: 12, height: 6, fill: "#1a1a1a" }),
-    ),
-    // The bicycle, hanging on the right.
-    svg(
-      doc,
-      "g",
-      { fill: "none", stroke: "#333333", "stroke-width": 2.5 },
-      svg(doc, "circle", { cx: 262, cy: 96, r: 17 }),
-      svg(doc, "circle", { cx: 300, cy: 96, r: 17 }),
-      svg(doc, "polyline", { points: "262,96 276,74 296,74 300,96 280,96 262,96" }),
-      svg(doc, "line", { x1: 280, y1: 96, x2: 274, y2: 68 }),
-      svg(doc, "line", { x1: 294, y1: 74, x2: 298, y2: 66 }),
-    ),
-    // The twin's figure, at the desk.
-    svg(
-      doc,
-      "g",
-      { fill: "#6c5a8f" },
-      svg(doc, "circle", { cx: 95, cy: 86, r: 9 }),
-      svg(doc, "rect", { x: 85, y: 96, width: 20, height: 40, rx: 6 }),
-      svg(doc, "rect", { x: 87, y: 134, width: 6, height: 26 }),
-      svg(doc, "rect", { x: 97, y: 134, width: 6, height: 26 }),
-      svg(doc, "rect", { x: 103, y: 104, width: 5, height: 18, rx: 2 }),
-      label(doc, 62, 76, "The twin (placeholder)"),
-    ),
-    // The visitor's avatar, in front.
-    avatarPolygons(doc, avatar, AVATAR_X, AVATAR_BASELINE, AVATAR_SCALE),
-    label(doc, AVATAR_X + 22, 196, `You: ${avatarById(avatar).name} (placeholder)`),
-    ...papers,
-  );
-  return { root, papers };
+/** The visitor's turn, set by code through the allowlist's matrix, or taken off. */
+function turnTo(el: Element, m: Matrix2D | null): void {
+  if (m === null) {
+    el.removeAttribute("transform");
+    return;
+  }
+  const text = matrix(m);
+  if (text === null) throw new Error("the 2D room refuses the visitor's turn");
+  el.setAttribute("transform", text);
 }
 
-/** The 2D stage: the drawing, its three buttons, and the hand-off's still frames. */
-export function renderFlat(doc: Document, options: { avatar: AvatarId; select(id: ObjectId): void }): FlatStage {
-  const { root, papers } = drawing(doc, options.avatar);
-  const buttons = ROOM_OBJECTS.map((object) => {
-    const button = h(
-      doc,
-      "button",
-      { type: "button", tabindex: -1, class: `flat-hit flat-hit--${object.id}`, "data-object-id": object.id },
-      h(doc, "span", {}, object.name),
-      " ",
-      h(doc, "span", {}, "(placeholder)"),
-    );
-    // A press on the drawing selects; it doesn't move focus into the hidden drawing.
-    button.addEventListener("mousedown", (e) => e.preventDefault());
-    button.addEventListener("click", () => options.select(object.id));
-    return button;
+// ---- The drawing ----
+
+/** The labels' and the name tags' typefaces: the page's own, as spec 002's 2D labels were. */
+const FONT = "system-ui, sans-serif";
+/** A stand-in's label, in view-box units, and its ink: spec 002's. */
+const LABEL = { size: 7, fill: "#1a1a1a" } as const;
+/** A cue's name tag, in view-box units: its size and weight, and how far its baseline sits above the cue's foot. */
+const NAME = { size: 8, weight: 600, inset: 2 } as const;
+/** The cable's line, which the room draws (the index gives only its curve), in view-box units. */
+const CABLE = { stroke: "#1a1a1a", width: 1 } as const;
+/** The paper, spec 002's sheet in the 2D drawing, in view-box units, and its ink. */
+const PAPER = { w: 8, h: 11, fill: "#ffffff", stroke: "#555555" } as const;
+/** How far the turned cut-out's head leans toward the twin, as a share of the turn's sine of its height: the 2D room's
+ *  cue for which way a flat figure turned, which seen square on would only narrow. */
+const LEAN = 0.25;
+
+/** The visitor's turn by an angle toward a side, as a matrix about its feet at (x, baseline), y down: narrowed to the
+ *  angle's cosine, its head leaning to that side; null for no turn. */
+function visitorTurn(x: number, baseline: number, side: number, angle: number): Matrix2D | null {
+  if (angle === 0) return null;
+  const [cos, lean] = [Math.cos(angle), side * Math.sin(angle) * LEAN];
+  return [cos, 0, -lean, 1, x * (1 - cos) + lean * baseline, 0];
+}
+
+function primitive(doc: Document, p: Prim): SVGElement {
+  const paint = { fill: p.fill, stroke: p.stroke, "stroke-width": p.stroke_width };
+  switch (p.primitive) {
+    case "rect":
+      return node(doc, "rect", { x: p.x, y: p.y, width: p.w, height: p.h, ...paint });
+    case "circle":
+      return node(doc, "circle", { cx: p.cx, cy: p.cy, r: p.r, ...paint });
+    case "ellipse":
+      return node(doc, "ellipse", { cx: p.cx, cy: p.cy, rx: p.rx, ry: p.ry, ...paint });
+    case "line":
+      return node(doc, "line", { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, ...paint });
+    case "polyline":
+    case "polygon":
+      return node(doc, p.primitive, { points: p.points, ...paint });
+    case "path":
+      return node(doc, "path", { d: p.d, ...paint });
+    default:
+      throw new Error(`the 2D room draws no ${String((p as { primitive?: unknown }).primitive)}`);
+  }
+}
+
+/** A group at a matrix holding primitives. */
+const placed = (doc: Document, m: Matrix2D, prims: readonly Prim[]): SVGElement =>
+  node(doc, "g", { transform: m }, ...prims.map((p) => primitive(doc, p)));
+
+/** The cable's run: one quadratic curve from the lead's end, through its control point, to where it plugs in. */
+function cable(doc: Document, run: NonNullable<FlatIndex["flat"]["poses"][number]["cable"]>): SVGElement {
+  const pair = (p: readonly [number, number]): string => {
+    if (!p.every(isNumber)) throw new Error("the 2D room refuses a cable's point");
+    return `${p[0]} ${p[1]}`;
+  };
+  const d = `M ${pair(run.from)} Q ${pair(run.control)} ${pair(run.to)}`;
+  return node(doc, "path", { d, fill: "none", stroke: CABLE.stroke, "stroke-width": CABLE.width });
+}
+
+/**
+ * The 2D room's picture from the index, for the chosen avatar: the pieces, the switch cases, the visitor, the labels,
+ * the hand-off's paper, and the cues, in that order, so no piece hides a label or a cue. It throws on anything the
+ * allowlist refuses.
+ */
+export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId, reducedMotion = false): FlatDrawing {
+  const { flat, ui } = room;
+  if (flat.view_box.length !== 4 || !flat.view_box.every(isNumber)) throw new Error("the 2D room refuses its view box");
+  const root = svg(doc, "svg", {
+    viewBox: flat.view_box.join(" "),
+    preserveAspectRatio: "xMidYMid meet",
+    "aria-hidden": "true",
+    focusable: "false",
   });
-  const element = h(doc, "div", { class: "flat", "aria-hidden": "true", "data-handoff-frame": "2" }, root, ...buttons);
-  const show = (frame: number): void => {
-    element.setAttribute("data-handoff-frame", String(frame));
-    papers.forEach((paper, i) => paper.setAttribute("visibility", i === frame ? "visible" : "hidden"));
+
+  const items = new Map<string, SVGElement>();
+  for (const item of flat.items) {
+    if (items.has(item.placement)) continue;
+    const group = placed(doc, item.matrix, item.primitives);
+    items.set(item.placement, group);
+    root.append(group);
+  }
+
+  const switches = new Map<string, Map<string, SVGElement>>();
+  for (const pose of flat.poses) {
+    const cases = switches.get(pose.switch) ?? new Map<string, SVGElement>();
+    switches.set(pose.switch, cases);
+    if (cases.has(pose.pose)) continue;
+    const group = node(
+      doc,
+      "g",
+      {},
+      placed(doc, pose.matrix, pose.primitives),
+      ...(pose.cable ? [cable(doc, pose.cable)] : []),
+    );
+    // Until the tier applies another (T160, T161), the room shows the case of not-live, as in 3D.
+    show(group, room.switches.find((s) => s.id === pose.switch)?.cases["not-live"] === pose.pose);
+    cases.set(pose.pose, group);
+    root.append(group);
+  }
+
+  // The avatar's polygons are code's; where they stand, and at what scale, is the index's.
+  const { x: feet, baseline, scale } = flat.visitor;
+  if (![feet, baseline, scale].every(isNumber)) throw new Error("the 2D room refuses the visitor's place");
+  const visitor = avatarPolygons(doc, avatar, feet, baseline, scale);
+  root.append(visitor);
+
+  const labels = new Map<string, SVGElement>();
+  for (const l of flat.labels) {
+    const name = uiWord(ui, l.label);
+    const words = name === null ? null : uiWord(ui, "standin.label", { name });
+    if (words === null || labels.has(l.placement)) continue;
+    const text = node(
+      doc,
+      "text",
+      {
+        x: l.at[0],
+        y: l.at[1],
+        class: "flat-label",
+        "font-family": FONT,
+        "font-size": LABEL.size,
+        "text-anchor": "middle",
+        fill: LABEL.fill,
+      },
+      words,
+    );
+    labels.set(l.placement, text);
+    root.append(text);
+  }
+
+  // The scene's anchor is the first avatar's hand, on the side the paper ends on, the twin's; the chosen avatar's own is
+  // offset from it on that side, in the cut-out's frame, which stands square to the view at the visitor's scale (y down
+  // in the view box).
+  const [toTwin, , atVisitor] = flat.papers;
+  const [dx, dy] = handOffset(avatar, sideOf(atVisitor[0] - feet));
+  const papers = flat.papers.map(([x, y], k) => {
+    const share = k / (FLAT_FRAMES - 1);
+    const [cx, cy] = [x + dx * flat.visitor.scale * share, y - dy * flat.visitor.scale * share];
+    const paper = node(doc, "rect", {
+      x: cx - PAPER.w / 2,
+      y: cy - PAPER.h / 2,
+      width: PAPER.w,
+      height: PAPER.h,
+      fill: PAPER.fill,
+      stroke: PAPER.stroke,
+      "stroke-width": 1,
+    });
+    root.append(paper);
+    return paper;
+  });
+
+  // Every selectable's cue; the stage hides one FR-064's carve-out holds at its size (see listOnly; renderFlat).
+  const cues = new Map<string, { area: SVGElement; name: SVGElement }>();
+  for (const hit of flat.hits) {
+    const union = unionOf(hit.rects);
+    const selectable = room.selectables.find((s) => s.id === hit.selectable);
+    if (!union || !selectable || cues.has(hit.selectable)) continue;
+    const [x, y, w, h] = union;
+    const area = node(doc, "rect", { x, y, width: w, height: h, class: "flat-cue", fill: "none" });
+    const name = node(
+      doc,
+      "text",
+      {
+        x: x + w / 2,
+        y: y + h - NAME.inset,
+        class: "flat-cue-name",
+        "font-family": FONT,
+        "font-size": NAME.size,
+        "font-weight": NAME.weight,
+        "text-anchor": "middle",
+      },
+      selectable.name,
+    );
+    cues.set(hit.selectable, { area, name });
+    root.append(area, name);
+  }
+
+  // In each frame, the visitor turns toward the paper's side as the 3D room turns it at that frame's progress; under
+  // reduced motion it doesn't turn, as in 3D.
+  const towardTwin = sideOf(toTwin[0] - feet);
+  const turns = flat.papers.map((_, k) =>
+    reducedMotion
+      ? null
+      : visitorTurn(feet, baseline, towardTwin, VISITOR_TURN * visitorTurnShare(k / (FLAT_FRAMES - 1))),
+  );
+
+  return { root, items, switches, labels, cues, visitor, papers, turns };
+}
+
+// ---- The pick ----
+
+/** The 2D room's picker over the index's hit rectangles (R-20). */
+export interface FlatPicker {
+  /** The drawing's size on screen, in CSS pixels: the cores are 44 px at its scale, recomputed when it changes, and
+   *  FR-064's carve-out (see listOnly) holds the side-wall selectables whose cores can't fit at it. Whether the size
+   *  changed, so the stage recomputes what follows from it only then. */
+  resize(size: Size): boolean;
+  /** The selectable under a point of the drawing's box, in normalized device coordinates, or null; none before a
+   *  size. */
+  readonly pick: (ndc: Ndc) => string | null;
+  /** The selectables held at the last size, which have no pick area and no cue there (see listOnly). */
+  readonly held: () => ReadonlySet<string>;
+}
+
+/** The 2D room's picker over the index's hit rectangles, in the index's view box, with the index's selectables, whose
+ *  `side_wall` FR-064's carve-out reads (see listOnly): at each size it holds the side-wall selectables the drawing
+ *  leaves to the list there, at the size's scale, the view box shown whole in the box (xMidYMid meet). */
+export function flatPicker(
+  hits: FlatIndex["flat"]["hits"],
+  index: Pick<RoomIndex, "selectables"> & { readonly flat: Pick<RoomIndex["flat"], "view_box"> },
+): FlatPicker {
+  const inputs: PickInput[] = hits.map((hit) => ({
+    id: hit.selectable,
+    members: hit.rects.map((rect, k) => ({ rect, depth: hit.depths[k] ?? Number.POSITIVE_INFINITY })),
+  }));
+  const sideWall = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
+  const [vx, vy, vw, vh] = index.flat.view_box;
+  /** The drawing's scale in a box this size: CSS pixels per view-box unit. */
+  const scaleIn = (box: Size): number => Math.min(box.w / vw, box.h / vh);
+  let size: Size | null = null;
+  let areas: readonly PickArea[] = [];
+  let held: ReadonlySet<string> = new Set();
+  return {
+    resize(next) {
+      if (size !== null && next.w === size.w && next.h === size.h) return false;
+      size = { w: next.w, h: next.h };
+      areas = next.w > 0 && next.h > 0 ? pickAreas(inputs, CORE_PX / scaleIn(size)) : [];
+      held = listOnly(areas, [vx, vy, vw, vh], sideWall);
+      return true;
+    },
+    held: () => held,
+    pick(ndc) {
+      if (size === null || areas.length === 0) return null;
+      // The box's CSS pixels, less the margin xMidYMid meet leaves around the view box, at the drawing's scale.
+      const s = scaleIn(size);
+      const x = ((ndc.x + 1) / 2) * size.w - (size.w - vw * s) / 2;
+      const y = ((1 - ndc.y) / 2) * size.h - (size.h - vh * s) / 2;
+      return pick(areas, [vx + x / s, vy + y / s], held);
+    },
+  };
+}
+
+// ---- The stage ----
+
+/** The 2D stage: the drawing, its pointer's picks, and the hand-off's still frames. */
+export function renderFlat(
+  doc: Document,
+  options: { room: FlatIndex; avatar: AvatarId; select(id: string): void; reducedMotion?: boolean },
+): FlatStage {
+  const drawing = drawFlat(doc, options.room, options.avatar, options.reducedMotion ?? false);
+  const element = h(doc, "div", { class: "flat", "aria-hidden": "true" }, drawing.root);
+  const picker = flatPicker(options.room.flat.hits, options.room);
+  const resize = (size: Size): void => {
+    // A pointer's move measures the box too; the cues follow the held set only when the size changes it.
+    if (!picker.resize(size)) return;
+    const held = picker.held();
+    for (const [id, cue] of drawing.cues) {
+      show(cue.area, !held.has(id));
+      show(cue.name, !held.has(id));
+    }
+  };
+  /** The drawing's box on screen. */
+  const measure = (): void => {
+    const box = element.getBoundingClientRect();
+    resize({ w: box.width, h: box.height });
+  };
+  const unbind = bindPointerSelection(
+    element,
+    (ndc) => {
+      measure();
+      return picker.pick(ndc);
+    },
+    (id) => options.select(id),
+  );
+  const Observer = doc.defaultView?.ResizeObserver;
+  const observer = Observer ? new Observer(measure) : null;
+  observer?.observe(element);
+  const frame = (k: number): void => {
+    element.setAttribute("data-handoff-frame", String(k));
+    drawing.papers.forEach((paper, i) => show(paper, i === k));
+    turnTo(drawing.visitor, drawing.turns[k] ?? null);
   };
   // Outside the hand-off, the paper is in the visitor's hands.
-  show(FLAT_FRAMES - 1);
+  frame(FLAT_FRAMES - 1);
   return {
     mode: "2d",
     element,
-    showHandoff: (progress) => show(flatFrame(progress)),
-    dispose: () => element.remove(),
+    drawing,
+    showHandoff: (progress) => frame(flatFrame(progress)),
+    resize,
+    dispose: () => {
+      observer?.disconnect();
+      unbind();
+      element.remove();
+    },
   };
 }

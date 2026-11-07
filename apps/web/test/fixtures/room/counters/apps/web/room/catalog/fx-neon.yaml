@@ -1,0 +1,42 @@
+# The counters overlay's neon panel (README.md): the known-good panel as two readable faces side by side, the word's
+# and the counters'.
+version: 1
+id: fx-neon
+name: Fixture neon panel
+size: { w: 1.5, h: 0.2, d: 0.03 }
+origin:
+  point: Fixture point at the bottom centre of the clip
+  bounds: { min: [-0.47, 0, -0.015], max: [1.03, 0.2, 0.015] }
+live_faces:
+  - role: panel
+    at: [-0.15, 0.1, 0.015]
+    size: [0.6, 0.2]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [600, 200]
+    readable: true
+  - role: counters
+    at: [0.6, 0.1, 0.015]
+    size: [0.8, 0.2]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [800, 200]
+    readable: true
+glows:
+  - { id: fx-tube, at: [0, 0.1, 0.01], radius: 0.25, tone: fx-warm, motion: flicker }
+standin:
+  - { shape: box, size: [0.5, 0.2, 0.02], at: [0, 0.1, -0.005], color: fx-ink }
+drawing:
+  primitives:
+    - { primitive: rect, x: -0.25, y: 0, w: 0.5, h: 0.2, fill: fx-ink }
+    - primitive: path
+      d: "M -0.2 0.05 L 0.2 0.05 L 0.2 0.15 L -0.2 0.15 Z"
+      fill: none
+      stroke: fx-glow
+      stroke_width: 0.004
+budget: { gzip_bytes: 200000, triangles: 3000, texture_px: 256, texture_bytes: 349525 }
+work_order:
+  method: Fixture method for the neon panel
+  shots: [Fixture shot of the panel]
+  measurements: [Fixture measure of the panel's face]
+  studio_notes: Fixture studio notes for the neon panel

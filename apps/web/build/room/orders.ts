@@ -20,6 +20,7 @@ import { origin } from "../../src/room/compose/math";
 import type { Vec3 } from "../../src/room/compose/math";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { count, exportRules, RULE_TEXT, TOLERANCE } from "../../src/room/glb/rules";
+import { sideWallFrame } from "./checks/rg";
 import type { Composed } from "./emit";
 import type { Loaded } from "./load";
 import type { CatalogEntry, Placement } from "./schema";
@@ -376,8 +377,10 @@ function layout(c: Composed): string[] {
     "## The layout checklist",
     "",
     "From `apps/web/room/scene.yaml`, in the scene's axes: x to the right, y up, z toward the room's front, in metres. " +
-      "Each row reads measured or estimated, from the data's `estimated` marks; measure each estimated one (FR-026, " +
-      "FR-078).",
+      "A piece on a side wall's anchor of the shell reads as it is measured: its origin, as its catalog entry describes " +
+      "it, that origin's distance from the back wall, its height above the floor, and how far it stands out from the " +
+      "wall. Each row reads measured or " +
+      "estimated, from the data's `estimated` marks; measure each estimated one (FR-026, FR-078).",
     "",
   ];
   const corner = c.scene?.survey.desk_corner;
@@ -408,15 +411,33 @@ function layout(c: Composed): string[] {
   out.push(...(rows.length === 0 ? ["None."] : rows), "", "On the shell, at its anchors:", "");
   const shell = placements.find((p) => p.mount === undefined);
   const onShell = shell ? placements.filter((p) => p.mount?.on === shell.id) : [];
+  // The shell's bounds: the floor is their bottom, and the back wall their back.
+  const bounds = shell ? c.pieces.get(shell.piece)?.value.origin.bounds : undefined;
   out.push(
     ...(onShell.length === 0
       ? ["None."]
       : onShell.map((p) => {
           const m = p.mount as NonNullable<Placement["mount"]>;
           const estimated = m.estimated || anchorEstimated(c, m.on, m.anchor);
+          const mark = `(${estimated ? "estimated" : "measured"})`;
+          // A side wall's anchor by RG6's own test (checks/rg.ts's sideWallFrame), and the distance out from that
+          // wall from where the piece stands, against the wall's x in the shell's bounds.
+          const shellEntry = shell && c.pieces.get(shell.piece)?.value;
+          const wall = shellEntry && sideWallFrame(shellEntry, m.anchor);
+          const world = c.world.get(p.id);
+          const point = c.pieces.get(p.piece)?.value.origin.point.replace(/\.$/, "");
+          if (wall && bounds && world && point !== undefined) {
+            const o: Vec3 = origin(world);
+            const out = wall.side === "min" ? o[0] - wall.x : wall.x - o[0];
+            return (
+              `- [ ] ${nameOf(c, p)}: on the anchor ${code(m.anchor)}, its origin (${point}) ` +
+              `${n(o[2] - bounds.min[2])} from the back wall and ${n(o[1] - bounds.min[1])} above the floor, ` +
+              `${n(out)} out from the wall ${mark}`
+            );
+          }
           return (
             `- [ ] ${nameOf(c, p)}: on the anchor ${code(m.anchor)}, offset x ${n(m.offset[0])}, y ${n(m.offset[1])}, ` +
-            `z ${n(m.offset[2])} (${estimated ? "estimated" : "measured"})`
+            `z ${n(m.offset[2])} ${mark}`
           );
         })),
     "",

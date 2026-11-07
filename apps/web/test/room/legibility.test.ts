@@ -3,11 +3,20 @@
 // height on the face is the typeface's cap ratio times the glyph size the region's grid gives, or an outline's
 // `cap_height` over its fitted view box; it is projected through `compose/project.ts` at the production framing, on a
 // stage, and the smallest over the region's corners is the face's. Words never resize a grid. Every ID is a synthetic
-// `fx-` one.
+// `fx-` one, and the production framing is the known-good set's, as compose() frames it (T112 took spec 002's layout,
+// which these cases framed until then, out of the code).
 import { Matrix4, PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
-import { framing, withLabel } from "../../src/room/compose/framing";
+import { createContext } from "../../build/room/checks/family";
+import { faceCaps, geometryOf, lookTypefaces } from "../../build/room/checks/rg";
+import { compose } from "../../build/room/compose";
+import type { Finding } from "../../build/room/compose";
+import { loadRoom } from "../../build/room/load";
+import { noPolicy, policyFrom } from "../../build/room/policy";
+import type { RoomPolicy } from "../../build/room/policy";
+import type { Tree } from "../../build/room/source";
+import { framing } from "../../src/room/compose/framing";
 import type { Box } from "../../src/room/compose/framing";
 import { GRID_METRICS, fitOutline, regionBox, textGrid } from "../../src/room/compose/layout";
 import { facePoint, regionCap, smallestCapPx, typefaceFor } from "../../src/room/compose/legibility";
@@ -17,17 +26,16 @@ import type { Mat4, Vec3 } from "../../src/room/compose/math";
 import type { Camera } from "../../src/room/compose/project";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
-import { LAYOUT } from "../../src/room/framing";
+import { countersTree, goodTree } from "../helpers/room-fixtures";
 
-const LAYOUT_BOXES: Box[] = Object.values(LAYOUT)
-  .filter((v): v is Exclude<typeof v, number> => typeof v !== "number")
-  .map(({ center, size }) => ({
-    min: [center[0] - size[0] / 2, center[1] - size[1] / 2, center[2] - size[2] / 2],
-    max: [center[0] + size[0] / 2, center[1] + size[1] / 2, center[2] + size[2] / 2],
-  }));
+/** The known-good set's framed boxes, as compose() gives the 3D part's: each grown for its label where a stand-in's
+ *  floats over it. */
+const FRAMED: Box[] = compose(goodTree(), noPolicy(), { mode: "strict", drafts: false })
+  .scene.placements.filter((p) => p.framed)
+  .map((p) => p.frame_box);
 
-/** The production framing on a stage: spec 002's room, each piece grown for its label. */
-const productionCamera = (stage: Stage): Camera => framing(stage.w / stage.h, LAYOUT_BOXES.map(withLabel));
+/** The production framing on a stage: the room's framed boxes, as the room frames its camera. */
+const productionCamera = (stage: Stage): Camera => framing(stage.w / stage.h, FRAMED);
 
 const FACE: FaceGeometry = { at: [0, 0, 0], size: [1, 0.5], facing: [0, 0, 1], up: [0, 1, 0] };
 const WALL: Mat4 = translation([0.4, 1.2, -1.95]);
@@ -212,5 +220,108 @@ describe("a face's smallest cap height in CSS pixels", () => {
     expect(corner[1]).toBeCloseTo(2.1, 15);
     expect(corner[2]).toBeCloseTo(3.2, 15);
     expect(facePoint(face, 0.5, 0.5)).toEqual([1, 2, 3]);
+  });
+});
+
+// T293 (spec 004; FR-052, SC-010; contracts/room-data-files.md §13.3): RG7's one exemption is per face. A readable face
+// whose regions all have `signal: turn-cost` (the counters) may fall under the floor on the reference phone alone, and
+// is held to it on the reference desktop; no other face is exempt, whatever its piece's other faces carry. Over the
+// counters overlay (test/fixtures/room/README.md), the neon panel's word face and its counter face are two faces.
+describe("RG7's per-face exemption on the reference phone", () => {
+  /** Main's caps with every starting figure but the legibility floor. */
+  const floorOf = (px: number): RoomPolicy => {
+    const room = {
+      gzip_bytes: 2500000,
+      triangles: 40000,
+      small_props: [],
+      small_prop_texture_px: 1024,
+      scene_texture_bytes: 96000000,
+      legibility_floor_css_px: px,
+    };
+    const caps = new TextEncoder().encode(`${JSON.stringify({ schema: 1, per_asset: { room } })}\n`);
+    return policyFrom({ caps, approvals: null, header: null }, "policy-dir");
+  };
+  const rg7 = (t: Tree, policy: RoomPolicy = noPolicy()): string[] =>
+    compose(t, policy, { mode: "strict", drafts: true })
+      .findings.filter((f: Finding) => f.rule === "RG7")
+      .map((f) => `${f.path}: ${f.reason}`);
+  const caps = (t: Tree) => {
+    const room = loadRoom(t);
+    const ctx = createContext(room, noPolicy(), { mode: "strict", drafts: true }, t).ctx;
+    return faceCaps(geometryOf(ctx), lookTypefaces(room, t)).map((f) => ({
+      face: f.face,
+      desktop: Math.floor((f.desktop ?? 0) * 10) / 10,
+      phone: Math.floor((f.phone ?? 0) * 10) / 10,
+      phone_exempt: f.phone_exempt,
+    }));
+  };
+
+  it("exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it", () => {
+    expect(caps(countersTree()).filter((f) => f.face.startsWith("fx-neon."))).toEqual([
+      { face: "fx-neon.panel", desktop: 28.1, phone: 16.1, phone_exempt: false },
+      { face: "fx-neon.counters", desktop: 12.4, phone: 7.1, phone_exempt: true },
+    ]);
+    expect(compose(countersTree(), noPolicy(), { mode: "strict", drafts: true }).findings).toEqual([]);
+  });
+
+  it("holds the same face to the floor on the desktop", () => {
+    expect(rg7(countersTree(), floorOf(13))).toEqual([
+      "placements[2].faces.screen: cap height 12.6 px on the phone stage, under the floor of 13",
+      "placements[3].faces.counters: cap height 12.4 px on the desktop stage, under the floor of 13",
+    ]);
+  });
+
+  it("holds a word face, a ui region, to the floor on the phone, whatever the piece's other faces carry", () => {
+    expect(rg7(countersTree(), floorOf(17))).toContain(
+      "placements[3].faces.panel: cap height 16.1 px on the phone stage, under the floor of 17",
+    );
+  });
+
+  // The review of T116, C5: `phoneExempt`'s two other conjuncts. Only a readable face is exempt, and never one bound
+  // as atmosphere, which RG7 holds to its own rules instead.
+  const NEON = "apps/web/room/catalog/fx-neon.yaml";
+  const SCENE = "apps/web/room/scene.yaml";
+  const counters = (change: { readable?: string; binding?: string }): Tree => {
+    const files = new Map<string, string>();
+    const read = (path: string): string => new TextDecoder().decode(countersTree().read(path) ?? new Uint8Array());
+    if (change.readable !== undefined) {
+      const neon = read(NEON);
+      const at = neon.indexOf("  - role: counters");
+      files.set(NEON, neon.slice(0, at) + neon.slice(at).replace("readable: true", change.readable));
+    }
+    if (change.binding !== undefined)
+      files.set(SCENE, read(SCENE).replace("      counters:\n        label: label.fx-neon\n", change.binding));
+    return countersTree(Object.fromEntries(files));
+  };
+  const counterCaps = (t: Tree) => caps(t).find((f) => f.face === "fx-neon.counters");
+
+  it("holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable", () => {
+    const t = counters({ readable: "readable: false" });
+    expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop: 12.4, phone: 7.1, phone_exempt: false });
+    expect(rg7(t)).toEqual([
+      "placements[3].faces.counters: cap height 7.1 px on the phone stage, under the floor of 9",
+    ]);
+  });
+
+  it("gives no exemption to a face bound as atmosphere, which the floor doesn't hold", () => {
+    const binding = "      counters:\n        label: label.fx-neon\n        atmosphere: true\n        max_chars: 60\n";
+    // Not readable: atmosphere, so no floor holds it, and no exemption is needed or given.
+    const plain = counters({ readable: "readable: false", binding });
+    expect(counterCaps(plain)?.phone_exempt).toBe(false);
+    expect(rg7(plain)).toEqual([]);
+    // Readable: still no exemption, and atmosphere on a readable face is refused.
+    const readable = counters({ binding });
+    expect(counterCaps(readable)?.phone_exempt).toBe(false);
+    expect(rg7(readable)).toEqual([
+      "placements[3].faces.counters.atmosphere: atmosphere on a face the catalog marks readable",
+    ]);
+  });
+
+  it("holds a face with a ui region and a turn-cost region to the floor on the phone", () => {
+    // The known-good set's panel binds the word and both counters to one face.
+    expect(caps(goodTree()).find((f) => f.face === "fx-neon.panel")?.phone_exempt).toBe(false);
+    expect(rg7(goodTree(), floorOf(11))).toEqual([
+      "placements[3].faces.panel: cap height 10.7 px on the phone stage, under the floor of 11",
+    ]);
   });
 });

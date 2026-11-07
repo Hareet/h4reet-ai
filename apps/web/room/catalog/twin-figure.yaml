@@ -1,0 +1,37 @@
+# The twin's figure: spec 002's placeholder, a body, a head, and an arm held out (its src/room/scene.ts), at LAYOUT's
+# size (its src/room/framing.ts), widened to hold the arm, which reaches to its −x side, toward the visitor, who
+# stands on its left in the cube (FR-008; handoff.ts reads the side from the anchors). Its picture is the twin's
+# avatar (spec 003), so the piece
+# has no model; it gives the stand-in, the size, and the hand the paper leaves from (FR-008). Its budget is nominal:
+# the avatar's files carry their own.
+version: 1
+id: twin-figure
+name: The twin's figure
+size: { w: 0.65, h: 1.75, d: 0.4 }
+stylized_scale: 1
+origin:
+  point: on the floor, between the figure's feet.
+  bounds: { min: [-0.37, 0, -0.2], max: [0.28, 1.75, 0.2] }
+anchors:
+  hand: { at: [-0.33, 1.02, 0.2] }
+standin:
+  - { shape: capsule, radius: 0.2, length: 0.95, at: [0, 0.7, 0], color: twin-violet }
+  - { shape: sphere, radius: 0.15, at: [0, 1.55, 0], color: twin-lilac }
+  - { shape: tube, from: [-0.18, 1.25, 0], to: [-0.33, 1.02, 0.15], radius: 0.04, at: [0, 0, 0], color: twin-violet }
+drawing:
+  primitives:
+    - { primitive: circle, cx: 0, cy: 1.56, r: 0.19, fill: twin-violet }
+    - { primitive: rect, x: -0.211, y: 0.506, w: 0.422, h: 0.843, fill: twin-violet }
+    - { primitive: rect, x: -0.169, y: 0, w: 0.127, h: 0.548, fill: twin-violet }
+    - { primitive: rect, x: 0.042, y: 0, w: 0.127, h: 0.548, fill: twin-violet }
+    - { primitive: rect, x: -0.274, y: 0.801, w: 0.105, h: 0.38, fill: twin-violet }
+budget: { gzip_bytes: 1, triangles: 1, texture_px: 1, texture_bytes: 1 }
+work_order:
+  method: >-
+    No room model: the twin's picture is its avatar, which comes after the room (the intent's order, step 5), through
+    spec 003's avatar intake.
+  shots: []
+  measurements: []
+  studio_notes: >-
+    Nothing to model for the room. The stand-in keeps the figure's place, and its hand anchor is where the paper
+    starts.

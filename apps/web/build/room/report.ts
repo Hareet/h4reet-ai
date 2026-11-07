@@ -28,9 +28,10 @@ import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import type { Stage } from "../../src/room/compose/stages";
 import type { Composed, RoomReport } from "./emit";
 import { formatPath } from "./checks/family";
-import { faceCaps, poseSeparations } from "./checks/rg";
+import { faceCaps, poseSeparations, sideWallPicks, stagesPhrase } from "./checks/rg";
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
@@ -191,6 +192,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // Legibility, RG7's measure, on both reference stages.
   lines.push(...legibility(c, index), "");
 
+  // The side-wall selectables FR-064's carve-out (see listOnly) leaves to the list, and where.
+  lines.push(...sideWalls(c), "");
+
   // The switches: their cases, and their poses' separation (RG8).
   lines.push(...switches(c), "");
 
@@ -222,11 +226,21 @@ function legibility(c: Composed, index: RoomIndex): string[] {
     const sizes = [caps?.desktop ?? null, caps?.phone ?? null];
     const known = sizes.filter((s): s is number => s !== null);
     const smallest = known.length === sizes.length ? Math.min(...known) : null;
+    // RG7's one exemption (FR-052): a phone-exempt face under the floor on the phone alone, meeting it on the desktop.
+    const exempt =
+      caps !== undefined &&
+      caps.phone_exempt &&
+      caps.desktop !== null &&
+      caps.desktop >= floor &&
+      caps.phone !== null &&
+      caps.phone < floor;
     const status = face.atmosphere
       ? `atmosphere (max ${face.max_chars ?? 0})`
-      : smallest !== null && smallest >= floor
-        ? "readable"
-        : "under";
+      : exempt
+        ? 'exempt on the phone, carried by the text copy\'s "Around the room"'
+        : smallest !== null && smallest >= floor
+          ? "readable"
+          : "under";
     const at = (c.scene?.placements ?? []).findIndex((x) => x.id === face.placement);
     const name =
       c.reader.printable(face.placement) && c.reader.printable(face.role)
@@ -236,6 +250,29 @@ function legibility(c: Composed, index: RoomIndex): string[] {
       `| ${name} | ${face.readable ? "yes" : "no"} | ${sizes.map(px).join(" | ")} | ${plain(floor)} | ` +
         `${smallest === null ? DASH : px(smallest - floor)} | ${status} |`,
     );
+  }
+  return out;
+}
+
+/** FR-064's carve-out (see listOnly): each side-wall selectable the room leaves to the "In the room" list somewhere,
+ *  its walls, and the stages where it does, in 3D and in the 2D drawing at each stage's scale, each run as its first
+ *  stage by size and how many others (contracts/room-bundle.md §10). A selectable RT2 refused is named by its path. */
+function sideWalls(c: Composed): string[] {
+  const picks = sideWallPicks(c.geometry);
+  if (picks.length === 0) return ["Side-wall selectables: none."];
+  const cell = (stages: readonly Stage[]): string =>
+    stages[0] === undefined ? DASH : `list-only at ${stagesPhrase(stages[0], stages.length - 1)}`;
+  const out = [
+    'Side-wall selectables (FR-064): the room draws no pick area for them at the stages named, and the "In the room" list reaches them.',
+    "",
+    "| Selectable | 3D | 2D |",
+    "|---|---|---|",
+  ];
+  for (const p of picks) {
+    const name = c.reader.printable(p.id)
+      ? `\`${p.id}\``
+      : formatPath(["selectables", p.index], (key) => c.reader.printable(key));
+    out.push(`| ${name} (${p.walls.join(", ")}) | ${cell(p.stages)} | ${cell(p.flat)} |`);
   }
   return out;
 }

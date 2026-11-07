@@ -6,6 +6,10 @@
 // In its own file because it starts the telemetry SDK with exporters that keep what they receive, as
 // telemetry-sdk.test.ts does: Fastify loads only after the SDK has started, so the requests' server spans are the
 // running gateway's. The metrics are read from a meter of the test's own, collected on demand.
+//
+// Which objects the committed list holds is the room's data (spec 004, FR-007, SC-001; its research.md R-16): a case
+// that sends one reads it from the list at run time, and a list of a case's own holds synthetic IDs in `fx-`, a prefix
+// the room's data never takes.
 import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -156,13 +160,15 @@ function post(stack: TestStack, body: string | undefined, contentType: string | 
 }
 
 const firstItem = (): string => [...events.items][0] as string;
+const firstObject = (): string => [...events.objects][0] as string;
 
 describe("POST /room/events accepts", () => {
   it("each kind, with its ID where it takes one, as JSON or as the beacon's text: 204, no body, one count", async () => {
     const { stack, meter } = await stackWith();
     const item = firstItem();
+    const object = firstObject();
     const sent = [
-      { kind: "object_selected", id: "laptop" },
+      { kind: "object_selected", id: object },
       { kind: "item_selected", id: item },
       { kind: "resume_opened" },
       { kind: "resume_kept" },
@@ -177,9 +183,9 @@ describe("POST /room/events accepts", () => {
       expect(res.body, event.kind).toBe("");
       expect(res.headers["cache-control"]).toBe("no-store");
     }
-    await post(stack, JSON.stringify({ kind: "object_selected", id: "laptop" }));
+    await post(stack, JSON.stringify({ kind: "object_selected", id: object }));
     expect(await meter.points("h4.room.events")).toEqual([
-      [{ kind: "object_selected", id: "laptop" }, 2],
+      [{ kind: "object_selected", id: object }, 2],
       [{ kind: "item_selected", id: item }, 1],
       [{ kind: "resume_opened", id: "-" }, 1],
       [{ kind: "resume_kept", id: "-" }, 1],
@@ -228,10 +234,10 @@ describe("POST /room/events refuses, and counts each refusal by its reason", () 
     ["an extra field", '{"kind":"mode_2d","path":"engineer"}'],
     ["the avatar", '{"kind":"mode_2d","avatar":"dog"}'],
     ["a time", '{"kind":"mode_2d","time":"2026-10-18T00:00:00Z"}'],
-    ["an ID on a kind that takes none", '{"kind":"mode_2d","id":"laptop"}'],
+    ["an ID on a kind that takes none", '{"kind":"mode_2d","id":"fx-desk"}'],
     ["no ID on a kind that takes one", '{"kind":"object_selected"}'],
     ["an ID that isn't a string", '{"kind":"object_selected","id":3}'],
-    ["a prototype key", '{"kind":"mode_2d","__proto__":{"id":"laptop"}}'],
+    ["a prototype key", '{"kind":"mode_2d","__proto__":{"id":"fx-desk"}}'],
   ])("a body that isn't {kind} or {kind, id} (%s), with 400 shape", async (_name, body) => {
     const { stack, meter } = await stackWith();
     const res = await post(stack, body);
@@ -248,7 +254,8 @@ describe("POST /room/events refuses, and counts each refusal by its reason", () 
 
   it("a kind the list doesn't hold, with 400 kind", async () => {
     const { stack, meter } = await stackWith();
-    for (const body of ['{"kind":"page_viewed"}', '{"kind":"OBJECT_SELECTED","id":"laptop"}', '{"kind":""}']) {
+    const object = firstObject();
+    for (const body of ['{"kind":"page_viewed"}', `{"kind":"OBJECT_SELECTED","id":"${object}"}`, '{"kind":""}']) {
       const res = await post(stack, body);
       expect(res.statusCode, body).toBe(400);
       expect(res.json(), body).toMatchObject({ error: "invalid_request", field: "kind", detail: "unknown kind" });
@@ -257,12 +264,13 @@ describe("POST /room/events refuses, and counts each refusal by its reason", () 
   });
 
   it("an ID the list doesn't hold for its kind, with 400 id", async () => {
-    const { stack, meter } = await stackWith();
-    const item = firstItem();
+    // A list of the case's own, so its objects and its items stay apart whatever IDs the room's data lists.
+    const list: RoomEventsConfig = { kinds: events.kinds, objects: new Set(["fx-desk"]), items: new Set(["fx-item"]) };
+    const { stack, meter } = await stackWith({ list });
     for (const body of [
-      '{"kind":"object_selected","id":"piano"}',
-      `{"kind":"object_selected","id":"${item}"}`,
-      '{"kind":"item_selected","id":"laptop"}',
+      '{"kind":"object_selected","id":"fx-board"}',
+      '{"kind":"object_selected","id":"fx-item"}',
+      '{"kind":"item_selected","id":"fx-desk"}',
       `{"kind":"item_selected","id":"${SENTINEL}"}`,
     ]) {
       const res = await post(stack, body);
@@ -283,7 +291,7 @@ describe("a kind named like an Object property", () => {
     // config/room-events.yaml's kind pattern allows `constructor`, `toString`, and `hasOwnProperty` (review, item 2).
     const list: RoomEventsConfig = {
       kinds: new Set(["constructor", "toString", "hasOwnProperty", "object_selected"]),
-      objects: new Set(["laptop"]),
+      objects: new Set(["fx-desk"]),
       items: new Set(),
     };
     const { stack, meter } = await stackWith({ list });
@@ -291,9 +299,9 @@ describe("a kind named like an Object property", () => {
     for (const body of [
       '{"kind":"constructor"}',
       '{"kind":"toString"}',
-      '{"kind":"constructor","id":"laptop"}',
+      '{"kind":"constructor","id":"fx-desk"}',
       '{"kind":"hasOwnProperty","id":"objects"}',
-      '{"kind":"__proto__","id":"laptop"}',
+      '{"kind":"__proto__","id":"fx-desk"}',
     ]) {
       answers.push([body, (await post(stack, body)).statusCode]);
     }
@@ -312,8 +320,8 @@ describe("a kind named like an Object property", () => {
 describe("the counters", () => {
   it("carry the kind and the ID, or the reason, and nothing about the client", async () => {
     const { stack, meter } = await stackWith();
-    const client = { "x-forwarded-for": "203.0.113.9", "x-h4-client": "author-laptop", "user-agent": SENTINEL };
-    for (const payload of ['{"kind":"object_selected","id":"bicycle"}', '{"kind":"page_viewed"}']) {
+    const client = { "x-forwarded-for": "203.0.113.9", "x-h4-client": "author-terminal", "user-agent": SENTINEL };
+    for (const payload of [`{"kind":"object_selected","id":"${firstObject()}"}`, '{"kind":"page_viewed"}']) {
       await stack.api.inject({
         method: "POST",
         url: "/room/events",
@@ -326,7 +334,7 @@ describe("the counters", () => {
     expect(counted.map(([a]) => Object.keys(a).sort())).toEqual([["id", "kind"]]);
     expect(refused.map(([a]) => Object.keys(a))).toEqual([["reason"]]);
     const all = JSON.stringify([counted, refused]);
-    for (const forbidden of ["203.0.113.9", "author-laptop", SENTINEL, "request_id", "trace_id"]) {
+    for (const forbidden of ["203.0.113.9", "author-terminal", SENTINEL, "request_id", "trace_id"]) {
       expect(all).not.toContain(forbidden);
     }
   });
@@ -383,7 +391,7 @@ describe("what an event leaves behind", () => {
   it("no store statement, no ledger, reservation, or audit row, and no journal entry", async () => {
     const { stack } = await stackWith();
     const statements = stack.db.statements.length;
-    await post(stack, '{"kind":"object_selected","id":"laptop"}');
+    await post(stack, `{"kind":"object_selected","id":"${firstObject()}"}`);
     await post(stack, '{"kind":"turn_sent"}');
     await post(stack, '{"kind":"page_viewed"}');
     await post(stack, '{"kind":"mode_2d"}', "text/html");
@@ -400,7 +408,12 @@ describe("what an event leaves behind", () => {
 describe("without the event list", () => {
   it("every event is 400 id, counted, after the content type and the shape are checked", async () => {
     const { stack, meter } = await stackWith({ list: null });
-    for (const body of ['{"kind":"object_selected","id":"laptop"}', '{"kind":"mode_2d"}', '{"kind":"page_viewed"}']) {
+    const object = firstObject();
+    for (const body of [
+      `{"kind":"object_selected","id":"${object}"}`,
+      '{"kind":"mode_2d"}',
+      '{"kind":"page_viewed"}',
+    ]) {
       const res = await post(stack, body);
       expect(res.statusCode, body).toBe(400);
       expect(res.json(), body).toMatchObject({ error: "invalid_request", field: "id" });
@@ -441,7 +454,7 @@ describe("without the event list", () => {
     const res = await fetch(`http://127.0.0.1:${result.ports.api}/room/events`, {
       method: "POST",
       headers: { "content-type": BEACON },
-      body: '{"kind":"object_selected","id":"laptop"}',
+      body: `{"kind":"object_selected","id":"${firstObject()}"}`,
     });
     return { logged, status: res.status, body: (await res.json()) as Record<string, unknown> };
   }

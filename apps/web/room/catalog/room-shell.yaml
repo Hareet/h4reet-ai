@@ -1,0 +1,52 @@
+# The room's shell: a small brick cube, open at the front, with no ceiling, on a paved cement floor (the Author,
+# 2026-10-23: "7feet wide, 4 feet depth, and 7 feet high", 2.1336 × 1.2192 × 2.1336 m), the root every other placement
+# mounts under (FR-003). Its origin is the floor's centre. Its anchors are the floor's centre and the foot of each
+# wall's inner face, midway along it, each turned so that a piece mounted there faces into the room with its x to the
+# viewer's right. The scene frames the shell, so the camera looks straight into the open front. The 2D drawing is the
+# cube as framing(1.6) sees it, drawn in the back wall's plane: the floor and the two side walls in perspective, then
+# the back wall, their front corners where the 2D camera projects the cube's open front onto that plane (a test holds
+# them to the camera); it holds while the shell's open front binds the 2D camera.
+version: 1
+id: room-shell
+name: Room shell, a brick cube open at the front
+size: { w: 2.1336, h: 2.1336, d: 1.2192 }
+stylized_scale: 1
+origin:
+  point: on the floor, at the centre of the cube's floor.
+  bounds: { min: [-1.0668, 0, -0.6096], max: [1.0668, 2.1336, 0.6096] }
+anchors:
+  floor: { at: [0, 0, 0] }
+  back-wall: { at: [0, 0, -0.6096] }
+  left-wall: { at: [-1.0668, 0, 0], turn: { y: 90 } }
+  right-wall: { at: [1.0668, 0, 0], turn: { y: -90 } }
+standin:
+  - { shape: plane, size: [2.1336, 1.2192], at: [0, 0, 0], turn: { x: -90 }, color: cement }
+  - { shape: plane, size: [2.1336, 2.1336], at: [0, 1.0668, -0.6096], color: brick }
+  - { shape: plane, size: [1.2192, 2.1336], at: [-1.0668, 1.0668, 0], turn: { y: 90 }, color: brick }
+  - { shape: plane, size: [1.2192, 2.1336], at: [1.0668, 1.0668, 0], turn: { y: -90 }, color: brick }
+drawing:
+  primitives:
+    - primitive: polygon
+      points: [[-1.0668, 0], [1.0668, 0], [1.5047, -0.4721], [-1.5047, -0.4721]]
+      fill: cement
+    - primitive: polygon
+      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.5047, 2.5374], [-1.5047, -0.4721]]
+      fill: brick
+      stroke: ink
+      stroke_width: 0.01
+    - primitive: polygon
+      points: [[1.0668, 0], [1.0668, 2.1336], [1.5047, 2.5374], [1.5047, -0.4721]]
+      fill: brick
+      stroke: ink
+      stroke_width: 0.01
+    - { primitive: rect, x: -1.0668, y: 0, w: 2.1336, h: 2.1336, fill: brick, stroke: ink, stroke_width: 0.01 }
+budget: { gzip_bytes: 800000, triangles: 2000, texture_px: 1024, texture_bytes: 11184810 }
+work_order:
+  method: >-
+    Model the cube from the dimension sheet: the floor, and the back, left, and right walls standing on it, open at the
+    front, with no ceiling, each a flat base colour.
+  shots: []
+  measurements: []
+  studio_notes: >-
+    Brick walls and a paved cement floor, painted or procedural, never taken from a photo (FR-022). No fixtures,
+    sockets, switches, or marks. The Author gave the cube's size, so there is nothing to photograph or measure.

@@ -86,6 +86,9 @@ export interface RoomIndex {
     name: string;
     members: string[];
     action: { kind: "talk"; topic: string } | { kind: "resume" };
+    /** Every member hangs directly on the shell's side-wall anchors: FR-064's carve-out (see listOnly) may leave it
+     *  to the "In the room" list at any stage where its core can't fit. */
+    side_wall: boolean;
   }[];
   topics: { id: string; phrase: string; ready: false }[];
   faces: {

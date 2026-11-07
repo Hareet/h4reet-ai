@@ -411,8 +411,8 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
     maxOutputTokens: 128,
     arrivedAt: Date.now(),
     signal: new AbortController().signal,
-    clientKey: "198.51.100.7\u0000author-laptop",
-    clientLabel: "author-laptop",
+    clientKey: "198.51.100.7\u0000author-terminal",
+    clientLabel: "author-terminal",
     ...o,
   });
   const spans = () => exporter.getFinishedSpans();
@@ -445,7 +445,7 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
         },
         adapterHealthy: true,
         maxOutputTokens: 128,
-        clientKey: "198.51.100.7\u0000author-laptop",
+        clientKey: "198.51.100.7\u0000author-terminal",
         requestId: "cd".repeat(16),
         traceId: a.traceId,
         purpose: "hello",
@@ -468,7 +468,7 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
         }),
       ],
     });
-    expect(m.settles[0]?.label).toBe("author-laptop");
+    expect(m.settles[0]?.label).toBe("author-terminal");
     expect(routeSpan()?.attributes).toMatchObject({
       "h4.route.decision": "fallback",
       "h4.route.reason": "local_unhealthy",
@@ -485,7 +485,7 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
       "h4.cost.basis": "usage",
     });
     // No client identifier on any span.
-    expect(JSON.stringify(spans().map((s) => s.attributes))).not.toContain("author-laptop");
+    expect(JSON.stringify(spans().map((s) => s.attributes))).not.toContain("author-terminal");
   });
 
   it("passes the meter's 429 through as a refusal, calling nothing and settling nothing", async () => {

@@ -1,0 +1,173 @@
+# The room's scene: the cube the Author laid out on 2026-10-23 and 2026-10-26 (spec.md's Clarifications; FR-078). The
+# camera frames the shell, so the view looks straight into its open front. The desk stands against the back wall, the
+# ultrawide monitor on it with the neon sign clipped to its top edge, the large window behind them, the artwork
+# hanging over the window's upper right corner, and the laptop on its stand at the desk's right side; on the left wall
+# the chalkboard hangs high and the snowboard stands low on its tail, with small gaps at the wall's corners (D1); the
+# bicycle hangs upright by its front wheel on the right wall, next to the laptop; the twin stands a little right of
+# the desk, by the laptop, and the visitor at the floor's open front, left of where D3 put it, by the Author's "Move
+# further left" (FR-080). Every piece's position is an estimate until measured; the two figures' places are
+# composition, set from the Author's words and what the camera shows past them, with nothing in the room to measure.
+# The charger is the laptop's switch on the tier: plugged in only while the tier is local (FR-043).
+# Offsets are in the anchor's frame, so on the side walls they read along the wall: the shell turns `left-wall` +90°
+# about Y, so its +x points toward the back wall, and `right-wall` −90°, so its +x points toward the open front; y is
+# the height, and z the distance out from the wall. The side walls' offsets are derived from the cube's depth: on the
+# left wall the chalkboard's −0.26 leaves about 5 cm to the front corner (0.6096 − 0.26 − 0.30) and the snowboard's
+# 0.4 about 5 cm to the back corner (0.6096 − 0.4 − 0.16).
+version: 1
+look: inked-cel
+live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
+placements:
+  - { id: room-shell, piece: room-shell, frame: true }
+  - id: work-desk
+    piece: work-desk
+    mount: { on: room-shell, anchor: back-wall, offset: [0, 0, 0.4], estimated: true }
+    frame: true
+    label: label.desk
+  - id: desk-screen
+    piece: desk-screen
+    mount: { on: work-desk, anchor: top, offset: [-0.18, 0, -0.22], estimated: true }
+    frame: true
+    label: label.monitor
+  - id: neon-sign
+    piece: neon-sign
+    mount: { on: desk-screen, anchor: top-edge }
+    frame: true
+    label: label.neon-sign
+    faces:
+      word:
+        label: label.neon-word
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 10 }, ui: [sign.word] }
+      call:
+        label: label.neon-call
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 24 }, signal: turn-cost, part: call }
+      visit:
+        label: label.neon-visit
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 24 }, signal: turn-cost, part: visit }
+      second-line:
+        label: label.neon-line
+        atmosphere: true
+        max_chars: 43
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 43 }, ui: [sign.second_line] }
+  - id: laptop-stand
+    piece: laptop-stand
+    mount: { on: work-desk, anchor: top, offset: [0.44, 0, -0.1], estimated: true }
+    frame: true
+    label: label.stand
+  - id: laptop
+    piece: laptop
+    mount: { on: laptop-stand, anchor: top, estimated: true }
+    frame: true
+    label: label.laptop
+  - id: busy-sign
+    piece: busy-sign
+    mount: { on: work-desk, anchor: top, offset: [-0.5, 0, 0.27], turn: { y: 12 }, estimated: true }
+    frame: true
+    label: label.busy-sign
+  - id: dog-sign
+    piece: dog-sign
+    mount: { on: work-desk, anchor: top, offset: [0.22, 0, 0.29], turn: { y: -10 }, estimated: true }
+    frame: true
+    label: label.dog-sign
+  - id: chalkboard
+    piece: chalkboard
+    mount: { on: room-shell, anchor: left-wall, offset: [-0.26, 1.65, 0], estimated: true }
+    frame: true
+    label: label.chalkboard
+  - id: snowboard
+    piece: snowboard
+    mount: { on: room-shell, anchor: left-wall, offset: [0.4, 0.775, 0.035], estimated: true }
+    frame: true
+    label: label.snowboard
+  - id: bicycle
+    piece: bicycle
+    mount: { on: room-shell, anchor: right-wall, offset: [0, 1.35, 0.05], turn: { z: 90 }, estimated: true }
+    frame: true
+    label: label.bicycle
+  - id: wall-window
+    piece: wall-window
+    mount: { on: room-shell, anchor: back-wall, offset: [-0.05, 1.475, 0], estimated: true }
+    frame: true
+    label: label.window
+  # The view has no label of its own: it stands inside the window, whose label stands for both. Its own label drew over
+  # the window's, in 2D and in 3D.
+  - id: window-view
+    piece: window-view
+    mount: { on: wall-window, anchor: view }
+  - id: wall-art
+    piece: wall-art
+    mount: { on: room-shell, anchor: back-wall, offset: [0.8, 1.9, 0.065], estimated: true }
+    frame: true
+    label: label.artwork
+  - id: twin-figure
+    piece: twin-figure
+    role: twin
+    mount: { on: room-shell, anchor: floor, offset: [0.78, 0, 0.395] }
+    frame: true
+  - id: visitor-figure
+    piece: visitor-figure
+    role: visitor
+    mount: { on: room-shell, anchor: floor, offset: [-0.7, 0, 0.58] }
+    frame: true
+switches:
+  - id: laptop-power
+    signal: tier
+    piece: charger
+    label: label.charger
+    poses:
+      plugged:
+        mount: { on: laptop, anchor: port }
+        glows: [{ placement: laptop, glow: charge-light, level: 1 }]
+      unplugged:
+        mount: { on: work-desk, anchor: top, offset: [0.5, 0.007, 0.16], turn: { y: 160 } }
+      resting:
+        mount: { on: work-desk, anchor: top, offset: [0.05, 0.007, -0.2], turn: { y: 90 } }
+    cases:
+      local: plugged
+      cloud: unplugged
+      resting: resting
+      budget: resting
+      unavailable: resting
+      unknown: resting
+      paused: resting
+      not-live: resting
+    cable:
+      from: lead-end
+      to: { placement: work-desk, anchor: back-edge }
+      sag: 0.2
+      radius: 0.002
+      drop: 0.1
+      rest: { placement: work-desk, anchor: top }
+# FR-036's topics (B3, B4), and FR-078's chalkboard, which opens the Author's mission (answer 3).
+selectables:
+  - id: snowboard
+    name: Snowboard
+    members: [snowboard]
+    # Answer 1: the snowboard opens the bicycle's topic, but "has a bias to talking more about winter hobbies first".
+    action: { talk: { topic: hobbies-and-travel, lead: Winter hobbies first. } }
+  - id: bicycle
+    name: Bicycle
+    members: [bicycle]
+    action: { talk: { topic: hobbies-and-travel } }
+  - id: laptop
+    name: Laptop and screen
+    members: [laptop, laptop-stand, desk-screen]
+    action: { talk: { topic: work-projects } }
+  - id: chalkboard
+    name: Chalkboard
+    members: [chalkboard]
+    action: { talk: { topic: mission } }
+handoff: { from: { placement: twin-figure, anchor: hand }, to: { placement: visitor-figure, anchor: hand } }
+survey: { desk_corner: { placement: work-desk, anchor: front-left } }
+retired:
+  - id: hobbies-and-life
+    kinds: [topic]
+    retired: 2026-10-23
+    reason: Amendment B4 made hobbies and travel adventures one topic, by the Author's answer 1.
+  - id: travel-adventures
+    kinds: [topic]
+    retired: 2026-10-23
+    reason: Amendment B4 made hobbies and travel adventures one topic, by the Author's answer 1.
