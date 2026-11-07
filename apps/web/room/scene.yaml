@@ -1,13 +1,17 @@
 # The room's scene: the cube the Author laid out on 2026-10-23 and 2026-10-26 (spec.md's Clarifications; FR-078). The
 # camera frames the shell, so the view looks straight into its open front. The desk stands against the back wall, the
-# ultrawide monitor on it with the neon sign clipped to its top edge, the large window behind them, the artwork
-# hanging over the window's upper right corner, and the laptop on its stand at the desk's right side; on the left wall
-# the chalkboard hangs high and the snowboard stands low on its tail, with small gaps at the wall's corners (D1); the
-# bicycle hangs upright by its front wheel on the right wall, next to the laptop; the twin stands a little right of
-# the desk, by the laptop, and the visitor at the floor's open front, left of where D3 put it, by the Author's "Move
-# further left" (FR-080). Every piece's position is an estimate until measured; the two figures' places are
-# composition, set from the Author's words and what the camera shows past them, with nothing in the room to measure.
-# The charger is the laptop's switch on the tier: plugged in only while the tier is local (FR-043).
+# ultrawide monitor on it with the neon sign clipped to its top edge and the two desk signs beside it, the keyboard,
+# the mouse, and the notebook in front, the large window centred behind them, and the laptop on its stand at the
+# desk's right side; on the left wall the chalkboard hangs high, the artwork above the snowboard's top, and the
+# snowboard stands low on its tail, with small gaps at the wall's corners (D1); the bicycle hangs upright by its front
+# wheel on the right wall, next to the laptop, with the wall outlet beside the desk, just under its top; the bag and
+# the helmet lie on the floor; the twin stands a little right of the desk, by the laptop, and the visitor at the
+# floor's open front, left of where D3 put it, by the Author's "Move further left" (FR-080). The studio's hand-back of
+# 2026-11-07 moved the monitor, the laptop's stand, the signs, the window, the artwork, and the bicycle, and placed
+# the six new pieces, as the Author took its scene changes on 2026-11-07. Every piece's position is an estimate until
+# measured; the two figures' places are composition, set from the Author's words and what the camera shows past them,
+# with nothing in the room to measure. The charger is the laptop's switch on the tier: plugged in only while the tier
+# is local (FR-043); its cable runs to the wall outlet.
 # Offsets are in the anchor's frame, so on the side walls they read along the wall: the shell turns `left-wall` +90°
 # about Y, so its +x points toward the back wall, and `right-wall` −90°, so its +x points toward the open front; y is
 # the height, and z the distance out from the wall. The side walls' offsets are derived from the cube's depth: on the
@@ -25,7 +29,7 @@ placements:
     label: label.desk
   - id: desk-screen
     piece: desk-screen
-    mount: { on: work-desk, anchor: top, offset: [-0.18, 0, -0.22], estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [-0.154, 0, -0.22], estimated: true }
     frame: true
     label: label.monitor
   - id: neon-sign
@@ -54,7 +58,7 @@ placements:
           - { rect: [0, 0, 1, 1], renderer: neon, grid: { chars: 43 }, ui: [sign.second_line] }
   - id: laptop-stand
     piece: laptop-stand
-    mount: { on: work-desk, anchor: top, offset: [0.44, 0, -0.1], estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [0.55, 0, -0.1], estimated: true }
     frame: true
     label: label.stand
   - id: laptop
@@ -64,12 +68,12 @@ placements:
     label: label.laptop
   - id: busy-sign
     piece: busy-sign
-    mount: { on: work-desk, anchor: top, offset: [-0.5, 0, 0.27], turn: { y: 12 }, estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [-0.55, 0, -0.03], turn: { y: 12 }, estimated: true }
     frame: true
     label: label.busy-sign
   - id: dog-sign
     piece: dog-sign
-    mount: { on: work-desk, anchor: top, offset: [0.22, 0, 0.29], turn: { y: -10 }, estimated: true }
+    mount: { on: work-desk, anchor: top, offset: [0.27, 0, -0.04], turn: { y: -10 }, estimated: true }
     frame: true
     label: label.dog-sign
   - id: chalkboard
@@ -84,12 +88,12 @@ placements:
     label: label.snowboard
   - id: bicycle
     piece: bicycle
-    mount: { on: room-shell, anchor: right-wall, offset: [0, 1.35, 0.05], turn: { z: 90 }, estimated: true }
+    mount: { on: room-shell, anchor: right-wall, offset: [0.2221, 1.49, 0.09], turn: { z: 90 }, estimated: true }
     frame: true
     label: label.bicycle
   - id: wall-window
     piece: wall-window
-    mount: { on: room-shell, anchor: back-wall, offset: [-0.05, 1.475, 0], estimated: true }
+    mount: { on: room-shell, anchor: back-wall, offset: [0, 1.45, 0], estimated: true }
     frame: true
     label: label.window
   # The view has no label of its own: it stands inside the window, whose label stands for both. Its own label drew over
@@ -99,9 +103,30 @@ placements:
     mount: { on: wall-window, anchor: view }
   - id: wall-art
     piece: wall-art
-    mount: { on: room-shell, anchor: back-wall, offset: [0.8, 1.9, 0.065], estimated: true }
+    mount: { on: room-shell, anchor: left-wall, offset: [0.33, 1.95, 0], estimated: true }
     frame: true
     label: label.artwork
+  # The studio's six new pieces (the hand-back of 2026-11-07), placed where its preview put them, each an estimate until
+  # measured (FR-078); the Author gives their labels, selectables, and topics. The keyboard and the mouse take IDs more
+  # distinctive than the hand-back's, which the source scan finds in the room's code (FR-007).
+  - id: split-keyboard
+    piece: split-keyboard
+    mount: { on: work-desk, anchor: top, offset: [-0.14, 0, 0.21], turn: { y: 3 }, estimated: true }
+  - id: vertical-mouse
+    piece: vertical-mouse
+    mount: { on: work-desk, anchor: top, offset: [0.16, 0, 0.23], turn: { y: -8 }, estimated: true }
+  - id: notebook
+    piece: notebook
+    mount: { on: work-desk, anchor: top, offset: [-0.47, 0, 0.21], turn: { y: 14 }, estimated: true }
+  - id: helmet
+    piece: helmet
+    mount: { on: room-shell, anchor: floor, offset: [0.86, 0, -0.08], turn: { y: -70 }, estimated: true }
+  - id: bag
+    piece: bag
+    mount: { on: room-shell, anchor: floor, offset: [0.3, 0, -0.33], turn: { y: 12 }, estimated: true }
+  - id: wall-outlet
+    piece: wall-outlet
+    mount: { on: room-shell, anchor: right-wall, offset: [-0.4, 0.99, 0], estimated: true }
   - id: twin-figure
     piece: twin-figure
     role: twin
@@ -136,7 +161,7 @@ switches:
       not-live: resting
     cable:
       from: lead-end
-      to: { placement: work-desk, anchor: back-edge }
+      to: { placement: wall-outlet, anchor: cord-end }
       sag: 0.2
       radius: 0.002
       drop: 0.1

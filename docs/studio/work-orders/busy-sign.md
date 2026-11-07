@@ -17,7 +17,7 @@ Model the sign's shape from the Author's own design and the dimension sheet. The
 - The lettering area's width and height, and its position on the face.
 - Where the sign stands on the desk, from the desk's front-left corner.
 - Measure: the size, now estimated at 0.22 × 0.09 × 0.05 m (w × h × d).
-- Measure: where `busy-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (-0.5, 0, 0.27) m.
+- Measure: where `busy-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (-0.55, 0, -0.03) m.
 
 ## Size, origin, and bounds
 
@@ -48,9 +48,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 150,000 | 2,500,000 |
-| Triangles | 1,500 | 40,000 |
-| Largest texture side | 512 px | – (not a small prop) |
-| Texture memory | 1,398,101 | 96,000,000 for the whole scene |
+| Triangles | 1,500 | 100,000 |
+| Largest texture side | 1 px | – (not a small prop) |
+| Texture memory | 1 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

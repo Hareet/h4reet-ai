@@ -13,9 +13,9 @@ Model a framed canvas from the dimension sheet; paint an original picture for it
 ## Measurements
 
 - The frame's outer width, height, and depth.
-- Where the frame hangs, from the floor to its lower edge and from the window's centre.
+- Where the frame hangs, from the floor to its lower edge and from the back wall.
 - Measure: the size, now estimated at 0.5 × 0.3 × 0.04 m (w × h × d).
-- Measure: where `wall-art` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (0.8, 1.9, 0.065) m.
+- Measure: where `wall-art` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (0.33, 1.95, 0) m.
 
 ## Size, origin, and bounds
 
@@ -42,9 +42,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 400,000 | 2,500,000 |
-| Triangles | 500 | 40,000 |
-| Largest texture side | 1,024 px | – (not a small prop) |
-| Texture memory | 5,592,405 | 96,000,000 for the whole scene |
+| Triangles | 4,500 | 100,000 |
+| Largest texture side | 2,048 px | – (not a small prop) |
+| Texture memory | 11,184,810 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

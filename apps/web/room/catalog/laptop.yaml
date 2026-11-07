@@ -1,34 +1,42 @@
-# The laptop on its stand, the second screen (FR-040; answer 5): a base and an upright lid, whose screen is a plain live
-# face, a glow, unless approved room text is bound to it (FR-031). Its port is where the plugged pose's plug goes,
-# and its charge light glows only while the plug is in (FR-020, FR-043). Its size and anchor are estimates until
-# measured.
+# The laptop on its stand, the second screen (FR-040; answer 5): a base and a lid tilted back 6°, as in the Author's
+# lookdev and the studio's hand-back of 2026-11-07, whose screen is a plain live face, a glow, unless approved room
+# text is bound to it (FR-031). The face's facing and up are the lid's, (0, sin 6°, cos 6°) and (0, cos 6°, −sin 6°)
+# to 7 places, since the hand-back's 4 places miss a unit vector by 2.5e-5 and RG2 holds one within 1e-6; its glows
+# follow the model's screen and light. The stand-in's lid tilts with it, 0.198 m tall and 4 mm thick, 1 mm behind the
+# face, so it stays inside the new bounds (RG2). Its port is where the plugged pose's plug goes, and its charge light
+# glows only while the plug is in (FR-020, FR-043). Its size and anchor are estimates until measured.
 version: 1
 id: laptop
 name: Laptop
-size: { w: 0.31, h: 0.22, d: 0.22, estimated: true }
+size: { w: 0.31, h: 0.22, d: 0.242, estimated: true }
 stylized_scale: 1
 origin:
   point: on the stand, below the centre of the laptop's base.
-  bounds: { min: [-0.155, 0, -0.11], max: [0.155, 0.221, 0.11] }
+  bounds: { min: [-0.156, 0, -0.132], max: [0.156, 0.216, 0.11] }
 anchors:
   port: { at: [0.155, 0.008, 0.05], turn: { y: 180 }, estimated: true }
 live_faces:
   - role: screen
-    at: [0, 0.1185, -0.1]
-    size: [0.28, 0.175]
-    facing: [0, 0, 1]
-    up: [0, 1, 0]
-    px: [512, 320]
+    at: [0, 0.117, -0.1144]
+    size: [0.288, 0.168]
+    facing: [0, 0.1045285, 0.9945219]
+    up: [0, 0.9945219, -0.1045285]
+    px: [512, 299]
     readable: false
 glows:
-  - { id: screen-glow, at: [0, 0.1185, -0.098], radius: 0.18, tone: screen-blue, motion: breathe }
-  - { id: charge-light, at: [0.15, 0.008, 0.1], radius: 0.006, tone: charge-green, motion: steady, level: 0 }
+  - { id: screen-glow, at: [0, 0.117, -0.112], radius: 0.18, tone: screen-blue, motion: breathe }
+  - { id: charge-light, at: [0.156, 0.0085, 0.03], radius: 0.006, tone: charge-green, motion: steady, level: 0 }
 standin:
   - { shape: box, size: [0.31, 0.016, 0.22], at: [0, 0.008, 0], color: graphite }
-  - { shape: box, size: [0.31, 0.205, 0.008], at: [0, 0.1185, -0.105], color: graphite-light }
-  - { shape: plane, size: [0.28, 0.175], at: [0, 0.1185, -0.1005], color: screen-glow, lit: false }
+  - { shape: box, size: [0.31, 0.198, 0.004], at: [0, 0.11669, -0.11738], turn: { x: -6 }, color: graphite-light }
+  - shape: plane
+    size: [0.288, 0.168]
+    at: [0, 0.11695, -0.1149]
+    turn: { x: -6 }
+    color: screen-glow
+    lit: false
 drawing: { from: standin }
-budget: { gzip_bytes: 400000, triangles: 5000, texture_px: 512, texture_bytes: 1398101 }
+budget: { gzip_bytes: 400000, triangles: 31500, texture_px: 1, texture_bytes: 1 }
 work_order:
   method: >-
     Model the laptop open from the dimension sheet and the Author's description, as plain solid parts in flat

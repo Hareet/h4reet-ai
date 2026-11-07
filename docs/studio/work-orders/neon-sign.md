@@ -46,9 +46,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 300,000 | 2,500,000 |
-| Triangles | 4,000 | 40,000 |
+| Triangles | 4,000 | 100,000 |
 | Largest texture side | 512 px | – (not a small prop) |
-| Texture memory | 1,398,101 | 96,000,000 for the whole scene |
+| Texture memory | 1,398,101 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

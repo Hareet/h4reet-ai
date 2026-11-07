@@ -1,0 +1,17 @@
+version: 1
+id: helmet
+name: Bike helmet
+size: { w: 0.209, h: 0.199, d: 0.297, estimated: true }
+stylized_scale: 1
+origin:
+  point: on the floor, below the centre of the helmet's rim.
+  bounds: { min: [-0.1045, 0, -0.142], max: [0.1045, 0.1989, 0.155] }
+standin:
+  - { shape: sphere, radius: 0.1, at: [0, 0.1, 0.006], scale: [1, 0.98, 1.4], color: bike-red }
+drawing: { from: standin }
+budget: { gzip_bytes: 400000, triangles: 21500, texture_px: 1, texture_bytes: 1 }
+work_order:
+  method: Model the helmet from the Author's description, a magenta shell with vents and its straps, as plain solid parts in flat colours.
+  shots: []
+  measurements: []
+  studio_notes: No brand, label, or sticker (FR-016).

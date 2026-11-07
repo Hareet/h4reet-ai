@@ -17,16 +17,16 @@ Model the bicycle from the dimension sheet and the Author's description: the whe
 - The wheelbase, from hub to hub, and each wheel's diameter.
 - The frame's height at the saddle and at the handlebars, and the handlebars' width.
 - Where the hook it hangs from is, from the floor and from the back wall.
-- Measure: the size, now estimated at 1.26 × 0.775 × 0.1 m (w × h × d).
-- Measure: where `bicycle` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (0, 1.35, 0.05) m.
+- Measure: the size, now estimated at 1.273 × 0.768 × 0.176 m (w × h × d).
+- Measure: where `bicycle` sits, now estimated: on `room-shell`'s anchor `right-wall`, offset (0.2221, 1.49, 0.09) m.
 
 ## Size, origin, and bounds
 
-- The size: 1.26 × 0.775 × 0.1 m (w × h × d), estimated.
-- The stylized scale: 1, so the model is made at 1.26 × 0.775 × 0.1 m (FR-051).
+- The size: 1.273 × 0.768 × 0.176 m (w × h × d), estimated.
+- The stylized scale: 1, so the model is made at 1.273 × 0.768 × 0.176 m (FR-051).
 - The origin: midway between the two wheels' hubs.
-- The expected bounds at that scale: from (-0.63, -0.325, -0.05) to (0.63, 0.45, 0.05) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.0378 m, y 0.02325 m, z 0.02 m (FR-019).
+- The expected bounds at that scale: from (-0.6364, -0.2591, -0.0878) to (0.6364, 0.5092, 0.0878) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.038184 m, y 0.023049 m, z 0.02 m (FR-019).
 
 ## Anchors
 
@@ -45,9 +45,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 1,500,000 | 2,500,000 |
-| Triangles | 30,000 | 40,000 |
-| Largest texture side | 1,024 px | – (not a small prop) |
-| Texture memory | 5,592,405 | 96,000,000 for the whole scene |
+| Triangles | 89,000 | 100,000 |
+| Largest texture side | 2,048 px | – (not a small prop) |
+| Texture memory | 6,990,506 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

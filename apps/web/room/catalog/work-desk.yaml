@@ -25,7 +25,7 @@ standin:
   - { shape: box, size: [0.05, 1.03, 0.05], at: [0.7, 0.515, -0.35], color: desk-leg }
   - { shape: box, size: [0.05, 1.03, 0.05], at: [0.7, 0.515, 0.35], color: desk-leg }
 drawing: { from: standin }
-budget: { gzip_bytes: 600000, triangles: 38000, texture_px: 2048, texture_bytes: 11184811 }
+budget: { gzip_bytes: 600000, triangles: 38000, texture_px: 2048, texture_bytes: 11184810 }
 work_order:
   method: Model the desk from the dimension sheet and the Author's description, as plain solid parts in flat colours.
   shots:

@@ -16,15 +16,15 @@ Model the board and its bindings from the dimension sheet and the Author's descr
 - The board's length, its width at the widest point, and its thickness.
 - Each binding's footprint, height, and position along the board.
 - Where the board hangs, from the floor and from the back wall.
-- Measure: the size, now estimated at 0.32 × 1.55 × 0.07 m (w × h × d).
+- Measure: the size, now estimated at 0.32 × 1.55 × 0.198 m (w × h × d).
 - Measure: where `snowboard` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (0.4, 0.775, 0.035) m.
 
 ## Size, origin, and bounds
 
-- The size: 0.32 × 1.55 × 0.07 m (w × h × d), estimated.
-- The stylized scale: 1, so the model is made at 0.32 × 1.55 × 0.07 m (FR-051).
+- The size: 0.32 × 1.55 × 0.198 m (w × h × d), estimated.
+- The stylized scale: 1, so the model is made at 0.32 × 1.55 × 0.198 m (FR-051).
 - The origin: the centre of the board, midway along its length and across its width, in the middle of its thickness.
-- The expected bounds at that scale: from (-0.16, -0.775, -0.035) to (0.16, 0.775, 0.035) m.
+- The expected bounds at that scale: from (-0.16, -0.775, -0.035) to (0.16, 0.775, 0.163) m.
 - Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.0465 m, z 0.02 m (FR-019).
 
 ## Anchors
@@ -43,10 +43,10 @@ No switch places this piece.
 
 | Measure | Budget | Cap |
 |---|---:|---:|
-| gzip-9 bytes | 400,000 | 2,500,000 |
-| Triangles | 3,000 | 40,000 |
-| Largest texture side | 1,024 px | – (not a small prop) |
-| Texture memory | 5,592,405 | 96,000,000 for the whole scene |
+| gzip-9 bytes | 1,000,000 | 2,500,000 |
+| Triangles | 60,000 | 100,000 |
+| Largest texture side | 4,096 px | – (not a small prop) |
+| Texture memory | 22,369,620 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

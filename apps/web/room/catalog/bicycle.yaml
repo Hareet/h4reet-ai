@@ -1,37 +1,40 @@
 # The bicycle (W1's right side; FR-078: hanging next to the desk): spec 002's placeholder, two wheels, a frame of
 # tubes, a saddle, and handlebars (src/room/scene.ts), hung upright by its front wheel, flat on the cube's right wall,
 # next to the laptop (the Author, 2026-10-23: "along a brick wall that is the right side of the cube, next to the
-# laptop"). Its size and where it hangs are estimates until measured; the bounds hold the wheels.
+# laptop"). Its size and where it hangs are estimates until measured; the bounds hold the wheels. The size and bounds
+# are the studio's hand-back of 2026-11-07 for the Author's lookdev bike ("The lookdev's road bike, at 0.77"), whose
+# wheels are 0.259 m, centred at (±0.377, 0): the stand-in's and the drawing's wheels moved there, with the frame's
+# stays and fork, so both stay inside the bounds (RG2); the rest of spec 002's frame stays.
 version: 1
 id: bicycle
 name: Bicycle
-size: { w: 1.26, h: 0.775, d: 0.1, estimated: true }
+size: { w: 1.273, h: 0.768, d: 0.176, estimated: true }
 stylized_scale: 1
 origin:
   point: midway between the two wheels' hubs.
-  bounds: { min: [-0.63, -0.325, -0.05], max: [0.63, 0.45, 0.05] }
+  bounds: { min: [-0.6364, -0.2591, -0.0878], max: [0.6364, 0.5092, 0.0878] }
 standin:
-  - { shape: torus, radius: 0.3, tube: 0.025, at: [-0.3, 0, 0], color: tyre }
-  - { shape: torus, radius: 0.3, tube: 0.025, at: [0.3, 0, 0], color: tyre }
-  - { shape: tube, from: [-0.3, 0, 0], to: [-0.03, 0, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
-  - { shape: tube, from: [-0.3, 0, 0], to: [-0.13, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: torus, radius: 0.234, tube: 0.025, at: [-0.377, 0, 0], color: tyre }
+  - { shape: torus, radius: 0.234, tube: 0.025, at: [0.377, 0, 0], color: tyre }
+  - { shape: tube, from: [-0.377, 0, 0], to: [-0.03, 0, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: tube, from: [-0.377, 0, 0], to: [-0.13, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
   - { shape: tube, from: [-0.03, 0, 0], to: [-0.13, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
   - { shape: tube, from: [-0.13, 0.33, 0], to: [0.23, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
   - { shape: tube, from: [-0.03, 0, 0], to: [0.23, 0.33, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
-  - { shape: tube, from: [0.23, 0.33, 0], to: [0.3, 0, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
+  - { shape: tube, from: [0.23, 0.33, 0], to: [0.377, 0, 0], radius: 0.018, at: [0, 0, 0], color: bike-red }
   - { shape: box, size: [0.14, 0.03, 0.06], at: [-0.15, 0.37, 0], color: ink }
   - { shape: tube, from: [0.2, 0.4, -0.05], to: [0.2, 0.4, 0.05], radius: 0.018, at: [0, 0, 0], color: ink }
 drawing:
   primitives:
-    - { primitive: ellipse, cx: -0.333, cy: -0.035, rx: 0.298, ry: 0.275, stroke: "#333333", stroke_width: 0.042 }
-    - { primitive: ellipse, cx: 0.333, cy: -0.035, rx: 0.298, ry: 0.275, stroke: "#333333", stroke_width: 0.042 }
+    - { primitive: circle, cx: -0.377, cy: 0, r: 0.238, stroke: "#333333", stroke_width: 0.042 }
+    - { primitive: circle, cx: 0.377, cy: 0, r: 0.238, stroke: "#333333", stroke_width: 0.042 }
     - primitive: polyline
-      points: [[-0.333, -0.035], [-0.088, 0.321], [0.263, 0.321], [0.333, -0.035], [-0.018, -0.035], [-0.333, -0.035]]
+      points: [[-0.377, 0], [-0.13, 0.33], [0.23, 0.33], [0.377, 0], [-0.03, 0], [-0.377, 0]]
       stroke: "#333333"
       stroke_width: 0.042
-    - { primitive: line, x1: -0.018, y1: -0.035, x2: -0.123, y2: 0.418, stroke: "#333333", stroke_width: 0.042 }
-    - { primitive: line, x1: 0.228, y1: 0.321, x2: 0.298, y2: 0.45, stroke: "#333333", stroke_width: 0.042 }
-budget: { gzip_bytes: 1500000, triangles: 30000, texture_px: 1024, texture_bytes: 5592405 }
+    - { primitive: line, x1: -0.03, y1: 0, x2: -0.142, y2: 0.37, stroke: "#333333", stroke_width: 0.042 }
+    - { primitive: line, x1: 0.23, y1: 0.33, x2: 0.2, y2: 0.4, stroke: "#333333", stroke_width: 0.042 }
+budget: { gzip_bytes: 1500000, triangles: 89000, texture_px: 2048, texture_bytes: 6990506 }
 work_order:
   method: >-
     Model the bicycle from the dimension sheet and the Author's description: the wheels, the frame, the saddle, and

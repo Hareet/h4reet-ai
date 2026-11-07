@@ -17,7 +17,7 @@ Model the sign's shape from the Author's own design and the dimension sheet. The
 - The lettering area's width and height, and its position on the face.
 - Where the sign stands on the desk, from the desk's front-left corner.
 - Measure: the size, now estimated at 0.16 × 0.12 × 0.05 m (w × h × d).
-- Measure: where `dog-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.22, 0, 0.29) m.
+- Measure: where `dog-sign` sits, now estimated: on `work-desk`'s anchor `top`, offset (0.27, 0, -0.04) m.
 
 ## Size, origin, and bounds
 
@@ -37,7 +37,7 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `lettering` | (0, 0.105, 0.00675) | 0.225 × 0.1275 | (0, 0, 1) | (0, 1, 0) |
+| `lettering` | (0, 0.09675, 0.0006) | 0.19605 × 0.13395 | (0, 0.069757, 0.997564) | (0, 0.997564, -0.069756) |
 
 ## States
 
@@ -48,9 +48,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 150,000 | 2,500,000 |
-| Triangles | 1,500 | 40,000 |
-| Largest texture side | 512 px | – (not a small prop) |
-| Texture memory | 1,398,101 | 96,000,000 for the whole scene |
+| Triangles | 1,500 | 100,000 |
+| Largest texture side | 2,048 px | – (not a small prop) |
+| Texture memory | 11,184,810 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

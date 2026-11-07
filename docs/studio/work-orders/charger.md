@@ -50,9 +50,9 @@ The switch `laptop-power` places this piece in each of its poses, one for each v
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 100,000 | 2,500,000 |
-| Triangles | 1,000 | 40,000 |
-| Largest texture side | 128 px | – (not a small prop) |
-| Texture memory | 87,381 | 96,000,000 for the whole scene |
+| Triangles | 5,500 | 100,000 |
+| Largest texture side | 1 px | – (not a small prop) |
+| Texture memory | 1 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

@@ -15,16 +15,16 @@ Model the laptop open from the dimension sheet and the Author's description, as 
 
 - The base's width, depth, and thickness, and the lid's height.
 - The charging port's position on the base's side, from the base's front corner.
-- Measure: the size, now estimated at 0.31 × 0.22 × 0.22 m (w × h × d).
+- Measure: the size, now estimated at 0.31 × 0.22 × 0.242 m (w × h × d).
 - Measure: the anchor `port`, now estimated at (0.155, 0.008, 0.05) m in the piece's frame.
 - Measure: where `laptop` sits, now estimated: on `laptop-stand`'s anchor `top`, offset (0, 0, 0) m.
 
 ## Size, origin, and bounds
 
-- The size: 0.31 × 0.22 × 0.22 m (w × h × d), estimated.
-- The stylized scale: 1, so the model is made at 0.31 × 0.22 × 0.22 m (FR-051).
+- The size: 0.31 × 0.22 × 0.242 m (w × h × d), estimated.
+- The stylized scale: 1, so the model is made at 0.31 × 0.22 × 0.242 m (FR-051).
 - The origin: on the stand, below the centre of the laptop's base.
-- The expected bounds at that scale: from (-0.155, 0, -0.11) to (0.155, 0.221, 0.11) m.
+- The expected bounds at that scale: from (-0.156, 0, -0.132) to (0.156, 0.216, 0.11) m.
 - Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.02 m, z 0.02 m (FR-019).
 
 ## Anchors
@@ -41,7 +41,7 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `screen` | (0, 0.1185, -0.1) | 0.28 × 0.175 | (0, 0, 1) | (0, 1, 0) |
+| `screen` | (0, 0.117, -0.1144) | 0.288 × 0.168 | (0, 0.104529, 0.994522) | (0, 0.994522, -0.104528) |
 
 ## States
 
@@ -52,9 +52,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 400,000 | 2,500,000 |
-| Triangles | 5,000 | 40,000 |
-| Largest texture side | 512 px | – (not a small prop) |
-| Texture memory | 1,398,101 | 96,000,000 for the whole scene |
+| Triangles | 31,500 | 100,000 |
+| Largest texture side | 1 px | – (not a small prop) |
+| Texture memory | 1 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

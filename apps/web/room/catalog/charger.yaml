@@ -18,7 +18,7 @@ standin:
   - { shape: box, size: [0.025, 0.007, 0.012], at: [-0.0205, 0, 0], color: ink }
   - { shape: tube, from: [-0.033, 0, 0], to: [-0.083, 0, 0], radius: 0.002, at: [0, 0, 0], color: ink }
 drawing: { from: standin }
-budget: { gzip_bytes: 100000, triangles: 1000, texture_px: 128, texture_bytes: 87381 }
+budget: { gzip_bytes: 100000, triangles: 5500, texture_px: 1, texture_bytes: 1 }
 work_order:
   method: >-
     Model the plug and a short stub of its lead from the dimension sheet and the Author's description, in flat
