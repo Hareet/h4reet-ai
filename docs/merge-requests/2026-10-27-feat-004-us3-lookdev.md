@@ -13,19 +13,51 @@ The rest of this note is as it stood at 74c33e9d, its SHAs the old ones.
 
 ## Runs in the Author's terminal
 
+**2026-11-07:** step 1's merges now end with `feat/004-studio-desk-sign`, after US1; step 2 is done, stacked on it, in the section at the top; step 3 gives T307's two builds (T306); and step 5 is replaced by "Your steps (T148)" in the section at the top.
+
 Read these in order. Nothing here runs before step 1's merges, except the probe (step 3), which needs nothing from line I.
 
 1. **Merges that come first, not this branch's.** Line R merges after M8, M9, and P-10, and after User Story 1 (`feat/004-us1-composition`, T118 and T119). Then this branch is rebased onto `main` (T147, by the agents) and gated (T148, by you).
 2. **The rebase (T147), by the agents.** After T119 the agents record the tip first, as `feat/004-us3-lookdev was <sha>`, then run `git rebase --onto refs/heads/main <US1's tip as recorded before its own rebase (T118)> feat/004-us3-lookdev`. Today that commit is 58c22d5, the US1 tip this branch now stands on. They re-run `make check ENGINE_MODE=none-yet` and `npm run room:report -w apps/web` and append both to this note. You don't run it.
-3. **The phone copy: `apps/web/Dockerfile`'s new target, `lookdev-phone`.** The target is drafts-only and sits before the runtime stage, which stays the last stage and the default. `web_image.py` passes no `--target`, so no image holds the copy (T129, T139; contracts/lookdev.md §7.1 and §8, layer 5). You build the copy in your terminal, from main's checkout, by commit SHA:
+3. **The phone copy: `apps/web/Dockerfile`'s new target, `lookdev-phone`.** The target is drafts-only and sits before the runtime stage, which stays the last stage and the default. `web_image.py` passes no `--target`, so no image holds the copy (T129, T139; contracts/lookdev.md §7.1 and §8, layer 5). You build the copy in your terminal, from main's checkout, by commit SHA, with T143's command.
 
-   ```text
-   git --no-replace-objects archive <sha> | docker build -f apps/web/Dockerfile --target lookdev-phone --output type=local,dest=$HOME/lookdev-<date> -
+   **Until the agents' engine can build the copy (T140), T307's two builds are the check, in place of a SHA-256 in this note** (T306; spec.md's Clarifications, Session 2026-10-30, US3, your answer: "We can build it again, or whatever is easier for you to continue."). Build it twice from the same full commit SHA, each into its own new, empty folder outside the repository, the second with `--no-cache`, so the build cache can't answer for it. First the commit and the two folders:
+
+   ```bash
+   b=feat/004-us3-lookdev
+   sha=$(git rev-parse --verify "refs/heads/$b")
+   d1=$HOME/lookdev-us3-1
+   d2=$HOME/lookdev-us3-2
+   mkdir "$d1" "$d2" && echo "two new, empty folders"
    ```
 
-   `<sha>` is the branch's full commit SHA. Until T140 runs, take this note's commit (the tip). The folder holds one file, `lookdev.html`. The working tree's `apps/web/dist-phone/` never goes to the phone.
+   If it doesn't print `two new, empty folders`, a folder already exists: choose two new names. Then the first build, T143's command:
+
+   ```bash
+   git --no-replace-objects archive "$sha" |
+     docker build -f apps/web/Dockerfile --target lookdev-phone \
+     --output "type=local,dest=$d1" -
+   ```
+
+   The second build, T143's command with `--no-cache`:
+
+   ```bash
+   git --no-replace-objects archive "$sha" |
+     docker build --no-cache -f apps/web/Dockerfile \
+     --target lookdev-phone --output "type=local,dest=$d2" -
+   ```
+
+   Then each folder's files, which are `lookdev.html` alone, the two SHA-256s, and the commit:
+
+   ```bash
+   ls -A "$d1" "$d2"
+   sha256sum "$d1/lookdev.html" "$d2/lookdev.html"
+   echo "$sha"
+   ```
+
+   The two SHA-256s must match; a mismatch ends the session, as T143 says. `$sha` is the branch's full commit SHA, its tip, which the gate checks. The commit and that SHA-256 go into this note (T307): give them to the session. The working tree's `apps/web/dist-phone/` is never the reference, and never goes to the phone.
 4. **The Author's runs, T143 to T145, in this order.**
-   - **T143, the probe, first, with no model** (FR-069; contracts/lookdev.md §7.3 steps 1 to 5). Pause camera-roll backup, gallery sync, and file sync, and turn location off. Build the copy as in step 3. Check `lookdev.html`'s SHA-256 against this note's (a mismatch ends the session; see For the Author, item 1). Copy only that file over a USB cable as a file transfer, with USB debugging off. Unplug the cable, turn airplane mode on, open the file from the phone's file manager, and read the probe's verdict. If it stops, delete the copy; T146 follows.
+   - **T143, the probe, first, with no model** (FR-069; contracts/lookdev.md §7.3 steps 1 to 5). Pause camera-roll backup, gallery sync, and file sync, and turn location off. Build the copy as in step 3, T143's command into a new, empty folder. Check its `lookdev.html`'s SHA-256 against T307's, the one step 3's two builds gave (a mismatch ends the session). Copy only that file over a USB cable as a file transfer, with USB debugging off. Unplug the cable, turn airplane mode on, open the file from the phone's file manager, and read the probe's verdict. If it stops, delete the copy; T146 follows.
    - **T144, the desktop run** with the studio's desk and one sign. It waits for M6 (T030) and M9 (T048): `make up ENV=dev REF=<this branch's commit>` is Heavy, so run it when no agents are running. Scrub each studio file with `make assets-scrub FILE=<file>`, then open `http://127.0.0.1:18105/lookdev/`. Since the Author's first run, an unscrubbed export is measured and swapped in as a preview (55c3c44), but the hash to approve is the scrubbed file's.
    - **T145, the phone run, preliminary** (contracts/lookdev.md §7.3, all nine steps). It waits for M6 (T030), since it needs the scrubber. The results JSON goes into this note with the phone's model and the probe's viewport and pixel ratio. The look is chosen on the whole-vignette runs, T193 and T287 (FR-070, as clarified on 2026-10-23).
 5. **The gate and the merge (T148), by you.** Once T147 has run, run `tools/gates/gate feat/004-us3-lookdev` from main's checkout, then the merge command it prints. This branch changes `deploy/scripts/test_web_image.py` (T129's tests of the Dockerfile) and nothing under `.claude/`, `evals/agent-config/`, `tools/gates/`, or `Makefile`.
@@ -641,9 +673,9 @@ make check exit 2
 
 ## For the Author
 
-1. **The phone copy's SHA-256 (T140).** T140 builds the copy on the agents' engine, which isn't there yet (the image gate's SKIP, T046). So this note has no SHA-256 for T143 to check `lookdev.html` against, and T143 says a mismatch ends the session. You have two choices: wait for T140, or build the copy twice, from the same `<sha>` in two new folders, and take matching SHA-256s as the check (the copy's build is byte-identical twice over, T125). The working tree's `apps/web/dist-phone/` is never the reference.
+1. **The phone copy's SHA-256 (T140).** T140 builds the copy on the agents' engine, which isn't there yet (the image gate's SKIP, T046). So this note has no SHA-256 for T143 to check `lookdev.html` against, and T143 says a mismatch ends the session. You have two choices: wait for T140, or build the copy twice, from the same `<sha>` in two new folders, and take matching SHA-256s as the check (the copy's build is byte-identical twice over, T125). The working tree's `apps/web/dist-phone/` is never the reference. **Answered, 2026-10-30:** "We can build it again, or whatever is easier for you to continue." (spec.md's Clarifications, Session 2026-10-30, US3). So T307's two builds are the check until the agents' engine can build the copy, and step 3 under "Runs in the Author's terminal" gives them in place of the SHA-256 (T306).
 2. **Merge order.** Line R: M8, M9, P-10, then US1 (T118, T119), then this branch (T147, T148), then `feat/004-us2-degraded` (T166).
-3. **The tick marks.** On this branch, tasks.md ticks only T120 and, with this note, T142. T121 to T139 and T141 are done by the commits above but unticked; say whether the agents should tick them before T147.
+3. **The tick marks.** On this branch, tasks.md ticks only T120 and, with this note, T142. T121 to T139 and T141 are done by the commits above but unticked; say whether the agents should tick them before T147. **Settled:** they are ticked on the branch, in the commit after this note's, as spec.md's Clarifications, Session 2026-10-30, US3 records.
 4. **For a bisect.** 31da653 to 3c2b6d9 fail `make check`'s FR-007 scan. It passes from 54f0710.
 5. **`make check`'s four FAILs.** Two were expected:
    - `policy`: `deploy/compose.yaml`'s web image isn't pinned by digest. The pin comes with spec 002's web patch (M9).
