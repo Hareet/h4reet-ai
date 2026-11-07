@@ -18,7 +18,7 @@ Model the monitor on its stand from the dimension sheet and the Author's descrip
 - Where the foot stands on the desk, from the desk's front-left corner.
 - Measure: the size, now estimated at 0.82 × 0.52 × 0.24 m (w × h × d).
 - Measure: the anchor `top-edge`, now estimated at (0, 0.52, -0.04) m in the piece's frame.
-- Measure: where `desk-screen` sits, now estimated: on `work-desk`'s anchor `top`, offset (-0.18, 0, -0.22) m.
+- Measure: where `desk-screen` sits, now estimated: on `work-desk`'s anchor `top`, offset (-0.154, 0, -0.22) m.
 
 ## Size, origin, and bounds
 
@@ -42,7 +42,7 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `screen` | (0, 0.402, -0.0156) | 0.96 × 0.408 | (0, 0, 1) | (0, 1, 0) |
+| `screen` | (0, 0.41352, -0.00564) | 0.96204 × 0.40404 | (0, 0, 1) | (0, 1, 0) |
 
 ## States
 
@@ -53,9 +53,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 600,000 | 2,500,000 |
-| Triangles | 6,000 | 40,000 |
-| Largest texture side | 1,024 px | – (not a small prop) |
-| Texture memory | 5,592,405 | 96,000,000 for the whole scene |
+| Triangles | 11,000 | 100,000 |
+| Largest texture side | 1 px | – (not a small prop) |
+| Texture memory | 1 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

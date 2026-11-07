@@ -8,13 +8,15 @@ they stood at build time. So, unlike gateway_image.py (tasks.md T184):
     reaches the next make up;
   - main's assets/policy/content-approvals.json, resume-header.json, and caps.json are read on the host with git
     cat-file, from the repository make names, and handed to the build as the named build context `policy`; a file
-    main lacks is absent from it. The build stage reads only that, and never runs git.
+    main lacks is absent from it. The build stage reads only that and the tree's own assets/policy/caps.json, which
+    the room takes where the context holds no caps.json (spec 004, T328): rule A9 holds it to main's, but on dev-cpu
+    it is the working tree's, so that rests on main keeping caps.json. The build stage never runs git.
 The rest is the gateway's rule: a host stack builds the export its run file names; dev-cpu builds the working tree on
 the agents' engine only. deploy/compose.yaml names that image and never pulls it.
 
 Spec 004's T005 (FR-053; research.md R-13; contracts/serving.md §3): caps.json joins the policy third, so the room's
-compositor reads main's caps, never a branch's, and the image's label org.h4reet.web.policy digests the three files
-in that order, as apps/web/build/approvals.ts's policyDigest does for room-data.json's built_from.
+compositor reads main's caps while main holds caps.json, and the image's label org.h4reet.web.policy digests the three
+files in that order, as apps/web/build/approvals.ts's policyDigest does for room-data.json's built_from.
 """
 
 from __future__ import annotations
@@ -859,6 +861,35 @@ def test_the_build_stage_has_the_corpus_the_resume_cites_and_never_the_private_i
     assert copy < build
     ignore = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
     assert "corpus/intake/private" in ignore
+
+
+def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
+    # A build that names no policy context, the gate's image step and the Author's phone copy, gets the Dockerfile's
+    # empty policy stage, so the room's compositor takes its caps from the tree it builds (spec 004, T327; its
+    # contracts/room-bundle.md §2): assets/policy/caps.json, which spec 003's rule A9 keeps equal to main's at the
+    # commit's base. The caps alone: the approvals and the PDF's header come from the policy context or not at all, so
+    # nothing is approved without it. The install stage copies the file before either build runs.
+    text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+    instructions = [
+        ln.strip()
+        for ln in text.splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+    caps = "COPY assets/policy/caps.json assets/policy/caps.json"
+    copy = instructions.index(caps)
+    builds = [
+        i
+        for i, ln in enumerate(instructions)
+        if ln.startswith("RUN ")
+        and (" build -w apps/web" in ln or " build:lookdev-phone -w apps/web" in ln)
+    ]
+    assert len(builds) == 2
+    assert all(copy < i for i in builds)
+    assert [
+        ln
+        for ln in instructions
+        if ln.startswith(("COPY ", "ADD ")) and "assets/" in ln
+    ] == [caps]
 
 
 def test_the_pdfs_text_file_stays_in_the_build_stage() -> None:

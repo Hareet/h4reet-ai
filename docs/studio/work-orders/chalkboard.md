@@ -15,15 +15,15 @@ Model the framed board from the dimension sheet and the Author's description. Th
 
 - The board's outer width, height, and depth, and the slate's width and height inside the frame.
 - Where the board hangs, from the floor and from the back wall.
-- Measure: the size, now estimated at 0.48 × 0.64 × 0.026 m (w × h × d).
+- Measure: the size, now estimated at 0.48 × 0.64 × 0.04 m (w × h × d).
 - Measure: where `chalkboard` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (-0.26, 1.65, 0) m.
 
 ## Size, origin, and bounds
 
-- The size: 0.48 × 0.64 × 0.026 m (w × h × d), estimated.
-- The stylized scale: 1.25, so the model is made at 0.6 × 0.8 × 0.0325 m (FR-051).
+- The size: 0.48 × 0.64 × 0.04 m (w × h × d), estimated.
+- The stylized scale: 1.25, so the model is made at 0.6 × 0.8 × 0.05 m (FR-051).
 - The origin: the centre of the board's back, against the wall.
-- The expected bounds at that scale: from (-0.3, -0.4, 0) to (0.3, 0.4, 0.0325) m.
+- The expected bounds at that scale: from (-0.3, -0.4, 0) to (0.3, 0.4, 0.05) m.
 - Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.024 m, z 0.02 m (FR-019).
 
 ## Anchors
@@ -36,7 +36,7 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `slate` | (0, 0, 0.0325) | 0.55 × 0.725 | (0, 0, 1) | (0, 1, 0) |
+| `slate` | (0, 0, 0.012) | 0.51 × 0.71 | (0, 0, 1) | (0, 1, 0) |
 
 ## States
 
@@ -47,9 +47,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 300,000 | 2,500,000 |
-| Triangles | 1,000 | 40,000 |
-| Largest texture side | 1,024 px | – (not a small prop) |
-| Texture memory | 5,592,405 | 96,000,000 for the whole scene |
+| Triangles | 6,500 | 100,000 |
+| Largest texture side | 2,048 px | – (not a small prop) |
+| Texture memory | 5,592,405 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

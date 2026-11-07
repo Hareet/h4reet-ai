@@ -1,7 +1,9 @@
 # The ultrawide monitor on the desk (FR-078; answer 5), which spec 002's screen gives way to under its ID: a foot, a
 # neck, and a panel whose display is a readable live face, a terminal half and a desktop half drawn by the room once
 # its scripts are bound (FR-031, T191); until then the face stays a plain glow. Its top edge carries the neon sign.
-# The size and the anchor are estimates until measured; the stylized scale is lookdev's to set, for the screen.
+# The size and the anchor are estimates until measured; the stylized scale is lookdev's to set, for the screen. The
+# screen is the studio's flat panel, at the figures the hand-back of 2026-11-07 gives "with the flat version instead",
+# by the Author's choice of that day ("Flat now"); the curved 1800R panel he approved waits for a spec 004 follow-up.
 version: 1
 id: desk-screen
 name: Ultrawide monitor
@@ -14,11 +16,11 @@ anchors:
   top-edge: { at: [0, 0.52, -0.04], estimated: true }
 live_faces:
   - role: screen
-    at: [0, 0.335, -0.013]
-    size: [0.8, 0.34]
+    at: [0, 0.3446, -0.0047]
+    size: [0.8017, 0.3367]
     facing: [0, 0, 1]
     up: [0, 1, 0]
-    px: [2048, 870]
+    px: [2048, 860]
     readable: true
 glows:
   - { id: screen-glow, at: [0, 0.335, -0.01], radius: 0.45, tone: screen-blue, motion: breathe }
@@ -28,7 +30,7 @@ standin:
   - { shape: box, size: [0.82, 0.37, 0.05], at: [0, 0.335, -0.04], color: screen-black }
   - { shape: plane, size: [0.8, 0.34], at: [0, 0.335, -0.014], color: screen-glow, lit: false }
 drawing: { from: standin }
-budget: { gzip_bytes: 600000, triangles: 6000, texture_px: 1024, texture_bytes: 5592405 }
+budget: { gzip_bytes: 600000, triangles: 11000, texture_px: 1, texture_bytes: 1 }
 work_order:
   method: >-
     Model the monitor on its stand from the dimension sheet and the Author's description, as plain solid parts. The

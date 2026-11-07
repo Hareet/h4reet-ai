@@ -24,7 +24,7 @@ import type { RoomPolicy } from "../build/room/policy";
 import { fileTree, overlayTree } from "../build/room/source";
 import { AVATARS } from "../src/choice/avatars";
 import { EVENT_KINDS } from "../src/room/events";
-import { REPO, WEB } from "./helpers/room";
+import { REPO, WEB, emptyDirPolicy } from "./helpers/room";
 
 const RESUME = `version: 1
 sections:
@@ -45,14 +45,15 @@ sections:
 const RESUME_SOURCE = "apps/web/content/resume.yaml";
 const encoder = new TextEncoder();
 
-/** The repository's room composed as the site's build composes it, lenient, with a resume source given, or none. */
+/** The repository's room composed as the site's build composes it, lenient, with a resume source given, or none,
+ *  under the policy given, or the one an empty policy directory gives the global setup's builds (spec 004, T327). */
 function composed(
   options: { readonly resume?: string | null; readonly policy?: RoomPolicy; readonly drafts?: boolean } = {},
 ): ComposeResult {
   const changes = new Map<string, Uint8Array | null>();
   if (options.resume !== undefined)
     changes.set(RESUME_SOURCE, options.resume === null ? null : encoder.encode(options.resume));
-  const result = compose(overlayTree(fileTree(REPO), changes), options.policy ?? noPolicy(), {
+  const result = compose(overlayTree(fileTree(REPO), changes), options.policy ?? emptyDirPolicy(), {
     mode: "lenient",
     drafts: options.drafts ?? false,
   });
@@ -118,7 +119,14 @@ describe("room-manifest.json (Amendment B7)", () => {
   });
 
   it("says where the caps came from, as the policy read them", () => {
-    expect(composed().manifest.caps).toEqual({ source: "defaults", sha256: null });
+    // No policy at all: FR-053's starting figures, which the room's budgets are over since the studio's hand-back
+    // (T318), so this compose has RK1 and RK3 findings; its manifest still says where the caps came from.
+    const none = compose(fileTree(REPO), noPolicy(), { mode: "lenient", drafts: false });
+    expect(none.manifest.caps).toEqual({ source: "defaults", sha256: null });
+    // An empty policy directory: main's caps in a checkout, the tree's own in the gate's container (T327).
+    const empty = emptyDirPolicy();
+    expect(["main", "export"]).toContain(empty.caps_source);
+    expect(composed().manifest.caps).toEqual({ source: empty.caps_source, sha256: empty.caps_sha256 });
     const caps = encoder.encode(
       JSON.stringify({
         schema: 1,
@@ -134,8 +142,10 @@ describe("room-manifest.json (Amendment B7)", () => {
         },
       }),
     );
+    // Caps of FR-053's starting figures in a policy directory: the same findings, the same manifest field.
     const policy = policyFrom({ caps, approvals: null, header: null }, "policy-dir");
-    expect(composed({ policy }).manifest.caps).toEqual({
+    const given = compose(fileTree(REPO), policy, { mode: "lenient", drafts: false });
+    expect(given.manifest.caps).toEqual({
       source: "policy-dir",
       sha256: createHash("sha256").update(caps).digest("hex"),
     });

@@ -8,6 +8,11 @@
 //    which a tag of that name would answer, and never the branch's own copy, so a branch can't raise its caps;
 // 3. the export's own copy ("export"), only where there is no .git: the gate's container, where spec 003's rule A9
 //    keeps it equal to main's at the branch's base.
+// A policy directory that holds no caps.json (the tests' global builds, an image built with no policy context, such
+// as the gate's image step and the phone copy) gives the caps alone from the next source, 2 or 3 as above, so such a
+// build applies main's caps; its approvals and header stay the directory's, so nothing is approved without them
+// (T328). In a checkout that is main's by its full ref, never the branch's copy; elsewhere the tree's own, which A9
+// holds to main's at the branch's base, so agents still never raise a cap.
 // Without a room block the source is "defaults": FR-053's starting figures, every model a stand-in (no-caps). This
 // module does the I/O so compose() stays pure. A block that's malformed is RK4's: the reader keeps it raw, with its
 // problems by path, never quoting a value, and the RK family (T078) reports them; such a block gives no caps.
@@ -246,18 +251,29 @@ function fileIn(dir: string, name: string): Uint8Array | null {
   }
 }
 
-/** The room's policy, from the first source that exists (contracts/room-bundle.md §2). */
+/** The caps file as the source after a policy directory holds it: main's by its full ref where the root holds a .git,
+ *  never the branch's own copy, else the tree's own (T328). */
+function nextCaps(io: PolicyIo): { readonly caps: Uint8Array | null; readonly source: "main" | "export" } {
+  if (existsSync(join(io.root, ".git"))) {
+    const data = (io.show ?? gitShow)(io.root, CAPS_PATH);
+    return { caps: data === null ? null : new Uint8Array(data), source: "main" };
+  }
+  return { caps: fileIn(join(io.root, "assets", "policy"), IN_POLICY_DIR.caps), source: "export" };
+}
+
+/** The room's policy, from the first source that exists (contracts/room-bundle.md §2); a policy directory without
+ *  caps.json takes the caps alone from the next source. */
 export function readRoomPolicy(io: PolicyIo): RoomPolicy {
   const dir = io.env.ROOM_POLICY_DIR;
   if (dir) {
-    return policyFrom(
-      {
-        caps: fileIn(dir, IN_POLICY_DIR.caps),
-        approvals: fileIn(dir, IN_POLICY_DIR.approvals),
-        header: fileIn(dir, IN_POLICY_DIR.header),
-      },
-      "policy-dir",
-    );
+    const files = {
+      caps: fileIn(dir, IN_POLICY_DIR.caps),
+      approvals: fileIn(dir, IN_POLICY_DIR.approvals),
+      header: fileIn(dir, IN_POLICY_DIR.header),
+    };
+    if (files.caps !== null) return policyFrom(files, "policy-dir");
+    const next = nextCaps(io);
+    return policyFrom({ ...files, caps: next.caps }, next.source);
   }
   if (existsSync(join(io.root, ".git"))) {
     const show = io.show ?? gitShow;

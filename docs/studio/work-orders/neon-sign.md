@@ -16,11 +16,11 @@ None.
 
 ## Size, origin, and bounds
 
-- The size: 0.59 × 0.263 × 0.05 m (w × h × d), measured.
-- The stylized scale: 2.6, so the model is made at 1.534 × 0.6838 × 0.13 m (FR-051).
+- The size: 0.5949 × 0.29 × 0.0337 m (w × h × d), measured.
+- The stylized scale: 2.6, so the model is made at 1.54674 × 0.754 × 0.08762 m (FR-051).
 - The origin: the middle of the clip, where it sits on the monitor's top edge.
-- The expected bounds at that scale: from (-0.663, -0.052, -0.039) to (0.871, 0.6318, 0.091) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.04602 m, y 0.020514 m, z 0.02 m (FR-019).
+- The expected bounds at that scale: from (-0.6682, -0.052, -0.039) to (0.87854, 0.702, 0.04862) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.046402 m, y 0.02262 m, z 0.02 m (FR-019).
 
 ## Anchors
 
@@ -32,10 +32,10 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `word` | (0, 0.52, 0.0637) | 0.754 × 0.1508 | (0, 0, 1) | (0, 1, 0) |
-| `call` | (0, 0.39, 0.0637) | 1.196 × 0.104 | (0, 0, 1) | (0, 1, 0) |
-| `visit` | (0, 0.2652, 0.0637) | 1.196 × 0.104 | (0, 0, 1) | (0, 1, 0) |
-| `second-line` | (0, 0.1664, 0.0637) | 1.196 × 0.052 | (0, 0, 1) | (0, 1, 0) |
+| `word` | (0, 0.52, 0.01248) | 0.754 × 0.1508 | (0, 0, 1) | (0, 1, 0) |
+| `call` | (0, 0.39, 0.01248) | 1.196 × 0.104 | (0, 0, 1) | (0, 1, 0) |
+| `visit` | (0, 0.2652, 0.01248) | 1.196 × 0.104 | (0, 0, 1) | (0, 1, 0) |
+| `second-line` | (0, 0.1664, 0.01248) | 1.196 × 0.052 | (0, 0, 1) | (0, 1, 0) |
 
 ## States
 
@@ -46,9 +46,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 300,000 | 2,500,000 |
-| Triangles | 4,000 | 40,000 |
-| Largest texture side | 512 px | – (not a small prop) |
-| Texture memory | 1,398,101 | 96,000,000 for the whole scene |
+| Triangles | 11,000 | 100,000 |
+| Largest texture side | 1 px | – (not a small prop) |
+| Texture memory | 1 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

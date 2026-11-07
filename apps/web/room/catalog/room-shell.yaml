@@ -1,6 +1,7 @@
-# The room's shell: a small brick cube, open at the front, with no ceiling, on a paved cement floor (the Author,
-# 2026-10-23: "7feet wide, 4 feet depth, and 7 feet high", 2.1336 × 1.2192 × 2.1336 m), the root every other placement
-# mounts under (FR-003). Its origin is the floor's centre. Its anchors are the floor's centre and the foot of each
+# The room's shell: a small brick cube, open at the front, with no ceiling, on an oak floorboard floor, the Author's
+# lookdev design as the studio's hand-back of 2026-11-07 gives it (the Author, 2026-10-23: "7feet wide, 4 feet depth,
+# and 7 feet high", 2.1336 × 1.2192 × 2.1336 m), the root every other placement mounts under (FR-003). The stand-in's
+# floor keeps the palette's cement until the Author chooses its colour. Its origin is the floor's centre. Its anchors are the floor's centre and the foot of each
 # wall's inner face, midway along it, each turned so that a piece mounted there faces into the room with its x to the
 # viewer's right. The scene frames the shell, so the camera looks straight into the open front. The 2D drawing is the
 # cube as framing(1.6) sees it, drawn in the back wall's plane: the floor and the two side walls in perspective, then
@@ -27,26 +28,26 @@ standin:
 drawing:
   primitives:
     - primitive: polygon
-      points: [[-1.0668, 0], [1.0668, 0], [1.5047, -0.4721], [-1.5047, -0.4721]]
+      points: [[-1.0668, 0], [1.0668, 0], [1.4882, -0.4542], [-1.4882, -0.4542]]
       fill: cement
     - primitive: polygon
-      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.5047, 2.5374], [-1.5047, -0.4721]]
+      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.4882, 2.5221], [-1.4882, -0.4542]]
       fill: brick
       stroke: ink
       stroke_width: 0.01
     - primitive: polygon
-      points: [[1.0668, 0], [1.0668, 2.1336], [1.5047, 2.5374], [1.5047, -0.4721]]
+      points: [[1.0668, 0], [1.0668, 2.1336], [1.4882, 2.5221], [1.4882, -0.4542]]
       fill: brick
       stroke: ink
       stroke_width: 0.01
     - { primitive: rect, x: -1.0668, y: 0, w: 2.1336, h: 2.1336, fill: brick, stroke: ink, stroke_width: 0.01 }
-budget: { gzip_bytes: 800000, triangles: 2000, texture_px: 1024, texture_bytes: 11184810 }
+budget: { gzip_bytes: 1050000, triangles: 2000, texture_px: 2048, texture_bytes: 55924051 }
 work_order:
   method: >-
-    Model the cube from the dimension sheet: the floor, and the back, left, and right walls standing on it, open at the
-    front, with no ceiling, each a flat base colour.
+    Model the cube from the dimension sheet: the floor of oak floorboards, and the back, left, and right walls standing
+    on it, open at the front, with no ceiling, each a flat base colour.
   shots: []
   measurements: []
   studio_notes: >-
-    Brick walls and a paved cement floor, painted or procedural, never taken from a photo (FR-022). No fixtures,
+    Brick walls and an oak floorboard floor, painted or procedural, never taken from a photo (FR-022). No fixtures,
     sockets, switches, or marks. The Author gave the cube's size, so there is nothing to photograph or measure.

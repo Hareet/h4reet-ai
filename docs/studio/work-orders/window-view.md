@@ -16,11 +16,11 @@ None.
 
 ## Size, origin, and bounds
 
-- The size: 1.72 × 1.17 × 0.01 m (w × h × d), measured.
-- The stylized scale: 1, so the model is made at 1.72 × 1.17 × 0.01 m (FR-051).
+- The size: 1.92 × 1.22 × 0.01 m (w × h × d), measured.
+- The stylized scale: 1, so the model is made at 1.92 × 1.22 × 0.01 m (FR-051).
 - The origin: the centre of the sky behind the fence, just inside the window's opening.
-- The expected bounds at that scale: from (-0.86, -0.585, 0) to (0.86, 0.585, 0.01) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.0516 m, y 0.0351 m, z 0.02 m (FR-019).
+- The expected bounds at that scale: from (-0.96, -0.61, 0) to (0.96, 0.61, 0.01) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.0576 m, y 0.0366 m, z 0.02 m (FR-019).
 
 ## Anchors
 
@@ -39,9 +39,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 500,000 | 2,500,000 |
-| Triangles | 2,000 | 40,000 |
-| Largest texture side | 1,024 px | – (not a small prop) |
-| Texture memory | 5,592,405 | 96,000,000 for the whole scene |
+| Triangles | 6,000 | 100,000 |
+| Largest texture side | 2,048 px | – (not a small prop) |
+| Texture memory | 11,184,810 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

@@ -13,17 +13,17 @@ None.
 ## Measurements
 
 - The frame's width and depth, if the Author wants them closer to a frame they know.
-- Measure: the size, now estimated at 1.8 × 1.25 × 0.06 m (w × h × d).
+- Measure: the size, now estimated at 2 × 1.3 × 0.06 m (w × h × d).
 - Measure: the anchor `view`, now estimated at (0, 0, 0.01) m in the piece's frame.
-- Measure: where `wall-window` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (-0.05, 1.475, 0) m.
+- Measure: where `wall-window` sits, now estimated: on `room-shell`'s anchor `back-wall`, offset (0, 1.45, 0) m.
 
 ## Size, origin, and bounds
 
-- The size: 1.8 × 1.25 × 0.06 m (w × h × d), estimated.
-- The stylized scale: 1, so the model is made at 1.8 × 1.25 × 0.06 m (FR-051).
+- The size: 2 × 1.3 × 0.06 m (w × h × d), estimated.
+- The stylized scale: 1, so the model is made at 2 × 1.3 × 0.06 m (FR-051).
 - The origin: the centre of the window's opening, in the plane of the wall.
-- The expected bounds at that scale: from (-0.9, -0.625, 0) to (0.9, 0.625, 0.06) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.054 m, y 0.0375 m, z 0.02 m (FR-019).
+- The expected bounds at that scale: from (-1, -0.65, 0) to (1, 0.65, 0.06) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.06 m, y 0.039 m, z 0.02 m (FR-019).
 
 ## Anchors
 
@@ -46,9 +46,9 @@ No switch places this piece.
 | Measure | Budget | Cap |
 |---|---:|---:|
 | gzip-9 bytes | 300,000 | 2,500,000 |
-| Triangles | 2,000 | 40,000 |
-| Largest texture side | 512 px | – (not a small prop) |
-| Texture memory | 1,398,101 | 96,000,000 for the whole scene |
+| Triangles | 11,000 | 100,000 |
+| Largest texture side | 2,048 px | – (not a small prop) |
+| Texture memory | 5,592,405 | 200,000,000 for the whole scene |
 
 The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053).
 

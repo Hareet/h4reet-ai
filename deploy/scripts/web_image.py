@@ -22,9 +22,12 @@ bakes in what the gateway's doesn't:
     before refs/heads/main, and an agent session can make that tag. It writes them to a fresh 0700 temporary
     directory, outside the tree being built, and hands that to the build as the named build context `policy`, then
     removes it. A file main lacks is absent from it: without the approvals every content file builds as a draft,
-    without the header the PDF gets the room's, and without the caps the room's compositor takes FR-053's starting
-    figures, with every model a stand-in, so a branch never raises its own caps. The build stage reads only that
-    directory and runs no git: a host stack builds a git archive export, and .dockerignore drops .git anyway. The
+    and without the header the PDF gets the room's. Without the caps, the room's compositor takes the tree's own
+    assets/policy/caps.json, which the Dockerfile copies (spec 004, T328): spec 003's rule A9 holds that copy to
+    main's at the commit's base, but on dev-cpu the tree is the working tree, so that guarantee rests on main
+    keeping caps.json. A commit without caps.json fails at the Dockerfile's copy, closed. The build stage reads only
+    that directory and that one file, and runs no git: a host stack builds a git archive export, and .dockerignore
+    drops .git anyway. The
     three files' digest is the image's label org.h4reet.web.policy: SHA-256 over "<name>:<the file's SHA-256 or
     absent>\\n" for content-approvals.json, then resume-header.json, then caps.json, as apps/web/build/approvals.ts's
     policyDigest computes room-data.json's built_from.

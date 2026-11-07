@@ -1,0 +1,18 @@
+version: 1
+id: notebook
+name: Notebook and pen
+size: { w: 0.313, h: 0.022, d: 0.22, estimated: true }
+stylized_scale: 1
+origin:
+  point: on the desk, below the centre of the pages; the open cover lies to the left.
+  bounds: { min: [-0.2262, 0, -0.11], max: [0.0872, 0.0221, 0.11] }
+standin:
+  - { shape: box, size: [0.15, 0.012, 0.21], at: [0, 0.006, 0], color: paper }
+  - { shape: box, size: [0.15, 0.002, 0.22], at: [-0.15, 0.001, 0], color: paper }
+drawing: { from: standin }
+budget: { gzip_bytes: 100000, triangles: 7500, texture_px: 1024, texture_bytes: 5592405 }
+work_order:
+  method: Model the open spiral notebook and its pen from the dimension sheet; draw the ruled pages procedurally, with no writing.
+  shots: []
+  measurements: []
+  studio_notes: No writing, brand, or label (FR-016).

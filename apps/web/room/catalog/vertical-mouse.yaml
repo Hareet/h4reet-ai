@@ -1,0 +1,21 @@
+# The vertical mouse, the studio's own model at the Author's word ("Lets do split keyboard and vertical mouse"), as the
+# studio's hand-back of 2026-11-07 gives its entry. Its ID isn't the hand-back's `mouse`: the source scan (FR-007)
+# finds that word in the room's pointer code and tests, and the fix is a more distinctive ID, a data edit
+# (contracts/room-data-files.md §16), so its model file is `vertical-mouse.glb`.
+version: 1
+id: vertical-mouse
+name: Vertical mouse
+size: { w: 0.08, h: 0.08, d: 0.116, estimated: true }
+stylized_scale: 1
+origin:
+  point: on the desk, below the centre of the mouse's base.
+  bounds: { min: [-0.0395, 0, -0.0578], max: [0.04, 0.0799, 0.0578] }
+standin:
+  - { shape: box, size: [0.07, 0.07, 0.11], at: [0, 0.035, 0], color: graphite }
+drawing: { from: standin }
+budget: { gzip_bytes: 200000, triangles: 15000, texture_px: 1, texture_bytes: 1 }
+work_order:
+  method: Model the vertical mouse from the dimension sheet and the Author's description, as plain solid parts in flat colours.
+  shots: []
+  measurements: []
+  studio_notes: No brand, label, or logo (FR-016).

@@ -1,6 +1,8 @@
 # The artwork (FR-028, FR-078): spec 002's placeholder, a framed canvas with a sun and a hill, unlit
-# (src/room/scene.ts), at the size estimated for the Author's frame until measured, hanging on the back wall over part
-# of the window (the Author, 2026-10-23: "Have it hanging and maybe covering partial window").
+# (src/room/scene.ts), at the size estimated for the Author's frame until measured. It hung on the back wall over part
+# of the window (the Author, 2026-10-23: "Have it hanging and maybe covering partial window"); with the 2.0 m window it
+# hangs on the left wall, above the snowboard (the Author, 2026-11-07: "Artwork: move wall-art to room-shell's left-wall
+# anchor at (0.33, 1.95, 0).").
 version: 1
 id: wall-art
 name: Artwork
@@ -20,7 +22,7 @@ standin:
     color: hill
     lit: false
 drawing: { from: standin }
-budget: { gzip_bytes: 400000, triangles: 500, texture_px: 1024, texture_bytes: 5592405 }
+budget: { gzip_bytes: 400000, triangles: 4500, texture_px: 2048, texture_bytes: 11184810 }
 work_order:
   method: >-
     Model a framed canvas from the dimension sheet; paint an original picture for it in the look's flat colours, or
@@ -29,7 +31,7 @@ work_order:
     - The frame from the front, square on, for its shape and depth only.
   measurements:
     - The frame's outer width, height, and depth.
-    - Where the frame hangs, from the floor to its lower edge and from the window's centre.
+    - Where the frame hangs, from the floor to its lower edge and from the back wall.
   studio_notes: >-
     Original art, the studio's own by default, or none (FR-028): never a copy, trace, or crop of the picture that
     hangs there, and no signature, word, or digit (FR-016).

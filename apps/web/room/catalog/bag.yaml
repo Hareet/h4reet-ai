@@ -1,0 +1,18 @@
+version: 1
+id: bag
+name: Bag
+size: { w: 0.509, h: 0.256, d: 0.313, estimated: true }
+stylized_scale: 1
+origin:
+  point: on the floor, below the centre of the bag's body; its strap lies on the floor in front.
+  bounds: { min: [-0.2618, 0, -0.078], max: [0.2469, 0.2564, 0.2354] }
+standin:
+  - { shape: box, size: [0.41, 0.24, 0.14], at: [0, 0.12, -0.007], color: bike-red }
+  - { shape: box, size: [0.45, 0.004, 0.03], at: [-0.007, 0.002, 0.2], color: leaf }
+drawing: { from: standin }
+budget: { gzip_bytes: 750000, triangles: 24500, texture_px: 2048, texture_bytes: 11184810 }
+work_order:
+  method: Model the bag from the Author's description, its body, flap, and strap; its canvas drawn procedurally and its webbing from a recorded prompt.
+  shots: []
+  measurements: []
+  studio_notes: No brand, label, or patch (FR-016).

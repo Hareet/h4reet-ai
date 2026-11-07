@@ -515,8 +515,9 @@ async function withEnv<T>(env: Readonly<Record<string, string | undefined>>, bod
   }
 }
 
-/** A build of the copy into `outDir` with ROOM_DRAFTS=1, under an empty policy directory: a checkout's, with nothing
- *  on main, as the image's empty policy context gives it. */
+/** A build of the copy into `outDir` with ROOM_DRAFTS=1, under an empty policy directory, as the image's empty policy
+ *  context gives it: nothing approved, and the room's caps from the next source, main's in a checkout (spec 004,
+ *  T328). */
 async function buildCopy(outDir: string, policy: string): Promise<void> {
   await withEnv({ ROOM_DRAFTS: "1", ROOM_POLICY_DIR: policy }, async () => {
     await build({ root: WEB, configFile: CONFIG, logLevel: "silent", build: { outDir, emptyOutDir: true } });

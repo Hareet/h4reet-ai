@@ -7,60 +7,77 @@
 # panel, 0.29 × 0.058 between the counters and the tube, holds the word at the legibility floor on both reference
 # stages; only the two counter faces are exempt from the floor, on the reference phone alone, their figures in the
 # text copy's "Around the room" (FR-052; the Author, 2026-10-23: "Take both recommendations."). Lookdev sets the scale
-# again (Confirmation 8).
+# again (Confirmation 8). The size, bounds, glow, and budget are the studio's build at 2.6 with these stacked faces (the
+# Author's option A, 2026-11-07): the sign grew 2.4 cm at scale 1, 6.3 cm at 2.6, to clear the word panel, so its top
+# stands higher over the walls and the window; the faces keep their centres and sizes, on the backing at z 0.0048, and
+# the stand-in's backing and tubes stand within the new depth (RG2).
 version: 1
 id: neon-sign
 name: Neon arrow sign
-size: { w: 0.59, h: 0.263, d: 0.05 }
+size: { w: 0.5949, h: 0.29, d: 0.0337 }
 stylized_scale: 2.6
 origin:
   point: the middle of the clip, where it sits on the monitor's top edge.
-  bounds: { min: [-0.255, -0.02, -0.015], max: [0.335, 0.243, 0.035] }
+  bounds: { min: [-0.257, -0.02, -0.015], max: [0.3379, 0.27, 0.0187] }
 live_faces:
   - role: word
-    at: [0, 0.2, 0.0245]
+    at: [0, 0.2, 0.0048]
     size: [0.29, 0.058]
     facing: [0, 0, 1]
     up: [0, 1, 0]
     px: [1485, 297]
     readable: true
   - role: call
-    at: [0, 0.15, 0.0245]
+    at: [0, 0.15, 0.0048]
     size: [0.46, 0.04]
     facing: [0, 0, 1]
     up: [0, 1, 0]
     px: [2048, 178]
     readable: true
   - role: visit
-    at: [0, 0.102, 0.0245]
+    at: [0, 0.102, 0.0048]
     size: [0.46, 0.04]
     facing: [0, 0, 1]
     up: [0, 1, 0]
     px: [2048, 178]
     readable: true
   - role: second-line
-    at: [0, 0.064, 0.0245]
+    at: [0, 0.064, 0.0048]
     size: [0.46, 0.02]
     facing: [0, 0, 1]
     up: [0, 1, 0]
     px: [2048, 89]
     readable: false
 glows:
-  - { id: tube-glow, at: [0.03, 0.136, 0.03], radius: 0.3, tone: neon-warm, motion: flicker }
+  - { id: tube-glow, at: [0.038, 0.146, 0.013], radius: 0.3, tone: neon-warm, motion: flicker }
 standin:
   - { shape: box, size: [0.03, 0.04, 0.03], at: [0, 0, 0], color: graphite }
   - shape: polygon
     points: [[-0.254, 0.03], [0.254, 0.03], [0.33, 0.136], [0.254, 0.242], [-0.254, 0.242]]
     depth: 0.008
-    at: [0, 0, 0.02]
+    at: [0, 0, 0]
     color: ink
-  - { shape: tube, from: [-0.244, 0.04, 0], to: [0.254, 0.04, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
-  - { shape: tube, from: [0.254, 0.04, 0], to: [0.318, 0.136, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
-  - { shape: tube, from: [0.318, 0.136, 0], to: [0.254, 0.232, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
-  - { shape: tube, from: [0.254, 0.232, 0], to: [-0.244, 0.232, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
-  - { shape: tube, from: [-0.244, 0.232, 0], to: [-0.244, 0.04, 0], radius: 0.004, at: [0, 0, 0.03], color: neon-tube }
+  - { shape: tube, from: [-0.244, 0.04, 0], to: [0.254, 0.04, 0], radius: 0.004, at: [0, 0, 0.0137], color: neon-tube }
+  - { shape: tube, from: [0.254, 0.04, 0], to: [0.318, 0.136, 0], radius: 0.004, at: [0, 0, 0.0137], color: neon-tube }
+  - { shape: tube, from: [0.318, 0.136, 0], to: [0.254, 0.232, 0], radius: 0.004, at: [0, 0, 0.0137], color: neon-tube }
+  - {
+      shape: tube,
+      from: [0.254, 0.232, 0],
+      to: [-0.244, 0.232, 0],
+      radius: 0.004,
+      at: [0, 0, 0.0137],
+      color: neon-tube,
+    }
+  - {
+      shape: tube,
+      from: [-0.244, 0.232, 0],
+      to: [-0.244, 0.04, 0],
+      radius: 0.004,
+      at: [0, 0, 0.0137],
+      color: neon-tube,
+    }
 drawing: { from: standin }
-budget: { gzip_bytes: 300000, triangles: 4000, texture_px: 512, texture_bytes: 1398101 }
+budget: { gzip_bytes: 300000, triangles: 11000, texture_px: 1, texture_bytes: 1 }
 work_order:
   method: >-
     Model the sign from the dimension sheet: the arrow-shaped backing, one neon tube bent along its outline, and the
