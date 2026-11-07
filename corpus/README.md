@@ -9,7 +9,7 @@ The twin speaks about the Author's work only from these files (Constitution VIII
 | `00-profile.md` | Who the twin represents; loads first |
 | `01-ai-strategy-and-cht.md` | Priority 1: the AI strategy and every AI system, with ownership rulings |
 | `02-production-infrastructure-national-scale.md` | Priorities 2–3: the SRE years, teams and localization, systems designed since |
-| `03-grants-and-credits.md` | Priority 4: awards and credits, without amounts |
+| `03-grants-and-credits.md` | Priority 4: awards and credits, without amounts but one: the Anthropic credits', in a facts slot |
 | `04-hobbies-and-travel.md` | No priority yet: snowboarding, biking, Arya, and travel, from his interview of 2026-11-06; the snowboard and the bicycle open it |
 | `05-mission.md` | No priority yet: what he wants his work to do, Seva day to day, and when new technology is worth it, from the same interview; the chalkboard opens it |
 | `06-work-projects.md` | No priority yet: what he's building now, the infrastructure agents, and the work from his travels, from the same interview; the laptop and its screen open it |

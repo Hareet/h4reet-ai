@@ -1,7 +1,7 @@
 # Profile: who the twin represents
 Priority: 0 (loads first) · Status: draft for Hareet's final read · Last verified: 2026-09-27
 
-Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or confirms it in conversation `[A 2026-10-07]`; it may appear in git history and on GitHub.
+Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or confirms it in conversation `[A 2026-10-07]`; it may appear in git history and on GitHub. Untagged lines are pointers to other files, or a corpus patch's own note, marked as such.
 
 ## Role at a glance
 
@@ -26,6 +26,7 @@ Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or
 - `[A 2026-09-03]` Founder of Artificial Indian Games (LLC being launched); first project rickshaw-walla.
 - `[A 2026-10-28]` Co-owner, with his wife, of Denver Local AI Solutions, a company in Denver (see `07-denver-local-ai.md`).
 - `[P]` GitHub: github.com/Hareet.
+- His hobbies and travel are in `04-hobbies-and-travel.md`, his mission in `05-mission.md`, and his work projects in `06-work-projects.md`, from his interview of 2026-11-06.
 
 ## Tools
 
@@ -51,7 +52,7 @@ Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or
 - Religious affiliation. The corpus has Seva as he framed it and nothing more.
 - That he defined the market or designed CHW workflows at Medic.
 - That he coined the words buildtime/runtime AI, or that the tracks came from that 2026 conversation.
-- Award amounts; internal governance decisions.
+- Award amounts; internal governance decisions. The exception is the Anthropic credits' amount, "public for the resume and the twin" in his words (2026-10-30; `03-grants-and-credits.md`).
 
 ## Golden Q&A
 

@@ -33,6 +33,7 @@ Tags as defined in `01-ai-strategy-and-cht.md`; `[A-SRE-JD]` is role scope from 
 - `[A 2026-09-27]` He engaged PowerSync, obtained nonprofit licenses, and built a custom offline PowerSync-to-Postgres client and server backend for CHT. Ownership: *designed and built*.
 - `[A 2026-09-27]` Status: being finished for production; the migration path for partners is being documented. cht-agent is used on this migration (see `01-ai-strategy-and-cht.md`).
 - `[A 2026-10-28/29]` He investigated CouchDB in depth: his benchmarking showed the `get-ids` endpoint would not hold up at national scale. He designed and built an offline PowerSync-to-Postgres client and server for CHT.
+- `[A 2026-10-30]` His account of the PowerSync work, in his words: "Identified the endpoint, performance benchmarked it, showcased an alternate powersync offline-online solution, garnered {{slot:credits.anthropic_amount}} usage credits from Anthropic to create custom sync-layer and pilot with a partner". `[A 2026-11-06]` Asked in this project's session who received the credits, he chose "Medic, on my application" (see `03-grants-and-credits.md`).
 
 ## Supporting detail (used only when asked) `[A 2026-09-03/07]`
 

@@ -7,6 +7,7 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's 
 
 - `[A 2026-10-28]` Hareet co-owns Denver Local AI Solutions with his wife.{{slot:dlai.co_owner_name}}{{slot:dlai.booking_text_number}} `[A-DOC site]` The site calls them "a husband and wife team in Denver, working in person at your table," and gives Hareet's role there as Applied AI Engineer.
 - `[A 2026-10-29]` In his words, from his resume: "Denver Local AI Solutions. Co-owner. Private AI for small Denver teams, with sensitive files kept on hardware they own."
+- `[A 2026-10-30]` His resume label for the company, in his words: "(co-owner, Applied AI Engineer)".
 - `[A-DOC site]` What it offers small teams, in the site's words: "I sit with your team in Denver, set up private AI in your office for sensitive data, and build tools with your team that guide data through local and cloud AI."
 - `[A-DOC site]` As of 2026-10-28 the site was a draft, with placeholders still in brackets. `[A 2026-10-30]` The site is live now, at denverlocal.ai.
 
