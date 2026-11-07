@@ -21,10 +21,10 @@ Model the framed board from the dimension sheet and the Author's description. Th
 ## Size, origin, and bounds
 
 - The size: 0.48 × 0.64 × 0.04 m (w × h × d), estimated.
-- The stylized scale: 1.25, so the model is made at 0.6 × 0.8 × 0.05 m (FR-051).
+- The stylized scale: 1.37, so the model is made at 0.6576 × 0.8768 × 0.0548 m (FR-051).
 - The origin: the centre of the board's back, against the wall.
-- The expected bounds at that scale: from (-0.3, -0.4, 0) to (0.3, 0.4, 0.05) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.024 m, z 0.02 m (FR-019).
+- The expected bounds at that scale: from (-0.3288, -0.4384, 0) to (0.3288, 0.4384, 0.0548) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.026304 m, z 0.02 m (FR-019).
 
 ## Anchors
 
@@ -36,7 +36,7 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `slate` | (0, 0, 0.012) | 0.51 × 0.71 | (0, 0, 1) | (0, 1, 0) |
+| `slate` | (0, 0, 0.013152) | 0.55896 × 0.77816 | (0, 0, 1) | (0, 1, 0) |
 
 ## States
 

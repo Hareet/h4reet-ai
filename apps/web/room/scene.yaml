@@ -15,8 +15,9 @@
 # Offsets are in the anchor's frame, so on the side walls they read along the wall: the shell turns `left-wall` +90°
 # about Y, so its +x points toward the back wall, and `right-wall` −90°, so its +x points toward the open front; y is
 # the height, and z the distance out from the wall. The side walls' offsets are derived from the cube's depth: on the
-# left wall the chalkboard's −0.26 leaves about 5 cm to the front corner (0.6096 − 0.26 − 0.30) and the snowboard's
-# 0.4 about 5 cm to the back corner (0.6096 − 0.4 − 0.16).
+# left wall the chalkboard's −0.26 leaves about 2 cm to the front corner at T308's stylized scale, 1.37 (0.6096 − 0.26
+# − 0.3288; 5 cm at 1.25), and the snowboard's 0.4 about 5 cm to the back corner (0.6096 − 0.4 − 0.16). The slate
+# shows one line alone, "denverlocal.ai" (FR-082): one row across its width, the largest glyph that keeps it there.
 version: 1
 look: inked-cel
 live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
@@ -81,6 +82,11 @@ placements:
     mount: { on: room-shell, anchor: left-wall, offset: [-0.26, 1.65, 0], estimated: true }
     frame: true
     label: label.chalkboard
+    faces:
+      slate:
+        label: label.chalkboard
+        regions:
+          - { rect: [0, 0.401, 1, 0.198], renderer: chalk, grid: { rows: 1 }, text: chalk-denverlocal }
   - id: snowboard
     piece: snowboard
     mount: { on: room-shell, anchor: left-wall, offset: [0.4, 0.775, 0.035], estimated: true }
