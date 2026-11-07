@@ -1,0 +1,27 @@
+# Plug-in numbers for 05-mission.md, from his interview of 2026-11-06
+# (intake/interview-2026-11-06-hobbies-mission-work.md), which marks each one public. The AWS IMAGINE award's
+# year, 2025 in that interview too, is awards.imagine_year in facts/awards.yaml. This file is public.
+
+topic: 05-mission
+facts:
+  - id: mission.chw_phone_ram
+    label: The RAM, roughly, on the older Android phones of Medic's Community Health Workers
+    value: "2-4GB"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'our Community Health Workers, had older Android phones with roughly 2-4GB [of RAM] on them' (the bracketed words are the interviewer's); numbers list: 'RAM on the Community Health Workers' older Android phones: roughly 2-4GB (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: mission.stp_sync
+    label: How often Smart Task Prioritization's client syncs tasks with the larger model, when network access is available
+    value: "once a week"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'This was architected in a manner that once a week, if network access was available, the client would synchronize tasks with a deeper reasoning and higher context model'; numbers list: 'How often Smart Task Prioritization syncs with the larger model: once a week (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: mission.funding_years
+    label: The years the Medic AI strategy earned funding cycles and grants
+    value: "2025 and 2026"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'I co-authored the Medic AI strategy that earned us funding cycles and grants throughout 2025 and 2026'; numbers list: 'Years the Medic AI strategy earned funding cycles and grants: 2025 and 2026 (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"

@@ -1,0 +1,33 @@
+# Plug-in numbers for 04-hobbies-and-travel.md, from his interview of 2026-11-06
+# (intake/interview-2026-11-06-hobbies-mission-work.md), which marks each one public. This file is public.
+
+topic: 04-hobbies-and-travel
+facts:
+  - id: hobbies.colorado_years
+    label: How many years ago he moved to Colorado, about, as of 2026-11-06
+    value: "15"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'I moved to Colorado about 15 years ago'; numbers list: 'When he moved to Colorado: about 15 years ago (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: hobbies.travel_years
+    label: The years spent traveling through Sub-Saharan Africa and Asia, setting up work projects
+    value: "10"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'We spent 10 years traveling through Sub-Saharan Africa and Asia setting up work projects'; numbers list: 'Years traveling through Sub-Saharan Africa and Asia: 10 (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: hobbies.cabin_tollers
+    label: The duck tollers the neighbor at the Lake of the Woods cabin had with him
+    value: "3"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'had 3 duck tollers with him'; numbers list: 'Duck tollers the cabin neighbor had with him: 3 (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: hobbies.arya_age
+    label: Arya's age in years, as of 2026-11-06
+    value: "13"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'Arya is now 13 years old'; numbers list: 'Arya's age: 13 years old (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"
