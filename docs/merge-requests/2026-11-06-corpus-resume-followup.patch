@@ -1,5 +1,5 @@
 diff --git a/corpus/00-profile.md b/corpus/00-profile.md
-index 155525b0cbd2e11fc53e3f282f798d30345db416..6cd58b312798aa0eae456808c5b1480f666f4d87 100644
+index 155525b0cbd2e11fc53e3f282f798d30345db416..df35d178a10f71ca213c0ba3eb48d8eebc3adf8c 100644
 --- a/corpus/00-profile.md
 +++ b/corpus/00-profile.md
 @@ -1,7 +1,7 @@
@@ -19,20 +19,42 @@ index 155525b0cbd2e11fc53e3f282f798d30345db416..6cd58b312798aa0eae456808c5b1480f
  
  ## Tools
  
+@@ -51,7 +52,7 @@ Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or
+ - Religious affiliation. The corpus has Seva as he framed it and nothing more.
+ - That he defined the market or designed CHW workflows at Medic.
+ - That he coined the words buildtime/runtime AI, or that the tracks came from that 2026 conversation.
+-- Award amounts; internal governance decisions.
++- Award amounts; internal governance decisions. The exception is the Anthropic credits' amount, "public for the resume and the twin" in his words (2026-10-30; `03-grants-and-credits.md`).
+ 
+ ## Golden Q&A
+ 
+diff --git a/corpus/01-ai-strategy-and-cht.md b/corpus/01-ai-strategy-and-cht.md
+index 47b81c269ad6706105f77a144120aa0ea1626764..4429c8b92605c9aeb47c2734b9ad6fbe337765b3 100644
+--- a/corpus/01-ai-strategy-and-cht.md
++++ b/corpus/01-ai-strategy-and-cht.md
+@@ -5,7 +5,7 @@ Priority: 1 · Status: draft for Hareet's final read (strategy cleared as public
+ 
+ **Ownership rulings (2026-09-27; revised by his answers of 2026-10-28, 2026-10-29, and 2026-10-30).** *Built:* CHT Docs MCP server, CHT Code Context MCP server, agent-memory, agent-watchdog, Medic's side of Voice for CHT; cht-agent, mainly by him, with the community he built to help (2026-10-28/29). *Designed:* cht-agent; the OpenRouter routing choice, which he designed only and didn't build (2026-10-30); claude-medic-aws, Voice for CHT (the idea, the project, the capability); the strategy, with Andra as co-author; No-Code CHT Configuration's goal, and Smart Task Prioritization's GPS-based task prioritization (2026-10-28/29). *Architected:* cht-agent, and the AI systems of No-Code CHT Configuration and Smart Task Prioritization (2026-10-28/29). *Configured:* the agent orchestrator (2026-10-29). *Sourced:* the Voice for CHT speech-model partner. *Sponsored:* the CHT skills in cht-ai-tools, including `cht-pr-review`. *AI system architect:* Smart Task Prioritization, No-Code CHT Configuration.
+ 
+-**Held back until cleared** (see `README.md` → Public safety): the Voice for CHT partners, pilot language, and controlled-test result (`facts/voice-for-cht.yaml`); every award amount; internal governance decisions. (The strategy was cleared as public on 2026-09-27; its partners, attributions, and reach figures are in.)
++**Held back until cleared** (see `README.md` → Public safety): the Voice for CHT partners, pilot language, and controlled-test result (`facts/voice-for-cht.yaml`); every award amount, except the Anthropic credits', "public for the resume and the twin" in his words (2026-10-30; `03-grants-and-credits.md`); internal governance decisions. (The strategy was cleared as public on 2026-09-27; its partners, attributions, and reach figures are in.)
+ 
+ ## Role at a glance (the non-engineer version)
+ 
 diff --git a/corpus/02-production-infrastructure-national-scale.md b/corpus/02-production-infrastructure-national-scale.md
-index b202c8f5c47adfe9b840e79e8ca15cad0d7e6b80..e040528141f620538cdf2592973b570ad24d68dd 100644
+index b202c8f5c47adfe9b840e79e8ca15cad0d7e6b80..7185cc66353cf1de2ada9e04e6f9ac747b9b2683 100644
 --- a/corpus/02-production-infrastructure-national-scale.md
 +++ b/corpus/02-production-infrastructure-national-scale.md
 @@ -33,6 +33,7 @@ Tags as defined in `01-ai-strategy-and-cht.md`; `[A-SRE-JD]` is role scope from
  - `[A 2026-09-27]` He engaged PowerSync, obtained nonprofit licenses, and built a custom offline PowerSync-to-Postgres client and server backend for CHT. Ownership: *designed and built*.
  - `[A 2026-09-27]` Status: being finished for production; the migration path for partners is being documented. cht-agent is used on this migration (see `01-ai-strategy-and-cht.md`).
  - `[A 2026-10-28/29]` He investigated CouchDB in depth: his benchmarking showed the `get-ids` endpoint would not hold up at national scale. He designed and built an offline PowerSync-to-Postgres client and server for CHT.
-+- `[A 2026-10-30]` His account of the PowerSync work, in his words: "Identified the endpoint, performance benchmarked it, showcased an alternate powersync offline-online solution, garnered {{slot:credits.anthropic_amount}} usage credits from Anthropic to create custom sync-layer and pilot with a partner". `[A 2026-11-06]` Medic received the credits, on his application (see `03-grants-and-credits.md`).
++- `[A 2026-10-30]` His account of the PowerSync work, in his words: "Identified the endpoint, performance benchmarked it, showcased an alternate powersync offline-online solution, garnered {{slot:credits.anthropic_amount}} usage credits from Anthropic to create custom sync-layer and pilot with a partner". `[A 2026-11-06]` Asked in this project's session who received the credits, he chose "Medic, on my application" (see `03-grants-and-credits.md`).
  
  ## Supporting detail (used only when asked) `[A 2026-09-03/07]`
  
 diff --git a/corpus/03-grants-and-credits.md b/corpus/03-grants-and-credits.md
-index 150b50e56e775c49d268d925f6292a62acc8ed6d..ef708fbe7c9ec34f491cc112153ccd35ef21e788 100644
+index 150b50e56e775c49d268d925f6292a62acc8ed6d..078fec967716cad4bc88493707933a2d0fb9d89d 100644
 --- a/corpus/03-grants-and-credits.md
 +++ b/corpus/03-grants-and-credits.md
 @@ -1,17 +1,17 @@
@@ -40,19 +62,19 @@ index 150b50e56e775c49d268d925f6292a62acc8ed6d..ef708fbe7c9ec34f491cc112153ccd35
  Priority: 4 · Status: draft · Last verified: 2026-09-27
  
 -Tags as defined in `01-ai-strategy-and-cht.md`. `[A 2026-09-27]` No amounts anywhere in the corpus: they are not public-safe.
-+Tags as defined in `01-ai-strategy-and-cht.md`. `[A 2026-09-27]` No amounts anywhere in the corpus: they are not public-safe. `[A 2026-10-30]` The exception here is the Anthropic credits' amount, which he made public for the resume and the twin; it renders from `facts/credits.yaml`.
++Tags as defined in `01-ai-strategy-and-cht.md`. His answers of 2026-11-06 are options he chose in this project's session; the options' words are the session's. `[A 2026-09-27]` No amounts anywhere in the corpus: they are not public-safe. `[A 2026-10-30]` The exception here is the Anthropic credits' amount, "public for the resume and the twin" in his words; it is in `facts/credits.yaml`.
  
  - **2025 — AWS IMAGINE Grant, Momentum to Modernize award.** `[A 2026-09-14/27]` Won by Medic on Hareet's pitch and design for AI smart task prioritization; he is the project's AI system architect. `[P]` Momentum to Modernize is the IMAGINE Grant category for foundational technology projects — aws.amazon.com/blogs/publicsector/aws-imagine-grant-expands-global-reach-now-supporting-nonprofits-in-six-countries/. `[?]` A public announcement naming Medic, if one exists.
    - `[A 2026-10-28/29]` On his resume, the project carries the label "AWS IMAGINE Grant {{slot:awards.imagine_year}} winner"; Medic is the winner, on his pitch and design.
  - **2026 — finalist** on Hareet's pitch and design for No-Code CHT Configuration. `[A 2026-09-27]` AWS invited the team to a hackathon for the project, and the pitch won funding in the earlier rounds. `[A 2026-10-28/29]` The programs, on his resume: AWS {{slot:awards.no_code_finalist_year}} Breaking Barriers finalist; AWS IMAGINE Grant {{slot:awards.no_code_finalist_year}} finalist.
  - **Voice for CHT — credits.** `[A 2026-09-02/14]` The pilot won credits. `[?]` From whom, which program, when.
 -- **Anthropic credits.** `[A 2026-09-14]` `[?]` Program, year, purpose.
-+- **Anthropic credits.** `[A 2026-09-14]` `[A 2026-11-06]` Medic received them, on his application, and they are the credits in his account of the PowerSync work (`02-production-infrastructure-national-scale.md`). `[A 2026-10-30]` In his words, from that account: "garnered {{slot:credits.anthropic_amount}} usage credits from Anthropic to create custom sync-layer and pilot with a partner". `[?]` Program and year.
++- **Anthropic credits.** `[A 2026-09-14]` `[A 2026-11-06]` Asked whether these are the credits in his account of the PowerSync work (`02-production-infrastructure-national-scale.md`), he chose "The same credits"; asked who received them, "Medic, on my application". `[A 2026-10-30]` In his words, from that account: "garnered {{slot:credits.anthropic_amount}} usage credits from Anthropic to create custom sync-layer and pilot with a partner". `[?]` Program and year.
  
  ## Do not claim
  
 -- Any amount, for any award — including a category's published maximum, which would imply the amount.
-+- Any amount, for any award — including a category's published maximum, which would imply the amount. The exception is the Anthropic credits' amount, public at his choice (2026-10-30), from its facts slot.
++- Any amount, for any award — including a category's published maximum, which would imply the amount. The exception is the Anthropic credits' amount, "public for the resume and the twin" in his words (2026-10-30), from its facts slot.
  - That Hareet won anything personally; Medic won on his pitch and design.
  
  ## Golden Q&A
@@ -83,20 +105,20 @@ index 02039dd7049bbe2aedd02906a8baa73b6231fded..3b7540db01b351584d15b2c8827837ac
  | `06-work-projects.md` | No priority yet: what he's building now, the infrastructure agents, and the work from his travels, from the same interview; the laptop and its screen open it |
 diff --git a/corpus/facts/credits.yaml b/corpus/facts/credits.yaml
 new file mode 100644
-index 0000000000000000000000000000000000000000..035cbc6fb48f3871d96ab2163834e5ae016182b9
+index 0000000000000000000000000000000000000000..e2d8d1deee8ed030f50e442e3e95f58e3cf850b8
 --- /dev/null
 +++ b/corpus/facts/credits.yaml
 @@ -0,0 +1,13 @@
 +# Plug-in amounts for 03-grants-and-credits.md's credits. This file is public.
-+# Award amounts never come here (03's "Do not claim"). The one amount here is the Anthropic credits', which the Author
-+# made public for the resume and the twin on 2026-10-30. The phrasing is the bare value, so his words render as he said them.
++# Award amounts never come here (03's "Do not claim"). The one amount here is the Anthropic credits', "public for the
++# resume and the twin" in the Author's words (2026-10-30). The phrasing is the bare value, so his words render as he said them.
 +
 +topic: 03-grants-and-credits
 +facts:
 +  - id: credits.anthropic_amount
-+    label: The Anthropic usage credits in his account of the PowerSync work, "to create custom sync-layer and pilot with a partner" (02-production-infrastructure-national-scale.md); Medic received them, on his application
++    label: The Anthropic usage credits in his account of the PowerSync work, "to create custom sync-layer and pilot with a partner" (02-production-infrastructure-national-scale.md); who received them, in the answer he chose on 2026-11-06, "Medic, on my application"
 +    value: "$25k"
 +    tag: A
-+    source: "The Author, 2026-10-30: 'garnered $25k usage credits from Anthropic to create custom sync-layer and pilot with a partner', public for the resume and the twin, his choice that day; 2026-11-06: 'Medic, on my application', and 'The same credits' as 03's Anthropic credits of 2026-09-14"
++    source: "The Author, 2026-10-30, in his words as he gave them again on 2026-11-06: 'garnered $25k usage credits from Anthropic to create custom sync-layer and pilot with a partner', and 'public for the resume and the twin'. On 2026-11-06 he chose 'The same credits' (as 03's Anthropic credits of 2026-09-14) and 'Medic, on my application'"
 +    public_safe: true
 +    phrasing: "{value}"
