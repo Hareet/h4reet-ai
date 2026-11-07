@@ -47,6 +47,8 @@ export const UI_KEYS = {
   "standin.label": ["name"],
   "standin.note": [],
   "draft.badge": [],
+  // The stage's line when the 2D drawing can't be drawn (FR-081).
+  "flat-failed": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;

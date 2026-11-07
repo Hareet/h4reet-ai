@@ -202,8 +202,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   /** Into 2D for the rest of the visit, once, by any road, keeping everything else (FR-042). If the 2D drawing refuses
-   *  the index's (flat.ts throws on anything off its allowlist), the view shows no picture and the room goes on: the
-   *  list, "Around the room", and the conversation carry it, and the hand-off still ends in the room (FR-062). */
+   *  the index's (flat.ts throws on anything off its allowlist), the view shows the UI word flat-failed in place of a
+   *  picture, as text a screen reader reads too, and the room goes on: the list, "Around the room", and the
+   *  conversation carry it, and the hand-off still ends in the room (FR-062, FR-081). */
   function toFlat(reason: FlatReason): void {
     if (visit.mode === "2d" || !room || !visit.avatar) return;
     visit.mode = "2d";
@@ -219,7 +220,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     }
     stage = flat;
     if (flat) show(flat);
-    else room.view.replaceChildren();
+    else {
+      const words = uiWord(deps.room.ui, "flat-failed") ?? "";
+      room.view.replaceChildren(h(doc, "p", { class: "room-flat-failed" }, words));
+    }
     old?.dispose();
     flat?.showHandoff(handoff && !handoff.finished ? handoff.progress() : 1);
     room.markFlat();

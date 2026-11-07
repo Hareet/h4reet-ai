@@ -33,6 +33,7 @@ words:
   standin.label: "{name} (a stand-in)"
   standin.note: Fixture shapes stand in for the pieces
   draft.badge: Draft
+  flat-failed: This drawing of the room could not be shown. The list below still works.
   label.fx-desk: fixture desk
   label.fx-monitor: fixture monitor
   label.fx-laptop: fixture laptop

@@ -36,6 +36,7 @@ words:
   standin.label: "{name} (placeholder)"
   standin.note: Placeholder shapes stand in for the room's pieces until their models arrive
   draft.badge: Draft
+  flat-failed: This drawing of the room could not be shown. The list below still works.
   label.desk: Desk
   label.monitor: Monitor
   label.neon-sign: Neon sign
