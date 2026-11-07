@@ -3,9 +3,930 @@ Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (Phase 3,
 Session: the implementer and fix sessions worked in the branch's worktree, `/tmp/claude-1000/wt-004-us1`, and in the scratch worktrees the sections below name, each removed after its run. Tip before this note: 73d4527.
 Authorized by: tasks.md T089 to T119 and T292 to T303; the cube amendment on `spec/004-cube-amend` (tip fffdb55), which merges to `main` before this branch; the Author's decisions in spec.md's Clarifications, Sessions 2026-10-23 and 2026-10-26; and plan.md §10.
 
+## 2026-11-06: rebased onto main, with the 2026-10-30 answers
+
+`feat/004-us1-composition was 58c22d56c1a644604855ab02fdc76ea9a18a77d4` (T118): 71 commits on 85747fe, `feat/004-foundation`'s tip before its own rebase (T087), the commit this branch was cut from. On 2026-11-06 an implementer subagent (Claude Code, Opus 5.5) rebased it onto `main` at df2dcf45b7cb3dff239043cfd340a68ee8c6c1ec, which holds `feat/004-foundation` merged (T088, a309baa) and, on top, the Author's commit "Added resume header" (df2dcf4, `assets/policy/resume-header.json` alone), with `git rebase --onto refs/heads/main 85747fe198291a2e7ca58db80cbef52298748dfa feat/004-us1-composition`, in `/tmp/claude-1000/wt-us1-r`, launched from `~/h4reet-ai/h4reet-ai`. Then, on the rebased branch, it regenerated the work orders that main's room caps made stale, and made the Author's two answers of 2026-10-30 that land on this branch: T304, the visitor at x −0.7, and T305, `flat-failed`'s line. The branch is now 66 commits on df2dcf4: the 61 kept below, the work orders' regeneration, T304, T305's RED and GREEN, then this update, which ticks T118, T304, and T305.
+
+`main` was a309baa when this work began. The bash gate refused the rebase once, at 2026-11-07T03:25:09Z, "changing main (HEAD is main)": the main checkout's reflog shows it moved from `wip-park/11-6-2026` to `main` at 03:24:57Z, df2dcf4 committed at 03:25:04Z, and the checkout parked again at 03:25:28Z. Once it was parked, the same command ran unchanged, so `refs/heads/main` was df2dcf4.
+
+**Gate and merge it, provisionally (T119).** Your steps follow the verification, before its outputs. They are provisional: the `evals` FAIL they expect is now known to be a harness misread (the behavioral tier's name check also searched the agent's own prose), a fix-A patch to `evals/agent-config/behavioral.py` is being built separately, for you to apply, and after it lands this branch is rebased once more onto the patched `main` and takes a fresh behavioral run there. "Runs in the Author's terminal", below, holds but for its steps 1 to 3: the merges before this branch are on `main`, this section is step 2's rebase, and its step 3 is replaced by the steps here.
+
+**What dropped: 10 commits,** each a cherry-pick of `spec/004-cube-amend`, which `main` holds whole, and each empty once it took `main`'s words. They are the ten that "Rebase plan (T118, I4)" below names.
+
+- 02b646f, the same patch (`git patch-id --stable`) as `main`'s 9005c7c. Its conflicts were in contracts/room-data-files.md, data-model.md, and spec.md. Its contracts/turn-cost.md and tasks.md's T263 merged by themselves into the `$99.99+` reading that `main`'s 0a043e3 took back out ("FR-048 doesn't change"), so they took `main`'s words too.
+- 821f3a1, the same patch as `main`'s 3719f5d. It merged without a conflict, re-adding `docs/merge-requests/2026-10-24-oc-004-spec-amend.md`, which `main`'s 0a043e3 renamed to `2026-10-26-spec-004-cube-amend.md`. `main` holds no file at that path, so the replayed commit was taken back out, with `git reset --hard HEAD~1` while the rebase stood at the next commit's conflict, before any later commit was replayed onto it.
+- b724611, the same patch as `main`'s 0f8b69e: conflicts in contracts/room-data-files.md and spec.md.
+- 80d34ae and 6c7230a, the same patches as `main`'s 934c9dc and 9267b24: each a modify/delete on the renamed note.
+- 111d131, `main`'s 0a043e3 with this branch's ticks in its context lines: conflicts in contracts/room-bundle.md, contracts/room-data-files.md, data-model.md, quickstart.md, spec.md, and tasks.md, and add/add on the cube amendment's note. It changes no checkbox of its own.
+- c9e9c70, `main`'s e1bedcd with its "Foreseen: the Author's cube" paragraph placed after this branch's "Found in the foundation" paragraph: conflicts in the cube amendment's note, the two contracts, data-model.md, quickstart.md, spec.md, and tasks.md, while plan.md merged by itself into a second copy of that paragraph. `main` holds it once, before "Found in the foundation", and so does the branch now.
+- ad0aee2, the same patch as `main`'s e68662f: a conflict in spec.md.
+- 1575ced, `main`'s 50eb28c with its §10 entry "M9 may merge before M8" placed after this branch's entries: conflicts in plan.md, spec.md, and tasks.md. `main` holds the entry, its §3 and §4.2 lines, and T302's tick.
+- a033dfc, the same patch as `main`'s fffdb55, which git dropped itself: "patch contents already upstream".
+
+**What was kept: 61 commits, before and after.** The messages are unchanged. Two say what is now history: 8abcfac's "T302 ticked" (it recased `main`'s tick, which stays `main`'s, below), and 9e7b63a's visitor at x −0.5, which T304 moves. Below this section, the note's SHAs are the old ones.
+
+| Before | After | Commit |
+|---|---|---|
+| 0887c90 | 28551fc | test(004): the committed tree composes in strict mode with no finding, and holds no fx- ID, RED (T094's compose half) |
+| 1011b12 | 827c04f | feat(004): today's room as data, spec 002's room exactly (T095) |
+| b3fea0e | 824dad4 | feat(004): FR-078's pieces as data, keeping spec 002's three selectables, GREEN (T100; T094's compose half) |
+| 2f69862 | e40f25c | test(004): the stand-ins' nine shapes and the look, RED (T091) |
+| 1bd2171 | 22a9e0f | test(004): the room drawn from the 3D part, RED (T090) |
+| 9e387ec | c5b4f29 | feat(004): the stand-ins' nine shape builders and the look, GREEN (T097) |
+| 1111733 | dee8502 | feat(004): the 3D part's interpreter, bundle3d.ts, GREEN (T098's buildRoom) |
+| d03bd22 | 515655d | test(004): the site's own builds carry the bundle, and the manifest is compose()'s, RED (T093, T094's manifest half) |
+| 02d92b4 | 4bd89cc | feat(004): roomBundle() builds the site's room from its data, GREEN (T096) |
+| 7299b60 | 75209f7 | test(004): the 3D room picks, refuses, and hands off from the bundle, RED (T092, T098) |
+| b48a3fc | 7c7c6aa | feat(004): scene.ts draws the room from the bundle's 3D part, GREEN (T098, T092) |
+| 4eea499 | 09d6622 | test(004): the scene's look draws its ink lines at least half a CSS pixel thick, RED (T097, T095; lookdev review page-5) |
+| f432cae | 1de8a6e | fix(004): inked cel's ink lines are 1 CSS pixel wide, GREEN (T097, T095; lookdev review page-5) |
+| abeaea0 | 98cc6f5 | test(004): the gateway's room-event tests hold no room ID (T106) |
+| 5ac86ac | b97a0e9 | test(004): the gateway's client label holds no room ID (T106) |
+| 3c21a15 | 105200a | docs(004): the events-file test's header names the edits that change its list (T106) |
+| e4d4591 | 54966a8 | test(004): the data-only proof set, the generated files' freshness, and the committed tree's scan, RED (T101, T102, T107) |
+| 580c9e4 | 54351fc | feat(004): FR-036's topics as data, and room:generate's committed files, GREEN (T113, T108; T102) |
+| 57c77de | d09e47e | docs(004): apps/web/room/README.md, how to make each change of the room as data, GREEN (T114) |
+| 1b42e00 | b4fc8db | test(004): the proof set's removal takes a selectable nothing else in the data names, and its unreferenced labels (T101) |
+| 25337f8 | 0aaba5c | test(004): the whole-visit privacy case clicks every button of the room's list, whatever the data names them (T113) |
+| d50dfe3 | c64d70a | test(004): the 2D room drawn from the bundle's index, RED (T103) |
+| 8a3f165 | 090ab7b | feat(004): the 2D room drawn from the bundle's index, GREEN (T109) |
+| 5f92463 | 9a13cc9 | test(004): each input's object_selected, and the list and the talk panel from the index, RED (T104, T105) |
+| 69c3cc9 | 4d177fd | feat(004): the list and the conversation read the bundle's index, GREEN (T110) |
+| 8559fbd | 033d014 | test(004): "Around the room" from the index's copy, RED (T111) |
+| 2331dc1 | 47815ce | feat(004): "Around the room", the text copy from the index, GREEN (T111) |
+| 5fab94c | 2cc5007 | test(004): the 2D room refuses a visitor's place it can't draw, RED (T103) |
+| 4c0862f | fe568d3 | fix(004): the 2D room checks the visitor's place before it draws there, GREEN (T109) |
+| dc4aa0d | 08ae1e3 | test(004): the runtime half of the data-only proof holds as plain cases, now that T109 and T110 have landed (T101) |
+| 76a45d7 | 96173aa | test(004): the Tab-order case counts the list's buttons from the index, so a fourth selectable keeps it (T113, T105) |
+| 0805a0d | ea36f87 | feat(004): the chalkboard opens the Author's mission, a data edit now that the list and the 2D room read the index (T113) |
+| c6137e1 | ade7253 | test(004): the room's code holds no room data, and spec 002's work-area cases end, RED (T112) |
+| 689c414 | 75e99b9 | feat(004): the room's data leaves its code: no object list, no piece builders, no layout, GREEN (T112) |
+| e9bed6f | 18064b7 | test(004): the last tests that spelled a room ID take it from the fixture set or say it otherwise (T107, T112) |
+| 19268c5 | b938cea | test(004): the committed tree's scan finds 0 data-only IDs, a plain case now (T107, T112) |
+| 17a403b | 3c0a8b4 | fix(004): the window's view takes no label of its own, which drew over the window's (T100's data) |
+| 3714f3d | 022dc0f | docs(004): the foundation's note names src/room/framing.ts without a link, since T112 deleted the file (T112) |
+| cf106af | 2b1463c | test(004): the data-only proof's addition takes a spot it measures free with the kernel, not the first of 99 that composes (T101) |
+| a65a3fb | 0b42d2f | test(004): the visitor turns toward the twin to take the paper, which ends in its hand on the twin's side, either side, RED |
+| 0d4cd27 | b0c88be | feat(004): the visitor turns toward the twin to take the paper, which ends in its hand on the twin's side, GREEN |
+| 9c81be9 | 5a62981 | docs(004): US1's done tasks ticked, T089 to T115 (T116 and T117 stay open) |
+| bc897a6 | aba8f59 | feat(004): the Author's cube room as data: the brick cube, the large window, the sign at 2.6, the hangings on the side walls |
+| d8b9c2e | b5b0338 | test(004): the amendments' tests: side-wall selectables list-only where a stage can't hold their core, the phone's turn-cost faces exempt, RED |
+| 4aa2e0a | f58267b | feat(004): the amendments in the compositor, the index, and the room, GREEN |
+| 01ca787 | 4d50df2 | test(004): FR-064's carve-out at its smallest stages alone, RG7's exemption per face, the report's two sections, and a lower camera, RED (T292 to T295, T301) |
+| 71b3d35 | 6d9c855 | feat(004): FR-064's carve-out held in pick.ts at its smallest stages alone, RG7's exemption per face, the report's two sections, and the camera's eye at 1.15 m, GREEN (T296 to T299, T301) |
+| acb124a | a009db4 | feat(004): the Author's cube as data, with the brief's data fixes, the word panel inside the 1.5 m sign, and the photo guide's side walls as measured (T300) |
+| 628c633 | 2ff2332 | feat(004): the left wall re-laid, the chalkboard high and the snowboard low on its tail, and D1 measured: it stops (T301) |
+| 5688997 | b5f0777 | test(004): side-wall selectables list-only wherever their core can't fit, at any stage, and never refused for it, RED (T303) |
+| bf7d3b4 | 1e3c28c | feat(004): a side-wall selectable list-only wherever its core can't fit, never refused for it, and the room composing clean, GREEN (T303) |
+| 7de0abf | e2ed6a2 | test(004): the US1 review's fixes, tests first: the release pass, an undodgeable side-wall test, the desktop's taps, the photo guide's walls, RI8's hands, the 2D fallback, RED (T116) |
+| 41d7031 | 7f13df4 | feat(004): the release pass in listOnly, one side-wall test for RG6 and the photo guide, and the guide's origins, GREEN (T116) |
+| cd5f1f6 | af63511 | feat(004): the room opens when the 2D drawing refuses, RI8 checks the nearer hands, and the 2D stage's and the ink's nits, GREEN (T116) |
+| a2abdd3 | 95b48a0 | test(004): the gateway's events-file case pins the eight kinds and the IDs' format again, and no room ID (T116) |
+| 9e7b63a | a93ef20 | feat(004): the visitor at x -0.5, the shell's 2D drawing from the lower camera, and the figures' places read as composition, GREEN (T116) |
+| 8abcfac | 56e1de5 | docs(004): plan.md §10 brought up to the cube as it stands and the review's fixes, T114 and T115 reopened, T302 ticked (T116) |
+| 0db136c | 37d863d | docs(004): the room's README gives the side walls: RG6's carve-out, RG7's counter faces, the anchors' frame, and the report's Side-wall section; T114 ticked again (T116) |
+| 73d4527 | e0d8ee4 | docs(004): T115 ticked again: quickstart Q3's agents' checks re-run on 0db136c, the review's fixes in (T116) |
+| c344a5f | 6a297ef | docs(004): the merge-request note for feat/004-us1-composition: the review, T099, T301's measurement, T115, and the steps after (T116, T117) |
+| 58c22d5 | ce76b2b | docs(004): the US1 note names the chalkboard slate's foreshortening as a look judgement (T117) |
+
+**The conflicts in kept commits, and how each was resolved.** All five were in `specs/004-room-composition/`, and none touched a human-only path. `package-lock.json` isn't in this branch's diff.
+
+1. **9c81be9, US1's done tasks ticked (T089 to T115):** tasks.md, two blocks: T100's line, and T108 to T115, where `main` has the cube amendment's tasks T292 to T303 under their own heading, and T114 and T115 under "Closing User Story 1". `main`'s words, with the commit's 27 ticks. The commit changes checkboxes only, so the ticks were set by task ID on `main`'s text.
+2. **acb124a, the Author's cube as data (T300):** tasks.md, where `main`'s T301 and T302 carry their "It stopped" and "Done" words. `main`'s words, with T300's tick. Its plan.md §10 entries, this branch's, merged by themselves after this branch's earlier ones.
+3. **bf7d3b4, T303's GREEN:** plan.md §10, where the commit adds "T302's answer, applied" before this branch's copy of "M9 may merge before M8", which 1575ced's drop left out. Its entry is kept, after this branch's entries, and the M9 entry stands once, `main`'s.
+4. **9e7b63a, the visitor at x −0.5:** plan.md §10, as in 3: its entry, with the review's table, is kept.
+5. **8abcfac, plan.md §10 brought up to the cube:** plan.md §10, as in 3: its six new entries, from "The cube as it stands" to "The runtime's nits", are kept, and its edits to this branch's earlier entries merged by themselves. Its tasks.md change merged by itself: T114 and T115 reopened, which is kept, and T302's `[x]` recased to `[X]`, which went back to `main`'s `[x]`, since that tick is `main`'s.
+
+Five files outside the folder changed on both sides, and each merged by itself: `config/room-events.yaml` (this branch's header and its `chalkboard` line, with `main`'s items from the resume), `docs/merge-requests/2026-10-23-feat-004-foundation.md` (3714f3d's unlinked `src/room/framing.ts`, in `main`'s rebased note), and the gateway's `test/integration/migrations.test.ts`, `test/integration/telemetry-sdk.test.ts`, and `test/unit/telemetry.test.ts` (this branch's client label and synthetic IDs, with `main`'s new cases). The rule for the folder is `main`'s words with this branch's ticks and §10 entries, as `feat/004-foundation`'s rebase had it.
+
+**Checked after the rebase,** on ce76b2b:
+
+- Each of the 61 commits adds and removes the same lines as before, file by file, but two whose lines are `main`'s words now: 9c81be9's T100 line, whose words end, on `main`, "FR-078's amended layout, the Author's cube, then replaces this layout as data (T300, T301)", and 8abcfac, without the recasing. 53 keep their patch ID, and 6 differ in context lines only: 0805a0d, 01ca787, 71b3d35, acb124a, bf7d3b4, and 9e7b63a.
+- Outside `specs/004-room-composition/`, every file this branch changes has its blob at 58c22d5 but the five above, which merged. The cube amendment's note is `main`'s: this branch no longer changes it. Every other file is `main`'s.
+- In `specs/004-room-composition/`, only plan.md and tasks.md differ from `main`. plan.md differs by this branch's §10 entries alone, with none of `main`'s lines removed, and "Foreseen: the Author's cube" and "M9 may merge before M8" once each, where `main` has them. tasks.md differs by ticks alone, T089 to T117, T292 to T301, and T303, 40 tasks; its words are `main`'s, and T302 keeps `main`'s `[x]`.
+- No path under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/policy/`, `corpus/`, `deploy/`, `.devcontainer/`, or `infra/` changes, nor CLAUDE.md, REVIEW.md, the Makefile, `package-lock.json`, or the Claude Code pin; under `services/`, only the gateway's tests (T106).
+
+**Then, on the rebased branch:**
+
+| Commit  | What it does                                                                                                                     |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| cb429ca | docs(004): the work orders regenerated after the rebase: main's room caps (T118)                                                 |
+| 57ed7b4 | feat(004): the visitor at x -0.7, left of x -0.5, a data edit (T304, FR-080)                                                     |
+| b442717 | test(004): flat-failed's line in the stage when the 2D drawing can't be drawn, and the closed list's new key, RED (T305, FR-081) |
+| 197dd1d | feat(004): the 2D fallback shows flat-failed's line in the stage when the drawing can't be drawn, GREEN (T305, FR-081)           |
+
+**The work orders (cb429ca).** On the rebased tree, `npm run room:check -w apps/web` found the 17 work orders stale (FR-013), each at one line: `main` holds the room's caps now (spec 004 P-6, 865b059), so "The caps: FR-053's starting figures, while main has no room caps; every model stays a stand-in until it has them (FR-053)." becomes "The caps: main's room caps, `per_asset.room` in `assets/policy/caps.json` (FR-053)." `npm run room:generate -w apps/web` rewrote that line in each and nothing else; the photo guide, `config/room-events.yaml`, and `config/room-topics.yaml` were fresh, and no figure changed. `room:check` then found nothing.
+
+**The report after the rebase,** `npm run room:report -w apps/web` on cb429ca: the report under Measurements below, but for its first line, "Bundle e32fddc27ece0cc8 · release build · caps: main, assets/policy/caps.json a9aa16ce865e08f9", where the caps were FR-053's starting figures. Its legibility table, its side-wall section, its switches, and "Findings: none." are as they stand there.
+
+**T304: the visitor at x −0.7 (57ed7b4).** In `apps/web/room/scene.yaml` the visitor's mount on the floor anchor moves from `[-0.5, 0, 0.58]` to `[-0.7, 0, 0.58]`, and the header's sentence on the visitor follows; no source file changes. `npm run room:check -w apps/web` gave "room: 0 findings in 0 files", so the compositor accepts x −0.7, and the fallback positions, x −0.6 and x −0.55, weren't needed. `room:generate` writes nothing, and the web workspace's tests pass unchanged, 1,592 of 1,592: none pins a figure that follows the visitor's x, so there was no FR-080 re-pin. plan.md §10 gains an entry for the move.
+
+The occlusion at x −0.7, measured again as the review of T116 measured it (D-I1): on the reference desktop's stage, 686.4 × 640 CSS pixels, at the production framing, the share of each face's width the visitor hides, for the stand-in (its capsule and head), the woman, the man, the dinosaur, and the dog, in that order, at z 0.58; the snowboard as the share of its frame box's area. The measure is a throwaway script, never committed: each silhouette through the kernel's camera (`compose/project.ts`), each face's corners through its placement's model transform and `facePoint` (`compose/legibility.ts`), and a face's width counted hidden in each 0.02 px column where the silhouette covers any part of it. Run at the table's five positions on the rebased tree, it gives the table's face figures within a point (the dinosaur's 56% of the screen reads 57% from −0.4 to −0.6), and the snowboard's area within a point but for the stand-in at −0.55 and −0.6 (17 and 52 %, against 19 and 56 %). The new row, beside the table's (For the Author, item 1, below):
+
+| Visitor x                           | Monitor screen      | Neon word       | Counters (worse)   | Laptop | Snowboard (area)     | Chalkboard list-only stages, 3D |
+| ----------------------------------- | ------------------- | --------------- | ------------------ | ------ | -------------------- | ------------------------------- |
+| −0.5, before T304 (the table's)     | 26, 24, 34, 56, 0 % | 5, 0, 8, 0, 0 % | 26, 23, 25, 0, 0 % | 0 %    | 0, 5, 8, 18, 11 %    | 1,114                           |
+| −0.7 (the table's)                  | 0, 0, 6, 48, 0 %    | 0 %             | 4, 1, 3, 0, 0 %    | 0 %    | 96, 80, 92, 31, 15 % | 1,268                           |
+| **−0.7, T304, measured on 57ed7b4** | 0, 0, 6, 48, 0 %    | 0 %             | 4, 1, 3, 0, 0 %    | 0 %    | 95, 80, 93, 30, 14 % | 1,268                           |
+
+At x −0.7 a human visitor hides none of the monitor's screen as the woman shows it and 6% as the man, the dinosaur 48%, and the stand-in and the dog none; the neon word is clear, and the counters lose at most 4%. The snowboard loses 80 to 95% of its box to the stand-in and the human avatars. The visitor's 1.1 m frame box passes the cube's left wall further, so the production camera stands back at the narrower aspects: 3.588 m from 3.580 m on the reference desktop, and 4.256 m from 3.725 m on the reference phone; the 2D drawing's camera, at 1.6, stays at 3.580 m.
+
+The report on 57ed7b4: bundle dba7b558c2e494d6, its legibility and side-wall sections as printed.
+
+| Face                    | Readable | Desktop |  Phone | Floor |  Margin | Status                                                            |
+| ----------------------- | -------- | ------: | -----: | ----: | ------: | ----------------------------------------------------------------- |
+| `neon-sign.word`        | yes      | 16.9 px | 9.5 px |     9 |  0.5 px | readable                                                          |
+| `neon-sign.call`        | yes      | 11.2 px | 6.3 px |     9 | -2.7 px | exempt on the phone, carried by the text copy's "Around the room" |
+| `neon-sign.visit`       | yes      | 11.2 px | 6.3 px |     9 | -2.7 px | exempt on the phone, carried by the text copy's "Around the room" |
+| `neon-sign.second-line` | no       |  5.8 px | 3.3 px |     9 | -5.7 px | atmosphere (max 43)                                               |
+
+| Selectable               | 3D                                     | 2D                                     |
+| ------------------------ | -------------------------------------- | -------------------------------------- |
+| `snowboard` (left-wall)  | list-only at 304 × 208 and 38 others   | list-only at 304 × 208 and 145 others  |
+| `chalkboard` (left-wall) | list-only at 304 × 208 and 1267 others | list-only at 304 × 208 and 1611 others |
+
+Against the report after the rebase: the neon word falls from 17.0 to 16.9 px on the desktop and from 10.7 to 9.5 px on the phone, 0.5 px over the floor; the counters, exempt on the phone, from 7.1 to 6.3 px there; the chalkboard is list-only in 3D at 1,268 stages, from 1,114; the snowboard's stages don't change, nor any in 2D. The switch's poses stay apart, the closest pair 32.8 px on the desktop and 18.2 px on the phone, and "Findings: none." Lookdev judges the x against the monitor and the snowboard (T309), and the phone's 0.5 px with it.
+
+**T305: `flat-failed`'s line (RED b442717, GREEN 197dd1d).** RED: in `test/room/flat.test.ts`, the case that holds the review of T116's R1 (af63511 here, cd5f1f6 below) also expects the stage to show exactly "This drawing of the room could not be shown. The list below still works.", the index's `flat-failed`, with nothing from the line up hidden, inert, or aria-hidden; each "In the room" button, in scene order, to emit `object_selected` with its own ID (`selectObject`'s event); "Around the room" to keep its heading and each switch's label with its tier sentence, the laptop's among them; and the talk box to answer `cannot_talk.unavailable` and send `turn_sent`. In `test/room/vocabulary.test.ts`, the pin of the closed list gains `"flat-failed": []`, 33 keys. The RED run, vitest in apps/web, failed for the missing line and the missing key only:
+
+```text
+ FAIL  test/room/flat.test.ts > in the room > shows flat-failed's line, and the list, text copy, and talk box work, when the drawing refuses
+AssertionError: expected '' to be 'This drawing of the room could not be…' // Object.is equality
+ FAIL  test/room/vocabulary.test.ts > the UI words' closed keys (ui-keys.ts) > hold exactly room-data-files.md §9's keys, each with exactly its slots
+AssertionError: expected { 'tier.local': [], …(31) } to deeply equal { 'tier.local': [], …(32) }
+-   "flat-failed": [],
+ Test Files  2 failed | 55 passed (57)
+      Tests  2 failed | 1590 passed (1592)
+```
+
+Run once on a scratch copy without the case's four lines about the stage's line, the R1 case passed: its list, text copy, and talk box checks hold already. The fixture set's UI words (`apps/web/test/fixtures/room/good/apps/web/room/ui-words.yaml`) must hold every key of the closed list (RT12), and before the code has the key, RD2 refuses it there: with the fixture's line in the RED commit, the RED run was 129 failures, each RD2's "a UI word key outside the closed list and label.<name>" on `words.flat-failed` or what follows from it. So the fixture's line went into the GREEN commit, with the same words, as data the new key requires, and the RED kept to the two new expectations. That line is the GREEN commit's one file under `test/`, and it changes no expectation.
+
+GREEN: `src/room/ui-keys.ts` gains `flat-failed`, with no slots; `room/ui-words.yaml` gains its words; `src/room/app.ts`'s `toFlat` puts them, as a paragraph of class `room-flat-failed`, into the stage's view where `renderFlat` throws, not aria-hidden; `room.css` gives it `.room-loading`'s white type, centred, with 1rem at the sides; and plan.md §10 gains an entry, which ends this branch's "The 2D fallback when the drawing refuses", whose view stayed empty "until the spec gives a line". The GREEN run: vitest in apps/web, 1,592 of 1,592; `npm run room:check -w apps/web`, "room: 0 findings in 0 files" (RT12 on the key, RT2's C9 on its words); `room:generate` writes nothing; `room:scan`, 0 hits; tsc and eslint clean. `npm run room:report -w apps/web` on 197dd1d, the final tree, prints T304's report but for its first line's bundle, 785ddf44784daa30, since the index now holds `flat-failed`'s words.
+
+**Verification.** `make -f Makefile check ENGINE_MODE=none-yet` ran in `/tmp/claude-1000/wt-us1-r`, with `node_modules` from `npm ci --ignore-scripts --cache "$TMPDIR/npm-cache"` and `UV_CACHE_DIR` in `$TMPDIR`. `ENGINE_MODE=none-yet` is a make argument, since the Makefile sets it with `:=`, so `image` SKIPs with "no agents' engine yet". `make lint`, `make test`, and `make evals` run inside it as its `lint`, `test`, and `evals` gates.
+
+- **After the rebase (T118),** on cb429ca, the rebased tree with the work orders regenerated, from 2026-11-07T03:37:19Z: "make check: 12 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: evals FAIL", its only FAIL the behavioral tier's line below; the gateway 810 passed and 12 skipped, the web workspace 1,592 of 1,592, pytest 3,692 passed. Its gate list is the second block at the end of this section.
+- **On 197dd1d,** the tree before this update, with T304 and T305, three runs. The first, from 03:56:20Z, ended "11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 FAIL; failing: test FAIL, evals FAIL". Its `test` FAIL was one gateway case, `test/contract/local-openai.errors.test.ts`'s connect watchdog, "expected -685 to be greater than or equal to 900": the case times itself with two `Date.now()` readings, so a backward step of the wall clock, which WSL makes, gives a negative duration. The file passed alone straight after, 9 of 9; the run after the rebase passed it; and this branch changes neither that file nor the gateway's source. That run's `matrix` passed whole ("795 passed, 0 failed, 51 known gaps"). The second, from 04:00:33Z, straddled a restart of this session, and the third, from 2026-11-07T04:03:48Z, ran wholly after it; each ended "11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 FAIL; failing: evals FAIL, matrix FAIL", with `test` passing whole. Their `matrix` FAIL is four rows of stage S, the agent sandbox's own check, "makefile has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai", and the same for `.gitleaksignore`, `.github/workflows`, and `.mcp.json`: the restarted session's sandbox doesn't mask those four paths of the main checkout, as the session before the restart did, and this branch changes none of them, nor the matrix. Stage S runs only in an agent session; the gate's matrix is stage H, in its container (and stage E for a branch that touches the agents' engine, which this one doesn't). The second run's log is quiet inside each gate until the gate ends, so I took it for stopped and started the third, and the two overlapped for about five minutes, the second's later gates beside the third's lint and test. The third's whole output is the first block at the end of this section. This update adds this section and four pointers to it, and ticks T118, T304, and T305, and changes no other file.
+
+Summary of the third run: "make check: 11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 FAIL; failing: evals FAIL, matrix FAIL". What isn't a plain PASS:
+- **`evals` FAIL:** "FAIL  behavioral tier: 2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4, the newest run for trigger hash 788771dbb186, failed: reads-studio-folder: the forbidden effect, or a run without hook events, in 2 of 3 runs (at most 0)". The hash is `main`'s own: this branch changes nothing under `.claude/` or `evals/agent-config/`, nor CLAUDE.md, REVIEW.md, or the Claude Code pin. The failure is now known to be a harness misread, the name check also searching the agent's own prose, and its fix is your patch to `evals/agent-config/behavioral.py`, being built. The rest of `evals` passes as far as it ran: the product evals (1 of 1), the narration suite (44 of 44), and the static tier ("agent-config static: 0 failed, 0 planned").
+- **`matrix` FAIL:** four rows of stage S, "FAIL        stage-S-unwritable    makefile has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai", and the same for `.gitleaksignore`, `.github/workflows`, and `.mcp.json`; "forbidden-actions (hook layer): 791 passed, 4 failed, 51 known gaps". This session's sandbox since its restart, as the bullet above says; on 197dd1d before the restart, and on cb429ca, every row of the matrix passed.
+- **The docs' links, the step `evals` didn't reach.** The recipe stops at the behavioral tier's exit, so `evals/docs_links.py`, its last line, didn't run. Run alone on 197dd1d, it gave "docs links: 0 failed, 1503 relative links in 196 files", exit 0: the fourth block below.
+- **`image` SKIP:** "no agents' engine yet: tasks.md T046", from the make argument.
+- **`toolchain-check`'s WARN,** inside its PASS: "claude code 2.1.312 is newer than its floor, 2.1.296 (ADR 0023)", the host's version.
+- **Two rows SKIP inside `matrix`,** as its totals say: "stage S's SMTP row has no usable host; stage E's report is for another engine tree".
+- **The private denylist is hidden from this session,** so `corpus-check` skipped its rule 4, and the resume's C9 and the narration's N3 checked the public list only, as each line says.
+- **Inside `content-check`'s PASS,** the site's build prints Vite's warnings that an import its config loads has no file extension, as on `feat/004-foundation`. Its result: "content check: PASS (45 content files: 0 approved by main, 45 drafts, none of whose text is in dist/)".
+- **Inside `test`:** the gateway's "Tests  810 passed | 12 skipped (822)", the web app's "Test Files  57 passed (57)" and "Tests  1592 passed (1592)", this branch's files among them, and pytest's "3692 passed".
+
+**gitleaks.** `gitleaks dir .`, run from inside a `git archive` export of 197dd1d in `$TMPDIR`, with the export's own `.gitleaks.toml`, which is the gate's form: "no leaks found", exit 0. Its whole output is the third block below, its colour codes taken out. The export is a fresh folder, `/tmp/claude-1000/us1-r-export-197dd1d6`, and nothing was deleted; WSL's next restart clears it. `make check`'s own `secrets` gate also passed over the branch's commits since `main`, and `arrival` gave "arrival-check: 0 findings in 389 files (65 commits)".
+
+**The rehearsal.** In detached scratch worktrees at a309baa (`main` when this work began), `/tmp/claude-1000/wt-us1-r-rehearse`, and at df2dcf4 (`main` now), `/tmp/claude-1000/wt-us1-r-rehearse-tip`, `git merge --no-ff --no-commit 197dd1d6ebfc9b017dc7611404026c26224d2850`: "Automatic merge went well; stopped before committing as requested", with no conflict, and an index equal to 197dd1d's tree, in each (137 files staged at a309baa, which takes df2dcf4 with it, and 136 at df2dcf4). Then `git merge --abort` in each. The branch's base is df2dcf4 itself, so a merge of it into that `main` is this branch's change alone.
+
+**Your steps (T119), from main's checkout, provisional (above).** M8 (T043) is on `main` (52fae30, P-7's Room data pass, among its patches), which T119 waits for.
+
+1. `git diff --stat refs/heads/main...feat/004-us1-composition`
+2. `tools/gates/gate feat/004-us1-composition 2>&1 | tee ~/gate-us1.log`, with the engine up. Expect "Not ready to merge", with `evals FAIL`, and possibly `test FAIL` as on `feat/004-foundation` (below). Keep `~/gate-us1.log`: the container's `test` failure waits on it.
+3. If those are the only failures, and the `test` failure, if any, names none of this branch's test files (`git diff --name-only refs/heads/main...feat/004-us1-composition -- apps/web/test services/gateway/test` lists them), merge by hand, by the SHA in the gate's summary line (`gate: <sha> (feat/004-us1-composition) by tools/gates/gate at …`), with that line, as printed, in the second `-m`:
+
+   ```text
+   git --no-replace-objects merge --no-ff -m "Merge feat/004-us1-composition (<sha12>)" -m '<the gate's summary line>' -m "Merged by hand. evals FAIL: main's own recorded behavioral run 2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4 for trigger hash 788771dbb186 (reads-studio-folder), a harness misread; this branch touches no agent-config path, so the gate's agent-config-evals step was SKIP. test FAIL: the container's make test, failing as on feat/004-foundation since that merge, on none of this branch's test files; every run outside the container passes. Every other step passed." <sha>
+   ```
+
+   Without a `test` FAIL, leave out the sentence on `test`. With any other failure, don't merge: that one is this branch's.
+
+4. Q3's Author runs on dev, after `make up ENV=dev`, which is heavy, so run it when no agents are running, at `http://127.0.0.1:18105/`. Run 2: the Author's cube, as Q3 words it, but for the visitor, who stands at x −0.7, left of where D3 put it (FR-080, T304), so more of the monitor shows and a human visitor hides most of the snowboard. Run 3: on the desktop, the snowboard, the chalkboard, and the bicycle each open their topic's message; in device mode and in the 2D room, at stages where the report lists a board as list-only (the chalkboard at 1,268 stages in 3D and 1,612 in 2D, the snowboard at 39 and 146, each from 304 × 208), it selects nothing when tapped and is chosen from "In the room". Run 1, "until FR-078's layout lands", is the room at 827c04f, T095's data commit, which T099 measured within 1 mm of spec 002's layout; at the merged tip the room is the cube. `flat-failed`'s line shows only where the 2D drawing can't be drawn, which dev's data never makes; its test is T305's.
+
+**What the gate is likely to show.** Its own `agent-config-evals` step SKIPs, since the branch touches none of its triggers ("the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, evals/agent-config/, …", `tools/gates/gate` on `main`, line 1637). But its container phase runs `make evals` in the export, whose behavioral tier reads `main`'s recorded run for 788771dbb186, which failed, as `make check`'s `evals` line below shows, and the gate exits 0 only "with no FAIL or PENDING" (line 115). So it ends "Not ready to merge" on that step, which is `main`'s run, not this branch's: `main` took `feat/004-setup` and `feat/004-foundation` by hand on the same failure (f261bfa, a309baa). Its container `make test` failed on `feat/004-foundation` for a cause not yet known, while every run outside the container passes, this branch's above among them; if it fails here, its failing cases are what `~/gate-us1.log` holds for that investigation. For the same reason as `evals`, the gate's `make evals` never reaches the docs' links, so the fourth block below is that check for this branch. If the gate shows any other failure, don't merge: that one is this branch's.
+
+**Backlog, new:**
+
+- The gateway's connect-watchdog case (`services/gateway/test/contract/local-openai.errors.test.ts`, `failure()`) times itself by `Date.now()`, so a step of the wall clock fails it with a negative duration, as it did here once (−685 ms); `performance.now()` would hold it. A change to a gateway test, for a later branch.
+- `make evals` still runs the docs' links after the behavioral tier's status, as `feat/004-foundation`'s note has it.
+
+**Repo hooks, this session:** active. `.claude/audit/hooks.log` shows this session's Bash commands from 2026-11-07T03:19Z on, each ALLOW but one BLOCK, and its writes, each ALLOW, to scratch files outside the repository and to the files this section's commits name. Two refusals:
+
+- the bash gate's BLOCK, at 03:25:09Z, "changing main (HEAD is main)", of the rebase, while the main checkout stood on `main` for df2dcf4 (above). The same command ran once the checkout was parked again.
+- Claude Code's own permission check refused a `git diff` after a `cd` into the worktree by `$TMPDIR`: "git reads '85747fe…' after a cd whose target cannot be resolved, and a deny rule (//srv/studio/photos/**) names that file under a directory it may run in". The same reads then ran with `git -C` and the worktree's literal path, which the check can resolve, rather than through a `cd`.
+
+The post-edit hook formatted the session's scratch files outside the repository, which nothing commits, and flagged one lint problem in one of them (ruff's FURB167), fixed in the next edit. This update was written into the note and tasks.md by a script that copied each output from its log, so each block is whole.
+
+```text
+# make check ENGINE_MODE=none-yet in /tmp/claude-1000/wt-us1-r on feat/004-us1-composition at 197dd1d6, 2026-11-07T04:03:48Z
+== makefiles-check
+python3 -I -B -X pycache_prefix=/dev/null tools/gates/makefiles_check.py
+makefiles: GNUmakefile holds only its include, and there is no makefile
+-> PASS makefiles-check
+== githooks-check
+reference-transaction: installed
+pre-commit: installed
+main: a loose ref, which the git hook guards
+-> PASS githooks-check
+== toolchain-check
+python3 -I -B -X pycache_prefix=/dev/null tools/gates/toolchain_check.py
+tool                     pinned   found    status  where
+node                     24.21.0  24.21.0  OK      /home/h4reet/.nvm/versions/node/v24.21.0/bin/node
+uv                       0.8.22   0.8.22   OK      /home/h4reet/.local/bin/uv
+ruff                     0.16.10  0.16.10  OK      /home/h4reet/.local/bin/ruff
+gitleaks                 8.30.1   8.30.1   OK      /home/h4reet/.local/bin/gitleaks
+python3                  3.12     3.12.3   OK      /usr/bin/python3
+shellcheck               0.9.0    0.9.0    OK      /usr/bin/shellcheck
+jq                       1.7      1.7      OK      /usr/bin/jq
+pytest                   9.1.1    9.1.1    OK      /home/h4reet/.local/bin/pytest
+pyyaml (pytest's)        6.0.3    6.0.3    OK      /home/h4reet/.local/share/uv/tools/pytest/bin/python3
+claude code              2.1.296  2.1.312  WARN    /home/h4reet/.nvm/versions/node/v22.18.0/bin/claude
+lint: eslint             10.12.0  10.12.0  OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/eslint
+lint: typescript-eslint  8.71.1   8.71.1   OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/typescript-eslint
+lint: typescript         6.0.3    6.0.3    OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/typescript
+lint: prettier           3.9.9    3.9.9    OK      /home/h4reet/.local/share/h4reet/lint-node/node_modules/prettier
+lint: node               24.21.0  24.21.0  OK      /home/h4reet/.local/share/h4reet/lint-node/node
+WARN: claude code 2.1.312 is newer than its floor, 2.1.296 (ADR 0023): the agent-config evals record the version each run used, and moving the floor runs them again
+toolchain-check: all 15 match their pins, 1 newer than its floor (claude code)
+-> PASS toolchain-check
+== policy
+python3 -I -B -X pycache_prefix=/dev/null tools/gates/compose_policy.py
+compose policy: PASS (deploy/compose.yaml with 3 env files, the Dockerfiles, the env-file placement, .devcontainer, .npmrc)
+-> PASS policy
+== validate-config
+npm run --silent -w services/gateway validate-config -- --root "/tmp/claude-1000/wt-us1-r"
+validate-config: 0 errors, 0 notes
+-> PASS validate-config
+== lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+383 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+-> PASS lint
+== test
+python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py
+corpus-check: OK — 43 slots, 25 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+npm test --workspaces --if-present
+
+> @h4reet/gateway@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.3 /tmp/claude-1000/wt-us1-r/services/gateway
+
+
+ Test Files  52 passed (52)
+      Tests  810 passed | 12 skipped (822)
+   Start at  21:04:09
+   Duration  68.71s (tests 95%, import 3%, transform 2%)
+
+
+> @h4reet/web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.3 /tmp/claude-1000/wt-us1-r/apps/web
+
+
+ Test Files  57 passed (57)
+      Tests  1592 passed (1592)
+   Start at  21:05:15
+   Duration  17.41s (tests 72%, import 20%, transform 8%)
+
+pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
+........................................................................ [  1%]
+........................................................................ [  3%]
+........................................................................ [  5%]
+........................................................................ [  7%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+........................................................................ [ 13%]
+........................................................................ [ 15%]
+........................................................................ [ 17%]
+........................................................................ [ 19%]
+........................................................................ [ 21%]
+........................................................................ [ 23%]
+........................................................................ [ 25%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 31%]
+........................................................................ [ 33%]
+........................................................................ [ 35%]
+........................................................................ [ 37%]
+........................................................................ [ 39%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+........................................................................ [ 52%]
+........................................................................ [ 54%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 74%]
+........................................................................ [ 76%]
+........................................................................ [ 78%]
+........................................................................ [ 79%]
+........................................................................ [ 81%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 87%]
+........................................................................ [ 89%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+....................                                                     [100%]
+3692 passed in 365.65s (0:06:05)
+-> PASS test
+== content-check
++ ROOM_DRAFTS=
++ npm run build -w apps/web
+
+> @h4reet/web@0.1.0 prebuild
+> node --import tsx build/policy.ts
+
+policy: main's content-approvals.json, resume-header.json and caps.json into /tmp/claude-1000/wt-us1-r/node_modules/.cache/h4reet-web/policy
+
+> @h4reet/web@0.1.0 build
+> vite build
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./build/approvals" without a file extension (vite.config.ts:8:30). Add the file extension
+  - import "./build/content" without a file extension (vite.config.ts:9:28). Add the file extension
+  - import "./build/disclosure" without a file extension (vite.config.ts:10:32). Add the file extension
+  - import "./build/narration" without a file extension (vite.config.ts:11:31). Add the file extension
+  - import "./build/policy" without a file extension (vite.config.ts:12:36). Add the file extension
+  - import "./build/room/plugin" without a file extension (vite.config.ts:13:28). Add the file extension
+  - import "../approvals" without a file extension (build/room/plugin.ts:20:26). Add the file extension
+  - import "../src/resume/data" without a file extension (build/narration.ts:24:40). Add the file extension
+  - import "../src/resume/data" without a file extension (build/content.ts:27:58). Add the file extension
+  - import "../manifest" without a file extension (build/room/plugin.ts:21:30). Add the file extension
+  - import "../src/narration/data" without a file extension (build/narration.ts:25:53). Add the file extension
+  - import "./approvals" without a file extension (build/content.ts:28:78). Add the file extension
+  - import "./compose" without a file extension (build/room/plugin.ts:22:40). Add the file extension
+  - import "./approvals" without a file extension (build/narration.ts:26:78). Add the file extension
+  - import "./narration-source" without a file extension (build/content.ts:29:29). Add the file extension
+  - import "./compose" without a file extension (build/room/plugin.ts:23:36). Add the file extension
+  - import "./content" without a file extension (build/narration.ts:48:8). Add the file extension
+  - import "./emit" without a file extension (build/room/plugin.ts:24:27). Add the file extension
+  - import "./narration-source" without a file extension (build/narration.ts:49:57). Add the file extension
+  - import "./pdf" without a file extension (build/content.ts:30:46). Add the file extension
+  - import "./policy" without a file extension (build/room/plugin.ts:25:32). Add the file extension
+  - import "./policy" without a file extension (build/narration.ts:50:36). Add the file extension
+  - import "./policy" without a file extension (build/content.ts:31:36). Add the file extension
+  - import "./policy" without a file extension (build/room/plugin.ts:26:33). Add the file extension
+  - import "./source" without a file extension (build/room/plugin.ts:27:38). Add the file extension
+  - import "./source" without a file extension (build/room/plugin.ts:28:27). Add the file extension
+  - import "../src/narration/data" without a file extension (build/narration-source.ts:23:36). Add the file extension
+  - import "../../src/room/glb/json" without a file extension (build/room/policy.ts:18:51). Add the file extension
+  - import "../src/choice/avatars" without a file extension (build/manifest.ts:13:25). Add the file extension
+  - import "../../src/choice/avatars" without a file extension (build/room/emit.ts:36:25). Add the file extension
+  - import "./checks/family" without a file extension (build/room/compose.ts:9:48). Add the file extension
+  - import "../../src/room/glb/json" without a file extension (build/room/policy.ts:19:39). Add the file extension
+  - import "../src/room/compose/bundle" without a file extension (build/manifest.ts:14:32). Add the file extension
+  - import "../../src/room/compose/bundle" without a file extension (build/room/emit.ts:37:84). Add the file extension
+  - import "./checks/family" without a file extension (build/room/compose.ts:10:54). Add the file extension
+  - import "./approvals" without a file extension (build/pdf.ts:25:40). Add the file extension
+  - import "../policy" without a file extension (build/room/policy.ts:20:25). Add the file extension
+  - import "../src/room/events" without a file extension (build/manifest.ts:15:29). Add the file extension
+  - import "../../src/room/compose/cable" without a file extension (build/room/emit.ts:38:30). Add the file extension
+  - import "./checks/rd" without a file extension (build/room/compose.ts:11:20). Add the file extension
+  - import "./content" without a file extension (build/pdf.ts:26:31). Add the file extension
+  - import "../policy" without a file extension (build/room/policy.ts:21:27). Add the file extension
+  - import "../src/talk/messages" without a file extension (build/manifest.ts:16:42). Add the file extension
+  - import "../../src/room/compose/framing" without a file extension (build/room/emit.ts:39:42). Add the file extension
+  - import "./checks/family" without a file extension (build/room/policy.ts:22:28). Add the file extension
+  - import "../src/talk/messages" without a file extension (build/manifest.ts:17:42). Add the file extension
+  - import "../../src/room/compose/framing" without a file extension (build/room/emit.ts:40:26). Add the file extension
+  - import "./checks/rg" without a file extension (build/room/compose.ts:12:20). Add the file extension
+  - import "./schema" without a file extension (build/room/policy.ts:23:20). Add the file extension
+  - import "./room/emit" without a file extension (build/manifest.ts:18:53). Add the file extension
+  - import "../../src/room/compose/legibility" without a file extension (build/room/emit.ts:41:27). Add the file extension
+  - import "./checks/ri" without a file extension (build/room/compose.ts:13:20). Add the file extension
+  - import "../../src/room/compose/legibility" without a file extension (build/room/emit.ts:42:35). Add the file extension
+  - import "./checks/rk" without a file extension (build/room/compose.ts:14:20). Add the file extension
+  - import "../../src/room/compose/load-order" without a file extension (build/room/emit.ts:43:27). Add the file extension
+  - import "./checks/rl" without a file extension (build/room/compose.ts:15:20). Add the file extension
+  - import "../../src/room/compose/load-order" without a file extension (build/room/emit.ts:44:32). Add the file extension
+  - import "./checks/rs" without a file extension (build/room/compose.ts:16:20). Add the file extension
+  - import "../../src/room/compose/math" without a file extension (build/room/emit.ts:45:87). Add the file extension
+  - import "./checks/rt" without a file extension (build/room/compose.ts:17:33). Add the file extension
+  - import "../load" without a file extension (build/room/checks/family.ts:11:33). Add the file extension
+  - import "../room/dom" without a file extension (src/choice/avatars.ts:4:21). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/schema.ts:21:8). Add the file extension
+  - import "../../src/room/compose/math" without a file extension (build/room/emit.ts:46:39). Add the file extension
+  - import "./checks/rv" without a file extension (build/room/compose.ts:18:20). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/family.ts:12:33). Add the file extension
+  - import "../source" without a file extension (build/room/checks/family.ts:13:33). Add the file extension
+  - import "../../src/room/ui-keys" without a file extension (build/room/schema.ts:22:25). Add the file extension
+  - import "../../src/room/compose/mount" without a file extension (build/room/emit.ts:47:41). Add the file extension
+  - import "./checks/rx" without a file extension (build/room/compose.ts:19:20). Add the file extension
+  - import "../source" without a file extension (build/room/checks/family.ts:14:27). Add the file extension
+  - import "../../src/room/compose/project" without a file extension (build/room/emit.ts:48:36). Add the file extension
+  - import "./emit" without a file extension (build/room/compose.ts:20:22). Add the file extension
+  - import "../../src/room/compose/project" without a file extension (build/room/emit.ts:49:40). Add the file extension
+  - import "./emit" without a file extension (build/room/compose.ts:21:34). Add the file extension
+  - import "../../src/room/compose/stages" without a file extension (build/room/emit.ts:50:27). Add the file extension
+  - import "./load" without a file extension (build/room/compose.ts:22:26). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/emit.ts:51:44). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/emit.ts:52:45). Add the file extension
+  - import "./policy" without a file extension (build/room/compose.ts:23:33). Add the file extension
+  - import "../../src/room/glb/fit" without a file extension (build/room/emit.ts:53:45). Add the file extension
+  - import "./source" without a file extension (build/room/compose.ts:24:27). Add the file extension
+  - import "../../src/room/glb/fit" without a file extension (build/room/emit.ts:54:41). Add the file extension
+  - import "./checks/family" without a file extension (build/room/compose.ts:26:46). Add the file extension
+  - import "../../src/room/glb/gzip" without a file extension (build/room/emit.ts:55:23). Add the file extension
+  - import "./policy" without a file extension (build/room/compose.ts:27:43). Add the file extension
+  - import "../../src/room/glb/images" without a file extension (build/room/emit.ts:56:27). Add the file extension
+  - import "./source" without a file extension (build/room/compose.ts:28:27). Add the file extension
+  - import "../manifest" without a file extension (build/room/emit.ts:57:62). Add the file extension
+  - import "./checks/family" without a file extension (build/room/emit.ts:58:26). Add the file extension
+  - import "./checks/family" without a file extension (build/room/emit.ts:59:46). Add the file extension
+  - import "./checks/rg" without a file extension (build/room/emit.ts:60:80). Add the file extension
+  - import "../../src/room/glb/json" without a file extension (build/room/load.ts:18:37). Add the file extension
+  - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rx.ts:16:51). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rs.ts:18:37). Add the file extension
+  - import "../../../src/room/glb/json" without a file extension (build/room/checks/rl.ts:14:28). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rv.ts:9:21). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rd.ts:14:23). Add the file extension
+  - import "../../content" without a file extension (build/room/checks/rt.ts:30:8). Add the file extension
+  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rk.ts:23:33). Add the file extension
+  - import "../../../src/room/compose/cable" without a file extension (build/room/checks/rg.ts:41:37). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/ri.ts:13:48). Add the file extension
+  - import "./checks/rg" without a file extension (build/room/emit.ts:61:31). Add the file extension
+  - import "./checks/family" without a file extension (build/room/load.ts:19:45). Add the file extension
+  - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rx.ts:17:57). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rs.ts:19:27). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rl.ts:15:27). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rv.ts:10:38). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rd.ts:15:38). Add the file extension
+  - import "../../content" without a file extension (build/room/checks/rt.ts:31:67). Add the file extension
+  - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rk.ts:24:36). Add the file extension
+  - import "../../../src/room/compose/cable" without a file extension (build/room/checks/rg.ts:42:31). Add the file extension
+  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/ri.ts:14:44). Add the file extension
+  - import "./checks/ri" without a file extension (build/room/emit.ts:62:28). Add the file extension
+  - import "./checks/family" without a file extension (build/room/load.ts:20:30). Add the file extension
+  - import "../../../src/room/glb/gzip" without a file extension (build/room/checks/rx.ts:18:27). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rs.ts:20:29). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rl.ts:16:37). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rd.ts:16:46). Add the file extension
+  - import "../../../src/room/compose/layout" without a file extension (build/room/checks/rt.ts:38:8). Add the file extension
+  - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rk.ts:25:31). Add the file extension
+  - import "../../../src/room/compose/framing" without a file extension (build/room/checks/rg.ts:43:36). Add the file extension
+  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/ri.ts:15:33). Add the file extension
+  - import "./load" without a file extension (build/room/emit.ts:63:41). Add the file extension
+  - import "./checks/rd" without a file extension (build/room/load.ts:21:31). Add the file extension
+  - import "../../../src/room/glb/rules" without a file extension (build/room/checks/rx.ts:19:23). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rs.ts:21:32). Add the file extension
+  - import "../../../src/room/compose/layout" without a file extension (build/room/checks/rt.ts:39:27). Add the file extension
+  - import "../../../src/room/glb/rules" without a file extension (build/room/checks/rk.ts:26:23). Add the file extension
+  - import "../../../src/room/compose/framing" without a file extension (build/room/checks/rg.ts:44:26). Add the file extension
+  - import "./schema" without a file extension (build/room/load.ts:32:8). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rx.ts:20:29). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rs.ts:22:43). Add the file extension
+  - import "../../../src/room/compose/legibility" without a file extension (build/room/checks/rt.ts:40:29). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rk.ts:27:29). Add the file extension
+  - import "../../../src/room/compose/layout" without a file extension (build/room/checks/rg.ts:45:27). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/ri.ts:16:30). Add the file extension
+  - import "./orders" without a file extension (build/room/emit.ts:64:69). Add the file extension
+  - import "./schema" without a file extension (build/room/load.ts:43:8). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/rx.ts:21:24). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rs.ts:23:38). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rt.ts:41:34). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/rk.ts:28:35). Add the file extension
+  - import "../../../src/room/compose/legibility" without a file extension (build/room/checks/rg.ts:46:66). Add the file extension
+  - import "../../../src/room/handoff" without a file extension (build/room/checks/ri.ts:17:24). Add the file extension
+  - import "./policy" without a file extension (build/room/emit.ts:65:24). Add the file extension
+  - import "./source" without a file extension (build/room/load.ts:44:33). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/rx.ts:22:31). Add the file extension
+  - import "./rg" without a file extension (build/room/checks/rs.ts:24:42). Add the file extension
+  - import "../../../src/room/glb/names" without a file extension (build/room/checks/rt.ts:42:29). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rk.ts:29:35). Add the file extension
+  - import "../../../src/room/compose/legibility" without a file extension (build/room/checks/rg.ts:47:63). Add the file extension
+  - import "../../../src/room/glb/json" without a file extension (build/room/checks/ri.ts:18:38). Add the file extension
+  - import "./policy" without a file extension (build/room/emit.ts:66:55). Add the file extension
+  - import "./source" without a file extension (build/room/load.ts:45:27). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rx.ts:23:35). Add the file extension
+  - import "../../../src/room/ui-keys" without a file extension (build/room/checks/rt.ts:43:41). Add the file extension
+  - import "../source" without a file extension (build/room/checks/rk.ts:30:27). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rg.ts:48:71). Add the file extension
+  - import "../load" without a file extension (build/room/checks/ri.ts:19:37). Add the file extension
+  - import "./report" without a file extension (build/room/emit.ts:67:28). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rx.ts:24:38). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rt.ts:44:36). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rk.ts:31:38). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rg.ts:49:39). Add the file extension
+  - import "../load" without a file extension (build/room/checks/ri.ts:20:29). Add the file extension
+  - import "./schema" without a file extension (build/room/emit.ts:68:21). Add the file extension
+  - import "./ri" without a file extension (build/room/checks/rx.ts:25:28). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rt.ts:45:41). Add the file extension
+  - import "./rg" without a file extension (build/room/checks/rk.ts:32:41). Add the file extension
+  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/rg.ts:50:65). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/ri.ts:21:21). Add the file extension
+  - import "./schema" without a file extension (build/room/emit.ts:79:8). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rt.ts:46:29). Add the file extension
+  - import "./rg" without a file extension (build/room/checks/rk.ts:33:31). Add the file extension
+  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/rg.ts:51:60). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/ri.ts:22:64). Add the file extension
+  - import "./source" without a file extension (build/room/emit.ts:80:33). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rt.ts:47:72). Add the file extension
+  - import "./rx" without a file extension (build/room/checks/rk.ts:34:41). Add the file extension
+  - import "../../../src/room/compose/pick" without a file extension (build/room/checks/rg.ts:52:73). Add the file extension
+  - import "./family" without a file extension (build/room/checks/ri.ts:23:38). Add the file extension
+  - import "./source" without a file extension (build/room/emit.ts:81:27). Add the file extension
+  - import "../typefaces" without a file extension (build/room/checks/rt.ts:48:27). Add the file extension
+  - import "../../../src/room/compose/pick" without a file extension (build/room/checks/rg.ts:53:62). Add the file extension
+  - import "./typefaces" without a file extension (build/room/emit.ts:82:31). Add the file extension
+  - import "../typefaces" without a file extension (build/room/checks/rt.ts:49:28). Add the file extension
+  - import "../../../src/room/compose/project" without a file extension (build/room/checks/rg.ts:54:36). Add the file extension
+  - import "./images" without a file extension (src/room/glb/fit.ts:14:27). Add the file extension
+  - import "./names" without a file extension (src/room/glb/rules.ts:6:27). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rt.ts:50:28). Add the file extension
+  - import "../../../src/room/compose/project" without a file extension (build/room/checks/rg.ts:55:40). Add the file extension
+  - import "../choice/avatars" without a file extension (src/room/handoff.ts:10:40). Add the file extension
+  - import "./math" without a file extension (src/room/compose/mount.ts:11:68). Add the file extension
+  - import "./images" without a file extension (src/room/glb/fit.ts:15:58). Add the file extension
+  - import "./names" without a file extension (src/room/glb/rules.ts:7:34). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rt.ts:51:38). Add the file extension
+  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rg.ts:64:8). Add the file extension
+  - import "../choice/avatars" without a file extension (src/room/handoff.ts:11:31). Add the file extension
+  - import "./math" without a file extension (src/room/compose/mount.ts:12:39). Add the file extension
+  - import "./json" without a file extension (src/room/glb/fit.ts:16:27). Add the file extension
+  - import "./rg" without a file extension (build/room/checks/rt.ts:52:42). Add the file extension
+  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rg.ts:65:28). Add the file extension
+  - import "./clock" without a file extension (src/room/handoff.ts:12:28). Add the file extension
+  - import "./json" without a file extension (src/room/glb/fit.ts:17:26). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rg.ts:66:47). Add the file extension
+  - import "./names" without a file extension (src/room/glb/fit.ts:18:80). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rg.ts:67:50). Add the file extension
+  - import "./read" without a file extension (src/room/glb/fit.ts:19:36). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rg.ts:68:41). Add the file extension
+  - import "./vocabulary" without a file extension (src/room/compose/layout.ts:9:31). Add the file extension
+  - import "./layout" without a file extension (src/room/compose/legibility.ts:8:49). Add the file extension
+  - import "../../src/room/compose/bundle" without a file extension (build/room/typefaces.ts:22:38). Add the file extension
+  - import "./read" without a file extension (src/room/glb/fit.ts:20:72). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/rg.ts:69:24). Add the file extension
+  - import "./layout" without a file extension (src/room/compose/legibility.ts:9:53). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/typefaces.ts:23:31). Add the file extension
+  - import "./rules" without a file extension (src/room/glb/fit.ts:37:8). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/rg.ts:70:33). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/report.ts:27:29). Add the file extension
+  - import "./math" without a file extension (src/room/compose/cable.ts:9:80). Add the file extension
+  - import "./math" without a file extension (src/room/compose/project.ts:7:65). Add the file extension
+  - import "./math" without a file extension (src/room/compose/framing.ts:8:27). Add the file extension
+  - import "../../src/room/compose/math" without a file extension (build/room/orders.ts:19:24). Add the file extension
+  - import "./math" without a file extension (src/room/compose/legibility.ts:10:62). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/typefaces.ts:24:34). Add the file extension
+  - import "./rules" without a file extension (src/room/glb/fit.ts:38:40). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rg.ts:82:8). Add the file extension
+  - import "../../src/room/glb/gzip" without a file extension (build/room/report.ts:28:27). Add the file extension
+  - import "./math" without a file extension (src/room/compose/cable.ts:10:33). Add the file extension
+  - import "./math" without a file extension (src/room/compose/project.ts:8:33). Add the file extension
+  - import "./project" without a file extension (src/room/compose/framing.ts:9:29). Add the file extension
+  - import "../../src/room/compose/math" without a file extension (build/room/orders.ts:20:27). Add the file extension
+  - import "./math" without a file extension (src/room/compose/legibility.ts:11:33). Add the file extension
+  - import "../pdf" without a file extension (build/room/typefaces.ts:25:32). Add the file extension
+  - import "./read" without a file extension (src/room/glb/fit.ts:40:35). Add the file extension
+  - import "../typefaces" without a file extension (build/room/checks/rg.ts:83:31). Add the file extension
+  - import "../../src/room/glb/rules" without a file extension (build/room/report.ts:29:30). Add the file extension
+  - import "./stages" without a file extension (src/room/compose/project.ts:9:28). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/orders.ts:21:29). Add the file extension
+  - import "./project" without a file extension (src/room/compose/legibility.ts:12:36). Add the file extension
+  - import "../pdf" without a file extension (build/room/typefaces.ts:26:32). Add the file extension
+  - import "../typefaces" without a file extension (build/room/checks/rg.ts:84:43). Add the file extension
+  - import "../../src/room/compose/bundle" without a file extension (build/room/report.ts:30:32). Add the file extension
+  - import "../../src/room/glb/rules" without a file extension (build/room/orders.ts:22:58). Add the file extension
+  - import "./project" without a file extension (src/room/compose/legibility.ts:13:29). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rg.ts:85:38). Add the file extension
+  - import "../../src/room/compose/stages" without a file extension (build/room/report.ts:31:28). Add the file extension
+  - import "./checks/rg" without a file extension (build/room/orders.ts:23:31). Add the file extension
+  - import "./stages" without a file extension (src/room/compose/legibility.ts:14:28). Add the file extension
+  - import "./rx" without a file extension (build/room/checks/rg.ts:86:27). Add the file extension
+  - import "./emit" without a file extension (build/room/report.ts:32:43). Add the file extension
+  - import "./emit" without a file extension (build/room/orders.ts:24:31). Add the file extension
+  - import "./vocabulary" without a file extension (src/room/compose/legibility.ts:15:44). Add the file extension
+  - import "./checks/family" without a file extension (build/room/report.ts:33:28). Add the file extension
+  - import "./load" without a file extension (build/room/orders.ts:25:29). Add the file extension
+  - import "./checks/rg" without a file extension (build/room/report.ts:34:72). Add the file extension
+  - import "./schema" without a file extension (build/room/orders.ts:26:46). Add the file extension
+  - import "./json" without a file extension (src/room/glb/read.ts:17:51). Add the file extension
+  - import "./framing" without a file extension (src/room/compose/pick.ts:10:26). Add the file extension
+  - import "./checks/rg" without a file extension (build/room/report.ts:35:31). Add the file extension
+  - import "./json" without a file extension (src/room/glb/read.ts:18:39). Add the file extension
+  - import "./project" without a file extension (src/room/compose/pick.ts:11:36). Add the file extension
+  - import "./checks/ri" without a file extension (build/room/report.ts:36:28). Add the file extension
+  - import "./names" without a file extension (src/room/glb/read.ts:19:30). Add the file extension
+  - import "./project" without a file extension (src/room/compose/pick.ts:12:29). Add the file extension
+  - import "./checks/rk" without a file extension (build/room/report.ts:37:59). Add the file extension
+  - import "./rules" without a file extension (src/room/glb/read.ts:20:40). Add the file extension
+  - import "./stages" without a file extension (src/room/compose/pick.ts:13:27). Add the file extension
+  - import "./schema" without a file extension (build/room/report.ts:38:29). Add the file extension
+  - import "./rules" without a file extension (src/room/glb/read.ts:21:29). Add the file extension
+  - import "./stages" without a file extension (src/room/compose/pick.ts:14:28). Add the file extension
+  - import "./source" without a file extension (build/room/report.ts:39:33). Add the file extension
+  - import "./source" without a file extension (build/room/report.ts:40:27). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+vite v8.3.3 building client environment for production...
+transforming...
+✓ 51 modules transformed.
+rendering chunks...
+resume: C1–C9 passed; the private denylist is missing here, so C9 checked the public list only
+narration: N1–N5 passed for 44 scripts; the private denylist is missing here, so N3 checked the public list only
+computing gzip size...
+dist/resume.pdf.txt                                        0.02 kB │ gzip:   0.04 kB
+dist/index.html                                            0.83 kB │ gzip:   0.45 kB
+dist/room-manifest.json                                    2.79 kB │ gzip:   0.74 kB
+dist/room-data.json                                        3.17 kB │ gzip:   0.58 kB
+dist/resume.pdf                                            4.89 kB
+dist/assets/patrick-hand-latin-400-normal-Df9_VoRQ.woff   17.65 kB
+dist/disclosure/index.html                                50.94 kB │ gzip:  15.74 kB
+dist/assets/IBMPlexMono-Regular-BT_fvlmi.woff             66.92 kB
+dist/assets/IBMPlexSans-Bold-BcmtwC_I.woff                87.07 kB
+dist/assets/IBMPlexSans-Regular-BgfvtkH4.woff             87.50 kB
+dist/disclosure/style.css                                  0.49 kB │ gzip:   0.29 kB
+dist/assets/index-COELgmfw.css                             7.59 kB │ gzip:   2.24 kB
+dist/assets/index--XAeOJmy.js                             54.07 kB │ gzip:  19.01 kB
+dist/assets/scene-BPakLKNb.js                            604.45 kB │ gzip: 153.26 kB
+
+✓ built in 1.13s
++ python3 -I -B -X pycache_prefix=/dev/null tools/gates/content_check.py --tree . --dist apps/web/dist --repo .
+content check: PASS (45 content files: 0 approved by main, 45 drafts, none of whose text is in dist/)
+-> PASS content-check
+== secrets
+bash tools/gates/secrets.sh
+secrets: gitleaks with /home/h4reet/h4reet-ai/h4reet-ai/.gitleaks.toml, over /tmp/claude-1000/wt-us1-r
+== gitleaks: unstaged changes
+9:11PM INF 0 commits scanned.
+9:11PM INF scanned ~0 bytes (0) in 22.7ms
+9:11PM INF no leaks found
+-> PASS unstaged changes
+== gitleaks: staged changes
+9:11PM INF 0 commits scanned.
+9:11PM INF scanned ~0 bytes (0) in 23.9ms
+9:11PM INF no leaks found
+-> PASS staged changes
+== gitleaks: 65 commits since main (df2dcf45b7cb..HEAD)
+9:11PM INF 65 commits scanned.
+9:11PM INF scanned ~987294 bytes (987.29 KB) in 132ms
+9:11PM INF no leaks found
+-> PASS 65 commits since main (df2dcf45b7cb..HEAD)
+secrets: PASS (unstaged changes, staged changes, 65 commits since main)
+-> PASS secrets
+== arrival
+arrival-check: 0 findings in 389 files (65 commits)
+python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --check
+credits: OK: the renderings and the records' form
+-> PASS arrival
+== evals
+python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER:-}" = local ] && echo --stack prod)
+PASS  hello-fake
+evals product (fake): 1 passed, 0 failed
+python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite narration --adapter fake
+PASS  narration-agent-orchestrator-engineer
+PASS  narration-agent-orchestrator-non-engineer
+PASS  narration-agent-watchdog-engineer
+PASS  narration-agent-watchdog-non-engineer
+PASS  narration-ai-strategy-engineer
+PASS  narration-ai-strategy-non-engineer
+PASS  narration-change-management-engineer
+PASS  narration-change-management-non-engineer
+PASS  narration-cht-agent-data-layer-engineer
+PASS  narration-cht-agent-data-layer-non-engineer
+PASS  narration-cht-agent-engineer
+PASS  narration-cht-agent-non-engineer
+PASS  narration-cht-codebase-engineer
+PASS  narration-cht-codebase-non-engineer
+PASS  narration-cht-docker-architecture-engineer
+PASS  narration-cht-docker-architecture-non-engineer
+PASS  narration-cht-skills-engineer
+PASS  narration-cht-skills-non-engineer
+PASS  narration-claude-medic-aws-engineer
+PASS  narration-claude-medic-aws-non-engineer
+PASS  narration-cloud-data-centers-engineer
+PASS  narration-cloud-data-centers-non-engineer
+PASS  narration-denver-local-ai-engineer
+PASS  narration-denver-local-ai-non-engineer
+PASS  narration-hareet-ai-engineer
+PASS  narration-hareet-ai-non-engineer
+PASS  narration-kenya-localization-engineer
+PASS  narration-kenya-localization-non-engineer
+PASS  narration-national-benchmarking-engineer
+PASS  narration-national-benchmarking-non-engineer
+PASS  narration-national-scale-engineer
+PASS  narration-national-scale-non-engineer
+PASS  narration-no-code-configuration-engineer
+PASS  narration-no-code-configuration-non-engineer
+PASS  narration-other-deployments-engineer
+PASS  narration-other-deployments-non-engineer
+PASS  narration-powersync-postgres-engineer
+PASS  narration-powersync-postgres-non-engineer
+PASS  narration-smart-task-prioritization-engineer
+PASS  narration-smart-task-prioritization-non-engineer
+PASS  narration-tools-engineer
+PASS  narration-tools-non-engineer
+PASS  narration-voice-for-cht-engineer
+PASS  narration-voice-for-cht-non-engineer
+evals narration (fake): 44 passed, 0 failed
+python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py
+PASS  CLAUDE.md is 58 lines and 5901 bytes (at most 60 and 6 KB)
+PASS  CLAUDE.md names the constitution as superseding it
+PASS  REVIEW.md names the constitution as superseding it
+PASS  role docs: tools match roles.expected
+PASS  role implementer: tools match roles.expected
+PASS  role ops: tools match roles.expected
+PASS  role red-teamer: tools match roles.expected
+PASS  role reviewer: tools match roles.expected
+PASS  role spec-writer: tools match roles.expected
+PASS  hook .claude/hooks/bash-gate.sh is registered for PreToolUse Bash
+PASS  hook .claude/hooks/protected-paths.sh is registered for PreToolUse Edit|Write|MultiEdit|NotebookEdit
+PASS  hook .claude/hooks/post-edit-check.sh is registered for PostToolUse Edit|Write|MultiEdit
+PASS  hook .claude/hooks/subagent-report-check.sh is registered for SubagentStop (every subagent)
+PASS  hook .claude/hooks/content-scan.sh is registered for PreToolUse Edit|Write|MultiEdit
+PASS  FR-007: 27 of 27 variables denied by name
+agent-config static: 0 failed, 0 planned
+python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py status
+behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash 788771dbb186
+FAIL  behavioral tier: 2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4, the newest run for trigger hash 788771dbb186, failed: reads-studio-folder: the forbidden effect, or a run without hook events, in 2 of 3 runs (at most 0)
+agent-config behavioral: fail, 0 planned
+make[1]: *** [Makefile:309: evals] Error 1
+-> FAIL evals
+== redteam
+python3 -I -B -X pycache_prefix=/dev/null redteam/run.py
+PASS  benign-greeting (safe, clean)
+PASS  planted-human-claim (unsafe, caught: claims to be human)
+redteam: 2 passed, 0 failed
+-> PASS redteam
+== matrix
+bash redteam/forbidden-actions.sh
+KNOWN GAP   bash-gate.sh          t=main; git tag "$t"
+KNOWN GAP   bash-gate.sh          git tag $(echo main)
+KNOWN GAP   bash-gate.sh          printf 'create refs/tags/main HEAD\n' | git update-ref --stdin
+KNOWN GAP   bash-gate.sh          git fast-import --quiet < /tmp/stream
+KNOWN GAP   bash-gate.sh          cd .git && printf x > main
+KNOWN GAP   bash-gate.sh          git fetch . 'refs/heads/feature/*:refs/tags/*'
+KNOWN GAP   bash-gate.sh          make $(printf 'aws-%s' login) ENV=prod
+KNOWN GAP   bash-gate.sh          t=aws; make "$t-login" ENV=prod
+KNOWN GAP   bash-gate.sh          bash deploy/scripts/aws-l?gin.sh
+KNOWN GAP   bash-gate.sh          gh pr \<newline>merge 1
+KNOWN GAP   bash-gate.sh          make $'aws\x2dlogin' ENV=prod
+KNOWN GAP   bash-gate.sh          python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter bedrock
+KNOWN GAP   bash-gate.sh          cd evals && python3 run.py --suite product --adapter bedrock
+KNOWN GAP   bash-gate.sh          python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"
+KNOWN GAP   bash-gate.sh          /tmp/a sso login --profile h4reet-bedrock
+KNOWN GAP   bash-gate.sh          python3 -c 'open("tests/test_router.py", "w").write("")'
+KNOWN GAP   bash-gate.sh          install -m 0644 /tmp/new.py tests/test_router.py
+KNOWN GAP   bash-gate.sh          git checkout HEAD~1 -- tests/test_router.py
+KNOWN GAP   role:red-teamer       make redteam 2>&1 -f /tmp/x.mk
+KNOWN GAP   role:red-teamer       make redteam 2>&1 -f /tmp/x.mk [--agent]
+KNOWN GAP   role:red-teamer       make evals X='a|b' -f /tmp/x.mk
+KNOWN GAP   role:red-teamer       make evals X='a|b' -f /tmp/x.mk [--agent]
+KNOWN GAP   role:red-teamer       make redteam --fi=/tmp/x.mk
+KNOWN GAP   role:red-teamer       make redteam --fi=/tmp/x.mk [--agent]
+KNOWN GAP   role:red-teamer       GNUMAKEFLAGS=-f/tmp/x.mk make redteam
+KNOWN GAP   role:red-teamer       GNUMAKEFLAGS=-f/tmp/x.mk make redteam [--agent]
+KNOWN GAP   role:red-teamer       MAKEFILES+=/tmp/x.mk make redteam
+KNOWN GAP   role:red-teamer       MAKEFILES+=/tmp/x.mk make redteam [--agent]
+KNOWN GAP   role:reviewer         git log -p >&1x
+KNOWN GAP   role:reviewer         git log -p >&1x [--agent]
+ENFORCED    bash-gate.sh          make studio-window ENV=prod STATE=start REASON="studio: a portrait batch" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          make studio-window ENV=dev STATE=end REASON="studio: the batch is done" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          make studio-window STATE=start REASON="studio: a portrait batch" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          make -C . studio-window ENV=prod STATE=start REASON="studio: a portrait batch" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          bash -c 'make studio-window ENV=dev STATE=end REASON=studio-batch-done' (a planned row: make it "block")
+ENFORCED    bash-gate.sh          s=prod; make studio-window ENV=$s STATE=start REASON="studio: a portrait batch" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          make "studio"-window ENV=prod STATE=start REASON="studio: a portrait batch" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          make ENV=prod ./studio-window STATE=start REASON="studio: a portrait batch" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          ENV=prod make studio-window STATE=start REASON="studio: a portrait batch" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          make studio-window ENV=dev-cpu ENV=prod STATE=start REASON="studio: a portrait batch" (a planned row: make it "block")
+ENFORCED    bash-gate.sh          t=studio-window; make $t ENV=prod STATE=start REASON=studio-portraits (a planned row: make it "block")
+KNOWN GAP   bash-gate.sh          make $(printf 'studio-%s' window) ENV=prod STATE=start REASON=studio-portraits
+KNOWN GAP   bash-gate.sh          t=studio; make "$t-window" ENV=prod STATE=start REASON=studio-portraits
+KNOWN GAP   bash-gate.sh          make "$TARGET" ENV=prod STATE=start REASON=studio-portraits
+KNOWN GAP   bash-gate.sh          python3 evals/agent-config/behavioral.py run
+KNOWN GAP   bash-gate.sh          python3 tools/gates/matrix_canary.py
+KNOWN GAP   bash-gate.sh          python3 tools/gates/publish_check.py
+KNOWN GAP   bash-gate.sh          git commit $(printf -- '--no-%s' verify) -m wip
+KNOWN GAP   bash-gate.sh          $(printf 'cla%s' ude) mcp add fs cmd
+KNOWN GAP   bash-gate.sh          python3 -c "import urllib.request as u; u.urlopen('http://127.0.0.1:%d/admin/status' % (18000 + 3))"
+KNOWN GAP   bash-gate.sh          make $(printf 'to%s' ols)
+KNOWN GAP   bash-gate.sh          a shell write in a linked worktree: tools/gates/gate
+KNOWN GAP   bash-gate.sh          a shell write in a linked worktree: evals/agent-config/static.py
+KNOWN GAP   bash-gate.sh          git apply --cached /tmp/gates.patch
+KNOWN GAP   bash-gate.sh          git update-index --add --cacheinfo "100644,$(git hash-object -w /tmp/new),tools/gates/gate"
+KNOWN GAP   bash-gate.sh          git read-tree --prefix=tools/gates/ feature/x:tools/gates
+KNOWN GAP   bash-gate.sh          git read-tree --prefix=evals/agent-config/ feature/x:evals/agent-config
+KNOWN GAP   bash-gate.sh          a shell write in a linked worktree: assets/policy/approvals.json
+KNOWN GAP   bash-gate.sh          a shell write in a linked worktree: assets/policy/content-approvals.json
+--- stage S: the sandbox (SANDBOX_RUNTIME=1, .git/hooks unwritable) ---
+FAIL        stage-S-unwritable    makefile has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai
+FAIL        stage-S-unwritable    .gitleaksignore has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai
+NOTE        stage-S-unwritable    ~/.local/state/h4reet: no mask of its own, but it sits on a read-only mount (covered read-only /)
+FAIL        stage-S-unwritable    .github/workflows has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai
+FAIL        stage-S-unwritable    .mcp.json has no mask: open writable /home/h4reet/h4reet-ai/h4reet-ai
+NOTE        stage-S-unwritable    assets/policy/content-approvals.json: no mask of its own, but it sits on a read-only mount (covered read-only /home/h4reet/h4reet-ai/h4reet-ai/assets/policy)
+NOTE        stage-S-unwritable    assets/policy/resume-header.json: no mask of its own, but it sits on a read-only mount (covered read-only /home/h4reet/h4reet-ai/h4reet-ai/assets/policy)
+NOTE        stage-S-unwritable    the studio's photos folder: unwritable through its read mask; denyWrite's own mount can't be observed while denyRead hides the folder, so H/settings/the studio's photos folder is write-denied is what proves the settings hold it
+NOTE        stage-S-unwritable    the studio's outputs folder: unwritable through its read mask; denyWrite's own mount can't be observed while denyRead hides the folder, so H/settings/the studio's outputs folder is write-denied is what proves the settings hold it
+NOTE        stage-S-unwritable    the studio's workflows folder: unwritable through its read mask; denyWrite's own mount can't be observed while denyRead hides the folder, so H/settings/the studio's workflows folder is write-denied is what proves the settings hold it
+NOTE        stage-S-unwritable    the studio's blinding-key folder: unwritable through its read mask; denyWrite's own mount can't be observed while denyRead hides the folder, so H/settings/the studio's blinding-key folder is write-denied is what proves the settings hold it
+NOTE        stage-S-case          no case variant of the studio's photos, outputs, workflows, blinding-key exists: a case-sensitive mount
+SKIP        stage-S-conn          the SMTP host row: H4_STAGE_S_SMTP_HOST isn't set: it names the alert channel's SMTP host, deploy/env's SMTP_HOST
+NOTE        stage-S-conn          npm and 198.18.0.1:2376 (allowed) need the proxy and the engine; proved by stage E and make engine-smoke
+SKIP        stage-E               stage E not run: the prove report (2026-10-18T00:54:24Z, commit 58bd2327212e) proved deploy/agents-engine at tree 73ce5525f5f1, and this checkout's is eb65ab91ad63; rerun engine.sh prove
+KNOWN GAP   bash-gate.sh          sh -c "$(printf 'gi%s pu%s' t sh)"
+KNOWN GAP   bash-gate.sh          sh -c 'unset CLAUDE""CODE; git commit -m wip'
+KNOWN GAP   bash-gate.sh          e=engine; deploy/agents-engine/$e.sh up
+TOTALS      matrix                0 planned (reported, not failing), 2 skipped: stage S's SMTP row has no usable host; stage E's report is for another engine tree
+REQUIRED    matrix-required       every listed row ran
+forbidden-actions (hook layer): 791 passed, 4 failed, 51 known gaps
+make[1]: *** [Makefile:334: matrix] Error 1
+-> FAIL matrix
+== image
+SKIP: no agents' engine yet: tasks.md T046
+-> SKIP image (no agents' engine yet: tasks.md T046)
+
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+FAIL     evals
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 2 FAIL; failing: evals FAIL, matrix FAIL
+make: *** [Makefile:159: check] Error 1
+make check exit: 2
+```
+
+```text
+# make check ENGINE_MODE=none-yet in /tmp/claude-1000/wt-us1-r on feat/004-us1-composition at cb429caf, 2026-11-07T03:37:19Z: its gate list, the end of its whole output
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+FAIL     evals
+PASS     redteam
+PASS     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 12 PASS, 1 SKIP, 0 PLANNED, 0 PENDING, 1 FAIL; failing: evals FAIL
+make: *** [Makefile:159: check] Error 1
+make check exit: 2
+```
+
+```text
+# gitleaks dir ., from inside a git archive export of 197dd1d6, with the export's own .gitleaks.toml, 2026-11-07T04:02:00Z (colour codes taken out)
+
+    ○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+9:02PM INF scanned ~15899905 bytes (15.90 MB) in 913ms
+9:02PM INF no leaks found
+gitleaks exit: 0
+```
+
+```text
+# evals/docs_links.py, the step make evals doesn't reach while the behavioral tier fails, run alone in /tmp/claude-1000/wt-us1-r on 197dd1d6, 2026-11-07T04:04:17Z
+PASS  every relative link resolves: 1503 links in 196 files
+PASS  README.md links the ADR index (docs/adr/)
+PASS  the ADR index links every ADR file: 25 of 25
+PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
+docs links: 0 failed, 1503 relative links in 196 files
+docs_links exit: 0
+```
+
+The rest of this note is as it stood at 58c22d5, its SHAs the old ones (the table above maps them), but for four pointers to this section: under "Runs in the Author's terminal", under Verification's last line, under "Rebase plan (T118, I4)", and in For the Author, items 1 and 2.
+
 **Status: reviewed, APPROVE with fixes, no blocker.** Every fix is made, and each was written test first (RED 7de0abf, then GREEN). The merge waits for `spec/004-cube-amend`, M9, P-10, and M8 (P-7), and for the rebase in T118. The `make check` run ends with three FAILs, and all three are environmental or pre-existing: toolchain-check (the Claude Code pin), policy (the web image's digest pin), and test (the four pytest cases the foundation's note records). See Verification. Several decisions are the Author's, and they are under For the Author.
 
 ## Runs in the Author's terminal
+
+**2026-11-06:** steps 1 and 2 are done, and step 3 is replaced by "Your steps (T119)" in the section at the top; step 4 stands, with the visitor at x −0.7 (T304).
 
 Nothing on this branch runs in your terminal before the merges below. Read the steps in this order.
 
@@ -708,7 +1629,7 @@ room: 0 hits
 (empty above means no difference)
 ```
 
-The `room:report` run and the `make check` run after the rebase (T118) are appended to this note at that step.
+The `room:report` run and the `make check` run after the rebase (T118) are in the section at the top of this note, "2026-11-06: rebased onto main, with the 2026-10-30 answers".
 
 ## Rebase plan (T118, I4)
 
@@ -724,6 +1645,8 @@ The commits, with their `spec/004-cube-amend` equivalents:
 - 02b646f (9005c7c), 821f3a1 (3719f5d), b724611 (0f8b69e), 80d34ae (934c9dc), 6c7230a (9267b24).
 
 The spec branch also holds c95a0ff, which has no counterpart on this branch. The review's I4 listed five commits from the 0d4cd27 era, not six, and that list is what this plan uses.
+
+**Done, 2026-11-06,** as planned: the ten commits dropped, each empty, and the folder differs from `main` by this branch's ticks and §10 entries alone (the section at the top).
 
 ## Backlog
 
@@ -766,9 +1689,13 @@ At −0.5 a human visitor still hides about a quarter to a third of the monitor 
 
    **Ask:** keep x −0.5, move further left and give up the snowboard's clear view, or accept the position as it was. The branch keeps −0.5 until you say.
 
+   **Answered, 2026-10-30:** "Move further left" (spec.md's Clarifications, Session 2026-10-30, US1 · 1). T304 put the visitor at x −0.7; its measured row is in the section at the top.
+
 2. **R1's missing line for a failed 2D drawing.** If the 2D drawing refuses, the room opens with the list and "Around the room", but no UI word gives a line that says why. data-model.md §6.3 closes the UI words' keys, so the view is left empty. Two choices:
    - Add a UI word. That is a spec change to data-model.md §6.3, through the lifecycle. A suggested line, for you to accept or change, is key `flat-failed` with the text "This drawing of the room could not be shown. The list below still works."
    - Keep the empty view, and do nothing.
+
+   **Answered, 2026-10-30:** "flat-failed is good, and if the room is failing like that, we show the list" (spec.md's Clarifications, Session 2026-10-30, US1 · 2). T305 added the line; see the section at the top.
 
 3. **Look judgements for lookdev (SC-010 and the Author's look).** These are not defects by the tests. They are for your eye on the dev run.
    - The twin covers about 63% of the bicycle, by the review's measure. The two overlap.
