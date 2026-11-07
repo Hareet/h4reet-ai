@@ -1,0 +1,8 @@
+rule: RG6
+file: apps/web/room/scene.yaml
+path: selectables[2]
+why: the twin made a selectable where it stands, its exclusive core over the laptop, a regroup without a move
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [selectables]
+    push: { id: fx-figure, name: Fixture figure, members: [fx-twin], action: { resume: {} } }

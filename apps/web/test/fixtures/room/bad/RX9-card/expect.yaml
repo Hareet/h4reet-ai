@@ -1,0 +1,10 @@
+rule: RX9
+file: assets/room/fx-board.png
+path: "-"
+why: an image card held to RX9's texture rules, 6 × 4 pixels, a side that isn't a power of two
+raw:
+  # A PNG's signature, its IHDR (6 × 4, 8-bit RGB) with its CRC, and IEND: the fit check reads headers, never pixels.
+  assets/room/fx-board.png: "\x89\x50\x4e\x47\x0d\x0a\x1a\x0a\x00\x00\x00\x0d\x49\x48\x44\x52\x00\x00\x00\x06\x00\x00\x00\x04\x08\x02\x00\x00\x00\x22\x66\xd9\x14\x00\x00\x00\x00\x49\x45\x4e\x44\xae\x42\x60\x82"
+generate: { assets/room/records.json: records }
+edits:
+  - { file: apps/web/room/catalog/fx-board.yaml, at: [model], set: { card: fx-board.png } }

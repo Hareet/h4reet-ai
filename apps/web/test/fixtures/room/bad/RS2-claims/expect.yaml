@@ -1,0 +1,6 @@
+rule: RS2
+file: apps/web/room/catalog/fx-plug.yaml
+path: claims.poses.fx-resting
+why: two poses claiming cloud
+edits:
+  - { file: apps/web/room/catalog/fx-plug.yaml, at: [claims, poses, fx-resting], set: cloud }

@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: switches[0].cases.local
+why: a case showing a pose the switch lacks
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cases, local], set: fx-nopose }

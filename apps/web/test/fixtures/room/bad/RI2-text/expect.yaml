@@ -1,0 +1,7 @@
+rule: RI2
+file: apps/web/content/room/outlines/fx-sign-words.outline.json
+path: sign
+why: a block and an outline with one name, which room text shares
+copy: { apps/web/content/room/fx-script.yaml: apps/web/content/room/fx-sign-words.yaml }
+edits:
+  - { file: apps/web/content/room/fx-sign-words.yaml, at: [block], set: fx-sign-words }

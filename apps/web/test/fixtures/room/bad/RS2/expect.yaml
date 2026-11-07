@@ -1,0 +1,7 @@
+rule: RS2
+file: apps/web/room/scene.yaml
+path: switches[0].poses.fx-away
+why: a pose its piece's claims don't name
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, poses, fx-cloud], rename: fx-away }
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cases, cloud], set: fx-away }

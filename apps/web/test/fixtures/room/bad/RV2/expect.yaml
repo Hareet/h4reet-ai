@@ -1,0 +1,6 @@
+rule: RV2
+file: apps/web/room/catalog/fx-board.yaml
+path: drawing.primitives[2].points
+why: a polyline of one point, which the loader refuses as it reads the piece
+edits:
+  - { file: apps/web/room/catalog/fx-board.yaml, at: [drawing, primitives, 2, points], set: [[-0.3, 0.1]] }

@@ -1,0 +1,5 @@
+rule: RD5
+file: apps/web/room/fixtures/extra
+path: "-"
+why: a folder inside a data folder
+copy: { apps/web/room/fixtures/fx-sample.yaml: apps/web/room/fixtures/extra/fx-sample.yaml }

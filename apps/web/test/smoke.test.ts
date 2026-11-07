@@ -1,17 +1,16 @@
-// T004 (spec 002): the built site, as the web image serves it. One vite build into a temporary directory, then:
-// every script and stylesheet comes from a relative path on the site's own origin (FR-057, the CSP's 'self'), no
-// inline script or style the CSP would refuse, the AI disclosure and the PDF link on the first screen (FR-004,
-// FR-018), the data-flow disclosure page beside it (FR-058), and 0 axe violations on both pages.
+// T004 (spec 002): the built site, as the web image serves it. The release build the global setup makes before any
+// test file runs (test/global-build.ts; spec 004, T084), then: every script and stylesheet comes from a relative path
+// on the site's own origin (FR-057, the CSP's 'self'), no inline script or style the CSP would refuse, the AI
+// disclosure and the PDF link on the first screen (FR-004, FR-018), the data-flow disclosure page beside it (FR-058),
+// and 0 axe violations on both pages.
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import axe from "axe-core";
 import { JSDOM } from "jsdom";
-import { build } from "vite";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 
 import { renderDisclosure } from "../build/disclosure";
 
@@ -19,27 +18,8 @@ const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const DISCLOSURE_MD = resolve(WEB, "../../docs/data-flow-disclosure.md");
 const AI_DISCLOSURE = "You're talking with an AI representation of the Author, not the Author.";
 
-let out = "";
-let policy = "";
-
-beforeAll(async () => {
-  out = mkdtempSync(join(tmpdir(), "h4-web-build-"));
-  // An empty policy directory and no drafts: the build a checkout with nothing approved on main makes.
-  policy = mkdtempSync(join(tmpdir(), "h4-web-policy-"));
-  vi.stubEnv("ROOM_POLICY_DIR", policy);
-  vi.stubEnv("ROOM_DRAFTS", "");
-  await build({
-    root: WEB,
-    configFile: join(WEB, "vite.config.ts"),
-    logLevel: "silent",
-    build: { outDir: out, emptyOutDir: true },
-  });
-}, 120_000);
-
-afterAll(() => {
-  vi.unstubAllEnvs();
-  for (const dir of [out, policy]) if (dir) rmSync(dir, { recursive: true, force: true });
-});
+// An empty policy directory and no drafts: the build a checkout with nothing approved on main makes.
+const out = inject("siteBuilds").release;
 
 function page(rel: string): JSDOM {
   return new JSDOM(readFileSync(join(out, rel), "utf8"), { runScripts: "outside-only" });

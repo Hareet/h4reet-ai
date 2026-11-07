@@ -1,0 +1,6 @@
+rule: RS1
+file: apps/web/room/scene.yaml
+path: switches[0].signal
+why: a switch on turn-cost, which has no values, refused as the scene is read
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, signal], set: turn-cost }

@@ -1,0 +1,5 @@
+rule: RD5
+file: apps/web/room/constructor
+path: "-"
+why: a file of no kind named as an object's own key is, which the loader looks up by name
+raw: { apps/web/room/constructor: "version: 1\n" }

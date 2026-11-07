@@ -1,0 +1,6 @@
+rule: RD1
+file: apps/web/content/room/outlines/fx-sign-words.outline.json
+path: "-"
+why: a duplicate key in JSON, which JSON.parse would take silently
+raw:
+  apps/web/content/room/outlines/fx-sign-words.outline.json: "{\"schema\": 1, \"sign\": \"fx-sign-words\", \"sign\": \"fx-sign-words\", \"words\": \"fixture sign words\", \"intent_ref\": \"intent-900\", \"source\": {\"type\": \"design\", \"id\": \"fx-design-01\"}, \"tool\": {\"name\": \"fx-tracer\", \"version\": \"1.0.0\", \"license\": \"MIT\"}, \"view_box\": [0, 0, 400, 100], \"cap_height\": 72, \"paths\": [\"M 10 90 L 10 18 Z\"]}\n"

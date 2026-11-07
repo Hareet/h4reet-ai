@@ -1,0 +1,6 @@
+rule: RI9
+file: apps/web/room/topics.yaml
+path: topics[0].corpus[0]
+why: a corpus path outside the form corpus/NN-<topic>.md
+edits:
+  - { file: apps/web/room/topics.yaml, at: [topics, 0, corpus, 0], set: corpus/intake/fx-work.md }

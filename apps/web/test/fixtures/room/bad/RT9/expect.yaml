@@ -1,0 +1,6 @@
+rule: RT9
+file: apps/web/room/topics.yaml
+path: topics[0].words_from[0].quote
+why: a quote its intent doesn't hold (strict mode)
+edits:
+  - { file: apps/web/room/topics.yaml, at: [topics, 0, words_from, 0, quote], set: the fixture room holds a lamp }

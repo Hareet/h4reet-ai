@@ -1,0 +1,14 @@
+rule: RG7
+file: apps/web/room/scene.yaml
+path: placements[3].faces.panel
+why: main's caps raising the floor to 11 px, over the neon panel's cap height on the phone stage
+caps:
+  schema: 1
+  per_asset:
+    room:
+      gzip_bytes: 2500000
+      triangles: 40000
+      small_props: []
+      small_prop_texture_px: 1024
+      scene_texture_bytes: 96000000
+      legibility_floor_css_px: 11

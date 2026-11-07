@@ -1,0 +1,6 @@
+rule: RI6
+file: apps/web/room/scene.yaml
+path: selectables[1].members[1]
+why: a placement in two selectables
+edits:
+  - { file: apps/web/room/scene.yaml, at: [selectables, 1, members], push: fx-laptop }

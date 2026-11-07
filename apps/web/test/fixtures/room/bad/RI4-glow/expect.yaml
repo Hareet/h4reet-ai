@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: switches[0].poses.fx-plugged.glows[0].glow
+why: a pose setting a glow the placement's piece lacks
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, poses, fx-plugged, glows, 0, glow], set: fx-noglow }

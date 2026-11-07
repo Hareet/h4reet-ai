@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: placements[2].mount.anchor
+why: a mount on an anchor its parent's piece lacks
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 2, mount, anchor], set: fx-nowhere }

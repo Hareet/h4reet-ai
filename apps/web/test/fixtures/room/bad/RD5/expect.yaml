@@ -1,0 +1,5 @@
+rule: RD5
+file: apps/web/room/fixtures/fx-sample.yml
+path: "-"
+why: a file of another extension in a data folder
+move: { apps/web/room/fixtures/fx-sample.yaml: apps/web/room/fixtures/fx-sample.yml }

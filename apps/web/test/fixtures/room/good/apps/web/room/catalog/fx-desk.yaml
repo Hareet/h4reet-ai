@@ -1,0 +1,25 @@
+# The fixture desk: an estimated size, three anchors, and a drawing of its own primitives.
+version: 1
+id: fx-desk
+name: Fixture desk
+size: { w: 1.2, h: 0.75, d: 0.6, estimated: true }
+origin:
+  point: Fixture point on the floor below the desk's centre
+  bounds: { min: [-0.6, 0, -0.3], max: [0.6, 0.75, 0.3] }
+anchors:
+  top: { at: [0, 0.75, 0] }
+  corner: { at: [-0.6, 0.75, 0.3], estimated: true }
+  back-edge: { at: [0, 0.75, -0.3] }
+standin:
+  - { shape: box, size: [1.2, 0.04, 0.6], at: [0, 0.73, 0], color: fx-wood }
+  - { shape: box, size: [1.1, 0.71, 0.5], at: [0, 0.355, 0], color: fx-wood }
+drawing:
+  primitives:
+    - { primitive: rect, x: -0.6, y: 0, w: 1.2, h: 0.75, fill: fx-wood, stroke: fx-ink, stroke_width: 0.01 }
+    - { primitive: line, x1: -0.6, y1: 0.71, x2: 0.6, y2: 0.71, stroke: fx-ink, stroke_width: 0.005 }
+budget: { gzip_bytes: 800000, triangles: 8000, texture_px: 1024, texture_bytes: 5592405 }
+work_order:
+  method: Fixture method for the desk
+  shots: [Fixture shot of the desk from the front, Fixture shot of the desk from the side]
+  measurements: [Fixture measure of the desk's top]
+  studio_notes: Fixture studio notes for the desk

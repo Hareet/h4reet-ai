@@ -1,0 +1,30 @@
+# The fixture monitor: a readable live face the scene binds to a terminal block, and a glow.
+version: 1
+id: fx-monitor
+name: Fixture monitor
+size: { w: 0.6, h: 0.42, d: 0.05 }
+origin:
+  point: Fixture point at the bottom centre of the stand
+  bounds: { min: [-0.3, 0, -0.025], max: [0.3, 0.42, 0.025] }
+anchors:
+  top-edge: { at: [0, 0.42, 0] }
+live_faces:
+  - role: screen
+    at: [0, 0.22, 0.025]
+    size: [0.56, 0.36]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [560, 360]
+    readable: true
+glows:
+  - { id: fx-screen-glow, at: [0, 0.22, 0.02], radius: 0.3, tone: fx-cool, motion: breathe }
+standin:
+  - { shape: box, size: [0.6, 0.42, 0.04], at: [0, 0.21, -0.005], color: fx-ink }
+  - { shape: plane, size: [0.56, 0.36], at: [0, 0.22, 0.02], color: fx-screen, lit: false }
+drawing: { from: standin }
+budget: { gzip_bytes: 600000, triangles: 6000, texture_px: 1024, texture_bytes: 5592405 }
+work_order:
+  method: Fixture method for the monitor
+  shots: [Fixture shot of the screen]
+  measurements: [Fixture measure of the screen's corners]
+  studio_notes: Fixture studio notes for the monitor

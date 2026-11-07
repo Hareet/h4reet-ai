@@ -1,0 +1,6 @@
+rule: RD4
+file: apps/web/room/catalog/fx-sign.yaml
+path: version
+why: a version other than 1
+edits:
+  - { file: apps/web/room/catalog/fx-sign.yaml, at: [version], set: 2 }

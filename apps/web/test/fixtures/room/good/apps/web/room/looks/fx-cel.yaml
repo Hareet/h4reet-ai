@@ -1,0 +1,28 @@
+# The fixture look: inked cel, the palette the stand-ins and drawings name, two glow tones, and a typeface for each use.
+version: 1
+id: fx-cel
+method: inked-cel
+palette:
+  fx-floor: "#8a7f70"
+  fx-wall: "#d8d2c4"
+  fx-wood: "#9c6b3f"
+  fx-ink: "#1d1d1f"
+  fx-screen: "#20303a"
+  fx-slate: "#2f3b33"
+  fx-glow: "#ffcf70"
+  fx-skin: "#c99a7a"
+lights:
+  ambient: { sky: "#ffffff", ground: "#806040", intensity: 0.6 }
+  key: { color: "#fff4e0", intensity: 1.2, from: [1, 2, 3], shadows: true }
+shading: { steps: 3 }
+outlines: { color: fx-ink, width: 1.5 }
+glow_tones:
+  fx-warm: { color: "#ffb347", intensity: 1.5 }
+  fx-cool: { color: "#7fd0ff", intensity: 0.8 }
+typefaces:
+  terminal: { family: IBM Plex Mono, weight: 400 }
+  desktop-session: { family: IBM Plex Sans, weight: 400 }
+  chalk: { family: Patrick Hand, weight: 400 }
+  neon: { family: IBM Plex Sans, weight: 700 }
+  counters: { family: IBM Plex Mono, weight: 400 }
+material_notes: Fixture material notes for the work orders

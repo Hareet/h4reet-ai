@@ -1,0 +1,6 @@
+rule: RD1
+file: apps/web/room/lookdev.yaml
+path: "-"
+why: an explicit tag
+raw:
+  apps/web/room/lookdev.yaml: "version: !!int 1\nvignette: { show: [fx-desk] }\nclose_up: { frame: [fx-desk] }\n"

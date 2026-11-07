@@ -1,0 +1,6 @@
+rule: RX1
+file: assets/room/fx-desk.glb
+path: "-"
+why: a model the tree doesn't hold, as in an image build without the room-assets context (serving.md §3)
+edits:
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [model], set: { file: fx-desk.glb } }

@@ -1,0 +1,6 @@
+rule: RT1
+file: apps/web/room/scene.yaml
+path: placements[5].faces.slate.regions[0].text
+why: a chalk region bound to an outline, which only a sign region draws
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 5, faces, slate, regions, 0, text], set: fx-sign-words }

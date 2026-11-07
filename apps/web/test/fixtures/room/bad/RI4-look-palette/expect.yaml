@@ -1,0 +1,8 @@
+rule: RI4
+file: apps/web/room/looks/fx-flat.yaml
+path: outlines.color
+why: a look whose ink colour is a colour of the scene's look's palette, not of its own
+copy: { apps/web/room/looks/fx-cel.yaml: apps/web/room/looks/fx-flat.yaml }
+edits:
+  - { file: apps/web/room/looks/fx-flat.yaml, at: [id], set: fx-flat }
+  - { file: apps/web/room/looks/fx-flat.yaml, at: [palette], set: { fx-only: "#000000" } }

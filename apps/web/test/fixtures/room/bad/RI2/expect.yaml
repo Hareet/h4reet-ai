@@ -1,0 +1,8 @@
+rule: RI2
+file: apps/web/room/scene.yaml
+path: placements[9].id
+why: a second placement with an ID the scene already has
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [placements]
+    push: { id: fx-desk, piece: fx-sign, mount: { on: fx-desk, anchor: top, offset: [0.1, 0, 0.2] } }

@@ -1,0 +1,6 @@
+rule: RT3
+file: apps/web/content/room/fx-script.yaml
+path: lines[1].text
+why: a slot in a room-text line, which holds none
+edits:
+  - { file: apps/web/content/room/fx-script.yaml, at: [lines, 1, text], set: "fx {amount}" }

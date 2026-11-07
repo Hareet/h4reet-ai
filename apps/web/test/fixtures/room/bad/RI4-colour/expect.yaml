@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/catalog/fx-desk.yaml
+path: standin[0].color
+why: a stand-in's colour that is neither #rrggbb nor a palette name of the scene's look
+edits:
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [standin, 0, color], set: fx-nocolour }

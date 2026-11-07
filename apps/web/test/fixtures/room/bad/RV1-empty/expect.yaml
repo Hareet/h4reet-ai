@@ -1,0 +1,6 @@
+rule: RV1
+file: apps/web/room/catalog/fx-desk.yaml
+path: drawing.primitives
+why: a drawing with no primitive, so its placement would draw nothing in 2D
+edits:
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [drawing, primitives], set: [] }

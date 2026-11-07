@@ -1,0 +1,8 @@
+rule: RS5
+file: apps/web/room/scene.yaml
+path: switches[0].poses.fx-resting.mount
+why: the resting pose half a millimetre and half a degree from the cloud pose, which claims another value
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [switches, 0, poses, fx-resting, mount]
+    set: { on: fx-desk, anchor: back-edge, offset: [0.4005, 0, 0.05], turn: { y: 0.5 } }

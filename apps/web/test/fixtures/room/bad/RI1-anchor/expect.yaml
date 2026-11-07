@@ -1,0 +1,6 @@
+rule: RI1
+file: apps/web/room/catalog/fx-shell.yaml
+path: anchors.the_wall
+why: an anchor's name outside the name grammar
+edits:
+  - { file: apps/web/room/catalog/fx-shell.yaml, at: [anchors, wall], rename: the_wall }

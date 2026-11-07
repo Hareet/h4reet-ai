@@ -1,0 +1,30 @@
+# The fixture laptop: the port the plugged pose mounts on, a plain face no region binds, and a charge light.
+version: 1
+id: fx-laptop
+name: Fixture laptop
+size: { w: 0.32, h: 0.22, d: 0.22 }
+origin:
+  point: Fixture point at the centre of the base
+  bounds: { min: [-0.16, 0, -0.11], max: [0.16, 0.22, 0.11] }
+anchors:
+  port: { at: [0.16, 0.01, 0] }
+live_faces:
+  - role: lid
+    at: [0, 0.12, -0.1]
+    size: [0.28, 0.18]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [280, 180]
+    readable: false
+glows:
+  - { id: fx-charge, at: [0.15, 0.01, 0.1], radius: 0.01, tone: fx-warm, motion: steady, level: 0 }
+standin:
+  - { shape: box, size: [0.32, 0.02, 0.22], at: [0, 0.01, 0], color: fx-ink }
+  - { shape: box, size: [0.32, 0.2, 0.01], at: [0, 0.12, -0.105], color: fx-ink }
+drawing: { from: standin }
+budget: { gzip_bytes: 500000, triangles: 5000, texture_px: 512, texture_bytes: 1398101 }
+work_order:
+  method: Fixture method for the laptop
+  shots: [Fixture shot of the laptop open]
+  measurements: [Fixture measure of the port's height]
+  studio_notes: Fixture studio notes for the laptop

@@ -10,7 +10,16 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { stringify } from "yaml";
 
-import { checkSource, forbiddenList, parseResume } from "../../build/content";
+import {
+  bareNumber,
+  checkLine,
+  checkSource,
+  forbiddenHit,
+  forbiddenList,
+  lineContext,
+  parseResume,
+  type Line,
+} from "../../build/content";
 
 const ROOT = fileURLToPath(new URL("../fixtures", import.meta.url));
 const FIXTURE = "corpus/01-fixture.md";
@@ -364,6 +373,133 @@ describe("the first problem", () => {
     const a = { ...CLEAN, id: "item-a", text: "Lit 12 lanterns." };
     const b = { ...CLEAN, id: "item-b", claims: [cite("Robin designed the moon")] };
     expect(problems([CLEAN, a, b])).toEqual(["item-a: bare number", "item-b: quote not found"]);
+  });
+});
+
+// Spec 004's T074 (FR-035; R-15): checkSource's line check, exported so the room's words (RT2 to RT5) run the same
+// C1–C9. checkLine gives one line's first problem without its ID, as checkSource reports it after the ID; bareNumber is
+// C6's digit test and forbiddenHit C9's phrase test; lineContext makes what checkLine reads from the root.
+describe("checkLine, the line check checkSource runs (spec 004, T074)", () => {
+  const context = (options: { fullName?: string | null; denylist?: string } = {}) =>
+    lineContext({ root: ROOT, ...options }, "Robin");
+  const line = (text: string, claims: Claim[], slots: string[] = []): Line => ({ text, claims, slots });
+
+  it("gives each line checkSource's problem without its ID, and null for a clean line", () => {
+    const items: ItemIn[] = [
+      CLEAN,
+      { ...CLEAN, id: "c1", claims: [cite(DESIGNED, "corpus/README.md")] },
+      { ...CLEAN, id: "c2", claims: [cite("Robin designed the moon")] },
+      { id: "c3", text: "Mentions the harbor map.", claims: [cite("mentions the untagged harbor map")] },
+      {
+        id: "c4",
+        text: "Built the tide clock on a public server.",
+        verb: "built",
+        claims: [cite("The tide clock was built on a public server")],
+      },
+      { id: "c5", text: "An old lantern.", claims: [cite("The lantern predates Robin by a century")] },
+      { ...CLEAN, id: "c6", text: "Designed the lantern service for 12 lanterns." },
+      { ...CLEAN, id: "c7", slots: ["fixture.lanterns", "fixture.nope"] },
+      { ...CLEAN, id: "c8", verb: "built" },
+      {
+        id: "c8a",
+        text: "Designed the night lamp and released it to the docks.",
+        claims: [cite("The night lamp was designed by Robin and released to the docks")],
+      },
+      { id: "c9", text: "Invented the lantern for the fixture clinic.", claims: [cite(DESIGNED)] },
+      { id: "c9s", text: "Designed the lantern service, as Quillfeather.", claims: [cite(DESIGNED)] },
+    ];
+    const options = { fullName: "Robin Quillfeather" };
+    const parsed = source(items);
+    const expected = checkSource(parsed, { root: ROOT, ...options }).problems;
+    expect(expected).toEqual([
+      "c1: not a corpus file",
+      "c2: quote not found",
+      "c3: untagged sentence",
+      "c4: tag not sufficient",
+      "c5: do-not-claim section",
+      "c6: bare number",
+      "c7: unknown slot",
+      "c8: ownership verb not cited",
+      "c8a: passive made active",
+      `c9: forbidden phrase (from ${FIXTURE}:${lineOf(FIXTURE, "That Robin invented the lantern")})`,
+      "c9s: forbidden phrase (from the surname rule)",
+    ]);
+    const ctx = context(options);
+    const byLine = parsed.sections.flatMap((s) =>
+      s.items.flatMap((item) => {
+        const reason = checkLine(item, item.verb, ctx);
+        return reason === null ? [] : [`${item.id}: ${reason}`];
+      }),
+    );
+    expect(byLine).toEqual(expected);
+    expect(checkLine(line(CLEAN.text, CLEAN.claims, ["fixture.lanterns"]), "designed", ctx)).toBeNull();
+  });
+
+  it("holds a line without a declared verb, as the header's are, to every ownership verb it says (C8)", () => {
+    const built = line("Built the lantern service for the fixture clinic.", [cite(DESIGNED)]);
+    expect(checkLine(built, undefined, context())).toBe("ownership verb not cited");
+    expect(checkLine(line("The lantern service, for the clinic.", [cite(DESIGNED)]), undefined, context())).toBeNull();
+  });
+
+  it("reads verbUnsaid from the line, as narration's scripts set it: the verb sets C4's bar, unsaid", () => {
+    const script = line("The lantern service lights the fixture clinic.", [cite(DESIGNED)]);
+    expect(checkLine(script, "designed", context())).toBe("ownership verb not cited");
+    expect(checkLine({ ...script, verbUnsaid: true }, "designed", context())).toBeNull();
+    // The bar still holds: a [P] sentence isn't enough for an ownership verb, said or not.
+    const server = line("The tide clock's server.", [cite("The tide clock was built on a public server")]);
+    expect(checkLine({ ...server, verbUnsaid: true }, "built", context())).toBe("tag not sufficient");
+  });
+
+  it("checks the line as it shows, its slots filled, for a forbidden phrase, naming a private one by its line", () => {
+    const dir = mkdtempSync(join(tmpdir(), "h4-denylist-"));
+    made.push(dir);
+    const denylist = join(dir, "denylist.txt");
+    writeFileSync(denylist, "# one phrase per line\nlights 12 lanterns\n");
+    const filled = line(CLEAN.text, CLEAN.claims, ["fixture.lanterns"]);
+    const reason = checkLine(filled, "designed", context({ denylist }));
+    expect(reason).toBe("forbidden phrase (from corpus/intake/private/denylist.txt:2)");
+    expect(reason).not.toMatch(/lanterns/);
+    expect(context({ denylist }).denylist).toBe("applied");
+    expect(context({ denylist: join(dir, "absent.txt") }).denylist).toBe("missing");
+  });
+});
+
+describe("bareNumber, C6's test (spec 004, T074)", () => {
+  it("finds a digit the text shows outside its slot references", () => {
+    expect(bareNumber("Designed the lantern service.")).toBe(false);
+    expect(bareNumber("Lit 12 lanterns.")).toBe(true);
+    expect(bareNumber("Lit the lanterns.{{slot:fixture.lanterns}}")).toBe(false);
+    // A digit in a slot's ID is the slot's.
+    expect(bareNumber("Lit the lanterns.{{slot:fixture.l4}}")).toBe(false);
+  });
+
+  it("counts a fallback's digits, which no slot holds", () => {
+    expect(bareNumber("Covers the coves.{{slot:fixture.empty | else: about 3 coves}}")).toBe(true);
+    expect(bareNumber("Covers the coves.{{slot:fixture.empty | fallback: some coves}}")).toBe(false);
+  });
+});
+
+describe("forbiddenHit, C9's test (spec 004, T074)", () => {
+  const { list } = forbiddenList({ root: ROOT, roomName: "Robin", fullName: "Robin Quillfeather" });
+  const invented = { phrase: "invented the lantern", source: `${FIXTURE}:${lineOf(FIXTURE, "invented")}` };
+
+  it("gives the phrase a shown text holds, with its source, in any case and spacing, and null for none", () => {
+    expect(forbiddenHit("Robin  INVENTED the\nlantern.", list)).toEqual(invented);
+    // The corpus's phrases match anywhere in the text, inside a longer word too.
+    expect(forbiddenHit("He reinvented the lanterns.", list)).toEqual(invented);
+    expect(forbiddenHit("Designed the lantern service for the fixture clinic.", list)).toBeNull();
+  });
+
+  it("matches the surname rule's word only whole", () => {
+    expect(forbiddenHit("As Quillfeather.", list)).toEqual({ phrase: "quillfeather", source: "the surname rule" });
+    expect(forbiddenHit("As Quillfeathers.", list)).toBeNull();
+  });
+
+  it("gives the first of the list's phrases that the text holds", () => {
+    const text = "The logbook is official, and Robin invented the lantern.";
+    expect(forbiddenHit(text, list)).toEqual(invented);
+    const other = `corpus/02-other.md:${lineOf("corpus/02-other.md", "logbook is official")}`;
+    expect(forbiddenHit(text, [...list].reverse())).toEqual({ phrase: "the logbook is official", source: other });
   });
 });
 

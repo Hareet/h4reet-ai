@@ -13,7 +13,10 @@
 //
 // The check runs on every build, published or withheld, and in make test (test/content/source.test.ts). A problem
 // is reported as `<item-id>: <reason>`, at each item's first, and a private denylist phrase never by its words.
-// The forbidden list is shared with narration's N3 (contracts/narration.md §2).
+// The forbidden list is shared with narration's N3 (contracts/narration.md §2). The line check is exported for spec
+// 004's room words (T074; FR-035; R-15): `checkLine` gives one line's first problem, which checkSource reports after
+// the line's ID, with C6's `bareNumber` and C9's `forbiddenHit`, and `lineContext` makes what it reads from the root,
+// `treeLineContext` the same through the compositor's tree.
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
@@ -288,7 +291,7 @@ interface Piece {
   doNotClaim: boolean;
 }
 
-interface CorpusFile {
+export interface CorpusFile {
   /** Every sentence of every line, with the tags taken out (C2). */
   sentences: string[];
   /** The sentence pieces of each tagged span: the text from a tag to the next tag or the line's end (C3). */
@@ -367,7 +370,13 @@ function normalize(s: string): string {
 }
 
 function readCorpusFile(root: string, rel: string, roomName: string): { file: CorpusFile; forbidden: Forbidden[] } {
-  const lines = readFileSync(join(root, rel), "utf8").split("\n");
+  return parseCorpusFile(readFileSync(join(root, rel), "utf8"), rel, roomName);
+}
+
+/** A corpus topic file's text, `rel`'s, as the check reads it: its sentences and tagged pieces (C2 to C5), and its
+ * "Do not claim" key phrases, each with its line (C9). */
+function parseCorpusFile(text: string, rel: string, roomName: string): { file: CorpusFile; forbidden: Forbidden[] } {
+  const lines = text.split("\n");
   const headings: { level: number; doNotClaim: boolean }[] = [];
   const file: CorpusFile = { sentences: [], pieces: [] };
   const forbidden: Forbidden[] = [];
@@ -399,10 +408,15 @@ function readCorpusFile(root: string, rel: string, roomName: string): { file: Co
 /** C1: one of the corpus's topic files, `corpus/NN-<topic>.md` at its top level (so never under intake/, proposals/,
  * or facts/, and never README.md or INTAKE.md), and a regular file in the tree. */
 function corpusPath(root: string, file: string): boolean {
-  const [top, name, ...deeper] = file.split("/");
-  if (top !== "corpus" || name === undefined || deeper.length > 0 || !TOPIC_FILE.test(name)) return false;
+  if (!isTopicPath(file)) return false;
   const full = join(root, file);
   return existsSync(full) && lstatSync(full).isFile();
+}
+
+/** C1's form, with nothing read: `corpus/NN-<topic>.md` at the corpus's top level. */
+function isTopicPath(file: string): boolean {
+  const [top, name, ...deeper] = file.split("/");
+  return top === "corpus" && name !== undefined && deeper.length === 0 && TOPIC_FILE.test(name);
 }
 
 // ---- Facts slots (corpus/README.md, Plug-in numbers) ----
@@ -423,18 +437,26 @@ export function readFacts(root: string): Map<string, Fact> {
   if (!existsSync(dir)) return facts;
   for (const name of readdirSync(dir).sort()) {
     if (!name.endsWith(".yaml")) continue;
-    const doc = parseYaml(readFileSync(join(dir, name), "utf8"), { schema: "core" }) as unknown;
-    const list = isObject(doc) && Array.isArray(doc.facts) ? doc.facts : [];
-    for (const f of list) {
-      if (!isObject(f) || typeof f.id !== "string") continue;
-      facts.set(f.id, {
-        id: f.id,
-        value: f.value ?? null,
-        public_safe: f.public_safe ?? null,
-        phrasing: typeof f.phrasing === "string" ? f.phrasing : "",
-        file: posix.join("corpus", "facts", name),
-      });
-    }
+    for (const fact of factsIn(readFileSync(join(dir, name), "utf8"), name)) facts.set(fact.id, fact);
+  }
+  return facts;
+}
+
+/** The slots of one facts file, `corpus/facts/<name>`, from its text; the yaml package's error for one that isn't
+ * YAML. */
+function factsIn(text: string, name: string): Fact[] {
+  const doc = parseYaml(text, { schema: "core" }) as unknown;
+  const list = isObject(doc) && Array.isArray(doc.facts) ? doc.facts : [];
+  const facts: Fact[] = [];
+  for (const f of list) {
+    if (!isObject(f) || typeof f.id !== "string") continue;
+    facts.push({
+      id: f.id,
+      value: f.value ?? null,
+      public_safe: f.public_safe ?? null,
+      phrasing: typeof f.phrasing === "string" ? f.phrasing : "",
+      file: posix.join("corpus", "facts", name),
+    });
   }
   return facts;
 }
@@ -466,23 +488,34 @@ function slotIds(item: Line): string[] {
 
 // ---- The forbidden list (C9; narration's N3) ----
 
-type DenylistState = "applied" | "missing" | "unreadable";
+export type DenylistState = "applied" | "missing" | "unreadable";
 
 function readDenylist(path: string): { state: DenylistState; list: Forbidden[] } {
-  let lines: string[];
+  let text: string;
   try {
     if (!statSync(path).isFile()) return { state: "unreadable", list: [] };
-    lines = readFileSync(path, "utf8").split("\n");
+    text = readFileSync(path, "utf8");
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     return { state: code === "ENOENT" || code === "ENOTDIR" ? "missing" : "unreadable", list: [] };
   }
+  return { state: "applied", list: denylistPhrases(text) };
+}
+
+/** The private denylist's phrases from its text, one a line, `#` opening a comment, each with its line. */
+function denylistPhrases(text: string): Forbidden[] {
   const list: Forbidden[] = [];
-  lines.forEach((l, i) => {
+  text.split("\n").forEach((l, i) => {
     const phrase = normalize(l);
     if (phrase && !l.trimStart().startsWith("#")) list.push({ phrase, source: `${DENYLIST_PATH}:${i + 1}` });
   });
-  return { state: "applied", list };
+  return list;
+}
+
+/** The surname rule: each word of main's full name after the first, of two letters or more. */
+function surnameRule(fullName: string | null): Forbidden[] {
+  const words = (fullName ?? "").split(/\s+/).filter(Boolean).slice(1);
+  return words.filter((word) => word.length >= 2).map((word) => ({ phrase: word.toLowerCase(), source: SURNAME_RULE }));
 }
 
 /** Every corpus file's "Do not claim" key phrases, the surname rule (each word of main's full name after the
@@ -499,9 +532,7 @@ export function forbiddenList(options: {
     if (!TOPIC_FILE.test(name) || !lstatSync(join(dir, name)).isFile()) continue;
     list.push(...readCorpusFile(options.root, posix.join("corpus", name), options.roomName).forbidden);
   }
-  for (const word of (options.fullName ?? "").split(/\s+/).filter(Boolean).slice(1)) {
-    if (word.length >= 2) list.push({ phrase: word.toLowerCase(), source: SURNAME_RULE });
-  }
+  list.push(...surnameRule(options.fullName));
   const denied = readDenylist(options.denylist ?? join(options.root, DENYLIST_PATH));
   return { list: [...list, ...denied.list], denylist: denied.state };
 }
@@ -607,90 +638,184 @@ export interface CheckOptions {
   denylist?: string | undefined;
 }
 
+/** What checkLine reads besides the line: made once per check, by lineContext from the repository's root for
+ * checkSource, and by whichever caller reads the corpus another way, such as spec 004's compositor (RT2 to RT5). */
+export interface LineContext {
+  /** C1: a corpus topic file as the check reads it, or null when the path names none. */
+  corpusFile(file: string): CorpusFile | null;
+  /** C7's facts slots, by ID; C9 reads a line with them filled. */
+  readonly facts: ReadonlyMap<string, Fact>;
+  /** C8's subject words for the Author: the room's name, normalized, word by word. */
+  readonly authorWords: readonly string[];
+  /** C9's list (forbiddenList). */
+  readonly forbidden: readonly Forbidden[];
+  /** Whether C9's list holds the private denylist, as checkSource reports it. */
+  readonly denylist: DenylistState;
+}
+
+/** checkSource's context: the room's name, the facts, and C9's list, each corpus file read once, when first cited. */
+export function lineContext(options: CheckOptions, roomName: string): LineContext {
+  const { root } = options;
+  const authorWords = normalize(roomName).split(/\s+/).filter(Boolean);
+  const cache = new Map<string, CorpusFile>();
+  const facts = readFacts(root);
+  const forbidden = forbiddenList({ root, roomName, fullName: options.fullName ?? null, denylist: options.denylist });
+  return {
+    corpusFile(rel: string): CorpusFile | null {
+      if (!corpusPath(root, rel)) return null;
+      let file = cache.get(rel);
+      if (!file) {
+        file = readCorpusFile(root, rel, roomName).file;
+        cache.set(rel, file);
+      }
+      return file;
+    },
+    facts,
+    authorWords,
+    forbidden: forbidden.list,
+    denylist: forbidden.denylist,
+  };
+}
+
+/** A tree of the repository's files, as spec 004's compositor reads its inputs (apps/web/build/room/source.ts), as far
+ * as the check needs it: a path's bytes, null when it isn't a regular file there, and a folder's entries, sorted. */
+export interface CorpusTree {
+  read(path: string): Uint8Array | null;
+  list(dir: string): readonly string[];
+}
+
+/** lineContext's context read through a tree, as spec 004's compositor reads everything (RT2 to RT7): the corpus's
+ * topic files, its facts, and the private denylist where the tree holds it, in lineContext's order, with the same
+ * room name and surname rule. A file the tree doesn't give is absent, and a facts file that isn't YAML gives no slots:
+ * nothing throws. */
+export function treeLineContext(tree: CorpusTree, roomName: string, fullName: string | null): LineContext {
+  const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
+  const text = (path: string): string | null => {
+    const bytes = tree.read(path);
+    return bytes === null ? null : decoder.decode(bytes);
+  };
+  const files = new Map<string, ReturnType<typeof parseCorpusFile> | null>();
+  const corpus = (rel: string): ReturnType<typeof parseCorpusFile> | null => {
+    if (!files.has(rel)) {
+      const found = isTopicPath(rel) ? text(rel) : null;
+      files.set(rel, found === null ? null : parseCorpusFile(found, rel, roomName));
+    }
+    return files.get(rel) ?? null;
+  };
+  const facts = new Map<string, Fact>();
+  for (const name of tree.list("corpus/facts")) {
+    const found = name.endsWith(".yaml") ? text(`corpus/facts/${name}`) : null;
+    if (found === null) continue;
+    try {
+      for (const fact of factsIn(found, name)) facts.set(fact.id, fact);
+    } catch {
+      // Not YAML: no slots from it.
+    }
+  }
+  const forbidden: Forbidden[] = [];
+  for (const name of tree.list("corpus")) {
+    if (TOPIC_FILE.test(name)) forbidden.push(...(corpus(`corpus/${name}`)?.forbidden ?? []));
+  }
+  forbidden.push(...surnameRule(fullName));
+  const denylist = text(DENYLIST_PATH);
+  if (denylist !== null) forbidden.push(...denylistPhrases(denylist));
+  return {
+    corpusFile: (rel) => corpus(rel)?.file ?? null,
+    facts,
+    authorWords: normalize(roomName).split(/\s+/).filter(Boolean),
+    forbidden,
+    denylist: denylist === null ? "missing" : "applied",
+  };
+}
+
+/** C1–C5 for one citation: its reason, or the sentence pieces it may cite. */
+function citation(claim: Claim, verb: string | undefined, ctx: LineContext): string | string[] {
+  const file = ctx.corpusFile(claim.file);
+  if (file === null) return "not a corpus file";
+  const quote = collapse(claim.quote);
+  if (quote.length < 12 || !file.sentences.some((s) => s.includes(quote))) return "quote not found";
+  const tagged = file.pieces.filter((p) => p.text.includes(quote));
+  if (tagged.length === 0) return "untagged sentence";
+  const enough = tagged.filter((p) => sufficient(p.tag, verb));
+  if (enough.length === 0) return "tag not sufficient";
+  const citable = enough.filter((p) => !p.doNotClaim);
+  if (citable.length === 0) return "do-not-claim section";
+  return citable.map((p) => p.text);
+}
+
+/** C6: whether a display text shows a digit outside its slot references; a fallback's digits count. */
+export function bareNumber(display: string): boolean {
+  return /\d/.test(outsideSlots(display));
+}
+
+/** C9: the first phrase of the list that a shown text holds, or null: the surname rule's only as a whole word, any
+ * other anywhere, compared as normalize gives the text. A caller reports it by its source, never by its words. */
+export function forbiddenHit(shown: string, list: readonly Forbidden[]): Forbidden | null {
+  return list.find((f) => holds(shown, f)) ?? null;
+}
+
+/** C1–C9 for one line, a header line or an item, under the verb its item declares: the first problem's reason, as
+ * checkSource reports it after the line's ID, or null. A line marked verbUnsaid, a narration script's, holds its
+ * citations to the verb's bar without saying the verb (N1). */
+export function checkLine(
+  line: Line & { readonly verbUnsaid?: true },
+  verb: string | undefined,
+  ctx: LineContext,
+): string | null {
+  const cited: string[] = [];
+  for (const claim of line.claims) {
+    const result = citation(claim, verb, ctx);
+    if (typeof result === "string") return result;
+    cited.push(...result);
+  }
+  if (bareNumber(line.text)) return "bare number";
+  if (slotIds(line).some((slot) => !ctx.facts.has(slot))) return "unknown slot";
+  // C8: the declared verb is in the text, and every ownership verb the text uses, declared or not, is in a cited
+  // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015). The corpus's other act verbs are
+  // held the same way, and a verb the text says as an act must be one a cited sentence says as an act, never only
+  // in an agentless passive.
+  const shownText = normalize(outsideSlots(line.text));
+  if (verb !== undefined && line.verbUnsaid !== true && !wordBoundary(verb.toLowerCase()).test(shownText))
+    return "ownership verb not cited";
+  for (const owned of [...OWNERSHIP_VERBS, ...ACT_VERBS]) {
+    const said = wordBoundary(owned.toLowerCase());
+    if (!said.test(shownText)) continue;
+    if (!cited.some((s) => said.test(normalize(s)))) return "ownership verb not cited";
+    const word = owned.toLowerCase();
+    if (
+      /^[a-z-]+$/.test(word) &&
+      authorActs(shownText, ctx.authorWords).has(word) &&
+      !cited.some((s) => authorActs(normalize(s), ctx.authorWords).has(word))
+    ) {
+      return "passive made active";
+    }
+  }
+  const hit = forbiddenHit(fillSlots(line.text, ctx.facts), ctx.forbidden);
+  return hit ? `forbidden phrase (from ${hit.source})` : null;
+}
+
 /** C1–C9 over the room's header and every item: `<id>: <reason>` for each that has a problem, at its first. */
 export function checkSource(
   source: ResumeSource,
   options: CheckOptions,
 ): { problems: string[]; denylist: DenylistState } {
-  const { root } = options;
   const roomName = source.header.room.name;
-  const authorWords = normalize(roomName).split(/\s+/).filter(Boolean);
-  const cache = new Map<string, CorpusFile>();
-  const corpusFile = (rel: string): CorpusFile => {
-    let file = cache.get(rel);
-    if (!file) {
-      file = readCorpusFile(root, rel, roomName).file;
-      cache.set(rel, file);
-    }
-    return file;
-  };
-  const facts = readFacts(root);
-  const forbidden = forbiddenList({ root, roomName, fullName: options.fullName ?? null, denylist: options.denylist });
-
-  /** C1–C5 for one citation: its reason, or the sentence pieces it may cite. */
-  const citation = (claim: Claim, verb: string | undefined): string | string[] => {
-    if (!corpusPath(root, claim.file)) return "not a corpus file";
-    const file = corpusFile(claim.file);
-    const quote = collapse(claim.quote);
-    if (quote.length < 12 || !file.sentences.some((s) => s.includes(quote))) return "quote not found";
-    const tagged = file.pieces.filter((p) => p.text.includes(quote));
-    if (tagged.length === 0) return "untagged sentence";
-    const enough = tagged.filter((p) => sufficient(p.tag, verb));
-    if (enough.length === 0) return "tag not sufficient";
-    const citable = enough.filter((p) => !p.doNotClaim);
-    if (citable.length === 0) return "do-not-claim section";
-    return citable.map((p) => p.text);
-  };
-
-  const check = (id: string, item: Line, verb: string | undefined, verbUnsaid = false): string | null => {
-    const cited: string[] = [];
-    for (const claim of item.claims) {
-      const result = citation(claim, verb);
-      if (typeof result === "string") return `${id}: ${result}`;
-      cited.push(...result);
-    }
-    if (/\d/.test(outsideSlots(item.text))) return `${id}: bare number`;
-    if (slotIds(item).some((slot) => !facts.has(slot))) return `${id}: unknown slot`;
-    // C8: the declared verb is in the text, and every ownership verb the text uses, declared or not, is in a cited
-    // sentence as a verb: "his pitch and design" never becomes "designed" (FR-015). The corpus's other act verbs are
-    // held the same way, and a verb the text says as an act must be one a cited sentence says as an act, never only
-    // in an agentless passive.
-    const shownText = normalize(outsideSlots(item.text));
-    if (verb !== undefined && !verbUnsaid && !wordBoundary(verb.toLowerCase()).test(shownText))
-      return `${id}: ownership verb not cited`;
-    for (const owned of [...OWNERSHIP_VERBS, ...ACT_VERBS]) {
-      const said = wordBoundary(owned.toLowerCase());
-      if (!said.test(shownText)) continue;
-      if (!cited.some((s) => said.test(normalize(s)))) return `${id}: ownership verb not cited`;
-      const word = owned.toLowerCase();
-      if (
-        /^[a-z-]+$/.test(word) &&
-        authorActs(shownText, authorWords).has(word) &&
-        !cited.some((s) => authorActs(normalize(s), authorWords).has(word))
-      ) {
-        return `${id}: passive made active`;
-      }
-    }
-    const shown = fillSlots(item.text, facts);
-    const hit = forbidden.list.find((f) => holds(shown, f));
-    return hit ? `${id}: forbidden phrase (from ${hit.source})` : null;
-  };
-
+  const ctx = lineContext(options, roomName);
   const problems: string[] = [];
-  const name = forbidden.list.find((f) => holds(roomName, f));
+  const name = forbiddenHit(roomName, ctx.forbidden);
   if (/\d/.test(roomName)) problems.push("header.name: bare number");
   else if (name) problems.push(`header.name: forbidden phrase (from ${name.source})`);
   source.header.room.lines.forEach((l, i) => {
-    const problem = check(`header.lines[${i}]`, l, undefined);
-    if (problem) problems.push(problem);
+    const problem = checkLine(l, undefined, ctx);
+    if (problem) problems.push(`header.lines[${i}]: ${problem}`);
   });
   for (const section of source.sections) {
     for (const item of section.items) {
-      const problem = check(item.id, item, item.verb, item.verbUnsaid === true);
-      if (problem) problems.push(problem);
+      const problem = checkLine(item, item.verb, ctx);
+      if (problem) problems.push(`${item.id}: ${problem}`);
     }
   }
-  return { problems, denylist: forbidden.denylist };
+  return { problems, denylist: ctx.denylist };
 }
 
 // ---- The rendering ----

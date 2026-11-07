@@ -1,0 +1,34 @@
+rule: RT6
+file: apps/web/content/room/fx-script.yaml
+path: lines
+why: a script that would take the terminal more than 5 seconds to type
+edits:
+  - file: apps/web/content/room/fx-script.yaml
+    at: [lines]
+    set:
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok
+      - text: fx run fx ok

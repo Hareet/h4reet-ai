@@ -1,0 +1,6 @@
+rule: RL1
+file: apps/web/room/scene.yaml
+path: live.poll_s
+why: a poll interval under 30 seconds, more than Amendment A1's 2 requests a minute
+edits:
+  - { file: apps/web/room/scene.yaml, at: [live, poll_s], set: 20 }

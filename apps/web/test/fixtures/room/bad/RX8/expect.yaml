@@ -1,0 +1,30 @@
+rule: RX8
+file: assets/room/fx-sign.glb
+path: nodes[3]
+why: a live face's quad 3 mm off the catalog's centre, refused with its measured plane
+generate: { assets/room/fx-sign.glb: glb:rx8-centre-off, assets/room/records.json: records }
+edits:
+  # The sign's catalog entry as test/helpers/glb.ts's SIGN_CATALOG gives it: its bounds and two faces, at scale 2.
+  - { file: apps/web/room/catalog/fx-sign.yaml, at: [stylized_scale], set: 2 }
+  - file: apps/web/room/catalog/fx-sign.yaml
+    at: [origin, bounds]
+    set: { min: [-0.2, 0, -0.01], max: [0.2, 0.2, 0.01] }
+  - file: apps/web/room/catalog/fx-sign.yaml
+    at: [live_faces]
+    set:
+      - role: fx-word
+        at: [0, 0.13, 0.01]
+        size: [0.3, 0.08]
+        facing: [0, 0, 1]
+        up: [0, 1, 0]
+        px: [300, 80]
+        readable: true
+      - role: fx-tally
+        at: [0.1, 0.05, 0.01]
+        size: [0.12, 0.04]
+        facing: [0, 0, 1]
+        up: [0, 1, 0]
+        px: [120, 40]
+        readable: false
+  - { file: apps/web/room/catalog/fx-sign.yaml, at: [model], set: { file: fx-sign.glb } }
+  - { file: apps/web/room/scene.yaml, at: [placements, 6, faces, lettering], rename: fx-word }

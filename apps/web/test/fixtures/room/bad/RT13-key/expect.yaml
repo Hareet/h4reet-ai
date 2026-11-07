@@ -1,0 +1,6 @@
+rule: RT13
+file: apps/web/content/room/outlines/fx-sign-words.outline.json
+path: notes
+why: an outline with a key section 8 doesn't give, which the loader refuses as it reads the outline
+edits:
+  - { file: apps/web/content/room/outlines/fx-sign-words.outline.json, at: [notes], set: traced on a fixture day }

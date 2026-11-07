@@ -1,0 +1,6 @@
+rule: RG4
+file: apps/web/room/scene.yaml
+path: placements[4].frame
+why: a selectable's member without frame true
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 4, frame], set: false }

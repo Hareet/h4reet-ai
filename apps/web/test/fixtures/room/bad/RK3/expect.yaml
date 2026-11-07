@@ -1,0 +1,6 @@
+rule: RK3
+file: apps/web/room/scene.yaml
+path: "-"
+why: the scene's texture memory on the reference phone over 96,000,000 bytes, though each budget is under the caps
+edits:
+  - { file: apps/web/room/catalog/fx-board.yaml, at: [budget, texture_bytes], set: 90000000 }

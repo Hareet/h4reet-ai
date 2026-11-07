@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/catalog/fx-neon.yaml
+path: glows[0].tone
+why: a glow tone the scene's look lacks
+edits:
+  - { file: apps/web/room/catalog/fx-neon.yaml, at: [glows, 0, tone], set: fx-notone }

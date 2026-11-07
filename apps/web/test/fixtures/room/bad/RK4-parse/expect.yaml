@@ -1,0 +1,5 @@
+rule: RK4
+file: assets/policy/caps.json
+path: "-"
+why: main's caps.json that doesn't parse
+caps: "{\"schema\": 1, \"per_asset\": {\"room\": {\"gzip_bytes\": 2500000,}}}\n"

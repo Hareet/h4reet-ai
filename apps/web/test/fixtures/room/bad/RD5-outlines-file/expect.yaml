@@ -1,0 +1,5 @@
+rule: RD5
+file: apps/web/content/room/outlines
+path: "-"
+why: a file where the outlines folder belongs, whose outlines would go unread with no finding
+move: { apps/web/content/room/outlines/fx-sign-words.outline.json: apps/web/content/room/outlines }

@@ -1,0 +1,6 @@
+rule: RG9
+file: apps/web/room/scene.yaml
+path: placements[2].faces.screen.regions[0].rect
+why: a region running past its face's right edge
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 2, faces, screen, regions, 0, rect], set: [0.5, 0, 0.6, 1] }

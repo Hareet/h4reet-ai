@@ -1,0 +1,6 @@
+rule: RD5
+file: apps/web/room/fixtures/fx-sample.yaml
+path: id
+why: a stem that differs from the ID the file holds
+edits:
+  - { file: apps/web/room/fixtures/fx-sample.yaml, at: [id], set: fx-other }

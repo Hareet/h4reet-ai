@@ -1,0 +1,7 @@
+rule: RG7
+file: apps/web/room/scene.yaml
+path: placements[2].faces.screen.atmosphere
+why: atmosphere on the monitor's screen, a face the catalog marks readable
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 2, faces, screen, atmosphere], set: true }
+  - { file: apps/web/room/scene.yaml, at: [placements, 2, faces, screen, max_chars], set: 40 }

@@ -1,0 +1,6 @@
+rule: RD3
+file: apps/web/room/scene.yaml
+path: handoff
+why: a required key missing
+edits:
+  - { file: apps/web/room/scene.yaml, at: [handoff], delete: true }

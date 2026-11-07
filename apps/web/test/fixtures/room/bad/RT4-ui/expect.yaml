@@ -1,0 +1,11 @@
+rule: RT4
+file: apps/web/room/ui-words.yaml
+path: words.sign.not_affiliated.claims[0]
+why: a UI word about the Author citing a file outside the corpus (spec 002's C1)
+edits:
+  - file: apps/web/room/ui-words.yaml
+    at: [words, sign.not_affiliated]
+    set:
+      text: The fixture sign isn't affiliated with anyone
+      about_author: true
+      claims: [{ file: docs/fx-notes.md, quote: The fixture sign isn't affiliated with anyone }]

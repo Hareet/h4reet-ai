@@ -1,0 +1,6 @@
+rule: RT10
+file: apps/web/room/looks/fx-cel.yaml
+path: typefaces.chalk.family
+why: a family fonts.lock doesn't vendor
+edits:
+  - { file: apps/web/room/looks/fx-cel.yaml, at: [typefaces, chalk, family], set: Fixture Hand }

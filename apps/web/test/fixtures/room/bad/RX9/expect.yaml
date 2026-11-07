@@ -1,0 +1,10 @@
+rule: RX9
+file: assets/room/fx-desk.glb
+path: images[0]
+why: a palette PNG, where a texture is 8 bits a channel in RGB or RGBA
+generate: { assets/room/fx-desk.glb: glb:rx9-png-palette, assets/room/records.json: records }
+edits:
+  - file: apps/web/room/catalog/fx-desk.yaml
+    at: [origin, bounds]
+    set: { min: [-0.8, 0, -0.4], max: [0.8, 0.75, 0.4] }
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [model], set: { file: fx-desk.glb } }

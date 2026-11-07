@@ -1,0 +1,8 @@
+rule: RT8
+file: apps/web/room/scene.yaml
+path: placements[5].faces.slate.regions[0]
+why: the resume source's four section titles on a chalk grid of three rows (strict mode)
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [placements, 5, faces, slate, regions, 0]
+    set: { rect: [0, 0, 1, 1], renderer: chalk, grid: { rows: 3 }, resume_titles: true }

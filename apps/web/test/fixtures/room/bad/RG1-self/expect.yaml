@@ -1,0 +1,6 @@
+rule: RG1
+file: apps/web/room/scene.yaml
+path: placements[1].mount.on
+why: a placement mounted on itself
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 1, mount], set: { on: fx-desk, anchor: top } }

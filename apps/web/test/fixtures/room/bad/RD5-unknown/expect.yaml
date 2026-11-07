@@ -1,0 +1,5 @@
+rule: RD5
+file: apps/web/room/extra.yaml
+path: "-"
+why: a file that isn't one of the data folder's kinds
+copy: { apps/web/room/lookdev.yaml: apps/web/room/extra.yaml }

@@ -1,43 +1,23 @@
 // T041 and T043 (spec 002; SC-005; plan "Performance Goals"; research.md R-11): the 3D code is its own chunk, reached
 // only by a dynamic import after the WebGL 2 check, so the choice screen's JavaScript stays small and a device without
 // WebGL 2 never downloads Three.js; and the build writes room-manifest.json from the same source as the room (T046).
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+// The build is the global setup's release build (test/global-build.ts; spec 004, T084).
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
 import { JSDOM } from "jsdom";
-import { build } from "vite";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 
 import { buildManifest } from "../../build/manifest";
-import { REPO, WEB } from "../helpers/room";
+import { REPO } from "../helpers/room";
 
 /** A string Three.js's renderer carries in a production build. */
 const THREE_MARK = "THREE.WebGLRenderer";
 /** The plan's budget for the JavaScript before the 3D chunk, compressed. */
 const ENTRY_BUDGET = 150 * 1024;
 
-let out = "";
-let policy = "";
-
-beforeAll(async () => {
-  out = mkdtempSync(join(tmpdir(), "h4-web-chunks-"));
-  policy = mkdtempSync(join(tmpdir(), "h4-web-policy-"));
-  vi.stubEnv("ROOM_POLICY_DIR", policy);
-  vi.stubEnv("ROOM_DRAFTS", "");
-  await build({
-    root: WEB,
-    configFile: join(WEB, "vite.config.ts"),
-    logLevel: "silent",
-    build: { outDir: out, emptyOutDir: true },
-  });
-}, 120_000);
-
-afterAll(() => {
-  vi.unstubAllEnvs();
-  for (const dir of [out, policy]) if (dir) rmSync(dir, { recursive: true, force: true });
-});
+const out = inject("siteBuilds").release;
 
 const read = (rel: string): string => readFileSync(join(out, rel), "utf8");
 

@@ -1,0 +1,6 @@
+rule: RI7
+file: apps/web/room/catalog/fx-laptop.yaml
+path: model.file
+why: a model whose stem isn't its piece's ID
+edits:
+  - { file: apps/web/room/catalog/fx-laptop.yaml, at: [model], set: { file: fx-other.glb } }

@@ -1,0 +1,8 @@
+rule: RL2
+file: apps/web/room/scene.yaml
+path: live.source
+why: a poll interval of 60 seconds while row V7 still names the room's polling every 30 s
+edits:
+  - { file: apps/web/room/scene.yaml, at: [live, source], set: site }
+  - { file: apps/web/room/scene.yaml, at: [live, poll_s], set: 60 }
+  - { file: apps/web/room/scene.yaml, at: [live, freshness_s], set: 65 }

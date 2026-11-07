@@ -1,0 +1,6 @@
+rule: RG4
+file: apps/web/room/scene.yaml
+path: placements[7].frame
+why: the twin's placement without frame true
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 7, frame], delete: true }

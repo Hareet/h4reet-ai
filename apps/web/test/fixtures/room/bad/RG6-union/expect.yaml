@@ -1,0 +1,10 @@
+rule: RG6
+file: apps/web/room/scene.yaml
+path: selectables[1]
+why: the laptop made a selectable of its own in the gap of a monitor-and-board group, its core in their union
+edits:
+  - { file: apps/web/room/scene.yaml, at: [selectables, 0, members], set: [fx-monitor, fx-board] }
+  - file: apps/web/room/scene.yaml
+    at: [selectables, 1]
+    set: { id: fx-lap, name: Fixture lap, members: [fx-laptop], action: { resume: {} } }
+  - { file: apps/web/room/scene.yaml, at: [placements, 4, mount, offset], set: [0.3, 0, 0] }

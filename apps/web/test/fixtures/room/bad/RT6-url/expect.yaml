@@ -1,0 +1,6 @@
+rule: RT6
+file: apps/web/content/room/fx-script.yaml
+path: lines[0].text
+why: a URL other than the site's on the monitor's script
+edits:
+  - { file: apps/web/content/room/fx-script.yaml, at: [lines, 0, text], set: www.fx.test }
