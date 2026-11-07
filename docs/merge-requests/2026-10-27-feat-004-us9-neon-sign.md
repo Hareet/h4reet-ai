@@ -8,6 +8,118 @@ Authorized by: tasks.md T262 to T269; plan.md §10's entry "User Story 9's cost 
 
 `feat/004-us9-neon-sign was f84521494bb9da6b99bf41e7d1b41a2295d613c3` (T271): 16 commits on 9f243f6d74679cfbef1da9fa9de9f08655bd219e, `feat/004-us8-live-tier`'s tip before its restack onto `feat/004-us6-topics`'s new tip (T250), which is now a058e1d664208839bc33522a8a2fb55fd54ac328, on 91a6fcdfd95028c1bb6e0935c0a84ef891e083f0, User Story 6's, on fefc452ae4f1f80d42f6de6be2e96b750e136ac8, User Story 5's tip on `main` at 4414b4adda1a577c2816cc97d8ba626c0161aee8. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
 
+**Status: restacked onto User Story 8's new tip, with one conflict, both sides kept, nothing dropped, and no test changed.** User Story 5 was restacked onto `main` (T198), which now holds US1, desk-sign, and User Stories 3, 2, and 7, and T308 was re-solved there by your choice, "Past the wall's edge"; User Stories 6 and 8 were restacked onto it just before this branch (their notes' newest sections). So User Stories 5, 6, and 8 merge before this branch now. The per-branch checks below pass, and the neon word holds the phone's floor by the margin User Story 5's note gives: 9.006 px. By the main session's direction for this pass, `make check`, gitleaks, and the rehearsal of line R's merges ran once, here, at this branch's final tip (Verification, below). The merge waits for User Story 8's (T251), which waits for User Story 6's (T212) and User Story 5's (T199), after your lookdev check (T309) and, if you change the slate there, the agents' T310.
+
+Session: an implementer subagent (Claude Opus 5.5), for the main session, in `/tmp/claude-1000/wt-us9-r`, clean at f8452149 when it began, right after User Story 8's restack. It committed the record above as 9ac15de, then ran `git rebase --onto a058e1d664208839bc33522a8a2fb55fd54ac328 9f243f6d74679cfbef1da9fa9de9f08655bd219e` on the checked-out branch, without naming it. The main checkout, parked on `wip-park/11-7-2026`, wasn't touched.
+
+**One conflict, both sides kept.** The rebase stopped once, at the third commit, c16f34b, T265's GREEN, in plan.md §10: its entry "User Story 9's cost channel, as built" has User Story 8's restack entry as context, which on the new base has gained the sentence on User Story 8's rebase onto 91a6fcdf. The commit's copy of that entry was 9f243f6d's, byte for byte, and the new base's was a058e1d6's, so the resolution keeps the new base's entry and adds the commit's lines after it, the cost channel's entry and its sub-bullets: plan.md at b45b754 adds exactly the lines c16f34b adds. The other 16 commits replayed cleanly. Three files both sides change: plan.md, whose tip is the new base's with exactly this branch's lines added and none removed (`git diff -U0`, compared line for line with the old branch's); and `apps/web/test/helpers/room.ts` (the new base's `emptyDirPolicy`, T327, beside this branch's `cost` record, `setCost`, and `SendTurn`) and tasks.md, each at the tip what `git merge-file` gives for its copies at 9ac15de, 9f243f6d, and a058e1d6. No generated file differs: `room:generate` wrote nothing (below). `git diff --name-only a058e1d6 <this update>` lists 22 paths, the same 22 as `git diff --name-only 9f243f6d f8452149`; outside those three, each has its blob at f8452149, and none is under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `deploy/`, `.devcontainer/`, `services/`, or `infra/`, nor CLAUDE.md, REVIEW.md, the Makefile, or `package-lock.json`.
+
+**What dropped: nothing.** `git range-diff 9f243f6d..9ac15de a058e1d6..f096dbe` pairs all 17, 16 `=` and one `!`, b45b754, the conflict's commit, which adds and removes the same lines as before, its plan.md context the new base's entry. The subjects are unchanged. Below this section the note's SHAs are the old ones.
+
+| Before | After | Commit |
+| --- | --- | --- |
+| 57dab27 | 606828d | test(004): User Story 9's neon sign, RED (T263, T264, and T267's page test) |
+| dbecc07 | d761610 | test(004): T263's reference model badges the visit "Sample" only once a fixture fed it, RED |
+| c16f34b | b45b754 | feat(004): the turn-cost channel, GREEN (T265) |
+| 32b8d98 | 69a1893 | test(004): T264's counter tests read the fixture's neon panel, which holds the word and both counters, RED |
+| c74781c | f1be7d7 | feat(004): wire the cost channel to the talk panel, the tier, the faces, and the text copy, GREEN (T266) |
+| 9d67115 | 2d05e84 | feat(004): the lookdev page's sample figures on the neon sign, GREEN (T267) |
+| c5a0236 | 2e240b9 | docs(004): contracts/turn-cost.md §7's sender takes `ended`, and the comments that waited for the channel (T266) |
+| 60dce33 | 20ada0b | docs(004): T262 to T267 ticked, each with its commits |
+| 9ff2e57 | 2367598 | test(004): a cost listener or cue that throws stops neither the others nor reaches the sender, RED (the review of T268, nit 1) |
+| 49dd94f | e1456e4 | fix(004): each cost cue and listener runs in its own try, GREEN (the review of T268, nit 1) |
+| c548c20 | bf01655 | test(004): pin the lookdev fixtures' readings and the call region's redraw (the review of T268, nits 2 and 4) |
+| b696e1b | df1ff1c | docs(004): plan.md §10 says around.call and around.visit are unused until the labels question is decided (the review of T268, nit 3) |
+| 946fe16 | e7199ba | docs(004): the merge-request note for feat/004-us9-neon-sign, with the counters reading "cost unavailable" (answer 7), the RED runs and their two corrections, the review and its four nits fixed, the departures, SC-011's partial proof, make check's whole output, and the Author's steps; T268 and T269 ticked (T269) |
+| 4550a1e | b95eb89 | docs(004): T271's record first, in the US9 note: feat/004-us9-neon-sign was a65763ea before its restack onto feat/004-us8-live-tier's restacked tip (T271) |
+| 0a1a8f1 | d514055 | docs(004): plan.md §10: User Story 9 restacked onto feat/004-us8-live-tier's restacked tip, not main, ahead of T251, with one conflict, in its own §10 entry, both sides kept; T271 ticked as far as the stacking goes (T271) |
+| f845214 | e0bb877 | docs(004): the US9 note after its restack onto feat/004-us8-live-tier's restacked tip: one conflict in plan.md §10, both sides kept, nothing dropped, no test changed, the per-commit runs on both bases, old to new SHAs, make check, the report's neon figures, gitleaks, both rehearsals, and T272's stacked steps with base 9f243f6d (T271, T269) |
+| 9ac15de | f096dbe | docs(004): T271's record first, in the US9 note: feat/004-us9-neon-sign was f8452149 before its restack onto feat/004-us8-live-tier's tip on User Story 5's on main, a058e1d6 (T271) |
+
+Two commits follow them: this record, with plan.md §10's sentence on this rebase in its User Story 9 entry, which names a058e1d6 as the guard's base and gives the sign's figures on this base, the final code commit; and the note's update with `make check`, gitleaks, and the rehearsal, which changes only this note.
+
+**Checked on f096dbe,** with the tree clean, Node the pinned 24.21.0, and `node_modules` from this worktree's earlier `npm ci --ignore-scripts` (the new base changes no `package.json` and not `package-lock.json`):
+- `npm run room:generate -w apps/web`, "room: 0 written, 0 removed, 26 unchanged"; `room:check`, "room: 0 findings in 0 files"; `room:scan`, "room: 0 hits".
+- `room:report`: User Story 5's report at fefc452a, byte for byte (`cmp`), bundle 72e3337b036e042a, caps from `main` (e268db4ee85d5847), "Findings: none." This branch binds no face and changes no room data.
+- In `apps/web`, `npx vitest run`, "Test Files 80 passed (80)", "Tests 2235 passed (2235)": 2,231 before, and the new base's 4. `npx tsc --noEmit -p .` in `apps/web` and `node_modules/.bin/eslint --max-warnings 0 .` from the root, exit 0. By the main session's direction to keep this pass's checks fast, the suite ran on the tip alone, not on each GREEN commit as the last round's did.
+- No test changed, so there is no RED commit in this round. The tests that read the sign, `faces.test.ts`, `around.test.ts`, and `lookdev/page.test.ts`, take their figures from fixtures and the composed bundle, not pinned from the scene's cameras, and pass as they are.
+
+**The neon sign and the slate on this base,** RG7's measure, unrounded (`faceCaps` over the stand-ins' geometry, by a scratch script outside the worktree), beside the last round's report on 9f243f6d's base:
+
+| Face | Last round, on 9f243f6d | Here, on a058e1d6 |
+| --- | --- | --- |
+| The neon word, `neon-sign.word` | 9.2 px on the phone, desk-sign's sign | 15.6624 px on the desktop, 9.0059 px on the phone, "readable", margin 0.0 px in the report |
+| Its counters, `neon-sign.call` and `.visit` | 6.1 px on the phone, exempt | 10.3516 px on the desktop, 5.9522 px on the phone, exempt on the phone, carried by the text copy |
+| The second line, atmosphere | | 5.4008 px, 3.1055 px |
+| The slate, `chalkboard.slate` | not bound | 15.6677 px on the desktop, 9.0089 px on the phone, "readable" |
+| The cameras, z | | 3.8614, all three, which the chalkboard binds |
+
+These are User Story 5's figures at fefc452a, to the fourth place: this branch binds no face, so nothing here moves them. The word meets the phone's floor by 0.006 px and the slate by 0.009 px; RG7 refuses either under 9, so `room:check` would say so (User Story 5's question 6).
+
+**Your steps (T272), once User Story 8 has merged (T251), from main's checkout.** They replace "Your steps (T272)" in the section below, whose guard names the old base, 9f243f6d, and whose step 3 hand-merges for `evals` PENDING: `main` now has the behavioral tier off the merge path (ADR 0038), so the gate's `evals` WARNs and the gate prints its merge line. The neon sign's counters' labels aren't in these steps: T311 makes them data with the look, after your lookdev check. Nothing paid: the gate runs the behavioral tier only for a branch that touches CLAUDE.md, REVIEW.md, `.claude/`, or the Claude Code pin, and this one touches none. Every line is at most 70 characters.
+
+1. The gate:
+
+   ```bash
+   git switch main
+   b=feat/004-us9-neon-sign
+   tools/gates/gate "$b" 2>&1 | tee ~/gate-us9.log
+   ```
+
+   Expect Ready, with `evals` WARN, the behavioral tier's advisory line. After its `merge:` line it prints "note: main has commits feat/004-us9-neon-sign doesn't …", since `main` holds User Story 8's merge commit; that merge gives `main` exactly User Story 8's tip's tree, the tree this branch stands on, so merging this branch writes the tree the gate checked, and step 2 checks it. Don't merge `main` into the branch. If the only failure is the gateway's timing test with a negative duration, run the gate again. With any other failure, don't merge, and tell the session.
+
+2. The guard: the merge runs only if the gate printed its merge line, your checkout is on `main`, the branch is at the SHA the gate checked, `main`'s second parent is this branch's base, User Story 8's tip, and `main`'s tree is that tip's:
+
+   ```bash
+   log=~/gate-us9.log
+   base=a058e1d664208839bc33522a8a2fb55fd54ac328
+   s=$(grep '^gate: ' "$log" | tail -n 1)
+   sha=$(printf '%s\n' "$s" | awk '{print $2}')
+   n=$(grep -c '^merge: ' "$log")
+   on=$(git symbolic-ref -q HEAD)
+   tip=$(git rev-parse --verify "refs/heads/$b")
+   p2=$(git rev-parse --verify "refs/heads/main^2")
+   same=no; git diff --quiet refs/heads/main "$base" && same=yes
+   ok=no
+   ```
+
+   Then the guard, on its own lines:
+
+   ```bash
+   want="refs/heads/main.$sha.$base.yes"
+   [ "$n" -gt 0 ] && [ "$on.$tip.$p2.$same" = "$want" ] && ok=go
+   echo "guard: $ok"
+   ```
+
+3. The merge, only after `guard: go`, the gate's own merge line rebuilt from its log:
+
+   ```bash
+   m="Merge $b (${sha:0:12})"
+   o=(--no-replace-objects merge --no-ff -m "$m" -m "$s")
+   [ "$ok" = go ] && git "${o[@]}" "$sha"
+   ```
+
+   If it prints nothing, don't merge, and tell the session. These are User Story 6's lines, with this branch's name, log, and base, which the session ran in bash and in zsh with `git` stubbed (User Story 6's note gives the 12 runs).
+
+4. Park off `main` again:
+
+   ```bash
+   git switch -C wip-park/11-7-2026
+   ```
+
+If User Story 8 moves again before it merges, the session restacks this branch onto its new tip, and `base` changes with it here.
+
+**When `feat/004-room-models` and `feat/004-us4-studio` merge.** The main session says both are being built and reviewed now. Once they merge, the whole of line R rebases onto `main` once more, User Story 5 first (its note's "When `feat/004-room-models` merges"), then User Stories 6, 8, and 9 in this pass's form. A set model frames by its measured bounds, so the cameras move, and with them the word's and the slate's thin margins: if either falls under 9 there, `room:check` refuses it, and the session stops with the numbers.
+
+**For the next step.** None: this branch is line R's last, and nothing restacks on it. The close (T276) waits for its merge (T272) and the first intake (T239).
+
+**For the Author: questions from this round.** Where the session would have asked, it took the smallest choice that keeps every check passing.
+
+1. **The record-first commit.** As T271 says, the branch's tip was recorded in this note and committed, 9ac15de, before the rebase, so the branch has one more commit than the rebase's brief names, as User Stories 6 and 8 do (their question 1). Keep it?
+2. **One `make check` for line R's three branches.** `make check` ran once, here, on this branch's final code commit, which holds User Stories 6's and 8's commits whole; they have their per-branch checks, not runs of their own (their question 2). T211, T250, and T271 each say to re-run `make check`. If you want runs on User Story 6's and User Story 8's own tips before their gates, the session runs them; each gate runs it either way.
+3. **The suite on the tip alone.** The last round ran the web suite on each GREEN commit on both bases; this round ran it on the tip, by the brief's direction to keep the per-branch checks fast. Every commit's patch is unchanged but for b45b754's plan.md context. Run the per-commit suite before T272?
+4. **The older questions.** The section below asks its own; this round answers none of them and changes none. Its neon figures (9.2 px and 6.1 px on the phone) are that round's; the table above gives this round's.
+
 ## 2026-11-07: restacked onto feat/004-us8-live-tier's restacked tip (T271)
 
 `feat/004-us9-neon-sign was a65763ea677004e2b2251832e03c0067c320c261` (T271): 13 commits on 6c3955dce88553247e0faa75350db9531d0bb8b7, the commit this branch was cut from, `feat/004-us8-live-tier`'s last commit but one before its own rebase (T250), whose tip was then 36290d18b576baf4ba26b60498c1ab01adca9ef5. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
