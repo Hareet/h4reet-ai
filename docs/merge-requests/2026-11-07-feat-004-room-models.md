@@ -22,17 +22,20 @@ events from 2026-11-07T22:16:26Z are ALLOW but these:
   Nothing was respelled to run a git command.
 
 The 22:50:25Z BLOCK and the 22:41:55Z subagent check in the same
-log are another session's. Each commit ran the pre-commit hooks,
-gitleaks and the arrival check.
+log are another session's. So are the two BLOCKs at 23:01:32Z and
+23:03:51Z, "a read-only role writing a file": a read-only role's
+reads of this note, in this worktree. This session's events through
+the review's note commit add nothing else. Each commit ran the
+pre-commit hooks, gitleaks and the arrival check.
 
 Authorized by: the main session's brief of 2026-11-07, which sets
 your 21 studio files as the pieces' models. `main` holds the files,
 their records, and your approvals, and the contract's `model` is
 "absent until the Author's file is set". The task is T234.
 
-**Status: ready for your gate; not reviewed.** The brief asked for
-no review; a reviewer in another session can run REVIEW.md's passes
-first if you want one.
+**Status: reviewed, "ready with suggestions", with nothing
+Important; safe to merge alone; ready for your gate** (Review). The
+note took the review's findings; no other file changed after it.
 
 - **The data:** 21 catalog entries take
   `model: { file: <piece>.glb }`; twin-figure and visitor-figure
@@ -48,10 +51,11 @@ first if you want one.
 - **What you'll see, and what you won't yet.** A checkout's build
   carries all 21 models. `make up`'s web image doesn't yet: its
   build copies no `assets/room/`, and its nginx has no `/a/`
-  location. Those are T218 to T220, User Story 4's first part
-  (`feat/004-us4-studio`), which no branch has started. Until then
-  the image builds with a warn line for each piece and draws its
-  stand-ins (FR-013), so `make up` still works.
+  location. Those are T218 to T220, User Story 4's first part:
+  `feat/004-us4-studio` is being built on this branch, stacked on
+  b0f8e6eb. Until it lands, the image builds with a warn line for
+  each piece and draws its stand-ins (FR-013), so `make up` still
+  works.
 
 ## Runs in your terminal
 
@@ -77,8 +81,9 @@ or the Claude Code pin, and this branch touches none of them.
    again. With any other failure, don't merge, and tell the session.
 
 2. **The guard.** The merge runs only if the gate printed its merge
-   line, your checkout is on `main`, and the branch is at the SHA
-   the gate checked:
+   line, your checkout is on `main`, the branch is at the SHA the
+   gate checked, and `main` has no commit that SHA lacks, so the
+   merge writes the tree the gate checked:
 
    ```bash
    s=$(grep '^gate: ' "$log" | tail -n 1)
@@ -94,6 +99,7 @@ or the Claude Code pin, and this branch touches none of them.
    ```bash
    want="refs/heads/main.$sha"
    [ "$n" -gt 0 ] && [ "$on.$tip" = "$want" ] && ok=go
+   git merge-base --is-ancestor refs/heads/main "$sha" || ok=no
    echo "guard: $ok"
    ```
 
@@ -205,9 +211,18 @@ The whole report is under "Room report", below.
 
 ## Acceptance criteria
 
-- **User Story 4, scenario 1:** setting a piece's `model` replaces
-  its stand-in, for all 21; the shell's drawing moves with the 2D
-  camera as the data-only test requires.
+- **User Story 4, scenario 1, a departure (the review's N1).** The
+  scenario reads "**Then** it replaces its stand-in with no other
+  edit." Here setting the 21 models took a second edit:
+  room-shell.yaml's open-front corners are written by hand for one
+  2D camera, and the measured bounds move that camera, so the
+  corners moved with it, as `test/room/data-only.test.ts` requires.
+  Until T219 and T220 land, `make up`'s image keeps the stand-ins,
+  whose labels hold its 2D camera at z 3.6964, so it draws corners
+  meant for z 3.5525, about 2 cm off: (±1.5088, −0.4764) and
+  (±1.5088, 2.5411) where its camera would need (±1.4882, −0.4542)
+  and (±1.4882, 2.5221). The fix is in the backlog: the compositor
+  computes the corners from `flatCamera`.
 - **FR-013:** the manifest names no stand-in; in `make up`'s image,
   which has no `assets/room/` yet, each piece warns and keeps its
   stand-in, and the build passes.
@@ -219,7 +234,13 @@ The whole report is under "Room report", below.
   within main's cap.
 - **FR-073:** the report, whole, below.
 - **SC-006:** the first visit inside 25,000,000 bytes; GLB
-  encoding waits for T218 (For the Author).
+  encoding waits for T218 (For the Author). Its clause "Texture
+  memory on the reference phone stays at or under 96 MB" is unmet
+  by the spec's wording: the scene measures 158,626,181 bytes,
+  inside the 200,000,000 cap you set on `main` (plan.md:879, your
+  answer 2: "Caps: I've raised per_asset.room on main myself, to
+  100,000 triangles a piece and 200,000,000 bytes of scene texture
+  memory.").
 
 ## Constitution check
 
@@ -241,11 +262,50 @@ The whole report is under "Room report", below.
 
 ## Review
 
-Not reviewed: the main session's brief asked for none, and the
-agent that implements never reviews. The passes REVIEW.md would
-give this diff are Bugs, Compliance, Cost & telemetry, and Room
-data; Arriving assets doesn't apply, since no file under `assets/`
-changes.
+**Verdict: "ready with suggestions": nothing Important, and safe to
+merge alone.** A reviewer in another session, which wrote none of
+this branch, reviewed 4414b4ad..b0f8e6eb; the main session relayed
+its verdict and findings. The passes REVIEW.md gives this diff:
+Bugs, Security, Compliance, Cost & telemetry, and Room data, which
+its room data triggers. Arriving assets didn't apply, since no file
+under `assets/` changes. What it verified, as relayed: no Important
+finding in the range, and the branch safe to merge alone. Each
+finding, and what was done:
+
+1. **N1, a departure** (User Story 4 scenario 1's "with no other
+   edit"): the shell's corners took a second edit, and `make up`'s
+   image draws them about 2 cm off until T219 and T220. Named in
+   Acceptance criteria; the compositor computing the corners from
+   `flatCamera` is in the backlog.
+2. **N2, the guard:** the merge lines didn't check that `main` had
+   no commit the gate's SHA lacks. The guard gains
+   `git merge-base --is-ancestor refs/heads/main "$sha" || ok=no`
+   before its `echo`. Run under zsh 5.9 with `zsh -f` on the note's
+   own lines (only `git symbolic-ref` stubbed, to say the checkout
+   is on `main`): "guard: go" for this branch's tip, which `main`
+   precedes, and "guard: no" for `feat/004-studio-room-pieces`'s
+   tip, which `main` doesn't; the merge line's assignments expand
+   as before. The merge itself wasn't run.
+3. **N3, three fixes,** in this note: the status says
+   `feat/004-us4-studio` is being built on this branch, where it
+   said no branch had started it; SC-006's "at or under 96 MB" is
+   in Acceptance criteria as unmet by the spec's wording; and this
+   section, which said the branch wasn't reviewed and left out
+   Security.
+4. **N4, the loader test's beacon** (`test/room/loader.test.ts`:
+   1085-1090): it checks only the first 20 events. In the backlog;
+   `feat/004-us4-studio` takes it.
+5. **N5, the lookdev page's texture readout**
+   (`src/lookdev/page.ts`:433): it prints "of 96,000,000", the
+   constant, not the part's cap. In the backlog;
+   `feat/004-us4-studio` takes it.
+6. **The manifest's placeholders case**
+   (`test/manifest.test.ts`:133-138): it recomputes
+   `avatarsPlaceholder`'s rule, where the review suggests pinning
+   `true`. In the backlog.
+
+This commit changes the note alone: `feat/004-us4-studio` is
+stacked on b0f8e6eb.
 
 ## Verification
 
@@ -1123,12 +1183,31 @@ spec 001's route (row V6), so no disclosure entry changes.
   653.11 kB with the 3D part's model entries.
 - **T235:** the probe of the served models on dev-cpu, after T218
   to T220; this session has no engine.
+- **The shell's corners from the camera** (the review's N1): have
+  the compositor compute the corners from `flatCamera`, so the
+  drawing follows the 2D camera with no hand edit, in every build.
+- **The loader test's 21st event** (N4; `feat/004-us4-studio` takes
+  it): `test/room/loader.test.ts`:1085-1090 checks only the
+  beacon's first 20 events. It should assert
+  `site.models.length > BATCH_MAX`, then advance `SEND_EVERY_MS`
+  and expect the POST to carry the 21st.
+- **The lookdev page's texture readout** (N5; `feat/004-us4-studio`
+  takes it): `src/lookdev/page.ts`:433 prints "of 96,000,000", the
+  constant `SCENE_TEXTURE_BYTES`, instead of the part's cap.
+- **The manifest's placeholders case:** `test/manifest.test.ts`:
+  133-138 recomputes `avatarsPlaceholder`'s rule instead of pinning
+  `true`.
 
 ## For the Author
 
 - **To see the room with its pieces** in `make up`, the image needs
-  T218 to T220. Until then it draws stand-ins, and its build log
-  names each piece with RX1's warn.
+  T218 to T220, which `feat/004-us4-studio` is building on this
+  branch. Until then it draws stand-ins, and its build log names
+  each piece with RX1's warn.
+- **Not yet recorded, outside this diff:** REVIEW.md's Arriving
+  assets pass on the 21 intake files (T237). Another agent is
+  running it now, and its result goes into `feat/004-us4-studio`'s
+  note.
 - **The placeholder note still shows:** with no stand-in left,
   `placeholders` is the avatars' alone, true until spec 003's twin
   and visitor files are under `assets/`.
