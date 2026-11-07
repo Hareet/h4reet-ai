@@ -4,6 +4,10 @@ Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (Phase 10
 Session: worked in the branch's worktree, `/tmp/claude-1000/wt-us8`, which the main session made from 2ddfd73, `feat/004-us6-topics`'s tip (T241, a departure: below). The main checkout wasn't touched. Repo hooks active: yes. Each commit ran the arrival check (`arrival-check: 0 findings in …`) and gitleaks (`no leaks found`).
 Authorized by: tasks.md T241 to T249; plan.md §10's entries "`feat/004-us8-live-tier` is cut from `feat/004-us6-topics`'s tip" and "User Story 8's poller, frame log, and HAR checker, as built"; the main session's direction for the review's fixes (I-1 to I-3, nits 1 to 5).
 
+## 2026-11-07, night: restacked onto feat/004-us6-topics's tip on User Story 5's on main (T250)
+
+`feat/004-us8-live-tier was 9f243f6d74679cfbef1da9fa9de9f08655bd219e` (T250): 14 commits on decba195e54eb019d5980e5d160b4c911cc6a794, `feat/004-us6-topics`'s tip before its restack onto `feat/004-us5-words`'s tip on `main` (T211), which is now 91a6fcdfd95028c1bb6e0935c0a84ef891e083f0, on fefc452ae4f1f80d42f6de6be2e96b750e136ac8, User Story 5's tip on `main` at 4414b4adda1a577c2816cc97d8ba626c0161aee8. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
+
 ## 2026-11-07: restacked onto feat/004-us6-topics's restacked tip (T250)
 
 `feat/004-us8-live-tier was 36290d18b576baf4ba26b60498c1ab01adca9ef5` (T250): 11 commits on 2ddfd73b6a27c4d0f2db6283e4b4554aabe9bb9b, the commit this branch was cut from, `feat/004-us6-topics`'s last commit but one before its own rebase (T211), whose tip was then 2482581a3e94c436102b391747a2e3d9307faea2. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
