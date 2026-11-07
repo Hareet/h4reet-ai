@@ -148,6 +148,7 @@ describe("keyboard", () => {
     expect(tabOrder(v.doc).map(nameOf)).toEqual([
       "Resume",
       "2D view",
+      "Pause the room",
       "How data flows",
       ...OBJECT_BUTTONS,
       "Your message",
@@ -157,11 +158,13 @@ describe("keyboard", () => {
     button(v.doc, "Resume").click();
     await flush();
     const order = tabOrder(v.doc).map(nameOf);
-    // The toolbar's three stops, a button per selectable, and the conversation panel's three come first.
-    const room = 3 + OBJECT_BUTTONS.length + 3;
+    // The toolbar's four stops ("Pause the room", spec 004's, T161), a button per selectable, and the conversation
+    // panel's three come first.
+    const room = 4 + OBJECT_BUTTONS.length + 3;
     expect(order.slice(0, room)).toEqual([
       "Resume",
       "2D view",
+      "Pause the room",
       "How data flows",
       ...OBJECT_BUTTONS,
       "Your message",
@@ -339,6 +342,42 @@ describe("the AI disclosure", () => {
   it("leaves room above a focused control for itself, so the header never covers it (WCAG 2.4.11)", () => {
     const html = rules().find((r) => r.selector === "html");
     expect(px(html?.declarations.get("scroll-padding-top"))).toBeGreaterThanOrEqual(64);
+  });
+});
+
+describe('"Pause the room" pressed (WCAG 1.4.1)', () => {
+  /** The value a property ends with on an element, from the top-level rules that match it, in order. */
+  function last(el: Element, property: string, all: CssRule[]): string {
+    let value = "";
+    for (const rule of all)
+      if (matchesRule(el, rule.selector) && rule.declarations.has(property))
+        value = rule.declarations.get(property) ?? "";
+    return value;
+  }
+
+  it("shows the toggle pressed by more than colour: an inset border or an underline only the pressed state has", async () => {
+    const all = rules();
+    for (const webgl of [true, false]) {
+      const v = start({ webgl });
+      await intoRoom(v);
+      const pause = button(v.doc, roomIndex().ui["pause.button"] ?? "Pause the room");
+      const cue = (): { inset: boolean; underline: boolean } => ({
+        inset: /\binset\b/.test(last(pause, "box-shadow", all)),
+        underline: /\bunderline\b/.test(
+          `${last(pause, "text-decoration", all)} ${last(pause, "text-decoration-line", all)}`,
+        ),
+      });
+      expect(pause.getAttribute("aria-pressed")).toBe("false");
+      const before = cue();
+      pause.click();
+      await flush();
+      expect(pause.getAttribute("aria-pressed")).toBe("true");
+      const after = cue();
+      const what = webgl ? "3D" : "2D";
+      expect(after.inset || after.underline, `${what}: pressed`).toBe(true);
+      expect(before.inset && after.inset, `${what}: the inset border only when pressed`).toBe(false);
+      expect(before.underline && after.underline, `${what}: the underline only when pressed`).toBe(false);
+    }
   });
 });
 

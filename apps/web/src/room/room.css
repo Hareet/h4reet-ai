@@ -52,6 +52,15 @@
   cursor: default;
 }
 
+/* A pressed toggle, "Pause the room" (spec 004, FR-060), inverted as lookdev.css's toggles are, and shown by more than
+   colour (WCAG 1.4.1): an inset ring inside its border, and its words underlined. */
+.room button[aria-pressed="true"] {
+  color: #ffffff;
+  background: #1a1a1a;
+  box-shadow: inset 0 0 0 2px #ffffff;
+  text-decoration: underline;
+}
+
 /* The AI disclosure, index.html's header, stays in view on every screen, from the choice to the end of the visit
    (FR-004; contracts/room-scene.md §1): sticky and opaque. The scroll padding keeps a focused control from scrolling
    under it (WCAG 2.4.11). */

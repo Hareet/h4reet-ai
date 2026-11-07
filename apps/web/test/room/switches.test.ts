@@ -6,10 +6,11 @@
 //   desk needs no re-export: only the pose decides where the lead's end is.
 // - The rules: a case for every tier value and no default on a piece that claims values, a default covering the rest
 //   on one that claims none (RS1); the poses its claims name, one pose claiming local and one cloud, and no placement
-//   of the switch's piece (RS2); only local showing the plugged pose and only cloud the cloud pose (RS3); the six other
-//   values on one shared pose that claims nothing (RS4); nothing but the local case sitting where the plug goes in, nor
-//   two poses with different claims within 1 mm and 1° where the world places them (RS5); a cable from an anchor of the
-//   switch's piece (RS6). No reason names a pose.
+//   of the switch's piece (RS2); only local showing the plugged pose and only cloud the cloud pose, and a piece's claims
+//   naming a pose for local and one for cloud that the switch's cases show, a claimless switch left to RS1 (RS3; T163's
+//   cases); the six other values on one shared pose that claims nothing (RS4); nothing but the local case sitting where
+//   the plug goes in, nor two poses with different claims within 1 mm and 1° where the world places them (RS5); a cable
+//   from an anchor of the switch's piece (RS6). No reason names a pose.
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 
@@ -290,15 +291,21 @@ describe("the switches' rules on the fixtures (RS1 to RS6)", () => {
           for (const value of SHARED) at(power(d), "cases")[value] = "fx-plugged";
         },
       });
-      expect(unplugged.seen).toEqual([`RS2 ${PLUG}:claims.poses`]);
+      // RS3 refuses the switch too, since its piece's claims name no pose for local (T163; RS3's own case below).
+      expect(unplugged.seen).toEqual([`RS2 ${PLUG}:claims.poses`, `RS3 ${SCENE}:switches[0].cases`]);
       expect(unplugged.found[0]?.reason).toBe("no pose claims local, so none is known as the plugged pose");
       const clouded = rs({ plug: (d) => (at(d, "claims", "poses")["fx-cloud"] = null) });
-      expect(clouded.seen).toEqual([`RS2 ${PLUG}:claims.poses`]);
+      expect(clouded.seen).toEqual([`RS2 ${PLUG}:claims.poses`, `RS3 ${SCENE}:switches[0].cases`]);
       expect(clouded.found[0]?.reason).toBe("no pose claims cloud, so none is known as the cloud pose");
       const neither = rs({
         plug: (d) => (at(d, "claims").poses = { "fx-plugged": null, "fx-cloud": null, "fx-resting": null }),
       });
-      expect(neither.seen).toEqual([`RS2 ${PLUG}:claims.poses`, `RS2 ${PLUG}:claims.poses`]);
+      expect(neither.seen).toEqual([
+        `RS2 ${PLUG}:claims.poses`,
+        `RS2 ${PLUG}:claims.poses`,
+        `RS3 ${SCENE}:switches[0].cases`,
+        `RS3 ${SCENE}:switches[0].cases`,
+      ]);
       // Claims of the committed charger's shape, one pose local, one cloud, and one nothing, are the known-good set's.
       expect(rs({}).seen).toEqual([]);
     });
@@ -332,6 +339,75 @@ describe("the switches' rules on the fixtures (RS1 to RS6)", () => {
       const passed = rs({ scene: (d) => (at(power(d), "cases").cloud = "fx-resting") });
       expect(passed.seen).toEqual([`RS3 ${SCENE}:switches[0].cases.cloud`]);
       expect(passed.found[0]?.reason).toBe("shows another pose than the one that claims cloud");
+    });
+
+    // T163 (contracts/room-data-files.md §13.4, contracts/room-bundle.md §3.1): a tier switch whose piece declares
+    // claims carries them whole into the bundle, a pose for local and one for cloud, two different poses its cases
+    // name, so the runtime knows the plugged and the cloud poses from them. One pose for both can't be written: the
+    // catalog's claims map each pose to one value, so the claims rule's runtime case (cables.test.ts) holds that one.
+    it.each([
+      ["local", "fx-plugged"],
+      ["cloud", "fx-cloud"],
+    ] as const)("refuses a switch whose piece's claims name no pose for %s", (value, pose) => {
+      const half = rs({ plug: (d) => (at(d, "claims", "poses")[pose] = null) });
+      expect(half.seen).toContain(`RS3 ${SCENE}:switches[0].cases`);
+      expect(half.found.filter((f) => f.rule === "RS3").map((f) => f.reason)).toEqual([
+        `its piece's claims name no pose for ${value}`,
+      ]);
+    });
+
+    // The delta review of T163, N-c: the index of a switch whose piece's claims lack local writes it as "", a pose no
+    // case names, so the runtime reads the claims as not-live, beside RS3's finding.
+    it("writes a missing claim as an empty pose in the index, beside RS3's finding", () => {
+      const doc = parse(decoder.decode(goodFiles().get(PLUG))) as Doc;
+      at(doc, "claims", "poses")["fx-plugged"] = null;
+      const result = compose(overlay({ [PLUG]: stringify(doc) }), noPolicy(), { mode: "strict", drafts: true });
+      expect(result.findings.filter((f) => f.rule === "RS3").map((f) => `${f.file}:${f.path}`)).toEqual([
+        `${SCENE}:switches[0].cases`,
+      ]);
+      expect(result.index.switches[0]?.claims?.local).toBe("");
+      expect(result.index.switches[0]?.claims?.cloud).toBe("fx-cloud");
+    });
+
+    it.each([
+      ["local", "fx-plugged"],
+      ["cloud", "fx-cloud"],
+    ] as const)("refuses a switch whose piece's claims name a pose for %s that no case shows", (value, pose) => {
+      const unshown = rs({
+        scene: (d) => {
+          delete at(power(d), "cases")[value];
+        },
+      });
+      expect(unshown.seen).toEqual([`RS1 ${SCENE}:switches[0].cases`, `RS3 ${SCENE}:switches[0].cases`]);
+      expect(unshown.found.find((f) => f.rule === "RS3")?.reason).toBe(
+        `no case shows the pose its piece's claims name for ${value}`,
+      );
+      // Where another case shows the claimed pose, that case's own finding stands for it.
+      const elsewhere = rs({
+        scene: (d) => {
+          delete at(power(d), "cases")[value];
+          at(power(d), "cases").budget = pose;
+        },
+      });
+      expect(elsewhere.found.filter((f) => f.rule === "RS3").map((f) => f.path)).toEqual(["switches[0].cases.budget"]);
+    });
+
+    it("still accepts a claimless tier switch with a default, RS1's path, whatever pose its local case shows", () => {
+      const claimless = (d: Doc): void => {
+        delete d.claims;
+      };
+      const defaulted = (d: Doc): void => {
+        for (const value of SHARED) delete at(power(d), "cases")[value];
+        power(d).default = "fx-resting";
+      };
+      expect(rs({ plug: claimless, scene: defaulted }).seen).toEqual([]);
+      // Without claims no pose is plugged, so nothing holds local's case to one pose.
+      const swapped = (d: Doc): void => {
+        defaulted(d);
+        at(power(d), "cases").local = "fx-cloud";
+        at(power(d), "cases").cloud = "fx-plugged";
+      };
+      expect(rs({ plug: claimless, scene: swapped }).found.filter((f) => f.rule === "RS3")).toEqual([]);
     });
   });
 

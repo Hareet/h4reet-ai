@@ -371,20 +371,28 @@ describe("the drawing (drawFlat)", () => {
       }
       expect([...(cases?.values() ?? [])].filter((g) => g.getAttribute("visibility") === "visible")).toHaveLength(1);
     }
-    // Which case shows is the index's not-live case; a case with no cable draws its pose alone.
+    // Which case shows is the index's not-live case, by the claims rule (spec 004, T160; contracts/tier-signal.md §2):
+    // one naming the plugged pose, or the cloud pose, falls to the shared pose; and a case with no cable draws its pose
+    // alone.
     const [sw] = index.switches;
-    const other = index.flat.poses.find((p) => p.pose !== sw?.cases["not-live"]);
-    if (!sw || !other) throw new Error("the fixture's switch has one pose");
-    const changed: RoomIndex = {
-      ...index,
-      switches: index.switches.map((s) => ({ ...s, cases: { ...s.cases, "not-live": other.pose } })),
-      flat: { ...index.flat, poses: index.flat.poses.map((p) => (p === other ? { ...p, cable: null } : p)) },
-    };
-    const shown = [...(drawFlat(doc, changed, "dog").switches.get(sw.id)?.entries() ?? [])].filter(
-      ([, g]) => g.getAttribute("visibility") === "visible",
-    );
-    expect(shown.map(([name]) => name)).toEqual([other.pose]);
-    expect([...(shown[0]?.[1].children ?? [])].map((c) => c.localName)).toEqual(["g"]);
+    const shared = sw?.cases["not-live"];
+    if (!sw || !shared) throw new Error("the fixture has no switch");
+    for (const claimed of [sw.cases.local, sw.cases.cloud]) {
+      expect(claimed).not.toBe(shared);
+      const changed: RoomIndex = {
+        ...index,
+        switches: index.switches.map((s) => ({ ...s, cases: { ...s.cases, "not-live": claimed } })),
+        flat: { ...index.flat, poses: index.flat.poses.map((p) => (p.pose === shared ? { ...p, cable: null } : p)) },
+      };
+      const shown = [...(drawFlat(doc, changed, "dog").switches.get(sw.id)?.entries() ?? [])].filter(
+        ([, g]) => g.getAttribute("visibility") === "visible",
+      );
+      expect(
+        shown.map(([name]) => name),
+        claimed,
+      ).toEqual([shared]);
+      expect([...(shown[0]?.[1].children ?? [])].map((c) => c.localName)).toEqual(["g"]);
+    }
   });
 
   it("labels each stand-in with the UI word standin.label as SVG text, worded as the 3D room words it", () => {
@@ -560,7 +568,8 @@ describe("the 2D stage (renderFlat)", () => {
       select: () => undefined,
       reducedMotion: true,
     });
-    expect(stage.drawing.turns).toEqual([null, null, null]);
+    // The drawing holds no turns of its own: the stage turns the visitor as each frame shows (T163's N4).
+    expect(Object.hasOwn(stage.drawing, "turns")).toBe(false);
     for (const progress of [0, 0.5, 1]) {
       stage.showHandoff(progress);
       expect(stage.drawing.visitor.getAttribute("transform"), String(progress)).toBeNull();

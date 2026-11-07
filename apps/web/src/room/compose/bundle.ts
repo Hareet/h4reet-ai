@@ -116,8 +116,15 @@ export interface RoomIndex {
         | { signal: "turn-cost"; part: "call" | "visit" };
     }[];
   }[];
-  /** Each tier value to its pose. */
-  switches: { id: string; signal: "tier"; label: string; cases: Record<TierValue, string> }[];
+  /** Each tier value to its pose; `claims`, only where the switch's piece declares claims: the pose that claims local
+   *  and the one that claims cloud, the plugged and the cloud poses (T163). */
+  switches: {
+    id: string;
+    signal: "tier";
+    label: string;
+    cases: Record<TierValue, string>;
+    claims?: { local: string; cloud: string };
+  }[];
   flat: {
     view_box: [0, 0, 320, 200];
     /** In depth order, back to front. */

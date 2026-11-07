@@ -24,6 +24,7 @@ import type { RoomEvent } from "../../src/room/events";
 import { asRoomNarration } from "../../src/narration/data";
 import { resumeView } from "../../src/room/resume-port";
 import type { RoomResume } from "../../src/resume";
+import type { TierValue } from "../../src/room/compose/vocabulary";
 import type { SceneModule, SceneOptions, Stage3D } from "../../src/room/stage";
 
 export const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
@@ -111,7 +112,7 @@ export interface Spies {
   microphone: number;
 }
 
-function spyOnEverything(win: Window): Spies {
+function spyOnEverything(win: Window, answer?: (url: string, init: RequestInit) => Promise<Response>): Spies {
   const spies: Spies = { storage: [], history: [], network: [], beacons: [], microphone: 0 };
   const define = (target: object, name: string, descriptor: PropertyDescriptor): void => {
     Object.defineProperty(target, name, { configurable: true, ...descriptor });
@@ -128,9 +129,9 @@ function spyOnEverything(win: Window): Spies {
     history[name] = () => spies.history.push(name);
   }
   define(win, "fetch", {
-    value: (input: unknown) => {
+    value: (input: unknown, init: RequestInit = {}) => {
       spies.network.push(`fetch ${String(input)}`);
-      return Promise.reject(new Error("no network in the room's tests"));
+      return answer ? answer(String(input), init) : Promise.reject(new Error("no network in the room's tests"));
     },
   });
   class Xhr {
@@ -174,6 +175,27 @@ export interface WindowOptions {
   maxTextureSize?: number;
 }
 
+/** Each test window's reduced-motion switch. */
+const mediaOf = new WeakMap<object, (on: boolean) => void>();
+
+/** Switches the window's prefers-reduced-motion, as a visitor's system setting does mid-visit, firing each list's
+ *  change listeners (spec 004, FR-059). */
+export function setReducedMotion(win: object, on: boolean): void {
+  const set = mediaOf.get(win);
+  if (!set) throw new Error("not a test window");
+  set(on);
+}
+
+/** Hides or shows the page, as a browser does when the tab goes to the background or comes back: visibilityState,
+ *  then visibilitychange. */
+export function setHidden(win: TestWindow, hidden: boolean): void {
+  Object.defineProperty(win.document, "visibilityState", {
+    configurable: true,
+    get: () => (hidden ? "hidden" : "visible"),
+  });
+  win.document.dispatchEvent(new win.Event("visibilitychange"));
+}
+
 /** A window holding the real index.html, as the site serves it, with media queries and WebGL as asked. */
 export function makeWindow(options: WindowOptions = {}): JSDOM {
   const console = new VirtualConsole();
@@ -188,21 +210,38 @@ export function makeWindow(options: WindowOptions = {}): JSDOM {
     virtualConsole: console,
   });
   const win = dom.window;
+  // Each query's list keeps its change listeners, so setReducedMotion can switch reduced motion mid-visit (spec 004,
+  // FR-059: the room reads it throughout the visit).
+  const media = { reducedMotion: options.reducedMotion === true };
+  const lists: { query: string; listeners: Set<(event: { matches: boolean }) => void> }[] = [];
   const matches = (query: string): boolean =>
-    (options.reducedMotion === true && /prefers-reduced-motion:\s*reduce/.test(query)) ||
+    (media.reducedMotion && /prefers-reduced-motion:\s*reduce/.test(query)) ||
     (options.touch === true && /pointer:\s*coarse/.test(query));
   Object.defineProperty(win, "matchMedia", {
     configurable: true,
-    value: (query: string) => ({
-      matches: matches(query),
-      media: query,
-      onchange: null,
-      addEventListener() {},
-      removeEventListener() {},
-      addListener() {},
-      removeListener() {},
-      dispatchEvent: () => false,
-    }),
+    value: (query: string) => {
+      const listeners = new Set<(event: { matches: boolean }) => void>();
+      lists.push({ query, listeners });
+      return {
+        get matches() {
+          return matches(query);
+        },
+        media: query,
+        onchange: null,
+        addEventListener: (_: string, fn: (event: { matches: boolean }) => void) => listeners.add(fn),
+        removeEventListener: (_: string, fn: (event: { matches: boolean }) => void) => listeners.delete(fn),
+        addListener: (fn: (event: { matches: boolean }) => void) => listeners.add(fn),
+        removeListener: (fn: (event: { matches: boolean }) => void) => listeners.delete(fn),
+        dispatchEvent: () => false,
+      };
+    },
+  });
+  mediaOf.set(win, (on) => {
+    if (media.reducedMotion === on) return;
+    media.reducedMotion = on;
+    for (const list of lists)
+      if (/prefers-reduced-motion/.test(list.query))
+        for (const fn of [...list.listeners]) fn({ matches: matches(list.query) });
   });
   const released: string[] = [];
   const MAX_TEXTURE_SIZE = 0x0d33;
@@ -230,6 +269,11 @@ export interface FakeScene {
   quality: number[];
   disposed: number;
   stage: Stage3D | null;
+  /** Frames the stage's loop has drawn. */
+  frames: number;
+  /** Each tier value the room applied to the stage (spec 004, T161), with the frames drawn before it: what applies
+   *  shows from the next frame on. */
+  applied: { value: TierValue; frame: number; at: number }[];
   /** With sceneLate: lets the chunk's import resolve now. */
   release?: () => void;
 }
@@ -242,12 +286,15 @@ export function fakeScene(): FakeScene {
     quality: [],
     disposed: 0,
     stage: null,
+    frames: 0,
+    applied: [],
     module: {
       createScene(options) {
         fake.created.push(options);
         const canvas = options.doc.createElement("canvas");
         let frame = 0;
         const loop = (time: number): void => {
+          fake.frames += 1;
           options.onFrame(time);
           frame = options.clock.requestFrame(loop);
         };
@@ -258,6 +305,7 @@ export function fakeScene(): FakeScene {
           canvas,
           showHandoff: (progress) => fake.handoff.push(progress),
           setQuality: (level) => fake.quality.push(level),
+          apply: (value) => fake.applied.push({ value, frame: fake.frames, at: options.clock.now() }),
           dispose: () => {
             fake.disposed += 1;
             options.clock.cancelFrame(frame);
@@ -324,6 +372,9 @@ export interface Visit {
   resumeLoads: () => number;
 }
 
+/** The wall clock's time at the fake clock's 0: 26 October 2026, 13:05, local time, so "Paused at" reads 13:05 then. */
+export const WALL0 = new Date(2026, 9, 26, 13, 5, 0).getTime();
+
 /** Opens the page: the room starts on its window, with every spy in place first. */
 /** How the stand-in 3D chunk's import ends: it loads, it fails, or it never settles (a stalled download). */
 export interface SceneOptionsForTest {
@@ -340,6 +391,12 @@ export interface SceneOptionsForTest {
   sceneLate?: boolean;
   /** The bundle's index the room starts with: by default the repository's, as the site's build bundles it. */
   room?: RoomIndex;
+  /** The wall clock the room reads (spec 004): by default WALL0 plus the fake clock's time. */
+  wall?: (clock: FakeClock) => number;
+  /** Imports the 3D chunk in place of the stand-in: the real scene module, with a stand-in renderer (spec 004, T157). */
+  loadScene?: () => Promise<SceneModule>;
+  /** Answers the page's fetches, after the spy records each: by default every fetch is refused. */
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
 }
 
 /** An approved resume of fixture words, under the first two item IDs the manifest lists. */
@@ -357,8 +414,9 @@ export function fixtureResume(): RoomResume {
 export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit {
   const dom = makeWindow(options);
   const win = dom.window as unknown as TestWindow;
-  const spies = spyOnEverything(win);
+  const spies = spyOnEverything(win, options.fetch);
   const clock = new FakeClock();
+  const wall = (): number => (options.wall ? options.wall(clock) : WALL0 + clock.now());
   const events: RoomEvent[] = [];
   const scene = fakeScene();
   let loads = 0;
@@ -378,8 +436,10 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     ),
     events: (event) => events.push(event),
     clock,
+    wall,
     loadScene: () => {
       scene.loads += 1;
+      if (options.loadScene) return options.loadScene();
       if (options.sceneHangs) return new Promise<SceneModule>(() => undefined);
       if (options.sceneLate) {
         return new Promise<SceneModule>((resolve) => {

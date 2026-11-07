@@ -490,14 +490,21 @@ describe("the object tree (buildRoom)", () => {
       }
       expect([...(cases?.values() ?? [])].filter((g) => g.visible)).toHaveLength(1);
     }
-    // Which case shows is the index's not-live case.
-    const index = {
-      ...result.index,
-      switches: result.index.switches.map((s) => ({ ...s, cases: { ...s.cases, "not-live": "fx-cloud" } })),
-    };
-    const other = build(result, "dog", index);
-    const visible = [...(other.switches.get("fx-power")?.entries() ?? [])].filter(([, g]) => g.visible);
-    expect(visible.map(([name]) => name)).toEqual(["fx-cloud"]);
+    // Which case shows is the index's not-live case, by the claims rule (spec 004, T160; contracts/tier-signal.md §2): a
+    // not-live case naming the cloud pose, or the plugged one, falls to the shared pose, so a faulty bundle can neither
+    // plug the laptop in nor leave the room blank.
+    for (const pose of ["fx-cloud", "fx-plugged"]) {
+      const index = {
+        ...result.index,
+        switches: result.index.switches.map((s) => ({ ...s, cases: { ...s.cases, "not-live": pose } })),
+      };
+      const other = build(result, "dog", index);
+      const visible = [...(other.switches.get("fx-power")?.entries() ?? [])].filter(([, g]) => g.visible);
+      expect(
+        visible.map(([name]) => name),
+        pose,
+      ).toEqual(["fx-resting"]);
+    }
   });
 
   it("refuses a 3D part it can't build whole, so the room falls to 2D as for a failed load", () => {

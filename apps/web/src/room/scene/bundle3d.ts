@@ -10,8 +10,9 @@
 // flat cut-out (src/choice/avatars.ts), at its own size, as the 2D room draws it. The hand-off and its paper stay code,
 // their two anchors the scene's `handoff` (FR-008); the visitor's is where the first avatar holds the paper, and the
 // chosen avatar's own hand, spec 002's placement from its size, is offset from it (handoff.ts). Each switch case is
-// its own group, at its pose's mount, holding the switch piece's stand-in; only the index's not-live case shows until
-// the tier applies another (the face quads, glow cards, and cable tubes come with T185 and T160). The camera frames
+// its own group, at its pose's mount, holding the switch piece's stand-in and the cable's tube (scene/cables.ts); only
+// not-live's case, by the claims rule, shows until the tier applies another (the face quads and glow cards come with
+// T185). The camera frames
 // the framed placements' boxes with compose/framing.ts, never loaded geometry, so a model arriving or failing moves
 // nothing (R-18), and the pointer picks from the same boxes through compose/pick.ts, as the compositor's spacing check
 // (RG6) measures them: each selectable's members projected at the camera's framing into the stage's CSS pixels,
@@ -53,6 +54,8 @@ import type { Side } from "../handoff";
 import type { Ndc } from "../objects";
 import { uiWord } from "../ui-keys";
 import type { UiKey } from "../ui-keys";
+import { buildCases } from "./cables";
+import type { SwitchCases } from "./cables";
 import { lookLights, lookMaterials } from "./look";
 import type { Materials } from "./look";
 import { standin } from "./standins";
@@ -88,9 +91,11 @@ export interface Room3D {
   readonly pictures: ReadonlyMap<string, Group>;
   /** The stand-ins' labels, by placement: only where the placement has no set model and the index has its words. */
   readonly labels: ReadonlyMap<string, Object3D>;
-  /** Each switch's cases, by switch and pose: a group at the pose's mount holding the piece's stand-in, only the
-   *  not-live case's shown. */
+  /** Each switch's cases, by switch and pose: a group at the pose's mount holding the piece's stand-in and its cable's
+   *  tube, only the case caseFor gives not-live shown until the tier applies another (cases.groups). */
   readonly switches: ReadonlyMap<string, ReadonlyMap<string, Group>>;
+  /** The switches' cases, their tubes, and their glows, and the tier's `apply` (scene/cables.ts). */
+  readonly cases: SwitchCases;
   /** The figures' pictures, found by role: the twin's turns toward the visitor in the hand-off. */
   readonly twin: Group;
   readonly visitor: Group;
@@ -226,26 +231,9 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
     labels.set(p.id, label);
   }
 
-  const switches = new Map<string, Map<string, Group>>();
-  for (const sw of part.switches) {
-    const own = piece(sw.piece);
-    if (!own) throw new Error("buildRoom: a switch's piece isn't in the 3D part");
-    const shown = options.index.switches.find((s) => s.id === sw.id)?.cases["not-live"];
-    const cases = new Map<string, Group>();
-    for (const [name, pose] of Object.entries(sw.poses)) {
-      const group = new Group();
-      group.name = `${sw.id}.${name}`;
-      const { parent, local } = mount(pose.mount.on, pose.mount.anchor, pose.mount.offset, pose.mount.turn);
-      place(group, local);
-      const shapes = standin(own.standin, materials);
-      shapes.scale.setScalar(own.scale);
-      group.add(shapes);
-      group.visible = name === shown;
-      parent.add(group);
-      cases.set(name, group);
-    }
-    switches.set(sw.id, cases);
-  }
+  // Each switch's cases, their cable tubes, and the glows their poses set (scene/cables.ts), not-live's case shown until
+  // the tier applies another.
+  const cases = buildCases(part, options.index, { placements, world, materials });
 
   const [twin, visitor] = [pictures.get(part.figures.twin), pictures.get(part.figures.visitor)];
   if (!twin || !visitor) throw new Error("buildRoom: a figure of the 3D part doesn't resolve");
@@ -293,7 +281,8 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
     placements,
     pictures,
     labels,
-    switches,
+    switches: cases.groups,
+    cases,
     twin,
     visitor,
     anchors,

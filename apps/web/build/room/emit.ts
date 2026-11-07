@@ -975,6 +975,19 @@ function casesOf(sw: Switch): Record<TierValue, string> {
   return out as Record<TierValue, string>;
 }
 
+/** A switch's claims in the index (§3.1; T163), only where its piece declares claims: the pose that claims local and
+ *  the one that claims cloud, the first by name where two claim one (RS2's to refuse). A pose missing for either is
+ *  RS3's refusal; it is written as "", a pose no case names, so the runtime reads the claims as not-live. */
+function claimsOf(piece: CatalogEntry | undefined): { claims?: { local: string; cloud: string } } {
+  const poses = piece?.claims?.poses;
+  if (!poses) return {};
+  const named = (value: TierValue): string =>
+    Object.keys(poses)
+      .sort()
+      .find((pose) => poses[pose] === value) ?? "";
+  return { claims: { local: named("local"), cloud: named("cloud") } };
+}
+
 /** The text copy's order (§3.1): the bound faces, the switches, the sign's figures, and the fixed lines. */
 function copyOf(faces: RoomIndex["faces"], switches: RoomIndex["switches"]): RoomIndex["copy"] {
   const regions = faces.flatMap((f) => f.regions);
@@ -1021,11 +1034,12 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
   const live = scene?.live;
   const words = c.room.ui?.value.words ?? {};
   const faces = facesOf(c);
-  const switches = (scene?.switches ?? []).map((sw) => ({
+  const switches: RoomIndex["switches"] = (scene?.switches ?? []).map((sw) => ({
     id: sw.id,
     signal: "tier" as const,
     label: sw.label,
     cases: casesOf(sw),
+    ...claimsOf(c.pieces.get(sw.piece)?.value),
   }));
   // FR-064's carve-out (see listOnly): the side-wall selectables, read from the scene's mounts.
   const sideWall = c.geometry === null ? [] : sideWallsOf(c.geometry);

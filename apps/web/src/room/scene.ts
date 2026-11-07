@@ -11,7 +11,9 @@
 // The room imports this file only after the WebGL 2 check (quality.ts), so Three.js is its own chunk, loaded behind
 // the choice screen and never on a device without WebGL 2. Spec 004's T112 took spec 002's placeholders out of it (the
 // pieces' builders, their layout, and the raycast picker), since the room is its data's: the module keeps the stage,
-// the labels it draws on sprites, and the quality levels, and neither of the last two needs a renderer to test.
+// the labels it draws on sprites, and the quality levels, and neither of the last two needs a renderer to test. Spec
+// 004's User Story 2 (T160, T161): the stage's `apply` shows the tier switch's case, cable tube and all, and the idle
+// sway reads the room's motion store on each frame, so a pause or a change of reduced motion reaches it mid-visit.
 import {
   CanvasTexture,
   Object3D,
@@ -311,7 +313,10 @@ export function createScene(options: SceneOptions): Stage3D {
     // The controller may have switched the room to 2D, which disposes this stage.
     if (disposed) return;
     resize();
-    room.twin.rotation.z = settings.animations && !options.reducedMotion ? Math.sin(time / 900) * 0.015 : 0;
+    // Idle sway only while the motion store animates: paused, reduced motion, or a hidden page show its final frame,
+    // still, and the loop keeps drawing (spec 004, FR-059, FR-060; R-34).
+    const moving = options.motion ? options.motion.animate : !options.reducedMotion;
+    room.twin.rotation.z = settings.animations && moving ? Math.sin(time / 900) * 0.015 : 0;
     ink.render(room.scene, camera);
     frame = clock.requestFrame(loop);
   };
@@ -324,6 +329,10 @@ export function createScene(options: SceneOptions): Stage3D {
     canvas,
     showHandoff(progress) {
       drawHandoff(room, progress, options.reducedMotion);
+    },
+    apply(value) {
+      // The case shows on the next frame the loop draws (spec 004, FR-042, FR-043; scene/cables.ts).
+      room.cases.apply(value);
     },
     setQuality(level) {
       const before = settings.shadows;
