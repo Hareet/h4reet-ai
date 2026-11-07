@@ -37,6 +37,7 @@ standin:
     lit: false
 drawing: { from: standin }
 budget: { gzip_bytes: 400000, triangles: 31500, texture_px: 1, texture_bytes: 1 }
+model: { file: laptop.glb }
 work_order:
   method: >-
     Model the laptop open from the dimension sheet and the Author's description, as plain solid parts in flat

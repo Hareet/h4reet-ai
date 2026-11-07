@@ -31,6 +31,7 @@ standin:
   - { shape: plane, size: [0.8, 0.34], at: [0, 0.335, -0.014], color: screen-glow, lit: false }
 drawing: { from: standin }
 budget: { gzip_bytes: 600000, triangles: 11000, texture_px: 1, texture_bytes: 1 }
+model: { file: desk-screen.glb }
 work_order:
   method: >-
     Model the monitor on its stand from the dimension sheet and the Author's description, as plain solid parts. The

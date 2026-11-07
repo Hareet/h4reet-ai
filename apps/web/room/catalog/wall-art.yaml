@@ -23,6 +23,7 @@ standin:
     lit: false
 drawing: { from: standin }
 budget: { gzip_bytes: 400000, triangles: 4500, texture_px: 2048, texture_bytes: 11184810 }
+model: { file: wall-art.glb }
 work_order:
   method: >-
     Model a framed canvas from the dimension sheet; paint an original picture for it in the look's flat colours, or

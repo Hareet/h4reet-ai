@@ -78,6 +78,7 @@ standin:
     }
 drawing: { from: standin }
 budget: { gzip_bytes: 300000, triangles: 11000, texture_px: 1, texture_bytes: 1 }
+model: { file: neon-sign.glb }
 work_order:
   method: >-
     Model the sign from the dimension sheet: the arrow-shaped backing, one neon tube bent along its outline, and the

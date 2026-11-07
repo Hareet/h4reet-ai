@@ -17,6 +17,7 @@ standin:
   - { shape: box, size: [0.012, 0.108, 0.22], at: [0.124, 0.054, 0], color: graphite }
 drawing: { from: standin }
 budget: { gzip_bytes: 200000, triangles: 14000, texture_px: 1, texture_bytes: 1 }
+model: { file: laptop-stand.glb }
 work_order:
   method: Model the stand from the dimension sheet and the Author's description, as plain solid parts in flat colours.
   shots:

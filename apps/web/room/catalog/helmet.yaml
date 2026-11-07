@@ -10,6 +10,7 @@ standin:
   - { shape: sphere, radius: 0.1, at: [0, 0.1, 0.006], scale: [1, 0.98, 1.4], color: bike-red }
 drawing: { from: standin }
 budget: { gzip_bytes: 400000, triangles: 21500, texture_px: 1, texture_bytes: 1 }
+model: { file: helmet.glb }
 work_order:
   method: Model the helmet from the Author's description, a magenta shell with vents and its straps, as plain solid parts in flat colours.
   shots: []
