@@ -17,7 +17,7 @@ import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { readRoomPolicy } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
-import { fileTree } from "../../build/room/source";
+import { fileTree, overlayTree } from "../../build/room/source";
 import { startRoom } from "../../src/room/app";
 import type { RoomHandle } from "../../src/room/app";
 import type { Clock } from "../../src/room/clock";
@@ -337,22 +337,45 @@ export function emptyDirPolicy(): RoomPolicy {
   }
 }
 
+/** The catalog's folder, from the repository's root. */
+const CATALOG = "apps/web/room/catalog";
+
+/**
+ * Each catalog file that sets a model, with its `model` line dropped: the repository's room as it stood before the
+ * studio's files were set (spec 004, T234), every piece a stand-in, for the tests of what a stand-in shows. An overlay
+ * of repository-relative paths, as overlayTree takes it.
+ */
+export function withoutModels(): Map<string, Uint8Array | null> {
+  const changes = new Map<string, Uint8Array | null>();
+  for (const name of readdirSync(join(REPO, CATALOG))
+    .filter((n) => n.endsWith(".yaml"))
+    .sort()) {
+    const text = readFileSync(join(REPO, CATALOG, name), "utf8");
+    const dropped = text.replace(/^model: .*\n/m, "");
+    if (dropped !== text) changes.set(`${CATALOG}/${name}`, new TextEncoder().encode(dropped));
+  }
+  return changes;
+}
+
 /**
  * The room's bundle as the site's build composes the repository's data (spec 004; build/room/plugin.ts): lenient, as
  * a release build unless `drafts`, under main's policy as make test reads it (build/room/policy.ts), or with `empty`,
- * under an empty policy directory, as the global setup's builds are (test/global-build.ts; `emptyDirPolicy`). Each is
- * composed once a test file, and a finding that would fail the site's build fails the test that asks.
+ * under an empty policy directory, as the global setup's builds are (test/global-build.ts; `emptyDirPolicy`); with
+ * `standins`, the room before its models were set (`withoutModels`). Each is composed once a test file, and a finding
+ * that would fail the site's build fails the test that asks.
  */
 export function repositoryBundle(
-  options: { readonly drafts?: boolean; readonly policy?: "main" | "empty" } = {},
+  options: { readonly drafts?: boolean; readonly policy?: "main" | "empty"; readonly standins?: boolean } = {},
 ): ComposeResult {
   const drafts = options.drafts ?? false;
   const source = options.policy ?? "main";
-  const key = `${source} ${drafts ? "drafts" : "release"}`;
+  const standins = options.standins ?? false;
+  const key = `${source} ${drafts ? "drafts" : "release"}${standins ? " standins" : ""}`;
   const known = bundles.get(key);
   if (known) return known;
   const policy = source === "main" ? readRoomPolicy({ env: process.env, root: REPO }) : emptyDirPolicy();
-  const result = compose(fileTree(REPO), policy, { mode: "lenient", drafts });
+  const tree = standins ? overlayTree(fileTree(REPO), withoutModels()) : fileTree(REPO);
+  const result = compose(tree, policy, { mode: "lenient", drafts });
   const refused = result.findings.filter((f) => !f.lenient).map((f) => formatFinding(f, "lenient"));
   if (refused.length > 0) throw new Error(`the repository's room doesn't compose:\n${refused.join("\n")}`);
   bundles.set(key, result);

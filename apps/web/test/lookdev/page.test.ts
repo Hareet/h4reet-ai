@@ -17,7 +17,8 @@
 //   restores the stand-in; no file name anywhere.
 // - "Load every piece", and "Run 2 minutes" and "Run 10 minutes", the scripted load first, then the results as text and
 //   one JSON block in a read-only text area; a run stopped early gives none.
-// - The asset events in the page's own log; no request, beacon, object URL, or storage, ever.
+// - The asset events in the page's own log; no request, beacon, object URL, or storage, ever, but the room's own set
+//   models, which the site's page loads from the site's a/ as same-origin requests (contracts/lookdev.md §3, §9; T234).
 // T162 (spec 004; FR-067; contracts/lookdev.md §3; User Story 2's runtime on the page): Pause drives the room's own
 // motion store (motion.ts), which the page gives, so the idle sway stops as the room's does; and the sample state
 // applies the laptop switch's case through the room's apply (scene/cables.ts), by the claims rule, its cable tube shown
@@ -46,7 +47,7 @@ import type { Capability } from "../../src/room/quality";
 import { qualitySettings } from "../../src/room/scene";
 import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
 import { CABLE_NODE } from "../../src/room/scene/cables";
-import { MODEL_NODE } from "../../src/room/scene/loader";
+import { MODEL_NODE, modelEntries } from "../../src/room/scene/loader";
 import { caseFor } from "../../src/room/signals/tier";
 import { outlineThickness } from "../../src/room/scene/look";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
@@ -62,11 +63,20 @@ afterEach(() => {
 // --------------------------------------------------------------------------------------------------------------------
 // The page's inputs, a renderer, a window with spies, and createImageBitmap
 // --------------------------------------------------------------------------------------------------------------------
-/** The drafts build's inputs, as compose() gives them over the repository. */
-function inputs(): LookdevDeps["inputs"] {
-  const bundle = repositoryBundle({ drafts: true });
+/** The drafts build's inputs, as compose() gives them over the repository; with `standins`, over the room as it stood
+ *  before its models were set (T234), each piece a labelled stand-in. */
+function inputs(options: { standins?: boolean } = {}): LookdevDeps["inputs"] {
+  const bundle = repositoryBundle({ drafts: true, standins: options.standins ?? false });
   if (!bundle.drafts) throw new Error("no drafts modules");
   return { part: bundle.scene, index: bundle.index, lookdev: bundle.drafts.lookdev, fixtures: bundle.drafts.fixtures };
+}
+
+/** What the page asked the network for beyond the room's own set models, which the site's page loads from the site's
+ *  a/, relative to its folder, as same-origin requests (contracts/lookdev.md §3, §9). A candidate's bytes stay in
+ *  memory, so nothing else is ever asked for. */
+function beyondSetModels(network: readonly string[], part: LookdevDeps["inputs"]["part"]): string[] {
+  const own = new Set(modelEntries(part, "../").map((e) => (e.source.kind === "url" ? `fetch ${e.source.url}` : "")));
+  return network.filter((request) => !own.has(request));
 }
 
 /** A stand-in for WebGLRenderer: each render "draws" every visible mesh, counting its calls and triangles as
@@ -184,8 +194,11 @@ interface Opened {
   readonly inputs: LookdevDeps["inputs"];
 }
 
-/** The page on its own window, as /lookdev/ serves it, with every spy in place first. */
-function open(options: { phone?: boolean; probe?: Probe | null; capability?: Capability } = {}): Opened {
+/** The page on its own window, as /lookdev/ serves it, with every spy in place first; with `standins`, on the room
+ *  before its models were set (`inputs`). */
+function open(
+  options: { phone?: boolean; probe?: Probe | null; capability?: Capability; standins?: boolean } = {},
+): Opened {
   const dom = new JSDOM('<!doctype html><html lang="en"><head></head><body><main id="lookdev"></main></body></html>', {
     url: "http://127.0.0.1:18105/lookdev/",
     pretendToBeVisual: true,
@@ -195,7 +208,7 @@ function open(options: { phone?: boolean; probe?: Probe | null; capability?: Cap
   imageBitmaps(win);
   const clock = new FakeClock();
   const { renderer, state } = fakeRenderer();
-  const given = inputs();
+  const given = inputs({ standins: options.standins ?? false });
   const root = win.document.getElementById("lookdev") as HTMLElement;
   const page = createLookdev(
     root,
@@ -781,9 +794,10 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
     // Its name, which the picker revealed, is nowhere on the page, nor kept by the input.
     expect(root.ownerDocument.documentElement.outerHTML).not.toContain(PICKED_NAME);
     expect(root.querySelector<HTMLInputElement>(`input[data-piece="${piece}"]`)?.value).toBe("");
-    // An asset event, in the page's own log, and never a request or a stored byte.
+    // An asset event, in the page's own log, and never a request for it or a stored byte: the only requests are the
+    // room's own set models, from the site's a/.
     expect(collapse(root.querySelector(".lookdev-log")?.textContent)).toMatch(new RegExp(`${piece} loaded`));
-    expect(spies.network).toEqual([]);
+    expect(beyondSetModels(spies.network, given.part)).toEqual([]);
     expect(spies.storage).toEqual([]);
   });
 
@@ -926,7 +940,7 @@ describe("candidates, in memory only (contracts/lookdev.md §4)", () => {
     pick(root, piece, cleanModel(entry as Parameters<typeof cleanModel>[0]));
     await settle(clock);
     expect(collapse(root.querySelector(`[data-candidate="${piece}"]`)?.textContent)).not.toContain("preview");
-    expect(spies.network).toEqual([]);
+    expect(beyondSetModels(spies.network, given.part)).toEqual([]);
   });
 
   it("swaps in no file whose RX2 problem keeps the reader from reading it, a property the scrub drops beside it", async () => {
@@ -1113,7 +1127,8 @@ describe("the status line by the canvas (the Author's first lookdev run; plan.md
 describe("the stand-ins' labels (the Author's first lookdev run; plan.md §10)", () => {
   // Every stand-in carries a "placeholder" label, and they crowd the view: "Labels", on by default, hides them from the
   // page's camera, the page's view only. A run shows them for its whole length, as the room shows them, so its figures
-  // are the room's.
+  // are the room's. Every piece of the repository's room has its model set now (T234), so these run on the room as it
+  // stood before, each piece a labelled stand-in.
   /** Whether the page's camera sees each stand-in's label, and everything the label holds. */
   const seen = (page: LookdevPage): boolean[] =>
     [...page.stage.room.labels.values()].map((label) => {
@@ -1125,7 +1140,7 @@ describe("the stand-ins' labels (the Author's first lookdev run; plan.md §10)",
     });
 
   it("hides the labels from the page's view on Labels, and shows them again, whatever the look or the scene", () => {
-    const { page, root, renderer, clock, inputs: given } = open();
+    const { page, root, renderer, clock, inputs: given } = open({ standins: true });
     const labels = buttonNamed(root, "Labels");
     expect(labels.getAttribute("aria-pressed")).toBe("true");
     expect(page.stage.room.labels.size).toBeGreaterThan(0);
@@ -1154,7 +1169,8 @@ describe("the stand-ins' labels (the Author's first lookdev run; plan.md §10)",
   });
 
   it("shows them while a run measures, as the room shows them, then hides them again", async () => {
-    const { page, root, clock } = open();
+    const { page, root, clock } = open({ standins: true });
+    expect(page.stage.room.labels.size).toBeGreaterThan(0);
     const labels = buttonNamed(root, "Labels");
     labels.click();
     expect(seen(page).some(Boolean)).toBe(false);
@@ -1250,7 +1266,7 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     expect(area?.value).not.toContain(PICKED_NAME);
     expect(collapse(root.querySelector(".lookdev-results")?.textContent)).toContain("Lookdev results");
     expect(control<HTMLSelectElement>(root, "Look").disabled).toBe(false);
-    expect(spies.network).toEqual([]);
+    expect(beyondSetModels(spies.network, given.part)).toEqual([]);
     expect(spies.storage).toEqual([]);
   });
 

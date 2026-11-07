@@ -8,6 +8,8 @@
 // `build_kind` the build's; and `caps` where the policy read them, beside spec 002's free talk, items, avatars, and
 // event kinds. config/room-events.yaml is room:generate's since T108, its objects the selectables' IDs, and
 // test/room/generated.test.ts holds the committed file fresh; spec 002's generator and its item reader went with it.
+// T234 (spec 004; FR-013, User Story 4 scenario 1): with every piece's studio file set, the manifest names no stand-in
+// and `placeholders` is false; the stand-in rule is held on the room as it stood before (`withoutModels`).
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -24,7 +26,7 @@ import type { RoomPolicy } from "../build/room/policy";
 import { fileTree, overlayTree } from "../build/room/source";
 import { AVATARS } from "../src/choice/avatars";
 import { EVENT_KINDS } from "../src/room/events";
-import { REPO, WEB, emptyDirPolicy } from "./helpers/room";
+import { REPO, WEB, emptyDirPolicy, withoutModels } from "./helpers/room";
 
 const RESUME = `version: 1
 sections:
@@ -46,11 +48,17 @@ const RESUME_SOURCE = "apps/web/content/resume.yaml";
 const encoder = new TextEncoder();
 
 /** The repository's room composed as the site's build composes it, lenient, with a resume source given, or none,
- *  under the policy given, or the one an empty policy directory gives the global setup's builds (spec 004, T327). */
+ *  under the policy given, or the one an empty policy directory gives the global setup's builds (spec 004, T327); with
+ *  `standins`, as it stood before its models were set (T234). */
 function composed(
-  options: { readonly resume?: string | null; readonly policy?: RoomPolicy; readonly drafts?: boolean } = {},
+  options: {
+    readonly resume?: string | null;
+    readonly policy?: RoomPolicy;
+    readonly drafts?: boolean;
+    readonly standins?: boolean;
+  } = {},
 ): ComposeResult {
-  const changes = new Map<string, Uint8Array | null>();
+  const changes = options.standins ? withoutModels() : new Map<string, Uint8Array | null>();
   if (options.resume !== undefined)
     changes.set(RESUME_SOURCE, options.resume === null ? null : encoder.encode(options.resume));
   const result = compose(overlayTree(fileTree(REPO), changes), options.policy ?? emptyDirPolicy(), {
@@ -95,7 +103,8 @@ describe("room-manifest.json (Amendment B7)", () => {
   });
 
   it("names each placement and pose that shows a stand-in, in scene order, and computes placeholders from them", () => {
-    const { scene, manifest } = composed();
+    // The room as it stood before its models were set (T234), so each piece stands in for want of one.
+    const { scene, manifest } = composed({ standins: true });
     const figures = new Set([scene.figures.twin, scene.figures.visitor]);
     // The poses in the scene file's order, which the 3D part's keys, sorted, don't keep.
     const switches = loadRoom(fileTree(REPO)).scene?.value.switches ?? [];
@@ -104,10 +113,21 @@ describe("room-manifest.json (Amendment B7)", () => {
       ...switches.flatMap((s) => Object.keys(s.poses).map((pose) => `${s.id}.${pose}`)),
     ];
     expect(shown.length).toBeGreaterThan(0);
-    // No piece of the room has a model yet, so each stands in for want of one.
     expect(manifest.standins).toEqual(shown.map((placement) => ({ placement, reason: "no-model" })));
     expect(manifest.placeholders).toBe(true);
-    expect(composed({ drafts: true }).manifest.standins).toEqual(manifest.standins);
+    expect(composed({ standins: true, drafts: true }).manifest.standins).toEqual(manifest.standins);
+  });
+
+  it("names none once every piece but the figures has its studio model set, each within its fit and budget (T234)", () => {
+    const { scene, manifest } = composed();
+    const figures = new Set([scene.figures.twin, scene.figures.visitor]);
+    // Every placed piece and the switch's piece, which each of its poses shows, has its file set; the figures have none.
+    expect(scene.placements.filter((p) => p.model === null && !figures.has(p.id)).map((p) => p.id)).toEqual([]);
+    expect(scene.switches.filter((s) => s.model === null).map((s) => s.id)).toEqual([]);
+    expect(scene.placements.filter((p) => figures.has(p.id) && p.model !== null).map((p) => p.id)).toEqual([]);
+    expect(manifest.standins).toEqual([]);
+    expect(manifest.placeholders).toBe(false);
+    expect(composed({ drafts: true }).manifest.standins).toEqual([]);
   });
 
   it("says the live source is the scene's, off, and the build's kind", () => {
