@@ -1,5 +1,5 @@
 diff --git a/apps/web/content/resume.lock.json b/apps/web/content/resume.lock.json
-index b883872e6c262305c1454f10e37f8815775aa048..8a8f859005c4fc61aa4e488cbd3352044dc1f7db 100644
+index b883872e6c262305c1454f10e37f8815775aa048..480a80f25e11d42da13a7d6dc1fbc889e10f805d 100644
 --- a/apps/web/content/resume.lock.json
 +++ b/apps/web/content/resume.lock.json
 @@ -4,8 +4,8 @@
@@ -8,13 +8,13 @@ index b883872e6c262305c1454f10e37f8815775aa048..8a8f859005c4fc61aa4e488cbd335204
      "corpus/03-grants-and-credits.md": "7e134b9ed8c6bbf4fce075c7969b1b1562de71409a9f877fe0e86d2911b09259",
 -    "corpus/07-denver-local-ai.md": "59ea6c9cfc6e02af2031bf0a8e5483eab90d4db501a4e5361d37b8228a4f76a5",
 -    "corpus/08-hareet-ai.md": "6153c95db9cfa117cbc063573feb283dac50b0479f9e543ca81e74a6378d06a5",
-+    "corpus/07-denver-local-ai.md": "b29efe29f441f84d6afc03e48485a6c2bcb16f599fd729f58c395e0d05715a8e",
-+    "corpus/08-hareet-ai.md": "f5ed5aba5883a83d729772e82562eec2f1a61e07f2bdbfff018f583559a8c1f0",
++    "corpus/07-denver-local-ai.md": "450bafed764fb41c589a35f81ea7d66e939f6f796d41bed21190b88334e1b676",
++    "corpus/08-hareet-ai.md": "849c8895c0989145c693797536aa54972e11de98b2529864c7ac84dbb9ab2263",
      "corpus/facts/awards.yaml": "543db6d2497e249fef7106c90d2dead341031585204547be4c19f51e84521296",
      "corpus/facts/career.yaml": "b57e3319b4d5576c092320e56cd090a44794b606e577f78e19f83c780d5774d4",
      "corpus/facts/hareet-ai.yaml": "e04c7d230b983974eaa85a2b9bce7c24beaee57aac65be7a1f2351910cc9a83d",
 diff --git a/corpus/07-denver-local-ai.md b/corpus/07-denver-local-ai.md
-index d560e19c4d987239136c45848a4523e8379ecbd9..ffe84443c7faeb916aee2a989d8d21cf05fd489f 100644
+index d560e19c4d987239136c45848a4523e8379ecbd9..6aa58c1f81891df8739ab477f4bd681eda4d10bd 100644
 --- a/corpus/07-denver-local-ai.md
 +++ b/corpus/07-denver-local-ai.md
 @@ -1,7 +1,7 @@
@@ -23,11 +23,16 @@ index d560e19c4d987239136c45848a4523e8379ecbd9..ffe84443c7faeb916aee2a989d8d21cf
 +Priority: 6 (his, confirmed 2026-11-06) · Status: draft from the site's draft of 2026-10-28 and his Golden Q&A interview of 2026-11-06, for Hareet's final read · Last verified: 2026-11-06
  
 -Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's site, which Hareet wrote (his answer of 2026-10-30): the draft of it he supplied on 2026-10-28 (source in `intake/private/`). This file quotes only that draft. Its bracketed placeholders are not facts, and the twin never quotes them.
-+Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's site, which Hareet wrote (his answer of 2026-10-30): the draft of it he supplied on 2026-10-28 (source in `intake/private/`). This file quotes only that draft. Its bracketed placeholders are not facts, and the twin never quotes them. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request. Untagged lines are pointers to other files.
++Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's site, which Hareet wrote (his answer of 2026-10-30): the draft of it he supplied on 2026-10-28 (source in `intake/private/`). This file quotes only that draft. Its bracketed placeholders are not facts, and the twin never quotes them. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`. In it he approved Golden Q&A 2, 3, and 5 as changed and kept 1 and 4; 6 to 8 are his own answers, with "From the tagline" left out of 6, and came with his message of 2026-11-06 asking for the document to go into the corpus. His words are quoted exactly, with spelling fixed at his request. Untagged lines are pointers to other files.
  
  ## Role at a glance
  
-@@ -14,6 +14,8 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
+@@ -10,10 +10,12 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
+ - `[A-DOC site]` What it offers small teams, in the site's words: "I sit with your team in Denver, set up private AI in your office for sensitive data, and build tools with your team that guide data through local and cloud AI."
+ - `[A-DOC site]` As of 2026-10-28 the site was a draft, with placeholders still in brackets. `[A 2026-10-30]` The site is live now, at denverlocal.ai.
+ 
+-## Two lanes `[A-DOC site]`
++## Two lanes
  
  - `[A-DOC site]` Every document goes down one of two lanes, and a written rule picks the lane. Local AI keeps sensitive data on hardware the client owns or leases, in their office or their own data center. Cloud AI improves fastest and is good for research, drafting, and ideas.
  - `[A-DOC site]` Before anything can go to cloud AI, cleaning software swaps names, account numbers, and other identifiers for tags. Every cloud request shows the cleaned text that went out, so staff and owners can check it.
@@ -36,18 +41,20 @@ index d560e19c4d987239136c45848a4523e8379ecbd9..ffe84443c7faeb916aee2a989d8d21cf
  - `[A-DOC site]` The client's team writes the rules with Denver Local AI. Anything from a tax return takes the local lane even after cleaning, and so does a law office's matter file unless the client consents.
  - `[A-DOC site]` What the client owns: the software and the written rules ("They're yours, not a subscription."); a test report (identifiers planted in sample files, how many the cleaning caught, and every miss listed); a "What leaves your office" sheet for their security plan; and the freedom to switch AI companies, because the software works with any model.
  
-@@ -25,10 +27,19 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
+@@ -25,10 +27,20 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
  4. `[A-DOC site]` Build the pathways with the team: for each task, a written rule and the software that follows it (local or cloud AI, which tool, and what gets cleaned first), and an AI section for their security plan.
  5. `[A-DOC site]` Train the team and stay close: staff practise with their own questions, then a weekly visit and regular catch-ups, with the rules updated when the tools change.
  
+-## Costs and the free visit `[A-DOC site]`
 +## Why Denver Local AI `[A 2026-11-06]`
 +
 +- `[A 2026-11-06]` The opportunity he sees, in his words: "From the tagline, there's a huge opportunity to build local and cloud AI synchronized solutions and tooling with custom software around it to ensure businesses can trust, observe and allow all their users to freely use AI however they want."
 +- `[A 2026-11-06]` The value he provides, in his words: "Human-centered, in-office, locally there every step of the way to handle and build all of your AI tooling and services side by side to boost your employees and their trust and verification in their own AI systems."
 +- `[A 2026-11-06]` The experience he brings, in his words: "My work at Medic building offline-first solutions and AI that works locally for ownership transfer, training a variety of users and creating custom software for MoHs that allows them to harness the power of local AI by deploying internally to their datacenters that allowed them to investigate issues with real data. Essentially, I've done the local and online AI tooling and custom software setups and training on national MoH scales and trained all individuals appropriately."
-+- That Medic work, and his role in each system with who owned what, is in `00-profile.md`, `01-ai-strategy-and-cht.md`, and `02-production-infrastructure-national-scale.md`.
++- `[A 2026-09-07]` Medic: part of a human-centered software team building CHT for CHWs; Kenya's Ministry of Health owned the workflows and product decisions. On the AI work he is the designer, builder, or AI system architect, as ruled system by system at the top of `01-ai-strategy-and-cht.md` (`00-profile.md`, "Two kinds of ownership").
++- The systems themselves are in `01-ai-strategy-and-cht.md` and `02-production-infrastructure-national-scale.md`.
 +
- ## Costs and the free visit `[A-DOC site]`
++## Costs and the free visit
  
  - `[A-DOC site]` Every line of a quote is its own line, in writing before the client commits: support, AI seats, hardware, and running costs. AI seats are always a separate line, paid straight to the AI company, with a dated side-by-side vendor comparison (price per seat, whether they train on the client's data, where data is stored, and admin controls); they are never folded into Denver Local AI's price. Hardware is only for the local model, bought at cost or leased.
 +- `[A 2026-11-06]` On quotes, in his words: "We can provide quotes, contact me via email please. And we will have our email present on the resume PDF".
@@ -56,7 +63,7 @@ index d560e19c4d987239136c45848a4523e8379ecbd9..ffe84443c7faeb916aee2a989d8d21cf
  
  ## Public artifacts
  
-@@ -41,13 +52,15 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
+@@ -41,13 +53,15 @@ Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's
  - A price for its services. The draft's support price was a placeholder, and the corpus holds no amounts.
  - The site's bio line about Hareet. For his background the twin uses `00-profile.md`.
  - That the local lane always runs offline: "Depending on available hardware, it can run with the internet switched off."
@@ -77,7 +84,7 @@ index d560e19c4d987239136c45848a4523e8379ecbd9..ffe84443c7faeb916aee2a989d8d21cf
 +7. *What value do you provide?* — Human-centered, in-office, locally there every step of the way to handle and build all of your AI tooling and services side by side to boost your employees and their trust and verification in their own AI systems. [A]
 +8. *What experience do you bring to this?* — My work at Medic building offline-first solutions and AI that works locally for ownership transfer, training a variety of users and creating custom software for MoHs that allows them to harness the power of local AI by deploying internally to their datacenters that allowed them to investigate issues with real data. Essentially, I've done the local and online AI tooling and custom software setups and training on national MoH scales and trained all individuals appropriately. [A]
 diff --git a/corpus/08-hareet-ai.md b/corpus/08-hareet-ai.md
-index bba0a25c1eef0b1483ea2b92e52af41a65609ba6..4bbd4ea47e4bcc5d6fa2a6fd3e65a6d4209c6810 100644
+index bba0a25c1eef0b1483ea2b92e52af41a65609ba6..884acc7af5253aa2ec25b53c1d3735d5efebb05a 100644
 --- a/corpus/08-hareet-ai.md
 +++ b/corpus/08-hareet-ai.md
 @@ -1,7 +1,7 @@
@@ -86,7 +93,7 @@ index bba0a25c1eef0b1483ea2b92e52af41a65609ba6..4bbd4ea47e4bcc5d6fa2a6fd3e65a6d4
 +Priority: 7 (after Denver Local AI; his, confirmed 2026-11-06) · Status: draft for Hareet's read, with his Golden Q&A interview of 2026-11-06 · Last verified: 2026-11-06
  
 -Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`.
-+Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request.
++Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`, and he approved each Golden Q&A below. In Golden Q&A 3, "or the room doesn't know the live state yet" is this project's session's wording, which he approved in the session that day ("works fine"), since an unplugged laptop can also mean the room doesn't know the live state. His words are quoted exactly, with spelling fixed at his request.
  
  ## Role at a glance
  
@@ -115,7 +122,7 @@ index bba0a25c1eef0b1483ea2b92e52af41a65609ba6..4bbd4ea47e4bcc5d6fa2a6fd3e65a6d4
 -None yet: his to write.
 +1. *What can I ask you about?* — Come talk to my AI twin about my work and my life. It's built in the open, so you can see how I build AI that is secure, cost-effective, and observable. [A]
 +2. *How is this built?* — An AI twin of me, built in the open: local models first, a capped cloud fallback, a real-time cost meter, and a daily kill switch. AI agents in named roles do most of the typing, and only I merge. It had the perspective of production-grade Applied AI and SRE perspectives, with observability, cost, and security at top of mind throughout the development and production lifecycle. Here's the GitHub repo: https://github.com/hareet/h4reet-ai [A]
-+3. *What features should I know about?* — The Langfuse cost-meter and how it shows observability. If the laptop is plugged in, that means we are using local models and everything is running on my laptop. Otherwise we have failed over to a cloud solution, and the kill switch to ensure we are cost monitoring and effective. Alongside how we make sure the AI twin is secure from common bad use cases, how we developed the twin in the open and to have best agentic security practices. [A]
++3. *What features should I know about?* — The Langfuse cost-meter and how it shows observability. If the laptop is plugged in, that means we are using local models and everything is running on my laptop. Otherwise we have failed over to a cloud solution, or the room doesn't know the live state yet, and the kill switch to ensure we are cost monitoring and effective. Alongside how we make sure the AI twin is secure from common bad use cases, how we developed the twin in the open and to have best agentic security practices. [A]
 +4. *Who writes the code?* — AI agents in named roles do most of the typing, and only I merge. [A]
 +5. *What happens to what I say here?* — We disclose every data flow, your conversation is not saved and you can look at the GitHub repo for how all the code works. Langfuse keeps only costs and usage, and we use Masking. We come from a background of open source, public software. [A]
 +6. *How much does it cost to run?* — I don't have spend figures in my corpus. This twin runs local models first, with a capped cloud fallback, a real-time cost meter, and a daily kill switch. [?][A]
