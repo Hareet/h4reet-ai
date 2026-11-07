@@ -10,6 +10,9 @@ The twin speaks about the Author's work only from these files (Constitution VIII
 | `01-ai-strategy-and-cht.md` | Priority 1: the AI strategy and every AI system, with ownership rulings |
 | `02-production-infrastructure-national-scale.md` | Priorities 2–3: the SRE years, teams and localization, systems designed since |
 | `03-grants-and-credits.md` | Priority 4: awards and credits, without amounts |
+| `04-hobbies-and-travel.md` | No priority yet: snowboarding, biking, Arya, and travel, from his interview of 2026-11-06; the snowboard and the bicycle open it |
+| `05-mission.md` | No priority yet: what he wants his work to do, Seva day to day, and when new technology is worth it, from the same interview; the chalkboard opens it |
+| `06-work-projects.md` | No priority yet: what he's building now, the infrastructure agents, and the work from his travels, from the same interview; the laptop and its screen open it |
 | `07-denver-local-ai.md` | Priority 6: Denver Local AI Solutions, the company he co-owns |
 | `08-hareet-ai.md` | Priority 7: this project, hareet.ai, the AI twin built in the open |
 | `facts/*.yaml` | Plug-in slots for numbers and held-back details |

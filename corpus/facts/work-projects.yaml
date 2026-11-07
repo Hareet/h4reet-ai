@@ -1,0 +1,19 @@
+# Plug-in numbers for 06-work-projects.md, from his interview of 2026-11-06
+# (intake/interview-2026-11-06-hobbies-mission-work.md), which marks each one public. This file is public.
+
+topic: 06-work-projects
+facts:
+  - id: work.cht_versions
+    label: The CHT versions of the application architecture changes he made and led
+    value: "3 to 4.x"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'the application features changes from version 3 to 4.x'; 'Both. I made and led the application architecture decisions.'; numbers list: 'CHT versions in the architecture changes he led: version 3 to 4.x (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"
+  - id: work.nepal_year
+    label: The year he was in Nepal with the Ministry of Health, at the start of the pandemic
+    value: "2020"
+    tag: A
+    source: "The Author, interview of 2026-11-06: 'In 2020, during the start of the pandemic, I was in Nepal working with the Ministry of Health'; numbers list: 'Year he was in Nepal at the start of the pandemic: 2020 (public: yes)'"
+    public_safe: true
+    phrasing: "{value}"
