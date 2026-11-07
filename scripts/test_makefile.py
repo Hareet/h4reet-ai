@@ -315,13 +315,17 @@ COMPOSE_BUILD = (
 )
 # The room's image (spec 002, contracts/web-serving.md §1): dev-cpu's holds the drafts, so its tag says so, and
 # main's policy files come in as the named context `policy`, from a fresh temporary directory, whose digest is a label.
+# The working tree's models, under assets/room/ since the room's intake, come in as the named context `room-assets`
+# (spec 004, T220; its contracts/serving.md §3).
 WEB_BUILD = re.compile(
     re.escape(
         f"buildx build --load --file {ROOT}/apps/web/Dockerfile --tag h4reet-web:working-tree-drafts "
         f"--build-arg HTTP_PROXY={ENGINE_PROXY} --build-arg HTTPS_PROXY={ENGINE_PROXY} --build-arg ROOM_DRAFTS=1 "
         "--build-context policy="
     )
-    + r"/\S+ --label org\.h4reet\.web\.policy=[0-9a-f]{64} "
+    + r"/\S+ "
+    + re.escape(f"--build-context room-assets={ROOT}/assets/room ")
+    + r"--label org\.h4reet\.web\.policy=[0-9a-f]{64} "
     + re.escape(str(ROOT))
 )
 # deploy/scripts/gateway_image.py hands docker only Docker's own variables, so this stand-in records beside itself
