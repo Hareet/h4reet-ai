@@ -368,7 +368,12 @@ def test_the_gates_page_names_what_make_check_prints() -> None:
     runner = (REPO / "tools" / "gates" / "run_checks.py").read_text(encoding="utf-8")
     (order,) = re.findall(r"^ORDER = \[(.*)\]$", runner, re.MULTILINE)
     statuses = re.findall(r'"([A-Z]+)"', order)
-    assert statuses == ["FAIL", "PENDING", "PLANNED", "SKIP", "PASS"]
+    # Spec 006's interim patch adds WARN, between PLANNED and SKIP as in the gate's summary line; this branch's merge
+    # comes before the patch, so the runner reads either way here, and the page names every status it has.
+    assert statuses in (
+        ["FAIL", "PENDING", "PLANNED", "SKIP", "PASS"],
+        ["FAIL", "PENDING", "PLANNED", "WARN", "SKIP", "PASS"],
+    )
     assert 'f"make check: {parts}{tail}"' in runner
     text = (RUNBOOKS / "local-gate.md").read_text(encoding="utf-8")
     assert [s for s in statuses if f"**{s}" not in text and f"`{s}`" not in text] == []
