@@ -4,10 +4,10 @@
   "per_asset": {
     "room": {
       "gzip_bytes": 2500000,
-      "triangles": 40000,
+      "triangles": 100000,
       "small_props": [],
       "small_prop_texture_px": 1024,
-      "scene_texture_bytes": 96000000,
+      "scene_texture_bytes": 200000000,
       "legibility_floor_css_px": 9
     },
     "avatar": {
