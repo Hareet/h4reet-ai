@@ -15,6 +15,7 @@ Tags as the real corpus's README lists them. `[A date]` here is the README's own
 - `[A 2026-01-01]` The night lamp was designed by Robin and released to the docks.
 - `[A 2026-01-01]` Robin is the keeper of the tide clock; his design of its face won the harbor prize.
 - `[A-DOC <name>]` Robin wrote a placeholder tag on this line, as the README's example does.
+- `[A 2026-01-01]` Robin configured the beacon relay for the harbor office.
 
 ## The lantern service `[A 2026-01-01]`
 

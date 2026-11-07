@@ -24,6 +24,7 @@ import {
 const ROOT = fileURLToPath(new URL("../fixtures", import.meta.url));
 const FIXTURE = "corpus/01-fixture.md";
 const DESIGNED = "Robin designed the lantern service for the fixture clinic";
+const CONFIGURED = "Robin configured the beacon relay for the harbor office";
 
 const made: string[] = [];
 afterEach(() => {
@@ -245,6 +246,17 @@ describe("C8, the ownership verb", () => {
     expect(problems([{ ...item, text: "The night lamp, designed by Robin and released to the docks." }])).toEqual([]);
     const released = { ...CLEAN, id: "c8r", text: "Designed and released the lantern service for the fixture clinic." };
     expect(problems([released])).toEqual(["c8r: ownership verb not cited"]);
+  });
+
+  it("takes configured, the Author's ownership verb for technical software (2026-10-30), and holds it as the others", () => {
+    const item = {
+      id: "c8g",
+      text: "Configured the beacon relay for the harbor office.",
+      verb: "configured",
+      claims: [cite(CONFIGURED)],
+    };
+    expect(problems([item])).toEqual([]);
+    expect(problems([{ ...item, claims: [cite(DESIGNED)] }])).toEqual(["c8g: ownership verb not cited"]);
   });
 });
 
