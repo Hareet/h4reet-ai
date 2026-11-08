@@ -426,3 +426,22 @@ def test_a_bedrock_twin_case_names_bedrock_on_prod(twin_suite: Path) -> None:
     assert run.main(["--suite", "demo", "--adapter", "bedrock"]) == 0
     stack, adapter, *_ = sys.modules["h4_operator"].CALLS[-1]
     assert (stack, adapter) == ("prod", "bedrock")
+
+
+def test_the_product_suite_as_make_evals_runs_it_ends_with_the_twins_readiness(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Spec 007 (its FR-031; plan.md D19): make evals prints the readiness evidence after the product suite, as
+    # information, from evals/twin_readiness.py loaded as data, so the recipe runs no script the docs don't name.
+    assert run.main(["--suite", "product", "--adapter", "fake"], readiness=True) == 0
+    out = capsys.readouterr().out.splitlines()
+    summary = next(
+        i for i, line in enumerate(out) if line.startswith("evals product (fake): ")
+    )
+    assert [
+        line for line in out[summary + 1 :] if line.startswith("INFO (twin readiness):")
+    ]
+    assert run.main(["--suite", "narration", "--adapter", "fake"], readiness=True) == 0
+    assert "INFO (twin readiness):" not in capsys.readouterr().out
+    assert run.main(["--suite", "product", "--adapter", "fake"]) == 0
+    assert "INFO (twin readiness):" not in capsys.readouterr().out

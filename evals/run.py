@@ -444,7 +444,27 @@ def write_history(suite: str, adapter: str, record: dict[str, Any]) -> Path:
     return folder / name
 
 
-def main(argv: list[str]) -> int:
+def twin_readiness(root: Path = REPO) -> None:
+    """Spec 007's readiness evidence (its FR-031; plan.md D19), printed after the product suite as information:
+    evals/twin_readiness.py, loaded from the tree as data, as the operator CLI is, so make evals's recipe runs no script
+    of its own for it. It prints one line per ready entry, or why not, and never changes the run's exit code."""
+    path = root / "evals" / "twin_readiness.py"
+    try:
+        spec = importlib.util.spec_from_file_location("h4_twin_readiness", path)
+        if spec is None or spec.loader is None:
+            raise ImportError(str(path))
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+    except (ImportError, OSError, SyntaxError) as exc:
+        print(
+            f"INFO (twin readiness): {path.name} didn't load ({exc.__class__.__name__})"
+        )
+        return
+    module.main(["--root", str(root)])
+
+
+def main(argv: list[str], *, readiness: bool = False) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--suite", required=True)
     parser.add_argument(
@@ -575,8 +595,10 @@ def main(argv: list[str]) -> int:
         f"evals {args.suite} ({args.adapter}): {len(cases) - failed} passed, {failed} failed"
         + (f", {cost} micro-USD" if args.adapter != "fake" else "")
     )
+    if readiness and args.suite == "product":
+        twin_readiness()
     return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main(sys.argv[1:], readiness=True))
