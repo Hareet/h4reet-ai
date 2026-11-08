@@ -13,10 +13,14 @@ Session: the main session started from
 `git worktree add -b`, the branch's name, that path, and the SHA.
 Repo hooks active: yes. The post-edit check ran on every edit (it
 flagged names left unused between the edits of one change, gone
-once the change was whole); the bash gate refused one command, a
-read of the git hooks setting, which this session didn't respell (it
-read the hook file instead); the pre-commit hook's gitleaks and
-arrival check passed on both commits before this note.
+once the change was whole). The bash gate refused two commands,
+and this session respelled neither: a read of the git hooks setting
+(it read the hook file instead), and a second rehearsal, at this
+note's first commit, written as one command whose deletion of the
+throwaway branch sat beside `refs/heads/main`, which the gate reads
+as deleting main. The rehearsal below, at a9fa647f, stands: this
+note adds only itself. The pre-commit hook's gitleaks and arrival
+check passed on every commit.
 
 Authorized by: the main session's brief of 2026-11-08: fix the
 twin's temperature on Bedrock before your live runs, test-first, on
@@ -138,7 +142,7 @@ Applied with the constitution-check questions against the
 | III. Intent Before Spec, Spec Before Code, Humans Merge | Yes | Spec 010's FR-017 and plan §5.2 say what's built; spec 007's plan records the departure (D22) and spec 000's contracts change, in the same commit as the code; you merge. |
 | IV. Least Privilege for Humans and Agents Alike | No | No permission, allowlist, credential, listener, or gate path changes. |
 | V. Cost Is a First-Class Signal | Yes | $0 to build: no model call. A call costs what it did, and the meter and routes are unchanged. |
-| VI. Build in Public, Including Failures | Yes | The bug, the base's move, and the bash gate's refusal are recorded here. |
+| VI. Build in Public, Including Failures | Yes | The bug, the base's move, and the bash gate's two refusals are recorded here. |
 | VII. Own the Whole Product — and Say Exactly What You Owned | Yes | An agent wrote every change; the sources are quoted, not restated. |
 | VIII. Honest AI | Yes | What the twin may say is unchanged; on Bedrock it samples at Haiku's default (above), which this note says. |
 
