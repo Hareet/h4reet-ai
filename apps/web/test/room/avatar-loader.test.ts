@@ -121,7 +121,16 @@ interface Harness {
   takes: boolean;
 }
 
-function harness(o: { floor?: boolean; handoff?: "pending"; limit?: number; figures?: "pending" } = {}): Harness {
+function harness(
+  o: {
+    floor?: boolean;
+    handoff?: "pending";
+    limit?: number;
+    figures?: "pending";
+    /** Spec 009's Phase 2 gate for the figures' parses (R-10), in place of the hand-off's end. */
+    figureGate?: () => Promise<void>;
+  } = {},
+): Harness {
   const clock = new FakeClock();
   const f = fetcher(clock);
   const d = decoder();
@@ -165,6 +174,7 @@ function harness(o: { floor?: boolean; handoff?: "pending"; limit?: number; figu
     },
     clip: (entry, clips) => h.clips.push({ avatar: entry.figure.avatar, role: entry.figure.role, clips }),
     figureEnded: (entry, outcome) => h.ended.push(`${entry.asset} ${outcome}`),
+    ...(o.figureGate ? { figureGate: o.figureGate } : {}),
   };
   h.loader = createLoader(options);
   return h as Harness;
@@ -440,3 +450,31 @@ describe("parse and hand over (FR-022, FR-024; R-03, R-11)", () => {
 // FigureEntry is ModelEntry's: its piece the figure file's own key, so loads of one file supersede each other.
 const _entry: FigureEntry | undefined = figureEntries(night.scene, "man")[0];
 void _entry;
+
+describe("the parse gate (Phase 2; FR-022; R-10)", () => {
+  it("parses a figure file before the hand-off starts or after it ends, never during it", async () => {
+    let started = false;
+    let end: () => void = () => undefined;
+    const ended = new Promise<void>((resolve) => (end = resolve));
+    const h = harness({ handoff: "pending", figureGate: () => (started ? ended : Promise.resolve()) });
+    const answered = new Set<Call>();
+    // Before the hand-off starts: the man's model parses within the wait.
+    const first = h.loader.loadFigures(figureEntries(night.scene, "man").filter((e) => e.figure.role === null));
+    await drive(h, first, answered);
+    expect(h.models).toHaveLength(1);
+    // Once it has started: a file fetched now waits for its end.
+    started = true;
+    const second = h.loader.loadFigures(figureEntries(night.scene, "man").filter((e) => e.figure.role === "idle"));
+    for (let i = 0; i < 10; i += 1) {
+      answerAll(h, answered);
+      await settle();
+      h.clock.advance(32);
+    }
+    expect(h.clips).toEqual([]);
+    end();
+    await drive(h, second, answered);
+    expect(h.clips.map((c) => c.role)).toEqual(["idle"]);
+    // The room's models still wait for the hand-off's end, as before.
+    h.handoff();
+  });
+});
