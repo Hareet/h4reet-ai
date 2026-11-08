@@ -27,7 +27,13 @@
 //   sheet goes into that hand with Object3D.attach, keeping its world transform, then lifted so the hand holds its
 //   lower edge, and moves with it; a reset puts it back at the visitor's anchor.
 // - Signals: each picture's and clip's change, for the frame log; the stage adds each failed file (avatar_failed).
-// Phase 1's timing (D4): the loader parses after the hand-off, so the avatars swap in when it ends.
+// - The hand-off between them (Phase 2; FR-019, FR-020; R-10): before it, the twin's avatar holds the paper in
+//   "idle-holding", the sheet in its holding hand; at its start (the stage's first showHandoff) the sheet's start is
+//   that hand's place, and the twin plays its idle; during it, the sheet's end follows the visitor's holding hand, and
+//   the visitor plays "take" so that it ends as the hand-off ends; at its end, "idle-holding" and the kept paper. An
+//   avatar that becomes ready during it waits for its end to show. Under reduced motion the hand-off's crossfade
+//   stays, "take" doesn't play, and the clips change by cuts at the start and the end. `settled` resolves once both
+//   figures show their avatars or keep their fallbacks for good: what the room waits for, at most wait_ms.
 import { AnimationMixer, Box3, LoopOnce, LoopRepeat, PropertyBinding, Vector3 } from "three";
 import type { AnimationAction, AnimationClip, Object3D } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -35,7 +41,9 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { AVATAR_SHAPES } from "../../choice/avatars";
 import type { AvatarId, ClipRole } from "../../choice/avatars";
 import type { RoomScene } from "../compose/bundle";
+import { handoffDuration } from "../handoff";
 import type { FigureId, FigureSignal, FigureWhy } from "../stage";
+import { showHandoff as drawHandoff } from "./bundle3d";
 import type { Room3D } from "./bundle3d";
 import { disposeModel } from "./loader";
 
@@ -83,8 +91,14 @@ export interface AvatarFigures {
   playing(figure: FigureId): ClipRole | null;
   /** Each frame: advances each shown figure's mixer by `dtMs` while `animate`, at quality 1 or more only the twin's. */
   update(dtMs: number, animate: boolean, level: number): void;
-  /** The hand-off has ended: the visitor's avatar holds the kept paper from now on, and plays "idle-holding". */
+  /** Draws the hand-off at its progress, 0 to 1, of `durationMs` (spec 002's by default), with the avatars' hands as
+   *  its ends where they show, through bundle3d.ts's showHandoff; its first call is the hand-off's start (R-10). */
+  showHandoff(progress: number, reducedMotion: boolean, durationMs?: number): void;
+  /** The hand-off has ended: the visitor's avatar holds the kept paper from now on, and plays "idle-holding"; an avatar
+   *  that became ready during it shows now. */
   handoffEnded(): void;
+  /** Resolves once both figures show their avatars or keep their fallbacks for good (R-10): the room's wait. */
+  readonly settled: Promise<void>;
   /** Every figure back to its fallback and every avatar's resources released, as a restored context's reload starts
    *  again; the figures want what they wanted. */
   reset(): void;
@@ -113,6 +127,8 @@ interface Figure {
   playing: ClipRole | null;
   hand: Object3D | null;
   shown: boolean;
+  /** It keeps its fallback for good: its model failed, or it has none to show. */
+  gone: boolean;
   /** The fallback's meshes' visibility before the avatar hid them. */
   hidden: Map<Object3D, boolean>;
 }
@@ -148,6 +164,7 @@ export function createAvatarFigures(
       playing: null,
       hand: null,
       shown: false,
+      gone: false,
       hidden: new Map(),
     },
     visitor: {
@@ -161,6 +178,7 @@ export function createAvatarFigures(
       playing: null,
       hand: null,
       shown: false,
+      gone: false,
       hidden: new Map(),
     },
   };
@@ -175,12 +193,24 @@ export function createAvatarFigures(
   };
   const both = (): Figure[] => [figures.twin, figures.visitor];
   let animate = false;
-  let held = false;
+  /** Where the hand-off stands: before its start, during it, or after its end (Phase 1 has only after). */
+  let phase: "before" | "during" | "after" = "before";
+  /** The visitor's "take" has started in this hand-off. */
+  let taking = false;
+  /** The sheet's start: the twin's holding hand's place at the hand-off's start, where it showed its avatar. */
+  let sheetFrom: Vector3 | null = null;
   let disposed = false;
+  let settle: () => void = () => undefined;
+  const settled = new Promise<void>((resolve) => (settle = resolve));
+  /** Resolves `settled` once each figure shows its avatar or keeps its fallback for good. */
+  const checkSettled = (): void => {
+    if (both().every((f) => f.wants === null || f.shown || f.gone)) settle();
+  };
 
   const picture = (f: Figure, shows: "avatar" | "fallback", why: FigureWhy | null): void =>
     signal({ kind: "picture", figure: f.id, shows, why });
   for (const f of both()) if (f.wants === null) picture(f, "fallback", "no-file");
+  checkSettled();
 
   /** The roles an avatar's part bundles. */
   const roles = (id: AvatarId): ClipRole[] => Object.keys(part.avatars[id]?.clips ?? {}) as ClipRole[];
@@ -259,11 +289,33 @@ export function createAvatarFigures(
     f.mixer.update(0);
   }
 
-  /** The role a figure plays now: the visitor holding the paper after the hand-off plays "idle-holding", the idle in
-   *  its place where it has none; every other time the idle; with no idle, the rest pose. */
+  /** The role a figure plays now (FR-018, FR-019): the twin holding the paper before the hand-off, and the visitor
+   *  after it, play "idle-holding"; the visitor plays "take" once its time in the hand-off has come; every other time
+   *  the idle, which also stands in for a missing clip; with no idle, the rest pose. */
   function wanted(f: Figure): ClipRole | null {
-    if (f.id === "visitor" && held && f.actions.has("idle-holding")) return "idle-holding";
-    return f.actions.has("idle") ? "idle" : null;
+    const has = (role: ClipRole): boolean => f.actions.has(role);
+    if (f.id === "visitor") {
+      if (phase === "after" && has("idle-holding")) return "idle-holding";
+      if (phase === "during" && taking && has("take")) return "take";
+    } else if (phase === "before" && has("idle-holding")) return "idle-holding";
+    return has("idle") ? "idle" : null;
+  }
+
+  /** Where the paper's centre sits in a figure's holding hand, so the hand holds its lower edge; null where the figure
+   *  shows no avatar or its avatar has no hand. */
+  function paperAt(f: Figure): Vector3 | null {
+    if (!f.shown || !f.hand) return null;
+    f.hand.updateWorldMatrix(true, false);
+    return worldOf(f.hand).add(new Vector3(0, PAPER_LIFT, 0));
+  }
+
+  /** Before the hand-off, the sheet in the twin's holding hand, where it shows its avatar (FR-019 (b)). */
+  function holdSheet(): void {
+    if (phase !== "before") return;
+    const at = paperAt(figures.twin);
+    if (!at) return;
+    room.anchors.twinHand.copy(at);
+    room.paper.sheet.position.copy(at);
   }
 
   /** Plays the role the figure wants: a crossfade while the motion store animates, a cut otherwise (FR-025, FR-026). */
@@ -303,7 +355,7 @@ export function createAvatarFigures(
   function keepPaper(): void {
     const f = figures.visitor;
     const { kept, atTwin, atVisitor } = room.paper;
-    if (!held || !f.shown || !f.hand) return;
+    if (phase !== "after" || !f.shown || !f.hand) return;
     if (kept.parent === f.hand) return;
     // The sheet the hand-off carried and the kept one both sit at the visitor's hand when it ends: the kept one shows.
     atTwin.opacity = 0;
@@ -326,7 +378,8 @@ export function createAvatarFigures(
 
   /** Shows a figure's avatar once it is ready: its model in, and its idle loaded or failed (or none in the part). */
   function tryShow(f: Figure): void {
-    if (disposed || f.shown || f.wants === null || !f.instance) return;
+    // Never during the hand-off: an avatar ready then swaps in when it ends (FR-019 (e), FR-022).
+    if (disposed || f.shown || f.wants === null || !f.instance || phase === "during") return;
     const source = sourceOf(f.wants);
     if (roles(f.wants).includes("idle") && !source.ended.has("idle")) return;
     f.hidden = new Map(f.group.children.map((c) => [c, c.visible] as const));
@@ -337,6 +390,8 @@ export function createAvatarFigures(
     findHand(f);
     play(f);
     if (f.id === "visitor") keepPaper();
+    else holdSheet();
+    checkSettled();
   }
 
   /** A figure back to its fallback, its instance and mixer gone. */
@@ -349,10 +404,12 @@ export function createAvatarFigures(
     for (const [child, visible] of f.hidden) child.visible = visible;
     f.hidden = new Map();
     if (f.id === "visitor") dropPaper();
+    else room.anchors.twinHand.copy(anchors.twin);
     const was = f.shown;
-    Object.assign(f, { instance: null, mixer: null, playing: null, hand: null, shown: false });
+    Object.assign(f, { instance: null, mixer: null, playing: null, hand: null, shown: false, gone: why !== null });
     f.actions.clear();
     if (why !== null || was) picture(f, "fallback", why);
+    checkSettled();
   }
 
   return {
@@ -417,18 +474,49 @@ export function createAvatarFigures(
     playing: (figure) => figures[figure].playing,
     update(dtMs, now, level) {
       animate = now;
-      if (!now) return;
-      for (const f of both()) {
-        if (!f.shown || !f.mixer) continue;
-        if (level >= 1 && f.id !== "twin") continue;
-        f.mixer.update(dtMs / 1000);
+      if (now)
+        for (const f of both()) {
+          if (!f.shown || !f.mixer) continue;
+          if (level >= 1 && f.id !== "twin") continue;
+          f.mixer.update(dtMs / 1000);
+        }
+      holdSheet();
+    },
+    showHandoff(progress, reducedMotion, durationMs = handoffDuration("3d", reducedMotion)) {
+      if (phase === "before") {
+        // The start: the sheet leaves from the twin's hand as it holds it now, and the twin lets go, to its idle.
+        sheetFrom = paperAt(figures.twin);
+        phase = "during";
+        play(figures.twin);
       }
+      const visitor = figures.visitor;
+      const take = visitor.actions.get("take");
+      if (phase === "during" && !taking && take && visitor.shown && animate && !reducedMotion) {
+        // "take" ends as the hand-off ends (R-10): it starts at max(0, D − its length).
+        const length = take.getClip().duration * 1000;
+        if (progress * durationMs >= Math.max(0, durationMs - length)) {
+          taking = true;
+          play(visitor);
+        }
+      }
+      const to = paperAt(visitor);
+      room.anchors.twinHand.copy(sheetFrom ?? anchors.twin);
+      room.anchors.visitorHand.copy(to ?? anchors.visitor);
+      // The kept sheet, which reduced motion fades in, at the visitor's hand while it isn't in it yet.
+      if (to && room.paper.kept.parent === room.scene) room.paper.kept.position.copy(to);
+      drawHandoff(room, progress, reducedMotion);
     },
     handoffEnded() {
-      held = true;
+      phase = "after";
+      taking = false;
+      room.anchors.twinHand.copy(anchors.twin);
+      room.anchors.visitorHand.copy(anchors.visitor);
+      for (const f of both()) tryShow(f);
       play(figures.visitor);
+      play(figures.twin);
       keepPaper();
     },
+    settled,
     reset() {
       for (const f of both()) fallBack(f, null);
       for (const source of sources.values()) if (source.model) disposeModel(source.model);

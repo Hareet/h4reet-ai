@@ -232,8 +232,20 @@ describe("the figures in the 3D stage (scene.ts with scene/avatars.ts)", () => {
     }
   });
 
-  it("swaps the avatars in only after the hand-off ends", async () => {
+  it("swaps the avatars in before the hand-off starts, within the wait, and resolves the stage's figures", async () => {
+    // Phase 2 (FR-019 (a), FR-022): the stage's figures promise resolves once both show, and the room's wait ends.
     const s = staged("woman");
+    let ready = false;
+    void s.stage.figures?.then(() => (ready = true));
+    expect(s.stage.waitMs).toBe(composed().scene.figures.wait_ms);
+    await answer(s, () => ready);
+    expect(avatarIn(s, "fx-visitor") && avatarIn(s, "fx-twin")).toBe(true);
+    s.stage.dispose();
+  });
+
+  it("parses nothing for the figures once the hand-off has started, and swaps them in when it ends", async () => {
+    const s = staged("woman");
+    s.stage.showHandoff(0);
     await answer(s, () => s.fetched.length >= 8 && false);
     expect(s.fetched).toHaveLength(8);
     expect(avatarIn(s, "fx-visitor")).toBe(false);

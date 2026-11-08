@@ -285,11 +285,15 @@ describe("the clips (FR-003, FR-025 to FR-027; R-07, R-17; SC-005)", () => {
     const s = setup("woman");
     await feed(s, "woman");
     await feed(s, "man");
+    // After the hand-off: the twin in its idle, which moves its hips; the visitor in "idle-holding", which moves its
+    // holding hand (Phase 2 has the twin hold the paper in "idle-holding" before it).
+    s.figures.handoffEnded();
+    const hand = (): number => bone(avatarIn(s, "visitor") as Object3D, "mixamorigRightHand").position.y;
     s.figures.update(250, true, 0);
-    const [twin, visitor] = [hipsY(s, "twin"), hipsY(s, "visitor")];
+    const [twin, visitor] = [hipsY(s, "twin"), hand()];
     s.figures.update(250, true, 1);
     expect(hipsY(s, "twin")).not.toBeCloseTo(twin, 6);
-    expect(hipsY(s, "visitor")).toBeCloseTo(visitor, 6);
+    expect(hand()).toBeCloseTo(visitor, 6);
   });
 });
 

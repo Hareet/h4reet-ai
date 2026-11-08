@@ -461,18 +461,24 @@ describe("the parse gate (Phase 2; FR-022; R-10)", () => {
     // Before the hand-off starts: the man's model parses within the wait.
     const first = h.loader.loadFigures(figureEntries(night.scene, "man").filter((e) => e.figure.role === null));
     await drive(h, first, answered);
-    expect(h.models).toHaveLength(1);
-    // Once it has started: a file fetched now waits for its end.
+    expect(h.models.map((m) => m.avatar)).toEqual(["man"]);
+    // Once it has started: the woman's model and idle, fetched now, wait for its end to parse.
     started = true;
-    const second = h.loader.loadFigures(figureEntries(night.scene, "man").filter((e) => e.figure.role === "idle"));
+    const woman = figureEntries(night.scene, "woman").filter(
+      (e) => e.figure.avatar === "woman" && (e.figure.role === null || e.figure.role === "idle"),
+    );
+    const second = h.loader.loadFigures(woman);
     for (let i = 0; i < 10; i += 1) {
       answerAll(h, answered);
       await settle();
       h.clock.advance(32);
     }
+    expect(h.fetch.calls.filter((c) => c.url.startsWith("a/woman"))).toHaveLength(2);
+    expect(h.models.map((m) => m.avatar)).toEqual(["man"]);
     expect(h.clips).toEqual([]);
     end();
     await drive(h, second, answered);
+    expect(h.models.map((m) => m.avatar)).toEqual(["man", "woman"]);
     expect(h.clips.map((c) => c.role)).toEqual(["idle"]);
     // The room's models still wait for the hand-off's end, as before.
     h.handoff();

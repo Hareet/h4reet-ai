@@ -60,6 +60,12 @@ export interface Stage3D extends Stage {
   setQuality(level: number): void;
   /** The walking view (spec 008). */
   readonly walk: StageWalk;
+  /** Spec 009 (FR-019 (a); R-10): resolves once both figures show their avatars or keep their fallbacks for good, at
+   *  once where no avatar loads; the room waits for it before the hand-off, at most `waitMs` from the mount. Absent,
+   *  the room doesn't wait. */
+  readonly figures?: Promise<void>;
+  /** The scene's wait_ms: the longest the room waits for `figures`. */
+  readonly waitMs?: number;
 }
 
 export interface SceneOptions {

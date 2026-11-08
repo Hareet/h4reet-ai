@@ -40,11 +40,12 @@
 //   selectable the index lists (FR-010); each change goes to the stage that draws, which shows it with the highlight.
 //   A selection, on any path, clears it in the same call (FR-011); the fall to 2D resets it. A target sends nothing:
 //   no event, request, or storage, and no log line outside a drafts build's frame log (FR-013).
-// - Spec 009's avatars: the stage's note shows the stand-in line, the UI word twin.stand_in, while the index's copy
-//   holds it, which in that spec is always, in 3D and 2D (its FR-013); the 3D stage reports its figures (onFigure),
-//   and the room sends avatar_failed once a visit, with no identifier, on the first figure file that failed after its
-//   retry, never for a skip, a missing file, the floor, or 2D (FR-032), and logs each picture's and clip's change in a
-//   drafts build's frame log (FR-035).
+// - Spec 009's avatars: before the hand-off the room waits for both figures' avatars, at most the scene's wait_ms from
+//   the 3D stage's mount (Phase 2); the stage's note shows the stand-in line, the UI word twin.stand_in, while the
+//   index's copy holds it, which in that spec is always, in 3D and 2D (its FR-013); the 3D stage reports its figures
+//   (onFigure), and the room sends avatar_failed once a visit, with no identifier, on the first figure file that
+//   failed after its retry, never for a skip, a missing file, the floor, or 2D (FR-032), and logs each picture's and
+//   clip's change in a drafts build's frame log (FR-035).
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
@@ -424,12 +425,41 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     const module = loaded === "late" ? null : loaded;
     if (module) mount3d(module, choice);
     if (!module || !stage) toFlat(!webgl ? "no_webgl2" : loaded === "late" ? "load_timeout" : "load_failed");
+    const wait = figuresWait();
+    if (wait === null) startHandoff();
+    else void wait.then(startHandoff);
+  }
+
+  function startHandoff(): void {
     handoff = runHandoff({
       clock,
       durationMs: handoffDuration(visit.mode === "2d" ? "2d" : "3d", motion.reducedMotion),
       announce: (text) => announcer.say(text),
       show: (progress) => stage?.showHandoff(progress),
       onDone: offerResume,
+    });
+  }
+
+  /**
+   * Spec 009's wait (FR-019 (a); plan.md R-10): the hand-off starts once both figures show their avatars or keep their
+   * fallbacks for good, or the scene's wait_ms after the 3D stage's mount, whichever comes first. Null where there's
+   * nothing to wait for (the 2D room, or a stage that gives no promise), so the hand-off starts at once, as before.
+   */
+  function figuresWait(): Promise<void> | null {
+    const current = stage;
+    if (current?.mode !== "3d") return null;
+    const { figures, waitMs } = current as Stage3D;
+    if (!figures) return null;
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (): void => {
+        if (done) return;
+        done = true;
+        clock.clearTimeout(timer);
+        resolve();
+      };
+      const timer = clock.setTimeout(finish, Math.max(0, waitMs ?? 0));
+      void figures.then(finish, finish);
     });
   }
 

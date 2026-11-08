@@ -231,6 +231,13 @@ export function createScene(options: SceneOptions): Stage3D {
   let leaving = false;
   const bundled = (id: string | null): boolean => id !== null && Object.hasOwn(part.avatars, id);
   const wantsAvatars = bundled(part.figures.stand_in) || bundled(options.avatar);
+  // Phase 2 (FR-019; R-10): the room waits for both figures before the hand-off, at most wait_ms, and not at all where
+  // no avatar loads; a figure file parses before the hand-off starts (the stage's first showHandoff) or after it ends.
+  let figuresSettled: () => void = () => undefined;
+  const figuresReady = new Promise<void>((resolve) => (figuresSettled = resolve));
+  if (!wantsAvatars || floor === false) figuresSettled();
+  let started = false;
+  const handoffEnded = options.handoff ?? Promise.resolve();
   if (part.load_order.length > 0 || wantsAvatars)
     void Promise.all([import("./scene/loader"), wantsAvatars ? import("./scene/avatars") : null])
       .then(([{ createLoader, figureEntries, modelEntries, prepareModel, showModel }, avatars]) => {
@@ -243,6 +250,8 @@ export function createScene(options: SceneOptions): Stage3D {
             chosen: options.avatar,
             ...(options.onFigure ? { signal: options.onFigure } : {}),
           }) ?? null;
+        if (figures) void figures.settled.then(figuresSettled);
+        else figuresSettled();
         // The room's models start once every figure file's fetch has ended (FR-021; Amendment M17).
         let figuresFetched: () => void = () => undefined;
         const fetched = new Promise<void>((resolve) => (figuresFetched = resolve));
@@ -284,6 +293,7 @@ export function createScene(options: SceneOptions): Stage3D {
             figures?.missed(entry.figure.avatar, entry.figure.role, why);
           },
           maxSide: part.figures.texture_px,
+          figureGate: () => (started ? handoffEnded : Promise.resolve()),
         });
         void loader.loadFigures(figureFiles, figuresFetched);
         void loader.load(entries);
@@ -291,6 +301,7 @@ export function createScene(options: SceneOptions): Stage3D {
         void (options.handoff ?? Promise.resolve()).then(() => figures?.handoffEnded());
       })
       .catch(() => {
+        figuresSettled();
         if (disposed) return;
         const outcome = floor === false ? "skipped" : "failed";
         for (const asset of options.room.models)
@@ -459,8 +470,13 @@ export function createScene(options: SceneOptions): Stage3D {
     element: canvas,
     canvas,
     showHandoff(progress) {
-      drawHandoff(room, progress, options.reducedMotion);
+      // Its first call is the hand-off's start: no figure file parses from then until it ends (R-10).
+      started = true;
+      if (figures) figures.showHandoff(progress, options.reducedMotion);
+      else drawHandoff(room, progress, options.reducedMotion);
     },
+    figures: figuresReady,
+    waitMs: part.figures.wait_ms,
     apply(value) {
       // The case shows on the next frame the loop draws (spec 004, FR-042, FR-043; scene/cables.ts), its glows with it.
       room.cases.apply(value);

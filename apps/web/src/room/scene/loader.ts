@@ -32,7 +32,9 @@
 // - An image card (a set model whose URL isn't a .glb) waits for its drawing: the loader takes GLBs only.
 // - A switch's pose in load_order, `<switch>.<pose>`, loads the switch's own model, its `switches[].model`, an
 //   addition to room-bundle.md §3.2, since RS2 lets no placement place a switch's piece; it shows in every case.
-// - Parsing waits for the hand-off as the swap does, since a parse stalls frames in the one animation nothing skips.
+// - Parsing waits for the hand-off as the swap does, since a parse stalls frames in the one animation nothing skips; a
+//   figure file of spec 009's may parse before the hand-off starts too, within the room's wait (figureGate), never
+//   during it.
 // - A failed attempt's hold, like a swap's, is released two frames after it.
 import type { AnimationClip, Light, Material, Mesh, Object3D, Texture } from "three";
 
@@ -128,6 +130,9 @@ export interface LoaderOptions {
   readonly figureEnded?: (entry: FigureEntry, outcome: "loaded" | "failed" | "skipped") => void;
   /** An avatar model's images decode at most this many pixels a side (R-11): the 3D part's texture_px. */
   readonly maxSide?: number;
+  /** Phase 2's parse gate for a figure file (R-10): resolves when it may parse, at once before the hand-off starts and
+   *  at its end once it has; absent, a figure file waits for the hand-off's end, as a piece's model does. */
+  readonly figureGate?: () => Promise<unknown>;
 }
 
 export interface Loader {
@@ -590,7 +595,8 @@ export function createLoader(options: LoaderOptions): Loader {
             releaseFetch();
           }
           fetchDone(true);
-          await options.handoff;
+          // A piece's model parses after the hand-off; a figure file through Phase 2's gate, where the stage gives one.
+          await (isFigure(entry) && options.figureGate ? options.figureGate() : options.handoff);
           if (stopped) return;
           await parseAndSwap(load, data, start);
           return;

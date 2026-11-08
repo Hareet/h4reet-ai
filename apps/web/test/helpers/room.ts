@@ -289,6 +289,10 @@ export interface FakeScene {
   endWalk(why: WalkEnd): void;
   /** With sceneLate: lets the chunk's import resolve now. */
   release?: () => void;
+  /** Spec 009's Stage3D.figures and waitMs (Phase 2), which the next stage made gives the room as set here; absent,
+   *  the stage gives none, and the room doesn't wait. */
+  figures?: Promise<void>;
+  waitMs?: number;
 }
 
 export function fakeScene(): FakeScene {
@@ -347,6 +351,7 @@ export function fakeScene(): FakeScene {
             fake.disposed += 1;
             options.clock.cancelFrame(frame);
           },
+          ...(fake.figures ? { figures: fake.figures, waitMs: fake.waitMs ?? 0 } : {}),
         };
         fake.stage = stage;
         return stage;
