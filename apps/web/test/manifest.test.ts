@@ -100,6 +100,7 @@ describe("room-manifest.json (Amendment B7)", () => {
       "turn_sent",
       "voice_pressed",
       "mode_2d",
+      "walk_started",
     ]);
   });
 

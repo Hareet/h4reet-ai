@@ -12,6 +12,8 @@ export const EVENT_KINDS = [
   "turn_sent",
   "voice_pressed",
   "mode_2d",
+  // Spec 008 (FR-051; Amendment M3): the visitor's first entry into the walking view in a visit; no ID.
+  "walk_started",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

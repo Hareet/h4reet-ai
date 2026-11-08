@@ -49,8 +49,9 @@ describe("config/room-events.yaml", () => {
     const loaded = await loadRoomEvents(REPO_CONFIG);
     expect(loaded).toMatchObject({ ok: true });
     if (!loaded.ok) return;
-    // The eight kinds and the IDs' format are code's (contracts/room-events.md §1, §3), not the room's data, so they
-    // stay pinned; which objects and items the file lists is data, and stays unnamed.
+    // The kinds and the IDs' format are code's (contracts/room-events.md §1, §3, and spec 008's Amendment M3, which
+    // adds walk_started), not the room's data, so they stay pinned; which objects and items the file lists is data,
+    // and stays unnamed.
     expect([...loaded.config.kinds]).toEqual([
       "object_selected",
       "item_selected",
@@ -60,6 +61,7 @@ describe("config/room-events.yaml", () => {
       "turn_sent",
       "voice_pressed",
       "mode_2d",
+      "walk_started",
     ]);
     expect(loaded.config.items.size).toBeGreaterThan(0);
     for (const id of [...loaded.config.items, ...loaded.config.objects]) expect(id).toMatch(/^[a-z][a-z0-9-]{1,40}$/);

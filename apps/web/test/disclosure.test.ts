@@ -87,6 +87,15 @@ describe("the disclosure page", () => {
     }
   });
 
+  it("names the walking view in row V4's trigger, its first entry in a visit (spec 008, Amendment M4)", () => {
+    const rows = new Map(
+      markdownTables(SOURCE)
+        .flatMap((t) => t.slice(1))
+        .map((row) => [row[0], row] as const),
+    );
+    expect(rows.get("V4")?.[2]).toContain("the visitor first entering the walking view in a visit");
+  });
+
   it("puts header cells in th and body cells in td", () => {
     const doc = new JSDOM(renderDisclosure("| ID | Why |\n|---|---|\n| X1 | because |\n")).window.document;
     expect([...doc.querySelectorAll("thead th")].map((c) => c.textContent)).toEqual(["ID", "Why"]);

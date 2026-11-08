@@ -176,6 +176,7 @@ describe("POST /room/events accepts", () => {
       { kind: "turn_sent" },
       { kind: "voice_pressed" },
       { kind: "mode_2d" },
+      { kind: "walk_started" },
     ];
     for (const [i, event] of sent.entries()) {
       const res = await post(stack, JSON.stringify(event), i % 2 === 0 ? BEACON : "application/json");
@@ -193,6 +194,7 @@ describe("POST /room/events accepts", () => {
       [{ kind: "turn_sent", id: "-" }, 1],
       [{ kind: "voice_pressed", id: "-" }, 1],
       [{ kind: "mode_2d", id: "-" }, 1],
+      [{ kind: "walk_started", id: "-" }, 1],
     ]);
     expect(await meter.points("h4.room.events.refused")).toEqual([]);
   });
@@ -235,6 +237,7 @@ describe("POST /room/events refuses, and counts each refusal by its reason", () 
     ["the avatar", '{"kind":"mode_2d","avatar":"dog"}'],
     ["a time", '{"kind":"mode_2d","time":"2026-10-18T00:00:00Z"}'],
     ["an ID on a kind that takes none", '{"kind":"mode_2d","id":"fx-desk"}'],
+    ["an ID on walk_started, which takes none (spec 008)", '{"kind":"walk_started","id":"fx-desk"}'],
     ["no ID on a kind that takes one", '{"kind":"object_selected"}'],
     ["an ID that isn't a string", '{"kind":"object_selected","id":3}'],
     ["a prototype key", '{"kind":"mode_2d","__proto__":{"id":"fx-desk"}}'],

@@ -86,6 +86,7 @@ describe("the beacon", () => {
       '{"kind":"turn_sent"}',
       '{"kind":"voice_pressed"}',
       '{"kind":"mode_2d"}',
+      '{"kind":"walk_started"}',
     ]);
     expect(p.touched).toEqual([]);
   });
