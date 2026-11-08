@@ -440,10 +440,11 @@ describe("the ring's edges (finding 1)", () => {
     // A plane's sides are its borders: each always draws, its faces zero.
     const plane = edgesOf(ringGeometry(new PlaneGeometry(1, 1)));
     expect(plane.length).toBe(4);
-    for (const { faces } of plane) expect(faces).toEqual([
-      [0, 0, 0],
-      [0, 0, 0],
-    ]);
+    for (const { faces } of plane)
+      expect(faces).toEqual([
+        [0, 0, 0],
+        [0, 0, 0],
+      ]);
     // 24 sides, each a flat facet: its 24 upright edges and its two rims of 24, no facet's diagonal or cap's spoke.
     const tube = edgesOf(ringGeometry(new CylinderGeometry(0.06, 0.06, 0.6, 24, 1, false)));
     expect(tube.length).toBe(72);
@@ -665,7 +666,13 @@ describe("the ring's widths on screen (finding 1)", () => {
       const corners = [0, 1, 2, 3].map((k) => {
         const [end, side] = [corner.getX(k), corner.getY(k)];
         const [own, far] = end > 0 ? [a, b] : [b, a];
-        return ringVertex(clipOf(own.x, own.y, own.z), clipOf(far.x, far.y, far.z), [end, side], [STAGE.w, STAGE.h], reach);
+        return ringVertex(
+          clipOf(own.x, own.y, own.z),
+          clipOf(far.x, far.y, far.z),
+          [end, side],
+          [STAGE.w, STAGE.h],
+          reach,
+        );
       });
       if (corners.some((c) => c === null)) continue;
       const placed = corners.map((c) => ({ at: px(c?.clip as Clip), local: c?.local as Local }));
@@ -673,7 +680,11 @@ describe("the ring's widths on screen (finding 1)", () => {
         [0, 1, 2],
         [0, 2, 3],
       ] as const) {
-        const [x, y, z] = [placed[i], placed[j], placed[k]] as [(typeof placed)[0], (typeof placed)[0], (typeof placed)[0]];
+        const [x, y, z] = [placed[i], placed[j], placed[k]] as [
+          (typeof placed)[0],
+          (typeof placed)[0],
+          (typeof placed)[0],
+        ];
         tris.push({ at: [x.at, y.at, z.at], local: [x.local, y.local, z.local] });
       }
     }
