@@ -95,6 +95,8 @@ Metrics derived from it (every 10 s, [telemetry.md](contracts/telemetry.md)): `h
 - **Thresholds** aren't stored. They come from `config/budgets.yaml` (§4): ceilings of 5,000,000 a day and 20,000,000 a month, warnings at 3,500,000 and 14,000,000, and each fallback grant's warning at its allowance minus 600,000.
 - **Metrics** (the 10 s ticker, [telemetry.md](contracts/telemetry.md)): `h4.meter.spend_usd`, `h4.meter.ceiling_usd`, and `h4.meter.warn_usd`, each with `h4.meter` = `day`, `month`, `fallback_day`; and `h4.fallback.allowance_usd`. A period with no row yet reports 0 spend and the configured allowance.
 
+**The adapter month (spec 010, Amendment 0-5; migration `0005_adapter_month.sql`).** A fourth meter, `adapter_month`, one row per capped paid adapter and UTC month, its `period_key` `<adapter id>:<YYYY-MM>` (`^[a-z][a-z0-9-]{0,31}:[0-9]{4}-(0[1-9]|1[0-2])$`); `allowance_micro` and `grant_no` stay `fallback_day`'s alone. `warned_at` and `reached_at` record its warning and its cap. The view `gateway.v_adapter_months` (adapter, month, spent, reserved, `warned_at`, `reached_at`) is readable by `grafana_ro`. A metered call to a capped adapter reserves against and commits to its month as well as to day and month (and `fallback_day` for a fallback call).
+
 ### 2.4 `reservations`: metered calls in flight
 
 | Column | Type | Constraints |
@@ -117,6 +119,8 @@ Metrics derived from it (every 10 s, [telemetry.md](contracts/telemetry.md)): `h
   - adds the cost to `spent_micro`, and evaluates the crossings exactly like a commit (§7.3 step 6).
 
   A late commit for the same reservation then finds that ledger row and is a no-op (§7.3 step 2). The live meter never counts less than was spent, and the journal's `reserve` record with no `commit` still counts at its maximum in a rebuild (§8).
+
+**(spec 010)** `adapter_month boolean NOT NULL DEFAULT false`: whether the reservation reserved against its adapter's month. The commit, the sweep, and a compensation release and charge that row only when it is true, so a cap added or removed across a restart never subtracts what no reservation holds (spec 010's plan, departure B7).
 
 ### 2.5 `ledger`: the Model Call Record (FR-023)
 
@@ -312,6 +316,8 @@ Example lines, from dev's synthetic spend:
 
 **Retention.** None in spec 000. At test-traffic volume a month's file stays in the kilobytes.
 
+**(spec 010)** The rebuild counts each capped adapter's month too: from the surviving ledger (its rows for the adapter and the current month, plus its reservations held at their maximum) and from the journal (a `reserve` record naming the adapter, for the current month, paired with its `commit` as every record is), the larger of the two.
+
 ## 4. Configuration the gateway loads
 
 The file schemas, examples, and validation errors are in [config-files.md](contracts/config-files.md). The four files are read once, at startup, from the read-only mount `/app/config`. On a host stack, a committed change takes effect at the next `make up`, which exports the new commit; `docker compose restart gateway` restarts it on the same export. On dev-cpu, which runs the live tree, a gateway restart rereads the files. An env-file change needs the container recreated (`make up`) on every stack, because `docker compose restart` keeps the environment a container was created with. Any validation failure stops startup with exit 78.
@@ -409,6 +415,8 @@ Worked cases (ADR 0001):
 
 Warnings fire once per grant, at 70% of it: 1,400,000 for grant 1, then the new allowance minus 600,000 after each renewal (3,400,000 in the second case).
 
+**(spec 010)** The adapter month's cap sets the same flag: when a commit's spend on the month of the route's fallback adapter crosses its cap while the flag is false, the flag and its `since` are set in that transaction, with a `fallback_exhausted` alert keyed by the adapter and the month and a `fallback_exhausted` audit row naming them. A renewal clears the flag, as before; admission keeps refusing the adapter by its month's level (`adapter_month_spent`) until the month rolls over or the Author's patch raises the cap. No rollover clears either.
+
 ## 7. Transactions and background work
 
 ### 7.1 Request start
@@ -484,6 +492,8 @@ COMMIT
 - **A COMMIT whose answer was lost** may have landed: the gateway withdraws the reservation if the store answers again, as step 8 does, and otherwise the sweep settles it at its maximum once it expires. The call is refused with `store_unreachable` either way. (Added by tasks.md T072.)
 - **The level checks** use the existing reservations, not the new one. The first call admitted near a ceiling can therefore pass it. That is the bounded overshoot, and the commit that crosses the ceiling trips the switch.
 
+**(spec 010)** Step 4 upserts and locks the adapter's month row when its adapter has a cap; step 5's order becomes `kill_switch_tripped`, `meter_at_ceiling`, then **`adapter_month_spent`** (the adapter's month spend plus reservations at or above its cap, for `fallback` and `test` alike, `since` its `reached_at`), then the sub-budget's two causes (`fallback` only), then `fallback_unavailable`; step 6 records `adapter_month = true` on the reservation; step 7 adds the reservation to the month row.
+
 ### 7.3 Commit of a metered call
 
 The cost depends on how the call settled:
@@ -535,6 +545,8 @@ Degradation is committed before any delivery is attempted: the alert rows are in
 - the span and the log record the pending commit.
 
 If the process stops first, the reservation stays counted as reserved, which still refuses admissions at a ceiling. Once it expires, the sweep charges its maximum (§2.4), within 10 s of `expires_at`.
+
+**(spec 010)** For a reservation with `adapter_month`, step 3 releases the month row too, step 5 adds the cost to it, and step 6's crossings gain two, edge-triggered on committed spend: the warning (the cap × `warn_ratio`) sets `warned_at` and queues a `warn` alert keyed `<stack>:warn:adapter_month:<adapter>:<YYYY-MM>`; the cap sets `reached_at`, sets the flag when the adapter is the route's fallback and the flag is false (§6.2), queues a `fallback_exhausted` alert keyed `<stack>:fallback_exhausted:adapter_month:<adapter>:<YYYY-MM>`, and writes a `fallback_exhausted` audit row whose detail names the adapter and the month. The sweep settles an expired reservation on the month row the same way.
 
 ### 7.4 Local and other unmetered calls
 

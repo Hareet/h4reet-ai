@@ -219,6 +219,14 @@ This answer covers a local error that isn't about availability: `provider_error`
 
 Every cause except `api_unavailable` also feeds the one-hot gauge `h4.degraded.cause`, which shows the cause a hello would get now on the "why degraded" panel (FR-028). The runbooks for each cause are listed in [alerts.md §6](alerts.md#6-runbooks).
 
+**(spec 010, Amendment 0-6)**
+
+| Cause | Meaning | Condition | `since` | `detail` (fixed text) |
+|---|---|---|---|---|
+| `adapter_month_spent` | local is unhealthy, and the paid fallback's month is at or above its cap, counting reservations | the adapter's monthly cap (spec 010, FR-022) | the month row's `reached_at` | The local model is unavailable, and the paid fallback has reached its monthly cap. |
+
+It comes after `meter_at_ceiling` and before `fallback_awaiting_renewal` in every list and in `GET /health`'s dry run.
+
 ## 4. `GET /health/live`
 
 | Aspect | Contract |

@@ -34,6 +34,8 @@ Notes:
 - **Outside prod.** `credentials_expiring` and `fallback_unavailable` can only fire in prod, because only prod routes a paid adapter.
 - **When `fallback_unavailable` fires** (tasks.md T152). The paid fallback's effective health enters one of the two reasons: `credentials`, or `circuit_open`. That happens on a flip to unhealthy, at the first probe that finds it so after startup's `not_ready`, or on a change to one of them while unhealthy. A timeout or a refused connection alerts through the circuit, once it opens. The row isn't queued while the store is empty or down, since the store's own state answers for the stack then. The hourly dedupe key, on the gateway clock, holds it to one an hour per adapter.
 
+**(spec 010, Amendment 0-8)** The adapter month's two kinds reuse `warn` and `fallback_exhausted`: the warning, keyed `<stack>:warn:adapter_month:<adapter>:<YYYY-MM>`, when committed spend on a capped adapter's month crosses the cap × `warn_ratio`; the exhaustion, keyed `<stack>:fallback_exhausted:adapter_month:<adapter>:<YYYY-MM>`, when it crosses the cap. `fallback_unavailable` names an `anthropic-messages` adapter by its type's label, "the Anthropic API".
+
 ## 3. Message format
 
 Plain text, UTF-8, at most 1,000 characters:
@@ -183,6 +185,8 @@ Runtime: normal · Fallback: available · 2026-10-27T08:01:30Z (test clock) · i
 Runbook: docs/runbooks/cost-warning.md
 ```
 
+**(spec 010)** The adapter month's texts name the adapter by its type's label ("the Anthropic API's month"), the month, its spend, and its cap, and say what stops: the warning, "the paid fallback stops at its cap; local answers go on"; the exhaustion, "the Anthropic API is refused until the month rolls over or the cap is raised, and the paid fallback awaits a renewal". The meters line and the canary rules are unchanged.
+
 ## 4. Channels, delivery, and retries
 
 ### 4.1 The dispatcher
@@ -276,6 +280,8 @@ Each alert, and each degraded cause, points at one page in `docs/runbooks/`, eve
 | `store_unreachable`; the cause `store_unreachable` | `store-unreachable.md` |
 | the cause `journal_unwritable` | `journal-unwritable.md` |
 | the cause `api_unavailable` | `gateway-down.md` |
+
+**(spec 010)** The adapter month's warning and exhaustion map to `docs/runbooks/fallback-renewal.md`, and `fallback_unavailable` for the Anthropic API to `docs/runbooks/anthropic-unavailable.md`.
 
 ## 7. Incident drafts (FR-035)
 

@@ -116,6 +116,8 @@ Compose passes `MODEL_ALIAS` to the gateway as `LOCAL_MODEL_NAME`, the key `conf
 
 **Set by compose on the gateway, not by the env file:** `GATEWAY_STATE_DIR=/var/lib/h4-gateway`; `GATEWAY_DB_HOST=gateway-state`, `GATEWAY_DB_PORT=5432`, `GATEWAY_DB_NAME=gateway`, `GATEWAY_DB_USER=gateway` (the password stays a separate variable, never inside a URL); `LOCAL_MODEL_NAME=${MODEL_ALIAS}`; `HOME=/home/node`; `AWS_EC2_METADATA_DISABLED=true`, so the credential chain never tries the instance-metadata address; `TZ=UTC`; `NODE_ENV=production`; the `OTEL_*` variables in [telemetry.md §3.1](telemetry.md#31-sdk-setup); and the stack keys `H4_STACK`, `H4_ENV`, `H4_LANGFUSE_PORT`, and `H4_GRAFANA_PORT`. The dev-only switches arrive as `${GATEWAY_TEST_CLOCK:-0}` and `${GATEWAY_TEST_SYNTHETIC_SPEND:-0}`, so prod's gateway sees `0`.
 
+**`GATEWAY_ANTHROPIC_API_KEY` (spec 010, Amendment 0-9).** Prod's alone: the Anthropic API key, which `deploy/compose.yaml` passes to the gateway alone as `${GATEWAY_ANTHROPIC_API_KEY:-}`, read by the adapter through its `api_key_env` setting. Prod's template lists it empty; dev's template and `dev-cpu.vars` don't hold it. The name differs from the SDK's own, `ANTHROPIC_API_KEY`, for the reason `GATEWAY_AWS_PROFILE` differs from `AWS_PROFILE`: P5 refuses a template key the calling shell also sets, and compose would let the shell's value win. No container holds an `ANTHROPIC_*` variable.
+
 ## 5. Langfuse 4.54.0's keys
 
 Langfuse's own `docker-compose.yml` at 4.54.0 is the authority for its variable names; check 2 printed them (research.md [R-08](../research.md#r-08-langfuse-v4-not-v3)). The env file holds only the secrets and the one value an operator might change. Everything else is fixed in `deploy/compose.yaml`.
@@ -241,6 +243,7 @@ FR-007: every secret this spec introduces is denied by name, both its variable a
 | AWS: the runtime identity's SSO session (FR-013) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (denied today), and `AWS_PROFILE`, `AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`, `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_ROLE_ARN`, `AWS_CONTAINER_CREDENTIALS_FULL_URI`, `AWS_CONTAINER_AUTHORIZATION_TOKEN` | `~/.config/h4reet-ai/aws-home/.aws/` (`config` and the SSO cache); the Author's own `~/.aws` | `~/.aws`, and the first three names |
 | The engine's Author client key | – | `~/.config/h4reet-ai/agents-engine/` ([agents-engine.md §2](agents-engine.md#2-the-endpoint-and-the-client-configuration)) | no |
 | The engine's server key and CA key | – | `/etc/h4agents/pki/` | no |
+| The Anthropic API key (spec 010, FR-030, FR-032) | `GATEWAY_ANTHROPIC_API_KEY`, prod's name; and `ANTHROPIC_API_KEY`, the name the SDK reads on its own, which the Author's shell may hold for another use | prod's env file, as above | no: the Author's patch P-A denies both, and the matrix's FR-007 rows for them fail until it is applied |
 
 **The path rules the early patch adds or keeps:**
 - `denyRead` and `denyWrite` on `~/.config/h4reet-ai`, which covers the env files, the operator tokens, the runtime AWS identity, and the Author's engine certificate in one entry (R-31).
@@ -330,6 +333,8 @@ P7's model keys, P12, and P18 read `deploy/models.lock` (one model per line, pla
 - `deploy/agents-engine/engine.sh seed` has its own copy of the disk check in `deploy/agents-engine/engine.sh`, so the human-only boundary code never calls agent-editable code ([agents-engine.md §6](agents-engine.md#6-seeding)).
 
 pytest covers every refusal with a fixture env file and a stubbed `docker` (plan §7).
+
+**(spec 010)** P3: `GATEWAY_ANTHROPIC_API_KEY` may be empty while prod's route names no `anthropic-messages` adapter, and must not be while it does. P7: while it does, the key is printable ASCII without spaces, 20 to 256 characters, and preflight names the key, never its value. P19: the AWS profile's checks apply while prod's route names a `bedrock-converse` adapter, rather than any paid adapter.
 
 ## 11. What the gateway checks for itself
 

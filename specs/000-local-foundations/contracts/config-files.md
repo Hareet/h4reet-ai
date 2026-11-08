@@ -78,6 +78,21 @@ Settings by type:
 | `synthetic` | `model` | string | `^[a-z0-9-]{1,64}$` |
 | | `output_tokens` | integer | 1 to 100,000: the usage every call reports |
 
+**`anthropic-messages` (spec 010, Amendment 0-3).** Kind `paid` only (R5); prod's route alone may name it (R2, `paid_route_outside_prod`).
+
+| Field | Type | Rule |
+|---|---|---|
+| `model` | string | `^[a-z0-9][a-z0-9.:-]{2,127}$`, or a placeholder (§0): `claude-haiku-5-5` |
+| `api_key_env` | string | an env key's name, never one beginning `ANTHROPIC_` (R12): `GATEWAY_ANTHROPIC_API_KEY` |
+| `thinking` | string | `disabled`, its only value |
+| `temperature` | string, optional | `as_requested` (the default when absent) or `model_default`, as on `bedrock-converse` |
+| `timeouts.connect_ms`, `timeouts.request_ms` | integer | 100 to 2,000; 1,000 to 4,000; their sum at most 5,000 (R8) |
+| `retry.on`, `retry.max`, `retry.backoff_ms` | list, integer, integer | ProviderError kinds; 0 or 1; 0 to 2,000 |
+| `circuit.failures`, `circuit.open_s` | integer | 1 to 10; 5 to 600 |
+| `health.interval_ms` | integer | 10,000 to 600,000 |
+
+Any other key, a `base_url`, a `region`, or another `*_env`, is refused (R11). The endpoint is the adapter's constant.
+
 ### 1.2 Example (the committed file)
 
 ```yaml
@@ -139,6 +154,8 @@ envs:
 | R10 | `envs: must have exactly the keys prod and dev` | |
 | R11 | any unknown key, wrong type, or out-of-range value, named by its path | |
 
+**R12 (spec 010).** An `anthropic-messages` adapter's `api_key_env` never names a variable beginning `ANTHROPIC_`, which the SDK reads on its own: `config/routing.yaml: adapters.anthropic.api_key_env: must not begin ANTHROPIC_, a name the SDK reads on its own`.
+
 ### 1.4 Startup refusals (exit 78)
 
 These are checked with the stack's environment:
@@ -151,6 +168,8 @@ These are checked with the stack's environment:
 | `local_url_not_in_stack` | the URL in `base_url_env` isn't `http://<single-label host>[:port][/path]`, so it isn't an in-stack service. The label starts with a letter, as a compose service name does, and must come back unchanged and not an address from URL parsing: a label like `2852039166` or `0x7f000001` is an IPv4 address in decimal or hex. |
 | `missing_env` | a key named by `base_url_env` or `model_env` is unset |
 | `invalid_config` | any §1.3 error |
+
+**(spec 010)** For a routed `anthropic-messages` adapter: `missing_env` when the key `api_key_env` names is unset or empty, naming the key, never its value; `price_missing` and `placeholder_value` as for Bedrock; and `adapter_cap_missing` when `config/budgets.yaml`'s `envs.prod.adapter_monthly_usd` has no cap for it (§3.1).
 
 ## 2. `config/prices.yaml`
 
@@ -287,6 +306,8 @@ It sets the ceilings, the fallback sub-budget, the warning ratio, the request li
 - a day or month warning = the ceiling × `warn_ratio`, rounded down, so a warning never comes later than the ratio says;
 - a fallback grant's warning = its allowance − (`fallback_daily` − `fallback_daily` × `warn_ratio`): the allowance minus $0.60 here.
 
+**`envs.<env>.adapter_monthly_usd` (spec 010, Amendment 0-4).** Optional: a map from a paid adapter's ID in `config/routing.yaml` to its monthly cap in USD, counted inside the monthly ceiling as the sub-budget counts inside the daily one. Derived: the cap's warning, the cap × `warn_ratio`, rounded down to the micro-dollar. Its cap stops that adapter alone (data-model.md §7.2, the cause `adapter_month_spent`). The Author's patch P-C sets `anthropic: 10.00` in both envs, after spec 010's merge, since the schema accepts the key only from then.
+
 ### 3.2 Example (the plan's values)
 
 ```yaml
@@ -330,6 +351,8 @@ A unit test pins prod's derived warnings at 3,500,000, 14,000,000, and 1,400,000
 | B8 | `envs.dev: must equal envs.prod`: FR-031's "the dev stack's meter applies the same thresholds", so the breach test always rehearses prod's ceilings |
 
 Any of these at startup is exit 78 (`invalid_config`).
+
+**B9 (spec 010).** Each key of `adapter_monthly_usd` names a `paid` adapter in `config/routing.yaml` (checked across the files), and each value is more than 0 and at most `monthly_usd`, with at most 6 decimal places. B8 holds the map too: `envs.dev` equals `envs.prod`.
 
 ## 4. `config/alerts.yaml`
 
