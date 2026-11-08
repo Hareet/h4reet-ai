@@ -9,7 +9,9 @@
 // "Credits" among them once it lands) wrap to two rows, the stage gives up one toolbar row, and below 25rem the
 // toolbar's type drops to 0.875rem, so the text box and the talk button stay on screen, a 320 × 568 one included
 // (FR-047, FR-065; R-40; the review of T171, B1). The stage's placeholder note, the UI word standin.note, shows only
-// while stand-ins are in use.
+// while stand-ins are in use. Spec 009's stand-in line, the UI word twin.stand_in, is a paragraph of its own beside it
+// (its FR-013; plan.md R-13), in 3D and 2D alike, since the note sits in the stage beside the view: the two stack at the
+// stage's top left, over the view, taking no room in the layout and letting a pointer or a touch through to the scene.
 // "Pause the room" (spec 004, FR-060, FR-065; Amendment B8; R-34), the UI word pause.button, is a toggle whose state
 // is in aria-pressed; the room's motion store holds what it sets (motion.ts).
 import { h } from "./dom";
@@ -55,6 +57,8 @@ export function renderRoom(
     around: HTMLElement;
     /** The placeholder note's words: the UI word standin.note. */
     note: string;
+    /** Spec 009's stand-in line: the UI word twin.stand_in while the index's copy holds it; empty for none. */
+    standIn?: string;
     /** "Pause the room": the UI word pause.button. */
     pause: string;
     /** Spec 008's walking words: walk.enter, walk.leave, walk.region, and walk.help. */
@@ -81,7 +85,9 @@ export function renderRoom(
   const walkButton = h(doc, "button", { type: "button", class: "room-walk", hidden: true }, walkWords.enter);
   // The walking keys' instructions, read only while walking: hidden otherwise, which aria-describedby still reads.
   const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden", hidden: true }, walkWords.help);
-  const stage = h(doc, "div", { class: "room-stage" }, view, note, walkButton, walkHelp);
+  const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
+  const notes = h(doc, "div", { class: "room-notes" }, note, standIn);
+  const stage = h(doc, "div", { class: "room-stage" }, view, notes, walkButton, walkHelp);
   const resumeHeading = h(doc, "h2", { id: "resume-heading", tabindex: -1 }, "The resume");
   const resumeBody = h(doc, "div", { class: "resume-body" });
   const resumePanel = h(

@@ -40,6 +40,11 @@
 //   selectable the index lists (FR-010); each change goes to the stage that draws, which shows it with the highlight.
 //   A selection, on any path, clears it in the same call (FR-011); the fall to 2D resets it. A target sends nothing:
 //   no event, request, or storage, and no log line outside a drafts build's frame log (FR-013).
+// - Spec 009's avatars: the stage's note shows the stand-in line, the UI word twin.stand_in, while the index's copy
+//   holds it, which in that spec is always, in 3D and 2D (its FR-013); the 3D stage reports its figures (onFigure),
+//   and the room sends avatar_failed once a visit, with no identifier, on the first figure file that failed after its
+//   retry, never for a skip, a missing file, the floor, or 2D (FR-032), and logs each picture's and clip's change in a
+//   drafts build's frame log (FR-035).
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
@@ -86,7 +91,7 @@ import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
-import type { SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
+import type { FigureSignal, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
@@ -260,6 +265,21 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     copy?.setPausedAt(state.paused ? state.pausedAt : null);
   });
 
+  /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
+  let avatarFailed = false;
+  function figureSignal(signal: FigureSignal): void {
+    if (signal.kind === "failed") {
+      if (avatarFailed) return;
+      avatarFailed = true;
+      emit({ kind: "avatar_failed" });
+      return;
+    }
+    if (!log) return;
+    if (signal.kind === "picture")
+      log.record("figure", { figure: signal.figure, shows: signal.shows, why: signal.why });
+    else log.record("clip", { figure: signal.figure, role: signal.role });
+  }
+
   const app = doc.getElementById("app") ?? doc.body;
   const screen = h(doc, "div", { class: "screen" });
   const announcer = createAnnouncer(doc);
@@ -359,6 +379,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         region: uiWord(deps.room.ui, "walk.region") ?? "",
         help: uiWord(deps.room.ui, "walk.help") ?? "",
       },
+      // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
+      standIn: deps.room.copy.some((e) => "line" in e && e.line === "twin.stand_in")
+        ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
+        : "",
     });
     room = layout;
     // Spec 008's walking control (FR-020 to FR-022, FR-051): it enters and leaves the 3D stage's walking view.
@@ -464,6 +488,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         ...(typefaces ? { typefaces } : {}),
         text,
         cost: cost.state,
+        onFigure: figureSignal,
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.

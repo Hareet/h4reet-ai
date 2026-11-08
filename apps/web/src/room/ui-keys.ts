@@ -58,6 +58,10 @@ export const UI_KEYS = {
   "walk.entered": [],
   "walk.left": [],
   "walk.target": ["name"],
+  // Spec 009's stand-in line (its FR-013, FR-039): in the stage's note and first in "Around the room" while the twin's
+  // figure shows anything but the twin's own avatar. It states nothing about the Author but that the figure isn't the
+  // Author's likeness.
+  "twin.stand_in": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;

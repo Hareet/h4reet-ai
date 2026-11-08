@@ -54,7 +54,7 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
   });
 
   it("shows in the stage's note and first in Around the room in 3D, as text a screen reader reads", async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await enter(v, "engineer", "woman");
     expect(v.room.visit.mode).toBe("3d");
     const line = standInLine(v);
@@ -73,7 +73,7 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
     expect(flat.room.visit.mode).toBe("2d");
     expect(textOf(standInLine(flat))).toBe(STAND_IN);
     expect(aroundLines(flat)[0]).toBe(STAND_IN);
-    const v = start();
+    const v = start({ webgl: true });
     await intoRoom(v);
     button(v.doc, "2D view").click();
     await flush();
@@ -97,7 +97,7 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
 
   it("lets a pointer or a touch pass through the note to the scene, and takes no room in the layout", () => {
     const rules = stylesheets().flatMap((s) => parseCss(s.text).rules);
-    const v = start();
+    const v = start({ webgl: true });
     const probe = v.doc.createElement("div");
     probe.className = "room-notes";
     const declared = (property: string): string | undefined =>
@@ -110,7 +110,7 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
   });
 
   it("passes axe with the line shown", async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await intoRoom(v);
     expect(textOf(standInLine(v))).toBe(STAND_IN);
     expect(await axeViolations(v)).toEqual([]);
@@ -119,7 +119,7 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
 
 describe("avatar_failed (FR-032, FR-033; R-14; SC-011)", () => {
   it("is sent once a visit, with no identifier, on the first figure file that failed after its retry", async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await enter(v, "engineer", "woman");
     signal(v, { kind: "failed" });
     signal(v, { kind: "failed" });
@@ -128,7 +128,7 @@ describe("avatar_failed (FR-032, FR-033; R-14; SC-011)", () => {
   });
 
   it("is never sent for a skip, a missing file, the floor, a room in 2D, or an avatar shown", async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await enter(v, "engineer", "woman");
     for (const why of ["skipped", "no-file", "floor", "2d", "late"] as const)
       signal(v, { kind: "picture", figure: "visitor", shows: "fallback", why });
@@ -150,7 +150,7 @@ describe("avatar_failed (FR-032, FR-033; R-14; SC-011)", () => {
 
 describe("the frame log's figures (FR-035)", () => {
   it("records each figure's picture change and clip in a drafts build, in page memory", async () => {
-    const v = start({ frameLog: (o) => createFrameLog(o) });
+    const v = start({ webgl: true, frameLog: (o) => createFrameLog(o) });
     await enter(v, "engineer", "woman");
     signal(v, { kind: "picture", figure: "visitor", shows: "avatar", why: null });
     signal(v, { kind: "picture", figure: "twin", shows: "fallback", why: "no-file" });
@@ -167,7 +167,7 @@ describe("the frame log's figures (FR-035)", () => {
   });
 
   it("keeps no log in a release build", async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await enter(v, "engineer", "woman");
     signal(v, { kind: "picture", figure: "visitor", shows: "avatar", why: null });
     expect((v.win as unknown as { h4FrameLog?: unknown }).h4FrameLog).toBeUndefined();
@@ -178,7 +178,7 @@ describe("degraded (FR-001, FR-002, FR-007; SC-002)", () => {
   it("makes the 3D stage for the avatars as always with the live source off, and the chosen avatar its own", async () => {
     const index = roomIndex();
     expect(index.live.source).toBe("off");
-    const v = start({ room: { ...index, live: { ...index.live, source: "off", turn: "off" } } });
+    const v = start({ webgl: true, room: { ...index, live: { ...index.live, source: "off", turn: "off" } } });
     await enter(v, "engineer", "woman");
     expect(v.scene.created).toHaveLength(1);
     expect(v.scene.created[0]?.avatar).toBe("woman");
@@ -186,7 +186,7 @@ describe("degraded (FR-001, FR-002, FR-007; SC-002)", () => {
   });
 
   it("stays usable with an avatar failed: the disclosure and the stand-in line visible, the list selecting every piece", async () => {
-    const v = start();
+    const v = start({ webgl: true });
     await intoRoom(v);
     signal(v, { kind: "failed" });
     signal(v, { kind: "picture", figure: "twin", shows: "fallback", why: "failed" });

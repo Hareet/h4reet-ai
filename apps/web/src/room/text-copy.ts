@@ -10,8 +10,9 @@
 //   abbreviation of "estimated" (contracts/turn-cost.md §8), so the index's `figures` entry adds nothing of its own;
 // - a switch: its label and the sentence of the tier the room shows, `tier.<value>`: not-live until the tier signal
 //   applies another through setTier (signals/live.ts), in the same call as the switch's case;
-// - a fixed line: its UI word (`sign.not_affiliated` with the neon sign, `around.illustration` once the monitor's face
-//   is bound), but `pause.paused_at` only while the room is paused, "Paused at HH:MM", its {time} the live value
+// - a fixed line: its UI word (spec 009's `twin.stand_in` first, always while the twin's figure shows a stand-in;
+//   `sign.not_affiliated` with the neon sign, `around.illustration` once the monitor's face is bound), but
+//   `pause.paused_at` only while the room is paused, "Paused at HH:MM", its {time} the live value
 //   setPausedAt gives (motion.ts; FR-060), in its place in copy[]'s order, and gone on resume; a hidden page shows none.
 // Updates replace text in place, in no live region, so a poll announces nothing (FR-063). The section is a Tab stop,
 // the last of the room's before the resume (FR-065; Amendment B8), and every tier value has its own sentence, so no state

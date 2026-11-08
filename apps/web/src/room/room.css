@@ -187,10 +187,21 @@ body.in-room .disclosure p {
   cursor: grab;
 }
 
-.room-note {
+/* The stage's notes, over the view's top left: the placeholder note and spec 009's stand-in line, each its own
+   paragraph. They take no room in the layout and let a pointer or a touch through to the scene (spec 009, FR-029). */
+.room-notes {
   position: absolute;
   left: 0.5rem;
   top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
+.room-note {
   margin: 0;
   padding: 0.125rem 0.5rem;
   font-size: 0.75rem;

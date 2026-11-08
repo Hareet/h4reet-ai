@@ -7,8 +7,10 @@
 // - Its events: enter, pause, resume, hide, and show; each request's start (`request`) and its result (`result`, with
 //   `outcome` "ok" or its `why`, and its `status`); each reduction's tier and row (`tier`); each fallback cue
 //   (`fallback`); each new switch case (`case`), with the frame on which the 3D room first drew it, or in 2D the
-//   time it was applied; and each change of the room's target (`target`, spec 008's FR-054 and plan.md §3.4), with the
-//   selectable's `id`, or null, and the `input` that made it: pointer, press, focus, reach, select, or reset.
+//   time it was applied; each change of the room's target (`target`, spec 008's FR-054 and plan.md §3.4), with the
+//   selectable's `id`, or null, and the `input` that made it: pointer, press, focus, reach, select, or reset; and spec
+//   009's figures: each picture's change (`figure`, with `figure`, `shows`, and `why`) and each clip's (`clip`, with
+//   `figure` and `role`).
 // - In a drafts build, the console's h4FrameLog() returns it as JSON, which the Author copies out for
 //   scripts/room/har_check.py. It is never stored or sent.
 import type { Clock } from "../clock";
@@ -30,7 +32,10 @@ export type FrameEvent =
   | "fallback"
   | "case"
   | "target"
-  | "walk";
+  | "walk"
+  // Spec 009's figures (its FR-035; plan.md §3.4): a picture's change (`figure`, `shows`, `why`) and a clip's.
+  | "figure"
+  | "clip";
 
 /** A field an entry carries beside its four. */
 export type FrameField = string | number | boolean | null;
