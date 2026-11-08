@@ -27,6 +27,17 @@ Proposed, as `feat/007-twin-conversation` builds it:
 
 The five provisional answers this rests on, each the Author's to overturn: the answer arrives whole after the guards (Q1); the Author marks readiness by hand at the hashes his live runs passed (Q2); a guard's failure replaces the answer, with no retry (Q3); a ready piece's selection makes one generated opening (Q4); and the twin may state a filled, public-safe slot's amount from its grounding, never a live cost (Q5).
 
+## As built
+
+`feat/007-twin-conversation` builds the decision above; spec 007's plan.md records each departure (D1 to D18). The ones that bear on this decision:
+
+- `twin_unavailable` answers before readiness, since readiness needs the files' hashes (D6). Migration `0004_twin.sql` adds the purpose, the ledger's piece and topic, the audit action `twin_call`, and the view `gateway.v_twin_models` for the dashboard (D7).
+- The fit check measures the prompt the route sends, against `limits.twin` when it's set and FR-027's defaults when not; at the defaults the margins are thin (hobbies and travel 585 characters, mission 423, work projects 1,686), so a corpus that grows needs P-2's `max_input_chars` raised (D5, D17).
+- A turn's grounding bound counts the longer path's instructions, so a question gets the same sections on either path (D14).
+- Before the eight guards, an answer cut at a `length` finish is trimmed to its last whole sentence (plan §5).
+- The product cases hold 138 golden cases and 48 gap cases, one for each empty slot and `[?]` gap on each path (D15); the red-team suite holds a case for every public "Do not claim" bullet, and its live mode's entry is `redteam/live.py` behind `make redteam-live`, since `redteam/run.py` imports no `importlib` (D16).
+- The prompt quotes the corpus's own words for each refusal and promise (D17).
+
 ## Alternatives considered
 
 - **A `services/twin` container calling the gateway over HTTP.** A new service row, an internal endpoint that takes arbitrary prompts, a second hop, and telemetry split in two. Rejected.
